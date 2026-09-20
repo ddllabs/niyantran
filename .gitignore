@@ -36,5 +36,13 @@ tmp/
 .env
 .env.local
 .env.*.local
+backend/.env
+
+# Excluded private folders
+tenderbase-onboard/
+
+# Vite temporary files
+vite.config.js.timestamp-*
+*.timestamp-*.mjs
 
 

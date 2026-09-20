@@ -25,7 +25,15 @@ function isMarketingOverlayPath() {
     .replace(/^#/, '')
     .replace(/^\/+/, '')
     .toLowerCase();
-  return raw.startsWith('pricing') || raw.startsWith('login') || raw.startsWith('signup');
+  return (
+    raw.startsWith('pricing') ||
+    raw.startsWith('login') ||
+    raw.startsWith('signup') ||
+    raw.startsWith('forgot-password') ||
+    raw.startsWith('reset-password') ||
+    raw.includes('type=recovery') ||
+    raw.includes('error_code=')
+  );
 }
 
 function ensurePersonaFromSession() {
@@ -75,7 +83,7 @@ export default function App() {
           setMktOverlay(false);
           setPersonaReady(ensurePersonaFromSession());
           const h = location.hash.toLowerCase();
-          if (h.includes('login') || h.includes('signup') || h.includes('pricing')) {
+          if (h.includes('login') || h.includes('signup') || h.includes('pricing') || h.includes('forgot') || h.includes('reset')) {
             location.hash = '#/';
           }
         }}

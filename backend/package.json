@@ -1,0 +1,17 @@
+{
+  "name": "niyantran-backend",
+  "version": "1.0.0",
+  "description": "Niyantran AI Backend and Authentication Module",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}
