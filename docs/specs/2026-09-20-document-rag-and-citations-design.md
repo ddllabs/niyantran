@@ -252,10 +252,16 @@ export type CitationSource =
       file_name?: string; file_url?: string; desk_tier?: string; desk_feature?: string;
       char_from: number; char_to: number; text_hash: string;
       source_kind: 'document' | 'pdf_page'; page_number?: number }
-  | { id: number; kind: 'row'; /* declared in desk-row-grounding */ };
+  | { id: number; kind: 'row';
+      tier: string; feature: string; row_key: string; title: string;
+      row_snapshot: Record<string, string>;   // the slim row as cited
+      snapshot_at: string | null };            // null for the injected selection
 ```
 
-`text_hash = sha256(normalise(content))`.
+`text_hash = sha256(normalise(content))`. The `row` variant is fixed by
+`desk-row-grounding` §G and reproduced here verbatim because this module
+owns `src/types/citation.js`; the two modules run concurrently and must not
+both edit it.
 
 **`src/ai/SourceReader.jsx`** (new) opens inside the AI dock when a `text`
 bubble is clicked: reads the `documents` row through the Supabase client
@@ -319,8 +325,8 @@ and their tests, `supabase/functions/_shared/tools/searchDocuments.ts`,
 `supabase/functions/ingest-documents/`, `supabase/migrations/*chunk_commit*`,
 `supabase/migrations/*match_documents*`, `scripts/ingest-national-desk.mjs`,
 `src/lib/citationMarkers.js`, `src/lib/textNormalise.js`,
-`src/ai/SourceReader.jsx`, `src/ai/SourceList.jsx`, `src/types/citation.js`,
-`ingest/` (gitignored) and the `.gitignore` line for it.
+`src/ai/SourceReader.jsx`, `src/ai/SourceList.jsx`, `src/types/citation.js`
+(both variants), `ingest/` (already gitignored by `ai-backend-foundation`).
 
 **Not touched:** `AiPanel.jsx`, `AiMarkdown.jsx`, `aiDrop.js`,
 `sourceUrls.js`, `citationGuard.js`, the legacy path, `backup/`,

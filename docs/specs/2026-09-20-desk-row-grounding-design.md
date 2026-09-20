@@ -192,7 +192,8 @@ that places it belongs to `streaming-research-agent`.
 ### G. The `row` citation — fixed interface
 
 ```ts
-// extends CitationSource in src/types/citation.js
+// the `row` variant of CitationSource. The file src/types/citation.js is owned
+// by document-rag-and-citations §H, which reproduces this declaration verbatim.
 | { id: number; kind: 'row';
     tier: string; feature: string; row_key: string; title: string;
     row_snapshot: Record<string, string>;   // the slim row as cited
@@ -251,8 +252,12 @@ psql "$DB_URL" -c "select feature, count(*) from desk_rows group by 1 order by 2
 tests, `supabase/functions/_shared/tools/searchDeskRows.ts`,
 `supabase/functions/_shared/deskCatalog.json` (generated),
 `supabase/migrations/*search_desk_rows*`, `scripts/load-desk-rows.mjs`,
-`scripts/build-desk-catalog.mjs`, `src/ai/openRowSource.js`, the `row`
-variant in `src/types/citation.js`.
+`scripts/build-desk-catalog.mjs`, `src/ai/openRowSource.js`.
+
+`src/types/citation.js` is **not** in this scope: the `row` variant (§G) is
+declared verbatim in `document-rag-and-citations` §H, which owns the file.
+The two modules run concurrently; this one consumes the type and never
+edits it.
 
 **Not touched:** `AiPanel.jsx`, `aiDrop.js`, `sourceUrls.js` (read; ported,
 not edited), `catalog.js` (read; generated from), `RecordDetail.jsx` (used,

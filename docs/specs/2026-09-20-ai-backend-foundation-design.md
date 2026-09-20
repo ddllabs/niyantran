@@ -326,6 +326,9 @@ diverge.
 - `.env.example` gains `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
   `VITE_AI_BACKEND=legacy`. `supabase/.env.local` (gitignored) holds
   `OPENROUTER_API_KEY` for `supabase functions serve`.
+- `.gitignore` gains `supabase/.env.local`, `supabase/.temp/` and `ingest/`
+  — the last is the corpus staging folder `document-rag-and-citations`
+  reads from, ignored here so that module never touches `.gitignore`.
 
 ### E. Persona mapping
 

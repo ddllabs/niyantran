@@ -314,11 +314,15 @@ supabase functions deploy research-chat                  # owner authorises
 
 `supabase/functions/research-chat/` (`index.ts`, `handler.ts`, `agent.ts`,
 `prompt.ts`, `answerStream.ts`, `repair.ts`, `telemetry.ts`, tests),
-`supabase/functions/_shared/{openrouterStream,models,chatStream,handles,reasoningSegments,personaMap}.ts`
-and tests, `supabase/functions/_shared/personas/*.md` (generated),
-`scripts/sync-personas.mjs`, `src/ai/AiPanel.jsx` (send path and thread
-renderer only), `src/ai/AiMarkdown.jsx`, `src/ai/{ActivityTicker,CitationBubble,ModelPicker}.jsx`,
-`src/lib/{researchChat,aiConversations,aiModels,reasoningSegments}.js`,
+`supabase/functions/_shared/{openrouterStream,handles,reasoningSegments}.ts`
+and tests; `supabase/functions/_shared/{models,chatStream,personaMap}.ts` and
+`src/lib/aiModels.js` — **created by `ai-backend-foundation`, completed
+here**; the two modules are sequential, never concurrent, so this is a
+hand-over, not a shared scope; `supabase/functions/_shared/personas/*.md`
+(generated), `scripts/sync-personas.mjs`, `src/ai/AiPanel.jsx` (send path
+and thread renderer only), `src/ai/AiMarkdown.jsx`,
+`src/ai/{ActivityTicker,CitationBubble,ModelPicker}.jsx`,
+`src/lib/{researchChat,aiConversations,reasoningSegments}.js`,
 `src/lib/aiClient.js` (additive), `src/admin/AiModelsPage.jsx`.
 
 **Not touched:** `aiChatStore.js`, `aiDrop.js`, `aiModelsStore.js` (legacy
