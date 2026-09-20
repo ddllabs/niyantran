@@ -4,6 +4,7 @@ import {
   authenticateUser,
   hydrateUsersFromServer,
   setSessionUser,
+  userFromSupabase,
   userTypeOf,
 } from '../lib/userStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
@@ -91,13 +92,13 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
           .eq('user_id', authData.user.id)
           .maybeSingle();
 
-        const type = 'analyst';
-        const name = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : user.split('@')[0];
-        const persona = profile?.persona || type;
-        applyPersonaForUser({ name, email: user, type: persona, personaId: persona });
-        setSessionUser({ name, email: user, type: persona, personaId: persona });
-        sessionStorage.setItem('niyantranLand', userTypeOf(persona).startTab);
-        await hydrateUserPrefs(user);
+        // The profile stores the app_persona enum (e.g. policy_analyst); the
+        // session bridge maps it to the frontend persona id via personaMap.
+        const pub = userFromSupabase(authData.user, profile);
+        applyPersonaForUser(pub);
+        setSessionUser(pub);
+        sessionStorage.setItem('niyantranLand', userTypeOf(pub.type).startTab);
+        await hydrateUserPrefs(pub.email);
         onSuccess();
         return;
       }
