@@ -263,7 +263,33 @@ Correct this section when observations become stale.
   of modules that hold thousands. Read
   `docs/research/2026-09-20-ai-path-audit.md` before touching `src/ai/` or
   `server/aiApi.mjs`.
-- The Supabase project `NTER` has six tables, no edge functions and no `vector`
-  extension as of 2026-09-20; the AI backend is designed in
-  `docs/specs/2026-09-20-ai-backend-foundation-design.md` and its three sibling
-  specs, on the decisions in `docs/decisions/`.
+- The Supabase project `NTER` carries, as of 2026-09-21, the developer's six
+  auth tables plus eleven AI tables under RLS, the `vector`, `pg_cron` and
+  `pg_net` extensions, three deployed edge functions (`health`,
+  `refresh-model-pricing`, `admin-models`) and a twelve-hour pricing refresh.
+  The AI backend is designed in
+  `docs/specs/2026-09-20-ai-backend-foundation-design.md` and its three
+  sibling specs; the executed foundation plan is
+  `docs/plans/2026-09-21-ai-backend-foundation.md`.
+- Schema changes exist only as files under `supabase/migrations/`, applied
+  to `NTER` and recorded in its migration history. `supabase link` is done
+  from this checkout; deploys go through `supabase functions deploy`.
+- Two test runners exist: `npm test` (Vitest, `src/**/*.test.js`) and
+  `deno test -A --config supabase/functions/deno.json supabase/functions`.
+  Run both for changes under `src/lib/`, `src/admin/` or `supabase/`.
+- `NTER`'s legacy `anon` and `service_role` API keys were disabled on
+  2026-09-21 after a `service_role` JWT was committed to the public `dev`
+  branch. Use the `sb_publishable_…` key in the browser and an `sb_secret_…`
+  key on servers, from the environment only. Never hard-code a key, not
+  even as a fallback; the publishable key is the one exception because it
+  is public by design.
+- Supabase Auth is wired by the developer's module: `server/authApi.mjs`
+  and `server/authEmailProvider.mjs` (switchable email provider),
+  `src/marketing/{Login,Signup,ForgotPassword,ResetPassword}Page.jsx`, and
+  `backend/sql/auth_schema.sql` as the auth schema's source. Email
+  confirmation is on; the project's SMTP is misconfigured until a verified
+  Resend domain is set (see the plan's launch gates).
+- `NTER` is a shared live project. Dashboard actions on it, especially
+  under Authentication → Users, are announced before they happen; on
+  2026-09-21 every user was deleted from the dashboard while another team
+  member was verifying against them.

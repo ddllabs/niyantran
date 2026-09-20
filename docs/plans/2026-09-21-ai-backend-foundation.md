@@ -3,8 +3,9 @@
 **Date:** 2026-09-21
 **Spec:** `docs/specs/2026-09-20-ai-backend-foundation-design.md` (module id
 `ai-backend-foundation`)
-> **Status:** Normative — the active plan. Becomes Historical (dated) when
-> every task below is verified and the supervisor has merged the branch.
+> **Status:** Historical (dated 2026-09-21) — executed, verified and merged
+> to `main` locally the same day. Kept as the record of what was built.
+> One owner input remains open and is listed under "Integration record".
 
 **Goal:** After this plan, the Supabase project `NTER` carries the complete
 AI schema under RLS with the `vector` extension, three deployed edge
@@ -546,6 +547,54 @@ Filled in by the supervisor as tasks land. Every row below is an execution.
 ## Launch gates recorded during execution
 
 - **Email confirmation is switched off (2026-09-21, owner's decision "autoconfirm").** The project's custom SMTP (Resend) was misconfigured — username must be `resend` with an API key, and `onboarding@resend.dev` is a sandbox sender — so every signup failed with "Error sending confirmation email". `mailer_autoconfirm` was set true and `site_url` corrected from `http://localhost:3000` to `http://localhost:5173` through the management API. **Before launch:** configure a verified Resend domain and key in Authentication → SMTP, set `site_url` to the production origin, and set `mailer_autoconfirm` back to false.
+
+## Integration record (2026-09-21, later the same day)
+
+- **The developer's `origin/dev` branch** (one commit, 45 files, a full
+  Supabase Auth module with switchable email providers, forgot and reset
+  password pages, and `backend/sql/auth_schema.sql`, the origin of the
+  baseline schema) was reviewed and merged into local `main` with a merge
+  commit. It builds with the two baseline warnings. Its SQL file is
+  idempotent and its `DROP` statements target only its own triggers and
+  policies, so the foundation's additive schema survives a re-run.
+- **A live `service_role` JWT was hard-coded** in
+  `server/authEmailProvider.mjs` on that public branch. On the owner's word
+  the project's legacy API keys were disabled (management API, 20:46 UTC);
+  the leaked key now returns 401 on REST and the auth admin API. The
+  fallback was removed on `main` in a fix commit and `.env.example` now
+  points at `sb_secret_…` keys. The developer must move to the new keys in
+  their local env. Rewriting the public branch history is the developer's
+  call; the key is dead regardless.
+- **The foundation branch was rebased onto the merged `main`.** Task 8's
+  login and signup page edits and `src/lib/supabaseAuth.js` were dropped in
+  favour of the developer's fuller implementation; `src/lib/supabaseClient.js`
+  is theirs plus `accessToken` and `functionsUrl`; the persona map, the
+  session bridge, the registry reader, Vitest and the admin editor were
+  kept. The developer's login page now maps `app_persona` to the frontend
+  persona through `userFromSupabase`; before, `policy_analyst` and the rest
+  fell through to the default persona. The Task 8 commit message on the
+  rebased branch still names the page edits it no longer contains.
+- **Edge functions read the new keys** (`SUPABASE_SECRET_KEYS` /
+  `SUPABASE_PUBLISHABLE_KEYS`, JSON keyed `default`, legacy names as
+  fallback) and were redeployed through the linked CLI; `verify_jwt = false`
+  for `refresh-model-pricing` is declared in `config.toml`. Re-proven live:
+  health 200, admin 403 for a plain user, refresh 200 with 446 rows.
+- **Every auth user was deleted from the Supabase Dashboard at 20:47:44 UTC**
+  (five `DELETE /auth/v1/admin/users/…` requests, user agent
+  `@supabase-infra/mgmt-api`, actor `service_role`): the owner's
+  `niyantranai+admin@gmail.com`, the developer's `mdnawajishashraf@gmail.com`,
+  `niyantranai@gmail.com` and both `nter-auth-test+…` aliases. Not the app,
+  not a script, not the supervisor. The AI tables were untouched. The one
+  user present afterwards is `nter-auth-test+1789929957415@gmail.com`,
+  recreated as a side effect of the supervisor's magic-link session mint.
+- **Open owner input:** the admin account. The owner signs up again (email
+  confirmation is on again, so the address must receive mail, or the owner
+  says "autoconfirm" once more for the duration) and names it; the
+  supervisor promotes it. Until then no account is `admin` and the allowlist
+  page is read-only for everyone.
+- **Coordination finding:** two people worked on the same live project at
+  the same time tonight, one from the dashboard. Any further dashboard
+  action on `NTER` should be announced in the shared channel first.
 
 ## Out of scope for this plan
 
