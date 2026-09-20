@@ -143,7 +143,11 @@ part and everything from `+`; other domains only lower-cased.
 | `supabase/migrations/20260921_0003_corpus_and_desk.sql` | `documents`, `document_chunks`, HNSW, `desk_rows`, RLS (tables only; RPCs come with their modules) |
 | `supabase/migrations/20260921_0004_telemetry_and_pricing.sql` | `model_call_logs`, `chat_turn_traces`, `model_pricing`, RLS |
 | `supabase/migrations/20260921_0005_allowlist.sql` | `ai_models`, `ai_roles`, lock-out trigger, one-default index, RLS |
-| `supabase/migrations/20260921_0006_pricing_schedule.sql` | `pg_cron` + `pg_net` job every twelve hours; secret read from Vault |
+| `supabase/migrations/20260921_0006_health_rpc.sql` | `ai_health()` — PostgREST cannot read `pg_extension`, so a definer probe reports it plus the counts and `auth.uid()` |
+| `supabase/migrations/20260921_0007_pricing_reconcile_and_schedule.sql` | `model_pricing_reconcile(jsonb)` (atomic upsert, unavailable marking, allowlist disable) and the `pg_cron` + `pg_net` job every twelve hours; secret read from Vault |
+| `supabase/migrations/20260921_0008_admin_models_rpc.sql` | `admin_models_upsert(text, jsonb)` — transactional merge upsert used by `admin-models` |
+| `src/lib/supabaseAuth.js` | `signIn` / `signUp` over Supabase Auth returning the demo store's `{ ok, user | reason }` shape |
+| `src/admin/AllowlistEditor.jsx`, `src/admin/allowlistEditor.js` | the flag-on branch of the admin page and its pure helpers (tested in node) |
 | `supabase/functions/_shared/*.ts` | as in Fixed interfaces |
 | `supabase/functions/health/index.ts` | the verification gate |
 | `supabase/functions/refresh-model-pricing/index.ts` | catalogue → `model_pricing`; disables dropped allowlist rows |
@@ -524,11 +528,20 @@ editor, unchanged, verified by a screenshot compared with `main`.
 
 ## Verification record
 
-Filled in by the supervisor as tasks land. Empty until then.
+Filled in by the supervisor as tasks land. Every row below is an execution.
 
-| Task | Commands run | Outcome | Date |
+| Task | Evidence | Outcome | Date |
 |---|---|---|---|
-| | | | |
+| 0 | `brew install deno supabase/tap/supabase` → Deno 2.9.7, CLI 2.117.0; `supabase init`; `npm ci && npm run build` | Build passes with the two baseline warnings. `supabase link` refused without `supabase login` (owner action); migrations and deploys went through the Supabase connector instead, which the owner authorised. | 2026-09-21 |
+| 1 | Migration applied; `normalise_email('First.Last+trial@Gmail.com')` → `firstlast@gmail.com`; `…@Example.org` keeps dots and plus; 0 null `email_normalised`; trigger present | Pass. Deviation: a `before insert or update of email` trigger on `user_profiles` fills the column, so the production `handle_new_user` definer function was not edited. Observation: 3 auth users and 3 profiles now, not the 9 of the 2026-09-20 baseline — six accounts were deleted outside this repository. | 2026-09-21 |
+| 2 | Migration applied; RLS simulated with two real uids (`set role authenticated` + `request.jwt.claims`): A inserts and sees 1, B sees 0, cleanup 1, no residue | Pass. Vacuity substituted: positive/negative control with the same data and different uid, rather than dropping the policy live. | 2026-09-21 |
+| 3 | Migrations applied; HNSW `vector_cosine_ops` index present; RLS true on all nine tables; 18 policies; anon holds no privileges; authenticated insert into `documents` refused by RLS | Pass. Note: Supabase default privileges give `authenticated` write privileges on new tables; RLS with no write policy is what refuses, as proven. | 2026-09-21 |
+| 4 | Migration applied; enabling a catalogued tool model ok (vendor derived); no-tools, unavailable and the placeholder `openai/gpt-6-astra` refused with the trigger message; default on a disabled row refused; second default refused; role on disabled model refused; role on enabled ok; **vacuity:** trigger disabled inside a rolled-back subtransaction → placeholder insert succeeded; trigger still enabled after; zero residue | Pass. | 2026-09-21 |
+| 5 | `deno test supabase/functions` 20 passed; **vacuity:** `requireUser` replaced by a constant → "401 without a token" failed by name, file restored byte-identical (sha256 match); deployed `health` v1 via connector; live: no token → 401 at the gateway, anon key → 401 `invalid or expired token` with CORS headers, preflight 204 | Pass except the live 200, which needs a user JWT (owner input). | 2026-09-21 |
+| 6 | Catalogue shape confirmed live (446 models, 378 with tools; pricing keys `prompt, completion, input_cache_read, input_cache_write, internal_reasoning`; `openai/text-embedding-3-small` present on `/api/v1/embeddings/models`); 6 Deno tests; **vacuity:** secret guard removed → "401 without the secret" failed; reconcile exercised live twice — dropped model marked unavailable and disabled, model that lost tools disabled, orphan role reported; `cron.job` row `0 */12 * * *` active; deployed v1; live: 401 no secret, 401 wrong secret, 405 GET | Pass. Two defects caught by the live test before commit and fixed: `now()` → `clock_timestamp()`, and explicit `revoke … from anon, authenticated` (default privileges had granted execute). | 2026-09-21 |
+| 7 | 7 Deno tests; **vacuity:** admin gate removed → "403 for a non-admin" failed; `admin_models_upsert` live: merge keeps untouched fields, default swap proven with separate statements, placeholder refused, role on unknown model refused, bad kind refused, privileges anon=false authenticated=false service_role=true; deployed v1; live: no token 401, anon key 401 | Pass except the 403/200 pair, which needs a user JWT and an admin account (owner inputs). Allowlist seed and role rows pending the owner's ids. | 2026-09-21 |
+| 8 | `npm test` 17 → 22 passed; **vacuity:** persona RPC removed from `signUp` → the persona test failed, file restored byte-identical; `npm run build` baseline warnings only; browser, flag unset: `student@niyantran` sign-in lands on the National desk as before | Pass except the flag-on signup, which the owner performs (test account creation is the owner's action). Dev server now runs flag-on from `.env.local` (gitignored). | 2026-09-21 |
+| 9 | Helper tests 5 passed; browser, flag unset: legacy editor renders the four role cards unchanged; browser, flag on, no session: allowlist editor renders read-only with "Sign in with an admin account", empty table, four seeded roles, catalogue picker empty until pricing is loaded | Pass except the admin save round-trip, which needs the promoted account. Deviation: `AllowlistEditor` lives in its own file beside `AiModelsPage.jsx` so the legacy body has one changed line. | 2026-09-21 |
 
 ## Out of scope for this plan
 
