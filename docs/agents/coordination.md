@@ -258,3 +258,12 @@ Correct this section when observations become stale.
 - The repository is public and has a Vercel homepage. Public visibility is not
   permission to push, deploy, republish data, or assume tracked data is safe to
   redistribute elsewhere.
+- The Ask AI path is a single non-streaming call with no tool calling, no
+  configured key and no Supabase client; desk questions see at most eight rows
+  of modules that hold thousands. Read
+  `docs/research/2026-09-20-ai-path-audit.md` before touching `src/ai/` or
+  `server/aiApi.mjs`.
+- The Supabase project `NTER` has six tables, no edge functions and no `vector`
+  extension as of 2026-09-20; the AI backend is designed in
+  `docs/specs/2026-09-20-ai-backend-foundation-design.md` and its three sibling
+  specs, on the decisions in `docs/decisions/`.
