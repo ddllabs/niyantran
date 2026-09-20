@@ -32,7 +32,8 @@ Build order: `ai-backend-foundation` → `document-rag-and-citations` and
 
 ## Decisions
 
-Recorded from the owner's answers, 2026-09-20:
+Recorded from the owner's answers, 2026-09-20, and amended from the answers
+of 2026-09-21 (items 8–12):
 
 1. **Supabase Edge Functions host all new server code.** Vercel keeps the
    static site and the existing `api/ai/*` functions unchanged until a
@@ -51,9 +52,25 @@ Recorded from the owner's answers, 2026-09-20:
 7. **Credits and metering are deferred**, but `cost_usd` and token usage are
    logged on every model call from the first deploy, so metering can be
    switched on later without backfill.
-8. **Model pricing is refreshed from OpenRouter on a schedule**, ported
-   from the owner's other project; the registry of offered models lives in
-   code with a client mirror.
+8. **The model registry lives in the database, not in code.** An
+   `ai_models` allowlist table, global (no organisation scope), with an
+   enable toggle per model; the server is its authority
+   (`docs/decisions/0002`, amended). Only models present in the OpenRouter
+   catalogue can be enabled, which locks out the placeholder ids the frontend
+   carries today. The frontend reads the allowlist through the Supabase
+   client; there is no generated mirror.
+9. **Model pricing is refreshed from OpenRouter every twelve hours**, the
+   cadence the owner's other project runs.
+10. **The admin "AI models" page becomes the allowlist editor** when the
+    flag is on, writing through a service-role edge function that requires
+    `is_platform_admin()`. With the flag off it is unchanged.
+11. **Roles stay as Niyantran's own routing layer** (default analyst, expert
+    escalation, PDF parser, visual research), each pointing at an allowlisted
+    model, stored in an `ai_roles` table instead of `localStorage`.
+12. **Supabase Auth is not wired anywhere** (owner, 2026-09-21). §A is the
+    full login and signup integration. **Email normalisation is capture-only**
+    for now: the folded address is stored, uniqueness is not enforced until
+    entitlements move server-side. **Vitest is approved.**
 
 ## What the owner receives
 
@@ -87,15 +104,19 @@ one (`ai-path-audit` §7). This module adds the client:
   existing `update_my_onboarding_profile` RPC using the canonical mapping in
   §E.
 - When the flag is `legacy`, login is unchanged.
-- Signup normalises the email for uniqueness: a `email_normalised` column on
-  `user_profiles` (lower-cased, Gmail `+suffix` and dots stripped) with a
-  unique index, set by the `handle_new_user` trigger. A collision raises,
-  which aborts the `auth.users` insert. **Ask first** — see Open questions.
+- Signup captures a folded email, `user_profiles.email_normalised`, set by
+  the `handle_new_user` trigger and backfilled for the existing rows: the
+  address is lower-cased; for `gmail.com` and `googlemail.com` the dots in
+  the local part and any `+suffix` are removed; other domains are only
+  lower-cased, because dots are significant there. **No unique index in this
+  cut.** Enforcement is a one-line follow-up when entitlements go
+  server-side, and the test accounts that would collide are deleted in that
+  same task. The folding function is `public.normalise_email(text)`, so the
+  later unique index and any dedupe query use the same rule.
 
-**Open question, decision-gating for the plan:** the nine Supabase users
-were created outside this repository. If Supabase Auth is already wired in a
-branch or a Lovable build the supervisor has not seen, that wiring is adopted
-and this section shrinks to the session bridge. If not, this section stands.
+The nine Supabase users were created outside this repository, and the owner
+confirmed on 2026-09-21 that Supabase Auth is wired nowhere in this product.
+This section is therefore the full integration, not a session bridge.
 
 ### B. Schema
 
@@ -260,13 +281,44 @@ create table public.model_pricing (
   is_available            boolean not null default true,
   fetched_at              timestamptz not null default now()
 );
+
+-- Allowlist (owned here; the server's authority for what may be called)
+create table public.ai_models (
+  model_id     text primary key,              -- OpenRouter id, e.g. 'google/gemini-…'
+  label        text not null,                 -- picker label
+  vendor       text not null,                 -- derived from the id prefix at insert
+  tier         smallint not null default 2 check (tier between 1 and 3),   -- cost hint
+  efforts      text[] not null default '{}',  -- reasoning values the model accepts
+  params       jsonb not null default '{}',   -- per-model inference defaults (temperature, max_tokens…)
+  enabled      boolean not null default false,
+  is_default   boolean not null default false,
+  sort_order   int not null default 100,
+  updated_at   timestamptz not null default now()
+);
+create unique index ai_models_one_default on public.ai_models (is_default) where is_default;
+-- Trigger: an enabled row must exist in model_pricing with is_available and
+-- 'tools' in supported_parameters; otherwise raise. This is the lock-out.
+
+-- Roles: Niyantran's routing layer over the allowlist
+create table public.ai_roles (
+  role_id     text primary key,               -- 'DEFAULT_ANALYST' | 'EXPERT_ESCALATION' | 'PDF_PARSER' | 'VISUAL_RESEARCH'
+  label       text not null,
+  hint        text not null,
+  model_id    text not null references public.ai_models(model_id),
+  sort_order  int not null default 100,
+  updated_at  timestamptz not null default now()
+);
 ```
+
+`ai_models` starts empty. The allowlist is seeded by the supervisor after
+the first pricing refresh, from the live catalogue, with the owner's approval
+of each id (Open question 5). Nothing in this module hard-codes a model id.
 
 **Row-level security**, all tables enabled:
 
 | Table | `authenticated` | writes |
 |---|---|---|
-| `documents`, `document_chunks`, `desk_rows`, `model_pricing` | `select using (true)` | service role only |
+| `documents`, `document_chunks`, `desk_rows`, `model_pricing`, `ai_models`, `ai_roles` | `select using (true)` | service role only (`ai_models`, `ai_roles`: through `admin-models`) |
 | `conversations`, `chat_messages`, `chat_cancellations` | select / insert / update / delete where `user_id = auth.uid()` | same |
 | `model_call_logs`, `chat_turn_traces` | `select using (user_id = auth.uid())` | service role only |
 
@@ -291,44 +343,68 @@ supabase/
       auth.ts          # requireUser(req) → { userId, token } or 401
       supabase.ts      # userClient(token) and serviceClient()
       logging.ts       # structured log lines; never a secret, never a key
-      models.ts        # the registry (contents fixed by streaming-research-agent)
+      models.ts        # loadRegistry(serviceClient) → enabled ai_models + ai_roles; resolveModel(id)
       chatStream.ts    # the SSE frame union and sender (used by research-chat)
     health/index.ts
     refresh-model-pricing/index.ts
+    admin-models/index.ts
 ```
 
 `health` (GET, JWT required) returns
-`{ ok, version, vector: boolean, registry_sha, pricing_rows, user_id }`. It
-is the verification gate for the whole module: it proves the JWT is
+`{ ok, version, vector: boolean, pricing_rows, models_enabled, user_id }`.
+It is the verification gate for the whole module: it proves the JWT is
 verified, the caller's `auth.uid()` reaches the database, `vector` is
-installed, and the registry deployed matches the client mirror (`registry_sha`
-is compared by the frontend at startup and logged if different).
+installed, and the pricing and allowlist tables are readable.
 
 `refresh-model-pricing` (POST, service role or a shared header secret,
 never the browser) fetches OpenRouter's model catalogue, upserts
 `model_pricing`, and marks rows absent from the catalogue `is_available =
-false`. Scheduled by `pg_cron` calling it through `pg_net` every six hours;
-the schedule is a migration.
+false`. Scheduled by `pg_cron` calling it through `pg_net` every twelve
+hours; the schedule is a migration. When a model leaves the catalogue, its
+`ai_models` row is set `enabled = false` in the same transaction and the
+event is logged, so the picker never offers a model the gateway dropped.
 
-The registry (`_shared/models.ts`) is the authority (`docs/decisions/0002`).
-`src/lib/aiModels.js` is its mirror, generated by
-`scripts/sync-ai-registry.mjs` and checked by a test that fails when the two
-diverge.
+`admin-models` (GET returns every `ai_models` and `ai_roles` row including
+disabled ones; PUT upserts one model or role; JWT required and
+`is_platform_admin()` must be true, checked server-side on every request)
+is the only write path to the allowlist. It runs with the service role after
+the check. All nine existing accounts have `role = 'user'`, so the owner
+names which account is promoted to `admin` before the page is usable.
+
+`_shared/models.ts` reads the allowlist with the service client, caches it
+for sixty seconds per isolate, and exposes `resolveModel(id)` which returns
+the row or `null`; a caller that gets `null` refuses with 400
+(`docs/decisions/0002`). The browser reads the same tables through
+`src/lib/aiRegistry.js` with the anon client under RLS; there is no
+generated mirror and nothing to keep in parity.
 
 ### D. Backend flag and client wiring
 
 - `src/lib/aiBackend.js`: `export function aiBackend()` returns `'supabase'`
   only when `import.meta.env.VITE_AI_BACKEND === 'supabase'`; otherwise
   `'legacy'`.
-- The flag is read in exactly two places: the auth pages (§A) and
-  `AiPanel.jsx`'s send path (owned by `streaming-research-agent`). Nothing
-  else branches on it.
+- The flag is read in exactly three places: the auth pages (§A), the admin
+  models page (§D.1) and `AiPanel.jsx`'s send path (owned by
+  `streaming-research-agent`). Nothing else branches on it.
 - `.env.example` gains `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
   `VITE_AI_BACKEND=legacy`. `supabase/.env.local` (gitignored) holds
   `OPENROUTER_API_KEY` for `supabase functions serve`.
 - `.gitignore` gains `supabase/.env.local`, `supabase/.temp/` and `ingest/`
   — the last is the corpus staging folder `document-rag-and-citations`
   reads from, ignored here so that module never touches `.gitignore`.
+
+#### D.1 Admin allowlist editor
+
+`src/admin/AiModelsPage.jsx` gains one branch on the flag. With the flag on
+it renders the allowlist from `admin-models`: one row per `ai_models`
+entry with label, vendor, tier, efforts, enable toggle and default radio,
+plus an "add from catalogue" picker listing `model_pricing` rows that are
+available and support tools. Below it, the four roles each pick from the
+enabled models. Saves go through `admin-models` PUT; a non-admin sees the
+list read-only with the server's 403 message. With the flag off the page is
+the existing `localStorage` editor, untouched. The provider select and free
+text model id of the legacy editor do not exist on the new branch: a model
+id is chosen from the catalogue or not at all.
 
 ### E. Persona mapping
 
@@ -354,8 +430,8 @@ module introduces two, deliberately:
 
 - **Deno's built-in runner** for edge functions: `deno test supabase/functions`.
   No dependency.
-- **Vitest** for `src/`: `npm test`. One devDependency. **Ask first** — see
-  Open questions. Every later module pins frontend behaviour here.
+- **Vitest** for `src/`: `npm test`. One devDependency, approved by the
+  owner on 2026-09-21. Every later module pins frontend behaviour here.
 
 Verification, each an execution:
 
@@ -367,15 +443,21 @@ Verification, each an execution:
 3. RLS: with two test users, user A's `select` on `conversations` returns
    only A's rows after B has inserted one. Executed with two real sessions.
 4. `refresh-model-pricing` populates `model_pricing` (`count(*) > 0`), and
-   the cron job appears in `cron.job`.
-5. Registry parity: the mirror test passes; edit one label in the mirror,
-   observe it fail, restore.
+   the cron job appears in `cron.job` with a twelve-hour schedule.
+5. Allowlist lock-out: inserting an `ai_models` row whose id is absent from
+   `model_pricing`, or present without `tools`, raises. **Vacuity:** drop the
+   trigger in a shadow database, observe the test pass wrongly, restore.
+   `admin-models` PUT returns 403 for a `role = 'user'` session and 200 for
+   an `admin` session, executed with two real sessions.
 6. With `VITE_AI_BACKEND` unset: `npm run build` passes with the same two
-   baseline warnings, and the legacy login and Ask AI placeholder behave as
-   today in a real browser.
+   baseline warnings, and the legacy login, the admin models page and the
+   Ask AI placeholder behave as today in a real browser.
 7. With `VITE_AI_BACKEND=supabase`: signup creates an `auth.users` row and a
-   `user_profiles` row with the chosen persona; a plus-aliased duplicate is
-   refused (if Open question 2 is approved).
+   `user_profiles` row with the chosen persona and a populated
+   `email_normalised`; a plus-aliased signup succeeds and its
+   `email_normalised` equals the original's. `normalise_email` has unit rows
+   for the Gmail dot and plus cases and a non-Gmail address that keeps its
+   dots.
 
 ### G. Commands
 
@@ -386,7 +468,7 @@ deno test supabase/functions                              # edge-function tests 
 supabase link --project-ref vfgcppstyzjarlzyqdac
 supabase db push                                          # apply migrations
 supabase functions serve --env-file supabase/.env.local   # local functions beside `vite`
-supabase functions deploy health refresh-model-pricing    # owner authorises each deploy
+supabase functions deploy health refresh-model-pricing admin-models   # owner authorises each deploy
 curl -sS -H "Authorization: Bearer $JWT" "$VITE_SUPABASE_URL/functions/v1/health"
 ```
 
@@ -394,13 +476,15 @@ curl -sS -H "Authorization: Bearer $JWT" "$VITE_SUPABASE_URL/functions/v1/health
 
 `supabase/` (new tree), `docs/`, `package.json` and lockfile
 (`@supabase/supabase-js`, `vitest`), `.env.example`, `.gitignore`,
-`src/lib/supabaseClient.js`, `src/lib/aiBackend.js`, `src/lib/personaMap.js`,
-`src/lib/aiModels.js` (generated), `scripts/sync-ai-registry.mjs`,
+`.claude/launch.json`, `src/lib/supabaseClient.js`, `src/lib/aiBackend.js`,
+`src/lib/personaMap.js`, `src/lib/aiRegistry.js`,
 `src/marketing/LoginPage.jsx`, `src/marketing/SignupPage.jsx`,
-`src/lib/userStore.js` (session bridge only).
+`src/lib/userStore.js` (session bridge only), `src/admin/AiModelsPage.jsx`
+(flag-on branch only).
 
 **Not touched:** `server/`, `api/`, `src/ai/`, `src/desks/`, `src/shell/`,
-`src/admin/`, billing, `backup/`, `public/data/`, `public/legacy/`.
+`src/admin/` except `AiModelsPage.jsx`, `src/lib/aiModelsStore.js`,
+billing, `backup/`, `public/data/`, `public/legacy/`.
 
 ## Boundaries
 
@@ -418,10 +502,13 @@ curl -sS -H "Authorization: Bearer $JWT" "$VITE_SUPABASE_URL/functions/v1/health
 - Two runtimes (Node for Vite, Deno for functions) and two test runners.
 - The corpus, desk snapshot and telemetry tables exist before anything
   writes to them; they are empty until their modules run.
-- Registry contents are code; adding a model is a deploy. That is the price
-  of the server being the authority.
-- Email normalisation, if approved, is a behaviour change at signup for a
-  product with nine test accounts.
+- Adding a model is an admin toggle, not a deploy; the price is that the
+  server reads the allowlist on each cold start and every sixty seconds, and
+  that a wrong toggle takes effect within a minute.
+- Email folding is captured but not enforced; the trial-farming hole the
+  audit found stays open until entitlements exist, by the owner's decision.
+- One account must be promoted to `admin` by hand before the allowlist can
+  be edited from the page.
 
 ## Out of scope
 
@@ -434,9 +521,16 @@ curl -sS -H "Authorization: Bearer $JWT" "$VITE_SUPABASE_URL/functions/v1/health
 
 ## Open questions
 
-1. **Is Supabase Auth already wired somewhere?** Decides the size of §A.
-2. **Email normalisation at signup** (§A) — approve, defer, or drop.
+Resolved 2026-09-21 (recorded in Decisions 8–12): Supabase Auth is not
+wired; email normalisation is capture-only; Vitest is approved; the refresh
+cadence is twelve hours; the registry lives in the database with the admin
+page as its editor.
+
+Still open:
+
 3. **`app_plan` enum vs the frontend's `gov` and `pro`** — out of scope here,
    but the owner should decide before billing moves server-side.
-4. **Vitest** as the frontend test runner — approve the dependency.
-5. **`refresh-model-pricing` cadence** — six hours proposed.
+5. **Initial allowlist, default model, repair model** — proposed by the
+   supervisor from the live catalogue after the first refresh, approved id
+   by id by the owner, inserted through `admin-models`.
+6. **Which account becomes `admin`** — the owner names it.

@@ -28,8 +28,10 @@ Recorded from the owner's answers, 2026-09-20:
    path only.
 5. **The legacy path is not edited.** With the flag off, `AiPanel.jsx` runs
    the same functions it runs today.
-6. **The model registry is code and the server is its authority**
-   (`docs/decisions/0002`); the picker reads a generated mirror.
+6. **The model allowlist lives in the database and the server is its
+   authority** (`docs/decisions/0002`, amended 2026-09-21); the picker reads
+   the same tables through `src/lib/aiRegistry.js` under RLS. Both the
+   tables and the reader are created by `ai-backend-foundation`.
 7. Web search, compaction and memories are later cuts.
 
 ## What the owner receives
@@ -164,16 +166,16 @@ checklist repeated verbatim in the user turn.
 - The SSE from OpenRouter is parsed into `ModelEvent`s: `reasoning`,
   `text-delta`, `tool-call` (arguments accumulated until complete),
   `finish` with usage.
-- **Registry.** `_shared/models.ts` lists each offered model with `id`,
-  `label`, `vendor`, `tier` (cost hint 1–3), `efforts` (the reasoning values
-  it accepts), and `default: true` on exactly one. Every entry must support
-  tool calling. The server resolves the request's `model` against the
-  registry and refuses an unknown id with 400. **Initial contents are
-  candidates copied from the reference registry and must be verified against
-  OpenRouter's live catalogue when the plan runs** — none is confirmed here:
-  a cost-optimised Google Flash as default, a Google Flash-Lite, Claude Haiku
-  4.5 and Claude Sonnet 5, a small GPT, DeepSeek V4 Flash, Qwen 3.7 Flash.
-  The owner picks the final list in the plan.
+- **Registry.** `_shared/models.ts` (foundation) loads the enabled
+  `ai_models` rows — `model_id`, `label`, `vendor`, `tier` (cost hint 1–3),
+  `efforts` (the reasoning values it accepts), `params`, `is_default` on
+  exactly one — and the `ai_roles` rows. The server resolves the request's
+  `model` with `resolveModel(id)` and refuses an unknown or disabled id with
+  400. This module adds nothing to the allowlist; its contents are the
+  owner's choice, made id by id from the live catalogue during the
+  foundation plan (foundation Open question 5). The repair-pass model is the
+  one deployment setting that stays in the environment, `AI_REPAIR_MODEL`,
+  and it too must be an enabled allowlist row.
 - **Failover.** A chain of at most three: the requested model, the default,
   one cheap fallback. Retry only on 429 and 5xx. A `response_format`
   rejection retries the **same** model once with the schema dropped. **Once
@@ -246,15 +248,16 @@ the **thread renderer** branch on `aiBackend()`:
   `SourceReader`; `row` → `openRowSource`. No `react-markdown`: the build
   already warns on chunk size and the hand-rolled renderer is sufficient.
 - `src/ai/SourceList.jsx` under each assistant message.
-- `src/ai/ModelPicker.jsx` (new) fed by `src/lib/aiModels.js` (the mirror)
-  and `model_pricing` for a relative cost hint; reasoning effort limited to
-  the chosen model's `efforts`.
+- `src/ai/ModelPicker.jsx` (new) fed by `src/lib/aiRegistry.js` (foundation:
+  enabled models, roles, and `model_pricing` for a relative cost hint);
+  models grouped by vendor; reasoning effort limited to the chosen model's
+  `efforts`; the role chips route to the role's model.
 - The composer gains a Stop button while streaming; focus and work mode are
   unchanged and sent as before.
 - `src/lib/aiClient.js`: `sendAiChat` is untouched; a sibling
   `sendResearchTurn` is added for the new path.
-- `src/admin/AiModelsPage.jsx`: becomes read-only over the registry when the
-  flag is on; unchanged when off.
+- `src/admin/AiModelsPage.jsx` is not touched here: the foundation module
+  already made it the allowlist editor (foundation §D.1).
 
 ### H. Testing and verification
 
@@ -272,7 +275,8 @@ Deno, no network, scripted model streams:
   brace and never emits text preceding the first `{`.
 - Static prompt prefix: two builds of the prompt for different
   conversations share a byte-identical prefix up to the dynamic block.
-- Segmenter parity; persona sync parity; registry mirror parity.
+- Segmenter parity; persona sync parity; a disabled allowlist row is refused
+  with 400 even when `model_pricing` still lists it.
 
 Vitest:
 
@@ -315,29 +319,31 @@ supabase functions deploy research-chat                  # owner authorises
 `supabase/functions/research-chat/` (`index.ts`, `handler.ts`, `agent.ts`,
 `prompt.ts`, `answerStream.ts`, `repair.ts`, `telemetry.ts`, tests),
 `supabase/functions/_shared/{openrouterStream,handles,reasoningSegments}.ts`
-and tests; `supabase/functions/_shared/{models,chatStream,personaMap}.ts` and
-`src/lib/aiModels.js` — **created by `ai-backend-foundation`, completed
-here**; the two modules are sequential, never concurrent, so this is a
-hand-over, not a shared scope; `supabase/functions/_shared/personas/*.md`
-(generated), `scripts/sync-personas.mjs`, `src/ai/AiPanel.jsx` (send path
-and thread renderer only), `src/ai/AiMarkdown.jsx`,
+and tests; `supabase/functions/_shared/{chatStream,personaMap}.ts` —
+**created by `ai-backend-foundation`, completed here**; the two modules are
+sequential, never concurrent, so this is a hand-over, not a shared scope;
+`supabase/functions/_shared/personas/*.md` (generated),
+`scripts/sync-personas.mjs`, `src/ai/AiPanel.jsx` (send path and thread
+renderer only), `src/ai/AiMarkdown.jsx`,
 `src/ai/{ActivityTicker,CitationBubble,ModelPicker}.jsx`,
 `src/lib/{researchChat,aiConversations,reasoningSegments}.js`,
-`src/lib/aiClient.js` (additive), `src/admin/AiModelsPage.jsx`.
+`src/lib/aiClient.js` (additive).
 
 **Not touched:** `aiChatStore.js`, `aiDrop.js`, `aiModelsStore.js` (legacy
-picker), `AiDock.jsx`, `server/`, `api/`, `SourceReader.jsx` and
-`SourceList.jsx` (owned by `document-rag-and-citations`), `openRowSource.js`
-(owned by `desk-row-grounding`), the desks, `RecordDetail.jsx`.
+picker), `aiRegistry.js` and `_shared/models.ts` (foundation; consumed, not
+edited), `AiModelsPage.jsx` (foundation), `AiDock.jsx`, `server/`, `api/`,
+`SourceReader.jsx` and `SourceList.jsx` (owned by
+`document-rag-and-citations`), `openRowSource.js` (owned by
+`desk-row-grounding`), the desks, `RecordDetail.jsx`.
 
 ## Boundaries
 
 - **Always:** the server resolves the model; the static prefix stays
   byte-identical; every provider attempt is logged with cost; nothing
   model-authored reaches the reader without the citation ladder.
-- **Ask first:** the final registry contents; the default and repair models;
-  any new dependency; any deploy; any edit outside the send path in
-  `AiPanel.jsx`.
+- **Ask first:** the repair model (`AI_REPAIR_MODEL`); any new dependency;
+  any deploy; any edit outside the send path in `AiPanel.jsx`. The
+  allowlist and default model are already the owner's, set in foundation.
 - **Never:** send a key from the browser; swap models after text has
   streamed; edit the legacy branch of `AiPanel.jsx`.
 
@@ -345,7 +351,7 @@ picker), `AiDock.jsx`, `server/`, `api/`, `SourceReader.jsx` and
 
 - `AiPanel.jsx` carries two branches until the legacy path is retired.
 - Older turns fall out of the window with a notice; no condensing yet.
-- Adding a model is a deploy.
+- Adding a model is an admin toggle; the picker follows within a minute.
 - The repair pass is a paid call on a minority of turns; it is logged and
   will be billing-exempt when metering exists.
 - Persona prompt files are duplicated by generation and parity-tested.
@@ -357,4 +363,4 @@ picker), `AiDock.jsx`, `server/`, `api/`, `SourceReader.jsx` and
 - `desk-brief`, the admin persona probe, and `/api/ai/*` — legacy until
   retired.
 - Migrating `localStorage` chats.
-- Retiring `aiModelsStore.js` and `AiModelsPage`'s editing mode.
+- Retiring `aiModelsStore.js` and the legacy branch of `AiModelsPage`.

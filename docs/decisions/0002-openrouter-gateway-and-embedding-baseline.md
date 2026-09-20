@@ -1,11 +1,13 @@
 # ADR 0002: OpenRouter is the single model gateway; embedding baseline
 
-> **Status:** Normative — accepted 2026-09-20. Binds every model call and the
-> vector column width until superseded by a later ADR.
+> **Status:** Normative — accepted 2026-09-20, amended 2026-09-21 (points 2
+> and 4: the registry moved from code to a database allowlist; the refresh
+> cadence is twelve hours). Binds every model call and the vector column
+> width until superseded by a later ADR.
 
 ## Status
 
-Accepted.
+Accepted; amended 2026-09-21.
 
 ## Context
 
@@ -37,20 +39,28 @@ dimension is a full re-index of the corpus.
 1. **OpenRouter is the only outbound model endpoint**, for chat completions
    and for embeddings. One secret, `OPENROUTER_API_KEY`, held in Supabase
    project secrets. The browser never holds or sends a key.
-2. **Chat models come from a server-side registry.** The server re-resolves
-   whatever the client asked for against the registry; an id not in the
-   registry is refused, never forwarded. Every listed model must support tool
-   calling. The default model is a deployment setting (`AI_DEFAULT_MODEL`),
-   not a constant in code.
+2. **Chat models come from a server-side allowlist held in the database**
+   (`public.ai_models`, global, one enable toggle per model, edited only
+   through an admin-checked edge function). The server re-resolves whatever
+   the client asked for against the allowlist; an id not enabled there is
+   refused, never forwarded. A row can be enabled only if the id is present
+   in the refreshed OpenRouter catalogue with tool calling among its
+   supported parameters. The default model is the single row flagged
+   `is_default`, not a constant in code and not an environment variable.
+   *(Amended 2026-09-21: the 2026-09-20 text placed the registry in code
+   with a generated client mirror. The owner's running product keeps it in
+   the database with an allowlist, and Niyantran adopts that.)*
 3. **Embedding model:** `openai/text-embedding-3-small`, exact id pinned;
    **1536 dimensions**; the dimension parameter is not sent — the model's
    default width is used. Both the model id reported by the provider and the
    vector length are asserted on every call, before any vector is stored or
    any search is run.
-4. **Model pricing is display-only.** A `model_pricing` table is refreshed
-   from OpenRouter on a schedule for the picker and for estimates. Cost
-   accounting uses the `usage.cost` OpenRouter reports for the actual call,
-   logged on every call from day one, even though metering is deferred.
+4. **Model pricing is display-only, and the catalogue gates the allowlist.**
+   A `model_pricing` table is refreshed from OpenRouter every twelve hours
+   for the picker, for estimates, and as the set of ids that may be enabled
+   in `ai_models`. Cost accounting uses the `usage.cost` OpenRouter reports
+   for the actual call, logged on every call from day one, even though
+   metering is deferred.
 
 ## Alternatives considered
 
@@ -74,13 +84,21 @@ three failure modes, and no registry to refuse an unknown id.
 - Changing the embedding model or width is a **full re-index**. The
   assertions in point 3 exist so that a provider-side change is caught on the
   first call, not discovered weeks later as quietly degraded retrieval.
-- `src/lib/aiModelsStore.js` and the admin "AI models" page, which edit
-  model ids in `localStorage`, are superseded by the registry; the admin page
-  becomes read-only over the registry or is retired in the streaming spec.
-- The registry's contents are a product choice recorded in the streaming
-  agent spec, not here. This ADR fixes only that a registry exists and that
-  the server is its authority.
-- Reasoning effort is per model. The registry carries each model's accepted
-  effort values so the picker cannot request one the model rejects.
+- `src/lib/aiModelsStore.js`, which edits model ids in `localStorage`, serves
+  the legacy path only. The admin "AI models" page becomes the allowlist
+  editor when the backend flag is on (foundation spec §D.1) and is unchanged
+  when it is off.
+- Niyantran's role layer (default analyst, expert escalation, PDF parser,
+  visual research) is kept as a table over the allowlist. It is Niyantran's
+  own routing idea, not a reference pattern.
+- The allowlist's contents are a product choice made by the owner from the
+  live catalogue, id by id, not a constant anywhere. This ADR fixes only
+  that the allowlist exists in the database and that the server is its
+  authority.
+- Reasoning effort is per model. The allowlist row carries each model's
+  accepted effort values so the picker cannot request one the model rejects.
+- Adding a model is a toggle, not a deploy. The server caches the allowlist
+  briefly, so a change takes effect within a minute, and a wrong toggle does
+  too.
 - A repair-pass model (a cheap, schema-capable model used to add citations to
   an answer that arrived without them) is likewise a deployment setting.
