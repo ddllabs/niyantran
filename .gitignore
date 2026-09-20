@@ -45,4 +45,9 @@ tenderbase-onboard/
 vite.config.js.timestamp-*
 *.timestamp-*.mjs
 
+# Supabase local function env and CLI scratch — never commit
+supabase/.env.local
+supabase/.temp/
 
+# Corpus staging read by the ingest script (document-rag-and-citations)
+ingest/
