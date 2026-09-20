@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import HomePage from './HomePage.jsx';
 import LoginPage from './LoginPage.jsx';
 import SignupPage from './SignupPage.jsx';
+import ForgotPasswordPage from './ForgotPasswordPage.jsx';
+import ResetPasswordPage from './ResetPasswordPage.jsx';
 import PricingPage from './PricingPage.jsx';
 import PrivacyPage from './PrivacyPage.jsx';
 import TermsPage from './TermsPage.jsx';
@@ -15,10 +17,14 @@ function pageFromRoute() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/privacy') return 'privacy';
   if (path === '/terms') return 'terms';
+  if (path === '/forgot-password') return 'forgot-password';
+  if (path === '/reset-password') return 'reset-password';
   const raw = String(location.hash || '')
     .replace(/^#/, '')
     .replace(/^\/+/, '')
     .toLowerCase();
+  if (raw.startsWith('forgot-password') || raw.startsWith('forgotpassword')) return 'forgot-password';
+  if (raw.startsWith('reset-password') || raw.startsWith('resetpassword') || raw.includes('type=recovery') || raw.includes('error_code=')) return 'reset-password';
   if (raw.startsWith('pricing')) return 'pricing';
   if (raw.startsWith('signup') || raw.startsWith('register')) return 'signup';
   if (raw.startsWith('login')) return 'login';
@@ -58,6 +64,8 @@ export default function MarketingSite({ onAuthed }) {
     else if (page === 'pricing') setPageTitle('Pricing');
     else if (page === 'login') setPageTitle('Sign in');
     else if (page === 'signup') setPageTitle('Create account');
+    else if (page === 'forgot-password') setPageTitle('Forgot Password');
+    else if (page === 'reset-password') setPageTitle('Reset Password');
     else setPageTitle('');
   }, [page, site.siteName, site.metaTitle]);
 
@@ -100,7 +108,7 @@ export default function MarketingSite({ onAuthed }) {
 
   const year = new Date().getFullYear();
   const short = site.shortName || 'TERMINAL';
-  const auth = page === 'login' || page === 'signup';
+  const auth = page === 'login' || page === 'signup' || page === 'forgot-password' || page === 'reset-password';
 
   return (
     <div className={`mkt${auth ? ' mkt-auth' : ''}`}>
@@ -145,8 +153,10 @@ export default function MarketingSite({ onAuthed }) {
       )}
       {page === 'privacy' && <PrivacyPage />}
       {page === 'terms' && <TermsPage />}
-      {page === 'login' && <LoginPage onSuccess={onAuthed} onSignup={() => go('signup')} />}
+      {page === 'login' && <LoginPage onSuccess={onAuthed} onSignup={() => go('signup')} onForgotPassword={() => go('forgot-password')} />}
       {page === 'signup' && <SignupPage onSuccess={onAuthed} onLogin={() => go('login')} />}
+      {page === 'forgot-password' && <ForgotPasswordPage onLogin={() => go('login')} />}
+      {page === 'reset-password' && <ResetPasswordPage onLogin={() => go('login')} />}
 
       {!auth && <footer className="mkt-footer">
         <span className="mkt-red-shard" aria-hidden="true" />

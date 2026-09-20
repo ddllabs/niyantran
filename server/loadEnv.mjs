@@ -11,10 +11,10 @@ const ROOT = path.join(__dirname, '..');
 
 let loaded = false;
 
-export function loadEnv() {
-  if (loaded) return;
+export function loadEnv(force = false) {
+  if (loaded && !force) return;
   loaded = true;
-  for (const file of ['.env.local', '.env']) {
+  for (const file of ['.env.local', '.env', 'backend/.env']) {
     const p = path.join(ROOT, file);
     if (!fs.existsSync(p)) continue;
     const text = fs.readFileSync(p, 'utf8');
@@ -31,7 +31,9 @@ export function loadEnv() {
       ) {
         val = val.slice(1, -1);
       }
-      if (key && process.env[key] == null) process.env[key] = val;
+      if (key && (force || process.env[key] == null)) {
+        process.env[key] = val;
+      }
     }
   }
 }
