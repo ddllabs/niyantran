@@ -1,0 +1,5 @@
+{
+  "lock": false,
+  "fmt": { "lineWidth": 120, "singleQuote": true },
+  "lint": { "rules": { "tags": ["recommended"] } }
+}
