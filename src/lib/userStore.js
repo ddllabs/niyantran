@@ -1,4 +1,7 @@
 import { DEFAULT_USER_TYPE, userTypeOf } from './userTypes.js';
+import { frontendPersona } from './personaMap.js';
+import { aiBackend } from './aiBackend.js';
+import { supabase } from './supabaseClient.js';
 
 const KEY = 'niyantranUsers';
 const EVENT = 'niy-users';
@@ -179,6 +182,40 @@ export function toPublicUser(user, typeOverride) {
   };
 }
 
+/**
+ * Session bridge (foundation spec §A): a Supabase Auth user plus its
+ * user_profiles row, mapped onto the public user shape every consumer of
+ * this store already understands. `extras` carries client-side plan and
+ * trial fields chosen at signup, which stay client-side until billing moves.
+ */
+export function userFromSupabase(supabaseUser, profile, extras = {}) {
+  if (!supabaseUser?.id) return null;
+  const p = profile || {};
+  const persona = frontendPersona(p.persona) || extras.personaId || DEFAULT_USER_TYPE;
+  const type = userTypeOf(persona).id;
+  const email = String(supabaseUser.email || p.email || '').trim().toLowerCase();
+  const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || email.split('@')[0];
+  return toPublicUser(
+    {
+      id: supabaseUser.id,
+      name,
+      email,
+      plan: extras.plan || p.plan || 'explorer',
+      planStatus: extras.planStatus,
+      trialEndsAt: extras.trialEndsAt,
+      billingYearly: extras.billingYearly,
+      type,
+      personaId: type,
+      role: p.role || 'user',
+      active: p.status !== 'suspended' && p.status !== 'inactive',
+      createdAt: p.created_at || supabaseUser.created_at || new Date().toISOString(),
+      onboardingComplete: Boolean(p.onboarding_complete),
+      supabase: true,
+    },
+    type,
+  );
+}
+
 export function authenticateUser(loginId, password) {
   const needle = String(loginId || '').trim().toLowerCase();
   const pass = String(password || '');
@@ -295,4 +332,7 @@ export function clearSessionUser() {
   sessionStorage.removeItem('niyantranAuthed');
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem('niyantranLand');
+  if (aiBackend() === 'supabase' && supabase) {
+    supabase.auth.signOut().catch(() => {});
+  }
 }
