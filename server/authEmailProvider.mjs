@@ -96,10 +96,18 @@ export function getSupabaseAnonClient() {
  */
 export function getSupabaseAdminClient() {
   const url = process.env.SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
-  const serviceKey = 
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 
-    process.env.SERVICE_ROLE_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmZ2NwcHN0eXpqYXJsenlxZGFjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTg4ODU3OCwiZXhwIjoyMTA1NDY0NTc4fQ.X9IM54VN0QUHsz7mcMwkRViBK_0sXs0Fh5r1qGeWqfc';
+  // Server-only credential. There is deliberately no fallback: a secret key
+  // must come from the environment (SUPABASE_SECRET_KEY, an sb_secret_… value;
+  // the legacy SUPABASE_SERVICE_ROLE_KEY name is still read for older envs).
+  // The legacy service_role JWT that used to sit here was committed to a
+  // public branch and was revoked on 2026-09-21 by disabling legacy API keys.
+  const serviceKey =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    throw new Error('[AuthEmailConfig] SUPABASE_SECRET_KEY is required for admin operations (no fallback).');
+  }
 
   return createClient(url, serviceKey, {
     auth: {
