@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { loadAiModels, resetAiModels, saveAiModels } from '../lib/aiModelsStore.js';
+import { aiBackend } from '../lib/aiBackend.js';
+import { AllowlistEditor } from './AllowlistEditor.jsx';
 
+/** Foundation spec §D.1: with the backend flag on, this page edits the database allowlist. */
 export function AiModelsPage() {
+  if (aiBackend() === 'supabase') return <AllowlistEditor />;
+  return <LegacyAiModelsPage />;
+}
+
+function LegacyAiModelsPage() {
   const [roles, setRoles] = useState(() => loadAiModels());
   const [msg, setMsg] = useState('');
 
