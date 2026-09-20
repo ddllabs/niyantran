@@ -543,6 +543,10 @@ Filled in by the supervisor as tasks land. Every row below is an execution.
 | 8 | `npm test` 17 → 22 passed; **vacuity:** persona RPC removed from `signUp` → the persona test failed, file restored byte-identical; `npm run build` baseline warnings only; browser, flag unset: `student@niyantran` sign-in lands on the National desk as before | Pass except the flag-on signup, which the owner performs (test account creation is the owner's action). Dev server now runs flag-on from `.env.local` (gitignored). | 2026-09-21 |
 | 9 | Helper tests 5 passed; browser, flag unset: legacy editor renders the four role cards unchanged; browser, flag on, no session: allowlist editor renders read-only with "Sign in with an admin account", empty table, four seeded roles, catalogue picker empty until pricing is loaded | Pass except the admin save round-trip, which needs the promoted account. Deviation: `AllowlistEditor` lives in its own file beside `AiModelsPage.jsx` so the legacy body has one changed line. | 2026-09-21 |
 
+## Launch gates recorded during execution
+
+- **Email confirmation is switched off (2026-09-21, owner's decision "autoconfirm").** The project's custom SMTP (Resend) was misconfigured — username must be `resend` with an API key, and `onboarding@resend.dev` is a sandbox sender — so every signup failed with "Error sending confirmation email". `mailer_autoconfirm` was set true and `site_url` corrected from `http://localhost:3000` to `http://localhost:5173` through the management API. **Before launch:** configure a verified Resend domain and key in Authentication → SMTP, set `site_url` to the production origin, and set `mailer_autoconfirm` back to false.
+
 ## Out of scope for this plan
 
 Everything the spec lists under Out of scope, plus: retiring the legacy
