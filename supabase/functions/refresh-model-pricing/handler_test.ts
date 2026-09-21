@@ -85,3 +85,72 @@ Deno.test('happy path hands the mapped rows to reconcile and reports the counts'
   assertEquals(got.length, 3);
   assertEquals(await res.json(), { fetched: 3, ...RESULT });
 });
+
+// Importing the entry point must not read real secrets or start a listener.
+const { createRefreshHandler, refreshSecrets } = await import('./index.ts');
+const CURRENT_KEY = 'sb_secret_current_test';
+const LEGACY_KEY = 'legacy-disabled-test-key';
+const CRON_SECRET = 'cron-secret-test';
+
+function wiredRefresh(env: Record<string, string | undefined>) {
+  let fetched = 0;
+  let reconciled = 0;
+  const readNames: string[] = [];
+  const handler = createRefreshHandler((name) => (readNames.push(name), env[name]), {
+    fetchCatalogue: () => {
+      fetched++;
+      return Promise.resolve({ data: Array.from({ length: 100 }, (_, i) => ({ ...fixture.data[0], id: `fixture/model-${i}` })) });
+    },
+    reconcile: () => (reconciled++, Promise.resolve({ ...RESULT, upserted: 100 })),
+  });
+  return { handler, readNames, calls: () => ({ fetched, reconciled }) };
+}
+
+Deno.test('entry point rejects disabled legacy bearer before fetching or reconciling', async () => {
+  const wired = wiredRefresh({ SUPABASE_SECRET_KEYS: JSON.stringify({ default: CURRENT_KEY }), SUPABASE_SERVICE_ROLE_KEY: LEGACY_KEY });
+  assertEquals((await wired.handler(post({ authorization: `Bearer ${LEGACY_KEY}` }))).status, 401);
+  assertEquals(wired.calls(), { fetched: 0, reconciled: 0 });
+  assertEquals(wired.readNames.includes('SUPABASE_SERVICE_ROLE_KEY'), false);
+});
+
+Deno.test('entry point accepts only the current named default secret as bearer', async () => {
+  const wired = wiredRefresh({ SUPABASE_SECRET_KEYS: JSON.stringify({ default: CURRENT_KEY, other: 'sb_secret_other_test' }), SUPABASE_SERVICE_ROLE_KEY: LEGACY_KEY });
+  assertEquals((await wired.handler(post({ authorization: `Bearer ${CURRENT_KEY}` }))).status, 200);
+  assertEquals(wired.calls(), { fetched: 1, reconciled: 1 });
+  assertEquals((await wired.handler(post({ authorization: 'Bearer sb_secret_other_test' }))).status, 401);
+  assertEquals(wired.calls(), { fetched: 1, reconciled: 1 });
+});
+
+Deno.test('entry point preserves the cron header independently of missing or malformed named keys', async () => {
+  for (const raw of [undefined, 'malformed', JSON.stringify({ default: CURRENT_KEY })]) {
+    const wired = wiredRefresh({ SUPABASE_SECRET_KEYS: raw, REFRESH_SECRET: CRON_SECRET, SUPABASE_SERVICE_ROLE_KEY: LEGACY_KEY });
+    assertEquals((await wired.handler(post({ 'x-refresh-secret': CRON_SECRET }))).status, 200);
+    assertEquals(wired.calls(), { fetched: 1, reconciled: 1 });
+  }
+});
+
+Deno.test('missing and malformed named-key configurations fail closed without legacy fallback', async () => {
+  const malformed = [undefined, '', 'broken-json', 'null', '[]', '"string"', '{}', '{"default":null}',
+    '{"default":123}', '{"default":""}', '{"default":"   "}', JSON.stringify({ default: LEGACY_KEY }),
+    JSON.stringify({ default: CURRENT_KEY + '\n' }), '{"default":"sb_secret_"}', '{"default":"sb_secret_ invalid"}', JSON.stringify({ other: CURRENT_KEY })];
+  for (const raw of malformed) {
+    const env = { SUPABASE_SECRET_KEYS: raw, SUPABASE_SERVICE_ROLE_KEY: LEGACY_KEY };
+    assertEquals(refreshSecrets((name) => env[name as keyof typeof env]).serviceKey, undefined);
+    const wired = wiredRefresh(env);
+    let configured: unknown;
+    try { configured = JSON.parse(raw ?? 'null')?.default; } catch { configured = undefined; }
+    const candidates = new Set([LEGACY_KEY, CURRENT_KEY, ...(typeof configured === 'string' && !/[\r\n]/.test(configured) ? [configured] : [])]);
+    for (const bearer of candidates) {
+      assertEquals((await wired.handler(post({ authorization: `Bearer ${bearer}` }))).status, 401, `configuration: ${raw}`);
+    }
+    assertEquals(wired.calls(), { fetched: 0, reconciled: 0 });
+  }
+});
+
+Deno.test('empty credentials and unrelated headers never authorize entry-point work', async () => {
+  const wired = wiredRefresh({ REFRESH_SECRET: '   ', SUPABASE_SECRET_KEYS: '{"default":""}' });
+  for (const headers of [{}, { authorization: 'Bearer ' }, { 'x-refresh-secret': ' ' }, { 'x-api-key': CURRENT_KEY }] as Record<string, string>[]) {
+    assertEquals((await wired.handler(post(headers))).status, 401);
+  }
+  assertEquals(wired.calls(), { fetched: 0, reconciled: 0 });
+});

@@ -1,5 +1,5 @@
-import { serviceClient } from '../_shared/supabase.ts';
-import { handleRefresh, type PricingRow, type ReconcileResult } from './handler.ts';
+import { namedKey, serviceClient } from '../_shared/supabase.ts';
+import { handleRefresh, type PricingRow, type ReconcileResult, type RefreshDeps, type Secrets } from './handler.ts';
 
 const CATALOGUE_URL = 'https://openrouter.ai/api/v1/models';
 
@@ -15,13 +15,24 @@ async function reconcile(rows: PricingRow[]): Promise<ReconcileResult> {
   return data as ReconcileResult;
 }
 
-Deno.serve((req) =>
-  handleRefresh(req, {
-    fetchCatalogue,
-    reconcile,
-    secrets: {
-      refreshSecret: Deno.env.get('REFRESH_SECRET') || undefined,
-      serviceKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || undefined,
-    },
-  })
-);
+type ReadEnv = (name: string) => string | undefined;
+
+export function refreshSecrets(readEnv: ReadEnv): Secrets {
+  // Disabled legacy JWTs must never become application-level bearer secrets.
+  const serviceKey = namedKey(readEnv('SUPABASE_SECRET_KEYS'));
+  const refreshSecret = readEnv('REFRESH_SECRET');
+  return {
+    refreshSecret: refreshSecret?.trim() ? refreshSecret : undefined,
+    serviceKey: serviceKey && /^sb_secret_\S+$/.test(serviceKey) ? serviceKey : undefined,
+  };
+}
+
+/** Injected boundaries allow entry-point authorization tests without I/O. */
+export function createRefreshHandler(
+  readEnv: ReadEnv,
+  deps: Pick<RefreshDeps, 'fetchCatalogue' | 'reconcile'> = { fetchCatalogue, reconcile },
+): (req: Request) => Promise<Response> {
+  return (req) => handleRefresh(req, { ...deps, secrets: refreshSecrets(readEnv) });
+}
+
+if (import.meta.main) Deno.serve(createRefreshHandler((name) => Deno.env.get(name)));
