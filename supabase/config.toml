@@ -423,3 +423,8 @@ verify_jwt = false
 # Service-role only: the handler compares the bearer to the project's secret key itself.
 [functions.ingest-documents]
 verify_jwt = false
+
+# The handler verifies the caller's JWT itself (requireUser), so the gateway
+# does not need to; this keeps 401s inside the function where they can be logged.
+[functions.research-chat]
+verify_jwt = false

@@ -1,5 +1,22 @@
 import { pickAiRole, activeAiProvider, AI_PROVIDERS } from './aiModelsStore.js';
 import { sessionUser, userTypeOf } from './userStore.js';
+import { accessToken, functionsUrl } from './supabaseClient.js';
+
+/**
+ * POST one turn to the research-chat edge function and hand back the raw
+ * response so the caller can read its SSE frames. Additive: `sendAiChat`
+ * below is the legacy path and is unchanged.
+ */
+export async function sendResearchTurn({ body, signal, token }) {
+  const jwt = token ?? (await accessToken());
+  if (!jwt) throw new Error('Sign in to use AI research.');
+  return fetch(functionsUrl('research-chat'), {
+    method: 'POST',
+    signal,
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${jwt}` },
+    body: JSON.stringify(body),
+  });
+}
 
 export async function sendAiChat({
   roleId,

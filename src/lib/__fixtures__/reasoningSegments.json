@@ -1,0 +1,84 @@
+[
+  {
+    "name": "plain",
+    "input": "The user asks how many bills are pending in the Lok Sabha. I should call search_desk_rows with a house filter. Then quote the total.",
+    "segments": [
+      "The user asks how many bills are pending in the Lok Sabha.",
+      "I should call search_desk_rows with a house filter. Then quote the total."
+    ]
+  },
+  {
+    "name": "paragraphs",
+    "input": "First paragraph about the question.\n\nSecond paragraph: the search plan is to look up the desk rows.\n\nThird: answer with the TOTAL line.",
+    "segments": [
+      "First paragraph about the question.",
+      "Second paragraph: the search plan is to look up the desk rows.",
+      "Third: answer with the TOTAL line."
+    ]
+  },
+  {
+    "name": "numbered plan",
+    "input": "1. Check the bill number. 2. Read the committee report by R. Kumar. 3. Search the documents for the committee stage. Then decide what to do next.",
+    "segments": [
+      "1. Check the bill number.",
+      "2. Read the committee report by R. Kumar.",
+      "3. Search the documents for the committee stage.",
+      "Then decide what to do next."
+    ]
+  },
+  {
+    "name": "initials and abbreviations",
+    "input": "The order by Justice A. K. Sikri covers the penalty clause. The Hon. Minister replied on 12.03.2019 with figures. Nothing else is in the record.",
+    "segments": [
+      "The order by Justice A. K. Sikri covers the penalty clause. The Hon.",
+      "Minister replied on 12.03.2019 with figures.",
+      "Nothing else is in the record."
+    ]
+  },
+  {
+    "name": "short pieces merge",
+    "input": "Okay. The user asks about the Delimitation Bill and its current stage. Fine. Search the desk rows first.",
+    "segments": [
+      "Okay. The user asks about the Delimitation Bill and its current stage. Fine.",
+      "Search the desk rows first."
+    ]
+  },
+  {
+    "name": "empty",
+    "input": "",
+    "segments": []
+  },
+  {
+    "name": "one long sentence",
+    "input": "This single sentence keeps going and going without any terminal punctuation followed by whitespace so that it exceeds the maximum segment length of one hundred and sixty characters by a comfortable margin indeed",
+    "segments": [
+      "This single sentence keeps going and going without any terminal punctuation followed by whitespace so that it exceeds the maximum segment length of one hundred"
+    ]
+  },
+  {
+    "name": "crlf and questions",
+    "input": "Is it a Government bill?\r\nYes, the row says so! So the answer is direct.\r\n\r\nNo search is needed for this.",
+    "segments": [
+      "Is it a Government bill? Yes, the row says so! So the answer is direct.",
+      "No search is needed for this."
+    ]
+  },
+  {
+    "name": "thirty sentences",
+    "input": "Sentence number 1 is about twenty-nine chars. Sentence number 2 is about twenty-nine chars. Sentence number 3 is about twenty-nine chars. Sentence number 4 is about twenty-nine chars. Sentence number 5 is about twenty-nine chars. Sentence number 6 is about twenty-nine chars. Sentence number 7 is about twenty-nine chars. Sentence number 8 is about twenty-nine chars. Sentence number 9 is about twenty-nine chars. Sentence number 10 is about twenty-nine chars. Sentence number 11 is about twenty-nine chars. Sentence number 12 is about twenty-nine chars. Sentence number 13 is about twenty-nine chars. Sentence number 14 is about twenty-nine chars. Sentence number 15 is about twenty-nine chars. Sentence number 16 is about twenty-nine chars. Sentence number 17 is about twenty-nine chars. Sentence number 18 is about twenty-nine chars. Sentence number 19 is about twenty-nine chars. Sentence number 20 is about twenty-nine chars. Sentence number 21 is about twenty-nine chars. Sentence number 22 is about twenty-nine chars. Sentence number 23 is about twenty-nine chars. Sentence number 24 is about twenty-nine chars. Sentence number 25 is about twenty-nine chars. Sentence number 26 is about twenty-nine chars. Sentence number 27 is about twenty-nine chars. Sentence number 28 is about twenty-nine chars. Sentence number 29 is about twenty-nine chars. Sentence number 30 is about twenty-nine chars.",
+    "segments": [
+      "Sentence number 1 is about twenty-nine chars.",
+      "Sentence number 2 is about twenty-nine chars.",
+      "Sentence number 3 is about twenty-nine chars.",
+      "Sentence number 4 is about twenty-nine chars.",
+      "Sentence number 5 is about twenty-nine chars.",
+      "Sentence number 6 is about twenty-nine chars.",
+      "Sentence number 7 is about twenty-nine chars.",
+      "Sentence number 8 is about twenty-nine chars.",
+      "Sentence number 9 is about twenty-nine chars.",
+      "Sentence number 10 is about twenty-nine chars.",
+      "Sentence number 11 is about twenty-nine chars.",
+      "Sentence number 12 is about twenty-nine chars. Sentence number 13 is about twenty-nine chars. Sentence number 14 is about twenty-nine chars. Sentence number 15"
+    ]
+  }
+]

@@ -1,0 +1,213 @@
+// Streaming chat completions through OpenRouter (streaming spec §D). One
+// request in, a sequence of ModelEvents out: reasoning deltas, text deltas,
+// complete tool calls, then one finish with usage. No retry here — the
+// failover chain lives in the handler, which needs to know whether any text
+// already reached the reader before it decides.
+
+export interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[];
+}
+
+export interface Usage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cached_prompt_tokens?: number;
+  reasoning_tokens?: number;
+  cost?: number;
+}
+
+export type ModelEvent =
+  | { type: 'reasoning'; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'tool-call'; id: string; name: string; args: string }
+  | { type: 'finish'; reason: string; usage: Usage | null; served: string | null; generationId: string | null };
+
+export interface StreamRequest {
+  model: string;
+  messages: Message[];
+  tools?: unknown[];
+  response_format?: unknown;
+  reasoning?: { effort: string };
+  max_tokens?: number;
+  /** Add Anthropic-style cache breakpoints when the system prompt is long enough. */
+  cache?: boolean;
+  signal?: AbortSignal;
+}
+
+export interface StreamDeps {
+  fetch: typeof fetch;
+  apiKey: string;
+  endpoint?: string;
+}
+
+export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+/** Below this, a cache breakpoint is billed as a cache write for nothing. */
+export const MIN_CACHEABLE_PREFIX_CHARS = 4_000;
+
+export class ProviderError extends Error {
+  status: number;
+  body: string;
+  retryable: boolean;
+  code: 'schema' | 'provider';
+  constructor(status: number, body: string) {
+    const short = String(body ?? '').slice(0, 300);
+    super(`OpenRouter ${status}: ${short}`);
+    this.name = 'ProviderError';
+    this.status = status;
+    this.body = String(body ?? '');
+    this.retryable = status === 429 || status >= 500;
+    this.code = /response_format|json_schema|structured output/i.test(this.body) ? 'schema' : 'provider';
+  }
+}
+
+type Part = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
+
+function withCacheBreakpoints(messages: Message[]): unknown[] {
+  const system = messages.find((m) => m.role === 'system');
+  const systemLength = typeof system?.content === 'string' ? system.content.length : 0;
+  if (systemLength < MIN_CACHEABLE_PREFIX_CHARS) return messages;
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  return messages.map((m) => {
+    if ((m === system || m === lastUser) && typeof m.content === 'string') {
+      const part: Part = { type: 'text', text: m.content, cache_control: { type: 'ephemeral' } };
+      return { ...m, content: [part] };
+    }
+    return m;
+  });
+}
+
+export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model: req.model,
+    messages: req.cache ? withCacheBreakpoints(req.messages) : req.messages,
+    stream: true,
+    usage: { include: true },
+  };
+  if (req.tools?.length) {
+    body.tools = req.tools;
+    body.tool_choice = 'auto';
+  }
+  if (req.response_format) {
+    body.response_format = req.response_format;
+    body.provider = { require_parameters: true };
+  }
+  if (req.reasoning) body.reasoning = { effort: req.reasoning.effort };
+  if (req.max_tokens) body.max_tokens = req.max_tokens;
+  return body;
+}
+
+/** One `data:` payload per yield; comment lines ignored; `[DONE]` ends the stream. */
+export async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let data: string[] = [];
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, nl).replace(/\r$/, '');
+        buffer = buffer.slice(nl + 1);
+        if (line === '') {
+          if (data.length) {
+            const payload = data.join('\n');
+            data = [];
+            if (payload.trim() === '[DONE]') return;
+            yield payload;
+          }
+          continue;
+        }
+        if (line.startsWith(':')) continue;
+        if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+      }
+      if (done) break;
+    }
+    if (data.length) {
+      const payload = data.join('\n');
+      if (payload.trim() !== '[DONE]') yield payload;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function normaliseUsage(u: Record<string, unknown> | null | undefined): Usage | null {
+  if (!u || typeof u !== 'object') return null;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const details = (u.prompt_tokens_details ?? {}) as Record<string, unknown>;
+  const cdetails = (u.completion_tokens_details ?? {}) as Record<string, unknown>;
+  const out: Usage = {
+    prompt_tokens: n(u.prompt_tokens),
+    completion_tokens: n(u.completion_tokens),
+    total_tokens: n(u.total_tokens) || n(u.prompt_tokens) + n(u.completion_tokens),
+  };
+  if (details.cached_tokens != null) out.cached_prompt_tokens = n(details.cached_tokens);
+  if (cdetails.reasoning_tokens != null) out.reasoning_tokens = n(cdetails.reasoning_tokens);
+  if (typeof u.cost === 'number') out.cost = u.cost;
+  return out;
+}
+
+export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGenerator<ModelEvent> {
+  const res = await deps.fetch(deps.endpoint ?? OPENROUTER_CHAT_URL, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${deps.apiKey}`,
+      'content-type': 'application/json',
+      'x-title': 'Niyantran Terminal',
+    },
+    body: JSON.stringify(buildRequestBody(req)),
+    signal: req.signal,
+  });
+  if (!res.ok) throw new ProviderError(res.status, await res.text().catch(() => ''));
+  if (!res.body) throw new ProviderError(502, 'empty response body');
+
+  const calls = new Map<number, { id: string; name: string; args: string }>();
+  let served: string | null = null;
+  let generationId: string | null = null;
+  let usage: Usage | null = null;
+  let finish: string | null = null;
+
+  for await (const payload of parseSseStream(res.body)) {
+    let json: Record<string, unknown>;
+    try {
+      json = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    if (json.error && typeof json.error === 'object') {
+      const e = json.error as { code?: unknown; message?: unknown };
+      const status = typeof e.code === 'number' ? e.code : 502;
+      throw new ProviderError(status, String(e.message ?? JSON.stringify(e)));
+    }
+    if (typeof json.model === 'string') served = json.model;
+    if (typeof json.id === 'string') generationId = json.id;
+    if (json.usage) usage = normaliseUsage(json.usage as Record<string, unknown>);
+    const choice = (json.choices as Record<string, unknown>[] | undefined)?.[0];
+    if (!choice) continue;
+    const delta = (choice.delta ?? {}) as Record<string, unknown>;
+    const reasoning = delta.reasoning ?? delta.reasoning_content;
+    if (typeof reasoning === 'string' && reasoning) yield { type: 'reasoning', text: reasoning };
+    if (typeof delta.content === 'string' && delta.content) yield { type: 'text', text: delta.content };
+    for (const tc of (delta.tool_calls ?? []) as Record<string, unknown>[]) {
+      const index = typeof tc.index === 'number' ? tc.index : 0;
+      const cur = calls.get(index) ?? { id: '', name: '', args: '' };
+      if (typeof tc.id === 'string' && tc.id) cur.id = tc.id;
+      const fn = (tc.function ?? {}) as Record<string, unknown>;
+      if (typeof fn.name === 'string') cur.name += fn.name;
+      if (typeof fn.arguments === 'string') cur.args += fn.arguments;
+      calls.set(index, cur);
+    }
+    if (typeof choice.finish_reason === 'string' && choice.finish_reason) finish = choice.finish_reason;
+  }
+
+  const ordered = [...calls.entries()].sort((a, b) => a[0] - b[0]);
+  for (const [index, c] of ordered) yield { type: 'tool-call', id: c.id || `call_${index}`, name: c.name, args: c.args };
+  yield { type: 'finish', reason: finish ?? (ordered.length ? 'tool_calls' : 'stop'), usage, served, generationId };
+}
