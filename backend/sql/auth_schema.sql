@@ -1,3 +1,19 @@
+-- WARNING - this file is NOT the source of truth for the live database.
+--
+-- It is created by no migration in supabase/migrations/, so nothing verifies it
+-- against production. It has already drifted once and cost a failed deployment:
+-- it declared `phone_e164` and `job_title` while the live table has
+-- `phone_number` and no `job_title`, and `supabase db push` aborted on
+-- migration 0012 with SQLSTATE 42703. Those columns were reconciled on
+-- 2026-09-22; nothing guarantees the rest.
+--
+-- What it is for: bootstrapping the disposable local databases that
+-- `npm run test:sql` builds. Section 23 deliberately duplicates migration 0012,
+-- which is why the vacuity check cuts the file there.
+--
+-- Before trusting any column here, read information_schema.columns on the live
+-- project. Before changing one, change the live schema through a migration.
+
 -- ============================================================
 -- NIYANTRAN AI
 -- AUTHENTICATION + USER PROFILE + FUTURE ORGANISATION/RBAC

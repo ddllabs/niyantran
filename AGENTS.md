@@ -94,7 +94,17 @@ The repository now defines `npm test` (Vitest). Edge Function tests run with
 Run the relevant focused checks and the production build for code changes;
 run both test suites for changes under src/lib/, src/admin/ or supabase/.
 SQL authorization and migration checks use a disposable local database,
-never the live project as a test fixture. `npm run test:sql` runs the six
+never the live project as a test fixture.
+
+A PostgreSQL restart resets `pg_stat_user_tables`, so the planner's row
+estimates return to zero and retrieval is planned against tables it believes are
+empty. NTER restarted four times on 2026-09-21 and each restart wiped them. After
+any restart, or after a bulk load, run:
+
+    analyze public.document_chunks; analyze public.desk_rows; analyze public.documents;
+
+Check `n_live_tup` against the real counts rather than assuming autovacuum has
+caught up. `npm run test:sql` runs the six
 fixtures in `supabase/tests/` against the two local Docker Postgres containers,
 creating each database from scratch. It also proves each fixture non-vacuous by
 rebuilding without the migration that fixture exists to test and requiring it to
