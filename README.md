@@ -94,12 +94,15 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-Local recovery contains security and corpus-integrity changes that have not yet
-been applied to the live Supabase project. At the 2026-09-21 audit, live migration
-history ended at 0011. Streaming recovery, authenticated browser acceptance,
-email delivery and Vercel configuration remain release checks. Consult the
-owner's recovery plan for current evidence rather than treating local tests as
-production verification.
+**Updated 2026-09-21.** The recovery security and corpus-integrity migrations
+are now applied to the live Supabase project. Live migration history runs
+0001-0015 plus `20260921115831_research_turn_persistence`, and all five Edge
+Functions are deployed, including `research-chat` for the first time. `anon`
+holds no table privileges. Still outstanding as release checks: the bounded paid
+browser acceptance (it needs an internal-admin account and a second ordinary
+account, neither of which exists), the two-document corpus retry, email delivery
+and Vercel configuration. Consult the owner's recovery plan for current evidence
+rather than treating local tests as production verification.
 
 Do not push, deploy, apply migrations, retry ingestion or publish data without
 the owner's exact authorization. Billing/provider tests can incur costs; use
