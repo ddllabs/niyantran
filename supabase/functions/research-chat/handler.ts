@@ -572,7 +572,12 @@ async function runTurnBody(
     if (signal.aborted) return;
     if ('internalReasoning' in e) return;
     else if ('attempt' in e) {
-      const label = e.attempt.phase === 'research' ? 'Searching relevant sources.' : 'Writing the answer.';
+      // The research phase announces that it is reviewing the question, not
+      // that it is searching: it may call no tool at all. A real turn showed
+      // "Searching relevant sources." while chat_turn_traces held a single
+      // answer step and search_ms was 0. The searching label is emitted below,
+      // when a search actually starts.
+      const label = e.attempt.phase === 'research' ? 'Reviewing the question.' : 'Writing the answer.';
       sender.send({ reasoning: label });
       activity.push({ type: 'activity', text: label });
       context.checkpoint({ activity: [...activity] });
@@ -580,6 +585,10 @@ async function runTurnBody(
       const f = e.tool;
       if (f.phase === 'start') {
         if (f.name === 'search_documents' || f.name === 'search_desk_rows') {
+          if (!activity.some((a) => (a as { text?: string } | null)?.text === SEARCHING)) {
+            sender.send({ reasoning: SEARCHING });
+            activity.push({ type: 'activity', text: SEARCHING });
+          }
           attempts.addTraces([{
             user_id: caller.userId,
             conversation_id: conversation.id,
@@ -817,6 +826,8 @@ export interface Timing {
   writing_ms: number;
   total_ms: number;
 }
+
+const SEARCHING = 'Searching relevant sources.';
 
 function timingOf(
   startedAt: number,

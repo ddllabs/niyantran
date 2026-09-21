@@ -36,7 +36,7 @@ function seconds(ms) {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 }
 
-export default function ActivityTicker({ activity = [], active = false, timing = null, model = null }) {
+export default function ActivityTicker({ activity = [], active = false, timing = null, model = null, usage = null }) {
   const [open, setOpen] = useState(active);
   const [touched, setTouched] = useState(false);
 
@@ -91,7 +91,13 @@ export default function ActivityTicker({ activity = [], active = false, timing =
         <p className="ai-ticker-timing">
           {[
             timing?.search_ms ? `searched ${seconds(timing.search_ms)}` : '',
-            timing?.reasoning_ms ? `thought ${seconds(timing.reasoning_ms)}` : '',
+            // reasoning_ms is residual time - total minus search minus writing -
+            // not thinking. Calling it "thought" claims reasoning the model may
+            // not have done: a real turn reported "thought 9.9s" with
+            // reasoning_tokens of 0. Only the model's own count can say.
+            timing?.reasoning_ms
+              ? `${Number(usage?.reasoning_tokens) > 0 ? 'thought' : 'waited'} ${seconds(timing.reasoning_ms)}`
+              : '',
             timing?.writing_ms ? `wrote ${seconds(timing.writing_ms)}` : '',
           ]
             .filter(Boolean)

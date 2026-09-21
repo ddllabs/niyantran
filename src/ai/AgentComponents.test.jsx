@@ -53,6 +53,7 @@ describe('ActivityTicker', () => {
       <ActivityTicker
         activity={activity}
         timing={{ search_ms: 320, reasoning_ms: 1200, writing_ms: 800, total_ms: 2320 }}
+        usage={{ reasoning_tokens: 256 }}
         model={{ requested: 'google/gemini-3.5-flash-lite', served: 'deepseek/deepseek-v4-flash' }}
       />,
     );
@@ -109,6 +110,23 @@ describe('WorkSurface', () => {
     const empty = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'list' }} sources={[]} />);
     expect(empty).toContain('cites no sources yet');
   });
+});
+
+// R4: the ticker must not claim work the turn did not do. A real production
+// turn displayed "Searching relevant sources." with search_ms 0 and a single
+// `answer` step, and "thought 9.9s" with reasoning_tokens 0.
+it('reports thinking only when the model produced reasoning tokens', () => {
+  const timing = { search_ms: 0, reasoning_ms: 9874, writing_ms: 2061, total_ms: 11935 };
+  const thought = renderToStaticMarkup(<ActivityTicker timing={timing} usage={{ reasoning_tokens: 512 }} />);
+  expect(thought).toContain('thought 9.9s');
+  expect(thought).not.toContain('waited');
+
+  const waited = renderToStaticMarkup(<ActivityTicker timing={timing} usage={{ reasoning_tokens: 0 }} />);
+  expect(waited).toContain('waited 9.9s');
+  expect(waited).not.toContain('thought');
+
+  // No usage at all is the same claim-nothing case.
+  expect(renderToStaticMarkup(<ActivityTicker timing={timing} />)).toContain('waited 9.9s');
 });
 
 it('legacy hidden reasoning and unknown events never become public activity or tools',()=>{

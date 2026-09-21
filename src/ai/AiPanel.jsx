@@ -973,7 +973,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : m.model || picked.label}</span>
               {m.role === 'assistant' && (serverThreads || !m.error) ? (
                 <>
-                  {serverThreads && (m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} model={{ requested: m.model_requested, served: m.model_served }} /> : null}
+                  {serverThreads && (m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} /> : null}
                   <AiMarkdown text={m.content} sources={serverThreads ? m.sources || [] : undefined} onOpenSource={openSource} />
                   {serverThreads && Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
                   {serverThreads && m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
@@ -989,7 +989,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {serverThreads && research.live ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
-              <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} />
+              <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} />
               {stream?.streamingText ? (
                 <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} />
               ) : null}
