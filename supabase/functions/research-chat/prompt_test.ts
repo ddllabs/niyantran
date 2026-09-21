@@ -12,7 +12,7 @@ Deno.test('the static prompt carries the ten sections in order and ends with the
   const marks = [
     'Niyantran Terminal research assistant',
     'Grounding and honesty',
-    'Two tools, and when to use them',
+    'Three tools, and when to use them',
     'Desk rows:',
     'Citations:',
     'Internal information:',
@@ -137,4 +137,20 @@ Deno.test('the greeting contract explicitly returns no sources and no follow-up 
   assertStringIncludes(SYSTEM_PROMPT_STATIC, 'For greetings and small talk, do not call a tool');
   assertStringIncludes(SYSTEM_PROMPT_STATIC, '"sources": []');
   assertStringIncludes(SYSTEM_PROMPT_STATIC, '"follow_up_questions": []');
+});
+
+// The think tool is offered in the tools array. If the prompt does not name it,
+// the model is handed three tools while being told there are two, and given no
+// reason to use the third - which is how a tool gets added and never called.
+Deno.test('the prompt names the think tool and shows it in a worked example', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad', selection: null });
+  assertStringIncludes(prompt, 'think(thought)');
+  assertStringIncludes(prompt, 'Thinking keeps you in research; answering ends it.');
+  // An example that actually alternates, so the shape is demonstrated and not
+  // only described.
+  assertStringIncludes(prompt, 'think("Have the objects; rates and the schedules are missing")');
+  assert(
+    prompt.indexOf('think(') < prompt.indexOf('Citations:'),
+    'the tool is described in the tools section, before citations',
+  );
 });
