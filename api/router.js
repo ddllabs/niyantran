@@ -1,7 +1,6 @@
 /**
- * Single Vercel serverless entry for ALL /api/* routes.
- * Hobby plan caps function *files* at 12 — one catch-all keeps every endpoint
- * without raising the function count. Client URLs are unchanged.
+ * Single Vercel serverless entry for ALL /api/* routes (Hobby ≤12 function files).
+ * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
 import { runAiChat, runAiFetch } from '../server/aiApi.mjs';
 import { readAppFlags, writeAppFlags } from '../server/appFlags.mjs';
@@ -26,19 +25,22 @@ export const config = {
 };
 
 function routePath(req) {
+  // Prefer explicit rewrite param from vercel.json
+  const via = req.query?.__route;
+  if (typeof via === 'string' && via.trim()) {
+    const s = via.trim().replace(/^\/+/, '');
+    return `/api/${s}`.replace(/\/+$/, '') || '/api';
+  }
+  if (Array.isArray(via) && via.length) {
+    return `/api/${via.map(String).join('/')}`.replace(/\/+$/, '');
+  }
+
   const raw = String(req.url || '').split('?')[0] || '';
   let p = raw.replace(/\/+$/, '') || '/';
-  // Vercel catch-all may pass /api/... in url, or only the slug via query.path.
-  const parts = req.query?.path;
-  if (Array.isArray(parts) && parts.length) {
-    p = `/api/${parts.map(String).join('/')}`;
-  } else if (typeof parts === 'string' && parts) {
-    p = `/api/${parts.replace(/^\/+/, '')}`;
-  } else if (!p.startsWith('/api/')) {
-    // Some runtimes hand "/ai/desk-brief" without the /api prefix.
+  if (p === '/api/router' || p === '/api/router.js') p = '/api';
+  if (!p.startsWith('/api/')) {
     p = p.startsWith('/') ? `/api${p}` : `/api/${p}`;
   }
-  // Strip accidental /api/api doubling
   p = p.replace(/^\/api\/api\//, '/api/');
   return p.replace(/\/+$/, '') || '/api';
 }
@@ -58,7 +60,10 @@ function parseBody(req) {
 function q(req) {
   try {
     const host = req.headers?.host || 'localhost';
-    return new URL(req.url || '/', `http://${host}`).searchParams;
+    const sp = new URL(req.url || '/', `http://${host}`).searchParams;
+    // Drop internal rewrite key from URLSearchParams copies used by handlers
+    sp.delete('__route');
+    return sp;
   } catch {
     return new URLSearchParams();
   }
@@ -70,7 +75,6 @@ export default async function handler(req, res) {
   const method = String(req.method || 'GET').toUpperCase();
 
   try {
-    // —— feature / resources ——
     if (path === '/api/feature-feed') {
       if (method !== 'GET' && method !== 'HEAD') {
         res.status(405).json({ ok: false, error: 'GET /api/feature-feed only' });
@@ -113,7 +117,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // —— home ——
     if (path === '/api/ohlc') {
       if (method !== 'GET' && method !== 'HEAD') {
         res.status(405).json({ ok: false, error: 'GET /api/ohlc only' });
@@ -187,7 +190,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // —— news ingest ——
     if (path === '/api/news/ingest') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       if (method === 'OPTIONS') {
@@ -205,13 +207,11 @@ export default async function handler(req, res) {
         res.status(auth.status).json({ ok: false, error: auth.error });
         return;
       }
-      const payload = parseBody(req);
-      const out = ingestNterArticle(payload, { sourceHeader: auth.sourceHeader });
+      const out = ingestNterArticle(parseBody(req), { sourceHeader: auth.sourceHeader });
       res.status(out.status || (out.ok ? 200 : 400)).json(out);
       return;
     }
 
-    // —— app flags ——
     if (path === '/api/app-flags') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       if (method === 'GET') {
@@ -219,8 +219,7 @@ export default async function handler(req, res) {
         return;
       }
       if (method === 'PUT') {
-        const body = parseBody(req);
-        const flags = writeAppFlags({ testingPhase: Boolean(body.testingPhase) });
+        const flags = writeAppFlags({ testingPhase: Boolean(parseBody(req).testingPhase) });
         res.status(200).json({ ok: true, flags });
         return;
       }
@@ -228,7 +227,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // —— auth ——
     if (path === '/api/auth/google') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       if (method === 'GET') {
@@ -250,7 +248,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // —— AI ——
     if (path === '/api/ai/chat') {
       if (method !== 'POST') {
         res.status(405).json({ ok: false, error: 'POST only' });
@@ -275,11 +272,12 @@ export default async function handler(req, res) {
     if (path === '/api/ai/desk-brief') {
       if (method === 'GET') {
         const sp = q(req);
-        const feature = String(sp.get('feature') || req.query?.feature || '');
-        const tier = String(sp.get('tier') || req.query?.tier || '');
-        const hash = String(sp.get('hash') || req.query?.hash || '');
-        const scope = String(sp.get('scope') || req.query?.scope || 'entry');
-        const hit = await getCachedDeskBrief(feature, tier, hash, scope);
+        const hit = await getCachedDeskBrief(
+          String(sp.get('feature') || req.query?.feature || ''),
+          String(sp.get('tier') || req.query?.tier || ''),
+          String(sp.get('hash') || req.query?.hash || ''),
+          String(sp.get('scope') || req.query?.scope || 'entry'),
+        );
         if (!hit) {
           res.status(404).json({ ok: false, cached: false, error: 'No cached brief for this fingerprint.' });
           return;
