@@ -1,0 +1,34 @@
+-- Drop public.debug_timeout(), untracked production schema drift.
+--
+-- The function existed on NTER but in no migration in this repository: it was
+-- created directly against the live database, most likely while diagnosing the
+-- `chunk_commit: canceling statement due to statement timeout` failures during
+-- the corpus ingest on 2026-09-21. Its whole body is
+--
+--   select jsonb_build_object('role', current_user,
+--                             'statement_timeout', current_setting('statement_timeout'))
+--
+-- so it reads no table and returns no user data. It is SECURITY INVOKER, only
+-- `service_role` can execute it, and no other function references it - checked
+-- against pg_proc.prosrc across the public schema.
+--
+-- It is also one of the two mutable-`search_path` findings from the Supabase
+-- security advisor: its proconfig is null. Dropping it is preferable to
+-- hardening it. Nothing in the repository calls it, so keeping it would mean
+-- carrying a function whose only purpose was a debugging session that is over,
+-- and whose absence from the migration history is itself the problem: schema
+-- that no migration describes cannot be rebuilt, reviewed or reasoned about.
+--
+-- Down (manual), should the same diagnosis ever be needed again:
+--   create or replace function public.debug_timeout() returns jsonb
+--   language sql stable set search_path = '' as $$
+--     select jsonb_build_object('role', current_user,
+--                               'statement_timeout', current_setting('statement_timeout'))
+--   $$;
+--   revoke all on function public.debug_timeout() from public, anon, authenticated;
+--   grant execute on function public.debug_timeout() to service_role;
+--
+-- Note the `set search_path = ''` above: if it is ever recreated, it should be
+-- recreated hardened, and through a migration.
+
+drop function if exists public.debug_timeout();
