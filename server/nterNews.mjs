@@ -201,9 +201,10 @@ export function serveNterLatest(opts = {}) {
     rows,
     note: rows.length
       ? store.note || 'Latest from nter.news.'
-      : store.note || 'nter.news feed not configured on this build. No headlines were invented.',
+      : store.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
     source: 'nter.news',
     archive: false,
+    waiting: !rows.length,
     updated,
     as_of: updated || '',
     ageH,

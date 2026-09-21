@@ -81,15 +81,30 @@ function Spark({ values, up }) {
   );
 }
 
-function SnapshotBadge({ ageH, archive }) {
+function SnapshotBadge({ ageH, archive, waiting, source }) {
+  if (waiting) {
+    return (
+      <span className="nh-agent" title="nter.news has not pushed any articles to this host yet">
+        waiting for ingest
+      </span>
+    );
+  }
   if (archive) {
     return <span className="nh-agent" title="Stored snapshot — not live ticks">snapshot · not live</span>;
   }
   if (ageH == null || !Number.isFinite(Number(ageH))) {
-    return <span className="nh-agent" title="Delayed / snapshot quotes">snapshot</span>;
+    return (
+      <span className="nh-agent" title={source === 'nter.news' ? 'Live ingest path · no as-of stamp yet' : 'Delayed / snapshot quotes'}>
+        {source === 'nter.news' ? 'live path' : 'snapshot'}
+      </span>
+    );
   }
   const label = ageH < 1 ? '<1h' : `${Math.round(ageH)}h`;
-  return <span className="nh-agent" title="Quote age from last successful pull">snapshot · {label} ago</span>;
+  return (
+    <span className="nh-agent" title={source === 'nter.news' ? 'Age of last nter.news ingest' : 'Quote age from last successful pull'}>
+      {source === 'nter.news' ? `live · ${label} ago` : `snapshot · ${label} ago`}
+    </span>
+  );
 }
 
 export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }) {
@@ -434,7 +449,12 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             <div className="bh">
               <span>
                 LATEST FROM NTER.NEWS
-                <SnapshotBadge ageH={meta.latest?.ageH} archive={Boolean(meta.latest?.archive)} />
+                <SnapshotBadge
+                  ageH={meta.latest?.ageH}
+                  archive={Boolean(meta.latest?.archive) && (latestShown?.length || 0) > 0}
+                  waiting={!latestShown.length && (meta.latest?.waiting || meta.latest?.source === 'nter.news')}
+                  source="nter.news"
+                />
               </span>
             </div>
             <ul className="nh-latest">

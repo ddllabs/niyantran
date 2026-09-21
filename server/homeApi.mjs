@@ -558,7 +558,8 @@ export async function serveHomeLatest(opts = {}) {
     rows: [],
     note: live.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
     source: 'nter.news',
-    archive: true,
+    archive: false,
+    waiting: true,
     ageH: null,
   };
 }

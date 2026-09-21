@@ -115,7 +115,8 @@ export async function homeLatestFromStatic(signal) {
     note:
       nter?.note ||
       'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
-    archive: true,
+    archive: false,
+    waiting: true,
     source: 'nter.news',
   };
 }
