@@ -28,11 +28,18 @@ export const config = {
 function routePath(req) {
   const raw = String(req.url || '').split('?')[0] || '';
   let p = raw.replace(/\/+$/, '') || '/';
-  if (!p.startsWith('/api/')) {
-    const parts = req.query?.path;
-    if (Array.isArray(parts)) p = `/api/${parts.join('/')}`;
-    else if (typeof parts === 'string' && parts) p = `/api/${parts}`;
+  // Vercel catch-all may pass /api/... in url, or only the slug via query.path.
+  const parts = req.query?.path;
+  if (Array.isArray(parts) && parts.length) {
+    p = `/api/${parts.map(String).join('/')}`;
+  } else if (typeof parts === 'string' && parts) {
+    p = `/api/${parts.replace(/^\/+/, '')}`;
+  } else if (!p.startsWith('/api/')) {
+    // Some runtimes hand "/ai/desk-brief" without the /api prefix.
+    p = p.startsWith('/') ? `/api${p}` : `/api/${p}`;
   }
+  // Strip accidental /api/api doubling
+  p = p.replace(/^\/api\/api\//, '/api/');
   return p.replace(/\/+$/, '') || '/api';
 }
 

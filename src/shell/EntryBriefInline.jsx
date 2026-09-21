@@ -72,12 +72,14 @@ export function useEntryBrief({ feed, selected, loading }) {
     })()
       .then((b) => {
         if (!alive) return;
-        setBrief(b);
+        setBrief(b || null);
+        setErr('');
       })
       .catch((e) => {
         if (!alive || e?.name === 'AbortError') return;
         setErr(e.message || String(e));
-        setBrief(null);
+        // Keep any prior brief for this row; only clear when we have nothing.
+        setBrief((prev) => prev || null);
       })
       .finally(() => {
         if (alive) setBusy(false);

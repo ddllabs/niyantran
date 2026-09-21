@@ -253,7 +253,7 @@ function RecordDetailBody({
   relatedLinks,
   entries,
 }) {
-  const { brief, busy } = useEntryBrief({ feed, selected: csvFile ? null : row });
+  const { brief, busy, err } = useEntryBrief({ feed, selected: csvFile ? null : row });
   const intelLines = briefPlainLines(brief);
   const analysisBrief =
     analysis?.brief ||
@@ -263,7 +263,10 @@ function RecordDetailBody({
   const summary = [fieldSummary, ...analysisExtras.filter((l) => !fieldSummary.includes(l))]
     .filter(Boolean)
     .join('  ·  ');
-  const showAnalysis = Boolean(analysis) || Boolean(analysisBrief) || busy;
+  // Keep the analysis block visible while loading, on success, or when the API fails
+  // (otherwise "Reading this entry…" vanishes and the whole section disappears).
+  const showAnalysis =
+    Boolean(analysis) || Boolean(analysisBrief) || busy || Boolean(err) || Boolean(brief);
 
   return (
     <div className="rd">
@@ -362,8 +365,18 @@ function RecordDetailBody({
         <div className="rd-section rd-ai">
           <div className="rd-sec-label">✦ NIYANTRAN ANALYSIS</div>
           <div className="rd-ai-brief">
-            {busy && !analysisBrief ? 'Reading this entry…' : analysisBrief || analysis?.brief || ''}
+            {busy && !analysisBrief
+              ? 'Reading this entry…'
+              : analysisBrief ||
+                analysis?.brief ||
+                (err ? 'Organised summary unavailable for this entry.' : '')}
           </div>
+          {err && !busy ? (
+            <div className="rd-ai-sub">
+              <span>Note</span>
+              {err}
+            </div>
+          ) : null}
           {analysis?.why ? (
             <div className="rd-ai-sub">
               <span>Why it matters</span>
