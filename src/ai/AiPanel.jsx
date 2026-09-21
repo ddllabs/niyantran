@@ -7,17 +7,26 @@ import {
   createAiChat,
   deleteAiChat,
   ensureAiChat,
+  serverThreads,
   setActiveAiChat,
   setChatAttachments,
   setChatRole,
   subscribeAiChats,
-} from '../lib/aiChatStore.js';
+} from '../lib/aiThreads.js';
 import { AI_PROVIDERS, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
 import { sessionUser } from '../lib/userStore.js';
 import { filesFromDrop, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
+import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
+import useResearchThread from './useResearchThread.js';
+import './research.css';
 import { AiBrandIcon } from './AiBrandIcon.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
+import ActivityTicker from './ActivityTicker.jsx';
+import ModelPicker from './ModelPicker.jsx';
+import SourceList from './SourceList.jsx';
+import WorkSurface from './WorkSurface.jsx';
+import { isReadableCitation } from './CitationBubble.jsx';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 
 const FOCUS_OPTS = [
@@ -32,7 +41,6 @@ const DOCS_EN = [
   'If a fact is missing from that scope, the assistant should say “Not in record.”',
   'Attach desk rows or files for evidence. Evidence is listed before interpretation.',
   'No buy / sell / hold language. No invented citations or fake typing.',
-  'Work mode keeps replies denser: Evidence → Read → Gaps → Confidence.',
 ];
 
 const DOCS_HI = [
@@ -40,8 +48,14 @@ const DOCS_HI = [
   'यदि तथ्य दायरे में नहीं है, सहायक को “Not in record” कहना चाहिए।',
   'साक्ष्य के लिए पंक्तियाँ या फ़ाइलें जोड़ें। व्याख्या से पहले साक्ष्य।',
   'खरीद/बेच/होल्ड भाषा नहीं। बनावटी उद्धरण या नकली टाइपिंग नहीं।',
-  'Work mode घने उत्तर रखता है: Evidence → Read → Gaps → Confidence।',
 ];
+
+// The last line differs by path: work mode used to change the prompt, and now
+// opens the evidence instead — answers are evidence-first either way.
+const DOCS_WORK_EN = 'Work mode opens the evidence behind an answer: the passage, or the record.';
+const DOCS_WORK_HI = 'Work mode उत्तर के पीछे का साक्ष्य खोलता है: अंश, या रिकॉर्ड।';
+const DOCS_FLAG_EN = 'Work mode keeps replies denser: Evidence → Read → Gaps → Confidence.';
+const DOCS_FLAG_HI = 'Work mode घने उत्तर रखता है: Evidence → Read → Gaps → Confidence।';
 
 function contextLabel({ attachments, selected, featureName }) {
   const attached = (attachments || []).map((a) => a.title || a.feature).filter(Boolean);
@@ -98,6 +112,26 @@ function contextualPrompts({ attachments, selected, featureName }) {
     `Organise the evidence into a short chronology and key entities.`,
     `Where is the record specific, and where is more evidence needed?`,
   ];
+}
+
+// Match research-chat/validate.ts limits without inventing or truncating keys.
+// A changed fallback hash cannot identify the selected authoritative desk row.
+export function researchSelection(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+  const bounded = {};
+  let count = 0;
+  for (const key in row) {
+    if (!Object.hasOwn(row, key) || key.length > 200) continue;
+    const value = row[key];
+    if (value == null || value === '' || typeof value === 'object') continue;
+    bounded[key] = String(value).slice(0, 500);
+    if (++count >= 64) break;
+  }
+  if (!Object.keys(bounded).length) return null;
+  if (deskRowKey(bounded) !== deskRowKey(row)) {
+    throw new Error('This selection cannot be matched within the research limits. Clear the selected row to ask without selection, or use desk search.');
+  }
+  return bounded;
 }
 
 function slimRow(row) {
@@ -257,11 +291,17 @@ const WORK_KEY = 'niyantranAiWorkMode';
 
 export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose }) {
   const hi = lang === 'hi';
-  const [state, setState] = useState(() => ensureAiChat());
+  const research = useResearchThread(serverThreads);
+  const [legacyState, setState] = useState(() => serverThreads ? { chats: [], activeId: '' } : ensureAiChat());
+  const state = serverThreads ? research.store : legacyState;
   const [providerId, setProviderId] = useState(() => activeAiProvider().id);
-  const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+  const [legacyDraft, setLegacyDraft] = useState('');
+  const [legacyBusy, setBusy] = useState(false);
+  const [legacyError, setErr] = useState('');
+  const draft = serverThreads ? research.draft : legacyDraft;
+  const setDraft = serverThreads ? research.actions.setDraft : setLegacyDraft;
+  const busy = serverThreads ? research.locked : legacyBusy;
+  const err = serverThreads ? research.error : legacyError;
   const [dragOver, setDragOver] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
@@ -281,6 +321,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       return false;
     }
   });
+  const viewer = serverThreads ? research.viewer : null;
+  const registry = research.registry;
+  const modelChoice = research.choice;
+  const seedOwner = useRef(null);
   const scroller = useRef(null);
   const box = useRef(null);
   const fileRef = useRef(null);
@@ -294,15 +338,24 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   );
   const picked = AI_PROVIDERS.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
   const attachments = chat?.attachments || [];
-  const messages = (chat?.messages || []).filter((m) => m.role !== 'system');
+  const messages = (serverThreads ? research.messages : chat?.messages || []).filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
 
-  useEffect(() => subscribeAiChats(setState), []);
+  useEffect(() => serverThreads ? undefined : subscribeAiChats(setState), []);
   useEffect(() => {
     const live = activeAiProvider().id;
     if (!AI_PROVIDERS.find((p) => p.id === providerId)?.enabled) setProviderId(live);
   }, [providerId]);
+
+  const stream = serverThreads ? research.stream : null;
+  const streaming = Boolean(stream?.isStreaming);
+  const openSource = source => research.actions.openSource(source);
+  const closeViewer = () => research.actions.closeViewer();
+  useEffect(() => {
+    if (!serverThreads) return;
+    setDragOver(false); setModelOpen(false); setFocusOpen(false); setHistoryOpen(false);
+  }, [research.identityVersion]);
 
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -336,7 +389,26 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   }, [workMode]);
 
   useEffect(() => {
-    if (!seed) return undefined;
+    if (!seed) { seedOwner.current = null; return undefined; }
+    if (serverThreads) {
+      if (!research.ready) return undefined;
+      if (seedOwner.current?.seed === seed) return undefined;
+      seedOwner.current = { seed, version: research.identityVersion };
+      const version = research.identityVersion;
+      if (seed.prompt) research.actions.setDraft(seed.prompt);
+      void research.actions.attach(async () => {
+        const bits = [...(seed.droppedFiles || [])];
+        const payload = seed.drop || (seed.row ? { kind: 'row', row: seed.row, feature: featureName, tab }
+          : seed.attachFeed && feed ? { kind: 'feed', feature: feed.feature, tab }
+          : selected ? { kind: 'row', row: selected, feature: featureName, tab } : null);
+        if (payload) bits.push(...await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected: seed.row || selected }));
+        return bits;
+      }).then(applied => {
+        if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
+        onSeedConsumed?.();
+      });
+      return undefined;
+    }
     if (seed.attachFeed && !feed && !seed.row && !seed.drop && !seed.droppedFiles?.length) return undefined;
     let cancelled = false;
     (async () => {
@@ -408,7 +480,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     return () => {
       cancelled = true;
     };
-  }, [seed, feed, featureName, tab, selected, onSeedConsumed]);
+  }, [seed, feed, featureName, tab, selected, onSeedConsumed, research.ready, research.identityVersion]);
 
   async function attachDrop(payload) {
     const st = ensureAiChat();
@@ -420,6 +492,16 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   async function onDrop(e) {
     e.preventDefault();
     setDragOver(false);
+    if (serverThreads) {
+      if (viewer) return;
+      const payload = readAiDrag(e);
+      const files = [...(e.dataTransfer?.files || [])];
+      await research.actions.attach(async () => [
+        ...(payload ? await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected }) : []),
+        ...await filesFromDrop({ dataTransfer: { files, items: [] } }),
+      ]);
+      return;
+    }
     const payload = readAiDrag(e);
     if (payload) await attachDrop(payload);
     const dropped = await filesFromDrop(e);
@@ -433,6 +515,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     const list = [...(e.target.files || [])];
     e.target.value = '';
     if (!list.length) return;
+    if (serverThreads) { await research.actions.attach(() => filesFromDrop({ dataTransfer: { files: list, items: [] } })); return; }
     const dropped = await filesFromDrop({ dataTransfer: { files: list, items: [] } });
     if (dropped.length) {
       const st = ensureAiChat();
@@ -441,7 +524,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   }
 
   function removePin(id) {
-    if (!chat) return;
+    if (!chat || (serverThreads && busy)) return;
     setChatAttachments(
       chat.id,
       (chat.attachments || []).filter((a) => a.id !== id),
@@ -480,10 +563,58 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     });
   }
 
+  /**
+   * The research path: one streamed turn through the edge function. The
+   * selected row travels with its desk identity so the server can confirm it
+   * against desk_rows before letting the model cite it, and its document key
+   * scopes the turn's first document search to that bill.
+   */
+  async function sendResearch(text) {
+    const current = chat;
+    const pins = [...(current?.attachments || [])];
+
+    let selection;
+    try { selection = selected && selected.status !== 'source_status' ? researchSelection(selected) : null; }
+    catch (error) { research.actions.reportError(error.message); return; }
+    const body = {
+      ...(current?.id ? { conversation_id: current.id } : {}),
+      message: text,
+      focus,
+      ...(modelChoice.modelId ? { model: modelChoice.modelId } : {}),
+      ...(modelChoice.effort && modelChoice.effort !== 'off' ? { reasoning: modelChoice.effort } : {}),
+      ...(selection && featureName
+        ? {
+            selection: {
+              tier: tab || '',
+              feature: featureName,
+              row: selection,
+              ...(billDocumentKey(selected) ? { document_key: billDocumentKey(selected) } : {}),
+            },
+          }
+        : {}),
+      attachments: pins
+        .map((a) => ({
+          kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
+          title: String(a.title || a.feature || 'Attachment'),
+          text: String(a.text || a.preview?.record_text || ''),
+          ...(a.feature ? { feature: a.feature } : {}),
+          ...(a.preview ? { row_key: deskRowKey(a.preview) } : {}),
+        }))
+        .filter((a) => a.text),
+      ...(featureName || tab ? { desk_context: { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } } : {}),
+    };
+
+    await research.actions.send(body);
+  }
+
   async function send(e) {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || busy) return;
+    if (!text || busy || streaming) return;
+    if (serverThreads) {
+      await sendResearch(text);
+      return;
+    }
     const st = ensureAiChat();
     const id = st.activeId;
     const current = activeAiChat();
@@ -569,18 +700,22 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
   const recommended = AI_PROVIDERS.filter((p) => RECOMMENDED_IDS.includes(p.id));
   const others = AI_PROVIDERS.filter((p) => !RECOMMENDED_IDS.includes(p.id));
-  const docs = hi ? DOCS_HI : DOCS_EN;
+  const docs = [
+    ...(hi ? DOCS_HI : DOCS_EN),
+    serverThreads ? (hi ? DOCS_WORK_HI : DOCS_WORK_EN) : hi ? DOCS_FLAG_HI : DOCS_FLAG_EN,
+  ];
 
   return (
     <div
-      className={`ai-shell ai-shell-v2${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${workMode ? ' work' : ''}${historyOpen ? ' history-open' : ''}`}
+      className={`ai-shell ai-shell-v2${serverThreads ? ' ai-shell-research' : ''}${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${workMode ? ' work' : ''}${historyOpen ? ' history-open' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
-        setDragOver(true);
+        if (!serverThreads || (!busy && !viewer)) setDragOver(true);
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
+      <div className="ai-panel-background" inert={serverThreads && viewer ? true : undefined}>
       <header className="ai-v2-head">
         <div className="ai-v2-title">
           <Ico name="sparkles" size={18} />
@@ -590,10 +725,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <button
             type="button"
             className="ai-v2-icon-btn"
+            disabled={serverThreads && busy}
             aria-label={hi ? 'नया अनुसंधान' : 'New research'}
             title={hi ? 'नया अनुसंधान' : 'New research'}
             onClick={() => {
-              createAiChat({ roleId: chat?.roleId || 'AUTO' });
+              if (serverThreads) research.actions.newChat();
+              else createAiChat({ roleId: chat?.roleId || 'AUTO' });
               setHistoryOpen(false);
               setDocsOpen(false);
               setModelOpen(false);
@@ -653,7 +790,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                               type="button"
                               className="ai-v2-history-item"
                               onClick={() => {
-                                setActiveAiChat(c.id);
+                                if (serverThreads) research.actions.selectChat(c.id); else setActiveAiChat(c.id);
                                 setHistoryOpen(false);
                               }}
                             >
@@ -671,8 +808,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                                 title={hi ? 'हटाएँ' : 'Delete'}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  deleteAiChat(c.id);
-                                  ensureAiChat();
+                                  if (serverThreads) research.actions.deleteChat(c.id);
+                                  else { deleteAiChat(c.id); ensureAiChat(); }
                                 }}
                               >
                                 ×
@@ -728,7 +865,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
 
         <div className="ai-v2-toolbar" aria-label={hi ? 'चैट विकल्प' : 'Chat options'}>
-          <button type="button" className="ai-v2-attach-btn" onClick={() => fileRef.current?.click()}>
+          <button type="button" className="ai-v2-attach-btn" disabled={serverThreads && busy} onClick={() => fileRef.current?.click()}>
             <Ico name="clip" size={14} />
             {hi ? 'फ़ाइलें जोड़ें' : 'Attach files'}
           </button>
@@ -782,15 +919,28 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             className={`ai-v2-work${workMode ? ' on' : ''}`}
             aria-pressed={workMode}
             title={
-              workMode
+              serverThreads
                 ? hi
-                  ? 'Work mode चालू — घने, साक्ष्य-पहले उत्तर'
-                  : 'Work mode on — dense, evidence-first answers'
-                : hi
-                  ? 'Work mode बंद'
-                  : 'Work mode off'
+                  ? 'Work mode — उत्तर के स्रोत खोलें'
+                  : 'Work mode — open the evidence behind the answer'
+                : workMode
+                  ? hi
+                    ? 'Work mode चालू — घने, साक्ष्य-पहले उत्तर'
+                    : 'Work mode on — dense, evidence-first answers'
+                  : hi
+                    ? 'Work mode बंद'
+                    : 'Work mode off'
             }
-            onClick={() => setWorkMode((v) => !v)}
+            onClick={() => {
+              // On the research path the button is the viewer: answers are
+              // evidence-first either way, so the flag has nothing left to do.
+              if (!serverThreads) {
+                setWorkMode((v) => !v);
+                return;
+              }
+              if (viewer) closeViewer();
+              else openSource(null);
+            }}
           >
             Work mode
           </button>
@@ -821,10 +971,50 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {messages.map((m) => (
             <div key={m.id} className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
               <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : m.model || picked.label}</span>
-              {m.role === 'assistant' && !m.error ? <AiMarkdown text={m.content} /> : m.content}
+              {m.role === 'assistant' && (serverThreads || !m.error) ? (
+                <>
+                  {serverThreads && (m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} model={{ requested: m.model_requested, served: m.model_served }} /> : null}
+                  <AiMarkdown text={m.content} sources={serverThreads ? m.sources || [] : undefined} onOpenSource={openSource} />
+                  {serverThreads && Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
+                  {serverThreads && m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
+                  {serverThreads && m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
+                </>
+              ) : (
+                m.content
+              )}
             </div>
           ))}
-          {busy ? (
+
+          {/* The turn in flight: the ticker, then the answer as it is written. */}
+          {serverThreads && research.live ? (
+            <div className="ai-msg ai-msg-assistant">
+              <span>{stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
+              <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} />
+              {stream?.streamingText ? (
+                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} />
+              ) : null}
+            </div>
+          ) : null}
+
+          {serverThreads && !streaming && stream?.followUps?.length ? (
+            <div className="ai-suggest ai-v2-suggest">
+              {stream.followUps.map((q) => (
+                <button key={q} type="button" onClick={() => setDraft(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {serverThreads && stream?.notice?.kind === 'window' ? (
+            <p className="ai-foot">
+              {hi
+                ? `पुराने ${stream.notice.dropped} संदेश इस उत्तर के संदर्भ से बाहर थे।`
+                : `The ${stream.notice.dropped} oldest messages fell outside this answer's context.`}
+            </p>
+          ) : null}
+
+          {!serverThreads && busy ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{picked.label}</span>
               {hi ? 'संलग्न स्रोत पढ़ रहा है…' : 'Reading attached sources…'}
@@ -852,9 +1042,18 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       </div>
 
       <div className="ai-v2-foot">
-        {err ? <p className="ai-foot warn">{err}</p> : null}
+        {serverThreads ? <div className="ai-research-controls" aria-live="polite">
+          {research.loading ? <span>Loading research…</span> : null}
+          {stream?.status === 'unknown' ? <span>Connection lost. The saved outcome is unknown.</span> : null}
+          {research.storedRunning || stream?.status === 'running' && !streaming ? <span>Research is running.</span> : null}
+          {research.cancelRequested || stream?.cancelRequested ? <span>Stopping — awaiting the saved result.</span> : null}
+          {research.cancelError || stream?.cancelError ? <span role="alert">{research.cancelError || stream.cancelError}</span> : null}
+          {research.recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
+          <button type="button" disabled={research.loading} onClick={() => research.actions.reload()}>Reload</button>
+        </div> : null}
+        {err ? <p className="ai-foot warn" role="alert">{err}</p> : null}
         <form className="ai-v2-composer" onSubmit={send}>
-          <button type="button" className="ai-v2-comp-clip" onClick={() => fileRef.current?.click()} aria-label="Attach">
+          <button type="button" className="ai-v2-comp-clip" disabled={serverThreads && busy} onClick={() => fileRef.current?.click()} aria-label="Attach">
             <Ico name="clip" size={16} />
           </button>
           <textarea
@@ -871,13 +1070,40 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             }}
             placeholder={hi ? 'अपनी फ़ाइलों के बारे में पूछें…' : 'Ask a question about your files...'}
           />
-          <button className="ai-v2-send" type="submit" disabled={busy || !draft.trim()} aria-label={hi ? 'भेजें' : 'Send'}>
+          {serverThreads && research.canStop ? (
+            <button
+              type="button"
+              className="ai-v2-send stop"
+              aria-label={hi ? 'रोकें' : 'Stop'}
+              title={hi ? 'रोकें' : 'Stop'}
+              disabled={research.cancelPending || stream?.cancelPending}
+              onClick={() => research.actions.stop()}
+            >
+              ■
+            </button>
+          ) : null}
+          <button className="ai-v2-send" type="submit" disabled={busy || streaming || !draft.trim()} aria-label={hi ? 'भेजें' : 'Send'} hidden={streaming}>
             <Ico name="send" size={16} />
           </button>
         </form>
 
         <div className="ai-v2-model-row">
-          <div className="ai-v2-model" ref={modelRef}>
+          {serverThreads ? (
+            <div ref={modelRef}>
+              <ModelPicker
+                models={registry.models}
+                roles={registry.roles}
+                value={modelChoice}
+                open={modelOpen}
+                onToggle={() => {
+                  setModelOpen((v) => !v);
+                  setFocusOpen(false);
+                }}
+                onChange={(next) => research.actions.setChoice(next)}
+              />
+            </div>
+          ) : null}
+          {!serverThreads ? <div className="ai-v2-model" ref={modelRef}>
             <button
               type="button"
               className={`ai-v2-model-btn${modelOpen ? ' open' : ''}`}
@@ -936,9 +1162,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 ))}
               </div>
             ) : null}
-          </div>
+          </div> : null}
         </div>
       </div>
+      </div>
+      {serverThreads && viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} /> : null}
     </div>
   );
 }
