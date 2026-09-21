@@ -1,4 +1,5 @@
 import type { CitationSource } from '../_shared/citation.types.ts';
+import { log } from '../_shared/logging.ts';
 import type { ResearchRequest } from './validate.ts';
 
 export const TURN_DEADLINE_MS = 120_000;
@@ -186,7 +187,20 @@ export async function executeClaimedTurn(input: {
       ),
       deadline,
     ]);
-  } catch {
+  } catch (e) {
+    // This catch decides the turn's whole outcome, so it must not discard the
+    // reason. A bare `catch {}` here turned every distinct failure into the same
+    // opaque 'The turn failed.' with nothing written anywhere: not in
+    // model_call_logs, which only records attempts that reached the provider,
+    // and not in the function logs.
+    log('research.execute_failed', {
+      interrupted,
+      remaining_ms: remaining,
+      partial_content: partial.content.length,
+      model_served: partial.model_served,
+      kind: (e as Error)?.name ?? 'unknown',
+      message: String((e as Error)?.message ?? e).slice(0, 300),
+    });
     terminal = {
       ...partial,
       status: interrupted ? 'interrupted' : 'error',
