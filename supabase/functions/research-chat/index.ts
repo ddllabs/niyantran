@@ -8,6 +8,7 @@ import { EMBED_DIMS, EMBED_MODEL, embedTexts, servedModelMatches } from '../_sha
 import { errorResponse, HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { promptFile } from '../_shared/personaMap.ts';
+import { personaPrompt } from '../_shared/personas.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
 import { search } from '../_shared/retrieval.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
@@ -32,7 +33,11 @@ function runtime(overrides: Partial<Runtime>): Runtime {
     serviceClient,
     fetch: (...args) => fetch(...args),
     env: (name) => Deno.env.get(name),
-    readPersona: (file) => Deno.readTextFile(new URL(`../_shared/personas/${file}`, import.meta.url)),
+    // Resolved from the bundled JSON, never the filesystem: a runtime read is
+    // outside the deploy's import graph, so the markdown is not uploaded and
+    // every turn fails with `path not found` before a model is called.
+    readPersona: (file) =>
+      Promise.resolve(personaPrompt(file) ?? personaPrompt('analyst.md') ?? ''),
     timeoutMs: NETWORK_TIMEOUT_MS,
     waitUntil: (work) =>
       (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(work),
