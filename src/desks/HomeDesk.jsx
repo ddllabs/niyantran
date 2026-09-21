@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import bundledAds from '../data/home-ads.json';
 import zine from '../data/home-zine.json';
 import {
   homeCacheHasRows,
@@ -103,8 +102,6 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     latest: boot?.latest || null,
     pulse: boot?.pulse || null,
   });
-  const [ads, setAds] = useState(() => (Array.isArray(bundledAds) ? bundledAds : []));
-  const [ad, setAd] = useState(0);
   const [loading, setLoading] = useState(!homeCacheHasRows(boot));
   const [topics, setTopics] = useState([]);
   const [watchlist, setWatchlist] = useState(() => loadWatchlist());
@@ -149,24 +146,6 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     link: r.link || r.source_url,
     time: r.time || r.published || r.date,
   }));
-
-  useEffect(() => {
-    const ac = new AbortController();
-    // A-08: editable without rebuild — public/data/home-ads.json overrides the bundled file.
-    fetch('/data/home-ads.json', { signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body) => {
-        if (Array.isArray(body) && body.length) setAds(body);
-      })
-      .catch(() => {});
-    return () => ac.abort();
-  }, [reload]);
-
-  useEffect(() => {
-    if (!ads.length) return undefined;
-    const t = setInterval(() => setAd((i) => (i + 1) % ads.length), 5000);
-    return () => clearInterval(t);
-  }, [ads.length]);
 
   useEffect(() => {
     let alive = true;
@@ -345,28 +324,6 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
       <div className="nh-grid">
         <div className="nh-main">
-          {ads.length > 0 && (
-            <div className="nh-ads" aria-label="Sponsored">
-              <span className="ad-tag">SPONSORED</span>
-              {ads.map((a, i) => (
-                <a
-                  key={a.name}
-                  className={`ad-slide${i === ad ? ' on' : ''}`}
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                  aria-label={a.name}
-                >
-                  <img alt={a.name} src={a.img} />
-                </a>
-              ))}
-              <div className="ad-dots">
-                {ads.map((a, i) => (
-                  <i key={a.name} className={i === ad ? 'on' : ''} onClick={() => setAd(i)} />
-                ))}
-              </div>
-            </div>
-          )}
           {featured && (
             <article className="nh-hero">
               <div className="nh-hero-copy">
@@ -409,7 +366,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                   <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
                 </div>
                 <div>
-                  <span>Latest wire</span>
+                  <span>Latest (nter.news)</span>
                   <b>{meta.latest?.ageH != null ? `${Number(meta.latest.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
                 </div>
                 <div>

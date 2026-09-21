@@ -469,12 +469,9 @@ function ago(iso) {
 }
 
 async function fetchLiveLatest() {
-  // Prefer ingested nter.news; otherwise refresh the same wire RSS the HTML home used.
+  // Homepage Latest is nter.news only — never fall back to wire RSS.
   const nter = serveNterLatest({ limit: 12 });
-  if (nter.rows?.length) return nter;
-  const wire = await fetchWireRssLatest();
-  if (wire?.rows?.length) return wire;
-  return null;
+  return nter.rows?.length ? nter : null;
 }
 
 const WIRE_FEEDS = [
@@ -528,7 +525,6 @@ async function fetchWireRssLatest() {
 }
 
 export async function serveHomeLatest(opts = {}) {
-  const fresh = Boolean(opts.fresh);
   const live = serveNterLatest({ limit: 12 });
   if (live.rows?.length) {
     writeDiskSnapshot('news', {
@@ -541,44 +537,26 @@ export async function serveHomeLatest(opts = {}) {
     return live;
   }
 
-  if (fresh) {
-    const wire = await fetchWireRssLatest();
-    if (wire?.rows?.length) {
-      writeDiskSnapshot('news', wire);
-      return wire;
-    }
-  }
-
+  // Only serve a prior nter.news snapshot — never wire RSS / old news.json.
   const snap = readDiskSnapshot('news');
-  if (snap?.rows?.length) {
+  if (snap?.rows?.length && snap.source === 'nter.news') {
     const ageH = snap.__ageH;
     const stale = !Number.isFinite(ageH) || ageH > (opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H);
-    if (stale && !fresh) {
-      // Kick a background refresh; still serve the snapshot now (same as markets).
+    if (stale && !opts.fresh) {
       scheduleHomeRefresh('news', () => fetchLiveLatest());
     }
     return {
       ...snapshotPayload(snap),
       rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-      note:
-        snap.source === 'nter.news'
-          ? snap.note || 'Latest from nter.news.'
-          : snap.note || 'Saved wire headlines (nter.news ingest empty on this host).',
-      source: snap.source === 'nter.news' ? 'nter.news' : snap.source || 'wire-rss',
+      note: snap.note || 'Latest from nter.news.',
+      source: 'nter.news',
     };
-  }
-
-  // Last resort: try live wire even without fresh=1 so production is not stuck empty.
-  const wire = await fetchWireRssLatest();
-  if (wire?.rows?.length) {
-    writeDiskSnapshot('news', wire);
-    return wire;
   }
 
   return {
     ok: true,
     rows: [],
-    note: live.note || 'Waiting for nter.news ingest or wire RSS. No headlines were invented.',
+    note: live.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
     source: 'nter.news',
     archive: true,
     ageH: null,
@@ -814,12 +792,26 @@ export async function handleHomeApi(req, res, next) {
       return;
     }
     if (p === '/data/news.json') {
-      const news = snapshotNewsFile();
-      if (!news) {
-        json(res, { error: 'no snapshot' }, 404);
+      const live = serveNterLatest({ limit: 12 });
+      if (live.rows?.length) {
+        json(res, live);
         return;
       }
-      json(res, news);
+      const news = snapshotNewsFile();
+      if (news?.source === 'nter.news' && news.rows?.length) {
+        json(res, news);
+        return;
+      }
+      json(
+        res,
+        {
+          ok: true,
+          rows: [],
+          note: live.note || 'Waiting for nter.news ingest. No headlines were invented.',
+          source: 'nter.news',
+          archive: true,
+        },
+      );
       return;
     }
     if (p === '/api/ohlc') {

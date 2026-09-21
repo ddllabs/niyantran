@@ -95,7 +95,7 @@ export async function homeMarketsFromStatic(signal) {
 }
 
 export async function homeLatestFromStatic(signal) {
-  // Prefer ingested nter store; if empty, use the shipped wire snapshot (same as local Vite).
+  // Homepage Latest is nter.news only — no wire / news.json fallback.
   const nter = await getStaticJson('/data/nter-news.json', signal);
   const nterRows = Array.isArray(nter?.rows) ? nter.rows : [];
   if (nterRows.length) {
@@ -107,19 +107,6 @@ export async function homeLatestFromStatic(signal) {
       ageH: nter.updated ? (Date.now() - new Date(nter.updated).getTime()) / 3600000 : null,
       updated: nter.updated,
       source: 'nter.news',
-    };
-  }
-  const snap = await getStaticJson('/data/news.json', signal);
-  const rows = Array.isArray(snap?.rows) ? snap.rows : [];
-  if (rows.length) {
-    return {
-      ok: true,
-      rows,
-      note: snap.note || 'Saved wire headlines (nter.news ingest empty on this host).',
-      archive: true,
-      ageH: snap.updated ? (Date.now() - new Date(snap.updated).getTime()) / 3600000 : null,
-      updated: snap.updated,
-      source: snap.source || 'wire-rss',
     };
   }
   return {

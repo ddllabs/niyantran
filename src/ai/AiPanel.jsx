@@ -19,7 +19,6 @@ import { filesFromDrop, materializeAiDrop, openAiResearch, readAiDrag } from '..
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { AiBrandIcon } from './AiBrandIcon.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
-import { trackProductEvent } from '../lib/productAnalytics.js';
 
 const FOCUS_OPTS = [
   { id: 'attached', en: 'Attached only', hi: 'केवल संलग्न', hint: 'Pins and files in this chat' },
@@ -43,63 +42,6 @@ const DOCS_HI = [
   'खरीद/बेच/होल्ड भाषा नहीं। बनावटी उद्धरण या नकली टाइपिंग नहीं।',
   'Work mode घने उत्तर रखता है: Evidence → Read → Gaps → Confidence।',
 ];
-
-function contextLabel({ attachments, selected, featureName }) {
-  const attached = (attachments || []).map((a) => a.title || a.feature).filter(Boolean);
-  const picked =
-    selected?.conflict_name ||
-    selected?.bill_name ||
-    selected?.subject ||
-    selected?.title ||
-    selected?.name;
-  return String(attached[0] || picked || featureName || 'this material').trim();
-}
-
-function contextualPrompts({ attachments, selected, featureName }) {
-  const topic = contextLabel({ attachments, selected, featureName });
-  const hay = `${featureName || ''} ${topic}`.toLowerCase();
-
-  if (/conflict|front|war|security|defen[cs]e/.test(hay)) {
-    return [
-      `Build a dated timeline of the recorded changes in ${topic}.`,
-      `Separate verified facts, actor claims and unresolved points for ${topic}.`,
-      `Which actors, regions and institutions are most relevant to this dossier?`,
-    ];
-  }
-  if (/bill|legislat|parliament|policy|cabinet/.test(hay)) {
-    return [
-      `Explain the current recorded stage of ${topic} and what changed most recently.`,
-      `Which institutions, sectors and provisions does ${topic} touch?`,
-      `Compare the attached record with related measures in this packet.`,
-    ];
-  }
-  if (/court|judg|case|law|verdict/.test(hay)) {
-    return [
-      `State the issue, holding and reasoning documented for ${topic}.`,
-      `Identify the provisions and precedents cited in the attached material.`,
-      `What is explicit in the record, and what would require further legal research?`,
-    ];
-  }
-  if (/econom|market|budget|trade|carbon|commodit/.test(hay)) {
-    return [
-      `Summarise the latest recorded change in ${topic} and its measurement basis.`,
-      `Which series or entities provide the most useful comparison for ${topic}?`,
-      `Flag gaps, revisions or incompatible units in the attached data.`,
-    ];
-  }
-  if (/transit|ship|air|flight|vessel/.test(hay)) {
-    return [
-      `Explain what this position record confirms about ${topic}.`,
-      `Separate live fields from inferred or unavailable route details.`,
-      `What should I compare across the attached transit records?`,
-    ];
-  }
-  return [
-    `What does the attached material document about ${topic}?`,
-    `Organise the evidence into a short chronology and key entities.`,
-    `Where is the record specific, and where is more evidence needed?`,
-  ];
-}
 
 function slimRow(row) {
   if (!row || typeof row !== 'object') return null;
@@ -127,31 +69,6 @@ function buildDeskContext(feed, tab, featureName) {
     note: feed.fallback ? 'Desk is on a labelled fallback / archive pass.' : '',
     rows,
   };
-}
-
-function exportChatMarkdown(chat, picked) {
-  const lines = [
-    `# ${chat?.title || 'AI research'}`,
-    '',
-    `_Exported from Niyantran · model ${picked?.label || ''} · ${new Date().toISOString()}_`,
-    '',
-  ];
-  for (const m of chat?.messages || []) {
-    if (m.role === 'system') continue;
-    const who = m.role === 'user' ? 'You' : m.model || 'Assistant';
-    lines.push(`## ${who}`);
-    lines.push('');
-    lines.push(String(m.content || ''));
-    lines.push('');
-  }
-  const pins = chat?.attachments || [];
-  if (pins.length) {
-    lines.push('## Attachments');
-    lines.push('');
-    for (const a of pins) lines.push(`- ${a.title || a.feature || a.kind}`);
-    lines.push('');
-  }
-  return lines.join('\n');
 }
 
 function Ico({ name, size = 16 }) {
@@ -459,31 +376,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     if (chat) setChatRole(chat.id, pickRoleForProvider(p.id));
   }
 
-  function onExport() {
-    if (!chat) return;
-    try {
-      const gate = window.__niyExportGate;
-      if (typeof gate === 'function' && gate({ kind: 'ai' }) === false) return;
-    } catch {
-      /* continue */
-    }
-    const md = exportChatMarkdown(chat, picked);
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${String(chat.title || 'research')
-      .replace(/[^\w\-]+/g, '_')
-      .slice(0, 48)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-    trackProductEvent('ai_export', {
-      chatId: chat.id,
-      title: chat.title || '',
-      messages: (chat.messages || []).length,
-    });
-  }
-
   async function send(e) {
     e?.preventDefault();
     const text = draft.trim();
@@ -521,10 +413,38 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 selected.commodity ||
                 'Selected record',
             },
-            { feed, feature: featureName, selected },
+            { feed, feature: featureName, selected, hydrate: true },
           );
           addChatAttachments(id, bits);
           pins = [...pins, ...bits];
+        } else if (selected) {
+          // Pin already present from drag/drop — hydrate source URLs now (on Send only).
+          const bits = await materializeAiDrop(
+            {
+              kind: 'row',
+              row: selected,
+              feature: featureName,
+              tab,
+              title:
+                selected.bill_name ||
+                selected.title ||
+                selected.name ||
+                selected.subject ||
+                selected.conflict_name ||
+                selected.commodity ||
+                'Selected record',
+            },
+            { feed, feature: featureName, selected, hydrate: true },
+          );
+          if (bits.length) {
+            const without = pins.filter((a) => {
+              if (a.kind !== 'row') return true;
+              const prev = a.preview || {};
+              return rowPinKey(prev) !== key && a.title !== (selected.bill_name || selected.title || selected.name);
+            });
+            pins = [...without, ...bits];
+            setChatAttachments(id, pins);
+          }
         }
       }
 
@@ -565,11 +485,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       setBusy(false);
     }
   }
-
-  const suggestions = useMemo(
-    () => contextualPrompts({ attachments: chat?.attachments, selected, featureName }),
-    [chat?.attachments, selected, featureName],
-  );
 
   const recommended = providers.filter((p) => RECOMMENDED_IDS.includes(p.id));
   const others = providers.filter((p) => !RECOMMENDED_IDS.includes(p.id));
@@ -706,10 +621,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <button
             type="button"
             className="ai-v2-icon-btn"
-            aria-label={hi ? 'निर्यात' : 'Export'}
-            title={hi ? 'चैट निर्यात करें' : 'Export chat as Markdown'}
-            disabled={!messages.length}
-            onClick={onExport}
+            aria-label={hi ? 'निर्यात' : 'Download'}
+            title={hi ? 'डाउनलोड अभी बंद है' : 'Downloads disabled for now'}
+            disabled
           >
             <Ico name="export" size={15} />
           </button>
@@ -834,25 +748,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               {hi ? 'संलग्न स्रोत पढ़ रहा है…' : 'Reading attached sources…'}
             </div>
           ) : null}
+          {emptyThread && !busy ? (
+            <p className="ai-v2-empty muted">
+              {hi
+                ? 'चैट खाली है। पंक्ति या फ़ाइल जोड़ें, फिर Send दबाएँ।'
+                : 'Chat is empty. Attach a row or file, then press Send.'}
+            </p>
+          ) : null}
         </div>
-
-        {emptyThread && !busy ? (
-          <div className="ai-suggest ai-v2-suggest">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setDraft(s);
-                  box.current?.focus();
-                }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       <div className="ai-v2-foot">

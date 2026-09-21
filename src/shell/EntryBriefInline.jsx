@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ensureDeskBrief, entryFingerprintFnv, peekDeskBrief } from '../lib/deskBrief.js';
-import { resolveSourceBrief } from '../lib/sourceDoc.js';
+import { entryFingerprintFnv, peekDeskBrief } from '../lib/deskBrief.js';
 
 /**
- * Fetches organised entry intelligence for a selected row.
- * Cached briefs are reused — Gemini and source extract run only on cache miss
- * (or when the row fingerprint changes after an API refresh).
+ * Shows organised entry intelligence for a selected row when already cached.
+ * Does NOT call Gemini on select — models run only from AI Research after Send
+ * (or when a brief was previously saved).
  */
 export function useEntryBrief({ feed, selected, loading }) {
   const [brief, setBrief] = useState(null);
@@ -35,41 +34,13 @@ export function useEntryBrief({ feed, selected, loading }) {
     const row = selected;
     setBusy(true);
     setErr('');
-    (async () => {
-      const cached = await peekDeskBrief({
-        feature,
-        tier,
-        row,
-        signal: ac.signal,
-        scope: 'entry',
-      });
-      if (cached) return cached;
-
-      let sourceExtract = '';
-      try {
-        const src = await resolveSourceBrief(row, {
-          title:
-            row.bill_name ||
-            row.policy_name ||
-            row.title ||
-            row.subject ||
-            row.name ||
-            '',
-          signal: ac.signal,
-        });
-        sourceExtract = src.extract || '';
-      } catch (e) {
-        if (e?.name === 'AbortError') throw e;
-      }
-      return ensureDeskBrief({
-        feature,
-        tier,
-        row,
-        sourceNote: feed?.source?.note || '',
-        sourceExtract,
-        signal: ac.signal,
-      });
-    })()
+    peekDeskBrief({
+      feature,
+      tier,
+      row,
+      signal: ac.signal,
+      scope: 'entry',
+    })
       .then((b) => {
         if (!alive) return;
         setBrief(b || null);
@@ -78,7 +49,6 @@ export function useEntryBrief({ feed, selected, loading }) {
       .catch((e) => {
         if (!alive || e?.name === 'AbortError') return;
         setErr(e.message || String(e));
-        // Keep any prior brief for this row; only clear when we have nothing.
         setBrief((prev) => prev || null);
       })
       .finally(() => {
@@ -88,8 +58,7 @@ export function useEntryBrief({ feed, selected, loading }) {
       alive = false;
       ac.abort();
     };
-    // fp covers field changes; omit `selected` object identity to avoid re-POSTing every render.
-  }, [feature, tier, rowKey, fp, feed?.source?.note, loading]);
+  }, [feature, tier, rowKey, fp, loading]);
 
   return { brief, err, busy };
 }

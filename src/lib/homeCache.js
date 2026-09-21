@@ -1,7 +1,8 @@
 import { homeLiveApiEnabled, liveApiEnabled } from './apiMode.js';
 import { loadRefreshCfg } from './refreshStore.js';
 
-const KEY = 'niyantranHomeDesk';
+/** Bumped when Latest switched to nter.news-only (drops stale wire cache). */
+const KEY = 'niyantranHomeDesk.v2';
 
 let kickAt = 0;
 let kickInflight = null;

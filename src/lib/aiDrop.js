@@ -178,21 +178,27 @@ export async function materializeAiDrop(payload, extras = {}) {
       payload.row.name ||
       payload.row.bill_name ||
       'Record';
-    const files = docs.length
-      ? await hydrateDocumentFiles(docs, title)
-      : [
-          {
-            kind: 'record',
-            name: title,
-            text: rowRecordText(payload.row, { title }),
-          },
-        ];
-    if (docs.length) {
-      files.unshift({
+    // Attach as context only — no extract/model calls until the user presses Send.
+    // URLs stay on the pin; the chat send path (or hydrate:true) can fetch bodies later.
+    const files = [
+      {
         kind: 'record',
-        name: `${title} (terminal columns)`,
+        name: docs.length ? `${title} (terminal columns)` : title,
         text: rowRecordText(payload.row, { title }),
-      });
+      },
+      ...docs.map((url) => ({
+        url,
+        kind: fileKind(url) || 'link',
+        name: title || url,
+      })),
+    ];
+    if (extras.hydrate && docs.length) {
+      const extracted = await hydrateDocumentFiles(docs, title);
+      for (const f of extracted) {
+        const i = files.findIndex((x) => x.url === f.url);
+        if (i >= 0) files[i] = f;
+        else files.push(f);
+      }
     }
     attachments.push({
       kind: 'row',
@@ -204,7 +210,7 @@ export async function materializeAiDrop(payload, extras = {}) {
         related_records: related.related_records,
         timeline: related.timeline,
         document_status: docs.length
-          ? 'Source document URL(s) attached — extracted when reachable.'
+          ? 'Source document URL(s) attached — text extracted on Send when reachable.'
           : hubs.length
             ? 'No document body on file — registry hub URL is provenance only. Answer from terminal columns.'
             : 'No source URL on file — answer from terminal columns.',
