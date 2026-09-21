@@ -419,3 +419,7 @@ enabled = true
 # or the secret key, not a user JWT, so the platform JWT check is off for it.
 [functions.refresh-model-pricing]
 verify_jwt = false
+
+# Service-role only: the handler compares the bearer to the project's secret key itself.
+[functions.ingest-documents]
+verify_jwt = false

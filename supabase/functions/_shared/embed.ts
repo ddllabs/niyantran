@@ -49,6 +49,16 @@ export interface EmbedDeps {
   batch?: Partial<EmbedBatchBounds>;
 }
 
+/**
+ * OpenRouter echoes the upstream name without the vendor prefix
+ * ('text-embedding-3-small' for 'openai/text-embedding-3-small'), observed on
+ * the first live call, 2026-09-21. Both spellings are the one model; anything
+ * else is refused.
+ */
+export function servedModelMatches(served: string): boolean {
+  return served === EMBED_MODEL || served === EMBED_MODEL.slice(EMBED_MODEL.indexOf('/') + 1);
+}
+
 function estimate(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -109,7 +119,7 @@ async function requestBatch(
       throw new EmbeddingError(`embeddings HTTP ${res.status}: ${String(payload?.error?.message ?? 'no detail')}`, spent, res.status);
     }
     const model = typeof payload.model === 'string' ? payload.model : '';
-    if (model !== EMBED_MODEL) {
+    if (!servedModelMatches(model)) {
       throw new EmbeddingError(`embeddings served by ${model || 'an unnamed model'}, expected ${EMBED_MODEL}`, spent, res.status);
     }
     const data = Array.isArray(payload.data) ? payload.data : [];

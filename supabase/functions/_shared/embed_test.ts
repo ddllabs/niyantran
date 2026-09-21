@@ -39,10 +39,18 @@ Deno.test('a 1535-wide vector is refused by name before any vector is returned',
   assert(err.message.includes('1535'), err.message);
 });
 
-Deno.test('a different served model is refused by name', async () => {
+Deno.test('a different served model is refused by name; the unprefixed echo of the same model is accepted', async () => {
   const { fetchFn } = scripted([ok(['x'], { model: 'openai/text-embedding-ada-002' })]);
   const err = await assertRejects(() => embedTexts({ fetch: fetchFn, apiKey: 'k', sleep: noSleep }, ['x']), EmbeddingError);
   assert(err.message.includes('text-embedding-ada-002'), err.message);
+
+  const bare = scripted([ok(['x'], { model: 'text-embedding-3-small' })]);
+  const r = await embedTexts({ fetch: bare.fetchFn, apiKey: 'k', sleep: noSleep }, ['x']);
+  assertEquals(r.vectors.length, 1);
+  assertEquals(r.model, EMBED_MODEL);
+
+  const large = scripted([ok(['x'], { model: 'text-embedding-3-large' })]);
+  await assertRejects(() => embedTexts({ fetch: large.fetchFn, apiKey: 'k', sleep: noSleep }, ['x']), EmbeddingError);
 });
 
 Deno.test('429 then 200 succeeds with two requests; a 400 is not retried', async () => {
