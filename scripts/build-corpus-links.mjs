@@ -41,8 +41,17 @@ export function baseName(url) {
 }
 
 function field(text, name) {
-  const m = new RegExp(`^${name}:\\s*(.+)$`, 'm').exec(text);
-  return m ? m[1].trim() : undefined;
+  const m = new RegExp(`^${name}:[^\\S\\r\\n]*([^\\r\\n]+)$`, 'm').exec(text);
+  return m ? m[1].trim() || undefined : undefined;
+}
+
+function billIdentity(text) {
+  const billNumber = field(text, 'billNumber');
+  const billYear = field(text, 'billYear');
+  // The corpus contains non-canonical Roman forms such as `XXXX` and `XXX II`.
+  const validNumber = /^(?:\d+|[IVXLCDM]+(?:[^\S\r\n]+[IVXLCDM]+)*)$/i.test(billNumber || '');
+  if (!validNumber || !/^\d{4}$/.test(billYear || '')) return null;
+  return { bill_number: billNumber, bill_year: billYear };
 }
 
 /** Fold one record's links into the map; a bill_record wins over any other record for the same name. */
@@ -63,8 +72,8 @@ export function foldRecord(links, record) {
     if (prev && !isBill) continue;
     const entry = { url, doc_type: record.doc_type, title: String(record.title || '').trim() || undefined };
     if (isBill) {
-      entry.bill_number = field(text, 'billNumber');
-      entry.bill_year = field(text, 'billYear');
+      const identity = billIdentity(text);
+      if (identity) Object.assign(entry, identity);
       entry.house = field(text, 'billIntroducedInHouse');
       entry.status = field(text, 'status');
       entry.title = field(text, 'billName') || entry.title;
