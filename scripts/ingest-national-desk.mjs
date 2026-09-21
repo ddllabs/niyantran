@@ -12,6 +12,11 @@
 //                       ingest/national-desk/links.json). Plan: docs/plans/2026-09-21-corpus-ingest-first-pass.md
 // Options: --dry-run (writes nothing), --batch N (documents per request, default 10),
 //          --max-chars N (skip and list larger documents, default 2,000,000), --limit N (first N only).
+//          --only <source_key> (repeatable; --corpus mode only) selects exact source IDs instead of
+//          walking the whole feature, so a reconciled retry does not re-post every unaffected document.
+//          It filters OCR_FILES.csv rows after the in_current_corpus and feature filters, still honours
+//          --max-chars for the selected document(s), and exits non-zero naming any key that matches no
+//          eligible row. Mutually exclusive with --shard and --limit; rejected outside --corpus mode.
 // Environment: SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_…; never in a browser, never committed).
 // A .env.local beside package.json is loaded when present.
 
@@ -24,8 +29,8 @@ import { fileURLToPath } from 'node:url';
 /** Above this size a document travels alone in its request. */
 const SOLO_CHARS = 200_000;
 
-function parseArgs(argv) {
-  const out = { dryRun: false, manifest: null, export: null, corpus: null, feature: null, links: 'ingest/national-desk/links.json', batch: 10, maxChars: 2_000_000, limit: 0 };
+export function parseArgs(argv) {
+  const out = { dryRun: false, manifest: null, export: null, corpus: null, feature: null, links: 'ingest/national-desk/links.json', batch: 10, maxChars: 2_000_000, limit: 0, only: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') out.dryRun = true;
@@ -37,6 +42,7 @@ function parseArgs(argv) {
     else if (a === '--batch') out.batch = Math.max(1, Number(argv[++i]) || 10);
     else if (a === '--max-chars') out.maxChars = Math.max(1, Number(argv[++i]) || 2_000_000);
     else if (a === '--limit') out.limit = Math.max(0, Number(argv[++i]) || 0);
+    else if (a === '--only') out.only.push(argv[++i]);
     else if (a === '--shard') {
       // "i/n": take every n-th document starting at i (1-based); run n processes side by side
       const m = /^(\d+)\/(\d+)$/.exec(argv[++i] || '');
@@ -46,6 +52,10 @@ function parseArgs(argv) {
     else if (a === '--help' || a === '-h') out.help = true;
     else throw new Error(`unknown argument ${a}`);
   }
+  // --shard and --limit subdivide a full pass; --only is an explicit selection, so the combination
+  // is meaningless and rejected rather than silently reconciled (e.g. by ignoring the shard).
+  if (out.only.length && out.shard) throw new Error('--only cannot be combined with --shard: --shard subdivides a full pass, --only is an explicit selection');
+  if (out.only.length && out.limit) throw new Error('--only cannot be combined with --limit: --limit subdivides a full pass, --only is an explicit selection');
   return out;
 }
 
@@ -149,12 +159,22 @@ export function fromCorpusRow(row, link, ocrText, sidecar = {}) {
   };
 }
 
-export async function readCorpus(dir, feature, linksFile, maxChars, limit, shard) {
+/** `only`, when given, is a Set of source keys (the `id` column). It filters after the
+ * in_current_corpus and feature filters below, and throws naming every requested key that
+ * matched no eligible row here — a silent no-op selection is exactly the failure this guards
+ * against. Rows that do match still go through every existing per-row check (size cap,
+ * duplicates, exclusion), so an oversized selected document is still skipped, not dispatched. */
+export async function readCorpus(dir, feature, linksFile, maxChars, limit, shard, only) {
   const index = parseCsv(await readFile(path.join(dir, '04_indexes', 'OCR_FILES.csv'), 'utf8'));
   const { links } = JSON.parse(await readFile(linksFile, 'utf8'));
   let rows = index.filter((r) => r.in_current_corpus === 'True' && (r.source_path.split('/')[1] || '') === feature);
   const counts = new Map();
   for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
+  if (only && only.size) {
+    const missing = [...only].filter((key) => !counts.has(key));
+    if (missing.length) throw new Error(`--only source key(s) not found among eligible rows for feature "${feature}": ${missing.join(', ')}`);
+    rows = rows.filter((r) => only.has(r.id));
+  }
   if (shard) rows = rows.filter((_, i) => i % shard.count === shard.index);
   const skipped = [], failed = [], warnings = [], docs = [];
   for (const row of rows) {
@@ -285,9 +305,11 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const mode = args.manifest ? 'manifest' : args.export ? 'export' : args.corpus ? 'corpus' : null;
   if (args.help || !mode || (mode === 'corpus' && !args.feature)) {
-    console.log('usage: node scripts/ingest-national-desk.mjs (--manifest <file> | --export <dir> | --corpus <dir> --feature "<feature>") [--dry-run] [--batch N] [--max-chars N] [--limit N]');
+    console.log('usage: node scripts/ingest-national-desk.mjs (--manifest <file> | --export <dir> | --corpus <dir> --feature "<feature>") [--dry-run] [--batch N] [--max-chars N] [--limit N] [--only <source_key> ...] [--shard i/n]');
     process.exit(args.help ? 0 : 2);
   }
+  // --only is a bounded retry of exact source IDs; it only has meaning against the corpus index.
+  if (args.only.length && mode !== 'corpus') throw new Error('--only is only supported with --corpus mode');
   await loadDotEnv(path.resolve('.env.local'));
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
@@ -300,7 +322,8 @@ async function main() {
   if (mode === 'manifest') docs = await readSpecManifest(args.manifest);
   else if (mode === 'export') docs = await readExport(args.export);
   else {
-    const r = await readCorpus(args.corpus, args.feature, args.links, args.maxChars, args.limit, args.shard);
+    const only = args.only.length ? new Set(args.only) : null;
+    const r = await readCorpus(args.corpus, args.feature, args.links, args.maxChars, args.limit, args.shard, only);
     docs = r.docs;
     skipped = r.skipped;
     sourceFailures = r.failed;

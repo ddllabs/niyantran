@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { fromCorpusRow, fromExportRecord, readCorpus } from '../../scripts/ingest-national-desk.mjs';
+import { fromCorpusRow, fromExportRecord, readCorpus, parseArgs } from '../../scripts/ingest-national-desk.mjs';
 
 const text = 'A 😀 passage\r\n';
 const hash = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
@@ -154,5 +154,133 @@ describe('source provenance and validation', () => {
       expect(result.stdout).toContain('indexed: 1');
       expect(result.stdout).toContain('errors: 1');
     });
+  });
+});
+
+/** Builds a corpus fixture with one row per entry, each pointing at its own
+ * markdown/metadata files. A row whose `write` is false gets no files on disk,
+ * so any attempt to read it surfaces as an ENOENT-flavoured failure instead of
+ * succeeding — that is how "never read from disk" is proven, not asserted. */
+async function multiFixture(entries, run) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'ingest-corpus-multi-'));
+  try {
+    await mkdir(path.join(dir, '04_indexes'));
+    const rows = entries.map((e, i) => row({
+      id: e.id, document_name: e.id + '.pdf',
+      source_path: `Section/${e.feature ?? 'Feature'}/${e.id}.pdf`,
+      markdown_path: `doc-${i}.md`, metadata_path: `doc-${i}.json`,
+      n_chars: String([...(e.text ?? text)].length), text_sha256: hash(e.text ?? text),
+      ...e.rowExtra,
+    }));
+    const keys = Object.keys(rows[0]);
+    const csv = [keys, ...rows.map((r) => keys.map((key) => r[key] ?? ''))]
+      .map((cells) => cells.map((cell) => JSON.stringify(String(cell))).join(',')).join('\n');
+    await writeFile(path.join(dir, '04_indexes/OCR_FILES.csv'), '﻿' + csv);
+    for (const [i, e] of entries.entries()) {
+      if (e.write === false) continue;
+      await writeFile(path.join(dir, `doc-${i}.md`), e.text ?? text);
+      await writeFile(path.join(dir, `doc-${i}.json`), JSON.stringify({ id: e.id }));
+    }
+    await writeFile(path.join(dir, 'links.json'), JSON.stringify({ links: {} }));
+    await run(dir, path.join(dir, 'links.json'));
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+describe('--only bounded selector', () => {
+  it('parseArgs collects a single --only into a one-element list', () => {
+    const args = parseArgs(['--corpus', 'x', '--feature', 'F', '--only', 'source-1']);
+    expect(args.only).toEqual(['source-1']);
+  });
+
+  it('parseArgs collects repeated --only flags into the exact set requested', () => {
+    const args = parseArgs(['--corpus', 'x', '--feature', 'F', '--only', 'a', '--only', 'b']);
+    expect(args.only).toEqual(['a', 'b']);
+  });
+
+  it('parseArgs rejects --only combined with --shard', () => {
+    expect(() => parseArgs(['--corpus', 'x', '--feature', 'F', '--only', 'a', '--shard', '1/2']))
+      .toThrow(/--only.*--shard|--shard.*--only/);
+  });
+
+  it('parseArgs rejects --only combined with --limit', () => {
+    expect(() => parseArgs(['--corpus', 'x', '--feature', 'F', '--only', 'a', '--limit', '5']))
+      .toThrow(/--only.*--limit|--limit.*--only/);
+  });
+
+  it('selects exactly the one requested source key out of several eligible rows', async () => {
+    await multiFixture([{ id: 'source-1' }, { id: 'source-2' }, { id: 'source-3' }], async (dir, links) => {
+      const result = await readCorpus(dir, 'Feature', links, 2_000_000, 0, null, new Set(['source-2']));
+      expect(result.docs.map((d) => d.source_key)).toEqual(['source-2']);
+    });
+  });
+
+  it('repeated --only (a set of two) selects exactly those two and never reads the third from disk', async () => {
+    await multiFixture([
+      { id: 'source-1' },
+      { id: 'source-2' },
+      { id: 'source-3', write: false }, // its files do not exist; reading it would fail loudly
+    ], async (dir, links) => {
+      const result = await readCorpus(dir, 'Feature', links, 2_000_000, 0, null, new Set(['source-1', 'source-2']));
+      expect(result.docs.map((d) => d.source_key).sort()).toEqual(['source-1', 'source-2']);
+      expect(result.failed).toEqual([]);
+    });
+  });
+
+  it('fails loudly, naming every requested key that matched no eligible row', async () => {
+    await multiFixture([{ id: 'source-1' }, { id: 'source-2' }], async (dir, links) => {
+      await expect(readCorpus(dir, 'Feature', links, 2_000_000, 0, null, new Set(['source-1', 'missing-a', 'missing-b'])))
+        .rejects.toThrow(/missing-a/);
+      await expect(readCorpus(dir, 'Feature', links, 2_000_000, 0, null, new Set(['missing-a'])))
+        .rejects.toThrow(/missing-b|missing-a/);
+    });
+  });
+
+  it('the CLI exits non-zero and names the key when --only matches nothing, without dispatching anything', async () => {
+    await multiFixture([{ id: 'source-1' }], async (dir, links) => {
+      const preload = path.join(dir, 'fake-fetch.mjs');
+      await writeFile(preload, `globalThis.fetch = async () => { throw new Error('must not be called'); };`);
+      const result = await promisify(execFile)(process.execPath, ['--import', preload,
+        path.resolve('scripts/ingest-national-desk.mjs'), '--corpus', dir, '--feature', 'Feature', '--links', links,
+        '--only', 'nonexistent-key'],
+      { cwd: dir, env: { SUPABASE_URL: 'https://unused.invalid', SUPABASE_SECRET_KEY: 'sb_secret_fixture' } })
+        .then(() => ({ code: 0, stderr: '' }), (error) => error);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('nonexistent-key');
+    });
+  });
+
+  it('a source key that belongs to a different feature is reported as not found, not silently skipped', async () => {
+    await multiFixture([{ id: 'source-1', feature: 'Feature' }, { id: 'source-2', feature: 'Other' }], async (dir, links) => {
+      await expect(readCorpus(dir, 'Feature', links, 2_000_000, 0, null, new Set(['source-2'])))
+        .rejects.toThrow(/source-2/);
+    });
+  });
+
+  it('an oversized selected document is still skipped under --max-chars, not dispatched', async () => {
+    const big = 'x'.repeat(50);
+    await multiFixture([{ id: 'source-1', text: big }], async (dir, links) => {
+      const result = await readCorpus(dir, 'Feature', links, 10, 0, null, new Set(['source-1']));
+      expect(result.docs).toEqual([]);
+      expect(result.skipped).toEqual([expect.objectContaining({ id: 'source-1', reason: 'too_large' })]);
+    });
+  });
+
+  it('CLI rejects --only paired with --manifest instead of silently ignoring the selector', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ingest-manifest-'));
+    try {
+      await writeFile(path.join(dir, 'doc.md'), text);
+      await writeFile(path.join(dir, 'manifest.json'), JSON.stringify({
+        documents: [{ source_key: 'm-1', title: 'M', ocr_file: 'doc.md',
+          metadata: { n_chars: [...text].length, text_sha256: hash(text) } }],
+      }));
+      const preload = path.join(dir, 'fake-fetch.mjs');
+      await writeFile(preload, `globalThis.fetch = async () => { throw new Error('must not be called'); };`);
+      const result = await promisify(execFile)(process.execPath, ['--import', preload,
+        path.resolve('scripts/ingest-national-desk.mjs'), '--manifest', path.join(dir, 'manifest.json'), '--only', 'm-1'],
+      { cwd: dir, env: { SUPABASE_URL: 'https://unused.invalid', SUPABASE_SECRET_KEY: 'sb_secret_fixture' } })
+        .then(() => ({ code: 0, stderr: '' }), (error) => error);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toMatch(/--only/);
+    } finally { await rm(dir, { recursive: true, force: true }); }
   });
 });
