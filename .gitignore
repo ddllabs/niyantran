@@ -51,3 +51,6 @@ supabase/.temp/
 
 # Corpus staging read by the ingest script (document-rag-and-citations)
 ingest/
+
+# Internal specs, plans, research and protocol — kept local for now (owner decision 2026-09-21)
+docs/
