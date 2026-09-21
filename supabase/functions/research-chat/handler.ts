@@ -19,19 +19,14 @@ import { deskRecordText, deskRowKey } from '../_shared/deskRows.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
-import {
-  type Message,
-  type ModelEvent,
-  ProviderError,
-  type StreamRequest,
-  type Usage,
-} from '../_shared/openrouterStream.ts';
+import { type Message, type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow, DeskRowsResult, SearchDeskRowsArgs } from '../_shared/tools/searchDeskRows.ts';
 import {
   type AgentCheckpoint,
   type AgentEvent,
   type AgentResult,
+  BUDGET,
   createAgentBudget,
   createAgentCheckpoint,
   type DocumentSearchArgs,
@@ -43,7 +38,13 @@ import { createAnswerDecoder } from './answerStream.ts';
 import { buildSystemPrompt, buildUserTurn, type RenderedAttachment } from './prompt.ts';
 import { repairCitations, repairSources, repairWorthwhile } from './repair.ts';
 import { applyCitationLadder, type Evidence, type EvidenceMap, ladderFired } from './sources.ts';
-import { modelCallRow, type Pricing, type TelemetryDb, turnTraceRows } from './telemetry.ts';
+import {
+  type AttemptRecorder,
+  createAttemptRecorder,
+  type Pricing,
+  type TelemetryDb,
+  turnTraceRows,
+} from './telemetry.ts';
 import {
   type ClaimedTurn,
   executeClaimedTurn,
@@ -291,19 +292,36 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
   // The reader is not the turn's lifeline: waitUntil keeps the isolate alive
   // so a turn whose reader went away still finishes and persists.
   sender.send({ conversation: claimed.conversation });
+  const attempts = createAttemptRecorder({
+    userId: caller.userId,
+    conversationId: claimed.conversation.id,
+    messageId: claimed.assistant.id,
+    pricing: deps.pricing,
+    db: deps.telemetry,
+    now: deps.now,
+  });
   const work = executeClaimedTurn({
     store: deps.persistence,
     ownerId: caller.userId,
     turnKey: request.turn_key,
     claim: claimed,
     execute: deps.executeTurn ??
-      ((context) => runTurn(deps, { request, caller, chosen, effort, models }, liveSender, context)),
+      ((context) => runTurn(deps, { request, caller, chosen, effort, models }, liveSender, context, attempts)),
   }).then((saved) => {
     if (saved.kind !== 'terminal') throw new Error('Terminal result not saved');
     sendTerminal(sender, saved, visible);
   }).catch(() => {
     sender.send({ saveFailed: { stage: 'assistant_message', detail: 'Turn persistence unavailable' } });
-  }).then(() => sender.done());
+  }).then(async () => {
+    // Accounting is bounded and follows the durable write, even if that write failed.
+    try {
+      await attempts.flush();
+    } catch {
+      log('research_chat.telemetry_failed', { stage: 'flush' });
+    } finally {
+      sender.done();
+    }
+  });
   deps.waitUntil?.(work);
 
   return new Response(stream, { status: 200, headers: sseHeaders(headers) });
@@ -394,6 +412,7 @@ async function runTurn(
   t: TurnInput,
   sender: Pick<ChatSender, 'send'>,
   context: TurnExecution,
+  attempts: AttemptRecorder,
 ): Promise<TerminalResult> {
   const abort = new AbortController();
   const signal = AbortSignal.any([abort.signal, context.signal]);
@@ -416,12 +435,16 @@ async function runTurn(
   const stopped = new Promise<TerminalResult>((resolve) => {
     resolveAbort = resolve;
   });
-  const onAbort = () =>
+  const onAbort = () => {
+    const usage = attempts.summary();
+    context.checkpoint({ usage });
     resolveAbort({
       ...partial,
+      usage,
       status: context.signal.aborted ? 'interrupted' : 'cancelled',
       error_message: context.signal.aborted ? 'Execution interrupted.' : null,
     });
+  };
   signal.addEventListener('abort', onAbort, { once: true });
   const schedule = () => {
     if (active && !signal.aborted) timer = setTimeout(poll, Math.max(5, deps.cancelPollMs ?? CANCEL_POLL_MS));
@@ -455,7 +478,7 @@ async function runTurn(
           partial = { ...partial, ...value };
           context.checkpoint(value);
         },
-      }),
+      }, attempts),
       stopped,
     ]);
   } finally {
@@ -475,6 +498,7 @@ async function runTurnBody(
   t: TurnInput,
   sender: Pick<ChatSender, 'send'>,
   context: TurnExecution,
+  attempts: AttemptRecorder,
 ): Promise<TerminalResult> {
   const signal = context.signal;
   signal.throwIfAborted();
@@ -542,21 +566,41 @@ async function runTurnBody(
   let searchMs = 0;
   let writingStart = 0;
   let writingEnd = 0;
-  const attempts: { model: string; startedAt: number }[] = [];
 
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
     if ('internalReasoning' in e) return;
     else if ('attempt' in e) {
-      attempts.push({ model: e.attempt.model, startedAt: now() });
       const label = e.attempt.phase === 'research' ? 'Searching relevant sources.' : 'Writing the answer.';
       sender.send({ reasoning: label });
       activity.push({ type: 'activity', text: label });
       context.checkpoint({ activity: [...activity] });
     } else if ('tool' in e) {
       const f = e.tool;
-      if (f.phase === 'start') sender.send({ tool: { name: f.name, phase: 'start', input: f.input, step: f.step } });
-      else {
+      if (f.phase === 'start') {
+        if (f.name === 'search_documents' || f.name === 'search_desk_rows') {
+          attempts.addTraces([{
+            user_id: caller.userId,
+            conversation_id: conversation.id,
+            message_id: messageId,
+            step_index: f.step,
+            step_type: f.name,
+            input: JSON.stringify(f.input).slice(0, 2_000),
+            result_count: null,
+            top_similarity: null,
+            latency_ms: null,
+            chunk_ids: null,
+            row_keys: null,
+            model_call_log_id: null,
+            aborted: true,
+            error_message: null,
+          }]);
+        }
+        sender.send({ tool: { name: f.name, phase: 'start', input: f.input, step: f.step } });
+      } else {
+        attempts.addTraces(
+          turnTraceRows({ userId: caller.userId, conversationId: conversation.id, messageId, steps: [f] }),
+        );
         searchMs += f.latencyMs;
         sender.send({ tool: { name: f.name, phase: 'end', step: f.step, resultCount: f.resultCount } });
         activity.push({
@@ -586,13 +630,11 @@ async function runTurnBody(
   const input = { system, window, userTurn, scopedDocumentIds };
   const chain = failoverChain(t.models, t.chosen.model_id);
   let result: AgentResult | null = null;
-  let lastError: unknown = null;
   let schemaDropped = false;
   let served: string | null = null;
 
   for (let i = 0; i < chain.length; i++) {
     const model = chain[i];
-    const attemptStart = now();
     try {
       checkpoint ??= createAgentCheckpoint(input, handles, budget);
       result = await runAgent(
@@ -603,7 +645,7 @@ async function runTurnBody(
             ...(effortOf(t, model) ? { reasoning: { effort: effortOf(t, model)! } } : {}),
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
-          model: deps.stream,
+          model: attempts.wrap(deps.stream, 'chat_answer'),
           searchDocuments: (args, ids) => deps.searchDocuments(args, ids),
           searchDeskRows: (args) => deps.searchDeskRows(args),
           handles,
@@ -617,8 +659,6 @@ async function runTurnBody(
       served = result.served;
       break;
     } catch (e) {
-      lastError = e;
-      await logAttempt(deps, t, conversation.id, null, model, null, 'error', e, now() - attemptStart, null, null);
       if (signal.aborted) break;
       // Once any answer text has reached the reader, no swap: a second model
       // would restart a different answer under the same paragraph.
@@ -646,7 +686,7 @@ async function runTurnBody(
       served,
       status: context.signal.aborted ? 'interrupted' : 'error',
       error: context.signal.aborted ? 'Execution interrupted.' : 'The turn failed. Please try a new turn.',
-      usage: null,
+      usage: attempts.summary(),
       timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd),
     });
   }
@@ -656,6 +696,7 @@ async function runTurnBody(
     signal.aborted || (result.finish !== 'stop' && result.finish !== 'length') ||
     (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())
   ) {
+    attempts.rejectLast('chat_answer');
     return makeAssistantMessage({
       content: streamed,
       sources: [],
@@ -664,7 +705,7 @@ async function runTurnBody(
       served,
       status: signal.aborted ? 'interrupted' : 'error',
       error: 'The turn did not produce a complete answer.',
-      usage: totalUsage(result.usage, null),
+      usage: attempts.summary(),
       timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd),
     });
   }
@@ -679,40 +720,26 @@ async function runTurnBody(
   const rawAnswer = envelope?.answer ?? decoder.text ?? '';
   let ladder = applyCitationLadder({ answer: rawAnswer, modelSources: envelope?.sources, evidence });
   const followUps = envelope?.followUps ?? [];
-  let repairUsage: Usage | null = null;
 
   // 6. One cheap pass to put the markers back, when the answer cited nothing.
   if (
     result.finish === 'stop' && !signal.aborted && ladderFired(ladder.flags) &&
-    repairWorthwhile(ladder.answer, evidence)
+    repairWorthwhile(ladder.answer, evidence) && deps.repairModel.trim().length > 0 &&
+    budget.modelAttempts < BUDGET.maxSteps
   ) {
-    const repairStart = now();
     try {
       const handleOf = (e: Evidence) => {
         for (const [handle, candidate] of evidence) if (candidate === e) return handle;
         return undefined;
       };
-      const repaired = await repairCitations({ model: deps.stream }, {
+      budget.modelAttempts++;
+      const repaired = await repairCitations({ model: attempts.wrap(deps.stream, 'citation_repair') }, {
         answer: ladder.answer,
         evidence,
         model: deps.repairModel,
         signal,
       });
-      repairUsage = repaired.usage;
-      await logAttempt(
-        deps,
-        t,
-        conversation.id,
-        null,
-        deps.repairModel,
-        repaired.served,
-        repaired.rejected ? 'error' : 'success',
-        repaired.rejected,
-        now() - repairStart,
-        repaired.usage,
-        repaired.generationId,
-        'citation_repair',
-      );
+      if (repaired.rejected) attempts.rejectLast('citation_repair');
       if (repaired.text && !signal.aborted) {
         const second = applyCitationLadder({
           answer: repaired.text,
@@ -721,13 +748,13 @@ async function runTurnBody(
         });
         if (second.sources.length > ladder.sources.length) ladder = second;
       }
-    } catch (e) {
-      log('research_chat.repair_failed', { message: e instanceof Error ? e.message : String(e) });
+    } catch {
+      log('research_chat.repair_failed', { reason: signal.aborted ? 'aborted' : 'provider_failed' });
     }
   }
 
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
-  const usage = totalUsage(result.usage, repairUsage);
+  const usage = attempts.summary();
   const terminal = makeAssistantMessage({
     content: ladder.answer,
     sources: ladder.sources,
@@ -741,35 +768,20 @@ async function runTurnBody(
   });
 
   if (messageId) {
-    await deps.telemetry
-      .logTurnTraces(
-        turnTraceRows({
-          userId: caller.userId,
-          conversationId: conversation.id,
-          messageId,
-          steps: result.steps as TraceStep[],
-          answer: {
-            latencyMs: writingEnd && writingStart ? writingEnd - writingStart : 0,
-            modelCallLogId: null,
-            aborted: signal.aborted,
-          },
-        }),
-      )
-      .catch(() => {});
+    attempts.addTraces(
+      turnTraceRows({
+        userId: caller.userId,
+        conversationId: conversation.id,
+        messageId,
+        steps: result.steps as TraceStep[],
+        answer: {
+          latencyMs: writingEnd && writingStart ? writingEnd - writingStart : 0,
+          modelCallLogId: null,
+          aborted: signal.aborted,
+        },
+      }),
+    );
   }
-  await logAttempt(
-    deps,
-    t,
-    conversation.id,
-    messageId,
-    t.chosen.model_id,
-    served,
-    signal.aborted ? 'aborted' : 'success',
-    null,
-    now() - startedAt,
-    lastUsage(result.usage),
-    null,
-  );
 
   return terminal;
 }
@@ -803,60 +815,6 @@ function timingOf(
     reasoning_ms: Math.max(0, Math.round(total - search - writing)),
     total_ms: Math.round(total),
   };
-}
-
-function lastUsage(usage: Usage[]): Usage | null {
-  return usage.length ? usage[usage.length - 1] : null;
-}
-
-function totalUsage(usage: Usage[], repair: Usage | null): Record<string, unknown> | null {
-  const all = repair ? [...usage, repair] : usage;
-  if (!all.length) return null;
-  const sum = (k: keyof Usage) => all.reduce((n, u) => n + (Number(u[k]) || 0), 0);
-  return {
-    prompt_tokens: sum('prompt_tokens'),
-    completion_tokens: sum('completion_tokens'),
-    total_tokens: sum('total_tokens'),
-    cached_prompt_tokens: sum('cached_prompt_tokens'),
-    reasoning_tokens: sum('reasoning_tokens'),
-    cost_usd: all.reduce((n, u) => n + (Number(u.cost) || 0), 0),
-    attempts: all.length,
-  };
-}
-
-async function logAttempt(
-  deps: HandlerDeps,
-  t: TurnInput,
-  conversationId: string,
-  messageId: string | null,
-  requested: string,
-  served: string | null,
-  status: 'success' | 'error' | 'aborted',
-  error: unknown,
-  latencyMs: number,
-  usage: Usage | null,
-  generationId: string | null,
-  purpose: 'chat_answer' | 'citation_repair' = 'chat_answer',
-): Promise<void> {
-  const pricing = await deps.pricing(served || requested).catch(() => null);
-  await deps.telemetry
-    .logModelCall(
-      modelCallRow({
-        userId: t.caller.userId,
-        conversationId,
-        messageId,
-        purpose,
-        requested,
-        served,
-        status,
-        error: error ? (error instanceof Error ? error.message : String(error)) : null,
-        latencyMs,
-        usage,
-        generationId,
-        pricing,
-      }),
-    )
-    .catch(() => null);
 }
 
 function makeAssistantMessage(

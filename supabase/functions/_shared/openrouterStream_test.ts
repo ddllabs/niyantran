@@ -281,3 +281,73 @@ Deno.test('content with its first finish reason and identical empty terminal fra
   assertEquals((events[1] as Extract<ModelEvent, { type: 'finish' }>).reason, 'stop');
   assertEquals((events[1] as Extract<ModelEvent, { type: 'finish' }>).usage?.total_tokens, 5);
 });
+
+Deno.test('partial and empty provider usage keeps missing token fields unknown', async () => {
+  for (const usage of [{ prompt_tokens: 100 }, {}]) {
+    const events = await collect(
+      streamChat(rawDeps([{ ...finished('stop'), usage }]), { model: 'fake', messages: [] }),
+    );
+    const actual = (events.at(-1) as Extract<ModelEvent, { type: 'finish' }>).usage;
+    assertEquals(actual?.prompt_tokens, 'prompt_tokens' in usage ? 100 : null);
+    assertEquals(actual?.completion_tokens, null);
+    assertEquals(actual?.total_tokens, null);
+  }
+});
+Deno.test('invalid provider usage numbers remain unknown while explicit zero is retained', async () => {
+  const events = await collect(
+    streamChat(
+      rawDeps([{ ...finished('stop'), usage: { prompt_tokens: -1, completion_tokens: 0, total_tokens: 0, cost: -1 } }]),
+      { model: 'fake', messages: [] },
+    ),
+  );
+  const actual = (events.at(-1) as Extract<ModelEvent, { type: 'finish' }>).usage;
+  assertEquals(actual?.prompt_tokens, null);
+  assertEquals(actual?.completion_tokens, 0);
+  assertEquals(actual?.total_tokens, 0);
+  assertEquals(actual?.cost ?? null, null);
+});
+
+Deno.test('private attempt metadata survives a provider error and is never serialized', async () => {
+  const observations: unknown[] = [];
+  const provider = deps([chunk({ content: 'Partial' }, { provider: 'Actual host' }), {
+    id: 'gen-error',
+    model: 'served/model',
+    usage: { prompt_tokens: 12, cost: 0.1 },
+    error: { code: 502, message: 'PRIVATE provider details' },
+  }]);
+  await assertRejects(
+    () =>
+      collect(streamChat(provider, {
+        model: 'requested/model',
+        messages: [],
+        onAttemptMetadata: (metadata) => observations.push(metadata),
+      })),
+    ProviderError,
+  );
+  assertEquals(observations.at(-1), {
+    served: 'served/model',
+    generationId: 'gen-error',
+    provider: 'Actual host',
+    usage: { prompt_tokens: 12, completion_tokens: null, total_tokens: null, cost: 0.1 },
+  });
+  const body = buildRequestBody({
+    model: 'm',
+    messages: [],
+    onAttemptMetadata: () => {
+      throw new Error('not serializable');
+    },
+  });
+  assertEquals('onAttemptMetadata' in body, false);
+});
+Deno.test('accounting observer errors cannot fail a valid provider response', async () => {
+  const events = await collect(
+    streamChat(rawDeps([finished('stop')]), {
+      model: 'm',
+      messages: [],
+      onAttemptMetadata: () => {
+        throw new Error('observer failed');
+      },
+    }),
+  );
+  assertEquals(events.at(-1)?.type, 'finish');
+});

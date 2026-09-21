@@ -13,9 +13,9 @@ export interface Message {
 }
 
 export interface Usage {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
   cached_prompt_tokens?: number;
   reasoning_tokens?: number;
   cost?: number;
@@ -27,6 +27,13 @@ export type ModelEvent =
   | { type: 'tool-call'; id: string; name: string; args: string }
   | { type: 'finish'; reason: string; usage: Usage | null; served: string | null; generationId: string | null };
 
+/** Private accounting observations; never serialized into the provider body. */
+export interface AttemptMetadata {
+  served: string | null;
+  generationId: string | null;
+  usage: Usage | null;
+  provider?: string | null;
+}
 export interface StreamRequest {
   model: string;
   messages: Message[];
@@ -37,6 +44,7 @@ export interface StreamRequest {
   /** Add Anthropic-style cache breakpoints when the system prompt is long enough. */
   cache?: boolean;
   signal?: AbortSignal;
+  onAttemptMetadata?: (metadata: AttemptMetadata) => void;
 }
 
 export interface StreamDeps {
@@ -139,23 +147,36 @@ export async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncGe
 }
 
 function normaliseUsage(u: Record<string, unknown> | null | undefined): Usage | null {
-  if (!u || typeof u !== 'object') return null;
-  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  if (!u || typeof u !== 'object' || Array.isArray(u)) return null;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
   const details = (u.prompt_tokens_details ?? {}) as Record<string, unknown>;
   const cdetails = (u.completion_tokens_details ?? {}) as Record<string, unknown>;
   const out: Usage = {
     prompt_tokens: n(u.prompt_tokens),
     completion_tokens: n(u.completion_tokens),
-    total_tokens: n(u.total_tokens) || n(u.prompt_tokens) + n(u.completion_tokens),
+    total_tokens: n(u.total_tokens),
   };
-  if (details.cached_tokens != null) out.cached_prompt_tokens = n(details.cached_tokens);
-  if (cdetails.reasoning_tokens != null) out.reasoning_tokens = n(cdetails.reasoning_tokens);
-  if (typeof u.cost === 'number') out.cost = u.cost;
+  if (n(details.cached_tokens) !== null) out.cached_prompt_tokens = n(details.cached_tokens)!;
+  if (n(cdetails.reasoning_tokens) !== null) out.reasoning_tokens = n(cdetails.reasoning_tokens)!;
+  if (n(u.cost) !== null) out.cost = n(u.cost)!;
   return out;
 }
 
 export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGenerator<ModelEvent> {
   req.signal?.throwIfAborted();
+  let served: string | null = null;
+  let generationId: string | null = null;
+  let usage: Usage | null = null;
+  let provider: string | null = null;
+  const bounded = (value: unknown): string | null =>
+    typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\x00-\x1f\x7f]/.test(value)
+      ? value
+      : null;
+  const observe = () => {
+    try {
+      req.onAttemptMetadata?.({ served, generationId, provider, usage: usage ? { ...usage } : null });
+    } catch { /* accounting observers cannot interrupt the provider */ }
+  };
   const res = await deps.fetch(deps.endpoint ?? OPENROUTER_CHAT_URL, {
     method: 'POST',
     headers: {
@@ -166,13 +187,12 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
     body: JSON.stringify(buildRequestBody(req)),
     signal: req.signal,
   });
+  generationId = bounded(res.headers.get('x-generation-id'));
+  observe();
   if (!res.ok) throw new ProviderError(res.status, await res.text().catch(() => ''));
   if (!res.body) throw new ProviderError(502, 'empty response body');
 
   const calls = new Map<number, { id: string; name: string; args: string }>();
-  let served: string | null = null;
-  let generationId: string | null = null;
-  let usage: Usage | null = null;
   let finish: string | null = null;
 
   for await (const payload of parseSseStream(res.body)) {
@@ -183,14 +203,16 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
     } catch {
       continue;
     }
+    if (bounded(json.model)) served = bounded(json.model);
+    if (bounded(json.id)) generationId = bounded(json.id);
+    if (bounded(json.provider)) provider = bounded(json.provider);
+    if (json.usage) usage = normaliseUsage(json.usage as Record<string, unknown>);
+    observe();
     if (json.error && typeof json.error === 'object') {
       const e = json.error as { code?: unknown; message?: unknown };
       const status = typeof e.code === 'number' ? e.code : 502;
       throw new ProviderError(status, String(e.message ?? JSON.stringify(e)));
     }
-    if (typeof json.model === 'string') served = json.model;
-    if (typeof json.id === 'string') generationId = json.id;
-    if (json.usage) usage = normaliseUsage(json.usage as Record<string, unknown>);
     const choice = (json.choices as Record<string, unknown>[] | undefined)?.[0];
     if (!choice) continue;
     if (choice.error || choice.finish_reason === 'error') {
@@ -202,7 +224,10 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
         const value = delta[key];
         return value != null && value !== '' && (!Array.isArray(value) || value.length > 0);
       });
-      if (hasOutput || (typeof choice.finish_reason === 'string' && choice.finish_reason && choice.finish_reason !== finish)) {
+      if (
+        hasOutput ||
+        (typeof choice.finish_reason === 'string' && choice.finish_reason && choice.finish_reason !== finish)
+      ) {
         throw new ProviderError(502, 'Provider sent contradictory data after finishing');
       }
     }
@@ -232,7 +257,9 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
     // particular, length/content_filter fragments must never become tools.
     for (const call of ordered) {
       let args: unknown;
-      try { args = JSON.parse(call.args); } catch { /* rejected below */ }
+      try {
+        args = JSON.parse(call.args);
+      } catch { /* rejected below */ }
       if (!call.id.trim() || !call.name.trim() || !args || typeof args !== 'object' || Array.isArray(args)) {
         throw new ProviderError(502, 'Provider returned an incomplete tool call');
       }

@@ -977,3 +977,295 @@ Deno.test('D4: transport overflow still finalizes, and reconnect can replay a la
   assertEquals(replay.at(-1), { done: { message_id: 'msg-1' } });
   assertEquals(rec.messages.length, 1);
 });
+
+Deno.test('D5: each research, continuation and answer provider invocation has its own accounting row', async () => {
+  const provider = scripted([NO_RESEARCH, [text('{"answer":"Part one'), finish('length')], [
+    text(' and two","sources":[],"follow_up_questions":[]}'),
+    finish(),
+  ]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.calls.length, provider.seen.length);
+  assertEquals(rec.calls.length, 3);
+  assertEquals(rec.calls.map((c) => c.prompt_tokens), [10, 10, 10]);
+  assertEquals(rec.calls.map((c) => c.openrouter_generation_id), ['gen-1', 'gen-1', 'gen-1']);
+  assertEquals(rec.messages[0].usage?.attempts, 3);
+});
+Deno.test('D5: failed schema and failover attempts retain observed metadata and never log provider bodies', async () => {
+  let attempt = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    attempt++;
+    if (attempt <= 2) {
+      req.onAttemptMetadata?.({
+        served: `actual/model-${attempt}`,
+        generationId: `failed-${attempt}`,
+        usage: { prompt_tokens: 12, completion_tokens: null, total_tokens: null, cost: 0.01 },
+      });
+      throw new ProviderError(
+        attempt === 1 ? 400 : 503,
+        attempt === 1 ? 'response_format PRIVATE PROMPT' : 'PRIVATE PROVIDER BODY',
+      );
+    }
+    if (!req.tools?.length) yield text(envelope('Final answer'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream });
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.calls.length, attempt);
+  assertEquals(rec.calls.slice(0, 2).map((c) => [c.model_served, c.openrouter_generation_id, c.cost_usd]), [[
+    'actual/model-1',
+    'failed-1',
+    0.01,
+  ], ['actual/model-2', 'failed-2', 0.01]]);
+  assertEquals(rec.calls.slice(0, 2).map((c) => c.status), ['error', 'error']);
+  assertEquals(JSON.stringify(rec.calls).includes('PRIVATE'), false);
+});
+Deno.test('D5: mixed known and unknown usage totals do not fabricate zero-cost or zero-token attempts', async () => {
+  const unknown: ModelEvent = { type: 'finish', reason: 'stop', usage: null, served: null, generationId: null };
+  const provider = scripted([[unknown], [text(envelope('Answer')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.calls.length, 2);
+  assertEquals(rec.calls[0].prompt_tokens, null);
+  assertEquals(rec.calls[0].model_served, null);
+  assertEquals(rec.messages[0].usage?.attempts, 2);
+  assertEquals(rec.messages[0].usage?.prompt_tokens, null);
+  assertEquals(rec.messages[0].usage?.cost_usd, null);
+});
+Deno.test('D5: repair cannot become a thirteenth provider attempt after schema retry exhausts shared budget', async () => {
+  let calls = 0;
+  let repairs = 0;
+  const answer = 'The evidence says the Bill remains before the committee. '.repeat(5);
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    calls++;
+    if (calls === 1) throw new ProviderError(400, 'response_format unsupported');
+    if (req.messages[0].content?.startsWith('You insert citation markers')) {
+      repairs++;
+      yield text(answer + '[1]');
+      yield finish();
+    } else if (req.tools?.length) {
+      yield { type: 'tool-call', id: `c${calls}`, name: 'search_documents', args: '{"query":"committee"}' };
+      yield finish('tool_calls');
+    } else {
+      yield text(envelope(answer));
+      yield finish();
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(calls, 12);
+  assertEquals(repairs, 0);
+  assertEquals(rec.calls.length, 12);
+  assertEquals(rec.messages[0].status, 'complete');
+});
+Deno.test('D5: an aborted uncooperative attempt logs observed metadata exactly once despite late completion', async () => {
+  let release!: () => void;
+  let cancel = false;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    req.onAttemptMetadata?.({
+      served: 'actual/model',
+      generationId: 'aborted-gen',
+      usage: { prompt_tokens: 7, completion_tokens: null, total_tokens: null },
+    });
+    cancel = true;
+    await gate;
+    req.onAttemptMetadata?.({ served: 'late/model', generationId: 'late-gen', usage: null });
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream }, {}, { cancelRequestedSince: () => Promise.resolve(cancel) });
+  await frames(await handleResearchChat(post(BODY), deps));
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assertEquals(rec.calls.length, 1);
+  assertEquals(rec.calls[0].status, 'aborted');
+  assertEquals(rec.calls[0].model_served, 'actual/model');
+  assertEquals(rec.calls[0].openrouter_generation_id, 'aborted-gen');
+  assertEquals(rec.calls[0].prompt_tokens, 7);
+  assertEquals(rec.messages[0].status, 'cancelled');
+});
+
+Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown repair is logged once', async () => {
+  for (const mode of ['valid', 'rewrite', 'throw']) {
+    let researchCalls = 0;
+    const answer = 'The Bill remains before the committee pending its report. '.repeat(5);
+    const stream: HandlerDeps['stream'] = async function* (req) {
+      if (req.messages[0].content?.startsWith('You insert citation markers')) {
+        req.onAttemptMetadata?.({
+          served: 'repair/actual',
+          generationId: 'repair-gen',
+          usage: { prompt_tokens: 20, completion_tokens: 4, total_tokens: 24, cost: 0.002 },
+        });
+        if (mode === 'throw') throw new ProviderError(502, 'PRIVATE repair provider body');
+        yield text(mode === 'rewrite' ? 'Entirely different facts.' : answer + '[1]');
+        yield {
+          type: 'finish',
+          reason: 'stop',
+          served: 'repair/actual',
+          generationId: 'repair-gen',
+          usage: { prompt_tokens: 20, completion_tokens: 4, total_tokens: 24, cost: 0.002 },
+        };
+      } else if (req.tools?.length) {
+        if (researchCalls++ === 0) {
+          yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
+          yield finish('tool_calls');
+        } else yield finish();
+      } else {
+        yield text(envelope(answer));
+        yield finish();
+      }
+    };
+    const { deps, rec } = fakeDeps({ stream }, {
+      repairModel: 'repair/requested',
+      searchDocuments: () => Promise.resolve([chunk('c1')]),
+    });
+    const got = await frames(await handleResearchChat(post(BODY), deps));
+    assertEquals(rec.calls.length, 4);
+    const repair = rec.calls.filter((c) => c.purpose === 'citation_repair');
+    assertEquals(repair.length, 1);
+    assertEquals([
+      repair[0].model_requested,
+      repair[0].model_served,
+      repair[0].openrouter_generation_id,
+      repair[0].cost_usd,
+    ], ['repair/requested', 'repair/actual', 'repair-gen', 0.002]);
+    assertEquals(repair[0].status, mode === 'valid' ? 'success' : 'error');
+    assertEquals(rec.messages[0].status, 'complete');
+    assertEquals(rec.messages[0].content, mode === 'valid' ? answer + '[1]' : answer);
+    assertEquals(rendered(got), rec.messages[0].content);
+    assertEquals(
+      (got.find((f) => 'sources' in f) as { sources: unknown }).sources,
+      JSON.parse(JSON.stringify(rec.messages[0].sources)),
+    );
+    assertEquals(JSON.stringify(got).includes('PRIVATE'), false);
+    assertEquals(JSON.stringify(rec.calls).includes('PRIVATE'), false);
+  }
+});
+Deno.test('D5: accounting flush runs after durable finalization and still runs when finalization fails', async () => {
+  for (const fail of [false, true]) {
+    const { deps, rec } = fakeDeps(scripted([NO_RESEARCH, [text(envelope('Answer')), finish()]]));
+    let finalized = false;
+    const finalize = deps.persistence.finalize;
+    deps.persistence.finalize = (...args) => {
+      finalized = true;
+      return fail ? Promise.reject(new Error('private write error')) : finalize(...args);
+    };
+    const write = deps.telemetry.logModelCall;
+    deps.telemetry.logModelCall = (row) => {
+      assert(finalized, 'accounting must follow the durable-write attempt');
+      return write(row);
+    };
+    const got = await frames(await handleResearchChat(post(BODY), deps));
+    assertEquals(rec.calls.length, 2);
+    assertEquals(got.some((f) => 'saveFailed' in f), fail);
+  }
+});
+Deno.test('D5: hung pricing, model logging and traces cannot delay durable finalization or hang response', async () => {
+  const noCost: ModelEvent = {
+    type: 'finish',
+    reason: 'stop',
+    served: 'actual/model',
+    generationId: 'gen',
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  };
+  const { deps, rec } = fakeDeps(scripted([[noCost], [text(envelope('Answer')), noCost]]));
+  let finalized = false;
+  const finalize = deps.persistence.finalize;
+  deps.persistence.finalize = (...args) => {
+    finalized = true;
+    return finalize(...args);
+  };
+  deps.pricing = () => {
+    assert(finalized);
+    return new Promise(() => {});
+  };
+  deps.telemetry.logModelCall = (row) => {
+    assert(finalized);
+    rec.calls.push(row);
+    return new Promise(() => {});
+  };
+  deps.telemetry.logTurnTraces = () => {
+    assert(finalized);
+    return new Promise(() => {});
+  };
+  const notices: string[] = [];
+  const log = console.log;
+  console.log = (message) => {
+    notices.push(String(message));
+  };
+  const started = Date.now();
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const got = await Promise.race([
+      frames(await handleResearchChat(post(BODY), deps)),
+      new Promise<never>((_, reject) => {
+        watchdog = setTimeout(() => reject(new Error('telemetry drain exceeded bound')), 1200);
+      }),
+    ]);
+    assertEquals(rec.messages[0].status, 'complete');
+    assert(got.some((f) => 'done' in f));
+    assertEquals(got.some((f) => 'saveFailed' in f), false);
+    assert(Date.now() - started < 1500, 'bounded log drain must not hang');
+    assert(notices.some((line) => line.includes('telemetry_failed')));
+    assertEquals(rec.calls.length, 2);
+  } finally {
+    clearTimeout(watchdog);
+    console.log = log;
+  }
+});
+
+Deno.test('D5: completed searches remain traced when the later provider fails', async () => {
+  let research = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.tools?.length) {
+      if (research++ === 0) {
+        yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
+        yield finish('tool_calls');
+      } else yield finish();
+    } else {
+      yield text('{"answer":"Partial');
+      throw new ProviderError(503, 'PRIVATE failed answer');
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'error');
+  const searches = rec.traces.filter((t) => t.step_type === 'search_documents');
+  assertEquals(searches.length, 1);
+  assertEquals(searches[0].result_count, 1);
+  assertEquals(searches[0].chunk_ids, ['c1']);
+  assertEquals(searches[0].aborted, false);
+});
+
+Deno.test('D5: cancellation retains an in-flight search without inventing results or late duplicate traces', async () => {
+  let release!: (chunks: Chunk[]) => void;
+  let cancel = false;
+  const gate = new Promise<Chunk[]>((resolve) => {
+    release = resolve;
+  });
+  const provider = scripted([[{
+    type: 'tool-call',
+    id: 'c1',
+    name: 'search_documents',
+    args: '{"query":"pending search"}',
+  }, finish('tool_calls')]]);
+  const { deps, rec } = fakeDeps(provider, {
+    searchDocuments: () => {
+      cancel = true;
+      return gate;
+    },
+  }, { cancelRequestedSince: () => Promise.resolve(cancel) });
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'cancelled');
+  assertEquals(rec.traces.length, 1);
+  assertEquals(rec.traces[0].aborted, true);
+  assertEquals(rec.traces[0].result_count, null);
+  assertEquals(rec.traces[0].chunk_ids, null);
+  assertStringIncludes(rec.traces[0].input!, 'pending search');
+  release([chunk('late')]);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assertEquals(rec.traces.length, 1);
+  assertEquals(rec.traces[0].result_count, null);
+});
