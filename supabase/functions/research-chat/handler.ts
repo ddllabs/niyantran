@@ -114,6 +114,9 @@ export interface HandlerDeps {
   pricing(modelId: string): Promise<Pricing | null>;
   persona(userId: string): Promise<string>;
   catalogue(tier?: string): string;
+  /** Desk modules with indexed source documents. Read from the corpus, not
+   * configured, so it cannot drift away from what search_documents can reach. */
+  documentModules(): Promise<string[]>;
   db: UserDb;
   persistence: TurnStore;
   executeTurn?: (context: TurnExecution) => Promise<TerminalResult>;
@@ -559,12 +562,17 @@ async function runTurnBody(
     }
   }
 
+  // A corpus fact, and a cheap one: cached for the isolate and never fatal. A
+  // turn is still answerable without it, so a failure here costs the coverage
+  // line, not the turn.
+  const documentModules = await deps.documentModules().catch(() => [] as string[]);
   const system = buildSystemPrompt({
     persona,
     today: deps.today?.() ?? new Date(startedAt).toISOString().slice(0, 10),
     catalogue: deps.catalogue(request.desk_context?.tier),
     focus: request.focus,
     selection: selectionBlock,
+    documentModules,
   });
   // A greeting carries no question, so the attachments are not context for it -
   // they are the reason a bare "hi" came back as a 2,342-character brief with

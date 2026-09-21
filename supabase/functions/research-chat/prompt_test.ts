@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { DESK_GROUNDING_RULES } from '../_shared/deskGroundingRules.ts';
-import { ANSWER_JSON_SCHEMA, BEFORE_YOU_ANSWER, FOCUS_LINES, SYSTEM_PROMPT_STATIC, buildSystemPrompt, buildUserTurn } from './prompt.ts';
+import { ANSWER_JSON_SCHEMA, BEFORE_YOU_ANSWER, FOCUS_LINES, SYSTEM_PROMPT_STATIC, buildSystemPrompt, buildUserTurn, coverageLine } from './prompt.ts';
 
 Deno.test('the static prompt carries the ten sections in order and ends with the checklist', () => {
   const marks = [
@@ -185,4 +185,34 @@ Deno.test('every focus line agrees with the number of tools the prompt offers', 
     assertStringIncludes(prompt, 'Two tools');
     assert(!/\bthree tools\b|\ball three tools\b/i.test(prompt), `focus "${focus}" claims a tool that is gone`);
   }
+});
+
+// Asked about a global conflict, retrieval returned its forty nearest chunks -
+// Indian constitution amendment bills, the Lakshadweep Bill, the Arunachal
+// Pradesh Bill - because "nearest" in a corpus holding nothing on the subject
+// still returns forty rows. Documents exist for five national modules; the other
+// thirty are rows only. The model cited the desk row, which was right, but the
+// reader could not tell an empty corpus from failed OCR, an unattached file or a
+// broken search. It is a fact about the system, so the system states it.
+Deno.test('the prompt names the modules that have indexed documents', () => {
+  const prompt = buildSystemPrompt({
+    persona: '',
+    today: '2026-09-22',
+    catalogue: '',
+    focus: 'broad',
+    documentModules: ['Bill Passage Probability Index', 'Parliamentary Question Database'],
+  });
+  assertStringIncludes(prompt, 'Indexed source documents exist only for these modules:');
+  assertStringIncludes(prompt, 'Bill Passage Probability Index, Parliamentary Question Database');
+  // And what to say instead, because a bare "Not in record." reads as though the
+  // subject were absent rather than the corpus.
+  assertStringIncludes(prompt, 'no indexed source documents for that module');
+});
+
+Deno.test('coverage is stated only when it is known, and never as an empty claim', () => {
+  for (const modules of [undefined, [], ['   '] as string[]]) {
+    const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad', documentModules: modules });
+    assert(!prompt.includes('Indexed source documents exist only'), `rendered a coverage claim from ${JSON.stringify(modules)}`);
+  }
+  assertEquals(coverageLine([]), '');
 });

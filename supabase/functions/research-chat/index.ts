@@ -17,6 +17,8 @@ import { type HandlerDeps, handleResearchChat, type RetrievalContext } from './h
 import { rpcTurnStore } from './persistence.ts';
 
 export const NETWORK_TIMEOUT_MS = 4_000;
+/** Which desk modules have indexed documents. Per-isolate; only an ingest moves it. */
+let documentModulesCache: string[] | null = null;
 export interface Runtime {
   userClient: typeof userClient;
   serviceClient: typeof serviceClient;
@@ -253,6 +255,23 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return await bounded(() => r.readPersona(promptFile(row?.persona) ?? 'analyst.md'), r.timeoutMs);
     },
     catalogue: deskCatalogBlock,
+    documentModules: async () => {
+      // Cached for the life of the isolate. The set changes only when documents
+      // are ingested, and a stale-by-one-isolate list is far cheaper than a
+      // grouped count on every turn - PostgREST has no GROUP BY, so this reads
+      // one short column and folds it here.
+      if (documentModulesCache) return documentModulesCache;
+      const rows = await query((signal) =>
+        caller().from('documents').select('desk_feature').not('desk_feature', 'is', null).abortSignal(signal)
+      ) as { desk_feature: string | null }[] | null;
+      const seen: string[] = [];
+      for (const r of rows ?? []) {
+        const name = String(r.desk_feature ?? '').trim();
+        if (name && !seen.includes(name)) seen.push(name);
+      }
+      if (seen.length) documentModulesCache = seen;
+      return seen;
+    },
     db: {
       recentMessages: async (conversationId, excluded) => {
         const data = await query((signal) => {

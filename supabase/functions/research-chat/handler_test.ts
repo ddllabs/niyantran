@@ -205,6 +205,7 @@ function fakeDeps(
     pricing: () => Promise.resolve({ prompt_usd: 0.000001, completion_usd: 0.000002 }),
     persona: () => Promise.resolve('You are the analyst desk.'),
     catalogue: () => 'Modules on the national desk: …',
+    documentModules: () => Promise.resolve(['Bill Passage Probability Index']),
     db,
     persistence,
     telemetry: {
@@ -1499,4 +1500,42 @@ Deno.test('an omitted reasoning field means the default; "off" asked for by name
   const high = fakeDeps({ stream: capture() });
   await frames(await handleResearchChat(post({ ...BODY, turn_key: 'effort-high', reasoning: 'high' }), high.deps));
   assertEquals(seen[0], 'high', 'an effort asked for by name is used as given');
+});
+
+// The coverage fact is read from the corpus, so a failure to read it must not be
+// a failure to answer: the turn loses the line, not the turn.
+Deno.test('a coverage lookup that fails costs the line, not the turn', async () => {
+  const seen: string[] = [];
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.tools?.length) {
+      seen.push(String(req.messages[0].content));
+      yield finish();
+      return;
+    }
+    yield text(envelope('Answer'));
+    yield finish();
+  };
+  const { deps, rec } = fakeDeps({ stream });
+  deps.documentModules = () => Promise.reject(new Error('corpus unavailable'));
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'coverage-fail' }), deps));
+
+  assertEquals(rec.messages[0].status, 'complete');
+  assert(!seen[0].includes('Indexed source documents exist only'), 'no coverage claim without the fact');
+});
+
+Deno.test('the modules that have documents reach the system prompt', async () => {
+  const seen: string[] = [];
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.tools?.length) {
+      seen.push(String(req.messages[0].content));
+      yield finish();
+      return;
+    }
+    yield text(envelope('Answer'));
+    yield finish();
+  };
+  const { deps } = fakeDeps({ stream });
+  deps.documentModules = () => Promise.resolve(['Bill Passage Probability Index']);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'coverage-ok' }), deps));
+  assertStringIncludes(seen[0], 'Indexed source documents exist only for these modules: Bill Passage Probability Index');
 });

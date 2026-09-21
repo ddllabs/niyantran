@@ -127,6 +127,28 @@ export interface PromptInput {
   catalogue: string; // deskCatalogBlock(tier)
   focus: string;
   selection?: { handle: string; tier: string; feature: string; recordText: string };
+  /** Desk modules that actually have indexed source documents, from the live
+   * corpus. Empty or absent renders nothing. */
+  documentModules?: string[];
+}
+
+/**
+ * Which modules search_documents can reach at all.
+ *
+ * Documents exist for five national modules; every other desk is rows only.
+ * Asked about a global conflict, retrieval returned its forty nearest chunks -
+ * Indian constitution amendment bills, the Lakshadweep Bill - because "nearest"
+ * in a corpus that holds nothing on the subject still returns forty rows. The
+ * model was right to cite the desk row instead, but the reader was left unable
+ * to tell an empty corpus from a failed extraction, an unattached file or a
+ * broken search. It is a fact about the system, so the system should state it.
+ */
+export function coverageLine(modules: string[]): string {
+  const named = modules.filter((m) => typeof m === 'string' && m.trim()).map((m) => m.trim());
+  if (!named.length) return '';
+  return `Indexed source documents exist only for these modules: ${named.join(', ')}. ` +
+    `Every other module is desk rows only — search_documents cannot return source text for it, and what comes back will be the nearest passages from the modules above, not evidence about your subject. ` +
+    `When a document question is about a rows-only module, say that the record holds no indexed source documents for that module and answer from its rows. Do not cite unrelated passages, and do not say a bare **Not in record.**, which reads as though the subject itself were missing.`;
 }
 
 /** static + persona + dynamic. The static part is byte-identical across turns. */
@@ -136,6 +158,7 @@ export function buildSystemPrompt(a: PromptInput): string {
     `Today is ${a.today}.`,
     FOCUS_LINES[a.focus] ?? FOCUS_LINES.attached,
     a.catalogue,
+    coverageLine(a.documentModules ?? []),
     a.selection ? selectedRecordBlock(a.selection) : '',
   ]
     .filter(Boolean)
