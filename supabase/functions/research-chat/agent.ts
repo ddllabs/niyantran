@@ -314,12 +314,34 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       } catch (error) {
         // Preserve a valid assistant/tool transcript and never replay a failed
         // search invisibly on resume. Remaining calls keep their original order.
+        //
+        // A retrieval failure used to be rethrown from here, which ended the
+        // turn: the handler only fails over on a retryable ProviderError, and a
+        // slow query is not one. Two turns died that way, both on the same
+        // search_desk_rows call against the 9,817-row Bill Passage index, both
+        // at exactly the 4,000 ms network bound - a `record_text ilike '%…%'`
+        // scan that cannot use an index and is only fast while the table is
+        // cached. The transcript was being repaired for a continuation that the
+        // rethrow then made impossible.
+        //
+        // Swapping models cannot help a query that timed out, so the turn
+        // continues with the failure recorded where the model can see it: the
+        // reply says a search did not complete, the trace row says the step
+        // failed, and the search budget is already spent, so this cannot loop.
+        // If every search fails the turn retrieves nothing, and the unverified
+        // header then says so rather than the answer passing as grounded.
+        //
+        // Cancellation needs no special case here and must not have one: the
+        // loop above and the one that calls it both checkAbort, so an aborted
+        // turn still stops, and the reply keeps the transcript valid - an
+        // assistant message with tool_calls and no matching reply is a
+        // transcript no provider will accept on resume.
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: 'TOOL_EXECUTION_FAILED: no evidence was returned.',
+          content:
+            'TOOL_EXECUTION_FAILED: that search did not complete, so it returned no evidence. This is not an empty record. Try a different query or the other tool.',
         });
-        throw error;
       } finally {
         state.pendingTools.shift();
       }

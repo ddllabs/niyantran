@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { createAnswerDecoder } from './answerStream.ts';
+import { HttpError } from '../_shared/http.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import type { ModelEvent, StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -321,14 +322,27 @@ Deno.test('cancellation stops before retrieval, provider call, or a subsequent m
   assertEquals(next.requests.length, 0);
 });
 
+// A retrieval failure is charged, traced and never retried by itself - and it
+// no longer ends the turn. Two production turns died on a search_desk_rows call
+// that hit the 4,000 ms bound; swapping models cannot help a query that timed
+// out, so the model is told the search failed and goes on.
 Deno.test('failed retrieval is charged, traced, and never retried automatically', async () => {
-  const f = fake([[docCall(), finish('tool_calls')]], {
-    searchDocuments: () => Promise.reject(new Error('retrieval unavailable')),
+  let calls = 0;
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => {
+      calls++;
+      return Promise.reject(new Error('retrieval unavailable'));
+    },
   });
-  await assertRejects(() => runAgent(f.deps, input), Error, 'retrieval unavailable');
-  assertEquals(f.deps.budget!.searches, 1);
-  assertEquals(f.requests.length, 1);
+  const result = await runAgent(f.deps, input);
+  assertEquals(calls, 1, 'never retried by itself');
+  assertEquals(f.deps.budget!.searches, 1, 'and still charged, so it cannot loop');
+  assertEquals(result.steps.map((st) => st.status), ['error']);
   assertEquals(f.events.filter((e) => 'tool' in e).map((e) => 'tool' in e && e.tool.phase), ['start', 'end']);
+  const reply = f.requests[1].messages.find((m) => m.role === 'tool');
+  assert(String(reply?.content).startsWith('TOOL_EXECUTION_FAILED'));
+  assert(String(reply?.content).includes('not an empty record'), 'the model must not read a failure as absence');
+  assert(!JSON.stringify(f.requests).includes('retrieval unavailable'), 'and no provider detail reaches the transcript');
 });
 
 Deno.test('tools requested despite disabled tools are never executed', async () => {
@@ -343,11 +357,11 @@ Deno.test('tools requested despite disabled tools are never executed', async () 
 
 Deno.test('a failed scoped search is not repeated as the first scope on handler retry', async () => {
   const budget = createAgentBudget();
-  const first = fake([[docCall(), finish('tool_calls')]], {
+  const first = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
     budget,
     searchDocuments: () => Promise.reject(new Error('temporary failure')),
   });
-  await assertRejects(() => runAgent(first.deps, { ...input, scopedDocumentIds: ['doc'] }), Error, 'temporary failure');
+  await runAgent(first.deps, { ...input, scopedDocumentIds: ['doc'] });
   const scopes: (string[] | undefined)[] = [];
   const second = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
     budget,
@@ -461,7 +475,7 @@ Deno.test('failed tool exposes complete trace and resumes remaining batch replie
     docCall('failed', 'failure'),
     docCall('last', 'last'),
     finish('tool_calls'),
-  ]], {
+  ], ready(), answer()], {
     now: () => time += 5,
     searchDocuments: ({ query }) => {
       searched.push(query);
@@ -469,7 +483,7 @@ Deno.test('failed tool exposes complete trace and resumes remaining batch replie
       return Promise.resolve([chunk(query)]);
     },
   });
-  await assertRejects(() => runAgent(f.deps, input), Error, 'sensitive provider details');
+  const result = await runAgent(f.deps, input);
   const event = f.events.find((e) => 'tool' in e && e.tool.phase === 'end' && e.tool.status === 'error');
   assert(event && 'tool' in event && event.tool.phase === 'end');
   assertEquals(event.tool.toolCallId, 'failed');
@@ -478,15 +492,15 @@ Deno.test('failed tool exposes complete trace and resumes remaining batch replie
   assertEquals(event.tool.chunkIds, []);
   assert(event.tool.latencyMs > 0);
   assertEquals(f.deps.checkpoint!.steps[1].status, 'error');
-  const scripted = fake([ready(), answer()]);
-  const result = await runAgent({ ...f.deps, model: scripted.deps.model }, input);
+  // The batch finishes in the same turn now: the reply the failure writes is the
+  // one the model reads, so there is nothing left to resume.
   assertEquals(searched, ['ok', 'failure', 'last']);
   assertEquals(result.chunks.map((c) => c.id), ['ok', 'last']);
-  assertEquals(result.steps.map((s) => s.status), ['ok', 'error', 'ok']);
-  const replies = scripted.requests[0].messages.filter((m) => m.role === 'tool');
+  assertEquals(result.steps.map((st) => st.status), ['ok', 'error', 'ok']);
+  const replies = f.requests[1].messages.filter((m) => m.role === 'tool');
   assertEquals(replies.map((m) => m.tool_call_id), ['first', 'failed', 'last']);
   assert(replies[1].content!.startsWith('TOOL_EXECUTION_FAILED'));
-  assert(!JSON.stringify(scripted.requests).includes('sensitive provider details'));
+  assert(!JSON.stringify(f.requests).includes('sensitive provider details'));
 });
 
 Deno.test('partial answer failure resumes the same model and JSON with a charged continuation', async () => {
@@ -615,4 +629,49 @@ Deno.test('a turn that already searched is never pressed', async () => {
   await runAgent(f.deps, input);
   assertEquals(f.requests.length, 3);
   assert(!JSON.stringify(f.requests).includes('You have not searched'));
+});
+
+// The production failure. Message eb59cdef, and eb59cdef is the second: a
+// search_desk_rows call against the 9,817-row Bill Passage index hit the
+// 4,000 ms network bound, the error was rethrown, and because a timeout is not
+// a retryable ProviderError the handler had no failover and the whole turn died
+// with "The turn failed. Please try a new turn." Both were Gemini Flash.
+Deno.test('a search that times out does not end the turn; the model is told and carries on', async () => {
+  const f = fake(
+    [
+      [{ type: 'tool-call', id: 'rows', name: 'search_desk_rows', args: '{"tier":"national","feature":"Bill Passage Probability Index","query":"Finance Bill 2014"}' }, finish('tool_calls')],
+      [docCall('after', 'statement of objects and reasons'), finish('tool_calls')],
+      ready(),
+      answer(),
+    ],
+    {
+      searchDeskRows: () => Promise.reject(new HttpError(503, 'Research service unavailable')),
+      searchDocuments: () => Promise.resolve([chunk('recovered')]),
+    },
+  );
+  const result = await runAgent(f.deps, input);
+  assertEquals(result.finish, 'stop', 'the turn completes rather than dying on one slow query');
+  assertEquals(result.chunks.map((c) => c.id), ['recovered'], 'and the other tool still produced evidence');
+  assertEquals(result.steps.map((st) => st.status), ['error', 'ok']);
+});
+
+// Continuing past a tool failure must not let a cancelled turn continue, and it
+// must not leave a tool_call without its reply - a transcript no provider
+// accepts on resume. Both hold without a special case in the catch: checkAbort
+// stops the turn, and the reply is written either way.
+Deno.test('a cancelled tool still stops the turn and still leaves a valid transcript', async () => {
+  const controller = new AbortController();
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    request: { model: 'requested-model', signal: controller.signal },
+    searchDocuments: () => {
+      controller.abort();
+      return Promise.reject(new Error('cancelled mid-flight'));
+    },
+  });
+  await assertRejects(() => runAgent(f.deps, input));
+  assertEquals(f.requests.length, 1, 'no further model call after the abort');
+  const messages = f.deps.checkpoint!.messages;
+  const calls = messages.filter((m) => m.role === 'assistant' && m.tool_calls?.length).length;
+  const replies = messages.filter((m) => m.role === 'tool').length;
+  assertEquals(replies, calls, 'every tool_call kept its reply');
 });
