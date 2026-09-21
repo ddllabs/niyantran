@@ -6,7 +6,7 @@ import { isTestingPhase } from './appFlagsStore.js';
 /**
  * Models shown in AI research.
  * tier: free = Gemini (allowed in testing phase); paid = others (disabled while testing).
- * Gemini + OpenRouter GPT Astra are live; DeepSeek stays locked until its key is wired.
+ * Gemini + OpenRouter GPT Astra only — DeepSeek removed from the picker.
  */
 export const AI_PROVIDERS = [
   {
@@ -35,24 +35,6 @@ export const AI_PROVIDERS = [
     tier: 'paid',
     enabled: true,
     hint: 'OpenRouter · OpenAI GPT-6 Astra',
-  },
-  {
-    id: 'deepseek-flash',
-    label: 'DeepSeek - Flash',
-    model: 'deepseek-v4-flash',
-    provider: 'deepseek',
-    tier: 'paid',
-    enabled: false,
-    hint: 'DeepSeek key not connected on the server yet',
-  },
-  {
-    id: 'deepseek-pro',
-    label: 'DeepSeek - Pro',
-    model: 'deepseek-v4-pro',
-    provider: 'deepseek',
-    tier: 'paid',
-    enabled: false,
-    hint: 'DeepSeek key not connected on the server yet',
   },
 ];
 
@@ -113,7 +95,6 @@ export const AI_ROLES = [
 function providerOf(model, fallback) {
   const m = String(model || '').toLowerCase();
   if (m.includes('gemini')) return 'gemini';
-  if (m.includes('deepseek')) return 'deepseek';
   if (m.includes('gpt') || m.includes('astra') || m.includes('openai/')) return 'openrouter';
   return fallback || 'gemini';
 }
@@ -132,7 +113,7 @@ export function shortModelLabel(role) {
   if (hit) return hit.label;
   const provider = String(role?.provider || providerOf(role?.model, '')).toLowerCase();
   if (provider === 'openrouter' || /astra|gpt-6/i.test(role?.model || '')) return 'GPT - Astra';
-  const brand = provider === 'deepseek' ? 'DeepSeek' : 'Gemini';
+  const brand = 'Gemini';
   const m = String(role?.model || '').toLowerCase();
   let tag = '';
   if (m.includes('pro')) tag = 'Pro';

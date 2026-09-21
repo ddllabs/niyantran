@@ -200,7 +200,7 @@ export function OverviewPage({ users }) {
             <h2>Testing phase</h2>
             <p className="adm-lede" style={{ margin: 0 }}>
               When on: every desk and feature is available on free seats, and only free Gemini models stay enabled.
-              Paid models (OpenRouter / DeepSeek) stay locked. Turn off to restore normal plans.
+              Paid models (OpenRouter) stay locked. Turn off to restore normal plans.
             </p>
           </div>
           <button

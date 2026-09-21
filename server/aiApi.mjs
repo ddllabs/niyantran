@@ -213,42 +213,6 @@ function contextBlock(attachments, files, { focus = 'attached', deskContext = nu
   return parts.join('\n').slice(0, MAX_TEXT);
 }
 
-async function deepseekChat({ model, key, messages }) {
-  const tried = [model];
-  if (model === 'deepseek-v4-flash') tried.push('deepseek-chat');
-  if (model === 'deepseek-v4-pro') tried.push('deepseek-reasoner', 'deepseek-chat');
-  let last = '';
-  for (const m of [...new Set(tried)]) {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), CHAT_MS);
-    try {
-      const r = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        signal: ac.signal,
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: m,
-          temperature: 0.2,
-          messages,
-        }),
-      });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        last = body?.error?.message || `DeepSeek HTTP ${r.status}`;
-        continue;
-      }
-      const text = body?.choices?.[0]?.message?.content || '';
-      return { text, model: m, provider: 'deepseek' };
-    } finally {
-      clearTimeout(t);
-    }
-  }
-  throw new Error(last || 'DeepSeek request failed');
-}
-
 function geminiParts(messages, binaries) {
   const parts = [];
   for (const f of binaries || []) {
@@ -368,23 +332,24 @@ export async function runAiChat(payload = {}) {
         ? 'gemini'
         : /astra|openai\/|gpt-6|openrouter/i.test(model)
           ? 'openrouter'
-          : 'deepseek'),
+          : 'gemini'),
   ).toLowerCase();
   if (provider === 'openai' || provider === 'gpt') provider = 'openrouter';
+  if (provider === 'deepseek') {
+    throw new Error('DeepSeek is no longer available. Choose Gemini or GPT - Astra.');
+  }
   assertAiAllowedInTesting({ provider, model });
 
   // D6: never trust a key from the browser. Server env only.
   const key =
     provider === 'gemini'
       ? String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim()
-      : provider === 'openrouter'
-        ? String(process.env.OPENROUTER_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim()
-        : String(process.env.DEEPSEEK_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim();
+      : String(process.env.OPENROUTER_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim();
   if (!key) {
     throw new Error(
       provider === 'openrouter'
         ? 'OPENROUTER_API_KEY missing on the server. Add it to niyantran-react/.env (never in the browser).'
-        : 'API key missing on the server. Set GEMINI_API_KEY, OPENROUTER_API_KEY, or DEEPSEEK_API_KEY in the host environment.',
+        : 'API key missing on the server. Set GEMINI_API_KEY or OPENROUTER_API_KEY in the host environment.',
     );
   }
   if (!model) throw new Error('Model missing.');
@@ -431,11 +396,9 @@ ${ctx}`;
     }
   }
   const out =
-    provider === 'gemini'
-      ? await geminiChat({ model, key, messages, binaries, system })
-      : provider === 'openrouter'
-        ? await openrouterChat({ model, key, messages })
-        : await deepseekChat({ model, key, messages });
+    provider === 'openrouter'
+      ? await openrouterChat({ model, key, messages })
+      : await geminiChat({ model, key, messages, binaries, system });
   if (!out.text.trim()) throw new Error('Empty model response');
   return {
     ...out,

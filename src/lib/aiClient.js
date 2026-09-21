@@ -27,7 +27,7 @@ export async function sendAiChat({
     live;
   const model = (modelOverride && String(modelOverride).trim()) || picked.model || role.model || live.model;
   let provider = String(
-    (['gemini', 'openrouter', 'deepseek', 'openai', 'gpt'].includes(String(providerOverride || '').toLowerCase())
+    (['gemini', 'openrouter', 'openai', 'gpt'].includes(String(providerOverride || '').toLowerCase())
       ? providerOverride
       : null) ||
       picked.provider ||

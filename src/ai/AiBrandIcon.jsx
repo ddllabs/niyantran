@@ -32,18 +32,6 @@ export function AiBrandIcon({ id, size = 16 }) {
     );
   }
 
-  if (key === 'deepseek') {
-    return wrap(
-      <svg width={s} height={s} viewBox="0 0 24 24" role="img">
-        <rect width="24" height="24" rx="6" fill="#4D6BFE" />
-        <path
-          fill="#fff"
-          d="M6.8 12.2c0-3.15 2.2-5.5 5.4-5.5 2 0 3.55.75 4.55 2l-1.4 1.15c-.7-.85-1.7-1.35-3.15-1.35-2 0-3.35 1.45-3.35 3.7s1.35 3.7 3.35 3.7c1.45 0 2.45-.5 3.15-1.35l1.4 1.15c-1 1.25-2.55 2-4.55 2-3.2 0-5.4-2.35-5.4-5.5zm9.7-1.4c0-.55.45-1 1-1s1 .45 1 1-.45 1-1 1-1-.45-1-1z"
-        />
-      </svg>,
-    );
-  }
-
   if (key === 'openrouter' || key === 'openai' || key === 'gpt') {
     return wrap(
       <svg width={s} height={s} viewBox="0 0 24 24" role="img">

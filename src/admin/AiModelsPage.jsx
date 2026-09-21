@@ -14,11 +14,9 @@ export function AiModelsPage() {
           const m = String(value).toLowerCase();
           next.provider = m.includes('gemini')
             ? 'gemini'
-            : m.includes('deepseek')
-              ? 'deepseek'
-              : /astra|openai\/|gpt-6|openrouter/.test(m)
-                ? 'openrouter'
-                : 'deepseek';
+            : /astra|openai\/|gpt-6|openrouter/.test(m)
+              ? 'openrouter'
+              : 'gemini';
         }
         return next;
       }),
@@ -42,7 +40,7 @@ export function AiModelsPage() {
       <h1 className="adm-h1">AI models</h1>
       <p className="adm-lede">
         Research roles pick a provider + model id. Keys are read only from the host environment
-        (<code>GEMINI_API_KEY</code>, <code>OPENROUTER_API_KEY</code>, optional <code>DEEPSEEK_API_KEY</code>)
+        (<code>GEMINI_API_KEY</code>, <code>OPENROUTER_API_KEY</code>)
         inside <code>/api/ai/chat</code> — never from the browser. Desk training prompts live on the
         <b> AI personas</b> tab.
       </p>
@@ -66,7 +64,6 @@ export function AiModelsPage() {
                   <select value={r.provider} onChange={(e) => patch(r.id, 'provider', e.target.value)}>
                     <option value="gemini">Gemini</option>
                     <option value="openrouter">OpenRouter</option>
-                    <option value="deepseek">DeepSeek</option>
                   </select>
                 </label>
                 <label className="adm-field">
