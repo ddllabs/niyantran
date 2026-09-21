@@ -36,6 +36,12 @@ function parseArgs(argv) {
     else if (a === '--batch') out.batch = Math.max(1, Number(argv[++i]) || 10);
     else if (a === '--max-chars') out.maxChars = Math.max(1, Number(argv[++i]) || 2_000_000);
     else if (a === '--limit') out.limit = Math.max(0, Number(argv[++i]) || 0);
+    else if (a === '--shard') {
+      // "i/n": take every n-th document starting at i (1-based); run n processes side by side
+      const m = /^(\d+)\/(\d+)$/.exec(argv[++i] || '');
+      if (!m || Number(m[1]) < 1 || Number(m[1]) > Number(m[2])) throw new Error('--shard expects i/n with 1 <= i <= n');
+      out.shard = { index: Number(m[1]) - 1, count: Number(m[2]) };
+    }
     else if (a === '--help' || a === '-h') out.help = true;
     else throw new Error(`unknown argument ${a}`);
   }
@@ -106,10 +112,11 @@ export function fromCorpusRow(row, link, ocrText) {
   };
 }
 
-async function readCorpus(dir, feature, linksFile, maxChars, limit) {
+async function readCorpus(dir, feature, linksFile, maxChars, limit, shard) {
   const index = parseCsv(await readFile(path.join(dir, '04_indexes', 'OCR_FILES.csv'), 'utf8'));
   const { links } = JSON.parse(await readFile(linksFile, 'utf8'));
-  const rows = index.filter((r) => r.in_current_corpus === 'True' && (r.source_path.split('/')[1] || '') === feature);
+  let rows = index.filter((r) => r.in_current_corpus === 'True' && (r.source_path.split('/')[1] || '') === feature);
+  if (shard) rows = rows.filter((_, i) => i % shard.count === shard.index);
   const skipped = [];
   const docs = [];
   for (const row of rows) {
@@ -231,10 +238,11 @@ async function main() {
   if (mode === 'manifest') docs = await readSpecManifest(args.manifest);
   else if (mode === 'export') docs = await readExport(args.export);
   else {
-    const r = await readCorpus(args.corpus, args.feature, args.links, args.maxChars, args.limit);
+    const r = await readCorpus(args.corpus, args.feature, args.links, args.maxChars, args.limit, args.shard);
     docs = r.docs;
     skipped = r.skipped;
-    console.log(`${r.indexed} document(s) in the index for "${args.feature}"; ${skipped.length} skipped above ${args.maxChars.toLocaleString()} chars`);
+    const shardNote = args.shard ? ` (shard ${args.shard.index + 1}/${args.shard.count})` : '';
+    console.log(`${r.indexed} document(s) in the index for "${args.feature}"${shardNote}; ${skipped.length} skipped above ${args.maxChars.toLocaleString()} chars`);
   }
   const source = args.manifest ?? args.export ?? args.corpus;
   console.log(`${docs.length} document(s) from ${source}${args.dryRun ? ' (dry run)' : ''}`);
