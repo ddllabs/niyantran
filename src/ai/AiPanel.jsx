@@ -12,7 +12,8 @@ import {
   setChatRole,
   subscribeAiChats,
 } from '../lib/aiChatStore.js';
-import { AI_PROVIDERS, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
+import { liveAiProviders, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
+import { subscribeAppFlags } from '../lib/appFlagsStore.js';
 import { sessionUser } from '../lib/userStore.js';
 import { filesFromDrop, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -288,21 +289,24 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const focusRef = useRef(null);
   const historyRef = useRef(null);
 
+  const [flagsTick, setFlagsTick] = useState(0);
+  const providers = useMemo(() => liveAiProviders(), [flagsTick]);
   const chat = useMemo(
     () => state.chats.find((c) => c.id === state.activeId) || state.chats[0] || null,
     [state],
   );
-  const picked = AI_PROVIDERS.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
+  const picked = providers.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
   const attachments = chat?.attachments || [];
   const messages = (chat?.messages || []).filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
 
   useEffect(() => subscribeAiChats(setState), []);
+  useEffect(() => subscribeAppFlags(() => setFlagsTick((n) => n + 1)), []);
   useEffect(() => {
     const live = activeAiProvider().id;
-    if (!AI_PROVIDERS.find((p) => p.id === providerId)?.enabled) setProviderId(live);
-  }, [providerId]);
+    if (!providers.find((p) => p.id === providerId)?.enabled) setProviderId(live);
+  }, [providerId, providers]);
 
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -528,7 +532,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         role: m.role,
         content: m.content,
       }));
-      const model = AI_PROVIDERS.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
+      const model = providers.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
       const hasRowPin = pins.some((a) => a.kind === 'row' || a.kind === 'feed');
       const useSelection = true;
       const out = await sendAiChat({
@@ -567,8 +571,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     [chat?.attachments, selected, featureName],
   );
 
-  const recommended = AI_PROVIDERS.filter((p) => RECOMMENDED_IDS.includes(p.id));
-  const others = AI_PROVIDERS.filter((p) => !RECOMMENDED_IDS.includes(p.id));
+  const recommended = providers.filter((p) => RECOMMENDED_IDS.includes(p.id));
+  const others = providers.filter((p) => !RECOMMENDED_IDS.includes(p.id));
   const docs = hi ? DOCS_HI : DOCS_EN;
 
   return (

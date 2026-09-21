@@ -1,4 +1,5 @@
 import { TABS } from '../desks/catalog.js';
+import { isTestingPhase } from './appFlagsStore.js';
 import { loadPricing } from './pricingStore.js';
 import { userTypeOf } from './userTypes.js';
 
@@ -89,6 +90,7 @@ export function isPaidActive(user) {
 }
 
 export function canAccessDesk(user, deskId) {
+  if (isTestingPhase()) return true;
   const e = entitlementOf(user);
   if (deskId === 'home') return true;
   if (e.status === 'active' || e.status === 'trial') return true;
@@ -105,6 +107,7 @@ export function navTabsForUser(user) {
 }
 
 export function canExport(user) {
+  if (isTestingPhase()) return true;
   const e = entitlementOf(user);
   if (e.status === 'trial') return false;
   if (e.status === 'free' || e.plan === 'explorer') return false;
@@ -116,6 +119,7 @@ export function canCopy(user) {
 }
 
 export function rowCapForUser(user) {
+  if (isTestingPhase()) return null;
   const e = entitlementOf(user);
   if (e.status === 'trial') return TRIAL_ROW_CAP;
   if (e.status === 'free' || e.plan === 'explorer') return FREE_ROW_CAP;

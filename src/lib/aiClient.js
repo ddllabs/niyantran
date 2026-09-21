@@ -1,4 +1,4 @@
-import { pickAiRole, activeAiProvider, AI_PROVIDERS } from './aiModelsStore.js';
+import { pickAiRole, activeAiProvider, liveAiProviders } from './aiModelsStore.js';
 import { sessionUser, userTypeOf } from './userStore.js';
 
 export async function sendAiChat({
@@ -18,11 +18,12 @@ export async function sendAiChat({
   deskContext = null,
 }) {
   const role = pickAiRole(attachments, roleId);
+  const providers = liveAiProviders();
   const live = activeAiProvider();
   const picked =
-    AI_PROVIDERS.find((p) => p.enabled && p.model === modelOverride) ||
-    AI_PROVIDERS.find((p) => p.enabled && p.id === providerOverride) ||
-    AI_PROVIDERS.find((p) => p.enabled && p.provider === providerOverride) ||
+    providers.find((p) => p.enabled && p.model === modelOverride) ||
+    providers.find((p) => p.enabled && p.id === providerOverride) ||
+    providers.find((p) => p.enabled && p.provider === providerOverride) ||
     live;
   const model = (modelOverride && String(modelOverride).trim()) || picked.model || role.model || live.model;
   let provider = String(

@@ -15,6 +15,13 @@ import {
 } from '../lib/refreshStore.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
 import { cancelSweep, decorateApis, healStaleInactiveProbes, healStaticHostProbes, refreshOne, sweepApis } from '../lib/refreshFeeds.js';
+import {
+  hydrateAppFlags,
+  isTestingPhase,
+  loadAppFlags,
+  saveAppFlags,
+  subscribeAppFlags,
+} from '../lib/appFlagsStore.js';
 
 const DESKS = ['ALL', 'GLOBAL', 'NATIONAL', 'STATE', 'LOCAL', 'LAW', 'ECONOMICS', 'CARBON', 'SPORTS', 'ENTERTAINMENT'];
 
@@ -135,14 +142,44 @@ function RefreshBar({ compact }) {
 
 export function OverviewPage({ users }) {
   useRefreshTick();
+  const [testingPhase, setTestingPhase] = useState(() => isTestingPhase());
+  const [flagsMsg, setFlagsMsg] = useState('');
+  const [flagsBusy, setFlagsBusy] = useState(false);
+
   useEffect(() => {
     healStaticHostProbes();
     if (liveApiEnabled()) healStaleInactiveProbes().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    hydrateAppFlags().then((f) => setTestingPhase(Boolean(f.testingPhase)));
+    return subscribeAppFlags((f) => setTestingPhase(Boolean(f.testingPhase)));
+  }, []);
+
+  async function toggleTestingPhase() {
+    setFlagsBusy(true);
+    setFlagsMsg('');
+    try {
+      const next = !testingPhase;
+      const flags = await saveAppFlags({ testingPhase: next });
+      setTestingPhase(Boolean(flags.testingPhase));
+      setFlagsMsg(
+        flags.testingPhase
+          ? 'Testing phase ON — free tier unlocked; only free Gemini models enabled.'
+          : 'Testing phase OFF — normal plans and models restored.',
+      );
+    } catch (err) {
+      setFlagsMsg(err.message || 'Could not save testing phase.');
+    } finally {
+      setFlagsBusy(false);
+    }
+  }
+
   const rows = decorateApis(classifyApis());
   const stats = apiStats(rows);
   const total = stats.total || 1;
   const cfg = loadRefreshCfg();
+  const flags = loadAppFlags();
   const bars = [
     ['live', stats.live, '#176b55'],
     ['archive', stats.archive, '#c4a35a'],
@@ -156,6 +193,33 @@ export function OverviewPage({ users }) {
         Live feeds refresh on the interval below. Archived packs, local registers, and silent desks stay labelled so a
         quiet source is never dressed up as live.
       </p>
+
+      <div className={`adm-card adm-testing${testingPhase ? ' on' : ''}`}>
+        <div className="adm-testing-head">
+          <div>
+            <h2>Testing phase</h2>
+            <p className="adm-lede" style={{ margin: 0 }}>
+              When on: every desk and feature is available on free seats, and only free Gemini models stay enabled.
+              Paid models (OpenRouter / DeepSeek) stay locked. Turn off to restore normal plans.
+            </p>
+          </div>
+          <button
+            type="button"
+            className={`adm-testing-toggle${testingPhase ? ' on' : ''}`}
+            disabled={flagsBusy}
+            aria-pressed={testingPhase}
+            onClick={toggleTestingPhase}
+          >
+            <i />
+            <span>{testingPhase ? 'On' : 'Off'}</span>
+          </button>
+        </div>
+        {flagsMsg ? <p className="adm-testing-msg">{flagsMsg}</p> : null}
+        {flags.updatedAt ? (
+          <p className="adm-testing-meta">Last changed {formatWhen(Date.parse(flags.updatedAt))}</p>
+        ) : null}
+      </div>
+
       <RefreshBar />
       <div className="adm-kpis">
         <article className="adm-kpi live">

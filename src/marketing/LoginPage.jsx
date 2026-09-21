@@ -132,19 +132,6 @@ export default function LoginPage({ onSuccess, onSignup }) {
         <h1>TERMINAL</h1>
         <div className="tag">DESK ACCESS</div>
 
-        {googleOn ? (
-          <div className="mkt-google-block">
-            <GoogleSignInButton
-              disabled={pending}
-              onCredential={(cred) => completeGoogle(cred)}
-              onError={(err) => setError(err.message || 'Google Sign-In failed.')}
-            />
-            <div className="mkt-auth-or" aria-hidden="true">
-              <span>or</span>
-            </div>
-          </div>
-        ) : null}
-
         {pendingCredential ? (
           <form className="mkt-google-link" onSubmit={handleLink} autoComplete="off">
             <p className="mkt-google-link-copy">
@@ -187,7 +174,7 @@ export default function LoginPage({ onSuccess, onSignup }) {
                 autoComplete="username"
                 spellCheck="false"
                 required
-                autoFocus={!googleOn}
+                autoFocus
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
               />
@@ -206,6 +193,19 @@ export default function LoginPage({ onSuccess, onSignup }) {
             <button className="mkt-cta" type="submit" disabled={pending}>
               {pending ? 'Signing in…' : 'Sign in'}
             </button>
+
+            {googleOn ? (
+              <div className="mkt-google-block mkt-google-below">
+                <div className="mkt-auth-or" aria-hidden="true">
+                  <span>or</span>
+                </div>
+                <GoogleSignInButton
+                  disabled={pending}
+                  onCredential={(cred) => completeGoogle(cred)}
+                  onError={(err) => setError(err.message || 'Google Sign-In failed.')}
+                />
+              </div>
+            ) : null}
           </form>
         )}
 

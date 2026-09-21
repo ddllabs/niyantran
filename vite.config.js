@@ -11,6 +11,7 @@ import { aiApiPlugin } from './server/aiApi.mjs'
 import { usersApiPlugin } from './server/usersApi.mjs'
 import { analyticsApiPlugin } from './server/analyticsApi.mjs'
 import { marketingMediaApiPlugin } from './server/marketingMediaApi.mjs'
+import { appFlagsApiPlugin } from './server/appFlags.mjs'
 import { billingApiPlugin } from './server/billingApi.mjs'
 import { googleAuthApiPlugin } from './server/googleAuth.mjs'
 import { userPrefsApiPlugin } from './server/userPrefsApi.mjs'
@@ -18,7 +19,7 @@ import { userPrefsApiPlugin } from './server/userPrefsApi.mjs'
 loadEnv()
 
 export default defineConfig({
-  plugins: [react(), featureFeedPlugin(), homeApiPlugin(), transitApiPlugin(), diplomacyApiPlugin(), assetsApiPlugin(), resourcesApiPlugin(), aiApiPlugin(), usersApiPlugin(), analyticsApiPlugin(), marketingMediaApiPlugin(), billingApiPlugin(), userPrefsApiPlugin(), googleAuthApiPlugin()],
+  plugins: [react(), featureFeedPlugin(), homeApiPlugin(), transitApiPlugin(), diplomacyApiPlugin(), assetsApiPlugin(), resourcesApiPlugin(), aiApiPlugin(), usersApiPlugin(), analyticsApiPlugin(), marketingMediaApiPlugin(), appFlagsApiPlugin(), billingApiPlugin(), userPrefsApiPlugin(), googleAuthApiPlugin()],
   envPrefix: ['VITE_'],
   server: {
     port: 5173,

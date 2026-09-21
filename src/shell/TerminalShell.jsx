@@ -28,6 +28,7 @@ import {
   navTabsForUser,
   trialDaysLeft,
 } from '../lib/planEntitlements.js';
+import { isTestingPhase, subscribeAppFlags } from '../lib/appFlagsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import AiDock from '../ai/AiDock.jsx';
 import OnboardingTour from './OnboardingTour.jsx';
@@ -66,8 +67,11 @@ export default function TerminalShell({ onLogout }) {
   const hi = lang === 'hi';
 
   const openUpgrade = useCallback((reason = 'desk', deskLabel = '') => {
+    if (isTestingPhase()) return;
     setUpgrade({ reason, deskLabel });
   }, []);
+
+  useEffect(() => subscribeAppFlags(() => setUserTick((n) => n + 1)), []);
 
   useEffect(() => {
     startUserPrefsSync();
@@ -393,14 +397,18 @@ export default function TerminalShell({ onLogout }) {
           <span className="user-chip" title={`${user?.email || ''} · ${typeMeta.label} · ${ent.plan}`}>
             <span className="avatar">{(user?.name || 'A').charAt(0).toUpperCase()}</span>
             <span className="user-type">{typeMeta.short}</span>
-            {ent.status === 'trial' ? (
+            {ent.status === 'trial' && !isTestingPhase() ? (
               <button type="button" className="plan-chip trial" onClick={() => openUpgrade('trial')}>
                 Trial{trialLeft ? ` · ${trialLeft}d` : ''}
               </button>
             ) : ent.status === 'free' || ent.plan === 'explorer' ? (
-              <button type="button" className="plan-chip free" onClick={() => openUpgrade('desk')}>
-                Free
-              </button>
+              isTestingPhase() ? (
+                <span className="plan-chip free">Free</span>
+              ) : (
+                <button type="button" className="plan-chip free" onClick={() => openUpgrade('desk')}>
+                  Free
+                </button>
+              )
             ) : (
               <span className="plan-chip paid">{ent.plan}</span>
             )}

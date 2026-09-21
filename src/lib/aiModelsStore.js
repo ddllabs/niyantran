@@ -1,8 +1,11 @@
 const KEY = 'niyantranAiModels.v4';
 const EVENT = 'niy-ai-models';
 
+import { isTestingPhase } from './appFlagsStore.js';
+
 /**
  * Models shown in AI research.
+ * tier: free = Gemini (allowed in testing phase); paid = others (disabled while testing).
  * Gemini + OpenRouter GPT Astra are live; DeepSeek stays locked until its key is wired.
  */
 export const AI_PROVIDERS = [
@@ -11,6 +14,7 @@ export const AI_PROVIDERS = [
     label: 'Gemini - Lite',
     model: 'gemini-3.5-flash-lite',
     provider: 'gemini',
+    tier: 'free',
     enabled: true,
     hint: 'Default — fast briefing and desk questions',
   },
@@ -19,6 +23,7 @@ export const AI_PROVIDERS = [
     label: 'Gemini - Flash',
     model: 'gemini-3.7-flash',
     provider: 'gemini',
+    tier: 'free',
     enabled: true,
     hint: 'Heavier synthesis / visual research',
   },
@@ -27,6 +32,7 @@ export const AI_PROVIDERS = [
     label: 'GPT - Astra',
     model: 'openai/gpt-6-astra',
     provider: 'openrouter',
+    tier: 'paid',
     enabled: true,
     hint: 'OpenRouter · OpenAI GPT-6 Astra',
   },
@@ -35,6 +41,7 @@ export const AI_PROVIDERS = [
     label: 'DeepSeek - Flash',
     model: 'deepseek-v4-flash',
     provider: 'deepseek',
+    tier: 'paid',
     enabled: false,
     hint: 'DeepSeek key not connected on the server yet',
   },
@@ -43,12 +50,29 @@ export const AI_PROVIDERS = [
     label: 'DeepSeek - Pro',
     model: 'deepseek-v4-pro',
     provider: 'deepseek',
+    tier: 'paid',
     enabled: false,
     hint: 'DeepSeek key not connected on the server yet',
   },
 ];
 
 const DEFAULT_PROVIDER = AI_PROVIDERS.find((p) => p.enabled) || AI_PROVIDERS[0];
+
+/** Live list for the picker / send path — respects testing-phase free-Gemini-only. */
+export function liveAiProviders() {
+  const testing = isTestingPhase();
+  return AI_PROVIDERS.map((p) => {
+    if (!testing) return { ...p };
+    const freeGemini = p.tier === 'free' && p.provider === 'gemini';
+    return {
+      ...p,
+      enabled: freeGemini && p.enabled,
+      hint: freeGemini
+        ? p.hint
+        : 'Paid models are off during the testing phase',
+    };
+  });
+}
 
 /** Research role map — Gemini defaults; UI can override to OpenRouter Astra. */
 export const AI_ROLES = [
@@ -95,11 +119,11 @@ function providerOf(model, fallback) {
 }
 
 export function getAiProvider(id) {
-  return AI_PROVIDERS.find((p) => p.id === id) || DEFAULT_PROVIDER;
+  return liveAiProviders().find((p) => p.id === id) || liveAiProviders().find((p) => p.enabled) || DEFAULT_PROVIDER;
 }
 
 export function activeAiProvider() {
-  return AI_PROVIDERS.find((p) => p.enabled) || DEFAULT_PROVIDER;
+  return liveAiProviders().find((p) => p.enabled) || DEFAULT_PROVIDER;
 }
 
 /** Compact pill label: `Gemini - Lite` / `GPT - Astra`. */

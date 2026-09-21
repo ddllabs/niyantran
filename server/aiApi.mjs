@@ -9,6 +9,7 @@
  * Keys come from server env (DEEPSEEK_API_KEY / GEMINI_API_KEY / OPENROUTER_API_KEY / NIYANTRAN_AI_KEY).
  * Request-body `key` is ignored — never accept client-supplied credentials (D6).
  */
+import { assertAiAllowedInTesting } from './appFlags.mjs';
 import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
 import { shippedPersonaPrompt } from './personas.mjs';
@@ -370,6 +371,7 @@ export async function runAiChat(payload = {}) {
           : 'deepseek'),
   ).toLowerCase();
   if (provider === 'openai' || provider === 'gpt') provider = 'openrouter';
+  assertAiAllowedInTesting({ provider, model });
 
   // D6: never trust a key from the browser. Server env only.
   const key =

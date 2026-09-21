@@ -3,6 +3,7 @@ import MarketingSite from './marketing/MarketingSite.jsx';
 import TerminalShell from './shell/TerminalShell.jsx';
 import AdminApp from './admin/AdminApp.jsx';
 import { startSiteHead } from './lib/siteHead.js';
+import { hydrateAppFlags } from './lib/appFlagsStore.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
 import { sessionUser, userTypeOf } from './lib/userStore.js';
 import './shell/onboarding.css';
@@ -49,6 +50,9 @@ export default function App() {
   });
 
   useEffect(() => startSiteHead(), []);
+  useEffect(() => {
+    hydrateAppFlags().catch(() => {});
+  }, []);
 
   useEffect(() => {
     const sync = () => {
