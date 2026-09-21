@@ -536,3 +536,56 @@ Deno.test('a retry of a failed continuation consumes continuation budget even wh
   assertEquals(result.finish, 'length');
   assertEquals(f.deps.budget!.modelAttempts, attempts);
 });
+
+// The think tool exists so a model that has read one set of results has a move
+// other than answering. Three production turns each ran exactly one search with
+// nine left in budget: once results were back, "answer" was always available and
+// "plan the next query" was not.
+const thinkCall = (id = 'call-think', thought = 'Rates are covered; the First Schedule is not.'): ModelEvent => ({
+  type: 'tool-call',
+  id,
+  name: 'think',
+  args: JSON.stringify({ thought }),
+});
+
+Deno.test('think is offered as a tool during research', async () => {
+  const f = fake([ready(), answer()]);
+  await runAgent(f.deps, input);
+  const names = (f.requests[0].tools ?? []).map((t) => (t as { function: { name: string } }).function.name);
+  assertEquals(names, ['search_documents', 'search_desk_rows', 'think']);
+  // The answer phase offers no tools at all, think included.
+  assertEquals(f.requests[1].tools, undefined);
+});
+
+Deno.test('think keeps the turn in research and spends no search', async () => {
+  const f = fake(
+    [
+      [thinkCall(), finish('tool_calls')],
+      [docCall('after-think', 'First Schedule'), finish('tool_calls')],
+      ready(),
+      answer(),
+    ],
+    { searchDocuments: () => Promise.resolve([chunk('a')]) },
+  );
+  const result = await runAgent(f.deps, input);
+
+  assertEquals(result.searches, 1, 'thinking is not a search');
+  assertEquals(f.deps.budget!.thoughts, 1, 'but it is counted');
+  assertEquals(f.requests.length, 4, 'research continued after the thought');
+  // Retrieval traces are evidence; a thought is not, so it leaves none.
+  assertEquals(result.steps.filter((s) => (s as { name: string }).name === 'think').length, 0);
+  // And the thought itself never becomes reader-facing activity.
+  assertEquals(f.events.filter((e) => 'tool' in e && (e.tool as { name: string }).name === 'think').length, 0);
+});
+
+Deno.test('think is bounded so planning cannot consume the step budget', async () => {
+  const script: ModelEvent[][] = [];
+  for (let i = 0; i < BUDGET.maxThoughts + 2; i++) script.push([thinkCall(`t${i}`), finish('tool_calls')]);
+  script.push(ready());
+  script.push(answer());
+  const f = fake(script);
+  await runAgent(f.deps, input);
+
+  assertEquals(f.deps.budget!.thoughts, BUDGET.maxThoughts, 'thinking stops at its own cap');
+  assert(f.deps.budget!.modelAttempts <= BUDGET.maxSteps, 'and the turn ends inside the step budget');
+});

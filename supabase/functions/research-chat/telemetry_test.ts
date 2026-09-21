@@ -132,3 +132,4 @@ Deno.test('D6: embedding attempts settle once on abort, preserve known cost and 
   assertEquals(rows[0].completion_tokens, null);
   assertEquals(recorder.summary()?.attempts, 1);
 });
+

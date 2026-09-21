@@ -288,16 +288,32 @@ export function createAttemptRecorder(options: {
   }
   function summary(): Record<string, unknown> | null {
     if (!records.length) return null;
+    // A total stays null unless every attempt reported that field. Summing the
+    // rest would count a silent attempt as zero, and anything totalling
+    // `cost_usd` for billing would then undercharge - which is why the
+    // all-or-nothing rule exists and is tested.
+    //
+    // What was wrong is that the observed figures were discarded as well, so a
+    // five-attempt turn showed null completion_tokens while four attempts had
+    // reported them, and nothing recorded how much of the turn was unaccounted.
+    // The canonical fields keep their meaning; the observed part is reported
+    // separately, under a name that cannot be mistaken for a total.
+    const partial: Record<string, number> = {};
+    let attemptsReporting = 0;
     const sum = (key: keyof Usage): number | null => {
       let total = 0;
+      let seen = 0;
       for (const record of records) {
         const value = known(record.usage?.[key]);
-        if (value === null) return null;
+        if (value === null) continue;
         total += value;
+        seen++;
       }
-      return Number.isFinite(total) ? total : null;
+      if (seen) partial[key === 'cost' ? 'cost_usd' : key] = total;
+      return seen === records.length && Number.isFinite(total) ? total : null;
     };
-    return {
+    for (const record of records) if (record.usage) attemptsReporting++;
+    const out: Record<string, unknown> = {
       attempts: records.length,
       prompt_tokens: sum('prompt_tokens'),
       completion_tokens: sum('completion_tokens'),
@@ -306,6 +322,12 @@ export function createAttemptRecorder(options: {
       reasoning_tokens: sum('reasoning_tokens'),
       cost_usd: sum('cost'),
     };
+    // Only when the turn is actually short of figures. A complete turn carries
+    // nothing extra, so its shape is unchanged.
+    if (attemptsReporting < records.length) {
+      out.observed = { ...partial, attempts_reporting: attemptsReporting, attempts_silent: records.length - attemptsReporting };
+    }
+    return out;
   }
   async function bounded<T>(stage: string, operation: () => Promise<T>, fallback: T): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;

@@ -1366,3 +1366,38 @@ Deno.test('an ordinary question still keeps its attachments and its follow-ups',
   assert(sent.includes('RUSSIA-UKRAINE ATTACHED ROW TEXT'), 'a real question keeps its attachments');
   assertEquals(rec.messages[0].follow_ups, ['What changed in Gaza?'], 'a real question keeps its chips');
 });
+
+// A turn with a silent attempt reported null for every field that attempt did
+// not carry, discarding what the others did report: a real five-attempt turn
+// showed prompt_tokens 49,045 with completion_tokens null. The null totals are
+// correct and deliberate - summing the rest would count the silent attempt as
+// zero and undercharge anything totalling cost_usd - but the observed figures
+// must still be recorded, and how much of the turn is unaccounted must be
+// visible rather than inferred from a null.
+Deno.test('a silent attempt nulls the totals and records what was observed', async () => {
+  const unknown: ModelEvent = { type: 'finish', reason: 'stop', usage: null, served: null, generationId: null };
+  const provider = scripted([[unknown], [text(envelope('Answer')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'usage-1' }), deps));
+
+  const usage = rec.messages[0].usage as Record<string, unknown>;
+  assertEquals(usage.attempts, 2);
+  assertEquals(usage.prompt_tokens, null, 'a total must not count the silent attempt as zero');
+  assertEquals(usage.cost_usd, null, 'billing must not undercharge on a partial total');
+
+  const observed = usage.observed as Record<string, number> | undefined;
+  assert(observed, 'the figures the reporting attempt did give must survive');
+  assertEquals(observed.attempts_reporting, 1);
+  assertEquals(observed.attempts_silent, 1);
+  assert(Number(observed.prompt_tokens) > 0, 'the reported prompt tokens are kept');
+});
+
+Deno.test('a turn where every attempt reports keeps its existing shape', async () => {
+  const provider = scripted([NO_RESEARCH, [text(envelope('Answer')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'usage-2' }), deps));
+
+  const usage = rec.messages[0].usage as Record<string, unknown>;
+  assert(Number(usage.prompt_tokens) > 0, 'a complete turn still totals');
+  assertEquals(usage.observed, undefined, 'and carries nothing extra');
+});
