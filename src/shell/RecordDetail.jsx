@@ -4,8 +4,7 @@ import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { formatDate, formatDateTime } from '../lib/format.js';
 import CsvTablePane from './CsvTablePane.jsx';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
-import { useEffect, useState } from 'react';
-import { resolveOrganisedBrief } from '../lib/sourceDoc.js';
+import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
 
 const SKIP = new Set([
   'source_url',
@@ -174,70 +173,6 @@ function sourcePairs(row) {
   return out;
 }
 
-function SourceBriefBlock({ row, title, analysisBrief, feature, tier }) {
-  const [text, setText] = useState('');
-  const [bullets, setBullets] = useState([]);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (analysisBrief && String(analysisBrief).length > 40) {
-      setText('');
-      setBullets([]);
-      setBusy(false);
-      return undefined;
-    }
-    const ac = new AbortController();
-    let alive = true;
-    setBusy(true);
-    resolveOrganisedBrief(row, {
-      title,
-      feature: feature || feedFeatureFallback(row),
-      tier: tier || '',
-      signal: ac.signal,
-    })
-      .then((got) => {
-        if (!alive) return;
-        setText(got.text || '');
-        setBullets(Array.isArray(got.bullets) ? got.bullets : []);
-      })
-      .catch((err) => {
-        if (!alive || err?.name === 'AbortError') return;
-        setText('');
-        setBullets([]);
-      })
-      .finally(() => {
-        if (alive) setBusy(false);
-      });
-    return () => {
-      alive = false;
-      ac.abort();
-    };
-  }, [row, title, analysisBrief, feature, tier]);
-
-  if (analysisBrief && String(analysisBrief).length > 40) return null;
-  if (!busy && !text && !bullets.length) return null;
-  return (
-    <div className="rd-section rd-ai">
-      <div className="rd-sec-label">SOURCE BRIEF</div>
-      {busy && !text && !bullets.length ? (
-        <div className="rd-ai-brief">Organising a short summary from the source…</div>
-      ) : bullets.length ? (
-        <ul className="rd-ai-bullets">
-          {bullets.map((b) => (
-            <li key={b}>{b}</li>
-          ))}
-        </ul>
-      ) : (
-        <div className="rd-ai-brief">{text}</div>
-      )}
-    </div>
-  );
-}
-
-function feedFeatureFallback(row) {
-  return row?.bill_name ? 'Bill Passage Probability Index' : row?.title || 'Record';
-}
-
 export default function RecordDetail({ row, feed, onClear }) {
   if (!row) return null;
   const entries = entriesOf(row);
@@ -253,7 +188,7 @@ export default function RecordDetail({ row, feed, onClear }) {
     .map(([k, v]) => ({ k, v: String(v).trim(), y: yearOf(v) }))
     .sort((a, b) => a.y - b.y);
   const entities = entries.filter(([k, v]) => ENTITY_KEYS.test(k) && !isUrl(v) && String(v).trim().length <= 60);
-  const summary = entries
+  const fieldSummary = entries
     .filter(([, v]) => !isUrl(v))
     .slice(0, 6)
     .map(([k, v]) => `${prettyKey(k)}: ${String(v).trim()}`)
@@ -267,6 +202,68 @@ export default function RecordDetail({ row, feed, onClear }) {
   const provenance = provenanceOf(row, feed);
   const sensitive = sensitiveNoteFor(feed?.feature);
   const relatedLinks = Array.isArray(row.related_links) ? row.related_links.filter(Boolean) : [];
+
+  return (
+    <RecordDetailBody
+      row={row}
+      feed={feed}
+      onClear={onClear}
+      title={title}
+      fronts={fronts}
+      analysis={analysis}
+      pairs={pairs}
+      docs={docs}
+      dates={dates}
+      entities={entities}
+      fieldSummary={fieldSummary}
+      csvFile={csvFile}
+      csv={csv}
+      d={d}
+      extra={extra}
+      impact={impact}
+      named={named}
+      provenance={provenance}
+      sensitive={sensitive}
+      relatedLinks={relatedLinks}
+      entries={entries}
+    />
+  );
+}
+
+function RecordDetailBody({
+  row,
+  feed,
+  onClear,
+  title,
+  fronts,
+  analysis,
+  pairs,
+  docs,
+  dates,
+  entities,
+  fieldSummary,
+  csvFile,
+  csv,
+  d,
+  extra,
+  impact,
+  named,
+  provenance,
+  sensitive,
+  relatedLinks,
+  entries,
+}) {
+  const { brief, busy } = useEntryBrief({ feed, selected: csvFile ? null : row });
+  const intelLines = briefPlainLines(brief);
+  const analysisBrief =
+    analysis?.brief ||
+    (intelLines[0] && intelLines[0].length > 20 ? intelLines[0] : '') ||
+    '';
+  const analysisExtras = intelLines.filter((line) => line && line !== analysisBrief).slice(0, 4);
+  const summary = [fieldSummary, ...analysisExtras.filter((l) => !fieldSummary.includes(l))]
+    .filter(Boolean)
+    .join('  ·  ');
+  const showAnalysis = Boolean(analysis) || Boolean(analysisBrief) || busy;
 
   return (
     <div className="rd">
@@ -361,35 +358,67 @@ export default function RecordDetail({ row, feed, onClear }) {
 
       {csvFile ? <CsvTablePane row={row} /> : null}
 
-      {!csvFile && analysis && (
+      {!csvFile && showAnalysis ? (
         <div className="rd-section rd-ai">
           <div className="rd-sec-label">✦ NIYANTRAN ANALYSIS</div>
-          <div className="rd-ai-brief">{analysis.brief}</div>
-          <div className="rd-ai-sub">
-            <span>Why it matters</span>
-            {analysis.why}
+          <div className="rd-ai-brief">
+            {busy && !analysisBrief ? 'Reading this entry…' : analysisBrief || analysis?.brief || ''}
           </div>
-          {analysis.latest ? (
+          {analysis?.why ? (
+            <div className="rd-ai-sub">
+              <span>Why it matters</span>
+              {analysis.why}
+            </div>
+          ) : null}
+          {analysis?.latest ? (
             <div className="rd-ai-sub">
               <span>{fronts ? 'Latest feed note' : 'Watch for'}</span>
               {analysis.latest}
             </div>
           ) : null}
-          <div className="rd-ai-tags">
-            {analysis.tags.map((t) => (
-              <span key={t} className="rd-ai-tag">
-                {t}
+          {(brief?.findings || []).slice(0, 3).map((f) => (
+            <div key={f.title} className="rd-ai-sub">
+              <span>
+                {f.title}
+                {f.band ? ` · ${f.band}` : ''}
               </span>
-            ))}
-          </div>
+              {String(f.detail || '')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .trim()}
+            </div>
+          ))}
+          {analysis?.tags?.length ? (
+            <div className="rd-ai-tags">
+              {analysis.tags.map((t) => (
+                <span key={t} className="rd-ai-tag">
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      {!csvFile && !analysis ? (
-        <SourceBriefBlock row={row} title={title} analysisBrief="" feature={feed?.feature} tier={feed?.tier} />
+      {!csvFile && brief?.kpis?.length ? (
+        <div className="kpi-grid" style={{ marginBottom: 14 }}>
+          {brief.kpis.map((k) => (
+            <article
+              key={k.label}
+              className={`kpi-card${k.tone === 'ok' ? ' ok' : k.tone === 'warn' ? ' warn' : k.tone === 'bad' ? ' bad' : ''}`}
+            >
+              <h3>{k.label}</h3>
+              <strong>{k.value}</strong>
+              <span>{k.sub}</span>
+            </article>
+          ))}
+        </div>
       ) : null}
 
       {!csvFile && summary ? <div className="rd-summary">{summary}</div> : null}
+
+      {!csvFile && brief?.caveats?.length ? (
+        <p className="desk-note">{brief.caveats.join(' · ')}</p>
+      ) : null}
 
       {!csvFile && dates.length > 0 && (
         <div className="rd-section">

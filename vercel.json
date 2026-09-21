@@ -7,7 +7,9 @@
     "api/ai/fetch.js": { "maxDuration": 30 },
     "api/ai/desk-brief.js": { "maxDuration": 60 },
     "api/ai/source-extract.js": { "maxDuration": 45 },
-    "api/auth/google.js": { "maxDuration": 30 }
+    "api/auth/google.js": { "maxDuration": 30 },
+    "api/news/ingest.js": { "maxDuration": 30 },
+    "api/home/latest.js": { "maxDuration": 15 }
   },
   "rewrites": [
     { "source": "/((?!api/|data/|legacy/|assets/|home/|conflicts/|favicon).*)", "destination": "/index.html" }

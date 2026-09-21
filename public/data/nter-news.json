@@ -1,6 +1,6 @@
 {
   "updated": null,
   "source": "nter.news",
-  "note": "nter.news feed contract not wired yet — section stays empty until the editorial feed lands.",
+  "note": "Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.",
   "rows": []
 }

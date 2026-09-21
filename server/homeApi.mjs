@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
+import { serveNterLatest } from './nterNews.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -41,13 +42,6 @@ const TICKERS = [
   ['INDIA VIX', '^INDIAVIX'],
   ['S&P 500', '^GSPC'],
   ['BITCOIN', 'BTC-USD'],
-];
-
-const WIRES = [
-  { src: 'THE WIRE', feed: 'https://cms.thewire.in/feed', site: 'https://thewire.in' },
-  { src: 'OCCRP', feed: 'https://www.occrp.org/en/feed', site: 'https://www.occrp.org' },
-  { src: 'SCROLL.IN', feed: 'https://feeds.feedburner.com/ScrollinArticles.rss', site: 'https://scroll.in' },
-  { src: 'THE HINDU', feed: 'https://www.thehindu.com/news/national/feeder/default.rss', site: 'https://www.thehindu.com' },
 ];
 
 const SNAPSHOT_MAX_AGE_H = 24;
@@ -447,58 +441,44 @@ function ago(iso) {
 }
 
 async function fetchLiveLatest() {
-  const batches = await Promise.all(
-    WIRES.map(async (w) => {
-      try {
-        const items = await serveRss(w.feed);
-        return items.slice(0, 4).map((it) => ({
-          ...it,
-          src: w.src,
-          site: w.site,
-          ago: ago(it.pub),
-          t: new Date(it.pub).getTime() || 0,
-        }));
-      } catch {
-        return [];
-      }
-    }),
-  );
-  const rows = batches.flat().sort((a, b) => b.t - a.t).slice(0, 9);
-  if (rows.length) {
-    return { ok: true, rows, note: 'Headlines from The Wire, OCCRP, Scroll.in and The Hindu RSS — same feeds as the HTML home.' };
-  }
+  // Live Latest = ingested nter.news articles (POST /api/news/ingest), never third-party RSS.
+  const body = serveNterLatest({ limit: 12 });
+  if (body.rows?.length) return body;
   return null;
 }
 
 export async function serveHomeLatest(opts = {}) {
-  const maxAgeH = opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H;
   const fresh = Boolean(opts.fresh);
+  const live = serveNterLatest({ limit: 12 });
+  if (live.rows?.length) {
+    writeDiskSnapshot('news', {
+      rows: live.rows,
+      note: live.note,
+      source: 'nter.news',
+      updated: live.updated,
+      as_of: live.updated,
+    });
+    return live;
+  }
   if (!fresh) {
     const snap = readDiskSnapshot('news');
     if (snap?.rows?.length) {
-      if (snap.__ageH > maxAgeH) scheduleHomeRefresh('news', fetchLiveLatest);
       return {
         ...snapshotPayload(snap),
         rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-        note: snap.note || 'Saved home-desk headlines. Live RSS refreshes on the admin interval.',
+        note: snap.note || 'Saved nter.news headlines.',
+        source: 'nter.news',
       };
     }
   }
-  const live = await fetchLiveLatest();
-  if (live?.rows?.length) {
-    writeDiskSnapshot('news', live);
-    return live;
-  }
-  const snap = readDiskSnapshot('news');
-  if (snap?.rows?.length) {
-    return {
-      ...snapshotPayload(snap),
-      rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-      note: 'Live RSS unreachable. Showing the last saved headlines.',
-      archive: true,
-    };
-  }
-  return { ok: true, rows: [], note: 'Wire quiet. Headlines arrive from RSS when the proxy can reach the publishers.' };
+  return {
+    ok: true,
+    rows: [],
+    note: live.note || 'nter.news feed not configured on this build. No headlines were invented.',
+    source: 'nter.news',
+    archive: true,
+    ageH: null,
+  };
 }
 
 function gdeltTime(seendate) {

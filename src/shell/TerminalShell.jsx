@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bucketsFor, catalogModules, modulesForTier, TABS } from '../desks/catalog.js';
 import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
@@ -26,6 +26,7 @@ import {
   entitlementOf,
   isTrial,
   navTabsForUser,
+  planOf,
   trialDaysLeft,
 } from '../lib/planEntitlements.js';
 import { isTestingPhase, subscribeAppFlags } from '../lib/appFlagsStore.js';
@@ -50,12 +51,15 @@ export default function TerminalShell({ onLogout }) {
   const [vizFilter, setVizFilter] = useState(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [liveTvOpen, setLiveTvOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
   const [upgrade, setUpgrade] = useState(null);
+  const profileRef = useRef(null);
   const user = sessionUser();
   const typeId = userTypeOf(user?.type).id;
   const typeMeta = userTypeOf(typeId);
   const ent = entitlementOf(user);
+  const planMeta = planOf(ent.plan);
   const deskTabs = navTabsForUser(user);
   const lockedIds = useMemo(
     () => new Set(deskTabs.filter((t) => deskLocked(user, t.id)).map((t) => t.id)),
@@ -72,6 +76,22 @@ export default function TerminalShell({ onLogout }) {
   }, []);
 
   useEffect(() => subscribeAppFlags(() => setUserTick((n) => n + 1)), []);
+
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    function onDoc(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setProfileOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileOpen]);
 
   useEffect(() => {
     startUserPrefsSync();
@@ -311,6 +331,26 @@ export default function TerminalShell({ onLogout }) {
     !isGeoResourceDossier(featureName) &&
     !isNationalFullscreen(featureName);
   const trialLeft = trialDaysLeft(user);
+  const planLabel = planMeta?.name || String(ent.plan || 'explorer').toUpperCase();
+  const statusLabel =
+    isTestingPhase() && (ent.status === 'free' || ent.plan === 'explorer')
+      ? 'Free · full access'
+      : ent.status === 'trial'
+        ? trialLeft
+          ? `Trial · ${trialLeft}d left`
+          : 'Trial'
+        : ent.status === 'free' || ent.plan === 'explorer'
+          ? 'Free'
+          : 'Active';
+  const canUpgrade =
+    !isTestingPhase() && (ent.status === 'trial' || ent.status === 'free' || ent.plan === 'explorer');
+
+  function doLogout() {
+    clearSessionUser();
+    clearPersonaPrefs();
+    if (typeof location !== 'undefined') location.hash = '#/';
+    onLogout?.();
+  }
 
   return (
     <div className={`terminal theme-${theme}`}>
@@ -357,7 +397,10 @@ export default function TerminalShell({ onLogout }) {
             <button
               type="button"
               className="tv-btn"
-              onClick={() => setLiveTvOpen((v) => !v)}
+              onClick={() => {
+                setProfileOpen(false);
+                setLiveTvOpen((v) => !v);
+              }}
               title="Live TV is in Beta — no stream connected yet"
               aria-expanded={liveTvOpen}
             >
@@ -394,35 +437,74 @@ export default function TerminalShell({ onLogout }) {
           >
             <Icon name="info" />
           </button>
-          <span className="user-chip" title={`${user?.email || ''} · ${typeMeta.label} · ${ent.plan}`}>
-            <span className="avatar">{(user?.name || 'A').charAt(0).toUpperCase()}</span>
-            <span className="user-type">{typeMeta.short}</span>
-            {ent.status === 'trial' && !isTestingPhase() ? (
-              <button type="button" className="plan-chip trial" onClick={() => openUpgrade('trial')}>
-                Trial{trialLeft ? ` · ${trialLeft}d` : ''}
-              </button>
-            ) : ent.status === 'free' || ent.plan === 'explorer' ? (
-              isTestingPhase() ? (
-                <span className="plan-chip free">Free</span>
-              ) : (
-                <button type="button" className="plan-chip free" onClick={() => openUpgrade('desk')}>
-                  Free
-                </button>
-              )
-            ) : (
-              <span className="plan-chip paid">{ent.plan}</span>
-            )}
-          </span>
-          <button
-            type="button"
-            className="logout-btn"
-            onClick={() => {
-              clearSessionUser();
-              clearPersonaPrefs();
-              if (typeof location !== 'undefined') location.hash = '#/';
-              onLogout?.();
-            }}
-          >
+          <div className="profile-wrap" ref={profileRef}>
+            <button
+              type="button"
+              className={`avatar-btn${profileOpen ? ' on' : ''}`}
+              onClick={() => {
+                setLiveTvOpen(false);
+                setProfileOpen((v) => !v);
+              }}
+              aria-expanded={profileOpen}
+              aria-haspopup="dialog"
+              title={user?.name || user?.email || 'Profile'}
+            >
+              <span className="avatar">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
+            </button>
+            {profileOpen ? (
+              <div className="profile-pop" role="dialog" aria-label="Account">
+                <div className="profile-pop-head">
+                  <span className="avatar lg">{(user?.name || user?.email || 'A').charAt(0).toUpperCase()}</span>
+                  <div className="profile-pop-id">
+                    <strong>{user?.name || 'Analyst'}</strong>
+                    <span>{user?.email || '—'}</span>
+                  </div>
+                </div>
+                <dl className="profile-pop-meta">
+                  <div>
+                    <dt>Persona</dt>
+                    <dd>{typeMeta.label}</dd>
+                  </div>
+                  <div>
+                    <dt>Package</dt>
+                    <dd>
+                      {planLabel}
+                      {ent.yearly ? ' · yearly' : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{statusLabel}</dd>
+                  </div>
+                  {user?.authProvider ? (
+                    <div>
+                      <dt>Sign-in</dt>
+                      <dd>{user.authProvider === 'google' ? 'Google' : 'Email'}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+                {planMeta?.tag ? <p className="profile-pop-tag">{planMeta.tag}</p> : null}
+                <div className="profile-pop-actions">
+                  {canUpgrade ? (
+                    <button
+                      type="button"
+                      className="profile-pop-upgrade"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        openUpgrade(ent.status === 'trial' ? 'trial' : 'desk');
+                      }}
+                    >
+                      {ent.status === 'trial' ? 'Upgrade plan' : 'View plans'}
+                    </button>
+                  ) : null}
+                  <button type="button" className="logout-btn" onClick={doLogout}>
+                    Log out
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <button type="button" className="logout-btn" onClick={doLogout}>
             Log out
           </button>
         </div>

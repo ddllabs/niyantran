@@ -103,7 +103,7 @@ export async function homeLatestFromStatic(signal) {
       ok: true,
       rows,
       note: snap.note || 'Latest from nter.news.',
-      archive: true,
+      archive: Boolean(snap.archive) || !rows.length,
       ageH: snap.updated ? (Date.now() - new Date(snap.updated).getTime()) / 3600000 : null,
       updated: snap.updated,
       source: 'nter.news',
@@ -112,7 +112,7 @@ export async function homeLatestFromStatic(signal) {
   return {
     ok: true,
     rows: [],
-    note: snap?.note || 'nter.news feed not configured on this build. No headlines were invented.',
+    note: snap?.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
     archive: true,
     source: 'nter.news',
   };

@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import { loadEnv } from './server/loadEnv.mjs'
 import { featureFeedPlugin } from './server/featureFeed.mjs'
 import { homeApiPlugin } from './server/homeApi.mjs'
+import { nterNewsApiPlugin } from './server/nterNews.mjs'
 import { transitApiPlugin } from './server/transitApi.mjs'
 import { diplomacyApiPlugin } from './server/diplomacyApi.mjs'
 import { assetsApiPlugin } from './server/assetsApi.mjs'
@@ -19,7 +20,7 @@ import { userPrefsApiPlugin } from './server/userPrefsApi.mjs'
 loadEnv()
 
 export default defineConfig({
-  plugins: [react(), featureFeedPlugin(), homeApiPlugin(), transitApiPlugin(), diplomacyApiPlugin(), assetsApiPlugin(), resourcesApiPlugin(), aiApiPlugin(), usersApiPlugin(), analyticsApiPlugin(), marketingMediaApiPlugin(), appFlagsApiPlugin(), billingApiPlugin(), userPrefsApiPlugin(), googleAuthApiPlugin()],
+  plugins: [react(), featureFeedPlugin(), homeApiPlugin(), nterNewsApiPlugin(), transitApiPlugin(), diplomacyApiPlugin(), assetsApiPlugin(), resourcesApiPlugin(), aiApiPlugin(), usersApiPlugin(), analyticsApiPlugin(), marketingMediaApiPlugin(), appFlagsApiPlugin(), billingApiPlugin(), userPrefsApiPlugin(), googleAuthApiPlugin()],
   envPrefix: ['VITE_'],
   server: {
     port: 5173,

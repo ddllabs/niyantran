@@ -21,8 +21,9 @@ import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
 
 async function getJson(path, signal) {
   const route = String(path).split('?')[0];
-  // D2: on static production, skip /api/home/* (404) and load archives directly.
-  if (liveApiEnabled()) {
+  // Always try nter.news latest API (Vercel + Vite); fall back to static pack.
+  const tryApi = liveApiEnabled() || route === '/api/home/latest';
+  if (tryApi) {
     try {
       const res = await fetch(path, { signal });
       const body = await res.json().catch(() => null);
@@ -189,7 +190,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           applyRecordChecklistToFeed({
             feature: 'Home',
             rows,
-            source: { adapter: 'rss', note: latestBody.note, gdelt: false },
+            source: { adapter: 'nter.news', note: latestBody.note, gdelt: false },
             fallback: Boolean(latestBody.archive),
           }),
         );
@@ -484,7 +485,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                   </a>
                   {r.dek ? <span className="nh-story-dek">{r.dek}</span> : null}
                   <span className="s">
-                    {r.src || 'Wire'}
+                    {r.src || 'nter.news'}
                     {r.ago ? ` · ${r.ago}` : ''}
                     {r.related_count > 0 ? ` · +${r.related_count} related` : ''}
                   </span>
