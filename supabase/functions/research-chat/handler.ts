@@ -102,6 +102,11 @@ export interface UserDb {
   findDeskRow(tier: string, feature: string, rowKey: string): Promise<DeskRow | null>;
 }
 
+export interface RetrievalContext {
+  signal: AbortSignal;
+  beginEmbeddingAttempt(model: string): ReturnType<AttemptRecorder['beginEmbeddingAttempt']>;
+}
+
 export interface HandlerDeps {
   requireUser(req: Request): Promise<{ userId: string; token: string }>;
   models(): Promise<AiModelLike[]>;
@@ -113,8 +118,8 @@ export interface HandlerDeps {
   executeTurn?: (context: TurnExecution) => Promise<TerminalResult>;
   telemetry: TelemetryDb;
   stream(req: StreamRequest): AsyncGenerator<ModelEvent>;
-  searchDocuments(args: DocumentSearchArgs, documentIds?: string[]): Promise<Chunk[]>;
-  searchDeskRows(args: SearchDeskRowsArgs): Promise<DeskRowsResult>;
+  searchDocuments(args: DocumentSearchArgs, documentIds?: string[], context?: RetrievalContext): Promise<Chunk[]>;
+  searchDeskRows(args: SearchDeskRowsArgs, context?: Pick<RetrievalContext, 'signal'>): Promise<DeskRowsResult>;
   repairModel: string;
   headers?: Record<string, string>;
   now?: () => number;
@@ -512,10 +517,8 @@ async function runTurnBody(
   const handles = createHandleAssigner();
   const evidence: EvidenceMap = new Map();
   const [persona, history] = await Promise.all([
-    deps.persona(caller.userId).catch(() => ''),
-    deps.db.recentMessages(conversation.id, [context.claim.user_message_id, context.claim.assistant.id]).catch(
-      () => [],
-    ),
+    deps.persona(caller.userId),
+    deps.db.recentMessages(conversation.id, [context.claim.user_message_id, context.claim.assistant.id]),
   ]);
   signal.throwIfAborted();
   const { window, dropped } = windowMessages(history);
@@ -524,9 +527,7 @@ async function runTurnBody(
   let selectionBlock: { handle: string; tier: string; feature: string; recordText: string } | undefined;
   if (request.selection) {
     const rowKey = deskRowKey(request.selection.row);
-    const stored = await deps.db.findDeskRow(request.selection.tier, request.selection.feature, rowKey).catch(() =>
-      null
-    );
+    const stored = await deps.db.findDeskRow(request.selection.tier, request.selection.feature, rowKey);
     if (stored) {
       // Only a row the server can confirm becomes citable evidence.
       const handle = handles.assign(rowSourceKey(stored));
@@ -555,7 +556,7 @@ async function runTurnBody(
     text: a.text,
   }));
   const userTurn = buildUserTurn(request.message, attachments);
-  const scopedDocumentIds = await deps.db.resolveDocumentIds(documentKeysOf(request)).catch(() => []);
+  const scopedDocumentIds = await deps.db.resolveDocumentIds(documentKeysOf(request));
 
   signal.throwIfAborted();
 
@@ -646,8 +647,12 @@ async function runTurnBody(
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
           model: attempts.wrap(deps.stream, 'chat_answer'),
-          searchDocuments: (args, ids) => deps.searchDocuments(args, ids),
-          searchDeskRows: (args) => deps.searchDeskRows(args),
+          searchDocuments: (args, ids) =>
+            deps.searchDocuments(args, ids, {
+              signal,
+              beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
+            }),
+          searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),
           handles,
           budget,
           checkpoint,

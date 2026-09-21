@@ -1269,3 +1269,47 @@ Deno.test('D5: cancellation retains an in-flight search without inventing result
   assertEquals(rec.traces.length, 1);
   assertEquals(rec.traces[0].result_count, null);
 });
+
+Deno.test('D6: setup failures finalize an error without paying for an answer with missing context', async () => {
+  for (const stage of ['persona', 'history', 'scope']) {
+    const provider = scripted([NO_RESEARCH, [text(envelope('Should not run')), finish()]]);
+    const { deps, rec } = fakeDeps(provider);
+    const failure = () => Promise.reject(new Error('PRIVATE setup failure'));
+    if (stage === 'persona') deps.persona = failure;
+    if (stage === 'history') deps.db.recentMessages = failure;
+    if (stage === 'scope') deps.db.resolveDocumentIds = failure;
+    await frames(await handleResearchChat(post(BODY), deps));
+    assertEquals(provider.seen.length, 0, stage);
+    assertEquals(rec.messages[0].status, 'error');
+  }
+});
+Deno.test('D6: handler gives retrieval the turn signal and accounts embedding separately from chat calls', async () => {
+  const tool: ModelEvent = { type: 'tool-call', id: 'search', name: 'search_documents', args: '{"query":"committee"}' };
+  const provider = scripted([[tool, finish('tool_calls')], NO_RESEARCH, [text(envelope('Answer')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  let signal: AbortSignal | undefined;
+  deps.searchDocuments = (_args, _ids, context) => {
+    assert(context);
+    signal = context.signal;
+    const attempt = context.beginEmbeddingAttempt('embedding/requested');
+    attempt.observe({
+      served: 'embedding/actual',
+      generationId: 'embedding-gen',
+      usage: { prompt_tokens: 5, completion_tokens: null, total_tokens: 5 },
+    });
+    attempt.finish('success');
+    return Promise.resolve([]);
+  };
+  await frames(await handleResearchChat(post(BODY), deps));
+  assert(signal);
+  assertEquals(provider.seen.length, 3);
+  assertEquals(rec.calls.length, 4);
+  assertEquals(
+    rec.calls.filter((c) => c.purpose === 'embedding').map(
+      (c) => [c.model_requested, c.model_served, c.prompt_tokens, c.cost_usd],
+    ),
+    [['embedding/requested', 'embedding/actual', 5, null]],
+  );
+  assertEquals(rec.messages[0].usage?.attempts, 4);
+  assertEquals(rec.messages[0].status, 'complete');
+});

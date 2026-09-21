@@ -423,3 +423,7 @@ verify_jwt = false
 # Service-role only: the handler compares the bearer to the project's secret key itself.
 [functions.ingest-documents]
 verify_jwt = false
+
+# User JWT is verified through Auth inside the handler; modern project keys are supported.
+[functions.research-chat]
+verify_jwt = false

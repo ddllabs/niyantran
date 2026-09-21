@@ -96,3 +96,39 @@ Deno.test('planned or already-aborted streams create no provider attempt, and fl
   assertEquals(rows.length, 1);
   assertEquals(recorder.summary()?.attempts, 1);
 });
+
+Deno.test('D6: embedding attempts settle once on abort, preserve known cost and ignore late metadata', async () => {
+  const rows: ReturnType<typeof modelCallRow>[] = [];
+  const recorder = createAttemptRecorder({
+    userId: 'u',
+    conversationId: 'c',
+    messageId: 'm',
+    pricing: () => Promise.resolve(null),
+    db: {
+      logModelCall: (row) => {
+        rows.push(row);
+        return Promise.resolve('id');
+      },
+      logTurnTraces: () => Promise.resolve(),
+    },
+  });
+  const signal = new AbortController();
+  const attempt = recorder.beginEmbeddingAttempt('embedding/requested', signal.signal);
+  attempt.observe({
+    served: 'actual/embedding',
+    generationId: 'observed',
+    usage: { prompt_tokens: 10, completion_tokens: null, total_tokens: 10, cost: 0.01 },
+  });
+  signal.abort();
+  attempt.finish('success');
+  attempt.observe({ served: 'late/wrong', generationId: 'late', usage: null });
+  await recorder.flush();
+  await recorder.flush();
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].purpose, 'embedding');
+  assertEquals(rows[0].status, 'aborted');
+  assertEquals(rows[0].model_served, 'actual/embedding');
+  assertEquals(rows[0].cost_usd, 0.01);
+  assertEquals(rows[0].completion_tokens, null);
+  assertEquals(recorder.summary()?.attempts, 1);
+});

@@ -9,7 +9,7 @@ import type { AttemptMetadata, ModelEvent, StreamRequest, Usage } from '../_shar
 import { log } from '../_shared/logging.ts';
 import type { TraceStep } from './agent.ts';
 
-export type CallPurpose = 'chat_answer' | 'citation_repair';
+export type CallPurpose = 'chat_answer' | 'citation_repair' | 'embedding';
 export type CallStatus = 'success' | 'error' | 'aborted';
 
 export interface ModelCallRow {
@@ -360,6 +360,30 @@ export function createAttemptRecorder(options: {
     return flushing;
   }
   return {
+    beginEmbeddingAttempt(model: string, signal?: AbortSignal) {
+      signal?.throwIfAborted();
+      if (flushing) throw new Error('Turn accounting closed');
+      const record: RecordedAttempt = {
+        requested: model,
+        purpose: 'embedding',
+        answer: false,
+        served: null,
+        generationId: null,
+        provider: null,
+        usage: null,
+        started: now(),
+        latency: 0,
+        status: null,
+      };
+      records.push(record);
+      const finish = (status: CallStatus) => {
+        settle(record, status);
+        signal?.removeEventListener('abort', abort);
+      };
+      const abort = () => finish('aborted');
+      signal?.addEventListener('abort', abort, { once: true });
+      return { observe: (metadata: AttemptMetadata) => merge(record, metadata), finish };
+    },
     wrap,
     summary,
     flush,
