@@ -1,0 +1,118 @@
+// The citation ladder's pure half (RAG spec §G). The model cites handles as
+// [n]; these functions expand groups, rescue handle tokens left in prose,
+// build sources for the ids that resolve, renumber them 1..k and strip
+// markers that resolve to nothing. The repair pass (a second model call)
+// lives in streaming-research-agent and calls these before and after.
+// The marker grammar is mirrored by src/lib/citationMarkers.js; the shared
+// fixture src/lib/__fixtures__/citations.json is read by both test suites.
+
+import type { CitationSource, TextCitation } from './citation.types.ts';
+import type { Chunk } from './retrieval.ts';
+
+export const MAX_CITATION_ID = 99;
+export const MAX_RANGE_SPAN = 5;
+
+/** A bracket whose inside is digits, commas, spaces and dashes, not followed by "(" (a markdown link). */
+export const MARKER_RE = /\[([0-9](?:[0-9\s,–-]*[0-9])?)\](?!\()/g;
+
+/** Ids named inside one bracket, expanded and validated; [] when any part is invalid. */
+export function parseCitationIds(inner: string): number[] {
+  const ids: number[] = [];
+  for (const part of inner.split(',')) {
+    const p = part.trim();
+    if (!p) return [];
+    const range = /^(\d+)\s*[-–]\s*(\d+)$/.exec(p);
+    if (range) {
+      const a = Number(range[1]);
+      const b = Number(range[2]);
+      if (a < 1 || b < a || b > MAX_CITATION_ID || b - a > MAX_RANGE_SPAN) return [];
+      for (let i = a; i <= b; i++) ids.push(i);
+      continue;
+    }
+    if (!/^\d+$/.test(p)) return [];
+    const n = Number(p);
+    if (n < 1 || n > MAX_CITATION_ID) return [];
+    ids.push(n);
+  }
+  return ids;
+}
+
+/** [2, 3] and [2-4] become [2][3] and [2][3][4]; invalid brackets are left as text. */
+export function expandGroupedCitations(text: string): string {
+  return text.replace(MARKER_RE, (whole, inner: string) => {
+    const ids = parseCitationIds(inner);
+    return ids.length ? ids.map((n) => `[${n}]`).join('') : whole;
+  });
+}
+
+/** Every valid citation id in the text, in order of first appearance. */
+export function citedIds(text: string): number[] {
+  const seen: number[] = [];
+  for (const m of expandGroupedCitations(text).matchAll(MARKER_RE)) {
+    for (const n of parseCitationIds(m[1])) if (!seen.includes(n)) seen.push(n);
+  }
+  return seen;
+}
+
+/** Rescue handle tokens the model left in prose ("… ref:k3f-11 …" or "[ref:k3f-11]") as [id]; longest handle first. */
+export function recoverHandleCitations(answer: string, handles: Record<string, number>): string {
+  const keys = Object.keys(handles).sort((a, b) => b.length - a.length);
+  let out = answer;
+  for (const key of keys) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`\\[?${escaped}\\]?`, 'g'), `[${handles[key]}]`);
+  }
+  return out;
+}
+
+/** Text sources for the cited ids that resolve to a chunk, in cited order, ids preserved. */
+export function buildSources(chunksById: Record<number, Chunk> | Map<number, Chunk>, cited: number[]): TextCitation[] {
+  const get = (id: number) => (chunksById instanceof Map ? chunksById.get(id) : chunksById[id]);
+  const out: TextCitation[] = [];
+  for (const id of cited) {
+    const c = get(id);
+    if (!c) continue;
+    out.push({
+      id,
+      kind: 'text',
+      chunk_id: c.id,
+      document_id: c.document_id,
+      title: c.title,
+      file_name: c.file_name,
+      file_url: c.file_url,
+      desk_tier: c.desk_tier,
+      desk_feature: c.desk_feature,
+      char_from: c.char_from,
+      char_to: c.char_to,
+      text_hash: c.text_hash,
+      source_kind: c.source_kind,
+      page_number: c.page_number,
+    });
+  }
+  return out;
+}
+
+/**
+ * Keep only the sources the answer cites and that exist; renumber them 1..k in
+ * order of first appearance; rewrite the markers; strip markers that resolve
+ * to nothing.
+ */
+export function renumberCitations(answer: string, sources: CitationSource[]): { answer: string; sources: CitationSource[] } {
+  const expanded = expandGroupedCitations(answer);
+  const byOld = new Map<number, CitationSource>();
+  for (const s of sources) byOld.set(s.id, s);
+  const order: number[] = [];
+  for (const id of citedIds(expanded)) if (byOld.has(id) && !order.includes(id)) order.push(id);
+  const renumber = new Map<number, number>();
+  order.forEach((old, i) => renumber.set(old, i + 1));
+  const rewritten = expanded.replace(MARKER_RE, (whole, inner: string) => {
+    const ids = parseCitationIds(inner);
+    if (!ids.length) return whole;
+    return ids
+      .filter((n) => renumber.has(n))
+      .map((n) => `[${renumber.get(n)}]`)
+      .join('');
+  });
+  const next = order.map((old) => ({ ...byOld.get(old)!, id: renumber.get(old)! }) as CitationSource);
+  return { answer: rewritten.replace(/[ \t]+([.,;:])/g, '$1'), sources: next };
+}
