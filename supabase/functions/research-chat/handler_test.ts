@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1';
 import type { ChatFrame } from '../_shared/chatStream.ts';
 import { HttpError } from '../_shared/http.ts';
-import { type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
+import { type ModelEvent, ProviderError, type StreamRequest, type Usage } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow, DeskRowsResult } from '../_shared/tools/searchDeskRows.ts';
 import {
@@ -58,7 +58,7 @@ function byPhase(
 
 const finish = (
   reason = 'stop',
-  usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.0001 },
+  usage: Usage | null = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.0001 },
 ): ModelEvent => ({
   type: 'finish',
   reason,
@@ -1132,6 +1132,13 @@ Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown r
       repair[0].cost_usd,
     ], ['repair/requested', 'repair/actual', 'repair-gen', 0.002]);
     assertEquals(repair[0].status, mode === 'valid' ? 'success' : 'error');
+    // A result we declined is not a provider failure. "Provider attempt failed."
+    // on a call the provider completed sends a reader to the wrong system; the
+    // real thrown attempt must still say exactly that.
+    assertEquals(
+      repair[0].error_message,
+      mode === 'valid' ? null : mode === 'rewrite' ? 'Repair declined by this server: content.' : 'Provider attempt failed.',
+    );
     assertEquals(rec.messages[0].status, 'complete');
     assertEquals(rec.messages[0].content, mode === 'valid' ? answer + '[1]' : answer);
     assertEquals(rendered(got), rec.messages[0].content);
@@ -1390,6 +1397,31 @@ Deno.test('a silent attempt nulls the totals and records what was observed', asy
   assertEquals(observed.attempts_reporting, 1);
   assertEquals(observed.attempts_silent, 1);
   assert(Number(observed.prompt_tokens) > 0, 'the reported prompt tokens are kept');
+});
+
+// The gap the first fix left. Message f85ae628 ran seven attempts and every one
+// of them carried a usage object, so nothing was "silent" - but the two
+// embedding calls report no completion tokens, so completion_tokens nulled out
+// and the block never appeared. The reader saw a null with no explanation and
+// no figure, while the figure was known.
+Deno.test('a field no attempt reported nulls its total and is still reported as observed', async () => {
+  const noCompletion: Usage = { prompt_tokens: 7, completion_tokens: null, total_tokens: 7, cost: 0 };
+  const provider = scripted([
+    [finish('stop', noCompletion)],
+    [text(envelope('Answer')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'usage-3' }), deps));
+
+  const usage = rec.messages[0].usage as Record<string, unknown>;
+  assertEquals(usage.completion_tokens, null, 'a field one attempt never reported cannot total');
+  assert(Number(usage.prompt_tokens) > 0, 'a field every attempt reported still totals');
+
+  const observed = usage.observed as Record<string, number> | undefined;
+  assert(observed, 'a field-level gap must produce the block, not only a silent attempt');
+  assertEquals(observed.attempts_silent, 0, 'every attempt did report something');
+  assertEquals(observed.completion_tokens, 5, 'the figure that was known is kept');
+  assertEquals(observed.completion_tokens_from, 1, 'and how much of the turn it covers is stated');
 });
 
 Deno.test('a turn where every attempt reports keeps its existing shape', async () => {

@@ -143,7 +143,7 @@ Deno.test('the greeting contract explicitly returns no sources and no follow-up 
 // the model is handed three tools while being told there are two, and given no
 // reason to use the third - which is how a tool gets added and never called.
 Deno.test('the prompt names the think tool and shows it in a worked example', () => {
-  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad', selection: null });
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
   assertStringIncludes(prompt, 'think(thought)');
   assertStringIncludes(prompt, 'Thinking keeps you in research; answering ends it.');
   // An example that actually alternates, so the shape is demonstrated and not

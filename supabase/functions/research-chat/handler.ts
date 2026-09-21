@@ -731,7 +731,10 @@ async function runTurnBody(
     signal.aborted || (result.finish !== 'stop' && result.finish !== 'length') ||
     (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())
   ) {
-    attempts.rejectLast('chat_answer');
+    attempts.rejectLast(
+      'chat_answer',
+      signal.aborted ? undefined : `Answer declined by this server: finish=${result.finish}, envelope=${envelope ? 'parsed' : 'absent'}.`,
+    );
     return makeAssistantMessage({
       content: streamed,
       sources: [],
@@ -776,7 +779,9 @@ async function runTurnBody(
         model: deps.repairModel,
         signal,
       });
-      if (repaired.rejected) attempts.rejectLast('citation_repair');
+      if (repaired.rejected) {
+        attempts.rejectLast('citation_repair', `Repair declined by this server: ${repaired.rejected}.`);
+      }
       if (repaired.text && !signal.aborted) {
         const second = applyCitationLadder({
           answer: repaired.text,

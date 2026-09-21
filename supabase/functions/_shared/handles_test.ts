@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertMatch, assertThrows } from 'jsr:@std/assert@1';
-import { createHandleAssigner, HANDLE_RE, handlesIn, randomNonce } from './handles.ts';
+import { HANDLE_RE, createHandleAssigner, handlesIn, noncesOf, randomNonce, restoreHandlePrefixes, stripResidualHandles } from './handles.ts';
 
 Deno.test('handles are ref:<nonce>-<n>, idempotent per key, resolvable, in order', () => {
   const a = createHandleAssigner('ab12cd');
@@ -43,4 +43,29 @@ Deno.test('handle discovery rejects embedded prefixes and forged suffixes withou
 Deno.test('handle discovery preserves bare/bracketed handles beside prose punctuation', () => {
   const text = 'ref:abc123-1, (ref:abc123-10); [ref:abc123-12]! claim[ref:abc123-2]. ref:abc123-3: details — ref:abc123-4?';
   assertEquals(handlesIn(text), ['ref:abc123-1', 'ref:abc123-10', 'ref:abc123-12', 'ref:abc123-2', 'ref:abc123-3', 'ref:abc123-4']);
+});
+
+Deno.test('noncesOf takes only well-formed handles', () => {
+  assertEquals(noncesOf(['ref:ab12cd-1', 'ref:ab12cd-9', 'ref:zz99yy-2']), ['ab12cd', 'zz99yy']);
+  assertEquals(noncesOf(['ab12cd-1', 'ref:AB12CD-1', 'ref:short-1', '', 'ref:ab12cd-x']), []);
+});
+
+Deno.test('restoreHandlePrefixes repairs a bare handle and leaves an intact one alone', () => {
+  assertEquals(restoreHandlePrefixes('see ab12cd-1 here', ['ab12cd']), 'see ref:ab12cd-1 here');
+  assertEquals(restoreHandlePrefixes('see ref:ab12cd-1 here', ['ab12cd']), 'see ref:ab12cd-1 here');
+  assertEquals(restoreHandlePrefixes('[ab12cd-1, ab12cd-2]', ['ab12cd']), '[ref:ab12cd-1, ref:ab12cd-2]');
+});
+
+Deno.test('restoreHandlePrefixes touches no nonce this turn did not issue, and no prose', () => {
+  assertEquals(restoreHandlePrefixes('zzzzzz-4 stands', ['ab12cd']), 'zzzzzz-4 stands');
+  assertEquals(restoreHandlePrefixes('rates for 2014-15', ['ab12cd']), 'rates for 2014-15');
+  assertEquals(restoreHandlePrefixes('xab12cd-1 and ab12cd-1x', ['ab12cd']), 'xab12cd-1 and ab12cd-1x');
+  assertEquals(restoreHandlePrefixes('anything', []), 'anything');
+});
+
+Deno.test('stripResidualHandles removes a group whole and returns untouched text byte for byte', () => {
+  assertEquals(stripResidualHandles('Claim [ab12cd-1, ref:ab12cd-2] ends.', ['ab12cd']), 'Claim ends.');
+  assertEquals(stripResidualHandles('Claim ab12cd-3 ends.', ['ab12cd']), 'Claim ends.');
+  const clean = 'Nothing to strip here [1] and 2014-15. ';
+  assertEquals(stripResidualHandles(clean, ['ab12cd']), clean, 'trailing space survives an untouched answer');
 });

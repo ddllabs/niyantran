@@ -100,7 +100,11 @@ export interface AttemptInput {
   served?: string | null;
   provider?: string | null;
   status: CallStatus;
+  /** Provider text. Accepted so callers can pass it, and deliberately never
+   * written to error_message - a provider body can contain anything. */
   error?: string | null;
+  /** Server-authored rejection reason, and the only text error_message carries. */
+  rejection?: string | null;
   latencyMs: number;
   usage?: Usage | null;
   generationId?: string | null;
@@ -119,11 +123,16 @@ export function modelCallRow(a: AttemptInput): ModelCallRow {
     model_served: a.served ?? null,
     provider: a.provider ?? null,
     status: a.status,
+    // A rejection is not a provider failure. The status column is constrained to
+    // three values, so a declined result stays an error, but saying "Provider
+    // attempt failed." of a call the provider completed sends anyone reading
+    // these rows to the wrong system. Only server-authored text is carried; a
+    // provider body could contain anything and never reaches this column.
     error_message: a.status === 'success'
       ? null
       : a.status === 'aborted'
       ? 'Provider attempt aborted.'
-      : 'Provider attempt failed.',
+      : a.rejection || 'Provider attempt failed.',
     latency_ms: Math.max(0, Math.round(a.latencyMs)),
     prompt_tokens: known(a.usage?.prompt_tokens),
     completion_tokens: known(a.usage?.completion_tokens),
@@ -197,6 +206,8 @@ interface RecordedAttempt extends AttemptMetadata {
   started: number;
   latency: number;
   status: CallStatus | null;
+  /** Server-authored, when the provider succeeded and we declined the result. */
+  rejection: string | null;
 }
 
 /** Per-turn accounting. Records reflect actual iterator starts, not planned
@@ -261,6 +272,7 @@ export function createAttemptRecorder(options: {
         started: now(),
         latency: 0,
         status: null,
+        rejection: null,
       };
       records.push(record);
       let finished: string | null = null;
@@ -298,9 +310,20 @@ export function createAttemptRecorder(options: {
     // reported them, and nothing recorded how much of the turn was unaccounted.
     // The canonical fields keep their meaning; the observed part is reported
     // separately, under a name that cannot be mistaken for a total.
+    //
+    // The trigger was still wrong, and a real turn showed it. Seven attempts,
+    // every one of them carrying a usage object, but the two embedding calls
+    // have no completion tokens - so completion_tokens nulled out, the observed
+    // figure (1,607, from five attempts) was computed and thrown away, and no
+    // block appeared, because the guard asked whether an attempt was silent
+    // rather than whether a field was. A field is what nulls a total, so a
+    // field is what the guard has to ask about.
     const partial: Record<string, number> = {};
+    const reportedBy: Record<string, number> = {};
+    let fieldGap = false;
     let attemptsReporting = 0;
     const sum = (key: keyof Usage): number | null => {
+      const name = key === 'cost' ? 'cost_usd' : key;
       let total = 0;
       let seen = 0;
       for (const record of records) {
@@ -309,8 +332,15 @@ export function createAttemptRecorder(options: {
         total += value;
         seen++;
       }
-      if (seen) partial[key === 'cost' ? 'cost_usd' : key] = total;
-      return seen === records.length && Number.isFinite(total) ? total : null;
+      if (seen) partial[name] = total;
+      if (seen === records.length && Number.isFinite(total)) return total;
+      // Say how much of the turn the observed figure covers, so nobody reads a
+      // partial sum as a total. A field no attempt reported gets no entry.
+      if (seen) {
+        reportedBy[`${name}_from`] = seen;
+        fieldGap = true;
+      }
+      return null;
     };
     for (const record of records) if (record.usage) attemptsReporting++;
     const out: Record<string, unknown> = {
@@ -324,8 +354,13 @@ export function createAttemptRecorder(options: {
     };
     // Only when the turn is actually short of figures. A complete turn carries
     // nothing extra, so its shape is unchanged.
-    if (attemptsReporting < records.length) {
-      out.observed = { ...partial, attempts_reporting: attemptsReporting, attempts_silent: records.length - attemptsReporting };
+    if (attemptsReporting < records.length || fieldGap) {
+      out.observed = {
+        ...partial,
+        ...reportedBy,
+        attempts_reporting: attemptsReporting,
+        attempts_silent: records.length - attemptsReporting,
+      };
     }
     return out;
   }
@@ -366,6 +401,7 @@ export function createAttemptRecorder(options: {
             served: record.served,
             provider: record.provider,
             status: record.status!,
+            rejection: record.rejection,
             latencyMs: record.latency,
             usage: record.usage,
             generationId: record.generationId,
@@ -396,6 +432,7 @@ export function createAttemptRecorder(options: {
         started: now(),
         latency: 0,
         status: null,
+        rejection: null,
       };
       records.push(record);
       const finish = (status: CallStatus) => {
@@ -409,10 +446,13 @@ export function createAttemptRecorder(options: {
     wrap,
     summary,
     flush,
-    rejectLast(purpose: CallPurpose) {
+    rejectLast(purpose: CallPurpose, reason?: string) {
       if (flushing) return;
       const record = records.findLast((r) => r.purpose === purpose && r.answer);
-      if (record?.status === 'success') record.status = 'error';
+      if (record?.status === 'success') {
+        record.status = 'error';
+        record.rejection = reason && reason.length <= 256 ? reason : null;
+      }
     },
     addTraces(rows: TurnTraceRow[]) {
       if (!flushing) { for (const row of rows) traces.set(`${row.step_type}:${row.step_index}`, row); }

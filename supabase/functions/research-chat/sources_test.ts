@@ -156,3 +156,41 @@ Deno.test('rowTitle prefers the desk naming columns and falls back to the row ke
   const bare = { ...deskRow('only-key'), row: { house: 'Rajya Sabha' } };
   assertEquals(rowTitle(bare), 'only-key');
 });
+
+// The production failure this rung exists for. Message f85ae628, 2026-09-21:
+// two searches, 98k prompt tokens, gemini-3.5-flash-lite. The model dropped the
+// `ref:` prefix, bracketed the handles and grouped them with a comma, and every
+// rung below missed it: zero sources, and the raw tokens rendered to the reader.
+Deno.test('a prefix-stripped, bracketed, grouped handle is restored, resolved and numbered', () => {
+  const r = applyCitationLadder({
+    answer: 'The Bill was brought to continue the existing rates [ab12cd-1, ab12cd-2].',
+    modelSources: [],
+    evidence: evidence(),
+  });
+  assertEquals(r.answer, 'The Bill was brought to continue the existing rates [1][2].');
+  assertEquals(r.sources.map((s) => s.id), [1, 2]);
+  assertEquals((r.sources[0] as TextCitation).chunk_id, 'c1');
+  assertEquals(r.recovered, 2);
+  assertEquals(r.flags.uncited_claims, false);
+});
+
+Deno.test('a prefix-stripped handle the turn never issued is removed, not left in the prose', () => {
+  const r = applyCitationLadder({
+    answer: 'A claim [ab12cd-1] and one from nowhere [zzzzzz-4], plus a bare one ab12cd-9 too.',
+    modelSources: [],
+    evidence: evidence(),
+  });
+  assertEquals(r.answer, 'A claim [1] and one from nowhere [zzzzzz-4], plus a bare one too.');
+  assertEquals(r.sources.length, 1);
+});
+
+Deno.test('restoration leaves prose that merely looks like a handle alone', () => {
+  const r = applyCitationLadder({
+    answer: 'Rates for 2014-15 and clause 2-3 stand [ref:ab12cd-1]. See [Table 4] and [1].',
+    modelSources: [{ id: 1, source: 'ref:ab12cd-2' }],
+    evidence: evidence(),
+  });
+  assert(r.answer.includes('2014-15'), r.answer);
+  assert(r.answer.includes('clause 2-3'), r.answer);
+  assert(r.answer.includes('[Table 4]'), r.answer);
+});

@@ -8,7 +8,7 @@
 
 import type { CitationSource, RowCitation, TextCitation } from '../_shared/citation.types.ts';
 import { citedIds, expandGroupedCitations, MAX_CITATION_ID, recoverHandleCitations, renumberCitations } from '../_shared/citations.ts';
-import { handlesIn } from '../_shared/handles.ts';
+import { handlesIn, noncesOf, restoreHandlePrefixes, stripResidualHandles } from '../_shared/handles.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
 
@@ -95,7 +95,10 @@ export interface LadderInput {
  * them 1..k and rewrite the markers.
  */
 export function applyCitationLadder(input: LadderInput): LadderResult {
-  const expanded = expandGroupedCitations(String(input.answer ?? ''));
+  // 0. Put back the `ref:` the model dropped, for the nonces this turn issued.
+  //    Without this a damaged handle is invisible to every rung below it.
+  const nonces = noncesOf(input.evidence.keys());
+  const expanded = expandGroupedCitations(restoreHandlePrefixes(String(input.answer ?? ''), nonces));
 
   // 1. The model's claimed sources, kept only where the handle was really issued.
   const byId = new Map<number, Evidence>();
@@ -140,14 +143,17 @@ export function applyCitationLadder(input: LadderInput): LadderResult {
     if (e) sources.push(toSource(id, e));
   }
   const final = renumberCitations(withHandles, sources);
+  // 4. Anything still shaped like a handle named nothing we retrieved. It has no
+  //    bubble behind it, so it is not a citation, and it is not prose either.
+  const answer = stripResidualHandles(final.answer, nonces);
 
   const hadEvidence = input.evidence.size > 0;
   const flags: LadderFlags = {
     prose_fallback: hadEvidence && resolvedBefore.length === 0 && final.sources.length > 0,
     marker_source_mismatch: claimedMarkers.some((n) => !byId.has(n)),
-    uncited_claims: hadEvidence && final.sources.length === 0 && final.answer.trim().length >= UNCITED_ANSWER_CHARS,
+    uncited_claims: hadEvidence && final.sources.length === 0 && answer.trim().length >= UNCITED_ANSWER_CHARS,
   };
-  return { answer: final.answer, sources: final.sources, flags, recovered };
+  return { answer, sources: final.sources, flags, recovered };
 }
 
 export function ladderFired(flags: LadderFlags): boolean {

@@ -94,6 +94,16 @@ export function citedIds(text: string): number[] {
 export function recoverHandleCitations(answer: string, handles: Record<string, number>): string {
   const keys = Object.keys(handles).sort((a, b) => b.length - a.length);
   let out = answer;
+  // A bracket the model filled with handles instead of numbers - `[h1, h2]` -
+  // goes as a unit, or rewriting each handle in place would leave the outer
+  // brackets stranded around the numbers: `[[1], [2]]`. Only a bracket whose
+  // every part is an issued handle is touched, so ordinary prose in brackets
+  // and real `[1]` markers are left exactly as they are.
+  out = out.replace(/\[([^\]]+)\](?!\()/g, (whole, inner: string) => {
+    const parts = inner.split(',').map((p) => p.trim());
+    if (!parts.length || parts.some((p) => handles[p] === undefined)) return whole;
+    return parts.map((p) => `[${handles[p]}]`).join('');
+  });
   for (const key of keys) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Match paired brackets as a unit (including claim[handle]), or a bare
