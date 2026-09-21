@@ -30,6 +30,7 @@ import {
 } from '../lib/planEntitlements.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import AiDock from '../ai/AiDock.jsx';
+import { takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
@@ -164,6 +165,13 @@ export default function TerminalShell({ onLogout }) {
     setFeed(null);
     setSelected(null);
   }, [tab, featureName]);
+
+  // A cited desk row's "Open in desk" (src/ai/openRowSource.js) routes here
+  // through the hash and asks for the row to be selected once its feed lands.
+  useEffect(() => {
+    const row = takePendingDeskRow(feed, tab);
+    if (row) setSelected(row);
+  }, [feed, tab]);
 
   useEffect(() => {
     kickHomeRefreshIfDue();
