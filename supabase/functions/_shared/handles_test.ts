@@ -28,3 +28,19 @@ Deno.test('HANDLE_RE matches handles in prose and never a bracketed marker', () 
   assertEquals(handlesIn(text), ['ref:ab12cd-3', 'ref:ab12cd-12']);
   assertEquals('[1] [2, 3]'.match(HANDLE_RE), null);
 });
+
+Deno.test('handle discovery rejects embedded prefixes and forged suffixes without shortening numeric handles', () => {
+  const forged = [
+    'prefixref:abc123-1', 'prefix-ref:abc123-1', 'prefix_ref:abc123-1', 'prefix:ref:abc123-1',
+    'हref:abc123-1', 'ref:abc123-1forged', 'ref:abc123-1_forged',
+    'ref:abc123-1-forged', 'ref:abc123-1ह', 'ref:abc123-1\u0301',
+    '[ref:abc123-1forged]',
+  ];
+  for (const token of forged) assertEquals(handlesIn(token), [], token);
+  assertEquals(handlesIn('ref:abc123-10 ref:abc123-1 ref:abc123-10'), ['ref:abc123-10', 'ref:abc123-1']);
+});
+
+Deno.test('handle discovery preserves bare/bracketed handles beside prose punctuation', () => {
+  const text = 'ref:abc123-1, (ref:abc123-10); [ref:abc123-12]! claim[ref:abc123-2]. ref:abc123-3: details — ref:abc123-4?';
+  assertEquals(handlesIn(text), ['ref:abc123-1', 'ref:abc123-10', 'ref:abc123-12', 'ref:abc123-2', 'ref:abc123-3', 'ref:abc123-4']);
+});

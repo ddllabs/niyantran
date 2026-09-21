@@ -5,7 +5,9 @@
 // contain one by accident, stable within a turn and never reused across
 // turns. Resolution back to the chunk or row is an exact map lookup.
 
-export const HANDLE_RE = /ref:[a-z0-9]{6}-\d+/g;
+// Identifier characters cannot adjoin a handle. A preceding colon also rules
+// out namespace-prefixed tokens; a following colon is ordinary prose punctuation.
+export const HANDLE_RE = /(?<![\p{L}\p{M}\p{N}_:-])ref:[a-z0-9]{6}-\d+(?![\p{L}\p{M}\p{N}_-])/gu;
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 

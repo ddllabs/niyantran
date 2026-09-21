@@ -77,3 +77,22 @@ Deno.test('buildSources returns text citations for the cited ids that resolve, i
 Deno.test('citedIds lists valid ids once, in order', () => {
   assertEquals(citedIds('a [2] b [1, 2] c [3-4] d [2005] e [0]'), [2, 1, 3, 4]);
 });
+
+Deno.test('handle recovery never replaces an issued prefix of an unissued full token', () => {
+  const handles = { 'ref:abc123-1': 1 };
+  const unissued = ['ref:abc123-10', '[ref:abc123-10]', 'ref:abc123-100',
+    'ref:abc123-1forged', '[ref:abc123-1forged]', 'ref:abc123-1_forged',
+    'ref:abc123-1-forged', 'ref:abc123-1ह', 'ref:abc123-1\u0301',
+    'prefixref:abc123-1', 'prefix-ref:abc123-1', 'prefix_ref:abc123-1',
+    'prefix:ref:abc123-1', 'हref:abc123-1'];
+  for (const token of unissued) {
+    assertEquals(recoverHandleCitations(`Valid ref:abc123-1. Unissued ${token}.`, handles), `Valid [1]. Unissued ${token}.`, token);
+  }
+});
+
+Deno.test('handle recovery preserves punctuation and supports exact legacy map keys', () => {
+  const handles = { 'ref:abc123-1': 1, 'ref:abc123-10': 2, 'ref:k3f-11': 3 };
+  assertEquals(recoverHandleCitations('ref:abc123-10, (ref:abc123-1); claim[ref:k3f-11]! ref:abc123-1: details — [ref:abc123-10]?', handles),
+    '[2], ([1]); claim[3]! [1]: details — [2]?');
+  assertEquals(recoverHandleCitations('ref:k3f-110 ref:k3f-11suffix', handles), 'ref:k3f-110 ref:k3f-11suffix');
+});

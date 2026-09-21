@@ -54,13 +54,17 @@ export function citedIds(text: string): number[] {
   return seen;
 }
 
-/** Rescue handle tokens the model left in prose ("… ref:k3f-11 …" or "[ref:k3f-11]") as [id]; longest handle first. */
+/** Rescue exact map keys, including legacy short nonces, as [id]. */
 export function recoverHandleCitations(answer: string, handles: Record<string, number>): string {
   const keys = Object.keys(handles).sort((a, b) => b.length - a.length);
   let out = answer;
   for (const key of keys) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(`\\[?${escaped}\\]?`, 'g'), `[${handles[key]}]`);
+    // Match paired brackets as a unit (including claim[handle]), or a bare
+    // token with the same identifier boundaries as HANDLE_RE. Never rewrite
+    // an issued prefix of a longer/unissued handle or a forged identifier.
+    const token = new RegExp(`\\[${escaped}\\]|(?<![\\p{L}\\p{M}\\p{N}_:-])${escaped}(?![\\p{L}\\p{M}\\p{N}_-])`, 'gu');
+    out = out.replace(token, `[${handles[key]}]`);
   }
   return out;
 }
