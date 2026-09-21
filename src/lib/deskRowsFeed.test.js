@@ -36,6 +36,31 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => restore?.());
 
+describe('installDiskFetch', () => {
+  it('serves relative /data paths from disk and keeps the pipeline offline: absolute URLs get a 404, never the network', async () => {
+    const saved = globalThis.fetch;
+    const seen = [];
+    const upstream = async (input) => {
+      seen.push(String(input));
+      return new Response('upstream', { status: 299 });
+    };
+    globalThis.fetch = upstream;
+    const undo = installDiskFetch(PUBLIC_DIR);
+    try {
+      const local = await fetch('/data/embedded_csv/_manifest.json');
+      expect(local.status).toBe(200);
+      expect(Array.isArray(await local.json())).toBe(true);
+      expect((await fetch('/data/nope.json')).status).toBe(404);
+      expect((await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/ind.1/scoreboard')).status).toBe(404);
+      expect(seen).toEqual([]);
+    } finally {
+      undo();
+      expect(globalThis.fetch).toBe(upstream);
+      globalThis.fetch = saved;
+    }
+  });
+});
+
 describe('desk feed rows (the loader source)', () => {
   it('every catalogue module resolves to a desk tab', () => {
     for (const { mod } of loadableModules()) expect(tabForModule(mod), mod.htmlFeature).toBeTruthy();

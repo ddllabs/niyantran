@@ -36,12 +36,20 @@ export function packFileFor(mod) {
   return FILE_BY_KEY.get(d.endsWith('.csv') ? d : `${d}.csv`) || null;
 }
 
-/** Serve `fetch('/data/…')` from `publicDir`; returns a function that restores the previous fetch. */
+/**
+ * Serve the desk's relative `fetch('/data/…')` calls from `publicDir` and
+ * answer everything else — absolute URLs included — with a 404, so the
+ * pipeline runs offline and deterministic (the desk falls back to its
+ * packs, never to a live feed). A caller that needs the network (the
+ * loader's Supabase client) captures `globalThis.fetch` before installing
+ * this and uses that reference. Returns a restore function.
+ */
 export function installDiskFetch(publicDir) {
   const previous = globalThis.fetch;
   globalThis.fetch = async (input) => {
-    const url = String(input);
-    const path = url.startsWith('/') ? url : new URL(url, 'http://local.test').pathname;
+    const url = typeof input === 'string' ? input : input?.url ?? String(input);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return new Response('', { status: 404 });
+    const path = url.split('?')[0];
     try {
       const body = readFileSync(resolve(publicDir, `.${path}`), 'utf8');
       return new Response(body, { status: 200, headers: { 'content-type': 'application/json' } });
