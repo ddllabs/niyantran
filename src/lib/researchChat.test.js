@@ -394,3 +394,419 @@ it('review: a hanging reader cancellation cannot hold a confirmed terminal opera
  expect(await Promise.race([pending.then(()=>true),new Promise(r=>setTimeout(()=>r(false),100))])).toBe(true);
  expect(streamState('cleanup-c')).toMatchObject({status:'complete',isStreaming:false,isPending:false});
 });
+
+/* Reconciliation fixtures. A chat_messages reader that answers queued results in
+ * order and records every PostgREST verb it is asked for, so a probe can prove
+ * the function reads and never writes. Assistant rows carry no turn_key: the
+ * claim writes it on the user row and unique(conversation_id, turn_key) forbids
+ * a second holder in the same conversation. */
+const ASKED='2026-09-21T10:00:00.000001+00:00', ANSWERED='2026-09-21T10:00:00.000002+00:00';
+const answerRow=(patch={})=>({id:'saved-m',user_id:'owner-a',conversation_id:'saved-c',turn_key:null,role:'assistant',status:'complete',created_at:ANSWERED,...patch});
+const questionRow=(patch={})=>({id:'saved-u',user_id:'owner-a',conversation_id:'saved-c',turn_key:'saved-key',role:'user',status:'complete',created_at:ASKED,...patch});
+function chatMessages(...results){
+ const queries=[];const calls=[];let next=0;
+ const from=vi.spyOn(supabase,'from').mockImplementation(table=>{
+  calls.push(`from:${table}`);
+  const q={table,columns:'',filters:{},ops:[],modifiers:[],signal:null};queries.push(q);
+  const proxy=new Proxy({},{get(_,prop){
+   if(prop==='then'||typeof prop==='symbol')return undefined;
+   const name=String(prop);
+   return(...args)=>{calls.push(name);
+    if(name==='select')q.columns=args[0];
+    else if(name==='eq'||name==='gt'){q.filters[args[0]]=args[1];q.ops.push([name,args[0],args[1]]);}
+    else if(name==='abortSignal')q.signal=args[0];
+    else if(name!=='maybeSingle'&&name!=='single')q.modifiers.push(name);
+    if(name==='maybeSingle'||name==='single')return Promise.resolve(results[Math.min(next++,results.length-1)]);
+    return proxy;};
+  }});
+  return proxy;});
+ return{from,calls,queries,reads:()=>next,last:()=>queries[queries.length-1],
+  wrote:()=>calls.some(c=>['insert','upsert','update','delete','rpc'].includes(c))};
+}
+/** A chat_messages fake that APPLIES the filters it is given to real rows, the
+ * way Postgres would — so a query shape that cannot match in the database
+ * cannot match here either, and no fixture can invent an impossible row. */
+function chatMessagesTable(rows){
+ return vi.spyOn(supabase,'from').mockImplementation(()=>{
+  const preds=[];let order=null,limit=null;
+  const proxy=new Proxy({},{get(_,prop){
+   if(prop==='then'||typeof prop==='symbol')return undefined;
+   const name=String(prop);
+   return(...args)=>{
+    if(name==='eq')preds.push(r=>r[args[0]]===args[1]);          // NULL never equals, as in SQL
+    else if(name==='gt')preds.push(r=>String(r[args[0]])>String(args[1]));
+    else if(name==='order')order=args[0];
+    else if(name==='limit')limit=args[0];
+    else if(name==='maybeSingle'||name==='single'){
+     let out=rows.filter(r=>preds.every(p=>p(r)));
+     if(order)out=[...out].sort((a,b)=>a[order]<b[order]?-1:a[order]>b[order]?1:0);
+     if(limit!=null)out=out.slice(0,limit);
+     return Promise.resolve(out.length>1?{data:null,error:{message:'multiple rows returned'}}:{data:out[0]??null,error:null});
+    }
+    return proxy;};
+  }});
+  return proxy;});
+}
+
+/** A retained 202 reservation: running, reserved message ID known. */
+async function retained202(body={message:'Question',turn_key:'saved-key'}){
+ const send=vi.fn(async()=>new Response(JSON.stringify({status:'running',conversation_id:'saved-c',
+  message_id:'saved-m',execution_expires_at:new Date(Date.now()+60000).toISOString()}),{status:202}));
+ await sendTurn(body,{send});return send;
+}
+/** A retained unknown outcome: EOF after a conversation frame, no message ID. */
+async function retainedUnknown(){
+ const send=vi.fn(async()=>new Response(`data: ${JSON.stringify({conversation:{id:'saved-c'}})}\n\ndata: ${JSON.stringify({chunk:'Partial'})}\n\n`));
+ await sendTurn({message:'Question',turn_key:'saved-key'},{send,schedule:fn=>fn()});return send;
+}
+
+describe('authoritative saved-turn reconciliation', () => {
+  const read=(...results)=>chatMessages(...(results.length?results:[{data:answerRow(),error:null}]));
+
+  it('unlocks a 202 only from an owner/conversation/message-scoped terminal read, without replaying', async () => {
+    const send=await retained202(); const db=read();
+    expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0].filters).toEqual({user_id:'owner-a',conversation_id:'saved-c',id:'saved-m',role:'assistant'});
+    expect(db.queries[0].signal).toBeInstanceOf(AbortSignal);
+    expect(streamState('saved-c').status).toBe('idle'); expect(streamState('new').status).toBe('idle');
+    expect(research.retryRequest('saved-c')).toBeNull(); expect(send).toHaveBeenCalledOnce();
+  });
+  it('unlocks an unknown stream through its own user row when no message ID arrived', async () => {
+    const send=await retainedUnknown();
+    const db=read({data:questionRow(),error:null},{data:answerRow(),error:null});
+    expect(streamState('saved-c')).toMatchObject({status:'unknown',messageId:'',isPending:true});
+    expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+    expect(db.queries[0].filters).toEqual({user_id:'owner-a',conversation_id:'saved-c',turn_key:'saved-key',role:'user'});
+    // The answer is the very next message, deliberately unfiltered by role.
+    expect(db.queries[1].ops).toEqual([['eq','user_id','owner-a'],['eq','conversation_id','saved-c'],['gt','created_at',ASKED]]);
+    expect(db.queries[1].modifiers).toEqual(['order','limit']);
+    expect(send).toHaveBeenCalledOnce();
+  });
+  it.each([{status:'running'},{status:'unknown'},{id:'other-m'},{user_id:'other-owner'},
+    {conversation_id:'other-c'},{role:'user'}])('cannot unlock from a mismatched/nonterminal row %j', async patch => {
+    await retained202(); read({data:answerRow(patch),error:null});
+    expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+    expect(streamState('saved-c').isPending).toBe(true);
+  });
+  it('no retained operation or no readable row cannot unlock anything', async () => {
+    const db=read({data:null,error:null});
+    expect(await research.reconcileSavedTurn('absent')).toBe(false); expect(db.from).not.toHaveBeenCalled();
+    await retained202(); expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+    expect(streamState('saved-c').isPending).toBe(true);
+  });
+  it('reports a generic database failure and preserves replay intent', async () => {
+    await retained202(); read({data:null,error:{message:'private internal database detail'}});
+    await expect(research.reconcileSavedTurn('saved-c')).rejects.toThrow('The saved result could not be verified. Try Reload.');
+    expect(streamState('saved-c').isPending).toBe(true); expect(research.retryRequest('saved-c').turn_key).toBe('saved-key');
+  });
+  it('an owner change during the read cannot remove the next owner operation', async () => {
+    await retained202(); const gate=deferred(); const db=read(gate.promise);
+    const loading=research.reconcileSavedTurn('saved-c'); await vi.waitFor(()=>expect(db.reads()).toBe(1));
+    switchAccount('owner-b'); await retained202(); gate.resolve({data:answerRow(),error:null});
+    expect(await loading).toBe(false); expect(streamState('saved-c').isPending).toBe(true);
+  });
+  it('a late read cannot remove a replacement operation under the same conversation', async () => {
+    await retained202(); const gate=deferred(); const db=read(gate.promise);
+    const loading=research.reconcileSavedTurn('saved-c'); await vi.waitFor(()=>expect(db.reads()).toBe(1));
+    await research.retryTurn('saved-c',{send:async()=>sse([{conversation:{id:'saved-c'}},{chunk:'Saved'},{sources:[]},{done:{message_id:'saved-m'}}]),schedule:fn=>fn()});
+    await sendTurn({conversation_id:'saved-c',message:'Next',turn_key:'next-key'},{send:async()=>new Response('{}',{status:503})});
+    gate.resolve({data:answerRow(),error:null}); expect(await loading).toBe(false);
+    expect(research.retryRequest('saved-c').turn_key).toBe('next-key'); expect(streamState('saved-c').isPending).toBe(true);
+  });
+  it('a replay of the same operation invalidates an older saved-row read', async () => {
+    const send=await retained202(); const gate=deferred(); const db=read(gate.promise);
+    const loading=research.reconcileSavedTurn('saved-c'); await vi.waitFor(()=>expect(db.reads()).toBe(1));
+    await research.retryTurn('saved-c',{send});
+    gate.resolve({data:answerRow(),error:null}); expect(await loading).toBe(false);
+    expect(streamState('saved-c').isPending).toBe(true);
+  });
+  it('bounds verification before any database read when Auth ignores cancellation', async () => {
+    await retained202(); const db=read(); vi.spyOn(supabase.auth,'getSession').mockImplementation(()=>new Promise(()=>{}));
+    vi.useFakeTimers();
+    try {
+      const loading=research.reconcileSavedTurn('saved-c'); const outcome=expect(loading).rejects.toThrow('The saved result could not be verified. Try Reload.');
+      await vi.advanceTimersByTimeAsync(4001); await outcome; expect(db.from).not.toHaveBeenCalled();
+      expect(streamState('saved-c').isPending).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+  it('bounds a hanging read even if the database ignores abort', async () => {
+    await retained202(); const db=read(new Promise(()=>{})); vi.useFakeTimers();
+    try {
+      const loading=research.reconcileSavedTurn('saved-c'); const outcome=expect(loading).rejects.toThrow('The saved result could not be verified. Try Reload.');
+      await vi.advanceTimersByTimeAsync(4001); await outcome;
+      expect(db.last().signal.aborted).toBe(true); expect(streamState('saved-c').isPending).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+  it('removing a verified saved turn aborts its open reader and reports reconciled, not an identity change', async () => {
+    let wire; const cancelled=vi.fn(); const send=vi.fn(async()=>new Response(new ReadableStream({ start(c) {
+      wire=c; c.enqueue(frame({conversation:{id:'saved-c'}})); c.enqueue(frame({chunk:'Partial'}));
+    }, cancel: cancelled })));
+    const transport=sendTurn({message:'Question',turn_key:'saved-key'},{send,schedule:fn=>fn()});
+    await vi.waitFor(()=>expect(streamState('saved-c').streamingText).toBe('Partial'));
+    read({data:questionRow(),error:null},{data:answerRow(),error:null});
+    expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+    // A saved answer is not an identity change and must not be reported as one.
+    expect(await transport).toMatchObject({status:'reconciled',endReason:'reconciled',aborted:true,error:'',errorCode:''});
+    expect(cancelled).toHaveBeenCalledOnce(); expect(()=>wire.enqueue(frame({chunk:'Late'}))).toThrow();
+    expect(streamState('saved-c').status).toBe('idle'); expect(send).toHaveBeenCalledOnce();
+  });
+});
+
+/* Independent adversarial review of reconcileSavedTurn (D7/D10 authoritative
+ * reload reconciliation). These probes attempt to violate the property that
+ * nothing except an authoritative, owner-verified, current read may retire a
+ * retained operation — and that no path mutates, replays or spends. */
+describe('review: reconcileSavedTurn cannot be unlocked by anything but an authoritative read', () => {
+ const read=(...results)=>chatMessages(...(results.length?results:[{data:answerRow(),error:null}]));
+ const both=(...results)=>chatMessages({data:questionRow(),error:null},...results);
+
+ it('reads chat_messages once by reserved message ID, and issues no mutation or provider call',async()=>{
+  const send=await retained202();const db=read();
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+  expect(db.calls.filter(c=>c.startsWith('from:'))).toEqual(['from:chat_messages']);
+  expect(db.calls).toContain('select');expect(db.reads()).toBe(1);
+  expect(db.wrote()).toBe(false);expect(auth.writes).toEqual([]);expect(send).toHaveBeenCalledOnce();
+  expect(research.retryRequest('saved-c')).toBeNull();
+ });
+
+ it('a schema-shaped assistant row whose turn_key is NULL reconciles on both paths',async()=>{
+  await retained202();read({data:answerRow({turn_key:null}),error:null});      // (a) reserved message ID
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+  vi.restoreAllMocks();switchAccount('owner-a');
+  await retainedUnknown();both({data:answerRow({turn_key:null}),error:null});  // (b) through its user row
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+ });
+
+ it('reconciles against a database that honours its filters, on both paths',async()=>{
+  // Rows exactly as claim_research_turn writes them: the turn key is on the
+  // question, and the answer follows one microsecond later carrying no key.
+  const rows=[questionRow(),answerRow()];
+  await retained202();chatMessagesTable(rows);
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(true);     // (a) reserved message ID
+  vi.restoreAllMocks();
+  await retainedUnknown();chatMessagesTable(rows);
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(true);     // (b) through its user row
+ });
+
+ it('a filter-honouring database refuses a foreign owner, another conversation and a running answer',async()=>{
+  for(const rows of [[questionRow({user_id:'other-owner'}),answerRow({user_id:'other-owner'})],
+                     [questionRow({conversation_id:'other-c'}),answerRow({conversation_id:'other-c'})],
+                     [questionRow(),answerRow({status:'running'})],
+                     [questionRow({turn_key:'a-different-turn'}),answerRow()]]){
+   vi.restoreAllMocks();
+   await retainedUnknown();chatMessagesTable(rows);
+   expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  }
+ });
+
+ it('a deleted answer cannot adopt a later turn\u2019s answer in a filter-honouring database',async()=>{
+  // The reserved answer is gone; the next message is the following question.
+  const rows=[questionRow(),
+   questionRow({id:'later-u',turn_key:'later-key',created_at:'2026-09-21T10:05:00.000001+00:00'}),
+   answerRow({id:'later-m',created_at:'2026-09-21T10:05:00.000002+00:00'})];
+  await retainedUnknown();chatMessagesTable(rows);
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('the unknown path refuses to guess when the retained key has no user row',async()=>{
+  const send=await retainedUnknown();const db=chatMessages({data:null,error:null});
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(db.reads()).toBe(1);   // no answer is looked for without its question
+  expect(streamState('saved-c').isPending).toBe(true);expect(send).toHaveBeenCalledOnce();
+ });
+
+ it.each([{user_id:'other-owner'},{conversation_id:'other-c'},{turn_key:'other-key'},{role:'assistant'},
+  {id:''},{id:null},{id:42},{created_at:null},{created_at:'not a date'}])(
+  'the unknown path rejects a user row shaped %j and never looks for an answer',async patch=>{
+  await retainedUnknown();const db=chatMessages({data:questionRow(patch),error:null},{data:answerRow(),error:null});
+  await expect(research.reconcileSavedTurn('saved-c')).resolves.toBe(false);
+  expect(db.reads()).toBe(1);expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('the unknown path rejects the next message when it is another question, not the reserved answer',async()=>{
+  await retainedUnknown();
+  both({data:questionRow({id:'later-u',turn_key:'later-key',created_at:'2026-09-21T10:05:00.000000+00:00'}),error:null});
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('the unknown path rejects an answer that predates its own question, or is the question itself',async()=>{
+  await retainedUnknown();both({data:answerRow({created_at:'2026-09-20T09:00:00.000000+00:00'}),error:null});
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  vi.restoreAllMocks();switchAccount('owner-a');
+  await retainedUnknown();both({data:answerRow({id:'saved-u'}),error:null});
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('a silent token refresh between verification and the read cannot unlock the turn',async()=>{
+  const send=await retained202();const db=read();
+  // Same user, same epoch, new access token, and no Auth event — so `generation`
+  // never moves. Only the identity-freshness layer can reject this.
+  vi.spyOn(supabase.auth,'getSession').mockImplementation(async()=>({data:{session:{
+   access_token:'token-owner-a-refreshed',user:{id:'owner-a'},expires_at:Date.now()/1000+3600}}}));
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(db.from).not.toHaveBeenCalled();expect(send).toHaveBeenCalledOnce();
+ });
+
+ it('an owner change mid-read leaves the next owner’s retained turn untouched',async()=>{
+  await retained202();const gate=deferred();const db=read(gate.promise);
+  const loading=research.reconcileSavedTurn('saved-c');
+  await vi.waitFor(()=>expect(db.reads()).toBe(1));
+  switchAccount('owner-b');const next=await retained202({message:'Owner B question',turn_key:'owner-b-key'});
+  gate.resolve({data:answerRow(),error:null});
+  expect(await loading).toBe(false);
+  expect(streamState('saved-c')).toMatchObject({isPending:true,status:'running'});
+  expect(research.retryRequest('saved-c').turn_key).toBe('owner-b-key');expect(next).toHaveBeenCalledOnce();
+ });
+
+ it('an owner change between the user row and the answer cannot complete the unknown path',async()=>{
+  await retainedUnknown();const gate=deferred();
+  const db=chatMessages({data:questionRow(),error:null},gate.promise);
+  const loading=research.reconcileSavedTurn('saved-c');
+  await vi.waitFor(()=>expect(db.reads()).toBe(2));
+  switchAccount('owner-b');gate.resolve({data:answerRow(),error:null});
+  expect(await loading).toBe(false);
+ });
+
+ it('an in-flight replay on the same entry invalidates an older read even though the key still maps to it',async()=>{
+  await retained202();const gate=deferred();const db=read(gate.promise);
+  const loading=research.reconcileSavedTurn('saved-c');
+  await vi.waitFor(()=>expect(db.reads()).toBe(1));
+  // entry.attempt advances while the entry stays at operations.get('saved-c'):
+  // only the attempt comparison inside bound() can reject this read.
+  const replay=research.retryTurn('saved-c',{send:async()=>new Promise(()=>{}),timeoutMs:20});
+  await vi.waitFor(()=>expect(streamState('saved-c').retryCount).toBe(1));
+  gate.resolve({data:answerRow(),error:null});
+  expect(await loading).toBe(false);await replay;
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it.each([{status:'running'},{status:'pending'},{status:''},{status:null},{status:'COMPLETE'},{status:['complete']},
+  {id:''},{id:null},{id:42},{id:{}},{user_id:null},{conversation_id:null},{role:null},{role:'assistant '}])(
+  'rejects an answer row shaped %j without throwing',async patch=>{
+  await retained202();read({data:answerRow(patch),error:null});
+  await expect(research.reconcileSavedTurn('saved-c')).resolves.toBe(false);
+  expect(streamState('saved-c')).toMatchObject({isPending:true,status:'running'});
+ });
+
+ it('an empty or non-string row id cannot unlock a turn whose message ID is unknown',async()=>{
+  await retainedUnknown();expect(streamState('saved-c')).toMatchObject({status:'unknown',messageId:'',isPending:true});
+  both({data:answerRow({id:''}),error:null});
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  vi.restoreAllMocks();both({data:answerRow({id:7}),error:null});
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('an absent row returns false rather than throwing, and a read error throws without leaking database detail',async()=>{
+  await retained202();read({data:null,error:null});
+  await expect(research.reconcileSavedTurn('saved-c')).resolves.toBe(false);
+  vi.restoreAllMocks();
+  read({data:null,error:{message:'relation "chat_messages" permission denied for user postgres',code:'42501',details:'owner-a'}});
+  const failure=await research.reconcileSavedTurn('saved-c').catch(e=>e);
+  expect(failure.message).toBe('The saved result could not be verified. Try Reload.');
+  expect(failure.message).not.toMatch(/postgres|42501|permission|owner-a|chat_messages/);
+  expect(streamState('saved-c')).toMatchObject({isPending:true,status:'running'});
+  expect(research.retryRequest('saved-c').turn_key).toBe('saved-key');
+ });
+
+ it('an error on the user-row read throws the same generic message and preserves the lock',async()=>{
+  await retainedUnknown();chatMessages({data:null,error:{message:'internal detail',code:'42501'}});
+  const failure=await research.reconcileSavedTurn('saved-c').catch(e=>e);
+  expect(failure.message).toBe('The saved result could not be verified. Try Reload.');
+  expect(streamState('saved-c').isPending).toBe(true);
+  expect(research.retryRequest('saved-c').turn_key).toBe('saved-key');
+ });
+
+ it('a read that answers after the 4s bound cannot publish, and the bound timer is always cleared',async()=>{
+  await retained202();const gate=deferred();const db=read(gate.promise);vi.useFakeTimers();
+  try{
+   const loading=research.reconcileSavedTurn('saved-c');
+   const outcome=expect(loading).rejects.toThrow('The saved result could not be verified. Try Reload.');
+   await vi.advanceTimersByTimeAsync(4001);
+   gate.resolve({data:answerRow(),error:null});   // the database answers late anyway
+   await outcome;
+   expect(db.last().signal.aborted).toBe(true);
+   await vi.advanceTimersByTimeAsync(10_000);
+   expect(vi.getTimerCount()).toBe(0);
+  }finally{vi.useRealTimers();}
+  await new Promise(r=>setTimeout(r,0));
+  expect(streamState('saved-c')).toMatchObject({isPending:true,status:'running'});
+  expect(research.retryRequest('saved-c').turn_key).toBe('saved-key');
+ });
+
+ it('the 4s bound is one budget covering both reads of the unknown path',async()=>{
+  await retainedUnknown();const gate=deferred();
+  const db=chatMessages({data:questionRow(),error:null},gate.promise);vi.useFakeTimers();
+  try{
+   const loading=research.reconcileSavedTurn('saved-c');
+   const outcome=expect(loading).rejects.toThrow('The saved result could not be verified. Try Reload.');
+   await vi.advanceTimersByTimeAsync(4001);await outcome;
+   expect(db.reads()).toBe(2);expect(db.queries[0].signal.aborted).toBe(true);expect(db.queries[1].signal.aborted).toBe(true);
+   expect(vi.getTimerCount()).toBe(0);
+  }finally{vi.useRealTimers();}
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('a successful reconciliation leaves no bound timer behind',async()=>{
+  await retained202();read();vi.useFakeTimers();
+  try{
+   expect(await research.reconcileSavedTurn('saved-c')).toBe(true);
+   expect(vi.getTimerCount()).toBe(0);
+  }finally{vi.useRealTimers();}
+ });
+
+ it('concurrent reconciliations read twice, unlock exactly once, write nothing and replay nothing',async()=>{
+  const send=await retained202();const db=read();
+  const settled=await Promise.all([research.reconcileSavedTurn('saved-c'),research.reconcileSavedTurn('saved-c')]);
+  expect(settled.filter(Boolean)).toHaveLength(1);
+  expect(db.reads()).toBe(2);
+  expect(db.wrote()).toBe(false);expect(auth.writes).toEqual([]);expect(send).toHaveBeenCalledOnce();
+  expect(streamState('saved-c').status).toBe('idle');
+  // A repeat call after a successful unlock reports false, not true.
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+ });
+
+ it('the draft alias of an adopted conversation is never reconciled, and issues no read at all',async()=>{
+  await retained202();const db=read();
+  expect(await research.reconcileSavedTurn('new')).toBe(false);   // state.conversationId is 'saved-c'
+  expect(await research.reconcileSavedTurn('')).toBe(false);
+  expect(await research.reconcileSavedTurn(undefined)).toBe(false);
+  expect(db.from).not.toHaveBeenCalled();
+  expect(streamState('saved-c').isPending).toBe(true);
+ });
+
+ it('an unadopted draft that never received a conversation frame cannot be reconciled',async()=>{
+  const send=vi.fn(async()=>new Response(null,{status:503}));
+  await sendTurn({message:'No frame',turn_key:'no-frame-key'},{send});
+  expect(streamState('new')).toMatchObject({status:'unknown',isPending:true,conversationId:''});
+  const db=read();
+  expect(await research.reconcileSavedTurn('new')).toBe(false);      // state.conversationId is ''
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);  // no operation under that key
+  expect(db.from).not.toHaveBeenCalled();expect(send).toHaveBeenCalledOnce();
+  expect(research.retryRequest('new').turn_key).toBe('no-frame-key');
+ });
+
+ it('a transient profile-verification failure discards the retained replay intent instead of preserving it',async()=>{
+  // Documents a recovery gap, not an approved behaviour: verifiedLocalIdentity()
+  // fails closed through identityChanged(null), which retires every operation.
+  const send=await retained202();const db=read();
+  vi.spyOn(supabase,'rpc').mockRejectedValueOnce(new Error('network hiccup'));
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
+  expect(db.from).not.toHaveBeenCalled();expect(send).toHaveBeenCalledOnce();expect(auth.writes).toEqual([]);
+  expect(streamState('saved-c')).toMatchObject({status:'idle',isPending:false});
+  expect(research.retryRequest('saved-c')).toBeNull();
+ });
+
+ it('logout still reports an identity change, not a reconciliation',async()=>{
+  const started=deferred();let wire;
+  const pending=sendTurn({message:'Question',turn_key:'logout-key'},{send:async()=>new Response(new ReadableStream({start(c){wire=c;c.enqueue(frame({conversation:{id:'logout-c'}}));started.resolve();}}))});
+  await started.promise;await vi.waitFor(()=>expect(streamState('logout-c').conversationId).toBe('logout-c'));
+  invalidateLocalSession();
+  expect(await pending).toMatchObject({errorCode:'identity_changed',endReason:'identity_changed',aborted:true});
+  expect(wire).toBeDefined();
+ });
+});
