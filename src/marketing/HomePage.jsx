@@ -327,14 +327,6 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
           </div>
           <div className="mkt-orb-wrap" aria-hidden="false">
             <div className="mkt-orb-layer">
-              <div className="mkt-orb-fx mkt-orb-fx-quiet">
-                <span className="mkt-halo" />
-              </div>
-              <svg className="mkt-hero-orbits" viewBox="0 0 400 400">
-                <ellipse cx="200" cy="200" rx="188" ry="72" fill="none" stroke="#e4dfd6" strokeWidth="1" strokeDasharray="3 6" transform="rotate(-22 200 200)" />
-                <ellipse cx="200" cy="200" rx="176" ry="58" fill="none" stroke="#ebe6de" strokeWidth="1" strokeDasharray="2 7" transform="rotate(16 200 200)" />
-                <circle cx="200" cy="200" r="152" fill="none" stroke="#ddd8cf" strokeWidth="1" strokeDasharray="2 4" />
-              </svg>
               <img className="mkt-globe mkt-globe-gif" src="/brand/globe.gif?v=4" alt="" decoding="async" />
             </div>
             {PERSONAS.map((p, i) => (
