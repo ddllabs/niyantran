@@ -69,7 +69,7 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   };
 }
 
-export async function search(deps: RetrievalDeps, input: { query: string; topK?: number; deskTier?: string }): Promise<Chunk[]> {
+export async function search(deps: RetrievalDeps, input: { query: string; topK?: number; deskTier?: string; documentIds?: string[] }): Promise<Chunk[]> {
   const now = deps.now ?? (() => Date.now());
   const started = now();
   const query = input.query.trim();
@@ -80,7 +80,7 @@ export async function search(deps: RetrievalDeps, input: { query: string; topK?:
   const { data, error } = await deps.rpc('match_documents', {
     query_embedding: vector,
     match_count: input.topK ?? DEFAULT_TOP_K,
-    p_document_ids: null,
+    p_document_ids: input.documentIds ?? null,
     p_desk_tier: input.deskTier ?? null,
   });
   if (error) throw new Error(`match_documents: ${error.message}`);
