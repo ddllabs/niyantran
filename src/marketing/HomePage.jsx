@@ -539,7 +539,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             {!videoPlaying ? (
               <button type="button" className="mkt-walk-video-face" onClick={openWalkthrough} aria-label="Play product walkthrough">
                 <span className="mkt-walk-video-bg" aria-hidden="true">
-                  <img src="/brand/globe.png?v=3" alt="" />
+                  <img src="/brand/globe.gif" alt="" />
                 </span>
                 <span className="mkt-walk-video-brand">— NTER.PRO</span>
                 <span className="mkt-walk-video-title">
