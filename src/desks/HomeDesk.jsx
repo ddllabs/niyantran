@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import bundledAds from '../data/home-ads.json';
 import zine from '../data/home-zine.json';
 import {
   homeCacheHasRows,
@@ -117,6 +118,8 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     latest: boot?.latest || null,
     pulse: boot?.pulse || null,
   });
+  const [ads, setAds] = useState(() => (Array.isArray(bundledAds) ? bundledAds : []));
+  const [ad, setAd] = useState(0);
   const [loading, setLoading] = useState(!homeCacheHasRows(boot));
   const [topics, setTopics] = useState([]);
   const [watchlist, setWatchlist] = useState(() => loadWatchlist());
@@ -161,6 +164,24 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     link: r.link || r.source_url,
     time: r.time || r.published || r.date,
   }));
+
+  useEffect(() => {
+    const ac = new AbortController();
+    // Editable without rebuild — public/data/home-ads.json overrides the bundled file.
+    fetch('/data/home-ads.json', { signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (Array.isArray(body) && body.length) setAds(body);
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [reload]);
+
+  useEffect(() => {
+    if (!ads.length) return undefined;
+    const t = setInterval(() => setAd((i) => (i + 1) % ads.length), 5000);
+    return () => clearInterval(t);
+  }, [ads.length]);
 
   useEffect(() => {
     let alive = true;
