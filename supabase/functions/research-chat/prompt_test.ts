@@ -158,11 +158,29 @@ Deno.test('the prompt names the think tool and shows it in a worked example', ()
 Deno.test('the prompt asks for a sweep across parts, not the same part reworded', () => {
   const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
   assertStringIncludes(prompt, 'not the same part worded differently');
-  assertStringIncludes(prompt, 'Repeating a query you already ran with trivial rewording');
+  assertStringIncludes(prompt, 'Running a query you already ran with trivial rewording');
   assertStringIncludes(prompt, 'Answering a broad question from a single search.');
+  // No anti-pattern may quote a query a reader could plausibly ask for. The
+  // first version illustrated the rewording trap with "Finance Bill 2014" - the
+  // owner's live question - and the next turn answered "Not in record." having
+  // called no tool at all.
+  const never = prompt.slice(prompt.indexOf('These are wrong once'), prompt.indexOf('Decomposition examples:'));
+  assert(!/Finance Bill|Delimitation|Lok Sabha/i.test(never), `a real subject is named as a bad query:\n${never}`);
   // The parts to sweep are named, not left to the model to invent.
   assertStringIncludes(prompt, 'objects and reasons, the clauses, the schedules');
   assert(!prompt.includes('different phrasings'), 'the instruction that produced the duplicate search must be gone');
+});
+
+// The rule the tender agent opens with and this prompt never had: "Call it
+// before answering any question about the tender - always, including on the
+// first turn." Without it, a record question came back as "Not in record." with
+// zero searches, which is not a finding but the absence of one.
+Deno.test('the prompt requires a search before any answer about the record', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
+  assertStringIncludes(prompt, 'Search before you answer');
+  assertStringIncludes(prompt, 'never instead of searching');
+  // And the rule must not swallow small talk, which the server also detects.
+  assertStringIncludes(prompt, 'greeting or small talk with no question in it');
 });
 
 Deno.test('every focus line agrees with the number of tools the prompt offers', () => {
