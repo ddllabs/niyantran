@@ -6,6 +6,7 @@
  *   PUT  /api/users   { users: [...] }
  */
 import fs from 'fs';
+import path from 'path';
 import { getDb, queryAll, run } from './db.mjs';
 import { writablePath } from './writableRoot.mjs';
 

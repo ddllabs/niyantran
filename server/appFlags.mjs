@@ -7,6 +7,7 @@
  * Persisted in tmp/app-flags.json (same host model as users SQLite / intro video).
  */
 import fs from 'fs';
+import path from 'path';
 import { writablePath } from './writableRoot.mjs';
 
 const FLAGS_FILE = writablePath('app-flags.json');
