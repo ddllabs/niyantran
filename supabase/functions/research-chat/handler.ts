@@ -38,7 +38,7 @@ import {
 import { createAnswerDecoder } from './answerStream.ts';
 import { buildSystemPrompt, buildUserTurn, type RenderedAttachment } from './prompt.ts';
 import { repairCitations, repairSources, repairWorthwhile } from './repair.ts';
-import { applyCitationLadder, type Evidence, type EvidenceMap, ladderFired } from './sources.ts';
+import { applyCitationLadder, type Evidence, type EvidenceMap, ladderFired, UNCITED_ANSWER_CHARS } from './sources.ts';
 import {
   type AttemptRecorder,
   createAttemptRecorder,
@@ -388,6 +388,17 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
     true,
   );
   return new Response(createChatReplay(frames), { status: 200, headers: sseHeaders(headers) });
+}
+
+/**
+ * The header on an answer nothing backs. It states which of the two happened -
+ * the record was never searched, or it was and returned nothing - because those
+ * are different facts and the reader can act on the difference.
+ */
+function unverifiedNote(searches: number): string {
+  return searches > 0
+    ? '**Unverified.** The searches this turn ran returned no passages, so nothing below is backed by the record.'
+    : '**Unverified.** Nothing was retrieved this turn, so nothing below is backed by the record. Earlier answers in this conversation are not evidence.';
 }
 
 /** Every terminal frame reflects the row returned by finalization/replay. */
@@ -818,6 +829,18 @@ async function runTurnBody(
     }
   }
 
+  // A substantial answer that cites nothing, on a turn that retrieved nothing,
+  // is not grounded in the record however confidently it reads. The repair pass
+  // cannot rescue it - there are no passages to insert markers from - so the
+  // only honest move left is to say so above it. The turn that forced this
+  // reproduced its own earlier answer verbatim, markers stripped, opening "The
+  // record shows": correct facts, no way for the reader to tell.
+  //
+  // Small talk is exempt: it asks nothing, so citing nothing is right.
+  const grounded = ladder.sources.length > 0 || evidence.size > 0 ||
+    conversational || ladder.answer.trim().length < UNCITED_ANSWER_CHARS;
+  const content = grounded ? ladder.answer : `${unverifiedNote(result.searches)}\n\n${ladder.answer}`;
+
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
   // `searches` is a step count, not a token figure; `attempts` beside it already
   // is one. It is written on every completed turn, including when it is zero,
@@ -830,7 +853,7 @@ async function runTurnBody(
   const summary = attempts.summary();
   const usage = summary && { ...summary, searches: result.searches };
   const terminal = makeAssistantMessage({
-    content: ladder.answer,
+    content,
     sources: ladder.sources,
     followUps,
     activity,

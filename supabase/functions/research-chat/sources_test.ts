@@ -194,3 +194,19 @@ Deno.test('restoration leaves prose that merely looks like a handle alone', () =
   assert(r.answer.includes('clause 2-3'), r.answer);
   assert(r.answer.includes('[Table 4]'), r.answer);
 });
+
+// The flag used to require that evidence had been retrieved, which excluded the
+// turns that need it most: a long answer built on nothing at all could not be
+// flagged, because "nothing at all" is what the condition ruled out.
+Deno.test('uncited_claims fires on a substantial answer with no sources, evidence or not', () => {
+  const long = 'The Bill reached the Standing Committee on 12 March. '.repeat(6);
+  const withNone = applyCitationLadder({ answer: long, modelSources: [], evidence: new Map() });
+  assertEquals(withNone.sources.length, 0);
+  assertEquals(withNone.flags.uncited_claims, true, 'a turn that retrieved nothing is exactly the case to flag');
+
+  const withSome = applyCitationLadder({ answer: long, modelSources: [], evidence: evidence() });
+  assertEquals(withSome.flags.uncited_claims, true);
+
+  // A short answer is not a body of claims, and a greeting is not either.
+  assertEquals(applyCitationLadder({ answer: 'Hello.', modelSources: [], evidence: new Map() }).flags.uncited_claims, false);
+});

@@ -1539,3 +1539,72 @@ Deno.test('the modules that have documents reach the system prompt', async () =>
   await frames(await handleResearchChat(post({ ...BODY, turn_key: 'coverage-ok' }), deps));
   assertStringIncludes(seen[0], 'Indexed source documents exist only for these modules: Bill Passage Probability Index');
 });
+
+// The turn that forced this. Message de5ae3a0: the same question asked twice in
+// one conversation, the second time answered from the first answer - 829
+// characters, zero searches, zero sources, opening "The record shows". The
+// citation markers were stripped, because an earlier turn's passages cannot be
+// cited; the claims were kept, which is the half that matters to a reader.
+const LONG = 'The Bill was introduced in the Lok Sabha on 17 February 2014 as Bill No. 7 of 2014. '.repeat(4);
+
+Deno.test('a substantial answer with nothing retrieved is labelled unverified', async () => {
+  const provider = scripted([...DECLINES, [text(envelope(LONG)), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'ungrounded' }), deps));
+
+  const content = String(rec.messages[0].content);
+  assertStringIncludes(content, '**Unverified.** Nothing was retrieved this turn');
+  assertStringIncludes(content, 'Earlier answers in this conversation are not evidence.');
+  assertStringIncludes(content, 'Bill No. 7 of 2014', 'the answer itself survives above nothing being removed');
+  assertEquals(rec.messages[0].sources.length, 0);
+});
+
+Deno.test('a turn that searched and found nothing says that instead', async () => {
+  let research = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.tools?.length) {
+      if (research++ === 0) {
+        yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
+        yield finish('tool_calls');
+      } else yield finish();
+    } else {
+      yield text(envelope(LONG));
+      yield finish();
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([]) });
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'searched-empty' }), deps));
+  assertStringIncludes(String(rec.messages[0].content), 'The searches this turn ran returned no passages');
+});
+
+Deno.test('the label is withheld where it would be wrong: small talk, short answers, and cited answers', async () => {
+  // Small talk asks nothing, so citing nothing is right.
+  const hi = fakeDeps(scripted([NO_RESEARCH, [text(envelope(LONG)), finish()]]));
+  await frames(await handleResearchChat(post({ ...BODY, message: 'hi', turn_key: 'hi' }), hi.deps));
+  assert(!String(hi.rec.messages[0].content).includes('Unverified'));
+
+  // A short answer is not a body of claims.
+  const short = fakeDeps(scripted([...DECLINES, [text(envelope('Not in record.')), finish()]]));
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'short' }), short.deps));
+  assert(!String(short.rec.messages[0].content).includes('Unverified'));
+
+  // And an answer the record backs is never labelled. The handle is only known
+  // at run time, so the answer cites whatever the tool result was actually given.
+  let research = 0;
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.tools?.length) {
+      if (research++ === 0) {
+        yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
+        yield finish('tool_calls');
+      } else yield finish();
+      return;
+    }
+    const handle = /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? 'ref:missing-1';
+    yield text(envelope(`${LONG} [1]`, [{ id: 1, source: handle }]));
+    yield finish();
+  };
+  const cited = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'cited' }), cited.deps));
+  assert(cited.rec.messages[0].sources.length > 0, 'the control must actually cite');
+  assert(!String(cited.rec.messages[0].content).includes('Unverified'));
+});

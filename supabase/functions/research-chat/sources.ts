@@ -24,7 +24,18 @@ export interface LadderFlags {
   prose_fallback: boolean;
   /** At least one marker named a source the model never had; it was stripped. */
   marker_source_mismatch: boolean;
-  /** A substantial answer ended with no sources at all. */
+  /**
+   * A substantial answer ended with no sources at all.
+   *
+   * This used to require that evidence had been retrieved, which excluded the
+   * turns that need it most. A real turn re-asked a question it had already
+   * answered, declined to search twice, and reproduced its own earlier answer
+   * word for word with the citation markers stripped off - 829 characters, zero
+   * sources, opening "The record shows". It obeyed the rule that an earlier
+   * turn's passages cannot be cited and ignored the rule that uncitable claims
+   * cannot be asserted, and the flag that exists to catch exactly that could not
+   * fire, because a turn that retrieved nothing has no evidence.
+   */
   uncited_claims: boolean;
 }
 
@@ -151,7 +162,7 @@ export function applyCitationLadder(input: LadderInput): LadderResult {
   const flags: LadderFlags = {
     prose_fallback: hadEvidence && resolvedBefore.length === 0 && final.sources.length > 0,
     marker_source_mismatch: claimedMarkers.some((n) => !byId.has(n)),
-    uncited_claims: hadEvidence && final.sources.length === 0 && answer.trim().length >= UNCITED_ANSWER_CHARS,
+    uncited_claims: final.sources.length === 0 && answer.trim().length >= UNCITED_ANSWER_CHARS,
   };
   return { answer, sources: final.sources, flags, recovered };
 }
