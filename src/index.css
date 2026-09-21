@@ -3255,6 +3255,24 @@ button.live-feed:hover { color: var(--fg); }
 }
 .ai-v2-model-btn.open { border-color: #93c5fd; background: var(--ai-blue-soft); }
 .ai-v2-model-btn svg:last-child { color: var(--ai-muted); }
+.ai-brand-ico {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  line-height: 0;
+}
+.ai-brand-ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  flex-shrink: 0;
+}
+.ai-v2-model-opt .ai-brand-ico {
+  margin-top: 2px;
+}
 .ai-v2-model-menu {
   position: absolute;
   left: 0;
