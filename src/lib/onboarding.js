@@ -1,111 +1,80 @@
-/** First-run tours — localStorage working copy; SQLite sync via userPrefsSync (A-15). */
-
+import { markPreferenceEdit } from './watchlistStore.js';
+/** Account-bound tours. Legacy keys are retained without reading or migrating them. */
 export const HOME_TOUR_KEY = 'niyOnboardHomeDone';
-const DESK_TOUR_PREFIX = 'niyTour:';
-const DESK_TOUR_INDEX = 'niyTourDesks';
+const KEY = 'niyTours';
+let owner = null;
+let ephemeral = { home: false, desks: {} };
+
+export function setToursOwner(identity) {
+  const next = typeof identity?.id === 'string' && identity.id && Number.isFinite(identity.expiresAt) && identity.expiresAt > Date.now()
+    ? { id: identity.id, expiresAt: identity.expiresAt } : null;
+  if (owner?.id !== next?.id) ephemeral = { home: false, desks: {} };
+  owner = next;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('niy-tours'));
+}
+
+function accountKey() {
+  if (owner && owner.expiresAt <= Date.now()) setToursOwner(null);
+  return owner ? `${KEY}:user:${encodeURIComponent(owner.id)}` : null;
+}
 
 function emitDirty() {
   try {
     window.dispatchEvent(new CustomEvent('niy-prefs-dirty', { detail: { kind: 'tours' } }));
-  } catch {
-    /* ignore */
-  }
-}
-
-function readDeskMap() {
-  try {
-    const raw = localStorage.getItem(DESK_TOUR_INDEX);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
-    }
-  } catch {
-    /* ignore */
-  }
-  // Migrate scattered niyTour:* keys into one map when present.
-  const desks = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(DESK_TOUR_PREFIX) && localStorage.getItem(k) === '1') {
-        desks[k.slice(DESK_TOUR_PREFIX.length)] = true;
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return desks;
-}
-
-function writeDeskMap(desks) {
-  localStorage.setItem(DESK_TOUR_INDEX, JSON.stringify(desks || {}));
+  } catch { /* non-browser */ }
 }
 
 export function readToursState() {
-  return {
-    home: isHomeTourDone(),
-    desks: readDeskMap(),
-  };
+  const key = accountKey();
+  if (!key) return ephemeral;
+  try {
+    const state = JSON.parse(localStorage.getItem(key) || 'null');
+    if (state && typeof state === 'object') {
+      return { home: state.home === true, desks: state.desks && typeof state.desks === 'object' && !Array.isArray(state.desks) ? state.desks : {} };
+    }
+  } catch { /* invalid owned cache */ }
+  return { home: false, desks: {} };
 }
 
-/** Apply server tours without re-pushing. Union with local (done wins). */
-export function applyToursFromServer(tours) {
-  if (!tours || typeof tours !== 'object') return readToursState();
-  const local = readToursState();
-  const home = Boolean(tours.home || local.home);
-  const desks = { ...local.desks, ...(tours.desks || {}) };
-  try {
-    if (home) localStorage.setItem(HOME_TOUR_KEY, '1');
-    writeDeskMap(desks);
-    for (const id of Object.keys(desks)) {
-      if (desks[id]) localStorage.setItem(`${DESK_TOUR_PREFIX}${id}`, '1');
-    }
-  } catch {
-    /* ignore */
+function writeTours(state, dirty = true) {
+  const key = accountKey();
+  if (key) {
+    if (dirty) markPreferenceEdit(owner.id, 'tours');
+    localStorage.setItem(key, JSON.stringify(state));
   }
-  return { home, desks };
+  else ephemeral = state;
+  return state;
+}
+
+/** Union only within the currently verified account; never import legacy tours. */
+export function applyToursFromServer(tours) {
+  const local = readToursState();
+  if (!accountKey() || !tours || typeof tours !== 'object') return local;
+  return writeTours({ home: Boolean(tours.home || local.home), desks: { ...local.desks, ...(tours.desks || {}) } }, false);
 }
 
 export function isHomeTourDone() {
-  try {
-    return localStorage.getItem(HOME_TOUR_KEY) === '1';
-  } catch {
-    return true;
-  }
+  return readToursState().home;
 }
 
 export function markHomeTourDone() {
-  try {
-    localStorage.setItem(HOME_TOUR_KEY, '1');
-    emitDirty();
-  } catch {
-    /* ignore */
-  }
+  writeTours({ ...readToursState(), home: true });
+  emitDirty();
 }
 
 export function isDeskTourDone(deskId) {
   const id = String(deskId || '').trim();
   if (!id || id === 'home') return true;
-  try {
-    if (localStorage.getItem(`${DESK_TOUR_PREFIX}${id}`) === '1') return true;
-    return Boolean(readDeskMap()[id]);
-  } catch {
-    return true;
-  }
+  const desks = readToursState().desks;
+  return Object.hasOwn(desks, id) && Boolean(desks[id]);
 }
 
 export function markDeskTourDone(deskId) {
   const id = String(deskId || '').trim();
   if (!id) return;
-  try {
-    localStorage.setItem(`${DESK_TOUR_PREFIX}${id}`, '1');
-    const desks = readDeskMap();
-    desks[id] = true;
-    writeDeskMap(desks);
-    emitDirty();
-  } catch {
-    /* ignore */
-  }
+  const state = readToursState();
+  writeTours({ ...state, desks: { ...state.desks, [id]: true } });
+  emitDirty();
 }
 
 export const HOME_TOUR_STEPS = [

@@ -2,24 +2,63 @@
  * A-15 — sync watchlist / AI chats / tours to SQLite via /api/user-prefs.
  * LocalStorage remains the working copy; server is the cross-device backup.
  */
-import { sessionUser } from './userStore.js';
-import { loadWatchlist, applyWatchlistFromServer, DEFAULT_WATCHLIST } from './watchlistStore.js';
-import { loadAiState, applyAiStateFromServer } from './aiChatStore.js';
-import { readToursState, applyToursFromServer } from './onboarding.js';
+import { verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { loadWatchlist, applyWatchlistFromServer, setWatchlistOwner, preferenceRevisions, acknowledgePreferenceEdits } from './watchlistStore.js';
+import { loadAiState, applyAiStateFromServer, setAiChatOwner } from './aiChatStore.js';
+import { readToursState, applyToursFromServer, setToursOwner } from './onboarding.js';
 
 const DIRTY = 'niy-prefs-dirty';
 let pushTimer = null;
 let hydrating = false;
-let lastEmail = '';
+let owner = null;
+let generation = 0;
+let subscribed = false;
 
-function emailOf() {
-  try {
-    return String(sessionUser()?.email || '')
-      .trim()
-      .toLowerCase();
-  } catch {
-    return '';
-  }
+let expiryTimer = null;
+let resumeTimer = null;
+let readyToPush = false;
+let pendingOwnerId = null;
+let pushing = false;
+let queuedWhilePushing = false;
+
+function bindStores(identity) {
+  setWatchlistOwner(identity);
+  setAiChatOwner(identity);
+  setToursOwner(identity);
+}
+
+function unbindAccount(keepPendingId = null) {
+  pendingOwnerId = keepPendingId;
+  queuedWhilePushing = false;
+  generation += 1;
+  clearTimeout(pushTimer);
+  clearTimeout(expiryTimer);
+  clearTimeout(resumeTimer);
+  hydrating = false;
+  readyToPush = false;
+  owner = null;
+  bindStores(null);
+}
+
+function bindAccount(identity) {
+  owner = identity;
+  bindStores(identity);
+  clearTimeout(expiryTimer);
+  expiryTimer = setTimeout(() => {
+    if (owner === identity) unbindAccount();
+  }, Math.max(0, identity.expiresAt - Date.now()));
+}
+
+function watchAccount() {
+  if (subscribed) return;
+  subscribeLocalIdentity((id, event) => {
+    const pending = id && owner?.id === id && pendingOwnerId === id ? id : null;
+    unbindAccount(pending);
+    // Auth callbacks stay synchronous. A refreshed session must be independently
+    // verified before showing owned data again; this deferred operation only GETs.
+    if (id && event && prefsSyncStarted) resumeTimer = setTimeout(() => { void hydrateUserPrefs(); }, 0);
+  });
+  subscribed = true;
 }
 
 function slimAiChats(state) {
@@ -54,91 +93,115 @@ function collectLocalPrefs() {
   };
 }
 
-export function schedulePrefsPush(kind) {
-  if (hydrating) return;
-  const email = emailOf();
-  if (!email) return;
+export function schedulePrefsPush() {
+  if (!owner) return;
+  pendingOwnerId = owner.id;
+  if (hydrating || !readyToPush) return;
   clearTimeout(pushTimer);
+  const expected = owner;
+  const version = generation;
   pushTimer = setTimeout(() => {
-    pushPrefs(kind).catch(() => {});
+    if (version === generation && owner === expected) void pushPrefs();
   }, 600);
 }
 
 export async function pushPrefs() {
-  const email = emailOf();
-  if (!email) return { ok: false, reason: 'no-session' };
-  const prefs = collectLocalPrefs();
+  watchAccount();
+  const expected = owner;
+  const version = generation;
+  if (!expected || hydrating || !readyToPush) return { ok: false, reason: 'not-ready' };
+  if (pushing) {
+    queuedWhilePushing = true;
+    return { ok: false, reason: 'busy' };
+  }
+  pushing = true;
+  queuedWhilePushing = false;
+  let saved = false;
   try {
+    const identity = await verifiedLocalIdentity();
+    if (!identity || version !== generation || owner !== expected || identity.id !== expected.id
+        || identity.email !== expected.email) return { ok: false, reason: 'session-changed' };
+    bindAccount(identity);
+    const revisions = preferenceRevisions(identity.id);
+    const local = collectLocalPrefs();
+    // Partial PUTs cannot erase another preference kind that has not hydrated.
+    const prefs = Object.fromEntries(Object.entries(local).filter(([kind]) => revisions[kind].dirty));
+    if (!Object.keys(prefs).length) return { ok: true, source: 'clean' };
     const res = await fetch('/api/user-prefs', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, ...prefs }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
+      body: JSON.stringify(prefs),
     });
     if (!res.ok) return { ok: false, reason: `http-${res.status}` };
+    if (!await localIdentityIsCurrent(identity) || version !== generation) return { ok: false, reason: 'session-changed' };
+    acknowledgePreferenceEdits(identity.id, revisions);
+    saved = true;
+    if (!Object.values(preferenceRevisions(identity.id)).some((value) => value.dirty)) pendingOwnerId = null;
     return { ok: true };
   } catch {
     return { ok: false, reason: 'offline' };
+  } finally {
+    const resumeQueued = queuedWhilePushing;
+    pushing = false;
+    queuedWhilePushing = false;
+    // Resume a newer verified generation whose debounce was blocked by this PUT.
+    // A failed request alone never starts a retry loop.
+    if ((resumeQueued || (saved && version === generation)) && readyToPush && owner
+        && pendingOwnerId === owner.id && Object.values(preferenceRevisions(owner.id)).some((value) => value.dirty)) schedulePrefsPush();
   }
 }
 
-/**
- * Pull server prefs into local stores. If server is empty, upload local once.
- */
+/** Hydrate clean fields; resume only recorded edits of this verified owner. */
 export async function hydrateUserPrefs(emailOverride) {
-  const email = String(emailOverride || emailOf())
-    .trim()
-    .toLowerCase();
-  if (!email) return { ok: false, reason: 'no-email' };
-  lastEmail = email;
+  watchAccount();
+  const identity = await verifiedLocalIdentity();
+  if (!identity) return { ok: false, reason: 'no-session' };
+  if (emailOverride != null && String(emailOverride).trim().toLowerCase() !== identity.email) {
+    return { ok: false, reason: 'wrong-account' };
+  }
+  const version = ++generation;
+  clearTimeout(pushTimer);
   hydrating = true;
+  readyToPush = false;
+  // Existing owned cache remains readable if the network request fails.
+  // New accounts see only their defaults; legacy unowned keys are never read.
+  bindAccount(identity);
+  const initialRevisions = preferenceRevisions(identity.id);
   try {
-    const res = await fetch(`/api/user-prefs?email=${encodeURIComponent(email)}`);
+    const res = await fetch('/api/user-prefs', { headers: { Authorization: `Bearer ${identity.token}` } });
     if (!res.ok) return { ok: false, reason: `http-${res.status}` };
     const body = await res.json();
-    const prefs = body?.prefs || {};
-    const hasServer =
-      (Array.isArray(prefs.watchlist) && prefs.watchlist.length) ||
-      (prefs.aiChats && Array.isArray(prefs.aiChats.chats) && prefs.aiChats.chats.length) ||
-      (prefs.tours && (prefs.tours.home || Object.keys(prefs.tours.desks || {}).length));
-
-    if (hasServer) {
-      if (Array.isArray(prefs.watchlist) && prefs.watchlist.length) {
-        applyWatchlistFromServer(prefs.watchlist);
-      }
-      if (prefs.aiChats && Array.isArray(prefs.aiChats.chats)) {
-        applyAiStateFromServer(prefs.aiChats);
-      }
-      if (prefs.tours) {
-        applyToursFromServer(prefs.tours);
-      }
-      return { ok: true, source: 'server' };
-    }
-
-    // Seed defaults into local if empty, then upload.
-    if (!loadWatchlist()?.length) {
-      applyWatchlistFromServer(DEFAULT_WATCHLIST);
-    }
-    hydrating = false;
-    await pushPrefs();
-    return { ok: true, source: 'local-upload' };
+    if (!await localIdentityIsCurrent(identity) || version !== generation) return { ok: false, reason: 'session-changed' };
+    if (!body.ok || body.email !== identity.email || !body.prefs || typeof body.prefs !== 'object') return { ok: false, reason: 'invalid-response' };
+    const prefs = body.prefs;
+    const currentRevisions = preferenceRevisions(identity.id);
+    const unchanged = (kind) => !initialRevisions[kind].dirty && !currentRevisions[kind].dirty
+      && initialRevisions[kind].revision === currentRevisions[kind].revision;
+    if (unchanged('watchlist') && Array.isArray(prefs.watchlist)) applyWatchlistFromServer(prefs.watchlist);
+    if (unchanged('aiChats') && prefs.aiChats && Array.isArray(prefs.aiChats.chats)) applyAiStateFromServer(prefs.aiChats);
+    if (unchanged('tours') && prefs.tours) applyToursFromServer(prefs.tours);
+    readyToPush = true;
+    if (Object.values(preferenceRevisions(identity.id)).some((value) => value.dirty)) pendingOwnerId = identity.id;
+    return { ok: true, source: 'server' };
   } catch {
     return { ok: false, reason: 'offline' };
   } finally {
-    hydrating = false;
+    if (version === generation) {
+      hydrating = false;
+      if (readyToPush && pendingOwnerId === owner?.id) schedulePrefsPush();
+    }
   }
 }
 
 /** Call once after app boot when authed. */
 let prefsSyncStarted = false;
 export function startUserPrefsSync() {
+  watchAccount();
   if (!prefsSyncStarted) {
     prefsSyncStarted = true;
     window.addEventListener(DIRTY, () => schedulePrefsPush());
   }
-  const email = emailOf();
-  if (email && email !== lastEmail) {
-    hydrateUserPrefs(email).catch(() => {});
-  }
+  if (!owner && !hydrating) void hydrateUserPrefs();
 }
 
 export function markPrefsDirty(kind) {

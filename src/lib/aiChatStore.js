@@ -1,5 +1,23 @@
+import { markPreferenceEdit } from './watchlistStore.js';
 const KEY = 'niyantranAiChats';
 const EVENT = 'niy-ai-chats';
+let owner = null;
+let ephemeral = { chats: [], activeId: '' };
+
+/** Account binding is supplied by the verified coordinator, never storage. */
+export function setAiChatOwner(identity) {
+  const next = typeof identity?.id === 'string' && identity.id && Number.isFinite(identity.expiresAt) && identity.expiresAt > Date.now()
+    ? { id: identity.id, expiresAt: identity.expiresAt } : null;
+  if (owner?.id !== next?.id) ephemeral = { chats: [], activeId: '' };
+  owner = next;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENT));
+}
+
+function accountKey() {
+  if (owner && owner.expiresAt <= Date.now()) setAiChatOwner(null);
+  return owner ? `${KEY}:user:${encodeURIComponent(owner.id)}` : null;
+}
+
 const MAX_CHATS = 40;
 const MAX_ATTACH = 12;
 
@@ -9,7 +27,9 @@ function uid() {
 
 function read() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const key = accountKey();
+    if (!key) return ephemeral;
+    const raw = localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : null;
     if (parsed && Array.isArray(parsed.chats)) return parsed;
   } catch {
@@ -19,10 +39,16 @@ function read() {
 }
 
 function write(state) {
+  const key = accountKey();
   const chats = (state.chats || []).slice(0, MAX_CHATS);
   const activeId = chats.some((c) => c.id === state.activeId) ? state.activeId : chats[0]?.id || '';
   const next = { chats, activeId };
-  localStorage.setItem(KEY, JSON.stringify(next));
+  if (key !== accountKey()) return read();
+  if (key) {
+    markPreferenceEdit(owner.id, 'aiChats');
+    localStorage.setItem(key, JSON.stringify(next));
+  }
+  else ephemeral = next;
   window.dispatchEvent(new Event(EVENT));
   try {
     window.dispatchEvent(new CustomEvent('niy-prefs-dirty', { detail: { kind: 'aiChats' } }));
@@ -34,11 +60,13 @@ function write(state) {
 
 /** Server hydrate — no dirty push. */
 export function applyAiStateFromServer(state) {
-  if (!state || !Array.isArray(state.chats)) return read();
+  if (!accountKey() || !state || !Array.isArray(state.chats)) return read();
   const chats = state.chats.slice(0, MAX_CHATS);
   const activeId = chats.some((c) => c.id === state.activeId) ? state.activeId : chats[0]?.id || '';
   const next = { chats, activeId };
-  localStorage.setItem(KEY, JSON.stringify(next));
+  const key = accountKey();
+  if (!key) return read();
+  localStorage.setItem(key, JSON.stringify(next));
   window.dispatchEvent(new Event(EVENT));
   return next;
 }

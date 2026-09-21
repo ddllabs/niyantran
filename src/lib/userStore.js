@@ -1,9 +1,7 @@
 import { DEFAULT_USER_TYPE, userTypeOf } from './userTypes.js';
 import { frontendPersona } from './personaMap.js';
-import { aiBackend } from './aiBackend.js';
 import { supabase } from './supabaseClient.js';
 
-const KEY = 'niyantranUsers';
 const EVENT = 'niy-users';
 const SESSION_KEY = 'niyantranUser';
 
@@ -35,19 +33,6 @@ export const SEED_STUDENT = {
   createdAt: '2026-01-15T00:00:00.000Z',
 };
 
-function readRaw() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const list = JSON.parse(raw);
-      if (Array.isArray(list)) return list;
-    }
-  } catch {
-    /* empty */
-  }
-  return null;
-}
-
 function normalize(user) {
   if (!user || typeof user !== 'object') return null;
   const type = userTypeOf(user.type || user.personaId).id;
@@ -75,90 +60,186 @@ function withSeeds(list) {
   return out.map(normalize).filter(Boolean);
 }
 
-function mergeByEmail(a, b) {
-  const map = new Map();
-  for (const u of [...(a || []), ...(b || [])]) {
-    const n = normalize(u);
-    if (!n?.email) continue;
-    const prev = map.get(n.email);
-    if (!prev) {
-      map.set(n.email, n);
-      continue;
+// Protected data stays in memory and is invalidated on every Auth event.
+// Legacy browser storage is never proof of identity or input to a bulk upload.
+let usersCache = null;
+let usersExpiresAt = 0;
+let usersSnapshot = null;
+let directoryMutationPending = false;
+let directoryReadSequence = 0;
+let directoryMutationVersion = 0;
+let identityEpoch = 0;
+let authWatched = false;
+let locallySignedOut = false;
+let observedId = null;
+const identityListeners = new Set();
+
+function identityChanged(id, event = null) {
+  observedId = id;
+  identityEpoch += 1;
+  usersCache = null;
+  usersSnapshot = null;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENT));
+  for (const listener of identityListeners) listener(id, event);
+}
+
+function watchIdentity() {
+  if (authWatched) return;
+  supabase.auth.onAuthStateChange((event, session) => {
+    // Keep callbacks synchronous; never call another Auth method here.
+    identityChanged(session?.user?.id || null, event);
+  });
+  authWatched = true;
+}
+
+export function subscribeLocalIdentity(listener) {
+  watchIdentity();
+  identityListeners.add(listener);
+  return () => identityListeners.delete(listener);
+}
+
+function validSession(session) {
+  return Boolean(session?.access_token && session.user?.id
+    && Number.isFinite(session.expires_at) && session.expires_at * 1000 > Date.now());
+}
+
+export async function localIdentityIsCurrent(identity) {
+  try {
+    const result = await supabase.auth.getSession();
+    const session = result.data?.session;
+    if (!result.error && validSession(session) && identity.expiresAt > Date.now() && identity.epoch === identityEpoch
+        && session.access_token === identity.token && session.user.id === identity.id) return true;
+  } catch { /* fail closed */ }
+  if (identity.epoch === identityEpoch) identityChanged(null);
+  return false;
+}
+
+/** Verify identity and current profile before a local protected request. */
+async function verifyLocalIdentity({ admin = false, resumeSession = null } = {}) {
+  let epoch = identityEpoch;
+  try {
+    watchIdentity();
+    epoch = identityEpoch;
+    const initial = await supabase.auth.getSession();
+    const session = initial.data?.session;
+    if ((locallySignedOut && !resumeSession) || initial.error || !validSession(session)) throw new Error('No session');
+    if (resumeSession && (session.access_token !== resumeSession.access_token || session.user.id !== resumeSession.user?.id)) throw new Error('Sign-in changed');
+    const verified = await supabase.auth.getUser(session.access_token);
+    const user = verified.data?.user;
+    if (verified.error || user?.id !== session.user.id || !user.email?.trim()) throw new Error('Unverified');
+    const profile = await supabase.rpc('get_my_profile');
+    if (profile.error || profile.data?.user_id !== user.id || profile.data.status !== 'active') throw new Error('Inactive');
+    if (admin) {
+      const authority = await supabase.rpc('is_platform_admin');
+      if (authority.error || authority.data !== true || profile.data.role !== 'admin') throw new Error('Not admin');
     }
-    const newer = String(n.createdAt || '') >= String(prev.createdAt || '') ? n : prev;
-    map.set(n.email, { ...prev, ...newer, email: n.email });
-  }
-  // Demo seats always keep known passwords so a stale localStorage can't lock you out.
-  const seeds = [SEED_USER, SEED_STUDENT];
-  for (const s of seeds) {
-    const cur = map.get(s.email);
-    if (!cur) {
-      map.set(s.email, normalize(s));
-      continue;
+    const identity = { id: user.id, email: user.email.trim().toLowerCase(), token: session.access_token, epoch, expiresAt: session.expires_at * 1000 };
+    if (!await localIdentityIsCurrent(identity)) return null;
+    if (observedId !== identity.id) {
+      identityChanged(identity.id);
+      identity.epoch = identityEpoch;
     }
-    map.set(s.email, {
-      ...cur,
-      id: s.id,
-      email: s.email,
-      password: s.password,
-      type: cur.type || s.type,
-      active: cur.active !== false,
-    });
+    return identity;
+  } catch {
+    if (epoch === identityEpoch) identityChanged(null);
+    return null;
   }
-  return withSeeds([...map.values()]);
+}
+
+export async function verifiedLocalIdentity(options = {}) {
+  return verifyLocalIdentity({ admin: options.admin === true });
+}
+
+/** Call only after a deliberate signInWithPassword success, passing its session.
+ * Cached sessions and passive Auth events must never resume a local logout.
+ * The supplied session is independently verified before the latch is reopened.
+ */
+export async function resumeLocalIdentityAfterSignIn(session) {
+  if (!validSession(session)) return null;
+  const identity = await verifyLocalIdentity({ resumeSession: session });
+  if (identity) locallySignedOut = false;
+  return identity;
+}
+
+function currentDirectory() {
+  if (locallySignedOut || !usersSnapshot || usersSnapshot.rows !== usersCache
+      || usersSnapshot.identity.epoch !== identityEpoch || usersExpiresAt <= Date.now()) return null;
+  return usersSnapshot;
+}
+
+function directoryIsCurrent(snapshot, identity) {
+  return currentDirectory() === snapshot && snapshot.identity.id === identity.id
+    && snapshot.identity.epoch === identity.epoch;
 }
 
 export function loadUsers() {
-  const saved = readRaw();
-  const list = withSeeds(saved && saved.length ? saved : [SEED_USER, SEED_STUDENT]);
-  // Keep demo passwords stable even if localStorage was polluted.
-  return list.map((u) => {
-    if (u.email === SEED_USER.email) return { ...u, password: SEED_USER.password, id: SEED_USER.id };
-    if (u.email === SEED_STUDENT.email) return { ...u, password: SEED_STUDENT.password, id: SEED_STUDENT.id };
-    return u;
-  });
+  if (usersExpiresAt <= Date.now()) usersCache = null;
+  return usersCache ? usersCache.map((user) => ({ ...user })) : withSeeds([]);
 }
 
-async function pushUsersToServer(users) {
+function publishUsers(users, identity) {
+  usersExpiresAt = identity.expiresAt;
+  usersCache = users.map((user) => toPublicUser(user)).filter(Boolean);
+  usersSnapshot = { rows: usersCache, identity };
+  window.dispatchEvent(new Event(EVENT));
+  return loadUsers();
+}
+
+/** Pull the authoritative server list; hydration never writes or unions it. */
+export async function hydrateUsersFromServer() {
+  const readSequence = ++directoryReadSequence;
+  const mutationVersion = directoryMutationVersion;
+  const readIsCurrent = () => readSequence === directoryReadSequence
+    && mutationVersion === directoryMutationVersion && !directoryMutationPending;
+  if (!readIsCurrent()) return [];
+  const identity = await verifiedLocalIdentity({ admin: true });
+  if (!identity || !readIsCurrent()) return [];
   try {
-    await fetch('/api/users', {
+    const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${identity.token}` } });
+    if (!res.ok) throw new Error('Read failed');
+    const body = await res.json();
+    if (!body.ok || !Array.isArray(body.users)) throw new Error('Invalid users');
+    if (!await localIdentityIsCurrent(identity) || !readIsCurrent()) return [];
+    return publishUsers(body.users, identity);
+  } catch {
+    // An old failed read cannot invalidate a newer read or completed mutation.
+    if (identity.epoch === identityEpoch && readIsCurrent()) identityChanged(null);
+    return [];
+  }
+}
+
+async function pushUsersToServer(users, snapshot) {
+  let identity;
+  try {
+    identity = await verifiedLocalIdentity({ admin: true });
+    // Verification may await an account switch, refresh or another directory
+    // response. Never send a replacement derived from an invalidated snapshot.
+    if (!identity || !directoryIsCurrent(snapshot, identity)) return { ok: false };
+    const res = await fetch('/api/users', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
       body: JSON.stringify({ users }),
     });
+    if (!res.ok) throw new Error('Write failed');
+    const body = await res.json();
+    if (!body.ok || !Array.isArray(body.users) || !await localIdentityIsCurrent(identity)
+        || !directoryIsCurrent(snapshot, identity)) return { ok: false };
+    publishUsers(body.users, identity);
+    return { ok: true };
   } catch {
-    /* offline / no plugin */
+    if (identity?.epoch === identityEpoch) identityChanged(null);
+    return { ok: false };
+  } finally {
+    directoryMutationPending = false;
   }
 }
 
-/** Pull server seats into localStorage (fixes localhost vs 127.0.0.1 split). */
-export async function hydrateUsersFromServer() {
-  const local = loadUsers();
-  try {
-    const res = await fetch('/api/users');
-    if (!res.ok) return local;
-    const body = await res.json().catch(() => ({}));
-    const remote = Array.isArray(body?.users) ? body.users : [];
-    if (!remote.length) {
-      await pushUsersToServer(local);
-      return local;
-    }
-    const merged = mergeByEmail(remote, local);
-    localStorage.setItem(KEY, JSON.stringify(merged));
-    window.dispatchEvent(new Event(EVENT));
-    // Persist union so the other origin sees issued seats too
-    await pushUsersToServer(merged);
-    return merged;
-  } catch {
-    return local;
-  }
-}
-
-export function saveUsers(users) {
-  const list = withSeeds(users.map(normalize).filter(Boolean));
-  localStorage.setItem(KEY, JSON.stringify(list));
-  window.dispatchEvent(new Event(EVENT));
-  pushUsersToServer(list);
+export function saveUsers(users, snapshot = currentDirectory()) {
+  if (!snapshot || snapshot !== currentDirectory() || directoryMutationPending) return [];
+  const list = users.map(normalize).filter(Boolean);
+  directoryMutationPending = true;
+  directoryMutationVersion += 1;
+  void pushUsersToServer(list, snapshot);
   return list;
 }
 
@@ -185,12 +266,12 @@ export function toPublicUser(user, typeOverride) {
 /**
  * Session bridge (foundation spec §A): a Supabase Auth user plus its
  * user_profiles row, mapped onto the public user shape every consumer of
- * this store already understands. `extras` carries client-side plan and
- * trial fields chosen at signup, which stay client-side until billing moves.
+ * this store already understands. Extras may supply presentation preferences;
+ * account authority and entitlements come only from the matching profile.
  */
 export function userFromSupabase(supabaseUser, profile, extras = {}) {
   if (!supabaseUser?.id) return null;
-  const p = profile || {};
+  const p = profile?.user_id === supabaseUser.id ? profile : {};
   const persona = frontendPersona(p.persona) || extras.personaId || DEFAULT_USER_TYPE;
   const type = userTypeOf(persona).id;
   const email = String(supabaseUser.email || p.email || '').trim().toLowerCase();
@@ -200,14 +281,14 @@ export function userFromSupabase(supabaseUser, profile, extras = {}) {
       id: supabaseUser.id,
       name,
       email,
-      plan: extras.plan || p.plan || 'explorer',
-      planStatus: extras.planStatus,
-      trialEndsAt: extras.trialEndsAt,
-      billingYearly: extras.billingYearly,
+      plan: p.plan || 'explorer',
+      planStatus: p.plan_status,
+      trialEndsAt: p.trial_ends_at,
+      billingYearly: p.billing_yearly,
       type,
       personaId: type,
       role: p.role || 'user',
-      active: p.status !== 'suspended' && p.status !== 'inactive',
+      active: p.status === 'active',
       createdAt: p.created_at || supabaseUser.created_at || new Date().toISOString(),
       onboardingComplete: Boolean(p.onboarding_complete),
       supabase: true,
@@ -246,7 +327,9 @@ export function authenticateUser(loginId, password) {
 }
 
 export function createUser({ name, email, password, plan, type, personaId, planStatus, trialEndsAt, billingYearly }) {
-  const users = loadUsers();
+  const snapshot = currentDirectory();
+  if (!snapshot || directoryMutationPending) return { ok: false, reason: 'Reload the verified admin directory before editing.' };
+  const users = snapshot.rows;
   const cleanEmail = String(email || '')
     .trim()
     .toLowerCase()
@@ -273,12 +356,14 @@ export function createUser({ name, email, password, plan, type, personaId, planS
     active: true,
     createdAt: new Date().toISOString(),
   });
-  saveUsers([next, ...users]);
+  saveUsers([next, ...users], snapshot);
   return { ok: true, user: next };
 }
 
 export function updateUser(id, patch) {
-  const users = loadUsers().map((u) => {
+  const snapshot = currentDirectory();
+  if (!snapshot || directoryMutationPending || !snapshot.rows.some((user) => user.id === id)) return { ok: false, reason: 'User not found in the current admin directory.' };
+  const users = snapshot.rows.map((u) => {
     if (u.id !== id) return u;
     const next = { ...u, ...patch, id: u.id, email: u.email };
     if (patch.type != null || patch.personaId != null) {
@@ -288,14 +373,17 @@ export function updateUser(id, patch) {
     }
     return next;
   });
-  saveUsers(users);
+  saveUsers(users, snapshot);
+  return { ok: true };
 }
 
 export function removeUser(id) {
   if (id === SEED_USER.id || id === SEED_STUDENT.id) {
     return { ok: false, reason: 'Seed accounts cannot be removed.' };
   }
-  saveUsers(loadUsers().filter((u) => u.id !== id));
+  const snapshot = currentDirectory();
+  if (!snapshot || directoryMutationPending || !snapshot.rows.some((user) => user.id === id)) return { ok: false, reason: 'User not found in the current admin directory.' };
+  saveUsers(snapshot.rows.filter((u) => u.id !== id), snapshot);
   return { ok: true };
 }
 
@@ -328,11 +416,18 @@ export function sessionUser() {
   return toPublicUser(SEED_USER);
 }
 
-export function clearSessionUser() {
+/** Synchronous local invalidation; callers own their single SDK signOut call. */
+export function invalidateLocalSession() {
+  locallySignedOut = true;
+  identityChanged(null);
   sessionStorage.removeItem('niyantranAuthed');
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem('niyantranLand');
-  if (aiBackend() === 'supabase' && supabase) {
-    supabase.auth.signOut().catch(() => {});
+}
+
+export function clearSessionUser() {
+  invalidateLocalSession();
+  if (supabase) {
+    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
   }
 }
