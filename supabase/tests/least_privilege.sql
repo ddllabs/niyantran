@@ -81,7 +81,7 @@ BEGIN
       PERFORM pg_temp.check(NOT has_column_privilege('service_role',relation,c.attname,'REFERENCES'),r.name||'.'||c.attname||': no historical service REFERENCES');
       FOREACH privilege IN ARRAY ARRAY['SELECT','INSERT','UPDATE','REFERENCES'] LOOP
         allowed := privilege = ANY(r.verbs)
-          OR (r.name='user_profiles' AND privilege='UPDATE' AND c.attname = ANY(ARRAY['first_name','last_name','phone_e164','department','job_title','persona','practice_area','jurisdiction','language','onboarding_complete','updated_at']))
+          OR (r.name='user_profiles' AND privilege='UPDATE' AND c.attname = ANY(ARRAY['first_name','last_name','phone_number','department','persona','practice_area','jurisdiction','language','onboarding_complete','updated_at']))
           OR (r.name='chat_messages' AND privilege='INSERT' AND c.attname = ANY(ARRAY['id','conversation_id','user_id','role','content','turn_key']));
         PERFORM pg_temp.check(NOT has_column_privilege('anon',relation,c.attname,privilege),r.name||'.'||c.attname||': anon lacks '||privilege);
         PERFORM pg_temp.check(has_column_privilege('authenticated',relation,c.attname,privilege)=allowed,r.name||'.'||c.attname||': authenticated '||privilege||' matches column matrix');

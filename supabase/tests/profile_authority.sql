@@ -43,7 +43,7 @@ UPDATE public.user_profiles SET role = 'admin'
 WHERE user_id = '00000000-0000-4000-8000-000000000003';
 UPDATE public.user_profiles SET status = 'suspended'
 WHERE user_id = '00000000-0000-4000-8000-000000000004';
-UPDATE public.user_profiles SET phone_e164 = '+12025550101',
+UPDATE public.user_profiles SET phone_number = '+12025550101',
   phone_verified = true, phone_verified_at = '2026-09-01T00:00:00Z'
 WHERE user_id = '00000000-0000-4000-8000-000000000001';
 DELETE FROM public.user_profiles
@@ -97,7 +97,7 @@ SELECT pg_temp.denied($q$DELETE FROM public.user_profiles WHERE user_id = auth.u
   'client cannot delete profile to recreate it');
 
 UPDATE public.user_profiles SET first_name = 'Updated', last_name = 'Person',
-  department = 'Research', job_title = 'Analyst', persona = 'academic',
+  department = 'Research', persona = 'academic',
   practice_area = 'policy', jurisdiction = 'India', language = 'hi',
   onboarding_complete = true, updated_at = '2000-01-01T00:00:00Z'
 WHERE user_id = auth.uid();
@@ -105,8 +105,8 @@ SELECT pg_temp.assert_true((SELECT first_name = 'Updated' AND persona = 'academi
   AND language = 'hi' AND onboarding_complete AND updated_at = now()
   AND phone_verified FROM public.get_my_profile()), 'personal fields work; timestamp maintained; verification retained');
 
-UPDATE public.user_profiles SET phone_e164 = '+12025550102' WHERE user_id = auth.uid();
-SELECT pg_temp.assert_true((SELECT phone_e164 = '+12025550102'
+UPDATE public.user_profiles SET phone_number = '+12025550102' WHERE user_id = auth.uid();
+SELECT pg_temp.assert_true((SELECT phone_number = '+12025550102'
   AND NOT phone_verified AND phone_verified_at IS NULL FROM public.get_my_profile()),
   'changing phone clears prior verification');
 

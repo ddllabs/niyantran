@@ -10,7 +10,7 @@ SET search_path = ''
 AS $$
 DECLARE
     personal_columns constant text[] := ARRAY[
-        'first_name', 'last_name', 'phone_e164', 'department', 'job_title',
+        'first_name', 'last_name', 'phone_number', 'department',
         'persona', 'practice_area', 'jurisdiction', 'language',
         'onboarding_complete', 'updated_at'
     ];
@@ -34,7 +34,7 @@ BEGIN
             USING ERRCODE = '42501';
     END IF;
 
-    IF NEW.phone_e164 IS DISTINCT FROM OLD.phone_e164 THEN
+    IF NEW.phone_number IS DISTINCT FROM OLD.phone_number THEN
         NEW.phone_verified := false;
         NEW.phone_verified_at := NULL;
     END IF;
@@ -64,7 +64,7 @@ $$;
 
 GRANT SELECT ON public.user_profiles TO authenticated;
 GRANT UPDATE (
-    first_name, last_name, phone_e164, department, job_title, persona,
+    first_name, last_name, phone_number, department, persona,
     practice_area, jurisdiction, language, onboarding_complete, updated_at
 ) ON public.user_profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_profiles TO service_role;
