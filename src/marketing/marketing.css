@@ -978,7 +978,23 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 /* Even hex orbit around globe centre (50%, 48%) */
 .mkt-pchip.c1 { left: 22%; top: 16%; } /* Policy Analyst — NW */
-.mkt-pchip.c2 { left: 78%; top: 16%; } /* Journalist — NE */
+.mkt-pchip.c2 {
+  left: 78%;
+  top: 16%;
+  /* Journalist — slightly shorter chip */
+  padding: 5px 10px 5px 5px;
+  min-height: 0;
+  line-height: 1.15;
+}
+.mkt-pchip.c2 i {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.mkt-pchip.c2 .lab {
+  font-size: 11.5px;
+  line-height: 1.15;
+}
 .mkt-pchip.c3 { left: 8%;  top: 48%; } /* UPSC — W */
 .mkt-pchip.c4 { left: 92%; top: 48%; } /* Corporate Affairs — E */
 .mkt-pchip.c5 { left: 22%; top: 80%; } /* Legal Researcher — SW */
