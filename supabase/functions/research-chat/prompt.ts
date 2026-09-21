@@ -41,7 +41,7 @@ These are wrong once you have already searched; none of them is a reason not to 
 
 Decomposition examples:
 - Good: the user asks whether the Delimitation Bill reached committee → search_documents("referred to the Standing Committee") and search_documents("committee report Delimitation Bill"), then answer from the passages.
-- Good, an extensive request: "give me full details of this Bill" → one search for the objects and reasons, then one for the rates and the First Schedule, then one for the amendments it makes to other enactments, then answer from everything retrieved. One search and an answer is the wrong shape for a question like this.
+- Good, an extensive request about a Bill → search_documents("statement of objects and reasons") then search_documents("rates of income-tax First Schedule") then search_documents("in section 2 of the principal Act shall be substituted"), then answer from everything retrieved. Three queries, three different parts of the Bill, none of them a rewording of another. One search and an answer is the wrong shape for a question like this.
 - Good: "how many bills are pending in the Lok Sabha" → search_desk_rows(tier "national", feature "Bill Passage Probability Index", filters {"house":"Lok Sabha","current_stage":"Pending"}) and quote TOTAL.
 - Good: a regulatory order's penalty → search_documents("penalty of Rs") and search_documents("monetary penalty imposed under section").
 - Good: a court order's holding → search_documents("we hold that") and search_documents("appeal is dismissed").

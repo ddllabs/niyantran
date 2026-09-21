@@ -70,6 +70,12 @@ const text = (t: string): ModelEvent => ({ type: 'text', text: t });
 
 /** A research attempt that calls no tool, so the loop moves straight to the answer. */
 const NO_RESEARCH: ModelEvent[] = [finish('stop')];
+/** A record question that retrieves nothing is pressed to search once before it
+ * may answer, so a model that declines research spends two passes, not one.
+ * Scripts that mean "skip research" spread this; scripts whose earlier attempt
+ * already searched keep a single NO_RESEARCH, because the press is spent only
+ * when the turn has retrieved nothing at all. */
+const DECLINES: ModelEvent[][] = [NO_RESEARCH, NO_RESEARCH];
 
 function chunk(id: string): Chunk {
   return {
@@ -276,7 +282,7 @@ Deno.test('a model that is not an enabled row is refused before any provider cal
 });
 
 Deno.test('a plain answer streams as chunks, persists, and reports sources, timing and done in order', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Hello — what would you like to check?')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Hello — what would you like to check?')), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   const got = await frames(await handleResearchChat(post(BODY), deps));
   const order = got.map(keyOf);
@@ -297,7 +303,7 @@ Deno.test('a plain answer streams as chunks, persists, and reports sources, timi
 });
 
 Deno.test('the same turn_key twice answers duplicate before any provider call', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('First')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('First')), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post(BODY), deps));
   const second = await frames(await handleResearchChat(post(BODY), deps));
@@ -306,7 +312,7 @@ Deno.test('the same turn_key twice answers duplicate before any provider call', 
   assert(second.some((f) => 'done' in f && f.done.message_id === 'msg-1'));
   assertEquals(rec.userMessages.length, 1);
   assertEquals(rec.messages.length, 1, 'no second assistant row');
-  assertEquals(provider.seen.length, 2, 'the second send made no further provider call');
+  assertEquals(provider.seen.length, 3, 'the second send made no further provider call');
 });
 
 Deno.test('a retrieved passage becomes a numbered citation the answer can carry', async () => {
@@ -341,7 +347,7 @@ Deno.test('a retrieved passage becomes a numbered citation the answer can carry'
 });
 
 Deno.test('503 on the first model hands over to the next in the chain and says so', async () => {
-  const swap = scripted([new ProviderError(503, 'upstream unavailable'), NO_RESEARCH, [
+  const swap = scripted([new ProviderError(503, 'upstream unavailable'), ...DECLINES, [
     text(envelope('Answered by the second model.')),
     finish(),
   ]]);
@@ -383,7 +389,7 @@ Deno.test('a failure after answer text has reached the reader never swaps model'
 Deno.test('a response_format rejection retries the same model once with the schema dropped', async () => {
   const provider = scripted([
     new ProviderError(400, '{"error":{"message":"response_format is not supported by this endpoint"}}'),
-    NO_RESEARCH,
+    ...DECLINES,
     [text(envelope('Answered without the schema.')), finish()],
   ]);
   const { deps, rec } = fakeDeps(provider);
@@ -419,7 +425,7 @@ Deno.test('a cancellation persists what streamed as cancelled and clears the req
 });
 
 Deno.test('a selection the server can confirm becomes a citable row; one it cannot stays user-supplied', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('The row says Lok Sabha.')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('The row says Lok Sabha.')), finish()]]);
   const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(storedRow()) });
   await frames(
     await handleResearchChat(
@@ -438,7 +444,7 @@ Deno.test('a selection the server can confirm becomes a citable row; one it cann
   assertStringIncludes(system, 'Selected record ref:');
   assertStringIncludes(system, 'THE DELIMITATION BILL, 2026.');
 
-  const p2 = scripted([NO_RESEARCH, [text(envelope('No stored row.')), finish()]]);
+  const p2 = scripted([...DECLINES, [text(envelope('No stored row.')), finish()]]);
   const { deps: d2 } = fakeDeps(p2);
   await frames(
     await handleResearchChat(
@@ -459,7 +465,7 @@ Deno.test('a selection the server can confirm becomes a citable row; one it cann
 });
 
 Deno.test('attachments are rendered without a handle, so nothing in them can pose as a citation', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Read the attachment.')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Read the attachment.')), finish()]]);
   const { deps } = fakeDeps(provider);
   await frames(
     await handleResearchChat(
@@ -506,19 +512,19 @@ Deno.test('failoverChain is the requested model, the default, then the cheapest 
 });
 
 Deno.test('D3: retry without conversation_id cannot spend twice under real conversation/turn uniqueness', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('First')), finish()], NO_RESEARCH, [
+  const provider = scripted([...DECLINES, [text(envelope('First')), finish()], ...DECLINES, [
     text(envelope('Second')),
     finish(),
   ]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post(BODY), deps));
   await frames(await handleResearchChat(post(BODY), deps));
-  assertEquals(provider.seen.length, 2, 'a replay must not run another research+answer pair');
+  assertEquals(provider.seen.length, 3, 'a replay must not run another research+answer pair');
   assertEquals(rec.conversations, 1);
 });
 
 Deno.test('D3: changed payload under the same owned turn key conflicts rather than reporting duplicate', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('First')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('First')), finish()]]);
   const { deps } = fakeDeps(provider);
   await frames(
     await handleResearchChat(post({ ...BODY, conversation_id: 'f0000000-0000-4000-8000-000000000001' }), deps),
@@ -554,7 +560,7 @@ Deno.test('D3: terminal mid-answer failure persists the visible partial answer a
 });
 
 Deno.test('D3: exhausted length continuations persist truncated status', async () => {
-  const provider = scripted([NO_RESEARCH, [text('{"answer":"Part one'), finish('length')], [
+  const provider = scripted([...DECLINES, [text('{"answer":"Part one'), finish('length')], [
     text(' part two'),
     finish('length'),
   ], [text(' part three'), finish('length')]]);
@@ -567,7 +573,7 @@ Deno.test('D3: exhausted length continuations persist truncated status', async (
 });
 
 Deno.test('D3: a supplied conversation hidden by ownership must not silently create another', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Unexpected')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Unexpected')), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   deps.persistence.claim = async () => ({ kind: 'not_found' });
   await frames(
@@ -642,7 +648,7 @@ Deno.test('D3: concurrent sends share one reservation and only one executor', as
 });
 
 Deno.test('D3: terminal replay precedes allowlist and default selection and excludes private execution tokens', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Original answer', [], ['Next question?'])), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Original answer', [], ['Next question?'])), finish()]]);
   const { deps } = fakeDeps(provider);
   await frames(await handleResearchChat(post(BODY), deps));
   deps.models = () => {
@@ -654,11 +660,11 @@ Deno.test('D3: terminal replay precedes allowlist and default selection and excl
   assertStringIncludes(body, 'Next question?');
   assertEquals(body.includes('private-'), false);
   assertEquals(body.includes('execution_token'), false);
-  assertEquals(provider.seen.length, 2);
+  assertEquals(provider.seen.length, 3);
 });
 
 Deno.test('D3: same turn key is independent across verified owners', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('First')), finish()], NO_RESEARCH, [
+  const provider = scripted([...DECLINES, [text(envelope('First')), finish()], NO_RESEARCH, [
     text(envelope('Second')),
     finish(),
   ]]);
@@ -666,7 +672,7 @@ Deno.test('D3: same turn key is independent across verified owners', async () =>
   await frames(await handleResearchChat(post(BODY), deps));
   deps.requireUser = () => Promise.resolve({ userId: 'second-user', token: 'other-jwt' });
   await frames(await handleResearchChat(post(BODY), deps));
-  assertEquals(provider.seen.length, 4);
+  assertEquals(provider.seen.length, 6);
   assertEquals(rec.messages.length, 2);
   assertEquals(rec.conversations, 2);
 });
@@ -694,7 +700,7 @@ Deno.test('D3: denied, deleted and conflicting claims never execute a provider',
 });
 
 Deno.test('D3: new running reservation does not enter history or drop the prior assistant answer', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Answer')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Answer')), finish()]]);
   const { deps } = fakeDeps(provider, {}, {
     recentMessages: (_id, excluded) => {
       assertEquals(excluded, ['user-1', 'msg-1']);
@@ -706,7 +712,7 @@ Deno.test('D3: new running reservation does not enter history or drop the prior 
 });
 
 Deno.test('D3: failed final persistence never emits successful done', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Visible')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Visible')), finish()]]);
   const { deps } = fakeDeps(provider);
   deps.persistence.finalize = () => Promise.reject(new Error('private database failure'));
   const got = await frames(await handleResearchChat(post(BODY), deps));
@@ -785,7 +791,7 @@ Deno.test('D4: malformed, empty and trailing-garbage completed envelopes are err
       envelope('Visible') + ' garbage',
     ]
   ) {
-    const provider = scripted([NO_RESEARCH, [text(answer), finish()]]);
+    const provider = scripted([...DECLINES, [text(answer), finish()]]);
     const { deps, rec } = fakeDeps(provider);
     const got = await frames(await handleResearchChat(post(BODY), deps));
     assertEquals(rec.messages[0].status, 'error', answer);
@@ -796,7 +802,7 @@ Deno.test('D4: malformed, empty and trailing-garbage completed envelopes are err
 });
 Deno.test('D4: filtered and unexpected provider finishes cannot complete an answer', async () => {
   for (const reason of ['content_filter', 'error', 'unexpected', 'tool_calls']) {
-    const provider = scripted([NO_RESEARCH, [text(envelope('Visible answer')), finish(reason)]]);
+    const provider = scripted([...DECLINES, [text(envelope('Visible answer')), finish(reason)]]);
     const { deps, rec } = fakeDeps(provider);
     const got = await frames(await handleResearchChat(post(BODY), deps));
     assertEquals(rec.messages[0].status, 'error', reason);
@@ -806,7 +812,7 @@ Deno.test('D4: filtered and unexpected provider finishes cannot complete an answ
 });
 Deno.test('D4: finalizer result is the authority for displayed content and terminal frames', async () => {
   const { deps, rec } = fakeDeps(
-    scripted([NO_RESEARCH, [text(envelope('Executor answer', [], ['Executor follow-up'])), finish()]]),
+    scripted([...DECLINES, [text(envelope('Executor answer', [], ['Executor follow-up'])), finish()]]),
   );
   const finalize = deps.persistence.finalize;
   deps.persistence.finalize = (owner, key, token, result) =>
@@ -826,7 +832,7 @@ Deno.test('D4: finalizer result is the authority for displayed content and termi
   assertEquals(got.at(-1), { done: { message_id: 'msg-1' } });
 });
 Deno.test('D4: failed persistence never publishes terminal sources, followups or timing', async () => {
-  const { deps } = fakeDeps(scripted([NO_RESEARCH, [text(envelope('Answer', [], ['Next?'])), finish()]]));
+  const { deps } = fakeDeps(scripted([...DECLINES, [text(envelope('Answer', [], ['Next?'])), finish()]]));
   deps.persistence.finalize = () => Promise.reject(new Error('private DB error'));
   const got = await frames(await handleResearchChat(post(BODY), deps));
   assertEquals(got.some((f) => 'sources' in f || 'followUpQuestions' in f || 'timing' in f || 'done' in f), false);
@@ -872,7 +878,7 @@ Deno.test('D4: cancellation remains observed through repair and does not replace
 
 Deno.test('D4: exhausted length without nonblank decoded answer is an error, not empty truncation', async () => {
   for (const response of ['', '{}', '{"answer":"   ']) {
-    const provider = scripted([NO_RESEARCH, [text(response), finish('length')], [finish('length')], [
+    const provider = scripted([...DECLINES, [text(response), finish('length')], [finish('length')], [
       finish('length'),
     ]]);
     const { deps, rec } = fakeDeps(provider);
@@ -884,7 +890,7 @@ Deno.test('D4: exhausted length without nonblank decoded answer is an error, not
 
 Deno.test('D4: the fixed deadline cleans polling and prevents provider work after delayed setup', async () => {
   let release!: (value: string) => void;
-  const provider = scripted([NO_RESEARCH, [text(envelope('Too late')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Too late')), finish()]]);
   let polls = 0;
   const { deps, rec } = fakeDeps(provider, {
     persona: () =>
@@ -979,17 +985,18 @@ Deno.test('D4: transport overflow still finalizes, and reconnect can replay a la
 });
 
 Deno.test('D5: each research, continuation and answer provider invocation has its own accounting row', async () => {
-  const provider = scripted([NO_RESEARCH, [text('{"answer":"Part one'), finish('length')], [
+  const provider = scripted([...DECLINES, [text('{"answer":"Part one'), finish('length')], [
     text(' and two","sources":[],"follow_up_questions":[]}'),
     finish(),
   ]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post(BODY), deps));
   assertEquals(rec.calls.length, provider.seen.length);
-  assertEquals(rec.calls.length, 3);
-  assertEquals(rec.calls.map((c) => c.prompt_tokens), [10, 10, 10]);
-  assertEquals(rec.calls.map((c) => c.openrouter_generation_id), ['gen-1', 'gen-1', 'gen-1']);
-  assertEquals(rec.messages[0].usage?.attempts, 3);
+  // Two research passes now: the declined one and the one the press bought.
+  assertEquals(rec.calls.length, 4);
+  assertEquals(rec.calls.map((c) => c.prompt_tokens), [10, 10, 10, 10]);
+  assertEquals(rec.calls.map((c) => c.openrouter_generation_id), ['gen-1', 'gen-1', 'gen-1', 'gen-1']);
+  assertEquals(rec.messages[0].usage?.attempts, 4);
 });
 Deno.test('D5: failed schema and failover attempts retain observed metadata and never log provider bodies', async () => {
   let attempt = 0;
@@ -1022,13 +1029,13 @@ Deno.test('D5: failed schema and failover attempts retain observed metadata and 
 });
 Deno.test('D5: mixed known and unknown usage totals do not fabricate zero-cost or zero-token attempts', async () => {
   const unknown: ModelEvent = { type: 'finish', reason: 'stop', usage: null, served: null, generationId: null };
-  const provider = scripted([[unknown], [text(envelope('Answer')), finish()]]);
+  const provider = scripted([[unknown], NO_RESEARCH, [text(envelope('Answer')), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post(BODY), deps));
-  assertEquals(rec.calls.length, 2);
+  assertEquals(rec.calls.length, 3);
   assertEquals(rec.calls[0].prompt_tokens, null);
   assertEquals(rec.calls[0].model_served, null);
-  assertEquals(rec.messages[0].usage?.attempts, 2);
+  assertEquals(rec.messages[0].usage?.attempts, 3);
   assertEquals(rec.messages[0].usage?.prompt_tokens, null);
   assertEquals(rec.messages[0].usage?.cost_usd, null);
 });
@@ -1152,7 +1159,7 @@ Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown r
 });
 Deno.test('D5: accounting flush runs after durable finalization and still runs when finalization fails', async () => {
   for (const fail of [false, true]) {
-    const { deps, rec } = fakeDeps(scripted([NO_RESEARCH, [text(envelope('Answer')), finish()]]));
+    const { deps, rec } = fakeDeps(scripted([...DECLINES, [text(envelope('Answer')), finish()]]));
     let finalized = false;
     const finalize = deps.persistence.finalize;
     deps.persistence.finalize = (...args) => {
@@ -1165,7 +1172,7 @@ Deno.test('D5: accounting flush runs after durable finalization and still runs w
       return write(row);
     };
     const got = await frames(await handleResearchChat(post(BODY), deps));
-    assertEquals(rec.calls.length, 2);
+    assertEquals(rec.calls.length, 3);
     assertEquals(got.some((f) => 'saveFailed' in f), fail);
   }
 });
@@ -1177,7 +1184,7 @@ Deno.test('D5: hung pricing, model logging and traces cannot delay durable final
     generationId: 'gen',
     usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
   };
-  const { deps, rec } = fakeDeps(scripted([[noCost], [text(envelope('Answer')), noCost]]));
+  const { deps, rec } = fakeDeps(scripted([[noCost], [noCost], [text(envelope('Answer')), noCost]]));
   let finalized = false;
   const finalize = deps.persistence.finalize;
   deps.persistence.finalize = (...args) => {
@@ -1216,7 +1223,7 @@ Deno.test('D5: hung pricing, model logging and traces cannot delay durable final
     assertEquals(got.some((f) => 'saveFailed' in f), false);
     assert(Date.now() - started < 1500, 'bounded log drain must not hang');
     assert(notices.some((line) => line.includes('telemetry_failed')));
-    assertEquals(rec.calls.length, 2);
+    assertEquals(rec.calls.length, 3);
   } finally {
     clearTimeout(watchdog);
     console.log = log;
@@ -1279,7 +1286,7 @@ Deno.test('D5: cancellation retains an in-flight search without inventing result
 
 Deno.test('D6: setup failures finalize an error without paying for an answer with missing context', async () => {
   for (const stage of ['persona', 'history', 'scope']) {
-    const provider = scripted([NO_RESEARCH, [text(envelope('Should not run')), finish()]]);
+    const provider = scripted([...DECLINES, [text(envelope('Should not run')), finish()]]);
     const { deps, rec } = fakeDeps(provider);
     const failure = () => Promise.reject(new Error('PRIVATE setup failure'));
     if (stage === 'persona') deps.persona = failure;
@@ -1327,7 +1334,7 @@ Deno.test('D6: handler gives retrieval the turn signal and accounts embedding se
 // exactly that; the model obeyed the no-tool half and ignored the rest. These
 // cover the halves the server enforces instead of asking for.
 Deno.test('a greeting does not carry the attachments into the prompt', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Hello — what would you like to check?')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Hello — what would you like to check?')), finish()]]);
   const { deps } = fakeDeps(provider);
   const body = {
     message: 'hi',
@@ -1348,7 +1355,7 @@ Deno.test('a greeting persists no follow-up questions even when the model return
     sources: [],
     follow_up_questions: ['What changed in Gaza?', 'Show me the Armenia track', 'Which bills are pending?'],
   });
-  const provider = scripted([NO_RESEARCH, [text(withChips), finish()]]);
+  const provider = scripted([...DECLINES, [text(withChips), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post({ message: 'hi', turn_key: 'greet-2', focus: 'broad' as const }), deps));
   assertEquals(rec.messages[0].follow_ups, [], 'the model offered chips; a greeting keeps none');
@@ -1360,7 +1367,7 @@ Deno.test('an ordinary question still keeps its attachments and its follow-ups',
     sources: [],
     follow_up_questions: ['What changed in Gaza?'],
   });
-  const provider = scripted([NO_RESEARCH, [text(withChips), finish()]]);
+  const provider = scripted([...DECLINES, [text(withChips), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   const body = {
     message: 'hi, what stage is the Delimitation Bill at?',
@@ -1383,18 +1390,18 @@ Deno.test('an ordinary question still keeps its attachments and its follow-ups',
 // visible rather than inferred from a null.
 Deno.test('a silent attempt nulls the totals and records what was observed', async () => {
   const unknown: ModelEvent = { type: 'finish', reason: 'stop', usage: null, served: null, generationId: null };
-  const provider = scripted([[unknown], [text(envelope('Answer')), finish()]]);
+  const provider = scripted([[unknown], NO_RESEARCH, [text(envelope('Answer')), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post({ ...BODY, turn_key: 'usage-1' }), deps));
 
   const usage = rec.messages[0].usage as Record<string, unknown>;
-  assertEquals(usage.attempts, 2);
+  assertEquals(usage.attempts, 3);
   assertEquals(usage.prompt_tokens, null, 'a total must not count the silent attempt as zero');
   assertEquals(usage.cost_usd, null, 'billing must not undercharge on a partial total');
 
   const observed = usage.observed as Record<string, number> | undefined;
   assert(observed, 'the figures the reporting attempt did give must survive');
-  assertEquals(observed.attempts_reporting, 1);
+  assertEquals(observed.attempts_reporting, 2, 'the pressed research pass reports too');
   assertEquals(observed.attempts_silent, 1);
   assert(Number(observed.prompt_tokens) > 0, 'the reported prompt tokens are kept');
 });
@@ -1408,6 +1415,7 @@ Deno.test('a field no attempt reported nulls its total and is still reported as 
   const noCompletion: Usage = { prompt_tokens: 7, completion_tokens: null, total_tokens: 7, cost: 0 };
   const provider = scripted([
     [finish('stop', noCompletion)],
+    NO_RESEARCH,
     [text(envelope('Answer')), finish()],
   ]);
   const { deps, rec } = fakeDeps(provider);
@@ -1420,12 +1428,12 @@ Deno.test('a field no attempt reported nulls its total and is still reported as 
   const observed = usage.observed as Record<string, number> | undefined;
   assert(observed, 'a field-level gap must produce the block, not only a silent attempt');
   assertEquals(observed.attempts_silent, 0, 'every attempt did report something');
-  assertEquals(observed.completion_tokens, 5, 'the figure that was known is kept');
-  assertEquals(observed.completion_tokens_from, 1, 'and how much of the turn it covers is stated');
+  assertEquals(observed.completion_tokens, 10, 'the figures that were known are kept');
+  assertEquals(observed.completion_tokens_from, 2, 'and how much of the turn they cover is stated');
 });
 
 Deno.test('a turn where every attempt reports keeps its existing shape', async () => {
-  const provider = scripted([NO_RESEARCH, [text(envelope('Answer')), finish()]]);
+  const provider = scripted([...DECLINES, [text(envelope('Answer')), finish()]]);
   const { deps, rec } = fakeDeps(provider);
   await frames(await handleResearchChat(post({ ...BODY, turn_key: 'usage-2' }), deps));
 

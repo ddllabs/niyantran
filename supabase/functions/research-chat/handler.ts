@@ -659,7 +659,7 @@ async function runTurnBody(
 
   const budget = createAgentBudget();
   let checkpoint: AgentCheckpoint | undefined;
-  const input = { system, window, userTurn, scopedDocumentIds };
+  const input = { system, window, userTurn, scopedDocumentIds, conversational };
   const chain = failoverChain(t.models, t.chosen.model_id);
   let result: AgentResult | null = null;
   let schemaDropped = false;

@@ -437,7 +437,9 @@ Deno.test('D6: real wiring finalizes through service RPC before server-only atte
   });
   f.runtime.fetch = async () => {
     assert(f.calls.some((c) => c.table === 'claim_research_turn'));
-    const data = modelCalls++ === 0 ? { choices: [{ delta: {}, finish_reason: 'stop' }] } : {
+    // Two research passes call nothing: the first, and the one the no-search
+    // press buys before the turn may answer.
+    const data = modelCalls++ < 2 ? { choices: [{ delta: {}, finish_reason: 'stop' }] } : {
       model: 'test/model',
       choices: [{
         delta: { content: JSON.stringify({ answer: 'Verified saved answer', sources: [], follow_up_questions: [] }) },
@@ -449,10 +451,10 @@ Deno.test('D6: real wiring finalizes through service RPC before server-only atte
   const response = await createResearchHandler(f.runtime)(request());
   const body = await response.text();
   assert(finalized);
-  assertEquals(modelCalls, 2);
+  assertEquals(modelCalls, 3);
   assert(body.includes('reserved-a'));
   assert(!body.includes('private-execution-token'));
-  assertEquals(f.calls.filter((c) => c.table === 'model_call_logs').length, 2);
+  assertEquals(f.calls.filter((c) => c.table === 'model_call_logs').length, 3);
   assertEquals(f.calls.some((c) => c.table === 'chat_messages' && c.op === 'insert'), false);
 });
 Deno.test('D6: import performs no env/network/serve work and modern keys use the intended client boundaries', async () => {

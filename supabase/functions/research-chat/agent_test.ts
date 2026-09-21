@@ -75,7 +75,9 @@ function fake(script: ModelEvent[][], over: Partial<AgentDeps> = {}) {
 
 Deno.test('greeting makes no search and preserves provider configuration and transcript order', async () => {
   const f = fake([ready(), answer()]);
-  const result = await runAgent(f.deps, input);
+  // Small talk asks nothing, so retrieving nothing is right and the no-search
+  // press must not fire: still exactly two model calls.
+  const result = await runAgent(f.deps, { ...input, conversational: true });
   assertEquals(f.requests[0].messages, [{ role: 'system', content: input.system }, ...input.window, {
     role: 'user',
     content: input.userTurn,
@@ -210,16 +212,17 @@ Deno.test('parallel tool batch also obeys search cap and returns a reply for eve
 Deno.test('length continuation appends partial assistant text then a user instruction at most twice', async () => {
   const f = fake([
     ready(),
+    ready(),
     ...Array.from({ length: 3 }, (): ModelEvent[] => [{ type: 'text', text: 'partial' }, finish('length')]),
   ]);
   const result = await runAgent(f.deps, input);
   assertEquals(result.text, 'partialpartialpartial');
   assertEquals(result.continuations, 2);
   assertEquals(result.finish, 'length');
-  assertEquals(f.requests.length, 4);
-  assertEquals(f.requests[2].messages.at(-2), { role: 'assistant', content: 'partial' });
-  assertEquals(f.requests[2].messages.at(-1)!.role, 'user');
-  assert(f.requests[2].messages.at(-1)!.content!.startsWith('Continue exactly where you stopped'));
+  assertEquals(f.requests.length, 5);
+  assertEquals(f.requests[3].messages.at(-2), { role: 'assistant', content: 'partial' });
+  assertEquals(f.requests[3].messages.at(-1)!.role, 'user');
+  assert(f.requests[3].messages.at(-1)!.content!.startsWith('Continue exactly where you stopped'));
 });
 
 Deno.test('unknown tools and malformed arguments are refused without a retrieval or raw error leak', async () => {
@@ -230,6 +233,9 @@ Deno.test('unknown tools and malformed arguments are refused without a retrieval
       { type: 'tool-call', id: 'empty', name: 'search_documents', args: '{"query":" "}' },
       finish('tool_calls'),
     ],
+    // Three refused tool calls retrieved nothing, so the turn is still pressed
+    // to search once before it may answer.
+    ready(),
     ready(),
     answer(),
   ]);
@@ -356,16 +362,19 @@ Deno.test('a failed scoped search is not repeated as the first scope on handler 
 
 Deno.test('the final model slot continues partial JSON without a conflicting answer-now instruction', async () => {
   const budget = createAgentBudget();
-  budget.modelAttempts = 9;
+  // Far enough from the cap that the no-search press fits, and the turn still
+  // ends with exactly one slot for the continuation.
+  budget.modelAttempts = 8;
   const f = fake([
+    ready(),
     ready(),
     [{ type: 'text', text: '{"answer":"partial' }, finish('length')],
     answer(' rest","sources":[],"follow_up_questions":[]}'),
   ], { budget });
   const result = await runAgent(f.deps, input);
   assertEquals(JSON.parse(result.text).answer, 'partial rest');
-  assertEquals(f.requests[2].tools, undefined);
-  assert(f.requests[2].messages.at(-1)!.content!.startsWith('Continue exactly where you stopped'));
+  assertEquals(f.requests[3].tools, undefined);
+  assert(f.requests[3].messages.at(-1)!.content!.startsWith('Continue exactly where you stopped'));
 });
 
 Deno.test('research drafts cannot enter final JSON or close the decoder; answer tokens stream before finish', async () => {
@@ -484,7 +493,9 @@ Deno.test('partial answer failure resumes the same model and JSON with a charged
   let calls = 0;
   const f = fake([], {
     model: async function* (req) {
-      if (++calls === 1) {
+      // Two research passes: the one that calls nothing, and the one the
+      // no-search press buys before the turn may answer.
+      if (++calls <= 2) {
         yield finish();
         return;
       }
@@ -545,7 +556,7 @@ Deno.test('a retry of a failed continuation consumes continuation budget even wh
 // What is worth keeping is the guarantee that only retrieval is ever offered.
 Deno.test('research offers retrieval tools only, and the answer phase offers none', async () => {
   const f = fake([ready(), answer()]);
-  await runAgent(f.deps, input);
+  await runAgent(f.deps, { ...input, conversational: true });
   const names = (f.requests[0].tools ?? []).map((t) => (t as { function: { name: string } }).function.name);
   assertEquals(names, ['search_documents', 'search_desk_rows']);
   assertEquals(f.requests[1].tools, undefined);
@@ -556,6 +567,7 @@ Deno.test('a tool the turn does not offer is refused without retrieving anything
   const f = fake(
     [
       [{ type: 'tool-call', id: 'ghost', name: 'think', args: '{"thought":"plan"}' }, finish('tool_calls')],
+      ready(),
       ready(),
       answer(),
     ],
@@ -568,4 +580,39 @@ Deno.test('a tool the turn does not offer is refused without retrieving anything
   assertEquals(reply?.role, 'tool');
   assert(String(reply?.content).startsWith('UNKNOWN_TOOL:'), String(reply?.content));
   assert(!String(reply?.content).includes('think'), 'the refusal must not advertise a tool that is gone');
+});
+
+// The regression this guard exists for. Two real turns fifteen minutes apart
+// answered a question this corpus covers in full without calling a tool - the
+// second writing "Not in record. No search was performed or records retrieved"
+// to the reader. The model knew it had no evidence and answered anyway, and the
+// loop read that silence as "research is complete".
+Deno.test('a question that retrieves nothing is pressed to search once before it may answer', async () => {
+  const f = fake([ready(), [docCall('one', 'objects and reasons'), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(result.searches, 1, 'the press must turn a silent turn into a real search');
+  const pressed = f.requests[1].messages.at(-1);
+  assertEquals(pressed?.role, 'user');
+  assert(String(pressed?.content).includes('You have not searched'), String(pressed?.content));
+  assert(f.requests[1].tools?.length, 'and it is offered as research, not as the answer phase');
+});
+
+Deno.test('the press is spent once; a model that declines twice still answers', async () => {
+  const f = fake([ready(), ready(), answer('{"answer":"Not in record.","sources":[],"follow_up_questions":[]}')]);
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3, 'exactly one extra research pass, never a loop');
+  assertEquals(result.searches, 0);
+  assert(result.text.includes('Not in record.'));
+  assertEquals(f.requests[2].tools, undefined, 'the third pass is the answer phase');
+});
+
+Deno.test('a turn that already searched is never pressed', async () => {
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3);
+  assert(!JSON.stringify(f.requests).includes('You have not searched'));
 });
