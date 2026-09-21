@@ -1,0 +1,256 @@
+[
+  {
+    "feature": "Bill Passage Probability Index",
+    "tier": "national",
+    "raw": {
+      "id": "156-Lok Sabha-2026-08-09-THE NATIONAL CO-OPERATIVE DEVELOPMENT CO",
+      "bill_name": "THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026",
+      "bill_number": "156",
+      "house": "Lok Sabha",
+      "sector": "Co-operation",
+      "date_introduced": "2026-08-09 19:00:00",
+      "current_stage": "Passed",
+      "bill_type": "Government",
+      "bill_category": "Ordinary Bill",
+      "probability_score": "",
+      "summary": "",
+      "source_url": "https://sansad.in/rs/legislation",
+      "occurred_at": "2026-08-09T19:00:00Z",
+      "source_date_raw": "2026-08-10 00:00:00.0",
+      "as_of": "2026-09-07T18:01:38.471Z",
+      "provenance": "official"
+    },
+    "row_key": "156-lok sabha-2026-08-09-the national co-operative development co",
+    "record_text": "Record: THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026\nid: 156-Lok Sabha-2026-08-09-THE NATIONAL CO-OPERATIVE DEVELOPMENT CO\nbill_name: THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026\nbill_number: 156\nhouse: Lok Sabha\nsector: Co-operation\ndate_introduced: 2026-08-09 19:00:00\ncurrent_stage: Passed\nbill_type: Government\nbill_category: Ordinary Bill\nsource_url: https://sansad.in/rs/legislation (registry hub — provenance only, not document body)\noccurred_at: 2026-08-09T19:00:00Z\nsource_date_raw: 2026-08-10 00:00:00.0\nas_of: 2026-09-07T18:01:38.471Z\nprovenance: official\ndate: 2026-08-09 19:00:00\ntitle: THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026",
+    "document_key": "bill:2026:156"
+  },
+  {
+    "feature": "Bill Passage Probability Index",
+    "tier": "national",
+    "raw": {
+      "id": "LXXII-Rajya Sabha-2026-07-27-The Micro, Small and Medium Enterprises ",
+      "bill_name": "The Micro, Small and Medium Enterprises Development (Amendment) Bill, 2026",
+      "bill_number": "LXXII",
+      "house": "Rajya Sabha",
+      "sector": "MICRO, SMALL AND MEDIUM ENTERPRISES",
+      "date_introduced": "2026-07-27 19:00:00",
+      "current_stage": "Assented",
+      "bill_type": "Government",
+      "bill_category": "Ordinary Bill",
+      "probability_score": "",
+      "summary": "",
+      "source_url": "https://sansad.in/rs/legislation",
+      "occurred_at": "2026-07-27T19:00:00Z",
+      "source_date_raw": "2026-07-28 00:00:00.0",
+      "as_of": "2026-09-07T18:00:04.345Z",
+      "provenance": "official"
+    },
+    "row_key": "lxxii-rajya sabha-2026-07-27-the micro, small and medium enterprises",
+    "record_text": "Record: The Micro, Small and Medium Enterprises Development (Amendment) Bill, 2026\nid: LXXII-Rajya Sabha-2026-07-27-The Micro, Small and Medium Enterprises\nbill_name: The Micro, Small and Medium Enterprises Development (Amendment) Bill, 2026\nbill_number: LXXII\nhouse: Rajya Sabha\nsector: MICRO, SMALL AND MEDIUM ENTERPRISES\ndate_introduced: 2026-07-27 19:00:00\ncurrent_stage: Assented\nbill_type: Government\nbill_category: Ordinary Bill\nsource_url: https://sansad.in/rs/legislation (registry hub — provenance only, not document body)\noccurred_at: 2026-07-27T19:00:00Z\nsource_date_raw: 2026-07-28 00:00:00.0\nas_of: 2026-09-07T18:00:04.345Z\nprovenance: official\ndate: 2026-07-27 19:00:00\ntitle: The Micro, Small and Medium Enterprises Development (Amendment) Bill, 2026",
+    "document_key": "bill:2026:LXXII"
+  },
+  {
+    "feature": "Bill Passage Probability Index",
+    "tier": "national",
+    "raw": {
+      "id": "LXXII-Rajya Sabha-2026-03-12-The Right to Fair Compensation and Trans",
+      "bill_name": "The Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement (Amendment) Bill, 2025",
+      "bill_number": "LXXII",
+      "house": "Rajya Sabha",
+      "sector": "RURAL DEVELOPMENT",
+      "date_introduced": "2026-03-12 19:00:00",
+      "current_stage": "Pending",
+      "bill_type": "Private Member",
+      "bill_category": "Ordinary Bill",
+      "probability_score": "",
+      "summary": "",
+      "source_url": "https://sansad.in/rs/legislation",
+      "occurred_at": "2026-03-12T19:00:00Z",
+      "source_date_raw": "2026-03-13 00:00:00.0",
+      "as_of": "2026-09-07T18:00:04.345Z",
+      "provenance": "official"
+    },
+    "row_key": "lxxii-rajya sabha-2026-03-12-the right to fair compensation and trans",
+    "record_text": "Record: The Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement (Amendment) Bill, 2025\nid: LXXII-Rajya Sabha-2026-03-12-The Right to Fair Compensation and Trans\nbill_name: The Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement (Amendment) Bill, 2025\nbill_number: LXXII\nhouse: Rajya Sabha\nsector: RURAL DEVELOPMENT\ndate_introduced: 2026-03-12 19:00:00\ncurrent_stage: Pending\nbill_type: Private Member\nbill_category: Ordinary Bill\nsource_url: https://sansad.in/rs/legislation (registry hub — provenance only, not document body)\noccurred_at: 2026-03-12T19:00:00Z\nsource_date_raw: 2026-03-13 00:00:00.0\nas_of: 2026-09-07T18:00:04.345Z\nprovenance: official\ndate: 2026-03-12 19:00:00\ntitle: The Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement (Amendment) Bill, 2025",
+    "document_key": "bill:2025:LXXII"
+  },
+  {
+    "feature": "Bill Passage Probability Index",
+    "tier": "national",
+    "raw": {
+      "id": "XVIII-Rajya Sabha-2026-03-12-The Constitution (Amendment) Bill, 2026 ",
+      "bill_name": "The Constitution (Amendment) Bill, 2026 (amendment of article 366)",
+      "bill_number": "XVIII",
+      "house": "Rajya Sabha",
+      "sector": "MINORITY AFFAIRS",
+      "date_introduced": "2026-03-12 19:00:00",
+      "current_stage": "Pending",
+      "bill_type": "Private Member",
+      "bill_category": "Constitutional Amendment Bill",
+      "probability_score": "",
+      "summary": "",
+      "source_url": "https://sansad.in/rs/legislation",
+      "occurred_at": "2026-03-12T19:00:00Z",
+      "source_date_raw": "2026-03-13 00:00:00.0",
+      "as_of": "2026-09-07T17:59:42.031Z",
+      "provenance": "official"
+    },
+    "row_key": "xviii-rajya sabha-2026-03-12-the constitution (amendment) bill, 2026",
+    "record_text": "Record: The Constitution (Amendment) Bill, 2026 (amendment of article 366)\nid: XVIII-Rajya Sabha-2026-03-12-The Constitution (Amendment) Bill, 2026\nbill_name: The Constitution (Amendment) Bill, 2026 (amendment of article 366)\nbill_number: XVIII\nhouse: Rajya Sabha\nsector: MINORITY AFFAIRS\ndate_introduced: 2026-03-12 19:00:00\ncurrent_stage: Pending\nbill_type: Private Member\nbill_category: Constitutional Amendment Bill\nsource_url: https://sansad.in/rs/legislation (registry hub — provenance only, not document body)\noccurred_at: 2026-03-12T19:00:00Z\nsource_date_raw: 2026-03-13 00:00:00.0\nas_of: 2026-09-07T17:59:42.031Z\nprovenance: official\ndate: 2026-03-12 19:00:00\ntitle: The Constitution (Amendment) Bill, 2026 (amendment of article 366)",
+    "document_key": "bill:2026:XVIII"
+  },
+  {
+    "feature": "Supreme Court Order & Judgment Feed",
+    "tier": "law",
+    "raw": {
+      "id": "1",
+      "court": "Supreme Court",
+      "case_title": "A.G. KUMAR VS. STATE REP. BY INSPECTOR OF POLICE",
+      "diary_no": "26263 / 2026",
+      "order_date": "03-Jul-2026",
+      "topic": "Bail / Criminal",
+      "pdf_url": "https://www.sci.gov.in/view-pdf/?diary_no=262632026&type=o&order_date=2026-07-03&from=latest_judgements_order",
+      "source_url": "https://www.sci.gov.in/view-pdf/?diary_no=262632026&type=o&order_date=2026-07-03&from=latest_judgements_order",
+      "source_date_raw": "03-Jul-2026",
+      "occurred_at": "2026-07-02T19:00:00Z",
+      "as_of": "2026-09-07T16:55:06.648Z",
+      "provenance": "official"
+    },
+    "row_key": "1",
+    "record_text": "Record: A.G. KUMAR VS. STATE REP. BY INSPECTOR OF POLICE\nid: 1\ncourt: Supreme Court\ncase_title: A.G. KUMAR VS. STATE REP. BY INSPECTOR OF POLICE\ndiary_no: 26263 / 2026\norder_date: 03-Jul-2026\ntopic: Bail / Criminal\npdf_url: https://www.sci.gov.in/view-pdf/?diary_no=262632026&type=o&order_date=2026-07-03&from=latest_judgements_order (registry hub — provenance only, not document body)\nsource_url: https://www.sci.gov.in/view-pdf/?diary_no=262632026&type=o&order_date=2026-07-03&from=latest_judgements_order (registry hub — provenance only, not document body)\nsource_date_raw: 03-Jul-2026\noccurred_at: 2026-07-02T19:00:00Z\nas_of: 2026-09-07T16:55:06.648Z\nprovenance: official\ntitle: A.G. KUMAR VS. STATE REP. BY INSPECTOR OF POLICE",
+    "document_key": null
+  },
+  {
+    "feature": "Supreme Court Order & Judgment Feed",
+    "tier": "law",
+    "raw": {
+      "id": "2",
+      "court": "Supreme Court",
+      "case_title": "ABINASH ROY VS. THE STATE OF JHARKHAND",
+      "diary_no": "36992 / 2026",
+      "order_date": "03-Jul-2026",
+      "topic": "Other / Unclassified",
+      "pdf_url": "https://www.sci.gov.in/view-pdf/?diary_no=369922026&type=o&order_date=2026-07-03&from=latest_judgements_order",
+      "source_url": "https://www.sci.gov.in/view-pdf/?diary_no=369922026&type=o&order_date=2026-07-03&from=latest_judgements_order",
+      "source_date_raw": "03-Jul-2026",
+      "occurred_at": "2026-07-02T19:00:00Z",
+      "as_of": "2026-09-07T16:55:06.648Z",
+      "provenance": "official"
+    },
+    "row_key": "2",
+    "record_text": "Record: ABINASH ROY VS. THE STATE OF JHARKHAND\nid: 2\ncourt: Supreme Court\ncase_title: ABINASH ROY VS. THE STATE OF JHARKHAND\ndiary_no: 36992 / 2026\norder_date: 03-Jul-2026\ntopic: Other / Unclassified\npdf_url: https://www.sci.gov.in/view-pdf/?diary_no=369922026&type=o&order_date=2026-07-03&from=latest_judgements_order (registry hub — provenance only, not document body)\nsource_url: https://www.sci.gov.in/view-pdf/?diary_no=369922026&type=o&order_date=2026-07-03&from=latest_judgements_order (registry hub — provenance only, not document body)\nsource_date_raw: 03-Jul-2026\noccurred_at: 2026-07-02T19:00:00Z\nas_of: 2026-09-07T16:55:06.648Z\nprovenance: official\ntitle: ABINASH ROY VS. THE STATE OF JHARKHAND",
+    "document_key": null
+  },
+  {
+    "feature": "Supreme Court Order & Judgment Feed",
+    "tier": "law",
+    "raw": {
+      "id": "3",
+      "court": "Supreme Court",
+      "case_title": "VINAY KUMAR VS. M/S. CRYSTAL BUILDTECH PRIVATE LIMITED",
+      "diary_no": "36843 / 2026",
+      "order_date": "03-Jul-2026",
+      "topic": "Other / Unclassified",
+      "pdf_url": "https://www.sci.gov.in/view-pdf/?diary_no=368432026&type=o&order_date=2026-07-03&from=latest_judgements_order",
+      "source_url": "https://www.sci.gov.in/view-pdf/?diary_no=368432026&type=o&order_date=2026-07-03&from=latest_judgements_order",
+      "source_date_raw": "03-Jul-2026",
+      "occurred_at": "2026-07-02T19:00:00Z",
+      "as_of": "2026-09-07T16:55:06.648Z",
+      "provenance": "official"
+    },
+    "row_key": "3",
+    "record_text": "Record: VINAY KUMAR VS. M/S. CRYSTAL BUILDTECH PRIVATE LIMITED\nid: 3\ncourt: Supreme Court\ncase_title: VINAY KUMAR VS. M/S. CRYSTAL BUILDTECH PRIVATE LIMITED\ndiary_no: 36843 / 2026\norder_date: 03-Jul-2026\ntopic: Other / Unclassified\npdf_url: https://www.sci.gov.in/view-pdf/?diary_no=368432026&type=o&order_date=2026-07-03&from=latest_judgements_order (registry hub — provenance only, not document body)\nsource_url: https://www.sci.gov.in/view-pdf/?diary_no=368432026&type=o&order_date=2026-07-03&from=latest_judgements_order (registry hub — provenance only, not document body)\nsource_date_raw: 03-Jul-2026\noccurred_at: 2026-07-02T19:00:00Z\nas_of: 2026-09-07T16:55:06.648Z\nprovenance: official\ntitle: VINAY KUMAR VS. M/S. CRYSTAL BUILDTECH PRIVATE LIMITED",
+    "document_key": null
+  },
+  {
+    "feature": "Global Commodities",
+    "tier": "global",
+    "raw": {
+      "0": "Brent crude",
+      "1": "$90.4",
+      "2": "+4.1%",
+      "3": 82,
+      "as_of": "2026-07",
+      "provenance": "unconfirmed"
+    },
+    "row_key": "h:b52f0d2591319596",
+    "record_text": "0: Brent crude\n1: $90.4\n2: +4.1%\n3: 82\nas_of: 2026-07\nprovenance: unconfirmed",
+    "document_key": null
+  },
+  {
+    "feature": "Global Commodities",
+    "tier": "global",
+    "raw": {
+      "0": "WTI crude",
+      "1": "$86.2",
+      "2": "+3.8%",
+      "3": 78,
+      "as_of": "2026-07",
+      "provenance": "unconfirmed"
+    },
+    "row_key": "h:44cc45ad3c427a93",
+    "record_text": "0: WTI crude\n1: $86.2\n2: +3.8%\n3: 78\nas_of: 2026-07\nprovenance: unconfirmed",
+    "document_key": null
+  },
+  {
+    "feature": "Global Commodities",
+    "tier": "global",
+    "raw": {
+      "0": "TTF nat gas",
+      "1": "€34/MWh",
+      "2": "+6.2%",
+      "3": 61,
+      "as_of": "2026-07",
+      "provenance": "unconfirmed"
+    },
+    "row_key": "h:6cd4e4a74adbd4f9",
+    "record_text": "0: TTF nat gas\n1: €34/MWh\n2: +6.2%\n3: 61\nas_of: 2026-07\nprovenance: unconfirmed",
+    "document_key": null
+  },
+  {
+    "feature": "Parliamentary Question Database",
+    "tier": "national",
+    "raw": {
+      "id": "1",
+      "mp_name": "Mani A",
+      "party": "DMK",
+      "house": "Lok Sabha",
+      "ministry": "MICRO, SMALL AND MEDIUM ENTERPRISES",
+      "subject": "Expanding Khadi Production in Tamil Nadu",
+      "date": "2026-04-02",
+      "question_type": "UNSTARRED",
+      "status": "",
+      "source_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf?source=pqals",
+      "occurred_at": "2026-04-02T00:00:00Z",
+      "source_date_raw": "02.04.2026",
+      "as_of": "2026-09-07T16:49:32.669Z",
+      "provenance": "official"
+    },
+    "row_key": "1",
+    "record_text": "Record: Mani A\nid: 1\nmp_name: Mani A\nparty: DMK\nhouse: Lok Sabha\nministry: MICRO, SMALL AND MEDIUM ENTERPRISES\nsubject: Expanding Khadi Production in Tamil Nadu\ndate: 2026-04-02\nquestion_type: UNSTARRED\nsource_url: https://sansad.in/getFile/loksabhaquestions/annex/187/AU6302_KIQmzb.pdf?source=pqals\noccurred_at: 2026-04-02T00:00:00Z\nsource_date_raw: 02.04.2026\nas_of: 2026-09-07T16:49:32.669Z\nprovenance: official\ntitle: Mani A",
+    "document_key": null
+  },
+  {
+    "feature": "Parliamentary Question Database",
+    "tier": "national",
+    "raw": {
+      "id": "2",
+      "mp_name": "Mani A",
+      "party": "DMK",
+      "house": "Lok Sabha",
+      "ministry": "ELECTRONICS AND INFORMATION TECHNOLOGY",
+      "subject": "Review of Overall Status of Enrolment and Authentication Services under Aadhaar",
+      "date": "2026-04-01",
+      "question_type": "UNSTARRED",
+      "status": "",
+      "source_url": "https://sansad.in/getFile/loksabhaquestions/annex/187/AU6053_E1c8ys.pdf?source=pqals",
+      "occurred_at": "2026-04-01T00:00:00Z",
+      "source_date_raw": "01.04.2026",
+      "as_of": "2026-09-07T16:49:32.669Z",
+      "provenance": "official"
+    },
+    "row_key": "2",
+    "record_text": "Record: Mani A\nid: 2\nmp_name: Mani A\nparty: DMK\nhouse: Lok Sabha\nministry: ELECTRONICS AND INFORMATION TECHNOLOGY\nsubject: Review of Overall Status of Enrolment and Authentication Services under Aadhaar\ndate: 2026-04-01\nquestion_type: UNSTARRED\nsource_url: https://sansad.in/getFile/loksabhaquestions/annex/187/AU6053_E1c8ys.pdf?source=pqals\noccurred_at: 2026-04-01T00:00:00Z\nsource_date_raw: 01.04.2026\nas_of: 2026-09-07T16:49:32.669Z\nprovenance: official\ntitle: Mani A",
+    "document_key": null
+  }
+]
