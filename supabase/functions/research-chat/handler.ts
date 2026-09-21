@@ -664,6 +664,20 @@ async function runTurnBody(
       served = result.served;
       break;
     } catch (e) {
+      // Every abandoned attempt is logged. Without this the turn persists
+      // 'The turn failed. Please try a new turn.' and the cause is lost:
+      // model_call_logs only carries attempts that reached the provider, so a
+      // failure before that left no trace anywhere. Never log the key or the
+      // request body; the status and the provider's short message are enough.
+      log('research.attempt_failed', {
+        model,
+        aborted: signal.aborted,
+        streamed: streamed.length > 0,
+        kind: e instanceof ProviderError ? 'provider' : ((e as Error)?.name ?? 'unknown'),
+        ...(e instanceof ProviderError
+          ? { status: e.status, code: e.code, retryable: e.retryable, body: e.body.slice(0, 200) }
+          : { message: String((e as Error)?.message ?? e).slice(0, 200) }),
+      });
       if (signal.aborted) break;
       // Once any answer text has reached the reader, no swap: a second model
       // would restart a different answer under the same paragraph.
