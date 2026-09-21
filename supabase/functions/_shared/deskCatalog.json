@@ -1,0 +1,605 @@
+{
+  "generated_at": "2026-09-21T07:17:59.674Z",
+  "entries": [
+    {
+      "tier": "global",
+      "feature": "Open Fronts",
+      "bucket": "Security",
+      "pack": "geopolitics_war_tracker.csv",
+      "rows": 88,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "global",
+      "feature": "Global Intelligence",
+      "bucket": "Security",
+      "pack": "geopolitics_defense_procurement.csv",
+      "rows": 10,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "global",
+      "feature": "Alliances",
+      "bucket": "Diplomacy",
+      "pack": null,
+      "rows": 46,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "global",
+      "feature": "Sanctions",
+      "bucket": "Diplomacy",
+      "pack": "geo_sanctions",
+      "rows": 18,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Global Aid",
+      "bucket": "Diplomacy",
+      "pack": null,
+      "rows": 16,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Infra",
+      "bucket": "Strategic Assets",
+      "pack": "geopolitics_infra_projects.csv",
+      "rows": 10,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Nuclear Watch",
+      "bucket": "Strategic Assets",
+      "pack": null,
+      "rows": 112,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "global",
+      "feature": "Satellite Infrastructure",
+      "bucket": "Strategic Assets",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Maritime Choke-Points",
+      "bucket": "Strategic Assets",
+      "pack": "geo_chokepoints",
+      "rows": 18,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Geopolitics News Wire",
+      "bucket": "Global Resources",
+      "pack": "geo_news_wire.csv",
+      "rows": 0,
+      "note": "Do not query the product name. GDELT requires ≥5s between calls; server paces + caches 10m."
+    },
+    {
+      "tier": "global",
+      "feature": "World Constitutions",
+      "bucket": "Global Resources",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Growth Indicators",
+      "bucket": "Global Resources",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Heads of State",
+      "bucket": "Global Resources",
+      "pack": "geo_leaders",
+      "rows": 44,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Global Commodities",
+      "bucket": "Global Resources",
+      "pack": "geo_commodities",
+      "rows": 24,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Global Trade",
+      "bucket": "Geonomics",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "global",
+      "feature": "Energy",
+      "bucket": "Geonomics",
+      "pack": "geo_energy",
+      "rows": 14,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Bill Passage Probability Index",
+      "bucket": "Legislative & Policy Intelligence",
+      "pack": "national_bill_tracker.csv",
+      "rows": 9817,
+      "note": "Official Rajya Sabha/data.gov.in CSV for 1952–2016 plus PRS bill tracker updates for 2017–present; local 4,576-row archive remains the last-known-good fallback."
+    },
+    {
+      "tier": "national",
+      "feature": "Policy Intelligence Graph",
+      "bucket": "Legislative & Policy Intelligence",
+      "pack": "national_bill_tracker.csv",
+      "rows": 9817,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Parliamentary Question Database",
+      "bucket": "Legislative & Policy Intelligence",
+      "pack": "national_question_database.csv",
+      "rows": 8000,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Regulatory Body Watch (RBI/SEBI/TRAI/CCI)",
+      "bucket": "Legislative & Policy Intelligence",
+      "pack": "national_regulatory_watch.csv",
+      "rows": 121,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Candidate Affidavit Database (Structured + API)",
+      "bucket": "Electoral Data & Analytics",
+      "pack": "national_candidate_affidavit.csv",
+      "rows": 483,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "MP Profiles & Performance (MPLAD, attendance, debates)",
+      "bucket": "Representative & Media Intelligence",
+      "pack": "national_mp_report_card.csv",
+      "rows": 780,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Central Tender Aggregator + Constituency Filter",
+      "bucket": "Government Operations",
+      "pack": "national_tender_aggregator.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Bureaucratic Transfers — AGMUT Cadre",
+      "bucket": "Government Operations",
+      "pack": "national_agmut_transfers.csv",
+      "rows": 29,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "national",
+      "feature": "Cabinet Decisions",
+      "bucket": "Government Operations",
+      "pack": "national_cabinet_decisions.csv",
+      "rows": 6,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Centre-sanctioned Projects & Completion Rate",
+      "bucket": "Government Operations",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Budget Utilisation & Schemes",
+      "bucket": "Economy, Finance & Industry",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "national",
+      "feature": "Industry Updates (Ministry Data)",
+      "bucket": "Economy, Finance & Industry",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Constituency Register",
+      "bucket": "State of Play",
+      "pack": "geo_state_seats",
+      "rows": 40,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "MLA Directory",
+      "bucket": "State of Play",
+      "pack": null,
+      "rows": 0,
+      "note": "SPARQL must use Q4175034 (legislator) + Indian jurisdiction (P1001/P17=Q668). Q13218630 is US House — never use it here."
+    },
+    {
+      "tier": "state",
+      "feature": "MLA Report Card + Statement Tracker",
+      "bucket": "State of Play",
+      "pack": "up_mla_report_card.csv",
+      "rows": 0,
+      "note": "Never query GDELT for the product name. Profiles = Wikidata Indian MLAs; coverage = News RSS then paced GDELT topic query."
+    },
+    {
+      "tier": "state",
+      "feature": "Roll Demography",
+      "bucket": "The Roll",
+      "pack": "geo_state_demog",
+      "rows": 40,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Community Bloc Matrix",
+      "bucket": "The Roll",
+      "pack": "geo_state_blocs",
+      "rows": 40,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Cabinet Decisions",
+      "bucket": "Government Operations",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "state",
+      "feature": "Bureaucrat Transfer & Posting Tracker (State Cadre)",
+      "bucket": "Government Operations",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "state",
+      "feature": "State Tender Aggregator (State e-Procurement)",
+      "bucket": "Government Operations",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Booth-level Results Database",
+      "bucket": "Booths",
+      "pack": "geo_local_results",
+      "rows": 1731,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Booth Political History",
+      "bucket": "Booths",
+      "pack": "geo_local_history",
+      "rows": 1731,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Municipal Watch",
+      "bucket": "Local watch",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "state",
+      "feature": "Panchayat Watch",
+      "bucket": "Local watch",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "state",
+      "feature": "Municipal & Panchayat Tender Aggregator",
+      "bucket": "Local watch",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "state",
+      "feature": "Local Governance Brief",
+      "bucket": "Local watch",
+      "pack": "geo_local_brief",
+      "rows": 11,
+      "note": null
+    },
+    {
+      "tier": "law",
+      "feature": "Supreme Court Order & Judgment Feed",
+      "bucket": "Judicial Intelligence",
+      "pack": "judiciary_sc_orders.csv",
+      "rows": 220,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "Order Archive by Topic (Cross-Court)",
+      "bucket": "Judicial Intelligence",
+      "pack": "judiciary_sc_orders.csv",
+      "rows": 220,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "UP High Court (Allahabad) Order Feed",
+      "bucket": "Judicial Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "District Court Case Tracker",
+      "bucket": "Judicial Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "NGT Environmental Litigation Tracker",
+      "bucket": "Judicial Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "CAT & Consumer Disputes (NCDRC) Watch",
+      "bucket": "Judicial Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "HC Judge Profiles & Bench Analytics",
+      "bucket": "Judicial Analytics",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "ICC Proceedings",
+      "bucket": "International Courts",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "ICJ Proceedings",
+      "bucket": "International Courts",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "WTO Dispute Settlement",
+      "bucket": "International Courts",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "law",
+      "feature": "NCLT / NCLAT (Insolvency)",
+      "bucket": "Tribunals",
+      "pack": "judiciary_nclt_orders.csv",
+      "rows": 434,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "law",
+      "feature": "Sector Tribunals (ITAT / TDSAT / SAT / DRT)",
+      "bucket": "Tribunals",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "economics",
+      "feature": "NSE/BSE Delayed Market Feed",
+      "bucket": "Market Intelligence",
+      "pack": "finance_market_feed.csv",
+      "rows": 144,
+      "note": null
+    },
+    {
+      "tier": "economics",
+      "feature": "Live Global Stock Exchanges",
+      "bucket": "Market Intelligence",
+      "pack": "finance_world_exchanges.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "economics",
+      "feature": "Key Financial Indicators (GDP, CPI, PMI, Emp-to-Pop)",
+      "bucket": "Macro, Trade & Economy",
+      "pack": "finance_world_indicators.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "economics",
+      "feature": "Sector Policy — Power/Energy/Green/Critical Minerals",
+      "bucket": "Sector & Industry Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "economics",
+      "feature": "AI & the Tech Industry",
+      "bucket": "Sector & Industry Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "economics",
+      "feature": "Prediction Market Political Odds",
+      "bucket": "Prediction Markets",
+      "pack": "finance_manifold_markets.csv",
+      "rows": 31,
+      "note": null
+    },
+    {
+      "tier": "carbon",
+      "feature": "Carbon Border (CBAM) Watch",
+      "bucket": "Border Mechanisms",
+      "pack": "climate_cbam_watch.csv",
+      "rows": 7,
+      "note": null
+    },
+    {
+      "tier": "carbon",
+      "feature": "Global Carbon Pricing Tracker",
+      "bucket": "Carbon Markets",
+      "pack": "climate_carbon_pricing.csv",
+      "rows": 52,
+      "note": null
+    },
+    {
+      "tier": "carbon",
+      "feature": "India CCTS & Green Credits",
+      "bucket": "India Carbon Market",
+      "pack": "climate_india_ccts.csv",
+      "rows": 6,
+      "note": null
+    },
+    {
+      "tier": "carbon",
+      "feature": "Carbon Registry Wire",
+      "bucket": "Registries & Wire",
+      "pack": "climate_registry_wire.csv",
+      "rows": 24,
+      "note": null
+    },
+    {
+      "tier": "sports",
+      "feature": "Cricket Wire",
+      "bucket": "Scores & Fixtures",
+      "pack": "sports_cricket_wire.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "sports",
+      "feature": "Football Wire",
+      "bucket": "Football Desk",
+      "pack": "sports_football_wire.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "sports",
+      "feature": "ISL Tracker",
+      "bucket": "Football Desk",
+      "pack": "sports_isl.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "sports",
+      "feature": "Indian Sports Wire",
+      "bucket": "India Sports Desk",
+      "pack": "sports_india_wire.csv",
+      "rows": 0,
+      "note": "Google News RSS for India hockey, badminton, kabaddi, athletics and chess (7 days). Not a GDELT product-name search."
+    },
+    {
+      "tier": "sports",
+      "feature": "Sports Governance & Policy",
+      "bucket": "India Sports Desk",
+      "pack": null,
+      "rows": 0,
+      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+    },
+    {
+      "tier": "sports",
+      "feature": "Athlete Index",
+      "bucket": "Sports Business",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "entertainment",
+      "feature": "TV & Streaming Tonight",
+      "bucket": "Screens & Streaming",
+      "pack": "ent_tv_tonight.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Box Office Tracker",
+      "bucket": "Screens & Streaming",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Music Charts — India Top 25",
+      "bucket": "Music",
+      "pack": "ent_music_in.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Music Charts — Global Top 25",
+      "bucket": "Music",
+      "pack": "ent_music_us.csv",
+      "rows": 0,
+      "note": null
+    },
+    {
+      "tier": "entertainment",
+      "feature": "OTT & Studio Intelligence",
+      "bucket": "Screen Intelligence",
+      "pack": null,
+      "rows": 0,
+      "note": null
+    }
+  ]
+}
