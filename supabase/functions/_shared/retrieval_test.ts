@@ -67,3 +67,12 @@ Deno.test('accumulate unions by id and keeps the higher similarity', () => {
   assertEquals(out[0].similarity, 0.8);
   assertEquals(accumulate([a2], [a])[0].similarity, 0.8);
 });
+
+Deno.test('document scope passes through unchanged; absent scope stays null and empty scope stays empty', async () => {
+  const calls: Record<string, unknown>[] = [];
+  const d = deps({ calls });
+  await search(d, { query: 'q', documentIds: ['doc-1', 'doc-2'] });
+  await search(d, { query: 'q', documentIds: [] });
+  await search(d, { query: 'q' });
+  assertEquals(calls.map((c) => c.p_document_ids), [['doc-1', 'doc-2'], [], null]);
+});
