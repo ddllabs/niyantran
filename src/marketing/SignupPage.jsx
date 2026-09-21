@@ -4,12 +4,15 @@ import {
   createUser,
   hydrateUsersFromServer,
   setSessionUser,
+  upsertGoogleUser,
   userTypeOf,
 } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 import { normalizePlanId, startTrialFields, TRIAL_DAYS } from '../lib/planEntitlements.js';
 import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
+import { googleSignInEnabled } from '../lib/googleAuthClient.js';
+import GoogleSignInButton, { exchangeGoogleCredential } from './GoogleSignInButton.jsx';
 
 function planFromRoute() {
   const raw = String(location.hash || '')
@@ -30,8 +33,12 @@ export default function SignupPage({ onSuccess, onLogin }) {
   const [pending, setPending] = useState(false);
   const [personaId, setPersonaId] = useState('');
   const [planId, setPlanId] = useState(() => planFromRoute());
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkPass, setLinkPass] = useState('');
+  const [pendingCredential, setPendingCredential] = useState('');
   const root = useRef(null);
   const plans = useMemo(() => loadPricing().filter((p) => p.id !== 'gov'), []);
+  const googleOn = googleSignInEnabled();
 
   useEffect(() => {
     hydrateUsersFromServer().catch(() => {});
@@ -54,6 +61,49 @@ export default function SignupPage({ onSuccess, onLogin }) {
     el.style.setProperty('--my', `${(y * 100).toFixed(2)}%`);
     el.style.setProperty('--px', `${((x - 0.5) * 16).toFixed(2)}px`);
     el.style.setProperty('--py', `${((y - 0.5) * 10).toFixed(2)}px`);
+  }
+
+  async function finishSession(user, { source = 'signup', plan } = {}) {
+    const type = userTypeOf(user.personaId || user.type).id;
+    const seat = { ...user, type, personaId: type };
+    applyPersonaForUser(seat);
+    setSessionUser(seat);
+    sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
+    trackProductEvent('persona_selected', { personaId: type, source, plan: plan || seat.plan });
+    trackProductEvent('plan_selected', { plan: plan || seat.plan, status: seat.planStatus || 'free' });
+    await hydrateUserPrefs(seat.email);
+    onSuccess();
+  }
+
+  async function completeGoogle(credential, linkPassword) {
+    setPending(true);
+    setError('');
+    try {
+      const out = await exchangeGoogleCredential(credential, { linkPassword });
+      const up = upsertGoogleUser(out.user);
+      if (!up.ok) throw new Error(up.reason || 'Could not store Google account.');
+      setPendingCredential('');
+      setLinkEmail('');
+      setLinkPass('');
+      trackProductEvent('google_auth', { created: Boolean(out.created), linked: Boolean(out.linked) });
+      await finishSession(up.user, { source: out.created ? 'google_signup' : 'google_login', plan: up.user.plan });
+    } catch (err) {
+      if (err.code === 'NEEDS_LINK') {
+        setPendingCredential(credential);
+        setLinkEmail(err.email || '');
+        setError(err.message || 'Enter your existing password to link Google.');
+        setPending(false);
+        return;
+      }
+      setError(err.message || 'Google sign-in failed.');
+      setPending(false);
+    }
+  }
+
+  async function handleLink(e) {
+    e.preventDefault();
+    if (!pendingCredential || !linkPass) return;
+    await completeGoogle(pendingCredential, linkPass);
   }
 
   async function handleSubmit(e) {
@@ -99,13 +149,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
     }
 
     const type = userTypeOf(res.user.type).id;
-    applyPersonaForUser(res.user);
-    setSessionUser({ ...res.user, type, personaId: type });
-    sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
-    trackProductEvent('persona_selected', { personaId: type, source: 'signup', plan: planFields.plan });
-    trackProductEvent('plan_selected', { plan: planFields.plan, status: planFields.planStatus });
-    await hydrateUserPrefs(res.user.email);
-    onSuccess();
+    await finishSession({ ...res.user, type, personaId: type }, { source: 'signup', plan: planFields.plan });
   }
 
   return (
@@ -131,6 +175,59 @@ export default function SignupPage({ onSuccess, onLogin }) {
         <h1>CREATE ACCESS</h1>
         <div className="tag">SIGN UP</div>
 
+        {googleOn ? (
+          <div className="mkt-google-block">
+            <p className="mkt-google-note">
+              Continue with Google — new accounts start on <strong>Explorer</strong> as <strong>Analyst</strong>.
+              Existing paid seats keep their plan.
+            </p>
+            <GoogleSignInButton
+              text="signup_with"
+              disabled={pending}
+              onCredential={(cred) => completeGoogle(cred)}
+              onError={(err) => setError(err.message || 'Google Sign-In failed.')}
+            />
+            <div className="mkt-auth-or" aria-hidden="true">
+              <span>or</span>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingCredential ? (
+          <form className="mkt-google-link" onSubmit={handleLink} autoComplete="off">
+            <p className="mkt-google-link-copy">
+              An account already exists for <strong>{linkEmail}</strong>. Enter that password to link Google Sign-In.
+            </p>
+            <label className="mkt-field">
+              <span>Password</span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={linkPass}
+                onChange={(e) => setLinkPass(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <button className="mkt-cta" type="submit" disabled={pending}>
+              {pending ? 'Linking…' : 'Link Google and continue'}
+            </button>
+            <button
+              type="button"
+              className="mkt-google-cancel"
+              onClick={() => {
+                setPendingCredential('');
+                setLinkPass('');
+                setError('');
+              }}
+            >
+              Cancel
+            </button>
+            <div className="mkt-err" role="alert">
+              {error}
+            </div>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} autoComplete="off">
           <div className="mkt-signup-block">
             <h2 className="mkt-signup-label">Plan</h2>
@@ -213,6 +310,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
             {error}
           </div>
         </form>
+        )}
 
         <p className="mkt-auth-switch">
           Already have access?{' '}

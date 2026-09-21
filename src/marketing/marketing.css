@@ -4093,6 +4093,78 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-auth-switch button:hover {
   text-decoration: underline;
 }
+
+.mkt-google-block {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+.mkt-google-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--mkt-muted);
+}
+.mkt-google-wrap {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+}
+.mkt-google-btn {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  opacity: 0.55;
+  transition: opacity 0.25s ease;
+}
+.mkt-google-btn.on { opacity: 1; }
+.mkt-google-off {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mkt-muted);
+  text-align: center;
+}
+.mkt-auth-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 10px;
+  color: #9a9288;
+  font: 650 11px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mkt-auth-or::before,
+.mkt-auth-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2dcd2;
+}
+.mkt-google-link {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mkt-google-link-copy {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--mkt-muted);
+}
+.mkt-google-cancel {
+  border: 0;
+  background: transparent;
+  color: var(--mkt-blue);
+  font: 650 13px/1.2 inherit;
+  cursor: pointer;
+  padding: 6px 0;
+  text-align: left;
+}
+.mkt-google-cancel:hover { text-decoration: underline; }
+
 .mkt-signup {
   align-items: start;
   justify-items: center;

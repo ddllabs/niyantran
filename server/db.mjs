@@ -51,6 +51,12 @@ function migrate(database) {
   add('plan_status', 'plan_status TEXT DEFAULT \"free\"');
   add('trial_ends_at', 'trial_ends_at TEXT');
   add('billing_yearly', 'billing_yearly INTEGER DEFAULT 0');
+  add('google_sub', 'google_sub TEXT');
+  try {
+    database.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL`);
+  } catch {
+    /* sql.js may not support partial indexes — non-fatal */
+  }
   database.run(`
     CREATE TABLE IF NOT EXISTS analytics_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
