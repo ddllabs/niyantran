@@ -59,7 +59,6 @@ const DOCS_EN = [
   'If a fact is missing from that scope, the assistant should say “Not in record.”',
   'Attach desk rows or files for evidence. Evidence is listed before interpretation.',
   'No buy / sell / hold language. No invented citations or fake typing.',
-  'Work mode keeps replies denser: Evidence → Read → Gaps → Confidence.',
 ];
 
 const DOCS_HI = [
@@ -67,8 +66,14 @@ const DOCS_HI = [
   'यदि तथ्य दायरे में नहीं है, सहायक को “Not in record” कहना चाहिए।',
   'साक्ष्य के लिए पंक्तियाँ या फ़ाइलें जोड़ें। व्याख्या से पहले साक्ष्य।',
   'खरीद/बेच/होल्ड भाषा नहीं। बनावटी उद्धरण या नकली टाइपिंग नहीं।',
-  'Work mode घने उत्तर रखता है: Evidence → Read → Gaps → Confidence।',
 ];
+
+// The last line differs by path: work mode used to change the prompt, and now
+// opens the evidence instead — answers are evidence-first either way.
+const DOCS_WORK_EN = 'Work mode opens the evidence behind an answer: the passage, or the record.';
+const DOCS_WORK_HI = 'Work mode उत्तर के पीछे का साक्ष्य खोलता है: अंश, या रिकॉर्ड।';
+const DOCS_FLAG_EN = 'Work mode keeps replies denser: Evidence → Read → Gaps → Confidence.';
+const DOCS_FLAG_HI = 'Work mode घने उत्तर रखता है: Evidence → Read → Gaps → Confidence।';
 
 function contextLabel({ attachments, selected, featureName }) {
   const attached = (attachments || []).map((a) => a.title || a.feature).filter(Boolean);
@@ -698,7 +703,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
   const recommended = AI_PROVIDERS.filter((p) => RECOMMENDED_IDS.includes(p.id));
   const others = AI_PROVIDERS.filter((p) => !RECOMMENDED_IDS.includes(p.id));
-  const docs = hi ? DOCS_HI : DOCS_EN;
+  const docs = [
+    ...(hi ? DOCS_HI : DOCS_EN),
+    serverThreads ? (hi ? DOCS_WORK_HI : DOCS_WORK_EN) : hi ? DOCS_FLAG_HI : DOCS_FLAG_EN,
+  ];
 
   return (
     <div
