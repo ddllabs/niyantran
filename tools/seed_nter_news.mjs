@@ -121,8 +121,12 @@ async function one(url) {
       pick(html, /property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
     let img =
       pick(html, /property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
-      pick(html, /content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+      pick(html, /content=["']([^"']+)["'][^>]*property=["']og:image["']/i) ||
+      pick(html, /class=["']article-figure["'][\s\S]{0,800}?src=["']([^"']+)["']/i) ||
+      pick(html, /<img[^>]+src=["']([^"']*\/assets\/uploads\/[^"']+)["']/i) ||
+      pick(html, /src=["']([^"']*uploads[^"']+\.(?:jpe?g|png|webp|gif))["']/i);
     if (img && img.startsWith('/')) img = `https://nter.news${img}`;
+    else if (img && img.startsWith('//')) img = `https:${img}`;
     const cat = pick(html, /class=["']eyebrow[^"']*["']>([^<]+)</i);
     const pubRaw = pick(html, /<small>Published<\/small>([^<]+)/i);
     let pub = new Date().toISOString();
@@ -198,8 +202,9 @@ console.log(
     {
       count: out.length,
       withTitle: out.filter((r) => r.title && !r.fetch_error).length,
+      withImg: out.filter((r) => r.img).length,
       errors: out.filter((r) => r.fetch_error).length,
-      sample: out.slice(0, 3).map((r) => ({ title: r.title, pub: r.pub })),
+      sample: out.slice(0, 3).map((r) => ({ title: r.title, pub: r.pub, img: r.img })),
     },
     null,
     2,

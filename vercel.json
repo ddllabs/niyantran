@@ -5,7 +5,7 @@
   "functions": {
     "api/router.js": {
       "maxDuration": 60,
-      "includeFiles": "{src/data/**,public/data/**}"
+      "includeFiles": "{src/data/**,public/data/**,node_modules/sql.js/dist/**}"
     }
   },
   "rewrites": [

@@ -109,7 +109,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
     setPending(true);
     setError('');
     try {
-      const out = await exchangeGoogleCredential(credential, { linkPassword });
+      const out = await exchangeGoogleCredential(credential, { linkPassword, mode: 'signup' });
       let up = upsertGoogleUser(out.user);
       if (!up.ok) throw new Error(up.reason || 'Could not store Google account.');
 

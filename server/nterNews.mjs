@@ -122,6 +122,15 @@ function unwrapPayload(payload) {
   return payload;
 }
 
+function absolutizeNterImg(raw) {
+  const img = String(raw || '').trim();
+  if (!img) return '';
+  if (/^https?:\/\//i.test(img)) return img;
+  if (img.startsWith('//')) return `https:${img}`;
+  if (img.startsWith('/')) return `https://nter.news${img}`;
+  return img;
+}
+
 function articleToRow(article) {
   const title = String(article.title || '').trim();
   const link = String(article.url || article.link || '').trim();
@@ -142,7 +151,7 @@ function articleToRow(article) {
     pub,
     published_at: publishedAt || pub,
     updated_at: updatedAt,
-    img: String(article.image_url || article.img || '').trim(),
+    img: absolutizeNterImg(article.image_url || article.img || ''),
     src,
     site: 'https://nter.news',
     dek: summary.slice(0, 280),

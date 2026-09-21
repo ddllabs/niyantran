@@ -21,7 +21,7 @@ import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.j
 
 export const config = {
   maxDuration: 60,
-  includeFiles: ['{src/data/**,public/data/**}'],
+  includeFiles: ['{src/data/**,public/data/**,node_modules/sql.js/dist/**}'],
 };
 
 function routePath(req) {
@@ -240,7 +240,12 @@ export default async function handler(req, res) {
       }
       const out = await resolveGoogleLogin(parseBody(req));
       if (!out.ok) {
-        const status = out.code === 'BAD_PASSWORD' || out.code === 'NEEDS_LINK' ? 401 : 400;
+        const status =
+          out.code === 'BAD_PASSWORD' || out.code === 'NEEDS_LINK'
+            ? 401
+            : out.code === 'NO_ACCOUNT'
+              ? 404
+              : 400;
         res.status(status).json(out);
         return;
       }
@@ -348,11 +353,14 @@ export default async function handler(req, res) {
 
     res.status(404).json({ ok: false, error: `No API route for ${path}` });
   } catch (err) {
-    const msg = err.message || String(err);
+    const raw = err.message || String(err);
+    const msg = /sql-wasm|sql\.js|ENOENT|WASM/i.test(raw)
+      ? 'Sign-in is temporarily unavailable. Please try again in a moment, or create an account first.'
+      : raw;
     const status = /missing|required|invalid|Select a row|No rows|audience|issuer|expired|token|credential|verified/i.test(
-      msg,
+      raw,
     )
-      ? /audience|issuer|expired|token|credential|verified/i.test(msg)
+      ? /audience|issuer|expired|token|credential|verified/i.test(raw)
         ? 401
         : 400
       : 502;

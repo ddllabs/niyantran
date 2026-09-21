@@ -4,8 +4,13 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import initSqlJs from 'sql.js';
 import { writablePath } from './writableRoot.mjs';
+
+const require = createRequire(import.meta.url);
+const SQL_JS_DIST = path.dirname(require.resolve('sql.js'));
+const SQL_WASM = path.join(SQL_JS_DIST, 'sql-wasm.wasm');
 
 const DB_PATH = writablePath('niyantran.sqlite');
 
@@ -194,7 +199,17 @@ export async function upsertEntryBrief({
 
 export async function getDb() {
   if (db) return db;
-  SQL = SQL || (await initSqlJs());
+  if (!fs.existsSync(SQL_WASM)) {
+    throw new Error(
+      `sql.js WASM missing at ${SQL_WASM}. Redeploy with node_modules/sql.js/dist included.`,
+    );
+  }
+  SQL =
+    SQL ||
+    (await initSqlJs({
+      // Default looks under /var/task/node_modules/... which NFT often omits on Vercel.
+      locateFile: (file) => (file.endsWith('.wasm') ? SQL_WASM : path.join(SQL_JS_DIST, file)),
+    }));
   ensureDir();
   if (fs.existsSync(DB_PATH)) {
     const buf = fs.readFileSync(DB_PATH);

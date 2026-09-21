@@ -62,7 +62,7 @@ export default function LoginPage({ onSuccess, onSignup }) {
     setPending(true);
     setError('');
     try {
-      const out = await exchangeGoogleCredential(credential, { linkPassword });
+      const out = await exchangeGoogleCredential(credential, { linkPassword, mode: 'signin' });
       const up = upsertGoogleUser(out.user);
       if (!up.ok) throw new Error(up.reason || 'Could not store Google account.');
       setPendingCredential('');
@@ -74,6 +74,11 @@ export default function LoginPage({ onSuccess, onSignup }) {
         setPendingCredential(credential);
         setLinkEmail(err.email || '');
         setError(err.message || 'Enter your existing password to link Google.');
+        setPending(false);
+        return;
+      }
+      if (err.code === 'NO_ACCOUNT') {
+        setError(err.message || 'No account found. Please register first.');
         setPending(false);
         return;
       }
@@ -216,10 +221,21 @@ export default function LoginPage({ onSuccess, onSignup }) {
           <div className="mkt-login-hint">Demo mode (?demo=1): analyst@niyantran / 12345678#</div>
         ) : null}
         <p className="mkt-auth-switch">
-          New here?{' '}
-          <button type="button" onClick={onSignup}>
-            Create an account
-          </button>
+          {error && /register first|No account found/i.test(error) ? (
+            <>
+              Need an account?{' '}
+              <button type="button" onClick={onSignup}>
+                Create one
+              </button>
+            </>
+          ) : (
+            <>
+              New here?{' '}
+              <button type="button" onClick={onSignup}>
+                Create an account
+              </button>
+            </>
+          )}
         </p>
       </main>
     </div>

@@ -41,14 +41,17 @@ export function loadGoogleScript() {
 
 /**
  * Exchange a Google ID token for a NTER session user (server-verified).
+ * @param {string} credential
+ * @param {{ linkPassword?: string, mode?: 'signin'|'signup' }} [opts]
  */
-export async function exchangeGoogleCredential(credential, { linkPassword } = {}) {
+export async function exchangeGoogleCredential(credential, { linkPassword, mode } = {}) {
   const res = await fetch('/api/auth/google', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       credential,
       linkPassword: linkPassword || undefined,
+      mode: mode === 'signup' ? 'signup' : 'signin',
     }),
   });
   const body = await res.json().catch(() => ({}));

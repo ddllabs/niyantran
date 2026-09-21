@@ -2,9 +2,11 @@
  * Google Sign-In — verify ID tokens and resolve / create NTER accounts.
  *
  *   POST /api/auth/google
- *     { credential }                         — GIS ID token
+ *     { credential }                         — GIS ID token (login: existing only)
+ *     { credential, mode: 'signup' }         — create explorer seat if new
  *     { credential, linkPassword }           — link Google to existing password account
  *
+ * Login never auto-registers. Signup is the only create path.
  * Defaults for new accounts (approved): plan=explorer, persona=analyst.
  * Never overwrite plan/persona on returning users.
  * Same email with password but no google_sub → needs_link (no silent merge).
@@ -138,12 +140,22 @@ async function verifyGoogleCredential(credential) {
   };
 }
 
+function sanitizeAuthError(err) {
+  const msg = err?.message || String(err || 'Google sign-in failed');
+  if (/sql-wasm|sql\.js|ENOENT|WASM/i.test(msg)) {
+    return 'Sign-in is temporarily unavailable. Please try again in a moment, or create an account first.';
+  }
+  return msg;
+}
+
 /**
  * Resolve Google identity to a NTER user.
+ * @param {{ credential?: string, linkPassword?: string, mode?: 'signin'|'signup' }} opts
  * @returns {{ ok: true, user, created: boolean } | { ok: false, code: string, email?: string, error: string }}
  */
-export async function resolveGoogleLogin({ credential, linkPassword } = {}) {
+export async function resolveGoogleLogin({ credential, linkPassword, mode } = {}) {
   const identity = await verifyGoogleCredential(credential);
+  const allowCreate = String(mode || 'signin').toLowerCase() === 'signup';
   const database = await getDb();
   await ensureGoogleColumn(database);
 
@@ -195,7 +207,16 @@ export async function resolveGoogleLogin({ credential, linkPassword } = {}) {
     };
   }
 
-  // First Google login — create explorer / analyst
+  // No existing seat — login must register first; signup may create.
+  if (!allowCreate) {
+    return {
+      ok: false,
+      code: 'NO_ACCOUNT',
+      email: identity.email,
+      error: 'No account found for this Google email. Please register first.',
+    };
+  }
+
   const now = new Date().toISOString();
   const created = {
     id: `g-${identity.sub}`,
@@ -256,13 +277,19 @@ export async function handleGoogleAuthApi(req, res, next) {
     const payload = JSON.parse(raw || '{}');
     const out = await resolveGoogleLogin(payload);
     if (!out.ok) {
-      const status = out.code === 'BAD_PASSWORD' || out.code === 'NEEDS_LINK' ? 401 : 400;
+      const status =
+        out.code === 'BAD_PASSWORD' || out.code === 'NEEDS_LINK'
+          ? 401
+          : out.code === 'NO_ACCOUNT'
+            ? 404
+            : 400;
       return json(res, out, status);
     }
     return json(res, { ok: true, user: out.user, created: out.created, linked: Boolean(out.linked) });
   } catch (err) {
-    const msg = err.message || String(err);
-    const status = /audience|issuer|expired|token|credential|Missing|verified/i.test(msg) ? 401 : 500;
+    const msg = sanitizeAuthError(err);
+    const raw = err?.message || String(err);
+    const status = /audience|issuer|expired|token|credential|Missing|verified/i.test(raw) ? 401 : 500;
     return json(res, { ok: false, code: 'VERIFY_FAILED', error: msg }, status);
   }
 }
