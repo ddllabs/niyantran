@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDb, queryAll, run } from './db.mjs';
+import { createClient } from '@supabase/supabase-js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -136,7 +137,12 @@ async function readUsers() {
 
 async function writeUsers(users) {
   const database = await getDb();
-  const list = mergeWithSeeds(users);
+  // Exports omit passwords; metadata replacements must not erase credentials.
+  const existing = queryAll(database, 'SELECT id, email, password FROM users');
+  const list = mergeWithSeeds(users.map((user) => {
+    const prior = existing.find((row) => row.id === user.id && row.email === String(user.email || '').trim().toLowerCase());
+    return user.password === undefined && prior ? { ...user, password: prior.password } : user;
+  }));
   const now = new Date().toISOString();
   run(database, `DELETE FROM users`);
   for (const u of list) {
@@ -171,41 +177,102 @@ async function writeUsers(users) {
   return list;
 }
 
+// Request-scoped client: RPCs use exactly the token independently checked by
+// getUser. Never use a service-role client or browser-supplied role metadata.
+export function localClientForToken(token) {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY
+    || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error('Local authorization is not configured');
+  return createClient(url, key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+export async function authorizeLocalUser(req, res, { admin = false, clientForToken = localClientForToken } = {}) {
+  const header = req.headers.authorization;
+  const match = typeof header === 'string' && /^Bearer ([^\s,]+)$/i.exec(header);
+  if (!match) {
+    json(res, { ok: false, error: 'Authentication required' }, 401);
+    return null;
+  }
+  try {
+    const client = clientForToken(match[1]);
+    const verified = await client.auth.getUser(match[1]);
+    const user = verified.data?.user;
+    if (verified.error || !user?.id || typeof user.email !== 'string' || !user.email.trim()) {
+      json(res, { ok: false, error: 'Invalid or expired session' }, 401);
+      return null;
+    }
+    const profile = await client.rpc('get_my_profile');
+    if (profile.error) throw new Error('Profile verification failed');
+    if (profile.data?.user_id !== user.id || profile.data.status !== 'active') {
+      json(res, { ok: false, error: 'Active account required' }, 403);
+      return null;
+    }
+    if (admin) {
+      const authority = await client.rpc('is_platform_admin');
+      if (authority.error) throw new Error('Admin verification failed');
+      if (authority.data !== true || profile.data.role !== 'admin') {
+        json(res, { ok: false, error: 'Internal admin access required' }, 403);
+        return null;
+      }
+    }
+    return { id: user.id, email: user.email.trim().toLowerCase() };
+  } catch {
+    json(res, { ok: false, error: 'Unable to verify account access' }, 503);
+    return null;
+  }
+}
+
+function publicUsers(users) {
+  return users.map((user) => {
+    const { password: _password, ...safe } = normalize(user);
+    return safe;
+  });
+}
+
 async function readBody(req) {
   let body = '';
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 2 * 1024 * 1024) break;
+    if (body.length > 2 * 1024 * 1024) throw new Error('Request too large');
   }
   return body;
 }
 
-export async function handleUsersApi(req, res, next) {
-  const host = req.headers.host || 'localhost';
-  const url = new URL(req.url, `http://${host}`);
+export async function handleUsersApi(req, res, next, deps = {}) {
+  const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/users')) {
     next();
     return;
   }
+  if (url.pathname !== '/api/users') return json(res, { ok: false, error: 'Not found' }, 404);
+  if (!['GET', 'PUT'].includes(req.method)) return json(res, { ok: false, error: 'GET or PUT only' }, 405);
+  const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
+  if (!caller) return;
 
-  if (url.pathname === '/api/users' && req.method === 'GET') {
-    const users = await readUsers();
-    return json(res, { ok: true, users, engine: 'sqlite' });
-  }
-
-  if (url.pathname === '/api/users' && req.method === 'PUT') {
+  let list;
+  if (req.method === 'PUT') {
     try {
-      const raw = await readBody(req);
-      const payload = JSON.parse(raw || '{}');
-      const list = Array.isArray(payload.users) ? payload.users : [];
-      const users = await writeUsers(list);
-      return json(res, { ok: true, users, engine: 'sqlite' });
-    } catch (err) {
-      return json(res, { ok: false, error: err.message || String(err) }, 400);
+      const payload = JSON.parse((await readBody(req)) || '{}');
+      if (!Array.isArray(payload?.users) || payload.users.some((u) => !u || typeof u !== 'object' || Array.isArray(u))) {
+        throw new Error('Invalid users');
+      }
+      list = payload.users;
+    } catch {
+      return json(res, { ok: false, error: 'Invalid users payload' }, 400);
     }
   }
-
-  return json(res, { ok: false, error: 'GET or PUT only' }, 405);
+  try {
+    const users = req.method === 'GET'
+      ? await (deps.readUsers || readUsers)()
+      : await (deps.writeUsers || writeUsers)(list);
+    return json(res, { ok: true, users: publicUsers(users), engine: 'sqlite' });
+  } catch {
+    return json(res, { ok: false, error: 'Unable to access local users' }, 500);
+  }
 }
 
 export function usersApiPlugin() {

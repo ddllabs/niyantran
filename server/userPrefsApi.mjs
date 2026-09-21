@@ -1,9 +1,10 @@
 /**
  * A-15 — per-user prefs in SQLite (watchlist, AI chats, tours).
- *   GET  /api/user-prefs?email=
- *   PUT  /api/user-prefs  { email, watchlist?, aiChats?, tours? }
+ *   GET  /api/user-prefs (optional matching email for compatibility)
+ *   PUT  /api/user-prefs  { watchlist?, aiChats?, tours?, email? }
  */
 import { getDb, queryAll, run } from './db.mjs';
+import { authorizeLocalUser } from './usersApi.mjs';
 
 function json(res, body, status = 200) {
   res.statusCode = status;
@@ -16,7 +17,7 @@ async function readBody(req) {
   let body = '';
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 2.5 * 1024 * 1024) break;
+    if (body.length > 2.5 * 1024 * 1024) throw new Error('Request too large');
   }
   return body;
 }
@@ -30,22 +31,35 @@ function parseJson(raw, fallback) {
   }
 }
 
-export async function handleUserPrefsApi(req, res, next) {
-  const host = req.headers.host || 'localhost';
-  const url = new URL(req.url, `http://${host}`);
+export async function handleUserPrefsApi(req, res, next, deps = {}) {
+  const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/user-prefs')) {
     next();
     return;
   }
 
+  if (url.pathname !== '/api/user-prefs') return json(res, { ok: false, error: 'Not found' }, 404);
+  if (!['GET', 'PUT'].includes(req.method)) return json(res, { ok: false, error: 'GET or PUT only' }, 405);
+  const caller = await authorizeLocalUser(req, res, { clientForToken: deps.clientForToken });
+  if (!caller) return;
+  const email = caller.email;
+  let payload;
+  if (req.method === 'PUT') {
+    try {
+      payload = JSON.parse((await readBody(req)) || '{}');
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Invalid prefs');
+    } catch {
+      return json(res, { ok: false, error: 'Invalid preferences payload' }, 400);
+    }
+  }
+  const supplied = req.method === 'GET' ? url.searchParams.getAll('email') : [payload.email];
+  if (supplied.some((value) => value != null && (typeof value !== 'string' || value.trim().toLowerCase() !== email))) {
+    return json(res, { ok: false, error: 'Preferences belong to the signed-in account' }, 403);
+  }
   try {
     const database = await getDb();
 
     if (url.pathname === '/api/user-prefs' && req.method === 'GET') {
-      const email = String(url.searchParams.get('email') || '')
-        .trim()
-        .toLowerCase();
-      if (!email) return json(res, { ok: false, error: 'email required' }, 400);
       const row = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [email])[0];
       if (!row) {
         return json(res, {
@@ -70,11 +84,6 @@ export async function handleUserPrefsApi(req, res, next) {
     }
 
     if (url.pathname === '/api/user-prefs' && req.method === 'PUT') {
-      const payload = JSON.parse((await readBody(req)) || '{}');
-      const email = String(payload.email || '')
-        .trim()
-        .toLowerCase();
-      if (!email) return json(res, { ok: false, error: 'email required' }, 400);
 
       const existing = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [email])[0];
       const watchlist =
@@ -101,8 +110,8 @@ export async function handleUserPrefsApi(req, res, next) {
     }
 
     return json(res, { ok: false, error: 'Not found' }, 404);
-  } catch (err) {
-    return json(res, { ok: false, error: err.message || String(err) }, 500);
+  } catch {
+    return json(res, { ok: false, error: 'Unable to access local preferences' }, 500);
   }
 }
 
