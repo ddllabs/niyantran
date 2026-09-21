@@ -5,7 +5,6 @@ import type { HandleAssigner } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
 import { accumulate, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
-import { executeThink, THINK_TOOL } from '../_shared/tools/think.ts';
 import {
   type DeskRow,
   type DeskRowsResult,
@@ -15,7 +14,7 @@ import {
 } from '../_shared/tools/searchDeskRows.ts';
 import { ANSWER_JSON_SCHEMA } from './prompt.ts';
 
-export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2, maxThoughts: 4 } as const;
+export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
 
 /** Mutable turn-wide counters. Reuse across failover/schema retries; the handler
  * must also charge repair attempts against modelAttempts before calling them.
@@ -26,11 +25,9 @@ export interface AgentBudget {
   /** Counted separately so only the first document search of the turn is scoped. */
   documentSearches: number;
   continuations: number;
-  /** Bounded on its own: planning must not consume the step budget without searching. */
-  thoughts: number;
 }
 export function createAgentBudget(): AgentBudget {
-  return { modelAttempts: 0, searches: 0, documentSearches: 0, continuations: 0, thoughts: 0 };
+  return { modelAttempts: 0, searches: 0, documentSearches: 0, continuations: 0 };
 }
 
 export interface DocumentSearchArgs {
@@ -87,8 +84,6 @@ export interface AgentResult {
   handles: Record<string, string>;
   modelCalls: number;
   searches: number;
-  /** How many times the model planned instead of retrieving or answering. */
-  thoughts: number;
 }
 
 export interface AgentInput {
@@ -264,18 +259,8 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   }
 
   async function execute(call: ToolCall): Promise<string> {
-    if (call.name === 'think') {
-      // No trace row and no public tool frame: think retrieves nothing, and the
-      // thought is the model's working note, not evidence and not reader-facing.
-      if (budget.thoughts >= BUDGET.maxThoughts) {
-        return 'THINK_BUDGET_SPENT: search now, or answer from what you have.';
-      }
-      budget.thoughts++;
-      const parsedThought = parseArguments(call.args);
-      return executeThink((parsedThought ?? {}) as { thought?: unknown });
-    }
     if (call.name !== 'search_documents' && call.name !== 'search_desk_rows') {
-      return 'UNKNOWN_TOOL: use search_documents, search_desk_rows or think.';
+      return 'UNKNOWN_TOOL: use search_documents or search_desk_rows.';
     }
     const parsed = parseArguments(call.args);
     const args = parsed && (call.name === 'search_documents' ? documentArguments(parsed) : rowArguments(parsed));
@@ -354,7 +339,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       cache: true,
       ...deps.request,
       messages: structuredClone(messages),
-      ...(phase === 'research' ? { tools: [SEARCH_DOCUMENTS_TOOL, SEARCH_DESK_ROWS_TOOL, THINK_TOOL] } : {}),
+      ...(phase === 'research' ? { tools: [SEARCH_DOCUMENTS_TOOL, SEARCH_DESK_ROWS_TOOL] } : {}),
     };
     try {
       for await (const event of deps.model(request)) {
@@ -430,6 +415,5 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     handles: deps.handles.handles(),
     modelCalls: budget.modelAttempts,
     searches: budget.searches,
-    thoughts: budget.thoughts,
   };
 }

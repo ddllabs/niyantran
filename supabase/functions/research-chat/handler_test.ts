@@ -1434,22 +1434,19 @@ Deno.test('a turn where every attempt reports keeps its existing shape', async (
   assertEquals(usage.observed, undefined, 'and carries nothing extra');
 });
 
-// The think tool writes no trace row and no activity frame, on purpose: the
-// thought is the model's working note, not evidence and not reader-facing. That
-// left its use unmeasurable. Whether it had ever been called could only be
-// inferred from attempt arithmetic, and a turn that thinks once costs the same
-// number of model calls as one that calls a tool it was never going to use - so
-// the inference is not sound, and I drew it anyway and reported it as a result.
-// The count is written on every completed turn, zero included, because zero is
-// the finding.
-Deno.test('a turn records how many times it thought, and a turn that never thought records zero', async () => {
-  for (const thinks of [true, false]) {
+// `searches` is written on every completed turn, zero included, because zero is
+// a finding: a record question answered without retrieving anything is a real
+// failure and was invisible until the count existed. It had a `thoughts`
+// companion, and that count is what established the think tool was never called
+// - across three prompt versions and two model tiers - which is why the tool is
+// gone and this count is not.
+Deno.test('a turn records how many searches it ran, and a turn that ran none records zero', async () => {
+  for (const searches of [1, 0]) {
     let research = 0;
     const stream: HandlerDeps['stream'] = async function* (req) {
       if (req.tools?.length) {
-        if (research++ === 0) {
+        if (research++ === 0 && searches) {
           yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
-          if (thinks) yield { type: 'tool-call', id: 'c2', name: 'think', args: '{"thought":"rates are still open"}' };
           yield finish('tool_calls');
         } else yield finish();
       } else {
@@ -1458,17 +1455,11 @@ Deno.test('a turn records how many times it thought, and a turn that never thoug
       }
     };
     const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c1')]) });
-    await frames(await handleResearchChat(post({ ...BODY, turn_key: `think-${thinks}` }), deps));
+    await frames(await handleResearchChat(post({ ...BODY, turn_key: `searches-${searches}` }), deps));
 
     const usage = rec.messages[0].usage as Record<string, unknown>;
-    assertEquals(usage.thoughts, thinks ? 1 : 0, 'the thought count must distinguish the two turns');
-    assertEquals(usage.searches, 1, 'and must not be confused with the search count');
-
-    // The thought itself stays private. TurnTraceRow's step_type cannot even name
-    // it - the compiler rejects the comparison - so what is left to check is that
-    // thinking adds no step and that the text reaches neither reader nor record.
-    assertEquals(rec.traces.map((t) => t.step_type), ['search_documents', 'answer']);
-    assert(!JSON.stringify(rec.messages[0]).includes('rates are still open'), 'the thought never reaches the reader');
+    assertEquals(usage.searches, searches, 'the count must distinguish the two turns');
+    assertEquals(usage.thoughts, undefined, 'the think tool is gone and leaves no field behind');
   }
 });
 

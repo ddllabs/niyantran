@@ -256,8 +256,9 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
   // entirely for it - so an omitted field and a deliberate "No reasoning" were
   // the same request. They are not the same intent, and the default that
   // matters is the one an omitted field gets. The tender agent reaches the same
-  // place from the other direction: it sends effort 'low' on every call and
-  // deleted its think tool because thinking tokens made it redundant.
+  // place from the other direction: it sends effort 'low' on every call, and
+  // deleted its think tool because thinking tokens made it redundant - which
+  // this one has now done too, on its own evidence.
   //
   // A default must never be able to reject a request, so an effort the chosen
   // model does not accept is dropped here; only an effort the caller asked for
@@ -810,18 +811,16 @@ async function runTurnBody(
   }
 
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
-  // `searches` and `thoughts` are step counts, not token figures; `attempts`
-  // beside them already is one. They are written on every completed turn,
-  // including when they are zero, because zero is the answer to a question the
-  // record could not previously answer at all: the think tool writes no trace
-  // row and no activity frame, so whether it had ever been called could only be
-  // inferred from attempt arithmetic - and I inferred it wrongly, then reported
-  // the inference as a result. An absent field would leave the same ambiguity
-  // between "not called" and "not measured".
+  // `searches` is a step count, not a token figure; `attempts` beside it already
+  // is one. It is written on every completed turn, including when it is zero,
+  // because zero is a finding: a record question answered without retrieving
+  // anything is a real failure, and it was invisible here until the count
+  // existed. It sat beside a `thoughts` count until the think tool was removed,
+  // and that count is precisely what established the tool was never called.
   // summary() is null when the turn recorded no model attempt at all; spreading
   // that would turn "nothing happened" into an object of zeroes.
   const summary = attempts.summary();
-  const usage = summary && { ...summary, searches: result.searches, thoughts: result.thoughts };
+  const usage = summary && { ...summary, searches: result.searches };
   const terminal = makeAssistantMessage({
     content: ladder.answer,
     sources: ladder.sources,

@@ -27,10 +27,9 @@ const GROUNDING = `Grounding and honesty (mandatory):
 
 const TOOLS = `Search before you answer — always, including the first turn. Any question about the record gets at least one search_documents or search_desk_rows call before you write a word of the answer. You cannot know what the record holds until you have looked, and **Not in record.** is a finding you may only report after searching for it, never instead of searching. The sole exception is a greeting or small talk with no question in it.
 
-Three tools, and when to use them:
+Two tools, and when to use them:
 - search_documents(query) finds passages in the source documents. Use it for what a document says: a clause, a penalty, a holding, a committee's recommendation, a minister's written reply. Phrase the query as the document would phrase it, not as the user did. Each new call must go after a part of the subject the previous calls did not reach, not the same part worded differently. Stop when new calls stop returning new passages.
 - search_desk_rows(tier, feature, query, filters, limit) looks up rows in a desk module and returns the true TOTAL. Use it for counts, lists, filters and comparisons across rows.
-- think(thought) retrieves nothing. Use it after reading results, to say what they settled, what is still open, and the next query you will run. Thinking keeps you in research; answering ends it. Reach for it whenever the record plainly holds more than you have read — a bill has a preamble, clauses, schedules and an objects statement, and one query rarely reaches them all.
 - The selected record, when present, is already in front of you with its own handle. Answer questions about its fields from it directly; do not search for it.
 
 Broad questions — "what does the record show about X", "summarise", "full details", "brief me" — are legitimate and expected, and one search does not answer them. Sweep the subject part by part, one query per part, reading the passages before choosing the next query. For a bill or an act: objects and reasons, the clauses, the schedules, rates and figures, amendments to other statutes, commencement and short title. For a regulatory or court order: the facts, the provision invoked, the finding, the penalty or relief, the directions. For a parliamentary question: the question asked, the reply given, the data annexed. Use as many searches as the sweep needs; finishing early is not a virtue, and you have far more searches available than a sweep costs.
@@ -42,7 +41,7 @@ These are wrong once you have already searched; none of them is a reason not to 
 
 Decomposition examples:
 - Good: the user asks whether the Delimitation Bill reached committee → search_documents("referred to the Standing Committee") and search_documents("committee report Delimitation Bill"), then answer from the passages.
-- Good, an extensive request: "give me full details of the Finance Bill 2014" → search_documents("Finance Bill 2014 objects and reasons") → think("Have the objects; rates and the schedules are missing") → search_documents("rates of income-tax First Schedule") → think("Rates covered; nothing yet on amendments to the Income-tax Act") → search_documents("in section 2 of the Income-tax Act shall be substituted"), then answer from everything retrieved. One search and an answer is the wrong shape for a question like this.
+- Good, an extensive request: "give me full details of this Bill" → one search for the objects and reasons, then one for the rates and the First Schedule, then one for the amendments it makes to other enactments, then answer from everything retrieved. One search and an answer is the wrong shape for a question like this.
 - Good: "how many bills are pending in the Lok Sabha" → search_desk_rows(tier "national", feature "Bill Passage Probability Index", filters {"house":"Lok Sabha","current_stage":"Pending"}) and quote TOTAL.
 - Good: a regulatory order's penalty → search_documents("penalty of Rs") and search_documents("monetary penalty imposed under section").
 - Good: a court order's holding → search_documents("we hold that") and search_documents("appeal is dismissed").
@@ -119,7 +118,7 @@ export const FOCUS_LINES: Record<string, string> = {
   attached: 'Focus: the attached material first; search the record when it does not answer.',
   selection: 'Focus: the selected record and the attached material first; search the record when they do not answer.',
   desk: 'Focus: the current desk module; use search_desk_rows for its rows and search_documents for its documents.',
-  broad: 'Focus: the whole record; use all three tools freely.',
+  broad: 'Focus: the whole record; use both tools freely.',
 };
 
 export interface PromptInput {

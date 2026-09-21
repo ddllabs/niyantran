@@ -6,7 +6,7 @@ Deno.test('the static prompt carries the ten sections in order and ends with the
   const marks = [
     'Niyantran Terminal research assistant',
     'Grounding and honesty',
-    'Three tools, and when to use them',
+    'Two tools, and when to use them',
     'Desk rows:',
     'Citations:',
     'Internal information:',
@@ -133,20 +133,16 @@ Deno.test('the greeting contract explicitly returns no sources and no follow-up 
   assertStringIncludes(SYSTEM_PROMPT_STATIC, '"follow_up_questions": []');
 });
 
-// The think tool is offered in the tools array. If the prompt does not name it,
-// the model is handed three tools while being told there are two, and given no
-// reason to use the third - which is how a tool gets added and never called.
-Deno.test('the prompt names the think tool and shows it in a worked example', () => {
+// The prompt must name exactly the tools the agent offers. It has been wrong in
+// both directions: it said "Two tools" while three were passed, then left "use
+// both tools freely" on the broad focus line after the count was corrected.
+Deno.test('the prompt names the two retrieval tools and no third', () => {
   const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
-  assertStringIncludes(prompt, 'think(thought)');
-  assertStringIncludes(prompt, 'Thinking keeps you in research; answering ends it.');
-  // An example that actually alternates, so the shape is demonstrated and not
-  // only described.
-  assertStringIncludes(prompt, 'think("Have the objects; rates and the schedules are missing")');
-  assert(
-    prompt.indexOf('think(') < prompt.indexOf('Citations:'),
-    'the tool is described in the tools section, before citations',
-  );
+  assertStringIncludes(prompt, 'Two tools');
+  assertStringIncludes(prompt, 'search_documents(query)');
+  assertStringIncludes(prompt, 'search_desk_rows(');
+  assert(!/\bthink\(/.test(prompt), 'the think tool is gone and must not be described');
+  assert(!/\bthree tools\b/i.test(prompt), prompt.slice(0, 200));
 });
 
 // The comparison with the DDL Labs tender agent turned up one difference that
@@ -186,7 +182,7 @@ Deno.test('the prompt requires a search before any answer about the record', () 
 Deno.test('every focus line agrees with the number of tools the prompt offers', () => {
   for (const focus of Object.keys(FOCUS_LINES)) {
     const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus });
-    assertStringIncludes(prompt, 'Three tools');
-    assert(!/\bboth tools\b|\btwo tools\b/i.test(prompt), `focus "${focus}" still claims two tools`);
+    assertStringIncludes(prompt, 'Two tools');
+    assert(!/\bthree tools\b|\ball three tools\b/i.test(prompt), `focus "${focus}" claims a tool that is gone`);
   }
 });
