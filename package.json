@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:sql": "./supabase/tests/run.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

@@ -94,7 +94,11 @@ The repository now defines `npm test` (Vitest). Edge Function tests run with
 Run the relevant focused checks and the production build for code changes;
 run both test suites for changes under src/lib/, src/admin/ or supabase/.
 SQL authorization and migration checks use a disposable local database,
-never the live project as a test fixture. The repository has no declared lint,
+never the live project as a test fixture. `npm run test:sql` runs the six
+fixtures in `supabase/tests/` against the two local Docker Postgres containers,
+creating each database from scratch. It also proves each fixture non-vacuous by
+rebuilding without the migration that fixture exists to test and requiring it to
+fail; a fixture that still passes is reported as VACUITY FAIL. The repository has no declared lint,
 standalone type-check or CI gate; do not claim those passed. Record exact
 commands, outcomes, warnings and anything that could not be verified.
 
