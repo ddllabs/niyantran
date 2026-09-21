@@ -1,5 +1,49 @@
 import { pickAiRole, activeAiProvider, AI_PROVIDERS } from './aiModelsStore.js';
-import { sessionUser, userTypeOf } from './userStore.js';
+import { sessionUser, userTypeOf, verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { functionsUrl } from './supabaseClient.js';
+
+/**
+ * POST one turn to the research-chat edge function and hand back the raw
+ * response so the caller can read its SSE frames. Additive: `sendAiChat`
+ * below is the legacy path and is unchanged.
+ */
+export async function sendResearchTurn({ body, signal, identity: expectedIdentity }) {
+  const controller = new AbortController();
+  let identity = null;
+  let version = 0;
+  const unsubscribe = subscribeLocalIdentity(() => {
+    version++;
+    if (identity) controller.abort();
+  });
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  let response;
+  try {
+    identity = await verifiedLocalIdentity();
+    const verifiedVersion = version;
+    if (!identity || controller.signal.aborted || (expectedIdentity &&
+        (identity.id !== expectedIdentity.id || identity.epoch !== expectedIdentity.epoch || identity.token !== expectedIdentity.token))
+        || !await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {
+      throw new Error('Sign in to use AI research.');
+    }
+    response = await fetch(functionsUrl('research-chat'), {
+      method: 'POST', signal: controller.signal,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${identity.token}` },
+      body: JSON.stringify(body),
+    });
+    if (!await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {
+      throw new Error('Your research session changed.');
+    }
+    return response;
+  } catch (error) {
+    if (response?.body) void response.body.cancel().catch(() => {});
+    throw error;
+  } finally {
+    unsubscribe();
+    signal?.removeEventListener('abort', abort);
+  }
+}
 
 export async function sendAiChat({
   roleId,
