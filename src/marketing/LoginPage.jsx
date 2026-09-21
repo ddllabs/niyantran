@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { applyPersonaForUser } from '../lib/personas.js';
 import {
-  authenticateUser,
-  hydrateUsersFromServer,
+  localIdentityIsCurrent,
+  resumeLocalIdentityAfterSignIn,
+  subscribeLocalIdentity,
+  verifiedLocalIdentity,
   setSessionUser,
   userFromSupabase,
   userTypeOf,
@@ -16,28 +18,17 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   const [userId, setUserId] = useState('');
   const [pass, setPass] = useState('');
   const root = useRef(null);
-  const demoMode =
-    typeof location !== 'undefined' &&
-    new URLSearchParams(location.search).get('demo') === '1';
-
   const [verifiedNotice, setVerifiedNotice] = useState(() => {
     if (typeof location === 'undefined') return false;
     return location.href.includes('verified=true') || location.hash.includes('verified=true');
   });
 
   useEffect(() => {
-    hydrateUsersFromServer().catch(() => {});
     const lastEmail = sessionStorage.getItem('lastRegisteredEmail');
-    if (lastEmail && !demoMode) {
+    if (lastEmail) {
       setUserId(lastEmail);
     }
   }, []);
-
-  useEffect(() => {
-    if (!demoMode) return;
-    setUserId('analyst@niyantran');
-    setPass('12345678#');
-  }, [demoMode]);
 
   function onMove(e) {
     const el = root.current;
@@ -60,70 +51,68 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
     setPending(true);
     setError('');
 
-    // Try Supabase Auth first
+    let cancelled = false;
+    const observedAccounts = new Set();
+    let expectedAccount;
+    // A deliberate logout while password authentication is pending must not be
+    // reopened by its late success, even if the SDK retains the old session.
+    const unsubscribe = subscribeLocalIdentity((id, event) => {
+      if (event === 'INITIAL_SESSION') return;
+      if (!id || (expectedAccount && id !== expectedAccount)) cancelled = true;
+      else observedAccounts.add(id);
+    });
     try {
-      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-        email: user,
-        password: pass,
-      });
-
-      if (authErr) {
-        const msg = (authErr.message || '').toLowerCase();
-        if (msg.includes('email not confirmed')) {
-          setError('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
-          setPending(false);
-          return;
-        }
-        if (!user.endsWith('@niyantran')) {
-          setError(authErr.message || 'Invalid user ID or password.');
-          setPending(false);
-          return;
-        }
-      } else if (authData?.user) {
-        if (!authData.user.email_confirmed_at && !authData.session) {
-          setError('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
-          setPending(false);
-          return;
-        }
-
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', authData.user.id)
-          .maybeSingle();
-
-        // The profile stores the app_persona enum (e.g. policy_analyst); the
-        // session bridge maps it to the frontend persona id via personaMap.
-        const pub = userFromSupabase(authData.user, profile);
-        applyPersonaForUser(pub);
-        setSessionUser(pub);
-        sessionStorage.setItem('niyantranLand', userTypeOf(pub.type).startTab);
-        await hydrateUserPrefs(pub.email);
-        onSuccess();
+      const result = await supabase.auth.signInWithPassword({ email: user, password: pass });
+      if (result.error) {
+        const unconfirmed = String(result.error.message || '').toLowerCase().includes('email not confirmed');
+        setError(unconfirmed
+          ? 'Please confirm your email address before logging in. Check your inbox for the confirmation link.'
+          : 'Sign-in failed. Check your email and password.');
         return;
       }
-    } catch (err) {
-      console.warn('Supabase login check:', err);
-    }
-
-    // Local fallback for demo seats
-    try {
-      await hydrateUsersFromServer();
-    } catch {
-      /* local-only */
-    }
-    const res = authenticateUser(user, pass);
-    if (res.ok) {
-      const type = userTypeOf(res.user.personaId || res.user.type).id;
-      applyPersonaForUser({ ...res.user, type, personaId: type });
-      setSessionUser({ ...res.user, type, personaId: type });
-      sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
-      await hydrateUserPrefs(res.user.email);
+      const session = result.data?.session;
+      if (cancelled || [...observedAccounts].some((id) => id !== session?.user?.id)
+          || !session?.access_token || !session.user?.id
+          || result.data?.user?.id !== session.user.id
+          || !Number.isFinite(session.expires_at) || session.expires_at * 1000 <= Date.now()) {
+        setError('Your session could not be verified. Sign in again.');
+        return;
+      }
+      expectedAccount = session.user.id;
+      const identity = await resumeLocalIdentityAfterSignIn(session);
+      if (cancelled || !identity || identity.id !== session.user.id || identity.token !== session.access_token) {
+        setError('Your session could not be verified. Sign in again.');
+        return;
+      }
+      const profile = await supabase.from('user_profiles').select('*').eq('user_id', identity.id).maybeSingle();
+      if (profile.error || profile.data?.user_id !== identity.id || profile.data.status !== 'active') {
+        setError('This account does not have an active profile.');
+        return;
+      }
+      if (!await localIdentityIsCurrent(identity) || cancelled) {
+        setError('Your session changed. Sign in again.');
+        return;
+      }
+      // Persona is a preference from the matching profile. Neither cached Auth
+      // metadata nor a local demo seat supplies account authority.
+      const pub = userFromSupabase({ id: identity.id, email: identity.email }, profile.data);
+      await hydrateUserPrefs(identity.email);
+      const current = await verifiedLocalIdentity();
+      if (!current || current.id !== identity.id || current.token !== identity.token
+          || !await localIdentityIsCurrent(identity) || cancelled) {
+        setError('Your session changed. Sign in again.');
+        return;
+      }
+      applyPersonaForUser(pub);
+      setSessionUser(pub);
+      sessionStorage.setItem('niyantranLand', userTypeOf(pub.type).startTab);
       onSuccess();
-      return;
+    } catch {
+      setError('Unable to verify your account. Please try again.');
+    } finally {
+      unsubscribe();
+      setPending(false);
     }
-    setError(res.reason || 'Invalid user ID or password.');
-    setPending(false);
   }
 
   return (
@@ -227,9 +216,6 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
             )}
           </div>
         </form>
-        {demoMode ? (
-          <div className="mkt-login-hint">Demo mode (?demo=1): analyst@niyantran / 12345678#</div>
-        ) : null}
         <p className="mkt-auth-switch">
           New here?{' '}
           <button type="button" onClick={onSignup}>

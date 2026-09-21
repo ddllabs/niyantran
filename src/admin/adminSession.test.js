@@ -13,13 +13,18 @@ vi.mock('./AdminSitePages.jsx', () => ({
 }));
 vi.mock('../lib/userStore.js', () => ({
   loadUsers: vi.fn(() => []), hydrateUsersFromServer: vi.fn(async () => []),
+  resumeLocalIdentityAfterSignIn: vi.fn(async (session) => ({ id: session.user.id, token: session.access_token })),
+  verifiedLocalIdentity: vi.fn(async () => ({ id: 'admin-1', token: 'fake-token-admin-1' })),
+  localIdentityIsCurrent: vi.fn(async () => true),
+  invalidateLocalSession: vi.fn(),
+  subscribeLocalIdentity: vi.fn(() => () => {}),
 }));
 vi.mock('../lib/refreshFeeds.js', () => ({ sweepApis: vi.fn() }));
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: {} }));
 
 import AdminApp from './AdminApp.jsx';
 import { createAdminSession, signInAdmin, verifyAdminSession } from './adminSession.js';
-import { loadUsers } from '../lib/userStore.js';
+import { loadUsers, resumeLocalIdentityAfterSignIn, localIdentityIsCurrent, invalidateLocalSession, subscribeLocalIdentity, verifiedLocalIdentity } from '../lib/userStore.js';
 
 const NOW = Date.UTC(2026, 8, 21);
 const user = (id = 'admin-1') => ({ id, email: `${id}@example.invalid` });
@@ -54,9 +59,9 @@ function fakeClient() {
 }
 
 function deferred() {
-  let resolve;
-  const promise = new Promise((done) => { resolve = done; });
-  return { promise, resolve };
+  let resolve, reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 afterEach(() => {
@@ -292,4 +297,108 @@ describe('admin session lifecycle', () => {
     expect(changed).toHaveBeenCalledOnce();
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
+});
+
+
+describe('shared local identity wiring', () => {
+  it('resumes shared identity after deliberate verified admin sign-in', async () => {
+    const { client } = fakeClient();
+    expect(await signInAdmin('admin@example.invalid', 'fake', client, () => NOW)).toMatchObject({ status: 'verified' });
+    expect(resumeLocalIdentityAfterSignIn).toHaveBeenCalledWith(session());
+    expect(localIdentityIsCurrent).toHaveBeenCalled();
+  });
+  it('rejects an admin sign-in when shared identity cannot resume', async () => {
+    const { client } = fakeClient();
+    resumeLocalIdentityAfterSignIn.mockResolvedValueOnce(null);
+    expect(await signInAdmin('admin@example.invalid', 'fake', client, () => NOW)).toMatchObject({ user: null });
+  });
+  it('rejects shared identity invalidated after resume', async () => {
+    const { client } = fakeClient();
+    localIdentityIsCurrent.mockResolvedValueOnce(false);
+    expect(await signInAdmin('admin@example.invalid', 'fake', client, () => NOW)).toMatchObject({ user: null });
+  });
+  it('does not resume an admin authentication completed after local logout', async () => {
+    const { client } = fakeClient();
+    let changed;
+    subscribeLocalIdentity.mockImplementationOnce((fn) => { changed = fn; return () => {}; });
+    const auth = deferred(); client.auth.signInWithPassword.mockReturnValue(auth.promise);
+    const pending = signInAdmin('admin@example.invalid', 'fake', client, () => NOW);
+    changed?.(null, null);
+    auth.resolve({ data: { session: session(), user: user() }, error: null });
+    expect(await pending).toMatchObject({ user: null });
+    expect(resumeLocalIdentityAfterSignIn).not.toHaveBeenCalled();
+  });
+  it.each(['reject', 'error', 'success'])('invalidates shared access synchronously before the single SDK logout: %s', async (outcome) => {
+    const { client } = fakeClient();
+    const logout = deferred(); client.auth.signOut.mockReturnValue(logout.promise);
+    const controller = createAdminSession(client, vi.fn(), () => NOW);
+    const pending = controller.signOut();
+    expect(invalidateLocalSession).toHaveBeenCalledOnce();
+    expect(invalidateLocalSession.mock.invocationCallOrder[0]).toBeLessThan(client.auth.signOut.mock.invocationCallOrder[0]);
+    expect(client.auth.signOut).toHaveBeenCalledOnce();
+    if (outcome === 'reject') logout.reject(new Error('offline'));
+    else logout.resolve(outcome === 'error' ? { error: new Error('offline') } : { error: null });
+    await pending; expect(client.auth.signOut).toHaveBeenCalledOnce(); controller.dispose();
+  });
+});
+
+it('rejects admin authority revoked during shared resumption', async () => {
+  const { client } = fakeClient(); verifiedLocalIdentity.mockResolvedValueOnce(null);
+  expect(await signInAdmin('admin@example.invalid', 'fake', client, () => NOW)).toMatchObject({ user: null });
+});
+it('never reopens an old admin attempt across another account sign-in', async () => {
+  const { client } = fakeClient(); let changed;
+  subscribeLocalIdentity.mockImplementationOnce((fn) => { changed = fn; return () => {}; });
+  const auth = deferred(); client.auth.signInWithPassword.mockReturnValue(auth.promise);
+  const pending = signInAdmin('admin@example.invalid', 'fake', client, () => NOW);
+  changed?.('other', 'SIGNED_IN'); changed?.('admin-1', 'SIGNED_IN');
+  auth.resolve({ data: { session: session(), user: user() }, error: null });
+  expect(await pending).toMatchObject({ user: null }); expect(resumeLocalIdentityAfterSignIn).not.toHaveBeenCalled();
+});
+
+it('allows INITIAL_SESSION null during deliberate first admin login', async () => {
+  const { client } = fakeClient(); let changed;
+  subscribeLocalIdentity.mockImplementationOnce((fn) => { changed = fn; return () => {}; });
+  const auth = deferred(); client.auth.signInWithPassword.mockReturnValue(auth.promise);
+  const pending = signInAdmin('admin@example.invalid', 'fake', client, () => NOW);
+  changed?.(null, 'INITIAL_SESSION');
+  auth.resolve({ data: { session: session(), user: user() }, error: null });
+  expect(await pending).toMatchObject({ status: 'verified' });
+});
+
+it('does not resume after switching away and back during admin verification', async () => {
+  const { client } = fakeClient(); let changed;
+  subscribeLocalIdentity.mockImplementationOnce((fn) => { changed = fn; return () => {}; });
+  const authority = deferred(); client.rpc.mockImplementation((name) => name === 'is_platform_admin' ? authority.promise : Promise.resolve({ data: { user_id: 'admin-1', role: 'admin', status: 'active' }, error: null }));
+  const pending = signInAdmin('admin@example.invalid', 'fake', client, () => NOW);
+  await vi.waitFor(() => expect(client.rpc).toHaveBeenCalled());
+  changed('other', 'SIGNED_IN'); changed('admin-1', 'SIGNED_IN'); authority.resolve({ data: true, error: null });
+  expect(await pending).toMatchObject({ user: null }); expect(resumeLocalIdentityAfterSignIn).not.toHaveBeenCalled();
+});
+it.each(['wrong-user', 'wrong-token', 'error'])('rejects %s shared admin resume', async (kind) => {
+  const { client } = fakeClient();
+  if (kind === 'error') resumeLocalIdentityAfterSignIn.mockRejectedValueOnce(new Error('offline'));
+  else resumeLocalIdentityAfterSignIn.mockResolvedValueOnce({ id: kind === 'wrong-user' ? 'other' : 'admin-1', token: kind === 'wrong-token' ? 'other' : 'fake-token-admin-1' });
+  expect(await signInAdmin('admin@example.invalid', 'fake', client, () => NOW)).toMatchObject({ user: null });
+});
+
+it('closes real shared directory and identity immediately even when admin SDK logout fails', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(NOW);
+  const { client } = fakeClient();
+  const { supabase } = await import('../lib/supabaseClient.js'); Object.assign(supabase, client);
+  const actual = await vi.importActual('../lib/userStore.js');
+  invalidateLocalSession.mockImplementationOnce(actual.invalidateLocalSession);
+  vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('sessionStorage', { removeItem: vi.fn() });
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, users: [{ id: 'private-directory', email: 'private@example.invalid' }] }) })));
+  await actual.hydrateUsersFromServer();
+  expect(actual.loadUsers().some((u) => u.id === 'private-directory')).toBe(true);
+  const logout = deferred(); client.auth.signOut.mockReturnValue(logout.promise);
+  const controller = createAdminSession(client, vi.fn(), () => NOW);
+  const pending = controller.signOut();
+  expect(actual.loadUsers().some((u) => u.id === 'private-directory')).toBe(false);
+  expect(await actual.verifiedLocalIdentity()).toBeNull();
+  logout.reject(new Error('offline')); await pending;
+  expect(client.auth.signOut).toHaveBeenCalledOnce();
+  expect(await actual.verifiedLocalIdentity()).toBeNull(); controller.dispose();
 });

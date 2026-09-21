@@ -1,3 +1,7 @@
+import {
+  invalidateLocalSession, localIdentityIsCurrent, resumeLocalIdentityAfterSignIn,
+  subscribeLocalIdentity, verifiedLocalIdentity,
+} from '../lib/userStore.js';
 import { supabase } from '../lib/supabaseClient.js';
 
 const closed = (status, message = '') => ({ status, user: null, message });
@@ -52,18 +56,41 @@ export async function verifyAdminSession(client = supabase, now = Date.now) {
 }
 
 export async function signInAdmin(email, password, client = supabase, now = Date.now) {
+  let cancelled = false;
+  const observedAccounts = new Set();
+  let expectedAccount;
+  const unsubscribe = subscribeLocalIdentity((id, event) => {
+    if (event === 'INITIAL_SESSION') return;
+    if (!id || (expectedAccount && id !== expectedAccount)) cancelled = true;
+    else observedAccounts.add(id);
+  });
   try {
     const result = await client.auth.signInWithPassword({ email: email.trim(), password });
-    if (result.error || !result.data?.session) {
+    if (cancelled || result.error || !result.data?.session
+        || [...observedAccounts].some((id) => id !== result.data.session.user?.id)) {
       return closed('signedOut', 'Sign-in failed. Check your email and password.');
     }
+    expectedAccount = result.data.session.user?.id;
     const verified = await verifyAdminSession(client, now);
-    if (verified.status === 'verified' && verified.user.id !== result.data.session.user?.id) {
+    if (cancelled || (verified.status === 'verified' && verified.user.id !== result.data.session.user?.id)) {
+      return closed('signedOut', 'Your session changed. Sign in again.');
+    }
+    if (verified.status !== 'verified') return verified;
+    const identity = await resumeLocalIdentityAfterSignIn(result.data.session);
+    if (cancelled || !identity || identity.id !== verified.user.id
+        || identity.token !== result.data.session.access_token) {
+      return closed('signedOut', 'Your session changed. Sign in again.');
+    }
+    const current = await verifiedLocalIdentity({ admin: true });
+    if (!current || current.id !== identity.id || current.token !== identity.token
+        || !await localIdentityIsCurrent(identity) || cancelled) {
       return closed('signedOut', 'Your session changed. Sign in again.');
     }
     return verified;
   } catch {
     return unavailable();
+  } finally {
+    unsubscribe();
   }
 }
 
@@ -109,6 +136,7 @@ export function createAdminSession(client, onChange, now = Date.now) {
     },
     async signOut() {
       signedOut = true;
+      invalidateLocalSession();
       const version = invalidate(closed('checking', 'Signing out…'));
       let message = '';
       try {
