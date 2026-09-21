@@ -15,6 +15,42 @@ export const MAX_RANGE_SPAN = 5;
 /** A bracket whose inside is digits, commas, spaces and dashes, not followed by "(" (a markdown link). */
 export const MARKER_RE = /\[([0-9](?:[0-9\s,–-]*[0-9])?)\](?!\()/g;
 
+/**
+ * A bracketed token the model invented as a citation. MARKER_RE only matches
+ * digits, so anything else the model bracketed was never examined by the ladder
+ * and reached the reader verbatim: a real turn rendered
+ * `[open-fronts:south-sudan-instability:0]` throughout an answer that resolved
+ * no sources at all. The key was not even from the corpus - the app mints its
+ * own ids in recordChecklist.js - so no data fix can prevent every source.
+ *
+ * The shape targeted is an identifier: bracketed, no whitespace, containing a
+ * colon, and not a markdown link. Ordinary prose survives - `[sic]`,
+ * `[see below]`, `[1]` and `[text](url)` are all untouched.
+ */
+export const INVENTED_MARKER_RE = /\[[^\]\s]*:[^\]\s]*\](?!\()/g;
+
+/**
+ * Remove invented citation markers and tidy the space they leave behind.
+ *
+ * Text with no invented marker is returned byte for byte. The tidying must not
+ * touch an answer it did not change: the repair pass accepts a repair only when
+ * nothing but citation markers was inserted, and it compares against this
+ * output, so trimming an unrelated trailing space made a valid repair look like
+ * a rewrite and the turn logged the repair as an error.
+ */
+export function stripInventedMarkers(answer: string): string {
+  const text = String(answer ?? '');
+  INVENTED_MARKER_RE.lastIndex = 0;
+  if (!INVENTED_MARKER_RE.test(text)) return text;
+  INVENTED_MARKER_RE.lastIndex = 0;
+  return text
+    .replace(INVENTED_MARKER_RE, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,;:])/g, '$1')
+    .replace(/[ \t]+$/gm, '');
+}
+
+
 /** Ids named inside one bracket, expanded and validated; [] when any part is invalid. */
 export function parseCitationIds(inner: string): number[] {
   const ids: number[] = [];
@@ -118,5 +154,8 @@ export function renumberCitations(answer: string, sources: CitationSource[]): { 
       .join('');
   });
   const next = order.map((old) => ({ ...byOld.get(old)!, id: renumber.get(old)! }) as CitationSource);
-  return { answer: rewritten.replace(/[ \t]+([.,;:])/g, '$1'), sources: next };
+  // Numeric markers that resolve to nothing are dropped above. Invented ones are
+  // not numeric, so they have to be removed here or they reach the reader.
+  const cleaned = stripInventedMarkers(rewritten);
+  return { answer: cleaned.replace(/[ \t]+([.,;:])/g, '$1'), sources: next };
 }
