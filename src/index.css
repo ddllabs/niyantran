@@ -2318,6 +2318,7 @@ button.live-feed:hover { color: var(--fg); }
   border-radius: 50%;
   background: var(--live);
   flex: 0 0 auto;
+  align-self: center;
 }
 .soft-pill {
   display: inline-block;
@@ -3960,7 +3961,7 @@ button.live-feed:hover { color: var(--fg); }
 .rd-cell:last-child { border-right: 0; }
 .rd-cell.primary {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 7px;
   grid-column: 1 / -1;
   border-right: 0;
