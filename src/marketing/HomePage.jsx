@@ -335,7 +335,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <ellipse cx="200" cy="200" rx="176" ry="58" fill="none" stroke="#ebe6de" strokeWidth="1" strokeDasharray="2 7" transform="rotate(16 200 200)" />
                 <circle cx="200" cy="200" r="152" fill="none" stroke="#ddd8cf" strokeWidth="1" strokeDasharray="2 4" />
               </svg>
-              <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" />
+              <img className="mkt-globe mkt-globe-gif" src="/brand/globe.gif" alt="" />
             </div>
             {PERSONAS.map((p, i) => (
               <button

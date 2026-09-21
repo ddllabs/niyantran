@@ -862,6 +862,12 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-globe-slow {
   animation-duration: 180s;
 }
+.mkt-globe-gif {
+  /* GIF already loops — do not CSS-spin on top of it */
+  animation: none;
+  will-change: auto;
+  opacity: 1;
+}
 .mkt-chip {
   position: absolute;
   display: flex;
