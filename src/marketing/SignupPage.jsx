@@ -4,35 +4,24 @@ import {
   createUser,
   hydrateUsersFromServer,
   setSessionUser,
+  updateUser,
   upsertGoogleUser,
   userTypeOf,
 } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
-import { normalizePlanId, startTrialFields, TRIAL_DAYS } from '../lib/planEntitlements.js';
+import { startTrialFields, TRIAL_DAYS } from '../lib/planEntitlements.js';
 import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { googleSignInEnabled } from '../lib/googleAuthClient.js';
 import GoogleSignInButton, { exchangeGoogleCredential } from './GoogleSignInButton.jsx';
 
-function planFromRoute() {
-  const raw = String(location.hash || '')
-    .replace(/^#/, '')
-    .replace(/^\/+/, '')
-    .toLowerCase();
-  const q = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '';
-  const params = new URLSearchParams(q);
-  const fromQuery = params.get('plan');
-  if (fromQuery) return normalizePlanId(fromQuery);
-  const parts = raw.split(/[/?#]/).filter(Boolean);
-  if (parts[0] === 'signup' && parts[1]) return normalizePlanId(parts[1]);
-  return 'explorer';
-}
-
 export default function SignupPage({ onSuccess, onLogin }) {
+  const [step, setStep] = useState('account'); // account | plan | link
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [personaId, setPersonaId] = useState('');
-  const [planId, setPlanId] = useState(() => planFromRoute());
+  const [planId, setPlanId] = useState('explorer');
+  const [draftUser, setDraftUser] = useState(null);
   const [linkEmail, setLinkEmail] = useState('');
   const [linkPass, setLinkPass] = useState('');
   const [pendingCredential, setPendingCredential] = useState('');
@@ -42,12 +31,6 @@ export default function SignupPage({ onSuccess, onLogin }) {
 
   useEffect(() => {
     hydrateUsersFromServer().catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const sync = () => setPlanId(planFromRoute());
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
   }, []);
 
   function onMove(e) {
@@ -63,7 +46,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
     el.style.setProperty('--py', `${((y - 0.5) * 10).toFixed(2)}px`);
   }
 
-  async function finishSession(user, { source = 'signup', plan } = {}) {
+  async function enterTerminal(user, { source = 'signup', plan } = {}) {
     const type = userTypeOf(user.personaId || user.type).id;
     const seat = { ...user, type, personaId: type };
     applyPersonaForUser(seat);
@@ -75,22 +58,72 @@ export default function SignupPage({ onSuccess, onLogin }) {
     onSuccess();
   }
 
+  function goToPlanStep(user, { source = 'signup' } = {}) {
+    setDraftUser({ user, source });
+    setPlanId('explorer');
+    setStep('plan');
+    setPending(false);
+    setError('');
+  }
+
+  async function applyPlanAndEnter() {
+    if (!draftUser?.user?.id) return;
+    setPending(true);
+    setError('');
+    const fields = startTrialFields(planId);
+    updateUser(draftUser.user.id, {
+      ...fields,
+      // Keep persona chosen on the account step
+      type: draftUser.user.type || draftUser.user.personaId,
+      personaId: draftUser.user.personaId || draftUser.user.type,
+    });
+    const next = {
+      ...draftUser.user,
+      ...fields,
+      type: draftUser.user.type || draftUser.user.personaId,
+      personaId: draftUser.user.personaId || draftUser.user.type,
+    };
+    await enterTerminal(next, { source: draftUser.source || 'signup', plan: fields.plan });
+  }
+
   async function completeGoogle(credential, linkPassword) {
+    if (!personaId && !linkPassword) {
+      setError('Choose who you are working as, then continue with Google.');
+      return;
+    }
     setPending(true);
     setError('');
     try {
       const out = await exchangeGoogleCredential(credential, { linkPassword });
-      const up = upsertGoogleUser(out.user);
+      let up = upsertGoogleUser(out.user);
       if (!up.ok) throw new Error(up.reason || 'Could not store Google account.');
+
+      // New Google seats: apply the persona picked on this page (server default is analyst).
+      if (out.created && personaId) {
+        const role = userTypeOf(personaId).id;
+        updateUser(up.user.id, { type: role, personaId: role });
+        up = { ok: true, user: { ...up.user, type: role, personaId: role } };
+      }
+
       setPendingCredential('');
       setLinkEmail('');
       setLinkPass('');
       trackProductEvent('google_auth', { created: Boolean(out.created), linked: Boolean(out.linked) });
-      await finishSession(up.user, { source: out.created ? 'google_signup' : 'google_login', plan: up.user.plan });
+
+      if (out.created) {
+        goToPlanStep(up.user, { source: 'google_signup' });
+        return;
+      }
+      // Returning / linked accounts keep plan — enter terminal.
+      await enterTerminal(up.user, {
+        source: out.linked ? 'google_link' : 'google_login',
+        plan: up.user.plan,
+      });
     } catch (err) {
       if (err.code === 'NEEDS_LINK') {
         setPendingCredential(credential);
         setLinkEmail(err.email || '');
+        setStep('link');
         setError(err.message || 'Enter your existing password to link Google.');
         setPending(false);
         return;
@@ -133,14 +166,14 @@ export default function SignupPage({ onSuccess, onLogin }) {
       /* local-only */
     }
 
-    const planFields = startTrialFields(planId);
+    // Account first on Explorer; plan is chosen on the next step.
     const res = createUser({
       name,
       email: user,
       password: pass,
       type: personaId,
       personaId,
-      ...planFields,
+      ...startTrialFields('explorer'),
     });
     if (!res.ok) {
       setError(res.reason || 'Could not create account.');
@@ -149,7 +182,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
     }
 
     const type = userTypeOf(res.user.type).id;
-    await finishSession({ ...res.user, type, personaId: type }, { source: 'signup', plan: planFields.plan });
+    goToPlanStep({ ...res.user, type, personaId: type }, { source: 'signup' });
   }
 
   return (
@@ -172,28 +205,10 @@ export default function SignupPage({ onSuccess, onLogin }) {
         <div className="mark">
           <img src="/brand/logo.png?v=2" alt="" />
         </div>
-        <h1>CREATE ACCESS</h1>
-        <div className="tag">SIGN UP</div>
+        <h1>{step === 'plan' ? 'CHOOSE PLAN' : 'CREATE ACCESS'}</h1>
+        <div className="tag">{step === 'plan' ? 'STEP 2 OF 2' : 'SIGN UP'}</div>
 
-        {googleOn ? (
-          <div className="mkt-google-block">
-            <p className="mkt-google-note">
-              Continue with Google — new accounts start on <strong>Explorer</strong> as <strong>Analyst</strong>.
-              Existing paid seats keep their plan.
-            </p>
-            <GoogleSignInButton
-              text="signup_with"
-              disabled={pending}
-              onCredential={(cred) => completeGoogle(cred)}
-              onError={(err) => setError(err.message || 'Google Sign-In failed.')}
-            />
-            <div className="mkt-auth-or" aria-hidden="true">
-              <span>or</span>
-            </div>
-          </div>
-        ) : null}
-
-        {pendingCredential ? (
+        {step === 'link' ? (
           <form className="mkt-google-link" onSubmit={handleLink} autoComplete="off">
             <p className="mkt-google-link-copy">
               An account already exists for <strong>{linkEmail}</strong>. Enter that password to link Google Sign-In.
@@ -219,6 +234,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
                 setPendingCredential('');
                 setLinkPass('');
                 setError('');
+                setStep('account');
               }}
             >
               Cancel
@@ -227,13 +243,13 @@ export default function SignupPage({ onSuccess, onLogin }) {
               {error}
             </div>
           </form>
-        ) : (
-        <form onSubmit={handleSubmit} autoComplete="off">
-          <div className="mkt-signup-block">
-            <h2 className="mkt-signup-label">Plan</h2>
+        ) : null}
+
+        {step === 'plan' ? (
+          <div className="mkt-signup-plan-step">
             <p className="mkt-signup-lead">
-              Explorer is free (5 core desks). Professional / Enterprise start a {TRIAL_DAYS}-day trial with no card —
-              capped data, no copy/export, upgrade prompts until you buy.
+              Account ready{draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Pick a plan to continue —
+              Explorer is free; Professional / Enterprise start a {TRIAL_DAYS}-day trial with no card.
             </p>
             <div className="mkt-signup-plan-grid" role="radiogroup" aria-label="Plan">
               {plans.map((p) => (
@@ -254,70 +270,96 @@ export default function SignupPage({ onSuccess, onLogin }) {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="mkt-signup-block">
-            <h2 className="mkt-signup-label">Who are you working as?</h2>
-            <p className="mkt-signup-lead">Sets your free-tier core desks and start desk.</p>
-            <div className="mkt-signup-persona-grid" role="radiogroup" aria-label="Working as">
-              {PERSONAS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={personaId === p.id}
-                  className={`mkt-signup-persona tone-${p.tone}${personaId === p.id ? ' on' : ''}`}
-                  onClick={() => setPersonaId(p.id)}
-                >
-                  <strong>{p.label}</strong>
-                  <span>{p.blurb}</span>
-                </button>
-              ))}
+            <button className="mkt-cta" type="button" disabled={pending} onClick={applyPlanAndEnter}>
+              {pending
+                ? 'Opening terminal…'
+                : planId === 'explorer'
+                  ? 'Continue free'
+                  : `Start ${TRIAL_DAYS}-day trial`}
+            </button>
+            <div className="mkt-err" role="alert">
+              {error}
             </div>
           </div>
+        ) : null}
 
-          <label className="mkt-field">
-            <span>Name</span>
-            <input name="name" type="text" autoComplete="name" required />
-          </label>
-          <label className="mkt-field">
-            <span>User ID</span>
-            <input
-              name="user"
-              type="text"
-              autoComplete="username"
-              spellCheck="false"
-              required
-              placeholder="you@org or handle"
-            />
-          </label>
-          <label className="mkt-field">
-            <span>Password</span>
-            <input name="pass" type="password" autoComplete="new-password" required minLength={6} />
-          </label>
-          <label className="mkt-field">
-            <span>Confirm password</span>
-            <input name="pass2" type="password" autoComplete="new-password" required minLength={6} />
-          </label>
-          <button className="mkt-cta" type="submit" disabled={pending}>
-            {pending
-              ? 'Creating…'
-              : planId === 'explorer'
-                ? 'Create free account'
-                : `Start ${TRIAL_DAYS}-day trial`}
-          </button>
-          <div className="mkt-err" role="alert">
-            {error}
-          </div>
-        </form>
-        )}
+        {step === 'account' ? (
+          <form onSubmit={handleSubmit} autoComplete="off">
+            <div className="mkt-signup-block">
+              <h2 className="mkt-signup-label">Who are you working as?</h2>
+              <p className="mkt-signup-lead">Sets your free-tier core desks and start desk.</p>
+              <div className="mkt-signup-persona-grid" role="radiogroup" aria-label="Working as">
+                {PERSONAS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={personaId === p.id}
+                    className={`mkt-signup-persona tone-${p.tone}${personaId === p.id ? ' on' : ''}`}
+                    onClick={() => setPersonaId(p.id)}
+                  >
+                    <strong>{p.label}</strong>
+                    <span>{p.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <p className="mkt-auth-switch">
-          Already have access?{' '}
-          <button type="button" onClick={onLogin}>
-            Sign in
-          </button>
-        </p>
+            <label className="mkt-field">
+              <span>Name</span>
+              <input name="name" type="text" autoComplete="name" required />
+            </label>
+            <label className="mkt-field">
+              <span>User ID</span>
+              <input
+                name="user"
+                type="text"
+                autoComplete="username"
+                spellCheck="false"
+                required
+                placeholder="you@org or handle"
+              />
+            </label>
+            <label className="mkt-field">
+              <span>Password</span>
+              <input name="pass" type="password" autoComplete="new-password" required minLength={6} />
+            </label>
+            <label className="mkt-field">
+              <span>Confirm password</span>
+              <input name="pass2" type="password" autoComplete="new-password" required minLength={6} />
+            </label>
+            <button className="mkt-cta" type="submit" disabled={pending}>
+              {pending ? 'Creating…' : 'Create account'}
+            </button>
+            <div className="mkt-err" role="alert">
+              {error}
+            </div>
+
+            {googleOn ? (
+              <div className="mkt-google-block mkt-google-below">
+                <div className="mkt-auth-or" aria-hidden="true">
+                  <span>or</span>
+                </div>
+                <GoogleSignInButton
+                  text="signup_with"
+                  disabled={pending}
+                  onCredential={(cred) => completeGoogle(cred)}
+                  onError={(err) => setError(err.message || 'Google Sign-In failed.')}
+                />
+                <p className="mkt-google-note">Pick a role above first. You’ll choose a plan on the next step.</p>
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+
+        {step !== 'plan' ? (
+          <p className="mkt-auth-switch">
+            Already have access?{' '}
+            <button type="button" onClick={onLogin}>
+              Sign in
+            </button>
+          </p>
+        ) : null}
       </main>
     </div>
   );

@@ -4164,6 +4164,17 @@ html.mkt-doc:has(.mkt-auth) #root {
   text-align: left;
 }
 .mkt-google-cancel:hover { text-decoration: underline; }
+.mkt-google-below {
+  margin-top: 18px;
+}
+.mkt-signup-plan-step {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mkt-signup-plan-step .mkt-cta {
+  margin-top: 6px;
+}
 
 .mkt-signup {
   align-items: start;
