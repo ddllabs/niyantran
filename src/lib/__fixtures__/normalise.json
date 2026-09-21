@@ -1,0 +1,27 @@
+[
+  {
+    "input": "  The Finance Bill,\t2020  ",
+    "normalised": "The Finance Bill, 2020",
+    "sha256": "0765d097b792cd43f4fc09cdd5351a69a84eaf9c748e971814d212bf3644827e"
+  },
+  {
+    "input": "line one\r\nline two\r\n",
+    "normalised": "line one line two",
+    "sha256": "e490ed577595f61675761642aa202c2f1f59ef292f58c24fe0b431b05eeb86ec"
+  },
+  {
+    "input": "विनियोग  (लेखानुदान)   विधेयक, 2019",
+    "normalised": "विनियोग (लेखानुदान) विधेयक, 2019",
+    "sha256": "79aa2b8d5e82f5ce9da5550daba5e13fb398f98d0dd77a977c2be3fb954e58f9"
+  },
+  {
+    "input": "a b c",
+    "normalised": "a b c",
+    "sha256": "0e9f64031fcb2bc708b531c2a20441580425d151a38503f38592a7dd36019d3b"
+  },
+  {
+    "input": "\n\n\n",
+    "normalised": "",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]
