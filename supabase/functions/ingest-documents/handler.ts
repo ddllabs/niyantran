@@ -79,7 +79,7 @@ export interface IngestDeps {
   secretKey: string;
   embed: (inputs: string[]) => Promise<EmbedResult>;
   db: {
-    findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null } | null>;
+    findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null; metadata: Record<string, unknown> } | null>;
     /** Insert or update on source_key; clears chunker_version and indexed_at until markIndexed. */
     upsertDocument(row: DocumentRow): Promise<{ id: string }>;
     /** Refresh the descriptive fields of a document whose text and chunks are unchanged. */
@@ -116,6 +116,7 @@ export function validateDocument(raw: unknown): IngestDocument {
   if (!source_key) throw new Error('source_key is required');
   if (!title) throw new Error('title is required');
   if (typeof d.ocr_text !== 'string') throw new Error('ocr_text must be a string');
+  if (d.metadata !== undefined && d.metadata !== null && (typeof d.metadata !== 'object' || Array.isArray(d.metadata))) throw new Error('metadata must be an object');
   const metadata = d.metadata && typeof d.metadata === 'object' && !Array.isArray(d.metadata) ? (d.metadata as Record<string, unknown>) : {};
   return {
     source_key,
@@ -127,6 +128,59 @@ export function validateDocument(raw: unknown): IngestDocument {
     ocr_text: d.ocr_text,
     metadata,
   };
+}
+
+/** Sparse metadata refreshes never erase omitted/unknown provenance. Explicit
+ * false/zero and supplied values win; nested objects follow the same rule.
+ * Text hashes/counts describe the current text and are refreshed separately. */
+function mergeMetadata(previous: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
+  const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+  return { ...previous, ...Object.fromEntries(Object.entries(incoming)
+    .filter(([, value]) => value !== undefined && value !== null && !(typeof value === 'string' && !value.trim()))
+    .map(([key, value]) => [key, object(value) ? mergeMetadata(object(previous[key]) ? previous[key] : {}, value) : value])) };
+}
+
+/** A boolean file_url_ambiguous is an authoritative link-map update:
+ * true invalidates the entire derived link unit; false replaces it. A changed
+ * document_key also replaces the unit. Without either signal, same-identity
+ * and partial companion patches preserve omitted fields like other metadata.
+ * Keep the owned fields aligned with fromCorpusRow in the ingestion script. */
+function mergeDocumentMetadata(previous: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
+  const fields = ['document_key', 'bill_number', 'bill_year', 'house', 'status', 'file_url_source'];
+  const metadata = mergeMetadata(previous, incoming);
+  const marker = incoming.file_url_ambiguous;
+  const changedIdentity = typeof incoming.document_key === 'string' && Boolean(incoming.document_key.trim())
+    && incoming.document_key !== previous.document_key;
+  if (typeof marker === 'boolean' || changedIdentity) {
+    for (const field of fields) {
+      delete metadata[field];
+      const value = incoming[field];
+      if (marker !== true && value !== undefined && value !== null && !(typeof value === 'string' && !value.trim())) metadata[field] = value;
+    }
+    if (changedIdentity && typeof marker !== 'boolean') delete metadata.file_url_ambiguous;
+  }
+  // Also repair a contradictory inherited state during a sparse refresh.
+  if (metadata.file_url_ambiguous === true) for (const field of fields) delete metadata[field];
+  return metadata;
+}
+
+function unicodeLength(text: string): number {
+  let length = 0;
+  for (const _ of text) length++;
+  return length;
+}
+
+function validateTextClaims(text: string, sha: string, metadata: Record<string, unknown>): void {
+  const count = metadata.n_chars;
+  if (count !== undefined && count !== null && count !== '') {
+    if ((typeof count !== 'string' && typeof count !== 'number') || !/^[0-9]+$/.test(String(count)) || !Number.isSafeInteger(Number(count))) throw new Error('invalid n_chars');
+    if (Number(count) !== unicodeLength(text)) throw new Error('n_chars mismatch (Unicode code points)');
+  }
+  const claimedHash = metadata.text_sha256;
+  if (claimedHash !== undefined && claimedHash !== null && claimedHash !== '') {
+    if (typeof claimedHash !== 'string' || !/^[a-f0-9]{64}$/i.test(claimedHash)) throw new Error('invalid text_sha256');
+    if (claimedHash.toLowerCase() !== sha) throw new Error('text_sha256 mismatch');
+  }
 }
 
 function toCommitRow(r: ChunkRow, embedding?: number[]): CommitRow {
@@ -155,7 +209,12 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   const now = deps.now ?? (() => Date.now());
   const base: DocumentResult = { source_key: doc.source_key, status: 'indexed', chunks: 0, inserted: 0, kept: 0, deleted: 0, embedded_tokens: 0, cost_usd: 0 };
   const sha = await sha256Hex(doc.ocr_text);
+  validateTextClaims(doc.ocr_text, sha, doc.metadata ?? {});
   const existing = await deps.db.findDocument(doc.source_key);
+  const metadata = mergeDocumentMetadata(existing?.metadata ?? {}, doc.metadata ?? {});
+  // An inherited text claim must not describe the previous revision.
+  if ('n_chars' in metadata) metadata.n_chars = unicodeLength(doc.ocr_text);
+  if ('text_sha256' in metadata) metadata.text_sha256 = sha;
 
   if (existing && existing.content_sha256 === sha && existing.chunker_version === CHUNK.version) {
     const hashes = await deps.db.existingHashes(existing.id);
@@ -169,7 +228,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
         file_url: doc.file_url ?? null,
         desk_tier: doc.desk_tier ?? null,
         desk_feature: doc.desk_feature ?? null,
-        metadata: doc.metadata ?? {},
+        metadata,
       });
     }
     return { ...base, status: 'unchanged', chunks: hashes.size, kept: hashes.size };
@@ -193,7 +252,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
     desk_feature: doc.desk_feature ?? null,
     content_sha256: sha,
     ocr_text: doc.ocr_text,
-    metadata: doc.metadata ?? {},
+    metadata,
   });
   const hashes = await deps.db.existingHashes(id);
   const misses = rows.filter((r) => !hashes.has(r.chunkHash));
@@ -258,11 +317,17 @@ export async function handleIngest(req: Request, deps: IngestDeps): Promise<Resp
     }
     const dryRun = body.dry_run === true;
 
+    const sourceCounts = new Map<string, number>();
+    for (const raw of body.documents) {
+      const key = str((raw as { source_key?: unknown } | null)?.source_key);
+      if (key) sourceCounts.set(key, (sourceCounts.get(key) ?? 0) + 1);
+    }
     const results: DocumentResult[] = [];
     for (const raw of body.documents) {
       let doc: IngestDocument | null = null;
       try {
         doc = validateDocument(raw);
+        if (sourceCounts.get(doc.source_key)! > 1) throw new Error('duplicate source_key in request');
         results.push(await ingestOne(deps, doc, dryRun));
       } catch (err) {
         const source_key = doc?.source_key ?? String((raw as { source_key?: unknown })?.source_key ?? '?');

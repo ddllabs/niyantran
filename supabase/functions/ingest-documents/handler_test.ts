@@ -21,7 +21,7 @@ function fakeDb() {
   const db: IngestDeps['db'] = {
     findDocument: (key) => {
       const d = docs.get(key);
-      return Promise.resolve(d ? { id: d.id, content_sha256: d.row.content_sha256, chunker_version: d.chunker_version } : null);
+      return Promise.resolve(d ? { id: d.id, content_sha256: d.row.content_sha256, chunker_version: d.chunker_version, metadata: d.row.metadata } : null);
     },
     upsertDocument: (row) => {
       let d = docs.get(row.source_key);
@@ -139,7 +139,7 @@ Deno.test('a new document is chunked, embedded and committed; an unchanged one m
   assertEquals(metaUpdates, ['doc-1']);
   assertEquals(docs.get('A')!.row.title, 'Doc A, retitled');
   assertEquals(docs.get('A')!.row.file_url, 'https://e.org/a.pdf');
-  assertEquals(docs.get('A')!.row.metadata, { document_key: 'bill:2019:55' });
+  assertEquals(docs.get('A')!.row.metadata, { ocr_lang: 'eng', document_key: 'bill:2019:55' });
   assertEquals(docs.get('A')!.chunker_version, CHUNK.version, 'still indexed');
 });
 
@@ -205,4 +205,129 @@ Deno.test('more than 50 documents is refused', async () => {
   const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed([]), db };
   const documents = Array.from({ length: 51 }, (_, i) => ({ source_key: `k${i}`, title: 't', ocr_text: 'x' }));
   assertEquals((await handleIngest(post({ documents }), deps)).status, 413);
+});
+
+Deno.test('sparse unchanged refresh preserves provenance and merges supplied metadata without embedding', async () => {
+  const { db, docs } = fakeDb();
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db };
+  const doc = { source_key: 'provenance', title: 'Original', ocr_text: 'Source text',
+    metadata: { source_host: 'sansad.in', licence_class: 'unconfirmed', ocr_quality: 0.8,
+      as_of: '2026-09-09', details: { issuer: 'owner', version: 1 }, retrieval_excluded: true } };
+  await handleIngest(post({ documents: [doc] }), deps);
+  const result = await (await handleIngest(post({ documents: [{ ...doc, title: 'Refreshed',
+    metadata: { licence_class: null, source_host: '', ocr_quality: 0, retrieval_excluded: false,
+      document_key: 'bill:2026:1', details: { version: 2 } } }] }), deps)).json();
+  assertEquals(result.results[0].status, 'unchanged');
+  assertEquals(calls.length, 1);
+  assertEquals(docs.get('provenance')!.row.metadata, { source_host: 'sansad.in', licence_class: 'unconfirmed',
+    ocr_quality: 0, as_of: '2026-09-09', details: { issuer: 'owner', version: 2 }, retrieval_excluded: false,
+    document_key: 'bill:2026:1' });
+});
+
+Deno.test('changed-text ingestion retains omitted provenance and refreshes inherited text claims', async () => {
+  const { db, docs } = fakeDb();
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed([]), db };
+  const first = { source_key: 'revision', title: 'Revision', ocr_text: 'A', metadata: { licence_class: 'unconfirmed', n_chars: 1 } };
+  await handleIngest(post({ documents: [first] }), deps);
+  const result = await (await handleIngest(post({ documents: [{ source_key: 'revision', title: 'Revision', ocr_text: 'A😀' }] }), deps)).json();
+  assertEquals(result.results[0].status, 'indexed');
+  assertEquals(docs.get('revision')!.row.metadata, { licence_class: 'unconfirmed', n_chars: 2 });
+});
+
+Deno.test('declared Unicode count and exact UTF-8 hash are validated before any database write or embedding', async () => {
+  const { db, docs, logs } = fakeDb();
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db };
+  const text = 'A😀\r\n';
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  const sha = Array.from(new Uint8Array(digest), (v) => v.toString(16).padStart(2, '0')).join('');
+  const documents = [
+    { source_key: 'bad-count', title: 'Count', ocr_text: text, metadata: { n_chars: text.length } },
+    { source_key: 'bad-hash', title: 'Hash', ocr_text: text, metadata: { text_sha256: '0'.repeat(64) } },
+    { source_key: 'bad-format', title: 'Hash', ocr_text: text, metadata: { text_sha256: 'invalid' } },
+    { source_key: 'bad-count-type', title: 'Count', ocr_text: text, metadata: { n_chars: [4] } },
+    { source_key: 'bad-metadata', title: 'Metadata', ocr_text: text, metadata: [{ n_chars: 0 }] },
+    { source_key: 'ok', title: 'Good', ocr_text: text, metadata: { n_chars: 4, text_sha256: sha } },
+  ];
+  const result = await (await handleIngest(post({ documents }), deps)).json();
+  assertEquals(result.results.map((r: {status: string}) => r.status), ['error', 'error', 'error', 'error', 'error', 'indexed']);
+  assertEquals(result.totals.errors, 5);
+  assertEquals([...docs.keys()], ['ok']);
+  assertEquals(calls.length, 1);
+  assertEquals(logs.length, 1);
+});
+
+Deno.test('duplicate source keys in one request are rejected before either revision writes', async () => {
+  const { db, docs } = fakeDb();
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db };
+  const result = await (await handleIngest(post({ documents: [
+    { source_key: 'duplicate', title: 'First', ocr_text: 'First text' },
+    { source_key: 'duplicate', title: 'Second', ocr_text: 'Second text' },
+  ] }), deps)).json();
+  assertEquals(result.totals.errors, 2);
+  assertEquals(docs.size, 0);
+  assertEquals(calls.length, 0);
+});
+
+Deno.test('Supabase adapter loads stored metadata for the merge (no server or network)', async () => {
+  const serve = Deno.serve;
+  try {
+    // Capture the registration rather than start a real Edge Function listener.
+    Deno.serve = (() => undefined) as unknown as typeof Deno.serve;
+    const { supabaseDb } = await import('./index.ts');
+    const stored = { id: 'stored', content_sha256: 'sha', chunker_version: 1, metadata: { licence_class: 'unconfirmed' } };
+    const client = { from: () => ({ select: (columns: string) => ({ eq: () => ({ maybeSingle: () => Promise.resolve({
+      data: Object.fromEntries(columns.split(',').map((key) => [key.trim(), stored[key.trim() as keyof typeof stored]])), error: null,
+    }) }) }) }) };
+    const result = await supabaseDb(client as unknown as Parameters<typeof supabaseDb>[0]).findDocument('source');
+    assertEquals(result?.metadata, stored.metadata);
+  } finally { Deno.serve = serve; }
+});
+
+for (const [name, incoming, expected] of [
+  ['ambiguous', { file_url_ambiguous: true, document_key: 'bill:2026:99' }, { file_url_ambiguous: true }],
+  ['replacement bill', { file_url_ambiguous: false, file_url_source: 'new bill map', document_key: 'bill:2025:2', bill_number: '2', bill_year: '2025' },
+    { file_url_ambiguous: false, file_url_source: 'new bill map', document_key: 'bill:2025:2', bill_number: '2', bill_year: '2025' }],
+  ['replacement non-bill', { file_url_ambiguous: false, file_url_source: 'new rule map' }, { file_url_ambiguous: false, file_url_source: 'new rule map' }],
+  ['legacy explicit identity update', { document_key: 'bill:2025:2' }, { document_key: 'bill:2025:2' }],
+] as const) {
+  Deno.test(`link metadata is replaced as a unit: ${name}`, async () => {
+    const { db, docs } = fakeDb();
+    const calls: string[][] = [];
+    const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db };
+    const doc = { source_key: 'link-update', title: 'Document', ocr_text: 'Same text', file_url: 'https://old.test/bill.pdf',
+      metadata: { source_host: 'owner.test', licence_class: 'unconfirmed', document_key: 'bill:2026:1',
+        bill_number: '1', bill_year: '2026', house: 'Lok Sabha', status: 'Introduced', file_url_source: 'old bill map' } };
+    await handleIngest(post({ documents: [doc] }), deps);
+    // A sparse metadata-only refresh must retain the complete existing link unit.
+    await handleIngest(post({ documents: [{ ...doc, metadata: { as_of: '2026-09-21' } }] }), deps);
+    assertEquals(docs.get(doc.source_key)!.row.metadata, { ...doc.metadata, as_of: '2026-09-21' });
+    const result = await (await handleIngest(post({ documents: [{ ...doc, file_url: name === 'ambiguous' ? null : 'https://new.test/source.pdf', metadata: incoming }] }), deps)).json();
+    assertEquals(result.results[0].status, 'unchanged');
+    assertEquals(calls.length, 1);
+    assertEquals(docs.get(doc.source_key)!.row.metadata, { source_host: 'owner.test', licence_class: 'unconfirmed', as_of: '2026-09-21', ...expected });
+  });
+}
+
+Deno.test('unmarked same-identity and partial companion refreshes preserve omitted link fields', async () => {
+  const { db, docs } = fakeDb();
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed([]), db };
+  const doc = { source_key: 'sparse-link', title: 'Document', ocr_text: 'Same text',
+    metadata: { source_host: 'owner.test', document_key: 'bill:2026:1', bill_number: '1', bill_year: '2026', house: 'Lok Sabha', status: 'Introduced' } };
+  await handleIngest(post({ documents: [doc] }), deps);
+  for (const metadata of [{ document_key: 'bill:2026:1' }, { house: 'Rajya Sabha' }]) {
+    await handleIngest(post({ documents: [{ ...doc, metadata }] }), deps);
+  }
+  assertEquals(docs.get(doc.source_key)!.row.metadata, { ...doc.metadata, house: 'Rajya Sabha' });
+});
+
+Deno.test('an explicit changed identity without a marker does not inherit a prior ambiguity state', async () => {
+  const { db, docs } = fakeDb();
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed([]), db };
+  const doc = { source_key: 'formerly-ambiguous', title: 'Document', ocr_text: 'Same text', metadata: { source_host: 'owner.test', file_url_ambiguous: true } };
+  await handleIngest(post({ documents: [doc] }), deps);
+  await handleIngest(post({ documents: [{ ...doc, metadata: { document_key: 'bill:2026:1' } }] }), deps);
+  assertEquals(docs.get(doc.source_key)!.row.metadata, { source_host: 'owner.test', document_key: 'bill:2026:1' });
 });

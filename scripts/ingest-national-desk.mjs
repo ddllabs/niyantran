@@ -16,6 +16,7 @@
 // A .env.local beside package.json is loaded when present.
 
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,21 +77,57 @@ export function parseCsv(text) {
   return body.filter((r) => r.length > 1).map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ''])));
 }
 
-/** One OCR index row + its link → the function's document shape. */
-export function fromCorpusRow(row, link, ocrText) {
+/** The archive hashes exact UTF-8 and counts Python Unicode code points.
+ * Operational request limits still use JS UTF-16 length; no normalization. */
+function validateSourceText(ocrText, metadata, required = false) {
+  const count = metadata.n_chars;
+  if (required || (count !== undefined && count !== null && count !== '')) {
+    if ((typeof count !== 'string' && typeof count !== 'number') || !/^[0-9]+$/.test(String(count)) || !Number.isSafeInteger(Number(count))) throw new Error('invalid n_chars');
+    let actual = 0;
+    for (const _ of ocrText) actual++;
+    if (Number(count) !== actual) throw new Error(`n_chars mismatch: declared ${count}, actual ${actual} Unicode code points`);
+  }
+  const sha = metadata.text_sha256;
+  if (required || (sha !== undefined && sha !== null && sha !== '')) {
+    if (typeof sha !== 'string' || !/^[a-f0-9]{64}$/i.test(sha)) throw new Error('invalid text_sha256');
+    if (createHash('sha256').update(ocrText, 'utf8').digest('hex') !== sha.toLowerCase()) throw new Error('text_sha256 mismatch');
+  }
+}
+
+async function readOcr(file) {
+  // Fatal decoding catches damaged input; ignoreBOM preserves an actual BOM
+  // character because the archive checksum includes its UTF-8 bytes.
+  return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await readFile(file));
+}
+
+function known(value) { return value !== undefined && value !== null && !(typeof value === 'string' && !value.trim()); }
+
+/** Sidecar supplies provenance; nonblank index fields own the current revision. */
+export function fromCorpusRow(row, link, ocrText, sidecar = {}) {
+  validateSourceText(ocrText, row, true);
+  if (!sidecar || typeof sidecar !== 'object' || Array.isArray(sidecar)) throw new Error('metadata must be an object');
+  if (sidecar.id && sidecar.id !== row.id) throw new Error('sidecar id does not match index id');
   const stem = row.title || row.document_name.replace(/\.pdf$/i, '');
   const usable = link && !link.ambiguous ? link : null;
-  const metadata = {
-    source_path: row.source_path,
-    doc_type: row.doc_type,
-    ocr_lang: row.ocr_lang,
-    n_pages: row.n_pages ? Number(row.n_pages) : null,
-    n_chars: row.n_chars ? Number(row.n_chars) : null,
-    integrity: row.integrity || null,
-    text_sha256: row.text_sha256,
-    title_stem: stem,
-  };
+  const indexMetadata = Object.fromEntries(Object.entries(row).filter(([, value]) => known(value)));
+  for (const key of ['n_pages', 'n_chars', 'file_bytes', 'representative_metadata_line']) {
+    if (known(indexMetadata[key])) indexMetadata[key] = Number(indexMetadata[key]);
+  }
+  for (const key of ['retrieval_excluded', 'in_current_corpus']) {
+    if (indexMetadata[key] === 'True') indexMetadata[key] = true;
+    else if (indexMetadata[key] === 'False') indexMetadata[key] = false;
+  }
+  const conflicts = Object.keys(indexMetadata).filter((key) => known(sidecar[key]) && sidecar[key] !== indexMetadata[key]);
+  const metadata = { ...sidecar, ...indexMetadata, title_stem: stem };
+  if (conflicts.length) metadata.index_metadata_conflicts = conflicts;
+  // Link-map resolution owns these fields as a unit. The boolean marker tells
+  // the handler to replace/clear this unit, rather than merge a sparse patch.
+  if (link?.ambiguous || usable) {
+    for (const key of ['document_key', 'bill_number', 'bill_year', 'house', 'status', 'file_url_source']) delete metadata[key];
+  }
+  if (link?.ambiguous) metadata.file_url_ambiguous = true;
   if (usable) {
+    metadata.file_url_ambiguous = false;
     metadata.file_url_source = `corpus ${usable.doc_type} record`;
     if (usable.bill_number && usable.bill_year) {
       metadata.document_key = `bill:${usable.bill_year}:${usable.bill_number}`;
@@ -112,23 +149,46 @@ export function fromCorpusRow(row, link, ocrText) {
   };
 }
 
-async function readCorpus(dir, feature, linksFile, maxChars, limit, shard) {
+export async function readCorpus(dir, feature, linksFile, maxChars, limit, shard) {
   const index = parseCsv(await readFile(path.join(dir, '04_indexes', 'OCR_FILES.csv'), 'utf8'));
   const { links } = JSON.parse(await readFile(linksFile, 'utf8'));
   let rows = index.filter((r) => r.in_current_corpus === 'True' && (r.source_path.split('/')[1] || '') === feature);
+  const counts = new Map();
+  for (const row of rows) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
   if (shard) rows = rows.filter((_, i) => i % shard.count === shard.index);
-  const skipped = [];
-  const docs = [];
+  const skipped = [], failed = [], warnings = [], docs = [];
   for (const row of rows) {
-    if (Number(row.n_chars || 0) > maxChars) {
-      skipped.push({ id: row.id, file: row.document_name, n_chars: Number(row.n_chars) });
-      continue;
+    try {
+      if (!row.id) throw new Error('source id is required');
+      if (counts.get(row.id) > 1) throw new Error('duplicate current source id');
+      if (row.retrieval_excluded === 'True') {
+        skipped.push({ id: row.id, file: row.document_name, reason: 'retrieval_excluded' });
+        continue;
+      }
+      if (!/^[0-9]+$/.test(row.n_chars) || !Number.isSafeInteger(Number(row.n_chars))) throw new Error('invalid n_chars');
+      if (Number(row.n_chars) > maxChars) {
+        skipped.push({ id: row.id, file: row.document_name, n_chars: Number(row.n_chars), reason: 'too_large' });
+        continue;
+      }
+      const ocrText = await readOcr(path.join(dir, row.markdown_path));
+      const sidecar = JSON.parse(await readFile(path.join(dir, row.metadata_path), 'utf8'));
+      const doc = fromCorpusRow(row, links[row.document_name], ocrText, sidecar);
+      if (ocrText.length > maxChars) {
+        skipped.push({ id: row.id, file: row.document_name, n_chars: Number(row.n_chars), utf16_chars: ocrText.length, reason: 'too_large' });
+        continue;
+      }
+      if (doc.metadata.retrieval_excluded === true || doc.metadata.retrieval_excluded === 'True') {
+        skipped.push({ id: row.id, file: row.document_name, reason: 'retrieval_excluded' });
+        continue;
+      }
+      if (doc.metadata.index_metadata_conflicts) warnings.push({ source_key: row.id, fields: doc.metadata.index_metadata_conflicts });
+      docs.push(doc);
+      if (limit && docs.length >= limit) break;
+    } catch (err) {
+      failed.push({ source_key: row.id, file: row.document_name, error: err.message });
     }
-    const ocrText = await readFile(path.join(dir, row.markdown_path), 'utf8');
-    docs.push(fromCorpusRow(row, links[row.document_name], ocrText));
-    if (limit && docs.length >= limit) break;
   }
-  return { docs, skipped, indexed: rows.length };
+  return { docs, skipped, failed, warnings, indexed: rows.length };
 }
 
 /** Group documents into requests: `batch` per request, but a large document travels alone. */
@@ -170,25 +230,26 @@ async function readSpecManifest(file) {
       file_url: d.file_url ?? null,
       desk_tier: d.desk_tier ?? null,
       desk_feature: d.desk_feature ?? null,
-      ocr_text: await readFile(path.join(dir, d.ocr_file), 'utf8'),
+      ocr_text: await readOcr(path.join(dir, d.ocr_file)),
       metadata: d.metadata ?? {},
     });
   }
+  for (const doc of docs) validateSourceText(doc.ocr_text, doc.metadata);
   return docs;
 }
 
 /** Niyantran's export → the function's document shape. Provenance fields ride along in metadata. */
 export function fromExportRecord(entry, metadata, ocrText) {
-  const { id, source_path, doc_type, source_host, licence_class, section, ocr_lang, ocr_quality, n_pages, n_chars, extraction, as_of, file_bytes, file_mtime } = metadata;
+  validateSourceText(ocrText, metadata);
   return {
-    source_key: entry.id ?? id,
+    source_key: entry.id ?? metadata.id,
     title: metadata.title ?? entry.filename.replace(/\.pdf$/i, ''),
     file_name: entry.filename,
     file_url: null, // not supplied by the export; the reader omits the link until Niyantran provides URLs
     desk_tier: 'national',
     desk_feature: metadata.feature ?? null,
     ocr_text: ocrText,
-    metadata: { source_path, doc_type, source_host, licence_class, section, ocr_lang, ocr_quality, n_pages, n_chars, extraction, as_of, file_bytes, file_mtime, export_rank: entry.rank },
+    metadata: { ...metadata, export_rank: entry.rank },
   };
 }
 
@@ -197,7 +258,7 @@ async function readExport(dir) {
   const docs = [];
   for (const entry of manifest.files ?? []) {
     const metadata = JSON.parse(await readFile(path.join(dir, entry.metadata), 'utf8'));
-    const ocrText = await readFile(path.join(dir, entry.markdown), 'utf8');
+    const ocrText = await readOcr(path.join(dir, entry.markdown));
     docs.push(fromExportRecord(entry, metadata, ocrText));
   }
   return docs;
@@ -235,14 +296,17 @@ async function main() {
 
   let docs;
   let skipped = [];
+  let sourceFailures = [];
   if (mode === 'manifest') docs = await readSpecManifest(args.manifest);
   else if (mode === 'export') docs = await readExport(args.export);
   else {
     const r = await readCorpus(args.corpus, args.feature, args.links, args.maxChars, args.limit, args.shard);
     docs = r.docs;
     skipped = r.skipped;
+    sourceFailures = r.failed;
+    if (r.warnings.length) console.log('source metadata conflicts (index values retained):', r.warnings);
     const shardNote = args.shard ? ` (shard ${args.shard.index + 1}/${args.shard.count})` : '';
-    console.log(`${r.indexed} document(s) in the index for "${args.feature}"${shardNote}; ${skipped.length} skipped above ${args.maxChars.toLocaleString()} chars`);
+    console.log(`${r.indexed} document(s) in the index for "${args.feature}"${shardNote}; ${skipped.length} explicitly skipped; ${sourceFailures.length} source validation failures`);
   }
   const source = args.manifest ?? args.export ?? args.corpus;
   console.log(`${docs.length} document(s) from ${source}${args.dryRun ? ' (dry run)' : ''}`);
@@ -251,8 +315,8 @@ async function main() {
   if (mode === 'corpus') console.log(`with file_url ${linked}, with document_key ${keyed}`);
 
   const endpoint = `${url.replace(/\/$/, '')}/functions/v1/ingest-documents`;
-  const totals = { documents: 0, indexed: 0, unchanged: 0, errors: 0, embedded_tokens: 0, cost_usd: 0 };
-  const failed = [];
+  const totals = { documents: sourceFailures.length, indexed: 0, unchanged: 0, errors: sourceFailures.length, embedded_tokens: 0, cost_usd: 0 };
+  const failed = [...sourceFailures];
   const requests = planRequests(docs, mode === 'corpus' ? args.batch : 20);
   for (let i = 0; i < requests.length; i++) {
     const batch = requests[i];
@@ -276,7 +340,7 @@ async function main() {
     if (mode === 'corpus' && (i + 1) % 10 === 0) console.log(`… ${i + 1}/${requests.length} requests, ${totals.documents} documents, usd ${totals.cost_usd.toFixed(4)}`);
   }
   console.log('totals', totals);
-  if (skipped.length) console.log('skipped (too large):', skipped);
+  if (skipped.length) console.log('skipped (with reasons):', skipped);
   if (failed.length) console.log('failed:', failed);
   if (totals.errors) process.exit(1);
 }
