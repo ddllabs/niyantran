@@ -17,6 +17,7 @@ export type ChatFrame =
   | { sources: CitationSource[] }
   | { followUpQuestions: string[] }
   | { truncated: { reason: 'length'; continuations: number } }
+  | { notice: { kind: 'window'; dropped: number } }
   | { timing: { search_ms: number; reasoning_ms: number; writing_ms: number; total_ms: number } }
   | { duplicate: true }
   | { saveFailed: { stage: string; detail: string } }
@@ -34,6 +35,7 @@ export const CHAT_FRAME_KEYS = [
   'sources',
   'followUpQuestions',
   'truncated',
+  'notice',
   'timing',
   'duplicate',
   'saveFailed',
@@ -47,4 +49,58 @@ export function frameKey(frame: ChatFrame): ChatFrameKey {
   const key = Object.keys(frame)[0] as ChatFrameKey;
   if (!CHAT_FRAME_KEYS.includes(key)) throw new Error(`unknown frame ${key}`);
   return key;
+}
+
+export interface ChatSender {
+  /** Write one frame. A closed reader is not an error: the turn must still finish and persist. */
+  send(frame: ChatFrame): void;
+  /** Write the terminator and close. Safe to call twice. */
+  done(): void;
+  readonly closed: boolean;
+  readonly sent: number;
+}
+
+/**
+ * The server half of the wire. A client that reloaded or navigated away has
+ * closed the response stream, and enqueuing onto it throws; that must never
+ * kill the turn, so every write failure is swallowed and the sender simply
+ * reports itself closed.
+ */
+export function createChatSender(controller: ReadableStreamDefaultController<Uint8Array>): ChatSender {
+  const encoder = new TextEncoder();
+  let closed = false;
+  let sent = 0;
+
+  function write(payload: string): void {
+    if (closed) return;
+    try {
+      controller.enqueue(encoder.encode(payload));
+      sent++;
+    } catch {
+      closed = true;
+    }
+  }
+
+  return {
+    send(frame) {
+      frameKey(frame);
+      write(`data: ${JSON.stringify(frame)}\n\n`);
+    },
+    done() {
+      if (closed) return;
+      write('data: [DONE]\n\n');
+      closed = true;
+      try {
+        controller.close();
+      } catch {
+        /* already closed by the runtime */
+      }
+    },
+    get closed() {
+      return closed;
+    },
+    get sent() {
+      return sent;
+    },
+  };
 }
