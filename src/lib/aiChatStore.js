@@ -1,3 +1,4 @@
+import { attachmentIdentity } from './aiDrop.js';
 import { markPreferenceEdit } from './watchlistStore.js';
 const KEY = 'niyantranAiChats';
 const EVENT = 'niy-ai-chats';
@@ -150,10 +151,10 @@ export function addChatAttachments(id, incoming) {
   const state = read();
   const chat = state.chats.find((c) => c.id === id);
   if (!chat) return state;
-  const seen = new Set((chat.attachments || []).map((a) => a.id || `${a.kind}:${a.title}:${a.url || ''}`));
+  const seen = new Set((chat.attachments || []).map(attachmentIdentity));
   const extra = [];
   for (const a of incoming || []) {
-    const key = a.id || `${a.kind}:${a.title}:${a.url || ''}`;
+    const key = attachmentIdentity(a);
     if (seen.has(key)) continue;
     seen.add(key);
     extra.push({ ...a, id: a.id || uid() });

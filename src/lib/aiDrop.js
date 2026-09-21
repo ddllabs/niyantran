@@ -162,6 +162,23 @@ async function hydrateDocumentFiles(urls, title) {
   return files;
 }
 
+/**
+ * Stable identity for an attachment, used to keep the same drop from being
+ * attached twice. Both chat stores previously keyed existing attachments on
+ * `a.id` and incoming ones on their content. Every stored attachment is given a
+ * generated id on insert, so the two sides could never match and dedupe worked
+ * only within a single drop - four separate drops of one feature produced four
+ * copies, each paid for in the prompt on every turn.
+ *
+ * Identity is content, not the generated id. `tab` and `feature` separate two
+ * rows that share a title, which the title and url alone would collide.
+ */
+export function attachmentIdentity(a) {
+  if (!a || typeof a !== 'object') return '';
+  const text = typeof a.text === 'string' ? a.text.length : 0;
+  return [a.kind || '', a.title || '', a.tab || '', a.feature || '', a.url || '', text].join('\u0000');
+}
+
 export async function materializeAiDrop(payload, extras = {}) {
   if (!payload) return [];
   const kind = payload.kind || 'feature';

@@ -168,6 +168,29 @@ describe('aiConversations (server-backed thread store)', () => {
     expect(client.writes.some((w) => w.op === 'delete' && w.table === 'conversations')).toBe(true);
   });
 
+  // R3: dedupe has to hold across separate drops, not only within one. Both
+  // stores keyed existing attachments on the generated id and incoming ones on
+  // their content, so the two sides never matched: dropping one feature four
+  // times produced four copies, and every copy was re-sent to the model on
+  // every turn of that conversation.
+  it('the same drop attached again is not added twice', async () => {
+    await hydrateConversations();
+    const drop = { kind: 'feature', title: 'Open Fronts', tab: 'global', feature: 'Open Fronts' };
+
+    addChatAttachments('c-1', [drop]);
+    addChatAttachments('c-1', [drop]);
+    addChatAttachments('c-1', [{ ...drop }]);
+    expect(activeAiChat().attachments).toHaveLength(1);
+
+    // A genuinely different drop still attaches, including two rows that share a
+    // title but belong to different features.
+    addChatAttachments('c-1', [{ kind: 'feature', title: 'Sanctions', tab: 'global', feature: 'Sanctions' }]);
+    addChatAttachments('c-1', [{ kind: 'row', title: 'Same Name', tab: 'global', feature: 'Alliances' }]);
+    addChatAttachments('c-1', [{ kind: 'row', title: 'Same Name', tab: 'global', feature: 'Nuclear Watch' }]);
+    expect(activeAiChat().attachments).toHaveLength(4);
+    expect(activeAiChat().attachments.filter((a) => a.title === 'Open Fronts')).toHaveLength(1);
+  });
+
   it('attachments live in the browser, per conversation, and survive a reload', async () => {
     await hydrateConversations();
     addChatAttachments('c-1', [{ kind: 'row', title: 'A bill' }]);
