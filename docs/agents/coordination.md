@@ -289,6 +289,18 @@ Correct this section when observations become stale.
   `backend/sql/auth_schema.sql` as the auth schema's source. Email
   confirmation is on; the project's SMTP is misconfigured until a verified
   Resend domain is set (see the plan's launch gates).
+- The National Desk corpus lives in `NTER` (`documents`, `document_chunks`),
+  never in this repository: `ingest/` is gitignored and holds the owner's
+  OCR export locally. It is loaded by `scripts/ingest-national-desk.mjs`
+  through the `ingest-documents` function (service key only, `verify_jwt`
+  off, the handler checks the bearer itself). Chunks are exact character
+  spans of `documents.ocr_text`; embeddings are `openai/text-embedding-3-small`
+  through OpenRouter, which echoes the model name without its vendor
+  prefix. Retrieval is `match_documents` (any signed-in user) via
+  `_shared/retrieval.ts`; the citation ladder is `_shared/citations.ts`
+  mirrored by `src/lib/citationMarkers.js`; the reader is
+  `src/ai/SourceReader.jsx`, not yet mounted anywhere — the streaming agent
+  module mounts it. Plan: `docs/plans/2026-09-21-document-rag-and-citations.md`.
 - `NTER` is a shared live project. Dashboard actions on it, especially
   under Authentication → Users, are announced before they happen; on
   2026-09-21 every user was deleted from the dashboard while another team

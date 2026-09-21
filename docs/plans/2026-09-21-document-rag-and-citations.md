@@ -3,8 +3,9 @@
 **Date:** 2026-09-21
 **Spec:** `docs/specs/2026-09-20-document-rag-and-citations-design.md` (module id
 `document-rag-and-citations`)
-> **Status:** Living — in execution. Becomes Historical (dated) when every
-> task is verified and merged.
+> **Status:** Historical (dated 2026-09-21) — executed, verified against the
+> live project and merged to `main` locally the same day. Kept as the record
+> of what was built. Known limitations are listed at the end.
 
 **Goal:** After this plan, Niyantran's OCR documents can be pushed into
 `NTER` by a script, are chunked and embedded through OpenRouter, are
@@ -444,7 +445,39 @@ Commit `feat(rag): source reader and source list components`.
 
 ## Verification record
 
-Filled during execution.
+All on 2026-09-21, branch `task/document-rag`, against `NTER`.
 
 | # | Check | Result |
 |---|---|---|
+| 0 | Baselines before any change | Vitest 16/16, Deno 35/35, build with the two baseline warnings; `ingest/` staged and absent from `git status` |
+| 1 | Task 1 tests | Deno 11 (normalise 2, chunker 9), Vitest 3; parity fixture shared. Vacuity: `.trim()` on `content` → exact-span test fails (after the fixture gained trailing spaces, without which it did **not** fail); version dropped from the hash input → version test fails |
+| 2 | Task 2 tests | Deno 7. Vacuity: width assertion removed → the 1535 test fails by name |
+| 3 | Migration 0009 applied (`supabase db push`) | history 0001–0009 in sync. Synthetic document: first commit `{3,0,0}`, second `{0,3,0}` with ids unchanged, one hash replaced `{1,2,1}` with the two kept ids unchanged, `match_documents` with row 1's vector → row 1 first at similarity 1.0000, a miss without an embedding raises, cascade delete leaves 0 chunks. Vacuity: ordering by distance desc puts row 1 last. Grants: `chunk_commit` service_role only; `match_documents` authenticated + service_role, anon refused |
+| 4 | `ingest-documents` | Deno 6 handler tests; `deno check` on the entrypoint; deployed with `verify_jwt = false`; POST with a wrong bearer and with no bearer → 401 `{"error":"service key required"}` from the handler |
+| 5a | First live run | The model-echo assertion fired on every document: OpenRouter echoes `text-embedding-3-small` without the vendor prefix. Nothing stored; ten `error` rows in `model_call_logs`. `servedModelMatches` accepts the unprefixed spelling only; test added; redeployed |
+| 5b | Dry run, live run, second run | 10 documents, 19 chunks (1–3 each). Live: 10 indexed, 4,886 prompt tokens, USD 0.0000977. Second run: 10 unchanged, 0 embed calls |
+| 5c | Corpus evidence (SQL) | documents 10, indexed 10; chunks 19, embedded 19; `content = substr(ocr_text, char_from+1, char_to-char_from)` for 19/19; `model_call_logs` for `ingest-documents`: 10 success rows (4,886 tokens, USD 0.000098, served `openai/text-embedding-3-small`) and 10 error rows from 5a |
+| 6a | Retrieval and tool tests | Deno 4 + 2 (width and model refused before the RPC, arguments forwarded, text hash, trace, accumulate, tool JSON) |
+| 6b | `match_documents` live | Probe: first chunk of `2005-115-gaz` with its own stored vector → itself first at 1.000, then `2006-32-gaz#0` 0.769, `2005-115-gaz#1` 0.768. Repeated under a minted user session with the same result; `chunk_commit` as that user → permission denied; anon `select` on `documents` → permission denied |
+| 7 | Citation ladder | Deno 7 (limits, fixture expansion, renumber strips `[3]` with two sources and renumbers a lone `[2]` to `[1]`, `ref:k3f-11` before `ref:k3f-1`, buildSources, citedIds); Vitest 3 on the same fixture — parity proven |
+| 8a | Reader logic and components | Vitest 4 (`resolveSpan` exact / moved incl. respaced / changed; blank needle) + 3 (chips per document in first-citation order, row citations ignored, empty list renders nothing, reader header + loading state via `react-dom/server`). Vitest total 29/29; Deno total 72/72; build with only the two baseline warnings |
+| 8b | Reader live data path | Under the minted user: `documents` and `document_chunks` readable; client `sha256(normalise(content))` equals the server formula → `exact`, and the highlighted span equals the chunk content byte for byte; stored text edited inside the span → `changed`; a preamble inserted before the document → `moved` and the highlight still equals the content |
+| 9 | Throw-away user | `rag-smoke-<ts>@example.com` created by the admin API for 8b/6b and deleted in the same script (HTTP 200); `auth.users` is empty again |
+
+## Known limitations
+
+- **The reader is not mounted.** `SourceReader.jsx` and `SourceList.jsx`
+  exist, render, and their data path is proven, but nothing in the app
+  opens them yet: the citation bubble and the dock wiring belong to
+  `streaming-research-agent`, which is the next module. A browser
+  screenshot of a highlighted passage therefore waits for that module.
+- **No natural-language query has been run end to end.** `match_documents`
+  is proven with stored vectors; a query typed in words needs the query
+  embedded, and the OpenRouter key exists only as a function secret. The
+  agent module's first `search_documents` call closes this.
+- **`file_url` is empty** for every document: the export carries none. The
+  reader shows the file name and omits the link.
+- **Tiny corpus.** One to three chunks per document; packing and overlap
+  are exercised by the synthetic tests, not by these files.
+- The ten `error` rows in `model_call_logs` from the first live run are
+  kept as telemetry of the assertion doing its job.

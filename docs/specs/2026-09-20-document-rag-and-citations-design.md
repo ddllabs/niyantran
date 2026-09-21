@@ -2,8 +2,12 @@
 
 **Date:** 2026-09-20
 **Module id:** `document-rag-and-citations`
-> **Status:** Normative — an open design, binding on its implementation plan.
-> Becomes Historical (dated) when the plan is executed and verified.
+> **Status:** Historical (dated 2026-09-21) — executed and verified by
+> `docs/plans/2026-09-21-document-rag-and-citations.md`. Two facts learned
+> in execution: OpenRouter echoes the embedding model without its vendor
+> prefix (`servedModelMatches` in `_shared/embed.ts`), and `documents` gained
+> a `metadata jsonb` column for the export's provenance fields. The fixed
+> interfaces in §E–§H stand as written.
 
 **Origin:** Niyantran will supply the National Desk source documents as file
 names, file URLs and raw OCR text — whole-document text with no page
