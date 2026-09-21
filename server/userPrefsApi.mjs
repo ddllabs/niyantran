@@ -43,6 +43,10 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
   const caller = await authorizeLocalUser(req, res, { clientForToken: deps.clientForToken });
   if (!caller) return;
   const email = caller.email;
+  // Keep the existing SQLite column for compatibility, but key new preferences
+  // by verified identity: emails can change or be reused by another account.
+  // Never read/adopt legacy email-keyed rows; reconciliation is a separate task.
+  const storageKey = `supabase:${caller.id}`;
   let payload;
   if (req.method === 'PUT') {
     try {
@@ -60,7 +64,7 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
     const database = await getDb();
 
     if (url.pathname === '/api/user-prefs' && req.method === 'GET') {
-      const row = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [email])[0];
+      const row = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [storageKey])[0];
       if (!row) {
         return json(res, {
           ok: true,
@@ -85,7 +89,7 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
 
     if (url.pathname === '/api/user-prefs' && req.method === 'PUT') {
 
-      const existing = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [email])[0];
+      const existing = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [storageKey])[0];
       const watchlist =
         payload.watchlist !== undefined
           ? JSON.stringify(payload.watchlist)
@@ -104,7 +108,7 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
            ai_chats_json = excluded.ai_chats_json,
            tours_json = excluded.tours_json,
            updated_at = excluded.updated_at`,
-        [email, watchlist, aiChats, tours, updatedAt],
+        [storageKey, watchlist, aiChats, tours, updatedAt],
       );
       return json(res, { ok: true, email, updatedAt, engine: 'sqlite' });
     }

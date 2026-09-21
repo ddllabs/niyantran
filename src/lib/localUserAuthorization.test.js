@@ -24,9 +24,9 @@ async function invoke(handler, req, deps = {}) {
   await handler(req, res, vi.fn(), deps);
   return { status: res.statusCode, body: JSON.parse(res.end.mock.calls[0][0]) };
 }
-function setup({ role = 'admin', status = 'active', admin = true, userId = 'auth-user', profileId = userId } = {}) {
+function setup({ role = 'admin', status = 'active', admin = true, userId = 'auth-user', profileId = userId, email = 'Caller@Example.test' } = {}) {
   const client = {
-    auth: { getUser: vi.fn(async () => ({ data: { user: { id: userId, email: 'Caller@Example.test', user_metadata: { role: 'admin' } } }, error: null })) },
+    auth: { getUser: vi.fn(async () => ({ data: { user: { id: userId, email, user_metadata: { role: 'admin' } } }, error: null })) },
     rpc: vi.fn(async (name) => ({ data: name === 'is_platform_admin' ? admin : { user_id: profileId, role, status }, error: null })),
   };
   const deps = {
@@ -39,6 +39,7 @@ function setup({ role = 'admin', status = 'active', admin = true, userId = 'auth
 
 beforeEach(() => {
   vi.clearAllMocks();
+  run.mockReset();
   queryAll.mockReturnValue([{ id: 'local', email: 'local@example.test', password: 'fixture-secret' }]);
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
@@ -168,11 +169,11 @@ describe('preferences identity', () => {
     const response = await invoke(handleUserPrefsApi, request(method, '/api/user-prefs', { watchlist: ['updated'] }), deps);
     expect(response.status).toBe(200);
     expect(response.body.email).toBe('caller@example.test');
-    expect(queryAll.mock.calls[0][2]).toEqual(['caller@example.test']);
+    expect(queryAll.mock.calls[0][2]).toEqual(['supabase:auth-user']);
     expect(client.rpc.mock.calls).toEqual([['get_my_profile']]);
     if (method === 'GET') expect(response.body.prefs.watchlist).toEqual(['own']);
     else {
-      expect(run.mock.calls[0][2].slice(0, 4)).toEqual(['caller@example.test', '["updated"]', '[]', '{}']);
+      expect(run.mock.calls[0][2].slice(0, 4)).toEqual(['supabase:auth-user', '["updated"]', '[]', '{}']);
     }
   });
   it.each(['GET', 'PUT'])('accepts matching normalized email for %s compatibility', async (method) => {
@@ -210,6 +211,86 @@ describe('preferences identity', () => {
     const response = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps);
     expect(response.status).toBe(500);
     expect(JSON.stringify(response.body)).not.toContain('private-db-detail');
+  });
+});
+
+describe('stable preference row ownership', () => {
+  // Stateful in-memory database mock: exercise read/merge/write behavior without
+  // opening or modifying any existing SQLite database.
+  function preferenceRows(initial = []) {
+    const rows = new Map(initial.map((row) => [row.user_email, { ...row }]));
+    queryAll.mockImplementation((_database, sql, [key]) => {
+      expect(sql).toBe('SELECT * FROM user_prefs WHERE user_email = ?');
+      return rows.has(key) ? [{ ...rows.get(key) }] : [];
+    });
+    run.mockImplementation((_database, sql, [key, watchlist, aiChats, tours, updatedAt]) => {
+      expect(sql).toMatch(/^INSERT INTO user_prefs/);
+      rows.set(key, { user_email: key, watchlist_json: watchlist, ai_chats_json: aiChats, tours_json: tours, updated_at: updatedAt });
+    });
+    return rows;
+  }
+  const ordinary = (options = {}) => setup({ role: 'user', admin: false, ...options }).deps;
+
+  it('round-trips ordinary own preferences and preserves omitted fields on partial writes', async () => {
+    const rows = preferenceRows();
+    const deps = ordinary();
+    const prefs = { watchlist: ['owned'], aiChats: [{ text: 'own conversation' }], tours: { done: true } };
+    const saved = await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { ...prefs, email: ' CALLER@example.test ' }), deps);
+    expect(saved.status).toBe(200);
+    expect(saved.body.email).toBe('caller@example.test');
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { watchlist: ['updated'] }), deps)).status).toBe(200);
+    const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=CALLER%40example.test'), deps);
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.prefs).toEqual({ ...prefs, watchlist: ['updated'] });
+    expect([...rows.keys()]).toEqual(['supabase:auth-user']);
+  });
+
+  it('retains preferences for the same verified user ID after an email change', async () => {
+    preferenceRows();
+    const before = ordinary({ email: 'before@example.test' });
+    const after = ordinary({ email: 'after@example.test' });
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { watchlist: ['same-owner'], aiChats: ['private'] }), before)).status).toBe(200);
+    const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=after%40example.test'), after);
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.email).toBe('after@example.test');
+    expect(loaded.body.prefs).toEqual({ watchlist: ['same-owner'], aiChats: ['private'], tours: null });
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { tours: { newEmail: true } }), after)).status).toBe(200);
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), after)).body.prefs).toEqual({ watchlist: ['same-owner'], aiChats: ['private'], tours: { newEmail: true } });
+    expect(queryAll.mock.calls.every((call) => call[2][0] === 'supabase:auth-user')).toBe(true);
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=before%40example.test'), after)).status).toBe(403);
+  });
+
+  it('isolates different verified user IDs even when an email address is reused', async () => {
+    const rows = preferenceRows();
+    const first = ordinary({ userId: 'original-owner' });
+    const second = ordinary({ userId: 'new-owner' });
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { aiChats: ['first private chat'] }), first)).status).toBe(200);
+    const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), second);
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.prefs).toEqual({ watchlist: null, aiChats: null, tours: null });
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { watchlist: ['second private watchlist'] }), second)).status).toBe(200);
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), first)).body.prefs).toEqual({ watchlist: null, aiChats: ['first private chat'], tours: null });
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), second)).body.prefs).toEqual({ watchlist: ['second private watchlist'], aiChats: null, tours: null });
+    expect([...rows.keys()]).toEqual(['supabase:original-owner', 'supabase:new-owner']);
+  });
+
+  it('never reads or adopts legacy email rows and leaves their stored bytes untouched', async () => {
+    const legacy = ['caller@example.test', 'other@example.test'].map((email) => ({
+      user_email: email, watchlist_json: ' [ "legacy" ] ', ai_chats_json: '[{"text":"private 😀"}]',
+      tours_json: '{ "preserve" : true }', updated_at: 'legacy timestamp',
+    }));
+    const rows = preferenceRows(legacy);
+    const originalBytes = legacy.map((row) => JSON.stringify(row));
+    const deps = ordinary();
+    const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps);
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.prefs).toEqual({ watchlist: null, aiChats: null, tours: null });
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { tours: { owned: true } }), deps)).status).toBe(200);
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps)).body.prefs).toEqual({ watchlist: null, aiChats: null, tours: { owned: true } });
+    expect(legacy.map((row) => JSON.stringify(rows.get(row.user_email)))).toEqual(originalBytes);
+    expect(queryAll.mock.calls.every((call) => call[2][0] === 'supabase:auth-user')).toBe(true);
+    expect(run.mock.calls.every((call) => call[2][0] === 'supabase:auth-user')).toBe(true);
+    expect(rows.size).toBe(3);
   });
 });
 
