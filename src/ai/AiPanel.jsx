@@ -581,7 +581,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       message: text,
       focus,
       ...(modelChoice.modelId ? { model: modelChoice.modelId } : {}),
-      ...(modelChoice.effort && modelChoice.effort !== 'off' ? { reasoning: modelChoice.effort } : {}),
+      // An explicit value always, including 'off': the server reads an omitted
+      // field as its own default, so omission can no longer mean "no reasoning".
+      ...(modelChoice.effort ? { reasoning: modelChoice.effort } : {}),
       ...(selection && featureName
         ? {
             selection: {

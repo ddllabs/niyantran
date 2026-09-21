@@ -30,7 +30,10 @@ it('an unauthenticated hydration never creates a draft or fetches private conver
  const f=fixture();f.deps.verifiedLocalIdentity.mockResolvedValue(null);await f.controller.start();expect(f.deps.hydrateConversations).not.toHaveBeenCalled();expect(f.deps.createAiChat).not.toHaveBeenCalled();expect(f.controller.getSnapshot().ready).toBe(false);
 });
 it('model choices normalize to the same allowed fallback and efforts as the picker',()=>{
- expect(normalizeResearchChoice([{model_id:'m',is_default:true,efforts:['low']}],{modelId:'gone',effort:'high'})).toEqual({modelId:'m',effort:'off'});
+ // An effort the fallback model cannot take is dropped to the default, not to
+ // 'off'. 'off' is still reachable, but only by asking for it.
+ expect(normalizeResearchChoice([{model_id:'m',is_default:true,efforts:['low']}],{modelId:'gone',effort:'high'})).toEqual({modelId:'m',effort:'low'});
+ expect(normalizeResearchChoice([{model_id:'m',is_default:true,efforts:['low']}],{modelId:'m',effort:'off'})).toEqual({modelId:'m',effort:'off'});
 });
 
 it('send preserves one original key and the captured context through first-frame adoption and final reconcile',async()=>{

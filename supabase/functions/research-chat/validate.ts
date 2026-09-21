@@ -5,6 +5,8 @@
 
 export const FOCUS_VALUES = ['attached', 'selection', 'desk', 'broad'] as const;
 export const REASONING_VALUES = ['off', 'low', 'medium', 'high'] as const;
+/** What an omitted `reasoning` field means. 'off' is still honoured when asked for by name. */
+export const DEFAULT_REASONING = 'low' as const;
 
 export const LIMITS = {
   message: 4_000,

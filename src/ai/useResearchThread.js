@@ -3,12 +3,15 @@ import * as threads from '../lib/aiThreads.js';
 import * as streaming from '../lib/researchChat.js';
 import * as identity from '../lib/userStore.js';
 import * as registry from '../lib/aiRegistry.js';
-import { effortsFor } from './ModelPicker.jsx';
+import { defaultEffortFor, effortsFor } from './ModelPicker.jsx';
 
 export function normalizeResearchChoice(models, value = {}) {
   const allowed = models.filter(m => m && m.enabled !== false && m.allowed !== false && typeof m.model_id === 'string' && m.model_id.trim());
   const model = allowed.find(m => m.model_id === value.modelId) || allowed.find(m => m.is_default) || allowed[0];
-  return { modelId: model?.model_id || '', effort: effortsFor(allowed, model?.model_id).includes(value.effort) ? value.effort : 'off' };
+  const effort = effortsFor(allowed, model?.model_id).includes(value.effort)
+    ? value.effort
+    : defaultEffortFor(allowed, model?.model_id);
+  return { modelId: model?.model_id || '', effort };
 }
 
 // This controller owns only the research path. Its injected dependencies use
@@ -17,7 +20,10 @@ export function createResearchThread(overrides = {}) {
   const deps = { ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const emptyStore = () => ({ chats: [], activeId: '', loaded: false });
   let data = { ready: false, loading: true, error: '', draft: '', viewer: null, store: emptyStore(),
-    registry: { models: [], roles: [] }, choice: { modelId: '', effort: 'off' }, submitting: false,
+    // No effort yet, rather than 'off': the model list has not loaded, so this
+    // is the absence of a choice and must normalise to the default once it can.
+    // 'off' here would be indistinguishable from a reader who picked it.
+    registry: { models: [], roles: [] }, choice: { modelId: '', effort: '' }, submitting: false,
     cancelRequested: false, cancelPending: false, cancelError: '', identityVersion: 0 };
   let view = data;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
@@ -139,8 +145,10 @@ export function createResearchThread(overrides = {}) {
         const chosen = normalizeResearchChoice(data.registry.models, data.choice);
         if (!chosen.modelId) throw new Error('No research model is available. Reload the model list.');
         body.model = chosen.modelId;
-        delete body.reasoning;
-        if (chosen.effort !== 'off') body.reasoning = chosen.effort;
+        // Send 'off' rather than omitting the field. The server now reads an
+        // omitted field as its own default, so silence would mean "decide for
+        // me" and could not express the picker's "No reasoning".
+        body.reasoning = chosen.effort === 'off' ? 'off' : chosen.effort;
         deps.appendAiMessage(context.chatId, { role: 'user', content: body.message, turn_key: body.turn_key });
         emit({ draft: '', store: deps.loadAiState() });
       }

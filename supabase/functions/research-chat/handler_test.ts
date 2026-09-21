@@ -1471,3 +1471,33 @@ Deno.test('a turn records how many times it thought, and a turn that never thoug
     assert(!JSON.stringify(rec.messages[0]).includes('rates are still open'), 'the thought never reaches the reader');
   }
 });
+
+// Reasoning was never sent. Every enabled model advertises low/medium/high, yet
+// three real turns logged reasoning_effort null and reasoning_tokens 0, because
+// the picker's default was 'off' and the client omitted the field for it - so an
+// omitted field and a deliberate "No reasoning" arrived as the same request.
+// The tender agent sends effort 'low' on every call and deleted its think tool
+// on the grounds that thinking tokens made it redundant.
+Deno.test('an omitted reasoning field means the default; "off" asked for by name is still honoured', async () => {
+  const seen: (string | undefined)[] = [];
+  const capture = (): HandlerDeps['stream'] =>
+    async function* (req) {
+      seen.push((req as { reasoning?: { effort: string } }).reasoning?.effort);
+      yield text(envelope('Answer'));
+      yield finish();
+    };
+
+  const omitted = fakeDeps({ stream: capture() });
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'effort-omitted' }), omitted.deps));
+  assertEquals(seen[0], 'low', 'an omitted field must not mean no reasoning');
+
+  seen.length = 0;
+  const off = fakeDeps({ stream: capture() });
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'effort-off', reasoning: 'off' }), off.deps));
+  assertEquals(seen[0], undefined, '"off" must still send no reasoning block');
+
+  seen.length = 0;
+  const high = fakeDeps({ stream: capture() });
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'effort-high', reasoning: 'high' }), high.deps));
+  assertEquals(seen[0], 'high', 'an effort asked for by name is used as given');
+});

@@ -155,7 +155,10 @@ it('role and model buttons normalize incompatible efforts identically',()=>{
  const changes=[];const tree=ModelPicker({models:MODELS,roles:[{role_id:'FAST',label:'Fast',model_id:MODELS[1].model_id}],value:{modelId:MODELS[0].model_id,effort:'high'},open:true,onChange:v=>changes.push(v)});
  const nodes=elements(tree);nodes.find(n=>n.type==='button'&&n.props?.className?.startsWith('ai-v2-role')).props.onClick();
  nodes.find(n=>n.props?.className?.startsWith('ai-v2-model-opt')&&n.props.children[1].props.children[0].props.children==='DeepSeek - Flash').props.onClick();
- expect(changes).toEqual([{modelId:MODELS[1].model_id,effort:'off'},{modelId:MODELS[1].model_id,effort:'off'}]);
+ // Both paths land on the same value, and that value is now the default rather
+ // than 'off': an effort the new model does not accept is an absent choice, not
+ // a request for no reasoning.
+ expect(changes).toEqual([{modelId:MODELS[1].model_id,effort:'low'},{modelId:MODELS[1].model_id,effort:'low'}]);
 });
 it('effort clicks on a fallback selection include the actual allowed model',()=>{
  const change=[];const tree=ModelPicker({models:MODELS,value:{modelId:'removed',effort:'bogus'},open:true,onChange:v=>change.push(v)});

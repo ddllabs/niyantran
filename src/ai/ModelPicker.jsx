@@ -36,6 +36,19 @@ export function effortsFor(models, modelId) {
   return [...new Set(['off', ...(Array.isArray(model.efforts) ? model.efforts : []).filter(e => Object.hasOwn(EFFORT_LABELS, e))])];
 }
 
+/**
+ * What a reader who has never opened this menu gets: reasoning on, at the
+ * cheapest setting the model offers. The previous fallback was 'off', so every
+ * turn ran with reasoning_tokens 0 unless someone went looking for the control
+ * - and the research loop is exactly the work that wants the model to plan
+ * between searches. 'off' stays available; it is now a choice rather than the
+ * consequence of not making one.
+ */
+export function defaultEffortFor(models, modelId) {
+  const efforts = effortsFor(models, modelId);
+  return efforts.includes('low') ? 'low' : 'off';
+}
+
 export default function ModelPicker({ models = [], roles = [], value, onChange, open, onToggle }) {
   models = allowedModels(models);
   const groups = groupByVendor(models);
@@ -44,7 +57,7 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
   const efforts = effortsFor(models, picked?.model_id);
   const select = modelId => {
     if (!models.some(m => m.model_id === modelId)) return;
-    onChange?.({ ...value, modelId, effort: effortsFor(models, modelId).includes(value?.effort) ? value.effort : 'off' });
+    onChange?.({ ...value, modelId, effort: effortsFor(models, modelId).includes(value?.effort) ? value.effort : defaultEffortFor(models, modelId) });
   };
 
   return (

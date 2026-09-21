@@ -1,12 +1,6 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { DESK_GROUNDING_RULES } from '../_shared/deskGroundingRules.ts';
-import {
-  ANSWER_JSON_SCHEMA,
-  BEFORE_YOU_ANSWER,
-  buildSystemPrompt,
-  buildUserTurn,
-  SYSTEM_PROMPT_STATIC,
-} from './prompt.ts';
+import { ANSWER_JSON_SCHEMA, BEFORE_YOU_ANSWER, FOCUS_LINES, SYSTEM_PROMPT_STATIC, buildSystemPrompt, buildUserTurn } from './prompt.ts';
 
 Deno.test('the static prompt carries the ten sections in order and ends with the checklist', () => {
   const marks = [
@@ -153,4 +147,28 @@ Deno.test('the prompt names the think tool and shows it in a worked example', ()
     prompt.indexOf('think(') < prompt.indexOf('Citations:'),
     'the tool is described in the tools section, before citations',
   );
+});
+
+// The comparison with the DDL Labs tender agent turned up one difference that
+// the logs then confirmed. Its prompt names "repeating a query you already ran
+// with trivial rewording" as an anti-pattern; ours asked for the opposite -
+// "call it more than once with different phrasings" - and a real turn did
+// exactly that: "Finance Bill 2014" then "\"Finance Bill, 2014\" introduced Lok
+// Sabha", 17 of 40 chunks shared, 63 distinct retrieved, 3 cited.
+Deno.test('the prompt asks for a sweep across parts, not the same part reworded', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
+  assertStringIncludes(prompt, 'not the same part worded differently');
+  assertStringIncludes(prompt, 'Repeating a query you already ran with trivial rewording');
+  assertStringIncludes(prompt, 'Answering a broad question from a single search.');
+  // The parts to sweep are named, not left to the model to invent.
+  assertStringIncludes(prompt, 'objects and reasons, the clauses, the schedules');
+  assert(!prompt.includes('different phrasings'), 'the instruction that produced the duplicate search must be gone');
+});
+
+Deno.test('every focus line agrees with the number of tools the prompt offers', () => {
+  for (const focus of Object.keys(FOCUS_LINES)) {
+    const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus });
+    assertStringIncludes(prompt, 'Three tools');
+    assert(!/\bboth tools\b|\btwo tools\b/i.test(prompt), `focus "${focus}" still claims two tools`);
+  }
 });

@@ -55,7 +55,7 @@ import {
   type TurnState,
   type TurnStore,
 } from './persistence.ts';
-import { documentKeysOf, type ResearchRequest, validateRequest } from './validate.ts';
+import { DEFAULT_REASONING, documentKeysOf, type ResearchRequest, validateRequest } from './validate.ts';
 
 export const WINDOW_CHARS = 60_000;
 export const CANCEL_POLL_MS = 2_000;
@@ -250,7 +250,21 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
       headers,
     );
   }
-  const effort = request.reasoning && request.reasoning !== 'off' ? request.reasoning : null;
+  // Reasoning is on unless the caller turns it off. Every enabled model
+  // advertises low/medium/high, and every turn ran with reasoning_tokens 0
+  // because the picker's default is 'off' and the client omits the field
+  // entirely for it - so an omitted field and a deliberate "No reasoning" were
+  // the same request. They are not the same intent, and the default that
+  // matters is the one an omitted field gets. The tender agent reaches the same
+  // place from the other direction: it sends effort 'low' on every call and
+  // deleted its think tool because thinking tokens made it redundant.
+  //
+  // A default must never be able to reject a request, so an effort the chosen
+  // model does not accept is dropped here; only an effort the caller asked for
+  // by name is worth a 400.
+  const asked = request.reasoning ?? DEFAULT_REASONING;
+  const wanted = asked === 'off' ? null : asked;
+  const effort = wanted && !chosen.efforts.includes(wanted) && request.reasoning === undefined ? null : wanted;
   if (effort && !chosen.efforts.includes(effort)) {
     return json(
       {
