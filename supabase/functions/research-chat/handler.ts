@@ -18,6 +18,7 @@ import type { CitationSource } from '../_shared/citation.types.ts';
 import { deskRecordText, deskRowKey } from '../_shared/deskRows.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
+import { isConversational } from './conversational.ts';
 import { log } from '../_shared/logging.ts';
 import { type Message, type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -550,7 +551,13 @@ async function runTurnBody(
     focus: request.focus,
     selection: selectionBlock,
   });
-  const attachments: RenderedAttachment[] = request.attachments.map((a) => ({
+  // A greeting carries no question, so the attachments are not context for it -
+  // they are the reason a bare "hi" came back as a 2,342-character brief with
+  // three follow-up chips. The prompt already asks for no tool and no
+  // follow-ups here; withholding the attachments removes what the model was
+  // summarising instead of greeting.
+  const conversational = isConversational(request.message);
+  const attachments: RenderedAttachment[] = conversational ? [] : request.attachments.map((a) => ({
     kind: a.kind,
     title: a.title,
     text: a.text,
@@ -747,7 +754,9 @@ async function runTurnBody(
 
   const rawAnswer = envelope?.answer ?? decoder.text ?? '';
   let ladder = applyCitationLadder({ answer: rawAnswer, modelSources: envelope?.sources, evidence });
-  const followUps = envelope?.followUps ?? [];
+  // Enforced, not requested. The prompt asks for no follow-ups on small talk and
+  // the model returned three anyway; this is the half the server can guarantee.
+  const followUps = conversational ? [] : (envelope?.followUps ?? []);
 
   // 6. One cheap pass to put the markers back, when the answer cited nothing.
   if (

@@ -1313,3 +1313,56 @@ Deno.test('D6: handler gives retrieval the turn signal and accounts embedding se
   assertEquals(rec.messages[0].usage?.attempts, 4);
   assertEquals(rec.messages[0].status, 'complete');
 });
+
+// R2. A real turn sent "hi" with four attached rows and came back as a
+// 2,342-character brief with three follow-up chips, while the E2 scenario calls
+// for a greeting with no retrieval and no chips. The prompt already asks for
+// exactly that; the model obeyed the no-tool half and ignored the rest. These
+// cover the halves the server enforces instead of asking for.
+Deno.test('a greeting does not carry the attachments into the prompt', async () => {
+  const provider = scripted([NO_RESEARCH, [text(envelope('Hello — what would you like to check?')), finish()]]);
+  const { deps } = fakeDeps(provider);
+  const body = {
+    message: 'hi',
+    turn_key: 'greet-1',
+    focus: 'attached' as const,
+    attachments: [
+      { kind: 'row', title: 'Open Fronts', text: 'RUSSIA-UKRAINE ATTACHED ROW TEXT' },
+    ],
+  };
+  await frames(await handleResearchChat(post(body), deps));
+  const sent = JSON.stringify(provider.seen ?? []);
+  assert(!sent.includes('RUSSIA-UKRAINE ATTACHED ROW TEXT'), 'attachment text must not reach a greeting turn');
+});
+
+Deno.test('a greeting persists no follow-up questions even when the model returns some', async () => {
+  const withChips = JSON.stringify({
+    answer: 'Hello.',
+    sources: [],
+    follow_up_questions: ['What changed in Gaza?', 'Show me the Armenia track', 'Which bills are pending?'],
+  });
+  const provider = scripted([NO_RESEARCH, [text(withChips), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ message: 'hi', turn_key: 'greet-2', focus: 'broad' as const }), deps));
+  assertEquals(rec.messages[0].follow_ups, [], 'the model offered chips; a greeting keeps none');
+});
+
+Deno.test('an ordinary question still keeps its attachments and its follow-ups', async () => {
+  const withChips = JSON.stringify({
+    answer: 'The bill is at committee stage.',
+    sources: [],
+    follow_up_questions: ['What changed in Gaza?'],
+  });
+  const provider = scripted([NO_RESEARCH, [text(withChips), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  const body = {
+    message: 'hi, what stage is the Delimitation Bill at?',
+    turn_key: 'greet-3',
+    focus: 'attached' as const,
+    attachments: [{ kind: 'row', title: 'Open Fronts', text: 'RUSSIA-UKRAINE ATTACHED ROW TEXT' }],
+  };
+  await frames(await handleResearchChat(post(body), deps));
+  const sent = JSON.stringify(provider.seen ?? []);
+  assert(sent.includes('RUSSIA-UKRAINE ATTACHED ROW TEXT'), 'a real question keeps its attachments');
+  assertEquals(rec.messages[0].follow_ups, ['What changed in Gaza?'], 'a real question keeps its chips');
+});
