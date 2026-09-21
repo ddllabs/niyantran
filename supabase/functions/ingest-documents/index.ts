@@ -20,6 +20,10 @@ export function supabaseDb(client: SupabaseClient): IngestDeps['db'] {
       if (error) throw new Error(`documents upsert: ${error.message}`);
       return { id: data.id as string };
     },
+    async updateDocumentMeta(documentId, fields) {
+      const { error } = await client.from('documents').update(fields).eq('id', documentId);
+      if (error) throw new Error(`documents meta update: ${error.message}`);
+    },
     async existingHashes(documentId) {
       const { data, error } = await client.from('document_chunks').select('chunk_hash').eq('document_id', documentId);
       if (error) throw new Error(`document_chunks read: ${error.message}`);
