@@ -6,6 +6,7 @@ import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { deskCatalogBlock } from '../_shared/deskCatalog.ts';
 import { EMBED_DIMS, EMBED_MODEL, embedTexts, servedModelMatches } from '../_shared/embed.ts';
 import { errorResponse, HttpError } from '../_shared/http.ts';
+import { log } from '../_shared/logging.ts';
 import { promptFile } from '../_shared/personaMap.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
 import { search } from '../_shared/retrieval.ts';
@@ -64,7 +65,18 @@ async function bounded<T>(run: (signal: AbortSignal) => PromiseLike<T>, ms: numb
       }),
       aborted,
     ]);
-  } catch {
+  } catch (e) {
+    // The 503 sent to the caller stays deliberately generic, but the reason must
+    // not be lost server-side: this wrapper covers every database query and RPC,
+    // so discarding it made a permission error, a missing column and a genuine
+    // timeout all indistinguishable.
+    if (!parent?.aborted) {
+      log('research.bounded_failed', {
+        timeout_ms: ms,
+        kind: (e as Error)?.name ?? 'unknown',
+        message: String((e as Error)?.message ?? e).slice(0, 300),
+      });
+    }
     throw parent?.aborted ? parent.reason : new HttpError(503, 'Research service unavailable');
   } finally {
     clearTimeout(timer);
@@ -183,7 +195,18 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     signal?: AbortSignal,
   ): Promise<T> {
     const result = await bounded(run, r.timeoutMs, signal);
-    if (result.error) throw new HttpError(503, 'Research service unavailable');
+    if (result.error) {
+      // PostgREST reports failures as a value rather than a throw, so this
+      // branch never reached the catch above and wrote nothing anywhere.
+      const err = result.error as { message?: string; code?: string; details?: string; hint?: string };
+      log('research.query_failed', {
+        code: err?.code ?? null,
+        message: String(err?.message ?? '').slice(0, 300),
+        details: String(err?.details ?? '').slice(0, 200),
+        hint: String(err?.hint ?? '').slice(0, 200),
+      });
+      throw new HttpError(503, 'Research service unavailable');
+    }
     return result.data;
   }
   const persistence = rpcTurnStore({
