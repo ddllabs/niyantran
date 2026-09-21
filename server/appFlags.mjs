@@ -7,12 +7,9 @@
  * Persisted in tmp/app-flags.json (same host model as users SQLite / intro video).
  */
 import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_ROOT = path.resolve(__dirname, '..');
-const FLAGS_FILE = path.join(APP_ROOT, 'tmp', 'app-flags.json');
+const FLAGS_FILE = writablePath('app-flags.json');
 
 function json(res, body, status = 200) {
   res.statusCode = status;

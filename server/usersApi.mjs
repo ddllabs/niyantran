@@ -6,13 +6,10 @@
  *   PUT  /api/users   { users: [...] }
  */
 import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { getDb, queryAll, run } from './db.mjs';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_ROOT = path.resolve(__dirname, '..');
-const USERS_FILE = path.join(APP_ROOT, 'tmp', 'issued-users.json');
+const USERS_FILE = writablePath('issued-users.json');
 
 const SEEDS = [
   {

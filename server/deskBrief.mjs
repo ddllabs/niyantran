@@ -6,14 +6,11 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { getEntryBrief, upsertEntryBrief } from './db.mjs';
 import { loadEnv } from './loadEnv.mjs';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = process.env.VERCEL
-  ? path.join('/tmp', 'desk-briefs')
-  : path.join(__dirname, '..', 'tmp', 'desk-briefs');
+const CACHE_DIR = writablePath('desk-briefs');
 const CACHE_VER = 'v7-entry';
 const MODEL =
   process.env.GEMINI_DESK_MODEL ||

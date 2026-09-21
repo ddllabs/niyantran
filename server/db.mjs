@@ -1,15 +1,13 @@
 /**
  * Local SQLite store (sql.js / WASM) for accounts + product analytics.
- * File: tmp/niyantran.sqlite — fine for single-node dev; swap to better-sqlite3 later if needed.
+ * File: tmp/niyantran.sqlite (or /tmp/niyantran on serverless).
  */
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import initSqlJs from 'sql.js';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_ROOT = path.resolve(__dirname, '..');
-const DB_PATH = path.join(APP_ROOT, 'tmp', 'niyantran.sqlite');
+const DB_PATH = writablePath('niyantran.sqlite');
 
 let SQL = null;
 let db = null;

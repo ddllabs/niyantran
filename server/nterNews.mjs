@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from './loadEnv.mjs';
+import { writablePath, isServerlessHost } from './writableRoot.mjs';
 
 loadEnv();
 
@@ -20,10 +21,10 @@ const MAX_ROWS = 120;
 const KEY_RE = /^nter_news_live_[A-Za-z0-9_-]{16,}$/;
 
 function storePaths() {
-  const primary = process.env.VERCEL
-    ? path.join('/tmp', 'nter-news.json')
-    : path.join(APP_ROOT, 'tmp', 'nter-news.json');
-  const publicMirror = path.join(APP_ROOT, 'public', 'data', 'nter-news.json');
+  const primary = writablePath('nter-news.json');
+  const publicMirror = isServerlessHost()
+    ? null
+    : path.join(APP_ROOT, 'public', 'data', 'nter-news.json');
   return { primary, publicMirror };
 }
 
@@ -130,7 +131,7 @@ function writeNterNewsStore(store) {
   } catch (err) {
     console.warn('[nter-news] primary write failed', err.message);
   }
-  if (!process.env.VERCEL) {
+  if (publicMirror) {
     try {
       fs.mkdirSync(path.dirname(publicMirror), { recursive: true });
       fs.writeFileSync(publicMirror, body);
