@@ -44,6 +44,51 @@ BEGIN
   END LOOP;
 END; $$;
 
+-- Claims use a durable chronology, not transaction-scoped now(). These calls
+-- deliberately share one transaction; existing future timestamps must also win
+-- over wall time without moving the execution deadline into the future.
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+ owner_id uuid := '00000000-0000-4000-8000-000000000031';
+ first jsonb; second jsonb; third jsonb; parent_id uuid;
+ user_time timestamptz; assistant_time timestamptz; next_time timestamptz;
+ future_time timestamptz := clock_timestamp() + interval '1 year';
+BEGIN
+ first := public.claim_research_turn(owner_id,'ordered-first',repeat('1',64),NULL,'Ordering','fake');
+ parent_id := (first#>>'{conversation,id}')::uuid;
+ SELECT created_at INTO user_time FROM public.chat_messages WHERE id = (first->>'user_message_id')::uuid;
+ assistant_time := (first#>>'{assistant,created_at}')::timestamptz;
+ PERFORM pg_temp.assert_true(user_time < assistant_time, 'user strictly precedes reserved assistant');
+ second := public.claim_research_turn(owner_id,'ordered-second',repeat('2',64),parent_id,'Ordering again','fake');
+ PERFORM pg_temp.assert_true((SELECT last_message_at >= (first->>'server_now')::timestamptz FROM public.conversations WHERE id = parent_id),
+   'new claim advances parent activity and row version');
+ SELECT created_at INTO next_time FROM public.chat_messages WHERE id = (second->>'user_message_id')::uuid;
+ PERFORM pg_temp.assert_true(assistant_time < next_time AND next_time < (second#>>'{assistant,created_at}')::timestamptz,
+   'same-transaction next pair follows previous assistant');
+ PERFORM pg_temp.assert_true((SELECT count(DISTINCT created_at) = 4 FROM public.chat_messages WHERE conversation_id = parent_id),
+   'same-transaction pair timestamps remain distinct');
+ PERFORM pg_temp.assert_true(public.claim_research_turn(owner_id,'ordered-first',repeat('1',64),NULL,'Ordering','fake')#>>'{assistant,created_at}' = first#>>'{assistant,created_at}',
+   'replay preserves original reserved timestamp');
+ INSERT INTO public.chat_messages(conversation_id,user_id,role,content,created_at)
+   VALUES(parent_id,owner_id,'user','Prior future timestamp',future_time);
+ third := public.claim_research_turn(owner_id,'ordered-future',repeat('3',64),parent_id,'Ordering after future data','fake');
+ SELECT created_at INTO user_time FROM public.chat_messages WHERE id = (third->>'user_message_id')::uuid;
+ PERFORM pg_temp.assert_true(future_time < user_time AND user_time < (third#>>'{assistant,created_at}')::timestamptz,
+   'new pair follows prior future timestamp');
+ PERFORM pg_temp.assert_true((third#>>'{assistant,execution_expires_at}')::timestamptz - clock_timestamp()
+   BETWEEN interval '119 seconds' AND interval '120 seconds', 'future message chronology never extends real execution deadline');
+ PERFORM pg_temp.assert_true((SELECT created_at = future_time FROM public.chat_messages WHERE conversation_id = parent_id AND content = 'Prior future timestamp'),
+   'existing timestamps remain unchanged');
+ INSERT INTO public.chat_messages(conversation_id,user_id,role,content,created_at)
+   VALUES(parent_id,owner_id,'user','Unorderable prior timestamp','infinity');
+ PERFORM pg_temp.rejected(format('SELECT public.claim_research_turn(%L,''ordered-infinity'',repeat(''4'',64),%L,''Ordering'',''fake'')',owner_id,parent_id),
+   '22023', 'nonfinite prior timestamp rejects rather than creating tied chronology');
+ PERFORM pg_temp.assert_true(NOT EXISTS(SELECT FROM public.research_turns WHERE user_id = owner_id AND turn_key = 'ordered-infinity'),
+   'unorderable claim rolls back without consuming key');
+END; $$;
+RESET ROLE;
+
 SET LOCAL ROLE service_role;
 DO $$
 DECLARE
