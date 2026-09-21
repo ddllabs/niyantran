@@ -128,8 +128,8 @@ let generation = 0;
 let watching = false;
 const copy = value => JSON.parse(JSON.stringify(value));
 function notify() { if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENT)); }
-function remove(entry) {
-  entry.abort?.('identity_changed');
+function remove(entry, reason = 'identity_changed') {
+  entry.abort?.(reason);
   entry.coalescer?.dispose();
   entry.request = null;
   for (const [key, value] of operations) if (value === entry) operations.delete(key);
@@ -165,7 +165,11 @@ async function publish(entry, patch, attempt = entry.attempt, stillCurrent = () 
   return true;
 }
 function result(entry) {
-  if (!bound(entry)) return { ...blankState(), error: 'Your research session changed.', errorCode: 'identity_changed', aborted: true, endReason: 'identity_changed' };
+  // An authoritative saved answer retired this operation. That is not an identity
+  // change and must not be reported to the user as one.
+  if (!bound(entry)) return entry.endReason === 'reconciled'
+    ? { ...blankState(), status: 'reconciled', aborted: true, endReason: 'reconciled' }
+    : { ...blankState(), error: 'Your research session changed.', errorCode: 'identity_changed', aborted: true, endReason: 'identity_changed' };
   const s = visibleState(entry);
   return { conversationId: s.conversationId, messageId: s.messageId, error: s.error, errorCode: s.errorCode,
     status: s.status, isPending: s.isPending, retryable: s.retryable, aborted: Boolean(entry.endReason), endReason: entry.endReason || '' };
@@ -219,6 +223,70 @@ export function clearStream(conversationId) {
 export function retryRequest(conversationId) {
   const entry = operations.get(conversationId || 'new');
   return bound(entry) && entry.request ? copy(entry.request) : null;
+}
+
+const TERMINAL_MESSAGE_STATUS = ['complete', 'error', 'cancelled', 'truncated', 'interrupted'];
+
+/** Only an authoritative owner-scoped terminal row can release a retained
+ * execution after Reload. Cache contents and transport failure are not proof.
+ * A true result retires any open send/retry operation too, reporting the
+ * neutral `reconciled` end reason so the caller renders the saved row. */
+export async function reconcileSavedTurn(conversationId) {
+  const entry = operations.get(conversationId);
+  if (!conversationId || !bound(entry) || !entry.request
+      || entry.state.conversationId !== conversationId) return false;
+  const attempt = entry.attempt, identity = entry.identity, turnKey = entry.request.turn_key;
+  const messageId = entry.state.messageId;
+  const stillCurrent = () => bound(entry, attempt) && operations.get(conversationId) === entry;
+  const controller = new AbortController();
+  // Bound Auth as well as every RLS query; ignored aborts cannot publish late.
+  const timer = setTimeout(() => controller.abort(), 4000);
+  const wait = promise => raceAbort(promise, controller.signal);
+  const owned = () => supabase.from('chat_messages').select('id,user_id,conversation_id,turn_key,role,status,created_at')
+    .eq('user_id', identity.id).eq('conversation_id', conversationId);
+  const read = query => wait(query.abortSignal(controller.signal).maybeSingle());
+  try {
+    const verified = await wait(verifiedLocalIdentity());
+    if (!stillCurrent() || !verified || verified.id !== identity.id || verified.epoch !== identity.epoch
+        || verified.token !== identity.token || !await wait(localIdentityIsCurrent(identity)) || !stillCurrent()) return false;
+    // An assistant row never carries the user turn's key: the claim writes it on
+    // the user row, and unique(conversation_id, turn_key) forbids a second
+    // holder. A reserved message ID therefore identifies the answer directly;
+    // otherwise the retained key resolves through its own user row.
+    let asked = null;
+    if (!messageId) {
+      const { data: question, error: askedError } = await read(owned().eq('turn_key', turnKey).eq('role', 'user'));
+      if (!stillCurrent()) return false;
+      if (askedError) throw new Error('Saved turn read failed');
+      if (!question || typeof question.id !== 'string' || !question.id || question.user_id !== identity.id
+          || question.conversation_id !== conversationId || question.turn_key !== turnKey
+          || question.role !== 'user' || !Number.isFinite(Date.parse(question.created_at))) return false;
+      asked = question;
+    }
+    // The claim inserts the reserved answer one microsecond after its question,
+    // so the very next message is it. Deliberately unfiltered by role: a turn
+    // whose answer was deleted then matches a later question and is rejected,
+    // rather than adopting a different turn's answer.
+    const { data: row, error } = await read(messageId
+      ? owned().eq('id', messageId).eq('role', 'assistant')
+      : owned().gt('created_at', asked.created_at).order('created_at', { ascending: true }).limit(1));
+    if (!stillCurrent()) return false;
+    if (error) throw new Error('Saved result read failed');
+    if (!row || typeof row.id !== 'string' || !row.id || row.user_id !== identity.id
+        || row.conversation_id !== conversationId || row.role !== 'assistant'
+        || !TERMINAL_MESSAGE_STATUS.includes(row.status)
+        // Microsecond ordering is enforced by the server filter. This is the
+        // coarser client backstop against an answer predating its own question.
+        || (messageId ? row.id !== messageId
+          : row.id === asked.id || !(Date.parse(row.created_at) >= Date.parse(asked.created_at)))) return false;
+    if (!await wait(localIdentityIsCurrent(identity)) || !stillCurrent() || controller.signal.aborted) return false;
+    remove(entry, 'reconciled');
+    notify();
+    return true;
+  } catch {
+    if (!stillCurrent()) return false;
+    throw new Error('The saved result could not be verified. Try Reload.');
+  } finally { clearTimeout(timer); }
 }
 function raceAbort(promise, signal) {
   return new Promise((resolve, reject) => {
