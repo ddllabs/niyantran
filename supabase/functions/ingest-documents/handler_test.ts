@@ -16,6 +16,7 @@ interface Stored {
 function fakeDb() {
   const docs = new Map<string, Stored>();
   const logs: CallLogRow[] = [];
+  const metaUpdates: string[] = [];
   let seq = 0;
   const db: IngestDeps['db'] = {
     findDocument: (key) => {
@@ -32,6 +33,12 @@ function fakeDb() {
         d.chunker_version = null;
       }
       return Promise.resolve({ id: d.id });
+    },
+    updateDocumentMeta: (id, fields) => {
+      const d = [...docs.values()].find((x) => x.id === id)!;
+      d.row = { ...d.row, ...fields };
+      metaUpdates.push(id);
+      return Promise.resolve();
     },
     existingHashes: (id) => {
       const d = [...docs.values()].find((x) => x.id === id);
@@ -63,7 +70,7 @@ function fakeDb() {
       return Promise.resolve();
     },
   };
-  return { db, docs, logs };
+  return { db, docs, logs, metaUpdates };
 }
 
 function fakeEmbed(calls: string[][]): IngestDeps['embed'] {
@@ -103,7 +110,7 @@ Deno.test('401 without the secret bearer; 405 on GET; 400 without a documents ar
 });
 
 Deno.test('a new document is chunked, embedded and committed; an unchanged one makes no embed call', async () => {
-  const { db, docs, logs } = fakeDb();
+  const { db, docs, logs, metaUpdates } = fakeDb();
   const calls: string[][] = [];
   const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db };
   const doc = { source_key: 'A', title: 'Doc A', ocr_text: longText('alpha'), metadata: { ocr_lang: 'eng' } };
@@ -123,11 +130,17 @@ Deno.test('a new document is chunked, embedded and committed; an unchanged one m
   assert(logs[0].cost_usd > 0);
   assertEquals(first.totals.indexed, 1);
 
-  const second = await (await handleIngest(post({ documents: [doc] }), deps)).json();
+  const second = await (await handleIngest(post({ documents: [{ ...doc, title: 'Doc A, retitled', file_url: 'https://e.org/a.pdf', metadata: { document_key: 'bill:2019:55' } }] }), deps)).json();
   assertEquals(second.results[0].status, 'unchanged');
   assertEquals(second.results[0].kept, first.results[0].chunks);
   assertEquals(calls.length, 1, 'no second embed call');
   assertEquals(second.totals.unchanged, 1);
+  // unchanged text still refreshes the descriptive fields
+  assertEquals(metaUpdates, ['doc-1']);
+  assertEquals(docs.get('A')!.row.title, 'Doc A, retitled');
+  assertEquals(docs.get('A')!.row.file_url, 'https://e.org/a.pdf');
+  assertEquals(docs.get('A')!.row.metadata, { document_key: 'bill:2019:55' });
+  assertEquals(docs.get('A')!.chunker_version, CHUNK.version, 'still indexed');
 });
 
 Deno.test('a changed document embeds only the hash misses and keeps the rest', async () => {

@@ -82,6 +82,8 @@ export interface IngestDeps {
     findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null } | null>;
     /** Insert or update on source_key; clears chunker_version and indexed_at until markIndexed. */
     upsertDocument(row: DocumentRow): Promise<{ id: string }>;
+    /** Refresh the descriptive fields of a document whose text and chunks are unchanged. */
+    updateDocumentMeta(documentId: string, fields: Omit<DocumentRow, 'ocr_text' | 'content_sha256'>): Promise<void>;
     existingHashes(documentId: string): Promise<Set<string>>;
     chunkCommit(documentId: string, rows: CommitRow[], keep: string[]): Promise<{ inserted: number; kept: number; deleted: number }>;
     markIndexed(documentId: string, chunkerVersion: number): Promise<void>;
@@ -157,6 +159,19 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
 
   if (existing && existing.content_sha256 === sha && existing.chunker_version === CHUNK.version) {
     const hashes = await deps.db.existingHashes(existing.id);
+    if (!dryRun) {
+      // Same text, same chunks: only the descriptive fields can have changed (a title,
+      // a URL, a document key learned later). Refresh them; touch nothing else.
+      await deps.db.updateDocumentMeta(existing.id, {
+        source_key: doc.source_key,
+        title: doc.title,
+        file_name: doc.file_name ?? null,
+        file_url: doc.file_url ?? null,
+        desk_tier: doc.desk_tier ?? null,
+        desk_feature: doc.desk_feature ?? null,
+        metadata: doc.metadata ?? {},
+      });
+    }
     return { ...base, status: 'unchanged', chunks: hashes.size, kept: hashes.size };
   }
 
