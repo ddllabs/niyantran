@@ -12,6 +12,7 @@ export const LIMITS = {
   attachments: 12,
   attachmentText: 40_000,
   rowColumns: 64,
+  columnNameChars: 200,
   cellChars: 500,
   title: 200,
   key: 200,
@@ -63,7 +64,11 @@ function slimRow(v: unknown): Record<string, string> | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const out: Record<string, string> = {};
   let n = 0;
-  for (const [k, value] of Object.entries(v as Record<string, unknown>)) {
+  // Drop oversized names intact: truncation could overwrite a genuine header.
+  // Walk own columns without materializing an entry pair for every input column.
+  for (const k in v) {
+    if (!Object.hasOwn(v, k) || k.length > LIMITS.columnNameChars) continue;
+    const value = (v as Record<string, unknown>)[k];
     if (value == null || value === '' || typeof value === 'object') continue;
     out[k] = String(value).slice(0, LIMITS.cellChars);
     if (++n >= LIMITS.rowColumns) break;
