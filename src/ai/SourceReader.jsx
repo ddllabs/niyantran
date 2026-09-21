@@ -2,6 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
 import { NOTICE, resolveSpan } from './sourceReader.js';
 
+import './research.css';
+
+export function safeSourceUrl(value) {
+  if (typeof value !== 'string' || !/^https?:\/\//i.test(value.trim())) return null;
+  try { const url = new URL(value.trim()); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; }
+  catch { return null; }
+}
+
+export async function loadSource(citation, client, current = () => true) {
+  const unavailable = { loading: false, error: 'This document is no longer available. Try opening the source again.', doc: null, span: null };
+  try {
+    const { data: doc, error } = await client.from('documents')
+      .select('id, title, file_name, file_url, desk_feature, ocr_text').eq('id', citation.document_id).maybeSingle();
+    if (!current()) return null;
+    if (error || !doc) return unavailable;
+    const { data: chunk, error: chunkError } = await client.from('document_chunks').select('content').eq('id', citation.chunk_id).maybeSingle();
+    if (!current()) return null;
+    if (chunkError) return unavailable;
+    const span = await resolveSpan(doc.ocr_text, citation, chunk?.content);
+    return { loading: false, error: '', doc: { ...doc, file_url: safeSourceUrl(doc.file_url) }, span };
+  } catch { return unavailable; }
+}
+
 /**
  * The reader pane (RAG spec §H): opens for a `text` citation, loads the
  * document through the Supabase client (RLS permits every signed-in user),
@@ -17,33 +40,20 @@ export default function SourceReader({ citation, onClose, client = supabase }) {
   useEffect(() => {
     let alive = true;
     setState({ loading: true, error: '', doc: null, span: null });
-    (async () => {
-      const { data: doc, error } = await client
-        .from('documents')
-        .select('id, title, file_name, file_url, desk_feature, ocr_text')
-        .eq('id', citation.document_id)
-        .maybeSingle();
-      if (!alive) return;
-      if (error || !doc) {
-        setState({ loading: false, error: error?.message || 'This document is no longer available.', doc: null, span: null });
-        return;
-      }
-      const { data: chunk } = await client.from('document_chunks').select('content').eq('id', citation.chunk_id).maybeSingle();
-      const span = await resolveSpan(doc.ocr_text, citation, chunk?.content);
-      if (alive) setState({ loading: false, error: '', doc, span });
-    })();
+    loadSource(citation, client, () => alive).then(result => { if (alive && result) setState(result); });
     return () => {
       alive = false;
     };
   }, [citation.document_id, citation.chunk_id, citation.char_from, citation.char_to, citation.text_hash, client]);
 
   useEffect(() => {
-    if (state.span && state.span.status !== 'changed') mark.current?.scrollIntoView({ block: 'center' });
+    if (state.span && state.span.status !== 'changed') mark.current?.scrollIntoView?.({ block: 'center' });
   }, [state.span]);
 
   const { loading, error, doc, span } = state;
   const text = doc?.ocr_text ?? '';
   const notice = span ? NOTICE[span.status] : '';
+  const fileUrl = safeSourceUrl(doc?.file_url) || safeSourceUrl(citation.file_url);
 
   return (
     <section className="ai-reader" aria-label="Cited source">
@@ -52,10 +62,10 @@ export default function SourceReader({ citation, onClose, client = supabase }) {
           <strong>{doc?.title ?? citation.title}</strong>
           <span className="ai-reader-file">
             {doc?.file_name ?? citation.file_name ?? ''}
-            {doc?.file_url || citation.file_url ? (
+            {fileUrl ? (
               <>
                 {' '}
-                <a href={doc?.file_url ?? citation.file_url} target="_blank" rel="noreferrer">
+                <a href={fileUrl} target="_blank" rel="noreferrer">
                   Open file ↗
                 </a>
               </>

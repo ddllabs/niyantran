@@ -28,7 +28,7 @@ export default function RowSource({ citation, onClose }) {
           </button>
         ) : null}
       </div>
-      <RecordDetail row={citation.row_snapshot} feed={feed} onClear={onClose} />
+      <RecordDetail row={citation.row_snapshot} feed={feed} onClear={onClose} generateBrief={false} />
     </div>
   );
 }

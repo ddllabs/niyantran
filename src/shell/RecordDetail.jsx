@@ -238,7 +238,7 @@ function feedFeatureFallback(row) {
   return row?.bill_name ? 'Bill Passage Probability Index' : row?.title || 'Record';
 }
 
-export default function RecordDetail({ row, feed, onClear }) {
+export default function RecordDetail({ row, feed, onClear, generateBrief = true }) {
   if (!row) return null;
   const entries = entriesOf(row);
   const title = String(row.conflict_name || row.title || row.bill_name || row.name || 'Record').trim();
@@ -385,7 +385,7 @@ export default function RecordDetail({ row, feed, onClear }) {
         </div>
       )}
 
-      {!csvFile && !analysis ? (
+      {generateBrief && !csvFile && !analysis ? (
         <SourceBriefBlock row={row} title={title} analysisBrief="" feature={feed?.feature} tier={feed?.tier} />
       ) : null}
 
