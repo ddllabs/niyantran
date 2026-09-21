@@ -159,6 +159,14 @@ export function collectRowUrls(row, { pdf, source } = {}) {
 export function rowRecordText(row, { title = '', max = 6_000 } = {}) {
   if (!row || typeof row !== 'object') return '';
   const skip = new Set([
+    // Identifiers never go in the record the model reads. A labelled `id:` line
+    // is indistinguishable from a citable token, and the model imitates it into
+    // the answer instead of citing the issued ref: handle - which is exactly
+    // what _shared/handles.ts warns about. Mirrored in _shared/deskRows.ts.
+    'id',
+    'record_id',
+    'row_key',
+    'uuid',
     '__alId',
     '__gaId',
     '__saId',

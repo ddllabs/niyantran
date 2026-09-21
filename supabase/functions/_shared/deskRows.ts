@@ -64,6 +64,12 @@ function isHubListingUrl(u: unknown): boolean {
 }
 
 const RECORD_TEXT_SKIP = new Set([
+  // Identifiers never go in the record the model reads. See the note in
+  // src/lib/sourceUrls.js; these two lists must stay identical.
+  'id',
+  'record_id',
+  'row_key',
+  'uuid',
   '__alId',
   '__gaId',
   '__saId',

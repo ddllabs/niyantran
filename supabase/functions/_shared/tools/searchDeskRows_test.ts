@@ -108,7 +108,11 @@ Deno.test('renderDeskRows: labelled blocks, the TOTAL line, NO_RESULTS, and the 
     snapshot_at: BILL.snapshot_at,
   };
   const text = renderDeskRows(result, ['R3']);
-  assert(text.startsWith(`R3 | Bill Passage Probability Index | ${BILL.row_key}\nRecord: THE NATIONAL`));
+  // The block header carries the handle and the feature, never the row key:
+  // offering the model a second, readable identifier made it cite that instead
+  // of the handle, and the turn then resolved no sources at all.
+  assert(text.startsWith('R3 | Bill Passage Probability Index\nRecord: THE NATIONAL'));
+  assert(!text.includes(BILL.row_key), 'the row key must not reach the model');
   assertStringIncludes(text, 'TOTAL: 6520 rows match (snapshot 2026-09-07T18:02:04.432Z); showing 1');
   assertEquals(renderDeskRows({ rows: [], total: 0, snapshot_at: null }, []), 'NO_RESULTS');
   assertEquals(renderDeskRows({ rows: [], total: 0, snapshot_at: null, error: 'Unknown module' }, []), 'Unknown module');

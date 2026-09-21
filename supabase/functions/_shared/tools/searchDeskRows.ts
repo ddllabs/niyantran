@@ -148,7 +148,12 @@ export async function executeSearchDeskRows(deps: DeskRowsDeps, args: SearchDesk
 export function renderDeskRows(result: DeskRowsResult, handles: string[]): string {
   if (result.error) return result.error;
   if (!result.rows.length) return 'NO_RESULTS';
-  const blocks = result.rows.map((r, i) => `${handles[i] ?? `R${i + 1}`} | ${r.feature} | ${r.row_key}\n${r.record_text}`);
+  // The row_key is deliberately absent. Printing it beside the handle offered
+  // the model two identifiers for the same row and it cited the readable one,
+  // producing `[open-fronts:russia-ukraine-war:0]` - which resolves to nothing,
+  // so the turn persisted no sources at all. The handle is the only citable
+  // token; resolution back to the row is the assigner's map, not the prompt.
+  const blocks = result.rows.map((r, i) => `${handles[i] ?? `R${i + 1}`} | ${r.feature}\n${r.record_text}`);
   blocks.push(`TOTAL: ${result.total} rows match (snapshot ${result.snapshot_at ?? 'unknown'}); showing ${result.rows.length}`);
   return blocks.join('\n\n');
 }

@@ -1,3 +1,4 @@
+import { renderDeskRows } from './tools/searchDeskRows.ts';
 import { assert, assertEquals, assertMatch, assertNotEquals } from 'jsr:@std/assert@1';
 import { billDocumentKey, deskRecordText, deskRowKey, flattenRow, fnv1a64, rowPinKey, slimDeskRow, toDeskRow } from './deskRows.ts';
 
@@ -60,4 +61,50 @@ Deno.test('toDeskRow builds the insert row with string-only columns', () => {
   assertEquals(r.snapshot_at, '2026-09-07T18:02:04.432Z');
   for (const v of Object.values(r.row)) assertEquals(typeof v, 'string');
   assertEquals(slimDeskRow({ a: 1, b: '', c: null, d: { x: 1 } }), { a: '1' });
+});
+
+// Mirrors src/lib/deskRows.test.js. The record is what the model reads: a
+// labelled `id:` line in it is indistinguishable from a citable token, and the
+// model imitates it instead of citing the issued ref: handle. A real production
+// turn printed `[open-fronts:russia-ukraine-war:0]` and persisted zero sources
+// because of exactly this.
+Deno.test('deskRecordText never emits an identifier field', () => {
+  const row = {
+    id: 'open-fronts:russia-ukraine-war:0',
+    record_id: 'rec-42',
+    row_key: 'open-fronts:russia-ukraine-war:0',
+    uuid: '7b1c2d3e-0000-4000-8000-000000000000',
+    conflict_name: 'Russia-Ukraine War',
+    region: 'Eastern Europe',
+    intensity: 'Critical',
+  };
+  const text = deskRecordText(row);
+  for (const field of ['id', 'record_id', 'row_key', 'uuid']) {
+    assert(!new RegExp(`(^|\\n)${field}: `).test(text), `record text leaks ${field}:`);
+  }
+  assert(!text.includes('open-fronts:russia-ukraine-war:0'), 'record text leaks the row key');
+  assert(!text.includes('rec-42'), 'record text leaks record_id');
+  // The substance must survive the exclusion.
+  assert(text.includes('Russia-Ukraine War'), 'record text lost its content');
+  assert(text.includes('Eastern Europe') && text.includes('Critical'), 'record text lost fields');
+});
+
+Deno.test('renderDeskRows shows the handle but never the row key', () => {
+  const result = {
+    rows: [{
+      tier: 'global',
+      feature: 'Open Fronts',
+      row_key: 'open-fronts:russia-ukraine-war:0',
+      record_text: 'Record: Russia-Ukraine War\nregion: Eastern Europe',
+      snapshot_at: '2026-09-07T16:55:06.648Z',
+      document_key: null,
+      row: {},
+    }],
+    total: 1,
+    snapshot_at: '2026-09-07T16:55:06.648Z',
+  };
+  const text = renderDeskRows(result as never, ['ref:a7k2m9-1']);
+  assert(text.includes('ref:a7k2m9-1'), 'the handle must be shown');
+  assert(text.includes('Open Fronts'), 'the feature must be shown');
+  assert(!text.includes('open-fronts:russia-ukraine-war:0'), 'the row key must not be shown');
 });

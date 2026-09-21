@@ -13,6 +13,34 @@ describe('deskRows (client, mirrored in _shared/deskRows.ts)', () => {
     }
   });
 
+  // The record is what the model reads. A labelled `id:` line in it is
+  // indistinguishable from a citable token, and the model imitates it instead of
+  // citing the issued ref: handle - the defect that made a real production turn
+  // persist zero sources while printing `[open-fronts:russia-ukraine-war:0]`.
+  it('never puts an identifier in the record the model reads', () => {
+    const banned = ['id', 'record_id', 'row_key', 'uuid'];
+    for (const c of fixture) {
+      const text = deskRecordText(c.raw);
+      for (const field of banned) {
+        expect(text, `${c.feature}: leaks ${field}:`).not.toMatch(new RegExp(`(^|\\n)${field}: `));
+      }
+      // Also reject the row's own key appearing anywhere in the text, but only
+      // when the key is distinctive. Some feeds use a bare ordinal like "1" as
+      // the key, and every record contains that character somewhere; asserting
+      // on those would fail on prose rather than on a leak.
+      if (c.row_key.length >= 8) {
+        expect(text, `${c.feature}: leaks its own row_key`).not.toContain(c.row_key);
+      }
+    }
+  });
+
+  it('excluding identifiers does not move any row key or document key', () => {
+    for (const c of fixture) {
+      expect(deskRowKey(c.raw), `${c.feature}: row_key moved`).toBe(c.row_key);
+      expect(billDocumentKey(c.raw), `${c.feature}: document_key moved`).toBe(c.document_key);
+    }
+  });
+
   it('keeps the frontend key wherever the frontend has one', () => {
     for (const c of fixture) {
       const front = rowPinKey(flattenRow(c.raw));
