@@ -155,6 +155,7 @@ function normaliseUsage(u: Record<string, unknown> | null | undefined): Usage | 
 }
 
 export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGenerator<ModelEvent> {
+  req.signal?.throwIfAborted();
   const res = await deps.fetch(deps.endpoint ?? OPENROUTER_CHAT_URL, {
     method: 'POST',
     headers: {
@@ -175,6 +176,7 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
   let finish: string | null = null;
 
   for await (const payload of parseSseStream(res.body)) {
+    req.signal?.throwIfAborted();
     let json: Record<string, unknown>;
     try {
       json = JSON.parse(payload);
@@ -191,7 +193,19 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
     if (json.usage) usage = normaliseUsage(json.usage as Record<string, unknown>);
     const choice = (json.choices as Record<string, unknown>[] | undefined)?.[0];
     if (!choice) continue;
+    if (choice.error || choice.finish_reason === 'error') {
+      throw new ProviderError(502, 'Provider reported an unsuccessful finish');
+    }
     const delta = (choice.delta ?? {}) as Record<string, unknown>;
+    if (finish) {
+      const hasOutput = ['content', 'reasoning', 'reasoning_content', 'tool_calls'].some((key) => {
+        const value = delta[key];
+        return value != null && value !== '' && (!Array.isArray(value) || value.length > 0);
+      });
+      if (hasOutput || (typeof choice.finish_reason === 'string' && choice.finish_reason && choice.finish_reason !== finish)) {
+        throw new ProviderError(502, 'Provider sent contradictory data after finishing');
+      }
+    }
     const reasoning = delta.reasoning ?? delta.reasoning_content;
     if (typeof reasoning === 'string' && reasoning) yield { type: 'reasoning', text: reasoning };
     if (typeof delta.content === 'string' && delta.content) yield { type: 'text', text: delta.content };
@@ -207,7 +221,27 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
     if (typeof choice.finish_reason === 'string' && choice.finish_reason) finish = choice.finish_reason;
   }
 
-  const ordered = [...calls.entries()].sort((a, b) => a[0] - b[0]);
-  for (const [index, c] of ordered) yield { type: 'tool-call', id: c.id || `call_${index}`, name: c.name, args: c.args };
-  yield { type: 'finish', reason: finish ?? (ordered.length ? 'tool_calls' : 'stop'), usage, served, generationId };
+  req.signal?.throwIfAborted();
+  // EOF and [DONE] describe the transport, not a completed generation. Usage
+  // may be missing, or repeat the actual finish reason in its final frame.
+  if (!finish) throw new ProviderError(502, 'Provider stream ended without a finish reason');
+  if (finish === 'tool_calls') {
+    const ordered = [...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, call]) => call);
+    if (!ordered.length) throw new ProviderError(502, 'Provider finished without complete tool calls');
+    // Validate the entire batch before emitting any callable item. In
+    // particular, length/content_filter fragments must never become tools.
+    for (const call of ordered) {
+      let args: unknown;
+      try { args = JSON.parse(call.args); } catch { /* rejected below */ }
+      if (!call.id.trim() || !call.name.trim() || !args || typeof args !== 'object' || Array.isArray(args)) {
+        throw new ProviderError(502, 'Provider returned an incomplete tool call');
+      }
+    }
+    for (const call of ordered) {
+      req.signal?.throwIfAborted();
+      yield { type: 'tool-call', id: call.id, name: call.name, args: call.args };
+    }
+  }
+  req.signal?.throwIfAborted();
+  yield { type: 'finish', reason: finish, usage, served, generationId };
 }

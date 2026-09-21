@@ -10,8 +10,8 @@ import {
 } from './openrouterStream.ts';
 
 /** An SSE body from payload objects, delivered in awkward chunk boundaries. */
-function sseBody(payloads: unknown[], chunkSize = 7): ReadableStream<Uint8Array> {
-  const text = payloads.map((p) => `data: ${typeof p === 'string' ? p : JSON.stringify(p)}\n\n`).join('') + ': OPENROUTER PROCESSING\n\ndata: [DONE]\n\n';
+function sseBody(payloads: unknown[], chunkSize = 7, done = true): ReadableStream<Uint8Array> {
+  const text = payloads.map((p) => `data: ${typeof p === 'string' ? p : JSON.stringify(p)}\n\n`).join('') + ': OPENROUTER PROCESSING\n\n' + (done ? 'data: [DONE]\n\n' : '');
   const bytes = new TextEncoder().encode(text);
   let i = 0;
   return new ReadableStream({
@@ -88,8 +88,8 @@ Deno.test('reasoning deltas, then two tool calls interleaved by index, arguments
   assertEquals((events[4] as { reason: string }).reason, 'tool_calls');
 });
 
-Deno.test('[DONE] without usage → usage null; finish defaults to stop', async () => {
-  const events = await collect(streamChat(deps([chunk({ content: 'x' })]), { model: 'm', messages: [] }));
+Deno.test('confirmed stop without usage preserves usage null', async () => {
+  const events = await collect(streamChat(deps([chunk({ content: 'x' }), finished('stop')]), { model: 'm', messages: [] }));
   const fin = events.at(-1) as Extract<ModelEvent, { type: 'finish' }>;
   assertEquals(fin.usage, null);
   assertEquals(fin.reason, 'stop');
@@ -136,4 +136,148 @@ Deno.test('the request body carries stream, usage, tools, response_format with r
   assertEquals('tools' in plain, false);
   assertEquals('response_format' in plain, false);
   assertEquals('provider' in plain, false);
+});
+
+const finished = (reason: string) => chunk({}, { choices: [{ index: 0, delta: {}, finish_reason: reason }] });
+const tool = (args = '{"query":"x"}', id = 'call_a', name = 'search_documents') => chunk({
+  tool_calls: [{ index: 0, id, type: 'function', function: { name, arguments: args } }],
+});
+function rawDeps(payloads: unknown[], done = true, chunkSize = 1): StreamDeps {
+  return { apiKey: 'fake-key', fetch: (() => Promise.resolve(new Response(sseBody(payloads, chunkSize, done)))) as typeof fetch };
+}
+async function expectFailure(payloads: unknown[], done = true): Promise<ModelEvent[]> {
+  const events: ModelEvent[] = [];
+  const error = await assertRejects(async () => {
+    for await (const event of streamChat(rawDeps(payloads, done), { model: 'fake', messages: [] })) events.push(event);
+  }, ProviderError);
+  assertEquals(error.status, 502);
+  assertEquals(events.some((e) => e.type === 'finish' || e.type === 'tool-call'), false);
+  return events;
+}
+
+for (const done of [false, true]) {
+  Deno.test(`premature ${done ? '[DONE]' : 'EOF'} after text is a failure, never fabricated stop`, async () => {
+    const events = await expectFailure([chunk({ content: 'Visible partial' })], done);
+    assertEquals(events, [{ type: 'text', text: 'Visible partial' }]);
+  });
+  Deno.test(`premature ${done ? '[DONE]' : 'EOF'} with tool fragments never emits callable tools`, async () => {
+    await expectFailure([tool('{"query":')], done);
+  });
+  Deno.test(`an empty ${done ? '[DONE]' : 'EOF'} stream is not a successful answer`, async () => {
+    await expectFailure([], done);
+  });
+}
+
+Deno.test('valid stop, length and content_filter retain their actual reason without usage or DONE', async () => {
+  for (const reason of ['stop', 'length', 'content_filter']) {
+    const events = await collect(streamChat(rawDeps([chunk({ content: 'é🙂' }), finished(reason)], false), { model: 'fake', messages: [] }));
+    assertEquals(events, [
+      { type: 'text', text: 'é🙂' },
+      { type: 'finish', reason, usage: null, served: 'google/gemini-3.5-flash-lite', generationId: 'gen-1' },
+    ]);
+  }
+});
+Deno.test('repeated finish on the final usage frame remains one terminal event', async () => {
+  const events = await collect(streamChat(rawDeps([
+    chunk({ content: 'Answer' }), finished('stop'),
+    { ...finished('stop'), usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } },
+  ]), { model: 'fake', messages: [] }));
+  assertEquals(events.filter((e) => e.type === 'finish').length, 1);
+  assertEquals((events.at(-1) as Extract<ModelEvent, { type: 'finish' }>).usage?.total_tokens, 5);
+});
+Deno.test('length or content_filter never promotes unfinished tool arguments to a tool call', async () => {
+  for (const reason of ['length', 'content_filter', 'stop']) {
+    const events = await collect(streamChat(rawDeps([tool('{"query":'), finished(reason)]), { model: 'fake', messages: [] }));
+    assertEquals(events.map((e) => e.type), ['finish']);
+    assertEquals((events[0] as Extract<ModelEvent, { type: 'finish' }>).reason, reason);
+  }
+});
+Deno.test('tool_calls finish requires every call to have identity, name and complete object arguments', async () => {
+  for (const malformed of [tool('{'), tool('{}', ''), tool('{}', 'call', ''), tool('null'), tool('[]')]) {
+    await expectFailure([tool(), chunk({ tool_calls: [{ ...(malformed.choices[0].delta.tool_calls as object[])[0], index: 1 }] }), finished('tool_calls')]);
+  }
+  await expectFailure([finished('tool_calls')]);
+});
+Deno.test('finish_reason error and choice-level errors cannot become successful finishes', async () => {
+  await expectFailure([finished('error')]);
+  await expectFailure([chunk({}, { choices: [{ delta: {}, finish_reason: 'stop', error: { code: 502, message: 'disconnected' } }] })]);
+});
+Deno.test('midstream errors after partial text preserve failure and emit no finish or tool calls', async () => {
+  const events = await expectFailure([chunk({ content: 'Partial' }), tool(), { error: { code: 'server_error', message: 'Disconnected' }, ...finished('error') }]);
+  assertEquals(events, [{ type: 'text', text: 'Partial' }]);
+});
+Deno.test('abort after a delivered text event cannot become completion even if fetch ignores abort', async () => {
+  const abort = new AbortController();
+  const stream = streamChat(rawDeps([chunk({ content: 'Partial' }), finished('stop')]), { model: 'fake', messages: [], signal: abort.signal });
+  assertEquals((await stream.next()).value, { type: 'text', text: 'Partial' });
+  abort.abort();
+  const error = await assertRejects(() => stream.next(), DOMException);
+  assertEquals(error.name, 'AbortError');
+});
+Deno.test('an already aborted request does not call fetch', async () => {
+  const abort = new AbortController(); abort.abort(); let count = 0;
+  const source = rawDeps([finished('stop')]); const fetch = source.fetch;
+  source.fetch = (...args) => { count++; return fetch(...args); };
+  await assertRejects(() => collect(streamChat(source, { model: 'fake', messages: [], signal: abort.signal })), DOMException);
+  assertEquals(count, 0);
+});
+
+Deno.test('confirmed tool_calls at EOF needs neither DONE nor usage and keeps provider identity', async () => {
+  const events = await collect(streamChat(rawDeps([tool(), finished('tool_calls')], false), { model: 'fake', messages: [] }));
+  assertEquals(events[0], { type: 'tool-call', id: 'call_a', name: 'search_documents', args: '{"query":"x"}' });
+  assertEquals(events[1], { type: 'finish', reason: 'tool_calls', usage: null, served: 'google/gemini-3.5-flash-lite', generationId: 'gen-1' });
+});
+Deno.test('a transport read failure propagates without finish or hidden fetch retries', async () => {
+  let reads = 0; let fetches = 0;
+  const body = new ReadableStream<Uint8Array>({ pull(controller) {
+    if (reads++ === 0) controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(chunk({ content: 'Partial' }))}\n\n`));
+    else controller.error(new TypeError('fake transport disconnected'));
+  } });
+  const source: StreamDeps = { apiKey: 'fake', fetch: (() => { fetches++; return Promise.resolve(new Response(body)); }) as typeof fetch };
+  const events: ModelEvent[] = [];
+  await assertRejects(async () => { for await (const e of streamChat(source, { model: 'fake', messages: [] })) events.push(e); }, TypeError, 'fake transport disconnected');
+  assertEquals(events, [{ type: 'text', text: 'Partial' }]);
+  assertEquals(fetches, 1);
+});
+Deno.test('request abort reaches fetch and rejects a pending stream read without completion', async () => {
+  const abort = new AbortController();
+  let fetches = 0;
+  const source: StreamDeps = { apiKey: 'fake', fetch: ((_url: unknown, init: RequestInit) => {
+    fetches++;
+    assertEquals(init.signal, abort.signal);
+    const body = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(chunk({ content: 'Partial' }))}\n\n`));
+      abort.signal.addEventListener('abort', () => controller.error(abort.signal.reason), { once: true });
+    } });
+    return Promise.resolve(new Response(body));
+  }) as typeof fetch };
+  const stream = streamChat(source, { model: 'fake', messages: [], signal: abort.signal });
+  assertEquals((await stream.next()).value, { type: 'text', text: 'Partial' });
+  const pending = stream.next();
+  abort.abort();
+  const error = await assertRejects(() => pending, DOMException);
+  assertEquals(error.name, 'AbortError');
+  assertEquals(fetches, 1);
+});
+
+Deno.test('output after a provider finish is rejected before yielding the late delta', async () => {
+  for (const delta of [{ content: 'Late text' }, { reasoning: 'Late reasoning' }, { reasoning_content: 'Late reasoning' }]) {
+    const events = await expectFailure([chunk({ content: 'Original' }), finished('stop'), chunk(delta)]);
+    assertEquals(events, [{ type: 'text', text: 'Original' }]);
+  }
+});
+Deno.test('tool fragments after tool_calls finish are rejected before emitting any callable tool', async () => {
+  await expectFailure([tool(), finished('tool_calls'), chunk({ tool_calls: [{ index: 0, function: { arguments: ' ' } }] })]);
+});
+Deno.test('a contradictory repeated finish is an error rather than replacing the first reason', async () => {
+  await expectFailure([finished('stop'), finished('length')]);
+});
+Deno.test('content with its first finish reason and identical empty terminal frames remains valid', async () => {
+  const combined = chunk({ content: 'Complete answer' }, { choices: [{ index: 0, delta: { content: 'Complete answer' }, finish_reason: 'stop' }] });
+  const accounting = { ...finished('stop'), choices: [{ index: 0, delta: { content: '', reasoning: '', reasoning_content: null, tool_calls: [] }, finish_reason: 'stop' }], usage: { total_tokens: 5 } };
+  const events = await collect(streamChat(rawDeps([combined, finished('stop'), accounting]), { model: 'fake', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['text', 'finish']);
+  assertEquals(events[0], { type: 'text', text: 'Complete answer' });
+  assertEquals((events[1] as Extract<ModelEvent, { type: 'finish' }>).reason, 'stop');
+  assertEquals((events[1] as Extract<ModelEvent, { type: 'finish' }>).usage?.total_tokens, 5);
 });
