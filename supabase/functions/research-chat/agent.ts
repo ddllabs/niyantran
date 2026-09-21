@@ -87,6 +87,8 @@ export interface AgentResult {
   handles: Record<string, string>;
   modelCalls: number;
   searches: number;
+  /** How many times the model planned instead of retrieving or answering. */
+  thoughts: number;
 }
 
 export interface AgentInput {
@@ -428,5 +430,6 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     handles: deps.handles.handles(),
     modelCalls: budget.modelAttempts,
     searches: budget.searches,
+    thoughts: budget.thoughts,
   };
 }

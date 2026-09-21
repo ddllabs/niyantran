@@ -796,7 +796,18 @@ async function runTurnBody(
   }
 
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
-  const usage = attempts.summary();
+  // `searches` and `thoughts` are step counts, not token figures; `attempts`
+  // beside them already is one. They are written on every completed turn,
+  // including when they are zero, because zero is the answer to a question the
+  // record could not previously answer at all: the think tool writes no trace
+  // row and no activity frame, so whether it had ever been called could only be
+  // inferred from attempt arithmetic - and I inferred it wrongly, then reported
+  // the inference as a result. An absent field would leave the same ambiguity
+  // between "not called" and "not measured".
+  // summary() is null when the turn recorded no model attempt at all; spreading
+  // that would turn "nothing happened" into an object of zeroes.
+  const summary = attempts.summary();
+  const usage = summary && { ...summary, searches: result.searches, thoughts: result.thoughts };
   const terminal = makeAssistantMessage({
     content: ladder.answer,
     sources: ladder.sources,
