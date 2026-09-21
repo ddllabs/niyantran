@@ -95,24 +95,39 @@ export async function homeMarketsFromStatic(signal) {
 }
 
 export async function homeLatestFromStatic(signal) {
-  // CR-09: Latest column is nter.news — do not substitute third-party RSS as if it were nter.
-  const snap = await getStaticJson('/data/nter-news.json', signal);
+  // Prefer ingested nter store; if empty, use the shipped wire snapshot (same as local Vite).
+  const nter = await getStaticJson('/data/nter-news.json', signal);
+  const nterRows = Array.isArray(nter?.rows) ? nter.rows : [];
+  if (nterRows.length) {
+    return {
+      ok: true,
+      rows: nterRows,
+      note: nter.note || 'Latest from nter.news.',
+      archive: Boolean(nter.archive),
+      ageH: nter.updated ? (Date.now() - new Date(nter.updated).getTime()) / 3600000 : null,
+      updated: nter.updated,
+      source: 'nter.news',
+    };
+  }
+  const snap = await getStaticJson('/data/news.json', signal);
   const rows = Array.isArray(snap?.rows) ? snap.rows : [];
   if (rows.length) {
     return {
       ok: true,
       rows,
-      note: snap.note || 'Latest from nter.news.',
-      archive: Boolean(snap.archive) || !rows.length,
+      note: snap.note || 'Saved wire headlines (nter.news ingest empty on this host).',
+      archive: true,
       ageH: snap.updated ? (Date.now() - new Date(snap.updated).getTime()) / 3600000 : null,
       updated: snap.updated,
-      source: 'nter.news',
+      source: snap.source || 'wire-rss',
     };
   }
   return {
     ok: true,
     rows: [],
-    note: snap?.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
+    note:
+      nter?.note ||
+      'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
     archive: true,
     source: 'nter.news',
   };

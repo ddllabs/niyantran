@@ -469,10 +469,62 @@ function ago(iso) {
 }
 
 async function fetchLiveLatest() {
-  // Live Latest = ingested nter.news articles (POST /api/news/ingest), never third-party RSS.
-  const body = serveNterLatest({ limit: 12 });
-  if (body.rows?.length) return body;
+  // Prefer ingested nter.news; otherwise refresh the same wire RSS the HTML home used.
+  const nter = serveNterLatest({ limit: 12 });
+  if (nter.rows?.length) return nter;
+  const wire = await fetchWireRssLatest();
+  if (wire?.rows?.length) return wire;
   return null;
+}
+
+const WIRE_FEEDS = [
+  { src: 'THE WIRE', site: 'https://thewire.in', url: 'https://cms.thewire.in/feed' },
+  { src: 'OCCRP', site: 'https://www.occrp.org', url: 'https://www.occrp.org/en/feed' },
+  { src: 'SCROLL.IN', site: 'https://scroll.in', url: 'https://feeds.feedburner.com/ScrollinArticles.rss' },
+  { src: 'THE HINDU', site: 'https://www.thehindu.com', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
+];
+
+async function fetchWireRssLatest() {
+  const parts = await Promise.all(
+    WIRE_FEEDS.map(async (f) => {
+      try {
+        const xml = await fetchRssXml(f.url);
+        return parseRss(xml).map((it) => ({
+          ...it,
+          src: f.src,
+          site: f.site,
+          source: 'wire-rss',
+          t: new Date(it.pub).getTime() || Date.now(),
+          ago: ago(it.pub),
+        }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+  const seen = new Set();
+  const rows = parts
+    .flat()
+    .filter((r) => {
+      const k = String(r.link || r.title || '').toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a, b) => (b.t || 0) - (a.t || 0))
+    .slice(0, 12);
+  if (!rows.length) return null;
+  return {
+    ok: true,
+    rows,
+    note: 'Headlines from The Wire, OCCRP, Scroll.in and The Hindu RSS.',
+    source: 'wire-rss',
+    archive: false,
+    updated: new Date().toISOString(),
+    as_of: new Date().toISOString(),
+    ageH: 0,
+    cached: false,
+  };
 }
 
 export async function serveHomeLatest(opts = {}) {
@@ -488,21 +540,45 @@ export async function serveHomeLatest(opts = {}) {
     });
     return live;
   }
-  if (!fresh) {
-    const snap = readDiskSnapshot('news');
-    if (snap?.rows?.length) {
-      return {
-        ...snapshotPayload(snap),
-        rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-        note: snap.note || 'Saved nter.news headlines.',
-        source: 'nter.news',
-      };
+
+  if (fresh) {
+    const wire = await fetchWireRssLatest();
+    if (wire?.rows?.length) {
+      writeDiskSnapshot('news', wire);
+      return wire;
     }
   }
+
+  const snap = readDiskSnapshot('news');
+  if (snap?.rows?.length) {
+    const ageH = snap.__ageH;
+    const stale = !Number.isFinite(ageH) || ageH > (opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H);
+    if (stale && !fresh) {
+      // Kick a background refresh; still serve the snapshot now (same as markets).
+      scheduleHomeRefresh('news', () => fetchLiveLatest());
+    }
+    return {
+      ...snapshotPayload(snap),
+      rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
+      note:
+        snap.source === 'nter.news'
+          ? snap.note || 'Latest from nter.news.'
+          : snap.note || 'Saved wire headlines (nter.news ingest empty on this host).',
+      source: snap.source === 'nter.news' ? 'nter.news' : snap.source || 'wire-rss',
+    };
+  }
+
+  // Last resort: try live wire even without fresh=1 so production is not stuck empty.
+  const wire = await fetchWireRssLatest();
+  if (wire?.rows?.length) {
+    writeDiskSnapshot('news', wire);
+    return wire;
+  }
+
   return {
     ok: true,
     rows: [],
-    note: live.note || 'nter.news feed not configured on this build. No headlines were invented.',
+    note: live.note || 'Waiting for nter.news ingest or wire RSS. No headlines were invented.',
     source: 'nter.news',
     archive: true,
     ageH: null,

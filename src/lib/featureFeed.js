@@ -1,4 +1,4 @@
-import { liveApiEnabled } from './apiMode.js';
+import { featureFeedApiEnabled, liveApiEnabled } from './apiMode.js';
 import { isHtmlOnlyModule } from '../desks/catalog.js';
 import features from '../data/html-feature-map.json';
 import { fetchArchiveFeature, hasRealRows } from './archiveFeed.js';
@@ -123,11 +123,9 @@ export async function fetchFeature({ tier, feature, signal } = {}) {
     };
   }
 
-  // D2: do not call /api/feature-feed on hosts where it is not deployed (404 spam).
-  // Keep the pack's own live vs archive flag — loading /data on a static host is
-  // not "the live API failed". Forcing fallback:true here is what marked Live
-  // desks as Archive / Local pack on Vercel.
-  if (!liveApiEnabled()) {
+  // Prefer /api/feature-feed when deployed (local Vite + Vercel). Still fall
+  // through to the shipped archive when the API misses or returns empty.
+  if (!featureFeedApiEnabled()) {
     const archive = await fetchArchiveFeature({ tier, feature, signal });
     if (archive && Array.isArray(archive.rows)) {
       return {

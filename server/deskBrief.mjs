@@ -1,11 +1,13 @@
 /**
  * Gemini entry brief — organise ONE selected table row (not the whole desk).
- * Cached on disk by entry hash; regenerates only when that row's fields change.
+ * Cached in SQLite (primary) + disk (secondary); regenerates only when the
+ * row fingerprint changes or force=true.
  */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getEntryBrief, upsertEntryBrief } from './db.mjs';
 import { loadEnv } from './loadEnv.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +21,13 @@ const MODEL =
 const CHAT_MS = 90_000;
 const SAMPLE_ROWS = 40;
 const MAX_CELL = 220;
+
+/** Process-lifetime L1 so repeat GETs in the same Node process skip I/O. */
+const memCache = new Map();
+
+function memKey(scope, tier, feature, hash) {
+  return `${scope || 'entry'}|${tier || ''}|${feature || ''}|${hash || ''}`;
+}
 
 const SYSTEM = `You are the Niyantran Terminal record analyst.
 The analyst selected ONE row in a desk tab. Organise and explain THAT entry's fields only.
@@ -848,10 +857,12 @@ export async function runDeskBrief(input = {}) {
   const hash = String(input.hash || entryFingerprint(row, feature, tier));
   const file = cachePath(tier, feature, hash, scope);
   if (!input.force) {
-    const hit = readCache(file);
-    if (hit?.brief) {
-      return { ...hit.brief, cached: true, hash, generatedAt: hit.generatedAt || hit.brief.generatedAt };
+    const hit = await getCachedDeskBrief(feature, tier, hash, scope);
+    if (hit?.headline || hit?.summary?.length) {
+      return { ...hit, cached: true, hash, generatedAt: hit.generatedAt };
     }
+  } else {
+    memCache.delete(memKey(scope, tier, feature, hash));
   }
 
   const key = String(
@@ -980,13 +991,76 @@ Rules for this response:
   brief.scope = scope;
   brief.entryTitle = String(title).slice(0, 160);
 
-  writeCache(file, { hash, generatedAt: brief.generatedAt, model: got.model, brief });
+  const envelope = { hash, generatedAt: brief.generatedAt, model: got.model, brief };
+  writeCache(file, envelope);
+  memCache.set(memKey(scope, tier, feature, hash), { ...brief, cached: true, hash });
+  try {
+    await upsertEntryBrief({
+      scope,
+      tier,
+      feature,
+      hash,
+      brief,
+      model: got.model,
+      generatedAt: brief.generatedAt,
+    });
+  } catch {
+    /* DB write failure must not block the response — file + mem still hold it */
+  }
   return brief;
 }
 
-export function getCachedDeskBrief(feature, tier, hash, scope = 'entry') {
+/**
+ * Lookup order: memory → SQLite → disk file.
+ * Disk hits are back-filled into SQLite so the next cold start still skips Gemini.
+ */
+export async function getCachedDeskBrief(feature, tier, hash, scope = 'entry') {
   if (!feature || !hash) return null;
   const sc = scope === 'substance' ? 'substance' : 'entry';
+  const mk = memKey(sc, tier, feature, hash);
+  if (memCache.has(mk)) {
+    return { ...memCache.get(mk), cached: true, hash };
+  }
+
+  try {
+    const fromDb = await getEntryBrief(sc, tier, feature, hash);
+    if (fromDb?.brief) {
+      const out = {
+        ...fromDb.brief,
+        cached: true,
+        hash,
+        generatedAt: fromDb.generatedAt || fromDb.brief.generatedAt,
+        model: fromDb.model || fromDb.brief.model || '',
+      };
+      memCache.set(mk, out);
+      return out;
+    }
+  } catch {
+    /* sql.js unavailable — fall through to file */
+  }
+
   const hit = readCache(cachePath(tier, feature, hash, sc));
-  return hit?.brief ? { ...hit.brief, cached: true, hash } : null;
+  if (!hit?.brief) return null;
+  const out = {
+    ...hit.brief,
+    cached: true,
+    hash,
+    generatedAt: hit.generatedAt || hit.brief.generatedAt,
+    model: hit.model || hit.brief.model || '',
+  };
+  memCache.set(mk, out);
+  try {
+    await upsertEntryBrief({
+      scope: sc,
+      tier,
+      feature,
+      hash,
+      brief: hit.brief,
+      model: out.model,
+      generatedAt: out.generatedAt,
+    });
+  } catch {
+    /* backfill best-effort */
+  }
+  return out;
 }

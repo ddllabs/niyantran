@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ensureDeskBrief } from '../lib/deskBrief.js';
+import { ensureDeskBrief, entryFingerprintFnv, peekDeskBrief } from '../lib/deskBrief.js';
 import { resolveSourceBrief } from '../lib/sourceDoc.js';
 
 /**
  * Fetches organised entry intelligence for a selected row.
- * Callers fold the result into existing detail UI — no separate summary chrome.
+ * Cached briefs are reused — Gemini and source extract run only on cache miss
+ * (or when the row fingerprint changes after an API refresh).
  */
 export function useEntryBrief({ feed, selected, loading }) {
   const [brief, setBrief] = useState(null);
@@ -20,6 +21,7 @@ export function useEntryBrief({ feed, selected, loading }) {
     selected?.name ||
     selected?.bill_name ||
     '';
+  const fp = selected && feature ? entryFingerprintFnv(selected, feature, tier) : '';
 
   useEffect(() => {
     if (loading || !feature || !selected || selected.status === 'source_status') {
@@ -30,18 +32,28 @@ export function useEntryBrief({ feed, selected, loading }) {
     }
     const ac = new AbortController();
     let alive = true;
+    const row = selected;
     setBusy(true);
     setErr('');
     (async () => {
+      const cached = await peekDeskBrief({
+        feature,
+        tier,
+        row,
+        signal: ac.signal,
+        scope: 'entry',
+      });
+      if (cached) return cached;
+
       let sourceExtract = '';
       try {
-        const src = await resolveSourceBrief(selected, {
+        const src = await resolveSourceBrief(row, {
           title:
-            selected.bill_name ||
-            selected.policy_name ||
-            selected.title ||
-            selected.subject ||
-            selected.name ||
+            row.bill_name ||
+            row.policy_name ||
+            row.title ||
+            row.subject ||
+            row.name ||
             '',
           signal: ac.signal,
         });
@@ -52,7 +64,7 @@ export function useEntryBrief({ feed, selected, loading }) {
       return ensureDeskBrief({
         feature,
         tier,
-        row: selected,
+        row,
         sourceNote: feed?.source?.note || '',
         sourceExtract,
         signal: ac.signal,
@@ -74,7 +86,8 @@ export function useEntryBrief({ feed, selected, loading }) {
       alive = false;
       ac.abort();
     };
-  }, [feature, tier, rowKey, feed?.source?.note, loading, selected]);
+    // fp covers field changes; omit `selected` object identity to avoid re-POSTing every render.
+  }, [feature, tier, rowKey, fp, feed?.source?.note, loading]);
 
   return { brief, err, busy };
 }

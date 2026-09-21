@@ -510,7 +510,7 @@ export async function handleAiApi(req, res, next) {
       const tier = url.searchParams.get('tier') || '';
       const hash = url.searchParams.get('hash') || '';
       const scope = url.searchParams.get('scope') || 'entry';
-      const hit = getCachedDeskBrief(feature, tier, hash, scope);
+      const hit = await getCachedDeskBrief(feature, tier, hash, scope);
       if (!hit) return json(res, { ok: false, cached: false, error: 'No cached brief for this fingerprint.' }, 404);
       return json(res, { ok: true, ...hit });
     }

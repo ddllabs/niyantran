@@ -224,9 +224,29 @@ export async function resolveOrganisedBrief(
   row,
   { pdf, source, title, noun = 'record', feature = '', tier = '', signal } = {},
 ) {
+  const canAskModel = Boolean(feature);
+
+  // Reuse a cached substance brief before any PDF/HTML extract or Gemini call.
+  if (canAskModel) {
+    try {
+      const { peekDeskBrief } = await import('./deskBrief.js');
+      const hit = await peekDeskBrief({ feature, tier, row, signal, scope: 'substance' });
+      const organised = hit ? formatOrganisedBrief(hit, { noun }) : null;
+      if (organised && organised.text.length >= 40) {
+        return {
+          ...organised,
+          url: '',
+          host: '',
+          extract: '',
+        };
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+    }
+  }
+
   const src = await resolveSourceBrief(row, { pdf, source, title, noun, signal });
   const extract = String(src.extract || '').trim();
-  const canAskModel = Boolean(feature);
 
   if (canAskModel && (extract.length >= 60 || String(title || row?.bill_name || '').length > 12)) {
     try {

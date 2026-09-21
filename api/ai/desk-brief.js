@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     const tier = String(req.query?.tier || '');
     const hash = String(req.query?.hash || '');
     const scope = String(req.query?.scope || 'entry');
-    const hit = getCachedDeskBrief(feature, tier, hash, scope);
+    const hit = await getCachedDeskBrief(feature, tier, hash, scope);
     if (!hit) {
       res.status(404).json({ ok: false, cached: false, error: 'No cached brief for this fingerprint.' });
       return;

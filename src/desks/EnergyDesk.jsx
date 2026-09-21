@@ -107,7 +107,7 @@ export default function EnergyDesk({ feed, selected, onSelect, onAsk, vizFilter,
       <GeoDotsMap
         points={mapPts}
         legend={[
-          ['#ff8f3f', 'Escalating'],
+          ['#4a90e2', 'Escalating'],
           ['#ff6f6f', 'Concentrated'],
         ]}
         onPick={(d) => {

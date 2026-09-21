@@ -9,8 +9,11 @@
     "api/ai/source-extract.js": { "maxDuration": 45 },
     "api/auth/google.js": { "maxDuration": 30 },
     "api/news/ingest.js": { "maxDuration": 30 },
+    "api/feature-feed.js": { "maxDuration": 60, "includeFiles": "{src/data/**,public/data/**}" },
+    "api/constitutions.js": { "maxDuration": 30 },
+    "api/growth.js": { "maxDuration": 30 },
     "api/ohlc.js": { "maxDuration": 20, "includeFiles": "public/data/**" },
-    "api/home/latest.js": { "maxDuration": 15, "includeFiles": "public/data/nter-news.json" },
+    "api/home/latest.js": { "maxDuration": 30, "includeFiles": "public/data/**" },
     "api/home/markets.js": { "maxDuration": 30, "includeFiles": "public/data/**" },
     "api/home/pulse.js": { "maxDuration": 30, "includeFiles": "public/data/**" },
     "api/home/refresh.js": { "maxDuration": 60, "includeFiles": "public/data/**" }

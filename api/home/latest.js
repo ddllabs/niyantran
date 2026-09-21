@@ -1,11 +1,11 @@
 /**
- * GET /api/home/latest — Latest from nter.news (ingested store).
+ * GET /api/home/latest — nter.news ingest, then wire RSS / news.json snapshot (same as local Vite).
  */
-import { serveNterLatest } from '../../server/nterNews.mjs';
+import { serveHomeLatest } from '../../server/homeApi.mjs';
 
 export const config = {
-  maxDuration: 15,
-  includeFiles: ['public/data/nter-news.json'],
+  maxDuration: 30,
+  includeFiles: ['public/data/**'],
 };
 
 export default async function handler(req, res) {
@@ -18,10 +18,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = new URL(req.url || '/', 'http://localhost');
-    const limit = url.searchParams.get('limit');
-    res.status(200).json(serveNterLatest({ limit }));
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const maxAgeH = Number(url.searchParams.get('maxAgeH'));
+    const fresh = url.searchParams.get('fresh') === '1';
+    const body = await serveHomeLatest({
+      maxAgeH: Number.isFinite(maxAgeH) && maxAgeH > 0 ? maxAgeH : undefined,
+      fresh,
+    });
+    res.status(200).json(body);
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message || String(err) });
+    res.status(502).json({ ok: false, error: err.message || String(err) });
   }
 }
