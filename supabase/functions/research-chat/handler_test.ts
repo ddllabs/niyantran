@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@1';
 import type { ChatFrame } from '../_shared/chatStream.ts';
 import { HttpError } from '../_shared/http.ts';
 import { type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
@@ -7,7 +7,6 @@ import type { DeskRow, DeskRowsResult } from '../_shared/tools/searchDeskRows.ts
 import {
   type AiModelLike,
   type AssistantMessage,
-  createReasoningGate,
   failoverChain,
   type HandlerDeps,
   handleResearchChat,
@@ -506,24 +505,6 @@ Deno.test('failoverChain is the requested model, the default, then the cheapest 
   assertEquals(failoverChain([MODELS[0]], 'google/gemini-3.5-flash-lite'), ['google/gemini-3.5-flash-lite']);
 });
 
-Deno.test('the reasoning gate holds a tail back and never lets a handle through', () => {
-  const out: string[] = [];
-  const gate = createReasoningGate((t) => out.push(t), 8);
-  gate.push('I will look at ref:ab12');
-  gate.push('cd-3 for the committee stage and then answer.');
-  gate.flush();
-  const all = out.join('');
-  assertEquals(/ref:[a-z0-9]{6}-\d/.test(all), false, 'the handle never reached the reader');
-  assertStringIncludes(all, 'I will look at');
-  assertStringIncludes(all, 'committee stage');
-
-  const uuid: string[] = [];
-  const g2 = createReasoningGate((t) => uuid.push(t), 4);
-  g2.push('doc 3f2504e0-4f89-11d3-9a0c-0305e82c3301 is relevant');
-  g2.flush();
-  assertEquals(/[0-9a-f]{8}-[0-9a-f]{4}/.test(uuid.join('')), false);
-});
-
 Deno.test('D3: retry without conversation_id cannot spend twice under real conversation/turn uniqueness', async () => {
   const provider = scripted([NO_RESEARCH, [text(envelope('First')), finish()], NO_RESEARCH, [
     text(envelope('Second')),
@@ -773,4 +754,226 @@ Deno.test('D3: disconnect detaches the reader but the claimed execution still fi
   assertEquals(rec.messages.length, 1);
   assertEquals(rec.messages[0].status, 'complete');
   assertEquals(rec.messages[0].content, 'Finished after disconnect');
+});
+
+function rendered(frames: ChatFrame[]): string {
+  let answer = '';
+  for (const frame of frames) {
+    if ('chunk' in frame) answer += frame.chunk;
+    if ('patch' in frame) answer = answer.slice(0, frame.patch.from) + frame.patch.text;
+  }
+  return answer;
+}
+Deno.test('D4: hidden reasoning is absent from public frames and stored activity', async () => {
+  const secret = 'PRIVATE INTERNAL PROMPT AND REASONING '.repeat(4);
+  const provider = scripted([[{ type: 'reasoning', text: secret }, finish()], [
+    { type: 'reasoning', text: secret },
+    text(envelope('Public answer')),
+    finish(),
+  ]]);
+  const { deps, rec } = fakeDeps(provider);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(JSON.stringify(got).includes('PRIVATE INTERNAL'), false);
+  assertEquals(JSON.stringify(rec.messages[0].activity).includes('PRIVATE INTERNAL'), false);
+});
+Deno.test('D4: malformed, empty and trailing-garbage completed envelopes are errors with visible text retained', async () => {
+  for (
+    const answer of [
+      '{"answer":"Visible partial',
+      envelope('   '),
+      'prefix ' + envelope('Visible'),
+      envelope('Visible') + ' garbage',
+    ]
+  ) {
+    const provider = scripted([NO_RESEARCH, [text(answer), finish()]]);
+    const { deps, rec } = fakeDeps(provider);
+    const got = await frames(await handleResearchChat(post(BODY), deps));
+    assertEquals(rec.messages[0].status, 'error', answer);
+    assertEquals(rendered(got), rec.messages[0].content);
+    assert(got.some((frame) => 'error' in frame));
+    assertEquals(got.some((frame) => 'model' in frame), false);
+  }
+});
+Deno.test('D4: filtered and unexpected provider finishes cannot complete an answer', async () => {
+  for (const reason of ['content_filter', 'error', 'unexpected', 'tool_calls']) {
+    const provider = scripted([NO_RESEARCH, [text(envelope('Visible answer')), finish(reason)]]);
+    const { deps, rec } = fakeDeps(provider);
+    const got = await frames(await handleResearchChat(post(BODY), deps));
+    assertEquals(rec.messages[0].status, 'error', reason);
+    assertEquals(rec.messages[0].content, 'Visible answer');
+    assert(got.some((frame) => 'error' in frame));
+  }
+});
+Deno.test('D4: finalizer result is the authority for displayed content and terminal frames', async () => {
+  const { deps, rec } = fakeDeps(
+    scripted([NO_RESEARCH, [text(envelope('Executor answer', [], ['Executor follow-up'])), finish()]]),
+  );
+  const finalize = deps.persistence.finalize;
+  deps.persistence.finalize = (owner, key, token, result) =>
+    finalize(owner, key, token, {
+      ...result,
+      status: 'interrupted',
+      content: 'Database terminal answer',
+      sources: [],
+      follow_ups: [],
+      timing: null,
+    });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rendered(got), rec.messages[0].content);
+  assertEquals(got.some((f) => 'followUpQuestions' in f), false);
+  assertEquals(got.some((f) => 'timing' in f), false);
+  assert(got.some((f) => 'error' in f && f.code === 'interrupted'));
+  assertEquals(got.at(-1), { done: { message_id: 'msg-1' } });
+});
+Deno.test('D4: failed persistence never publishes terminal sources, followups or timing', async () => {
+  const { deps } = fakeDeps(scripted([NO_RESEARCH, [text(envelope('Answer', [], ['Next?'])), finish()]]));
+  deps.persistence.finalize = () => Promise.reject(new Error('private DB error'));
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(got.some((f) => 'sources' in f || 'followUpQuestions' in f || 'timing' in f || 'done' in f), false);
+  assert(got.some((f) => 'saveFailed' in f));
+  assertEquals(JSON.stringify(got).includes('private DB error'), false);
+});
+Deno.test('D4: cancellation remains observed through repair and does not replace the visible answer', async () => {
+  let cancel = false;
+  let researchCalls = 0;
+  let repairSignal: AbortSignal | undefined;
+  const answer = 'The Bill remains before the committee pending its report. '.repeat(5);
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    if (req.messages[0].content?.startsWith('You insert citation markers')) {
+      repairSignal = req.signal;
+      cancel = true;
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      yield text(answer + ' [1]');
+      yield finish();
+    } else if (req.tools?.length) {
+      if (researchCalls++ === 0) {
+        yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
+        yield finish('tool_calls');
+      } else yield finish();
+    } else {
+      yield text(envelope(answer, [], ['Next?']));
+      yield finish();
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c1')]) }, {
+    cancelRequestedSince: () => Promise.resolve(cancel),
+  });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assert(repairSignal?.aborted);
+  assertEquals(rec.messages[0].status, 'cancelled');
+  assertEquals(rec.messages[0].content, answer);
+  assertEquals(rendered(got), answer);
+  assertEquals(rec.cleared, 1);
+  assertEquals(got.some((f) => 'sources' in f || 'followUpQuestions' in f), false);
+  // Let the deliberately uncooperative fake return; it must not alter the terminal row.
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assertEquals(rec.messages[0].status, 'cancelled');
+});
+
+Deno.test('D4: exhausted length without nonblank decoded answer is an error, not empty truncation', async () => {
+  for (const response of ['', '{}', '{"answer":"   ']) {
+    const provider = scripted([NO_RESEARCH, [text(response), finish('length')], [finish('length')], [
+      finish('length'),
+    ]]);
+    const { deps, rec } = fakeDeps(provider);
+    const got = await frames(await handleResearchChat(post(BODY), deps));
+    assertEquals(rec.messages[0].status, 'error');
+    assertEquals(got.some((f) => 'truncated' in f), false);
+  }
+});
+
+Deno.test('D4: the fixed deadline cleans polling and prevents provider work after delayed setup', async () => {
+  let release!: (value: string) => void;
+  const provider = scripted([NO_RESEARCH, [text(envelope('Too late')), finish()]]);
+  let polls = 0;
+  const { deps, rec } = fakeDeps(provider, {
+    persona: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  }, {
+    cancelRequestedSince: () => {
+      polls++;
+      return Promise.resolve(false);
+    },
+  });
+  const claim = deps.persistence.claim;
+  deps.persistence.claim = async (input) => {
+    const result = await claim(input);
+    return result.kind === 'claimed' ? { ...result, remaining_ms: 5020 } : result;
+  };
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'interrupted');
+  assert(got.some((f) => 'error' in f && f.code === 'interrupted'));
+  const settledPolls = polls;
+  release('late persona');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assertEquals(provider.seen.length, 0);
+  assertEquals(polls, settledPolls);
+});
+Deno.test('D4: one cancellation read is in flight and late completion cannot change a settled result', async () => {
+  let pollCount = 0;
+  let releasePoll!: (hit: boolean) => void;
+  let finishAnswer!: () => void;
+  const paused = new Promise<void>((resolve) => {
+    finishAnswer = resolve;
+  });
+  const provider = byPhase(async function* () {
+    yield finish();
+  }, async function* () {
+    yield text(envelope('Saved answer'));
+    await paused;
+    yield finish();
+  });
+  const { deps, rec } = fakeDeps(provider, {}, {
+    cancelRequestedSince: () => {
+      pollCount++;
+      return new Promise((resolve) => {
+        releasePoll = resolve;
+      });
+    },
+  });
+  const response = await handleResearchChat(post(BODY), deps);
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  const before = pollCount;
+  finishAnswer();
+  await frames(response);
+  releasePoll(true);
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  assertEquals(before, 1);
+  assertEquals(pollCount, 1);
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.cleared, 0);
+});
+
+Deno.test('D4: transport overflow still finalizes, and reconnect can replay a larger saved answer', async () => {
+  const content = 'a'.repeat(8 * 1024 * 1024) + '🌐';
+  let work!: Promise<unknown>;
+  const { deps, rec } = fakeDeps(scripted([]), {
+    waitUntil: (value) => {
+      work = value;
+    },
+    executeTurn: () =>
+      Promise.resolve({
+        content,
+        status: 'complete',
+        sources: [],
+        follow_ups: [],
+        activity: [],
+        model_served: 'fake',
+        error_message: null,
+        usage: null,
+        timing: null,
+      }),
+  });
+  const response = await handleResearchChat(post(BODY), deps);
+  await work;
+  await assertRejects(() => response.text(), Error, 'reader buffer limit');
+  assertEquals(rec.messages[0].content, content);
+  assertEquals(rec.messages[0].status, 'complete');
+  const replay = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(replay[0], { conversation: { id: 'conv-1', title: 'Existing' } });
+  assertEquals(rendered(replay), content);
+  assertEquals(replay.at(-1), { done: { message_id: 'msg-1' } });
+  assertEquals(rec.messages.length, 1);
 });

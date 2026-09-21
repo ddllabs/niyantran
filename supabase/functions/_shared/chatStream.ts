@@ -1,7 +1,5 @@
 // The SSE frame vocabulary for research-chat (streaming spec §A, "Frames").
-// TYPES ONLY in the foundation cut. The sender, the disconnect-tolerant
-// writer and the [DONE] terminator are added by streaming-research-agent,
-// which may add frames but must not rename these.
+// Frame names are shared with the browser parser and must remain stable.
 
 import type { CitationSource } from './citation.types.ts';
 
@@ -51,6 +49,14 @@ export function frameKey(frame: ChatFrame): ChatFrameKey {
   return key;
 }
 
+/** Bound unread transport bytes, not the persisted answer size. Both live and
+ * replay streams use this strategy; a detached reader can reload saved state. */
+export const CHAT_STREAM_BUFFER_BYTES = 8 * 1024 * 1024;
+export const CHAT_STREAM_QUEUE: QueuingStrategy<Uint8Array> = {
+  highWaterMark: CHAT_STREAM_BUFFER_BYTES,
+  size: (chunk) => chunk.byteLength,
+};
+
 export interface ChatSender {
   /** Write one frame. A closed reader is not an error: the turn must still finish and persist. */
   send(frame: ChatFrame): void;
@@ -64,7 +70,7 @@ export interface ChatSender {
  * The server half of the wire. A client that reloaded or navigated away has
  * closed the response stream, and enqueuing onto it throws; that must never
  * kill the turn, so every write failure is swallowed and the sender simply
- * reports itself closed.
+ * reports itself closed. The controller must use CHAT_STREAM_QUEUE.
  */
 export function createChatSender(controller: ReadableStreamDefaultController<Uint8Array>): ChatSender {
   const encoder = new TextEncoder();
@@ -74,7 +80,16 @@ export function createChatSender(controller: ReadableStreamDefaultController<Uin
   function write(payload: string): void {
     if (closed) return;
     try {
-      controller.enqueue(encoder.encode(payload));
+      const bytes = encoder.encode(payload);
+      // A stopped reader must not retain an unbounded queue during a live turn.
+      // No prefix is enqueued: overflow disconnects transport, never truncates
+      // the answer that the turn will finalize in storage.
+      if (controller.desiredSize === null || bytes.byteLength > controller.desiredSize) {
+        closed = true;
+        controller.error(new Error('Research stream reader buffer limit exceeded'));
+        return;
+      }
+      controller.enqueue(bytes);
       sent++;
     } catch {
       closed = true;
@@ -103,4 +118,47 @@ export function createChatSender(controller: ReadableStreamDefaultController<Uin
       return sent;
     },
   };
+}
+
+/** Replay produces on demand, so even a saved frame larger than the queue
+ * budget is transported intact. SSE parsers already accept byte fragmentation. */
+export function createChatReplay(frames: Iterable<ChatFrame>): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  function* chunks(): Generator<Uint8Array> {
+    for (const frame of frames) {
+      frameKey(frame);
+      const payload = `data: ${JSON.stringify(frame)}\n\n`;
+      for (let offset = 0; offset < payload.length;) {
+        let end = Math.min(offset + 16_384, payload.length);
+        // Do not independently encode the two halves of a surrogate pair.
+        const last = payload.charCodeAt(end - 1);
+        if (end < payload.length && last >= 0xd800 && last <= 0xdbff) end--;
+        yield encoder.encode(payload.slice(offset, end));
+        offset = end;
+      }
+    }
+    yield encoder.encode('data: [DONE]\n\n');
+  }
+  const iterator = chunks();
+  let pending: Uint8Array | undefined;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (!pending) {
+        const next = iterator.next();
+        if (next.done) {
+          controller.close();
+          return;
+        }
+        pending = next.value;
+      }
+      const count = Math.min(pending.byteLength, controller.desiredSize ?? 0);
+      if (count <= 0) return;
+      controller.enqueue(pending.subarray(0, count));
+      pending = count < pending.byteLength ? pending.subarray(count) : undefined;
+    },
+    cancel() {
+      pending = undefined;
+      iterator.return(undefined);
+    },
+  }, CHAT_STREAM_QUEUE);
 }

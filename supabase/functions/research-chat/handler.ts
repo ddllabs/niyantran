@@ -7,10 +7,16 @@
 // is never the turn's lifeline: a disconnect only detaches a reader, and the
 // answer still finishes and persists.
 
-import { type ChatSender, createChatSender } from '../_shared/chatStream.ts';
+import {
+  CHAT_STREAM_QUEUE,
+  type ChatFrame,
+  type ChatSender,
+  createChatReplay,
+  createChatSender,
+} from '../_shared/chatStream.ts';
 import type { CitationSource } from '../_shared/citation.types.ts';
 import { deskRecordText, deskRowKey } from '../_shared/deskRows.ts';
-import { createHandleAssigner, HANDLE_RE } from '../_shared/handles.ts';
+import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import {
@@ -20,7 +26,6 @@ import {
   type StreamRequest,
   type Usage,
 } from '../_shared/openrouterStream.ts';
-import { segmentReasoning } from '../_shared/reasoningSegments.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow, DeskRowsResult, SearchDeskRowsArgs } from '../_shared/tools/searchDeskRows.ts';
 import {
@@ -52,8 +57,6 @@ import { documentKeysOf, type ResearchRequest, validateRequest } from './validat
 
 export const WINDOW_CHARS = 60_000;
 export const CANCEL_POLL_MS = 2_000;
-/** Held back so an identifier split across two deltas can never flash on screen. */
-export const REDACTION_TAIL = 24;
 export const MAX_FOLLOW_UPS = 3;
 
 export interface AiModelLike {
@@ -153,31 +156,6 @@ export function windowMessages(
   return { window: kept, dropped: i + 1 };
 }
 
-/**
- * Streams reasoning while holding back a short tail, and never lets an
- * identifier through: handles are stripped, and a partial one at the boundary
- * stays in the buffer until the next delta settles it.
- */
-export function createReasoningGate(emit: (text: string) => void, tail = REDACTION_TAIL) {
-  let buffer = '';
-  const clean = (s: string) =>
-    s.replace(HANDLE_RE, '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '');
-  return {
-    push(delta: string) {
-      buffer += delta;
-      if (buffer.length <= tail) return;
-      const release = clean(buffer.slice(0, buffer.length - tail));
-      buffer = buffer.slice(buffer.length - tail);
-      if (release) emit(release);
-    },
-    flush() {
-      const release = clean(buffer);
-      buffer = '';
-      if (release) emit(release);
-    },
-  };
-}
-
 function firstDifference(a: string, b: string): number {
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) if (a[i] !== b[i]) return i;
@@ -185,21 +163,19 @@ function firstDifference(a: string, b: string): number {
 }
 
 function parseEnvelope(text: string): { answer: string; sources: unknown; followUps: string[] } | null {
-  const start = text.indexOf('{');
-  if (start === -1) return null;
-  for (const candidate of [text.slice(start), text.slice(start, text.lastIndexOf('}') + 1)]) {
-    try {
-      const parsed = JSON.parse(candidate);
-      if (!parsed || typeof parsed !== 'object' || typeof parsed.answer !== 'string') continue;
-      const followUps = Array.isArray(parsed.follow_up_questions)
-        ? parsed.follow_up_questions.filter((q: unknown) => typeof q === 'string' && q.trim()).slice(0, MAX_FOLLOW_UPS)
-        : [];
-      return { answer: parsed.answer, sources: parsed.sources, followUps };
-    } catch {
-      /* try the next candidate */
-    }
+  try {
+    const parsed = JSON.parse(text.trim());
+    if (
+      !parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+      typeof parsed.answer !== 'string' || !parsed.answer.trim()
+    ) return null;
+    const followUps = Array.isArray(parsed.follow_up_questions)
+      ? parsed.follow_up_questions.filter((q: unknown) => typeof q === 'string' && q.trim()).slice(0, MAX_FOLLOW_UPS)
+      : [];
+    return { answer: parsed.answer, sources: parsed.sources, followUps };
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /** The requested model, the default, then the cheapest other enabled model. */
@@ -302,7 +278,15 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     start(controller) {
       sender = createChatSender(controller);
     },
-  });
+  }, CHAT_STREAM_QUEUE);
+  let visible = '';
+  const liveSender = {
+    send(frame: ChatFrame) {
+      if ('chunk' in frame) visible += frame.chunk;
+      if ('patch' in frame) visible = visible.slice(0, frame.patch.from) + frame.patch.text;
+      sender.send(frame);
+    },
+  };
 
   // The reader is not the turn's lifeline: waitUntil keeps the isolate alive
   // so a turn whose reader went away still finishes and persists.
@@ -313,13 +297,10 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     turnKey: request.turn_key,
     claim: claimed,
     execute: deps.executeTurn ??
-      ((context) => runTurn(deps, { request, caller, chosen, effort, models }, sender, context)),
+      ((context) => runTurn(deps, { request, caller, chosen, effort, models }, liveSender, context)),
   }).then((saved) => {
     if (saved.kind !== 'terminal') throw new Error('Terminal result not saved');
-    if (saved.assistant.status === 'error' || saved.assistant.status === 'interrupted') {
-      sender.send({ error: saved.assistant.error_message || 'The turn failed.', code: saved.assistant.status });
-    }
-    sender.send({ done: { message_id: saved.assistant.id } });
+    sendTerminal(sender, saved, visible);
   }).catch(() => {
     sender.send({ saveFailed: { stage: 'assistant_message', detail: 'Turn persistence unavailable' } });
   }).then(() => sender.done());
@@ -353,27 +334,49 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
       : 404;
     return json({ error: `turn_${state.kind}`, code: `turn_${state.kind}` }, code, headers);
   }
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const sender = createChatSender(controller);
-      const row = state.assistant;
-      sender.send({ conversation: state.conversation });
-      sender.send({ duplicate: true });
-      sender.send({ patch: { from: 0, text: row.content } });
-      sender.send({ sources: row.sources });
-      if (row.follow_ups.length) sender.send({ followUpQuestions: row.follow_ups });
-      if (row.timing) sender.send({ timing: row.timing });
-      if (row.status === 'truncated') {
-        sender.send({ truncated: { reason: 'length', continuations: Number(row.usage?.continuations) || 0 } });
-      }
-      if (row.status === 'error' || row.status === 'interrupted' || row.status === 'cancelled') {
-        sender.send({ error: row.error_message || `Turn ${row.status}.`, code: row.status });
-      }
-      sender.send({ done: { message_id: row.id } });
-      sender.done();
+  const frames: ChatFrame[] = [{ conversation: state.conversation }, { duplicate: true }];
+  sendTerminal(
+    {
+      send: (frame) => {
+        frames.push(frame);
+      },
     },
-  });
-  return new Response(stream, { status: 200, headers: sseHeaders(headers) });
+    state,
+    '',
+    true,
+  );
+  return new Response(createChatReplay(frames), { status: 200, headers: sseHeaders(headers) });
+}
+
+/** Every terminal frame reflects the row returned by finalization/replay. */
+function sendTerminal(
+  sender: Pick<ChatSender, 'send'>,
+  saved: Extract<TurnState, { kind: 'running' | 'terminal' }>,
+  visible: string,
+  forcePatch = false,
+): void {
+  const row = saved.assistant;
+  if (forcePatch || row.content !== visible) {
+    const from = forcePatch ? 0 : firstDifference(visible, row.content);
+    sender.send({ patch: { from, text: row.content.slice(from) } });
+  }
+  if (row.status === 'complete' || row.status === 'truncated') {
+    sender.send({ sources: row.sources });
+    if (row.follow_ups.length) sender.send({ followUpQuestions: row.follow_ups });
+  }
+  if (row.timing) sender.send({ timing: row.timing });
+  if (row.status === 'truncated') {
+    sender.send({ truncated: { reason: 'length', continuations: Number(row.usage?.continuations) || 0 } });
+  }
+  if (row.status === 'error' || row.status === 'interrupted' || row.status === 'cancelled') {
+    const error = row.status === 'cancelled'
+      ? 'Turn cancelled.'
+      : row.status === 'interrupted'
+      ? 'Execution interrupted.'
+      : 'The turn failed. Please try a new turn.';
+    sender.send({ error, code: row.status });
+  }
+  sender.send({ done: { message_id: row.id } });
 }
 
 interface TurnInput {
@@ -384,15 +387,99 @@ interface TurnInput {
   models: AiModelLike[];
 }
 
+/** Observe cancellation through setup, answer, repair and telemetry. Only one
+ * DB poll is in flight; late polls/executors cannot reopen a settled turn. */
 async function runTurn(
   deps: HandlerDeps,
   t: TurnInput,
-  sender: ChatSender,
+  sender: Pick<ChatSender, 'send'>,
   context: TurnExecution,
 ): Promise<TerminalResult> {
+  const abort = new AbortController();
+  const signal = AbortSignal.any([abort.signal, context.signal]);
+  let active = true;
+  let cancelled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let partial: TerminalResult = {
+    content: '',
+    sources: [],
+    follow_ups: [],
+    activity: [],
+    model_served: null,
+    status: 'error',
+    error_message: null,
+    usage: null,
+    timing: null,
+  };
+  const since = new Date((deps.now ?? Date.now)()).toISOString();
+  let resolveAbort!: (result: TerminalResult) => void;
+  const stopped = new Promise<TerminalResult>((resolve) => {
+    resolveAbort = resolve;
+  });
+  const onAbort = () =>
+    resolveAbort({
+      ...partial,
+      status: context.signal.aborted ? 'interrupted' : 'cancelled',
+      error_message: context.signal.aborted ? 'Execution interrupted.' : null,
+    });
+  signal.addEventListener('abort', onAbort, { once: true });
+  const schedule = () => {
+    if (active && !signal.aborted) timer = setTimeout(poll, Math.max(5, deps.cancelPollMs ?? CANCEL_POLL_MS));
+  };
+  async function poll() {
+    try {
+      const hit = await deps.db.cancelRequestedSince(context.claim.conversation.id, since);
+      if (active && !signal.aborted && hit) {
+        cancelled = true;
+        abort.abort();
+      }
+    } catch { /* the fixed execution deadline still bounds provider work */ }
+    schedule();
+  }
+  try {
+    if (signal.aborted) {
+      onAbort();
+      return await stopped;
+    }
+    schedule();
+    return await Promise.race([
+      runTurnBody(deps, t, {
+        send(frame) {
+          if (active && !signal.aborted) sender.send(frame);
+        },
+      }, {
+        ...context,
+        signal,
+        checkpoint(value) {
+          if (!active || signal.aborted) return;
+          partial = { ...partial, ...value };
+          context.checkpoint(value);
+        },
+      }),
+      stopped,
+    ]);
+  } finally {
+    active = false;
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
+    abort.abort();
+    // Clearing the consumed request must not block durable finalization.
+    if (cancelled) {
+      void Promise.resolve().then(() => deps.db.clearCancellation(context.claim.conversation.id)).catch(() => {});
+    }
+  }
+}
+
+async function runTurnBody(
+  deps: HandlerDeps,
+  t: TurnInput,
+  sender: Pick<ChatSender, 'send'>,
+  context: TurnExecution,
+): Promise<TerminalResult> {
+  const signal = context.signal;
+  signal.throwIfAborted();
   const now = deps.now ?? Date.now;
   const startedAt = now();
-  const startedIso = new Date(startedAt).toISOString();
   const { request, caller } = t;
 
   const conversation = context.claim.conversation;
@@ -406,6 +493,7 @@ async function runTurn(
       () => [],
     ),
   ]);
+  signal.throwIfAborted();
   const { window, dropped } = windowMessages(history);
   if (dropped > 0) sender.send({ notice: { kind: 'window', dropped } });
 
@@ -445,30 +533,11 @@ async function runTurn(
   const userTurn = buildUserTurn(request.message, attachments);
   const scopedDocumentIds = await deps.db.resolveDocumentIds(documentKeysOf(request)).catch(() => []);
 
-  // 3. Cancellation is an explicit act; a closed connection merely detaches a reader.
-  const abort = new AbortController();
-  const signal = AbortSignal.any([abort.signal, context.signal]);
-  let cancelled = false;
-  const pollMs = deps.cancelPollMs ?? CANCEL_POLL_MS;
-  const poll = setInterval(() => {
-    deps.db
-      .cancelRequestedSince(conversation!.id, startedIso)
-      .then((hit) => {
-        if (!hit || cancelled) return;
-        cancelled = true;
-        abort.abort();
-      })
-      .catch(() => {});
-  }, pollMs);
-  context.signal.addEventListener('abort', () => clearInterval(poll), { once: true });
+  signal.throwIfAborted();
 
   // 4. Run the loop, streaming as it goes.
   const decoder = createAnswerDecoder();
   const activity: unknown[] = [];
-  const gate = createReasoningGate((text) => {
-    sender.send({ reasoning: text });
-    for (const segment of segmentReasoning(text)) activity.push({ type: 'reasoning', text: segment });
-  });
   let streamed = '';
   let searchMs = 0;
   let writingStart = 0;
@@ -477,9 +546,14 @@ async function runTurn(
 
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
-    if ('internalReasoning' in e) gate.push(e.internalReasoning);
-    else if ('attempt' in e) attempts.push({ model: e.attempt.model, startedAt: now() });
-    else if ('tool' in e) {
+    if ('internalReasoning' in e) return;
+    else if ('attempt' in e) {
+      attempts.push({ model: e.attempt.model, startedAt: now() });
+      const label = e.attempt.phase === 'research' ? 'Searching relevant sources.' : 'Writing the answer.';
+      sender.send({ reasoning: label });
+      activity.push({ type: 'activity', text: label });
+      context.checkpoint({ activity: [...activity] });
+    } else if ('tool' in e) {
       const f = e.tool;
       if (f.phase === 'start') sender.send({ tool: { name: f.name, phase: 'start', input: f.input, step: f.step } });
       else {
@@ -496,7 +570,6 @@ async function runTurn(
         });
       }
     } else if ('text' in e) {
-      gate.flush();
       const shown = decoder.push(e.text);
       if (shown) {
         if (!writingStart) writingStart = now();
@@ -563,24 +636,35 @@ async function runTurn(
       break;
     }
   }
-  clearInterval(poll);
-  gate.flush();
 
   if (!result) {
-    if (cancelled) await deps.db.clearCancellation(conversation.id).catch(() => {});
     return makeAssistantMessage({
       content: streamed,
       sources: [],
       followUps: [],
       activity,
       served,
-      status: cancelled ? 'cancelled' : context.signal.aborted ? 'interrupted' : 'error',
-      error: cancelled
-        ? null
-        : context.signal.aborted
-        ? 'Execution interrupted.'
-        : 'The turn failed. Please try a new turn.',
+      status: context.signal.aborted ? 'interrupted' : 'error',
+      error: context.signal.aborted ? 'Execution interrupted.' : 'The turn failed. Please try a new turn.',
       usage: null,
+      timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd),
+    });
+  }
+
+  const envelope = parseEnvelope(result.text);
+  if (
+    signal.aborted || (result.finish !== 'stop' && result.finish !== 'length') ||
+    (result.finish === 'stop' && !envelope) || (result.finish === 'length' && !streamed.trim())
+  ) {
+    return makeAssistantMessage({
+      content: streamed,
+      sources: [],
+      followUps: [],
+      activity,
+      served,
+      status: signal.aborted ? 'interrupted' : 'error',
+      error: 'The turn did not produce a complete answer.',
+      usage: totalUsage(result.usage, null),
       timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd),
     });
   }
@@ -592,14 +676,16 @@ async function runTurn(
   }
   for (const row of result.rows) evidence.set(handles.assign(rowSourceKey(row)), { kind: 'row', row });
 
-  const envelope = parseEnvelope(result.text);
   const rawAnswer = envelope?.answer ?? decoder.text ?? '';
   let ladder = applyCitationLadder({ answer: rawAnswer, modelSources: envelope?.sources, evidence });
   const followUps = envelope?.followUps ?? [];
   let repairUsage: Usage | null = null;
 
   // 6. One cheap pass to put the markers back, when the answer cited nothing.
-  if (!cancelled && !signal.aborted && ladderFired(ladder.flags) && repairWorthwhile(ladder.answer, evidence)) {
+  if (
+    result.finish === 'stop' && !signal.aborted && ladderFired(ladder.flags) &&
+    repairWorthwhile(ladder.answer, evidence)
+  ) {
     const repairStart = now();
     try {
       const handleOf = (e: Evidence) => {
@@ -627,7 +713,7 @@ async function runTurn(
         repaired.generationId,
         'citation_repair',
       );
-      if (repaired.text) {
+      if (repaired.text && !signal.aborted) {
         const second = applyCitationLadder({
           answer: repaired.text,
           modelSources: repairSources(repaired.byNumber, handleOf),
@@ -640,15 +726,6 @@ async function runTurn(
     }
   }
 
-  // 7. What streamed and what is true can differ once markers are renumbered.
-  if (ladder.answer !== streamed) {
-    const from = firstDifference(streamed, ladder.answer);
-    sender.send({ patch: { from, text: ladder.answer.slice(from) } });
-  }
-  if (result.continuations > 0 && result.finish === 'length') {
-    sender.send({ truncated: { reason: 'length', continuations: result.continuations } });
-  }
-
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
   const usage = totalUsage(result.usage, repairUsage);
   const terminal = makeAssistantMessage({
@@ -657,7 +734,7 @@ async function runTurn(
     followUps,
     activity,
     served,
-    status: cancelled ? 'cancelled' : result.finish === 'length' ? 'truncated' : 'complete',
+    status: signal.aborted ? 'interrupted' : result.finish === 'length' ? 'truncated' : 'complete',
     error: null,
     usage: result.finish === 'length' ? { ...usage, continuations: result.continuations } : usage,
     timing,
@@ -674,7 +751,7 @@ async function runTurn(
           answer: {
             latencyMs: writingEnd && writingStart ? writingEnd - writingStart : 0,
             modelCallLogId: null,
-            aborted: cancelled,
+            aborted: signal.aborted,
           },
         }),
       )
@@ -687,19 +764,13 @@ async function runTurn(
     messageId,
     t.chosen.model_id,
     served,
-    cancelled ? 'aborted' : 'success',
+    signal.aborted ? 'aborted' : 'success',
     null,
     now() - startedAt,
     lastUsage(result.usage),
     null,
   );
 
-  if (!cancelled) {
-    sender.send({ sources: ladder.sources });
-    if (followUps.length) sender.send({ followUpQuestions: followUps });
-  }
-  sender.send({ timing });
-  if (cancelled) await deps.db.clearCancellation(conversation.id).catch(() => {});
   return terminal;
 }
 
