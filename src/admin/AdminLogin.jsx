@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './admin.css';
-
-const ADMIN_USER = 'admin@niyantran';
-const ADMIN_PASS = 'Admin#2026';
+import { signInAdmin } from './adminSession.js';
 
 function Field({ mouse }) {
   const ref = useRef(null);
@@ -105,7 +103,7 @@ function Field({ mouse }) {
   return <canvas ref={ref} className="adm-login-canvas" aria-hidden="true" />;
 }
 
-export default function AdminLogin({ onOk }) {
+export default function AdminLogin({ onOk, checking = false, message = '' }) {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
 
@@ -125,19 +123,15 @@ export default function AdminLogin({ onOk }) {
     el.style.setProperty('--py', `${((y - 0.5) * 18).toFixed(2)}px`);
   }
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const user = String(fd.get('user') || '').trim();
-    const pass = String(fd.get('pass') || '');
+    if (pending || checking) return;
+    const fd = new FormData(e.currentTarget);
     setPending(true);
     setError('');
-    if (user === ADMIN_USER && pass === ADMIN_PASS) {
-      sessionStorage.setItem('niyantranAdmin', '1');
-      onOk();
-      return;
-    }
-    setError('Invalid control-plane credentials.');
+    const result = await signInAdmin(String(fd.get('user') || ''), String(fd.get('pass') || ''));
+    if (result.status === 'verified') onOk();
+    else setError(result.message || 'Unable to verify admin access. Please try again.');
     setPending(false);
   }
 
@@ -161,18 +155,18 @@ export default function AdminLogin({ onOk }) {
         <div className="tag">ADMIN ACCESS</div>
         <form onSubmit={onSubmit} autoComplete="off">
           <label className="adm-field">
-            <span>Admin ID</span>
-            <input name="user" type="text" autoComplete="username" required autoFocus />
+            <span>Admin email</span>
+            <input name="user" type="email" autoComplete="username" required autoFocus />
           </label>
           <label className="adm-field">
             <span>Password</span>
             <input name="pass" type="password" autoComplete="current-password" required />
           </label>
-          <button className="adm-btn" type="submit" disabled={pending}>
-            {pending ? 'Signing in…' : 'Enter control plane'}
+          <button className="adm-btn" type="submit" disabled={pending || checking}>
+            {pending ? 'Signing in…' : checking ? 'Verifying access…' : 'Enter control plane'}
           </button>
           <div className="adm-msg err" role="alert">
-            {error}
+            {error || message}
           </div>
         </form>
         <p className="adm-login-hint">Restricted plane. Analyst terminal logins do not open this console.</p>

@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AdminLogin from './AdminLogin.jsx';
+import { createAdminSession } from './adminSession.js';
+import { supabase } from '../lib/supabaseClient.js';
 import { ApisPage, OverviewPage, PricingAdminPage, UsersPage } from './AdminPages.jsx';
 import { AiModelsPage } from './AiModelsPage.jsx';
 import { AiPersonasPage } from './AiPersonasPage.jsx';
@@ -31,10 +33,34 @@ function viewFromHash() {
 }
 
 export default function AdminApp() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('niyantranAdmin') === '1');
+  const [access, setAccess] = useState({ status: 'checking', user: null });
+  const adminSession = useRef(null);
+  const verifiedUserId = useRef(null);
+  const authed = access.status === 'verified';
   const [view, setView] = useState(viewFromHash);
-  const [users, setUsers] = useState(() => loadUsers());
+  const [users, setUsers] = useState([]);
   const [navOpen, setNavOpen] = useState(false);
+
+  useEffect(() => {
+    const session = createAdminSession(supabase, (state) => {
+      verifiedUserId.current = state.status === 'verified' ? state.user.id : null;
+      setAccess(state);
+      if (state.status !== 'verified') {
+        setUsers([]);
+        setNavOpen(false);
+      }
+    });
+    adminSession.current = session;
+    const recheck = () => { void session.refresh(); };
+    recheck();
+    window.addEventListener('focus', recheck);
+    return () => {
+      window.removeEventListener('focus', recheck);
+      session.dispose();
+      adminSession.current = null;
+      verifiedUserId.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.add('adm-doc');
@@ -49,14 +75,15 @@ export default function AdminApp() {
   }, []);
 
   useEffect(() => {
+    if (!authed) return undefined;
     let alive = true;
     hydrateUsersFromServer().then((list) => {
-      if (alive) setUsers(list);
+      if (alive && verifiedUserId.current === access.user.id) setUsers(list);
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [authed, access.user?.id]);
 
   useEffect(() => {
     if (!authed) return undefined;
@@ -69,7 +96,7 @@ export default function AdminApp() {
     tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
-  }, [authed]);
+  }, [authed, access.user?.id]);
 
   useEffect(() => {
     if (!navOpen) return undefined;
@@ -88,10 +115,14 @@ export default function AdminApp() {
   }
 
   function refreshUsers() {
-    setUsers(loadUsers());
+    if (authed && verifiedUserId.current === access.user.id) setUsers(loadUsers());
   }
 
-  if (!authed) return <AdminLogin onOk={() => setAuthed(true)} />;
+  if (!authed) return <AdminLogin
+    checking={access.status === 'checking'}
+    message={access.message}
+    onOk={() => { void adminSession.current?.resume(); }}
+  />;
 
   return (
     <div className={`adm${navOpen ? ' nav-open' : ''}`}>
@@ -122,10 +153,7 @@ export default function AdminApp() {
         <div className="adm-side-foot">
           <button
             type="button"
-            onClick={() => {
-              sessionStorage.removeItem('niyantranAdmin');
-              setAuthed(false);
-            }}
+            onClick={() => { void adminSession.current?.signOut(); }}
           >
             Sign out
           </button>
