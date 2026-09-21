@@ -335,7 +335,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <ellipse cx="200" cy="200" rx="176" ry="58" fill="none" stroke="#ebe6de" strokeWidth="1" strokeDasharray="2 7" transform="rotate(16 200 200)" />
                 <circle cx="200" cy="200" r="152" fill="none" stroke="#ddd8cf" strokeWidth="1" strokeDasharray="2 4" />
               </svg>
-              <img className="mkt-globe mkt-globe-gif" src="/brand/globe.gif" alt="" />
+              <img className="mkt-globe mkt-globe-gif" src="/brand/globe.gif?v=4" alt="" decoding="async" />
             </div>
             {PERSONAS.map((p, i) => (
               <button
@@ -539,7 +539,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             {!videoPlaying ? (
               <button type="button" className="mkt-walk-video-face" onClick={openWalkthrough} aria-label="Play product walkthrough">
                 <span className="mkt-walk-video-bg" aria-hidden="true">
-                  <img src="/brand/globe.gif" alt="" />
+                  <img src="/brand/globe.gif?v=4" alt="" decoding="async" />
                 </span>
                 <span className="mkt-walk-video-brand">— NTER.PRO</span>
                 <span className="mkt-walk-video-title">

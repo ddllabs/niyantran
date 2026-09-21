@@ -863,10 +863,16 @@ html.mkt-doc:has(.mkt-auth) #root {
   animation-duration: 180s;
 }
 .mkt-globe-gif {
-  /* GIF already loops — do not CSS-spin on top of it */
-  animation: none;
+  /* Real animated GIF — no CSS spin, no painted backdrop (GIF transparency stays). */
+  animation: none !important;
   will-change: auto;
   opacity: 1;
+  background: transparent;
+  background-color: transparent;
+  mix-blend-mode: normal;
+  /* Avoid filters that can freeze GIF playback in some browsers */
+  filter: none;
+  image-rendering: auto;
 }
 .mkt-chip {
   position: absolute;
