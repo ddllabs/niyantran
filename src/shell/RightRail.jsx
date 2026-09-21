@@ -97,7 +97,13 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
     isGeonomicsTable(feed?.feature) ||
     isNationalTable(feed?.feature);
   const dossier = alliances || sanctions || aid || nuclear;
-  const analyticsTitle = dossier ? 'Event analytics' : overview.title;
+  const analyticsTitle = selected
+    ? dossier
+      ? 'Event analytics'
+      : 'Record'
+    : dossier
+      ? 'Event analytics'
+      : overview.title;
   const showFallbackBanner =
     !localDesk && !carbonDesk && feed?.fallback && dataState.id !== 'live' && !status && dataState.detail;
 
@@ -200,7 +206,7 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
               feed={feed}
               loading={loading}
             />
-          ) : selected && !indicators ? (
+          ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />
           ) : !indicators ? (
             <p className="rail-empty">Select a row in the feed to inspect the record.</p>
