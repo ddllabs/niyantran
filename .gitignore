@@ -54,3 +54,6 @@ ingest/
 
 # Internal specs, plans, research and protocol — kept local for now (owner decision 2026-09-21)
 docs/
+
+# Claude Code session config — local only
+.claude/
