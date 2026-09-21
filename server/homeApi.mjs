@@ -345,7 +345,10 @@ async function fetchLiveMarkets() {
 export async function serveHomeMarkets(opts = {}) {
   const maxAgeH = opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H;
   const fresh = Boolean(opts.fresh);
-  if (!fresh) {
+  // On Vercel serverless, prefer a live Yahoo pull — disk writes do not persist
+  // and archived packs are what made production look months stale.
+  const preferLive = fresh || Boolean(process.env.VERCEL);
+  if (!preferLive) {
     const snap = readDiskSnapshot('markets');
     if (snap?.rows?.some((r) => r?.last != null)) {
       if (snap.__ageH > maxAgeH) scheduleHomeRefresh('markets', fetchLiveMarkets);
@@ -380,9 +383,34 @@ export async function serveHomeMarkets(opts = {}) {
       };
     }
   }
-  const live = await fetchLiveMarkets();
-  writeDiskSnapshot('markets', live);
-  return { ...live, rows: prepareHomeMarketQuotes(live.rows || []) };
+  try {
+    const live = await fetchLiveMarkets();
+    writeDiskSnapshot('markets', live);
+    return { ...live, rows: prepareHomeMarketQuotes(live.rows || []) };
+  } catch (err) {
+    const snap = readDiskSnapshot('markets');
+    if (snap?.rows?.some((r) => r?.last != null)) {
+      return {
+        ...snapshotPayload(snap, { source: snap.source || 'snapshot' }),
+        rows: prepareHomeMarketQuotes(snap.rows),
+        note: `Live quotes unreachable (${err.message || 'error'}). Showing last saved markets.`,
+        archive: true,
+      };
+    }
+    const arch = snapshotMarketsFromArchive();
+    if (arch.rows?.length) {
+      return {
+        ok: true,
+        rows: prepareHomeMarketQuotes(arch.rows),
+        source: 'Original HTML OHLC / NSE market-feed snapshot.',
+        archive: true,
+        as_of: arch.as_of || arch.updated || '',
+        updated: arch.updated || arch.as_of || '',
+        note: `Live quotes unreachable (${err.message || 'error'}). Showing shipped market pack.`,
+      };
+    }
+    throw err;
+  }
 }
 
 function decodeXml(s) {

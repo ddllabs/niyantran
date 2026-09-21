@@ -3,7 +3,10 @@
  */
 import { serveNterLatest } from '../../server/nterNews.mjs';
 
-export const config = { maxDuration: 15 };
+export const config = {
+  maxDuration: 15,
+  includeFiles: ['public/data/nter-news.json'],
+};
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');

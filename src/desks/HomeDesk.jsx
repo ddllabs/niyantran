@@ -9,7 +9,7 @@ import {
   saveHomeCache,
 } from '../lib/homeCache.js';
 import { homeLatestFromStatic, homeMarketsFromStatic, homePulseFromStatic } from '../lib/homeStatic.js';
-import { liveApiEnabled } from '../lib/apiMode.js';
+import { homeLiveApiEnabled, liveApiEnabled } from '../lib/apiMode.js';
 import { loadRefreshCfg } from '../lib/refreshStore.js';
 import { aiDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
@@ -21,13 +21,22 @@ import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
 
 async function getJson(path, signal) {
   const route = String(path).split('?')[0];
-  // Always try nter.news latest API (Vercel + Vite); fall back to static pack.
-  const tryApi = liveApiEnabled() || route === '/api/home/latest';
+  const homeRoute = route.startsWith('/api/home/') || route === '/api/ohlc';
+  const tryApi = homeRoute ? homeLiveApiEnabled() : liveApiEnabled();
   if (tryApi) {
     try {
       const res = await fetch(path, { signal });
       const body = await res.json().catch(() => null);
-      if (res.ok && body && (body.rows?.length || body.ok !== false)) return body;
+      if (!res.ok || !body) {
+        /* fall through to static */
+      } else if (route === '/api/home/latest') {
+        // Empty rows is a valid nter.news state (waiting for ingest).
+        if (body.ok !== false) return body;
+      } else if (Array.isArray(body.rows) && body.rows.length) {
+        return body;
+      } else if (body.last != null) {
+        return body;
+      }
     } catch (err) {
       if (err?.name === 'AbortError') throw err;
     }

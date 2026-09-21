@@ -1,8 +1,8 @@
 /**
- * Live same-origin /api/* is available on the Vite+Node local stack.
- * Production static (Vercel) only ships /api/ai/* today — calling the rest
- * produces NOT_FOUND noise (D2). Opt in with VITE_LIVE_API=1 when serverless
- * routes are actually deployed.
+ * Live same-origin /api/* helpers.
+ * - Local Vite: always on.
+ * - Production: home desk routes (/api/home/*, /api/ohlc) are deployed on Vercel.
+ * - Other desk APIs still opt in with VITE_LIVE_API=1 (D2).
  */
 export function liveApiEnabled() {
   try {
@@ -11,5 +11,15 @@ export function liveApiEnabled() {
     return Boolean(import.meta.env.DEV);
   } catch {
     return false;
+  }
+}
+
+/** Home markets / nter.news / pulse / ohlc — available on live and local. */
+export function homeLiveApiEnabled() {
+  try {
+    if (import.meta.env.VITE_LIVE_API === '0') return false;
+    return true;
+  } catch {
+    return true;
   }
 }
