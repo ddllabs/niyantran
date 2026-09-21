@@ -89,10 +89,14 @@ npm ci
 npm run build
 ```
 
-The production build succeeds. The repository currently defines no automated
-test, lint, type-check, or CI command. Do not claim those checks passed, and do
-not invent a substitute. Add task-specific runtime verification and record
-exact commands, outcomes, warnings, and anything that could not be verified.
+The repository now defines `npm test` (Vitest). Edge Function tests run with
+`deno test -A --config supabase/functions/deno.json supabase/functions`.
+Run the relevant focused checks and the production build for code changes;
+run both test suites for changes under src/lib/, src/admin/ or supabase/.
+SQL authorization and migration checks use a disposable local database,
+never the live project as a test fixture. The repository has no declared lint,
+standalone type-check or CI gate; do not claim those passed. Record exact
+commands, outcomes, warnings and anything that could not be verified.
 
 When adding a guard or test, prove that it fails for the defect it is intended
 to catch before relying on it. A green command alone does not prove the claimed
