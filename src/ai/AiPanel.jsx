@@ -15,7 +15,7 @@ import {
 } from '../lib/aiThreads.js';
 import { AI_PROVIDERS, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
 import { sessionUser } from '../lib/userStore.js';
-import { filesFromDrop, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
+import { filesFromDrop, isModuleAttachment, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
 import { coverageOf, indexedDocumentKeys } from '../lib/corpusCoverage.js';
@@ -114,6 +114,27 @@ function contextualPrompts({ attachments, selected, featureName }) {
     `Organise the evidence into a short chronology and key entities.`,
     `Where is the record specific, and where is more evidence needed?`,
   ];
+}
+
+function rowTitle(row) {
+  return row.bill_name || row.title || row.name || row.subject || row.conflict_name || row.commodity || 'Selected record';
+}
+
+/**
+ * Whether `pins` already holds a chip for this desk row. Two bill rows are the
+ * same bill when their document keys are: `rowPinKey` reads `bill_number`
+ * first, and Bill No. 70 of 2007 and Bill No. 70 of 2010 share one.
+ */
+export function rowIsPinned(pins, row) {
+  if (!row) return false;
+  const doc = billDocumentKey(row);
+  const key = rowPinKey(row);
+  const title = row.bill_name || row.title || row.name;
+  return (pins || []).some((a) => {
+    if (a?.kind !== 'row') return false;
+    if (doc && a.document_key) return a.document_key === doc;
+    return Boolean((key && rowPinKey(a.preview || {}) === key) || (title && a.title === title));
+  });
 }
 
 // Match research-chat/validate.ts limits without inventing or truncating keys.
@@ -223,6 +244,13 @@ function Ico({ name, size = 16 }) {
           <path d="M13 3H7a2 2 0 00-2 2v14a2 2 0 002 2h8a2 2 0 002-2V9z" />
           <path d="M13 3v6h6" />
           <path d="M10 14h4M12 12v4" />
+        </svg>
+      );
+    case 'table':
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+          <path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10" />
         </svg>
       );
     case 'clip':
@@ -609,11 +637,25 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
    */
   async function sendResearch(text) {
     const current = chat;
-    const pins = [...(current?.attachments || [])];
+    let pins = [...(current?.attachments || [])];
 
     let selection;
     try { selection = selected && selected.status !== 'source_status' ? researchSelection(selected) : null; }
     catch (error) { research.actions.reportError(error.message); return; }
+    // A selection belongs to this turn only: a reload or a click elsewhere
+    // drops it. Pinned as a chip, the row stays with the conversation, and its
+    // document key keeps scoping later turns to the bill. The older chat path
+    // always pinned it; this one sent the selection and forgot it, so a
+    // follow-up asked after a reload - with only the module attached - searched
+    // the whole record.
+    if (selection && !rowIsPinned(pins, selected)) {
+      const bits = await materializeAiDrop(
+        { kind: 'row', row: selected, feature: featureName, tab, title: rowTitle(selected) },
+        { feed, feature: featureName, tier: tab, selected, hydrate: false },
+      );
+      if (await research.actions.attach(async () => bits)) pins = [...pins, ...bits];
+    }
+    const sendsSelection = Boolean(selection && featureName);
     const body = {
       ...(current?.id ? { conversation_id: current.id } : {}),
       message: text,
@@ -632,7 +674,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             },
           }
         : {}),
+      // The selected row's own chip is left out while the selection is sent: the
+      // selection carries the same record and key, verified against desk_rows.
       attachments: pins
+        .filter((a) => !(sendsSelection && rowIsPinned([a], selected)))
         .map((a) => ({
           kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
           title: String(a.title || a.feature || 'Attachment'),
@@ -667,27 +712,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     try {
       // Every desk: if a table row is selected, ground this turn on its columns + real docs.
       if (selected && selected.status !== 'source_status') {
-        const key = rowPinKey(selected);
-        const already = pins.some((a) => {
-          if (a.kind !== 'row') return false;
-          const prev = a.preview || {};
-          return rowPinKey(prev) === key || a.title === (selected.bill_name || selected.title || selected.name);
-        });
-        if (!already) {
+        if (!rowIsPinned(pins, selected)) {
           const bits = await materializeAiDrop(
             {
               kind: 'row',
               row: selected,
               feature: featureName,
               tab,
-              title:
-                selected.bill_name ||
-                selected.title ||
-                selected.name ||
-                selected.subject ||
-                selected.conflict_name ||
-                selected.commodity ||
-                'Selected record',
+              title: rowTitle(selected),
             },
             { feed, feature: featureName, selected },
           );
@@ -1032,10 +1064,21 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <ul className="ai-v2-files">
             {attachments.map((a) => {
               const cover = coverageOf(a, indexedKeys);
+              const module = isModuleAttachment(a);
               return (
-                <li key={a.id}>
-                  <Ico name="doc" size={15} />
+                <li key={a.id} className={module ? 'module' : undefined}>
+                  <Ico name={module ? 'table' : 'doc'} size={15} />
                   <span title={a.title}>{a.title}</span>
+                  {/* A module's name reads like a bill's in this row, and it
+                      names no document, so it cannot hold a search to one. */}
+                  {module ? (
+                    <em className="ai-v2-file-cover module"
+                      title={hi
+                        ? 'पूरा मॉड्यूल: मॉडल को कुछ नमूना पंक्तियाँ मिलती हैं, किसी विधेयक का पाठ नहीं। एक विधेयक पर पूछने के लिए उसकी पंक्ति यहाँ खींचें।'
+                        : 'A whole module: the model gets a few sample rows, not any bill\'s text. To ask about one bill, drag its row here.'}>
+                      {hi ? 'मॉड्यूल' : 'Module'}
+                    </em>
+                  ) : null}
                   {/* What kind of answer this record can give, before the
                       question rather than after it. */}
                   {cover ? (

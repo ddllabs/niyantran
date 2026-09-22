@@ -63,3 +63,26 @@ it('research selection keeps canonical identity and rejects a bounded row that w
  const longUrl={title:'T'.repeat(700),source_url:'https://example.test/'+ 'x'.repeat(600)};
  expect(researchSelection(longUrl).source_url).toHaveLength(500);
 });
+// The chip in the reported chat was the Bill Passage module, and the bill it
+// was asked about was only a table selection - so after a reload the chat
+// scoped to nothing while looking as if a bill were attached.
+it('a row is pinned once per bill, and two bills sharing a number are two bills',async()=>{
+ const {rowIsPinned}=await import('./AiPanel.jsx');
+ const y2007={bill_name:'The Competition (Amendment) Bill, 2007',bill_number:'70',date_introduced:'2007-08-28'};
+ const y2010={bill_name:'The Other Bill, 2010',bill_number:'70',date_introduced:'2010-03-01'};
+ const pinned=[{kind:'row',title:y2007.bill_name,document_key:'bill:2007:70',preview:{bill_number:'70'}}];
+ expect(rowIsPinned(pinned,y2007)).toBe(true);
+ expect(rowIsPinned(pinned,y2010)).toBe(false);
+ // A module chip under the same desk is not the row.
+ expect(rowIsPinned([{kind:'feed',title:'Bill Passage Probability Index'}],y2007)).toBe(false);
+ // Rows without a document key still match on the desk identity.
+ expect(rowIsPinned([{kind:'row',title:'Copper',preview:{id:'cu'}}],{id:'cu',commodity:'Copper'})).toBe(true);
+ expect(rowIsPinned([],y2007)).toBe(false);
+});
+it('a module chip says it is a module; a bill chip does not',()=>{
+ const chat={id:'c1',title:'t',messages:[],attachments:[{id:'a1',kind:'feed',title:'Bill Passage Probability Index'},{id:'a2',kind:'row',title:'The Competition (Amendment) Bill, 2007'}]};
+ fake.research={...fake.research,ready:true,loading:false,locked:false,store:{chats:[chat],activeId:'c1',loaded:true}};
+ const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(html).toMatch(/<li class="module">[\s\S]*?Bill Passage Probability Index[\s\S]*?ai-v2-file-cover module[^>]*>Module</);
+ expect(html.match(/ai-v2-file-cover module/g)).toHaveLength(1);
+});

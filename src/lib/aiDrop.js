@@ -180,6 +180,16 @@ export function attachmentIdentity(a) {
   return [a.kind || '', a.title || '', a.tab || '', a.feature || '', a.url || '', text].join('\u0000');
 }
 
+/**
+ * A whole module (or desk) rather than one record. It gives the model a few
+ * sample rows and names no document, so it cannot confine a search to a bill -
+ * which it looks as if it should, sitting in the chip row under a bill module's
+ * name.
+ */
+export function isModuleAttachment(a) {
+  return a?.kind === 'feed' || a?.kind === 'feature' || a?.kind === 'tab';
+}
+
 export async function materializeAiDrop(payload, extras = {}) {
   if (!payload) return [];
   const kind = payload.kind || 'feature';
@@ -196,7 +206,11 @@ export async function materializeAiDrop(payload, extras = {}) {
       payload.row.name ||
       payload.row.bill_name ||
       'Record';
-    const files = docs.length
+    // `hydrate: false` skips fetching the row's documents. The research path
+    // sends a row's record text and document key, never its fetched files, so
+    // a chip pinned as a question is sent need not wait on a PDF extraction.
+    const hydrate = docs.length > 0 && extras.hydrate !== false;
+    const files = hydrate
       ? await hydrateDocumentFiles(docs, title)
       : [
           {
@@ -205,7 +219,7 @@ export async function materializeAiDrop(payload, extras = {}) {
             text: rowRecordText(payload.row, { title }),
           },
         ];
-    if (docs.length) {
+    if (hydrate) {
       files.unshift({
         kind: 'record',
         name: `${title} (terminal columns)`,

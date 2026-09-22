@@ -2934,7 +2934,11 @@ button.live-feed:hover { color: var(--fg); }
 }
 .ai-v2-files li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Icon and title, then as many auto columns as the chip has: an optional
+     badge, and the remove button. */
+  grid-auto-flow: column;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-auto-columns: auto;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -6763,3 +6767,6 @@ tr.close-soon { color: #6d675f; }
   white-space: nowrap;
 }
 .ai-v2-file-cover.full { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+/* A module is not a record: amber, and a grid icon rather than a page. */
+.ai-v2-file-cover.module { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+.ai-v2-files li.module svg { color: #b45309; }
