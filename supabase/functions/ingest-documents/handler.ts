@@ -12,6 +12,37 @@ import { EMBED_MODEL, EmbeddingError, type EmbedResult } from '../_shared/embed.
 
 export const MAX_DOCUMENTS_PER_REQUEST = 50;
 
+/**
+ * Chunks per chunk_commit call. Each row carries its content and a 1536-float
+ * embedding, so the RPC's jsonb argument grows by roughly 18 KB per chunk.
+ *
+ * On 2026-09-22 "The Finance Bill, 2006" (969,286 characters, 915 chunks, about
+ * 17 MB in a single call) killed the postmaster outright: no "out of memory", no
+ * shutdown request, the process simply vanished between checkpoints and Postgres
+ * came back with "database system was not properly shut down". A 959,238-character
+ * bill had committed in one call the day before - but at 741 chunks. The ceiling
+ * sits between the two, and it is a memory limit rather than a row count.
+ *
+ * 100 keeps a call near 1.8 MB, over seven times under the largest size known to
+ * have survived. The document stays invisible to readers across the whole loop
+ * because upsertDocument clears indexed_at and match_documents requires it, so
+ * slicing costs nothing in correctness (migration 0014).
+ *
+ * Slicing fixed the crash but revealed a second, separate ceiling: one function
+ * invocation. Committing all 915 from scratch got through seven slices - 700
+ * chunks, Postgres untouched - and then the invocation ended and the caller saw a
+ * Cloudflare 520 after about 104 s. (The gateway logs did not carry a matching
+ * entry, so that number is the client's wall clock, not a logged limit.) The
+ * re-run embedded only the 215 chunks still missing and finished in 37 s.
+ *
+ * So a 520 here is not necessarily a failure: re-run the same command. Because
+ * indexed_at is set only after the last slice, a partial document is never
+ * visible, and existingHashes means the retry re-embeds only what is missing -
+ * it cost $0.0018 rather than the $0.0065 of a full pass. Roughly 700 chunks is
+ * what one invocation manages on this instance; anything larger needs a second.
+ */
+export const COMMIT_BATCH = 100;
+
 export interface IngestDocument {
   source_key: string;
   title: string;
@@ -91,6 +122,8 @@ export interface IngestDeps {
   };
   origins?: string[];
   now?: () => number;
+  /** Override for tests; production uses COMMIT_BATCH. */
+  commitBatch?: number;
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -298,7 +331,26 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   }
 
   const commit = rows.map((r) => toCommitRow(r, vectors.get(r.chunkHash)));
-  const result = await deps.db.chunkCommit(id, commit, rows.map((r) => r.chunkHash));
+  const keep = rows.map((r) => r.chunkHash);
+  const size = Math.max(1, deps.commitBatch ?? COMMIT_BATCH);
+  const slices: CommitRow[][] = [];
+  for (let i = 0; i < commit.length; i += size) slices.push(commit.slice(i, i + size));
+  // A document that chunks to nothing still needs one call: chunk_commit's delete
+  // is what removes the previous revision, and skipping it would strand those rows.
+  if (!slices.length) slices.push([]);
+
+  const result = { inserted: 0, kept: 0, deleted: 0 };
+  for (const slice of slices) {
+    // The whole keep list on every call, not the slice's own hashes. chunk_commit
+    // deletes every chunk of this document that is absent from it, so a per-slice
+    // list would delete the slices this same loop just committed.
+    const r = await deps.db.chunkCommit(id, slice, keep);
+    result.inserted += r.inserted;
+    result.kept += r.kept;
+    result.deleted += r.deleted;
+  }
+  // Only now. A slice that throws leaves indexed_at null, so the document stays
+  // invisible and a re-run embeds and commits just the chunks still missing.
   await deps.db.markIndexed(id, CHUNK.version);
   return { ...base, ...result };
 }

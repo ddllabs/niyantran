@@ -331,3 +331,86 @@ Deno.test('an explicit changed identity without a marker does not inherit a prio
   await handleIngest(post({ documents: [{ ...doc, metadata: { document_key: 'bill:2026:1' } }] }), deps);
   assertEquals(docs.get(doc.source_key)!.row.metadata, { source_host: 'owner.test', document_key: 'bill:2026:1' });
 });
+
+/** Long enough to chunk well past a small commit batch, so slicing is actually exercised. */
+function manyChunkText(seed: string): string {
+  const s: string[] = [];
+  for (let i = 0; i < 600; i++) s.push(`${seed} paragraph ${i} records that clause ${i % 7} was moved, debated and put to the House.`);
+  return s.join(' ');
+}
+
+/** Wraps the db so a test can see the shape of each chunk_commit call, not just the outcome. */
+function recordCommits(db: IngestDeps['db']) {
+  const calls: { rows: number; keep: number; indexedSoFar: number }[] = [];
+  let indexed = 0;
+  return {
+    calls,
+    indexedAt: () => indexed,
+    db: {
+      ...db,
+      chunkCommit: (id: string, rows: CommitRow[], keep: string[]) => {
+        calls.push({ rows: rows.length, keep: keep.length, indexedSoFar: indexed });
+        return db.chunkCommit(id, rows, keep);
+      },
+      markIndexed: (id: string, v: number) => {
+        indexed++;
+        return db.markIndexed(id, v);
+      },
+    } as IngestDeps['db'],
+  };
+}
+
+Deno.test('a document larger than COMMIT_BATCH commits in slices, and every chunk still lands', async () => {
+  const { db, docs } = fakeDb();
+  const rec = recordCommits(db);
+  // commitBatch 3 stands in for production's 100: the property under test is that
+  // the loop slices and that nothing is lost, not the size of the constant.
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed([]), db: rec.db, commitBatch: 3 };
+  const doc = { source_key: 'big', title: 'Big', ocr_text: manyChunkText('gamma') };
+
+  const res = await (await handleIngest(post({ documents: [doc] }), deps)).json();
+  const chunks = res.results[0].chunks;
+  assert(chunks > 6, `need several slices to test slicing, got ${chunks} chunks`);
+
+  assertEquals(res.results[0].status, 'indexed');
+  // Nothing lost or double-counted: the tally sums the slices and the store agrees.
+  assertEquals(res.results[0].inserted, chunks);
+  assertEquals(docs.get('big')!.hashes.size, chunks);
+  assertEquals(rec.calls.length, Math.ceil(chunks / 3));
+  assertEquals(rec.calls.reduce((n, c) => n + c.rows, 0), chunks);
+  // Every call carries the FULL keep list. With a per-slice list, chunk_commit's
+  // delete would remove the slices already committed by this same loop.
+  for (const c of rec.calls) assertEquals(c.keep, chunks);
+  // indexed_at is set once, after the last slice - never while the document is
+  // half committed, or a reader could see a partial revision (migration 0014).
+  assertEquals(rec.indexedAt(), 1);
+  for (const c of rec.calls) assertEquals(c.indexedSoFar, 0);
+});
+
+Deno.test('a failed slice leaves the document unindexed, and the retry commits only what is missing', async () => {
+  const { db, docs } = fakeDb();
+  let failAt = 2;
+  const failing: IngestDeps['db'] = {
+    ...db,
+    chunkCommit: (id, rows, keep) => (--failAt === 0
+      ? Promise.reject(new Error('chunk_commit: simulated 520'))
+      : db.chunkCommit(id, rows, keep)),
+  };
+  const embedCalls: string[][] = [];
+  const doc = { source_key: 'resume', title: 'Resume', ocr_text: manyChunkText('delta') };
+
+  const first = await (await handleIngest(post({ documents: [doc] }), { secretKey: SECRET, embed: fakeEmbed(embedCalls), db: failing, commitBatch: 3 })).json();
+  assertEquals(first.results[0].status, 'error');
+  // The first slice is committed and keeps its chunks, but the document is not
+  // indexed, so match_documents cannot return any of them.
+  assertEquals(docs.get('resume')!.chunker_version, null);
+  const landed = docs.get('resume')!.hashes.size;
+  assertEquals(landed, 3);
+
+  const second = await (await handleIngest(post({ documents: [doc] }), { secretKey: SECRET, embed: fakeEmbed(embedCalls), db, commitBatch: 3 })).json();
+  assertEquals(second.results[0].status, 'indexed');
+  assertEquals(docs.get('resume')!.chunker_version, CHUNK.version);
+  assertEquals(docs.get('resume')!.hashes.size, second.results[0].chunks);
+  // The retry re-embeds only the chunks the failed run never committed.
+  assertEquals(embedCalls[1].length, second.results[0].chunks - landed);
+});
