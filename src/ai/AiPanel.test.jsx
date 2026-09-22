@@ -48,6 +48,12 @@ it('follow-ups come from the saved message when no turn is streaming, and the li
  const live=renderToStaticMarkup(<AiPanel lang="en"/>);
  expect(live).toContain('Live question?');
  expect(live).not.toContain('Saved question?');
+ // In the foot, not the body. The body is the scroller, and .ai-v2-history is
+ // laid out at its full height inside it, so a row after the thread is only
+ // reachable by scrolling to the end of the answer — and while the thread was
+ // a shrinkable flex item it painted straight over that row.
+ expect(live.indexOf('ai-v2-foot')).toBeLessThan(live.indexOf('ai-v2-suggest'));
+ expect(live.indexOf('ai-v2-suggest')).toBeLessThan(live.indexOf('ai-v2-composer'));
 });
 it('research selection keeps canonical identity and rejects a bounded row that would name another record',async()=>{
  const {researchSelection}=await import('./AiPanel.jsx');

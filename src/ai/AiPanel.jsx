@@ -1040,9 +1040,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           ) : null}
         </div>
 
+      </div>
+
+      <div className="ai-v2-foot">
         {/* Starters on an empty thread, the answer's follow-ups after that.
-            Both sit here, above the composer and outside the scroller, so a
-            follow-up is not something you have to scroll the thread to find. */}
+            In the foot, not the body: the body is the scroller, and a row at
+            the end of it is only reachable by scrolling to the end of the
+            answer. The foot is its own grid row, so the questions stay put
+            above the composer however long the answer runs. */}
         {!busy && !streaming ? (
           <SuggestionPills
             questions={emptyThread ? suggestions : followUps}
@@ -1058,9 +1063,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             }}
           />
         ) : null}
-      </div>
-
-      <div className="ai-v2-foot">
         {serverThreads ? <div className="ai-research-controls" aria-live="polite">
           {research.loading ? <span>Loading research…</span> : null}
           {stream?.status === 'unknown' ? <span>Connection lost. The saved outcome is unknown.</span> : null}

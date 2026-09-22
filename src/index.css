@@ -2939,6 +2939,12 @@ button.live-feed:hover { color: var(--fg); }
   gap: 8px;
   align-content: start;
   min-height: 0;
+  /* The thread is as tall as the thread; .ai-v2-body is what scrolls. As a
+     shrinkable flex item with min-height 0 and no overflow of its own it was
+     sized to the panel — a 1,322px answer sat in a 389px box and painted over
+     whatever followed it, which nothing did until a row of questions moved in
+     underneath. */
+  flex: 0 0 auto;
 }
 .ai-v2-history:empty { display: none; }
 .ai-shell-v2 .ai-msg {
@@ -2975,10 +2981,6 @@ button.live-feed:hover { color: var(--fg); }
   gap: 8px;
   min-width: 0;
   max-width: 100%;
-  /* Takes the slack in the column so the row rides just above the composer on
-     a short thread instead of floating under the last message. */
-  margin-top: auto;
-  flex: 0 0 auto;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
