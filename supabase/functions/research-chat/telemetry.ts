@@ -171,7 +171,7 @@ export function turnTraceRows(a: {
     step_type: s.name,
     input: JSON.stringify(s.input).slice(0, 2_000),
     result_count: s.resultCount,
-    top_similarity: null,
+    top_similarity: s.topSimilarity,
     latency_ms: s.latencyMs,
     chunk_ids: s.chunkIds.length ? s.chunkIds : null,
     row_keys: s.rowKeys.length ? s.rowKeys : null,

@@ -109,6 +109,10 @@ Deno.test('three document searches union chunks, preserving order and highest si
   assertEquals(result.chunks.map((c) => c.id), ['a', 'b', 'c']);
   assertEquals(result.chunks[0].similarity, 0.9);
   assertEquals(result.steps.length, 3);
+  // Each step records the best hit it saw, taken across the result set rather
+  // than from its first element: the second search returned 0.9 behind 0.5 in
+  // merge order. top_similarity was hard-coded null on every row ever written.
+  assertEquals(result.steps.map((s) => s.topSimilarity), [0.5, 0.9, 0.5]);
   assertEquals(result.handles, { 'ref:abc123-1': 'a', 'ref:abc123-2': 'b', 'ref:abc123-3': 'c' });
   assert(f.requests[1].messages.at(-1)!.content!.includes('ref:abc123-1 | Title | Bills\nEvidence a'));
 });

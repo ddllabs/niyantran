@@ -172,7 +172,7 @@ Deno.test('the answer trace links to the call that wrote the answer, not to a fa
     userId: 'u',
     conversationId: 'c',
     messageId: 'm',
-    steps: [{ step: 1, name: 'search_documents', toolCallId: 't1', scoped: true, input: { query: 'q' }, resultCount: 3, latencyMs: 10, chunkIds: ['a'], rowKeys: [], status: 'ok' }],
+    steps: [{ step: 1, name: 'search_documents', toolCallId: 't1', scoped: true, input: { query: 'q' }, resultCount: 3, topSimilarity: 0.71, latencyMs: 10, chunkIds: ['a'], rowKeys: [], status: 'ok' }],
     answer: { latencyMs: 20, aborted: false },
   }));
   await recorder.flush();
@@ -183,4 +183,8 @@ Deno.test('the answer trace links to the call that wrote the answer, not to a fa
   assertEquals(answer.model_call_log_id, 'call-2');
   // A tool step is a database query and buys no provider call of its own.
   assertEquals(tool.model_call_log_id, null);
+  // …but its retrieval quality is carried: top_similarity was null on every row
+  // ever written, because turnTraceRows hard-coded it while the search had the
+  // number in hand.
+  assertEquals(tool.top_similarity, 0.71);
 });

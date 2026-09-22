@@ -45,6 +45,14 @@ export interface TraceStep {
   chunkIds: string[];
   rowKeys: string[];
   resultCount: number;
+  /**
+   * The best cosine similarity this search returned, or null when there is no
+   * such number: a desk-row search is a trigram match, and a document search
+   * that found nothing has no top hit. It is the difference between "retrieval
+   * returned three chunks" and "retrieval returned three chunks worth reading",
+   * which is the question asked of a turn that widened or answered thinly.
+   */
+  topSimilarity: number | null;
   latencyMs: number;
   status: 'ok' | 'error';
 }
@@ -267,6 +275,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       chunkIds: [],
       rowKeys: [],
       resultCount: 0,
+      topSimilarity: null,
       latencyMs: 0,
       status: 'error',
     };
@@ -282,6 +291,9 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       if (Array.isArray(result)) {
         trace.chunkIds = result.map((c) => c.id);
         trace.resultCount = result.length;
+        // Chunks come back ordered by distance, but a refinement merges two
+        // result sets, so take the maximum rather than trusting the first.
+        if (result.length) trace.topSimilarity = Math.max(...result.map((c) => Number(c.similarity) || 0));
       } else {
         trace.rowKeys = result.rows.map((row) => row.row_key);
         trace.resultCount = result.rows.length;
