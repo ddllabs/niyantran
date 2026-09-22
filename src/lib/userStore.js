@@ -1,5 +1,5 @@
 import { DEFAULT_USER_TYPE, userTypeOf } from './userTypes.js';
-import { frontendPersona } from './personaMap.js';
+import { dbPersona, frontendPersona } from './personaMap.js';
 import { supabase } from './supabaseClient.js';
 
 const EVENT = 'niy-users';
@@ -295,6 +295,47 @@ export function userFromSupabase(supabaseUser, profile, extras = {}) {
     },
     type,
   );
+}
+
+/**
+ * Write the chosen persona to the signed-in user's profile.
+ *
+ * Choosing a persona only ever set sessionStorage, so user_profiles.persona
+ * stayed null for every account. research-chat resolves the system prompt from
+ * that column - `promptFile(row?.persona) ?? 'analyst.md'` - so the fallback
+ * was answering for everyone, and the UPSC prompt shipped in the bundle was
+ * unreachable however the reader identified themselves.
+ *
+ * The column, not update_my_onboarding_profile. That RPC assigns all five
+ * onboarding fields unconditionally, so calling it to set one would blank
+ * practice_area and jurisdiction and reset onboarding_complete. RLS already
+ * limits the row to `user_id = auth.uid()` and the grant already limits the
+ * columns, so a targeted update needs no wider privilege than the RPC.
+ *
+ * Anonymous callers are not an error: the chooser also runs before sign-in,
+ * where the pick is provisional and lives on the device.
+ *
+ * Strict about the id. `userTypeOf` would fold an unrecognised one onto the
+ * default, which writes 'corporate_affairs' for a typo and answers every later
+ * turn as an analyst without anything saying so - the failure this function
+ * exists to end. The marketing, USER_TYPES and personaMap ids are the same
+ * strings, so a real pick maps directly and only a wrong one is refused.
+ *
+ * @param {string} personaId a USER_TYPES id
+ * @returns {Promise<boolean>} whether the profile now carries it
+ */
+export async function persistPersona(personaId) {
+  const persona = dbPersona(personaId);
+  if (!persona) return false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const userId = data?.session?.user?.id;
+    if (!userId) return false;
+    const { error } = await supabase.from('user_profiles').update({ persona }).eq('user_id', userId);
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 export function authenticateUser(loginId, password) {

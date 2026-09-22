@@ -5,7 +5,7 @@ import {
   writePersonaAnswers,
   writePersonaId,
 } from '../lib/personas.js';
-import { setSessionUser, sessionUser, userTypeOf } from '../lib/userStore.js';
+import { persistPersona, setSessionUser, sessionUser, userTypeOf } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 
 /** Map marketing persona ids onto USER_TYPES desk allowlists. */
@@ -29,6 +29,14 @@ export default function PersonaChooser({ onDone }) {
       const land =
         answers.start === 'home' ? 'home' : userTypeOf(type).startTab || 'home';
       sessionStorage.setItem('niyantranLand', land);
+      // The desk chat reads the persona from the profile, not from this
+      // device, so the choice has to outlive the session to reach the prompt.
+      // Not awaited: landing on the chosen desk should not wait on a write,
+      // and a signed-out chooser has nowhere to write to. Reported either way,
+      // because a silent failure here answers every later turn as an analyst.
+      persistPersona(type).then((saved) => {
+        trackProductEvent('persona_persisted', { personaId: picked.id, saved });
+      });
     }
     trackProductEvent('persona_selected', { personaId: picked.id, answers });
     onDone?.(picked);

@@ -363,3 +363,56 @@ it('local-only session invalidation synchronously clears authority without any S
   expect(await store.verifiedLocalIdentity()).toBeNull();
   expect(auth.client.auth.signOut).not.toHaveBeenCalled();
 });
+
+// user_profiles.persona stayed null for every account because choosing a
+// persona only wrote sessionStorage. research-chat resolves the system prompt
+// from that column and falls back to analyst.md, so every reader was answered
+// as an analyst and the UPSC prompt in the bundle was unreachable.
+describe('persistPersona', () => {
+  function client(session, onUpdate = () => ({ error: null })) {
+    const calls = [];
+    auth.client.auth = { getSession: vi.fn(async () => ({ data: { session } })) };
+    auth.client.from = vi.fn((table) => ({
+      update(patch) {
+        return {
+          eq(column, value) {
+            calls.push({ table, patch, column, value });
+            return Promise.resolve(onUpdate());
+          },
+        };
+      },
+    }));
+    return calls;
+  }
+
+  it('writes the app_persona enum for the signed-in user, from the frontend id', async () => {
+    const calls = client({ user: { id: 'uid-9' } });
+    const { persistPersona } = await import('./userStore.js');
+    expect(await persistPersona('student')).toBe(true);
+    expect(calls).toEqual([{ table: 'user_profiles', patch: { persona: 'upsc_aspirant' }, column: 'user_id', value: 'uid-9' }]);
+  });
+
+  it('touches only the persona column, so the onboarding fields survive', async () => {
+    const calls = client({ user: { id: 'uid-9' } });
+    const { persistPersona } = await import('./userStore.js');
+    await persistPersona('policy');
+    expect(Object.keys(calls[0].patch)).toEqual(['persona']);
+    expect(calls[0].patch.persona).toBe('policy_analyst');
+  });
+
+  it('writes nothing when signed out, and reports a refused write rather than claiming it saved', async () => {
+    const none = client(null);
+    const { persistPersona } = await import('./userStore.js');
+    expect(await persistPersona('student')).toBe(false);
+    expect(none).toEqual([]);
+    client({ user: { id: 'uid-9' } }, () => ({ error: { message: 'denied' } }));
+    expect(await persistPersona('student')).toBe(false);
+  });
+
+  it('an unknown persona is never sent to an enum column', async () => {
+    const calls = client({ user: { id: 'uid-9' } });
+    const { persistPersona } = await import('./userStore.js');
+    expect(await persistPersona('not-a-persona')).toBe(false);
+    expect(calls).toEqual([]);
+  });
+});
