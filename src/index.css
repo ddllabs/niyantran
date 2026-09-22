@@ -6650,3 +6650,20 @@ tr.close-soon { color: #6d675f; }
 .first-run-card h2 { margin: 0 0 6px; font-size: 16px; }
 .first-run-card p { margin: 0 0 12px; color: var(--muted, #64748b); font-size: 13px; line-height: 1.45; }
 .first-run-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* What kind of answer an attached record can give: its own text, or only the
+   desk row. Shown on the chip before the question, because the alternative is
+   learning it from a "Search widened" notice after the answer. */
+.ai-v2-file-cover {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--ai-line);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--ai-muted);
+  font: 500 10px/1.6 var(--font-ui);
+  font-style: normal;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.ai-v2-file-cover.full { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }

@@ -18,6 +18,7 @@ import { sessionUser } from '../lib/userStore.js';
 import { filesFromDrop, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
+import { coverageOf, indexedDocumentKeys } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
 import { AiBrandIcon } from './AiBrandIcon.jsx';
@@ -308,6 +309,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // The model whose reasoning rungs are expanded in the picker, '' for none.
   // Held here rather than in ModelPicker so that stays a function of its props.
   const [effortsOpenFor, setEffortsOpenFor] = useState('');
+  // The attached records whose text is in the corpus. Null until the first
+  // lookup answers, so a chip shows nothing rather than guessing "Record only".
+  const [indexedKeys, setIndexedKeys] = useState(null);
   const [focusOpen, setFocusOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -347,6 +351,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   );
   const picked = AI_PROVIDERS.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
   const attachments = chat?.attachments || [];
+  const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join(' ');
+  useEffect(() => {
+    if (!serverThreads || !attachedKeys) { setIndexedKeys(null); return; }
+    let alive = true;
+    indexedDocumentKeys(attachedKeys.split(' ')).then((set) => { if (alive) setIndexedKeys(set); }).catch(() => {});
+    return () => { alive = false; };
+  }, [attachedKeys]);
   const messages = (serverThreads ? research.messages : chat?.messages || []).filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
@@ -620,6 +631,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           text: String(a.text || a.preview?.record_text || ''),
           ...(a.feature ? { feature: a.feature } : {}),
           ...(a.preview ? { row_key: deskRowKey(a.preview) } : {}),
+          ...(a.document_key ? { document_key: a.document_key } : {}),
         }))
         .filter((a) => a.text),
       ...(featureName || tab ? { desk_context: { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } } : {}),
@@ -983,15 +995,28 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
         {attachments.length > 0 ? (
           <ul className="ai-v2-files">
-            {attachments.map((a) => (
-              <li key={a.id}>
-                <Ico name="doc" size={15} />
-                <span title={a.title}>{a.title}</span>
-                <button type="button" aria-label="Remove" onClick={() => removePin(a.id)}>
-                  ×
-                </button>
-              </li>
-            ))}
+            {attachments.map((a) => {
+              const cover = coverageOf(a, indexedKeys);
+              return (
+                <li key={a.id}>
+                  <Ico name="doc" size={15} />
+                  <span title={a.title}>{a.title}</span>
+                  {/* What kind of answer this record can give, before the
+                      question rather than after it. */}
+                  {cover ? (
+                    <em className={`ai-v2-file-cover${cover === 'full' ? ' full' : ''}`}
+                      title={cover === 'full'
+                        ? hi ? 'इस रिकॉर्ड का पूरा पाठ अनुक्रमित है' : 'The full text of this record is indexed and can be quoted'
+                        : hi ? 'केवल तालिका पंक्ति — इस रिकॉर्ड का पाठ अनुक्रमित नहीं है' : 'Only the desk row is on file; this record has no indexed text to read'}>
+                      {cover === 'full' ? (hi ? 'पूर्ण पाठ' : 'Full text') : (hi ? 'केवल रिकॉर्ड' : 'Record only')}
+                    </em>
+                  ) : null}
+                  <button type="button" aria-label="Remove" onClick={() => removePin(a.id)}>
+                    ×
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
 

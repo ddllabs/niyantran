@@ -2,6 +2,7 @@ import { TABS, catalogModules, modulesForTier } from '../desks/catalog.js';
 import { fetchFeature } from './featureFeed.js';
 import { githubCsvUrl } from './githubCsv.js';
 import { collectRowUrls, isHubListingUrl, rowPinKey, rowRecordText, sourceKindHint } from './sourceUrls.js';
+import { billDocumentKey } from './deskRows.js';
 
 export const AI_DND = 'application/x-niyantran-ai';
 
@@ -216,6 +217,13 @@ export async function materializeAiDrop(payload, extras = {}) {
       title,
       tab: payload.tab || '',
       feature: payload.feature || extras.feature || extras.feed?.feature || '',
+      // The corpus key for this record, computed here from the whole row rather
+      // than later from `preview`, which keeps only its first 32 scalar fields.
+      // research-chat scopes document search to the keys a turn carries
+      // (validate.ts documentKeysOf) and the selection was sending one while
+      // attachments were not - so a bill dropped into the chat could not be
+      // scoped to its own text even when that text was indexed.
+      ...(billDocumentKey(payload.row) ? { document_key: billDocumentKey(payload.row) } : {}),
       preview: {
         ...rowPreview(payload.row),
         related_records: related.related_records,
