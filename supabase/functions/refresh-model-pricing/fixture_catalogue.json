@@ -32,7 +32,10 @@
         "tool_choice",
         "tools",
         "top_p"
-      ]
+      ],
+      "reasoning": {
+        "mandatory": false
+      }
     },
     {
       "id": "google/gemini-3.8-flash",
@@ -67,7 +70,17 @@
         "tool_choice",
         "tools",
         "top_p"
-      ]
+      ],
+      "reasoning": {
+        "mandatory": true,
+        "default_enabled": true,
+        "supported_efforts": [
+          "high",
+          "medium",
+          "low"
+        ],
+        "default_effort": "medium"
+      }
     },
     {
       "id": "inference-net/schematron-v2-turbo",

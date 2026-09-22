@@ -18,6 +18,32 @@ export interface PricingRow {
   cache_write_usd: number | null;
   internal_reasoning_usd: number | null;
   supported_parameters: string[];
+  /** `reasoning.supported_efforts`, canonically ordered. Empty when the model publishes none. */
+  reasoning_efforts: string[];
+  /** `reasoning.default_effort`, or null. */
+  reasoning_default: string | null;
+  /** `reasoning.mandatory` - the model cannot be asked to stop reasoning. */
+  reasoning_required: boolean;
+}
+
+/**
+ * Cheapest first. OpenRouter publishes `supported_efforts` in descending order
+ * and the picker reads left to right, so the order is normalised here rather
+ * than in two places downstream.
+ *
+ * `none` is OpenRouter's "reasoning off" rung. It is folded onto this codebase's
+ * existing `off` sentinel, which omits the field altogether rather than sending
+ * `effort: 'none'` - same intent, and one fewer way to say it in the picker.
+ */
+export const EFFORT_ORDER = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+export function orderEfforts(values: Iterable<string>): string[] {
+  const seen = new Set<string>();
+  for (const v of values) {
+    const e = v === 'none' ? 'off' : v;
+    if ((EFFORT_ORDER as readonly string[]).includes(e)) seen.add(e);
+  }
+  return EFFORT_ORDER.filter((e) => seen.has(e));
 }
 
 export interface ReconcileResult {
@@ -56,6 +82,13 @@ function num(v: unknown): number | null {
  * id, context_length, pricing.{prompt, completion, input_cache_read, input_cache_write, internal_reasoning}
  * (strings, USD per token), top_provider.{context_length, max_completion_tokens}, supported_parameters[].
  * Entries without a string id are skipped; every other field is optional.
+ *
+ * `reasoning` added 2026-09-22 and verified the same way: a per-model object
+ * carrying {mandatory, default_enabled, supported_efforts[], default_effort},
+ * omitted for non-reasoning models. It is the only published source for which
+ * rungs a model actually accepts, and 26 distinct vocabularies exist across the
+ * catalogue - `supported_parameters` cannot answer that question, because it
+ * says only whether the parameter is taken at all.
  */
 export function mapCatalogue(payload: unknown): PricingRow[] {
   const data = (payload as { data?: unknown } | null)?.data;
@@ -67,6 +100,11 @@ export function mapCatalogue(payload: unknown): PricingRow[] {
     const pricing = (m.pricing ?? {}) as Record<string, unknown>;
     const top = (m.top_provider ?? {}) as Record<string, unknown>;
     const params = Array.isArray(m.supported_parameters) ? m.supported_parameters.filter((s): s is string => typeof s === 'string') : [];
+    const reasoning = (m.reasoning ?? {}) as Record<string, unknown>;
+    const efforts = Array.isArray(reasoning.supported_efforts)
+      ? orderEfforts(reasoning.supported_efforts.filter((s): s is string => typeof s === 'string'))
+      : [];
+    const fallback = typeof reasoning.default_effort === 'string' ? orderEfforts([reasoning.default_effort])[0] ?? null : null;
     rows.push({
       model_id: m.id,
       context_length: num(m.context_length) ?? num(top.context_length),
@@ -77,6 +115,9 @@ export function mapCatalogue(payload: unknown): PricingRow[] {
       cache_write_usd: num(pricing.input_cache_write),
       internal_reasoning_usd: num(pricing.internal_reasoning),
       supported_parameters: params,
+      reasoning_efforts: efforts,
+      reasoning_default: fallback,
+      reasoning_required: reasoning.mandatory === true,
     });
   }
   return rows;

@@ -304,6 +304,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const err = serverThreads ? research.error : legacyError;
   const [dragOver, setDragOver] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  // The model whose reasoning rungs are expanded in the picker, '' for none.
+  // Held here rather than in ModelPicker so that stays a function of its props.
+  const [effortsOpenFor, setEffortsOpenFor] = useState('');
   const [focusOpen, setFocusOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -1097,9 +1100,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 roles={registry.roles}
                 value={modelChoice}
                 open={modelOpen}
+                effortsOpenFor={effortsOpenFor}
+                onToggleEfforts={setEffortsOpenFor}
                 onToggle={() => {
                   setModelOpen((v) => !v);
                   setFocusOpen(false);
+                  setEffortsOpenFor('');
                 }}
                 onChange={(next) => research.actions.setChoice(next)}
               />

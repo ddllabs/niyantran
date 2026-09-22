@@ -28,10 +28,16 @@ const ROW_SOURCE = {
   snapshot_at: '2026-09-07T18:02:04.432Z',
 };
 
+// The three ladders these models actually publish, read off OpenRouter's
+// catalogue on 2026-09-22. They are deliberately different from each other:
+// Gemini Lite mandates reasoning so it has no 'off' rung and starts at
+// 'minimal'; DeepSeek accepts only 'high' and 'xhigh'; Claude accepts the
+// whole range. A fixture where every model has the same three rungs is what
+// hid the bug this replaced.
 const MODELS = [
-  { model_id: 'google/gemini-3.5-flash-lite', label: 'Gemini - Lite', vendor: 'google', tier: 1, efforts: ['low', 'medium', 'high'], is_default: true },
-  { model_id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek - Flash', vendor: 'deepseek', tier: 1, efforts: ['low'], is_default: false },
-  { model_id: 'anthropic/claude-sonnet-5', label: 'Claude - Sonnet', vendor: 'anthropic', tier: 3, efforts: ['low', 'medium', 'high'], is_default: false },
+  { model_id: 'google/gemini-3.5-flash-lite', label: 'Gemini - Lite', vendor: 'google', tier: 1, efforts: ['minimal', 'low', 'medium', 'high'], is_default: true },
+  { model_id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek - Flash', vendor: 'deepseek', tier: 1, efforts: ['off', 'high', 'xhigh'], is_default: false },
+  { model_id: 'anthropic/claude-sonnet-5', label: 'Claude - Sonnet', vendor: 'anthropic', tier: 3, efforts: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], is_default: false },
 ];
 
 describe('ActivityTicker', () => {
@@ -75,17 +81,37 @@ describe('ModelPicker', () => {
     expect(groupByVendor(MODELS).map((g) => g.vendor)).toEqual(['google', 'deepseek', 'anthropic']);
     expect(costHint(MODELS[0])).toBe('•');
     expect(costHint(MODELS[2])).toBe('•••');
-    expect(effortsFor(MODELS, 'deepseek/deepseek-v4-flash')).toEqual(['off', 'low']);
-    expect(effortsFor(MODELS, 'google/gemini-3.5-flash-lite')).toEqual(['off', 'low', 'medium', 'high']);
+    expect(effortsFor(MODELS, 'deepseek/deepseek-v4-flash')).toEqual(['off', 'high', 'xhigh']);
+    // No 'off': this model mandates reasoning, and the list is no longer
+    // prepended with a rung the model would refuse.
+    expect(effortsFor(MODELS, 'google/gemini-3.5-flash-lite')).toEqual(['minimal', 'low', 'medium', 'high']);
+    expect(effortsFor(MODELS, 'anthropic/claude-sonnet-5')).toEqual(['off', 'low', 'medium', 'high', 'xhigh', 'max']);
   });
 
-  it('open, it lists every enabled model and only the chosen one\'s efforts', () => {
-    const html = renderToStaticMarkup(<ModelPicker models={MODELS} roles={[{ role_id: 'DEFAULT_ANALYST', label: 'Default analyst', hint: 'Everyday', model_id: MODELS[0].model_id }]} value={{ modelId: 'deepseek/deepseek-v4-flash', effort: 'off' }} open />);
-    for (const m of MODELS) expect(html).toContain(m.label);
-    expect(html).toContain('Default analyst');
-    expect(html).toContain('Low');
+  it('open, it lists every enabled model and only the disclosed one\'s efforts', () => {
+    const roles = [{ role_id: 'DEFAULT_ANALYST', label: 'Default analyst', hint: 'Everyday', model_id: MODELS[0].model_id }];
+    const value = { modelId: 'deepseek/deepseek-v4-flash', effort: 'high' };
+    // Closed: the menu is a list of models. No rung is on screen, and no model's
+    // ladder is presented as if it were another's.
+    const shut = renderToStaticMarkup(<ModelPicker models={MODELS} roles={roles} value={value} open />);
+    for (const m of MODELS) expect(shut).toContain(m.label);
+    expect(shut).toContain('Default analyst');
+    expect(shut).not.toContain('ai-v2-efforts');
+    // Disclosed: DeepSeek's whole ladder, and nothing from anyone else's.
+    const html = renderToStaticMarkup(<ModelPicker models={MODELS} roles={roles} value={value} open effortsOpenFor="deepseek/deepseek-v4-flash" />);
+    expect(html).toContain('>High<');
+    expect(html).toContain('>Extra high<');
+    expect(html).toContain('>No reasoning<');
     expect(html).not.toContain('>Medium<');
-    expect(html).not.toContain('>High<');
+    expect(html).not.toContain('>Max<');
+    expect(html).not.toContain('>Minimal<');
+  });
+
+  it('a model with a single rung gets no disclosure to open', () => {
+    const one = [{ model_id: 'v/solo', label: 'Solo', vendor: 'v', tier: 1, efforts: ['off'], is_default: true }];
+    const html = renderToStaticMarkup(<ModelPicker models={one} value={{ modelId: 'v/solo' }} open />);
+    expect(html).toContain('Solo');
+    expect(html).not.toContain('ai-v2-model-disclose');
   });
 
   it('closed, it shows the picked model and no menu', () => {
@@ -152,16 +178,35 @@ function elements(node) {
  return [node,...[].concat(node.props?.children||[]).flat(Infinity).flatMap(elements)];
 }
 it('role and model buttons normalize incompatible efforts identically',()=>{
- const changes=[];const tree=ModelPicker({models:MODELS,roles:[{role_id:'FAST',label:'Fast',model_id:MODELS[1].model_id}],value:{modelId:MODELS[0].model_id,effort:'high'},open:true,onChange:v=>changes.push(v)});
+ const changes=[];const tree=ModelPicker({models:MODELS,roles:[{role_id:'FAST',label:'Fast',model_id:MODELS[1].model_id}],value:{modelId:MODELS[0].model_id,effort:'medium'},open:true,onChange:v=>changes.push(v)});
  const nodes=elements(tree);nodes.find(n=>n.type==='button'&&n.props?.className?.startsWith('ai-v2-role')).props.onClick();
  nodes.find(n=>n.props?.className?.startsWith('ai-v2-model-opt')&&n.props.children[1].props.children[0].props.children==='DeepSeek - Flash').props.onClick();
- // Both paths land on the same value, and that value is now the default rather
+ // 'medium' is a rung Gemini Lite has and DeepSeek does not. Both paths land on
+ // the same value, and that value is the new model's cheapest real rung rather
  // than 'off': an effort the new model does not accept is an absent choice, not
- // a request for no reasoning.
- expect(changes).toEqual([{modelId:MODELS[1].model_id,effort:'low'},{modelId:MODELS[1].model_id,effort:'low'}]);
+ // a request for no reasoning. DeepSeek's ladder starts at 'high', so that is
+ // what the fallback means here - not every model's floor is 'low'.
+ expect(changes).toEqual([{modelId:MODELS[1].model_id,effort:'high'},{modelId:MODELS[1].model_id,effort:'high'}]);
+});
+// The chevron is a sibling of the row, not a child, precisely so this holds:
+// inside the row it would bubble into the row's onClick, pick that model and
+// close the menu - so reaching for "show me the levels" would silently change
+// the model you were asking about.
+it('the disclosure opens a row\'s rungs without selecting that model',()=>{
+ const changes=[],opened=[];
+ const tree=ModelPicker({models:MODELS,value:{modelId:MODELS[0].model_id,effort:'low'},open:true,onChange:v=>changes.push(v),onToggleEfforts:id=>opened.push(id)});
+ const chevron=elements(tree).find(n=>n.props?.className==='ai-v2-model-disclose'&&String(n.props['aria-label']).includes('DeepSeek - Flash'));
+ chevron.props.onClick({preventDefault(){},stopPropagation(){}});
+ expect(opened).toEqual(['deepseek/deepseek-v4-flash']);
+ expect(changes).toEqual([]);
+ // Open, the same control closes it again rather than reopening the same row.
+ const open=ModelPicker({models:MODELS,value:{modelId:MODELS[0].model_id,effort:'low'},open:true,effortsOpenFor:'deepseek/deepseek-v4-flash',onChange:v=>changes.push(v),onToggleEfforts:id=>opened.push(id)});
+ elements(open).find(n=>n.props?.className==='ai-v2-model-disclose'&&String(n.props['aria-label']).includes('DeepSeek - Flash')).props.onClick({preventDefault(){},stopPropagation(){}});
+ expect(opened).toEqual(['deepseek/deepseek-v4-flash','']);
+ expect(changes).toEqual([]);
 });
 it('effort clicks on a fallback selection include the actual allowed model',()=>{
- const change=[];const tree=ModelPicker({models:MODELS,value:{modelId:'removed',effort:'bogus'},open:true,onChange:v=>change.push(v)});
+ const change=[];const tree=ModelPicker({models:MODELS,value:{modelId:'removed',effort:'bogus'},open:true,effortsOpenFor:MODELS[0].model_id,onChange:v=>change.push(v)});
  elements(tree).find(n=>n.props?.className?.startsWith('ai-v2-effort')&&n.props.children==='Low').props.onClick();
  expect(change).toEqual([{modelId:MODELS[0].model_id,effort:'low'}]);
 });

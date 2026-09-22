@@ -19,6 +19,23 @@
 .ai-research-model .ai-v2-model-menu { max-width: calc(100vw - 32px); max-height: min(420px, 65vh); overflow-y: auto; overscroll-behavior: contain; }
 .ai-research-model .ai-v2-model-btn { max-width: 100%; }
 .ai-research-model .ai-v2-model-btn > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A model and its rungs. The disclosure sits over the row.s trailing edge
+   rather than inside it, so the row stays one hit target for "pick this model"
+   and the chevron stays a separate one for "show me its levels".
+   `entry`, not `row`: .ai-v2-model-row is already the composer.s picker row in
+   index.css, and inheriting its `display: flex` sat the rungs beside their
+   model instead of under it. display is set here so that cannot recur. */
+.ai-research-model .ai-v2-model-entry { position: relative; display: block; }
+.ai-research-model .ai-v2-model-entry > .ai-v2-model-opt { padding-right: 34px; }
+.ai-research-model .ai-v2-model-disclose {
+  position: absolute; top: 6px; right: 4px; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted, #6b7280); font-size: 11px; line-height: 1; cursor: pointer;
+}
+.ai-research-model .ai-v2-model-disclose:hover { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); }
+.ai-research-model .ai-v2-model-entry.open > .ai-v2-efforts { padding-left: 30px; padding-bottom: 8px; }
 .ai-research-model .ai-v2-roles, .ai-research-model .ai-v2-efforts { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 8px; }
 .ai-research-model .ai-v2-role, .ai-research-model .ai-v2-effort { padding: 6px 8px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; background: var(--panel, white); color: var(--text, #3d3a36); font: inherit; font-size: 12px; cursor: pointer; }
 .ai-research-model .ai-v2-role.on, .ai-research-model .ai-v2-effort.on { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); border-color: var(--accent, #012ea1); }

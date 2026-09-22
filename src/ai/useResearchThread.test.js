@@ -31,9 +31,16 @@ it('an unauthenticated hydration never creates a draft or fetches private conver
 });
 it('model choices normalize to the same allowed fallback and efforts as the picker',()=>{
  // An effort the fallback model cannot take is dropped to the default, not to
- // 'off'. 'off' is still reachable, but only by asking for it.
- expect(normalizeResearchChoice([{model_id:'m',is_default:true,efforts:['low']}],{modelId:'gone',effort:'high'})).toEqual({modelId:'m',effort:'low'});
- expect(normalizeResearchChoice([{model_id:'m',is_default:true,efforts:['low']}],{modelId:'m',effort:'off'})).toEqual({modelId:'m',effort:'off'});
+ // 'off'. 'off' is still reachable, but only when the model offers it.
+ const optional=[{model_id:'m',is_default:true,efforts:['off','low']}];
+ expect(normalizeResearchChoice(optional,{modelId:'gone',effort:'high'})).toEqual({modelId:'m',effort:'low'});
+ expect(normalizeResearchChoice(optional,{modelId:'m',effort:'off'})).toEqual({modelId:'m',effort:'off'});
+ // A model that mandates reasoning carries no 'off' rung, so asking for it by
+ // name gets the cheapest real one rather than a request the model refuses.
+ expect(normalizeResearchChoice([{model_id:'m',is_default:true,efforts:['minimal','low']}],{modelId:'m',effort:'off'})).toEqual({modelId:'m',effort:'minimal'});
+ // The cheapest rung is per model: DeepSeek's ladder starts at 'high', so
+ // 'low' is not a quieter request there - it is not a request the model takes.
+ expect(normalizeResearchChoice([{model_id:'d',is_default:true,efforts:['off','high','xhigh']}],{modelId:'d',effort:'low'})).toEqual({modelId:'d',effort:'high'});
 });
 
 it('send preserves one original key and the captured context through first-frame adoption and final reconcile',async()=>{

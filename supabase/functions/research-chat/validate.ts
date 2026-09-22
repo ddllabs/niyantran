@@ -4,7 +4,13 @@
 // they are shape-checked and bounded here before any of that happens.
 
 export const FOCUS_VALUES = ['attached', 'selection', 'desk', 'broad'] as const;
-export const REASONING_VALUES = ['off', 'low', 'medium', 'high'] as const;
+// OpenRouter's full ladder, cheapest first. It stopped at `high`, so `max` and
+// `xhigh` were rejected here even for models that accept them. `off` is this
+// codebase's sentinel for "send no reasoning block"; OpenRouter's `none` rung
+// is folded onto it by refresh-model-pricing, so it is not a value on the wire.
+// Which of these a given model accepts is still decided per model against
+// ai_models.efforts in the handler - this list only bounds the vocabulary.
+export const REASONING_VALUES = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 /** What an omitted `reasoning` field means. 'off' is still honoured when asked for by name. */
 export const DEFAULT_REASONING = 'low' as const;
 

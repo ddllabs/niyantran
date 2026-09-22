@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { authorised, handleRefresh, mapCatalogue, type PricingRow, type ReconcileResult } from './handler.ts';
+import { authorised, handleRefresh, mapCatalogue, orderEfforts, type PricingRow, type ReconcileResult } from './handler.ts';
 
 const fixture = JSON.parse(await Deno.readTextFile(new URL('./fixture_catalogue.json', import.meta.url)));
 const SECRETS = { refreshSecret: 'shh-refresh', serviceKey: 'service-role-key' };
@@ -26,6 +26,37 @@ Deno.test('mapCatalogue reads the verified field names from a trimmed real respo
   const noTools = rows[2];
   assertEquals(noTools.supported_parameters.includes('tools'), false);
   assertEquals(noTools.cache_write_usd, null);
+});
+
+// The three reasoning shapes the catalogue actually publishes. Getting this
+// wrong is what let the allowlist offer low/medium/high on models that accept
+// only xhigh/high, where OpenRouter maps the request to the nearest supported
+// level and bills the difference in silence.
+Deno.test('mapCatalogue reads the per-model reasoning ladder, its default, and whether it is mandatory', () => {
+  const rows = mapCatalogue(fixture);
+  const flash = rows.find((r) => r.model_id === 'google/gemini-3.8-flash')!;
+  // Published high-to-low; stored cheapest first, so the picker needs no order of its own.
+  assertEquals(flash.reasoning_efforts, ['low', 'medium', 'high']);
+  assertEquals(flash.reasoning_default, 'medium');
+  assertEquals(flash.reasoning_required, true);
+
+  // `{mandatory: false}` with no ladder: the model takes no effort at all.
+  const lite = rows.find((r) => r.model_id === 'google/gemini-2.5-flash-lite')!;
+  assertEquals(lite.reasoning_efforts, []);
+  assertEquals(lite.reasoning_default, null);
+  assertEquals(lite.reasoning_required, false);
+
+  // No `reasoning` key: a non-reasoning model, and not an error.
+  const none = rows.find((r) => r.model_id === 'inference-net/schematron-v2-turbo')!;
+  assertEquals(none.reasoning_efforts, []);
+  assertEquals(none.reasoning_required, false);
+});
+
+Deno.test('orderEfforts folds OpenRouter `none` onto `off`, drops unknown rungs, and sorts cheapest first', () => {
+  assertEquals(orderEfforts(['max', 'xhigh', 'high', 'medium', 'low']), ['low', 'medium', 'high', 'xhigh', 'max']);
+  assertEquals(orderEfforts(['high', 'none']), ['off', 'high']);
+  assertEquals(orderEfforts(['ultra', '', 'low', 'low']), ['low']);
+  assertEquals(orderEfforts([]), []);
 });
 
 Deno.test('mapCatalogue tolerates unknown fields, skips entries without an id, and rejects a payload without data', () => {
