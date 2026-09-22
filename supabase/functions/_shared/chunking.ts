@@ -48,8 +48,8 @@ export interface ChunkRow extends ChunkSpan {
   tokenEstimate: number;
 }
 
-type Kind = 'heading' | 'table' | 'para';
-interface Block {
+export type Kind = 'heading' | 'table' | 'para';
+export interface Block {
   kind: Kind;
   from: number;
   to: number;
@@ -68,8 +68,13 @@ export function chunkHashInput(version: number, unitKey: string, content: string
   return `${version}|${unitKey}|${normalise(content)}`;
 }
 
-/** Group lines into heading, table and paragraph blocks with absolute offsets. Blank lines end a block. */
-function blocks(text: string): Block[] {
+/**
+ * Group lines into heading, table and paragraph blocks with absolute offsets. Blank lines end a block.
+ * Exported because the reader imports it (src/ai/documentBlocks.js, RAG spec §H): the reader renders the
+ * same document the chunker cut, so a second implementation of this would drift and put a citation's
+ * highlight in the wrong block.
+ */
+export function blocks(text: string): Block[] {
   const out: Block[] = [];
   let current: Block | null = null;
   let pos = 0;

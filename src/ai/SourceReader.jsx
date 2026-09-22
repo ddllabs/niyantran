@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
+import { documentBlocks, readerWindow, visibleBlocks, WINDOW_CHARS } from './documentBlocks.js';
+import RichText from './RichText.jsx';
 import { NOTICE, resolveSpan } from './sourceReader.js';
 
 import './research.css';
+import './reader.css';
 
 export function safeSourceUrl(value) {
   if (typeof value !== 'string' || !/^https?:\/\//i.test(value.trim())) return null;
@@ -35,11 +38,13 @@ export async function loadSource(citation, client, current = () => true) {
  */
 export default function SourceReader({ citation, onClose, client = supabase }) {
   const [state, setState] = useState({ loading: true, error: '', doc: null, span: null });
+  const [budget, setBudget] = useState(WINDOW_CHARS);
   const mark = useRef(null);
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true, error: '', doc: null, span: null });
+    setBudget(WINDOW_CHARS);
     loadSource(citation, client, () => alive).then(result => { if (alive && result) setState(result); });
     return () => {
       alive = false;
@@ -54,6 +59,18 @@ export default function SourceReader({ citation, onClose, client = supabase }) {
   const text = doc?.ocr_text ?? '';
   const notice = span ? NOTICE[span.status] : '';
   const fileUrl = safeSourceUrl(doc?.file_url) || safeSourceUrl(citation.file_url);
+
+  const blocks = useMemo(() => documentBlocks(text), [text]);
+  const shown = span ? visibleBlocks(blocks, readerWindow(text.length, span, budget), budget) : [];
+  // What was actually laid out, which a whole table kept at the edge can widen
+  // past the window; the controls offer the rest only when there is a rest.
+  const first = shown[0]?.from ?? 0;
+  const last = shown[shown.length - 1]?.to ?? text.length;
+  // Every block the span touches is highlighted; the first one carries the ref
+  // the scroll effect above looks for.
+  const hit = span && span.to > span.from ? span : null;
+  const scrollTo = hit ? shown.findIndex(b => b.to > hit.from && b.from < hit.to) : -1;
+  const more = () => setBudget(b => b * 2);
 
   return (
     <section className="ai-reader" aria-label="Cited source">
@@ -90,15 +107,29 @@ export default function SourceReader({ citation, onClose, client = supabase }) {
         </p>
       ) : null}
       {doc && span ? (
-        <pre className="ai-reader-body" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {text.slice(0, span.from)}
-          {span.to > span.from ? (
-            <mark ref={mark} className="ai-reader-mark" style={{ background: 'rgba(250, 204, 21, 0.35)' }}>
-              {text.slice(span.from, span.to)}
-            </mark>
+        <div className="ai-reader-body" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {first > 0 ? (
+            <button type="button" className="ai-reader-more" onClick={more}>
+              Show more of this document
+            </button>
           ) : null}
-          {text.slice(span.to)}
-        </pre>
+          {shown.map((block, i) => (
+            <RichText
+              key={`${block.from}:${block.to}`}
+              text={text}
+              kind={block.kind}
+              from={block.from}
+              to={block.to}
+              mark={hit && block.to > hit.from && block.from < hit.to ? hit : null}
+              markRef={i === scrollTo ? mark : null}
+            />
+          ))}
+          {last < text.length ? (
+            <button type="button" className="ai-reader-more" onClick={more}>
+              Show more of this document
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
