@@ -25,9 +25,28 @@ export function supabaseDb(client: SupabaseClient): IngestDeps['db'] {
       if (error) throw new Error(`documents meta update: ${error.message}`);
     },
     async existingHashes(documentId) {
-      const { data, error } = await client.from('document_chunks').select('chunk_hash').eq('document_id', documentId);
-      if (error) throw new Error(`document_chunks read: ${error.message}`);
-      return new Set((data ?? []).map((r) => r.chunk_hash as string));
+      // Paged deliberately. PostgREST caps a response at db-max-rows (1000 here)
+      // and says so only in Content-Range, so an unpaged read of a document with
+      // more chunks than that returns a short set with no error. The caller
+      // treats every absent hash as a miss, so a 2,240-chunk document reported
+      // 1,240 chunks still to embed when all of them were already committed -
+      // which is how "The Appropriation Bill 2003" hit WORKER_RESOURCE_LIMIT on
+      // a re-run that should have had nothing left to do. Documents this large
+      // only became reachable once chunk_commit was sliced, so the truncation
+      // had never been exercised before.
+      const PAGE = 1000;
+      const hashes = new Set<string>();
+      for (let from = 0;; from += PAGE) {
+        const { data, error } = await client
+          .from('document_chunks')
+          .select('chunk_hash')
+          .eq('document_id', documentId)
+          .order('chunk_hash')
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`document_chunks read: ${error.message}`);
+        for (const r of data ?? []) hashes.add(r.chunk_hash as string);
+        if (!data || data.length < PAGE) return hashes;
+      }
     },
     async chunkCommit(documentId, rows: CommitRow[], keep) {
       const { data, error } = await client.rpc('chunk_commit', { p_document_id: documentId, p_rows: rows, p_keep_hashes: keep });
@@ -45,11 +64,15 @@ export function supabaseDb(client: SupabaseClient): IngestDeps['db'] {
   };
 }
 
-Deno.serve((req) => {
-  const apiKey = Deno.env.get('OPENROUTER_API_KEY') ?? '';
-  return handleIngest(req, {
-    secretKey: secretKey(),
-    embed: (inputs) => embedTexts({ fetch, apiKey }, inputs),
-    db: supabaseDb(serviceClient()),
+// Guarded as research-chat/index.ts is, so a test can import supabaseDb without
+// the module trying to bind a port on the way in.
+if (import.meta.main) {
+  Deno.serve((req) => {
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY') ?? '';
+    return handleIngest(req, {
+      secretKey: secretKey(),
+      embed: (inputs) => embedTexts({ fetch, apiKey }, inputs),
+      db: supabaseDb(serviceClient()),
+    });
   });
-});
+}
