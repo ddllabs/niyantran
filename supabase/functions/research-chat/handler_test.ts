@@ -1608,3 +1608,95 @@ Deno.test('the label is withheld where it would be wrong: small talk, short answ
   assert(cited.rec.messages[0].sources.length > 0, 'the control must actually cite');
   assert(!String(cited.rec.messages[0].content).includes('Unverified'));
 });
+
+// Scoped retrieval (2026-09-22 spec, D2-D4). The agent owns the decisions; these
+// cover what the reader is actually shown when a turn leaves its attachments.
+
+/** A research phase that fires `calls` document searches, then answers. */
+function documentTurn(calls: number, answer = envelope(LONG)): { stream: HandlerDeps['stream'] } {
+  let fired = 0;
+  return {
+    stream: async function* (req) {
+      if (!req.tools?.length) {
+        yield text(answer);
+        yield finish();
+        return;
+      }
+      if (fired < calls) {
+        yield { type: 'tool-call', id: `c${++fired}`, name: 'search_documents', args: '{"query":"committee"}' };
+        yield finish('tool_calls');
+      } else yield finish();
+    },
+  };
+}
+
+// D3. The second search of a turn used to go corpus-wide while the reader was
+// still asking about the attached bill.
+Deno.test('every document search of a turn carries the resolved scope', async () => {
+  const scopes: (string[] | undefined)[] = [];
+  const { deps } = fakeDeps(documentTurn(2), {
+    searchDocuments: (_args, ids) => {
+      scopes.push(ids);
+      return Promise.resolve([chunk(`c${scopes.length}`)]);
+    },
+  }, { resolveDocumentIds: () => Promise.resolve(['doc-1']) });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'scope-every' }), deps));
+  assertEquals(scopes, [['doc-1'], ['doc-1']]);
+});
+
+// D2. The widening was silent: "Attached only" could answer entirely out of
+// fifteen other bills with nothing in the ticker or the answer saying so.
+Deno.test('a scope the record could not answer widens visibly in the ticker and the answer', async () => {
+  const { deps, rec } = fakeDeps(documentTurn(1), {
+    searchDocuments: (_args, ids) => Promise.resolve(ids ? [] : [chunk('c1')]),
+  }, { resolveDocumentIds: () => Promise.resolve(['doc-1']) });
+  const sent = await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'widened' }), deps));
+
+  // chat_turn_traces has no column for a scope, so the turn-level fact rides on
+  // the usage object beside `searches`. Whether widening stays rare once the RPC
+  // pre-filters is a question only a query over many turns can answer.
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'empty');
+  const ticker = sent.filter((f) => keyOf(f) === 'reasoning').map((f) => (f as { reasoning: string }).reasoning);
+  assert(
+    ticker.some((t) => t.includes('attached documents held nothing')),
+    `the ticker must show the widening, saw ${JSON.stringify(ticker)}`,
+  );
+  assertStringIncludes(
+    JSON.stringify(rec.messages[0].activity),
+    'attached documents held nothing',
+    'a reader reopening the message sees the same ticker',
+  );
+  assertStringIncludes(String(rec.messages[0].content), '**Search widened.** The attached documents held no matching');
+});
+
+// D4. focus was advisory text only. "Attached only" over material the corpus has
+// never indexed cannot scope to nothing, so it searches everything - which is
+// exactly what the reported session did, on every bill, in silence.
+Deno.test('focus attached with nothing resolved searches unscoped and discloses it', async () => {
+  const scopes: (string[] | undefined)[] = [];
+  const { deps, rec } = fakeDeps(documentTurn(1), {
+    searchDocuments: (_args, ids) => {
+      scopes.push(ids);
+      return Promise.resolve([chunk('c1')]);
+    },
+  });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'unresolved' }), deps));
+  assertEquals(scopes, [undefined], 'nothing resolved, so nothing to scope to');
+  assertStringIncludes(
+    String(rec.messages[0].content),
+    '**Search widened.** The record holds no indexed source document for the attached material',
+  );
+});
+
+Deno.test('a focus that never promised confinement claims no widening', async () => {
+  // 'selection' is absent deliberately: it confines to the selected record and
+  // its pins, so like 'attached' it owes the disclosure when it cannot.
+  for (const focus of ['desk', 'broad'] as const) {
+    const { deps, rec } = fakeDeps(documentTurn(1), { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+    await frames(await handleResearchChat(post({ ...BODY, focus, turn_key: `no-widen-${focus}` }), deps));
+    assert(
+      !String(rec.messages[0].content).includes('Search widened'),
+      `focus "${focus}" asked for no confinement and must not report breaking one`,
+    );
+  }
+});

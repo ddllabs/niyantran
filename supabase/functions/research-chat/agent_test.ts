@@ -6,6 +6,7 @@ import type { ModelEvent, StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
 import { type AgentDeps, type AgentEvent, BUDGET, createAgentBudget, rowSourceKey, runAgent } from './agent.ts';
+import { FOCUS_VALUES } from './validate.ts';
 
 const input = {
   system: 'Trusted system',
@@ -139,7 +140,11 @@ Deno.test('document and desk tools preserve call IDs and share selection handles
   assertEquals(Object.keys(result.handles), ['ref:abc123-1', 'ref:abc123-2', 'ref:abc123-3']);
 });
 
-Deno.test('first document search retries scoped empty results unscoped, tracing and charging both', async () => {
+// D3. The scope used to be gated on `budget.documentSearches === 0`, so the
+// second search of a turn went corpus-wide while the reader was still asking
+// about the attached bill. An attachment now scopes every search, and only the
+// empty-result fallback leaves it.
+Deno.test('every document search of a turn is scoped, and each retries its empty scope unscoped', async () => {
   const scopes: (string[] | undefined)[] = [];
   const f = fake([[docCall(), finish('tool_calls')], [docCall('again'), finish('tool_calls')], ready(), answer()], {
     searchDocuments: (_args, ids) => {
@@ -147,11 +152,84 @@ Deno.test('first document search retries scoped empty results unscoped, tracing 
       return Promise.resolve(ids ? [] : [chunk('a')]);
     },
   });
-  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'] });
-  assertEquals(scopes, [['private-doc'], undefined, undefined]);
-  assertEquals(result.searches, 3);
-  assertEquals(result.steps.map((s) => s.scoped), [true, false, false]);
+  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
+  assertEquals(scopes, [['private-doc'], undefined, ['private-doc'], undefined]);
+  assertEquals(result.searches, 4);
+  assertEquals(result.steps.map((s) => s.scoped), [true, false, true, false]);
   assert(!JSON.stringify(f.requests).includes('private-doc'));
+});
+
+// D2. The widening was silent, so an "Attached only" turn could answer entirely
+// from other documents with nothing anywhere saying so.
+Deno.test('widening the scope is announced once and reported on the result', async () => {
+  const f = fake([[docCall(), finish('tool_calls')], [docCall('again'), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: (_args, ids) => Promise.resolve(ids ? [] : [chunk('a')]),
+  });
+  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
+  assertEquals(result.widened, 'empty');
+  // Two searches widened; the reader is told once.
+  assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: 'empty' }]);
+});
+
+Deno.test('a scoped search that finds something never claims the turn was widened', async () => {
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
+  assertEquals(result.widened, null);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
+});
+
+// D4. "Attached only" over material the corpus has never indexed cannot scope
+// to nothing. It searches everything, which is what every bill in the reported
+// session did, so the one thing it owes the reader is to say so. The other three
+// focus values never promised confinement and must not claim to have broken one.
+Deno.test('a focus that confines discloses an unscoped search when nothing resolved to a document', async () => {
+  const disclosed: Record<string, string | null> = {};
+  for (const focus of FOCUS_VALUES) {
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: () => Promise.resolve([chunk('a')]),
+    });
+    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: [], focus });
+    assertEquals(
+      f.events.filter((e) => 'widened' in e).length,
+      result.widened ? 1 : 0,
+      `focus "${focus}" must announce exactly what it reports`,
+    );
+    disclosed[focus] = result.widened;
+  }
+  // The two focuses that confine owe the disclosure; the two that range never
+  // promised confinement and must not claim to have broken one.
+  assertEquals(disclosed, { attached: 'unresolved', selection: 'unresolved', desk: null, broad: null });
+});
+
+Deno.test('an unscoped turn that never ran a document search discloses nothing', async () => {
+  const f = fake([
+    [{
+      type: 'tool-call',
+      id: 'rows',
+      name: 'search_desk_rows',
+      args: '{"tier":"national"}',
+    }, finish('tool_calls')],
+    ready(),
+    answer(),
+  ], {
+    searchDeskRows: () => Promise.resolve({ rows: [row()], total: 1, snapshot_at: '2026-09-21' }),
+  });
+  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: [], focus: 'attached' });
+  assertEquals(result.widened, null);
+});
+
+// focus decides whether retrieval may leave the attachments, so a checkpoint
+// carrying one cannot be resumed under another.
+Deno.test('a checkpoint cannot be resumed under a different focus', async () => {
+  const f = fake([ready(), answer()]);
+  await runAgent(f.deps, { ...input, focus: 'attached', conversational: true });
+  await assertRejects(
+    () => runAgent(f.deps, { ...input, focus: 'broad', conversational: true }),
+    Error,
+    'different turn or budget',
+  );
 });
 
 Deno.test('scope fallback cannot exceed the last available search slot', async () => {
@@ -165,11 +243,15 @@ Deno.test('scope fallback cannot exceed the last available search slot', async (
       return Promise.resolve([]);
     },
   });
-  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'] });
+  const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
   assertEquals(searches, 1);
   assertEquals(result.searches, 10);
   assert(f.requests[1].messages.some((m) => m.content?.includes('SEARCH_BUDGET_EXHAUSTED')));
   assertEquals(f.requests[1].tools, undefined);
+  // D2. The budget refused the wider search, so the turn never left the
+  // attachment and must not tell the reader it did.
+  assertEquals(result.widened, null);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
 });
 
 Deno.test('endless searcher executes ten searches and gets a bounded tools-disabled answer attempt', async () => {
@@ -355,23 +437,27 @@ Deno.test('tools requested despite disabled tools are never executed', async () 
   assertEquals(f.requests.length, 1);
 });
 
-Deno.test('a failed scoped search is not repeated as the first scope on handler retry', async () => {
+// D3. A failed scoped search used to spend the turn's one scope: the counter
+// that gated it was incremented before the failure, so the handler's retry went
+// corpus-wide. The scope is a property of the attachment, not of how many
+// searches have already been charged, so the retry is scoped too.
+Deno.test('a failed scoped search still scopes the handler retry', async () => {
   const budget = createAgentBudget();
   const first = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
     budget,
     searchDocuments: () => Promise.reject(new Error('temporary failure')),
   });
-  await runAgent(first.deps, { ...input, scopedDocumentIds: ['doc'] });
+  await runAgent(first.deps, { ...input, scopedDocumentIds: ['doc'], focus: 'attached' });
   const scopes: (string[] | undefined)[] = [];
   const second = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
     budget,
     searchDocuments: (_args, ids) => {
       scopes.push(ids);
-      return Promise.resolve([]);
+      return Promise.resolve(ids ? [] : [chunk('a')]);
     },
   });
-  await runAgent(second.deps, { ...input, scopedDocumentIds: ['doc'] });
-  assertEquals(scopes, [undefined]);
+  await runAgent(second.deps, { ...input, scopedDocumentIds: ['doc'], focus: 'attached' });
+  assertEquals(scopes, [['doc'], undefined]);
 });
 
 Deno.test('the final model slot continues partial JSON without a conflicting answer-now instruction', async () => {
@@ -674,4 +760,30 @@ Deno.test('a cancelled tool still stops the turn and still leaves a valid transc
   const calls = messages.filter((m) => m.role === 'assistant' && m.tool_calls?.length).length;
   const replies = messages.filter((m) => m.role === 'tool').length;
   assertEquals(replies, calls, 'every tool_call kept its reply');
+});
+
+// A focus that promises range must keep it. "Broad context" is labelled "Pins,
+// selection, and desk sample" and its prompt line is "the whole record; use both
+// tools freely"; "Desk sample" is the open module. Confining either to an
+// attachment would make the control mean the opposite of what it says - which is
+// what scoping every search unconditionally did before this guard.
+Deno.test('an attachment narrows the search only under a focus that promised to narrow', async () => {
+  for (const focus of ['attached', 'selection'] as const) {
+    const scopes: (string[] | undefined)[] = [];
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: (_args, ids) => (scopes.push(ids), Promise.resolve([chunk('a')])),
+    });
+    await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus });
+    assertEquals(scopes, [['private-doc']], `${focus} must confine to the attachment`);
+  }
+  for (const focus of ['desk', 'broad'] as const) {
+    const scopes: (string[] | undefined)[] = [];
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: (_args, ids) => (scopes.push(ids), Promise.resolve([chunk('a')])),
+    });
+    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus });
+    assertEquals(scopes, [undefined], `${focus} must range beyond the attachment`);
+    // Nothing was confined, so nothing was widened: there is no promise to walk back.
+    assertEquals(result.widened, null);
+  }
 });

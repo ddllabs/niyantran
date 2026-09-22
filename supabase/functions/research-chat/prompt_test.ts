@@ -1,6 +1,14 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { DESK_GROUNDING_RULES } from '../_shared/deskGroundingRules.ts';
-import { ANSWER_JSON_SCHEMA, BEFORE_YOU_ANSWER, FOCUS_LINES, SYSTEM_PROMPT_STATIC, buildSystemPrompt, buildUserTurn, coverageLine } from './prompt.ts';
+import {
+  ANSWER_JSON_SCHEMA,
+  BEFORE_YOU_ANSWER,
+  buildSystemPrompt,
+  buildUserTurn,
+  coverageLine,
+  FOCUS_LINES,
+  SYSTEM_PROMPT_STATIC,
+} from './prompt.ts';
 
 Deno.test('the static prompt carries the ten sections in order and ends with the checklist', () => {
   const marks = [
@@ -211,8 +219,123 @@ Deno.test('the prompt names the modules that have indexed documents', () => {
 
 Deno.test('coverage is stated only when it is known, and never as an empty claim', () => {
   for (const modules of [undefined, [], ['   '] as string[]]) {
-    const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad', documentModules: modules });
-    assert(!prompt.includes('Indexed source documents exist only'), `rendered a coverage claim from ${JSON.stringify(modules)}`);
+    const prompt = buildSystemPrompt({
+      persona: '',
+      today: '2026-09-22',
+      catalogue: '',
+      focus: 'broad',
+      documentModules: modules,
+    });
+    assert(
+      !prompt.includes('Indexed source documents exist only'),
+      `rendered a coverage claim from ${JSON.stringify(modules)}`,
+    );
   }
   assertEquals(coverageLine([]), '');
+});
+
+// D6 (scoped-retrieval spec). Eight consecutive production turns issued exactly
+// one search_documents call each, 40 chunks each, zero failed steps, against a
+// budget of ten searches. Nothing blocked a second call; the model chose to
+// stop. The attached desk row renders as structured metadata and reads as
+// sufficient, so the prompt has to draw the line the tender agent draws: the
+// record is authoritative for its own fields and is never evidence for what the
+// document says (talk-to-tender/prompt.ts:221-228, run-report/prompts.ts:59-66).
+Deno.test('the record in front of you answers for its own fields without a search', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'attached' });
+  assertStringIncludes(prompt, 'The record in front of you');
+  assertStringIncludes(prompt, 'It is the record for the fields it carries');
+  assertStringIncludes(prompt, 'answered from them directly, without searching');
+});
+
+Deno.test('the record is never evidence for what the document text says', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'attached' });
+  assertStringIncludes(prompt, 'it is never evidence for what a document says');
+  assertStringIncludes(prompt, 'objects and reasons, clauses and sections');
+  assertStringIncludes(prompt, 'Every question about what a document says requires search_documents');
+  // And the loophole the measured turns took: the fields looked close enough.
+  assertStringIncludes(prompt, 'its fields look close enough to answer from');
+});
+
+// "A field that is missing above is unknown, not zero" (talk-to-tender
+// prompt.ts:227). Our rows are sparser than their fact sheet, so silence is the
+// commoner case and the likelier thing to be read as a finding.
+Deno.test('a field the record omits is unknown, not zero and not absent in fact', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'attached' });
+  assertStringIncludes(prompt, 'A field the record does not carry is unknown');
+  assertStringIncludes(prompt, 'It is not zero, and it is not absent from the document');
+  assertStringIncludes(prompt, "reading anything into the record's silence");
+});
+
+Deno.test('a passage that contradicts the record is reported as both, each named', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'attached' });
+  assertStringIncludes(prompt, 'If a retrieved passage contradicts the record, report both');
+  assertStringIncludes(prompt, 'which is the desk record and which is the document text');
+});
+
+// A row attachment reaches the model without a server-issued handle
+// (handler.ts calls buildUserTurn with no verified-handle set), so there is no
+// marker for it to carry. A Selected record does have one, and the desk rules
+// say to cite it - the prompt must not contradict that.
+Deno.test('record fields are attributed in prose, and markers stay on retrieved passages', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'attached' });
+  assertStringIncludes(prompt, 'Attribute it in prose as the desk record rather than with a [n] marker');
+  assertStringIncludes(prompt, 'markers carry retrieved passages');
+  assertStringIncludes(prompt, 'a Selected record is cited by its own handle');
+  assertStringIncludes(prompt, DESK_GROUNDING_RULES);
+});
+
+// The mandatory-search rule said "The sole exception is a greeting". The
+// record-fields carve-out is a second one, and leaving the prompt to contradict
+// itself is worse than naming it - but it must stay at two.
+Deno.test('the mandatory-search rule names the record carve-out and closes the list at two', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
+  assertStringIncludes(prompt, 'Search before you answer');
+  assertStringIncludes(prompt, 'Two exceptions, and no others');
+  assertStringIncludes(prompt, 'greeting or small talk with no question in it');
+  assertStringIncludes(prompt, 'answer in full');
+  assert(!prompt.includes('The sole exception'), 'the old single-exception sentence contradicts the carve-out');
+});
+
+// run-report/prompts.ts:71-73, adapted: the passages choose the next query.
+// Breadth has to come from more, better-aimed searches - top_k stays at 40 -
+// so a weak first search is where the work starts, not where it ends.
+Deno.test('a weak search is the next query, not the end of the turn', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
+  assertStringIncludes(prompt, 'Read the passages a search returns before you choose the next query');
+  assertStringIncludes(prompt, 'it is the first half of the next query');
+  assertStringIncludes(prompt, 'search that phrase next');
+  assertStringIncludes(prompt, 'Do not stop after one weak search unless the answer is clearly there');
+});
+
+// The measured failure mode belongs in the list of things that are wrong - and,
+// like every entry there, stated without naming a question a reader could ask.
+// Quoting a live query as a mistake once taught the model to refuse it.
+Deno.test('stopping on the strength of the record is named as an anti-pattern, generically', () => {
+  const prompt = buildSystemPrompt({ persona: '', today: '2026-09-22', catalogue: '', focus: 'broad' });
+  assertStringIncludes(prompt, 'Stopping after a single search, or after a weak one');
+  const never = prompt.slice(prompt.indexOf('These are wrong once'), prompt.indexOf('Decomposition examples:'));
+  assertStringIncludes(never, 'looks like enough of an answer');
+  assert(
+    !/Finance Bill|Delimitation|Lok Sabha|Appropriation|Bankers/i.test(never),
+    `a real subject is named as a bad query:\n${never}`,
+  );
+});
+
+// Focus is advisory text (spec D4), and on the focus the defect was measured
+// under it read as permission to answer from the attachment. It may keep
+// ordering the work; it may not offer the attachment as an answer about text.
+Deno.test('no focus line offers the attachment as an answer about what a document says', () => {
+  for (const focus of ['attached', 'selection']) {
+    const line = FOCUS_LINES[focus];
+    assert(
+      /for (its|their) own fields/.test(line),
+      `focus "${focus}" no longer bounds the attachment to its fields: ${line}`,
+    );
+    assertStringIncludes(line, 'always for what a document says');
+    assert(
+      !/search the record when (it|they) (does|do) not answer\.$/.test(line),
+      `focus "${focus}" still stops at the attachment: ${line}`,
+    );
+  }
 });

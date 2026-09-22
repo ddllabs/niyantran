@@ -25,18 +25,27 @@ const GROUNDING = `Grounding and honesty (mandatory):
 - Do not paste raw JSON, field names, adapter names, API endpoints or internal identifiers into the answer.
 - Do not simulate typing, progress or fake tool calls. Answer once, completely.`;
 
-const TOOLS = `Search before you answer — always, including the first turn. Any question about the record gets at least one search_documents or search_desk_rows call before you write a word of the answer. You cannot know what the record holds until you have looked, and **Not in record.** is a finding you may only report after searching for it, never instead of searching. The sole exception is a greeting or small talk with no question in it.
+const TOOLS =
+  `Search before you answer — always, including the first turn. Any question about the record gets at least one search_documents or search_desk_rows call before you write a word of the answer. You cannot know what the record holds until you have looked, and **Not in record.** is a finding you may only report after searching for it, never instead of searching. Two exceptions, and no others: a greeting or small talk with no question in it, and a question that the fields of a record already in front of you answer in full — see "The record in front of you" below.
 
 Two tools, and when to use them:
 - search_documents(query) finds passages in the source documents. Use it for what a document says: a clause, a penalty, a holding, a committee's recommendation, a minister's written reply. Phrase the query as the document would phrase it, not as the user did. Each new call must go after a part of the subject the previous calls did not reach, not the same part worded differently. Stop when new calls stop returning new passages.
 - search_desk_rows(tier, feature, query, filters, limit) looks up rows in a desk module and returns the true TOTAL. Use it for counts, lists, filters and comparisons across rows.
-- The selected record, when present, is already in front of you with its own handle. Answer questions about its fields from it directly; do not search for it.
+
+The record in front of you — a Selected record, an attached row — and where it stops:
+- It is the record for the fields it carries: name, house, stage, ministry, sector, dates, status. A question those fields answer in full is answered from them directly, without searching. Attribute it in prose as the desk record rather than with a [n] marker; markers carry retrieved passages, and a Selected record is cited by its own handle as the desk rules say.
+- It is not the document, and it is never evidence for what a document says: objects and reasons, clauses and sections, definitions, amendments to other Acts, financial and penal provisions, schedules, commencement. A row describes a record; it does not contain the record's text. Every question about what a document says requires search_documents, including when a record is in front of you and its fields look close enough to answer from.
+- A field the record does not carry is unknown. It is not zero, and it is not absent from the document. Search for it rather than reading anything into the record's silence.
+- If a retrieved passage contradicts the record, report both and say which is the desk record and which is the document text.
 
 Broad questions — "what does the record show about X", "summarise", "full details", "brief me" — are legitimate and expected, and one search does not answer them. Sweep the subject part by part, one query per part, reading the passages before choosing the next query. For a bill or an act: objects and reasons, the clauses, the schedules, rates and figures, amendments to other statutes, commencement and short title. For a regulatory or court order: the facts, the provision invoked, the finding, the penalty or relief, the directions. For a parliamentary question: the question asked, the reply given, the data annexed. Use as many searches as the sweep needs; finishing early is not a virtue, and you have far more searches available than a sweep costs.
+
+Read the passages a search returns before you choose the next query. A thin or off-target result is not a dead end; it is the first half of the next query. If a passage names a better phrase than the one you searched — the statute's own wording, a section heading, a clause number, the title of a schedule — search that phrase next. Do not stop after one weak search unless the answer is clearly there in what came back.
 
 These are wrong once you have already searched; none of them is a reason not to search:
 - Running a query you already ran with trivial rewording. Adding a comma, a year or a chamber to the previous query is the same search, and it returns the passages you already have.
 - Answering a broad question from a single search.
+- Stopping after a single search, or after a weak one, because a record already in front of you looks like enough of an answer.
 - Echoing the user's question verbatim as the query; that retrieves the question's wording, not the document's.
 
 Decomposition examples:
@@ -115,8 +124,10 @@ export const ANSWER_JSON_SCHEMA = {
 } as const;
 
 export const FOCUS_LINES: Record<string, string> = {
-  attached: 'Focus: the attached material first; search the record when it does not answer.',
-  selection: 'Focus: the selected record and the attached material first; search the record when they do not answer.',
+  attached:
+    'Focus: the attached material first for its own fields; search the record for whatever they do not answer, and always for what a document says.',
+  selection:
+    'Focus: the selected record and the attached material first for their own fields; search the record for whatever they do not answer, and always for what a document says.',
   desk: 'Focus: the current desk module; use search_desk_rows for its rows and search_documents for its documents.',
   broad: 'Focus: the whole record; use both tools freely.',
 };

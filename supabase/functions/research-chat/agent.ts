@@ -13,6 +13,7 @@ import {
   type SearchDeskRowsArgs,
 } from '../_shared/tools/searchDeskRows.ts';
 import { ANSWER_JSON_SCHEMA } from './prompt.ts';
+import type { Focus } from './validate.ts';
 
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
 
@@ -22,12 +23,10 @@ export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as 
 export interface AgentBudget {
   modelAttempts: number;
   searches: number;
-  /** Counted separately so only the first document search of the turn is scoped. */
-  documentSearches: number;
   continuations: number;
 }
 export function createAgentBudget(): AgentBudget {
-  return { modelAttempts: 0, searches: 0, documentSearches: 0, continuations: 0 };
+  return { modelAttempts: 0, searches: 0, continuations: 0 };
 }
 
 export interface DocumentSearchArgs {
@@ -49,6 +48,11 @@ export interface TraceStep {
   latencyMs: number;
   status: 'ok' | 'error';
 }
+/** Why a document search ran across the whole corpus on a turn that asked for
+ * the attached documents. 'empty': the scoped search found nothing and the
+ * fallback widened it. 'unresolved': "Attached only" had no indexed document to
+ * scope to, so the search was never confined in the first place. */
+export type WidenedScope = 'empty' | 'unresolved';
 /** Internal handler events, NOT SSE frames. Never forward internalReasoning.
  * researchText is a private draft, never evidence or public answer content.
  * Only text from the tools-disabled answer phase enters the answer decoder. */
@@ -58,6 +62,7 @@ export type AgentEvent =
   | { attempt: { phase: 'research' | 'answer'; index: number; model: string } }
   | { text: string }
   | { tool: ToolFrame }
+  | { widened: WidenedScope }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
   request: Omit<StreamRequest, 'messages' | 'tools'>;
@@ -84,6 +89,8 @@ export interface AgentResult {
   handles: Record<string, string>;
   modelCalls: number;
   searches: number;
+  /** Set when document evidence came from outside the attached documents. */
+  widened: WidenedScope | null;
 }
 
 export interface AgentInput {
@@ -91,6 +98,10 @@ export interface AgentInput {
   window: Message[];
   userTurn: string;
   scopedDocumentIds: string[];
+  /** The reader's retrieval scope, not a hint to the model. 'attached' is the
+   * only value that binds here: it promises the answer stays inside what was
+   * attached, so a search that leaves them has to say so. */
+  focus?: Focus;
   /** Small talk asks nothing, so retrieving nothing is the right outcome and the
    * no-search push-back must not fire. Derived from the same message as
    * userTurn, so it cannot disagree with a resumed checkpoint. */
@@ -120,10 +131,15 @@ export interface AgentCheckpoint {
   answerModel: string | null;
   /** The no-search push-back is spent at most once per turn. */
   pressedToSearch: boolean;
+  /** Announced at most once per turn, and kept across failover so a retry that
+   * does not widen again cannot un-say it. */
+  widened: WidenedScope | null;
 }
 
 function inputKey(a: AgentInput): string {
-  return JSON.stringify([a.system, a.window, a.userTurn, a.scopedDocumentIds]);
+  // focus decides whether a search may leave the attachments, so a resumed
+  // checkpoint must not be handed a different one.
+  return JSON.stringify([a.system, a.window, a.userTurn, a.scopedDocumentIds, a.focus ?? null]);
 }
 export function createAgentCheckpoint(
   a: AgentInput,
@@ -150,6 +166,7 @@ export function createAgentCheckpoint(
     resumeAnswer: false,
     answerModel: null,
     pressedToSearch: false,
+    widened: null,
   };
 }
 
@@ -239,7 +256,6 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     checkAbort();
     if (budget.searches >= BUDGET.maxSearches) return null;
     budget.searches++;
-    if (call.name === 'search_documents') budget.documentSearches++;
     const started = now();
     const name = call.name as TraceStep['name'];
     const trace: TraceStep = {
@@ -278,6 +294,14 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     }
   }
 
+  /** Said once, and only after the wider search has actually run: an announcement
+   * of a search the budget refused would be a second untruth, not a disclosure. */
+  function widenScope(reason: WidenedScope): void {
+    if (state.widened) return;
+    state.widened = reason;
+    deps.onEvent({ widened: reason });
+  }
+
   async function execute(call: ToolCall): Promise<string> {
     if (call.name !== 'search_documents' && call.name !== 'search_desk_rows') {
       return 'UNKNOWN_TOOL: use search_documents or search_desk_rows.';
@@ -286,9 +310,30 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     const args = parsed && (call.name === 'search_documents' ? documentArguments(parsed) : rowArguments(parsed));
     if (!args) return 'INVALID_TOOL_ARGUMENTS: provide arguments matching the tool schema.';
     if (call.name === 'search_documents') {
-      const scope = budget.documentSearches === 0 && a.scopedDocumentIds.length ? [...a.scopedDocumentIds] : undefined;
+      // An attachment scopes every search of the turn, not just the first.
+      // Gating this on the first one made a refinement corpus-wide while the
+      // reader was still asking about the attached bill, and made leaving the
+      // attachment a consequence of search order rather than a decision.
+      //
+      // Only the two focuses that promise confinement confine. `broad` is
+      // labelled "Broad context" and its prompt line is "the whole record; use
+      // both tools freely"; `desk` is a sample of the open module. Scoping
+      // those to an attachment would make the control mean the opposite of
+      // what it says, so an attachment narrows the search only under
+      // "Attached only" and "Selection + pins".
+      const confines = a.focus === 'attached' || a.focus === 'selection';
+      const scope = confines && a.scopedDocumentIds.length ? [...a.scopedDocumentIds] : undefined;
       let found = await searchAttempt(call, args, scope) as Chunk[] | null;
-      if (found && !found.length && scope) found = await searchAttempt(call, args) as Chunk[] | null;
+      // A focus that confines, over an attachment the corpus has never indexed,
+      // cannot scope to nothing - so it searches everything, which is what the
+      // reported session did on every bill while the focus control said
+      // otherwise. Whichever focus made the promise owes the reader the same
+      // disclosure, so this tracks `confines` rather than naming one value.
+      if (found && !scope && confines) widenScope('unresolved');
+      if (found && !found.length && scope) {
+        found = await searchAttempt(call, args) as Chunk[] | null;
+        if (found) widenScope('empty');
+      }
       if (!found) return EXHAUSTED;
       state.chunks = accumulate(state.chunks, found);
       return found.length
@@ -464,5 +509,6 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     handles: deps.handles.handles(),
     modelCalls: budget.modelAttempts,
     searches: budget.searches,
+    widened: state.widened,
   };
 }

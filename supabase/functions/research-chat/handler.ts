@@ -34,6 +34,7 @@ import {
   rowSourceKey,
   runAgent,
   type TraceStep,
+  type WidenedScope,
 } from './agent.ts';
 import { createAnswerDecoder } from './answerStream.ts';
 import { buildSystemPrompt, buildUserTurn, type RenderedAttachment } from './prompt.ts';
@@ -401,6 +402,20 @@ function unverifiedNote(searches: number): string {
     : '**Unverified.** Nothing was retrieved this turn, so nothing below is backed by the record. Earlier answers in this conversation are not evidence.';
 }
 
+/**
+ * The header on an answer whose evidence came from outside the attached
+ * documents. Same reason as the unverified note: the two ways a turn leaves its
+ * attachments are different facts - the document had no matching passage, or
+ * the corpus holds no document for it at all - and the reader can act on the
+ * difference. Without this the widening is invisible, which is how "Attached
+ * only" returned passages from fifteen other bills.
+ */
+function widenedNote(reason: WidenedScope): string {
+  return reason === 'empty'
+    ? '**Search widened.** The attached documents held no matching passage, so this turn searched the whole record. What is cited below is not confined to what you attached.'
+    : '**Search widened.** The record holds no indexed source document for the attached material, so this turn searched the whole record. What is cited below is not confined to what you attached.';
+}
+
 /** Every terminal frame reflects the row returned by finalization/replay. */
 function sendTerminal(
   sender: Pick<ChatSender, 'send'>,
@@ -622,6 +637,14 @@ async function runTurnBody(
       sender.send({ reasoning: label });
       activity.push({ type: 'activity', text: label });
       context.checkpoint({ activity: [...activity] });
+    } else if ('widened' in e) {
+      // The ticker is where the reader watches the turn work, so it is where
+      // leaving the attachments has to show; the answer header repeats it for
+      // anyone reading the message later.
+      const label = WIDENED_LABEL[e.widened];
+      sender.send({ reasoning: label });
+      activity.push({ type: 'activity', text: label });
+      context.checkpoint({ activity: [...activity] });
     } else if ('tool' in e) {
       const f = e.tool;
       if (f.phase === 'start') {
@@ -678,7 +701,7 @@ async function runTurnBody(
 
   const budget = createAgentBudget();
   let checkpoint: AgentCheckpoint | undefined;
-  const input = { system, window, userTurn, scopedDocumentIds, conversational };
+  const input = { system, window, userTurn, scopedDocumentIds, focus: request.focus, conversational };
   const chain = failoverChain(t.models, t.chosen.model_id);
   let result: AgentResult | null = null;
   let schemaDropped = false;
@@ -839,7 +862,13 @@ async function runTurnBody(
   // Small talk is exempt: it asks nothing, so citing nothing is right.
   const grounded = ladder.sources.length > 0 || evidence.size > 0 ||
     conversational || ladder.answer.trim().length < UNCITED_ANSWER_CHARS;
-  const content = grounded ? ladder.answer : `${unverifiedNote(result.searches)}\n\n${ladder.answer}`;
+  // Both can be true at once - a widened search that also returned nothing -
+  // and they answer different questions, so neither replaces the other.
+  const notes = [
+    ...(grounded ? [] : [unverifiedNote(result.searches)]),
+    ...(result.widened ? [widenedNote(result.widened)] : []),
+  ];
+  const content = notes.length ? `${notes.join('\n\n')}\n\n${ladder.answer}` : ladder.answer;
 
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
   // `searches` is a step count, not a token figure; `attempts` beside it already
@@ -850,8 +879,13 @@ async function runTurnBody(
   // and that count is precisely what established the tool was never called.
   // summary() is null when the turn recorded no model attempt at all; spreading
   // that would turn "nothing happened" into an object of zeroes.
+  // `widened` rides here for the same reason `searches` does, and because
+  // chat_turn_traces has no column for it: the spec expects widening to become
+  // rare once the RPC pre-filters, and "rare" is a claim only a query settles.
+  // Written only when it happened, so an ordinary turn keeps its existing shape.
   const summary = attempts.summary();
-  const usage = summary && { ...summary, searches: result.searches };
+  const usage = summary &&
+    { ...summary, searches: result.searches, ...(result.widened ? { widened: result.widened } : {}) };
   const terminal = makeAssistantMessage({
     content,
     sources: ladder.sources,
@@ -897,6 +931,10 @@ export interface Timing {
 }
 
 const SEARCHING = 'Searching relevant sources.';
+const WIDENED_LABEL: Record<WidenedScope, string> = {
+  empty: 'The attached documents held nothing; searching the whole record.',
+  unresolved: 'No indexed source document for the attached material; searching the whole record.',
+};
 
 function timingOf(
   startedAt: number,

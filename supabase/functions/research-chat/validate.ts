@@ -179,7 +179,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
   };
 }
 
-/** The document keys a turn may scope its first search to: the selection and the row attachments. */
+/** The document keys a turn scopes every document search to: the selection and the row attachments. */
 export function documentKeysOf(r: ResearchRequest): string[] {
   const keys = new Set<string>();
   if (r.selection?.document_key) keys.add(r.selection.document_key);
