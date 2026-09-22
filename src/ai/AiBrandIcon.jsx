@@ -1,15 +1,48 @@
-/** Brand marks for Gemini / DeepSeek model chips. */
+/**
+ * Brand marks for the model chips.
+ *
+ * Two vocabularies reach this component and they do not agree. The legacy
+ * store hard-codes `provider: 'gemini'` (aiModelsStore.js) while the research
+ * path passes `ai_models.vendor`, which is the OpenRouter id prefix - 'google',
+ * 'anthropic', 'openai', 'deepseek'. The switch used to key on the legacy
+ * spelling only, so five of the seven enabled models - every Gemini row and
+ * Claude - fell through to an unlabelled circle. `vendorKey` folds both
+ * vocabularies onto one key before the switch sees it.
+ *
+ * A vendor with no mark gets its initial rather than a blank dot, so a model
+ * added to the allowlist tomorrow is still told apart from its neighbours.
+ */
+
+/** Fold the legacy provider ids and the OpenRouter vendor prefixes onto one key. */
+export function vendorKey(id) {
+  const raw = String(id || '').trim().toLowerCase();
+  if (raw === 'gemini' || raw === 'google') return 'google';
+  if (raw === 'anthropic' || raw === 'claude') return 'anthropic';
+  if (raw === 'openai' || raw === 'gpt' || raw === 'openrouter') return 'openai';
+  return raw;
+}
 
 export function AiBrandIcon({ id, size = 14 }) {
   const s = size;
   const common = { width: s, height: s, viewBox: '0 0 24 24', 'aria-hidden': true };
-  switch (String(id || '').toLowerCase()) {
-    case 'gemini':
+  switch (vendorKey(id)) {
+    case 'google':
+      // The Gemini four-point star: convex arcs pinching to a point on each axis.
       return (
         <svg {...common}>
           <path
             fill="currentColor"
-            d="M12 2.2 13.7 9l6.8.3-5.3 4.3 1.8 6.5L12 16.4 6.9 20.1l1.8-6.5L3.5 9.3 10.3 9 12 2.2z"
+            d="M12 1.8c0 5.6 4.6 10.2 10.2 10.2C16.6 12 12 16.6 12 22.2 12 16.6 7.4 12 1.8 12 7.4 12 12 7.4 12 1.8z"
+          />
+        </svg>
+      );
+    case 'anthropic':
+      // The Claude burst: eight tapering spokes from a common centre.
+      return (
+        <svg {...common}>
+          <path
+            fill="currentColor"
+            d="M12 1.9l1.7 6.2 4.6-4.4-2.6 5.9 6.2-1.7-5.4 3.4 5.4 3.4-6.2-1.7 2.6 5.9-4.6-4.4-1.7 6.2-1.7-6.2-4.6 4.4 2.6-5.9-6.2 1.7 5.4-3.4-5.4-3.4 6.2 1.7-2.6-5.9 4.6 4.4z"
           />
         </svg>
       );
@@ -22,9 +55,7 @@ export function AiBrandIcon({ id, size = 14 }) {
           />
         </svg>
       );
-    case 'openrouter':
     case 'openai':
-    case 'gpt':
       return (
         <svg {...common}>
           <path
@@ -33,11 +64,25 @@ export function AiBrandIcon({ id, size = 14 }) {
           />
         </svg>
       );
-    default:
+    default: {
+      // No mark for this vendor yet. Its initial still tells two rows apart.
+      const initial = (vendorKey(id).match(/[a-z0-9]/)?.[0] || '?').toUpperCase();
       return (
         <svg {...common}>
-          <circle cx="12" cy="12" r="8" fill="currentColor" />
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <text
+            x="12"
+            y="12"
+            fill="currentColor"
+            fontSize="12"
+            fontWeight="600"
+            textAnchor="middle"
+            dominantBaseline="central"
+          >
+            {initial}
+          </text>
         </svg>
       );
+    }
   }
 }
