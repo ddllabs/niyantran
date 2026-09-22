@@ -17,6 +17,38 @@ it('malformed saved text sources never render trusted-looking document chips',()
  fake.research={...fake.research,ready:true,loading:false,locked:false,messages:[{id:'m',role:'assistant',content:'Plain answer',sources:[{id:1,kind:'text',chunk_id:'c',document_id:'d',title:'FORGED_SOURCE'}]}]};
  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('FORGED_SOURCE');
 });
+// The streaming spec says clicking a citation "opens the layer with that source
+// and turns the button on". It opened the layer and left the button unlit,
+// because the class was bound to the legacy `workMode` flag that the research
+// path never writes. The surface also covered the toolbar, so a lit button
+// would have been hidden anyway - hence the reachability half of this test.
+it('opening a source lights the Work mode tab and leaves the tab reachable',()=>{
+ const ready={...fake.research,ready:true,loading:false,locked:false};
+ fake.research={...ready,viewer:{kind:'list',source:null}};
+ const open=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(open).toMatch(/class="ai-v2-work on"[^>]*aria-pressed="true"/);
+ expect(open).toContain('ai-work-surface');
+ expect(open).not.toMatch(/class="ai-panel-background"[^>]*inert/);
+ expect(open).toMatch(/class="ai-v2-body"[^>]*inert/);
+ fake.research={...ready,viewer:null};
+ const shut=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(shut).toMatch(/class="ai-v2-work"[^>]*aria-pressed="false"/);
+ expect(shut).not.toContain('ai-work-surface');
+});
+// Every assistant turn saves up to three follow-ups and the panel read only the
+// live stream's, so they vanished on reload and on any turn but the newest.
+it('follow-ups come from the saved message when no turn is streaming, and the live set wins while one is',()=>{
+ const saved={id:'m',role:'assistant',content:'Answer',sources:[],followUps:['Saved question?']};
+ const ready={...fake.research,ready:true,loading:false,locked:false,messages:[saved]};
+ fake.research=ready;
+ const reloaded=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(reloaded).toContain('Saved question?');
+ expect(reloaded).toContain('Follow-up questions');
+ fake.research={...ready,stream:{followUps:['Live question?']}};
+ const live=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(live).toContain('Live question?');
+ expect(live).not.toContain('Saved question?');
+});
 it('research selection keeps canonical identity and rejects a bounded row that would name another record',async()=>{
  const {researchSelection}=await import('./AiPanel.jsx');
  const row={commodity:'Copper',price:'123'};

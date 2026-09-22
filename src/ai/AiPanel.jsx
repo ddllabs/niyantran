@@ -25,6 +25,7 @@ import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker from './ModelPicker.jsx';
 import SourceList from './SourceList.jsx';
+import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 import { trackProductEvent } from '../lib/productAnalytics.js';
@@ -325,6 +326,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     }
   });
   const viewer = serverThreads ? research.viewer : null;
+  // What the Work mode control is showing as. On the research path the button
+  // is the viewer (streaming spec §G), so its selected state is the viewer's -
+  // `workMode` is the legacy prompt flag and that path never writes it, which
+  // is why clicking a citation used to open the surface with the tab unlit.
+  const workOn = serverThreads ? Boolean(viewer) : workMode;
   const registry = research.registry;
   const modelChoice = research.choice;
   const seedOwner = useRef(null);
@@ -352,6 +358,16 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   }, [providerId]);
 
   const stream = serverThreads ? research.stream : null;
+  // The turn in flight owns the follow-ups while it is on screen; after that
+  // the ones saved with the last assistant message do, the same way the
+  // controller falls back to savedSources. Reading only `stream` meant every
+  // follow-up was lost on reload, on a chat switch, and on any turn but the
+  // newest — the questions were in the database the whole time, unread.
+  const followUps = serverThreads
+    ? stream?.followUps?.length
+      ? stream.followUps
+      : [...messages].reverse().find((m) => m.role === 'assistant' && m.followUps?.length)?.followUps || []
+    : [];
   const streaming = Boolean(stream?.isStreaming);
   const openSource = source => research.actions.openSource(source);
   const closeViewer = () => research.actions.closeViewer();
@@ -720,7 +736,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      <div className="ai-panel-background" inert={serverThreads && viewer ? true : undefined}>
+      {/* The surface is the Work mode tab's pane, not a cover over the panel:
+          only the thread it replaces goes inert, so the tab that closes it and
+          the composer stay reachable. */}
+      <div className="ai-panel-background">
       <header className="ai-v2-head">
         <div className="ai-v2-title">
           <Ico name="sparkles" size={18} />
@@ -921,13 +940,17 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
           <button
             type="button"
-            className={`ai-v2-work${workMode ? ' on' : ''}`}
-            aria-pressed={workMode}
+            className={`ai-v2-work${workOn ? ' on' : ''}`}
+            aria-pressed={workOn}
             title={
               serverThreads
-                ? hi
-                  ? 'Work mode — उत्तर के स्रोत खोलें'
-                  : 'Work mode — open the evidence behind the answer'
+                ? workOn
+                  ? hi
+                    ? 'Work mode — उत्तर पर लौटें'
+                    : 'Work mode — back to the answer'
+                  : hi
+                    ? 'Work mode — उत्तर के स्रोत खोलें'
+                    : 'Work mode — open the evidence behind the answer'
                 : workMode
                   ? hi
                     ? 'Work mode चालू — घने, साक्ष्य-पहले उत्तर'
@@ -952,7 +975,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
       </div>
 
-      <div className="ai-v2-body">
+      <div className="ai-v2-body" inert={serverThreads && viewer ? true : undefined}>
         <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
           <Ico name="doc-plus" size={28} />
           <p>{hi ? 'तालिका से पंक्ति खींचें — या फ़ाइलें यहाँ छोड़ें' : 'Drag a row from the table — or drop files here'}</p>
@@ -1001,16 +1024,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ) : null}
 
-          {serverThreads && !streaming && stream?.followUps?.length ? (
-            <div className="ai-suggest ai-v2-suggest">
-              {stream.followUps.map((q) => (
-                <button key={q} type="button" onClick={() => setDraft(q)}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           {serverThreads && stream?.notice?.kind === 'window' ? (
             <p className="ai-foot">
               {hi
@@ -1027,22 +1040,23 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           ) : null}
         </div>
 
-        {emptyThread && !busy ? (
-          <div className="ai-suggest ai-v2-suggest">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setDraft(s);
-                  box.current?.focus();
-                }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+        {/* Starters on an empty thread, the answer's follow-ups after that.
+            Both sit here, above the composer and outside the scroller, so a
+            follow-up is not something you have to scroll the thread to find. */}
+        {!busy && !streaming ? (
+          <SuggestionPills
+            questions={emptyThread ? suggestions : followUps}
+            disabled={busy}
+            label={
+              emptyThread
+                ? hi ? 'सुझाए गए प्रश्न' : 'Suggested questions'
+                : hi ? 'आगे के प्रश्न' : 'Follow-up questions'
+            }
+            onPick={(q) => {
+              setDraft(q);
+              box.current?.focus();
+            }}
+          />
         ) : null}
       </div>
 
@@ -1173,8 +1187,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div> : null}
         </div>
       </div>
-      </div>
       {serverThreads && viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} /> : null}
+      </div>
     </div>
   );
 }

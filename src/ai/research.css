@@ -19,10 +19,10 @@
 .ai-research-model .ai-v2-model-menu { max-width: calc(100vw - 32px); max-height: min(420px, 65vh); overflow-y: auto; overscroll-behavior: contain; }
 .ai-research-model .ai-v2-model-btn { max-width: 100%; }
 .ai-research-model .ai-v2-model-btn > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A model and its rungs. The disclosure sits over the row.s trailing edge
+/* A model and its rungs. The disclosure sits over the row's trailing edge
    rather than inside it, so the row stays one hit target for "pick this model"
    and the chevron stays a separate one for "show me its levels".
-   `entry`, not `row`: .ai-v2-model-row is already the composer.s picker row in
+   `entry`, not `row`: .ai-v2-model-row is already the composer's picker row in
    index.css, and inheriting its `display: flex` sat the rungs beside their
    model instead of under it. display is set here so that cannot recur. */
 .ai-research-model .ai-v2-model-entry { position: relative; display: block; }
@@ -70,7 +70,7 @@
   .ai-ticker-steps { max-height: 160px; }
 }
 
-/* The research reader covers the bounded panel; its background is inert. */
+/* The reader is the Work mode tab's pane, not a cover over the panel. */
 .ai-panel-background { display: contents; }
 .ai-shell-research { display: block; }
 .ai-shell-research > .ai-panel-background {
@@ -82,6 +82,18 @@
 .ai-shell-research .ai-research-controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ai-shell-research .ai-research-status { font-size: 11px; color: var(--muted); text-transform: capitalize; }
 .ai-shell-research .ai-foot.warn { overflow-wrap: anywhere; }
-/* The reader covers the whole panel, including its z-indexed header, so the
-   two headers cannot collide while the background is inert. */
-.ai-shell-research > .ai-work-surface { z-index: 7; }
+/* The reader takes the thread's grid row rather than the whole panel, so the
+   header, the toolbar holding the Work mode tab, and the composer stay visible
+   and usable while evidence is open. Only the thread it covers goes inert
+   (AiPanel), which is what keeps focus out of what is hidden behind it.
+   The rows are named explicitly because the surface and the thread share row
+   three: sparse auto-placement would otherwise push the thread down a row. */
+.ai-shell-research > .ai-panel-background > .ai-v2-head { grid-row: 1; }
+.ai-shell-research > .ai-panel-background > .ai-v2-chrome { grid-row: 2; }
+.ai-shell-research > .ai-panel-background > .ai-v2-body { grid-row: 3; grid-column: 1; }
+.ai-shell-research > .ai-panel-background > .ai-v2-foot { grid-row: 4; }
+.ai-shell-research > .ai-panel-background > .ai-work-surface {
+  position: relative; inset: auto; grid-row: 3; grid-column: 1; z-index: 7;
+  /* Matches .ai-v2-body's padding so the pane lands where the thread was. */
+  margin: 10px 14px 8px;
+}
