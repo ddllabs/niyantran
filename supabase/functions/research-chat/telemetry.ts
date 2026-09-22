@@ -145,14 +145,23 @@ export function modelCallRow(a: AttemptInput): ModelCallRow {
   };
 }
 
-/** One trace row per tool step, plus a closing row for the answer itself. */
+/**
+ * One trace row per tool step, plus a closing row for the answer itself.
+ *
+ * `model_call_log_id` is left null here and filled at flush, because the id it
+ * wants is the primary key of a row that has not been inserted yet. Only the
+ * answer row gets one: a tool step is a database query and costs no provider
+ * call, and the embedding behind search_documents is recorded but cannot be
+ * tied to its step - the embed happens inside the search, which does not know
+ * the step number. Guessing by call order would link the wrong row after a
+ * retry, and a wrong link is worse than an empty column.
+ */
 export function turnTraceRows(a: {
   userId: string;
   conversationId: string | null;
   messageId: string;
   steps: TraceStep[];
-  callIdByStep?: Map<number, string | null>;
-  answer?: { latencyMs: number; modelCallLogId: string | null; aborted: boolean; error?: string | null };
+  answer?: { latencyMs: number; aborted: boolean; error?: string | null };
 }): TurnTraceRow[] {
   const rows: TurnTraceRow[] = a.steps.map((s) => ({
     user_id: a.userId,
@@ -166,7 +175,7 @@ export function turnTraceRows(a: {
     latency_ms: s.latencyMs,
     chunk_ids: s.chunkIds.length ? s.chunkIds : null,
     row_keys: s.rowKeys.length ? s.rowKeys : null,
-    model_call_log_id: a.callIdByStep?.get(s.step) ?? null,
+    model_call_log_id: null,
     aborted: false,
     error_message: s.status === 'error' ? 'tool step failed' : null,
   }));
@@ -183,7 +192,7 @@ export function turnTraceRows(a: {
       latency_ms: Math.max(0, Math.round(a.answer.latencyMs)),
       chunk_ids: null,
       row_keys: null,
-      model_call_log_id: a.answer.modelCallLogId,
+      model_call_log_id: null,
       aborted: a.answer.aborted,
       error_message: a.answer.error ? String(a.answer.error).slice(0, 500) : null,
     });
@@ -387,8 +396,13 @@ export function createAttemptRecorder(options: {
     if (flushing) return flushing;
     for (const record of records) settle(record, 'aborted');
     flushing = (async () => {
-      await Promise.all([
-        ...records.map(async (record) => {
+      // The provider attempts first, keeping each row's id. chat_turn_traces
+      // links its answer row to the call that wrote the answer, and that id is
+      // the primary key of a row that does not exist until this insert returns
+      // - which is why the column had been null since it was added. The two
+      // writes used to race, so the trace could never have carried it.
+      const ids = await Promise.all(
+        records.map(async (record) => {
           const pricing = record.served && known(record.usage?.cost) === null
             ? await bounded('pricing', () => options.pricing(record.served!), null)
             : null;
@@ -409,11 +423,22 @@ export function createAttemptRecorder(options: {
           });
           const id = await bounded('model_call', () => options.db.logModelCall(row), null);
           if (id === null) log('research_chat.telemetry_failed', { stage: 'model_call', reason: 'not_recorded' });
+          return id;
         }),
-        ...(traces.size
-          ? [bounded('turn_trace', () => options.db.logTurnTraces([...traces.values()]), undefined)]
-          : []),
-      ]);
+      );
+      // The attempt that produced the visible answer: the last one marked
+      // `answer` that succeeded. A turn takes several - failover and schema
+      // retries - and only one of them wrote what the reader is looking at.
+      let answerId: string | null = null;
+      for (let i = records.length - 1; i >= 0 && answerId === null; i--) {
+        if (records[i].answer && records[i].status === 'success') answerId = ids[i];
+      }
+      if (traces.size) {
+        const rows = [...traces.values()].map((row) =>
+          row.step_type === 'answer' && !row.aborted ? { ...row, model_call_log_id: answerId } : row
+        );
+        await bounded('turn_trace', () => options.db.logTurnTraces(rows), undefined);
+      }
     })();
     return flushing;
   }

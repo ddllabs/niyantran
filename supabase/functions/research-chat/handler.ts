@@ -907,7 +907,6 @@ async function runTurnBody(
         steps: result.steps as TraceStep[],
         answer: {
           latencyMs: writingEnd && writingStart ? writingEnd - writingStart : 0,
-          modelCallLogId: null,
           aborted: signal.aborted,
         },
       }),
