@@ -1134,41 +1134,39 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div> : null}
         {err ? <p className="ai-foot warn" role="alert">{err}</p> : null}
         <form className="ai-v2-composer" onSubmit={send}>
-          <button type="button" className="ai-v2-comp-clip" disabled={serverThreads && busy} onClick={() => fileRef.current?.click()} aria-label="Attach">
-            <Ico name="clip" size={16} />
-          </button>
           <textarea
             ref={box}
             rows={2}
             value={draft}
             disabled={busy}
+            aria-label={hi ? 'आपका प्रश्न' : 'Your question'}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // isComposing: Enter while an IME candidate window is open commits
+              // the candidate, it does not end the sentence. Sending there would
+              // post half a word in Hindi, Japanese or Chinese.
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) {
                 e.preventDefault();
                 send();
               }
             }}
             placeholder={hi ? 'अपनी फ़ाइलों के बारे में पूछें…' : 'Ask a question about your files...'}
           />
-          {serverThreads && research.canStop ? (
-            <button
-              type="button"
-              className="ai-v2-send stop"
-              aria-label={hi ? 'रोकें' : 'Stop'}
-              title={hi ? 'रोकें' : 'Stop'}
-              disabled={research.cancelPending || stream?.cancelPending}
-              onClick={() => research.actions.stop()}
-            >
-              ■
-            </button>
-          ) : null}
-          <button className="ai-v2-send" type="submit" disabled={busy || streaming || !draft.trim()} aria-label={hi ? 'भेजें' : 'Send'} hidden={streaming}>
-            <Ico name="send" size={16} />
-          </button>
-        </form>
-
-        <div className="ai-v2-model-row">
+          {/* Under the text and inside the box: choosing a model is part of
+              composing the message, not chrome standing beside it. What and how
+              on the left, do-it on the right. */}
+          <div className="ai-v2-comp-bar">
+            <div className="ai-v2-comp-tools">
+              <button
+                type="button"
+                className="ai-v2-comp-clip"
+                disabled={serverThreads && busy}
+                onClick={() => fileRef.current?.click()}
+                aria-label={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
+                title={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
+              >
+                <Ico name="clip" size={16} />
+              </button>
           {serverThreads ? (
             <div ref={modelRef}>
               <ModelPicker
@@ -1247,7 +1245,27 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               </div>
             ) : null}
           </div> : null}
-        </div>
+            </div>
+
+            <div className="ai-v2-comp-act">
+              {serverThreads && research.canStop ? (
+                <button
+                  type="button"
+                  className="ai-v2-send stop"
+                  aria-label={hi ? 'रोकें' : 'Stop'}
+                  title={hi ? 'रोकें' : 'Stop'}
+                  disabled={research.cancelPending || stream?.cancelPending}
+                  onClick={() => research.actions.stop()}
+                >
+                  ■
+                </button>
+              ) : null}
+              <button className="ai-v2-send" type="submit" disabled={busy || streaming || !draft.trim()} aria-label={hi ? 'भेजें' : 'Send'} hidden={streaming}>
+                <Ico name="send" size={16} />
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
       {serverThreads && viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} /> : null}
       </div>

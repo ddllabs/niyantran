@@ -3047,25 +3047,50 @@ button.live-feed:hover { color: var(--fg); }
   gap: 8px;
   min-width: 0;
 }
+/* The text, then its controls, both inside the one bordered box. The model
+   pill used to sit in a row underneath the box, which read as panel chrome
+   rather than as part of writing the message. */
 .ai-v2-composer {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: end;
-  padding: 8px 8px 8px 10px;
+  gap: 6px;
+  padding: 8px 10px 8px;
   border: 1px solid var(--ai-line);
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   min-width: 0;
 }
+.ai-v2-comp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+/* The left group takes the squeeze and scrolls; the send button never does. */
+.ai-v2-comp-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ai-v2-comp-tools::-webkit-scrollbar { display: none; }
+.ai-v2-comp-tools > * { flex: 0 0 auto; }
+.ai-v2-comp-act {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
 .ai-v2-composer:focus-within {
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 .ai-v2-comp-clip {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border: 0;
   background: transparent;
   color: var(--ai-muted);
@@ -3073,9 +3098,19 @@ button.live-feed:hover { color: var(--fg); }
   display: grid;
   place-items: center;
   cursor: pointer;
-  margin-bottom: 2px;
 }
 .ai-v2-comp-clip:hover { background: #f3f4f6; color: var(--ai-blue); }
+.ai-v2-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 11rem; }
+/* The reasoning rung, quieter than the model name it qualifies. */
+.ai-v2-model-eff {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ai-blue-soft);
+  color: var(--ai-blue);
+  font: 600 10.5px/1.7 var(--font-ui);
+  white-space: nowrap;
+}
 .ai-v2-composer textarea {
   width: 100%;
   border: 0;
@@ -3090,10 +3125,10 @@ button.live-feed:hover { color: var(--fg); }
 }
 .ai-v2-composer textarea::placeholder { color: #9ca3af; }
 .ai-v2-send {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   border: 0;
-  border-radius: 11px;
+  border-radius: 999px;
   background: var(--ai-blue);
   color: #fff;
   display: grid;
@@ -3102,22 +3137,24 @@ button.live-feed:hover { color: var(--fg); }
   flex: 0 0 auto;
 }
 .ai-v2-send:hover { filter: brightness(1.06); }
-.ai-v2-send:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+/* Becoming sendable is worth seeing: the button grows into place rather than
+   just changing colour. */
+.ai-v2-send { transform: scale(1); transition: transform 200ms, opacity 200ms, background 200ms; }
+.ai-v2-send:disabled { opacity: 0.45; cursor: not-allowed; filter: none; transform: scale(0.92); }
+.ai-v2-send.stop { background: #b91c1c; }
 
-.ai-v2-model-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
 .ai-v2-model { position: relative; flex: 0 0 auto; }
 .ai-v2-model-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 34px;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  height: 30px;
   padding: 0 10px;
   border: 1px solid var(--ai-line);
-  border-radius: 10px;
+  /* A pill, like everything else in this row. */
+  border-radius: 999px;
   background: #fff;
   color: #111827;
   font: 650 12.5px var(--font-ui);

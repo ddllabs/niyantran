@@ -109,9 +109,21 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
 
   return (
     <div className="ai-v2-model ai-research-model" onKeyDown={e => { if (open && e.key === 'Escape') { e.stopPropagation(); onToggle?.(); e.currentTarget.querySelector('button')?.focus(); } }}>
-      <button type="button" className={`ai-v2-model-btn${open ? ' open' : ''}`} aria-expanded={open} aria-label="Choose model" onClick={onToggle}>
+      <button
+        type="button"
+        className={`ai-v2-model-btn${open ? ' open' : ''}`}
+        aria-expanded={open}
+        aria-label={picked ? `Model: ${picked.label}, reasoning ${EFFORT_LABELS[chosen] || chosen}. Choose another.` : 'Choose model'}
+        onClick={onToggle}
+      >
         <AiBrandIcon id={picked?.vendor || 'openrouter'} size={16} />
-        <span>{picked?.label || 'Model'}</span>
+        {/* The rung rides on the label, so the setting in force is readable
+            without opening anything. It is a real difference in what the turn
+            will do and cost, and it lived two clicks deep. */}
+        <span className="ai-v2-model-name">{picked?.label || 'Model'}</span>
+        {picked && chosen && chosen !== 'off' ? (
+          <span className="ai-v2-model-eff">{EFFORT_LABELS[chosen] || chosen}</span>
+        ) : null}
         <span className="ai-v2-model-cost" aria-hidden="true">{picked ? costHint(picked) : ''}</span>
       </button>
 

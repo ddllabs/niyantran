@@ -22,9 +22,10 @@
 /* A model and its rungs. The disclosure sits over the row's trailing edge
    rather than inside it, so the row stays one hit target for "pick this model"
    and the chevron stays a separate one for "show me its levels".
-   `entry`, not `row`: .ai-v2-model-row is already the composer's picker row in
-   index.css, and inheriting its `display: flex` sat the rungs beside their
-   model instead of under it. display is set here so that cannot recur. */
+   `entry`, not `row`: .ai-v2-model-row used to be the composer's own picker
+   row, and inheriting its `display: flex` sat the rungs beside their model
+   instead of under it. That row is gone - the pill moved inside the composer -
+   but display stays set here so the same collision cannot recur. */
 .ai-research-model .ai-v2-model-entry { position: relative; display: block; }
 .ai-research-model .ai-v2-model-entry > .ai-v2-model-opt { padding-right: 34px; }
 .ai-research-model .ai-v2-model-disclose {
