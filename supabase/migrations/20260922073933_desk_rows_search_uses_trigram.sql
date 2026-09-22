@@ -1,6 +1,6 @@
--- 0004: let search_desk_rows reach the trigram index 0003 built for it.
+-- 073933: let search_desk_rows reach the trigram index 073820 built for it.
 --
--- 0003 created desk_rows_record_text_trgm and measured the raw predicate at
+-- 073820 created desk_rows_record_text_trgm and measured the raw predicate at
 -- 35 ms (Bitmap Index Scan, 1288 buffers). The function kept taking 560 ms
 -- over 14,701 buffers, because of this line:
 --

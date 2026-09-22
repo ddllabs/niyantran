@@ -1,4 +1,4 @@
--- 0003: a trigram index for search_desk_rows, so the desk-row tool stops
+-- 073820: a trigram index for search_desk_rows, so the desk-row tool stops
 -- losing races against its own 4-second bound.
 --
 -- Measured on the live instance on 2026-09-22, idle, cache warm:
@@ -31,7 +31,7 @@
 -- measured straight after it was applied, the raw predicate takes 35 ms
 -- (Bitmap Index Scan, 1288 buffers) while search_desk_rows itself still takes
 -- 560 ms over 14,701 buffers, because `p_query is null or p_query = '' or ...`
--- forces a plan that has to work when p_query is null. Migration 0004 rewrites
+-- forces a plan that has to work when p_query is null. Migration 073933 rewrites
 -- that predicate; this one only makes the index it will use exist.
 --
 -- What neither migration fixes: a query of one or two characters has no
