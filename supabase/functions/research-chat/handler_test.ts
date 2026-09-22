@@ -1680,12 +1680,31 @@ Deno.test('focus attached with nothing resolved searches unscoped and discloses 
       return Promise.resolve([chunk('c1')]);
     },
   });
-  await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'unresolved' }), deps));
+  const bill = { kind: 'row', title: 'The Delimitation Bill', text: 'row', document_key: 'bill:2026:999' };
+  await frames(
+    await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'unresolved', attachments: [bill] }), deps),
+  );
   assertEquals(scopes, [undefined], 'nothing resolved, so nothing to scope to');
   assertStringIncludes(
     String(rec.messages[0].content),
     '**Search widened.** The record holds no indexed source document for the attached material',
   );
+});
+
+// The reported turn: "Attached only" over a desk module, the bill it asked about
+// selected in the table on the first turn and not on the second. No key was
+// sent, so the corpus was never asked - and the old notice blamed the corpus.
+Deno.test('focus attached with no document named says nothing named one', async () => {
+  const { deps, rec } = fakeDeps(documentTurn(1), { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+  const module = { kind: 'file', title: 'Bill Passage Probability Index', text: 'six sample rows' };
+  const sent = await frames(
+    await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'unkeyed', attachments: [module] }), deps),
+  );
+  const content = String(rec.messages[0].content);
+  assertStringIncludes(content, '**Search widened.** Nothing attached to this turn names a source document');
+  assert(!content.includes('holds no indexed source document'), 'the corpus was never asked, so it is not to blame');
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'unkeyed');
+  assert(sent.some((f) => (f as { reasoning?: string }).reasoning?.startsWith('Nothing attached names')));
 });
 
 Deno.test('a focus that never promised confinement claims no widening', async () => {

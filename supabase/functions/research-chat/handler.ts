@@ -410,10 +410,20 @@ function unverifiedNote(searches: number): string {
  * difference. Without this the widening is invisible, which is how "Attached
  * only" returned passages from fifteen other bills.
  */
+const WIDENED_NOTE: Record<WidenedScope, string> = {
+  empty:
+    '**Search widened.** The attached documents held no matching passage, so this turn searched the whole record. What is cited below is not confined to what you attached.',
+  unresolved:
+    '**Search widened.** The record holds no indexed source document for the attached material, so this turn searched the whole record. What is cited below is not confined to what you attached.',
+  // The reported case: a desk module attached, the bill asked about only
+  // selected in the table, and the selection gone after a reload. Saying the
+  // corpus had no document for it sent the reader looking for a missing bill
+  // that was indexed all along.
+  unkeyed:
+    '**Search widened.** Nothing attached to this turn names a source document - a desk module or an uploaded file does not - so this turn searched the whole record. Drag a bill\'s row into the chat to confine the search to that bill.',
+};
 function widenedNote(reason: WidenedScope): string {
-  return reason === 'empty'
-    ? '**Search widened.** The attached documents held no matching passage, so this turn searched the whole record. What is cited below is not confined to what you attached.'
-    : '**Search widened.** The record holds no indexed source document for the attached material, so this turn searched the whole record. What is cited below is not confined to what you attached.';
+  return WIDENED_NOTE[reason];
 }
 
 /** Every terminal frame reflects the row returned by finalization/replay. */
@@ -612,7 +622,8 @@ async function runTurnBody(
     text: a.text,
   }));
   const userTurn = buildUserTurn(request.message, attachments);
-  const scopedDocumentIds = await deps.db.resolveDocumentIds(documentKeysOf(request));
+  const documentKeys = documentKeysOf(request);
+  const scopedDocumentIds = await deps.db.resolveDocumentIds(documentKeys);
 
   signal.throwIfAborted();
 
@@ -701,7 +712,15 @@ async function runTurnBody(
 
   const budget = createAgentBudget();
   let checkpoint: AgentCheckpoint | undefined;
-  const input = { system, window, userTurn, scopedDocumentIds, focus: request.focus, conversational };
+  const input = {
+    system,
+    window,
+    userTurn,
+    scopedDocumentIds,
+    focus: request.focus,
+    conversational,
+    documentKeysSent: documentKeys.length > 0,
+  };
   const chain = failoverChain(t.models, t.chosen.model_id);
   let result: AgentResult | null = null;
   let schemaDropped = false;
@@ -933,6 +952,7 @@ const SEARCHING = 'Searching relevant sources.';
 const WIDENED_LABEL: Record<WidenedScope, string> = {
   empty: 'The attached documents held nothing; searching the whole record.',
   unresolved: 'No indexed source document for the attached material; searching the whole record.',
+  unkeyed: 'Nothing attached names a source document; searching the whole record.',
 };
 
 function timingOf(

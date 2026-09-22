@@ -207,6 +207,23 @@ Deno.test('a focus that confines discloses an unscoped search when nothing resol
   assertEquals(disclosed, { attached: 'unresolved', selection: 'unresolved', desk: null, broad: null });
 });
 
+// A turn that named no document at all - a desk module attached, the bill only
+// selected in the table and the selection lost to a reload - is not a turn whose
+// bill is missing from the corpus. Telling the reader it was sent them looking
+// for a gap in an index that held the bill all along.
+Deno.test('an unscoped search says whether a document was named or nothing was', async () => {
+  const disclosed: Record<string, string | null> = {};
+  for (const [label, documentKeysSent] of [['named', true], ['nothing', false]] as const) {
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: () => Promise.resolve([chunk('a')]),
+    });
+    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: [], focus: 'attached', documentKeysSent });
+    assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: result.widened! }]);
+    disclosed[label] = result.widened;
+  }
+  assertEquals(disclosed, { named: 'unresolved', nothing: 'unkeyed' });
+});
+
 Deno.test('an unscoped turn that never ran a document search discloses nothing', async () => {
   const f = fake([
     [{

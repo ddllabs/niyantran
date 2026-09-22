@@ -59,8 +59,11 @@ export interface TraceStep {
 /** Why a document search ran across the whole corpus on a turn that asked for
  * the attached documents. 'empty': the scoped search found nothing and the
  * fallback widened it. 'unresolved': "Attached only" had no indexed document to
- * scope to, so the search was never confined in the first place. */
-export type WidenedScope = 'empty' | 'unresolved';
+ * scope to, so the search was never confined in the first place. 'unkeyed': the
+ * same, but because nothing the turn carried named a document at all - a desk
+ * module, an uploaded file - which the reader fixes differently: the bill is not
+ * missing from the corpus, it was never attached. */
+export type WidenedScope = 'empty' | 'unresolved' | 'unkeyed';
 /** Internal handler events, NOT SSE frames. Never forward internalReasoning.
  * researchText is a private draft, never evidence or public answer content.
  * Only text from the tools-disabled answer phase enters the answer decoder. */
@@ -114,6 +117,11 @@ export interface AgentInput {
    * no-search push-back must not fire. Derived from the same message as
    * userTurn, so it cannot disagree with a resumed checkpoint. */
   conversational?: boolean;
+  /** Whether the turn named any document - a bill row's key, the selection's.
+   * An unscoped search owes one of two different disclosures: the named bill
+   * has no indexed text ('unresolved'), or nothing attached named a bill at all
+   * ('unkeyed'). Omitted reads as named. */
+  documentKeysSent?: boolean;
 }
 
 /** In-process checkpoint, not a database persistence format. All successful
@@ -145,9 +153,17 @@ export interface AgentCheckpoint {
 }
 
 function inputKey(a: AgentInput): string {
-  // focus decides whether a search may leave the attachments, so a resumed
-  // checkpoint must not be handed a different one.
-  return JSON.stringify([a.system, a.window, a.userTurn, a.scopedDocumentIds, a.focus ?? null]);
+  // focus decides whether a search may leave the attachments, and
+  // documentKeysSent what leaving them discloses, so a resumed checkpoint must
+  // not be handed different ones.
+  return JSON.stringify([
+    a.system,
+    a.window,
+    a.userTurn,
+    a.scopedDocumentIds,
+    a.focus ?? null,
+    a.documentKeysSent ?? true,
+  ]);
 }
 export function createAgentCheckpoint(
   a: AgentInput,
@@ -341,7 +357,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       // reported session did on every bill while the focus control said
       // otherwise. Whichever focus made the promise owes the reader the same
       // disclosure, so this tracks `confines` rather than naming one value.
-      if (found && !scope && confines) widenScope('unresolved');
+      if (found && !scope && confines) widenScope(a.documentKeysSent === false ? 'unkeyed' : 'unresolved');
       if (found && !found.length && scope) {
         found = await searchAttempt(call, args) as Chunk[] | null;
         if (found) widenScope('empty');
