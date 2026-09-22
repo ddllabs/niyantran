@@ -3419,11 +3419,26 @@ button.live-feed:hover { color: var(--fg); }
 .ai-msg-sys { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
 .ai-msg.err { background: var(--crit); }
 .ai-md { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
-.ai-md h3, .ai-md h4, .ai-md h5 { margin: 4px 0 0; font-size: 13px; letter-spacing: 0.02em; color: var(--fg); }
+.ai-md h3, .ai-md h4, .ai-md h5, .ai-md h6 { margin: 4px 0 0; font-size: 13px; letter-spacing: 0.02em; color: var(--fg); }
 .ai-md h3 { font-size: 15px; }
+.ai-md h6 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .ai-md p { margin: 0; }
 .ai-md ul, .ai-md ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .ai-md li { margin: 0; }
+/* A nested list sits under its item's text, a little tighter than the list it
+   belongs to. */
+.ai-md li > ul, .ai-md li > ol { margin-top: 4px; gap: 2px; }
+/* Tables scroll inside the answer rather than widening the panel: a fact card
+   is two columns, but a comparison can be five, and the dock is narrow. */
+.ai-md-table { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ai-md-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.45; }
+.ai-md-table th, .ai-md-table td { padding: 6px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: normal; }
+.ai-md-table tr:last-child td { border-bottom: 0; }
+.ai-md-table th { background: var(--bg); font-weight: 650; white-space: nowrap; }
+/* The first column of a slot table is the label; keep it from wrapping into a
+   column one word wide. */
+.ai-md-table td:first-child { font-weight: 600; min-width: 7rem; }
+.ai-md blockquote { margin: 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--line); color: var(--muted); }
 .ai-md strong { font-weight: 700; }
 .ai-md em { font-style: italic; }
 .ai-md code { font: 600 12px var(--font-mono); background: var(--bg); padding: 0 4px; border-radius: 4px; }
