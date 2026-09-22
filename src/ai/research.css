@@ -41,7 +41,7 @@
 .ai-research-model .ai-v2-role, .ai-research-model .ai-v2-effort { padding: 6px 8px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; background: var(--panel, white); color: var(--text, #3d3a36); font: inherit; font-size: 12px; cursor: pointer; }
 .ai-research-model .ai-v2-role.on, .ai-research-model .ai-v2-effort.on { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); border-color: var(--accent, #012ea1); }
 .ai-research-model button:disabled { opacity: .5; cursor: not-allowed; }
-.ai-research-model .ai-v2-model-cost { white-space: nowrap; letter-spacing: 2px; }
+.ai-research-model .ai-v2-model-cost { white-space: nowrap; letter-spacing: 2px; flex: 0 60 auto; min-width: 0; overflow: hidden; }
 .ai-work-surface { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; min-height: 0; background: var(--panel, white); overflow: hidden; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; }
 .ai-work-bar { display: flex; align-items: center; flex-shrink: 0; gap: 12px; padding: 12px; border-bottom: 1px solid var(--line, #e4ddd4); }
 .ai-work-back { flex: none; border: 0; background: transparent; color: var(--accent, #012ea1); font: inherit; cursor: pointer; padding: 6px 4px; }

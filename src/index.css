@@ -3067,17 +3067,21 @@ button.live-feed:hover { color: var(--fg); }
   gap: 8px;
   min-width: 0;
 }
-/* The left group takes the squeeze and scrolls; the send button never does. */
+/* The left group takes the squeeze; the send button never does.
+   It must NOT scroll. The model menu is absolutely positioned above this row
+   and lies entirely outside its box, so any overflow other than `visible`
+   clips it away - and `overflow-x: auto` alone is enough, because CSS computes
+   the other axis to `auto` as soon as one axis is not visible. The menu still
+   opened, hit-testing just found the panel behind it. The row narrows by
+   letting the pill shrink into its own ellipsis instead. */
 .ai-v2-comp-tools {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.ai-v2-comp-tools::-webkit-scrollbar { display: none; }
-.ai-v2-comp-tools > * { flex: 0 0 auto; }
+.ai-v2-comp-tools > .ai-v2-comp-clip { flex: 0 0 auto; }
+.ai-v2-comp-tools > .ai-v2-model { flex: 0 1 auto; min-width: 0; }
 .ai-v2-comp-act {
   display: flex;
   align-items: center;
@@ -3100,10 +3104,17 @@ button.live-feed:hover { color: var(--fg); }
   cursor: pointer;
 }
 .ai-v2-comp-clip:hover { background: #f3f4f6; color: var(--ai-blue); }
-.ai-v2-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 11rem; }
-/* The reasoning rung, quieter than the model name it qualifies. */
+/* The model name yields last. Without a floor it was the only shrinkable
+   item in the pill, so a narrow panel collapsed it to nothing and left the
+   rung and the cost dots labelling a model you could no longer see. */
+.ai-v2-model-name { flex: 1 1 auto; min-width: 3rem; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The reasoning rung, quieter than the model name it qualifies. Squeeze
+   order in a narrow dock is dots, then rung, then name: which model is
+   running outranks how hard it is thinking, and both outrank the price hint. */
 .ai-v2-model-eff {
-  flex: 0 0 auto;
+  flex: 0 20 auto;
+  min-width: 0;
+  overflow: hidden;
   padding: 0 6px;
   border-radius: 999px;
   background: var(--ai-blue-soft);
@@ -3143,7 +3154,7 @@ button.live-feed:hover { color: var(--fg); }
 .ai-v2-send:disabled { opacity: 0.45; cursor: not-allowed; filter: none; transform: scale(0.92); }
 .ai-v2-send.stop { background: #b91c1c; }
 
-.ai-v2-model { position: relative; flex: 0 0 auto; }
+.ai-v2-model { position: relative; }
 .ai-v2-model-btn {
   display: inline-flex;
   align-items: center;
@@ -3155,6 +3166,8 @@ button.live-feed:hover { color: var(--fg); }
   border: 1px solid var(--ai-line);
   /* A pill, like everything else in this row. */
   border-radius: 999px;
+  /* Nothing escapes the pill onto the send button. */
+  overflow: hidden;
   background: #fff;
   color: #111827;
   font: 650 12.5px var(--font-ui);
