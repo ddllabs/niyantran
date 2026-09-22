@@ -315,6 +315,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const [focusOpen, setFocusOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // The chat whose delete is waiting to be confirmed, '' for none. Deleting a
+  // conversation removes its messages with it (chat_messages cascades on the
+  // conversation) and cannot be undone, so it does not happen on one click.
+  const [pendingDelete, setPendingDelete] = useState('');
   const [focus, setFocus] = useState(() => {
     try {
       return localStorage.getItem(FOCUS_KEY) || 'attached';
@@ -401,6 +405,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [modelOpen, focusOpen, historyOpen]);
+
+  // Closing the list abandons a pending delete: reopening it should not still
+  // be holding a loaded question from last time.
+  useEffect(() => { if (!historyOpen) setPendingDelete(''); }, [historyOpen]);
 
   useEffect(() => {
     try {
@@ -820,6 +828,34 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                               minute: '2-digit',
                             })
                           : '';
+                        if (c.id === pendingDelete) {
+                          return (
+                            <li key={c.id} className="ai-v2-history-confirm">
+                              <p>
+                                {hi
+                                  ? `“${c.title || 'नया अनुसंधान'}” और इसके ${n} संदेश हमेशा के लिए हटाएँ?`
+                                  : `Delete “${c.title || 'New research'}” and its ${n} ${n === 1 ? 'message' : 'messages'}? This cannot be undone.`}
+                              </p>
+                              <div>
+                                <button
+                                  type="button"
+                                  className="danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (serverThreads) research.actions.deleteChat(c.id);
+                                    else { deleteAiChat(c.id); ensureAiChat(); }
+                                    setPendingDelete('');
+                                  }}
+                                >
+                                  {hi ? 'हटाएँ' : 'Delete'}
+                                </button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setPendingDelete(''); }}>
+                                  {hi ? 'रहने दें' : 'Cancel'}
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        }
                         return (
                           <li key={c.id} className={c.id === chat?.id ? 'on' : ''}>
                             <button
@@ -844,8 +880,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                                 title={hi ? 'हटाएँ' : 'Delete'}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (serverThreads) research.actions.deleteChat(c.id);
-                                  else { deleteAiChat(c.id); ensureAiChat(); }
+                                  setPendingDelete(c.id);
                                 }}
                               >
                                 ×

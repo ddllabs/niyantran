@@ -2740,6 +2740,37 @@ button.live-feed:hover { color: var(--fg); }
   background: #fee2e2;
   color: #b91c1c;
 }
+/* The delete confirmation takes over its own row rather than opening a dialog:
+   it names the chat it would remove, and it cannot be answered by the click
+   that opened it. */
+.ai-v2-history-list > li.ai-v2-history-confirm {
+  display: grid;
+  /* One column: the list's own li rule is two, for the item and its ×. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+}
+.ai-v2-history-confirm p {
+  margin: 0;
+  color: #7f1d1d;
+  font: 500 12px/1.45 var(--font-ui);
+}
+.ai-v2-history-confirm div { display: flex; gap: 8px; }
+.ai-v2-history-confirm button {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid var(--ai-line);
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.ai-v2-history-confirm button.danger { border-color: #b91c1c; background: #b91c1c; color: #fff; }
+.ai-v2-history-confirm button.danger:hover { background: #991b1b; }
 .ai-v2-history-empty {
   padding: 16px 12px;
   text-align: center;
