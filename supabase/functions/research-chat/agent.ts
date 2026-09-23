@@ -81,7 +81,7 @@ export type AgentEvent =
   | { widened: WidenedScope }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
-  request: Omit<StreamRequest, 'messages' | 'tools'>;
+  request: Omit<StreamRequest, 'messages' | 'tools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
   searchDocuments(args: DocumentSearchArgs, documentIds?: string[]): Promise<Chunk[]>;
   searchDeskRows(args: SearchDeskRowsArgs): Promise<DeskRowsResult>;
@@ -492,7 +492,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       cache: true,
       ...deps.request,
       messages: structuredClone(messages),
-      ...(phase === 'research' ? { tools: [SEARCH_DOCUMENTS_TOOL, SEARCH_DESK_ROWS_TOOL] } : {}),
+      // The answer phase is offered the same tools but may call none: an
+      // unchanged tool list keeps the prompt cache the research calls wrote.
+      tools: [SEARCH_DOCUMENTS_TOOL, SEARCH_DESK_ROWS_TOOL],
+      ...(phase === 'answer' ? { tool_choice: 'none' as const } : {}),
     };
     try {
       for await (const event of deps.model(request)) {

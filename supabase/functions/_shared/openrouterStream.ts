@@ -38,10 +38,14 @@ export interface StreamRequest {
   model: string;
   messages: Message[];
   tools?: unknown[];
+  /** 'none' offers the tools for prompt identity only; they cannot be called.
+   * Only an Anthropic body keeps them - see buildRequestBody. */
+  tool_choice?: 'none';
   response_format?: unknown;
   reasoning?: { effort: string };
   max_tokens?: number;
-  /** Add Anthropic-style cache breakpoints when the system prompt is long enough. */
+  /** Add Anthropic-style cache breakpoints when the system prompt is long enough,
+   * and on Anthropic cache the moving tail too. */
   cache?: boolean;
   signal?: AbortSignal;
   onAttemptMetadata?: (metadata: AttemptMetadata) => void;
@@ -75,10 +79,14 @@ export class ProviderError extends Error {
 
 type Part = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
 
-function withCacheBreakpoints(messages: Message[]): unknown[] {
+function cacheable(messages: Message[]): boolean {
   const system = messages.find((m) => m.role === 'system');
-  const systemLength = typeof system?.content === 'string' ? system.content.length : 0;
-  if (systemLength < MIN_CACHEABLE_PREFIX_CHARS) return messages;
+  return typeof system?.content === 'string' && system.content.length >= MIN_CACHEABLE_PREFIX_CHARS;
+}
+
+function withCacheBreakpoints(messages: Message[]): unknown[] {
+  if (!cacheable(messages)) return messages;
+  const system = messages.find((m) => m.role === 'system');
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   return messages.map((m) => {
     if ((m === system || m === lastUser) && typeof m.content === 'string') {
@@ -90,16 +98,27 @@ function withCacheBreakpoints(messages: Message[]): unknown[] {
 }
 
 export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
+  // Anthropic caches a prefix rendered tools, then system, then messages, so a
+  // call that drops the tools matches nothing cached before it. Other providers
+  // need no such identity, and a tool_choice they do not support would narrow
+  // require_parameters routing, so their tools-disabled body stays tools-free.
+  const anthropic = req.model.startsWith('anthropic/');
   const body: Record<string, unknown> = {
     model: req.model,
     messages: req.cache ? withCacheBreakpoints(req.messages) : req.messages,
     stream: true,
     usage: { include: true },
   };
-  if (req.tools?.length) {
+  if (req.tools?.length && (req.tool_choice !== 'none' || anthropic)) {
     body.tools = req.tools;
-    body.tool_choice = 'auto';
+    body.tool_choice = req.tool_choice ?? 'auto';
   }
+  // The explicit breakpoints stop at the question. Top-level cache_control is
+  // Anthropic's automatic breakpoint on the last block, so each research call
+  // reads the search results the previous one wrote instead of paying for them
+  // again. It is not sent elsewhere: Gemini honours only its last breakpoint,
+  // as a billed explicit cache.
+  if (req.cache && anthropic && cacheable(req.messages)) body.cache_control = { type: 'ephemeral' };
   if (req.response_format) {
     body.response_format = req.response_format;
     body.provider = { require_parameters: true };

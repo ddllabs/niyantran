@@ -43,7 +43,10 @@ function scripted(attempts: (ModelEvent[] | Error)[]) {
   return { stream, seen };
 }
 
-/** Tools are only offered during research, so their presence names the phase. */
+/** Research may call the tools it is offered; the answer phase is offered them
+ * with tool_choice 'none', which names the phase. */
+const researching = (req: StreamRequest) => !!req.tools?.length && req.tool_choice !== 'none';
+
 function byPhase(
   research: (req: StreamRequest) => AsyncGenerator<ModelEvent>,
   answer: (req: StreamRequest) => AsyncGenerator<ModelEvent>,
@@ -51,7 +54,7 @@ function byPhase(
   const seen: StreamRequest[] = [];
   async function* stream(req: StreamRequest): AsyncGenerator<ModelEvent> {
     seen.push(req);
-    yield* (req.tools?.length ? research : answer)(req);
+    yield* (researching(req) ? research : answer)(req);
   }
   return { stream, seen };
 }
@@ -344,7 +347,9 @@ Deno.test('a retrieved passage becomes a numbered citation the answer can carry'
   const toolFrames = got.filter((f) => 'tool' in f);
   assertEquals(toolFrames.length, 2, 'one start and one end');
   assert(rec.traces.some((t) => t.step_type === 'search_documents' && t.result_count === 1));
-  assert(rec.traces.some((t) => t.step_type === 'answer'));
+  // The answer phase is offered the tools with tool_choice 'none'; it is still
+  // the call the answer trace names.
+  assertEquals(rec.traces.find((t) => t.step_type === 'answer')?.model_call_log_id, 'call-3');
 });
 
 Deno.test('a research reply that is already the grounded answer is shown and accounted as the answer, with no second call', async () => {
@@ -405,7 +410,7 @@ Deno.test('a failure after answer text has reached the reader never swaps model'
   assertEquals(rec.messages.length, 1);
   assertEquals(rec.messages[0].status, 'error');
   assertEquals(
-    provider.seen.filter((r) => !r.tools?.length).map((r) => r.model),
+    provider.seen.filter((r) => !researching(r)).map((r) => r.model),
     ['google/gemini-3.5-flash-lite'],
     'only ever one answering model',
   );
@@ -876,7 +881,7 @@ Deno.test('D4: cancellation remains observed through repair and does not replace
       await new Promise((resolve) => setTimeout(resolve, 35));
       yield text(answer + ' [1]');
       yield finish();
-    } else if (req.tools?.length) {
+    } else if (researching(req)) {
       if (researchCalls++ === 0) {
         yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
         yield finish('tool_calls');
@@ -1038,7 +1043,7 @@ Deno.test('D5: failed schema and failover attempts retain observed metadata and 
         attempt === 1 ? 'response_format PRIVATE PROMPT' : 'PRIVATE PROVIDER BODY',
       );
     }
-    if (!req.tools?.length) yield text(envelope('Final answer'));
+    if (!researching(req)) yield text(envelope('Final answer'));
     yield finish();
   };
   const { deps, rec } = fakeDeps({ stream });
@@ -1075,7 +1080,7 @@ Deno.test('D5: repair cannot become a thirteenth provider attempt after schema r
       repairs++;
       yield text(answer + '[1]');
       yield finish();
-    } else if (req.tools?.length) {
+    } else if (researching(req)) {
       yield { type: 'tool-call', id: `c${calls}`, name: 'search_documents', args: '{"query":"committee"}' };
       yield finish('tool_calls');
     } else {
@@ -1139,7 +1144,7 @@ Deno.test('D5: accepted repair emits the exact saved patch and rejected/thrown r
           generationId: 'repair-gen',
           usage: { prompt_tokens: 20, completion_tokens: 4, total_tokens: 24, cost: 0.002 },
         };
-      } else if (req.tools?.length) {
+      } else if (researching(req)) {
         if (researchCalls++ === 0) {
           yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
           yield finish('tool_calls');
@@ -1258,7 +1263,7 @@ Deno.test('D5: hung pricing, model logging and traces cannot delay durable final
 Deno.test('D5: completed searches remain traced when the later provider fails', async () => {
   let research = 0;
   const stream: HandlerDeps['stream'] = async function* (req) {
-    if (req.tools?.length) {
+    if (researching(req)) {
       if (research++ === 0) {
         yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
         yield finish('tool_calls');
@@ -1477,7 +1482,7 @@ Deno.test('a turn records how many searches it ran, and a turn that ran none rec
   for (const searches of [1, 0]) {
     let research = 0;
     const stream: HandlerDeps['stream'] = async function* (req) {
-      if (req.tools?.length) {
+      if (researching(req)) {
         if (research++ === 0 && searches) {
           yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
           yield finish('tool_calls');
@@ -1531,7 +1536,7 @@ Deno.test('an omitted reasoning field means the default; "off" asked for by name
 Deno.test('a coverage lookup that fails costs the line, not the turn', async () => {
   const seen: string[] = [];
   const stream: HandlerDeps['stream'] = async function* (req) {
-    if (req.tools?.length) {
+    if (researching(req)) {
       seen.push(String(req.messages[0].content));
       yield finish();
       return;
@@ -1550,7 +1555,7 @@ Deno.test('a coverage lookup that fails costs the line, not the turn', async () 
 Deno.test('the modules that have documents reach the system prompt', async () => {
   const seen: string[] = [];
   const stream: HandlerDeps['stream'] = async function* (req) {
-    if (req.tools?.length) {
+    if (researching(req)) {
       seen.push(String(req.messages[0].content));
       yield finish();
       return;
@@ -1586,7 +1591,7 @@ Deno.test('a substantial answer with nothing retrieved is labelled unverified', 
 Deno.test('a turn that searched and found nothing says that instead', async () => {
   let research = 0;
   const stream: HandlerDeps['stream'] = async function* (req) {
-    if (req.tools?.length) {
+    if (researching(req)) {
       if (research++ === 0) {
         yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
         yield finish('tool_calls');
@@ -1616,7 +1621,7 @@ Deno.test('the label is withheld where it would be wrong: small talk, short answ
   // at run time, so the answer cites whatever the tool result was actually given.
   let research = 0;
   const stream: HandlerDeps['stream'] = async function* (req) {
-    if (req.tools?.length) {
+    if (researching(req)) {
       if (research++ === 0) {
         yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee"}' };
         yield finish('tool_calls');
@@ -1641,7 +1646,7 @@ function documentTurn(calls: number, answer = envelope(LONG)): { stream: Handler
   let fired = 0;
   return {
     stream: async function* (req) {
-      if (!req.tools?.length) {
+      if (!researching(req)) {
         yield text(answer);
         yield finish();
         return;

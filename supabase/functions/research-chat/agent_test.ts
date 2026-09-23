@@ -268,7 +268,7 @@ Deno.test('scope fallback cannot exceed the last available search slot', async (
   assertEquals(searches, 1);
   assertEquals(result.searches, 10);
   assert(f.requests[1].messages.some((m) => m.content?.includes('SEARCH_BUDGET_EXHAUSTED')));
-  assertEquals(f.requests[1].tools, undefined);
+  assertEquals(f.requests[1].tool_choice, 'none');
   // D2. The budget refused the wider search, so the turn never left the
   // attachment and must not tell the reader it did.
   assertEquals(result.widened, null);
@@ -284,7 +284,7 @@ Deno.test('endless searcher executes ten searches and gets a bounded tools-disab
     },
     model: async function* (req) {
       f.requests.push(req);
-      if (!req.tools?.length) yield* answer('budget answer');
+      if (req.tool_choice === 'none') yield* answer('budget answer');
       else {
         yield docCall();
         yield finish('tool_calls');
@@ -295,7 +295,7 @@ Deno.test('endless searcher executes ten searches and gets a bounded tools-disab
   assertEquals(searches, 10);
   assertEquals(result.text, 'budget answer');
   assert(result.modelCalls <= 12);
-  assertEquals(f.requests.at(-1)!.tools, undefined);
+  assertEquals(f.requests.at(-1)!.tool_choice, 'none');
 });
 
 Deno.test('parallel tool batch also obeys search cap and returns a reply for every call ID', async () => {
@@ -354,7 +354,7 @@ Deno.test('repeated invalid tools still stop within twelve model calls, reservin
   const f = fake([], {
     model: async function* (req) {
       f.requests.push(req);
-      if (!req.tools?.length) yield* answer('bounded answer');
+      if (req.tool_choice === 'none') yield* answer('bounded answer');
       else {
         yield { type: 'tool-call', id: 'bad', name: 'unknown', args: '{}' };
         yield finish('tool_calls');
@@ -383,7 +383,7 @@ Deno.test('shared attempt and continuation budgets survive failed attempts and h
   const result = await runAgent(second.deps, input);
   assertEquals(result.modelCalls, 12);
   assertEquals(result.continuations, 2);
-  assertEquals(second.requests[0].tools, undefined);
+  assertEquals(second.requests[0].tool_choice, 'none');
   const third = fake([answer()], { budget });
   await runAgent(third.deps, input);
   assertEquals(third.requests.length, 0);
@@ -494,7 +494,7 @@ Deno.test('the final model slot continues partial JSON without a conflicting ans
   ], { budget });
   const result = await runAgent(f.deps, input);
   assertEquals(JSON.parse(result.text).answer, 'partial rest');
-  assertEquals(f.requests[3].tools, undefined);
+  assertEquals(f.requests[3].tool_choice, 'none');
   assert(f.requests[3].messages.at(-1)!.content!.startsWith('Continue exactly where you stopped'));
 });
 
@@ -521,11 +521,11 @@ Deno.test('research drafts cannot enter final JSON or close the decoder; answer 
         yield docCall();
         yield finish('tool_calls');
       } else if (calls === 2) {
-        assert(req.tools?.length);
+        assertEquals(req.tool_choice, undefined, 'a research call');
         yield { type: 'text', text: premature };
         yield finish();
       } else {
-        assertEquals(req.tools, undefined);
+        assertEquals(req.tool_choice, 'none');
         assert(req.messages.some((m) => m.role === 'tool' && m.content?.includes('Evidence a')));
         yield { type: 'text', text: '{"answer":"Grounded ' };
         assertEquals(visible, 'Grounded ', 'answer must stream while the provider is still generating');
@@ -572,7 +572,7 @@ Deno.test('checkpoint carries paid evidence, transcript, traces and usage into t
   assertEquals(result.steps.length, 1);
   assertEquals(result.usage.length, 2);
   assertEquals(result.handles, { 'ref:abc123-1': 'a' });
-  assertEquals(retry.requests[0].tools, undefined);
+  assertEquals(retry.requests[0].tool_choice, 'none');
   assert(retry.requests[0].messages.some((m) => m.role === 'tool' && m.content?.includes('Evidence a')));
   const before = retry.requests.length;
   await runAgent(retry.deps, input);
@@ -625,7 +625,7 @@ Deno.test('partial answer failure resumes the same model and JSON with a charged
         yield finish();
         return;
       }
-      assertEquals(req.tools, undefined);
+      assertEquals(req.tool_choice, 'none');
       yield { type: 'text', text: '{"answer":"partial' };
       throw new Error('transport failed');
     },
@@ -652,7 +652,7 @@ Deno.test('partial answer failure resumes the same model and JSON with a charged
 Deno.test('a retry of a failed continuation consumes continuation budget even when it emitted no new text', async () => {
   const f = fake([ready(), [{ type: 'text', text: 'partial' }, finish('length')]], {
     model: async function* (req) {
-      if (req.tools?.length) {
+      if (req.tool_choice !== 'none') {
         yield finish();
         return;
       }
@@ -680,12 +680,15 @@ Deno.test('a retry of a failed continuation consumes continuation budget even wh
 // agent removed its own for the same reason: with reasoning enabled the model
 // already produces thinking tokens, so a no-op tool only costs a round trip.
 // What is worth keeping is the guarantee that only retrieval is ever offered.
-Deno.test('research offers retrieval tools only, and the answer phase offers none', async () => {
+Deno.test('research offers retrieval tools only, and the answer phase offers the same ones but may call none', async () => {
   const f = fake([ready(), answer()]);
   await runAgent(f.deps, { ...input, conversational: true });
   const names = (f.requests[0].tools ?? []).map((t) => (t as { function: { name: string } }).function.name);
   assertEquals(names, ['search_documents', 'search_desk_rows']);
-  assertEquals(f.requests[1].tools, undefined);
+  assertEquals(f.requests[0].tool_choice, undefined);
+  // Identical definitions keep the cached prompt prefix; tool_choice disables them.
+  assertEquals(f.requests[1].tools, f.requests[0].tools);
+  assertEquals(f.requests[1].tool_choice, 'none');
 });
 
 Deno.test('a tool the turn does not offer is refused without retrieving anything', async () => {
@@ -722,7 +725,7 @@ Deno.test('a question that retrieves nothing is pressed to search once before it
   const pressed = f.requests[1].messages.at(-1);
   assertEquals(pressed?.role, 'user');
   assert(String(pressed?.content).includes('You have not searched'), String(pressed?.content));
-  assert(f.requests[1].tools?.length, 'and it is offered as research, not as the answer phase');
+  assertEquals(f.requests[1].tool_choice, undefined, 'and it is offered as research, not as the answer phase');
 });
 
 Deno.test('the press is spent once; a model that declines twice still answers', async () => {
@@ -731,7 +734,7 @@ Deno.test('the press is spent once; a model that declines twice still answers', 
   assertEquals(f.requests.length, 3, 'exactly one extra research pass, never a loop');
   assertEquals(result.searches, 0);
   assert(result.text.includes('Not in record.'));
-  assertEquals(f.requests[2].tools, undefined, 'the third pass is the answer phase');
+  assertEquals(f.requests[2].tool_choice, 'none', 'the third pass is the answer phase');
 });
 
 Deno.test('a turn that already searched is never pressed', async () => {
@@ -834,7 +837,7 @@ Deno.test('a research reply that is a complete, grounded answer is the answer, a
   });
   const result = await runAgent(f.deps, input);
   assertEquals(f.requests.length, 2, 'the answer phase must not be asked to write it again');
-  assert(f.requests.every((r) => r.tools?.length), 'both calls were research calls');
+  assert(f.requests.every((r) => r.tool_choice === undefined), 'both calls were research calls');
   assertEquals(result.text, draft());
   assertEquals(result.finish, 'stop');
   assertEquals(result.modelCalls, 2);
@@ -888,7 +891,7 @@ for (
     });
     const result = await runAgent(f.deps, input);
     assertEquals(f.requests.length, 3);
-    assertEquals(f.requests[2].tools, undefined, 'the third call is the answer phase');
+    assertEquals(f.requests[2].tool_choice, 'none', 'the third call is the answer phase');
     assertEquals(result.text, (answer()[0] as { text: string }).text);
   });
 }
@@ -899,6 +902,6 @@ Deno.test('a record question that never searched cannot promote its reply, even 
   const result = await runAgent(f.deps, input);
   assertEquals(f.requests.length, 3);
   assert(String(f.requests[1].messages.at(-1)?.content).includes('You have not searched'));
-  assertEquals(f.requests[2].tools, undefined);
+  assertEquals(f.requests[2].tool_choice, 'none');
   assertEquals(result.text, (answer()[0] as { text: string }).text);
 });

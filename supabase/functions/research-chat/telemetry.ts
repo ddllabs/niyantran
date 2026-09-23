@@ -273,7 +273,7 @@ export function createAttemptRecorder(options: {
       const record: RecordedAttempt = {
         requested: request.model,
         purpose,
-        answer: !request.tools?.length,
+        answer: !request.tools?.length || request.tool_choice === 'none',
         served: null,
         generationId: null,
         provider: null,

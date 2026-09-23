@@ -138,6 +138,51 @@ Deno.test('the request body carries stream, usage, tools, response_format with r
   assertEquals('provider' in plain, false);
 });
 
+// Anthropic's cache prefix starts with the tool definitions, so an answer call
+// that dropped them matched nothing: message 5221476f's answer call read 0 of
+// 56,495 prompt tokens from cache while the call before it read 28,058.
+Deno.test('tools offered with tool_choice none stay in an Anthropic body and leave every other body tools-free', () => {
+  const tools = [{ type: 'function', function: { name: 'search_documents' } }];
+  const messages = [{ role: 'user' as const, content: 'hi' }];
+  const claude = buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages, tools, tool_choice: 'none' });
+  assertEquals(claude.tools, tools);
+  assertEquals(claude.tool_choice, 'none');
+  // Elsewhere nothing needs the definitions, and a tool_choice the provider
+  // does not support would narrow require_parameters routing.
+  for (const model of ['google/gemini-3.7-flash', 'deepseek/deepseek-v4-flash', 'openai/gpt-6-astra']) {
+    const other = buildRequestBody({ model, messages, tools, tool_choice: 'none' });
+    assertEquals('tools' in other, false, model);
+    assertEquals('tool_choice' in other, false, model);
+  }
+  assertEquals(buildRequestBody({ model: 'google/gemini-3.7-flash', messages, tools }).tool_choice, 'auto');
+});
+
+// The explicit breakpoints sit on the system prompt and the question, so the
+// search results a turn accumulates were re-billed in full on every research call.
+Deno.test('an Anthropic body with a cacheable prompt also caches its moving tail; no other body does', () => {
+  const messages = [
+    { role: 'system' as const, content: 'S'.repeat(MIN_CACHEABLE_PREFIX_CHARS) },
+    { role: 'user' as const, content: 'hi' },
+    { role: 'tool' as const, tool_call_id: 'c1', content: 'evidence' },
+  ];
+  assertEquals(
+    buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages, cache: true }).cache_control,
+    { type: 'ephemeral' },
+  );
+  const tool = buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages, cache: true }).messages as {
+    content: unknown;
+  }[];
+  assertEquals(tool[2].content, 'evidence', 'the tail is cached by the top-level field, not a marker in a tool reply');
+  assertEquals('cache_control' in buildRequestBody({ model: 'google/gemini-3.7-flash', messages, cache: true }), false);
+  assertEquals('cache_control' in buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages }), false);
+  const short = [{ role: 'system' as const, content: 'short' }, messages[1]];
+  assertEquals(
+    'cache_control' in buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages: short, cache: true }),
+    false,
+    'no cache write below the minimum',
+  );
+});
+
 const finished = (reason: string) => chunk({}, { choices: [{ index: 0, delta: {}, finish_reason: reason }] });
 const tool = (args = '{"query":"x"}', id = 'call_a', name = 'search_documents') => chunk({
   tool_calls: [{ index: 0, id, type: 'function', function: { name, arguments: args } }],
