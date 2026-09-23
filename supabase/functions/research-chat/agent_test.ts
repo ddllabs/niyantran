@@ -502,7 +502,12 @@ Deno.test('research drafts cannot enter final JSON or close the decoder; answer 
   let visible = '';
   const decoder = createAnswerDecoder();
   let calls = 0;
-  const premature = JSON.stringify({ answer: 'Premature answer', sources: [], follow_up_questions: [] });
+  // Cites a handle this turn never assigned, so it cannot be promoted.
+  const premature = JSON.stringify({
+    answer: 'Premature answer [1]',
+    sources: [{ id: 1, source: 'ref:abc123-9' }],
+    follow_up_questions: [],
+  });
   const f = fake([], {
     searchDocuments: () => Promise.resolve([chunk('a')]),
     onEvent: (e) => {
@@ -807,4 +812,93 @@ Deno.test('an attachment narrows the search only under a focus that promised to 
     // Nothing was confined, so nothing was widened: there is no promise to walk back.
     assertEquals(result.widened, null);
   }
+});
+
+// Every turn used to pay for its answer twice: the research reply that stopped
+// searching wrote the whole answer object (response_format applies to it too),
+// and the answer phase wrote it again. A reply that is a complete answer citing
+// only this turn's handles is now the answer.
+const draft = (over: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    answer: 'Clause 4 sets the penalty [1].',
+    sources: [{ id: 1, source: 'ref:abc123-1' }],
+    follow_up_questions: ['What does clause 5 say?'],
+    ...over,
+  });
+
+Deno.test('a research reply that is a complete, grounded answer is the answer, and no second call is made', async () => {
+  const order: string[] = [];
+  const f = fake([[docCall(), finish('tool_calls')], [{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+    onEvent: (e) => order.push(Object.keys(e)[0]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 2, 'the answer phase must not be asked to write it again');
+  assert(f.requests.every((r) => r.tools?.length), 'both calls were research calls');
+  assertEquals(result.text, draft());
+  assertEquals(result.finish, 'stop');
+  assertEquals(result.modelCalls, 2);
+  // The reply streamed as private research text; it reaches the decoder only
+  // after its call finished, announced first so the handler can account for it.
+  const tail = order.slice(order.lastIndexOf('finish'));
+  assertEquals(tail, ['finish', 'promoted', 'text']);
+  assertEquals(order.filter((k) => k === 'text').length, 1);
+  assertEquals(order.indexOf('researchText') < order.lastIndexOf('finish'), true);
+});
+
+Deno.test('small talk that answers without searching is the answer', async () => {
+  const f = fake([answer()]);
+  const result = await runAgent(f.deps, { ...input, conversational: true });
+  assertEquals(f.requests.length, 1);
+  assertEquals(result.text, (answer()[0] as { text: string }).text);
+});
+
+for (
+  const [name, reply, over] of [
+    ['cites a handle this turn never assigned', [{
+      type: 'text',
+      text: draft({ sources: [{ id: 1, source: 'ref:abc123-2' }] }),
+    }, finish()]],
+    ['cites a handle from another turn', [{
+      type: 'text',
+      text: draft({ sources: [{ id: 1, source: 'ref:zzzzzz-1' }] }),
+    }, finish()]],
+    ['cites a source that is not a handle', [
+      { type: 'text', text: draft({ sources: [{ id: 1, source: 'Title' }] }) },
+      finish(),
+    ]],
+    ['writes an unassigned handle into the prose', [
+      { type: 'text', text: draft({ answer: 'See ref:abc123-7 [1].' }) },
+      finish(),
+    ]],
+    ['adds a field the schema does not have', [{ type: 'text', text: draft({ note: 'x' }) }, finish()]],
+    ['leaves out a required field', [{ type: 'text', text: JSON.stringify({ answer: 'A', sources: [] }) }, finish()]],
+    ['has an empty answer', [{ type: 'text', text: draft({ answer: ' ' }) }, finish()]],
+    ['is not JSON', [{ type: 'text', text: 'Clause 4 sets the penalty.' }, finish()]],
+    ['was cut off', [{ type: 'text', text: draft() }, finish('length')]],
+    ['follows only failed searches', [{ type: 'text', text: draft({ sources: [] }) }, finish()], {
+      searchDocuments: () => Promise.reject(new Error('retrieval down')),
+    }],
+  ] as [string, ModelEvent[], Partial<AgentDeps>?][]
+) {
+  Deno.test(`a research reply that ${name} is not the answer; the answer phase writes it`, async () => {
+    const f = fake([[docCall(), finish('tool_calls')], reply, answer()], {
+      searchDocuments: () => Promise.resolve([chunk('a')]),
+      ...over,
+    });
+    const result = await runAgent(f.deps, input);
+    assertEquals(f.requests.length, 3);
+    assertEquals(f.requests[2].tools, undefined, 'the third call is the answer phase');
+    assertEquals(result.text, (answer()[0] as { text: string }).text);
+  });
+}
+
+Deno.test('a record question that never searched cannot promote its reply, even after the press', async () => {
+  const unsourced = [{ type: 'text', text: draft({ sources: [] }) }, finish()] as ModelEvent[];
+  const f = fake([unsourced, unsourced, answer()]);
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3);
+  assert(String(f.requests[1].messages.at(-1)?.content).includes('You have not searched'));
+  assertEquals(f.requests[2].tools, undefined);
+  assertEquals(result.text, (answer()[0] as { text: string }).text);
 });

@@ -648,6 +648,10 @@ async function runTurnBody(
       sender.send({ reasoning: label });
       activity.push({ type: 'activity', text: label });
       context.checkpoint({ activity: [...activity] });
+    } else if ('promoted' in e) {
+      // The research reply is the answer, so it is the call the answer trace
+      // and any later rejection belong to.
+      attempts.markLastAnswer('chat_answer');
     } else if ('widened' in e) {
       // The ticker is where the reader watches the turn work, so it is where
       // leaving the attachments has to show; the answer header repeats it for

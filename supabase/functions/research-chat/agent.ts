@@ -1,7 +1,7 @@
 // One dependency-injected research loop. The handler owns authentication,
 // failover, persistence and the public stream; this module never retries a
 // provider. Every deps.model invocation must represent exactly one attempt.
-import type { HandleAssigner } from '../_shared/handles.ts';
+import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
 import { accumulate, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
@@ -66,12 +66,17 @@ export interface TraceStep {
 export type WidenedScope = 'empty' | 'unresolved' | 'unkeyed';
 /** Internal handler events, NOT SSE frames. Never forward internalReasoning.
  * researchText is a private draft, never evidence or public answer content.
- * Only text from the tools-disabled answer phase enters the answer decoder. */
+ * Text enters the answer decoder from one of two places, and only after the
+ * research it depends on has finished: the tools-disabled answer phase, or a
+ * research reply that called no tool and passed acceptedDraft() once its call
+ * had finished. That reply arrives as `promoted` and then one `text` event;
+ * research text beside a tool call never becomes answer text. */
 export type AgentEvent =
   | { internalReasoning: string }
   | { researchText: string }
   | { attempt: { phase: 'research' | 'answer'; index: number; model: string } }
   | { text: string }
+  | { promoted: { index: number; model: string } }
   | { tool: ToolFrame }
   | { widened: WidenedScope }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
@@ -220,6 +225,39 @@ const SEARCH_FIRST =
   'You have not searched, so you have no evidence and cannot yet know what the record holds. Call search_documents or search_desk_rows now, with a query phrased as the document would phrase it. Do not answer, and do not say "Not in record.", until you have looked.';
 const ANSWER_NOW =
   'Research is complete. Write the final answer as one new JSON object using only the user context and retrieved evidence. Earlier assistant drafts are not evidence. Do not call tools. Mark missing evidence as Not in record.';
+
+/**
+ * Whether a research reply that stopped searching is already the final answer.
+ * response_format applies to research calls too, so a model that stops
+ * searching writes the whole answer object - and the answer phase then paid to
+ * write it again: 1,424 then 1,669 completion tokens on one Gemini turn, 2,141
+ * then 2,186 on a Sonnet turn whose second prompt also missed the cache. The
+ * reply saw exactly the evidence the answer phase would see; what it lacks is
+ * the proof that it is a complete, well-formed answer that cites only what the
+ * turn retrieved, and that is what this checks: strict schema shape, and every
+ * handle, in sources or anywhere in the text, one this turn assigned. Anything
+ * else still goes to the answer phase.
+ */
+function acceptedDraft(text: string, handles: HandleAssigner): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.trim());
+  } catch {
+    return false;
+  }
+  const object = (v: unknown, keys: string): v is Record<string, unknown> =>
+    !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).sort().join() === keys;
+  if (!object(parsed, 'answer,follow_up_questions,sources')) return false;
+  const { answer, sources, follow_up_questions: followUps } = parsed;
+  return typeof answer === 'string' && !!answer.trim() &&
+    Array.isArray(followUps) && followUps.every((q) => typeof q === 'string') &&
+    Array.isArray(sources) &&
+    sources.every((s) =>
+      object(s, 'id,source') && Number.isInteger(s.id) && typeof s.source === 'string' &&
+      handles.lookup(s.source) !== undefined
+    ) &&
+    handlesIn(text).every((h) => handles.lookup(h) !== undefined);
+}
 
 type ToolCall = Extract<ModelEvent, { type: 'tool-call' }>;
 function parseArguments(raw: string): Record<string, unknown> | null {
@@ -502,6 +540,18 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         state.pressedToSearch = true;
         if (partial) messages.push({ role: 'assistant', content: partial });
         messages.push({ role: 'user', content: SEARCH_FIRST });
+      } else if (
+        state.finish === 'stop' && (a.conversational || state.steps.some((s) => s.status === 'ok')) &&
+        acceptedDraft(partial, deps.handles)
+      ) {
+        // A reply is promoted only after its call finished, so text that turned
+        // out to precede a tool call can never have reached the reader.
+        messages.push({ role: 'assistant', content: partial });
+        state.text = partial;
+        state.answerModel = deps.request.model;
+        deps.onEvent({ promoted: { index: budget.modelAttempts, model: deps.request.model } });
+        deps.onEvent({ text: partial });
+        state.phase = 'complete';
       } else {
         if (partial) messages.push({ role: 'assistant', content: partial });
         beginAnswer();

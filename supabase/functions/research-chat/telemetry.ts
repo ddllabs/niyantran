@@ -479,6 +479,13 @@ export function createAttemptRecorder(options: {
         record.rejection = reason && reason.length <= 256 ? reason : null;
       }
     },
+    /** The last attempt of this purpose wrote the visible answer although it
+     * was offered tools: a research reply the agent promoted. */
+    markLastAnswer(purpose: CallPurpose) {
+      if (flushing) return;
+      const record = records.findLast((r) => r.purpose === purpose);
+      if (record) record.answer = true;
+    },
     addTraces(rows: TurnTraceRow[]) {
       if (!flushing) { for (const row of rows) traces.set(`${row.step_type}:${row.step_index}`, row); }
     },

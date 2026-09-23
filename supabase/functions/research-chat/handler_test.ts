@@ -347,6 +347,30 @@ Deno.test('a retrieved passage becomes a numbered citation the answer can carry'
   assert(rec.traces.some((t) => t.step_type === 'answer'));
 });
 
+Deno.test('a research reply that is already the grounded answer is shown and accounted as the answer, with no second call', async () => {
+  let handle = '';
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    handle ||= /ref:[a-z0-9]{6}-\d+/.exec(JSON.stringify(req.messages))?.[0] ?? '';
+    if (!handle) {
+      yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee stage"}' };
+      yield finish('tool_calls');
+    } else {
+      yield text(envelope('It reached committee [1].', [{ id: 1, source: handle }]));
+      yield finish();
+    }
+  };
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c-1')]) });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].content, 'It reached committee [1].');
+  assertEquals((got.find((f) => 'sources' in f) as { sources: unknown[] }).sources.length, 1);
+  assertEquals(rec.calls.filter((c) => c.purpose === 'chat_answer').length, 2, 'no answer-phase call');
+  // The answer trace names the call that wrote what the reader sees, even
+  // though that call was offered tools.
+  const answerTrace = rec.traces.find((t) => t.step_type === 'answer');
+  assertEquals(answerTrace?.model_call_log_id, 'call-2');
+});
+
 Deno.test('503 on the first model hands over to the next in the chain and says so', async () => {
   const swap = scripted([new ProviderError(503, 'upstream unavailable'), ...DECLINES, [
     text(envelope('Answered by the second model.')),
