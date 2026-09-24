@@ -1,15 +1,18 @@
 /**
  * Local SQLite store (sql.js / WASM) for accounts + product analytics.
- * File: tmp/niyantran.sqlite — fine for single-node dev; swap to better-sqlite3 later if needed.
+ * File: tmp/niyantran.sqlite (or /tmp/niyantran on serverless).
  */
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import initSqlJs from 'sql.js';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_ROOT = path.resolve(__dirname, '..');
-const DB_PATH = path.join(APP_ROOT, 'tmp', 'niyantran.sqlite');
+const require = createRequire(import.meta.url);
+const SQL_JS_DIST = path.dirname(require.resolve('sql.js'));
+const SQL_WASM = path.join(SQL_JS_DIST, 'sql-wasm.wasm');
+
+const DB_PATH = writablePath('niyantran.sqlite');
 
 let SQL = null;
 let db = null;
@@ -51,6 +54,12 @@ function migrate(database) {
   add('plan_status', 'plan_status TEXT DEFAULT \"free\"');
   add('trial_ends_at', 'trial_ends_at TEXT');
   add('billing_yearly', 'billing_yearly INTEGER DEFAULT 0');
+  add('google_sub', 'google_sub TEXT');
+  try {
+    database.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL`);
+  } catch {
+    /* sql.js may not support partial indexes — non-fatal */
+  }
   database.run(`
     CREATE TABLE IF NOT EXISTS analytics_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,11 +111,105 @@ function migrate(database) {
     );
   `);
   database.run(`CREATE INDEX IF NOT EXISTS idx_invoices_email ON invoices(user_email);`);
+  // Cached Gemini entry / substance briefs — survive reloads until the row fingerprint changes.
+  database.run(`
+    CREATE TABLE IF NOT EXISTS entry_briefs (
+      cache_key TEXT PRIMARY KEY,
+      scope TEXT NOT NULL,
+      tier TEXT NOT NULL DEFAULT '',
+      feature TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      brief_json TEXT NOT NULL,
+      model TEXT,
+      generated_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  database.run(
+    `CREATE INDEX IF NOT EXISTS idx_entry_briefs_lookup ON entry_briefs(scope, tier, feature, hash);`,
+  );
+}
+
+function entryBriefKey(scope, tier, feature, hash) {
+  return `${scope || 'entry'}::${tier || ''}::${feature || ''}::${hash || ''}`;
+}
+
+/** Read a cached desk brief by fingerprint. */
+export async function getEntryBrief(scope, tier, feature, hash) {
+  if (!feature || !hash) return null;
+  const database = await getDb();
+  const sc = scope === 'substance' ? 'substance' : 'entry';
+  const rows = queryAll(
+    database,
+    `SELECT brief_json, model, generated_at FROM entry_briefs
+     WHERE cache_key = ? LIMIT 1`,
+    [entryBriefKey(sc, tier, feature, hash)],
+  );
+  if (!rows.length) return null;
+  try {
+    const brief = JSON.parse(rows[0].brief_json);
+    if (!brief || typeof brief !== 'object') return null;
+    return {
+      brief,
+      model: rows[0].model || brief.model || '',
+      generatedAt: rows[0].generated_at || brief.generatedAt || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Upsert a generated desk brief so later loads skip Gemini. */
+export async function upsertEntryBrief({
+  scope = 'entry',
+  tier = '',
+  feature = '',
+  hash = '',
+  brief,
+  model = '',
+  generatedAt,
+} = {}) {
+  if (!feature || !hash || !brief) return;
+  const database = await getDb();
+  const sc = scope === 'substance' ? 'substance' : 'entry';
+  const now = new Date().toISOString();
+  const at = generatedAt || brief.generatedAt || now;
+  run(
+    database,
+    `INSERT INTO entry_briefs (cache_key, scope, tier, feature, hash, brief_json, model, generated_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(cache_key) DO UPDATE SET
+       brief_json = excluded.brief_json,
+       model = excluded.model,
+       generated_at = excluded.generated_at,
+       updated_at = excluded.updated_at`,
+    [
+      entryBriefKey(sc, tier, feature, hash),
+      sc,
+      String(tier || ''),
+      String(feature),
+      String(hash),
+      JSON.stringify(brief),
+      String(model || brief.model || ''),
+      at,
+      now,
+    ],
+  );
 }
 
 export async function getDb() {
   if (db) return db;
-  SQL = SQL || (await initSqlJs());
+  if (!fs.existsSync(SQL_WASM)) {
+    throw new Error(
+      `sql.js WASM missing at ${SQL_WASM}. Redeploy with node_modules/sql.js/dist included.`,
+    );
+  }
+  SQL =
+    SQL ||
+    (await initSqlJs({
+      // Default looks under /var/task/node_modules/... which NFT often omits on Vercel.
+      locateFile: (file) => (file.endsWith('.wasm') ? SQL_WASM : path.join(SQL_JS_DIST, file)),
+    }));
   ensureDir();
   if (fs.existsSync(DB_PATH)) {
     const buf = fs.readFileSync(DB_PATH);

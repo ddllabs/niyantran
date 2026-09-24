@@ -13,12 +13,14 @@
  *   POST /api/auth/forgot-password
  */
 
+import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from './loadEnv.mjs';
 import {
   AUTH_EMAIL_PROVIDERS,
   getActiveEmailProvider,
   validateEmailProviderStartup,
   getEmailProviderStrategy,
+  getSupabaseAnonClient,
 } from './authEmailProvider.mjs';
 
 function json(res, body, status = 200) {
@@ -29,6 +31,14 @@ function json(res, body, status = 200) {
 }
 
 async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string' && req.body.trim()) {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return null;
+    }
+  }
   let body = '';
   for await (const chunk of req) {
     body += chunk;
@@ -214,22 +224,108 @@ export async function handleAuthApi(req, res, next) {
     }
   }
 
+  // POST /api/auth/reset-password
+  if (url.pathname === '/api/auth/reset-password' && req.method === 'POST') {
+    const body = await readBody(req);
+    if (!body) return json(res, { ok: false, error: 'Invalid JSON request body' }, 400);
+    const password = String(body.password || '');
+    if (!password || password.length < 8) {
+      return json(res, { ok: false, error: 'Password must be at least 8 characters long' }, 400);
+    }
+    const header = req.headers.authorization;
+    const bearerToken = typeof header === 'string' && /^Bearer ([^\s,]+)$/i.exec(header)?.[1];
+    const token = String(body.token || body.accessToken || bearerToken || '').trim();
+    if (!token) {
+      return json(res, { ok: false, error: 'Valid recovery session token is required' }, 401);
+    }
+    try {
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
+      const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
+      const client = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data, error } = await client.auth.updateUser({ password });
+      if (error) return json(res, { ok: false, error: error.message }, 400);
+      return json(res, { ok: true, message: 'Password updated successfully', user: data.user }, 200);
+    } catch (err) {
+      return json(res, { ok: false, error: err.message || 'Password update failed' }, 500);
+    }
+  }
+
+  // POST /api/auth/login
+  if (url.pathname === '/api/auth/login' && req.method === 'POST') {
+    const body = await readBody(req);
+    if (!body) return json(res, { ok: false, error: 'Invalid JSON request body' }, 400);
+    const email = String(body.email || body.user || '').trim().toLowerCase();
+    const password = String(body.password || body.pass || '');
+    if (!email || !password) {
+      return json(res, { ok: false, error: 'Email and password are required' }, 400);
+    }
+    try {
+      const anon = getSupabaseAnonClient();
+      const { data, error } = await anon.auth.signInWithPassword({ email, password });
+      if (error) {
+        return json(res, { ok: false, error: error.message }, 401);
+      }
+      return json(res, { ok: true, user: data.user, session: data.session }, 200);
+    } catch (err) {
+      return json(res, { ok: false, error: err.message || 'Login failed' }, 500);
+    }
+  }
+
+  // GET /api/auth/me
+  if (url.pathname === '/api/auth/me' && req.method === 'GET') {
+    const header = req.headers.authorization;
+    const match = typeof header === 'string' && /^Bearer ([^\s,]+)$/i.exec(header);
+    if (!match) {
+      return json(res, { ok: false, error: 'Authentication required' }, 401);
+    }
+    try {
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
+      const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
+      const client = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${match[1]}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data, error } = await client.auth.getUser(match[1]);
+      if (error || !data?.user) {
+        return json(res, { ok: false, error: 'Invalid or expired session' }, 401);
+      }
+      return json(res, { ok: true, user: data.user }, 200);
+    } catch (err) {
+      return json(res, { ok: false, error: err.message || 'Verification failed' }, 500);
+    }
+  }
+
+  // POST /api/auth/logout
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+    return json(res, { ok: true, message: 'Logged out successfully' }, 200);
+  }
+
   return json(res, { ok: false, error: 'Auth route not found' }, 404);
 }
 
 export function authApiPlugin() {
-  // Validate provider configuration on startup; fail fast if invalid
-  validateEmailProviderStartup();
-
   return {
     name: 'niyantran-auth-api',
     configureServer(server) {
+      try {
+        validateEmailProviderStartup();
+      } catch (err) {
+        console.warn('[AuthApiPlugin] Startup warning:', err.message);
+      }
       server.middlewares.use((req, res, next) => {
         const p = handleAuthApi(req, res, next);
         if (p && p.catch) p.catch(next);
       });
     },
     configurePreviewServer(server) {
+      try {
+        validateEmailProviderStartup();
+      } catch (err) {
+        console.warn('[AuthApiPlugin] Preview warning:', err.message);
+      }
       server.middlewares.use((req, res, next) => {
         const p = handleAuthApi(req, res, next);
         if (p && p.catch) p.catch(next);

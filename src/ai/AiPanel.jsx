@@ -13,7 +13,8 @@ import {
   setChatRole,
   subscribeAiChats,
 } from '../lib/aiThreads.js';
-import { AI_PROVIDERS, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
+import { liveAiProviders, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
+import { subscribeAppFlags } from '../lib/appFlagsStore.js';
 import { sessionUser } from '../lib/userStore.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -156,7 +157,6 @@ export function researchSelection(row) {
   }
   return bounded;
 }
-
 function slimRow(row) {
   if (!row || typeof row !== 'object') return null;
   const out = {};
@@ -183,31 +183,6 @@ function buildDeskContext(feed, tab, featureName) {
     note: feed.fallback ? 'Desk is on a labelled fallback / archive pass.' : '',
     rows,
   };
-}
-
-function exportChatMarkdown(chat, picked) {
-  const lines = [
-    `# ${chat?.title || 'AI research'}`,
-    '',
-    `_Exported from Niyantran · model ${picked?.label || ''} · ${new Date().toISOString()}_`,
-    '',
-  ];
-  for (const m of chat?.messages || []) {
-    if (m.role === 'system') continue;
-    const who = m.role === 'user' ? 'You' : m.model || 'Assistant';
-    lines.push(`## ${who}`);
-    lines.push('');
-    lines.push(String(m.content || ''));
-    lines.push('');
-  }
-  const pins = chat?.attachments || [];
-  if (pins.length) {
-    lines.push('## Attachments');
-    lines.push('');
-    for (const a of pins) lines.push(`- ${a.title || a.feature || a.kind}`);
-    lines.push('');
-  }
-  return lines.join('\n');
 }
 
 function Ico({ name, size = 16 }) {
@@ -377,11 +352,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const focusRef = useRef(null);
   const historyRef = useRef(null);
 
+  const [flagsTick, setFlagsTick] = useState(0);
+  const providers = useMemo(() => liveAiProviders(), [flagsTick]);
   const chat = useMemo(
     () => state.chats.find((c) => c.id === state.activeId) || state.chats[0] || null,
     [state],
   );
-  const picked = AI_PROVIDERS.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
+  const picked = providers.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
   const attachments = chat?.attachments || [];
   const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join(' ');
   useEffect(() => {
@@ -394,11 +371,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
 
-  useEffect(() => serverThreads ? undefined : subscribeAiChats(setState), []);
+  useEffect(() => (serverThreads ? undefined : subscribeAiChats(setState)), [serverThreads]);
+  useEffect(() => subscribeAppFlags(() => setFlagsTick((n) => n + 1)), []);
   useEffect(() => {
     const live = activeAiProvider().id;
-    if (!AI_PROVIDERS.find((p) => p.id === providerId)?.enabled) setProviderId(live);
-  }, [providerId]);
+    if (!providers.find((p) => p.id === providerId)?.enabled) setProviderId(live);
+  }, [providerId, providers]);
 
   const stream = serverThreads ? research.stream : null;
   // The turn in flight owns the follow-ups while it is on screen; after that
@@ -692,7 +670,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
     await research.actions.send(body);
   }
-
   async function send(e) {
     e?.preventDefault();
     const text = draft.trim();
@@ -721,10 +698,38 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               tab,
               title: rowTitle(selected),
             },
-            { feed, feature: featureName, selected },
+            { feed, feature: featureName, selected, hydrate: true },
           );
           addChatAttachments(id, bits);
           pins = [...pins, ...bits];
+        } else if (selected) {
+          // Pin already present from drag/drop — hydrate source URLs now (on Send only).
+          const bits = await materializeAiDrop(
+            {
+              kind: 'row',
+              row: selected,
+              feature: featureName,
+              tab,
+              title:
+                selected.bill_name ||
+                selected.title ||
+                selected.name ||
+                selected.subject ||
+                selected.conflict_name ||
+                selected.commodity ||
+                'Selected record',
+            },
+            { feed, feature: featureName, selected, hydrate: true },
+          );
+          if (bits.length) {
+            const without = pins.filter((a) => {
+              if (a.kind !== 'row') return true;
+              const prev = a.preview || {};
+              return rowPinKey(prev) !== key && a.title !== (selected.bill_name || selected.title || selected.name);
+            });
+            pins = [...without, ...bits];
+            setChatAttachments(id, pins);
+          }
         }
       }
 
@@ -732,7 +737,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         role: m.role,
         content: m.content,
       }));
-      const model = AI_PROVIDERS.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
+      const model = providers.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
       const hasRowPin = pins.some((a) => a.kind === 'row' || a.kind === 'feed');
       const useSelection = true;
       const out = await sendAiChat({
@@ -771,8 +776,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     [chat?.attachments, selected, featureName],
   );
 
-  const recommended = AI_PROVIDERS.filter((p) => RECOMMENDED_IDS.includes(p.id));
-  const others = AI_PROVIDERS.filter((p) => !RECOMMENDED_IDS.includes(p.id));
+  const recommended = providers.filter((p) => RECOMMENDED_IDS.includes(p.id));
+  const others = providers.filter((p) => !RECOMMENDED_IDS.includes(p.id));
   const docs = [
     ...(hi ? DOCS_HI : DOCS_EN),
     serverThreads ? (hi ? DOCS_WORK_HI : DOCS_WORK_EN) : hi ? DOCS_FLAG_HI : DOCS_FLAG_EN,
@@ -942,10 +947,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <button
             type="button"
             className="ai-v2-icon-btn"
-            aria-label={hi ? 'निर्यात' : 'Export'}
-            title={hi ? 'चैट निर्यात करें' : 'Export chat as Markdown'}
-            disabled={!messages.length}
-            onClick={onExport}
+            aria-label={hi ? 'निर्यात' : 'Download'}
+            title={hi ? 'डाउनलोड अभी बंद है' : 'Downloads disabled for now'}
+            disabled
           >
             <Ico name="export" size={15} />
           </button>
@@ -1140,6 +1144,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               <span>{picked.label}</span>
               {hi ? 'संलग्न स्रोत पढ़ रहा है…' : 'Reading attached sources…'}
             </div>
+          ) : null}
+          {emptyThread && !busy ? (
+            <p className="ai-v2-empty muted">
+              {hi
+                ? 'चैट खाली है। पंक्ति या फ़ाइल जोड़ें, फिर Send दबाएँ।'
+                : 'Chat is empty. Attach a row or file, then press Send.'}
+            </p>
           ) : null}
         </div>
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// #!/usr/bin/env node
 // Push Niyantran's OCR documents through the ingest-documents edge function.
 // RAG spec §A. Two inputs:
 //   --manifest <file>   the spec's manifest: { documents: [{ source_key, title, file_name, file_url,

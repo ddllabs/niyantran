@@ -5,10 +5,10 @@
  *   GET  /api/ai/desk-brief?feature=&tier=&hash=  cached entry brief only
  *   GET  /api/ai/fetch?url=  text or base64 for pdf/image (CORS bypass)
  *   GET  /api/ai/source-extract?url=  fetch + extract readable text (PDF/HTML/CSV/XLSX)
- *
- * Keys come from server env (DEEPSEEK_API_KEY / GEMINI_API_KEY / OPENROUTER_API_KEY / NIYANTRAN_AI_KEY).
+ * Keys come from server env (OPENROUTER_API_KEY / NIYANTRAN_AI_KEY).
  * Request-body `key` is ignored — never accept client-supplied credentials (D6).
  */
+import { assertAiAllowedInTesting } from './appFlags.mjs';
 import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
 import { shippedPersonaPrompt } from './personas.mjs';
@@ -212,98 +212,28 @@ function contextBlock(attachments, files, { focus = 'attached', deskContext = nu
   return parts.join('\n').slice(0, MAX_TEXT);
 }
 
-async function deepseekChat({ model, key, messages }) {
-  const tried = [model];
-  if (model === 'deepseek-v4-flash') tried.push('deepseek-chat');
-  if (model === 'deepseek-v4-pro') tried.push('deepseek-reasoner', 'deepseek-chat');
-  let last = '';
-  for (const m of [...new Set(tried)]) {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), CHAT_MS);
-    try {
-      const r = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        signal: ac.signal,
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: m,
-          temperature: 0.2,
-          messages,
-        }),
-      });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        last = body?.error?.message || `DeepSeek HTTP ${r.status}`;
-        continue;
-      }
-      const text = body?.choices?.[0]?.message?.content || '';
-      return { text, model: m, provider: 'deepseek' };
-    } finally {
-      clearTimeout(t);
-    }
+function resolveOpenRouterModels(requestedModel) {
+  const m = String(requestedModel || '').trim();
+  const list = [];
+  if (m.includes('/')) {
+    list.push(m);
+  } else if (/gemini.*lite/i.test(m)) {
+    list.push('google/gemini-2.0-flash-lite-001', 'google/gemini-2.0-flash-001', 'google/gemini-flash-1.5');
+  } else if (/gemini/i.test(m)) {
+    list.push('google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-001');
+  } else if (/astra|gpt/i.test(m)) {
+    list.push('openai/gpt-4o-mini', 'openai/gpt-4o');
+  } else if (m) {
+    list.push(m, `google/${m}`);
   }
-  throw new Error(last || 'DeepSeek request failed');
-}
-
-function geminiParts(messages, binaries) {
-  const parts = [];
-  for (const f of binaries || []) {
-    if (!f.base64) continue;
-    const mime = f.mime || (f.kind === 'pdf' ? 'application/pdf' : 'image/png');
-    parts.push({ inline_data: { mime_type: mime, data: f.base64 } });
-  }
-  const text = messages
-    .map((m) => `${m.role === 'assistant' ? 'Assistant' : m.role === 'system' ? 'System' : 'Analyst'}: ${m.content}`)
-    .join('\n\n');
-  parts.push({ text });
-  return parts;
-}
-
-async function geminiChat({ model, key, messages, binaries, system }) {
-  const tried = [model];
-  if (model === 'gemini-3.5-flash-lite') tried.push('gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash', 'gemini-2.0-flash');
-  if (model === 'gemini-3.7-flash') tried.push('gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash');
-  if (model === 'gemini-3.6-flash') tried.push('gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash');
-  if (model === 'gemini-2.5-flash' || model === 'gemini-2.5-flash-lite') {
-    tried.push('gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash');
-  }
-  let last = '';
-  for (const m of [...new Set(tried)]) {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), CHAT_MS);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        signal: ac.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system || SYSTEM }] },
-          contents: [{ role: 'user', parts: geminiParts(messages.filter((x) => x.role !== 'system'), binaries) }],
-          generationConfig: { temperature: 0.2 },
-        }),
-      });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        last = body?.error?.message || `Gemini HTTP ${r.status}`;
-        continue;
-      }
-      const text = (body?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('\n');
-      return { text, model: m, provider: 'gemini' };
-    } finally {
-      clearTimeout(t);
-    }
-  }
-  throw new Error(last || 'Gemini request failed');
+  list.push('google/gemini-2.0-flash-001', 'openai/gpt-4o-mini');
+  return [...new Set(list)];
 }
 
 async function openrouterChat({ model, key, messages }) {
-  const tried = [model, 'openai/gpt-6-astra', '~openai/gpt-astra-latest'].filter(Boolean);
+  const tried = resolveOpenRouterModels(model);
   let last = '';
-  for (const m of [...new Set(tried)]) {
+  for (const m of tried) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), CHAT_MS);
     try {
@@ -361,29 +291,21 @@ export async function runAiFetch(target) {
 export async function runAiChat(payload = {}) {
   loadEnv();
   const model = String(payload.model || '').trim();
-  let provider = String(
-    payload.provider ||
-      (model.includes('gemini')
-        ? 'gemini'
-        : /astra|openai\/|gpt-6|openrouter/i.test(model)
-          ? 'openrouter'
-          : 'deepseek'),
-  ).toLowerCase();
-  if (provider === 'openai' || provider === 'gpt') provider = 'openrouter';
+  const rawProvider = String(payload.provider || '').toLowerCase();
+  if (rawProvider === 'deepseek') {
+    throw new Error('DeepSeek is no longer available. All AI requests are routed through OpenRouter.');
+  }
+  assertAiAllowedInTesting({ provider: rawProvider || (model.includes('gemini') ? 'gemini' : 'openrouter'), model });
 
   // D6: never trust a key from the browser. Server env only.
-  const key =
-    provider === 'gemini'
-      ? String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim()
-      : provider === 'openrouter'
-        ? String(process.env.OPENROUTER_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim()
-        : String(process.env.DEEPSEEK_API_KEY || process.env.NIYANTRAN_AI_KEY || '').trim();
+  // OpenRouter is the single LLM gateway.
+  const key = String(
+    process.env.OPENROUTER_API_KEY ||
+    process.env.NIYANTRAN_AI_KEY ||
+    ''
+  ).trim();
   if (!key) {
-    throw new Error(
-      provider === 'openrouter'
-        ? 'OPENROUTER_API_KEY missing on the server. Add it to niyantran-react/.env (never in the browser).'
-        : 'API key missing on the server. Set GEMINI_API_KEY, OPENROUTER_API_KEY, or DEEPSEEK_API_KEY in the host environment.',
-    );
+    throw new Error('OPENROUTER_API_KEY missing on the server. Set OPENROUTER_API_KEY in the host environment (never in the browser).');
   }
   if (!model) throw new Error('Model missing.');
 
@@ -409,7 +331,6 @@ export async function runAiChat(payload = {}) {
       files.push({ ...f, error: err.message || String(err) });
     }
   }
-  const binaries = files.filter((f) => f.base64 && (f.kind === 'pdf' || f.kind === 'image'));
   const ctx = contextBlock(attachments, files, { focus, deskContext, selection });
   const system = composeSystem(resolvePersonaPrompt(payload), { workMode });
   const messages = [
@@ -428,12 +349,7 @@ Attached terminal data (INTERNAL — extract facts and figures for the user; NEV
 ${ctx}`;
     }
   }
-  const out =
-    provider === 'gemini'
-      ? await geminiChat({ model, key, messages, binaries, system })
-      : provider === 'openrouter'
-        ? await openrouterChat({ model, key, messages })
-        : await deepseekChat({ model, key, messages });
+  const out = await openrouterChat({ model, key, messages });
   if (!out.text.trim()) throw new Error('Empty model response');
   return {
     ...out,
@@ -508,7 +424,7 @@ export async function handleAiApi(req, res, next) {
       const tier = url.searchParams.get('tier') || '';
       const hash = url.searchParams.get('hash') || '';
       const scope = url.searchParams.get('scope') || 'entry';
-      const hit = getCachedDeskBrief(feature, tier, hash, scope);
+      const hit = await getCachedDeskBrief(feature, tier, hash, scope);
       if (!hit) return json(res, { ok: false, cached: false, error: 'No cached brief for this fingerprint.' }, 404);
       return json(res, { ok: true, ...hit });
     }

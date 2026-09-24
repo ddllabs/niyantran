@@ -14,7 +14,7 @@ let loaded = false;
 export function loadEnv(force = false) {
   if (loaded && !force) return;
   loaded = true;
-  for (const file of ['.env.local', '.env', 'backend/.env']) {
+  for (const file of ['.env.local', '.env', 'backend/.env', 'nter/.env']) {
     const p = path.join(ROOT, file);
     if (!fs.existsSync(p)) continue;
     const text = fs.readFileSync(p, 'utf8');

@@ -578,6 +578,82 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
     }
   }
 
+  if (/^world constitutions$/i.test(name)) {
+    try {
+      const res = await fetch('/api/constitutions', { signal });
+      const body = await res.json().catch(() => null);
+      const rows = Array.isArray(body?.rows) ? body.rows : [];
+      if (res.ok && rows.length) {
+        return envelope({
+          feature: feat,
+          rows,
+          adapter: 'live',
+          kind: 'table',
+          meta: {
+            section: 'CONSTITUTIONS IN FORCE — CONSTITUTE PROJECT',
+            status: 'LIVE · CONSTITUTE PROJECT',
+          },
+          note: 'Constitute Project constitutions currently in force.',
+        });
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+    }
+  }
+
+  if (/^growth indicators$/i.test(name)) {
+    try {
+      const res = await fetch('/api/growth', { signal });
+      const body = await res.json().catch(() => null);
+      const rows = Array.isArray(body?.rows) ? body.rows : [];
+      if (res.ok && rows.length) {
+        return envelope({
+          feature: feat,
+          rows,
+          adapter: 'live',
+          kind: 'table',
+          meta: {
+            section: 'GROWTH MONITOR — WORLD BANK OPEN DATA',
+            status: 'LIVE · WORLD BANK',
+          },
+          note: 'World Bank open data — GDP growth, inflation and unemployment.',
+        });
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+    }
+  }
+
+  if (/^geopolitics news wire$/i.test(name) || dataset === 'geo_news_wire.csv') {
+    try {
+      const gdelt =
+        'https://api.gdeltproject.org/api/v2/doc/doc?query=(geopolitics+OR+diplomacy+OR+%22foreign+policy%22)+sourcelang:eng&mode=ArtList&format=json&maxrecords=40&sort=DateDesc';
+      const res = await fetch(gdelt, { signal });
+      const body = await res.json().catch(() => null);
+      const arts = Array.isArray(body?.articles) ? body.articles : [];
+      const rows = arts
+        .map((a) => ({
+          title: a.title || a.seendate || '',
+          date: a.seendate || '',
+          source_url: a.url || '',
+          domain: a.domain || '',
+          language: a.language || '',
+        }))
+        .filter((r) => r.title);
+      if (rows.length) {
+        return envelope({
+          feature: feat,
+          rows,
+          adapter: 'news-search',
+          kind: 'table',
+          note: 'GDELT DOC 2.0 reporting search — not an official dataset.',
+        });
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err;
+    }
+  }
+
   if (/^global commodities$/i.test(name) || dataset === 'geo_commodities') {
     const rows = commoditiesFromPack(commodities);
     if (rows.length) {

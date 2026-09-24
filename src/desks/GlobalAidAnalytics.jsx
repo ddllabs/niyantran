@@ -9,9 +9,12 @@ import {
   hydrateAppeal,
   money,
 } from '../lib/globalAid.js';
+import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
 
-export default function GlobalAidAnalytics({ row, rows, onSelect, onResearch }) {
+export default function GlobalAidAnalytics({ row, rows, onSelect, onResearch, feed, loading }) {
   const p = hydrateAppeal(row);
+  const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
+  const intelLines = briefPlainLines(intel);
   const list = useMemo(
     () => (rows || []).map((r) => hydrateAppeal(r)).filter((x) => x?.id),
     [rows],
@@ -106,7 +109,7 @@ export default function GlobalAidAnalytics({ row, rows, onSelect, onResearch }) 
       </section>
       <div className="alw-brief">
         <label>AI analyst brief</label>
-        <p>{p.brief}</p>
+        <p>{mergeBriefText(p.brief, intelLines)}</p>
       </div>
       <div className="alw-actions">
         <button type="button" className="alw-ai" onClick={() => onResearch?.(p)}>

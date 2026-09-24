@@ -95,25 +95,28 @@ export async function homeMarketsFromStatic(signal) {
 }
 
 export async function homeLatestFromStatic(signal) {
-  // CR-09: Latest column is nter.news — do not substitute third-party RSS as if it were nter.
-  const snap = await getStaticJson('/data/nter-news.json', signal);
-  const rows = Array.isArray(snap?.rows) ? snap.rows : [];
-  if (rows.length) {
+  // Homepage Latest is nter.news only — no wire / news.json fallback.
+  const nter = await getStaticJson('/data/nter-news.json', signal);
+  const nterRows = Array.isArray(nter?.rows) ? nter.rows : [];
+  if (nterRows.length) {
     return {
       ok: true,
-      rows,
-      note: snap.note || 'Latest from nter.news.',
-      archive: true,
-      ageH: snap.updated ? (Date.now() - new Date(snap.updated).getTime()) / 3600000 : null,
-      updated: snap.updated,
+      rows: nterRows,
+      note: nter.note || 'Latest from nter.news.',
+      archive: Boolean(nter.archive),
+      ageH: nter.updated ? (Date.now() - new Date(nter.updated).getTime()) / 3600000 : null,
+      updated: nter.updated,
       source: 'nter.news',
     };
   }
   return {
     ok: true,
     rows: [],
-    note: snap?.note || 'nter.news feed not configured on this build. No headlines were invented.',
-    archive: true,
+    note:
+      nter?.note ||
+      'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
+    archive: false,
+    waiting: true,
     source: 'nter.news',
   };
 }

@@ -6,12 +6,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as XLSX from 'xlsx';
+import { writablePath } from './writableRoot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
 const STAT1_URL = 'https://www.indiabudget.gov.in/doc/eb/stat1.xlsx';
 const CACHE_JSON = path.join(APP_ROOT, 'public', 'data', 'centre_state_fund_flow.json');
-const CACHE_XLSX = path.join(APP_ROOT, 'tmp', 'stat1.xlsx');
+const CACHE_XLSX = writablePath('stat1.xlsx');
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';

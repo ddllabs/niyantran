@@ -7,9 +7,12 @@ import {
   sanctionIssuerCountries,
   sanctionTargetCountries,
 } from '../lib/sanctions.js';
+import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
 
-export default function SanctionsAnalytics({ row, onResearch }) {
+export default function SanctionsAnalytics({ row, onResearch, feed, loading }) {
   const p = hydrateSanction(row);
+  const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
+  const intelLines = briefPlainLines(intel);
   if (!p) return null;
   const src = p.sources[0] || ['Official source', p.source];
   const targets = sanctionTargetCountries(p);
@@ -17,6 +20,9 @@ export default function SanctionsAnalytics({ row, onResearch }) {
   const mapSub = targets.length
     ? `${targets.length} mapped target ${targets.length === 1 ? 'jurisdiction' : 'jurisdictions'} · ${issuers.length} issuing jurisdictions · not an effectiveness score`
     : `thematic / non-state target · ${issuers.length} issuing jurisdictions · not an effectiveness score`;
+  const localBrief = `${p.name} combines ${(p.instruments.slice(0, 2).join(' and ') || 'recorded measures').toLowerCase()} across ${
+    p.sectors.slice(0, 3).join(', ') || 'named sectors'
+  }. Check the issuing authority, ownership rules and current licence text before treating any listing as current.`;
   return (
     <div className="alw">
       <header className="alw-head">
@@ -119,11 +125,7 @@ export default function SanctionsAnalytics({ row, onResearch }) {
       </section>
       <div className="alw-brief">
         <label>AI analyst brief</label>
-        <p>
-          {p.name} combines {(p.instruments.slice(0, 2).join(' and ') || 'recorded measures').toLowerCase()} across{' '}
-          {p.sectors.slice(0, 3).join(', ') || 'named sectors'}. Check the issuing authority, ownership rules and current
-          licence text before treating any listing as current.
-        </p>
+        <p>{mergeBriefText(localBrief, intelLines)}</p>
       </div>
       <div className="alw-actions">
         <button type="button" className="alw-ai" onClick={() => onResearch?.(p)}>

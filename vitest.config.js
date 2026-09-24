@@ -5,5 +5,11 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{js,jsx}'],
     environment: 'node',
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
 });

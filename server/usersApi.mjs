@@ -7,13 +7,11 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { getDb, queryAll, run } from './db.mjs';
 import { createClient } from '@supabase/supabase-js';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_ROOT = path.resolve(__dirname, '..');
-const USERS_FILE = path.join(APP_ROOT, 'tmp', 'issued-users.json');
+const USERS_FILE = writablePath('issued-users.json');
 
 const SEEDS = [
   {
@@ -66,6 +64,7 @@ function normalize(u) {
     planStatus: u.planStatus || u.plan_status || (plan === 'explorer' ? 'free' : 'active'),
     trialEndsAt: u.trialEndsAt || u.trial_ends_at || null,
     billingYearly: Boolean(u.billingYearly ?? u.billing_yearly),
+    googleSub: u.googleSub || u.google_sub || null,
     createdAt: u.createdAt || u.created_at || new Date().toISOString(),
   };
 }
@@ -107,6 +106,7 @@ function rowToUser(r) {
     planStatus: r.plan_status || (r.plan === 'explorer' ? 'free' : 'active'),
     trialEndsAt: r.trial_ends_at || null,
     billingYearly: Number(r.billing_yearly) === 1,
+    googleSub: r.google_sub || null,
     createdAt: r.created_at,
   };
 }
@@ -148,8 +148,8 @@ async function writeUsers(users) {
   for (const u of list) {
     run(
       database,
-      `INSERT INTO users (id, name, email, password, plan, type, active, persona_id, plan_status, trial_ends_at, billing_yearly, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, name, email, password, plan, type, active, persona_id, plan_status, trial_ends_at, billing_yearly, created_at, updated_at, google_sub)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         u.id,
         u.name,
@@ -164,6 +164,7 @@ async function writeUsers(users) {
         u.billingYearly ? 1 : 0,
         u.createdAt || now,
         now,
+        u.googleSub || null,
       ],
     );
   }

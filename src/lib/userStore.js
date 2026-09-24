@@ -49,6 +49,8 @@ function normalize(user) {
     planStatus: user.planStatus || user.plan_status || (plan === 'explorer' ? 'free' : 'active'),
     trialEndsAt: user.trialEndsAt || user.trial_ends_at || null,
     billingYearly: Boolean(user.billingYearly ?? user.billing_yearly),
+    googleSub: user.googleSub || user.google_sub || null,
+    authProvider: user.authProvider || (user.googleSub || user.google_sub ? 'google' : 'password'),
     active: user.active !== false,
   };
 }
@@ -399,6 +401,55 @@ export function createUser({ name, email, password, plan, type, personaId, planS
   });
   saveUsers([next, ...users], snapshot);
   return { ok: true, user: next };
+}
+
+/**
+ * Upsert a server-verified Google user into the local seat list.
+ * Preserves existing plan/persona when the account already exists.
+ */
+export function upsertGoogleUser(remote) {
+  const n = normalize(remote);
+  if (!n?.email) return { ok: false, reason: 'Invalid Google user.' };
+  const users = loadUsers();
+  const idx = users.findIndex(
+    (u) =>
+      (n.googleSub && u.googleSub === n.googleSub) ||
+      String(u.email).toLowerCase() === n.email,
+  );
+  if (idx >= 0) {
+    const prev = users[idx];
+    const merged = normalize({
+      ...prev,
+      ...n,
+      // Never downgrade existing plan / persona from a Google return trip
+      plan: prev.plan || n.plan,
+      planStatus: prev.planStatus || n.planStatus,
+      type: prev.type || n.type,
+      personaId: prev.personaId || n.personaId,
+      password: prev.password || '',
+      googleSub: n.googleSub || prev.googleSub,
+      authProvider: 'google',
+      id: prev.id || n.id,
+      email: prev.email || n.email,
+    });
+    const next = [...users];
+    next[idx] = merged;
+    saveUsers(next);
+    return { ok: true, user: merged };
+  }
+  const created = normalize({
+    ...n,
+    plan: n.plan || 'explorer',
+    planStatus: n.planStatus || 'free',
+    type: n.type || 'analyst',
+    personaId: n.personaId || 'analyst',
+    password: '',
+    authProvider: 'google',
+    active: true,
+    createdAt: n.createdAt || new Date().toISOString(),
+  });
+  saveUsers([created, ...users]);
+  return { ok: true, user: created };
 }
 
 export function updateUser(id, patch) {

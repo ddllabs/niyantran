@@ -1,9 +1,12 @@
 const KEY = 'niyantranAiModels.v4';
 const EVENT = 'niy-ai-models';
 
+import { isTestingPhase } from './appFlagsStore.js';
+
 /**
  * Models shown in AI research.
- * Gemini + OpenRouter GPT Astra are live; DeepSeek stays locked until its key is wired.
+ * tier: free = Gemini (allowed in testing phase); paid = others (disabled while testing).
+ * Gemini + OpenRouter GPT Astra only — DeepSeek removed from the picker.
  */
 export const AI_PROVIDERS = [
   {
@@ -11,6 +14,7 @@ export const AI_PROVIDERS = [
     label: 'Gemini - Lite',
     model: 'gemini-3.5-flash-lite',
     provider: 'gemini',
+    tier: 'free',
     enabled: true,
     hint: 'Default — fast briefing and desk questions',
   },
@@ -19,6 +23,7 @@ export const AI_PROVIDERS = [
     label: 'Gemini - Flash',
     model: 'gemini-3.7-flash',
     provider: 'gemini',
+    tier: 'free',
     enabled: true,
     hint: 'Heavier synthesis / visual research',
   },
@@ -27,28 +32,29 @@ export const AI_PROVIDERS = [
     label: 'GPT - Astra',
     model: 'openai/gpt-6-astra',
     provider: 'openrouter',
+    tier: 'paid',
     enabled: true,
     hint: 'OpenRouter · OpenAI GPT-6 Astra',
-  },
-  {
-    id: 'deepseek-flash',
-    label: 'DeepSeek - Flash',
-    model: 'deepseek-v4-flash',
-    provider: 'deepseek',
-    enabled: false,
-    hint: 'DeepSeek key not connected on the server yet',
-  },
-  {
-    id: 'deepseek-pro',
-    label: 'DeepSeek - Pro',
-    model: 'deepseek-v4-pro',
-    provider: 'deepseek',
-    enabled: false,
-    hint: 'DeepSeek key not connected on the server yet',
   },
 ];
 
 const DEFAULT_PROVIDER = AI_PROVIDERS.find((p) => p.enabled) || AI_PROVIDERS[0];
+
+/** Live list for the picker / send path — respects testing-phase free-Gemini-only. */
+export function liveAiProviders() {
+  const testing = isTestingPhase();
+  return AI_PROVIDERS.map((p) => {
+    if (!testing) return { ...p };
+    const freeGemini = p.tier === 'free' && p.provider === 'gemini';
+    return {
+      ...p,
+      enabled: freeGemini && p.enabled,
+      hint: freeGemini
+        ? p.hint
+        : 'Paid models are off during the testing phase',
+    };
+  });
+}
 
 /** Research role map — Gemini defaults; UI can override to OpenRouter Astra. */
 export const AI_ROLES = [
@@ -89,17 +95,16 @@ export const AI_ROLES = [
 function providerOf(model, fallback) {
   const m = String(model || '').toLowerCase();
   if (m.includes('gemini')) return 'gemini';
-  if (m.includes('deepseek')) return 'deepseek';
   if (m.includes('gpt') || m.includes('astra') || m.includes('openai/')) return 'openrouter';
   return fallback || 'gemini';
 }
 
 export function getAiProvider(id) {
-  return AI_PROVIDERS.find((p) => p.id === id) || DEFAULT_PROVIDER;
+  return liveAiProviders().find((p) => p.id === id) || liveAiProviders().find((p) => p.enabled) || DEFAULT_PROVIDER;
 }
 
 export function activeAiProvider() {
-  return AI_PROVIDERS.find((p) => p.enabled) || DEFAULT_PROVIDER;
+  return liveAiProviders().find((p) => p.enabled) || DEFAULT_PROVIDER;
 }
 
 /** Compact pill label: `Gemini - Lite` / `GPT - Astra`. */
@@ -108,7 +113,7 @@ export function shortModelLabel(role) {
   if (hit) return hit.label;
   const provider = String(role?.provider || providerOf(role?.model, '')).toLowerCase();
   if (provider === 'openrouter' || /astra|gpt-6/i.test(role?.model || '')) return 'GPT - Astra';
-  const brand = provider === 'deepseek' ? 'DeepSeek' : 'Gemini';
+  const brand = 'Gemini';
   const m = String(role?.model || '').toLowerCase();
   let tag = '';
   if (m.includes('pro')) tag = 'Pro';

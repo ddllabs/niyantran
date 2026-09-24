@@ -1,6 +1,7 @@
 import { parseINR, tenderCloseBand } from '../lib/nationalKpi.js';
 import BillRecordPane from './BillRecordPane.jsx';
 import { AffidavitRecord, DelimitationRecord, ManifestoRecord } from './ElectoralRecords.jsx';
+import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
 
 function field(row, keys) {
   for (const k of keys) {
@@ -28,7 +29,7 @@ function SourceBtn({ href, label }) {
   );
 }
 
-function BillRecord({ row, onClear, onAskAi, liveCount, desk, feature }) {
+function BillRecord({ row, onClear, onAskAi, liveCount, desk, feature, feed, loading }) {
   return (
     <BillRecordPane
       row={row}
@@ -37,6 +38,8 @@ function BillRecord({ row, onClear, onAskAi, liveCount, desk, feature }) {
       liveCount={liveCount}
       desk={desk}
       feature={feature}
+      feed={feed}
+      loading={loading}
     />
   );
 }
@@ -238,10 +241,13 @@ function RegulatoryRecord({ row, onClear }) {
   );
 }
 
-function GenericRecord({ row, onClear, noun }) {
+function GenericRecord({ row, onClear, noun, feed, loading }) {
   const title = field(row, ['policy_name', 'topic', 'title', 'name', 'promise', 'programme']);
   const skip = new Set(['source_url', 'status', 'pdf_url', 'id']);
   const tiles = Object.entries(row || {}).filter(([k, v]) => !skip.has(k) && v && String(v).length < 80);
+  const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
+  const intelLines = briefPlainLines(intel);
+  const note = mergeBriefText('', intelLines, { maxExtra: 4 });
   return (
     <div className="nat-rec">
       <header>
@@ -255,6 +261,7 @@ function GenericRecord({ row, onClear, noun }) {
           <Tile key={k} k={k.replace(/_/g, ' ')} v={String(v)} />
         ))}
       </div>
+      {note ? <p className="desk-note">{note}</p> : null}
       {/news\.google\.com/i.test(row.source_url || '') ? (
         <p className="desk-note">
           This row’s source_url is news.google.com. Google News ToS restricts commercial use — the link is shown as provenance, not as a
@@ -269,16 +276,16 @@ function GenericRecord({ row, onClear, noun }) {
   );
 }
 
-export default function NationalRecord({ row, feature, onClear, onAskAi, liveCount, rows, meta }) {
+export default function NationalRecord({ row, feature, onClear, onAskAi, liveCount, rows, meta, feed, loading }) {
   const f = String(feature || '');
-  if (/bill passage/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="bill" feature={feature} />;
+  if (/bill passage/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="bill" feature={feature} feed={feed} loading={loading} />;
   if (/candidate affidavit/i.test(f)) return <AffidavitRecord row={row} onClear={onClear} onAskAi={onAskAi} />;
   if (/delimitation/i.test(f)) return <DelimitationRecord row={row} rows={rows} meta={meta} onClear={onClear} onAskAi={onAskAi} />;
   if (/mp profiles|mp report/i.test(f)) return <MpRecord row={row} onClear={onClear} />;
   if (/central tender/i.test(f)) return <TenderRecord row={row} onClear={onClear} />;
   if (/agmut|bureaucratic transfers/i.test(f)) return <TransferRecord row={row} onClear={onClear} />;
-  if (/parliamentary question/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="question" feature={feature} />;
-  if (/regulatory body watch/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="regulatory" feature={feature} />;
+  if (/parliamentary question/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="question" feature={feature} feed={feed} loading={loading} />;
+  if (/regulatory body watch/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="regulatory" feature={feature} feed={feed} loading={loading} />;
   if (/statement/i.test(f)) {
     return (
       <div className="nat-rec">
@@ -302,9 +309,9 @@ export default function NationalRecord({ row, feature, onClear, onAskAi, liveCou
       </div>
     );
   }
-  if (/policy pipeline/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="pipeline" feature={feature} />;
-  if (/cabinet/i.test(f)) return <GenericRecord row={row} onClear={onClear} noun="decisions" />;
+  if (/policy pipeline/i.test(f)) return <BillRecord row={row} onClear={onClear} onAskAi={onAskAi} liveCount={liveCount} desk="pipeline" feature={feature} feed={feed} loading={loading} />;
+  if (/cabinet/i.test(f)) return <GenericRecord row={row} onClear={onClear} noun="decisions" feed={feed} loading={loading} />;
   if (/manifestos/i.test(f)) return <ManifestoRecord row={row} onClear={onClear} onAskAi={onAskAi} />;
   if (/budget/i.test(f)) return <BudgetRecord row={row} onClear={onClear} />;
-  return <GenericRecord row={row} onClear={onClear} noun="records" />;
+  return <GenericRecord row={row} onClear={onClear} noun="records" feed={feed} loading={loading} />;
 }
