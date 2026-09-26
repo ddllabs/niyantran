@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react';
+import {
+  hydrateAppFlags,
+  isTestingPhase,
+  subscribeAppFlags,
+} from '../lib/appFlagsStore.js';
 import { loadPricing, PLAN_IDS, subscribePricing } from '../lib/pricingStore.js';
 
 function Ico({ d, size = 18 }) {
@@ -53,6 +58,29 @@ const COMPARE = [
 
 const COL_COLOR = [C.blue, C.purple, C.blue, C.red];
 
+/** Single public plan while admin testing-phase flag is on (Explorer look, full access). */
+const OPEN_PLAN = {
+  id: 'explorer',
+  name: 'EXPLORER',
+  who: 'For individuals and researchers',
+  monthly: 0,
+  yearly: 0,
+  unit: '/month',
+  tag: 'Every desk, full coverage, and AI research — at no cost.',
+  cta: 'Get Started Free',
+  ctaKind: 'ghost-blue',
+  color: C.blue,
+  popular: false,
+  plus: null,
+  items: [
+    'Access to all desks',
+    'Full data coverage',
+    'Export & copy',
+    'AI research assistant (Gemini)',
+    'Community support',
+  ],
+};
+
 function Cell({ value, color }) {
   if (value === true) return <CircCheck color={color} />;
   if (value === false) return <span className="mkt-pr-dash">—</span>;
@@ -70,8 +98,15 @@ export default function PricingPage({ onLogin }) {
   const [yearly, setYearly] = useState(false);
   const [focus, setFocus] = useState(null);
   const [plans, setPlans] = useState(() => loadPricing());
+  const [singleTier, setSingleTier] = useState(() => isTestingPhase());
 
   useEffect(() => subscribePricing(setPlans), []);
+  useEffect(() => {
+    hydrateAppFlags().then((f) => setSingleTier(Boolean(f.testingPhase)));
+    return subscribeAppFlags((f) => setSingleTier(Boolean(f.testingPhase)));
+  }, []);
+
+  const displayPlans = singleTier ? [OPEN_PLAN] : plans;
 
   function goPlan(planId) {
     if (planId === 'gov') {
@@ -82,7 +117,7 @@ export default function PricingPage({ onLogin }) {
   }
 
   return (
-    <div className="mkt-pr">
+    <div className={`mkt-pr${singleTier ? ' is-open' : ''}`}>
       <div className="mkt-pr-art" aria-hidden="true">
         <span className="mkt-pr-scan" />
         <span className="mkt-pr-gridlines" />
@@ -124,11 +159,20 @@ export default function PricingPage({ onLogin }) {
           <span className="sys">SYS/READY_</span>
         </p>
         <h1>
-          Choose the plan that <em>powers</em> your mission
+          {singleTier ? (
+            <>
+              The terminal is <em>free</em>
+            </>
+          ) : (
+            <>
+              Choose the plan that <em>powers</em> your mission
+            </>
+          )}
         </h1>
         <p className="mkt-pr-lede">
-          Niyantran Terminal delivers real-time intelligence, authoritative data, and powerful tools for
-          government, policy, and global affairs—built for scale, security, and impact.
+          {singleTier
+            ? 'Create an account and open every desk — full coverage and AI research, at no cost.'
+            : 'Niyantran Terminal delivers real-time intelligence, authoritative data, and powerful tools for government, policy, and global affairs—built for scale, security, and impact.'}
         </p>
         <div className="mkt-pr-tele">
           <span>
@@ -148,59 +192,75 @@ export default function PricingPage({ onLogin }) {
       </section>
 
       <div className="mkt-wrap">
-        <div className="mkt-pr-bill">
-          <span className={!yearly ? 'on' : ''}>Pay Monthly</span>
-          <button
-            type="button"
-            className={`mkt-pr-switch${yearly ? ' on' : ''}`}
-            role="switch"
-            aria-checked={yearly}
-            aria-label="Toggle yearly billing"
-            onClick={() => setYearly((v) => !v)}
-          >
-            <i />
-          </button>
-          <span className={yearly ? 'on' : ''}>Pay Yearly</span>
-          <em>Save 17%</em>
-        </div>
+        {!singleTier ? (
+          <div className="mkt-pr-bill">
+            <span className={!yearly ? 'on' : ''}>Pay Monthly</span>
+            <button
+              type="button"
+              className={`mkt-pr-switch${yearly ? ' on' : ''}`}
+              role="switch"
+              aria-checked={yearly}
+              aria-label="Toggle yearly billing"
+              onClick={() => setYearly((v) => !v)}
+            >
+              <i />
+            </button>
+            <span className={yearly ? 'on' : ''}>Pay Yearly</span>
+            <em>Save 17%</em>
+          </div>
+        ) : null}
 
-        <div className="mkt-pr-grid" onMouseLeave={() => setFocus(null)}>
-          {plans.map((p) => {
+        <div className={`mkt-pr-grid${singleTier ? ' mkt-pr-grid-single' : ''}`} onMouseLeave={() => setFocus(null)}>
+          {displayPlans.map((p) => {
             const price = p.custom ? 'Custom' : `$${yearly && p.yearly != null ? p.yearly : p.monthly}`;
             return (
               <article
                 key={p.id}
-                className={`mkt-pr-card ${p.id}${focus === p.id ? ' on' : ''}`}
+                className={`mkt-pr-card ${p.id}${focus === p.id ? ' on' : ''}${singleTier ? ' is-row' : ''}`}
                 onMouseEnter={() => setFocus(p.id)}
                 onMouseMove={onCardMove}
               >
                 <span className="mkt-pr-glow" aria-hidden="true" />
                 {p.popular ? <div className="mkt-pr-pop">MOST POPULAR</div> : null}
-                <h2 style={{ color: p.color }}>{p.name}</h2>
-                <p className="who">{p.who}</p>
-                <div className="amt" key={price}>
-                  {price}
+                <div className="mkt-pr-card-body">
+                  <div className="mkt-pr-card-lead">
+                    <h2 style={{ color: p.color }}>{p.name}</h2>
+                    <p className="who">{p.who}</p>
+                    <div className="amt" key={`${p.id}-${price}`}>
+                      {price}
+                    </div>
+                    <div className="unit">{p.unit}</div>
+                    {!singleTier ? <p className="tag">{p.tag}</p> : null}
+                    {!singleTier ? (
+                      <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={() => goPlan(p.id)}>
+                        {p.cta}
+                      </button>
+                    ) : null}
+                    {p.plus ? (
+                      <p className="plus" style={{ color: p.color }}>
+                        {p.plus}
+                      </p>
+                    ) : singleTier ? null : (
+                      <p className="plus spacer" />
+                    )}
+                  </div>
+                  <ul>
+                    {p.items.map((item) => (
+                      <li key={item}>
+                        <Tick color={p.id === 'explorer' ? C.purple : p.color} />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {singleTier ? (
+                    <div className="mkt-pr-card-action">
+                      <p className="tag">{p.tag}</p>
+                      <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={() => goPlan(p.id)}>
+                        {p.cta}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="unit">{p.unit}</div>
-                <p className="tag">{p.tag}</p>
-                <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={() => goPlan(p.id)}>
-                  {p.cta}
-                </button>
-                {p.plus ? (
-                  <p className="plus" style={{ color: p.color }}>
-                    {p.plus}
-                  </p>
-                ) : (
-                  <p className="plus spacer" />
-                )}
-                <ul>
-                  {p.items.map((item) => (
-                    <li key={item}>
-                      <Tick color={p.id === 'explorer' ? C.purple : p.color} />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
               </article>
             );
           })}
@@ -218,41 +278,45 @@ export default function PricingPage({ onLogin }) {
           ))}
         </div>
 
-        <h2 className="mkt-pr-compare-title">
-          Compare Plans
-          <span>hover a plan to isolate the feed</span>
-        </h2>
-        <div className={`mkt-pr-table-wrap${focus ? ` hi-${focus}` : ''}`}>
-          <table className="mkt-pr-table">
-            <thead>
-              <tr>
-                <th>FEATURES</th>
-                {PLAN_IDS.map((id, i) => (
-                  <th
-                    key={id}
-                    className={['ex', 'pro', 'ent', 'gov'][i]}
-                    onMouseEnter={() => setFocus(id)}
-                    onMouseLeave={() => setFocus(null)}
-                  >
-                    {plans[i]?.name || ['EXPLORER', 'PROFESSIONAL', 'ENTERPRISE', 'GOVERNMENT'][i]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.map((row) => (
-                <tr key={row[0]}>
-                  <th scope="row">{row[0]}</th>
-                  {row.slice(1).map((cell, i) => (
-                    <td key={`${row[0]}-${i}`}>
-                      <Cell value={cell} color={COL_COLOR[i]} />
-                    </td>
+        {!singleTier ? (
+          <>
+            <h2 className="mkt-pr-compare-title">
+              Compare Plans
+              <span>hover a plan to isolate the feed</span>
+            </h2>
+            <div className={`mkt-pr-table-wrap${focus ? ` hi-${focus}` : ''}`}>
+              <table className="mkt-pr-table">
+                <thead>
+                  <tr>
+                    <th>FEATURES</th>
+                    {PLAN_IDS.map((id, i) => (
+                      <th
+                        key={id}
+                        className={['ex', 'pro', 'ent', 'gov'][i]}
+                        onMouseEnter={() => setFocus(id)}
+                        onMouseLeave={() => setFocus(null)}
+                      >
+                        {plans[i]?.name || ['EXPLORER', 'PROFESSIONAL', 'ENTERPRISE', 'GOVERNMENT'][i]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARE.map((row) => (
+                    <tr key={row[0]}>
+                      <th scope="row">{row[0]}</th>
+                      {row.slice(1).map((cell, i) => (
+                        <td key={`${row[0]}-${i}`}>
+                          <Cell value={cell} color={COL_COLOR[i]} />
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
 
         <div className="mkt-pr-help">
           <div className="mkt-pr-help-mark" aria-hidden="true">
@@ -260,11 +324,15 @@ export default function PricingPage({ onLogin }) {
             <span className="purple" />
           </div>
           <div className="mkt-pr-help-copy">
-            <h3>Not sure which plan fits your needs?</h3>
-            <p>Our team can help you find the right solution.</p>
+            <h3>{singleTier ? 'Ready to open the terminal?' : 'Not sure which plan fits your needs?'}</h3>
+            <p>
+              {singleTier
+                ? 'Create an account and start working across every desk.'
+                : 'Our team can help you find the right solution.'}
+            </p>
           </div>
-          <button type="button" className="mkt-pr-btn ghost-dark" onClick={() => goPlan('gov')}>
-            Talk to an Expert
+          <button type="button" className="mkt-pr-btn ghost-dark" onClick={() => goPlan(singleTier ? 'explorer' : 'gov')}>
+            {singleTier ? 'Get started free' : 'Talk to an Expert'}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>

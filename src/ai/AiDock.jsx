@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createAiChat } from '../lib/aiChatStore.js';
 import AiPanel from './AiPanel.jsx';
 
 export default function AiDock({ feed, selected, tab, featureName, lang, onOpenChange }) {
@@ -11,16 +12,27 @@ export default function AiDock({ feed, selected, tab, featureName, lang, onOpenC
 
   useEffect(() => {
     function onOpen(e) {
-      setOpen(true);
       const detail = e.detail && typeof e.detail === 'object' ? e.detail : {};
+      const intentional =
+        detail.row ||
+        detail.drop ||
+        detail.prompt ||
+        detail.attachFeed ||
+        detail.droppedFiles?.length;
+
+      setOpen((wasOpen) => {
+        // New empty thread when opening research with a card — not when merely focusing the dock after a drop.
+        if (!wasOpen && intentional) createAiChat({ roleId: 'AUTO' });
+        return true;
+      });
+
       if (Object.keys(detail).length) {
         setSeed({
           ...detail,
-          // Always carry the desk selection when present so every module grounds the same way.
           row: detail.row || selected || undefined,
           attachFeed: detail.attachFeed || Boolean(detail.row || selected),
         });
-      } else if (selected) {
+      } else if (intentional && selected) {
         setSeed({ row: selected, attachFeed: true });
       }
     }

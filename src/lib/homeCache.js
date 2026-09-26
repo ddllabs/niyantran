@@ -1,7 +1,8 @@
+import { homeLiveApiEnabled, liveApiEnabled } from './apiMode.js';
 import { loadRefreshCfg } from './refreshStore.js';
-import { liveApiEnabled } from './apiMode.js';
 
-const KEY = 'niyantranHomeDesk';
+/** Bumped when Latest switched to nter.news-only (drops stale wire cache). */
+const KEY = 'niyantranHomeDesk.v2';
 
 let kickAt = 0;
 let kickInflight = null;
@@ -54,11 +55,12 @@ export function saveHomeCache({ markets, latest, pulse }) {
   return next;
 }
 
-/** Live Yahoo/RSS/GDELT — only when the admin interval has elapsed. */
+/** Live Yahoo / nter.news / GDELT — when the admin interval has elapsed. */
 export function kickHomeRefreshIfDue() {
   const cfg = loadRefreshCfg();
   if (!cfg.auto) return Promise.resolve(null);
-  if (!liveApiEnabled()) return Promise.resolve(null);
+  // Home refresh route is deployed on Vercel — allow outside Vite DEV.
+  if (!homeLiveApiEnabled() && !liveApiEnabled()) return Promise.resolve(null);
   const hours = cfg.intervalHours;
   const cache = read();
   if (!homeCacheHasRows(cache)) return Promise.resolve(null);

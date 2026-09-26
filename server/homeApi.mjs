@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
+import { serveNterLatest } from './nterNews.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -41,13 +42,6 @@ const TICKERS = [
   ['INDIA VIX', '^INDIAVIX'],
   ['S&P 500', '^GSPC'],
   ['BITCOIN', 'BTC-USD'],
-];
-
-const WIRES = [
-  { src: 'THE WIRE', feed: 'https://cms.thewire.in/feed', site: 'https://thewire.in' },
-  { src: 'OCCRP', feed: 'https://www.occrp.org/en/feed', site: 'https://www.occrp.org' },
-  { src: 'SCROLL.IN', feed: 'https://feeds.feedburner.com/ScrollinArticles.rss', site: 'https://scroll.in' },
-  { src: 'THE HINDU', feed: 'https://www.thehindu.com/news/national/feeder/default.rss', site: 'https://www.thehindu.com' },
 ];
 
 const SNAPSHOT_MAX_AGE_H = 24;
@@ -351,7 +345,10 @@ async function fetchLiveMarkets() {
 export async function serveHomeMarkets(opts = {}) {
   const maxAgeH = opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H;
   const fresh = Boolean(opts.fresh);
-  if (!fresh) {
+  // On Vercel serverless, prefer a live Yahoo pull — disk writes do not persist
+  // and archived packs are what made production look months stale.
+  const preferLive = fresh || Boolean(process.env.VERCEL);
+  if (!preferLive) {
     const snap = readDiskSnapshot('markets');
     if (snap?.rows?.some((r) => r?.last != null)) {
       if (snap.__ageH > maxAgeH) scheduleHomeRefresh('markets', fetchLiveMarkets);
@@ -386,9 +383,34 @@ export async function serveHomeMarkets(opts = {}) {
       };
     }
   }
-  const live = await fetchLiveMarkets();
-  writeDiskSnapshot('markets', live);
-  return { ...live, rows: prepareHomeMarketQuotes(live.rows || []) };
+  try {
+    const live = await fetchLiveMarkets();
+    writeDiskSnapshot('markets', live);
+    return { ...live, rows: prepareHomeMarketQuotes(live.rows || []) };
+  } catch (err) {
+    const snap = readDiskSnapshot('markets');
+    if (snap?.rows?.some((r) => r?.last != null)) {
+      return {
+        ...snapshotPayload(snap, { source: snap.source || 'snapshot' }),
+        rows: prepareHomeMarketQuotes(snap.rows),
+        note: `Live quotes unreachable (${err.message || 'error'}). Showing last saved markets.`,
+        archive: true,
+      };
+    }
+    const arch = snapshotMarketsFromArchive();
+    if (arch.rows?.length) {
+      return {
+        ok: true,
+        rows: prepareHomeMarketQuotes(arch.rows),
+        source: 'Original HTML OHLC / NSE market-feed snapshot.',
+        archive: true,
+        as_of: arch.as_of || arch.updated || '',
+        updated: arch.updated || arch.as_of || '',
+        note: `Live quotes unreachable (${err.message || 'error'}). Showing shipped market pack.`,
+      };
+    }
+    throw err;
+  }
 }
 
 function decodeXml(s) {
@@ -447,58 +469,99 @@ function ago(iso) {
 }
 
 async function fetchLiveLatest() {
-  const batches = await Promise.all(
-    WIRES.map(async (w) => {
+  // Homepage Latest is nter.news only — never fall back to wire RSS.
+  const nter = serveNterLatest({ limit: 12 });
+  return nter.rows?.length ? nter : null;
+}
+
+const WIRE_FEEDS = [
+  { src: 'THE WIRE', site: 'https://thewire.in', url: 'https://cms.thewire.in/feed' },
+  { src: 'OCCRP', site: 'https://www.occrp.org', url: 'https://www.occrp.org/en/feed' },
+  { src: 'SCROLL.IN', site: 'https://scroll.in', url: 'https://feeds.feedburner.com/ScrollinArticles.rss' },
+  { src: 'THE HINDU', site: 'https://www.thehindu.com', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
+];
+
+async function fetchWireRssLatest() {
+  const parts = await Promise.all(
+    WIRE_FEEDS.map(async (f) => {
       try {
-        const items = await serveRss(w.feed);
-        return items.slice(0, 4).map((it) => ({
+        const xml = await fetchRssXml(f.url);
+        return parseRss(xml).map((it) => ({
           ...it,
-          src: w.src,
-          site: w.site,
+          src: f.src,
+          site: f.site,
+          source: 'wire-rss',
+          t: new Date(it.pub).getTime() || Date.now(),
           ago: ago(it.pub),
-          t: new Date(it.pub).getTime() || 0,
         }));
       } catch {
         return [];
       }
     }),
   );
-  const rows = batches.flat().sort((a, b) => b.t - a.t).slice(0, 9);
-  if (rows.length) {
-    return { ok: true, rows, note: 'Headlines from The Wire, OCCRP, Scroll.in and The Hindu RSS — same feeds as the HTML home.' };
-  }
-  return null;
+  const seen = new Set();
+  const rows = parts
+    .flat()
+    .filter((r) => {
+      const k = String(r.link || r.title || '').toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a, b) => (b.t || 0) - (a.t || 0))
+    .slice(0, 12);
+  if (!rows.length) return null;
+  return {
+    ok: true,
+    rows,
+    note: 'Headlines from The Wire, OCCRP, Scroll.in and The Hindu RSS.',
+    source: 'wire-rss',
+    archive: false,
+    updated: new Date().toISOString(),
+    as_of: new Date().toISOString(),
+    ageH: 0,
+    cached: false,
+  };
 }
 
 export async function serveHomeLatest(opts = {}) {
-  const maxAgeH = opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H;
-  const fresh = Boolean(opts.fresh);
-  if (!fresh) {
-    const snap = readDiskSnapshot('news');
-    if (snap?.rows?.length) {
-      if (snap.__ageH > maxAgeH) scheduleHomeRefresh('news', fetchLiveLatest);
-      return {
-        ...snapshotPayload(snap),
-        rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-        note: snap.note || 'Saved home-desk headlines. Live RSS refreshes on the admin interval.',
-      };
-    }
-  }
-  const live = await fetchLiveLatest();
-  if (live?.rows?.length) {
-    writeDiskSnapshot('news', live);
+  const live = serveNterLatest({ limit: 12 });
+  if (live.rows?.length) {
+    writeDiskSnapshot('news', {
+      rows: live.rows,
+      note: live.note,
+      source: 'nter.news',
+      updated: live.updated,
+      as_of: live.updated,
+    });
     return live;
   }
+
+  // Only serve a prior nter.news snapshot — never wire RSS / old news.json.
   const snap = readDiskSnapshot('news');
-  if (snap?.rows?.length) {
+  if (snap?.rows?.length && snap.source === 'nter.news') {
+    const ageH = snap.__ageH;
+    const stale = !Number.isFinite(ageH) || ageH > (opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H);
+    if (stale && !opts.fresh) {
+      scheduleHomeRefresh('news', () => fetchLiveLatest());
+    }
     return {
       ...snapshotPayload(snap),
       rows: snap.rows.map((r) => ({ ...r, ago: r.ago || ago(r.pub) })),
-      note: 'Live RSS unreachable. Showing the last saved headlines.',
-      archive: true,
+      note: snap.note || 'Latest from nter.news.',
+      source: 'nter.news',
     };
   }
-  return { ok: true, rows: [], note: 'Wire quiet. Headlines arrive from RSS when the proxy can reach the publishers.' };
+
+  return {
+    ok: true,
+    rows: [],
+    note: live.note || 'Waiting for nter.news article.published pushes to POST /api/news/ingest. No headlines were invented.',
+    source: 'nter.news',
+    archive: false,
+    waiting: true,
+    ageH: null,
+  };
 }
 
 function gdeltTime(seendate) {
@@ -730,12 +793,26 @@ export async function handleHomeApi(req, res, next) {
       return;
     }
     if (p === '/data/news.json') {
-      const news = snapshotNewsFile();
-      if (!news) {
-        json(res, { error: 'no snapshot' }, 404);
+      const live = serveNterLatest({ limit: 12 });
+      if (live.rows?.length) {
+        json(res, live);
         return;
       }
-      json(res, news);
+      const news = snapshotNewsFile();
+      if (news?.source === 'nter.news' && news.rows?.length) {
+        json(res, news);
+        return;
+      }
+      json(
+        res,
+        {
+          ok: true,
+          rows: [],
+          note: live.note || 'Waiting for nter.news ingest. No headlines were invented.',
+          source: 'nter.news',
+          archive: true,
+        },
+      );
       return;
     }
     if (p === '/api/ohlc') {

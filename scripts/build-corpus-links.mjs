@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// #!/usr/bin/env node
 // Build the file-name → source-URL map from the National corpus's own dataset
 // records (Digital Sansad bill records carry `billIntroducedFile:` links, and
 // other records carry PDF/DOC links in their text). Output is read by

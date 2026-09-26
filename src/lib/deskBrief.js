@@ -1,6 +1,6 @@
 /**
  * Client helpers for Gemini entry briefs (one selected table row).
- * Regenerates only when that entry's fields change.
+ * Lookup: localStorage → server DB/disk cache → Gemini generate (only on miss).
  */
 
 const STORE_KEY = 'niy-entry-brief-v7';
@@ -60,23 +60,26 @@ function saveStore(store) {
   }
 }
 
-export function readLocalBrief(feature, hash) {
-  if (!feature || !hash) return null;
-  const store = loadStore();
-  const hit = store[`${feature}::${hash}`];
-  return hit?.brief || null;
+function storeKeyFor(feature, hash, scope) {
+  return scope === 'substance' ? `${feature}::substance::${hash}` : `${feature}::${hash}`;
 }
 
-export function writeLocalBrief(feature, hash, brief) {
+export function readLocalBrief(feature, hash, scope = 'entry') {
+  if (!feature || !hash) return null;
+  const store = loadStore();
+  return store[storeKeyFor(feature, hash, scope)]?.brief || null;
+}
+
+export function writeLocalBrief(feature, hash, brief, scope = 'entry') {
   if (!feature || !hash || !brief) return;
   const store = loadStore();
-  store[`${feature}::${hash}`] = { at: Date.now(), brief };
+  store[storeKeyFor(feature, hash, scope)] = { at: Date.now(), brief };
   const keys = Object.keys(store);
-  if (keys.length > 60) {
+  if (keys.length > 80) {
     keys
       .map((k) => ({ k, at: store[k]?.at || 0 }))
       .sort((a, b) => a.at - b.at)
-      .slice(0, keys.length - 60)
+      .slice(0, keys.length - 80)
       .forEach(({ k }) => delete store[k]);
   }
   saveStore(store);
@@ -95,8 +98,50 @@ function slimEntry(row) {
 }
 
 /**
+ * Cache-only lookup (localStorage + server GET). Never calls Gemini.
+ * Returns null on miss.
+ */
+export async function peekDeskBrief({
+  feature,
+  tier,
+  row,
+  signal,
+  scope = 'entry',
+} = {}) {
+  if (!row || row.status === 'source_status') return null;
+  if (!feature) return null;
+  const hash = await entryFingerprintSha(row, feature, tier);
+  const briefScope = scope === 'substance' ? 'substance' : 'entry';
+
+  const local = readLocalBrief(feature, hash, briefScope);
+  if (local?.headline || local?.summary?.length) {
+    return { ...local, cached: true, hash };
+  }
+
+  try {
+    const q = new URLSearchParams({
+      feature,
+      tier: tier || '',
+      hash,
+      scope: briefScope,
+    });
+    const res = await fetch(`/api/ai/desk-brief?${q}`, { signal });
+    if (res.ok) {
+      const body = await res.json();
+      if (body?.ok && (body.headline || body.summary?.length)) {
+        writeLocalBrief(feature, hash, body, briefScope);
+        return { ...body, cached: true, hash };
+      }
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+  }
+  return null;
+}
+
+/**
  * Resolve an entry brief for the selected row.
- * local cache → server disk cache → Gemini generate.
+ * local → server DB → Gemini generate (only when cache misses or force).
  */
 export async function ensureDeskBrief({
   feature,
@@ -113,32 +158,10 @@ export async function ensureDeskBrief({
   }
   const hash = await entryFingerprintSha(row, feature, tier);
   const briefScope = scope === 'substance' ? 'substance' : 'entry';
-  const storeKey = briefScope === 'substance' ? `${feature}::substance::${hash}` : `${feature}::${hash}`;
 
   if (!force) {
-    const store = loadStore();
-    const local = store[storeKey]?.brief || (briefScope === 'entry' ? readLocalBrief(feature, hash) : null);
-    if (local) return { ...local, cached: true, hash };
-
-    try {
-      const q = new URLSearchParams({ feature, tier: tier || '', hash, scope: briefScope });
-      const res = await fetch(`/api/ai/desk-brief?${q}`, { signal });
-      if (res.ok) {
-        const body = await res.json();
-        if (body?.ok && body.headline) {
-          if (briefScope === 'substance') {
-            const s = loadStore();
-            s[storeKey] = { at: Date.now(), brief: body };
-            saveStore(s);
-          } else {
-            writeLocalBrief(feature, hash, body);
-          }
-          return { ...body, cached: true, hash };
-        }
-      }
-    } catch (err) {
-      if (err?.name === 'AbortError') throw err;
-    }
+    const hit = await peekDeskBrief({ feature, tier, row, signal, scope: briefScope });
+    if (hit) return hit;
   }
 
   const res = await fetch('/api/ai/desk-brief', {
@@ -165,12 +188,6 @@ export async function ensureDeskBrief({
     }
     throw new Error(body?.error || `desk-brief HTTP ${res.status}`);
   }
-  if (briefScope === 'substance') {
-    const s = loadStore();
-    s[storeKey] = { at: Date.now(), brief: body };
-    saveStore(s);
-  } else {
-    writeLocalBrief(feature, hash, body);
-  }
+  writeLocalBrief(feature, hash, body, briefScope);
   return { ...body, hash };
 }

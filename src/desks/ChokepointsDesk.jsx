@@ -155,7 +155,7 @@ export default function ChokepointsDesk({ feed, selected, onSelect, onAsk, vizFi
         points={mapPts}
         legend={[
           ['#ff6f6f', 'Active'],
-          ['#ff8f3f', 'Escalating'],
+          ['#4a90e2', 'Escalating'],
           ['#7fb0ff', 'Watch'],
         ]}
         onPick={(d) => {

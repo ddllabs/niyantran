@@ -4,7 +4,6 @@ import { feedOverview } from '../lib/analytics.js';
 import { resolveDataState, isTerminalState } from '../lib/dataState.js';
 import { BarList, Heatmap, Sparkline, VizCard } from './AnalyticsViz.jsx';
 import RecordDetail from './RecordDetail.jsx';
-import DeskIntel from './DeskIntel.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
 import AlliancesAnalytics from '../desks/AlliancesAnalytics.jsx';
 import SanctionsAnalytics from '../desks/SanctionsAnalytics.jsx';
@@ -98,7 +97,13 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
     isGeonomicsTable(feed?.feature) ||
     isNationalTable(feed?.feature);
   const dossier = alliances || sanctions || aid || nuclear;
-  const analyticsTitle = dossier ? 'Event analytics' : overview.title;
+  const analyticsTitle = selected
+    ? dossier
+      ? 'Event analytics'
+      : 'Record'
+    : dossier
+      ? 'Event analytics'
+      : overview.title;
   const showFallbackBanner =
     !localDesk && !carbonDesk && feed?.fallback && dataState.id !== 'live' && !status && dataState.detail;
 
@@ -150,8 +155,6 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
             </p>
           )}
 
-          {!terminal ? <DeskIntel feed={feed} selected={selected} loading={loading} /> : null}
-
           {terminal && !selected ? (
             <div className="rail-empty">
               <p className="muted">Analytics stay empty until live or stored rows exist for this destination.</p>
@@ -165,6 +168,8 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
               liveCount={(feed?.rows || []).filter((r) => r.status !== 'source_status').length}
               onClear={() => onSelect?.(null)}
               onAskAi={() => openAiResearch({ row: selected, attachFeed: true })}
+              feed={feed}
+              loading={loading}
             />
           ) : selected && alliances ? (
             <AlliancesAnalytics
@@ -173,15 +178,24 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
               flags={feed?.meta?.memberFlags || {}}
               onSelect={onSelect}
               onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
+              feed={feed}
+              loading={loading}
             />
           ) : selected && sanctions ? (
-            <SanctionsAnalytics row={selected} onResearch={() => openAiResearch({ row: selected, attachFeed: true })} />
+            <SanctionsAnalytics
+              row={selected}
+              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
+              feed={feed}
+              loading={loading}
+            />
           ) : selected && aid ? (
             <GlobalAidAnalytics
               row={selected}
               rows={feed?.rows || []}
               onSelect={onSelect}
               onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
+              feed={feed}
+              loading={loading}
             />
           ) : selected && nuclear ? (
             <NuclearAnalytics
@@ -189,8 +203,10 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
               rows={feed?.rows || []}
               onSelect={onSelect}
               onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
+              feed={feed}
+              loading={loading}
             />
-          ) : selected && !indicators ? (
+          ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />
           ) : !indicators ? (
             <p className="rail-empty">Select a row in the feed to inspect the record.</p>

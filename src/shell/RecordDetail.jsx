@@ -4,8 +4,7 @@ import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { formatDate, formatDateTime } from '../lib/format.js';
 import CsvTablePane from './CsvTablePane.jsx';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
-import { useEffect, useState } from 'react';
-import { resolveOrganisedBrief } from '../lib/sourceDoc.js';
+import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
 
 const SKIP = new Set([
   'source_url',
@@ -253,7 +252,7 @@ export default function RecordDetail({ row, feed, onClear, generateBrief = true 
     .map(([k, v]) => ({ k, v: String(v).trim(), y: yearOf(v) }))
     .sort((a, b) => a.y - b.y);
   const entities = entries.filter(([k, v]) => ENTITY_KEYS.test(k) && !isUrl(v) && String(v).trim().length <= 60);
-  const summary = entries
+  const fieldSummary = entries
     .filter(([, v]) => !isUrl(v))
     .slice(0, 6)
     .map(([k, v]) => `${prettyKey(k)}: ${String(v).trim()}`)
@@ -267,6 +266,73 @@ export default function RecordDetail({ row, feed, onClear, generateBrief = true 
   const provenance = provenanceOf(row, feed);
   const sensitive = sensitiveNoteFor(feed?.feature);
   const relatedLinks = Array.isArray(row.related_links) ? row.related_links.filter(Boolean) : [];
+
+  return (
+    <RecordDetailBody
+      generateBrief={generateBrief}
+      row={row}
+      feed={feed}
+      onClear={onClear}
+      title={title}
+      fronts={fronts}
+      analysis={analysis}
+      pairs={pairs}
+      docs={docs}
+      dates={dates}
+      entities={entities}
+      fieldSummary={fieldSummary}
+      csvFile={csvFile}
+      csv={csv}
+      d={d}
+      extra={extra}
+      impact={impact}
+      named={named}
+      provenance={provenance}
+      sensitive={sensitive}
+      relatedLinks={relatedLinks}
+      entries={entries}
+    />
+  );
+}
+
+function RecordDetailBody({
+  generateBrief = true,
+  row,
+  feed,
+  onClear,
+  title,
+  fronts,
+  analysis,
+  pairs,
+  docs,
+  dates,
+  entities,
+  fieldSummary,
+  csvFile,
+  csv,
+  d,
+  extra,
+  impact,
+  named,
+  provenance,
+  sensitive,
+  relatedLinks,
+  entries,
+}) {
+  const { brief, busy, err } = useEntryBrief({ feed, selected: csvFile ? null : row });
+  const intelLines = briefPlainLines(brief);
+  const analysisBrief =
+    analysis?.brief ||
+    (intelLines[0] && intelLines[0].length > 20 ? intelLines[0] : '') ||
+    '';
+  const analysisExtras = intelLines.filter((line) => line && line !== analysisBrief).slice(0, 4);
+  const summary = [fieldSummary, ...analysisExtras.filter((l) => !fieldSummary.includes(l))]
+    .filter(Boolean)
+    .join('  ·  ');
+  // Keep the analysis block visible while loading, on success, or when the API fails
+  // (otherwise "Reading this entry…" vanishes and the whole section disappears).
+  const showAnalysis =
+    Boolean(analysis) || Boolean(analysisBrief) || busy || Boolean(err) || Boolean(brief);
 
   return (
     <div className="rd">
@@ -361,35 +427,81 @@ export default function RecordDetail({ row, feed, onClear, generateBrief = true 
 
       {csvFile ? <CsvTablePane row={row} /> : null}
 
-      {!csvFile && analysis && (
+      {!csvFile && showAnalysis ? (
         <div className="rd-section rd-ai">
           <div className="rd-sec-label">✦ NIYANTRAN ANALYSIS</div>
-          <div className="rd-ai-brief">{analysis.brief}</div>
-          <div className="rd-ai-sub">
-            <span>Why it matters</span>
-            {analysis.why}
+          <div className="rd-ai-brief">
+            {busy && !analysisBrief
+              ? 'Reading this entry…'
+              : analysisBrief ||
+                analysis?.brief ||
+                (err ? 'Organised summary unavailable for this entry.' : '')}
           </div>
-          {analysis.latest ? (
+          {err && !busy ? (
+            <div className="rd-ai-sub">
+              <span>Note</span>
+              {err}
+            </div>
+          ) : null}
+          {analysis?.why ? (
+            <div className="rd-ai-sub">
+              <span>Why it matters</span>
+              {analysis.why}
+            </div>
+          ) : null}
+          {analysis?.latest ? (
             <div className="rd-ai-sub">
               <span>{fronts ? 'Latest feed note' : 'Watch for'}</span>
               {analysis.latest}
             </div>
           ) : null}
-          <div className="rd-ai-tags">
-            {analysis.tags.map((t) => (
-              <span key={t} className="rd-ai-tag">
-                {t}
+          {(brief?.findings || []).slice(0, 3).map((f) => (
+            <div key={f.title} className="rd-ai-sub">
+              <span>
+                {f.title}
+                {f.band ? ` · ${f.band}` : ''}
               </span>
-            ))}
-          </div>
+              {String(f.detail || '')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .trim()}
+            </div>
+          ))}
+          {analysis?.tags?.length ? (
+            <div className="rd-ai-tags">
+              {analysis.tags.map((t) => (
+                <span key={t} className="rd-ai-tag">
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
-      )}
+      ) : null}
+
+      {!csvFile && brief?.kpis?.length ? (
+        <div className="kpi-grid" style={{ marginBottom: 14 }}>
+          {brief.kpis.map((k) => (
+            <article
+              key={k.label}
+              className={`kpi-card${k.tone === 'ok' ? ' ok' : k.tone === 'warn' ? ' warn' : k.tone === 'bad' ? ' bad' : ''}`}
+            >
+              <h3>{k.label}</h3>
+              <strong>{k.value}</strong>
+              <span>{k.sub}</span>
+            </article>
+          ))}
+        </div>
+      ) : null}
 
       {generateBrief && !csvFile && !analysis ? (
         <SourceBriefBlock row={row} title={title} analysisBrief="" feature={feed?.feature} tier={feed?.tier} />
       ) : null}
 
       {!csvFile && summary ? <div className="rd-summary">{summary}</div> : null}
+
+      {!csvFile && brief?.caveats?.length ? (
+        <p className="desk-note">{brief.caveats.join(' · ')}</p>
+      ) : null}
 
       {!csvFile && dates.length > 0 && (
         <div className="rd-section">

@@ -9,7 +9,7 @@ import {
   saveHomeCache,
 } from '../lib/homeCache.js';
 import { homeLatestFromStatic, homeMarketsFromStatic, homePulseFromStatic } from '../lib/homeStatic.js';
-import { liveApiEnabled } from '../lib/apiMode.js';
+import { homeLiveApiEnabled, liveApiEnabled } from '../lib/apiMode.js';
 import { loadRefreshCfg } from '../lib/refreshStore.js';
 import { aiDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
@@ -21,12 +21,22 @@ import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
 
 async function getJson(path, signal) {
   const route = String(path).split('?')[0];
-  // D2: on static production, skip /api/home/* (404) and load archives directly.
-  if (liveApiEnabled()) {
+  const homeRoute = route.startsWith('/api/home/') || route === '/api/ohlc';
+  const tryApi = homeRoute ? homeLiveApiEnabled() : liveApiEnabled();
+  if (tryApi) {
     try {
       const res = await fetch(path, { signal });
       const body = await res.json().catch(() => null);
-      if (res.ok && body && (body.rows?.length || body.ok !== false)) return body;
+      if (!res.ok || !body) {
+        /* fall through to static */
+      } else if (route === '/api/home/latest') {
+        // Empty rows is a valid nter.news state (waiting for ingest).
+        if (body.ok !== false) return body;
+      } else if (Array.isArray(body.rows) && body.rows.length) {
+        return body;
+      } else if (body.last != null) {
+        return body;
+      }
     } catch (err) {
       if (err?.name === 'AbortError') throw err;
     }
@@ -72,15 +82,30 @@ function Spark({ values, up }) {
   );
 }
 
-function SnapshotBadge({ ageH, archive }) {
+function SnapshotBadge({ ageH, archive, waiting, source }) {
+  if (waiting) {
+    return (
+      <span className="nh-agent" title="nter.news has not pushed any articles to this host yet">
+        waiting for ingest
+      </span>
+    );
+  }
   if (archive) {
     return <span className="nh-agent" title="Stored snapshot — not live ticks">snapshot · not live</span>;
   }
   if (ageH == null || !Number.isFinite(Number(ageH))) {
-    return <span className="nh-agent" title="Delayed / snapshot quotes">snapshot</span>;
+    return (
+      <span className="nh-agent" title={source === 'nter.news' ? 'Live ingest path · no as-of stamp yet' : 'Delayed / snapshot quotes'}>
+        {source === 'nter.news' ? 'live path' : 'snapshot'}
+      </span>
+    );
   }
   const label = ageH < 1 ? '<1h' : `${Math.round(ageH)}h`;
-  return <span className="nh-agent" title="Quote age from last successful pull">snapshot · {label} ago</span>;
+  return (
+    <span className="nh-agent" title={source === 'nter.news' ? 'Age of last nter.news ingest' : 'Quote age from last successful pull'}>
+      {source === 'nter.news' ? `live · ${label} ago` : `snapshot · ${label} ago`}
+    </span>
+  );
 }
 
 export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }) {
@@ -114,6 +139,8 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
       ago: r.ago,
       dek: r.dek,
       pub: r.pub,
+      img: r.img,
+      category: r.category,
     })),
   ).map((r) => ({
     title: r.title,
@@ -122,8 +149,12 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     ago: r.ago,
     dek: r.dek,
     pub: r.pub || r.published || r.date,
+    img: r.img || '',
+    category: r.category || '',
     related_count: r.related_count,
   }));
+  const newsLead = latestShown[0] || null;
+  const newsRest = latestShown.slice(1, 13);
   const pulseShown = dedupeNewsRows(
     (pulse || []).map((r) => ({
       title: r.title,
@@ -142,7 +173,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
   useEffect(() => {
     const ac = new AbortController();
-    // A-08: editable without rebuild — public/data/home-ads.json overrides the bundled file.
+    // Editable without rebuild — public/data/home-ads.json overrides the bundled file.
     fetch('/data/home-ads.json', { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => {
@@ -189,7 +220,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           applyRecordChecklistToFeed({
             feature: 'Home',
             rows,
-            source: { adapter: 'rss', note: latestBody.note, gdelt: false },
+            source: { adapter: 'nter.news', note: latestBody.note, gdelt: false },
             fallback: Boolean(latestBody.archive),
           }),
         );
@@ -378,37 +409,87 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             </article>
           )}
 
-          <div className="nh-tools">
-            <section className="nh-box">
-              <div className="bh">MY WATCHLIST</div>
-              <ul className="nh-watchlist">
-                {watchlist.map((w) => (
-                  <li key={`${w.tab}:${w.feature}`}>
-                    <button type="button" onClick={() => onOpen({ tab: w.tab, feature: w.feature })}>
-                      {w.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-            <section className="nh-box">
-              <div className="bh">FEED HEALTH</div>
-              <div className="nh-health">
-                <div>
-                  <span>Markets</span>
-                  <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
-                </div>
-                <div>
-                  <span>Latest wire</span>
-                  <b>{meta.latest?.ageH != null ? `${Number(meta.latest.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
-                </div>
-                <div>
-                  <span>Conflict pulse</span>
-                  <b>{meta.pulse?.ageH != null ? `${Number(meta.pulse.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
-                </div>
+          <section className="nh-news" aria-label="Latest from nter.news">
+            <div className="nh-news-head">
+              <div className="bh">
+                <span>
+                  FROM NTER.NEWS
+                  <SnapshotBadge
+                    ageH={meta.latest?.ageH}
+                    archive={Boolean(meta.latest?.archive) && (latestShown?.length || 0) > 0}
+                    waiting={!latestShown.length && (meta.latest?.waiting || meta.latest?.source === 'nter.news')}
+                    source="nter.news"
+                  />
+                </span>
+                <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
+                  Open nter.news →
+                </a>
               </div>
-            </section>
-          </div>
+            </div>
+
+            {loading && !latest.length && <p className="muted nh-news-empty">Loading…</p>}
+            {!loading && !latestShown.length && (
+              <p className="muted nh-news-empty">
+                {meta.latest?.note || 'nter.news feed not configured on this build. No headlines were invented.'}
+              </p>
+            )}
+
+            {newsLead && (
+              <a
+                className={`nh-news-lead${newsLead.img ? '' : ' no-img'}`}
+                href={newsLead.link}
+                target="_blank"
+                rel="noreferrer"
+                {...aiDragProps({
+                  kind: 'row',
+                  title: newsLead.title,
+                  row: { title: newsLead.title, source_url: newsLead.link, src: newsLead.src, img: newsLead.img },
+                })}
+              >
+                {newsLead.img ? <img className="nh-news-lead-img" src={newsLead.img} alt="" loading="lazy" /> : null}
+                <div className="nh-news-lead-copy">
+                  <div className="nh-kicker">
+                    <span className="nh-tag">{newsLead.category || 'nter.news'}</span>
+                  </div>
+                  <h3>{newsLead.title}</h3>
+                  {newsLead.dek ? <p>{newsLead.dek}</p> : null}
+                  <span className="nh-story-meta">
+                    <span>{newsLead.src || 'nter.news'}</span>
+                    {newsLead.ago ? <span>· {newsLead.ago}</span> : null}
+                  </span>
+                </div>
+              </a>
+            )}
+
+            {newsRest.length > 0 && (
+              <div className="nh-news-grid">
+                {newsRest.map((r, i) => (
+                  <a
+                    key={`${r.link}-${i}`}
+                    className={`nh-news-card${r.img ? '' : ' no-img'}`}
+                    href={r.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    {...aiDragProps({
+                      kind: 'row',
+                      title: r.title,
+                      row: { title: r.title, source_url: r.link, src: r.src, img: r.img },
+                    })}
+                  >
+                    {r.img ? <img src={r.img} alt="" loading="lazy" /> : <div className="nh-news-ph" aria-hidden="true" />}
+                    <div className="nh-news-card-copy">
+                      {r.category ? <span className="nh-news-cat">{r.category}</span> : null}
+                      <strong>{r.title}</strong>
+                      <span className="s">
+                        {r.src || 'nter.news'}
+                        {r.ago ? ` · ${r.ago}` : ''}
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         <aside className="nh-rail">
@@ -465,36 +546,6 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
           <section className="nh-box">
             <div className="bh">
-              <span>
-                LATEST FROM NTER.NEWS
-                <SnapshotBadge ageH={meta.latest?.ageH} archive={Boolean(meta.latest?.archive)} />
-              </span>
-            </div>
-            <ul className="nh-latest">
-              {loading && !latest.length && <li className="muted">Loading…</li>}
-              {!loading && !latestShown.length && (
-                <li className="muted">
-                  {meta.latest?.note || 'nter.news feed not configured on this build. No headlines were invented.'}
-                </li>
-              )}
-              {latestShown.map((r, i) => (
-                <li key={`${r.link}-${i}`} {...aiDragProps({ kind: 'row', title: r.title, row: { title: r.title, source_url: r.link, src: r.src } })}>
-                  <a href={r.link} target="_blank" rel="noreferrer">
-                    {r.title}
-                  </a>
-                  {r.dek ? <span className="nh-story-dek">{r.dek}</span> : null}
-                  <span className="s">
-                    {r.src || 'Wire'}
-                    {r.ago ? ` · ${r.ago}` : ''}
-                    {r.related_count > 0 ? ` · +${r.related_count} related` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="nh-box">
-            <div className="bh">
               CONFLICT PULSE{' '}
               <small>{meta.pulse?.gdelt ? 'GDELT · LIVE' : meta.pulse?.rows?.length ? 'OPEN FRONTS' : ''}</small>
               <SnapshotBadge ageH={meta.pulse?.ageH} archive={Boolean(meta.pulse?.archive)} />
@@ -527,6 +578,38 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section className="nh-box">
+            <div className="bh">MY WATCHLIST</div>
+            <ul className="nh-watchlist">
+              {watchlist.length === 0 && <li className="muted" style={{ fontSize: 12 }}>No saved desks yet.</li>}
+              {watchlist.map((w) => (
+                <li key={`${w.tab}:${w.feature}`}>
+                  <button type="button" onClick={() => onOpen({ tab: w.tab, feature: w.feature })}>
+                    {w.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="nh-box">
+            <div className="bh">FEED HEALTH</div>
+            <div className="nh-health">
+              <div>
+                <span>Markets</span>
+                <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+              </div>
+              <div>
+                <span>Latest (nter.news)</span>
+                <b>{meta.latest?.ageH != null ? `${Number(meta.latest.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+              </div>
+              <div>
+                <span>Conflict pulse</span>
+                <b>{meta.pulse?.ageH != null ? `${Number(meta.pulse.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+              </div>
+            </div>
           </section>
         </aside>
       </div>

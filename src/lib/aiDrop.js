@@ -243,7 +243,7 @@ export async function materializeAiDrop(payload, extras = {}) {
         related_records: related.related_records,
         timeline: related.timeline,
         document_status: docs.length
-          ? 'Source document URL(s) attached — extracted when reachable.'
+          ? 'Source document URL(s) attached — text extracted on Send when reachable.'
           : hubs.length
             ? 'No document body on file — registry hub URL is provenance only. Answer from terminal columns.'
             : 'No source URL on file — answer from terminal columns.',

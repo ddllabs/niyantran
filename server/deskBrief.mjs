@@ -1,24 +1,31 @@
 /**
- * Gemini entry brief — organise ONE selected table row (not the whole desk).
- * Cached on disk by entry hash; regenerates only when that row's fields change.
+ * Desk entry brief — organise ONE selected table row (not the whole desk).
+ * Cached in SQLite (primary) + disk (secondary); regenerates only when the
+ * row fingerprint changes or force=true.
  */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { getEntryBrief, upsertEntryBrief } from './db.mjs';
 import { loadEnv } from './loadEnv.mjs';
+import { writablePath } from './writableRoot.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = process.env.VERCEL
-  ? path.join('/tmp', 'desk-briefs')
-  : path.join(__dirname, '..', 'tmp', 'desk-briefs');
+const CACHE_DIR = writablePath('desk-briefs');
 const CACHE_VER = 'v7-entry';
 const MODEL =
+  process.env.OPENROUTER_DESK_MODEL ||
   process.env.GEMINI_DESK_MODEL ||
-  'gemini-3.5-flash-lite';
+  'google/gemini-2.0-flash-001';
 const CHAT_MS = 90_000;
 const SAMPLE_ROWS = 40;
 const MAX_CELL = 220;
+
+/** Process-lifetime L1 so repeat GETs in the same Node process skip I/O. */
+const memCache = new Map();
+
+function memKey(scope, tier, feature, hash) {
+  return `${scope || 'entry'}|${tier || ''}|${feature || ''}|${hash || ''}`;
+}
 
 const SYSTEM = `You are the Niyantran Terminal record analyst.
 The analyst selected ONE row in a desk tab. Organise and explain THAT entry's fields only.
@@ -778,54 +785,67 @@ function normalizeBrief(raw, meta, localCharts) {
   };
 }
 
-async function callGemini({ key, model, prompt }) {
-  const tried = [
-    model,
-    'gemini-3.5-flash-lite',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-3.5-flash',
-    'gemini-3.6-flash',
-    'gemini-flash-latest',
-    'gemini-2.0-flash',
-  ];
+function resolveOpenRouterDeskModels(requestedModel) {
+  const m = String(requestedModel || '').trim();
+  const list = [];
+  if (m.includes('/')) {
+    list.push(m);
+  } else if (/gemini.*lite/i.test(m)) {
+    list.push('google/gemini-2.0-flash-lite-001', 'google/gemini-2.0-flash-001', 'google/gemini-flash-1.5');
+  } else if (/gemini/i.test(m)) {
+    list.push('google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-001');
+  } else if (m) {
+    list.push(m, `google/${m}`);
+  }
+  list.push('google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'openai/gpt-4o-mini');
+  return [...new Set(list)];
+}
+
+async function callOpenRouter({ key, model, prompt }) {
+  const tried = resolveOpenRouterDeskModels(model);
   let last = '';
-  for (const m of [...new Set(tried)]) {
+  for (const m of tried) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), CHAT_MS);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
     try {
-      const r = await fetch(url, {
+      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         signal: ac.signal,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://niyantran.local',
+          'X-Title': 'Niyantran Terminal',
+        },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.25,
-            responseMimeType: 'application/json',
-          },
+          model: m,
+          temperature: 0.25,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SYSTEM },
+            { role: 'user', content: prompt },
+          ],
         }),
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) {
-        last = body?.error?.message || `Gemini HTTP ${r.status}`;
+        last = body?.error?.message || body?.error || `OpenRouter HTTP ${r.status}`;
+        if (typeof last !== 'string') last = JSON.stringify(last);
         continue;
       }
-      const text = (body?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('\n');
+      const text = body?.choices?.[0]?.message?.content || '';
       if (!text.trim()) {
-        last = 'Empty Gemini response';
+        last = 'Empty OpenRouter response';
         continue;
       }
-      return { text, model: m };
+      return { text, model: body?.model || m };
     } catch (err) {
       last = err.message || String(err);
     } finally {
       clearTimeout(t);
     }
   }
-  throw new Error(last || 'Gemini request failed');
+  throw new Error(last || 'OpenRouter desk brief request failed');
 }
 
 /**
@@ -848,18 +868,20 @@ export async function runDeskBrief(input = {}) {
   const hash = String(input.hash || entryFingerprint(row, feature, tier));
   const file = cachePath(tier, feature, hash, scope);
   if (!input.force) {
-    const hit = readCache(file);
-    if (hit?.brief) {
-      return { ...hit.brief, cached: true, hash, generatedAt: hit.generatedAt || hit.brief.generatedAt };
+    const hit = await getCachedDeskBrief(feature, tier, hash, scope);
+    if (hit?.headline || hit?.summary?.length) {
+      return { ...hit, cached: true, hash, generatedAt: hit.generatedAt };
     }
+  } else {
+    memCache.delete(memKey(scope, tier, feature, hash));
   }
 
   const key = String(
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.NIYANTRAN_AI_KEY || '',
+    process.env.OPENROUTER_API_KEY || process.env.NIYANTRAN_AI_KEY || '',
   ).trim();
   if (!key) {
     throw new Error(
-      'GEMINI_API_KEY missing on the server. Add it to niyantran-react/.env (never in the browser).',
+      'OPENROUTER_API_KEY missing on the server. Set OPENROUTER_API_KEY in the host environment (never in the browser).',
     );
   }
 
@@ -962,7 +984,7 @@ Rules for this response:
 - Do NOT include a "charts" array with invented numbers.
 - chartTitles length should match the computed charts when you rename them.`;
 
-  const got = await callGemini({ key, model: MODEL, prompt });
+  const got = await callOpenRouter({ key, model: MODEL, prompt });
   const parsed = parseJsonLoose(got.text);
   const brief = normalizeBrief(
     parsed,
@@ -980,13 +1002,76 @@ Rules for this response:
   brief.scope = scope;
   brief.entryTitle = String(title).slice(0, 160);
 
-  writeCache(file, { hash, generatedAt: brief.generatedAt, model: got.model, brief });
+  const envelope = { hash, generatedAt: brief.generatedAt, model: got.model, brief };
+  writeCache(file, envelope);
+  memCache.set(memKey(scope, tier, feature, hash), { ...brief, cached: true, hash });
+  try {
+    await upsertEntryBrief({
+      scope,
+      tier,
+      feature,
+      hash,
+      brief,
+      model: got.model,
+      generatedAt: brief.generatedAt,
+    });
+  } catch {
+    /* DB write failure must not block the response — file + mem still hold it */
+  }
   return brief;
 }
 
-export function getCachedDeskBrief(feature, tier, hash, scope = 'entry') {
+/**
+ * Lookup order: memory → SQLite → disk file.
+ * Disk hits are back-filled into SQLite so the next cold start still skips Gemini.
+ */
+export async function getCachedDeskBrief(feature, tier, hash, scope = 'entry') {
   if (!feature || !hash) return null;
   const sc = scope === 'substance' ? 'substance' : 'entry';
+  const mk = memKey(sc, tier, feature, hash);
+  if (memCache.has(mk)) {
+    return { ...memCache.get(mk), cached: true, hash };
+  }
+
+  try {
+    const fromDb = await getEntryBrief(sc, tier, feature, hash);
+    if (fromDb?.brief) {
+      const out = {
+        ...fromDb.brief,
+        cached: true,
+        hash,
+        generatedAt: fromDb.generatedAt || fromDb.brief.generatedAt,
+        model: fromDb.model || fromDb.brief.model || '',
+      };
+      memCache.set(mk, out);
+      return out;
+    }
+  } catch {
+    /* sql.js unavailable — fall through to file */
+  }
+
   const hit = readCache(cachePath(tier, feature, hash, sc));
-  return hit?.brief ? { ...hit.brief, cached: true, hash } : null;
+  if (!hit?.brief) return null;
+  const out = {
+    ...hit.brief,
+    cached: true,
+    hash,
+    generatedAt: hit.generatedAt || hit.brief.generatedAt,
+    model: hit.model || hit.brief.model || '',
+  };
+  memCache.set(mk, out);
+  try {
+    await upsertEntryBrief({
+      scope: sc,
+      tier,
+      feature,
+      hash,
+      brief: hit.brief,
+      model: out.model,
+      generatedAt: out.generatedAt,
+    });
+  } catch {
+    /* backfill best-effort */
+  }
+  return out;
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { hydrateAsset } from '../lib/strategicAssets.js';
 import NuclearSiteMap, { coordText } from './NuclearSiteMap.jsx';
+import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
 
 function tone(status, kind) {
   const s = `${status} ${kind}`.toLowerCase();
@@ -41,13 +42,15 @@ function brief(p) {
   return `${prefix}${p.name} is recorded as ${p.status.toLowerCase()}. The analyst-relevant facts are its ${String(p.facilityKind || '').toLowerCase()} role, ${p.capacity}, and ${String(p.material || '').toLowerCase()}. Coordinate precision is explicitly ${String(p.precision || '').toLowerCase()}. Verify any operational change against ${p.sourceLabel} and the responsible national authority; do not infer readiness, inventory, output, or safeguards conclusions that the cited public record does not state.`;
 }
 
-export default function NuclearAnalytics({ row, rows, onResearch, onSelect }) {
+export default function NuclearAnalytics({ row, rows, onResearch, onSelect, feed, loading }) {
   const list = useMemo(
     () => (rows || []).map((r) => hydrateAsset(r, 'nuclear')).filter((p) => p?.id),
     [rows],
   );
   const p = hydrateAsset(row, 'nuclear');
   const [tab, setTab] = useState('overview');
+  const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
+  const intelLines = briefPlainLines(intel);
   if (!p) return null;
 
   return (
@@ -128,7 +131,7 @@ export default function NuclearAnalytics({ row, rows, onResearch, onSelect }) {
           <section className="nww-section">
             <div className="nww-brief">
               <label>AI analyst brief</label>
-              <p>{brief(p)}</p>
+              <p>{mergeBriefText(brief(p), intelLines)}</p>
             </div>
           </section>
         </div>

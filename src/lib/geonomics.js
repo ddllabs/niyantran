@@ -16,7 +16,7 @@ export function isGeonomicsTable(name) {
 
 export const ENERGY_STATUS = {
   active: { c: '#ff6f6f', l: 'CONCENTRATED' },
-  escalating: { c: '#ff8f3f', l: 'WEAPONISED' },
+  escalating: { c: '#4a90e2', l: 'WEAPONISED' },
 };
 
 export function energyStatusOf(s) {

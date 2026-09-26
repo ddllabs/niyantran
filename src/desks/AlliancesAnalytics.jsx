@@ -10,6 +10,7 @@ import {
 } from '../lib/alliances.js';
 import GeoHeatMap from './GeoHeatMap.jsx';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
+import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
 
 const LEGEND = [
   ['Recorded member', '#397ca5'],
@@ -19,11 +20,13 @@ const LEGEND = [
 ];
 
 
-export default function AlliancesAnalytics({ row, rows, flags, onSelect, onResearch }) {
+export default function AlliancesAnalytics({ row, rows, flags, onSelect, onResearch, feed, loading }) {
   const all = useMemo(() => (rows || []).map((r) => hydrateAlliance(r, flags)).filter((p) => p?.id), [rows, flags]);
   const p = useMemo(() => hydrateAlliance(row, flags), [row, flags]);
   const [memberQ, setMemberQ] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
+  const intelLines = briefPlainLines(intel);
 
   useEffect(() => {
     setMemberQ('');
@@ -286,7 +289,7 @@ export default function AlliancesAnalytics({ row, rows, flags, onSelect, onResea
       </section>
       <div className="alw-brief">
         <label>AI analyst brief</label>
-        <p>{brief}</p>
+        <p>{mergeBriefText(brief, intelLines)}</p>
       </div>
       <div className="alw-actions">
         <button type="button" className="alw-ai" onClick={() => onResearch?.(p)}>

@@ -21,7 +21,7 @@ export function isChokepointsFeature(name) {
 
 export const CHOKE_STATUS = {
   active: { c: '#ff6f6f', l: 'ACTIVE' },
-  escalating: { c: '#ff8f3f', l: 'ESCALATING' },
+  escalating: { c: '#4a90e2', l: 'ESCALATING' },
   watch: { c: '#7fb0ff', l: 'WATCH' },
 };
 

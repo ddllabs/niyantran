@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { fromCorpusRow, fromExportRecord, readCorpus, parseArgs } from '../../scripts/ingest-national-desk.mjs';
 
 const text = 'A 😀 passage\r\n';
@@ -145,7 +146,7 @@ describe('source provenance and validation', () => {
         if (docs.length !== 1 || docs[0].source_key !== 'source-1') throw Error('unexpected dispatched records');
         return new Response(JSON.stringify({results: docs.map(d => ({source_key:d.source_key,status:'indexed',chunks:1,inserted:1,kept:0,deleted:0,embedded_tokens:0,cost_usd:0})), totals:{documents:1,indexed:1,unchanged:0,errors:0,embedded_tokens:0,cost_usd:0}}));
       };`);
-      const result = await promisify(execFile)(process.execPath, ['--import', preload,
+      const result = await promisify(execFile)(process.execPath, ['--import', pathToFileURL(preload).href,
         path.resolve('scripts/ingest-national-desk.mjs'), '--corpus', dir, '--feature', 'Feature', '--links', links],
       { cwd: dir, env: { SUPABASE_URL: 'https://unused.invalid', SUPABASE_SECRET_KEY: 'sb_secret_fixture' } })
         .then(() => ({ code: 0, stdout: '' }), (error) => error);
@@ -239,7 +240,7 @@ describe('--only bounded selector', () => {
     await multiFixture([{ id: 'source-1' }], async (dir, links) => {
       const preload = path.join(dir, 'fake-fetch.mjs');
       await writeFile(preload, `globalThis.fetch = async () => { throw new Error('must not be called'); };`);
-      const result = await promisify(execFile)(process.execPath, ['--import', preload,
+      const result = await promisify(execFile)(process.execPath, ['--import', pathToFileURL(preload).href,
         path.resolve('scripts/ingest-national-desk.mjs'), '--corpus', dir, '--feature', 'Feature', '--links', links,
         '--only', 'nonexistent-key'],
       { cwd: dir, env: { SUPABASE_URL: 'https://unused.invalid', SUPABASE_SECRET_KEY: 'sb_secret_fixture' } })
@@ -275,7 +276,7 @@ describe('--only bounded selector', () => {
       }));
       const preload = path.join(dir, 'fake-fetch.mjs');
       await writeFile(preload, `globalThis.fetch = async () => { throw new Error('must not be called'); };`);
-      const result = await promisify(execFile)(process.execPath, ['--import', preload,
+      const result = await promisify(execFile)(process.execPath, ['--import', pathToFileURL(preload).href,
         path.resolve('scripts/ingest-national-desk.mjs'), '--manifest', path.join(dir, 'manifest.json'), '--only', 'm-1'],
       { cwd: dir, env: { SUPABASE_URL: 'https://unused.invalid', SUPABASE_SECRET_KEY: 'sb_secret_fixture' } })
         .then(() => ({ code: 0, stderr: '' }), (error) => error);

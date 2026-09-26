@@ -13,6 +13,7 @@ import {
   whereItLands,
 } from '../lib/impactRecord.js';
 import { resolveOrganisedBrief } from '../lib/sourceDoc.js';
+import { briefPlainLines, useEntryBrief } from '../shell/EntryBriefInline.jsx';
 
 const GCOL = { Strong: '#34D399', Moderate: '#E0A81F', Weak: '#F87171', Speculative: '#8A94A6' };
 
@@ -288,7 +289,7 @@ function FactMore({ fact, onClose }) {
   );
 }
 
-export default function BillRecordPane({ row, onClear, onAskAi, liveCount, desk, feature }) {
+export default function BillRecordPane({ row, onClear, onAskAi, liveCount, desk, feature, feed, loading }) {
   const cfg = DESKS[desk] || deskForFeature(desk) || deskForFeature(feature) || DESKS.bill;
   const noun = cfg.noun;
   const featureName =
@@ -302,6 +303,9 @@ export default function BillRecordPane({ row, onClear, onAskAi, liveCount, desk,
           : cfg.key === 'regulatory'
             ? 'Regulatory Body Watch'
             : '');
+  const briefFeed = feed || { feature: featureName, tier: 'national' };
+  const { brief: intel } = useEntryBrief({ feed: briefFeed, selected: row, loading });
+  const intelLines = briefPlainLines(intel);
   const [pack, setPack] = useState({ map: null, ont: null, ready: false });
   const [kind, setKind] = useState('all');
   const [factK, setFactK] = useState(null);
@@ -379,18 +383,39 @@ export default function BillRecordPane({ row, onClear, onAskAi, liveCount, desk,
 
   function BriefBody() {
     if (showBriefLoading) {
-      return <p className="brec-p muted">Organising a short summary from the source…</p>;
+      return <p className="brec-p muted">Reading a short summary from the source…</p>;
     }
+    const extra = intelLines.filter((line) => {
+      const t = String(briefText || '');
+      return line && !t.includes(line.slice(0, 40));
+    });
     if (!(model.brief && model.brief.length > 30) && briefBullets.length) {
+      const merged = [...briefBullets];
+      for (const line of extra) {
+        if (!merged.some((b) => b.includes(line.slice(0, 32)) || line.includes(String(b).slice(0, 32)))) {
+          merged.push(line);
+        }
+      }
       return (
         <ul className="brec-brief-list">
-          {briefBullets.map((b) => (
+          {merged.map((b) => (
             <li key={b}>{b}</li>
           ))}
         </ul>
       );
     }
-    return <p className="brec-p">{briefText}</p>;
+    return (
+      <>
+        <p className="brec-p">{briefText}</p>
+        {extra.length ? (
+          <ul className="brec-brief-list">
+            {extra.slice(0, 4).map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        ) : null}
+      </>
+    );
   }
   const facts = useMemo(() => {
     const all = recordFacts(row, a, cfg);

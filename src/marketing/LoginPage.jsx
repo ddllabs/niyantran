@@ -11,6 +11,7 @@ import {
 } from '../lib/userStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
+import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   const [error, setError] = useState('');
@@ -20,7 +21,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   const root = useRef(null);
   const [verifiedNotice, setVerifiedNotice] = useState(() => {
     if (typeof location === 'undefined') return false;
-    return location.href.includes('verified=true') || location.hash.includes('verified=true');
+    return location.href?.includes('verified=true') || location.hash?.includes('verified=true');
   });
 
   useEffect(() => {
@@ -42,6 +43,8 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
     el.style.setProperty('--px', `${((x - 0.5) * 16).toFixed(2)}px`);
     el.style.setProperty('--py', `${((y - 0.5) * 10).toFixed(2)}px`);
   }
+
+
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -116,12 +119,10 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   }
 
   return (
-    <div className="mkt-login mkt-login-globe" ref={root} onMouseMove={onMove}>
-      <div className="mkt-login-art" aria-hidden="true">
-        <img className="mkt-login-bg" src="/brand/bg.png?v=1" alt="" />
-        <span className="mkt-pr-gridlines mkt-login-grid" />
-        <div className="mkt-login-orb">
-          <span className="mkt-halo" />
+    <div className="mkt-auth-page" ref={root} onMouseMove={onMove}>
+      <div className="mkt-backdrop" aria-hidden="true">
+        <div className="grid" />
+        <div className="world">
           <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" />
         </div>
         <span className="sh navy" />
@@ -189,6 +190,17 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
           <button className="mkt-cta" type="submit" disabled={pending}>
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
+
+          <div className="mkt-google-block mkt-google-below">
+            <div className="mkt-auth-or" aria-hidden="true">
+              <span>or</span>
+            </div>
+            <GoogleSignInButton
+              disabled={pending}
+              onError={(err) => setError(err.message || 'Google Sign-In failed.')}
+            />
+          </div>
+
           <div className="mkt-err" role="alert">
             {error}
             {error.includes('confirm your email') && (
@@ -216,6 +228,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
             )}
           </div>
         </form>
+
         <p className="mkt-auth-switch">
           New here?{' '}
           <button type="button" onClick={onSignup}>

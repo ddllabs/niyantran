@@ -3,8 +3,9 @@ import MarketingSite from './marketing/MarketingSite.jsx';
 import TerminalShell from './shell/TerminalShell.jsx';
 import AdminApp from './admin/AdminApp.jsx';
 import { startSiteHead } from './lib/siteHead.js';
+import { hydrateAppFlags } from './lib/appFlagsStore.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
-import { sessionUser, userTypeOf } from './lib/userStore.js';
+import { sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
 import './shell/onboarding.css';
 
 function pathKey() {
@@ -57,6 +58,20 @@ export default function App() {
   });
 
   useEffect(() => startSiteHead(), []);
+  useEffect(() => {
+    hydrateAppFlags().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    return subscribeLocalIdentity((id) => {
+      if (id) {
+        setAuthed(true);
+        setPersonaReady(ensurePersonaFromSession());
+      } else {
+        setAuthed(false);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const sync = () => {

@@ -4,14 +4,22 @@ import {
   createUser,
   hydrateUsersFromServer,
   setSessionUser,
+  updateUser,
   userTypeOf,
 } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 import { normalizePlanId, startTrialFields, TRIAL_DAYS } from '../lib/planEntitlements.js';
 import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
+import {
+  hydrateAppFlags,
+  isTestingPhase,
+  subscribeAppFlags,
+} from '../lib/appFlagsStore.js';
+import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 function planFromRoute() {
+  if (typeof location === 'undefined') return 'explorer';
   const raw = String(location.hash || '')
     .replace(/^#/, '')
     .replace(/^\/+/, '')
@@ -26,14 +34,18 @@ function planFromRoute() {
 }
 
 export default function SignupPage({ onSuccess, onLogin }) {
+  const [step, setStep] = useState('account'); // account | plan
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [personaId, setPersonaId] = useState('');
   const [planId, setPlanId] = useState(() => planFromRoute());
+  const [draftUser, setDraftUser] = useState(null);
+  const [testing, setTesting] = useState(() => isTestingPhase());
   const [verificationSentEmail, setVerificationSentEmail] = useState('');
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState('');
   const [cooldown, setCooldown] = useState(0);
+
   const root = useRef(null);
   const plans = useMemo(() => loadPricing().filter((p) => p.id !== 'gov'), []);
 
@@ -73,10 +85,13 @@ export default function SignupPage({ onSuccess, onLogin }) {
   }, []);
 
   useEffect(() => {
-    const sync = () => setPlanId(planFromRoute());
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
+    hydrateAppFlags().then((f) => setTesting(Boolean(f.testingPhase)));
+    return subscribeAppFlags((f) => setTesting(Boolean(f.testingPhase)));
   }, []);
+
+  useEffect(() => {
+    if (testing) setPlanId('explorer');
+  }, [testing]);
 
   function onMove(e) {
     const el = root.current;
@@ -89,6 +104,45 @@ export default function SignupPage({ onSuccess, onLogin }) {
     el.style.setProperty('--my', `${(y * 100).toFixed(2)}%`);
     el.style.setProperty('--px', `${((x - 0.5) * 16).toFixed(2)}px`);
     el.style.setProperty('--py', `${((y - 0.5) * 10).toFixed(2)}px`);
+  }
+
+  async function enterTerminal(user, { source = 'signup', plan } = {}) {
+    const type = userTypeOf(user.personaId || user.type).id;
+    const seat = { ...user, type, personaId: type };
+    applyPersonaForUser(seat);
+    setSessionUser(seat);
+    sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
+    trackProductEvent('persona_selected', { personaId: type, source, plan: plan || seat.plan });
+    trackProductEvent('plan_selected', { plan: plan || seat.plan, status: seat.planStatus || 'free' });
+    await hydrateUserPrefs(seat.email);
+    onSuccess();
+  }
+
+  function goToPlanStep(user, { source = 'signup' } = {}) {
+    setDraftUser({ user, source });
+    setPlanId('explorer');
+    setStep('plan');
+    setPending(false);
+    setError('');
+  }
+
+  async function applyPlanAndEnter() {
+    if (!draftUser?.user?.id) return;
+    setPending(true);
+    setError('');
+    const fields = startTrialFields(planId);
+    updateUser(draftUser.user.id, {
+      ...fields,
+      type: draftUser.user.type || draftUser.user.personaId,
+      personaId: draftUser.user.personaId || draftUser.user.type,
+    });
+    const next = {
+      ...draftUser.user,
+      ...fields,
+      type: draftUser.user.type || draftUser.user.personaId,
+      personaId: draftUser.user.personaId || draftUser.user.type,
+    };
+    await enterTerminal(next, { source: draftUser.source || 'signup', plan: fields.plan });
   }
 
   async function handleSubmit(e) {
@@ -146,14 +200,13 @@ export default function SignupPage({ onSuccess, onLogin }) {
       /* local-only */
     }
 
-    const planFields = startTrialFields(planId);
-    const res = createUser({
+    createUser({
       name,
       email: user,
       password: pass,
       type: personaId,
       personaId,
-      ...planFields,
+      ...startTrialFields(planId || 'explorer'),
     });
 
     sessionStorage.setItem('lastRegisteredEmail', user);
@@ -174,6 +227,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
         <span className="sh sand" />
         <span className="sh red" />
       </div>
+
       {verificationSentEmail ? (
         <main className="mkt-login-card mkt-signup-card">
           <p className="live">
@@ -274,18 +328,18 @@ export default function SignupPage({ onSuccess, onLogin }) {
           <div className="mark">
             <img src="/brand/logo.png?v=2" alt="" />
           </div>
-          <h1>CREATE ACCESS</h1>
-          <div className="tag">SIGN UP</div>
+          <h1>{step === 'plan' ? 'CHOOSE PLAN' : 'CREATE ACCESS'}</h1>
+          <div className="tag">{step === 'plan' ? 'STEP 2 OF 2' : 'SIGN UP'}</div>
 
-          <form onSubmit={handleSubmit} autoComplete="off">
-            <div className="mkt-signup-block">
-              <h2 className="mkt-signup-label">Plan</h2>
+          {step === 'plan' ? (
+            <div className="mkt-signup-plan-step">
               <p className="mkt-signup-lead">
-                Explorer is free (5 core desks). Professional / Enterprise start a {TRIAL_DAYS}-day trial with no card —
-                capped data, no copy/export, upgrade prompts until you buy.
+                {testing
+                  ? `Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Continue free — every desk and Gemini AI are included.`
+                  : `Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Pick a plan to continue — Explorer is free; Professional / Enterprise start a ${TRIAL_DAYS}-day trial with no card.`}
               </p>
-              <div className="mkt-signup-plan-grid" role="radiogroup" aria-label="Plan">
-                {plans.map((p) => (
+              <div className={`mkt-signup-plan-grid${testing ? ' mkt-signup-plan-grid-single' : ''}`} role="radiogroup" aria-label="Plan">
+                {(testing ? plans.filter((p) => p.id === 'explorer') : plans).map((p) => (
                   <button
                     key={p.id}
                     type="button"
@@ -294,78 +348,103 @@ export default function SignupPage({ onSuccess, onLogin }) {
                     className={`mkt-signup-plan${planId === p.id ? ' on' : ''}`}
                     onClick={() => setPlanId(p.id)}
                   >
-                    <strong>{p.name}</strong>
+                    <strong>{testing ? 'Free' : p.name}</strong>
                     <span>
-                      {p.id === 'explorer'
-                        ? 'Free · 5 core desks'
-                        : `$${p.monthly}/mo · ${TRIAL_DAYS}-day trial, no card`}
+                      {testing
+                        ? 'All desks · AI research · no cost'
+                        : p.id === 'explorer'
+                          ? 'Free · 5 core desks'
+                          : `$${p.monthly}/mo · ${TRIAL_DAYS}-day trial, no card`}
                     </span>
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="mkt-signup-block">
-              <h2 className="mkt-signup-label">Who are you working as?</h2>
-              <p className="mkt-signup-lead">Sets your free-tier core desks and start desk.</p>
-              <div className="mkt-signup-persona-grid" role="radiogroup" aria-label="Working as">
-                {PERSONAS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={personaId === p.id}
-                    className={`mkt-signup-persona tone-${p.tone}${personaId === p.id ? ' on' : ''}`}
-                    onClick={() => setPersonaId(p.id)}
-                  >
-                    <strong>{p.label}</strong>
-                    <span>{p.blurb}</span>
-                  </button>
-                ))}
+              <button className="mkt-cta" type="button" disabled={pending} onClick={applyPlanAndEnter}>
+                {pending
+                  ? 'Opening terminal…'
+                  : testing || planId === 'explorer'
+                    ? 'Continue free'
+                    : `Start ${TRIAL_DAYS}-day trial`}
+              </button>
+              <div className="mkt-err" role="alert">
+                {error}
               </div>
             </div>
+          ) : null}
 
-            <label className="mkt-field">
-              <span>Name</span>
-              <input name="name" type="text" autoComplete="name" required />
-            </label>
-            <label className="mkt-field">
-              <span>User ID</span>
-              <input
-                name="user"
-                type="text"
-                autoComplete="username"
-                spellCheck="false"
-                required
-                placeholder="you@org or handle"
-              />
-            </label>
-            <label className="mkt-field">
-              <span>Password</span>
-              <input name="pass" type="password" autoComplete="new-password" required minLength={6} />
-            </label>
-            <label className="mkt-field">
-              <span>Confirm password</span>
-              <input name="pass2" type="password" autoComplete="new-password" required minLength={6} />
-            </label>
-            <button className="mkt-cta" type="submit" disabled={pending}>
-              {pending
-                ? 'Creating…'
-                : planId === 'explorer'
-                  ? 'Create free account'
-                  : `Start ${TRIAL_DAYS}-day trial`}
-            </button>
-            <div className="mkt-err" role="alert">
-              {error}
-            </div>
-          </form>
+          {step === 'account' ? (
+            <form onSubmit={handleSubmit} autoComplete="off">
+              <div className="mkt-signup-block">
+                <h2 className="mkt-signup-label">Who are you working as?</h2>
+                <p className="mkt-signup-lead">Sets your free-tier core desks and start desk.</p>
+                <div className="mkt-signup-persona-grid" role="radiogroup" aria-label="Working as">
+                  {PERSONAS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={personaId === p.id}
+                      className={`mkt-signup-persona tone-${p.tone}${personaId === p.id ? ' on' : ''}`}
+                      style={{ '--persona-img': `url(${p.img})` }}
+                      onClick={() => setPersonaId(p.id)}
+                    >
+                      <strong>{p.label}</strong>
+                      <span>{p.blurb}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <p className="mkt-auth-switch">
-            Already have access?{' '}
-            <button type="button" onClick={onLogin}>
-              Sign in
-            </button>
-          </p>
+              <label className="mkt-field">
+                <span>Name</span>
+                <input name="name" type="text" autoComplete="name" required />
+              </label>
+              <label className="mkt-field">
+                <span>Email address</span>
+                <input name="user" type="email" autoComplete="email" required />
+              </label>
+              <label className="mkt-field">
+                <span>Password</span>
+                <input name="pass" type="password" autoComplete="new-password" required minLength={6} />
+              </label>
+              <label className="mkt-field">
+                <span>Confirm password</span>
+                <input name="pass2" type="password" autoComplete="new-password" required minLength={6} />
+              </label>
+              <button className="mkt-cta" type="submit" disabled={pending}>
+                {pending ? 'Creating…' : 'Create account'}
+              </button>
+              <div className="mkt-err" role="alert">
+                {error}
+              </div>
+
+              <div className="mkt-google-block mkt-google-below">
+                <div className="mkt-auth-or" aria-hidden="true">
+                  <span>or</span>
+                </div>
+                <GoogleSignInButton
+                  text="signup_with"
+                  disabled={pending}
+                  onClick={() => {
+                    if (personaId) {
+                      sessionStorage.setItem('preferredPersona', personaId);
+                    }
+                  }}
+                  onError={(err) => setError(err.message || 'Google Sign-In failed.')}
+                />
+                <p className="mkt-google-note">Pick a role above first. You’ll choose a plan on the next step.</p>
+              </div>
+            </form>
+          ) : null}
+
+          {step !== 'plan' ? (
+            <p className="mkt-auth-switch">
+              Already have access?{' '}
+              <button type="button" onClick={onLogin}>
+                Sign in
+              </button>
+            </p>
+          ) : null}
         </main>
       )}
     </div>

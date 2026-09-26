@@ -9,11 +9,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { writablePath } from './writableRoot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(APP_ROOT, 'public', 'marketing');
-const META_FILE = path.join(APP_ROOT, 'tmp', 'marketing-intro-video.json');
+const META_FILE = writablePath('marketing-intro-video.json');
 const MAX_BYTES = 120 * 1024 * 1024; // 120 MB
 
 const ALLOWED_EXT = new Set(['.mp4', '.webm', '.ogg', '.mov']);
@@ -26,7 +27,11 @@ function json(res, body, status = 200) {
 }
 
 function ensureDirs() {
-  fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+  } catch {
+    /* public/ is read-only on serverless — meta still writes under /tmp */
+  }
   fs.mkdirSync(path.dirname(META_FILE), { recursive: true });
 }
 
