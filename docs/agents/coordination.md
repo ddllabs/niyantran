@@ -191,14 +191,13 @@ The build succeeds but reports a large JavaScript chunk and a module that is
 both statically and dynamically imported. Those warnings are baseline
 observations, not evidence that future warnings are harmless.
 
-There is currently no repository-defined automated test, lint, type-check, or
-CI command. Until those gates are deliberately added:
-
-- run the production build for code changes;
-- add behavior-specific runtime verification for the affected path;
-- exercise security and validation guards with the payloads they must reject;
-- report precisely which checks do not exist;
-- never translate “build passed” into “tests passed.”
+The current recovery checkout defines `npm test` (Vitest) and Edge Function
+checks via `deno test -A --config supabase/functions/deno.json supabase/functions`.
+There is no declared lint, standalone type-check or CI gate. Run focused checks
+and the production build for code changes, and both suites for src/lib/,
+src/admin/ or supabase/ changes. Use disposable local SQL targets for database
+write tests. Exercise rejection paths, report missing gates, and never translate
+“build passed” into “tests passed.”
 
 For each new regression guard, restore the protected defect, observe the guard
 fail for the expected reason, then reapply the fix. For user-facing work,
@@ -246,34 +245,39 @@ Correct this section when observations become stale.
   Never move secrets into `VITE_` variables or browser code.
 - `backup/` and `public/data/` are tracked collections with product and
   provenance implications. They are not disposable build output.
-- `README.md` currently describes an older static, backend-free architecture
-  and outdated extraction workflow. Verify commands and architecture against
-  current code until the README is reconciled in a separate task.
-- The repository currently has no tracked GitHub workflow or automated test
-  suite. `.oxlintrc.json` exists, but Oxlint is not declared as a package
-  dependency or npm script.
+- The recovery checkout README.md and AGENTS.md were reconciled locally in
+  22ef26b. The original checkout retains its prior versions until integration;
+  final E3 status and cross-link reconciliation remain pending.
+- The repository has Vitest and Deno suites but no tracked GitHub workflow.
+  `.oxlintrc.json` exists, but Oxlint is not declared as a package dependency
+  or npm script.
 - The 2026-09-20 clean build transformed 204 modules and emitted chunk-size
   and mixed-import warnings. Dependency installation also reported known audit
   findings; dependency remediation requires its own reviewed task.
 - The repository is public and has a Vercel homepage. Public visibility is not
   permission to push, deploy, republish data, or assume tracked data is safe to
   redistribute elsewhere.
-- The Ask AI path is a single non-streaming call with no tool calling, no
-  configured key and no Supabase client; desk questions see at most eight rows
-  of modules that hold thousands. Read
+- The legacy Ask AI path was audited as a single non-streaming call without
+  tool calling and with an eight-row desk context. The Supabase streaming path
+  is a separate recovery implementation; do not apply that legacy finding to
+  it. Read
   `docs/research/2026-09-20-ai-path-audit.md` before touching `src/ai/` or
   `server/aiApi.mjs`.
 - The Supabase project `NTER` carries, as of 2026-09-21, the developer's six
   auth tables plus eleven AI tables under RLS, the `vector`, `pg_cron` and
-  `pg_net` extensions, three deployed edge functions (`health`,
-  `refresh-model-pricing`, `admin-models`) and a twelve-hour pricing refresh.
+  `pg_net` extensions, four deployed edge functions (`health`,
+  `refresh-model-pricing`, `admin-models`, `ingest-documents`) and a twelve-hour pricing refresh.
   The AI backend is designed in
   `docs/specs/2026-09-20-ai-backend-foundation-design.md` and its three
   sibling specs; the executed foundation plan is
   `docs/plans/2026-09-21-ai-backend-foundation.md`.
-- Schema changes exist only as files under `supabase/migrations/`, applied
-  to `NTER` and recorded in its migration history. `supabase link` is done
-  from this checkout; deploys go through `supabase functions deploy`.
+- Schema changes are recorded under `supabase/migrations/`. **Updated
+  2026-09-21:** live NTER migration history now ends at `20260921115831`;
+  migrations 0012–0015 and the research-turn persistence migration were applied
+  by the owner via `supabase db push`. (Superseded: they were local-only pending
+  authorization.)
+  `supabase link` is configured from the original checkout; function deployment
+  is a separate production action, never implied by a local test or commit.
 - Two test runners exist: `npm test` (Vitest, `src/**/*.test.js`) and
   `deno test -A --config supabase/functions/deno.json supabase/functions`.
   Run both for changes under `src/lib/`, `src/admin/` or `supabase/`.
@@ -300,8 +304,272 @@ Correct this section when observations become stale.
   `_shared/retrieval.ts`; the citation ladder is `_shared/citations.ts`
   mirrored by `src/lib/citationMarkers.js`; the reader is
   `src/ai/SourceReader.jsx`, not yet mounted anywhere — the streaming agent
-  module mounts it. Plan: `docs/plans/2026-09-21-document-rag-and-citations.md`.
+  module mounts it. (corrected 2026-09-24: it is now mounted —
+  `src/ai/AiPanel.jsx` renders `WorkSurface`, which imports `SourceReader`
+  and `RowSource` in `src/ai/WorkSurface.jsx`.) Plan: `docs/plans/2026-09-21-document-rag-and-citations.md`.
+- The owner's complete corpus snapshot lives at
+  `~/Downloads/NTER-Complete-Processed-Data` (10 GB, outside the repo). The
+  OCR index is `04_indexes/OCR_FILES.csv`; the file-name → URL map is built
+  from the corpus's own dataset records by `scripts/build-corpus-links.mjs`
+  into `ingest/national-desk/links.json`, and `scripts/ingest-national-desk.mjs
+  --corpus <dir> --feature "<feature>"` loads one feature at a time.
+  Affidavits (95 percent of the OCR text) are deliberately not loaded; see
+  `docs/research/2026-09-21-corpus-mapping-study.md` and
+  `docs/plans/2026-09-21-corpus-ingest-first-pass.md`.
+- The research agent is `supabase/functions/research-chat/` (handler, agent,
+  prompt, answer decoder, citation ladder, repair, telemetry) with
+  `_shared/{openrouterStream,handles,reasoningSegments,chatStream}.ts`.
+  **Updated 2026-09-21: it is now DEPLOYED**, version 1, `verify_jwt = false`
+  (the handler verifies the caller itself). A credential-free probe returns
+  `401 {"error":"missing bearer token"}` and CORS preflight returns 204.
+  (Superseded: it was under local recovery review and not deployed; D6
+  reconciled index.ts and registration locally in 81e562e.) `AI_REPAIR_MODEL`
+  is `google/gemini-3.5-flash-lite`, confirmed available in `model_pricing`.
+  The existing browser recovery input is
+  `src/lib/{researchChat,aiConversations,aiThreads}.js` and
+  `src/ai/{ActivityTicker,CitationBubble,ModelPicker,WorkSurface}.jsx`,
+  reached when `VITE_AI_BACKEND=supabase`. The legacy feature path is retained,
+  with B4's reviewed account-ownership and login repairs also applying to its
+  local stores, including aiChatStore.js. Persona
+  prompts are copied into the function bundle by
+  `node scripts/sync-personas.mjs` and a Vitest test fails when a copy
+  drifts. Plan: `docs/plans/2026-09-21-streaming-research-agent.md`.
+- Only evidence the server issued a handle for may be cited. A selection the
+  browser sends is looked up in `desk_rows` before it becomes citable, and
+  attachments never receive a handle, so text inside one cannot pose as a
+  source. Markers that resolve to nothing are stripped.
+- Desk rows live in `NTER`'s `desk_rows` as a snapshot of what the desks
+  show (34,184 rows over 34 of the 75 navigation modules on 2026-09-21),
+  loaded by `npx vite-node --config vitest.config.js scripts/load-desk-rows.mjs`
+  (secret key from the environment; re-runnable; prunes rows a run did not
+  touch). The loader drives the desk's own feed pipeline offline
+  (`src/lib/deskRowsFeed.js`), because the desk re-keys and rebuilds rows
+  for most packed modules; row identity is `src/lib/deskRows.js`
+  `deskRowKey` (`rowPinKey` over the flattened row), mirrored in
+  `_shared/deskRows.ts`. `search_desk_rows` (migration 0011) is the RPC;
+  the tool is `_shared/tools/searchDeskRows.ts`; the module catalogue is
+  `_shared/deskCatalog.json`, regenerated with `npx vite-node --config
+  vitest.config.js scripts/build-desk-catalog.mjs` and guarded by a Vitest
+  staleness test. Bill rows carry `document_key = bill:<year>:<number>`.
+  Plan: `docs/plans/2026-09-21-desk-row-grounding.md`.
+- `vite-node` strips the script path from `process.argv`; scripts that run
+  under it are plain runners with their logic in an importable module. Use
+  `--config vitest.config.js` so the dev server's auth plugin (which
+  requires `.env.local`) does not start.
+- A second checkout of the repo (a worktree) needs `.env.local` copied in
+  for `vite build` and a `node_modules` symlink; the Vite dev server can
+  run there on another port through `.claude/launch.json`.
+- Do not run a bulk PostgREST load and the embedding ingest at the same
+  time on `NTER`: on 2026-09-21 PostgREST answered 503 / "Could not query
+  the database for the schema cache" for several minutes while both ran.
+- `docs/` is untracked and gitignored since 2026-09-21 (owner decision:
+  not shared with the developers yet). Specs, plans, research and this
+  protocol exist only in the owner's checkout; a developer clone will not
+  have them until that decision is reversed.
 - `NTER` is a shared live project. Dashboard actions on it, especially
   under Authentication → Users, are announced before they happen; on
   2026-09-21 every user was deleted from the dashboard while another team
-  member was verifying against them.
+  member was verifying against them. **Correction (2026-09-21 supervisor
+  audit, verified by live query):** the project now has 2 users, both
+  created 2026-09-21 ~10:12 UTC — `niyantranai@gmail.com` and
+  `nter-auth-test+1789985534982@gmail.com`. Both are `role=user`,
+  `plan=explorer`, `status=active`, no persona, onboarding incomplete.
+  There is no internal-admin account live. `user_profiles` has its own
+  `id` primary key plus a `user_id` foreign key to `auth.users`; joining
+  on `id` is wrong.
+- 2026-09-21 supervisor audit of `NTER` (verified by live query): 2,337
+  documents, 2,335 indexed, 2 unindexed, 51,057 chunks, latest
+  `indexed_at` 2026-09-21T10:25:26.051Z. The two unindexed are
+  `1f7ffc739c73a91f3fb346698a07b8bd618c20fa` (2006-93-Synop.pdf, 5,306
+  chars) and `4dc99a9ba57d09577a0e7b0ac37651ed1bc3f0c8` (2006-16-gaz.pdf,
+  "The Finance Bill, 2006", 969,286 chars); both have zero chunks,
+  `chunker_version` null, and correct title/`file_url`/`document_key`/
+  `content_sha256` matching the source OCR index. The oversized exclusion
+  `ae6b11152a923ed75a90ab94312db82eab0b984d` (2003-6-gaz.pdf, 5,387,224
+  chars) remains out under the 2,000,000-character cap.
+- **Correction to the corpus-ingest plan's severity claim** (recorded here
+  only; that plan is Historical and out of this scope to edit): its
+  statement that "The Finance Bill, 2006" is "simply too heavy for this
+  instance" is contradicted by execution evidence — `2011-8-gaz.pdf` at
+  959,238 characters produced 741 chunks and indexed successfully at
+  09:36:36 UTC during the single-process `--batch 2` pass. A
+  ~970k-character document is a demonstrated-feasible single-process
+  workload; the Finance Bill's repeated 503s are not explained by size
+  alone.
+- **By design, not a defect — do not "fix" these:** `document_chunks.metadata`
+  is `{}` on all 51,057 rows because `supabase/functions/ingest-documents/
+  handler.ts`'s `toCommitRow()` hardcodes `metadata: {}`; nothing reads it,
+  it is a forward-compatibility slot. `document_chunks.page_number` is null
+  on all rows because `chunkDocument()` builds one unit per document
+  (`{unitKey:'document', sourceKind:'document'}`) with no page number; the
+  field is plumbed end-to-end awaiting page-wise Markdown, and the reader UI
+  never reads it — a chunk is a character span, not a page, so do not
+  fabricate page numbers from a page count. `documents.page_count` is null
+  on all 2,337 documents while `metadata.n_pages` is populated on all 2,337
+  and is a verified total PDF page count (1–210), not a chunk-to-page map.
+  Supervisor decision: leave `page_count` null; changing it needs an
+  explicit ADR amendment and buys nothing today.
+- Live `match_documents` has no `indexed_at` guard (verified 2026-09-21 by
+  reading the deployed function definition). This is harmless only because
+  both unindexed documents above currently have zero chunks. Migration 0014
+  is a hard prerequisite before any re-ingest touches those two documents.
+- `document_chunks` and `desk_rows` have never been ANALYZEd (`last_analyze`
+  and `last_autoanalyze` both null as of the 2026-09-21 audit); repeated
+  Postgres restarts reset the stats counters, so `n_live_tup` reads 31 for
+  the 51,057-row `document_chunks` table and 0 for the 34,184-row
+  `desk_rows` table. The planner is operating on stale statistics for both
+  retrieval tables; do not use `n_live_tup` as a row-count proxy.
+- Postgres restarted again at 2026-09-21 10:24:55 UTC, one minute before the
+  final successful index — a third restart beyond the two already recorded.
+  Same-audit sizes: `document_chunks_embedding_hnsw` is 380 MB, the total
+  `document_chunks` relation is 853 MB, the database is 995 MB,
+  `shared_buffers` is 224 MB (still Nano tier), `work_mem` ~2 MB,
+  `maintenance_work_mem` 32 MB.
+- Live security-advisor findings, unmitigated in production as of
+  2026-09-21: `create_organisation` is executable by the `anon` role via
+  `/rest/v1/rpc/create_organisation` and self-assigns owner and enterprise
+  plan; also anon-executable: `is_platform_admin`, `get_my_profile`,
+  `update_my_onboarding_profile`, `handle_new_user`, `is_org_member`,
+  `is_org_owner`. `update_updated_at_column` and `debug_timeout` have
+  mutable `search_path`. Supabase Auth leaked-password protection is
+  disabled. **Supervisor correction 2026-09-21:** most of these ARE closed
+  by the local recovery branch and are live only because it is undeployed.
+  **Second correction, 2026-09-21: these are now CLOSED on the live database** —
+  0012 and 0015 were applied, `anon` holds no table privileges at all, and
+  anon-executable RPCs fell from 12 to 5. The text below describes what the
+  migrations do and now reads as history.
+  Migration `20260921000012_profile_authority.sql` revokes
+  `create_organisation` from PUBLIC/anon/authenticated outright, revokes the
+  other five RPCs from `anon` while granting them to `authenticated` and
+  `service_role`, revokes `handle_new_user`, and fixes `search_path` on all
+  six; `20260921000015_least_privilege.sql` revokes anon table and column
+  access. Residual, not covered by any local migration:
+  `update_updated_at_column` still has a mutable `search_path` (it is defined
+  in migrations 0002/0003 and never altered), and Supabase Auth
+  leaked-password protection is a dashboard setting with no SQL fix.
+- `public.debug_timeout()` exists on the live database but appears in **no
+  migration** in the repository — untracked production schema drift, created
+  directly against `NTER`. It is one of the two mutable-`search_path`
+  advisor findings. Decide deliberately whether to adopt it into a migration
+  or drop it; do not silently remove it.
+- **Updated 2026-09-21 after E2**: deployed Edge Function versions are `health`
+  v5, `refresh-model-pricing` v5, `admin-models` v5, `ingest-documents` v4 and
+  `research-chat` **v1**. `research_turns` and `lookup/claim/finalize_research_turn`
+  all exist live. `health` and `admin-models` rebuilt to byte-identical bundles,
+  proving their earlier deploy already carried the modern-key code.
+  (Superseded: v4/v4/v4/v3 with `research-chat` absent.) From the earlier audit:
+  17 public tables, all RLS-enabled; `model_pricing` 446 rows, `ai_models`
+  7 enabled, `ai_roles` 4, `desk_rows` 34,184, `conversations` 0,
+  `chat_messages` 0, `model_call_logs` 2,383 rows totalling $0.2886
+  (embeddings only — no chat spend yet).
+- As of the 2026-09-21 audit: 21 worktrees registered, 26 local branches, 5
+  remote-tracking refs. `main` is checked out in its own worktree under the
+  session scratchpad (`…/7ffd58b0-…/scratchpad/wt-desk-rows`), clean. An
+  earlier revision of this entry claimed that worktree was missing and needed
+  `git worktree prune`; that was a supervisor misreading of a truncated
+  directory listing, corrected the same day. No prune was performed. Local `main` @
+  `7afd3ab` is 20 commits ahead of `origin/main` @ `63ef6a1`; nothing has
+  been pushed. `origin/dev` @ `25723f7` is deliberately out of scope for
+  current work. Two worktrees hold uncommitted, unaccepted work:
+  `task/stream-reconcile` (D7 follow-up, `reconcileSavedTurn`, at
+  `/private/tmp/niyantran-stream-reconcile`) and `task/research-panel` (D10
+  panel integration, at `/private/tmp/niyantran-research-panel`).
+  (corrected 2026-09-24: this entry is stale. `main` @ `7352148` equals
+  `origin/main` — `git rev-list --left-right --count main...origin/main`
+  returned `0 0`, and `git ls-remote origin refs/heads/main` returned the same
+  hash — so `main` has been pushed. On 2026-09-24 there are 2 worktrees
+  registered (the main checkout and one under `.claude/worktrees/`) and 2 local
+  branches (`main`, `task/research-answer-once`).)
+- The review harness `review.config.mjs`/`review.probes.test.jsx` that the
+  recovery plan cites as defining D7–D10 acceptance no longer exists in any
+  worktree and is not tracked in git, as of the 2026-09-21 audit. D7/D10
+  follow-on acceptance must rest on the slices' own tests plus fresh
+  browser verification; do not imply the original ten probes were re-run
+  when they were not.
+- A new supervisor agent took over this project on 2026-09-21. The prior
+  session ended on a usage limit with D7 and D10 written but unaccepted;
+  treat their diffs as unreviewed pending the current supervisor's
+  independent verification.
+
+
+### Recovery status on 2026-09-21
+
+The owner confirmed no competing developer/IDE worker remains active. Preserve
+existing changes and review recovered commits; this does not grant deployment
+or publication authority. The local recovery plan is the current status source.
+**Updated 2026-09-21:** live migrations now end at `20260921115831` and all five
+Edge Functions are deployed; the security and corpus repairs are live.
+(Superseded: migrations ended at 0011 and the repairs were undeployed.) No matching local ingestion
+worker was observed; remote worker state is unverified. There are 2,335 of
+2,337 eligible records indexed; the two unindexed documents and the one
+oversized exclusion are itemized with document keys and character counts in
+the shared knowledge above, along with a correction to the corpus-ingest
+plan's Finance Bill feasibility claim. No automatic restart or retry is
+authorized.
+
+A new supervisor agent took over this project on 2026-09-21, after the prior
+session ended on a usage limit with D7 and D10 written but unaccepted; both
+remain pending this supervisor's independent verification (see shared
+knowledge above).
+
+### Deployment architecture — established 2026-09-21 (E1 groundwork, E3 record)
+
+No document previously recorded how this application is actually served, which
+made "why is Vercel needed" unanswerable from the repository. Established by
+reading `vercel.json`, `vite.config.js`, `src/lib/apiMode.js` and the call sites.
+
+**There are two different runtimes, and most of `server/` exists only in one.**
+
+| | Development | Production (Vercel) |
+| --- | --- | --- |
+| App | Vite dev server | static SPA from `dist/` |
+| `server/*.mjs` | **13 plugins serve `/api/*` live** (corrected 2026-09-24 from 14: `vite.config.js` lists 13 besides `react()`) | **do not exist** |
+| `api/ai/*.js` | via `aiApiPlugin()` | 4 serverless functions |
+| Desk data | live `/api/*` calls | `public/data/*.json` snapshots |
+
+The switch is `liveApiEnabled()` in `src/lib/apiMode.js`:
+
+```js
+if (import.meta.env.VITE_LIVE_API === '1') return true;
+if (import.meta.env.VITE_LIVE_API === '0') return false;
+return Boolean(import.meta.env.DEV);
+```
+
+`import.meta.env.DEV` is **false** in a production build, so the deployed app
+does not call the live feed APIs at all. It reads the committed snapshots under
+`public/data/`. **This is why those files are production data, not fixtures**,
+and why `AGENTS.md` forbids regenerating or relocating them without an approved
+data-migration task. Routes such as `/api/rss`, `/api/portwatch`,
+`/api/opensanctions`, `/api/fts`, `/api/user-prefs` and `/api/marketing/*` have
+no Vercel handler; nothing calls them in production because the gate is closed.
+
+**So Vercel is needed for three things, and only three:**
+
+1. **Hosting the built SPA** with the history-fallback rewrite in `vercel.json`
+   (any static host could do this).
+2. **`api/ai/desk-brief.js`** — desk briefs are fetched from `/api/ai/desk-brief`
+   in `src/lib/deskBrief.js` and have **no Supabase equivalent**. This is the one
+   hard dependency: it survives `VITE_AI_BACKEND=supabase`.
+3. **`api/ai/{chat,fetch,source-extract}.js`** — the legacy AI backend, used only
+   when `VITE_AI_BACKEND` is not `supabase`. With the Supabase backend selected,
+   chat goes to the `research-chat` Edge Function and these are dormant, but they
+   remain the fallback path.
+
+**What E1 therefore has to confirm** is narrower than it sounds: that the Vercel
+project builds from the intended repository and branch; that `OPENROUTER_API_KEY`
+and the `VITE_*` variables are present in Vercel's environment under the names in
+`.env.example`; that the four function routes resolve with their declared
+`maxDuration`; and that the signup/email provider path (`AUTH_EMAIL_PROVIDER`,
+Supabase native versus Resend) delivers. It is evidence-gathering with no code
+write scope, and lacking access blocks only deployment verification.
+
+### Owner decisions — 2026-09-24
+
+2026-09-24 — Owner decisions: ItsCloudDev (upstream author) has left;
+`upstream/main` (`528dfb4`) is frozen and will be integrated once, then
+retired. OpenRouter is the only gateway for every LLM call, including legacy
+server paths. Production will be relinked to a DDL Labs–owned Vercel project
+building `ddllabs/niyantran` `main`; the current nter.pro Vercel project and
+its settings are not accessible. Google sign-in will use Supabase Auth's
+native Google provider with a DDL Labs–owned OAuth client. See
+`docs/niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` and `docs/niyantran-conflict-audit-and-plan/03-upstream-integration-plan.md`.

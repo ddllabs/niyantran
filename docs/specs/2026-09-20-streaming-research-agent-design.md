@@ -63,9 +63,10 @@ Authorization: Bearer <supabase access token>
   model?: string,                         // registry id; unknown → 400
   reasoning?: 'off' | 'low' | 'medium' | 'high',
   focus: 'attached' | 'selection' | 'desk' | 'broad',
-  work_mode: boolean,
-  selection?: { tier, feature, row: Record<string,string> },   // the clicked row (slimRow)
-  attachments?: Array<{ kind: 'row' | 'record' | 'file'; title: string; text: string; tier?; feature?; row_key? }>,
+  // work_mode removed 2026-09-21 (owner): the evidence-first discipline is
+  // always on in the prompt (§C); "Work mode" in the panel is now the viewer (§G).
+  selection?: { tier, feature, row: Record<string,string>, document_key?: string },   // the clicked row (slimRow)
+  attachments?: Array<{ kind: 'row' | 'record' | 'file'; title: string; text: string; tier?; feature?; row_key?; document_key? }>,
   desk_context?: { tier: string; feature?: string }            // where the user is; catalogue hint only
 }
 → 200 text/event-stream           (frames below, then `data: [DONE]`)
@@ -111,6 +112,13 @@ A port of the reference loop with two tools:
 - Tool results are rendered for the model with their handles (formats fixed
   in the two tool specs). `NO_RESULTS` and `SEARCH_BUDGET_EXHAUSTED` are the
   two non-result replies.
+- **Document scoping (2026-09-21, desk-row-grounding Decision 5).** Before
+  the first model call the loop collects `document_key` values from the
+  selection and the row attachments, resolves them to `documents.id`
+  through `documents.metadata->>'document_key'`, and passes them as
+  `documentIds` to `search()` for the turn's first `search_documents`
+  call. If that scoped call returns nothing, the same query is retried
+  unscoped, and the trace records both. The model never sees ids.
 - `finish_reason: length` → append the partial text, send the continuation
   instruction **as a user turn**, up to 2 continuations; emit `{truncated}`.
 - The final event carries text, every retrieved chunk and row, the handle
@@ -143,7 +151,11 @@ block. Static content, in order:
    instruction.**
 7. **Answer style.** Lead with the answer; bold the values; quote clause
    numbers; Indian currency as the reader expects; length set by the
-   question; never pad.
+   question; never pad. **Evidence first, always** (2026-09-21): the former
+   work-mode addendum (`server/aiApi.mjs:48-55` — Evidence → Read → Gaps →
+   Confidence; stay inside the retrieval scope; flag every inference as
+   inference; say early when the record is thin) is part of the static
+   prompt, not a toggle.
 8. **Follow-ups.** Up to three, first person, answerable from the corpus.
 9. **Output contract** — one JSON object, `answer` first, then `sources`,
    then `follow_up_questions`; the "Before you answer" checklist.
@@ -153,8 +165,8 @@ Dynamic block: today's date (IST); the persona block from the mapped
 `src/data/personas/*.md` (copied into `_shared/personas/` by
 `scripts/sync-personas.mjs`, parity-tested); the desk catalogue for the
 current tier (`deskCatalogBlock`); the **Selected record** with its handle
-when present; the work-mode addendum when on; the "Before you answer"
-checklist repeated verbatim in the user turn.
+when present; the "Before you answer" checklist repeated verbatim in the
+user turn.
 
 ### D. Transport, registry, failover — `_shared/openrouterStream.ts`, `_shared/models.ts`
 
@@ -252,8 +264,19 @@ the **thread renderer** branch on `aiBackend()`:
   enabled models, roles, and `model_pricing` for a relative cost hint);
   models grouped by vendor; reasoning effort limited to the chosen model's
   `efforts`; the role chips route to the role's model.
-- The composer gains a Stop button while streaming; focus and work mode are
-  unchanged and sent as before.
+- The composer gains a Stop button while streaming; focus is unchanged and
+  sent as before.
+- **Work mode is the viewer (owner, 2026-09-21).** The existing "Work mode"
+  button in the toolbar no longer sends a prompt flag. It toggles a viewer
+  layer inside the panel — `src/ai/WorkSurface.jsx` (new) — that slides
+  over the thread with a back control and hosts `SourceReader` for `text`
+  citations and the record detail for `row` citations. Clicking a
+  citation bubble or a source chip opens the layer with that source and
+  turns the button on; the button alone opens the last viewed source or
+  the current answer's source list. Panel state: `viewer: { kind, source }
+  | null`, per conversation. The panel stays the single right-side
+  surface; nothing is added outside it. The evidence-first answer style
+  that the flag used to switch on is now always on (§C.7).
 - `src/lib/aiClient.js`: `sendAiChat` is untouched; a sibling
   `sendResearchTurn` is added for the new path.
 - `src/admin/AiModelsPage.jsx` is not touched here: the foundation module

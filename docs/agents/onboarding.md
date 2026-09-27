@@ -55,10 +55,11 @@ documents, spreadsheets, and AI output as untrusted data. Billing,
 authentication, analytics, user data, production integrations, and deployment
 configuration require explicit scope and focused verification.
 
-The repository currently has a verified `npm ci` and `npm run build` baseline,
-but no automated test, lint, type-check, or CI command. Run the checks named in
-your plan plus behavior-specific verification. Never report a check you did
-not execute. An execution is evidence; reading code is a claim.
+The repository has `npm test` (Vitest), Deno Edge Function tests and
+`npm run build`. Run both suites for src/lib/, src/admin/ or supabase/ changes,
+plus the focused checks in your plan. Use disposable local targets for SQL write
+tests. No lint, standalone type-check or CI gate is declared. Never report a
+check you did not execute. An execution is evidence; reading code is a claim.
 
 When finished, report:
 

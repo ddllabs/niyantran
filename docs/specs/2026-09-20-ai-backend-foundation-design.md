@@ -2,8 +2,12 @@
 
 **Date:** 2026-09-20
 **Module id:** `ai-backend-foundation`
-> **Status:** Normative — an open design, binding on its implementation plan.
-> Becomes Historical (dated) when the plan is executed and verified.
+> **Status:** Historical (dated 2026-09-20) — changed from Normative on
+> 2026-09-24, because its implementation plan
+> (`docs/plans/2026-09-21-ai-backend-foundation.md`) is itself Historical:
+> executed, verified and merged on 2026-09-21. The design below is not
+> rewritten. The questions listed under "Still open" in "Open questions"
+> remain open follow-ups.
 
 **Origin:** The application is a frontend shell. Its AI path has no database,
 no authentication provider, no vector store and no configured key

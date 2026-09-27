@@ -2,8 +2,11 @@
 
 **Date:** 2026-09-20
 **Module id:** `desk-row-grounding`
-> **Status:** Normative — an open design, binding on its implementation plan.
-> Becomes Historical (dated) when the plan is executed and verified.
+> **Status:** Historical (2026-09-21) — built and verified by
+> `docs/plans/2026-09-21-desk-row-grounding.md`. The fixed interfaces (§C,
+> §E, §G and the RPC in §B as amended) remain binding on
+> `streaming-research-agent`; read "Plan amendments" at the end for what
+> the build resolved differently from the sections above.
 
 **Origin:** The assistant answers questions about a desk from at most eight
 rows, and its prompt tells it those rows are the record
@@ -26,6 +29,20 @@ Recorded from the owner's answers, 2026-09-20:
    on screen; it is the authoritative record for questions about itself.
 4. **The tool contract is fixed now** and survives the cut-two
    reimplementation unchanged.
+5. **Rows carry a document key** (owner, 2026-09-21, after
+   `docs/research/2026-09-21-corpus-mapping-study.md`). A desk row that
+   corresponds to a document in the corpus carries `document_key`, the
+   same value the document carries in `documents.metadata.document_key`.
+   For bills the key is `bill:<year>:<bill_number>` from the Digital
+   Sansad record; questions and regulators get keys when their joins are
+   measured. `desk_rows` gains `document_key text` (nullable, indexed) and
+   `search_desk_rows` returns it. When the selected or pinned rows carry
+   keys, the agent loop resolves them to `documents.id` values and passes
+   them as `documentIds` to `search()` (`_shared/retrieval.ts`, an
+   optional input the RAG module's `match_documents` already accepts as
+   `p_document_ids`), so "what does this bill say" searches that bill's
+   text first. The model's `search_documents` tool arguments are
+   unchanged; scoping is the loop's job, not the model's.
 
 Supervisor's recommendation, for the owner's approval (Open question 1):
 **the JSON is staged into one generic Postgres table**, `desk_rows`, rather
@@ -173,8 +190,9 @@ stale relative to `catalog.js`.
   handle; answer questions about it directly and cite it. Do not search for
   it.
 - Rows are the record for their **fields**; a document is the record for its
-  **contents**. If a row carries a document URL and the question is about
-  what that document says, call `search_documents`.
+  **contents**. If a row carries a document key or URL and the question is
+  about what that document says, call `search_documents`; the loop scopes
+  the search to that document when the row carries a key (Decision 5).
 - When rows come from a snapshot older than the conversation's day, say so
   in one clause.
 - Never print a `row_key`, a column's internal name, or a snapshot id in
@@ -291,3 +309,58 @@ desks, the legacy path, `public/data/`.
 - A refresh pipeline from live feeds into `desk_rows`.
 - The `backup/*.xlsx` packs.
 - Embedding rows or module descriptions.
+
+## Plan amendments (2026-09-21)
+
+Technical detail resolved by `docs/plans/2026-09-21-desk-row-grounding.md`
+inside the scope above. Where a line below differs from an earlier
+section, the amendment governs.
+
+- **`tier` values are the desk tab ids** used by the §C enum
+  (`global`, `national`, `state`, `law`, `economics`, `carbon`, `sports`,
+  `entertainment`), not the feature map's `htmlTier`; `local` modules
+  load under `state`.
+- **Rows are the rows the desk shows.** The loader runs the desk's own
+  feed pipeline (`fetchArchiveFeature` → `prepareDeskFeed`, `fetch` served
+  from `public/`) rather than reading the packs directly: measured on
+  2026-09-21, the desk re-keys or rebuilds rows for 22 of the 32 packed
+  modules (its record checklist assigns `<module>:<slug>:<index>` ids;
+  NCLT merges two sources; prediction markets keep the political subset),
+  so pack rows would not be what the user sees. Stored rows are flattened
+  (`archiveFeed.js` `flattenRow`: `date`, `title`, `source_url`) and keyed
+  by `rowPinKey`, with a content hash where that key is empty, so
+  `row_key` and `record_text` match the desk and the panel's selection by
+  construction. The pure port lives in `src/lib/deskRows.js` (new; in
+  scope), its Deno mirror `_shared/deskRows.ts` (held identical by
+  `src/lib/__fixtures__/deskRows.json`), and the pipeline wrapper in
+  `src/lib/deskRowsFeed.js` (Node only; new; in scope).
+- **Scope of rows:** every catalogue (navigation) module — 75; 34 carry
+  rows and 34,184 rows load on 2026-09-21; the 41 that show nothing load
+  nothing and the catalogue says so. Shared packs load under each feature
+  that shows them.
+- **`document_key` for bills** = `bill:<year>:<bill_number>`, year from the
+  title's four-digit suffix else the introduction date; 5,418 of 9,819
+  rows join the corpus link map today.
+- **§B returns two more columns**, `record_text` and `document_key`
+  (Decision 5); `least(…, 50)` unchanged. **§C `DeskRowsResult`** gains an
+  optional `error: string` the loop renders verbatim (unknown module →
+  the tier's module names). Row slimming is the executor's.
+- **§D generator** runs under `vite-node`; the staleness test is a Vitest
+  test importing `catalog.js` natively. The Deno side reads the generated
+  JSON only. Entries carry `pack` and `rows` (pack row count at
+  generation).
+- **§F block text** is `selectedRecordBlock(...)` in
+  `_shared/deskGroundingRules.ts`.
+- **§G "Open in desk"** needs a way to select the row: the plan adds one
+  effect to `src/shell/TerminalShell.jsx` that consumes a pending
+  `{ tab, feature, row_key }` set by `src/ai/openRowSource.js` after the
+  feed loads. `RecordDetail.jsx` is not edited. The viewer component is
+  `src/ai/RowSource.jsx` (new; in scope), mounted by the agent module's
+  Work-mode surface.
+- **§I / §A credentials:** `SUPABASE_SECRET_KEY` (`sb_secret_…`), not
+  `SUPABASE_SERVICE_ROLE_KEY` (the legacy keys are disabled).
+- **No `pg_trgm`** in this cut; an expression index on
+  `documents ((metadata->>'document_key'))` is added by this module's
+  migration because Decision 5 is its only consumer.
+- **The loader mirrors the packs:** rows of a loaded module that a re-run
+  did not touch are pruned.
