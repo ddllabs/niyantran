@@ -51,7 +51,7 @@ Every coding agent working on this codebase must adhere to these eight non-negot
 
 8. **Preserve Established Decisions in Future Integrations:**
    Future git merges, upstream rebases, or integration tasks must strictly preserve the established decisions
-   documented in ADR 0001 through ADR 0009.
+   documented in ADR 0001 through ADR 0010.
 
 ---
 

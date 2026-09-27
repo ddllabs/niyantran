@@ -408,3 +408,39 @@ Backend resolution (server/liveTvApi.mjs -> BROADCAST_TRANSCRIPTS / api/router.j
     LiveTvModal renders explicit non-fabricated message ("Transcript unavailable for this broadcast. No fabricated transcript generated.").
 ```
 
+---
+
+## 11. Vercel Production Deployment & Routing Reconciliation
+
+```
+Browser Client (Vercel Origin / Production)
+  ↓
+/api/* Request (Vercel Rewrite: /api/(.*) → /api/router?__route=$1)
+  ↓
+api/router.js (Single Consolidated Serverless Gateway)
+  ├─ /api/feature-feed        → server/featureFeed.mjs
+  ├─ /api/home/*              → server/homeApi.mjs
+  ├─ /api/livetv/*            → server/liveTvApi.mjs (13 YouTube channels + cache)
+  ├─ /api/news/ingest         → server/nterNews.mjs (bearer authenticated)
+  ├─ /api/marketing/intro-video → server/marketingMediaApi.mjs
+  ├─ /api/analytics/*         → server/analyticsApi.mjs
+  ├─ /api/user-prefs          → server/userPrefsApi.mjs (Supabase JWT caller verified)
+  ├─ /api/billing/*           → server/billingApi.mjs
+  ├─ /api/air, /api/ships     → server/transitApi.mjs
+  ├─ /api/opensanctions, /api/fts → server/diplomacyApi.mjs
+  ├─ /api/portwatch, etc.     → server/assetsApi.mjs
+  ├─ /api/users               → server/usersApi.mjs (Supabase session verification)
+  ├─ /api/auth/*              → server/authApi.mjs
+  ├─ /api/ai/chat             → server/aiApi.mjs (OpenRouter server key OR Supabase Edge Function research-chat)
+  └─ /api/ai/desk-brief       → server/deskBrief.mjs
+```
+
+**Resolution of Production Deployment 404s & 502:**
+1. **`/api/marketing/intro-video` (404 → 200):** Registered `handleMarketingMediaApi` in `api/router.js`.
+2. **`/api/analytics/event` (404 → 200):** Registered `handleAnalyticsApi` in `api/router.js`; added pre-parsed `req.body` support and `OPTIONS`/`GET` grace handlers.
+3. **`/api/user-prefs` (404 → 200/401):** Registered `handleUserPrefsApi` in `api/router.js`; added pre-parsed `req.body` support and `OPTIONS` preflight.
+4. **`/api/ai/chat` (502 → 200/401):** Corrected `proxyResearchChat` in `server/aiApi.mjs` to supply required `turn_key`, `attachments` array, and `apikey` header to the Supabase `research-chat` Edge Function; updated `api/router.js` error status classification so unauthenticated requests return `401 Unauthorized` instead of `502 Bad Gateway`.
+5. **Supabase Clock Skew Warning:** Confirmed non-breaking informational warning in `@supabase/gotrue-js` (local machine clock drifting behind Supabase server UTC timestamp).
+6. **External Extension Warnings (`ObjectMultiplex` / `MaxListenersExceededWarning`):** Confirmed third-party web3/MetaMask browser-extension content script artifacts, external to application code.
+
+

@@ -495,3 +495,27 @@ When the user is ready to finalize:
   - Router import: `node -e "import('./api/router.js').then(()=>console.log('ok'))"` verified.
   - Git working tree: 0 merge conflicts (`git diff --name-only --diff-filter=U` returns 0).
   - Secret scan: 0 credentials leaked.
+
+---
+
+## 10. Vercel Production Deployment Error Cleanup (ADR 0010)
+
+- **Audit & Root Cause Resolution:**
+  1. `GET /api/marketing/intro-video` 404: `api/router.js` lacked `handleMarketingMediaApi` wiring. Fixed by registering the route with `ensureDirs()` and metadata fallback. Returns HTTP 200 `{ ok: true, enabled: true, title: ... }`.
+  2. `GET /api/analytics/event` 404: `api/router.js` lacked `handleAnalyticsApi` wiring. Fixed by registering `/api/analytics/*` routes, adding defensive pre-parsed body inspection, and graceful GET/OPTIONS support. Returns HTTP 200.
+  3. `GET /api/user-prefs` 404: `api/router.js` lacked `handleUserPrefsApi` wiring. Fixed by registering `/api/user-prefs`, supporting pre-parsed bodies, and preserving Supabase session token verification. Unauthenticated requests return HTTP 401 gracefully without 404s.
+  4. `POST /api/ai/chat` 502: Fixed `proxyResearchChat` in `server/aiApi.mjs` to supply mandatory `turn_key`, default `attachments: []`, and `apikey` header to the Supabase `research-chat` Edge Function. Updated `api/router.js` error regex to return HTTP 401 Unauthorized instead of 502 Bad Gateway when unauthenticated.
+  5. Supabase Session Skew Warning: Investigated and traced directly to `@supabase/auth-js` (`GoTrueClient.ts` line 3951). Occurs when client machine clock lags behind Supabase UTC server time. Informational warning only; session resolution continues safely.
+  6. Browser Extension Warnings (`ObjectMultiplex` / `MaxListenersExceededWarning`): Traced to external web3/MetaMask wallet content scripts. Zero impact on core application.
+- **Verification Evidence:**
+  - Local endpoint execution via `api/router.js`:
+    - `intro-video`: HTTP 200
+    - `analytics GET`: HTTP 200
+    - `analytics POST`: HTTP 200
+    - `user-prefs unauth`: HTTP 401
+    - `ai chat unauth`: HTTP 401
+  - Vitest test suite: 40/40 test files passed, 644/644 tests passed.
+  - Production build: `npm run build` passed cleanly in 6.79s.
+  - Deno test suite: 415 passed | 0 failed.
+  - Router import verification: passed.
+  - Secret scan: 0 credentials leaked in source or bundles.

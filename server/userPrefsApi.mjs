@@ -14,6 +14,8 @@ function json(res, body, status = 200) {
 }
 
 async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return JSON.stringify(req.body);
+  if (typeof req.body === 'string') return req.body;
   let body = '';
   for await (const chunk of req) {
     body += chunk;
@@ -32,9 +34,16 @@ function parseJson(raw, fallback) {
 }
 
 export async function handleUserPrefsApi(req, res, next, deps = {}) {
-  const url = new URL(req.url, 'http://localhost');
+  const host = req.headers?.host || 'localhost';
+  const url = new URL(req.url, `http://${host}`);
   if (!url.pathname.startsWith('/api/user-prefs')) {
     next();
+    return;
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
     return;
   }
 

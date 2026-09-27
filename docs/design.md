@@ -111,7 +111,9 @@ to backend contracts and does not establish a competing backend architecture.
 
 ### Deployment Architecture
 
-- **Target Hosting:** The production application is intended for the new DDL Labs Vercel project (`ddllabs/niyantran`).
+- **Target Hosting:** The production application is deployed on Vercel (`ddllabs/niyantran` / `niyantran-six.vercel.app`).
+- **Consolidated Serverless Gateway:** `api/router.js` acts as the single entrypoint for all `/api/*` requests on Vercel (respecting Hobby function limits). All backend services (`marketingMediaApi`, `analyticsApi`, `userPrefsApi`, `billingApi`, `liveTvApi`, `transitApi`, `diplomacyApi`, `assetsApi`, `authApi`, `usersApi`, `aiApi`) are mapped and served without duplicate routes or 404s.
+- **AI Gateway & OpenRouter Security:** `OPENROUTER_API_KEY` is maintained server-side in Supabase Secrets for Edge Functions (`research-chat`, `desk-brief`, `embed.ts`). `server/aiApi.mjs` proxies requests to the Supabase Edge Function with required `turn_key`, session JWT bearer, and `apikey`. Zero AI secrets exist in the client bundle.
 - **Operational Boundaries:** Deployment operations, Vercel configuration updates, Supabase dashboard changes, and production DNS adjustments are strictly governed by human authorization and are isolated from repository reconciliation tasks.
 
 

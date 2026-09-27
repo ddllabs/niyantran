@@ -288,7 +288,7 @@ export async function runAiFetch(target) {
   };
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
 
 async function proxyResearchChat(payload, authHeader) {
   const userMessages = Array.isArray(payload.messages) ? payload.messages : [];
@@ -300,31 +300,39 @@ async function proxyResearchChat(payload, authHeader) {
 
   const endpoint = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/research-chat`;
   const body = {
-    message: prompt,
-    focus: String(payload.focus || 'attached'),
-    work_mode: Boolean(payload.workMode),
+    message: prompt.slice(0, 4000),
+    turn_key: String(payload.turn_key || payload.turnKey || `turn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`).slice(0, 64),
+    focus: ['attached', 'selection', 'desk', 'broad'].includes(String(payload.focus))
+      ? String(payload.focus)
+      : 'attached',
+    attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
     ...(payload.model ? { model: payload.model } : {}),
+    ...(payload.reasoning ? { reasoning: payload.reasoning } : {}),
     ...(payload.selection ? { selection: payload.selection } : {}),
     ...(payload.deskContext ? { desk_context: payload.deskContext } : {}),
-    ...(Array.isArray(payload.attachments) ? { attachments: payload.attachments } : {}),
+    ...(payload.conversationId ? { conversation_id: payload.conversationId } : {}),
   };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CHAT_MS);
   try {
+    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+    const headers = {
+      'Authorization': authHeader,
+      'Content-Type': 'application/json',
+      ...(anonKey ? { 'apikey': anonKey } : {}),
+    };
     const res = await fetch(endpoint, {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.error || `research-chat HTTP ${res.status}`);
+      const msg = errBody?.error || errBody?.message || `research-chat HTTP ${res.status}`;
+      throw new Error(msg);
     }
 
     let text = '';
@@ -348,6 +356,10 @@ async function proxyResearchChat(payload, authHeader) {
           } catch {}
         }
       }
+    }
+
+    if (!text.trim()) {
+      throw new Error('Empty response from AI research service');
     }
 
     return { text: text.trim(), model: servedModel, provider: 'openrouter' };

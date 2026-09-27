@@ -14,6 +14,8 @@ function json(res, body, status = 200) {
 }
 
 async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return JSON.stringify(req.body);
+  if (typeof req.body === 'string') return req.body;
   let body = '';
   for await (const chunk of req) {
     body += chunk;
@@ -30,8 +32,18 @@ export async function handleAnalyticsApi(req, res, next) {
     return;
   }
 
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   try {
     const database = await getDb();
+
+    if (url.pathname === '/api/analytics/event' && req.method === 'GET') {
+      return json(res, { ok: true, endpoint: 'event', methods: ['POST'] });
+    }
 
     if (url.pathname === '/api/analytics/event' && req.method === 'POST') {
       const raw = await readBody(req);

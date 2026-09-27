@@ -21,6 +21,13 @@ import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.j
 import { handleAuthApi } from '../server/authApi.mjs';
 import { handleUsersApi } from '../server/usersApi.mjs';
 import { handleLiveTvApi } from '../server/liveTvApi.mjs';
+import { handleMarketingMediaApi } from '../server/marketingMediaApi.mjs';
+import { handleAnalyticsApi } from '../server/analyticsApi.mjs';
+import { handleUserPrefsApi } from '../server/userPrefsApi.mjs';
+import { handleBillingApi } from '../server/billingApi.mjs';
+import { handleTransitApi } from '../server/transitApi.mjs';
+import { handleDiplomacyRequest } from '../server/diplomacyApi.mjs';
+import { handleAssetsRequest } from '../server/assetsApi.mjs';
 
 export const config = {
   maxDuration: 60,
@@ -264,6 +271,69 @@ export default async function handler(req, res) {
       return;
     }
 
+    if (path.startsWith('/api/marketing/intro-video')) {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleMarketingMediaApi(req, res, () => {
+        res.status(404).json({ ok: false, error: `No marketing route for ${path}` });
+      });
+      return;
+    }
+
+    if (path.startsWith('/api/analytics')) {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleAnalyticsApi(req, res, () => {
+        res.status(404).json({ ok: false, error: `No analytics route for ${path}` });
+      });
+      return;
+    }
+
+    if (path.startsWith('/api/user-prefs')) {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleUserPrefsApi(req, res, () => {
+        res.status(404).json({ ok: false, error: `No user-prefs route for ${path}` });
+      });
+      return;
+    }
+
+    if (path.startsWith('/api/billing')) {
+      const qStr = q(req).toString();
+      const host = req.headers?.host || 'localhost';
+      const url = new URL(qStr ? `${path}?${qStr}` : path, `http://${host}`);
+      const handled = await handleBillingApi(req, res, url);
+      if (handled) return;
+      res.status(404).json({ ok: false, error: `No billing route for ${path}` });
+      return;
+    }
+
+    if (['/api/air', '/api/ships', '/api/ais', '/api/vessels'].includes(path)) {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleTransitApi(req, res, () => {
+        res.status(404).json({ ok: false, error: `No transit route for ${path}` });
+      });
+      return;
+    }
+
+    if (path === '/api/opensanctions' || path === '/api/fts') {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleDiplomacyRequest(req, res, () => {
+        res.status(404).json({ ok: false, error: `No diplomacy route for ${path}` });
+      });
+      return;
+    }
+
+    if (['/api/portwatch', '/api/launches', '/api/celestrak', '/api/wb-projects'].includes(path)) {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleAssetsRequest(req, res, () => {
+        res.status(404).json({ ok: false, error: `No assets route for ${path}` });
+      });
+      return;
+    }
 
     if (path === '/api/ai/chat') {
       if (method !== 'POST') {
@@ -369,10 +439,10 @@ export default async function handler(req, res) {
     const msg = /sql-wasm|sql\.js|ENOENT|WASM/i.test(raw)
       ? 'Sign-in is temporarily unavailable. Please try again in a moment, or create an account first.'
       : raw;
-    const status = /missing|required|invalid|Select a row|No rows|audience|issuer|expired|token|credential|verified/i.test(
+    const status = /missing|required|requires|invalid|disabled|testing phase|Select a row|No rows|audience|issuer|expired|token|credential|verified|auth|unauthorized/i.test(
       raw,
     )
-      ? /audience|issuer|expired|token|credential|verified/i.test(raw)
+      ? /audience|issuer|expired|token|credential|verified|auth|requires.*auth|unauthorized/i.test(raw)
         ? 401
         : 400
       : 502;
