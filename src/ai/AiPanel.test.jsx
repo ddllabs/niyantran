@@ -86,3 +86,54 @@ it('a module chip says it is a module; a bill chip does not',()=>{
  expect(html).toMatch(/<li class="module">[\s\S]*?Bill Passage Probability Index[\s\S]*?ai-v2-file-cover module[^>]*>Module</);
  expect(html.match(/ai-v2-file-cover module/g)).toHaveLength(1);
 });
+it('renders NyAiThinking during live turn before streamingText arrives, and unmounts it once streamingText is present', () => {
+ const ready = { ...fake.research, ready: true, loading: false, locked: false };
+ fake.research = {
+   ...ready,
+   live: true,
+   stream: { isPending: true, isStreaming: false, streamingText: '' },
+ };
+ const thinkingHtml = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(thinkingHtml).toContain('nyai-thinking');
+ expect(thinkingHtml).toContain('NyAI is thinking');
+
+ fake.research = {
+   ...ready,
+   live: true,
+   stream: { isPending: false, isStreaming: true, streamingText: 'Here is the analysis from the record.' },
+ };
+ const streamHtml = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(streamHtml).not.toContain('nyai-thinking');
+ expect(streamHtml).toContain('Here is the analysis from the record.');
+});
+
+it('removes NyAiThinking and renders error message when research turn fails or backend is unavailable', () => {
+ const ready = { ...fake.research, ready: true, loading: false, locked: false };
+ fake.research = {
+   ...ready,
+   live: false,
+   submitting: false,
+   error: 'research-chat HTTP 503: OpenRouter API gateway unavailable',
+   stream: { isPending: false, isStreaming: false, error: 'research-chat HTTP 503: OpenRouter API gateway unavailable' },
+ };
+ const errorHtml = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(errorHtml).not.toContain('nyai-thinking');
+ expect(errorHtml).toContain('OpenRouter API gateway unavailable');
+ expect(errorHtml).toMatch(/class="ai-foot warn"[^>]*role="alert"/);
+});
+
+it('does not leave orphaned thinking state when research completes', () => {
+ const ready = { ...fake.research, ready: true, loading: false, locked: false };
+ fake.research = {
+   ...ready,
+   live: false,
+   submitting: false,
+   messages: [{ id: 'm1', role: 'assistant', content: 'Final verified answer' }],
+   stream: { isPending: false, isStreaming: false, status: 'complete' },
+ };
+ const doneHtml = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(doneHtml).not.toContain('nyai-thinking');
+ expect(doneHtml).toContain('Final verified answer');
+});
+
+

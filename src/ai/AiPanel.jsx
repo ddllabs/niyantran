@@ -22,6 +22,7 @@ import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
 import { coverageOf, indexedDocumentKeys } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
+import NyAiThinking from './NyAiThinking.jsx';
 import { AiBrandIcon } from './AiBrandIcon.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
@@ -1120,11 +1121,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ))}
 
-          {/* The turn in flight: the ticker, then the answer as it is written. */}
-          {serverThreads && research.live ? (
+          {/* The turn in flight: the ticker, then thinking animation, then the answer as it is written. */}
+          {serverThreads && (research.live || research.submitting) && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
               <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} />
+              {!stream?.streamingText && (research.submitting || stream?.isPending || streaming || research.live) ? (
+                <NyAiThinking model={stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label} lang={lang} />
+              ) : null}
               {stream?.streamingText ? (
                 <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} />
               ) : null}
@@ -1142,7 +1146,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {!serverThreads && busy ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{picked.label}</span>
-              {hi ? 'संलग्न स्रोत पढ़ रहा है…' : 'Reading attached sources…'}
+              <NyAiThinking model={picked.label} lang={lang} />
             </div>
           ) : null}
           {emptyThread && !busy ? (
@@ -1186,7 +1190,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {research.recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
           <button type="button" disabled={research.loading} onClick={() => research.actions.reload()}>Reload</button>
         </div> : null}
-        {err ? <p className="ai-foot warn" role="alert">{err}</p> : null}
+        {err || (serverThreads ? research.error || stream?.error : '') ? (
+          <p className="ai-foot warn" role="alert">{err || (serverThreads ? research.error || stream?.error : '')}</p>
+        ) : null}
         <form className="ai-v2-composer" onSubmit={send}>
           <textarea
             ref={box}

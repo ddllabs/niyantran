@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { emptyIntroVideo, fetchIntroVideo, videoPlayback } from '../lib/marketingIntroVideo.js';
 import { PERSONAS } from '../lib/personas.js';
 import BillAiDropDemo from './BillAiDropDemo.jsx';
+import SegmentCarousel from './SegmentCarousel.jsx';
+import NterLatestRail from './NterLatestRail.jsx';
 
 /** Provisional CR hook line — replace when client finalises. */
 const HOOK = 'See what a record touches — before you argue about it.';
@@ -191,29 +193,12 @@ const DESKS = [
   },
 ];
 
-const CAPS = [
-  { title: 'Legislative Intelligence', d: 'M4 21h16M4 10h16M12 3l8 7H4zM7 10v11M12 10v11M17 10v11', fg: '#012ea1', copy: 'Track bills, amendments, debates and passage across both houses as records change.' },
-  { title: 'Open Fronts', d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z', fg: '#c81322', copy: 'Monitor global conflicts, hostilities and crisis hotspots with linked evidence.' },
-  { title: 'Global Diplomacy', d: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18', fg: '#012ea1', copy: 'Follow diplomatic relations, treaties, statements and multilateral developments.' },
-  { title: 'Economy & Finance', d: 'M4 20h16M7 16V10M12 16V6M17 16v-8', fg: '#c45c26', copy: 'Access economic indicators, markets, budgets, and financial sector data.' },
-  { title: 'Media & Narrative', d: 'M21 15a4 4 0 01-4 4H7l-4 3V7a4 4 0 014-4h10a4 4 0 014 4z', fg: '#4f1d90', copy: 'Examine media coverage, narratives and the wider information landscape.' },
-  { title: 'Strategic Assets', d: 'M12 3l8 18H4zM12 8v5M12 16h.01', fg: '#c81322', copy: 'Explore critical infrastructure, military assets, defence deals and strategic capabilities.' },
-];
-
-function onCardMove(e) {
-  const el = e.currentTarget;
-  const r = el.getBoundingClientRect();
-  el.style.setProperty('--px', `${((e.clientX - r.left) / r.width) * 100}%`);
-  el.style.setProperty('--py', `${((e.clientY - r.top) / r.height) * 100}%`);
-}
-
 export default function HomePage({ onLogin, onCoverage, onPricing }) {
   const heroRef = useRef(null);
   const videoRef = useRef(null);
   const [deskId, setDeskId] = useState('legislative');
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(0);
-  const [capFocus, setCapFocus] = useState(null);
   const [heroPersona, setHeroPersona] = useState(null);
   const [activePersona, setActivePersona] = useState(0);
   const [introVideo, setIntroVideo] = useState(() => emptyIntroVideo());
@@ -377,6 +362,9 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
           <BillAiDropDemo />
         </div>
       </section>
+ 
+      <SegmentCarousel onLogin={onLogin} />
+      <NterLatestRail onLogin={onLogin} />
 
       <section className="mkt-preview" aria-labelledby="mkt-preview-title">
         <div className="mkt-wrap">
@@ -705,43 +693,9 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
         </div>
       </section>
 
-      <section className="mkt-caps" id="coverage">
-        <div className="mkt-wrap mkt-caps-layout">
-          <div className="mkt-caps-head">
-            <p>POWERFUL CAPABILITIES</p>
-            <h2>
-              One Terminal. <em>Endless</em> Intelligence.
-            </h2>
-            <span className="mkt-caps-copy">
-              Legislatures, fronts, markets, carbon and the courts in one desk. Official sources, labelled
-              provenance, no recommendations.
-            </span>
-            <button type="button" className="mkt-caps-link" onClick={onLogin}>
-              Explore All Desks →
-            </button>
-          </div>
-          <div className="mkt-grid" onMouseLeave={() => setCapFocus(null)}>
-            {CAPS.map((c) => (
-              <article
-                className={`mkt-card${capFocus === c.title ? ' on' : ''}`}
-                style={{ '--glow': c.fg }}
-                key={c.title}
-                onMouseEnter={() => setCapFocus(c.title)}
-                onMouseMove={onCardMove}
-              >
-                <span className="mkt-card-glow" aria-hidden="true" />
-                <div className="ico" style={{ color: c.fg }}>
-                  <Ico d={c.d} size={28} />
-                </div>
-                <div>
-                  <h3>{c.title}</h3>
-                  <p>{c.copy}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* CR-10: Removed the "One Terminal. Endless Intelligence." section.
+          The carousel (SegmentCarousel) above is the primary segment discovery mechanism.
+          The mkt-preview section below serves desk exploration for signed-in context. */}
 
       <section className="mkt-trivia">
         <div className="mkt-wrap mkt-trivia-inner">

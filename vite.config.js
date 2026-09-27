@@ -16,6 +16,7 @@ import { appFlagsApiPlugin } from './server/appFlags.mjs'
 import { billingApiPlugin } from './server/billingApi.mjs'
 import { userPrefsApiPlugin } from './server/userPrefsApi.mjs'
 import { authApiPlugin } from './server/authApi.mjs'
+import { liveTvApiPlugin } from './server/liveTvApi.mjs'
 
 loadEnv()
 
@@ -23,6 +24,7 @@ export default defineConfig({
   plugins: [
     react(),
     authApiPlugin(),
+    liveTvApiPlugin(),
     featureFeedPlugin(),
     homeApiPlugin(),
     nterNewsApiPlugin(),
@@ -38,6 +40,9 @@ export default defineConfig({
     billingApiPlugin(),
     userPrefsApiPlugin(),
   ],
+  define: {
+    'import.meta.env.VITE_AI_BACKEND': JSON.stringify(process.env.VITE_AI_BACKEND || 'supabase'),
+  },
   envPrefix: ['VITE_'],
   server: {
     port: 5173,

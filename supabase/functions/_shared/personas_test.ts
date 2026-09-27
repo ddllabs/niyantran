@@ -29,7 +29,7 @@ Deno.test('personas.json is not stale', async () => {
     'run `node scripts/build-personas.mjs`',
   );
   for (const [name, text] of Object.entries(onDisk)) {
-    assertEquals(PERSONA_PROMPTS[name], text, `${name} differs; run \`node scripts/build-personas.mjs\``);
+    assertEquals(PERSONA_PROMPTS[name].replace(/\r\n/g, '\n'), text.replace(/\r\n/g, '\n'), `${name} differs; run \`node scripts/build-personas.mjs\``);
   }
 });
 

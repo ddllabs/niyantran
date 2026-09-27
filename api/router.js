@@ -11,6 +11,7 @@ import {
   serveHomeLatest,
   serveHomeMarkets,
   serveHomePulse,
+  serveHomeSegments,
   serveOhlc,
 } from '../server/homeApi.mjs';
 import { authorizeNterRequest, ingestNterArticle } from '../server/nterNews.mjs';
@@ -19,6 +20,7 @@ import { briefFromExtract, extractSource } from '../server/sourceExtract.mjs';
 import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.js';
 import { handleAuthApi } from '../server/authApi.mjs';
 import { handleUsersApi } from '../server/usersApi.mjs';
+import { handleLiveTvApi } from '../server/liveTvApi.mjs';
 
 export const config = {
   maxDuration: 60,
@@ -182,12 +184,30 @@ export default async function handler(req, res) {
       return;
     }
 
+    if (path === '/api/home/segments') {
+      if (method !== 'GET' && method !== 'HEAD') {
+        res.status(405).json({ ok: false, error: 'GET /api/home/segments only' });
+        return;
+      }
+      res.status(200).json(await serveHomeSegments());
+      return;
+    }
+
     if (path === '/api/home/refresh') {
       if (method !== 'GET' && method !== 'POST' && method !== 'HEAD') {
         res.status(405).json({ ok: false, error: 'GET or POST /api/home/refresh only' });
         return;
       }
       res.status(200).json(await refreshHomeSnapshots());
+      return;
+    }
+
+    if (path.startsWith('/api/livetv')) {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleLiveTvApi(req, res, () => {
+        res.status(404).json({ ok: false, error: `No Live TV route for ${path}` });
+      });
       return;
     }
 
@@ -244,12 +264,13 @@ export default async function handler(req, res) {
       return;
     }
 
+
     if (path === '/api/ai/chat') {
       if (method !== 'POST') {
         res.status(405).json({ ok: false, error: 'POST only' });
         return;
       }
-      const out = await runAiChat(parseBody(req));
+      const out = await runAiChat(parseBody(req), req.headers?.authorization);
       res.status(200).json({ ok: true, ...out });
       return;
     }

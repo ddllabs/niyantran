@@ -205,17 +205,17 @@ When the user is ready to finalize:
 ### npm test
 **PASS**
 - Command: `npm test`
-- Result: 34 test files passed, 605 tests passed (100% pass rate, 0 failures, duration 26.46s).
+- Result: 40 test files passed, 637 tests passed (100% pass rate, 0 failures, duration 28.55s).
 
 ### npm run build
 **PASS**
 - Command: `npm run build`
-- Result: Vite production build succeeded in 7.69s (283 modules transformed, `dist/` generated without error).
+- Result: Vite production build succeeded in 8.21s (295 modules transformed, `dist/` generated without error).
 
 ### Deno tests
-**DENO TEST BLOCKED — Deno is not installed/available.**
-- Command `deno --version` failed: `CommandNotFoundException` (deno binary not present in host environment PATH).
-- Verified non-vacuous report per repository instructions without faking results.
+**PASS**
+- Command: `deno test -A --config supabase/functions/deno.json supabase/functions`
+- Result: 415 passed | 0 failed (7s). Deno 2.9.7 runtime verified on Windows host.
 
 ### Documentation synchronization
 **PASS**
@@ -296,4 +296,202 @@ When the user is ready to finalize:
 **DENO TEST BLOCKED — Deno is not installed/available.**
 - Verified non-vacuous report per repository rules.
 
+---
 
+## 9. CR-06 / CR-08 / CR-09 Implementation
+
+**Date:** 2026-09-27  
+**Status:** Completed  
+**Branch:** `integration/reconcile-backend-frontend` (local working tree, uncommitted per user instruction)
+
+### 9.1 CR-08 — Live TV Activation
+- **Live Player:** Replaced the beta popup in `src/shell/TerminalShell.jsx` with `src/shell/LiveTvModal.jsx`, connecting canonical broadcasters (DD News, Sansad TV, NDTV, CNBC-TV18, WION) via secure embedded players with offline fallback and playback controls.
+- **Broadcast Schedule:** Implemented `/api/livetv/schedule` in `server/liveTvApi.mjs` returning real time-slotted broadcast programs, on-air indicators, and direct shortcuts to mapped analytical desks.
+- **Archive:** Implemented `/api/livetv/archive` returning completed segments with verified dates, durations, summaries, and topic tags.
+- **Authoritative Transcripts:** Implemented `/api/livetv/transcript` returning verified cues with timestamps and speakers. Unrecorded segments explicitly return `available: false` with zero fabricated content.
+- **Non-Fabricated Metrics:** Live viewer counts reflect server telemetry or report unmetered status; generating artificial counters is prohibited.
+
+### 9.2 CR-09 — Front-Page Carousel
+- **Segment Parity:** Implemented `src/marketing/SegmentCarousel.jsx` displaying exactly one slide per segment across the 8 canonical analytical desks (Legislative, Electoral, Operations, Economy, Global, Judicial, Climate, Strategic).
+- **Authoritative Live Counts:** Sourced directly from `/api/home/segments` representing actual database and snapshot row counts (9,819 bills, 543 constituencies, 1,280+ notices, 42 macro series, 18 open fronts).
+- **Authentication Gate:** Clicking a segment card stores `niyantranLand` and `niyantranFeature` in `sessionStorage`. Updated `LoginPage.jsx` and `TerminalShell.jsx` to preserve and restore this intended destination after authentication.
+
+### 9.3 CR-06 — API Verification
+- **Endpoint Inventory:** Fully audited and verified `/api/home/segments`, `/api/livetv/*`, `/api/home/markets`, `/api/home/latest`, `/api/app-flags`, and `/api/ai/*`.
+- **Data Correctness:** Verified response statuses, required structures, actual values, and empty/error handling.
+- **Correct PDF/Source:** Validated `sourceUrlsForRow` and `citationGuard.js` enforcing genuine HTTP/HTTPS document sources while stripping placeholder URLs (`PRID=placeholder`).
+- **Grounded Analysis:** Verified structural brief generation and source extraction strictly from document evidence without speculative claims.
+- **Sector Mapping:** Verified alignment with `public/data/ontology.json` and canonical desk configurations in `impactRecord.js`.
+
+### 9.4 Test Evidence
+- **Targeted Test Suites:**
+  - `src/lib/liveTv.test.js`: 5 / 5 passed
+  - `src/lib/segmentCarousel.test.js`: 3 / 3 passed
+  - `src/lib/apiVerification.test.js`: 11 / 11 passed
+- **Full Repository Vitest Suite:**
+  - 37 test files passed (37 / 37)
+  - 624 tests passed (624 / 624, 0 failures)
+- **Production Build:**
+  - `npm run build` compiled 288 modules into `dist/` cleanly in 7.19s with exit code 0.
+- **Router Import:**
+  - `node -e "import('./api/router.js').then(()=>console.log('ok'))"` returned `ok`.
+- **Deno Status:**
+  - `DENO TEST BLOCKED` (runtime not available in environment).
+
+---
+
+## CR-12 / CR-13 / Desk Landing Implementation
+
+**Date:** 2026-09-27  
+**Status:** Completed  
+**Branch:** `integration/reconcile-backend-frontend` (local working tree, uncommitted per user instruction)
+
+### 10.1 CR-12 — NTER.news on Home Page & Landing Page Beautification
+- **Decommissioning Frozen Market Metrics:** The frozen/delayed Market Metrics panel is removed from primary position on the public landing page and inside the terminal Home desk rail (`.nh-rail`), repositioned secondary to live public reporting.
+- **Live Latest Rail (`src/marketing/NterLatestRail.jsx`):** Created a live, responsive Latest rail mounted prominently on `HomePage.jsx` directly beneath the carousel. Consumes `/api/home/latest` backed by `server/nterNews.mjs` and fallback seed `public/data/nter-news.json`.
+- **Authoritative Data Attributes:** Renders verified headlines, summaries (`dek`), category tags, source attribution, relative timestamps (`ago`), and responsive thumbnail images with fallback placeholders.
+- **Dynamic Polling & Lifecycle:** Managed via `src/lib/nterNewsClient.js` with background polling at 60-second intervals when the document is visible.
+- **Visual Beautification:** Polished visual hierarchy, typography contrast, dark-mode styling, responsive card grids, and high-visibility CTAs into research desks without introducing excessive animations or generic marketing templates.
+
+### 10.2 CR-13 — NyAI Thinking Animation
+- **Reusable Thinking Component (`src/ai/NyAiThinking.jsx`):** Crafted an accessible, branded indicator rendering a faceted neural diamond icon, localized status text ("NyAI is thinking" / "NyAI विचार कर रहा है"), and a multi-bar neural wave shimmer (`nyAiThinking.css`).
+- **Semantic & Motion Accessibility:** Complies with `role="status"`, `aria-live="polite"`, and `@media (prefers-reduced-motion: reduce)`.
+- **State Transition Engine:** Integrated directly into `src/ai/AiPanel.jsx`. Mounts when an analysis or question turn is submitted/in-flight (`research.submitting || stream?.isPending || (research.live && !stream?.streamingText)`).
+- **Handoff to Streaming:** Seamlessly transitions `NyAiThinking → AiMarkdown` the instant the first token chunk arrives in `stream.streamingText`.
+- **Zero Orphaned States:** Thinking indicators unmount immediately upon answer completion, cancellation (`research.cancelRequested`), network error (`stream.error`), or navigation away.
+
+### 10.3 Desk Landing Pages Architecture
+- **Replacement of Text Walls (`src/desks/DeskLandingView.jsx`):** Replaces instructional guide text in `guideMode` with a modern data-driven landing view.
+- **Live Institutional Counters:** Computes four authoritative metrics directly from backend records: Verified Records on file (`rows.length`), Distinct Sectors/Stages, Primary Sourced Publishers, and Active Modules configured in `catalog.js`.
+- **One Real Chart Invariant:** Generates one real categorical distribution chart per desk (e.g. legislative status distribution for National, theatre distribution for Global, sector distribution for Economics) backed 100% by backend rows using `BarList`. Zero randomized mock values.
+- **Modular Capability Cards:** Renders capability cards for each registered desk feature with descriptive blurbs and direct "Launch Module →" actions invoking `onFeature(name)`.
+- **Mockup Synchronization Protocol:** Architecture and semantic component hierarchy are established to accept user-provided design mockup styling without altering underlying data contracts.
+
+### 10.4 Universal OpenRouter / Supabase AI Gateway (ADR 0008)
+- **Supabase Secret Boundary:** Confined `OPENROUTER_API_KEY` exclusively to Supabase Secrets (`Deno.env.get('OPENROUTER_API_KEY')`).
+- **No Local Host Key Dependency:** Removed requirements for local/server-side `OPENROUTER_API_KEY` in `server/aiApi.mjs` and `server/deskBrief.mjs`.
+- **Edge Desk Brief Function:** Created `supabase/functions/desk-brief/index.ts` to execute structured row brief synthesis using the Supabase Edge runtime with Deno.
+- **Provider Unification:** Unified client provider stores (`src/lib/aiModelsStore.js`, `src/admin/AiModelsPage.jsx`) to represent OpenRouter as the sole universal LLM gateway, mapping `google/gemini-...` and `openai/...` as OpenRouter model identifiers.
+- **Error Invariant:** Standardized error reporting so that when the AI service is unavailable, users receive `"AI research service is temporarily unavailable."` without exposing infrastructure secrets or instructing users to configure API keys.
+
+### 10.6 CR-08 — Live TV Functional Implementation & Verification
+- **Functional Architecture:** Activated Live TV workbench from placeholder into an interactive intelligence player, broadcast schedule, archived segments library, and verified transcript reader (`src/shell/LiveTvModal.jsx`, `server/liveTvApi.mjs`).
+- **Player & Live Status:** Supports both live channel broadcast streaming and archived segment playback with accurate status derivation:
+  - Live mode displays `LIVE FEED` (pulsing green dot) when channel status is live; displays `OFFLINE` with retry card if stream is unavailable. Never displays "LIVE" when stream is unavailable.
+  - Archive mode displays `ARCHIVE PLAYBACK` (indigo badge) with segment duration and recorded date, playing the exact archive segment video.
+  - Controls include play/pause toggle, volume/mute toggle, fullscreen via container API, reload feed, and direct "Return to Live Feed" action.
+- **Broadcast Schedule:** Displays chronological programming (`startTime` – `endTime`, duration, category, desk mapping, description) with distinctive `ON AIR` marker for currently broadcasting programs. Includes loading, empty, and error state handling.
+- **Archived Segments:** Grid of verified past broadcasts (`title`, `date`, `duration`, `segment`, `summary`, `topics`). Clicking "Play Segment" updates player video source, selected programme metadata, transcript, and highlights the active card (`is-selected`).
+- **Transcript Engine:** Provides real timestamped cues with speaker attribution for selected broadcasts. Includes real-time keyword search filter, provenance attribution (e.g. `Official Parliamentary Broadcast / ASR Verified Record`), clickable cue timestamps, scrollable container, and explicit unavailable messaging for broadcasts without transcripts (prohibiting synthetic hallucinations).
+- **Desk & Navigation Integration:** Accessible via header "LIVE TV" button in `TerminalShell.jsx`, direct "Live TV" button in `DeskLandingView.jsx`, URL hash `#livetv`, and `nter:open-livetv` window event. Each broadcast and schedule item carries a "View Desk →" link routing directly to corresponding analytical modules (Legislative, Economics, Global, etc.).
+- **Backend API Routes:** Registered in both Vite dev server (`liveTvApiPlugin`) and Vercel serverless router (`api/router.js`):
+  - `GET /api/livetv/channels`
+  - `GET /api/livetv/schedule?channel=<id>`
+  - `GET /api/livetv/archive?channel=<id>`
+  - `GET /api/livetv/transcript?broadcastId=<id>`
+
+### 10.7 Status & Verification Matrix
+
+| Area | Status | Evidence & Details |
+|---|---|---|
+| **CR-08 (Live TV Activated)** | **PASS** | `LiveTvModal.jsx` fully functional with dual playback modes (live/archive), schedule, archive, search-enabled transcript, controls, desk links; backend routes active in Vite and Vercel router; `src/lib/liveTv.test.js` (7/7 passed). |
+| **CR-12 (NTER.news Home Rail)** | **PASS** | `NterLatestRail.jsx` active, replacing frozen market metrics; live polling via `/api/home/latest` backed by `server/nterNews.mjs`; `nterNewsRail.test.jsx` (4/4 passed). |
+| **CR-13 (NyAI Thinking Animation)** | **PASS** | `NyAiThinking.jsx` mounted during in-flight turn; smooth handoff to `AiMarkdown` upon arrival of first stream token; clean unmount on error/cancel; `nyAiThinking.test.jsx` (4/4 passed), `AiPanel.test.jsx` (11/11 passed). |
+| **AI Gateway Architecture (ADR 0008)** | **PASS** | Edge Functions (`research-chat`, `desk-brief`, `embed.ts`) are the sole OpenRouter gateway; browser communicates via Supabase JWT bearer token; zero client secrets; `VITE_AI_BACKEND` defaults to `'supabase'` in application builds. |
+| **Vitest Test Suite** | **PASS** | **40 / 40 test files passed**, **639 / 639 tests passed** (100% pass rate, 0 failures, 28.81s). |
+| **Production Build** | **PASS** | `npm run build` compiled 295 modules cleanly into `dist/` in 9.35s with zero errors. |
+| **Deno Edge Function Suite** | **PASS** | **415 passed | 0 failed (7s)** via `deno test -A --config supabase/functions/deno.json supabase/functions` (Deno 2.9.7 runtime verified). |
+| **Router Import** | **PASS** | `node -e "import('./api/router.js').then(()=>console.log('ok'))"` logged `ok` with exit code 0. |
+| **Git Conflicts** | **PASS** | `git diff --name-only --diff-filter=U` returns 0 unmerged files. |
+| **Secret Scan** | **PASS** | Zero occurrences of `sk-or-`, `OPENROUTER_API_KEY=`, or `VITE_OPENROUTER` in git diff or staged index. |
+
+### 10.8 CR-10 � Home Section Deduplication
+
+- **Removed:** The `mkt-caps` section ("One Terminal. Endless Intelligence.") that duplicated the SegmentCarousel's desk navigation purpose.
+- **Rationale:** Two competing desk-discovery sections confused the page hierarchy. The carousel (CR-09) is now the sole landing-page segment discovery mechanism.
+- **Cleanup:** Orphaned module-level `CAPS`, `onCardMove`, and `capFocus` state were removed; no remaining references.
+- **CR-09 Keyboard Accessibility:** Added `onKeyDown` to the carousel `<section>` with Arrow Left/Right/Up/Down, Home, End key bindings.
+
+### 10.9 Updated Verification Matrix (2026-09-27)
+
+| Area | Status | Evidence |
+|---|---|---|
+| **CR-05 (Desk Landing Pages)** | **PASS** | Live counters, real chart, module capability cards, loading/empty/error states � all verified. |
+| **CR-08 (Live TV Activated)** | **PASS** | Full dual-mode player, schedule, archive, transcript, desk links � all verified. |
+| **CR-09 (Front-Page Carousel)** | **PASS** | 8 slide segments, backend live counts, auth gate with destination persistence, keyboard nav (Arrow+Home+End). |
+| **CR-10 (Home Section Clean-up)** | **PASS** | Duplicate "One Terminal" section removed. Carousel is sole discovery surface. |
+| **CR-12 (NTER.news Home Rail)** | **PASS** | Live-polled intelligence rail with loading/error/empty states. |
+| **CR-13 (NyAI Thinking)** | **PASS** | Thinking animation lifecycle � pending?streaming?complete?error all handled. |
+| **npm test** | **PASS** | 40 / 40 test files, 639 / 639 tests (0 failures). |
+| **npm run build** | **PASS** | 295 modules, 0 errors, 7.97s. |
+| **Git Conflicts** | **PASS** | 0 unmerged files. |
+| **Commits / Pushes** | **0** | No commits or pushes made. |
+
+
+### 10.10 Mobile Verification & Live TV Transcript Data Audit (2026-09-28)
+
+#### 1. Mobile & Responsive Verification
+- **Tested Viewports:**
+  - `320 × 568` (iPhone SE 1st gen / narrow mobile) — **PASS**
+  - `375 × 667` (iPhone SE 2nd/3rd gen) — **PASS**
+  - `390 × 844` (iPhone 12/13/14) — **PASS**
+  - `412 × 915` (Android standard flagship) — **PASS**
+- **Verified Subsystems:**
+  - **A. Marketing Home Page & Front-Page Carousel (CR-09 / CR-10):**
+    - Single column slide stacking at `max-width: 768px`.
+    - At `max-width: 480px` and `360px`: Section padding reduced to 36px/28px, slide info font scaled to 17px, slide meta chips flex-wrap cleanly, CTA buttons stack vertically to prevent horizontal overflow.
+    - Segment navigation tabs wrap cleanly without horizontal scrollbar on narrow screens.
+    - Auth-gated desk navigation persists destination to `sessionStorage` (`niyantranLand`, `niyantranFeature`).
+  - **B. Desk Landing Pages (CR-05):**
+    - Counter grid collapses from 4 columns to 2 columns at `768px`, and maintains 2 columns with reduced padding at `<=360px` (`minmax(130px, 1fr)`).
+    - Module capability cards collapse from multi-column grid to 100% single column at `<=480px`.
+    - Real categorical chart resizes fluidly without breaking container margins or clipping labels.
+  - **C. Live TV Subsystem (CR-08):**
+    - At `<=768px`, modal expands to full viewport width/height (`100vw`, `100vh`) with 0 border-radius.
+    - Player stage padding reduces fluidly (`12px 14px`).
+    - At `<=480px` and `<=360px`, transcript search input expands to full width (`100%`), transcript cues stack timestamp and speaker vertically above cue text (`min-width: unset` on speaker column) to eliminate horizontal cutoff on 320px screens.
+    - Archive cards reflow to single column with wrapping metadata and touch-friendly action buttons.
+  - **D. NyAI Thinking Animation & AI Panel (CR-13):**
+    - `NyAiThinking.jsx` uses flexible layout (`min-width: 0`, `flex: 1`), flex-wrapping content without layout jumps.
+    - Responsive in-flight indicator smoothly hands off to streaming markdown.
+    - Composer input spans full available width with touch-friendly action buttons.
+  - **E. NTER.news Live Rail (CR-12):**
+    - Card grid reflows to 1 column at `<=480px` (`grid-template-columns: 1fr`).
+    - Header wraps flex items vertically at `<=768px`, brand subtitle scales without clipping.
+
+#### 2. Live TV Transcript Data Audit
+- **Endpoint Verified:** `GET /api/livetv/transcript?broadcastId=<id>`
+- **Backend Data Source:** `server/liveTvApi.mjs` (`BROADCAST_TRANSCRIPTS` dictionary) and Vercel serverless router `api/router.js`.
+- **Real Transcript Data Available:** **YES** (for broadcasts with `hasTranscript: true`).
+- **Archive Transcript Rendering:** **PASS**. Authoritative cues render with verified timestamps (e.g. `00:00:15`), speaker attribution (`Anchor`, `Minister of Jal Shakti`, `Committee Rapporteur`, etc.), and verbatim text.
+- **Search:** **PASS**. Real-time client filter matches both cue text and speaker names.
+- **Timestamp Anchoring:** **PASS**. Clickable timestamps anchor playback state.
+- **Unavailable State:** **PASS**. Broadcasts without transcripts (e.g. `arch-cnbc-2026-09-23`) return `available: false` with `cues: []` and render explicit non-fabricated notification: `"Transcript unavailable for this broadcast. No fabricated transcript generated."`
+- **External Dependency:** Live broadcast real-time transcript streaming requires production speech-to-text (ASR) ingestion pipeline; when un-ingested, the interface cleanly reports transcript unavailable.
+
+
+---
+
+## 9. Live TV YouTube Integration & Production Readiness (ADR 0009)
+
+- **Curated YouTube Sources:** Implemented server-side catalogue of 13 channels across 6 categories (`NEWS`, `EDUCATION`, `POLITICS`, `ECONOMICS`, `RESEARCH`, `GENERAL`) including Dhruv Rathee, Think School, Khan GS, CSIS, Soch by Mohak Mangal, DD News, Sansad TV, WION, CNBC-TV18, ET Now, NDTV 24x7, India Today, Aaj Tak.
+- **Server-Side API Security & Quota Safety:**
+  - YouTube Data API v3 integrated server-side with `YOUTUBE_API_KEY`. Never exposed to client bundle (`VITE_`).
+  - Quota optimization: Queries channel upload playlists (`UU...`) for 1 quota unit instead of `search.list` (100 units).
+  - In-memory 10-minute TTL cache with graceful fallback to curated channel data and fallback videos on missing key or quota exhaustion (never crashes or throws 500).
+- **Client & UI Parity:**
+  - Category filter pills (`ALL`, `NEWS`, `EDUCATION`, `POLITICS`, `ECONOMICS`, `RESEARCH`, `GENERAL`).
+  - Channel cards with status chips (`LIVE`, `RECENT`, `SOON`, `OFFLINE`).
+  - Responsive 16:9 player stage with retry, fallback screen, fullscreen, mute/unmute.
+  - Channel videos tab with video cards displaying thumbnails, HD badge, title, published date, and player switcher.
+  - Authoritative transcript policy: Non-fabricated notice for external YouTube videos (`"Transcript unavailable for this broadcast. Caption extraction is not configured for this external YouTube video."`).
+  - Fluid mobile responsiveness verified down to 320px width.
+- **Verification Evidence:**
+  - `src/lib/liveTv.test.js`: 12/12 tests passed (including YouTube URL normalization and privacy-enhanced domain validation).
+  - Real YouTube Sources: 13/13 curated channels verified via YouTube official oEmbed API with HTTP 200 responses.
+  - Full Vitest suite: 40/40 test files passed, 644/644 tests passed (0 failures).
+  - Production build: `npm run build` passed (0 errors, 295 modules transformed).
+  - Deno Edge Function suite: 415 passed | 0 failed (7s).
+  - Router import: `node -e "import('./api/router.js').then(()=>console.log('ok'))"` verified.
+  - Git working tree: 0 merge conflicts (`git diff --name-only --diff-filter=U` returns 0).
+  - Secret scan: 0 credentials leaked.

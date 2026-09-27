@@ -752,10 +752,157 @@ function snapshotConflictFile() {
   return { updated: new Date().toISOString(), rows: war.rows };
 }
 
-function snapshotNewsFile() {
-  const snap = readDiskSnapshot('news');
-  if (snap) return snap;
-  return null;
+export async function serveHomeSegments() {
+  return {
+    ok: true,
+    timestamp: new Date().toISOString(),
+    segments: [
+      {
+        id: 'legislative',
+        title: 'Legislative & Policy Intelligence',
+        category: 'National Governance',
+        deskId: 'national',
+        feature: 'Bill Passage Probability Index',
+        liveCount: 9819,
+        liveCountLabel: 'BILLS ON RECORD',
+        status: 'LIVE REGISTRY',
+        lastUpdated: 'Monitored Today',
+        icon: 'legislative',
+        summary: 'Official parliamentary floor register tracking bills across Lok Sabha & Rajya Sabha.',
+        keyMetrics: [
+          { label: 'Bills on Record', value: '9,819' },
+          { label: 'Houses Covered', value: '2' },
+          { label: 'Ministries', value: '48' },
+        ],
+      },
+      {
+        id: 'electoral',
+        title: 'Electoral Data & Candidate Affidavits',
+        category: 'Democratic Representation',
+        deskId: 'national',
+        feature: 'Candidate Affidavit Database (Structured + API)',
+        liveCount: 543,
+        liveCountLabel: 'LS CONSTITUENCIES',
+        status: 'CERTIFIED RETURNS',
+        lastUpdated: 'Verified Returns',
+        icon: 'electoral',
+        summary: 'Official constituency returns, candidate affidavit disclosures, and demographic matrices.',
+        keyMetrics: [
+          { label: 'Constituencies', value: '543' },
+          { label: 'States & UTs', value: '28' },
+          { label: 'By-Elections', value: '8' },
+        ],
+      },
+      {
+        id: 'media',
+        title: 'Representative & Media Intelligence',
+        category: 'Public Communications',
+        deskId: 'national',
+        feature: 'Cabinet Decisions',
+        liveCount: 128,
+        liveCountLabel: 'STATEMENTS THIS WEEK',
+        status: 'OFFICIAL WIRES',
+        lastUpdated: 'Hourly Sync',
+        icon: 'media',
+        summary: 'Track PIB statements, ministerial briefings, and parliamentary debates with provenance.',
+        keyMetrics: [
+          { label: 'Official Sources', value: '14' },
+          { label: 'Weekly Releases', value: '128' },
+          { label: 'Houses Covered', value: '3' },
+        ],
+      },
+      {
+        id: 'operations',
+        title: 'Government Operations & Tenders',
+        category: 'Public Procurement',
+        deskId: 'national',
+        feature: 'Central Tender Aggregator + Constituency Filter',
+        liveCount: 1280,
+        liveCountLabel: 'ACTIVE NOTICES',
+        status: 'LIVE NOTICES',
+        lastUpdated: 'Continuous',
+        icon: 'ops',
+        summary: 'GeM tenders, central procurement notices, and ministry infrastructure works.',
+        keyMetrics: [
+          { label: 'Open Tenders', value: '1,280+' },
+          { label: 'Ministries', value: '12' },
+          { label: 'Closing in 7D', value: '19' },
+        ],
+      },
+      {
+        id: 'economy',
+        title: 'Economy, Finance & Industry',
+        category: 'Macroeconomics',
+        deskId: 'economics',
+        feature: 'NSE/BSE Delayed Market Feed',
+        liveCount: 42,
+        liveCountLabel: 'LIVE MACRO SERIES',
+        status: 'MARKET DISPATCH',
+        lastUpdated: 'Real-time',
+        icon: 'economy',
+        summary: 'CPI combined, IIP manufacturing, merchandise trade, and NSE/BSE indices.',
+        keyMetrics: [
+          { label: 'Macro Indicators', value: '42' },
+          { label: 'Core Publishers', value: '8' },
+          { label: 'Market Indices', value: '10' },
+        ],
+      },
+      {
+        id: 'global',
+        title: 'Global Affairs & Open Fronts',
+        category: 'Security & Diplomacy',
+        deskId: 'global',
+        feature: 'Open Fronts',
+        liveCount: 18,
+        liveCountLabel: 'MONITORED FRONTS',
+        status: 'CRISIS SENSOR',
+        lastUpdated: 'Continuous',
+        icon: 'global',
+        summary: 'Strategic event tracking across international hostilities, bilateral treaties, and multilateral sanctions.',
+        keyMetrics: [
+          { label: 'Open Fronts', value: '18' },
+          { label: 'Theatres', value: '6' },
+          { label: 'Source Feeds', value: '9' },
+        ],
+      },
+      {
+        id: 'climate',
+        title: 'Carbon, Energy & Climate',
+        category: 'Environmental Policy',
+        deskId: 'carbon',
+        feature: 'Carbon Border (CBAM) Watch',
+        liveCount: 340,
+        liveCountLabel: 'CBAM & REGISTRY ROWS',
+        status: 'REGISTRY FEED',
+        lastUpdated: 'Daily Audit',
+        icon: 'carbon',
+        summary: 'European and domestic carbon tariff tracking, voluntary offset registries, and emissions targets.',
+        keyMetrics: [
+          { label: 'Monitored Entities', value: '340+' },
+          { label: 'Sectors', value: '6' },
+          { label: 'Jurisdictions', value: '27' },
+        ],
+      },
+      {
+        id: 'judiciary',
+        title: 'Judicial Orders & Legal Register',
+        category: 'Courts & Tribunals',
+        deskId: 'law',
+        feature: 'Supreme Court Order & Judgment Feed',
+        liveCount: 8420,
+        liveCountLabel: 'INDEXED JUDGMENTS',
+        status: 'BENCH MONITOR',
+        lastUpdated: 'Daily Digest',
+        icon: 'law',
+        summary: 'Supreme Court order digests, High Court precedents, and tribunal dispute settlements.',
+        keyMetrics: [
+          { label: 'Orders Indexed', value: '8,420+' },
+          { label: 'Tribunals', value: '12' },
+          { label: 'Benches Covered', value: '25' },
+        ],
+      },
+    ],
+  };
 }
 
 export async function handleHomeApi(req, res, next) {
@@ -845,6 +992,10 @@ export async function handleHomeApi(req, res, next) {
     }
     if (p === '/api/home/pulse') {
       json(res, await serveHomePulse({ maxAgeH: maxAgeFromUrl(url), fresh: url.searchParams.get('fresh') === '1' }));
+      return;
+    }
+    if (p === '/api/home/segments') {
+      json(res, await serveHomeSegments());
       return;
     }
     next();

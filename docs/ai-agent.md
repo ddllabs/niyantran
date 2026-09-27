@@ -32,13 +32,14 @@ Every coding agent working on this codebase must adhere to these eight non-negot
    Direct outbound calls from either the client or the server to `generativelanguage.googleapis.com`,
    GoogleGenerativeAI SDK, or any other direct LLM provider are prohibited in active production paths.
 
-5. **All LLM Calls Must Go Through OpenRouter:**
+5. **Universal OpenRouter Access & Supabase Secret Invariant:**
    OpenRouter (`https://openrouter.ai`) is the single universal model gateway across the entire platform.
-   This applies equally to:
-   - Server-side Node APIs (`server/aiApi.mjs`)
-   - Desk Brief synthesis (`server/deskBrief.mjs`)
-   - Supabase Edge Functions (`supabase/functions/research-chat`, `supabase/functions/refresh-model-pricing`, etc.)
-   Outbound requests must use `OPENROUTER_API_KEY` (or `NIYANTRAN_AI_KEY`). Never expose API keys to the browser.
+   **Mandatory Invariant:** Never ask for, add, expose, or copy `OPENROUTER_API_KEY` into the browser,
+   repository `.env`, Vercel client configuration, or frontend code. The key exists **only in Supabase Secrets**
+   (`Deno.env.get('OPENROUTER_API_KEY')`).
+   All production AI operations are executed via authenticated Supabase Edge Functions (`research-chat`, `desk-brief`, `embed.ts`).
+   The Node/Vite development server does not require a local `OPENROUTER_API_KEY`.
+
 
 6. **Frontend Changes Must Follow Backend Contracts:**
    Frontend modifications must consume existing backend API and Edge Function contracts. Do not construct
@@ -50,7 +51,7 @@ Every coding agent working on this codebase must adhere to these eight non-negot
 
 8. **Preserve Established Decisions in Future Integrations:**
    Future git merges, upstream rebases, or integration tasks must strictly preserve the established decisions
-   documented in ADR 0001 through ADR 0005.
+   documented in ADR 0001 through ADR 0009.
 
 ---
 
@@ -61,6 +62,12 @@ concrete evidence for the following gates:
 
 - [ ] `node -e "import('./api/router.js').then(()=>console.log('ok'))"` prints `ok`.
 - [ ] `/api/auth/*` routes (signup, resend-verification, forgot-password, reset-password, me, login, logout, provider) route cleanly through server/authApi.mjs.
+- [ ] `/api/livetv/*` routes (channels, live, videos, schedule, archive, transcript) return valid backend contracts with real YouTube sources and privacy-enhanced embeds without fabricated data.
+- [ ] `/api/home/segments` exposes 8 canonical analytical segments with authoritative live counts.
+- [ ] `/api/home/latest` serves live NTER.news data; `NterLatestRail.jsx` replaces frozen Market Metrics in the primary position.
+- [ ] `NyAiThinking.jsx` renders accessible thinking state (`role="status"`, `aria-live="polite"`) during LLM generation and unmounts cleanly once streaming text arrives or on cancellation/error.
+- [ ] Desk Landing pages (`DeskLandingView.jsx`) replace text walls with live counters, module capability cards, and a real categorical chart derived from backend rows.
+- [ ] Client authentication gating preserves intended desk destination (`niyantranLand` and `niyantranFeature`) after login.
 - [ ] Client authentication gating in `App.jsx` reactively synchronizes with `subscribeLocalIdentity`.
 - [ ] `npm run build` succeeds without requiring production secrets in development environments.
 - [ ] No active production references to `google-auth-library` or `server/googleAuth.mjs`.
@@ -68,6 +75,7 @@ concrete evidence for the following gates:
 - [ ] Zero unmerged Git conflicts (`git diff --name-only --diff-filter=U` returns empty).
 - [ ] `npm ci` executes cleanly.
 - [ ] `npm run build` succeeds with zero errors.
-- [ ] `npm test` passes all tests.
+- [ ] `npm test` passes all tests (including `nterNewsRail.test.jsx`, `nyAiThinking.test.jsx`, `deskLanding.test.jsx`).
 - [ ] Durable data files in `backup/` and `public/data/` are protected and unmodified.
 - [ ] No unexpected commits or remote pushes.
+

@@ -880,10 +880,9 @@ export async function runDeskBrief(input = {}) {
     process.env.OPENROUTER_API_KEY || process.env.NIYANTRAN_AI_KEY || '',
   ).trim();
   if (!key) {
-    throw new Error(
-      'OPENROUTER_API_KEY missing on the server. Set OPENROUTER_API_KEY in the host environment (never in the browser).',
-    );
+    throw new Error('AI research service is temporarily unavailable.');
   }
+
 
   const entry = slimEntry(row);
   const localCharts = scope === 'substance' ? [] : buildEntryCharts(row, feature);

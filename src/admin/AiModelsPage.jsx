@@ -19,12 +19,7 @@ function LegacyAiModelsPage() {
         if (r.id !== id) return r;
         const next = { ...r, [field]: value };
         if (field === 'model') {
-          const m = String(value).toLowerCase();
-          next.provider = m.includes('gemini')
-            ? 'gemini'
-            : /astra|openai\/|gpt-6|openrouter/.test(m)
-              ? 'openrouter'
-              : 'gemini';
+          next.provider = 'openrouter';
         }
         return next;
       }),
@@ -35,7 +30,7 @@ function LegacyAiModelsPage() {
   function onSave(e) {
     e.preventDefault();
     saveAiModels(roles);
-    setMsg('Model roles saved in this browser. API keys stay on the server environment.');
+    setMsg('Model roles saved in this browser. API keys stay in secure Supabase Secrets.');
   }
 
   function onReset() {
@@ -47,11 +42,11 @@ function LegacyAiModelsPage() {
     <>
       <h1 className="adm-h1">AI models</h1>
       <p className="adm-lede">
-        Research roles pick a provider + model id. Keys are read only from the host environment
-        (<code>GEMINI_API_KEY</code>, <code>OPENROUTER_API_KEY</code>)
-        inside <code>/api/ai/chat</code> — never from the browser. Desk training prompts live on the
+        Research roles pick an OpenRouter model ID. The single provider secret (<code>OPENROUTER_API_KEY</code>) is held
+        strictly in Supabase Secrets — never on the host environment or in the browser. Desk training prompts live on the
         <b> AI personas</b> tab.
       </p>
+
       <form onSubmit={onSave}>
         <div className="adm-plans">
           {roles.map((r) => (

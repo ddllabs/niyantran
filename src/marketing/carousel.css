@@ -1,0 +1,382 @@
+/* Front-Page Segment Carousel Styles */
+
+.mkt-carousel-section {
+  position: relative;
+  padding: 72px 0 60px;
+  background: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.12), transparent 70%),
+              linear-gradient(180deg, rgba(15, 23, 42, 0.4) 0%, rgba(10, 15, 29, 0.95) 100%);
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+}
+
+.mkt-carousel-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.mkt-carousel-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #60a5fa;
+  margin-bottom: 8px;
+}
+
+.mkt-carousel-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 10px;
+  letter-spacing: -0.02em;
+}
+
+.mkt-carousel-header p {
+  color: #94a3b8;
+  font-size: 14px;
+  max-width: 620px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Tab Bar / Selector */
+.mkt-carousel-nav-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+  padding: 0 16px;
+}
+
+.mkt-carousel-nav-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mkt-carousel-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+.mkt-carousel-nav-btn.active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #60a5fa;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+}
+
+/* Stage & Slide Container */
+.mkt-carousel-stage {
+  position: relative;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.mkt-carousel-slide {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 32px 36px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 36px;
+  align-items: center;
+  backdrop-filter: blur(12px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .mkt-carousel-slide {
+    grid-template-columns: 1fr;
+    padding: 24px;
+    gap: 24px;
+  }
+
+  .mkt-carousel-section {
+    padding: 48px 0 40px;
+  }
+
+  .mkt-slide-info h3 {
+    font-size: 20px;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .mkt-carousel-section {
+    padding: 36px 0 28px;
+  }
+
+  .mkt-carousel-slide {
+    padding: 18px;
+    gap: 18px;
+  }
+
+  .mkt-carousel-stage {
+    padding: 0 12px;
+  }
+
+  .mkt-slide-info h3 {
+    font-size: 17px;
+  }
+
+  .mkt-slide-meta {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .mkt-slide-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .mkt-slide-cta {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .mkt-carousel-nav-tabs {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .mkt-carousel-nav-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .mkt-metric-hero-val {
+    font-size: 28px;
+  }
+}
+
+/* Narrowest (320px) */
+@media (max-width: 360px) {
+  .mkt-carousel-slide {
+    padding: 14px;
+  }
+
+  .mkt-slide-info h3 {
+    font-size: 15px;
+  }
+
+  .mkt-carousel-header h2 {
+    font-size: 20px;
+  }
+}
+
+
+.mkt-slide-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mkt-slide-index {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #60a5fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.mkt-slide-category {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.mkt-slide-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mkt-slide-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.mkt-slide-info h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 12px;
+  line-height: 1.25;
+}
+
+.mkt-slide-info p {
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.55;
+  margin: 0 0 24px;
+}
+
+.mkt-slide-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mkt-slide-cta {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #3b82f6;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+}
+
+.mkt-slide-cta:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.mkt-slide-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Metric Rail Right Card */
+.mkt-slide-metrics {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mkt-metric-hero {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 16px;
+}
+
+.mkt-metric-hero-val {
+  font-size: 36px;
+  font-weight: 800;
+  color: #60a5fa;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.mkt-metric-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.mkt-metric-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mkt-metric-chip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.mkt-metric-chip-row span {
+  color: #94a3b8;
+}
+
+.mkt-metric-chip-row strong {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+/* Arrows & Controls */
+.mkt-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.mkt-carousel-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 16px;
+}
+
+.mkt-carousel-arrow:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.mkt-carousel-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.mkt-carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.mkt-carousel-dot.active {
+  width: 24px;
+  border-radius: 9999px;
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}

@@ -5,36 +5,36 @@ import { isTestingPhase } from './appFlagsStore.js';
 
 /**
  * Models shown in AI research.
- * tier: free = Gemini (allowed in testing phase); paid = others (disabled while testing).
- * Gemini + OpenRouter GPT Astra only — DeepSeek removed from the picker.
+ * All models are routed through the single universal OpenRouter gateway.
+ * tier: free = Gemini model IDs (allowed in testing phase); paid = others (disabled while testing).
  */
 export const AI_PROVIDERS = [
   {
     id: 'gemini-lite',
     label: 'Gemini - Lite',
-    model: 'gemini-3.5-flash-lite',
-    provider: 'gemini',
+    model: 'google/gemini-2.0-flash-001',
+    provider: 'openrouter',
     tier: 'free',
     enabled: true,
-    hint: 'Default — fast briefing and desk questions',
+    hint: 'Default — fast briefing and desk questions (OpenRouter · Google Gemini 2.0 Flash)',
   },
   {
     id: 'gemini-flash',
     label: 'Gemini - Flash',
-    model: 'gemini-3.7-flash',
-    provider: 'gemini',
+    model: 'google/gemini-flash-1.5',
+    provider: 'openrouter',
     tier: 'free',
     enabled: true,
-    hint: 'Heavier synthesis / visual research',
+    hint: 'Heavier synthesis / visual research (OpenRouter · Google Gemini 1.5 Flash)',
   },
   {
     id: 'gpt-astra',
     label: 'GPT - Astra',
-    model: 'openai/gpt-6-astra',
+    model: 'openai/gpt-4o-mini',
     provider: 'openrouter',
     tier: 'paid',
     enabled: true,
-    hint: 'OpenRouter · OpenAI GPT-6 Astra',
+    hint: 'OpenRouter · OpenAI GPT-4o Mini',
   },
 ];
 
@@ -45,7 +45,7 @@ export function liveAiProviders() {
   const testing = isTestingPhase();
   return AI_PROVIDERS.map((p) => {
     if (!testing) return { ...p };
-    const freeGemini = p.tier === 'free' && p.provider === 'gemini';
+    const freeGemini = p.tier === 'free' && p.model.includes('gemini');
     return {
       ...p,
       enabled: freeGemini && p.enabled,
@@ -56,21 +56,21 @@ export function liveAiProviders() {
   });
 }
 
-/** Research role map — Gemini defaults; UI can override to OpenRouter Astra. */
+/** Research role map — OpenRouter gateway across all models. */
 export const AI_ROLES = [
   {
     id: 'DEFAULT_ANALYST',
     label: 'Default analyst',
     hint: 'Everyday briefing, tables, and multi-desk questions.',
-    model: 'gemini-3.5-flash-lite',
-    provider: 'gemini',
+    model: 'google/gemini-2.0-flash-001',
+    provider: 'openrouter',
     key: '',
   },
   {
     id: 'EXPERT_ESCALATION',
     label: 'Expert escalation',
     hint: 'Harder synthesis when the lite pass is not enough.',
-    model: 'openai/gpt-6-astra',
+    model: 'openai/gpt-4o-mini',
     provider: 'openrouter',
     key: '',
   },
@@ -78,26 +78,24 @@ export const AI_ROLES = [
     id: 'PDF_PARSER',
     label: 'PDF parser',
     hint: 'Read PDFs, scans, and attached documents.',
-    model: 'gemini-3.5-flash-lite',
-    provider: 'gemini',
+    model: 'google/gemini-2.0-flash-001',
+    provider: 'openrouter',
     key: '',
   },
   {
     id: 'VISUAL_RESEARCH',
     label: 'Visual research',
     hint: 'Charts, maps, images, and screenshot-backed questions.',
-    model: 'gemini-3.7-flash',
-    provider: 'gemini',
+    model: 'google/gemini-flash-1.5',
+    provider: 'openrouter',
     key: '',
   },
 ];
 
 function providerOf(model, fallback) {
-  const m = String(model || '').toLowerCase();
-  if (m.includes('gemini')) return 'gemini';
-  if (m.includes('gpt') || m.includes('astra') || m.includes('openai/')) return 'openrouter';
-  return fallback || 'gemini';
+  return 'openrouter';
 }
+
 
 export function getAiProvider(id) {
   return liveAiProviders().find((p) => p.id === id) || liveAiProviders().find((p) => p.enabled) || DEFAULT_PROVIDER;

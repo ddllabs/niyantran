@@ -108,7 +108,10 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
       }
       applyPersonaForUser(pub);
       setSessionUser(pub);
-      sessionStorage.setItem('niyantranLand', userTypeOf(pub.type).startTab);
+      const priorLand = sessionStorage.getItem('niyantranLand');
+      if (!priorLand) {
+        sessionStorage.setItem('niyantranLand', userTypeOf(pub.type).startTab);
+      }
       onSuccess();
     } catch {
       setError('Unable to verify your account. Please try again.');

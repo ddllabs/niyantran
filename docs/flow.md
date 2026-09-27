@@ -68,38 +68,59 @@ sequenceDiagram
 
 ---
 
-## 2. Universal AI Research & RAG Flow
+## 2. Universal AI Research & RAG Flow (Supabase Edge Gateway)
 
 OpenRouter is the universal LLM gateway for all conversational AI, document grounding, and streaming research.
-Direct LLM calls to Google Generative Language API, Gemini direct endpoints, or legacy providers are prohibited.
+The credential `OPENROUTER_API_KEY` exists **strictly in Supabase Secrets** and is never placed in `.env`, the browser, or Node host configurations.
+
+```
+Browser
+  |
+  | Supabase Auth bearer token
+  v
+Supabase Edge Function (research-chat / desk-brief / embed)
+  |
+  | Deno.env.get("OPENROUTER_API_KEY")
+  v
+OpenRouter (https://openrouter.ai/api/v1)
+  |
+  +--> selected model (google/gemini-2.0-flash-001, openai/gpt-4o-mini, etc.)
+  |
+  +--> streaming response (SSE token chunks)
+  |
+  +--> embeddings (openai/text-embedding-3-small, 1536 dims)
+```
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Analyst as Analyst / User
-    participant Frontend as NTER Workspace UI
-    participant Backend as NTER Backend / Edge Function
+    actor Analyst as Analyst / Browser
+    participant Client as NTER Workspace UI (aiClient / AiPanel)
+    participant Edge as Supabase Edge Runtime (research-chat)
     participant VectorDB as Supabase pgvector (document_chunks)
     participant OpenRouter as OpenRouter API Gateway
     participant LLM as Target Model (e.g. Gemini 2.0 Flash / GPT-4o)
 
-    Analyst->>Frontend: Submits research query / attachments
-    Frontend->>Backend: Dispatches query payload (Edge Function / API)
-    Backend->>VectorDB: Performs cosine similarity match (pgvector)
-    VectorDB-->>Backend: Returns relevant document chunks & citations
-    Backend->>OpenRouter: POST https://openrouter.ai/api/v1/chat/completions (System prompt, record context, user messages)
+    Analyst->>Client: Submits research query / attachments
+    Client->>Edge: POST /functions/v1/research-chat (Authorization: Bearer <JWT>)
+    Edge->>Edge: Validates caller via requireUser()
+    Edge->>VectorDB: Performs cosine similarity match (pgvector)
+    VectorDB-->>Edge: Returns relevant document chunks & citations
+    Edge->>OpenRouter: POST https://openrouter.ai/api/v1/chat/completions (Deno.env.get("OPENROUTER_API_KEY"))
     OpenRouter->>LLM: Routes to selected model via unified gateway
     LLM-->>OpenRouter: Returns generated tokens / response
-    OpenRouter-->>Backend: Streams completions with usage & model info
-    Backend-->>Frontend: Delivers streaming response with verified citations
-    Frontend-->>Analyst: Renders grounded research with interactive record citations
+    OpenRouter-->>Edge: Streams completions with usage & model info
+    Edge-->>Client: Delivers SSE streaming response with verified citations
+    Client-->>Analyst: Renders grounded research with interactive record citations
 ```
 
 **Key Execution Stages:**
 1. **Query Submission:** The analyst submits a research prompt with attached terminal rows, PDFs, or desk scope.
-2. **RAG Retrieval:** The backend queries `public.document_chunks` using pgvector cosine similarity matching (`match_document_chunks`).
-3. **Gateway Dispatch:** The backend packages the system prompt, grounding rules, extracted document text, and user messages, sending them to OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) using the server-side `OPENROUTER_API_KEY`.
-4. **Model Execution & Streaming:** OpenRouter routes the request to the configured model (e.g., `google/gemini-2.0-flash-001`). The generated narrative and citation IDs stream back to the client interface.
+2. **Edge Security Boundary:** The browser passes its authenticated Supabase access token to the Edge Function (`research-chat`); no API key is sent or possessed by the browser.
+3. **RAG Retrieval:** The Edge Function queries `public.document_chunks` using pgvector cosine similarity matching (`match_document_chunks`).
+4. **Gateway Dispatch:** The Edge Function reads `Deno.env.get('OPENROUTER_API_KEY')` and queries OpenRouter (`https://openrouter.ai/api/v1/chat/completions`).
+5. **Model Execution & Streaming:** OpenRouter routes the request to the configured model (e.g., `google/gemini-2.0-flash-001`). The generated narrative and citation IDs stream back via SSE directly to the client interface.
+
 
 ---
 
@@ -140,3 +161,250 @@ sequenceDiagram
 2. **Cache Resolution:** Fast memory and disk check; if present, skips remote LLM call entirely.
 3. **Structured OpenRouter Call:** When cache misses, `callOpenRouter` queries OpenRouter using `response_format: { type: 'json_object' }`.
 4. **Normalization & Response:** The JSON response is normalized with server-calculated charts and returned to the frontend.
+
+---
+
+## 4. Live TV Intelligence Streaming & Verification Flow (CR-08)
+
+The Live TV intelligence module connects public broadcasting and parliamentary proceedings directly to analytical desks without ungrounded mock streams.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Analyst as Analyst / User
+    participant Shell as Terminal Shell / Header
+    participant Modal as Live TV Modal (src/shell/LiveTvModal.jsx)
+    participant Backend as Live TV API (server/liveTvApi.mjs)
+    participant Desk as Analytical Desk (e.g. Legislative)
+
+    Analyst->>Shell: Clicks "LIVE TV" button
+    Shell->>Modal: Mounts LiveTvModal(open=true)
+    Modal->>Backend: GET /api/livetv/channels
+    Backend-->>Modal: Returns curated channels catalogue across 6 categories (News, Education, Politics, Economics, Research, General)
+    Modal->>Backend: GET /api/livetv/live
+    Backend-->>Modal: Returns live stream status & live embed URLs
+    Modal->>Backend: GET /api/livetv/videos?channel={id}
+    Backend-->>Modal: Returns recent channel videos via YouTube Data API v3 / upload playlist cache
+    Modal->>Backend: GET /api/livetv/schedule?channel={id}
+    Backend-->>Modal: Returns live schedule (current on-air segment, upcoming programs, desk mappings)
+    Modal->>Backend: GET /api/livetv/archive?channel={id}
+    Backend-->>Modal: Returns archived segments with verified dates and metadata
+    opt Transcript Inspection
+        Analyst->>Modal: Selects broadcast / "Read Transcript"
+        Modal->>Backend: GET /api/livetv/transcript?broadcastId={id}
+        alt Transcript Available
+            Backend-->>Modal: Returns verified ASR / official transcript cues
+        else Transcript Unavailable
+            Backend-->>Modal: Returns 200 with available=false (Prohibits fabricated transcripts)
+        end
+    end
+    opt Desk Investigation
+        Analyst->>Modal: Clicks "Open Desk: Legislative"
+        Modal->>Shell: onNavigateDesk('national', 'Bill Passage Probability Index')
+        Shell->>Desk: Switches active tab & routes to requested desk
+    end
+```
+
+---
+
+## 5. Front-Page Segment Carousel & Sign-In Navigation Gate Flow (CR-09)
+
+The front-page carousel allows unauthenticated analysts to explore verified public metrics across all 8 canonical analytical segments, preserving their navigation intent when signing in.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Visitor as Unauthenticated Visitor
+    participant Carousel as Segment Carousel (src/marketing/SegmentCarousel.jsx)
+    participant HomeApi as Home API (server/homeApi.mjs)
+    participant Session as Browser sessionStorage
+    participant Login as Login Page (src/marketing/LoginPage.jsx)
+    participant Supabase as Supabase Auth
+    participant Shell as Terminal Shell (src/shell/TerminalShell.jsx)
+
+    Visitor->>Carousel: Views segment slide (e.g. Global Affairs & Open Fronts)
+    Carousel->>HomeApi: GET /api/home/segments
+    HomeApi-->>Carousel: Returns 8 canonical segment slides with authoritative live counts
+    Visitor->>Carousel: Clicks "Open global Desk →"
+    Carousel->>Session: Stores niyantranLand = 'global', niyantranFeature = 'Open Fronts'
+    Carousel->>Login: Invokes onLogin() / redirects to #login
+    Visitor->>Login: Submits credentials / Google OAuth
+    Login->>Supabase: Verifies authentication & issues session JWT
+    Login->>Session: Reads existing niyantranLand (Preserves intended destination)
+    Login->>Shell: Dispatches authentication success
+    Shell->>Session: Consumes & removes niyantranLand and niyantranFeature
+    Shell->>Shell: Resolves desk route ('global', 'Open Fronts')
+    Shell-->>Visitor: Renders terminal focused directly on requested segment desk
+```
+
+---
+
+## 6. NTER.news Live Latest Rail Flow (CR-12)
+
+Replaces frozen Market Metrics in the primary position with live intelligence feed data from `nter.news`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Visitor as Visitor / Analyst
+    participant Landing as Landing Page (HomePage.jsx)
+    participant Rail as Latest Rail (NterLatestRail.jsx)
+    participant Client as nterNewsClient (src/lib/nterNewsClient.js)
+    participant Router as API Router (/api/home/latest)
+    participant Ingest as News Ingest (server/nterNews.mjs)
+    participant Store as Local / Seed Store (nter-news.json)
+
+    Note over Ingest,Store: Webhook path: POST /api/news/ingest with Bearer NTER_TERMINAL_API_KEY
+    Visitor->>Landing: Visits home page
+    Landing->>Rail: Mounts <NterLatestRail limit={8} />
+    Rail->>Client: useNterLatest({ pollIntervalMs: 60000 })
+    Client->>Router: GET /api/home/latest?limit=8
+    alt Live API active
+        Router->>Ingest: serveNterLatest({ limit: 8 })
+        Ingest->>Store: Reads memory store or public mirror
+        Ingest-->>Client: Returns { ok: true, rows: [...], updated, ageH, waiting }
+    else Offline / Static host
+        Client->>Store: homeLatestFromStatic() from /data/nter-news.json
+        Store-->>Client: Returns fallback seed rows
+    end
+    Client-->>Rail: Updates state: { rows, loading: false, updated, ageH }
+    Rail-->>Visitor: Renders live article cards with category, image, time ago, and source attribution
+    loop Every 60 seconds (when page is visible)
+        Rail->>Client: Polls for newest ingests
+    end
+```
+
+---
+
+## 7. NyAI Thinking Animation & Streaming Transition Flow (CR-13)
+
+Provides an accessible, branded research assistant thinking state during LLM reasoning and retrieval before streaming tokens arrive.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Analyst as Analyst
+    participant Panel as AI Panel (AiPanel.jsx)
+    participant Thread as Research Thread Controller (useResearchThread.js)
+    participant Thinking as NyAI Thinking (NyAiThinking.jsx)
+    participant Gateway as Universal OpenRouter Gateway
+    participant Stream as Streaming Markdown (AiMarkdown.jsx)
+
+    Analyst->>Panel: Submits question ("Analyze bill amendments...")
+    Panel->>Thread: research.actions.send(turnPayload)
+    Thread->>Thread: Sets submitting=true, stream.isPending=true
+    Panel->>Thinking: Mounts <NyAiThinking model={modelChoice} lang={lang} />
+    Thinking-->>Analyst: Displays [NyAI icon] "NyAI is thinking..." + neural wave shimmer
+    Thread->>Gateway: Dispatches HTTP POST to research stream
+    Gateway-->>Thread: First token chunks arrive via SSE
+    Thread->>Thread: Populates stream.streamingText
+    Panel->>Thinking: streamingText is non-empty -> NyAiThinking unmounts
+    Panel->>Stream: Mounts <AiMarkdown text={stream.streamingText} streaming={true} />
+    Stream-->>Analyst: Live markdown answers stream onto the terminal
+    alt Request Complete
+        Gateway-->>Thread: SSE complete -> settles saved turn
+    else User Abort / Navigation
+        Analyst->>Thread: Cancels turn or navigates away
+        Thread->>Gateway: AbortController.abort()
+        Panel->>Thinking: Clears state -> No orphaned thinking indicators
+    end
+```
+
+---
+
+## 8. Desk Landing Pages Flow
+
+Replaces static text guides on desk landing routes with verified live counters, modular capability cards, and one real categorical chart.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Analyst as Analyst
+    participant Shell as Terminal Shell (TerminalShell.jsx)
+    participant LandingView as Desk Landing (DeskLandingView.jsx)
+    participant FeedLib as Feature Feed (src/lib/featureFeed.js)
+    participant DB as Backend Register / Supabase
+
+    Analyst->>Shell: Clicks desk tab (e.g. 'national' or 'global') without picking sub-feature
+    Shell->>Shell: Resolves guideMode = true
+    Shell->>LandingView: Mounts <DeskLandingView tab={tab} buckets={deskBuckets} />
+    LandingView->>FeedLib: fetchFeature({ tier, feature: flagshipFeature })
+    FeedLib->>DB: Queries authoritative desk register
+    DB-->>FeedLib: Returns actual records array
+    FeedLib-->>LandingView: Delivers rows: [...]
+    LandingView->>LandingView: Computes verified counts: total records, categories, sources, modules
+    LandingView->>LandingView: Computes categorical distribution for real chart
+    LandingView-->>Analyst: Renders live counters strip, real chart, and capability module cards
+    Analyst->>LandingView: Clicks module card ("Launch Module →")
+    LandingView->>Shell: onFeature(moduleName)
+    Shell->>Shell: Switches to active feature view (DeskView.jsx)
+```
+
+
+## 9. Front-Page Carousel Flow (CR-09 / CR-10)
+
+The **SegmentCarousel** is the primary segment discovery mechanism on the marketing home page.
+The duplicate "One Terminal. Endless Intelligence." (mkt-caps) section was removed in CR-10 because it competed with the carousel.
+
+```
+Unauthenticated visitor
+  ↓
+HomePage renders SegmentCarousel (fetches /api/home/segments for live counts)
+  ↓
+Visitor clicks "Open {desk} Desk →" on active slide
+  ↓
+handleOpenDesk(seg):
+  sessionStorage.setItem('niyantranLand', seg.deskId)
+  sessionStorage.setItem('niyantranFeature', seg.feature)
+  onLogin() → shows LoginPage / Google sign-in
+  ↓
+After successful sign-in:
+  TerminalShell.jsx reads sessionStorage.niyantranLand
+  → resolveDeskRoute(land, intendedFeature)
+  → Correct desk opens (not a generic dashboard)
+```
+
+**Keyboard Navigation (CR-09 accessibility):**
+- `ArrowLeft` / `ArrowUp` → Previous slide
+- `ArrowRight` / `ArrowDown` → Next slide
+- `Home` → First slide
+- `End` → Last slide
+- Autoplay pauses on `mouseenter`, resumes on `mouseleave`.
+
+**Data flow:**
+```
+Browser → GET /api/home/segments
+  → server/homeApi.mjs serveHomeSegments()
+  → Returns authoritative segments array (8 segments × live counts)
+  → SegmentCarousel renders from backend data
+  → Falls back to FALLBACK_SEGMENTS if backend unavailable
+```
+
+---
+
+## 10. Live TV & Transcript Flow (CR-08)
+
+```
+User clicks "LIVE TV" in TerminalShell or DeskLandingView (or navigates to #livetv)
+  ↓
+LiveTvModal mounts
+  ↓
+Fetches channels:  GET /api/livetv/channels
+Fetches live:      GET /api/livetv/live
+Fetches videos:    GET /api/livetv/videos?channel=<id>
+Fetches schedule:  GET /api/livetv/schedule?channel=<id>
+Fetches archive:   GET /api/livetv/archive?channel=<id>
+  ↓
+User selects broadcast or switches to Transcript tab:
+  ↓
+Fetches transcript: GET /api/livetv/transcript?broadcastId=<id>
+  ↓
+Backend resolution (server/liveTvApi.mjs -> BROADCAST_TRANSCRIPTS / api/router.js):
+  - If transcript available (e.g. arch-dd-2026-09-26, arch-stv-2026-09-25, arch-wion-2026-09-24):
+    Returns ok: true, available: true, source, cues: [{timestamp, speaker, text}]
+    LiveTvModal renders timestamped cues, speaker tags, timestamps, and real-time search filter.
+  - If transcript unavailable (e.g. arch-cnbc-2026-09-23 or un-transcribed live stream):
+    Returns ok: true, available: false, cues: []
+    LiveTvModal renders explicit non-fabricated message ("Transcript unavailable for this broadcast. No fabricated transcript generated.").
+```
+

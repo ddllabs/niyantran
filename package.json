@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "node --max-old-space-size=4096 --max-semi-space-size=64 ./node_modules/vitest/vitest.mjs run",
     "test:sql": "./supabase/tests/run.sh"
   },
   "dependencies": {

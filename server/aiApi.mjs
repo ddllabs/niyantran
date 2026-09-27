@@ -288,7 +288,75 @@ export async function runAiFetch(target) {
   };
 }
 
-export async function runAiChat(payload = {}) {
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
+
+async function proxyResearchChat(payload, authHeader) {
+  const userMessages = Array.isArray(payload.messages) ? payload.messages : [];
+  const lastUser = userMessages.filter((m) => m && m.role === 'user').pop();
+  const prompt = lastUser?.content || payload.message || '';
+  if (!prompt.trim()) {
+    throw new Error('Message missing.');
+  }
+
+  const endpoint = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/research-chat`;
+  const body = {
+    message: prompt,
+    focus: String(payload.focus || 'attached'),
+    work_mode: Boolean(payload.workMode),
+    ...(payload.model ? { model: payload.model } : {}),
+    ...(payload.selection ? { selection: payload.selection } : {}),
+    ...(payload.deskContext ? { desk_context: payload.deskContext } : {}),
+    ...(Array.isArray(payload.attachments) ? { attachments: payload.attachments } : {}),
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CHAT_MS);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.error || `research-chat HTTP ${res.status}`);
+    }
+
+    let text = '';
+    let servedModel = payload.model || 'openrouter';
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for await (const chunk of res.body) {
+      buffer += decoder.decode(chunk, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('data:')) {
+          const raw = trimmed.slice(5).trim();
+          if (raw === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed.chunk === 'string') text += parsed.chunk;
+            if (parsed.model?.served) servedModel = parsed.model.served;
+          } catch {}
+        }
+      }
+    }
+
+    return { text: text.trim(), model: servedModel, provider: 'openrouter' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function runAiChat(payload = {}, authHeader = null) {
   loadEnv();
   const model = String(payload.model || '').trim();
   const rawProvider = String(payload.provider || '').toLowerCase();
@@ -297,17 +365,21 @@ export async function runAiChat(payload = {}) {
   }
   assertAiAllowedInTesting({ provider: rawProvider || (model.includes('gemini') ? 'gemini' : 'openrouter'), model });
 
-  // D6: never trust a key from the browser. Server env only.
-  // OpenRouter is the single LLM gateway.
+  // D6 / ADR 0008: credentials are never trusted from the browser.
+  // The authoritative gateway is Supabase Edge Function (OPENROUTER_API_KEY in Supabase Secrets).
   const key = String(
     process.env.OPENROUTER_API_KEY ||
     process.env.NIYANTRAN_AI_KEY ||
     ''
   ).trim();
   if (!key) {
-    throw new Error('OPENROUTER_API_KEY missing on the server. Set OPENROUTER_API_KEY in the host environment (never in the browser).');
+    if (authHeader) {
+      return await proxyResearchChat(payload, authHeader);
+    }
+    throw new Error('AI research service requires authentication.');
   }
   if (!model) throw new Error('Model missing.');
+
 
   const userMessages = Array.isArray(payload.messages) ? payload.messages : [];
   const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
@@ -496,11 +568,11 @@ export async function handleAiApi(req, res, next) {
   }
 
   try {
-    const out = await runAiChat(payload);
+    const out = await runAiChat(payload, req.headers.authorization);
     json(res, { ok: true, ...out });
   } catch (err) {
     const msg = err.message || String(err);
-    json(res, { ok: false, error: msg }, /missing|invalid json/i.test(msg) ? 400 : 502);
+    json(res, { ok: false, error: msg }, /missing|invalid json|requires authentication/i.test(msg) ? 400 : 502);
   }
 }
 

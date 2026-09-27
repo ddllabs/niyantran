@@ -1,0 +1,168 @@
+/* NyAI Thinking Animation Styles (CR-13) */
+
+.nyai-thinking-root {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.7) 0%, rgba(30, 41, 59, 0.45) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.3), 0 0 12px rgba(56, 189, 248, 0.08);
+  font-family: inherit;
+  color: #e2e8f0;
+  user-select: none;
+}
+
+.nyai-thinking-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(1, 46, 161, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  flex-shrink: 0;
+}
+
+.nyai-thinking-icon-svg {
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.5));
+  animation: nyaiSpinGlow 6s linear infinite;
+}
+
+@keyframes nyaiSpinGlow {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.06);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.nyai-thinking-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.nyai-thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nyai-thinking-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f1f5f9;
+}
+
+.nyai-thinking-subtext {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+/* Dots bounce */
+.nyai-thinking-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.nyai-thinking-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #38bdf8;
+  opacity: 0.4;
+  animation: nyaiDotBounce 1.4s infinite ease-in-out both;
+}
+
+.nyai-thinking-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.nyai-thinking-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes nyaiDotBounce {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* Neural wave processing indicator */
+.nyai-thinking-wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 12px;
+}
+
+.nyai-wave-bar {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #012ea1, #38bdf8);
+  opacity: 0.6;
+  animation: nyaiWaveShimmer 1.5s infinite ease-in-out;
+}
+
+.nyai-wave-bar:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.nyai-wave-bar:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.nyai-wave-bar:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.nyai-wave-bar:nth-child(4) {
+  animation-delay: 0.6s;
+}
+
+@keyframes nyaiWaveShimmer {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scaleX(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.15);
+    background: linear-gradient(90deg, #38bdf8, #f43f5e);
+  }
+}
+
+/* Reduced Motion Mode */
+@media (prefers-reduced-motion: reduce) {
+  .nyai-thinking-icon-svg {
+    animation: none;
+  }
+  .nyai-thinking-dots span {
+    animation: none;
+    opacity: 0.8;
+  }
+  .nyai-wave-bar {
+    animation: none;
+    opacity: 0.8;
+  }
+}

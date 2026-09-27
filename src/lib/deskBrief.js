@@ -3,6 +3,9 @@
  * Lookup: localStorage → server DB/disk cache → Gemini generate (only on miss).
  */
 
+import { functionsUrl } from './supabaseClient.js';
+import { verifiedLocalIdentity } from './userStore.js';
+
 const STORE_KEY = 'niy-entry-brief-v7';
 
 function cell(v) {
@@ -164,30 +167,55 @@ export async function ensureDeskBrief({
     if (hit) return hit;
   }
 
-  const res = await fetch('/api/ai/desk-brief', {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      feature,
-      tier,
-      hash,
-      scope: briefScope,
-      force: Boolean(force),
-      sourceNote: sourceNote || '',
-      sourceExtract: String(sourceExtract || '').slice(0, 12_000),
-      row: slimEntry(row),
-    }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body?.ok) {
-    if (res.status === 404) {
-      throw new Error(
-        'Desk brief API is not deployed on this host. After a Vercel rebuild, set GEMINI_API_KEY in the project environment.',
-      );
+  const payload = {
+    feature,
+    tier,
+    hash,
+    scope: briefScope,
+    force: Boolean(force),
+    sourceNote: sourceNote || '',
+    sourceExtract: String(sourceExtract || '').slice(0, 12_000),
+    row: slimEntry(row),
+  };
+
+  let body = null;
+  try {
+    const identity = await verifiedLocalIdentity().catch(() => null);
+    if (identity?.token) {
+      const edgeRes = await fetch(functionsUrl('desk-brief'), {
+        method: 'POST',
+        signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${identity.token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (edgeRes.ok) {
+        const edgeBody = await edgeRes.json().catch(() => ({}));
+        if (edgeBody?.ok) {
+          body = edgeBody;
+        }
+      }
     }
-    throw new Error(body?.error || `desk-brief HTTP ${res.status}`);
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
   }
+
+  if (!body) {
+    const res = await fetch('/api/ai/desk-brief', {
+      method: 'POST',
+      signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.ok) {
+      throw new Error(body?.error || 'AI research service is temporarily unavailable.');
+    }
+  }
+
   writeLocalBrief(feature, hash, body, briefScope);
   return { ...body, hash };
 }
+

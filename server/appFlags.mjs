@@ -62,10 +62,10 @@ export function writeAppFlags(patch = {}) {
 export function isFreeAiProvider(provider, model = '') {
   const p = String(provider || '').toLowerCase();
   const m = String(model || '').toLowerCase();
-  if (p === 'gemini') return true;
-  if (!p && m.includes('gemini')) return true;
+  if (p === 'gemini' || m.includes('gemini')) return true;
   return false;
 }
+
 
 export function assertAiAllowedInTesting({ provider, model } = {}) {
   const flags = readAppFlags();

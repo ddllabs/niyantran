@@ -3,6 +3,7 @@ import { bucketsFor, catalogModules, modulesForTier, TABS } from '../desks/catal
 import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
 import DeskGuide from '../desks/DeskGuide.jsx';
+import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
 import RightRail from './RightRail.jsx';
 import UpgradeModal from './UpgradeModal.jsx';
@@ -34,6 +35,7 @@ import { setPageTitle } from '../lib/siteHead.js';
 import AiDock from '../ai/AiDock.jsx';
 import { takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
+import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
@@ -210,9 +212,27 @@ export default function TerminalShell({ onLogout }) {
   }, [tab, featureName, active?.label]);
 
   useEffect(() => {
+    function onOpenLiveTv() {
+      setLiveTvOpen(true);
+    }
+    function checkLiveTvHash() {
+      if (typeof window !== 'undefined' && window.location.hash === '#livetv') {
+        setLiveTvOpen(true);
+      }
+    }
+    window.addEventListener('nter:open-livetv', onOpenLiveTv);
+    window.addEventListener('hashchange', checkLiveTvHash);
+    checkLiveTvHash();
+    return () => {
+      window.removeEventListener('nter:open-livetv', onOpenLiveTv);
+      window.removeEventListener('hashchange', checkLiveTvHash);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!liveTvOpen) return undefined;
     function onDoc(e) {
-      if (e.target?.closest?.('.tv-wrap')) return;
+      if (e.target?.closest?.('.tv-wrap') || e.target?.closest?.('.ltv-modal')) return;
       setLiveTvOpen(false);
     }
     function onKey(e) {
@@ -228,12 +248,14 @@ export default function TerminalShell({ onLogout }) {
 
   useEffect(() => {
     const land = sessionStorage.getItem('niyantranLand');
+    const intendedFeat = sessionStorage.getItem('niyantranFeature');
     if (land) sessionStorage.removeItem('niyantranLand');
+    if (intendedFeat) sessionStorage.removeItem('niyantranFeature');
     const hash = typeof location !== 'undefined' ? location.hash : '';
     const emptyHash = !hash || hash === '#' || hash === '#/';
     let r = parseDeskHash();
     if (land && canAccessDesk(user, land) && emptyHash) {
-      r = resolveDeskRoute(land, '');
+      r = resolveDeskRoute(land, intendedFeat || '');
     } else if (!canAccessDesk(user, r.tab)) {
       const fallback = userTypeOf(typeId).startTab || 'home';
       r = resolveDeskRoute(canAccessDesk(user, fallback) ? fallback : 'home', '');
@@ -409,25 +431,21 @@ export default function TerminalShell({ onLogout }) {
                 setProfileOpen(false);
                 setLiveTvOpen((v) => !v);
               }}
-              title="Live TV is in Beta — no stream connected yet"
+              title="Open Live TV Intelligence Stream & Broadcasts"
               aria-expanded={liveTvOpen}
             >
               <span className="live-dot" />
               LIVE TV
-              <span className="beta-pill">Beta</span>
             </button>
-            {liveTvOpen ? (
-              <div className="live-tv-pop" role="dialog" aria-label="Live TV">
-                <header>
-                  <strong>Live TV</strong>
-                  <span className="beta-pill">Beta</span>
-                  <button type="button" className="ghost-btn tiny" onClick={() => setLiveTvOpen(false)}>
-                    Close
-                  </button>
-                </header>
-                <p>No stream is connected on this build. The control is labelled Beta until a feed URL is wired.</p>
-              </div>
-            ) : null}
+            <LiveTvModal
+              open={liveTvOpen}
+              onClose={() => setLiveTvOpen(false)}
+              onNavigateDesk={(deskTab, feature) => {
+                setTab(deskTab);
+                if (feature) setFeatureName(feature);
+                writeDeskHash(deskTab, feature || '', { replace: true });
+              }}
+            />
           </div>
           <button
             type="button"
@@ -531,11 +549,12 @@ export default function TerminalShell({ onLogout }) {
           {tab === 'home' ? (
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
           ) : guideMode ? (
-            <DeskGuide
+            <DeskLandingView
               tab={tab}
               label={hi ? active.labelHi : active.label}
               buckets={deskBuckets}
               onFeature={onFeature}
+              lang={lang}
             />
           ) : (
             <DeskView

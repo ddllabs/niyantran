@@ -4121,6 +4121,47 @@ button.live-feed:hover { color: var(--fg); }
   cursor: pointer;
   padding: 0;
 }
+.nh-rail-latest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nh-rail-latest-item a {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  transition: color 0.15s ease;
+}
+.nh-rail-latest-item a:hover {
+  color: var(--accent);
+}
+.nh-rail-latest-item strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.nh-rail-cat {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 6px;
+  letter-spacing: 0.05em;
+}
+.nh-rail-meta {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
 .nh-moves {
   width: 100%;
   border-collapse: collapse;

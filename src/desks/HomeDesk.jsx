@@ -493,10 +493,55 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
         </div>
 
         <aside className="nh-rail">
+          <section className="nh-box nh-rail-latest-box">
+            <div className="bh">
+              <span>
+                LIVE LATEST
+                <SnapshotBadge
+                  ageH={meta.latest?.ageH}
+                  archive={Boolean(meta.latest?.archive) && (latestShown?.length || 0) > 0}
+                  waiting={!latestShown.length && (meta.latest?.waiting || meta.latest?.source === 'nter.news')}
+                  source="nter.news"
+                />
+              </span>
+              <a className="nh-link" href="https://nter.news" target="_blank" rel="noreferrer">
+                nter.news →
+              </a>
+            </div>
+            <ul className="nh-rail-latest-list">
+              {latestShown.slice(0, 4).map((r, i) => (
+                <li key={`rail-latest-${r.link || i}`} className="nh-rail-latest-item">
+                  <a
+                    href={r.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    {...aiDragProps({
+                      kind: 'row',
+                      title: r.title,
+                      row: { title: r.title, source_url: r.link, src: r.src, img: r.img },
+                    })}
+                  >
+                    {r.category ? <span className="nh-rail-cat">{r.category}</span> : null}
+                    <strong>{r.title}</strong>
+                    <span className="nh-rail-meta">
+                      {r.src || 'nter.news'}
+                      {r.ago ? ` · ${r.ago}` : ''}
+                    </span>
+                  </a>
+                </li>
+              ))}
+              {!latestShown.length && (
+                <li className="muted" style={{ padding: '0.5rem 0', fontSize: '0.8rem' }}>
+                  {meta.latest?.note || 'Waiting for live nter.news ingest...'}
+                </li>
+              )}
+            </ul>
+          </section>
+
           <section className="nh-box">
             <div className="bh">
               <span>
-                MARKETS
+                MARKETS (DELAYED SNAPSHOT)
                 <SnapshotBadge ageH={meta.markets?.ageH} archive={Boolean(meta.markets?.archive)} />
               </span>
               <button type="button" className="nh-link" onClick={() => onOpen({ tab: 'economics', feature: 'NSE/BSE Delayed Market Feed' })} {...aiDragProps({ kind: 'feature', tab: 'economics', feature: 'NSE/BSE Delayed Market Feed', title: 'NSE/BSE Delayed Market Feed' })}>
