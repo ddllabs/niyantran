@@ -52,11 +52,9 @@ supabase/.temp/
 # Corpus staging read by the ingest script (document-rag-and-citations)
 ingest/
 
-# Internal specs, plans, research and protocol — kept local for now (owner decision 2026-09-21)
-docs/*
-# Except the upstream-integration audit and plan, published for the engineering team
-# (owner decision 2026-09-24). The repo is public: never put secrets or exploit details here.
-!docs/niyantran-conflict-audit-and-plan/
+# docs/ is published (owner decision 2026-09-27). The repo is public: never put secrets or
+# exploit details in docs. Security notes with unfixed vulnerabilities stay local only.
+docs/security/
 
 # Claude Code session config — local only
 .claude/
