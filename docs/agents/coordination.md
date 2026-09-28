@@ -629,7 +629,10 @@ or changed.
   the same: live 6,484 characters against 6,472 for the repo file with
   comments and blank lines stripped. Until the repo file is renamed, `supabase
   db push` will see it as pending and re-run it, and its final statements
-  reset `ai_models.efforts`.
+  reset `ai_models.efforts`. **Resolved 2026-09-28:** the repo file was
+  renamed to `20260922121946_reasoning_efforts_from_catalogue.sql`, with
+  identical content. The first 24 repo versions now equal the live history
+  exactly, so a push applies only newer migrations.
 - **Row counts** (`count(*)`, not planner estimates):
 
   | Table | Rows |

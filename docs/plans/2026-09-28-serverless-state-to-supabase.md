@@ -297,12 +297,12 @@ deletions. The list went from 10 entries to 6.
 
 - **After each migration task is accepted and merged:** apply the migration
   to `NTER` (`supabase db push`), then run `get_advisors` for security.
-- **Before the first `db push`:** rename
+- **Before the first `db push` (done 2026-09-28):** rename
   `20260922183000_reasoning_efforts_from_catalogue.sql` to the live version
   `20260922121946`. Otherwise the push re-runs that migration and resets
   `ai_models.efforts` (backlog §0).
 - **To take wave 1 live, in order:**
-  1. Merge the migration-version rename below.
+  1. ~~Merge the migration-version rename below.~~ Done 2026-09-28.
   2. `supabase db push` the three wave-1 migrations.
   3. Run the security advisors.
   4. Confirm the project's global Storage upload limit against the
