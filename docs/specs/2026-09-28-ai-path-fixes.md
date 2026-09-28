@@ -1,7 +1,8 @@
 # Spec: AI path fixes (desk briefs, legacy chat models, backend flag)
 
-> **Status: Living.** The owner approved this on 2026-09-28. Mark it
-> Historical when it lands.
+> **Status: Living.** The owner approved this on 2026-09-28. It landed the
+> same day (see Rollout); mark it Historical once the owner's browser checks
+> pass.
 
 ## Current state (evidence from 2026-09-28)
 
@@ -132,3 +133,23 @@ Desk briefs work in production. No route on Vercel needs an OpenRouter key.
 - **After deploy:** `desk-brief` is listed as `ACTIVE`, and a production
   desk brief for an uncached row succeeds with a `model_call_logs` row.
   The last check needs a signed-in browser session, done by the owner.
+
+## Rollout (2026-09-28)
+
+- **Merged:** `main` and `dev` at `bcea55d`. On that tree `npm test` passed
+  873/873, the Deno suite 439, and the build and router import succeeded.
+- **Supabase:** `desk-brief` v1 is ACTIVE with `verify_jwt` false (the
+  handler checks the bearer itself). All 10 deployed files match the repo.
+- **Vercel:** `VITE_AI_BACKEND=supabase` is set for production and preview
+  (updated 10:01 UTC). Production deployment `dpl_BHr1SDsVx8rUtfFQY5yVUaWPd2kt`
+  (`main` @ `bcea55d`, created 10:27 UTC) is READY. `dev` now deploys only to
+  preview. The project has no `OPENROUTER_API_KEY` or `NIYANTRAN_AI_KEY`, so
+  no request reaches OpenRouter from Vercel.
+- **Smoke:** `GET /api/app-flags` returns 200. In the hour after the deploy,
+  production logged 18 responses with status 200, 7 with 401, and none with
+  5xx.
+- **Owner checks outstanding:**
+  - an uncached desk brief, then a `model_call_logs` row with caller
+    `desk-brief`;
+  - admin persona chat with Gemini Lite, Gemini Flash and GPT Astra;
+  - the citation UI and model picker on production.
