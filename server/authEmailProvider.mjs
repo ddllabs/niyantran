@@ -53,9 +53,8 @@ export function validateEmailProviderStartup() {
   }
 
   if (provider === AUTH_EMAIL_PROVIDERS.RESEND_API) {
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-    if (!serviceKey) {
-      console.warn('[AuthEmailConfig] SUPABASE_SERVICE_ROLE_KEY is required for RESEND_API mode.');
+    if (!process.env.SUPABASE_SECRET_KEY) {
+      console.warn('[AuthEmailConfig] SUPABASE_SECRET_KEY is required for RESEND_API mode.');
     }
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
@@ -97,14 +96,11 @@ export function getSupabaseAnonClient() {
 export function getSupabaseAdminClient() {
   const url = process.env.SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
   // Server-only credential. There is deliberately no fallback: a secret key
-  // must come from the environment (SUPABASE_SECRET_KEY, an sb_secret_… value;
-  // the legacy SUPABASE_SERVICE_ROLE_KEY name is still read for older envs).
+  // must come from the environment: SUPABASE_SECRET_KEY, an sb_secret_… value
+  // (the one name since 2026-09-28; the legacy service-role names are not read).
   // The legacy service_role JWT that used to sit here was committed to a
   // public branch and was revoked on 2026-09-21 by disabling legacy API keys.
-  const serviceKey =
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
   if (!serviceKey) {
     throw new Error('[AuthEmailConfig] SUPABASE_SECRET_KEY is required for admin operations (no fallback).');
   }

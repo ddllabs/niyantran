@@ -19,10 +19,7 @@ const SUPABASE_ANON_KEY =
   env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
   "sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I";
 
-const SUPABASE_SERVICE_ROLE_KEY = 
-  env.SUPABASE_SERVICE_ROLE_KEY || 
-  env.SERVICE_ROLE_KEY ||
-  "";
+const SUPABASE_SECRET_KEY = env.SUPABASE_SECRET_KEY || "";
 
 /**
  * Standard anonymous Supabase client
@@ -42,7 +39,7 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(
  * Admin Supabase client using service role key (bypasses RLS for server-side operations)
  */
 export const getSupabaseAdmin = (): SupabaseClient<Database> => {
-  const serviceKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+  const serviceKey = SUPABASE_SECRET_KEY || SUPABASE_ANON_KEY;
   return createClient<Database>(SUPABASE_URL, serviceKey, {
     auth: {
       autoRefreshToken: false,

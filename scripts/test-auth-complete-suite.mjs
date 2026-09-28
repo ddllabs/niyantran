@@ -26,11 +26,11 @@ if (fs.existsSync(envPath)) {
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
 const API_BASE = 'http://localhost:5173/api/auth';
 
-const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+const adminClient = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 

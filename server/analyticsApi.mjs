@@ -110,7 +110,7 @@ function clientIp(req) {
  * fallback only applies where no secret is configured (a bare local run).
  */
 function rateBucket(req) {
-  const secret = process.env.ANALYTICS_RATE_SALT || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'niyantran-analytics-rate';
+  const secret = process.env.ANALYTICS_RATE_SALT || process.env.SUPABASE_SECRET_KEY || 'niyantran-analytics-rate';
   return `ip:${createHmac('sha256', secret).update(clientIp(req)).digest('hex')}`;
 }
 

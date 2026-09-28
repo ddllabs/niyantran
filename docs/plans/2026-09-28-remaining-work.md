@@ -224,7 +224,7 @@ above: a `task/` branch, a test that fails first.
 - [ ] **F2. Server-side paid-plan entitlements (M).** Plan checks enforced on
   the server, required before Razorpay is configured; a free testing period,
   if wanted, belongs here (see C6).
-- [ ] **F3. One Supabase secret-key variable name (S).**
+- [x] **F3. One Supabase secret-key variable name (S).** Done 2026-09-28: `SUPABASE_SECRET_KEY` is the only name read (server, scripts, `backend/`); the Resend startup check now looks at it (it read only the legacy name). The history below is kept.
   `server/authEmailProvider.mjs` and `server/analyticsApi.mjs` still read the
   legacy `SUPABASE_SERVICE_ROLE_KEY` beside `SUPABASE_SECRET_KEY`. The other
   half of this item is done 2026-09-28 (`9ed95b6`): `.env.example` no longer

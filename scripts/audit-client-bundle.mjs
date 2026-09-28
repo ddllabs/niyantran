@@ -12,6 +12,8 @@ console.log(`Scanning assets in: ${distDir}`);
 const forbiddenPatterns = [
   { name: 'RESEND_API_KEY value', pattern: /re_[a-zA-Z0-9_-]{20,}/ },
   { name: 'SUPABASE_SERVICE_ROLE_KEY string identifier', pattern: /SUPABASE_SERVICE_ROLE_KEY/ },
+  { name: 'SUPABASE_SECRET_KEY string identifier', pattern: /SUPABASE_SECRET_KEY/ },
+  { name: 'sb_secret_ key value', pattern: /sb_secret_[a-zA-Z0-9_-]{8,}/ },
   { name: 'service_role JWT claim', pattern: /service_role/ },
   { name: 'getSupabaseAdmin function call', pattern: /getSupabaseAdmin/ },
   { name: 'Resend SDK/server imports', pattern: /from ['"]resend['"]/ },
