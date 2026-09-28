@@ -23,7 +23,6 @@ const CACHE_KEYS = new Set(['desk-briefs', 'stat1.xlsx']);
 // Supabase. The list may only shrink: a new offence fails, and so does an
 // entry whose offence is gone.
 const KNOWN_OFFENDERS = {
-  'server/analyticsApi.mjs imports server/db.mjs': 'S2 analytics events (T2)',
   'server/usersApi.mjs imports server/db.mjs': 'S3 local users (T3)',
   "server/usersApi.mjs writes writablePath('issued-users.json')": 'S3 local users (T3)',
   "server/appFlags.mjs writes writablePath('app-flags.json')": 'S4 app flags (T4)',
