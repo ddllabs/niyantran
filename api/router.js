@@ -17,7 +17,6 @@ import { authorizeNterRequest, ingestNterArticle } from '../server/nterNews.mjs'
 import { loadConstitutions, loadGrowth } from '../server/resourcesApi.mjs';
 import { briefFromExtract, extractSource } from '../server/sourceExtract.mjs';
 import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.js';
-import { handleAuthApi } from '../server/authApi.mjs';
 import { authorizeLocalUser, handleUsersApi } from '../server/usersApi.mjs';
 import { handleLiveTvApi } from '../server/liveTvApi.mjs';
 import { handleMarketingMediaApi } from '../server/marketingMediaApi.mjs';
@@ -256,13 +255,9 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (path.startsWith('/api/auth/')) {
-      req.url = path;
-      await handleAuthApi(req, res, () => {
-        res.status(404).json({ ok: false, error: `No auth route for ${path}` });
-      });
-      return;
-    }
+    // /api/auth/* is not served in production (2026-09-28): the app signs in
+    // through Supabase Auth directly, and a server-side password proxy would
+    // pool every attempt behind this deployment's addresses.
 
     if (path.startsWith('/api/marketing/intro-video')) {
       const qStr = q(req).toString();

@@ -1,6 +1,6 @@
-// The testing-phase flag was retired on 2026-09-28 (plan task C6). The
-// production entry (api/router.js) no longer serves /api/app-flags, so no
-// request to it can read or write public.app_flags.
+// Routes retired from the production entry (api/router.js) on 2026-09-28:
+// /api/app-flags with the testing-phase flag (plan task C6), and /api/auth/*,
+// which the app never called (it uses Supabase Auth directly).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const adminClient = vi.hoisted(() => ({ from: null }));
@@ -39,5 +39,25 @@ describe('api/router.js /api/app-flags', () => {
     await handler(vercelRequest(method, method === 'PUT' ? { testingPhase: true } : undefined, { authorization: 'Bearer x' }), res);
     expect(res.statusCode).toBe(404);
     expect(adminClient.from).not.toHaveBeenCalled();
+  });
+});
+
+describe('api/router.js /api/auth/*', () => {
+  beforeEach(() => {
+    adminClient.from = vi.fn(() => { throw new Error('no table may be touched'); });
+  });
+
+  it.each([
+    ['POST', 'auth/login', { email: 'a@example.test', password: 'x' }],
+    ['POST', 'auth/signup', { email: 'a@example.test', password: 'long-enough-1' }],
+    ['POST', 'auth/forgot-password', { email: 'a@example.test' }],
+    ['POST', 'auth/reset-password', { password: 'long-enough-1' }],
+    ['POST', 'auth/resend-verification', { email: 'a@example.test' }],
+    ['GET', 'auth/provider', undefined],
+    ['GET', 'auth/me', undefined],
+  ])('%s /api/%s is not served', async (method, route, body) => {
+    const res = vercelResponse();
+    await handler({ method, url: `/api/router?__route=${route}`, query: { __route: route }, headers: { host: 'localhost', authorization: 'Bearer x' }, body }, res);
+    expect(res.statusCode).toBe(404);
   });
 });

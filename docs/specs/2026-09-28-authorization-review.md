@@ -2,8 +2,9 @@
 
 > **Status: Historical (2026-09-28).** Tasks B1 and B2 of
 > `docs/plans/2026-09-28-remaining-work.md`. The repository is public: this
-> record lists only findings that are fixed or accepted. An open hardening
-> item was reported to the owner separately.
+> record lists only findings that are fixed or accepted. The one hardening
+> item reported to the owner separately (the unused `/api/auth/*` group) was
+> removed from production the same day.
 
 ## B1. `SECURITY DEFINER` functions callable by `authenticated`
 
@@ -50,7 +51,7 @@ that is also a platform admin.
 | `/api/livetv/*` | Public | YouTube responses are cached per channel. |
 | `POST /api/news/ingest` | Bearer `NTER_TERMINAL_API_KEY` | Constant-time comparison; see T6. |
 | `/api/users`, `/api/users/:id` | Admin | |
-| `/api/auth/*` | Public by nature (signup, login, reset) | Not used by the app, which calls Supabase Auth directly. A hardening item was reported to the owner. |
+| `/api/auth/*` | **Removed from production** (owner decision, 2026-09-28) | The app never called it; it signs in through Supabase Auth directly. The Vite dev server still mounts `server/authApi.mjs` locally. |
 | `/api/marketing/intro-video` | GET public; writes Admin | |
 | `/api/analytics/event` | Public, rate-limited by hashed IP (60 a minute) | Reads (`/events`, `/summary`) are Admin. |
 | `/api/user-prefs` | Account | Rows keyed by the verified user id; a mismatched `email` is refused. |
