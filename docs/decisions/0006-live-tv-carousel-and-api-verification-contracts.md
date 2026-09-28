@@ -2,7 +2,8 @@
 
 > **Status: Normative.**  
 > **Date:** 2026-09-27  
-> **Applies to:** `server/liveTvApi.mjs`, `server/homeApi.mjs`, `src/shell/LiveTvModal.jsx`, `src/marketing/SegmentCarousel.jsx`, `api/router.js`
+> **Applies to:** `server/liveTvApi.mjs`, `server/homeApi.mjs`, `src/shell/LiveTvModal.jsx`, `src/marketing/SegmentCarousel.jsx`, `api/router.js`  
+> **Amended:** 2026-09-28 (section 4: the channel list is superseded by ADR 0009)
 
 ---
 
@@ -46,3 +47,15 @@ Niyantran Terminal previously exhibited three functional gaps in the presentatio
 
 - **Positive:** Full activation of Live TV and front-page carousel; strict adherence to evidence-based architecture; verified preservation of user intent across login; zero fabricated metrics or hallucinated transcripts.
 - **Negative:** Broadcasting embeds depend on upstream external iframe permissions from official YouTube streams; channels without public ASR records will display transcript unavailable states.
+
+---
+
+## 4. Amendment (2026-09-28)
+
+The five-broadcaster list in decision 1 was replaced by ADR 0009. The channel
+catalogue is now `YOUTUBE_SOURCES` in `server/liveTvApi.mjs` (13 entries,
+exported also as `LIVE_TV_CHANNELS`). The endpoints have grown to six
+(`channels`, `live`, `videos`, `schedule`, `archive`, `transcript`). The
+no-fabricated-transcript and no-fake-telemetry invariants still hold: every
+curated source sets `viewers: null`. See ADR 0009 and its amendment for the
+current catalogue.

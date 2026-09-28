@@ -1,6 +1,7 @@
 # ADR 0010: Vercel Serverless Gateway Routing Reconciliation and Edge AI Routing
 
 > **Status: Normative.** Binding architectural decision for Vercel production deployment routing and AI proxying.
+> Amended 2026-09-28: the chat proxy and several routes are retired (see the end).
 
 ## Context
 
@@ -46,3 +47,30 @@ During initial deployment testing, the production console surfaced several issue
    - Classify unauthenticated / auth-required errors as `401 Unauthorized` in `api/router.js`.
 4. **Preserve Client-Side Edge Streaming:**
    The primary interactive research path in `AiPanel.jsx` continues to utilize `sendResearchTurn` connecting directly to Supabase Edge Functions with full SSE streaming and NyAiThinking animations.
+
+## Amendment (2026-09-28)
+
+Decision 3 and root cause 3 describe a proxy that no longer exists. The text
+above is kept as the record of what was decided at the time.
+
+- **The chat proxy is retired** (14b2344, plan task D4). `proxyResearchChat`,
+  `runAiChat` and the `/api/ai/chat` route were deleted from `server/aiApi.mjs`,
+  `api/router.js` and the Vite dev plugin. The research panel (through
+  `src/lib/researchChat.js`) and the admin persona probe
+  (`src/lib/personaProbe.js`) call the `research-chat` Edge Function directly
+  with `sendResearchTurn` in `src/lib/aiClient.js`. Decision 4 is now the only
+  chat path.
+- **Other routes no longer served by `api/router.js`:** `/api/app-flags`
+  (9e7a125, with the testing-phase flag), `/api/auth/*` (93f31e6; the app signs
+  in with Supabase Auth, and `server/authApi.mjs` is mounted only by the Vite dev
+  server) and `/api/ai/fetch` (def5f71). `src/lib/retiredRoutes.test.js` covers
+  `/api/app-flags`, `/api/auth/*` and `/api/ai/chat`.
+- **`/api/ai/source-extract` needs a signed-in, active account** (def5f71). The
+  router checks the bearer with `authorizeLocalUser` before fetching, and
+  `server/sourceExtract.mjs` fetches only public addresses.
+- `/api/ai/desk-brief` remains. It forwards the caller's bearer to the
+  `desk-brief` Edge Function through `server/deskBrief.mjs`, and the browser
+  uses it only when calling that function directly returns 404 or fails to
+  connect (`src/lib/deskBrief.js`).
+- Decisions 1 and 2 still hold. The router still returns 401 for
+  authentication failures.

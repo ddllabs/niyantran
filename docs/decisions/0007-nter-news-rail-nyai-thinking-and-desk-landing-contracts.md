@@ -4,6 +4,7 @@
 > **Date:** 2026-09-27
 > **Deciders:** Supervising Agent, Architecture Review
 > **Consulted:** AGENTS.md, docs/flow.md, docs/design.md, docs/decisions.md
+> **Amended:** 2026-09-28 (the NyAiThinking render rule and the news store; see the end)
 
 ---
 
@@ -48,3 +49,30 @@ Prior to this decision:
 - Research experience provides immediate, polished, accessible feedback during LLM reasoning and generation phases.
 - Desk landing pages become live data dashboards rather than static user manuals.
 - Complete compatibility with existing Supabase Auth and OpenRouter execution pipelines.
+
+---
+
+## Amendment (2026-09-28)
+
+**Decision 2, state transition rule.** The rule above does not match the code
+and is kept only as the record. In `src/ai/AiPanel.jsx` (the "One indicator at
+a time" comment, from 80342a3), `NyAiThinking` renders when:
+
+```
+!streaming && !stream?.streamingText && (research.submitting || stream?.isPending || research.live)
+```
+
+Here `streaming` is `stream?.isStreaming`. The card therefore covers only the
+wait before the stream opens. Once the stream opens, the card unmounts and the
+`ActivityTicker` shows progress, even before any text arrives. `AiMarkdown`
+renders as soon as `streamingText` has content. The whole in-flight block is
+hidden when the stream or the turn reports an error. The cancellation
+invariant still holds.
+
+The panel's local-chat branch, which showed `NyAiThinking` while a legacy
+send was busy, was deleted with the legacy AI path in 14b2344. The research
+turn above is the only case.
+
+**Decision 1, backing store.** `server/nterNews.mjs` now reads articles from
+`public.nter_news_articles` in Supabase (7160391). The committed
+`public/data/nter-news.json` is only a read-only fallback seed.

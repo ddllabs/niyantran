@@ -2,6 +2,7 @@
 
 > **Status:** Normative — accepted 2026-09-20. Binds every server-side AI and
 > retrieval component until superseded by a later ADR.
+> Amended 2026-09-28: the legacy path and its flag are retired (see the end).
 
 ## Status
 
@@ -77,3 +78,21 @@ development conveniences with no auth, no database and no deployment story.
   handler must never rely on the request staying open.
 - Two deployment targets exist. That is accepted for the duration of the
   cutover and reviewed when the legacy `api/ai/*` path is retired.
+
+## Amendment (2026-09-28)
+
+The cutover this ADR provided for is complete. The legacy path was retired in
+14b2344 (plan task D4 in `docs/plans/2026-09-28-remaining-work.md`):
+
+- The `VITE_AI_BACKEND` flag is gone. `src/lib/aiBackend.js` was deleted, and
+  the flag is no longer defined or read. Every model call runs in a Supabase
+  Edge Function.
+- The four `api/ai/*` functions were earlier collapsed into one catch-all
+  function (f60123b), now `api/router.js`. Of their routes, `/api/ai/chat` and
+  `/api/ai/fetch` are gone (14b2344, def5f71). `/api/ai/desk-brief` only
+  forwards the caller's bearer to the `desk-brief` Edge Function, and
+  `/api/ai/source-extract` fetches source documents and calls no model.
+- There are still two deployment targets: Vercel hosts the frontend and the
+  `/api/*` routes, and Supabase hosts the Edge Functions. What has changed is
+  that every model call now runs on Supabase. No separate review of the two
+  targets has been recorded.

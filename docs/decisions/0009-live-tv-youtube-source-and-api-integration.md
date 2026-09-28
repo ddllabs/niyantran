@@ -3,6 +3,7 @@
 > **Status: Normative.**
 > **Date:** 2026-09-28
 > **Deciders:** Niyantran Architecture & Intelligence Workbench Team
+> **Amended:** 2026-09-28 (section 4: search.list gap, categories, desks)
 
 ---
 
@@ -83,3 +84,26 @@ Exposes asynchronous fetch wrappers for all six endpoints with normalized error 
    - Server routing: `node -e "import('./api/router.js').then(()=>console.log('ok'))"` verified.
    - Git Working Tree: 0 merge conflicts (`git diff --name-only --diff-filter=U`).
    - Secret Scan: 0 credentials leaked.
+
+---
+
+## 4. Amendment (2026-09-28)
+
+Checked against `server/liveTvApi.mjs` on 2026-09-28. The code has not
+changed; this amendment records where it differs from the text above.
+
+- **Known gap: `search.list` is still called.** When `YOUTUBE_API_KEY` is set
+  and a channel has no fresh cache entry, `fetchYouTubeChannelVideos` first
+  calls `youtube/v3/search` with `eventType=live` for that channel (100 quota
+  units), then `playlistItems.list` on the uploads playlist (1 unit). So each
+  uncached `GET /api/livetv/videos` costs about 101 units, not 1. The
+  10-minute cache is held in memory, so each server instance keeps its own
+  copy. `GET /api/livetv/live` does not call YouTube; it lists sources whose
+  curated `status` is `live`. This gap is to be tracked in the backlog
+  (`docs/niyantran-conflict-audit-and-plan/04-open-backlog.md`).
+- **Categories.** The 13 sources are split differently from context point 1:
+  `NEWS` is DD News, Sansad TV, WION and NDTV 24x7; `GENERAL` is India Today TV
+  and Aaj Tak; `RESEARCH` is CSIS and Soch by Mohak Mangal; `EDUCATION`,
+  `POLITICS` and `ECONOMICS` are as listed.
+- **Linked desks.** The sources link to the desk ids `national`, `economics`,
+  `global`, `legislative` and `media`, not the four named in section 2.1.

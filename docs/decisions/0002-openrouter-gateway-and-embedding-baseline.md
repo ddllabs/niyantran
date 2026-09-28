@@ -4,6 +4,7 @@
 > and 4: the registry moved from code to a database allowlist; the refresh
 > cadence is twelve hours). Binds every model call and the vector column
 > width until superseded by a later ADR.
+> Amended again 2026-09-28: the legacy model store is gone (see the end).
 
 ## Status
 
@@ -102,3 +103,12 @@ three failure modes, and no registry to refuse an unknown id.
   too.
 - A repair-pass model (a cheap, schema-capable model used to add citations to
   an answer that arrived without them) is likewise a deployment setting.
+
+## Amendment (2026-09-28)
+
+The first consequence above assumed a legacy path and a backend flag. Both
+were retired in 14b2344. `src/lib/aiModelsStore.js` was deleted, and so was
+the `VITE_AI_BACKEND` flag. The admin "AI models" page is always the allowlist
+editor (`src/admin/AiModelsPage.jsx`, `src/admin/AllowlistEditor.jsx`). The
+browser reads the allowlist from the database (`src/lib/aiRegistry.js`). The
+decisions themselves are unchanged.

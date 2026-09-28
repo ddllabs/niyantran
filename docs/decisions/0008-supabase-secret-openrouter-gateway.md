@@ -3,6 +3,7 @@
 > **Status: Normative.**
 > **Date:** 2026-09-27
 > **Deciders:** Niyantran Architecture & Systems Team
+> **Amended:** 2026-09-28 (section 5: the legacy AI path is retired)
 
 ---
 
@@ -86,3 +87,27 @@ sequenceDiagram
 - **Zero Secret Exposure:** Verified with repository-wide search that no provider secrets exist in client code, test fixtures, or public configuration.
 - **Default Production Target:** `VITE_AI_BACKEND` defaults to `'supabase'` in application builds, guaranteeing the edge gateway is active.
 - **Test Integrity:** All 40 test files (637 unit/integration tests) pass cleanly without requiring a local `OPENROUTER_API_KEY`.
+
+---
+
+## 5. Amendment (2026-09-28)
+
+The legacy AI path was retired in 14b2344 (plan task D4). Decision outcomes 1
+to 3 are unchanged: `OPENROUTER_API_KEY` exists only as a Supabase Secret, and
+no file outside `supabase/functions/` calls a model provider. The following
+statements above are no longer accurate and are kept only as the record:
+
+- **Outcome 4, "provider stores":** `src/lib/aiModelsStore.js` was deleted. The
+  browser reads enabled models, roles and pricing from `public.ai_models`,
+  `public.ai_roles` and `public.model_pricing` under RLS
+  (`src/lib/aiRegistry.js`). The default model is the row flagged `is_default`
+  (ADR 0002), so the model ids quoted in outcome 4 are examples only.
+- **Outcome 5:** `server/aiApi.mjs` no longer handles chat and never delegates it.
+  It serves only `/api/ai/desk-brief` and `/api/ai/source-extract`. The browser
+  sends chat straight to `research-chat`. `server/deskBrief.mjs` forwards the
+  caller's bearer to the `desk-brief` Edge Function and returns the generic
+  "AI research service is temporarily unavailable." message when that function
+  fails or cannot be reached.
+- **Section 4, "Default Production Target":** `VITE_AI_BACKEND` is no longer
+  read or defined. There is only one AI backend, so there is no flag to
+  default. The test counts in that section record a run on 2026-09-27.
