@@ -1,8 +1,9 @@
 # Spec: T5, invoices to Supabase
 
-> **Status: Living.** Task C1 of `docs/plans/2026-09-28-remaining-work.md`
-> (T5 of the serverless-state plan). The owner approved it on 2026-09-28:
-> invoices move to Supabase, with sign-in checks on the billing reads.
+> **Status: Historical (2026-09-28).** Landed in `19d25e6`; migration
+> `20260928140000_invoices` applied to NTER the same day. Task C1 of
+> `docs/plans/2026-09-28-remaining-work.md` (T5 of the serverless-state
+> plan), approved by the owner on 2026-09-28.
 
 ## Current state (read in the code on 2026-09-28)
 

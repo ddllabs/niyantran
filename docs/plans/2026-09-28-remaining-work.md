@@ -103,7 +103,7 @@ down.
 
 ### Phase C: needs owner decisions (see Open questions)
 
-- [ ] **C1. T5, invoices to Supabase (M).**
+- [x] **C1. T5, invoices to Supabase (M).** Done 2026-09-28 (`19d25e6`, migration `20260928140000_invoices` applied live); spec `specs/2026-09-28-t5-invoices-to-supabase.md`.
   - A table with RLS: the owner can read their own invoices; the
     service role writes.
   - GST invoice numbers come from a sequence, so they are unique and
