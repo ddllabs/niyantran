@@ -145,10 +145,10 @@ local passwords, and the rule that `sessionUser()` returns null.
   environment is installed), so it is verified by review and the build.
 - **Not verified:** the admin screens and a real Google sign-in have not
   been exercised in a browser.
-- **Follow-up:** `src/Login.jsx` is an unused legacy login that still
-  hard-codes the old seed credential. It is not in the bundle and no
-  longer opens the Terminal under the new gate. Deleting it needs owner
-  approval.
+- **`src/Login.jsx` deleted (owner-approved 2026-09-28).** It was an
+  unused legacy login that hard-coded the old seed credential. The seed
+  password no longer appears anywhere in `src/`, `server/` or the
+  bundle.
 
 
 - **Depends on:** T0 and the owner's sensitive-scope approval.
