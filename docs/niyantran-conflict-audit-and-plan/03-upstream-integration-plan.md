@@ -1,6 +1,7 @@
 # Upstream integration and production relink
 
-Status: **Living.** Proposed 2026-09-24; nothing executed. Governed by ADR 0005 (`01-decisions-adr-0005.md`). Evidence: 02-merge-audit-reconciliation.md.
+Status: **Historical (2026-09-28).** Proposed 2026-09-24. Governed by ADR 0005 (`01-decisions-adr-0005.md`). Evidence: 02-merge-audit-reconciliation.md.
+> Executed in part; see "Outcome (2026-09-28)" at the end. The remainder (Google OAuth client, email, nter.pro cutover) is tracked as D2 in `../plans/2026-09-28-remaining-work.md`.
 
 ## Spec
 
@@ -182,3 +183,12 @@ Then run the E2 phase 3 paid acceptance: the five scenarios plus a cross-account
 
 - **Branch creation and local commits:** under the supervisor's normal authority.
 - **Needs the owner's exact go-ahead:** pushing the integration branch, merging to `main`, pushing `main`, any Vercel or DNS action, Supabase dashboard changes, and deleting `origin/dev`.
+
+## Outcome (2026-09-28)
+
+- **Phases 1–3:** executed; upstream reached `main` through PR #2 (`8849c35`, 2026-09-26).
+- **Phase 2.1:** production later stopped serving `/api/auth/*` (`93f31e6`); the app signs in through Supabase Auth directly and `server/authApi.mjs` is mounted by the Vite dev server only. **2.2–2.5:** done. The local users store and seed accounts were retired by `5a2ded0`, the durable-write audit became the T0 guard (`d55da42`) and `plans/2026-09-28-serverless-state-to-supabase.md`, and `authApiPlugin` validates only inside the dev and preview servers.
+- **Phase 3:** superseded. The legacy AI path was retired altogether (`14b2344`, `def5f71`), and desk briefs go through the `desk-brief` Edge Function.
+- **Phase 4:** code done; `GoogleSignInButton.jsx` calls `signInWithOAuth`. The OAuth client (0.3) is open under D2.
+- **Phase 5:** the DDL Labs Vercel project serves `niyantran-six.vercel.app` from `main`. In the variable table, `OPENROUTER_API_KEY` and `VITE_AI_BACKEND` are no longer needed. Email delivery and `SITE_URL` are open under D2; the paid acceptance is D3.
+- **Phase 6:** 6.1 done by PR #2; 6.4 done (upstream is retired; see `AGENTS.md` and `agents/coordination.md`); 6.5 and 6.6 done as far as `origin` shows (only `main` remains there; the leaked key is disabled but stays in public history). 6.2 and 6.3, the cutover itself, are open under D2.

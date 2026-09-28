@@ -11,8 +11,10 @@
 On 2026-09-28 the product is on one branch (`main`), and production matches
 it:
 
-- Vercel `niyantran-six.vercel.app` runs `93684e7`.
-- Supabase NTER has 29 migrations and runs on the 2 GB compute.
+- Vercel `niyantran-six.vercel.app` follows `main` (corrected 2026-09-28;
+  this line first named the commit `93684e7`).
+- Supabase NTER has 31 migrations (corrected 2026-09-28 from 29) and runs on
+  the 2 GB compute.
 
 Research chat with citations, desk briefs, the model registry, per-account
 personas, the Supabase-backed state stores and the analytics rate limit all
@@ -134,7 +136,7 @@ down.
   - delete `server/db.mjs`;
   - empty `KNOWN_OFFENDERS`;
   - mark the serverless-state spec and plan Historical.
-- [x] **C4. The admin persona probe tests the persona it names (S–M).** Code done 2026-09-28 (`8a21133`, Deno tests green). Live only after the A1 redeploy: version 30 predates it.
+- [x] **C4. The admin persona probe tests the persona it names (S–M).** Code done 2026-09-28 (`8a21133`, Deno tests green). Live only after the A1 redeploy: version 30 predates it. (corrected 2026-09-28: live since `research-chat` v32.)
   - `research-chat` accepts a `persona_probe` field only when the caller
     is a platform admin (checked server-side) and otherwise ignores it.
   - `AdminPersonaChat` sends it.
@@ -211,6 +213,31 @@ questions are closed.
 
 **Checkpoint D:** nter.pro serves this build; the live round passes.
 
+### Follow-ups found by the 2026-09-28 documentation audit
+
+Small items, none blocking launch except F2 before payments. Same rules as
+above: a `task/` branch, a test that fails first.
+
+- [ ] **F1. Drop `user_preferences.ai_chats` (XS, migration).** The column and
+  its size check, about a week after `f05a5b6` (see D4); nothing reads it and
+  its values are already cleared.
+- [ ] **F2. Server-side paid-plan entitlements (M).** Plan checks enforced on
+  the server, required before Razorpay is configured; a free testing period,
+  if wanted, belongs here (see C6).
+- [ ] **F3. One Supabase secret-key variable name (S).**
+  `server/authEmailProvider.mjs` and `server/analyticsApi.mjs` still read the
+  legacy `SUPABASE_SERVICE_ROLE_KEY` beside `SUPABASE_SECRET_KEY`. The other
+  half of this item is done 2026-09-28 (`9ed95b6`): `.env.example` no longer
+  lists AI provider keys, which live only in Supabase secrets (ADR 0008).
+- [ ] **F4. Live TV YouTube quota (S).** `fetchYouTubeChannelVideos` in
+  `server/liveTvApi.mjs` calls the YouTube `search` endpoint (100 quota
+  units) for the live check whenever its per-instance, ten-minute memory
+  cache misses. Cold instances therefore spend quota on every channel.
+- [ ] **F5. Reassess corpus expansion and the law-tier ingest on the 2 GB
+  compute (S, measurement first).** Re-measure `shared_buffers` and the HNSW
+  index against the gate in `2026-09-22-corpus-expansion.md` before any
+  ingest; the law-tier row is in the open backlog.
+
 ## Order and parallelism
 
 - A comes first.
@@ -228,7 +255,7 @@ questions are closed.
 | Billing reads are open today | High | B2/C1 put auth on them first; Razorpay is not configured on Vercel, so no live invoices exist yet |
 | Previews share the live Supabase project | Medium | Test writes only on test accounts; document it for every preview |
 | Deploying an Edge Function by hand drifts from the repo | Medium | Standard CLI deploys (A1); pinned-commit deploys only in an emergency |
-| No CI | Medium | B6 |
+| No CI (corrected 2026-09-28: advisory CI exists; nothing is blocked on it) | Medium | B6 |
 
 ## Owner decisions (2026-09-28)
 

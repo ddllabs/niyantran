@@ -1,8 +1,14 @@
 # Home feeds: from committed JSON to a scheduled, database-backed pipeline
 
-Status: **PARKED** — nothing built, by decision on 2026-09-23. Resume from
+Status: **Living — parked.** Nothing built, by decision on 2026-09-23. Resume from
 section 8 ("Where to pick this up"). Nothing in this document is final, least of
 all the table schema, which is a draft for discussion.
+(corrected 2026-09-28: several blockers below have since cleared. `main` now
+serves `/api/home/*` through `api/router.js`; nter.news articles are stored in
+Supabase (`7160391`, serverless plan T6); the home snapshot cache no longer
+writes `public/data` (`862c995`); the Vercel and Google sign-in blockers are
+resolved as noted in section 8; the `dev` branch is gone. Still open: the table
+schema, the news decision and the market-data vendor.)
 
 ## 1. What this is about
 
@@ -34,7 +40,9 @@ There are two code paths, and they read different files.
 
 **Dev server** (`server/homeApi.mjs`, `npm run dev`): fetches live, and on every
 read older than 6 hours rewrites `public/data/{markets,news,conflict}.json`.
-That is why those three files are always dirty in git.
+That is why those three files are always dirty in git. (corrected 2026-09-28:
+since `862c995` the cache lives under `writablePath('home-snapshots')` and the
+committed files are read-only seeds.)
 
 **Production** (static Vercel build, no `/api/home/*`): `src/lib/homeStatic.js`
 reads committed files —
@@ -193,7 +201,7 @@ reused. See `docs/niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` an
 | 1 | Tables, views, RLS, `feed_runs`; migration with SQL tests | ~0.5 day | — |
 | 2 | `refresh-home-feeds` function: GDELT + RSS fetchers, honesty rules, tests; pg_cron schedule | ~1 day | 1 |
 | 3 | Markets fetcher behind one interface: Yahoo stop-gap now, vendor later | ~0.5 day, plus vendor integration | 1; vendor choice |
-| 4 | Home desk and dev server read the views; stop writing `public/data` | ~0.5 day | 2 |
+| 4 | Home desk and dev server read the views; stop writing `public/data` (the second half done 2026-09-28, `862c995`) | ~0.5 day | 2 |
 | 5 | Backfill `market_closes` for sparklines; remove `ohlc.json` from the page load | ~0.5 day | 3 |
 
 ## 7. Decisions needed
@@ -206,12 +214,14 @@ reused. See `docs/niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` an
 ## 8. Where to pick this up
 
 Blocked on three things outside the codebase. None of them is a coding task.
+(corrected 2026-09-28: only the market-data vendor is still open; the other two
+rows are resolved as noted in them.)
 
 | Blocker | Needed from | Unblocks |
 |---|---|---|
-| **Vercel project access** (who owns it; which repo it deploys) — *updated 2026-09-24: the owner decided to relink production to a new DDL Labs–owned Vercel project building `ddllabs/niyantran` `main`, because the old project is inaccessible* | ~~Owner of the nter.pro Vercel project (likely ItsCloudDev)~~ DDL Labs: create the new project and relink production to it | Any of this work — and the Supabase auth, research chat and persona work — reaching nter.pro |
+| **Vercel project access** (who owns it; which repo it deploys) — *updated 2026-09-24: the owner decided to relink production to a new DDL Labs–owned Vercel project building `ddllabs/niyantran` `main`, because the old project is inaccessible*; *resolved 2026-09-28: the DDL Labs project serves `niyantran-six.vercel.app` from `main`; the nter.pro cutover is remaining-work D2* | ~~Owner of the nter.pro Vercel project (likely ItsCloudDev)~~ DDL Labs: create the new project and relink production to it | Any of this work — and the Supabase auth, research chat and persona work — reaching nter.pro |
 | **Market data vendor** chosen (coverage of NSE/BSE indices incl. India VIX, display/redistribution rights, delay, price) | Product/business decision | Phase 3 (markets fetcher) |
-| **Google OAuth client ID + secret** — *updated 2026-09-24: a new DDL Labs–owned Google OAuth client can be created for Supabase Auth's native Google provider; the old credentials are not needed* | ~~Owner of the Google Cloud project whose OAuth client authorises `https://nter.pro` (the dev-branch commits are by ItsCloudDev)~~ DDL Labs: create the OAuth client | Google sign-in port (section 9) |
+| **Google OAuth client ID + secret** — *updated 2026-09-24: a new DDL Labs–owned Google OAuth client can be created for Supabase Auth's native Google provider; the old credentials are not needed*; *2026-09-28: the code port is done (`GoogleSignInButton.jsx` calls `signInWithOAuth`); creating the OAuth client is remaining-work D2* | ~~Owner of the Google Cloud project whose OAuth client authorises `https://nter.pro` (the dev-branch commits are by ItsCloudDev)~~ DDL Labs: create the OAuth client | Google sign-in port (section 9) |
 
 Resume order once unblocked:
 1. Agree the schema (4.1 open questions) and the news decision (7.2).
@@ -223,7 +233,12 @@ Resume order once unblocked:
 
 ## 9. Related parked work: Google sign-in (dev branch)
 
-Recorded here so it is picked up with the same context.
+Recorded here so it is picked up with the same context. (corrected 2026-09-28:
+the `dev` branch has been deleted and the port below is done:
+`GoogleSignInButton.jsx` uses Supabase's OAuth redirect, and
+`server/googleAuth.mjs`, `googleAuthClient.js` and `google-auth-library` are not
+in `main`. The bullets are kept as
+the record of the decision.)
 
 - `origin/dev` has two commits by ItsCloudDev (5675997 "Add Google Sign-In with
   server ID-token verification", 25723f7 "Reorder signup: persona and details

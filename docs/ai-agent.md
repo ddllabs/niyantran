@@ -61,7 +61,7 @@ Before declaring any task complete or proposing integration, an agent must execu
 concrete evidence for the following gates:
 
 - [ ] `node -e "import('./api/router.js').then(()=>console.log('ok'))"` prints `ok`.
-- [ ] `/api/auth/*` routes (signup, resend-verification, forgot-password, reset-password, me, login, logout, provider) route cleanly through server/authApi.mjs.
+- [ ] `/api/auth/*` is not served by `api/router.js` in production (93f31e6; the app signs in through Supabase Auth directly). `server/authApi.mjs` is mounted by the Vite dev server only; production keeps answering 404 for these routes (`src/lib/retiredRoutes.test.js`).
 - [ ] `/api/livetv/*` routes (channels, live, videos, schedule, archive, transcript) return valid backend contracts with real YouTube sources and privacy-enhanced embeds without fabricated data.
 - [ ] `/api/home/segments` exposes 8 canonical analytical segments with authoritative live counts.
 - [ ] `/api/home/latest` serves live NTER.news data; `NterLatestRail.jsx` replaces frozen Market Metrics in the primary position.
@@ -76,6 +76,8 @@ concrete evidence for the following gates:
 - [ ] `npm ci` executes cleanly.
 - [ ] `npm run build` succeeds with zero errors.
 - [ ] `npm test` passes all tests (including `nterNewsRail.test.jsx`, `nyAiThinking.test.jsx`, `deskLanding.test.jsx`).
+- [ ] `deno test -A --config supabase/functions/deno.json supabase/functions` passes (required for changes under `src/lib/`, `src/admin/` or `supabase/`).
+- [ ] `npm run test:sql` passes, with no VACUITY FAIL, for SQL or migration changes (disposable local databases only).
 - [ ] Durable data files in `backup/` and `public/data/` are protected and unmodified.
 - [ ] No unexpected commits or remote pushes.
 

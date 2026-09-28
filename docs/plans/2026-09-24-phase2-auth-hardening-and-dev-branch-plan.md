@@ -1,5 +1,10 @@
 # Phase 2 Implementation Plan: Auth Hardening & Dev-Branch Preparation
 
+> **Status: Historical (2026-09-24).** Executed as written. Two parts were later
+> reversed: production stopped serving `/api/auth/*` through `server/authApi.mjs`
+> (`93f31e6`, 2026-09-28; the Vite dev server still mounts it), and the `dev`
+> branch was retired on 2026-09-28 (`main` is the only branch).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Harden server auth routes, client-side auth gates, durable-write boundaries, and build environments to finalize Phase 2 in preparation for review and push to `dev`.

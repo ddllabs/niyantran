@@ -18,6 +18,10 @@ Historical. Module id `streaming-research-agent`.
 > live Task 8 — the bounded paid browser acceptance — which is blocked on an
 > internal-admin account and a second ordinary account. (Superseded: D1–D8
 > and D9 accepted with D10 in progress, deployment unperformed.)
+> (corrected 2026-09-28: only Task 8, the paid browser acceptance, remains; it
+> is tracked as D3 in `docs/plans/2026-09-28-remaining-work.md`. The goal of
+> parity "with the flag unset" is obsolete: `14b2344` retired the legacy AI
+> path and `VITE_AI_BACKEND` is no longer read.)
 
 **Goal:** Sign in, open Ask AI with the `supabase` backend, pick a model,
 ask. The ticker shows the model thinking and each tool step as it runs;

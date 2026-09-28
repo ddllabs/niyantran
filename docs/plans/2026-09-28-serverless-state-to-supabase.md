@@ -2,6 +2,12 @@
 
 > **Status: Living.** Proposed 2026-09-28. Not approved. Nothing here may be
 > dispatched until the owner approves the spec and the phase in question.
+> (corrected 2026-09-28: approved by the owner the same day. T0–T6 are merged
+> and live: T0 `d55da42`, wave 1 (T1, T2, T4) below, T3 `5a2ded0`, T5
+> `19d25e6`, T6 `7160391`. Only T7 remains, tracked as C3 in
+> `2026-09-28-remaining-work.md`, together with the owner steps still open
+> below: the Storage upload limit (D1), a signed-in smoke test, and settling
+> one secret-key variable name.)
 
 **Spec:** `docs/specs/2026-09-28-serverless-state-to-supabase.md`
 
@@ -35,7 +41,7 @@ npm run test:sql                                                          # when
 
 ## Tasks
 
-### T0 — durability guard (no behaviour change) — **implemented 2026-09-28 on `task/t0-durability-guard`, awaiting owner review**
+### T0 — durability guard (no behaviour change) — **implemented 2026-09-28 on `task/t0-durability-guard`, awaiting owner review** (corrected 2026-09-28: merged, `d55da42`)
 
 Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
 
@@ -119,7 +125,7 @@ Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
   - no email is stored;
   - S2 leaves `KNOWN_OFFENDERS`.
 
-### T3 — S3 retire the local users store — **implemented 2026-09-28 on `task/t3-retire-local-users`, not yet merged**
+### T3 — S3 retire the local users store — **implemented 2026-09-28 on `task/t3-retire-local-users`, not yet merged** (corrected 2026-09-28: merged, `5a2ded0`)
 
 Task spec: `docs/specs/2026-09-28-t3-retire-local-users.md`. It fixes the
 `PATCH /api/users/:userId` interface, the removal of the seed accounts and
@@ -182,7 +188,7 @@ local passwords, and the rule that `sessionUser()` returns null.
   - writes without an admin bearer are rejected (tested);
   - S4 and S5 leave `KNOWN_OFFENDERS`.
 
-### T5 — S6 invoices
+### T5 — S6 invoices — **done 2026-09-28 (`19d25e6`)**
 
 - **Depends on:** T0 and the owner's explicit billing authorization.
 - **Write scope:**
@@ -198,7 +204,7 @@ local passwords, and the rule that `sessionUser()` returns null.
   - the demo path is off in production;
   - S6 leaves `KNOWN_OFFENDERS`.
 
-### T6 — S7 nter.news
+### T6 — S7 nter.news — **done 2026-09-28 (`7160391`)**
 
 - **Depends on:** owner decision D4 and, if the table is built, the agreed
   home-feeds schema.
@@ -300,7 +306,11 @@ deletions. The list went from 10 entries to 6.
   - `npm run build` passed (295 modules).
   - The router imports.
   - `npm run test:sql`: all 8 fixtures pass, each with vacuity.
-- **Follow-ups from wave 1** (also in the backlog):
+- **Follow-ups from wave 1** (also in the backlog). (corrected 2026-09-28:
+  `d43ec5d` fixed the analytics client, test and 50 MB items and
+  `483b3b2` added the analytics rate limit; see
+  `docs/specs/2026-09-28-wave-1-follow-ups.md`. The testing-phase flag item
+  is obsolete: `9e7a125` retired the flag.)
   - T2:
     - no rate limit on anonymous event POSTs (it needs a design that
       works across Vercel instances);
@@ -379,4 +389,6 @@ deletions. The list went from 10 entries to 6.
 - **Before the route changes go live:** set `SUPABASE_SECRET_KEY` (an
   `sb_secret_…` key) in the Vercel environment. `server/` also still reads
   the legacy `SUPABASE_SERVICE_ROLE_KEY` name in two places; T1 should settle
-  on one name.
+  on one name. (corrected 2026-09-28: still open. It is read in
+  `server/authEmailProvider.mjs` and as a fallback in
+  `server/analyticsApi.mjs`.)

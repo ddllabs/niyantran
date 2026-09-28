@@ -68,9 +68,10 @@ Full mechanics are in `docs/agents/coordination.md`.
 ## Git and synchronization
 
 - `main` is the only long-lived local branch.
-- `origin` is the DDL Labs fork; `upstream` is the source repository. Fetching
-  either is read-only. Upstream changes are reviewed and integrated
-  deliberately, never automatically.
+- `origin` (the DDL Labs fork) is the only remote. The former `upstream`
+  source repository was retired after the 2026-09-26 merge; if the owner
+  reinstates it, fetching it is read-only and its changes are reviewed and
+  integrated deliberately, never automatically.
 - Before starting or resuming, confirm `pwd`, branch, `git status`, remotes,
   and the active plan. Fetch before comparing local and remote history.
 - Never use a blind pull over uncommitted work and never discard, overwrite,

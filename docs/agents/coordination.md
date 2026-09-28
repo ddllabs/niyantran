@@ -213,7 +213,10 @@ observations, not evidence that future warnings are harmless.
 
 The current recovery checkout defines `npm test` (Vitest) and Edge Function
 checks via `deno test -A --config supabase/functions/deno.json supabase/functions`.
-There is no declared lint, standalone type-check or CI gate. Run focused checks
+There is no declared lint or standalone type-check. (corrected 2026-09-28:
+an advisory CI workflow, `.github/workflows/ci.yml`, runs the build, both
+suites and `npm run test:sql` on every push since `a47680e`; it blocks
+nothing.) Run focused checks
 and the production build for code changes, and both suites for src/lib/,
 src/admin/ or supabase/ changes. Use disposable local SQL targets for database
 write tests. Exercise rejection paths, report missing gates, and never translate
@@ -245,6 +248,8 @@ accepted.
   choices.
 - `docs/research/`: dated audits, measurements, and external research.
 - `docs/archive/`: superseded operational material retained for provenance.
+  (corrected 2026-09-28: this folder does not exist; superseded plans and
+  records currently stay where they are, marked Historical.)
 
 Do not move colocated subsystem instructions merely to satisfy a folder rule.
 Do not place transient agent scratchpads, generated output, dependency state,
@@ -269,6 +274,8 @@ Correct this section when observations become stale.
   22ef26b. The original checkout retains its prior versions until integration;
   final E3 status and cross-link reconciliation remain pending.
 - The repository has Vitest and Deno suites but no tracked GitHub workflow.
+  (corrected 2026-09-28: `.github/workflows/ci.yml` is an advisory workflow
+  running the build, both suites and the SQL fixtures on every push.)
   `.oxlintrc.json` exists, but Oxlint is not declared as a package dependency
   or npm script.
 - The 2026-09-20 clean build transformed 204 modules and emitted chunk-size
@@ -312,7 +319,12 @@ Correct this section when observations become stale.
   `src/marketing/{Login,Signup,ForgotPassword,ResetPassword}Page.jsx`, and
   `backend/sql/auth_schema.sql` as the auth schema's source. Email
   confirmation is on; the project's SMTP is misconfigured until a verified
-  Resend domain is set (see the plan's launch gates).
+  Resend domain is set (see the plan's launch gates). (corrected 2026-09-28:
+  the marketing pages call Supabase Auth directly from the browser
+  (`signInWithPassword`, `signUp`, `resetPasswordForEmail`, `updateUser`);
+  `server/authApi.mjs` is mounted only by the Vite dev server, and
+  `api/router.js` has not served `/api/auth/*` since `93f31e6`. The email
+  domain and `SITE_URL` are plan task D2.)
 - The National Desk corpus lives in `NTER` (`documents`, `document_chunks`),
   never in this repository: `ingest/` is gitignored and holds the owner's
   OCR export locally. It is loaded by `scripts/ingest-national-desk.mjs`
@@ -350,7 +362,10 @@ Correct this section when observations become stale.
   `src/ai/{ActivityTicker,CitationBubble,ModelPicker,WorkSurface}.jsx`,
   reached when `VITE_AI_BACKEND=supabase`. The legacy feature path is retained,
   with B4's reviewed account-ownership and login repairs also applying to its
-  local stores, including aiChatStore.js. Persona
+  local stores, including aiChatStore.js. (corrected 2026-09-28: this is the
+  only path now. `14b2344` retired the legacy AI path and `VITE_AI_BACKEND` is
+  no longer read; the panel calls `research-chat` through
+  `src/lib/aiClient.js`. `f05a5b6` deleted `aiChatStore.js`.) Persona
   prompts are copied into the function bundle by
   `node scripts/sync-personas.mjs` and a Vitest test fails when a copy
   drifts. Plan: `docs/plans/2026-09-21-streaming-research-agent.md`.
@@ -558,6 +573,15 @@ knowledge above).
 > `writablePath()`, which is `/tmp/niyantran` on Vercel and is lost on cold
 > starts. That breaks ADR 0005's rule that nothing durable is written to
 > `/tmp`; the remedy is `docs/specs/2026-09-28-serverless-state-to-supabase.md`.
+>
+> (corrected 2026-09-28, later: the router no longer mounts auth (`93f31e6`),
+> app flags (`9e7a125`) or the legacy AI chat and fetch routes (`14b2344`,
+> `def5f71`). Preferences, analytics, users, the marketing video, invoices
+> and nter.news articles now persist in Supabase (plan tasks T1–T6).
+> `server/db.mjs` (SQLite) is imported only by `server/deskBrief.mjs`, whose
+> brief cache is the one remaining `/tmp` store (T7); the home snapshot and
+> STAT-1 files under `writablePath()` are caches, not durable state
+> (`862c995`). `src/lib/apiMode.js` is unchanged from the description above.)
 
 No document previously recorded how this application is actually served, which
 made "why is Vercel needed" unanswerable from the repository. Established by
@@ -647,6 +671,7 @@ or changed.
   | `research-chat` | v28 | false | 2026-09-23 02:12 | identical (32 files) |
 
   `supabase/functions/desk-brief/` (added in `5e54af2`) is **not deployed**.
+  (Superseded by the Operations entry below: `desk-brief` v2 is deployed.)
   The `false` settings are by design: those handlers verify the bearer
   themselves.
 - **Migrations:** the live history has 24 entries, the same set as
@@ -678,7 +703,9 @@ or changed.
   (`last_analyze` and `last_autoanalyze` are both null). Run the AGENTS.md
   `ANALYZE` set; that is a production action and needs the owner's go-ahead.
 - **Models:** the default is `google/gemini-3.7-flash` (role
-  `VISUAL_RESEARCH`); `google/gemini-3.5-flash-lite` holds `DEFAULT_ANALYST`
+  `VISUAL_RESEARCH`) (superseded later on 2026-09-28: the default and
+  `VISUAL_RESEARCH` are now `google/gemini-3.8-flash`, with 3.7 kept
+  disabled; see `docs/niyantran-conflict-audit-and-plan/04-open-backlog.md`); `google/gemini-3.5-flash-lite` holds `DEFAULT_ANALYST`
   and `PDF_PARSER`; `openai/gpt-6-astra` holds `EXPERT_ESCALATION`. Also
   enabled: `anthropic/claude-sonnet-5`, `deepseek/deepseek-v4-flash`,
   `deepseek/deepseek-v4-pro`, `google/gemini-2.5-flash-lite` and
@@ -698,6 +725,10 @@ or changed.
   the marketing video, and there are no Storage buckets
   (`storage.buckets` is empty). Those stores live
   under `/tmp` on Vercel (see the deployment-architecture correction above).
+  (Superseded later on 2026-09-28; see the Operations entry below. The day's
+  migrations added
+  `user_preferences`, `analytics_events`, `app_flags`, `invoices`,
+  `nter_news_articles` and the public `marketing` bucket.)
 
 ### Operations — 2026-09-28 (later the same day)
 

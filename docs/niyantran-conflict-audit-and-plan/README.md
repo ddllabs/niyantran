@@ -2,7 +2,7 @@
 
 Status: **Living.** Written 2026-09-24 for the engineering team doing the upstream integration; corrected 2026-09-28.
 
-> **Update 2026-09-28.** The merge this folder plans has landed: upstream `528dfb4` reached `main` through PR #2 (`8849c35`, 2026-09-26), and `origin/main` and `origin/dev` both point at `ca73200`. The integration rules 1–3 below (fresh clone, upstream remote, freeze) no longer apply. Since `f828ef5` (2026-09-27) the whole of `docs/` is published, not only this folder; only `docs/security/` stays local. For the current state start at [../START-HERE.md](../START-HERE.md); the open work is in [04-open-backlog.md](04-open-backlog.md).
+> **Update 2026-09-28.** The merge this folder plans has landed: upstream `528dfb4` reached `main` through PR #2 (`8849c35`, 2026-09-26), and `origin/main` pointed at `ca73200` (corrected 2026-09-28: `dev` has since been retired; `main` is the only branch). The integration rules 1–3 below (fresh clone, upstream remote, freeze) no longer apply. Since `f828ef5` (2026-09-27) the whole of `docs/` is published, not only this folder; only `docs/security/` stays local. For the current state start at [../START-HERE.md](../START-HERE.md); the open work is in [04-open-backlog.md](04-open-backlog.md).
 
 - ~~This folder is the only part of `docs/` published to GitHub.~~ (Superseded 2026-09-27: all of `docs/` except `docs/security/` is published.)
 - The "full docs package" referred to below is now simply the rest of `docs/` in this repository.
