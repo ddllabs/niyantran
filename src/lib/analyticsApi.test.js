@@ -23,11 +23,11 @@ import { handleAnalyticsApi } from '../../server/analyticsApi.mjs';
 
 const USER_ID = '00000000-0000-4000-8000-0000000000a1';
 
-function request(method, url, { body, authorization } = {}) {
+function request(method, url, { body, authorization, headers = {} } = {}) {
   return {
     method,
     url,
-    headers: { host: 'localhost', ...(authorization == null ? {} : { authorization }) },
+    headers: { host: 'localhost', ...headers, ...(authorization == null ? {} : { authorization }) },
     async *[Symbol.asyncIterator]() {
       if (body !== undefined) yield typeof body === 'string' ? body : JSON.stringify(body);
     },
@@ -42,7 +42,7 @@ async function invoke(req, deps) {
   return { status: res.statusCode, body: raw ? JSON.parse(raw) : undefined, next };
 }
 
-function fakeAdmin({ insertError = null, rows = [], summary = { total: 0, byName: [] } } = {}) {
+function fakeAdmin({ insertError = null, rows = [], summary = { total: 0, byName: [] }, rate = { data: true, error: null } } = {}) {
   const inserts = [];
   const selects = [];
   const admin = {
@@ -69,7 +69,13 @@ function fakeAdmin({ insertError = null, rows = [], summary = { total: 0, byName
         return chain;
       }),
     })),
-    rpc: vi.fn(async () => ({ data: summary, error: null })),
+    rpc: vi.fn(async (name) => {
+      if (name === 'analytics_rate_hit') {
+        if (rate instanceof Error) throw rate;
+        return rate;
+      }
+      return { data: summary, error: null };
+    }),
   };
   return admin;
 }
@@ -305,5 +311,66 @@ describe('admin reads', () => {
         { name: 'tour_done', n: 1 },
       ],
     });
+  });
+});
+
+// Wave-1 follow-up 6 (owner decision 2026-09-28): 60 events a minute per
+// client, counted in Postgres so the limit holds across Vercel instances, and
+// keyed by an HMAC of the IP so no raw address is stored.
+describe('POST /api/analytics/event rate limit', () => {
+  const event = { name: 'home_open', props: {}, sessionId: 's-1' };
+  const rateCalls = (admin) => admin.rpc.mock.calls.filter(([name]) => name === 'analytics_rate_hit');
+
+  it('counts each event against a hashed-IP bucket, 60 a minute', async () => {
+    const { admin, deps } = setup();
+    const response = await invoke(request('POST', '/api/analytics/event', { body: event, headers: { 'x-real-ip': '203.0.113.7' } }), deps);
+    expect(response.status).toBe(200);
+    const [[, args]] = rateCalls(admin);
+    expect(args).toMatchObject({ p_limit: 60, p_window_seconds: 60 });
+    expect(args.p_bucket).toMatch(/^ip:[0-9a-f]{64}$/);
+    expect(args.p_bucket).not.toContain('203.0.113.7');
+  });
+
+  it('gives the same client the same bucket and another client another', async () => {
+    const buckets = [];
+    for (const ip of ['203.0.113.7', '203.0.113.7', '198.51.100.9']) {
+      const { admin, deps } = setup();
+      await invoke(request('POST', '/api/analytics/event', { body: event, headers: { 'x-real-ip': ip } }), deps);
+      buckets.push(rateCalls(admin)[0][1].p_bucket);
+    }
+    expect(buckets[0]).toBe(buckets[1]);
+    expect(buckets[2]).not.toBe(buckets[0]);
+  });
+
+  it('uses the first x-forwarded-for address when x-real-ip is absent', async () => {
+    const a = setup();
+    await invoke(request('POST', '/api/analytics/event', { body: event, headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' } }), a.deps);
+    const b = setup();
+    await invoke(request('POST', '/api/analytics/event', { body: event, headers: { 'x-real-ip': '203.0.113.7' } }), b.deps);
+    expect(rateCalls(a.admin)[0][1].p_bucket).toBe(rateCalls(b.admin)[0][1].p_bucket);
+  });
+
+  it('refuses an event over the limit with 429 and stores nothing', async () => {
+    const { admin, deps } = setup({ admin: fakeAdmin({ rate: { data: false, error: null } }) });
+    const response = await invoke(request('POST', '/api/analytics/event', { body: event, headers: { 'x-real-ip': '203.0.113.7' } }), deps);
+    expect(response.status).toBe(429);
+    expect(response.body).toEqual({ ok: false, error: 'Too many events' });
+    expect(admin.inserts).toEqual([]);
+  });
+
+  it('still records the event when the limiter itself fails', async () => {
+    for (const rate of [{ data: null, error: { message: 'down' } }, new Error('network')]) {
+      const { admin, deps } = setup({ admin: fakeAdmin({ rate }) });
+      const response = await invoke(request('POST', '/api/analytics/event', { body: event }), deps);
+      expect(response.status).toBe(200);
+      expect(admin.inserts).toHaveLength(1);
+    }
+  });
+
+  it('checks the limit only for a well-formed event', async () => {
+    const { admin, deps } = setup();
+    const response = await invoke(request('POST', '/api/analytics/event', { body: { name: 'Bad Name!' } }), deps);
+    expect(response.status).toBe(400);
+    expect(rateCalls(admin)).toEqual([]);
   });
 });

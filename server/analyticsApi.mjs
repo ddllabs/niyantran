@@ -6,8 +6,10 @@
  *
  * Writes and reads use the server-side secret key, after this route's own
  * checks; the table grants clients nothing. A caller-supplied `userEmail` is
- * ignored, and `user_id` is recorded only from a verified bearer.
+ * ignored, and `user_id` is recorded only from a verified bearer. Events are
+ * limited to 60 a minute per client (analytics_rate_hit, hashed IP).
  */
+import { createHmac } from 'node:crypto';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 
@@ -18,6 +20,9 @@ const MAX_SESSION_ID = 64;
 const MAX_PROPS_BYTES = 4096;
 const MAX_BODY_BYTES = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Owner decision 2026-09-28: 60 events a minute per client.
+const RATE_LIMIT = 60;
+const RATE_WINDOW_SECONDS = 60;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -90,6 +95,39 @@ async function verifiedUserId(req, clientForToken) {
   }
 }
 
+/** The client address as Vercel reports it (x-real-ip), else the first x-forwarded-for hop. */
+function clientIp(req) {
+  const real = req.headers?.['x-real-ip'];
+  if (typeof real === 'string' && real.trim()) return real.trim();
+  const forwarded = req.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) return forwarded.split(',')[0].trim();
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+/**
+ * The counter key: an HMAC of the IP, keyed by a server secret, so the
+ * database never holds a raw or brute-forceable address. The constant
+ * fallback only applies where no secret is configured (a bare local run).
+ */
+function rateBucket(req) {
+  const secret = process.env.ANALYTICS_RATE_SALT || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'niyantran-analytics-rate';
+  return `ip:${createHmac('sha256', secret).update(clientIp(req)).digest('hex')}`;
+}
+
+/** False only when the counter says the client is over the limit; a limiter failure lets the event through. */
+async function withinRateLimit(req, deps) {
+  try {
+    const { data, error } = await deps.adminClient().rpc('analytics_rate_hit', {
+      p_bucket: rateBucket(req),
+      p_limit: RATE_LIMIT,
+      p_window_seconds: RATE_WINDOW_SECONDS,
+    });
+    return error ? true : data !== false;
+  } catch {
+    return true;
+  }
+}
+
 async function recordEvent(req, res, deps) {
   let row;
   try {
@@ -97,6 +135,10 @@ async function recordEvent(req, res, deps) {
   } catch (err) {
     if (err instanceof HttpError) return json(res, { ok: false, error: err.message }, err.status);
     return json(res, { ok: false, error: 'Invalid event' }, 400);
+  }
+  if (!(await withinRateLimit(req, deps))) {
+    res.setHeader('Retry-After', String(RATE_WINDOW_SECONDS));
+    return json(res, { ok: false, error: 'Too many events' }, 429);
   }
   row.user_id = await verifiedUserId(req, deps.clientForToken);
 
