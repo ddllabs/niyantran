@@ -173,6 +173,21 @@ shared privately.
 
 ## Decisions for the owner
 
+**Recorded 2026-09-28 (owner):**
+
+- **D1:** wave 1 approved: T1 (user preferences), T2 (analytics) and T4
+  (app flags and marketing video), including their user-data and analytics
+  scopes. T3 (users) is approved to follow wave 1. T5 (invoices) is **not**
+  yet approved.
+- **D2:** keep the testing-phase flag and move it to Supabase
+  (`public.app_flags`) in T4.
+- **D3:** keep analytics events for 180 days, deleted by a nightly `pg_cron`
+  job.
+- **D4, D5:** open.
+
+The original questions:
+
+
 - **D1:** approve the phase order in the plan, and each sensitive phase
   (S3 users, S2 analytics, S6 billing) individually.
 - **D2:** keep the "testing phase" app flag (ADR 0005 said it was not

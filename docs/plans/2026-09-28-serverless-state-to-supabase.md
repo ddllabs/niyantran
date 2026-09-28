@@ -216,6 +216,38 @@ Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
   supervisor's review. `main` and `dev` are fast-forwarded together once a
   wave is verified and the owner approves the merge.
 
+## Wave 1 dispatch (fixed 2026-09-28, before implementation)
+
+- **Integration branch:** `task/serverless-state-to-supabase` (T0 plus this
+  prep). Each task has its own branch and a supervisor-created worktree,
+  and is merged back here only after review.
+
+  | Task | Branch | Migration | Fixture |
+  |---|---|---|---|
+  | T1 | `task/t1-user-preferences` | `20260928100000_user_preferences.sql` | `user_preferences.sql` |
+  | T2 | `task/t2-analytics-events` | `20260928100100_analytics_events.sql` | `analytics_events.sql` |
+  | T4 | `task/t4-app-flags-and-media` | `20260928100200_app_flags_and_marketing_media.sql` | `app_flags_and_marketing_media.sql` (plus `bootstrap_storage.sql`, a stub `storage` schema for plain Postgres) |
+
+- **SQL harness.** `supabase/tests/run.sh` already registers all three
+  fixtures. The chain is the least-privilege chain plus
+  `20260921115831_research_turn_persistence.sql`, then the task's migration.
+  The default fixture list is now discovered from the directory. A new
+  migration must not depend on the 2026-09-22 migrations; a task that needs
+  one reports it instead.
+- **Fixed server interfaces, consumed unchanged:**
+  - `authorizeLocalUser` and `localClientForToken` (`server/usersApi.mjs`)
+    for caller checks and caller-scoped clients;
+  - `getSupabaseAdminClient` (`server/authEmailProvider.mjs`) for
+    secret-key writes.
+  Handlers take injectable dependencies for tests, as `userPrefsApi.mjs`
+  already does with `deps.clientForToken`.
+- **Shared file:** `src/lib/serverlessDurability.test.js`. Each task
+  deletes only its own `KNOWN_OFFENDERS` lines.
+- **Parallel-safe verification:** a task runs `./supabase/tests/run.sh
+  <its fixture>`, never the whole harness, because the three worktrees
+  share the two containers. The supervisor runs the full harness when
+  integrating.
+
 ## Owner actions between tasks
 
 - **After each migration task is accepted and merged:** apply the migration
