@@ -704,11 +704,20 @@ marked otherwise. This supersedes the function table above.
 - **Compute:** the owner upgraded NTER to a 2 GB instance.
 - **Edge Functions:** `health` v7, `admin-models` v7, `refresh-model-pricing`
   v8, `ingest-documents` v10, `desk-brief` v2 (now deployed) and
-  `research-chat` **v30**. v30 was deployed by hand through a one-line entry
-  that imports `supabase/functions/research-chat/index.ts` from GitHub at the
-  pinned commit `93684e7`. It predates the admin persona probe (`8a21133`),
-  so plan task A1 (a standard `supabase functions deploy research-chat
-  --no-verify-jwt` from `main`) is still owed.
+  `research-chat` **v32** (corrected 17:40 UTC; this line first said v30).
+- **Chat outage, 16:26–17:34 UTC.** `research-chat` v30 (16:26) and v31
+  (17:29) were deployed through a one-line entry that only imported
+  `research-chat/index.ts` from GitHub at a pinned commit. That module serves
+  only when it is the entry (`if (import.meta.main)`), so both versions
+  booted and never answered: a probe through `pg_net` timed out after 30 s.
+  v32 (17:34) imports `createResearchHandler` from `main` at `93f31e6` and
+  calls `Deno.serve` itself. The same probe then got **401**
+  `missing bearer token` with the production origin in
+  `access-control-allow-origin`. No chat turn was attempted in the window
+  (the last `model_call_logs` row is 15:31). v32 includes the admin persona
+  probe. The emergency deploy form and its checks are now in
+  `agents/rollback-runbook.md`. A CLI deploy would still make the dashboard
+  show the real files (plan A1).
 - **Edge Function secret:** `ALLOWED_ORIGINS` now includes the production
   site and `http://localhost:5173` (set by the owner).
 - **Migrations:** 31 applied, the last four today: `signup_persona`,

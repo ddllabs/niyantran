@@ -44,6 +44,9 @@ changes run `npm run test:sql`.
 ### Phase A: close today's loose ends (no decisions needed)
 
 - [ ] **A1. Standard redeploy of `research-chat` (S, owner's local session).**
+  *Update 2026-09-28 17:34 UTC:* v32 serves `main` at `93f31e6` (probe
+  included) through the pinned-commit entry, verified by a 401 probe. Left:
+  the CLI deploy, so the dashboard shows the real files.
   - Version 30 was deployed through a one-line entry that imports
     `supabase/functions/research-chat/index.ts` from GitHub at the pinned
     commit `93684e7`. The bytes are verified identical to the repo, but it
@@ -191,7 +194,7 @@ questions are closed.
   - `VITE_AI_BACKEND=legacy`, the legacy panel branch, `/api/ai/chat` once
     C4 moves the admin probe to `research-chat`, and the unused
     `server/personas.mjs`.
-- [ ] **D5. A rollback runbook for Vercel and Supabase (S).**
+- [x] **D5. A rollback runbook for Vercel and Supabase (S).** Done 2026-09-28: `docs/agents/rollback-runbook.md`.
 
 **Checkpoint D:** nter.pro serves this build; the live round passes.
 
