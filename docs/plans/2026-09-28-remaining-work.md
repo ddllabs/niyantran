@@ -81,16 +81,18 @@ production.
   - *Accept:* every route is listed with its check; the billing reads
     require the owner's bearer or an admin (folded into C1 if T5 is
     approved first).
-- [ ] **B3. Stop `npm test` rewriting `public/data/news.json` and
-  `markets.json` (S).**
-  - The tests pass a temporary directory to `server/homeApi.mjs`.
+- [x] **B3. Stop `npm test` rewriting `public/data/news.json` and
+  `markets.json` (S).** Done 2026-09-28.
+  - The home snapshot cache moved to `writablePath('home-snapshots')` (a
+    gitignored `tmp/` locally), so the dev server no longer dirties the
+    seeds either. `conflict.json` was also being rewritten.
   - *Accept:* `git status` is clean after `npm test`.
-- [ ] **B4. The STAT-1 cache stops writing into the app directory (S).**
+- [x] **B4. The STAT-1 cache stops writing into the app directory (S).** Done 2026-09-28 (`writablePath('stat1.json')`, the committed file stays as the seed).
   - `server/budgetStat1.mjs` writes `public/data/…` and swallows the
     failure on Vercel. It moves to a `writablePath` cache key (it is a
     cache) and the guard's allow-list gains that key.
   - *Accept:* the guard test covers it; no write under `public/`.
-- [ ] **B5. `server/loadEnv.mjs` stops reading `nter/.env` (XS).**
+- [x] **B5. `server/loadEnv.mjs` stops reading `nter/.env` (XS).** Done 2026-09-28.
 - [ ] **B6. A CI gate on GitHub Actions (M).**
   - It runs `npm ci`, `npm test`, `npm run build`, the router import and
     the Deno suite on every push and pull request, plus a job that starts
