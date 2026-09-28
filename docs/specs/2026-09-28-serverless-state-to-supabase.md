@@ -179,8 +179,9 @@ shared privately.
 ## Decisions for the owner
 
 **Status 2026-09-28:** S1, S2, S4 and S5 are implemented on
-`task/serverless-state-to-supabase` (T1, T2 and T4), with their migrations
-not yet applied to `NTER`. S3, S6 and S7 remain.
+`task/serverless-state-to-supabase` (T1, T2 and T4). They are merged to
+`main` and `dev`, deployed to production, and their migrations have been
+applied to `NTER`. S3, S6 and S7 remain.
 
 **Recorded 2026-09-28 (owner):**
 

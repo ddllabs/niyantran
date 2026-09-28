@@ -293,6 +293,41 @@ deletions. The list went from 10 entries to 6.
     - the dev server needs `SUPABASE_SECRET_KEY`, or the flag and video
       GETs return 503 (the clients fall back to defaults).
 
+## Wave 1 rollout (2026-09-28, owner-authorised)
+
+- **Merged:** `main` and `dev` point at `8d9ffe2`. Vercel auto-deployed
+  `main` to production (`niyantran-six.vercel.app`, deployment `READY`).
+- **Migrations applied to `NTER`** through the Supabase MCP tools, in
+  order: `20260928100000_user_preferences`, `20260928100100_analytics_events`,
+  `20260928100200_app_flags_and_marketing_media`.
+  - The tool stamps each migration with the time it was applied, so each
+    recorded version was then set to the repo file's version.
+  - The live history now has 27 entries and equals `supabase/migrations/`
+    exactly, so `supabase db push` has nothing pending.
+- **Verified live (read-only queries):**
+  - RLS is on for all three tables, and the policies and grants match the
+    migrations.
+  - `analytics-events-retention` is scheduled at `17 3 * * *`.
+  - The `marketing` bucket is public, with a 50 MB limit and four video
+    types.
+- **Security advisors after the change:** the only new finding is an INFO
+  that `analytics_events` has RLS enabled and no policy. That is intended:
+  it is server-only, like `research_turns`.
+- **Vercel:** `SUPABASE_SECRET_KEY` was already set for production and
+  preview.
+- **Production smoke test:**
+  - `GET /api/app-flags` returns 200 with defaults read from Supabase,
+    which also proves the secret key works;
+  - `GET /api/marketing/intro-video` returns 200;
+  - `GET /api/user-prefs` and `GET /api/analytics/summary` return 401
+    without a session;
+  - no 5xx responses in the 45 minutes after the deploy.
+- **Not verified:**
+  - the project's global Storage upload limit against the 50 MB bucket;
+  - a real signed-in preference save, an admin flag toggle and a video
+    upload (these need an admin session);
+  - no analytics event had arrived yet when checked.
+
 ## Owner actions between tasks
 
 - **After each migration task is accepted and merged:** apply the migration
@@ -301,7 +336,8 @@ deletions. The list went from 10 entries to 6.
   `20260922183000_reasoning_efforts_from_catalogue.sql` to the live version
   `20260922121946`. Otherwise the push re-runs that migration and resets
   `ai_models.efforts` (backlog §0).
-- **To take wave 1 live, in order:**
+- **To take wave 1 live, in order (steps 1–3 and 5 done 2026-09-28; see
+  "Wave 1 rollout"):**
   1. ~~Merge the migration-version rename below.~~ Done 2026-09-28.
   2. `supabase db push` the three wave-1 migrations.
   3. Run the security advisors.
