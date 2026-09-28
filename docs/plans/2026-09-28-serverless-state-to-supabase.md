@@ -248,6 +248,51 @@ Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
   share the two containers. The supervisor runs the full harness when
   integrating.
 
+## Wave 1 result (2026-09-28)
+
+T1, T2 and T4 ran in parallel. Each was reviewed and re-verified by the
+supervisor, then cherry-picked onto the integration branch in plan order:
+T1 `631be0f`, T2 `ae74aca`, T4 `c4b72e9`. The only conflict was the
+expected one in the guard's `KNOWN_OFFENDERS`, resolved by keeping both
+deletions. The list went from 10 entries to 6.
+
+- **Supervisor changes during review:**
+  - T1: the nine preference tests in `src/lib/localUserAuthorization.test.js`
+    exercised SQLite mocks. They were ported to an RLS-applying Supabase
+    fake, keeping every test and its intent; none was removed. Two
+    ownership probes each failed them.
+  - T4: the first draft's `storage.objects` read policy let anyone list
+    the public bucket. It was removed after the fixture was tightened to
+    forbid listing and failed against it.
+- **Integration evidence (executed):**
+  - `npm test` 743/743 (46 files).
+  - The Deno suite 415 passed.
+  - `npm run build` passed (295 modules).
+  - The router imports.
+  - `npm run test:sql`: all 8 fixtures pass, each with vacuity.
+- **Follow-ups from wave 1** (also in the backlog):
+  - T2:
+    - no rate limit on anonymous event POSTs (it needs a design that
+      works across Vercel instances);
+    - `src/lib/productAnalytics.js` sends no bearer, so `user_id` stays
+      null, and it still queues `userEmail` locally;
+    - events rejected with 400 are retried forever from the client
+      queue;
+    - the `pg_cron` branch has not run in any test database.
+  - T1: merge-upsert semantics are proven in SQL but not through
+    PostgREST itself.
+  - T4:
+    - `server/aiApi.mjs` reads the testing-phase flag synchronously from
+      an in-process copy that starts at the defaults on a cold instance;
+      it should await `fetchAppFlags()`;
+    - `src/lib/apiVerification.test.js`'s "state persistence" case no
+      longer tests persistence;
+    - `src/admin/AdminSitePages.jsx` still says 120 MB;
+    - upload progress is now reported in steps;
+    - the signed-URL flow has not been run against real Storage;
+    - the dev server needs `SUPABASE_SECRET_KEY`, or the flag and video
+      GETs return 503 (the clients fall back to defaults).
+
 ## Owner actions between tasks
 
 - **After each migration task is accepted and merged:** apply the migration
@@ -256,6 +301,15 @@ Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
   `20260922183000_reasoning_efforts_from_catalogue.sql` to the live version
   `20260922121946`. Otherwise the push re-runs that migration and resets
   `ai_models.efforts` (backlog §0).
+- **To take wave 1 live, in order:**
+  1. Merge the migration-version rename below.
+  2. `supabase db push` the three wave-1 migrations.
+  3. Run the security advisors.
+  4. Confirm the project's global Storage upload limit against the
+     bucket's 50 MB.
+  5. Set `SUPABASE_SECRET_KEY` on Vercel.
+  6. Run a preview smoke test: save preferences, reload after a
+     redeploy, toggle a flag as an admin, and upload the video.
 - **Before the route changes go live:** set `SUPABASE_SECRET_KEY` (an
   `sb_secret_…` key) in the Vercel environment. `server/` also still reads
   the legacy `SUPABASE_SERVICE_ROLE_KEY` name in two places; T1 should settle

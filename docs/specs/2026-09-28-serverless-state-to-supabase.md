@@ -126,9 +126,14 @@ shared privately.
 - **S4 and S5, app flags and the marketing video.**
   - Table: `public.app_flags (key text primary key, value jsonb,
     updated_at, updated_by uuid)`.
-  - Select is open to `anon` and `authenticated` only for keys marked
-    public. Writes go through the route after an internal-admin check.
-  - The intro video moves to a public-read Storage bucket (`marketing`).
+  - Select is open to `anon` and `authenticated` on the columns `key`,
+    `value` and `updated_at` for every row, because both GET routes are
+    public by design; `updated_by` stays server-only (corrected
+    2026-09-28 to match T4). Writes go through the route after an
+    internal-admin check.
+  - The intro video moves to a public-read Storage bucket (`marketing`,
+    50 MB limit). `storage.objects` has no client policy: public files
+    are served by URL, and a read policy would only allow listing.
   - Vercel caps request bodies at about 4.5 MB, so the upload uses a
     server-issued signed upload URL; the route writes only the metadata
     row.
@@ -172,6 +177,10 @@ shared privately.
   - home-feeds tables other than what S7 needs after D4
 
 ## Decisions for the owner
+
+**Status 2026-09-28:** S1, S2, S4 and S5 are implemented on
+`task/serverless-state-to-supabase` (T1, T2 and T4), with their migrations
+not yet applied to `NTER`. S3, S6 and S7 remain.
 
 **Recorded 2026-09-28 (owner):**
 
