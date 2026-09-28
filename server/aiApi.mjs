@@ -677,11 +677,13 @@ export async function handleAiApi(req, res, next) {
         sourceNote: payload.sourceNote || '',
         sourceExtract: payload.sourceExtract || '',
         scope: payload.scope === 'substance' ? 'substance' : 'entry',
+        authorization: req.headers?.authorization,
       });
       return json(res, { ok: true, ...out });
     } catch (err) {
       const msg = err.message || String(err);
-      return json(res, { ok: false, error: msg }, /missing|required|Select a row|No rows/i.test(msg) ? 400 : 502);
+      const status = Number.isInteger(err.status) ? err.status : /missing|required|Select a row|No rows/i.test(msg) ? 400 : 502;
+      return json(res, { ok: false, error: msg }, status);
     }
   }
 
