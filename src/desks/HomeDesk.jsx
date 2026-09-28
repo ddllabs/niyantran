@@ -539,6 +539,37 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           </section>
 
           <section className="nh-box">
+            <div className="bh">MY WATCHLIST</div>
+            <ul className="nh-watchlist">
+              {watchlist.length === 0 && <li className="muted" style={{ fontSize: 12 }}>No saved desks yet.</li>}
+              {watchlist.map((w) => (
+                <li key={`${w.tab}:${w.feature}`}>
+                  <button type="button" onClick={() => onOpen({ tab: w.tab, feature: w.feature })}>
+                    {w.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="nh-box">
+            <div className="bh">FEED HEALTH</div>
+            <div className="nh-health">
+              <div>
+                <span>Markets</span>
+                <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+              </div>
+              <div>
+                <span>Latest (nter.news)</span>
+                <b>{meta.latest?.ageH != null ? `${Number(meta.latest.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+              </div>
+              <div>
+                <span>Conflict pulse</span>
+                <b>{meta.pulse?.ageH != null ? `${Number(meta.pulse.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+              </div>
+            </div>
+          </section>
+          <section className="nh-box">
             <div className="bh">
               <span>
                 MARKETS (DELAYED SNAPSHOT)
@@ -625,37 +656,6 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             </ul>
           </section>
 
-          <section className="nh-box">
-            <div className="bh">MY WATCHLIST</div>
-            <ul className="nh-watchlist">
-              {watchlist.length === 0 && <li className="muted" style={{ fontSize: 12 }}>No saved desks yet.</li>}
-              {watchlist.map((w) => (
-                <li key={`${w.tab}:${w.feature}`}>
-                  <button type="button" onClick={() => onOpen({ tab: w.tab, feature: w.feature })}>
-                    {w.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="nh-box">
-            <div className="bh">FEED HEALTH</div>
-            <div className="nh-health">
-              <div>
-                <span>Markets</span>
-                <b>{meta.markets?.ageH != null ? `${Number(meta.markets.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
-              </div>
-              <div>
-                <span>Latest (nter.news)</span>
-                <b>{meta.latest?.ageH != null ? `${Number(meta.latest.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
-              </div>
-              <div>
-                <span>Conflict pulse</span>
-                <b>{meta.pulse?.ageH != null ? `${Number(meta.pulse.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
-              </div>
-            </div>
-          </section>
         </aside>
       </div>
     </div>

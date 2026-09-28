@@ -140,7 +140,16 @@ down.
 - [ ] **C6. The testing-phase flag (S).**
   - Enforce it in `research-chat` (free models only while it is on), or
     retire it with its table and admin toggle.
-- [ ] **C7. UI decisions (S each).**
+- [x] **C7. UI decisions (S each).** Done 2026-09-28.
+  - The hero shows the bright spinning `globe.png` again (the walkthrough
+    poster keeps the GIF).
+  - The Watchlist and Feed health were never removed; they sat at the
+    bottom of the right rail, below the first screen. They now sit right
+    under Live Latest.
+  - Live TV crashed the whole terminal on open (a hook after an early
+    return in `LiveTvModal`). Fixed, with a hook-count test. Its chrome is
+    recoloured to the light tokens, and the player stays dark.
+  - The signup question was not answered, so signup is unchanged.
   - Home hero globe: bright globe vs the dimmer animated GIF.
   - Signup: plan on the first page vs a second step.
   - Terminal Home: restore the watchlist and feed health vs keep the

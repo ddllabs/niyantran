@@ -312,7 +312,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
           </div>
           <div className="mkt-orb-wrap" aria-hidden="false">
             <div className="mkt-orb-layer">
-              <img className="mkt-globe mkt-globe-gif" src="/brand/globe.gif?v=4" alt="" decoding="async" />
+              <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" decoding="async" />
             </div>
             {PERSONAS.map((p, i) => (
               <button
