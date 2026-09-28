@@ -296,6 +296,9 @@ export function userFromSupabase(supabaseUser, profile, extras = {}) {
       active: p.status === 'active',
       createdAt: p.created_at || supabaseUser.created_at || new Date().toISOString(),
       onboardingComplete: Boolean(p.onboarding_complete),
+      // Whether the profile itself holds a persona, not the fallback type:
+      // App asks an account without one to choose (plan C5).
+      personaSaved: Boolean(frontendPersona(p.persona)),
       supabase: true,
     },
     type,

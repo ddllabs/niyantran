@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./marketing/MarketingSite.jsx', () => ({ default: () => 'MARKETING' }));
 vi.mock('./shell/TerminalShell.jsx', () => ({ default: () => 'TERMINAL' }));
 vi.mock('./admin/AdminApp.jsx', () => ({ default: () => 'ADMIN' }));
+vi.mock('./shell/PersonaChooser.jsx', () => ({ default: () => 'CHOOSER' }));
 vi.mock('./lib/siteHead.js', () => ({ startSiteHead: vi.fn() }));
 vi.mock('./lib/appFlagsStore.js', () => ({ hydrateAppFlags: vi.fn(async () => ({})), isTestingPhase: () => false }));
 vi.mock('./lib/personas.js', () => ({ applyPersonaForUser: vi.fn(), readPersonaId: vi.fn(() => 'analyst') }));
@@ -50,6 +51,19 @@ describe('terminal sign-in gate', () => {
   it('opens the terminal when the flag is set and a user is stored', () => {
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student' });
     expect(sessionStorage.getItem('niyantranAuthed')).toBe('1');
+    expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
+  });
+  // Accounts whose profile has no saved persona answered as Corporate Affairs
+  // without ever being asked (plan C5). They choose once, at sign-in.
+  it('asks an account with no saved persona to choose one', () => {
+    setSessionUser({ id: 'uid-1', email: 'person@example.org', personaSaved: false });
+    expect(renderToStaticMarkup(createElement(App))).toBe('CHOOSER');
+  });
+
+  it('opens the terminal directly for an account whose persona is saved, or unknown', () => {
+    setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'journalist', personaSaved: true });
+    expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
+    setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'journalist' });
     expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
   });
 });

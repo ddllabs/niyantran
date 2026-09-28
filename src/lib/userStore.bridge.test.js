@@ -599,3 +599,10 @@ describe('session user after an OAuth return', () => {
     expect(sessionStorage.getItem('preferredPersona')).toBeNull();
   });
 });
+
+describe('personaSaved', () => {
+  it('says whether the profile itself holds a persona', () => {
+    expect(store.userFromSupabase({ id: 'a', email: 'a@example.test' }, { user_id: 'a', persona: 'journalist', status: 'active' }).personaSaved).toBe(true);
+    expect(store.userFromSupabase({ id: 'a', email: 'a@example.test' }, { user_id: 'a', persona: null, status: 'active' }).personaSaved).toBe(false);
+  });
+});

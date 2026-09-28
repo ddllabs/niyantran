@@ -1,27 +1,31 @@
 /* CR-07 / CR-08 — persona chooser + first-run tours */
 
 .persona-chooser {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow-y: auto;
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: linear-gradient(160deg, #0b1220 0%, #152238 55%, #1a2740 100%);
-  color: #e8edf2;
+  background: var(--bg);
+  color: var(--fg);
 }
 .persona-chooser-card {
   width: min(980px, 100%);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 28px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 24px 60px rgba(19, 19, 19, 0.08);
 }
 .persona-kicker {
   margin: 0 0 8px;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #93a4b8;
+  color: var(--muted);
 }
 .persona-chooser-card h1 {
   margin: 0 0 8px;
@@ -30,7 +34,7 @@
 }
 .persona-lead {
   margin: 0 0 20px;
-  color: #b9c2cc;
+  color: var(--muted);
   line-height: 1.45;
 }
 .persona-grid {
@@ -50,8 +54,8 @@
 }
 .persona-card {
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(13, 22, 36, 0.85);
+  border: 1px solid var(--line);
+  background: var(--panel);
   color: inherit;
   border-radius: 12px;
   padding: 14px;
@@ -66,7 +70,7 @@
 }
 .persona-blurb {
   font-size: 12px;
-  color: #9aa8b8;
+  color: var(--muted);
   line-height: 1.4;
 }
 .persona-gets {
@@ -74,7 +78,7 @@
   margin: 0;
   padding-left: 16px;
   font-size: 11px;
-  color: #c5d0dc;
+  color: var(--fg);
   line-height: 1.35;
 }
 .persona-card:hover .persona-gets,
@@ -84,26 +88,26 @@
 }
 .persona-card:hover,
 .persona-card.on {
-  border-color: #6ea8fe;
-  box-shadow: 0 0 0 1px rgba(110, 168, 254, 0.35);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .persona-followups {
   margin-top: 18px;
   display: grid;
   gap: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--line);
   padding-top: 16px;
 }
 .persona-followups label {
   display: grid;
   gap: 6px;
   font-size: 13px;
-  color: #c5ced8;
+  color: var(--fg);
 }
 .persona-followups select {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: #0d1624;
-  color: #e8edf2;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--fg);
   border-radius: 8px;
   padding: 10px 12px;
   font: inherit;
@@ -113,8 +117,8 @@
   border: none;
   border-radius: 8px;
   padding: 10px 16px;
-  background: #e8edf2;
-  color: #0b1220;
+  background: var(--accent);
+  color: #fff;
   font-weight: 700;
   cursor: pointer;
 }
@@ -182,4 +186,17 @@
 .niy-tour-actions button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.persona-cancel {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
 }

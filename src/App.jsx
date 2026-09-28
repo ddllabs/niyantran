@@ -5,6 +5,7 @@ import AdminApp from './admin/AdminApp.jsx';
 import { startSiteHead } from './lib/siteHead.js';
 import { hydrateAppFlags } from './lib/appFlagsStore.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
+import PersonaChooser from './shell/PersonaChooser.jsx';
 import { publishVerifiedSessionUser, sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
 import './shell/onboarding.css';
 
@@ -57,6 +58,10 @@ export default function App() {
   const [legal, setLegal] = useState(isLegalPath);
   const [authed, setAuthed] = useState(isSignedIn);
   const [mktOverlay, setMktOverlay] = useState(isMarketingOverlayPath);
+  // An account whose profile has no saved persona chooses one once; the
+  // chooser saves it to the profile, so the question is not asked again.
+  const needsPersona = () => isSignedIn() && sessionUser()?.personaSaved === false;
+  const [choosingPersona, setChoosingPersona] = useState(needsPersona);
   const [personaReady, setPersonaReady] = useState(() => {
     if (!isSignedIn()) return Boolean(readPersonaId());
     return ensurePersonaFromSession();
@@ -81,6 +86,7 @@ export default function App() {
             publishVerifiedSessionUser().then((user) => {
               if (!mounted || !user) return;
               setAuthed(true);
+              setChoosingPersona(needsPersona());
               setPersonaReady(ensurePersonaFromSession());
             });
           }, 0);
@@ -118,6 +124,7 @@ export default function App() {
         onAuthed={() => {
           setAuthed(true);
           setMktOverlay(false);
+          setChoosingPersona(needsPersona());
           setPersonaReady(ensurePersonaFromSession());
           const h = location.hash.toLowerCase();
           if (h.includes('login') || h.includes('signup') || h.includes('pricing') || h.includes('forgot') || h.includes('reset')) {
@@ -128,7 +135,18 @@ export default function App() {
     );
   }
 
-  // Persona is set at signup / restored on login — never prompt after sign-in.
+  if (choosingPersona) {
+    return (
+      <PersonaChooser
+        onDone={() => {
+          setChoosingPersona(false);
+          setPersonaReady(ensurePersonaFromSession());
+        }}
+      />
+    );
+  }
+
+  // Persona is set at signup / restored on login, or chosen once above.
   if (!personaReady) ensurePersonaFromSession();
 
   return (

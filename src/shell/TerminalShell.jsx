@@ -35,6 +35,7 @@ import { setPageTitle } from '../lib/siteHead.js';
 import AiDock from '../ai/AiDock.jsx';
 import { takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
+import PersonaChooser from './PersonaChooser.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
@@ -55,6 +56,7 @@ export default function TerminalShell({ onLogout }) {
   const [aiOpen, setAiOpen] = useState(false);
   const [liveTvOpen, setLiveTvOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [personaOpen, setPersonaOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
   const [upgrade, setUpgrade] = useState(null);
   const profileRef = useRef(null);
@@ -523,6 +525,16 @@ export default function TerminalShell({ onLogout }) {
                       {ent.status === 'trial' ? 'Upgrade plan' : 'View plans'}
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    className="profile-pop-persona"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      setPersonaOpen(true);
+                    }}
+                  >
+                    Change persona
+                  </button>
                   <button type="button" className="logout-btn" onClick={doLogout}>
                     Log out
                   </button>
@@ -577,6 +589,15 @@ export default function TerminalShell({ onLogout }) {
         <AiDock feed={feed} selected={selected} tab={tab} featureName={featureName} lang={lang} onOpenChange={setAiOpen} />
       </div>
       {tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />}
+      {personaOpen ? (
+        <PersonaChooser
+          onCancel={() => setPersonaOpen(false)}
+          onDone={() => {
+            setPersonaOpen(false);
+            setUserTick((n) => n + 1);
+          }}
+        />
+      ) : null}
       <UpgradeModal
         open={Boolean(upgrade)}
         reason={upgrade?.reason || 'desk'}

@@ -53,8 +53,8 @@ changes run `npm run test:sql`.
   - *Accept:* a new version is ACTIVE, `verify_jwt` is off, the dashboard
     shows the real files, and one chat turn succeeds.
 - [ ] **A2. Academic end-to-end (XS, owner).**
-  - The owner switches their own account to Academic in the persona
-    chooser and asks one question.
+  - The owner switches their own account to Academic from the profile
+    menu's "Change persona" and asks one question.
   - *Accept:* the answer opens with RESEARCH QUESTION / EVIDENCE /
     CHRONOLOGY, and the `model_call_logs` row is `success`.
 - [ ] **A3. Record the day in the docs (S).**
@@ -125,15 +125,18 @@ down.
   - delete `server/db.mjs`;
   - empty `KNOWN_OFFENDERS`;
   - mark the serverless-state spec and plan Historical.
-- [ ] **C4. The admin persona probe tests the persona it names (S–M).**
+- [x] **C4. The admin persona probe tests the persona it names (S–M).** Code done 2026-09-28 (`8a21133`, Deno tests green). Live only after the A1 redeploy: version 30 predates it.
   - `research-chat` accepts a `persona_probe` field only when the caller
     is a platform admin (checked server-side) and otherwise ignores it.
   - `AdminPersonaChat` sends it.
   - *Accept:* a Deno test where an admin probe gets the named prompt and a
     non-admin's probe is ignored.
-- [ ] **C5. Ask accounts with no persona to choose one (S).**
+- [x] **C5. Ask accounts with no persona to choose one (S).** Done 2026-09-28.
   - On sign-in, a profile with a null persona sees the persona chooser
     once. The chooser already saves to the profile.
+  - The chooser had never been rendered anywhere, so it was also added to
+    the profile menu ("Change persona", with "Keep my current persona" to
+    back out) and recoloured to the light theme.
 - [ ] **C6. The testing-phase flag (S).**
   - Enforce it in `research-chat` (free models only while it is on), or
     retire it with its table and admin toggle.

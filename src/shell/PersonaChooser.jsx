@@ -13,7 +13,7 @@ function userTypeForPersona(id) {
   return userTypeOf(id).id;
 }
 
-export default function PersonaChooser({ onDone }) {
+export default function PersonaChooser({ onDone, onCancel }) {
   const [picked, setPicked] = useState(null);
   const [answers, setAnswers] = useState({});
   const followups = useMemo(() => PERSONA_FOLLOWUPS.slice(0, 2), []);
@@ -25,7 +25,7 @@ export default function PersonaChooser({ onDone }) {
     const user = sessionUser();
     if (user) {
       const type = userTypeForPersona(picked.id);
-      setSessionUser({ ...user, type, personaId: picked.id });
+      setSessionUser({ ...user, type, personaId: picked.id, personaSaved: true });
       const land =
         answers.start === 'home' ? 'home' : userTypeOf(type).startTab || 'home';
       sessionStorage.setItem('niyantranLand', land);
@@ -45,7 +45,7 @@ export default function PersonaChooser({ onDone }) {
   return (
     <div className="persona-chooser" role="dialog" aria-labelledby="persona-chooser-title">
       <div className="persona-chooser-card">
-        <p className="persona-kicker">Provisional · saved on this device until accounts</p>
+        <p className="persona-kicker">Saved to your account · change it any time from your profile</p>
         <h1 id="persona-chooser-title">Who are you working as?</h1>
         <p className="persona-lead">
           Choose a persona so the terminal opens on the desks that matter. Hover a card to see what you get.
@@ -90,6 +90,11 @@ export default function PersonaChooser({ onDone }) {
               Continue to terminal
             </button>
           </div>
+        ) : null}
+        {onCancel ? (
+          <button type="button" className="persona-cancel" onClick={onCancel}>
+            Keep my current persona
+          </button>
         ) : null}
       </div>
     </div>
