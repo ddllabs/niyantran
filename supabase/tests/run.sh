@@ -57,7 +57,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence)
+    least_privilege|research_turn_persistence|user_preferences|analytics_events|app_flags_and_marketing_media)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -68,7 +68,16 @@ chain() {
              "$(m 20260921000011_desk_rows_search.sql)" "$(m 20260921000012_profile_authority.sql)"
              "$(m 20260921000013_conversation_ownership.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)"
              "$(m 20260921000015_least_privilege.sql)")
-      [ "$1" = research_turn_persistence ] && FILES+=("$(m 20260921115831_research_turn_persistence.sql)")
+      [ "$1" = least_privilege ] && return 0
+      FILES+=("$(m 20260921115831_research_turn_persistence.sql)")
+      # Serverless-state stores (docs/plans/2026-09-28-serverless-state-to-supabase.md).
+      # Each chain ends with the migration its fixture proves, for the vacuity check.
+      case "$1" in
+        user_preferences) FILES+=("$(m 20260928100000_user_preferences.sql)") ;;
+        analytics_events) FILES+=("$(m 20260928100100_analytics_events.sql)") ;;
+        app_flags_and_marketing_media)
+          FILES+=("$TESTS/bootstrap_storage.sql" "$(m 20260928100200_app_flags_and_marketing_media.sql)") ;;
+      esac
       return 0 ;;
     *) echo "unknown fixture: $1" >&2; return 1 ;;
   esac
@@ -130,7 +139,14 @@ run_fixture() {
 }
 
 FIXTURES=("$@")
-[ ${#FIXTURES[@]} -eq 0 ] && FIXTURES=(profile_authority conversation_ownership corpus_revision_integrity least_privilege research_turn_persistence)
+# Default: every fixture file in supabase/tests, so a new fixture cannot be
+# forgotten here; one without a chain() entry fails as "unknown fixture".
+if [ ${#FIXTURES[@]} -eq 0 ]; then
+  for f in "$TESTS"/*.sql; do
+    n="$(basename "$f" .sql)"
+    case "$n" in bootstrap_*) ;; *) FIXTURES+=("$n") ;; esac
+  done
+fi
 
 fail=0
 for f in "${FIXTURES[@]}"; do run_fixture "$f" || fail=1; done

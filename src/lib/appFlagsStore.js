@@ -1,7 +1,9 @@
 /**
  * Global app flags from /api/app-flags (testing phase, etc.).
  * Hydrated at boot; admin Overview can flip testingPhase for all seats.
+ * Reads are public; saving needs a verified internal-admin session.
  */
+import { verifiedLocalIdentity } from './userStore.js';
 
 const EVENT = 'niy-app-flags';
 
@@ -58,9 +60,11 @@ export async function hydrateAppFlags({ force = false } = {}) {
 }
 
 export async function saveAppFlags(patch) {
+  const identity = await verifiedLocalIdentity({ admin: true });
+  if (!identity) throw new Error('Internal admin sign-in required');
   const res = await fetch('/api/app-flags', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
     body: JSON.stringify(patch),
   });
   const data = await res.json().catch(() => null);

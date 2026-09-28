@@ -1,7 +1,7 @@
 # Database Architecture: Schema, Tables, Indexes, and RLS Security Matrix
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating migrations 0001 through 0015, `20260921115831`, `20260922073820`, `20260922073933`, `20260922082308`, `20260922084135`, `20260922104646`, and `20260922183000`.
+> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating migrations 0001 through 0015, `20260921115831`, `20260922073820`, `20260922073933`, `20260922082308`, `20260922084135`, `20260922104646`, and `20260922121946`.
 
 ---
 

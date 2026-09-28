@@ -17,18 +17,21 @@ to backend contracts and does not establish a competing backend architecture.
 - **Authoritative System:** **Supabase Auth** is the sole authoritative authentication system.
 - **Google OAuth:** Handled entirely through native Supabase Auth (`supabase.auth.signInWithOAuth({ provider: 'google' })`).
 - **Elimination of Legacy Custom Auth:** Legacy custom Google authentication (`google-auth-library`, `server/googleAuth.mjs`, and `/api/auth/google`) has been permanently decommissioned and removed from the active execution path.
-- **Session Lifecycle:** Client sessions rely on Supabase JWT tokens. Profile data and roles are hydrated from Supabase tables (`public.profiles`, `public.user_preferences`).
+- **Session Lifecycle:** Client sessions rely on Supabase JWT tokens. Profile data and roles are hydrated from `public.user_profiles` (via the `get_my_profile` RPC; `user_profiles.user_id` references `auth.users`). There is no `public.profiles` or `public.user_preferences` table (verified against the live schema 2026-09-28); preferences are currently stored by `/api/user-prefs` in SQLite (see below).
 
 ### Database & Persistence
 
 - **Authoritative System of Record:** **Supabase PostgreSQL** is the durable system of record.
 - **Data Integrity:** Primary enterprise entities, analyst profiles, audit logs, document corpora, and conversation histories reside in PostgreSQL.
-- **Local Cache Boundaries:** SQLite, browser `localStorage`, and server `tmp/` directories serve only as ephemeral local scratchpads or caching tiers during offline/development workflows. They must never become the durable production source of truth.
-  - `tmp/niyantran.sqlite` (or `/tmp/niyantran/niyantran.sqlite` on serverless): Ephemeral cache for desk briefs and local admin testing fixtures.
-  - `desk-briefs/*.json`: Ephemeral local desk brief envelopes.
-  - `app-flags.json`: Local development feature flag toggles (e.g., testing mode).
+- **Local Cache Boundaries (the rule):** SQLite, browser `localStorage`, and server `tmp/` directories may serve only as ephemeral local scratchpads or caching tiers. They must never become the durable production source of truth.
+- **Current state (corrected 2026-09-28, by reading the code at `ca73200`): the rule is not yet met.** `api/router.js` serves these handlers on Vercel, where `writablePath()` resolves to `/tmp/niyantran` and is lost on cold starts and between instances:
+  - `tmp/niyantran.sqlite` (`server/db.mjs`) holds five tables: `users` (`/api/users`), `analytics_events` (`/api/analytics/*`), `user_prefs` (`/api/user-prefs`), `invoices` (`/api/billing/*`) and `entry_briefs` (desk-brief cache). Only `entry_briefs` is a cache; the other four are durable data.
+  - `issued-users.json` (`/api/users`), `app-flags.json` (`/api/app-flags`), `nter-news.json` (`/api/news/ingest`), `marketing-intro-video.json` plus the uploaded video (`/api/marketing/intro-video`): durable data written to files.
+  - `desk-briefs/*.json` and the Budget STAT-1 cache (`server/budgetStat1.mjs`): caches, safe to lose.
+  - The plan that closes the gap is `docs/specs/2026-09-28-serverless-state-to-supabase.md`.
+- **Read-only and client-side stores:**
   - `public/data/*.json`: Static read-only snapshot bundles and seed feeds.
-  - Client `localStorage`: Ephemeral client working copy for current UI state and offline preferences; automatically synced to/from the server database upon authentication (`userPrefsSync.js`).
+  - Client `localStorage`: client working copy for UI state and offline preferences; synced through `/api/user-prefs` after sign-in (`userPrefsSync.js`), which today means the SQLite store above.
 
 ### Universal AI Gateway (Supabase Edge Secret Boundary)
 

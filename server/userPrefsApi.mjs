@@ -1,10 +1,26 @@
 /**
- * A-15 — per-user prefs in SQLite (watchlist, AI chats, tours).
+ * A-15 — per-user prefs (watchlist, AI chats, tours) in Supabase
+ * `public.user_preferences` (migration 20260928100000_user_preferences.sql).
  *   GET  /api/user-prefs (optional matching email for compatibility)
  *   PUT  /api/user-prefs  { watchlist?, aiChats?, tours?, email? }
+ *
+ * Data access runs through a client bound to the caller's own bearer, so the
+ * table's `user_id = auth.uid()` policies check ownership a second time. This
+ * handler never uses a privileged key.
  */
-import { getDb, queryAll, run } from './db.mjs';
-import { authorizeLocalUser } from './usersApi.mjs';
+import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
+
+const TABLE = 'user_preferences';
+const MAX_BODY_CHARS = 2.5 * 1024 * 1024;
+// Per-field byte limits on the compact JSON. The migration's CHECK constraints
+// use the same numbers on the stored jsonb text as a backstop.
+const FIELD_LIMITS = {
+  watchlist: { column: 'watchlist', maxBytes: 64 * 1024 },
+  aiChats: { column: 'ai_chats', maxBytes: 2 * 1024 * 1024 },
+  tours: { column: 'tours', maxBytes: 64 * 1024 },
+};
+
+class TooLarge extends Error {}
 
 function json(res, body, status = 200) {
   res.statusCode = status;
@@ -14,23 +30,24 @@ function json(res, body, status = 200) {
 }
 
 async function readBody(req) {
-  if (req.body && typeof req.body === 'object') return JSON.stringify(req.body);
-  if (typeof req.body === 'string') return req.body;
-  let body = '';
-  for await (const chunk of req) {
-    body += chunk;
-    if (body.length > 2.5 * 1024 * 1024) throw new Error('Request too large');
+  // ADR 0010: on Vercel the body often arrives pre-parsed.
+  let body;
+  if (req.body && typeof req.body === 'object') body = JSON.stringify(req.body);
+  else if (typeof req.body === 'string') body = req.body;
+  else {
+    body = '';
+    for await (const chunk of req) {
+      body += chunk;
+      if (body.length > MAX_BODY_CHARS) throw new TooLarge();
+    }
   }
+  if (body.length > MAX_BODY_CHARS) throw new TooLarge();
   return body;
 }
 
-function parseJson(raw, fallback) {
-  try {
-    if (raw == null || raw === '') return fallback;
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
+function bearerToken(req) {
+  // authorizeLocalUser has already accepted exactly this header shape.
+  return /^Bearer ([^\s,]+)$/i.exec(req.headers.authorization)[1];
 }
 
 export async function handleUserPrefsApi(req, res, next, deps = {}) {
@@ -49,19 +66,17 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
 
   if (url.pathname !== '/api/user-prefs') return json(res, { ok: false, error: 'Not found' }, 404);
   if (!['GET', 'PUT'].includes(req.method)) return json(res, { ok: false, error: 'GET or PUT only' }, 405);
-  const caller = await authorizeLocalUser(req, res, { clientForToken: deps.clientForToken });
+  const clientForToken = deps.clientForToken || localClientForToken;
+  const caller = await authorizeLocalUser(req, res, { clientForToken });
   if (!caller) return;
   const email = caller.email;
-  // Keep the existing SQLite column for compatibility, but key new preferences
-  // by verified identity: emails can change or be reused by another account.
-  // Never read/adopt legacy email-keyed rows; reconciliation is a separate task.
-  const storageKey = `supabase:${caller.id}`;
   let payload;
   if (req.method === 'PUT') {
     try {
       payload = JSON.parse((await readBody(req)) || '{}');
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Invalid prefs');
-    } catch {
+    } catch (error) {
+      if (error instanceof TooLarge) return json(res, { ok: false, error: 'Preferences payload too large' }, 413);
       return json(res, { ok: false, error: 'Invalid preferences payload' }, 400);
     }
   }
@@ -69,62 +84,56 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
   if (supplied.some((value) => value != null && (typeof value !== 'string' || value.trim().toLowerCase() !== email))) {
     return json(res, { ok: false, error: 'Preferences belong to the signed-in account' }, 403);
   }
-  try {
-    const database = await getDb();
 
-    if (url.pathname === '/api/user-prefs' && req.method === 'GET') {
-      const row = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [storageKey])[0];
-      if (!row) {
-        return json(res, {
-          ok: true,
-          email,
-          prefs: { watchlist: null, aiChats: null, tours: null },
-          updatedAt: null,
-          engine: 'sqlite',
-        });
+  // Rows are keyed by the stable verified Auth user ID, never by email.
+  let row;
+  if (req.method === 'PUT') {
+    row = { user_id: caller.id };
+    for (const [field, { column, maxBytes }] of Object.entries(FIELD_LIMITS)) {
+      // Omitted fields are not sent, so a partial PUT keeps the stored values.
+      if (payload[field] === undefined) continue;
+      if (Buffer.byteLength(JSON.stringify(payload[field]), 'utf8') > maxBytes) {
+        return json(res, { ok: false, error: 'Preferences payload too large' }, 413);
       }
+      row[column] = payload[field];
+    }
+  }
+
+  try {
+    const client = clientForToken(bearerToken(req));
+
+    if (req.method === 'GET') {
+      const { data, error } = await client
+        .from(TABLE)
+        .select('watchlist, ai_chats, tours, updated_at')
+        .eq('user_id', caller.id)
+        .maybeSingle();
+      if (error) throw new Error('Preference read failed');
       return json(res, {
         ok: true,
         email,
         prefs: {
-          watchlist: parseJson(row.watchlist_json, null),
-          aiChats: parseJson(row.ai_chats_json, null),
-          tours: parseJson(row.tours_json, null),
+          watchlist: data?.watchlist ?? null,
+          aiChats: data?.ai_chats ?? null,
+          tours: data?.tours ?? null,
         },
-        updatedAt: row.updated_at,
-        engine: 'sqlite',
+        updatedAt: data?.updated_at ?? null,
+        engine: 'supabase',
       });
     }
 
-    if (url.pathname === '/api/user-prefs' && req.method === 'PUT') {
-
-      const existing = queryAll(database, `SELECT * FROM user_prefs WHERE user_email = ?`, [storageKey])[0];
-      const watchlist =
-        payload.watchlist !== undefined
-          ? JSON.stringify(payload.watchlist)
-          : existing?.watchlist_json ?? null;
-      const aiChats =
-        payload.aiChats !== undefined ? JSON.stringify(payload.aiChats) : existing?.ai_chats_json ?? null;
-      const tours = payload.tours !== undefined ? JSON.stringify(payload.tours) : existing?.tours_json ?? null;
-      const updatedAt = new Date().toISOString();
-
-      run(
-        database,
-        `INSERT INTO user_prefs (user_email, watchlist_json, ai_chats_json, tours_json, updated_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(user_email) DO UPDATE SET
-           watchlist_json = excluded.watchlist_json,
-           ai_chats_json = excluded.ai_chats_json,
-           tours_json = excluded.tours_json,
-           updated_at = excluded.updated_at`,
-        [storageKey, watchlist, aiChats, tours, updatedAt],
-      );
-      return json(res, { ok: true, email, updatedAt, engine: 'sqlite' });
-    }
-
-    return json(res, { ok: false, error: 'Not found' }, 404);
+    // One INSERT ... ON CONFLICT DO UPDATE of only the supplied columns;
+    // the table's trigger sets updated_at.
+    const { data, error } = await client
+      .from(TABLE)
+      .upsert(row, { onConflict: 'user_id' })
+      .select('updated_at')
+      .single();
+    if (error?.code === '23514') return json(res, { ok: false, error: 'Preferences payload too large' }, 413);
+    if (error || !data) throw new Error('Preference write failed');
+    return json(res, { ok: true, email, updatedAt: data.updated_at, engine: 'supabase' });
   } catch {
-    return json(res, { ok: false, error: 'Unable to access local preferences' }, 500);
+    return json(res, { ok: false, error: 'Unable to access preferences' }, 500);
   }
 }
 

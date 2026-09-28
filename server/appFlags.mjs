@@ -1,26 +1,24 @@
 /**
- * Global app flags (testing phase, etc.).
+ * Global app flags (testing phase, etc.), stored in Supabase `public.app_flags`.
  *
- *   GET  /api/app-flags
- *   PUT  /api/app-flags   { testingPhase: boolean }
+ *   GET  /api/app-flags                              public
+ *   PUT  /api/app-flags   { testingPhase: boolean }  internal admin (bearer)
  *
- * Persisted in tmp/app-flags.json (same host model as users SQLite / intro video).
+ * Reads and writes use the server's secret-key client after the route's own
+ * checks; clients have no write access to the table (migration
+ * 20260928100200_app_flags_and_marketing_media.sql).
  */
-import fs from 'fs';
-import path from 'path';
-import { writablePath } from './writableRoot.mjs';
+import { getSupabaseAdminClient } from './authEmailProvider.mjs';
+import { authorizeLocalUser } from './usersApi.mjs';
 
-const FLAGS_FILE = writablePath('app-flags.json');
+const TESTING_PHASE_KEY = 'testing_phase';
+const MAX_BODY_BYTES = 16 * 1024;
 
 function json(res, body, status = 200) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(body));
-}
-
-function ensureDir() {
-  fs.mkdirSync(path.dirname(FLAGS_FILE), { recursive: true });
 }
 
 export function defaultAppFlags() {
@@ -30,32 +28,62 @@ export function defaultAppFlags() {
   };
 }
 
+// Last flags this process read from or wrote to Supabase. Only synchronous
+// callers use it (assertAiAllowedInTesting in the legacy AI path); it starts
+// at the defaults on a cold instance until a GET or PUT refreshes it.
+let snapshot = defaultAppFlags();
+
+/** Synchronous, process-local view of the flags. Not a durable read. */
 export function readAppFlags() {
-  ensureDir();
-  try {
-    if (fs.existsSync(FLAGS_FILE)) {
-      const raw = JSON.parse(fs.readFileSync(FLAGS_FILE, 'utf8'));
-      return {
-        ...defaultAppFlags(),
-        testingPhase: Boolean(raw.testingPhase),
-        updatedAt: String(raw.updatedAt || ''),
-      };
-    }
-  } catch {
-    /* defaults */
-  }
-  return defaultAppFlags();
+  return { ...snapshot };
 }
 
+/**
+ * Applies a patch to the process-local view only; it does not persist.
+ * Durable writes go through PUT /api/app-flags (storeAppFlags).
+ */
 export function writeAppFlags(patch = {}) {
-  ensureDir();
-  const prev = readAppFlags();
-  const next = {
-    testingPhase: patch.testingPhase != null ? Boolean(patch.testingPhase) : prev.testingPhase,
-    updatedAt: new Date().toISOString(),
+  snapshot = {
+    testingPhase: patch.testingPhase != null ? Boolean(patch.testingPhase) : snapshot.testingPhase,
+    updatedAt: patch.updatedAt != null ? String(patch.updatedAt) : new Date().toISOString(),
   };
-  fs.writeFileSync(FLAGS_FILE, JSON.stringify(next, null, 2));
-  return next;
+  return readAppFlags();
+}
+
+function flagsFromRow(row) {
+  if (!row) return defaultAppFlags();
+  return { testingPhase: row.value === true, updatedAt: String(row.updated_at || '') };
+}
+
+function adminClientFrom(deps) {
+  return (deps.adminClient || getSupabaseAdminClient)();
+}
+
+/** Durable read. Missing row -> defaults. Throws when storage is unavailable. */
+export async function fetchAppFlags(deps = {}) {
+  const { data, error } = await adminClientFrom(deps)
+    .from('app_flags')
+    .select('key, value, updated_at')
+    .eq('key', TESTING_PHASE_KEY)
+    .maybeSingle();
+  if (error) throw new Error('App flags read failed');
+  snapshot = flagsFromRow(data);
+  return readAppFlags();
+}
+
+/** Durable write, attributed to a verified admin. */
+export async function storeAppFlags({ testingPhase }, { userId }, deps = {}) {
+  const { data, error } = await adminClientFrom(deps)
+    .from('app_flags')
+    .upsert(
+      { key: TESTING_PHASE_KEY, value: Boolean(testingPhase), updated_by: userId, updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    )
+    .select('key, value, updated_at')
+    .single();
+  if (error) throw new Error('App flags write failed');
+  snapshot = flagsFromRow(data);
+  return readAppFlags();
 }
 
 /** Free AI during testing: Gemini provider only. */
@@ -74,31 +102,56 @@ export function assertAiAllowedInTesting({ provider, model } = {}) {
   throw new Error('Paid AI models are disabled during the testing phase. Use a free Gemini model.');
 }
 
-export async function handleAppFlagsApi(req, res, next) {
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  let raw = typeof req.body === 'string' ? req.body : '';
+  if (typeof req.body !== 'string') {
+    for await (const chunk of req) {
+      raw += chunk;
+      if (raw.length > MAX_BODY_BYTES) throw new Error('Request too large');
+    }
+  }
+  if (raw.length > MAX_BODY_BYTES) throw new Error('Request too large');
+  return raw ? JSON.parse(raw) : {};
+}
+
+export async function handleAppFlagsApi(req, res, next, deps = {}) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (!url.pathname.startsWith('/api/app-flags')) {
     next();
     return;
   }
+  if (url.pathname !== '/api/app-flags') return json(res, { ok: false, error: 'Not found' }, 404);
 
-  if (url.pathname === '/api/app-flags' && req.method === 'GET') {
-    return json(res, { ok: true, flags: readAppFlags() });
+  if (req.method === 'GET') {
+    try {
+      return json(res, { ok: true, flags: await fetchAppFlags(deps) });
+    } catch {
+      return json(res, { ok: false, error: 'App flags are unavailable' }, 503);
+    }
   }
 
-  if (url.pathname === '/api/app-flags' && req.method === 'PUT') {
-    let body = '';
-    for await (const chunk of req) body += chunk;
-    let parsed = {};
+  if (req.method === 'PUT') {
+    const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
+    if (!caller) return;
+    let parsed;
     try {
-      parsed = body ? JSON.parse(body) : {};
+      parsed = await readJsonBody(req);
     } catch {
       return json(res, { ok: false, error: 'Invalid JSON' }, 400);
     }
-    const flags = writeAppFlags({ testingPhase: Boolean(parsed.testingPhase) });
-    return json(res, { ok: true, flags });
+    if (!parsed || typeof parsed.testingPhase !== 'boolean') {
+      return json(res, { ok: false, error: 'testingPhase must be a boolean' }, 400);
+    }
+    try {
+      const flags = await storeAppFlags({ testingPhase: parsed.testingPhase }, { userId: caller.id }, deps);
+      return json(res, { ok: true, flags });
+    } catch {
+      return json(res, { ok: false, error: 'App flags are unavailable' }, 503);
+    }
   }
 
-  return json(res, { ok: false, error: 'Method not allowed' }, 405);
+  return json(res, { ok: false, error: 'GET or PUT /api/app-flags only' }, 405);
 }
 
 export function appFlagsApiPlugin() {

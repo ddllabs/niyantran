@@ -1,11 +1,13 @@
 # Niyantran conflict audit and integration plan
 
-Status: **Living.** Written 2026-09-24 for the engineering team doing the upstream integration.
+Status: **Living.** Written 2026-09-24 for the engineering team doing the upstream integration; corrected 2026-09-28.
 
-- This folder is the only part of `docs/` published to GitHub.
-- The rest of `docs/` (architecture docs, earlier specs and plans, the corpus plans) stays local and is shared with the team privately. It is referred to below as **the full docs package**.
+> **Update 2026-09-28.** The merge this folder plans has landed: upstream `528dfb4` reached `main` through PR #2 (`8849c35`, 2026-09-26), and `origin/main` and `origin/dev` both point at `ca73200`. The integration rules 1–3 below (fresh clone, upstream remote, freeze) no longer apply. Since `f828ef5` (2026-09-27) the whole of `docs/` is published, not only this folder; only `docs/security/` stays local. For the current state start at [../START-HERE.md](../START-HERE.md); the open work is in [04-open-backlog.md](04-open-backlog.md).
 
-## The situation in five lines
+- ~~This folder is the only part of `docs/` published to GitHub.~~ (Superseded 2026-09-27: all of `docs/` except `docs/security/` is published.)
+- The "full docs package" referred to below is now simply the rest of `docs/` in this repository.
+
+## The situation in five lines (2026-09-24, before the merge)
 
 1. `ddllabs/niyantran` `main` is the product and the only codebase: Supabase Auth and Postgres, Edge Functions, RAG, streaming research.
 2. `ItsCloudDev/niyantran` `main` (upstream) has 27 unmerged commits of UI work plus a different backend: Vercel router, SQLite in `/tmp`, local-seat and Google login, Gemini-only AI. Its author has left.

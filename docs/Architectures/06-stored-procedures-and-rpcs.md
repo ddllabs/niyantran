@@ -1,7 +1,7 @@
 # Stored Procedures, Versioned RPCs & Database Security Topology
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922183000`), PostgreSQL 15, and `pgvector` 0.7.0.
+> Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
 
 ---
 
@@ -17,8 +17,8 @@ Niyantran Terminal executes all performance-critical, concurrency-sensitive, and
 | **`lookup_research_turn`**| `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Checks turn execution status, detects orphaned runs, and auto-expires stalled turns (>120s). | `20260921115831` |
 | **`claim_research_turn`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Concurrency mutex (`SELECT ... FOR UPDATE`), serializes microsecond message history, issues `execution_token`. | `20260921115831` |
 | **`finalize_research_turn`**| `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Validates `execution_token`, atomically writes terminal answer, sources, and usage metadata. | `20260921115831` |
-| **`model_pricing_reconcile`**| `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Ingests OpenRouter pricing, clamps reasoning efforts via `effort_rank`, auto-disables orphaned models. | `20260922183000` |
-| **`effort_rank`** | `IMMUTABLE SQL` | `PUBLIC`, all roles | `''` (Hardened) | Maps reasoning effort strings (`off`..`max`) to ordinal rank integers (0..6) for deterministic sorting. | `20260922183000` |
+| **`model_pricing_reconcile`**| `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Ingests OpenRouter pricing, clamps reasoning efforts via `effort_rank`, auto-disables orphaned models. | `20260922121946` |
+| **`effort_rank`** | `IMMUTABLE SQL` | `PUBLIC`, all roles | `''` (Hardened) | Maps reasoning effort strings (`off`..`max`) to ordinal rank integers (0..6) for deterministic sorting. | `20260922121946` |
 | **`admin_models_upsert`** | `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Administrative upsert for `ai_models` and `ai_roles` after validating foreign keys and triggers. | `20260921000008` |
 | **`ai_health`** | `SECURITY INVOKER` | `authenticated`, `service_role` | `''` (Hardened) | End-to-end foundation probe: asserts `pgvector` presence, pricing rows, enabled models, and `auth.uid()`. | `20260921000006` |
 | **`is_platform_admin`** | `SECURITY DEFINER` (`LANGUAGE sql`, `STABLE`, no arguments) | `authenticated`, `service_role` | `''` (Hardened) | Returns true when a `user_profiles` row exists with `user_id = auth.uid()`, `role = 'admin'` and `status = 'active'`. *(Corrected 2026-09-24: previously listed as `SECURITY INVOKER` checking `role = 'platform_admin'`.)* | Defined in `backend/sql/auth_schema.sql`; no repo migration defines it. `20260921000012` only re-grants it and sets its search path. |
@@ -293,7 +293,7 @@ sequenceDiagram
 
 ## 7. Deep-Dive: AI Model Catalog & Allowlist RPCs
 
-Located in migrations `20260921000008` and `20260922183000`.
+Located in migrations `20260921000008` and `20260922121946`.
 
 ### 7.1 `effort_rank(p_effort text)`
 An immutable SQL function providing canonical ordering for model reasoning effort rungs:
