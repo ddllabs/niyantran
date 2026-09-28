@@ -12,7 +12,6 @@ import { aiApiPlugin } from './server/aiApi.mjs'
 import { usersApiPlugin } from './server/usersApi.mjs'
 import { analyticsApiPlugin } from './server/analyticsApi.mjs'
 import { marketingMediaApiPlugin } from './server/marketingMediaApi.mjs'
-import { appFlagsApiPlugin } from './server/appFlags.mjs'
 import { billingApiPlugin } from './server/billingApi.mjs'
 import { userPrefsApiPlugin } from './server/userPrefsApi.mjs'
 import { authApiPlugin } from './server/authApi.mjs'
@@ -36,7 +35,6 @@ export default defineConfig({
     usersApiPlugin(),
     analyticsApiPlugin(),
     marketingMediaApiPlugin(),
-    appFlagsApiPlugin(),
     billingApiPlugin(),
     userPrefsApiPlugin(),
   ],

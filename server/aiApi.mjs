@@ -10,7 +10,6 @@
  * Request-body `key` is ignored — never accept client-supplied credentials (D6).
  */
 import { createClient } from '@supabase/supabase-js';
-import { assertAiAllowedInTesting } from './appFlags.mjs';
 import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
 import { briefFromExtract, extractBuffer, extractSource } from './sourceExtract.mjs';
@@ -288,7 +287,6 @@ export async function runAiChat(payload = {}, authHeader = null) {
   if (rawProvider === 'deepseek') {
     throw new Error('DeepSeek is no longer available. All AI requests are routed through OpenRouter.');
   }
-  await assertAiAllowedInTesting({ provider: rawProvider || (model.includes('gemini') ? 'gemini' : 'openrouter'), model });
 
   return await proxyResearchChat(payload, authHeader);
 }

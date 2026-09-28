@@ -1,4 +1,4 @@
-// Browser helpers for S4/S5: admin writes carry the verified bearer, and the
+// Browser helpers for S5: admin writes carry the verified bearer, and the
 // intro video upload is sign -> direct Storage upload -> finalize.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,7 +22,6 @@ vi.mock('./supabaseClient.js', () => ({
 }));
 
 import { verifiedLocalIdentity } from './userStore.js';
-import { saveAppFlags } from './appFlagsStore.js';
 import { clearIntroVideo, saveIntroVideoMeta, uploadIntroVideo } from './marketingIntroVideo.js';
 
 function reply(body, status = 200) {
@@ -39,25 +38,6 @@ beforeEach(() => {
   vi.stubGlobal('window', new EventTarget());
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
-
-describe('saveAppFlags', () => {
-  it('sends the admin bearer', async () => {
-    fetchMock.mockResolvedValueOnce(reply({ ok: true, flags: { testingPhase: true, updatedAt: 'now' } }));
-    const flags = await saveAppFlags({ testingPhase: true });
-    expect(flags.testingPhase).toBe(true);
-    expect(verifiedLocalIdentity).toHaveBeenCalledWith({ admin: true });
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('/api/app-flags');
-    expect(init.method).toBe('PUT');
-    expect(init.headers.Authorization).toBe('Bearer admin-token');
-  });
-
-  it('does not call the route without a verified admin', async () => {
-    identity.current = null;
-    await expect(saveAppFlags({ testingPhase: true })).rejects.toThrow(/admin sign-in/i);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-});
 
 describe('intro video admin helpers', () => {
   it('uploads through a signed URL and then finalizes, reporting progress', async () => {

@@ -3049,116 +3049,9 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-pr-hero {
   padding: 36px 0 8px;
 }
-.mkt-pr-grid-single {
-  grid-template-columns: minmax(0, 1100px);
-  justify-content: center;
-  padding-top: 14px;
-  width: 100%;
-}
 .mkt-pr-card-body,
 .mkt-pr-card-lead {
   display: contents;
-}
-.mkt-pr-card.is-row {
-  padding: 30px 36px;
-  width: 100%;
-  box-sizing: border-box;
-}
-.mkt-pr-card.is-row .mkt-pr-card-body {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.9fr) minmax(240px, 1.2fr) minmax(200px, 0.95fr);
-  gap: 24px 36px;
-  align-items: center;
-  width: 100%;
-  position: relative;
-  z-index: 1;
-}
-.mkt-pr-card.is-row .mkt-pr-card-lead {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-}
-.mkt-pr-card.is-row .mkt-pr-card-action {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-  min-width: 0;
-  padding-left: 28px;
-  border-left: 1px solid #e8e2d8;
-  align-self: stretch;
-}
-.mkt-pr-card.is-row .mkt-pr-card-action .tag {
-  margin: 0;
-}
-.mkt-pr-card.is-row .mkt-pr-btn {
-  width: 100%;
-  justify-content: center;
-  margin-top: 0;
-}
-.mkt-pr-card.is-row ul {
-  margin: 0;
-  padding: 4px 0 4px 28px;
-  border-left: 1px solid #e8e2d8;
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 10px;
-}
-.mkt-pr-card.is-row:hover,
-.mkt-pr-card.is-row.on {
-  transform: translateY(-6px);
-}
-@media (max-width: 900px) {
-  .mkt-pr-grid-single {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .mkt-pr-card.is-row .mkt-pr-card-body {
-    grid-template-columns: 1fr 1fr;
-    gap: 20px 24px;
-  }
-  .mkt-pr-card.is-row .mkt-pr-card-action {
-    grid-column: 1 / -1;
-    padding: 18px 0 0;
-    border-left: 0;
-    border-top: 1px solid #e8e2d8;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .mkt-pr-card.is-row .mkt-pr-card-action .tag {
-    flex: 1;
-  }
-  .mkt-pr-card.is-row .mkt-pr-btn {
-    width: auto;
-    min-width: 180px;
-    flex: none;
-  }
-}
-@media (max-width: 640px) {
-  .mkt-pr-card.is-row {
-    padding: 28px 22px 22px;
-  }
-  .mkt-pr-card.is-row .mkt-pr-card-body {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-  .mkt-pr-card.is-row ul {
-    padding: 18px 0 0;
-    border-left: 0;
-    border-top: 1px solid #e8e2d8;
-  }
-  .mkt-pr-card.is-row .mkt-pr-card-action {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .mkt-pr-card.is-row .mkt-pr-btn {
-    width: 100%;
-  }
 }
 .mkt-pr-kicker,
 .mkt-pr-hero h1,
@@ -4439,10 +4332,6 @@ html.mkt-doc:has(.mkt-auth) #root {
   opacity: 0.55;
   cursor: not-allowed;
   background: #f7f4ef;
-}
-.mkt-signup-plan-grid-single {
-  grid-template-columns: 1fr;
-  max-width: 280px;
 }
 .mkt-signup-persona-grid {
   display: grid;

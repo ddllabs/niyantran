@@ -9,7 +9,6 @@ vi.mock('./shell/TerminalShell.jsx', () => ({ default: () => 'TERMINAL' }));
 vi.mock('./admin/AdminApp.jsx', () => ({ default: () => 'ADMIN' }));
 vi.mock('./shell/PersonaChooser.jsx', () => ({ default: () => 'CHOOSER' }));
 vi.mock('./lib/siteHead.js', () => ({ startSiteHead: vi.fn() }));
-vi.mock('./lib/appFlagsStore.js', () => ({ hydrateAppFlags: vi.fn(async () => ({})), isTestingPhase: () => false }));
 vi.mock('./lib/personas.js', () => ({ applyPersonaForUser: vi.fn(), readPersonaId: vi.fn(() => 'analyst') }));
 vi.mock('./lib/supabaseClient.js', () => ({ supabase: { auth: { onAuthStateChange: vi.fn() } } }));
 

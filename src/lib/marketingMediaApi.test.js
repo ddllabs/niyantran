@@ -1,6 +1,7 @@
-// S4/S5 route handlers against in-memory fakes: app flags and the marketing
-// intro video persist through Supabase (table app_flags, bucket marketing),
-// GET stays public, and every write needs a verified internal admin.
+// S5 route handler against in-memory fakes: the marketing intro video
+// persists through Supabase (table app_flags, bucket marketing), GET stays
+// public, and every write needs a verified internal admin. (The S4
+// testing-phase flag was retired on 2026-09-28.)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../server/db.mjs', () => ({
@@ -12,7 +13,6 @@ vi.mock('../../server/authEmailProvider.mjs', () => ({
   getSupabaseAdminClient: vi.fn(() => { throw new Error('tests inject adminClient'); }),
 }));
 
-import { handleAppFlagsApi, readAppFlags } from '../../server/appFlags.mjs';
 import { handleMarketingMediaApi } from '../../server/marketingMediaApi.mjs';
 
 const ADMIN_ID = '00000000-0000-4000-8000-0000000000a1';
@@ -114,73 +114,6 @@ function adminFake(initialRows = {}) {
 
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => { vi.restoreAllMocks(); });
-
-describe('/api/app-flags', () => {
-  it('returns today\'s defaults when no row exists, without a bearer', async () => {
-    const fake = adminFake();
-    const response = await invoke(handleAppFlagsApi, request('GET', '/api/app-flags', undefined, null), fake.deps());
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ ok: true, flags: { testingPhase: false, updatedAt: '' } });
-  });
-
-  it('serves the stored flag publicly in the same shape', async () => {
-    const fake = adminFake({ testing_phase: { value: true, updated_at: '2026-09-28T10:00:00.000Z' } });
-    const response = await invoke(handleAppFlagsApi, request('GET', '/api/app-flags', undefined, null), fake.deps());
-    expect(response.body).toEqual({ ok: true, flags: { testingPhase: true, updatedAt: '2026-09-28T10:00:00.000Z' } });
-    expect(readAppFlags().testingPhase).toBe(true);
-  });
-
-  it('reports unavailability instead of inventing a value when storage fails', async () => {
-    const response = await invoke(handleAppFlagsApi, request('GET', '/api/app-flags', undefined, null), {
-      adminClient: () => { throw new Error('not configured'); },
-    });
-    expect(response.status).toBe(503);
-    expect(response.body.ok).toBe(false);
-  });
-
-  it.each([
-    ['no bearer', null, undefined, 401],
-    ['a malformed bearer', 'Basic abc', undefined, 401],
-    ['a non-admin user', 'Bearer verified-token', { role: 'user', admin: false }, 403],
-    ['a suspended admin', 'Bearer verified-token', { status: 'suspended' }, 403],
-  ])('rejects PUT with %s before writing', async (_label, authorization, caller, status) => {
-    const fake = adminFake();
-    const response = await invoke(handleAppFlagsApi, request('PUT', '/api/app-flags', { testingPhase: true }, authorization),
-      fake.deps(tokenClient(caller)));
-    expect(response.status).toBe(status);
-    expect(response.body.ok).toBe(false);
-    expect(fake.calls.upserts).toEqual([]);
-  });
-
-  it('accepts PUT from an internal admin and records updated_by', async () => {
-    const fake = adminFake();
-    const response = await invoke(handleAppFlagsApi, request('PUT', '/api/app-flags', { testingPhase: true }), fake.deps());
-    expect(response.status).toBe(200);
-    expect(response.body.ok).toBe(true);
-    expect(response.body.flags.testingPhase).toBe(true);
-    expect(response.body.flags.updatedAt).toMatch(/^2026-/);
-    expect(fake.calls.upserts).toHaveLength(1);
-    expect(fake.calls.upserts[0].row).toMatchObject({ key: 'testing_phase', value: true, updated_by: ADMIN_ID });
-    expect(fake.calls.upserts[0].options).toMatchObject({ onConflict: 'key' });
-
-    const read = await invoke(handleAppFlagsApi, request('GET', '/api/app-flags', undefined, null), fake.deps());
-    expect(read.body.flags.testingPhase).toBe(true);
-  });
-
-  it('accepts a pre-parsed body (Vercel) and rejects a non-boolean flag', async () => {
-    const fake = adminFake();
-    const parsed = { ...request('PUT', '/api/app-flags'), body: { testingPhase: false } };
-    expect((await invoke(handleAppFlagsApi, parsed, fake.deps())).body.flags.testingPhase).toBe(false);
-    const bad = await invoke(handleAppFlagsApi, request('PUT', '/api/app-flags', { testingPhase: 'yes' }), fake.deps());
-    expect(bad.status).toBe(400);
-    expect(fake.calls.upserts).toHaveLength(1);
-  });
-
-  it('passes other paths to next', async () => {
-    const response = await invoke(handleAppFlagsApi, request('GET', '/api/other'), adminFake().deps());
-    expect(response.next).toHaveBeenCalled();
-  });
-});
 
 describe('/api/marketing/intro-video', () => {
   const base = '/api/marketing/intro-video';

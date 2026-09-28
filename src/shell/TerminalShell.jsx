@@ -30,7 +30,6 @@ import {
   planOf,
   trialDaysLeft,
 } from '../lib/planEntitlements.js';
-import { isTestingPhase, subscribeAppFlags } from '../lib/appFlagsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import AiDock from '../ai/AiDock.jsx';
 import { takePendingDeskRow } from '../ai/openRowSource.js';
@@ -76,11 +75,8 @@ export default function TerminalShell({ onLogout }) {
   const hi = lang === 'hi';
 
   const openUpgrade = useCallback((reason = 'desk', deskLabel = '') => {
-    if (isTestingPhase()) return;
     setUpgrade({ reason, deskLabel });
   }, []);
-
-  useEffect(() => subscribeAppFlags(() => setUserTick((n) => n + 1)), []);
 
   useEffect(() => {
     if (!profileOpen) return undefined;
@@ -365,9 +361,7 @@ export default function TerminalShell({ onLogout }) {
   const trialLeft = trialDaysLeft(user);
   const planLabel = planMeta?.name || String(ent.plan || 'explorer').toUpperCase();
   const statusLabel =
-    isTestingPhase() && (ent.status === 'free' || ent.plan === 'explorer')
-      ? 'Free · full access'
-      : ent.status === 'trial'
+    ent.status === 'trial'
         ? trialLeft
           ? `Trial · ${trialLeft}d left`
           : 'Trial'
@@ -375,7 +369,7 @@ export default function TerminalShell({ onLogout }) {
           ? 'Free'
           : 'Active';
   const canUpgrade =
-    !isTestingPhase() && (ent.status === 'trial' || ent.status === 'free' || ent.plan === 'explorer');
+    (ent.status === 'trial' || ent.status === 'free' || ent.plan === 'explorer');
 
   function doLogout() {
     clearSessionUser();

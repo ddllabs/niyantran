@@ -14,7 +14,6 @@ import {
   subscribeAiChats,
 } from '../lib/aiThreads.js';
 import { liveAiProviders, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
-import { subscribeAppFlags } from '../lib/appFlagsStore.js';
 import { sessionUser } from '../lib/userStore.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -353,8 +352,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const focusRef = useRef(null);
   const historyRef = useRef(null);
 
-  const [flagsTick, setFlagsTick] = useState(0);
-  const providers = useMemo(() => liveAiProviders(), [flagsTick]);
+  const providers = useMemo(() => liveAiProviders(), []);
   const chat = useMemo(
     () => state.chats.find((c) => c.id === state.activeId) || state.chats[0] || null,
     [state],
@@ -373,7 +371,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
 
   useEffect(() => (serverThreads ? undefined : subscribeAiChats(setState)), [serverThreads]);
-  useEffect(() => subscribeAppFlags(() => setFlagsTick((n) => n + 1)), []);
   useEffect(() => {
     const live = activeAiProvider().id;
     if (!providers.find((p) => p.id === providerId)?.enabled) setProviderId(live);

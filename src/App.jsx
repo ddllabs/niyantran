@@ -3,7 +3,6 @@ import MarketingSite from './marketing/MarketingSite.jsx';
 import TerminalShell from './shell/TerminalShell.jsx';
 import AdminApp from './admin/AdminApp.jsx';
 import { startSiteHead } from './lib/siteHead.js';
-import { hydrateAppFlags } from './lib/appFlagsStore.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
 import PersonaChooser from './shell/PersonaChooser.jsx';
 import { publishVerifiedSessionUser, sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
@@ -68,10 +67,6 @@ export default function App() {
   });
 
   useEffect(() => startSiteHead(), []);
-  useEffect(() => {
-    hydrateAppFlags().catch(() => {});
-  }, []);
-
   useEffect(() => {
     let mounted = true;
     const unsubscribe = subscribeLocalIdentity((id) => {

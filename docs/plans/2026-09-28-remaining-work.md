@@ -137,9 +137,15 @@ down.
   - The chooser had never been rendered anywhere, so it was also added to
     the profile menu ("Change persona", with "Keep my current persona" to
     back out) and recoloured to the light theme.
-- [ ] **C6. The testing-phase flag (S).**
-  - Enforce it in `research-chat` (free models only while it is on), or
-    retire it with its table and admin toggle.
+- [x] **C6. The testing-phase flag (S).** Retired 2026-09-28.
+  - Live had no `testing_phase` row, so the flag had always been off and
+    retiring it changes nothing users see.
+  - Removed: the admin toggle, `/api/app-flags`, the Vite plugin, the
+    browser store and every branch reading it (desk locks, export, row
+    caps, the single-tier pricing and signup pages, the model picker).
+  - The `app_flags` table stays: it also holds the marketing intro video.
+  - A free testing period, if wanted later, belongs in the server-side plan
+    checks required before payments, not in a browser-read flag.
 - [x] **C7. UI decisions (S each).** Done 2026-09-28.
   - The hero shows the bright spinning `globe.png` again (the walkthrough
     poster keeps the GIF).

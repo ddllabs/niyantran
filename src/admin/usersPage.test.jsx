@@ -27,10 +27,6 @@ vi.mock('../lib/refreshFeeds.js', () => ({
   cancelSweep: vi.fn(), decorateApis: vi.fn((rows) => rows), healStaleInactiveProbes: vi.fn(async () => {}),
   healStaticHostProbes: vi.fn(), refreshOne: vi.fn(), sweepApis: vi.fn(),
 }));
-vi.mock('../lib/appFlagsStore.js', () => ({
-  hydrateAppFlags: vi.fn(async () => ({})), isTestingPhase: () => false, loadAppFlags: () => ({}),
-  saveAppFlags: vi.fn(), subscribeAppFlags: () => () => {},
-}));
 
 import { UsersPage } from './AdminPages.jsx';
 import { setUserActive, setUserType } from '../lib/userStore.js';

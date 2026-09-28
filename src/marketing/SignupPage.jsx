@@ -9,11 +9,6 @@ import { trackProductEvent } from '../lib/productAnalytics.js';
 import { normalizePlanId, startTrialFields, TRIAL_DAYS } from '../lib/planEntitlements.js';
 import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
-import {
-  hydrateAppFlags,
-  isTestingPhase,
-  subscribeAppFlags,
-} from '../lib/appFlagsStore.js';
 import { supabase } from '../lib/supabaseClient.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
@@ -39,7 +34,6 @@ export default function SignupPage({ onSuccess, onLogin }) {
   const [personaId, setPersonaId] = useState('');
   const [planId, setPlanId] = useState(() => planFromRoute());
   const [draftUser, setDraftUser] = useState(null);
-  const [testing, setTesting] = useState(() => isTestingPhase());
   const [verificationSentEmail, setVerificationSentEmail] = useState('');
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState('');
@@ -76,15 +70,6 @@ export default function SignupPage({ onSuccess, onLogin }) {
       setResending(false);
     }
   }
-
-  useEffect(() => {
-    hydrateAppFlags().then((f) => setTesting(Boolean(f.testingPhase)));
-    return subscribeAppFlags((f) => setTesting(Boolean(f.testingPhase)));
-  }, []);
-
-  useEffect(() => {
-    if (testing) setPlanId('explorer');
-  }, [testing]);
 
   function onMove(e) {
     const el = root.current;
@@ -319,12 +304,10 @@ export default function SignupPage({ onSuccess, onLogin }) {
           {step === 'plan' ? (
             <div className="mkt-signup-plan-step">
               <p className="mkt-signup-lead">
-                {testing
-                  ? `Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Continue free — every desk and Gemini AI are included.`
-                  : `Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Pick a plan to continue — Explorer is free; Professional / Enterprise start a ${TRIAL_DAYS}-day trial with no card.`}
+                {`Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Pick a plan to continue — Explorer is free; Professional / Enterprise start a ${TRIAL_DAYS}-day trial with no card.`}
               </p>
-              <div className={`mkt-signup-plan-grid${testing ? ' mkt-signup-plan-grid-single' : ''}`} role="radiogroup" aria-label="Plan">
-                {(testing ? plans.filter((p) => p.id === 'explorer') : plans).map((p) => (
+              <div className="mkt-signup-plan-grid" role="radiogroup" aria-label="Plan">
+                {plans.map((p) => (
                   <button
                     key={p.id}
                     type="button"
@@ -333,13 +316,9 @@ export default function SignupPage({ onSuccess, onLogin }) {
                     className={`mkt-signup-plan${planId === p.id ? ' on' : ''}`}
                     onClick={() => setPlanId(p.id)}
                   >
-                    <strong>{testing ? 'Free' : p.name}</strong>
+                    <strong>{p.name}</strong>
                     <span>
-                      {testing
-                        ? 'All desks · AI research · no cost'
-                        : p.id === 'explorer'
-                          ? 'Free · 5 core desks'
-                          : `$${p.monthly}/mo · ${TRIAL_DAYS}-day trial, no card`}
+                      {p.id === 'explorer' ? 'Free · 5 core desks' : `$${p.monthly}/mo · ${TRIAL_DAYS}-day trial, no card`}
                     </span>
                   </button>
                 ))}
@@ -347,7 +326,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
               <button className="mkt-cta" type="button" disabled={pending} onClick={applyPlanAndEnter}>
                 {pending
                   ? 'Opening terminal…'
-                  : testing || planId === 'explorer'
+                  : planId === 'explorer'
                     ? 'Continue free'
                     : `Start ${TRIAL_DAYS}-day trial`}
               </button>

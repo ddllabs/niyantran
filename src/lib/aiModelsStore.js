@@ -1,12 +1,11 @@
 const KEY = 'niyantranAiModels.v4';
 const EVENT = 'niy-ai-models';
 
-import { isTestingPhase } from './appFlagsStore.js';
 
 /**
  * Models shown in AI research.
  * All models are routed through the single universal OpenRouter gateway.
- * tier: free = Gemini model IDs (allowed in testing phase); paid = others (disabled while testing).
+ * tier: free = Gemini model IDs; paid = others. A label only; nothing gates on it.
  */
 export const AI_PROVIDERS = [
   {
@@ -40,20 +39,9 @@ export const AI_PROVIDERS = [
 
 const DEFAULT_PROVIDER = AI_PROVIDERS.find((p) => p.enabled) || AI_PROVIDERS[0];
 
-/** Live list for the picker / send path — respects testing-phase free-Gemini-only. */
+/** Live list for the picker / send path. */
 export function liveAiProviders() {
-  const testing = isTestingPhase();
-  return AI_PROVIDERS.map((p) => {
-    if (!testing) return { ...p };
-    const freeGemini = p.tier === 'free' && p.model.includes('gemini');
-    return {
-      ...p,
-      enabled: freeGemini && p.enabled,
-      hint: freeGemini
-        ? p.hint
-        : 'Paid models are off during the testing phase',
-    };
-  });
+  return AI_PROVIDERS.map((p) => ({ ...p }));
 }
 
 /**
