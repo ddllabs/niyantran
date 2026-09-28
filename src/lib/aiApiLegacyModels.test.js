@@ -4,7 +4,7 @@ import { runAiChat } from '../../server/aiApi.mjs';
 // The live registry on 2026-09-28 (spec 2026-09-28-ai-path-fixes, Task B).
 const ENABLED = [
   'google/gemini-3.5-flash-lite',
-  'google/gemini-3.7-flash',
+  'google/gemini-3.8-flash',
   'deepseek/deepseek-v4-flash',
   'deepseek/deepseek-v4-pro',
   'openai/gpt-6-astra',
@@ -16,7 +16,7 @@ const ROLES = [
   { role_id: 'DEFAULT_ANALYST', model_id: 'google/gemini-3.5-flash-lite' },
   { role_id: 'EXPERT_ESCALATION', model_id: 'openai/gpt-6-astra' },
   { role_id: 'PDF_PARSER', model_id: 'google/gemini-3.5-flash-lite' },
-  { role_id: 'VISUAL_RESEARCH', model_id: 'google/gemini-3.7-flash' },
+  { role_id: 'VISUAL_RESEARCH', model_id: 'google/gemini-3.8-flash' },
 ];
 const RETIRED = /gemini-2\.0-flash|gemini-flash-1\.5|gpt-4o/;
 const TOKEN = 'token-user-1';
@@ -85,12 +85,12 @@ describe('legacy /api/ai/chat resolves the model against the live registry', () 
 
   it.each([
     ['gemini-lite', 'google/gemini-3.5-flash-lite'],
-    ['gemini-flash', 'google/gemini-3.7-flash'],
+    ['gemini-flash', 'google/gemini-3.8-flash'],
     ['gpt-astra', 'openai/gpt-6-astra'],
     ['DEFAULT_ANALYST', 'google/gemini-3.5-flash-lite'],
     ['EXPERT_ESCALATION', 'openai/gpt-6-astra'],
     ['PDF_PARSER', 'google/gemini-3.5-flash-lite'],
-    ['VISUAL_RESEARCH', 'google/gemini-3.7-flash'],
+    ['VISUAL_RESEARCH', 'google/gemini-3.8-flash'],
   ])('%s becomes its role\'s live model %s', async (requested, expected) => {
     const calls = installFetch();
     const out = await ask(requested);
@@ -190,7 +190,7 @@ describe('a server-side OpenRouter key never bypasses Supabase (ADR 0008)', () =
     vi.unstubAllGlobals();
   });
 
-  it.each(['gemini-lite', 'gpt-astra', 'google/gemini-3.7-flash', 'custom-model'])(
+  it.each(['gemini-lite', 'gpt-astra', 'google/gemini-3.8-flash', 'custom-model'])(
     'for %s the turn goes to research-chat and never to OpenRouter',
     async (model) => {
       const calls = installFetch();

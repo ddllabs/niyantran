@@ -21,11 +21,11 @@ export const AI_PROVIDERS = [
   {
     id: 'gemini-flash',
     label: 'Gemini - Flash',
-    model: 'google/gemini-3.7-flash',
+    model: 'google/gemini-3.8-flash',
     provider: 'openrouter',
     tier: 'free',
     enabled: true,
-    hint: 'Heavier synthesis / visual research (OpenRouter · Google Gemini 3.7 Flash)',
+    hint: 'Heavier synthesis / visual research (OpenRouter · Google Gemini 3.8 Flash)',
   },
   {
     id: 'gpt-astra',
@@ -90,7 +90,7 @@ export const AI_ROLES = [
     id: 'VISUAL_RESEARCH',
     label: 'Visual research',
     hint: 'Charts, maps, images, and screenshot-backed questions.',
-    model: 'google/gemini-3.7-flash',
+    model: 'google/gemini-3.8-flash',
     provider: 'openrouter',
     key: '',
   },

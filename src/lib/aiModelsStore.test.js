@@ -10,14 +10,15 @@ import {
   shortModelLabel,
 } from './aiModelsStore.js';
 
-// Live role models on 2026-09-28 (spec 2026-09-28-ai-path-fixes, Task B).
+// Live role models on 2026-09-28 (spec 2026-09-28-ai-path-fixes, Task B;
+// Visual research moved to Gemini 3.8 Flash the same day).
 const LIVE_ROLE_MODELS = {
   DEFAULT_ANALYST: 'google/gemini-3.5-flash-lite',
   EXPERT_ESCALATION: 'openai/gpt-6-astra',
   PDF_PARSER: 'google/gemini-3.5-flash-lite',
-  VISUAL_RESEARCH: 'google/gemini-3.7-flash',
+  VISUAL_RESEARCH: 'google/gemini-3.8-flash',
 };
-const RETIRED = /gemini-2\.0-flash|gemini-flash-1\.5|gpt-4o/;
+const RETIRED = /gemini-2\.0-flash|gemini-flash-1\.5|gpt-4o|gemini-3\.7-flash/;
 
 describe('aiModelsStore static fallback carries the live role models', () => {
   it('each role names its live model', () => {
