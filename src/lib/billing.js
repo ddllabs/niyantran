@@ -1,14 +1,27 @@
 /**
  * Checkout / payment helpers — Razorpay Orders + GST tax invoices (CR-17).
  * Server holds RAZORPAY_KEY_SECRET; browser only gets key id + order id.
- * Without keys configured, falls back to a labelled demo upgrade + invoice.
+ * Every order, verify and invoice call carries the Supabase bearer; the
+ * server takes the buyer's identity from it (T5). Without keys, a local dev
+ * server records a demo invoice; production refuses and nothing is granted.
  */
+import { supabase } from './supabaseClient.js';
 import { loadPricing } from './pricingStore.js';
 import { paidFields, normalizePlanId, planOf } from './planEntitlements.js';
 import { sessionUser, setSessionUser } from './userStore.js';
 import { trackProductEvent } from './productAnalytics.js';
 
 const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+
+async function authHeaders() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 function loadRazorpay() {
   if (typeof window === 'undefined') return Promise.reject(new Error('No window'));
@@ -55,6 +68,26 @@ export async function fetchGstQuote({ planId, yearly = false, buyerGstin = '', b
 export function invoiceUrl(invoiceId) {
   if (!invoiceId) return '';
   return `/api/billing/invoice/${encodeURIComponent(invoiceId)}`;
+}
+
+/**
+ * Opens a GST invoice in a new tab. The route needs the bearer, which a plain
+ * link cannot send, so the HTML is fetched and shown from a blob URL.
+ */
+export async function openInvoice(invoiceId) {
+  const url = invoiceUrl(invoiceId);
+  if (!url) return { ok: false, reason: 'No invoice.' };
+  try {
+    const res = await fetch(url, { headers: await authHeaders() });
+    if (!res.ok) return { ok: false, reason: res.status === 404 ? 'Invoice not found.' : 'Invoice unavailable.' };
+    const blob = new Blob([await res.text()], { type: 'text/html' });
+    const href = URL.createObjectURL(blob);
+    window.open(href, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'Invoice unavailable.' };
+  }
 }
 
 export function applyPaidPlan(user, planId, yearly = false, paymentMeta = {}) {
@@ -112,7 +145,7 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
         try {
           const verify = await fetch('/api/billing/verify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify({
               orderId: response.razorpay_order_id,
               paymentId: response.razorpay_payment_id,
@@ -185,7 +218,7 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
     try {
       const orderRes = await fetch('/api/billing/create-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           planId: plan,
           yearly,
@@ -219,12 +252,13 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
   }
 
   // Demo gateway when keys are missing (local/dev) — still issue a GST invoice.
+  // A deployed server refuses it, and then nothing is granted.
   let invoice = null;
   let quote = null;
   try {
     const invRes = await fetch('/api/billing/invoice', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({
         planId: plan,
         yearly,
@@ -233,6 +267,9 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
       }),
     });
     const invBody = await invRes.json().catch(() => ({}));
+    if (invRes.status === 403 && invBody.paymentsDisabled) {
+      return { ok: false, mode: 'disabled', reason: invBody.reason || 'Online payments are not enabled yet.' };
+    }
     if (invRes.ok && invBody.ok) {
       invoice = invBody.invoice;
       quote = invBody.quote;

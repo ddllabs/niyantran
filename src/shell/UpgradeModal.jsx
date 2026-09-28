@@ -6,7 +6,7 @@ import {
   fetchBillingConfig,
   fetchGstQuote,
   formatInr,
-  invoiceUrl,
+  openInvoice,
 } from '../lib/billing.js';
 import { entitlementOf, trialDaysLeft } from '../lib/planEntitlements.js';
 import { sessionUser } from '../lib/userStore.js';
@@ -258,9 +258,16 @@ export default function UpgradeModal({
         {invoice ? (
           <p className="plan-up-inv">
             Invoice <b>{invoice.invoiceNo}</b>{' '}
-            <a href={invoiceUrl(invoice.id)} target="_blank" rel="noreferrer">
+            <button
+              type="button"
+              className="plan-up-inv-link"
+              onClick={async () => {
+                const opened = await openInvoice(invoice.id);
+                if (!opened.ok) setErr(opened.reason);
+              }}
+            >
               View / print GST invoice
-            </a>
+            </button>
           </p>
         ) : null}
         {err ? (
@@ -270,7 +277,7 @@ export default function UpgradeModal({
         ) : null}
         <p className="plan-up-note">
           Checkout runs through <b>Razorpay</b> (INR + 18% GST). Set seller <code>BILLING_GSTIN</code> and address in{' '}
-          <code>.env</code>. Without Razorpay keys, a demo upgrade still issues a local tax invoice.
+          <code>.env</code>. Without Razorpay keys, checkout is off on the live site; a local dev server issues a demo invoice.
         </p>
       </div>
     </div>,

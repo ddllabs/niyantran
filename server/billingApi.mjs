@@ -6,15 +6,22 @@
  *   POST /api/billing/create-order   { planId, yearly, userId, email, name, buyerGstin?, buyerStateCode?, buyerAddress? }
  *   POST /api/billing/verify        { orderId, paymentId, signature, planId, yearly, userId, email, name, buyer* }
  *   POST /api/billing/invoice       { planId, yearly, email, name, …, provider?, paymentId?, orderId? }  // demo/record
- *   GET  /api/billing/invoices?email=
+ *   GET  /api/billing/invoices
  *   GET  /api/billing/invoice/:id   HTML tax invoice
+ *
+ * Invoices live in Supabase public.invoices (T5, ADR 0005). Every route but
+ * config and quote needs a verified bearer, and the buyer's identity comes
+ * from it, never from the body. Reads run as the caller, so RLS decides what
+ * they may see; writes go through issue_invoice() with the server key, which
+ * numbers the invoice gaplessly per financial year.
  */
 import crypto from 'crypto';
 import { loadEnv } from './loadEnv.mjs';
-import { getDb, queryAll, run } from './db.mjs';
+import { getSupabaseAdminClient } from './authEmailProvider.mjs';
+import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
+import { isServerlessHost } from './writableRoot.mjs';
 import {
   computeGstQuote,
-  nextInvoiceNumber,
   newInvoiceId,
   renderInvoiceHtml,
   sellerFromEnv,
@@ -38,6 +45,14 @@ function html(res, body, status = 200) {
 }
 
 function readBody(req) {
+  if (req.body && typeof req.body === 'object') return Promise.resolve(req.body);
+  if (typeof req.body === 'string') {
+    try {
+      return Promise.resolve(req.body ? JSON.parse(req.body) : {});
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
   return new Promise((resolve, reject) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
@@ -101,30 +116,28 @@ function quoteFromBody(body) {
   });
 }
 
+function num(v) {
+  return v == null ? v : Number(v);
+}
+
 function rowToInvoice(r) {
-  const payload = (() => {
-    try {
-      return JSON.parse(r.payload_json || '{}');
-    } catch {
-      return {};
-    }
-  })();
+  const payload = r.payload && typeof r.payload === 'object' ? r.payload : {};
   return {
     id: r.id,
     invoiceNo: r.invoice_no,
     email: r.user_email,
     userId: r.user_id,
     planId: r.plan_id,
-    yearly: Number(r.yearly) === 1,
+    yearly: Boolean(r.yearly),
     currency: r.currency,
-    taxable: r.taxable,
-    cgst: r.cgst,
-    sgst: r.sgst,
-    igst: r.igst,
-    total: r.total,
+    taxable: num(r.taxable),
+    cgst: num(r.cgst),
+    sgst: num(r.sgst),
+    igst: num(r.igst),
+    total: num(r.total),
     taxSplit: r.tax_split,
-    usdList: r.usd_list,
-    usdToInr: r.usd_to_inr,
+    usdList: num(r.usd_list),
+    usdToInr: num(r.usd_to_inr),
     buyerName: r.buyer_name,
     buyerGstin: r.buyer_gstin,
     buyerStateCode: r.buyer_state_code,
@@ -137,91 +150,92 @@ function rowToInvoice(r) {
   };
 }
 
-async function persistInvoice({ quote, buyer, payment }) {
-  const database = await getDb();
-  const count = queryAll(database, `SELECT COUNT(*) AS n FROM invoices`)[0]?.n || 0;
-  const id = newInvoiceId();
-  const invoiceNo = nextInvoiceNumber(Number(count) || 0);
-  const issuedAt = new Date().toISOString();
-  const seller = sellerFromEnv();
-  const buyerStateCode = quote.buyerStateCode || '';
-  const inv = {
-    id,
-    invoiceNo,
-    planId: quote.planId,
-    planLabel: quote.planLabel,
-    period: quote.period,
-    yearly: quote.yearly,
-    currency: 'INR',
-    taxable: quote.taxable,
-    cgst: quote.cgst,
-    sgst: quote.sgst,
-    igst: quote.igst,
-    total: quote.total,
-    taxSplit: quote.taxSplit,
-    usdList: quote.usdList,
-    usdToInr: quote.usdToInr,
-    sac: quote.sac,
-    sacDesc: quote.sacDesc,
-    buyerName: buyer.name || '',
-    buyerEmail: buyer.email || '',
-    buyerGstin: buyer.gstin || '',
-    buyerStateCode,
-    buyerStateName: STATE_CODES[buyerStateCode] || '',
-    buyerAddress: buyer.address || '',
-    paymentId: payment?.paymentId || '',
-    orderId: payment?.orderId || '',
-    provider: payment?.provider || 'razorpay',
-    issuedAt,
-  };
-  run(
-    database,
-    `INSERT INTO invoices (
-      id, invoice_no, user_email, user_id, plan_id, yearly, currency,
-      taxable, cgst, sgst, igst, total, tax_split, usd_list, usd_to_inr,
-      buyer_name, buyer_gstin, buyer_state_code, buyer_address,
-      payment_id, order_id, provider, payload_json, issued_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      id,
-      invoiceNo,
-      String(buyer.email || '').toLowerCase(),
-      buyer.userId || null,
-      quote.planId,
-      quote.yearly ? 1 : 0,
-      'INR',
-      quote.taxable,
-      quote.cgst,
-      quote.sgst,
-      quote.igst,
-      quote.total,
-      quote.taxSplit,
-      quote.usdList,
-      quote.usdToInr,
-      buyer.name || null,
-      buyer.gstin || null,
-      buyerStateCode || null,
-      buyer.address || null,
-      payment?.paymentId || null,
-      payment?.orderId || null,
-      payment?.provider || 'razorpay',
-      JSON.stringify({
-        planLabel: inv.planLabel,
-        period: inv.period,
-        sac: inv.sac,
-        sacDesc: inv.sacDesc,
-        buyerEmail: inv.buyerEmail,
-        buyerStateName: inv.buyerStateName,
-        sellerGstin: seller.gstin,
-      }),
-      issuedAt,
-    ],
-  );
-  return inv;
+function bearerToken(req) {
+  const match = /^Bearer ([^\s,]+)$/i.exec(String(req.headers?.authorization || ''));
+  return match ? match[1] : '';
 }
 
-export async function handleBillingApi(req, res, url) {
+/** Issues one invoice for a verified buyer. The database assigns the number. */
+async function persistInvoice({ quote, buyer, payment }, deps) {
+  const seller = sellerFromEnv();
+  const buyerStateCode = quote.buyerStateCode || '';
+  const { data, error } = await deps.adminClient().rpc('issue_invoice', {
+    p: {
+      id: newInvoiceId(),
+      user_id: buyer.userId,
+      user_email: buyer.email,
+      plan_id: quote.planId,
+      yearly: Boolean(quote.yearly),
+      taxable: quote.taxable,
+      cgst: quote.cgst,
+      sgst: quote.sgst,
+      igst: quote.igst,
+      total: quote.total,
+      tax_split: quote.taxSplit,
+      usd_list: quote.usdList,
+      usd_to_inr: quote.usdToInr,
+      buyer_name: buyer.name || '',
+      buyer_gstin: buyer.gstin || '',
+      buyer_state_code: buyerStateCode,
+      buyer_address: buyer.address || '',
+      payment_id: payment?.paymentId || '',
+      order_id: payment?.orderId || '',
+      provider: payment?.provider || 'razorpay',
+      payload: {
+        planLabel: quote.planLabel,
+        period: quote.period,
+        sac: quote.sac,
+        sacDesc: quote.sacDesc,
+        buyerEmail: buyer.email,
+        buyerStateName: STATE_CODES[buyerStateCode] || '',
+        sellerGstin: seller.gstin,
+      },
+    },
+  });
+  if (error) {
+    const err = new Error(error.code === '23505' ? 'An invoice already exists for this payment.' : 'Could not record the invoice.');
+    err.status = error.code === '23505' ? 409 : 503;
+    throw err;
+  }
+  return rowToInvoice(data);
+}
+
+function buyerFrom(body, caller) {
+  return {
+    email: caller.email,
+    userId: caller.id,
+    name: body.name,
+    gstin: body.buyerGstin || body.gstin,
+    address: body.buyerAddress,
+  };
+}
+
+/** The Razorpay order must be the caller's, for this plan and period, at the quoted amount. */
+function orderMatches(order, quote, caller) {
+  const notes = order?.notes || {};
+  return (
+    String(notes.userId || '') === caller.id &&
+    String(notes.planId || '') === quote.planId &&
+    String(notes.yearly ?? '') === String(Boolean(quote.yearly)) &&
+    Number(order?.amount) === quote.amountPaise
+  );
+}
+
+function resolveDeps(deps = {}) {
+  return {
+    adminClient: deps.adminClient || getSupabaseAdminClient,
+    clientForToken: deps.clientForToken || localClientForToken,
+    razorpayFetch: deps.razorpayFetch || razorpayFetch,
+    verifySignature: deps.verifySignature || verifySignature,
+    serverless: deps.serverless ?? isServerlessHost(),
+    razorpayEnabled: deps.razorpayEnabled ?? keys().enabled,
+  };
+}
+
+export async function handleBillingApi(req, res, url, deps = {}) {
   if (!url.pathname.startsWith('/api/billing')) return false;
+  const d = resolveDeps(deps);
+  const caller = () => authorizeLocalUser(req, res, { clientForToken: d.clientForToken });
 
   if (url.pathname === '/api/billing/config' && req.method === 'GET') {
     const { keyId, enabled } = keys();
@@ -258,6 +272,8 @@ export async function handleBillingApi(req, res, url) {
   }
 
   if (url.pathname === '/api/billing/create-order' && req.method === 'POST') {
+    const who = await caller();
+    if (!who) return true;
     try {
       const body = await readBody(req);
       const quote = quoteFromBody(body);
@@ -265,13 +281,12 @@ export async function handleBillingApi(req, res, url) {
         json(res, { ok: false, reason: 'Unknown plan.' }, 400);
         return true;
       }
-      const { enabled, keyId } = keys();
-      if (!enabled) {
+      if (!d.razorpayEnabled) {
         json(res, { ok: false, reason: 'Razorpay is not configured on this server.', demoFallback: true, quote }, 503);
         return true;
       }
       const receipt = `niy_${quote.planId}_${Date.now()}`.slice(0, 40);
-      const order = await razorpayFetch('/orders', {
+      const order = await d.razorpayFetch('/orders', {
         method: 'POST',
         body: {
           amount: quote.amountPaise,
@@ -280,8 +295,8 @@ export async function handleBillingApi(req, res, url) {
           notes: {
             planId: quote.planId,
             yearly: String(quote.yearly),
-            userId: String(body.userId || ''),
-            email: String(body.email || ''),
+            userId: who.id,
+            email: who.email,
             taxable: String(quote.taxable),
             gst: String(quote.gstAmount),
             taxSplit: quote.taxSplit,
@@ -290,7 +305,7 @@ export async function handleBillingApi(req, res, url) {
       });
       json(res, {
         ok: true,
-        keyId,
+        keyId: keys().keyId,
         orderId: order.id,
         amount: order.amount,
         currency: order.currency || 'INR',
@@ -305,6 +320,8 @@ export async function handleBillingApi(req, res, url) {
   }
 
   if (url.pathname === '/api/billing/verify' && req.method === 'POST') {
+    const who = await caller();
+    if (!who) return true;
     try {
       const body = await readBody(req);
       const orderId = String(body.orderId || '');
@@ -314,52 +331,48 @@ export async function handleBillingApi(req, res, url) {
         json(res, { ok: false, reason: 'Missing payment fields.' }, 400);
         return true;
       }
-      if (!verifySignature(orderId, paymentId, signature)) {
+      if (!d.verifySignature(orderId, paymentId, signature)) {
         json(res, { ok: false, reason: 'Payment signature mismatch.' }, 400);
         return true;
-      }
-      try {
-        const payment = await razorpayFetch(`/payments/${paymentId}`);
-        if (payment.status && payment.status !== 'captured' && payment.status !== 'authorized') {
-          json(res, { ok: false, reason: `Payment status is ${payment.status}.` }, 400);
-          return true;
-        }
-      } catch {
-        /* signature already verified */
       }
       const quote = quoteFromBody(body);
       if (!quote) {
         json(res, { ok: false, reason: 'Unknown plan.' }, 400);
         return true;
       }
+      // The signature proves the payment belongs to this order; the order
+      // proves who it was for, which plan, and how much was paid.
+      const order = await d.razorpayFetch(`/orders/${encodeURIComponent(orderId)}`);
+      if (!orderMatches(order, quote, who)) {
+        json(res, { ok: false, reason: 'Payment does not match the order.' }, 400);
+        return true;
+      }
+      const payment = await d.razorpayFetch(`/payments/${encodeURIComponent(paymentId)}`);
+      if (payment?.status && payment.status !== 'captured' && payment.status !== 'authorized') {
+        json(res, { ok: false, reason: `Payment status is ${payment.status}.` }, 400);
+        return true;
+      }
       const invoice = await persistInvoice({
         quote,
-        buyer: {
-          email: body.email,
-          name: body.name,
-          userId: body.userId,
-          gstin: body.buyerGstin || body.gstin,
-          address: body.buyerAddress,
-        },
+        buyer: buyerFrom(body, who),
         payment: { paymentId, orderId, provider: 'razorpay' },
-      });
-      json(res, {
-        ok: true,
-        planId: quote.planId,
-        yearly: quote.yearly,
-        orderId,
-        paymentId,
-        invoice,
-        quote,
-      });
+      }, d);
+      json(res, { ok: true, planId: quote.planId, yearly: quote.yearly, orderId, paymentId, invoice, quote });
     } catch (err) {
-      json(res, { ok: false, reason: err.message || 'Verification failed.' }, 500);
+      json(res, { ok: false, reason: err.message || 'Verification failed.' }, err.status || 500);
     }
     return true;
   }
 
-  // Demo / local record invoice (when Razorpay keys missing).
+  // Demo record, for local development without Razorpay keys. A serverless
+  // host (production or a preview, both on the live database) refuses it.
   if (url.pathname === '/api/billing/invoice' && req.method === 'POST') {
+    const who = await caller();
+    if (!who) return true;
+    if (d.serverless) {
+      json(res, { ok: false, reason: 'Online payments are not enabled on this deployment yet.', paymentsDisabled: true }, 403);
+      return true;
+    }
     try {
       const body = await readBody(req);
       const quote = quoteFromBody(body);
@@ -367,61 +380,53 @@ export async function handleBillingApi(req, res, url) {
         json(res, { ok: false, reason: 'Unknown plan.' }, 400);
         return true;
       }
-      if (!body.email) {
-        json(res, { ok: false, reason: 'email required' }, 400);
-        return true;
-      }
-      const invoice = await persistInvoice({
-        quote,
-        buyer: {
-          email: body.email,
-          name: body.name,
-          userId: body.userId,
-          gstin: body.buyerGstin || body.gstin,
-          address: body.buyerAddress,
-        },
-        payment: {
-          paymentId: body.paymentId || `demo_${Date.now()}`,
-          orderId: body.orderId || '',
-          provider: body.provider || 'demo',
-        },
-      });
+      const invoice = await persistInvoice({ quote, buyer: buyerFrom(body, who), payment: { provider: 'demo' } }, d);
       json(res, { ok: true, invoice, quote });
     } catch (err) {
-      json(res, { ok: false, reason: err.message || 'Could not create invoice.' }, 500);
+      json(res, { ok: false, reason: err.message || 'Could not create invoice.' }, err.status || 500);
     }
     return true;
   }
 
   if (url.pathname === '/api/billing/invoices' && req.method === 'GET') {
-    const email = String(url.searchParams.get('email') || '')
-      .trim()
-      .toLowerCase();
-    if (!email) {
-      json(res, { ok: false, reason: 'email required' }, 400);
+    const who = await caller();
+    if (!who) return true;
+    // The caller's own invoices. An `email` parameter is ignored, and the
+    // explicit user filter keeps an admin's list to their own.
+    const { data, error } = await d
+      .clientForToken(bearerToken(req))
+      .from('invoices')
+      .select('*')
+      .eq('user_id', who.id)
+      .order('issued_at', { ascending: false })
+      .limit(50);
+    if (error) {
+      json(res, { ok: false, reason: 'Invoices unavailable.' }, 503);
       return true;
     }
-    const database = await getDb();
-    const rows = queryAll(
-      database,
-      `SELECT * FROM invoices WHERE user_email = ? ORDER BY issued_at DESC LIMIT 50`,
-      [email],
-    ).map(rowToInvoice);
-    json(res, { ok: true, invoices: rows });
+    json(res, { ok: true, invoices: (data || []).map(rowToInvoice) });
     return true;
   }
 
   const invMatch = url.pathname.match(/^\/api\/billing\/invoice\/([^/]+)$/);
   if (invMatch && req.method === 'GET') {
-    const database = await getDb();
-    const id = decodeURIComponent(invMatch[1]);
-    const row =
-      queryAll(database, `SELECT * FROM invoices WHERE id = ? OR invoice_no = ?`, [id, id])[0] || null;
-    if (!row) {
+    const who = await caller();
+    if (!who) return true;
+    const ref = decodeURIComponent(invMatch[1]);
+    const column = /^inv_[a-z0-9_]{1,60}$/.test(ref) ? 'id' : /^NIY\/\d{4}\/\d{5}$/.test(ref) ? 'invoice_no' : '';
+    // Read as the caller: RLS returns the row only to its owner or an admin.
+    const found = column
+      ? await d.clientForToken(bearerToken(req)).from('invoices').select('*').eq(column, ref).maybeSingle()
+      : { data: null, error: null };
+    if (found.error) {
+      html(res, '<p>Invoice unavailable.</p>', 503);
+      return true;
+    }
+    if (!found.data) {
       html(res, '<p>Invoice not found.</p>', 404);
       return true;
     }
-    html(res, renderInvoiceHtml(rowToInvoice(row), sellerFromEnv()));
+    html(res, renderInvoiceHtml(rowToInvoice(found.data), sellerFromEnv()));
     return true;
   }
 
