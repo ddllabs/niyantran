@@ -3,6 +3,7 @@ import { serveHomeSegments, serveHomeMarkets, serveHomeLatest } from '../../serv
 import { getLiveTvChannels, getLiveTvSchedule, getLiveTvArchive, getLiveTvTranscript } from '../../server/liveTvApi.mjs';
 import { readAppFlags, writeAppFlags } from '../../server/appFlags.mjs';
 import { briefFromExtract } from '../../server/sourceExtract.mjs';
+import { runAiChat } from '../../server/aiApi.mjs';
 import {
   sourceUrlsForRow,
   structuralBrief,
@@ -200,6 +201,20 @@ The Chairperson and Members shall be appointed by the Central Government on the 
       expect(deskForFeature('National Policy Pipeline')).toBe(DESKS.pipeline);
       expect(deskForFeature('Parliamentary Question Database')).toBe(DESKS.question);
       expect(deskForFeature('Regulatory Body Watch (RBI/SEBI/TRAI/CCI)')).toBe(DESKS.regulatory);
+    });
+  });
+
+  describe('CR-06.6: AI Chat Session Boundary & Authentication Verification', () => {
+    it('rejects unauthenticated requests to runAiChat with 401 requirement error', async () => {
+      await expect(
+        runAiChat({ messages: [{ role: 'user', content: 'What is this bill?' }] }, null),
+      ).rejects.toThrow(/AI research service requires authentication/);
+    });
+
+    it('rejects empty or whitespace-only Authorization header in runAiChat', async () => {
+      await expect(
+        runAiChat({ messages: [{ role: 'user', content: 'What is this bill?' }] }, 'Bearer   '),
+      ).rejects.toThrow(/AI research service requires authentication/);
     });
   });
 });

@@ -344,7 +344,7 @@ export default async function handler(req, res) {
         return;
       }
       const out = await runAiChat(parseBody(req), req.headers?.authorization);
-      res.status(200).json({ ok: true, ...out });
+      res.status(200).json({ ok: true, ...out, answer: out.text });
       return;
     }
 
