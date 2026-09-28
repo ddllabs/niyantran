@@ -16,7 +16,8 @@ Deno.test('unknown ids resolve to null, never to a default persona', () => {
   assertEquals(dbPersona(undefined), null);
 });
 
-Deno.test('academic borrows the student prompt until academic.md exists', () => {
-  assertEquals(promptFile('academic'), 'student.md');
+Deno.test('academic has its own prompt now that academic.md exists', () => {
+  assertEquals(promptFile('academic'), 'academic.md');
+  assertEquals(promptFile('upsc_aspirant'), 'student.md');
   assertEquals(promptFile('policy_analyst'), 'policy.md');
 });

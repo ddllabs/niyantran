@@ -13,7 +13,7 @@ export const PERSONA_MAP: readonly PersonaEntry[] = [
   { db: 'upsc_aspirant', frontend: 'student', prompt: 'student.md' },
   { db: 'corporate_affairs', frontend: 'analyst', prompt: 'analyst.md' },
   { db: 'legal_researcher', frontend: 'lawyer', prompt: 'lawyer.md' },
-  { db: 'academic', frontend: 'academic', prompt: 'student.md' },
+  { db: 'academic', frontend: 'academic', prompt: 'academic.md' },
 ];
 
 export function dbPersona(frontendId: string | null | undefined): string | null {

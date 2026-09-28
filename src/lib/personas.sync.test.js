@@ -20,6 +20,14 @@ describe('persona prompts are synced to the edge functions', () => {
     }
   });
 
+  // Academic borrowed the UPSC exam prompt, so an academic account got
+  // GS-paper answers. It now has its own research prompt.
+  it('academic has its own prompt, distinct from the UPSC one', () => {
+    const academic = PERSONA_MAP.find((p) => p.db === 'academic');
+    expect(academic.prompt).toBe('academic.md');
+    expect(readFileSync(resolve(SRC, 'academic.md'), 'utf8')).not.toBe(readFileSync(resolve(SRC, 'student.md'), 'utf8'));
+  });
+
   it('every persona map entry points at a shipped file', () => {
     const files = new Set(readdirSync(SRC).filter((f) => f.endsWith('.md')));
     for (const p of PERSONA_MAP) expect(files.has(p.prompt), `${p.db} → ${p.prompt}`).toBe(true);

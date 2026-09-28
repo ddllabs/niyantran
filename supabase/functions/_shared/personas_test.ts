@@ -33,6 +33,13 @@ Deno.test('personas.json is not stale', async () => {
   }
 });
 
+Deno.test('academic resolves to its own prompt, not the UPSC exam prompt', () => {
+  const academic = PERSONA_MAP.find((p) => p.db === 'academic');
+  assertEquals(academic?.prompt, 'academic.md');
+  assert(personaPrompt('academic.md'), 'academic.md must ship');
+  assert(personaPrompt('academic.md') !== personaPrompt('student.md'), 'academic must differ from student');
+});
+
 Deno.test('an unknown persona file resolves to null rather than throwing', () => {
   assertEquals(personaPrompt('nope.md'), null);
 });

@@ -4,6 +4,7 @@ import journalistPrompt from '../data/personas/journalist.md?raw';
 import lawyerPrompt from '../data/personas/lawyer.md?raw';
 import policyPrompt from '../data/personas/policy.md?raw';
 import analystPrompt from '../data/personas/analyst.md?raw';
+import academicPrompt from '../data/personas/academic.md?raw';
 
 const KEY = 'niyantranPersonaPrompts';
 const EVENT = 'niy-persona-prompts';
@@ -14,8 +15,7 @@ export const DEFAULT_PERSONA_PROMPTS = {
   lawyer: String(lawyerPrompt || '').trim(),
   policy: String(policyPrompt || '').trim(),
   analyst: String(analystPrompt || '').trim(),
-  // Academic reuses the student research stance until a dedicated prompt ships.
-  academic: String(studentPrompt || '').trim(),
+  academic: String(academicPrompt || '').trim(),
 };
 
 function emptyMap() {

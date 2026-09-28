@@ -9,7 +9,7 @@ export const PERSONA_MAP = Object.freeze([
   { db: 'upsc_aspirant', frontend: 'student', prompt: 'student.md' },
   { db: 'corporate_affairs', frontend: 'analyst', prompt: 'analyst.md' },
   { db: 'legal_researcher', frontend: 'lawyer', prompt: 'lawyer.md' },
-  { db: 'academic', frontend: 'academic', prompt: 'student.md' },
+  { db: 'academic', frontend: 'academic', prompt: 'academic.md' },
 ]);
 
 /** Frontend persona id → app_persona enum value, or null. */
