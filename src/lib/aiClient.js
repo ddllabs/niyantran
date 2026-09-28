@@ -1,6 +1,6 @@
 import { pickAiRole, activeAiProvider, AI_PROVIDERS } from './aiModelsStore.js';
 import { sessionUser, userTypeOf, verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
-import { functionsUrl } from './supabaseClient.js';
+import { functionsUrl, supabase } from './supabaseClient.js';
 
 /**
  * POST one turn to the research-chat edge function and hand back the raw
@@ -27,9 +27,16 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
         || !await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {
       throw new Error('Sign in to use AI research.');
     }
+    const headers = {
+      'content-type': 'application/json',
+      authorization: `Bearer ${identity.token}`,
+    };
+    if (supabase?.supabaseKey) {
+      headers.apikey = supabase.supabaseKey;
+    }
     response = await fetch(functionsUrl('research-chat'), {
       method: 'POST', signal: controller.signal,
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${identity.token}` },
+      headers,
       body: JSON.stringify(body),
     });
     if (!await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {

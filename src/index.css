@@ -2322,14 +2322,70 @@ button.live-feed:hover { color: var(--fg); }
 }
 .soft-pill {
   display: inline-block;
-  background: #f0f0f0;
-  color: #4b5563;
+  background: var(--pill-bg, #f0f0f0);
+  color: var(--pill-color, #4b5563);
+  border: 1px solid var(--pill-border, transparent);
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 11px;
   line-height: 1.35;
+  font-weight: 500;
+  white-space: nowrap;
 }
-.theme-dark .soft-pill { background: #2a3038; color: #d1d5db; }
+.theme-dark .soft-pill {
+  background: var(--pill-bg, #2a3038);
+  color: var(--pill-color, #d1d5db);
+  border-color: var(--pill-border, #374151);
+}
+
+/* Semantic Status Pill Colors (Consistent, High Contrast, Distinct) */
+/* Green: Active / Passed / Verified */
+.soft-pill.status-green {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+.theme-dark .soft-pill.status-green {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+/* Amber: Pending / Under Review / Medium */
+.soft-pill.status-amber {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.theme-dark .soft-pill.status-amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+/* Red: Critical / High / Escalating */
+.soft-pill.status-red {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+.theme-dark .soft-pill.status-red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+/* Neutral: Stable / Low / Frozen */
+.soft-pill.status-neutral {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+.theme-dark .soft-pill.status-neutral {
+  background: rgba(156, 163, 175, 0.12);
+  color: #9ca3af;
+  border-color: rgba(156, 163, 175, 0.25);
+}
 .feed-table a, .name-link { color: var(--accent); text-decoration: none; font-weight: 600; }
 .feed-table a:hover, .name-link { font-weight: 600; }
 

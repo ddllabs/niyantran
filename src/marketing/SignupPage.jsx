@@ -16,6 +16,7 @@ import {
   isTestingPhase,
   subscribeAppFlags,
 } from '../lib/appFlagsStore.js';
+import { supabase } from '../lib/supabaseClient.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 function planFromRoute() {
@@ -61,14 +62,12 @@ export default function SignupPage({ onSuccess, onLogin }) {
     setResending(true);
     setResendStatus('');
     try {
-      const res = await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: verificationSentEmail }),
+      const { error: resendErr } = await supabase.auth.resend({
+        type: 'signup',
+        email: verificationSentEmail,
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setResendStatus(`Failed to resend: ${data.error || 'Unknown error'}`);
+      if (resendErr) {
+        setResendStatus(`Failed to resend: ${resendErr.message || 'Unknown error'}`);
       } else {
         setResendStatus('Verification email resent successfully! Please check your inbox and spam folder.');
         setCooldown(60);
@@ -166,29 +165,41 @@ export default function SignupPage({ onSuccess, onLogin }) {
       return;
     }
 
-    // Call Server-Side Supabase Auth + Resend Confirmation
+    // Call native Supabase Auth
     try {
       const nameParts = name.split(' ');
       const firstName = nameParts[0] || name;
       const lastName = nameParts.slice(1).join(' ') || '';
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user,
-          password: pass,
-          firstName,
-          lastName,
-        }),
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: user,
+        password: pass,
+        options: {
+          data: {
+            name,
+            first_name: firstName,
+            last_name: lastName,
+            personaId,
+            plan: planId || 'explorer',
+          },
+        },
       });
-      const authRes = await response.json();
-      if (!response.ok || !authRes.ok) {
-        setError(authRes.error || 'Failed to create account. Please check your details.');
+      if (signUpError) {
+        setError(signUpError.message || 'Failed to create account. Please check your details.');
         setPending(false);
         return;
       }
+      if (signUpData?.session) {
+        await enterTerminal({
+          name,
+          email: user,
+          type: personaId,
+          personaId,
+          ...startTrialFields(planId || 'explorer'),
+        });
+        return;
+      }
     } catch (authErr) {
-      console.warn('Backend auth signup error:', authErr);
+      console.warn('Native auth signup error:', authErr);
       setError('Network error connecting to authentication server. Please try again.');
       setPending(false);
       return;

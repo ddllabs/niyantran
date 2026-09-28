@@ -35,8 +35,17 @@ export const config = {
 };
 
 function routePath(req) {
-  // Prefer explicit rewrite param from vercel.json
-  const via = req.query?.__route;
+  // Prefer explicit rewrite param from vercel.json (via req.query or req.url)
+  let via = req.query?.__route;
+  if (!via && req.url) {
+    try {
+      const host = req.headers?.host || 'localhost';
+      const sp = new URL(req.url, `http://${host}`).searchParams;
+      via = sp.get('__route');
+    } catch {
+      // ignore
+    }
+  }
   if (typeof via === 'string' && via.trim()) {
     const s = via.trim().replace(/^\/+/, '');
     return `/api/${s}`.replace(/\/+$/, '') || '/api';

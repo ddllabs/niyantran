@@ -4,6 +4,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop, { choiceGroup, matchesChoice } from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import { getStatusToneClass } from '../lib/format.js';
 
 const STATUS_HELP = {
   Verifiable: 'Can be checked against a public document or official release.',
@@ -119,7 +120,9 @@ export default function ManifestosDesk({ selected, onSelect, onFeed, vizFilter, 
                 <td>{r.promise || r.title}</td>
                 <td>{r.domain}</td>
                 <td title={STATUS_HELP[r.verifiable_status] || ''}>
-                  <span className="soft-pill">{r.verifiable_status || r.status || '—'}</span>
+                  <span className={`soft-pill ${getStatusToneClass(r.verifiable_status || r.status)}`}>
+                    {r.verifiable_status || r.status || '—'}
+                  </span>
                 </td>
                 <td>{r.latest_evidence}</td>
               </tr>

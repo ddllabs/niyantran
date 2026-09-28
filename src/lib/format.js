@@ -191,3 +191,44 @@ export function formatStatus(value) {
     return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
   });
 }
+
+/**
+ * Semantic status tone classification for cards and status pills.
+ * Expected semantic direction:
+ *   Active / Passed / Verified → green
+ *   Pending / Under Review / Medium → amber
+ *   High / Critical / Escalating → red
+ *   Stable / Low / Frozen → neutral
+ */
+export function getStatusToneClass(value) {
+  if (value == null || String(value).trim() === '' || value === '-') {
+    return 'status-neutral';
+  }
+  const s = String(value).trim().toLowerCase();
+
+  // Green / Positive: Active, Passed, Verified, Resolved, Complete, Enacted, Assented, Safe
+  if (/^(active|passed|verified|resolved|complete|completed|enacted|assented|safe|normal|operational|yes|approved)$/i.test(s)
+      || s.includes('passed') || s.includes('verified') || s.includes('assented')) {
+    return 'status-green';
+  }
+
+  // Red / Critical: Critical, High, Severe, Escalating, Urgent, Failed, Rejected, Danger
+  if (/^(critical|escalating|severe|danger|high|urgent|failed|emergency|red)$/i.test(s)
+      || s.includes('escalating') || s.includes('critical') || s.includes('severe')) {
+    return 'status-red';
+  }
+
+  // Amber / Warning / Medium: Pending, Under Review, Medium, Warning, In Progress, Introduced, Moderate
+  if (/^(pending|under review|medium|warning|in progress|introduced|moderate|caution|amber|review|deliberation)$/i.test(s)
+      || s.includes('pending') || s.includes('under review') || s.includes('progress') || s.includes('review') || s.includes('medium')) {
+    return 'status-amber';
+  }
+
+  // Neutral / Stable / Low / Frozen
+  if (/^(stable|low|frozen|neutral|muted|info|on hold|paused|dormant)$/i.test(s)
+      || s.includes('stable') || s.includes('low') || s.includes('frozen')) {
+    return 'status-neutral';
+  }
+
+  return 'status-neutral';
+}

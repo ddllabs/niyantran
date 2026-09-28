@@ -435,12 +435,14 @@ api/router.js (Single Consolidated Serverless Gateway)
   └─ /api/ai/desk-brief       → server/deskBrief.mjs
 ```
 
-**Resolution of Production Deployment 404s & 502:**
-1. **`/api/marketing/intro-video` (404 → 200):** Registered `handleMarketingMediaApi` in `api/router.js`.
-2. **`/api/analytics/event` (404 → 200):** Registered `handleAnalyticsApi` in `api/router.js`; added pre-parsed `req.body` support and `OPTIONS`/`GET` grace handlers.
-3. **`/api/user-prefs` (404 → 200/401):** Registered `handleUserPrefsApi` in `api/router.js`; added pre-parsed `req.body` support and `OPTIONS` preflight.
-4. **`/api/ai/chat` (502 → 200/401):** Corrected `proxyResearchChat` in `server/aiApi.mjs` to supply required `turn_key`, `attachments` array, and `apikey` header to the Supabase `research-chat` Edge Function; updated `api/router.js` error status classification so unauthenticated requests return `401 Unauthorized` instead of `502 Bad Gateway`.
-5. **Supabase Clock Skew Warning:** Confirmed non-breaking informational warning in `@supabase/gotrue-js` (local machine clock drifting behind Supabase server UTC timestamp).
-6. **External Extension Warnings (`ObjectMultiplex` / `MaxListenersExceededWarning`):** Confirmed third-party web3/MetaMask browser-extension content script artifacts, external to application code.
+**Resolution of Production Deployment Issues (Ready for Production):**
+1. **`/api/marketing/intro-video` & `/api/analytics/event` & `/api/user-prefs` (404 → 200/401):** Updated `routePath(req)` in `api/router.js` to extract `__route` from `req.url` search params when `req.query` is not pre-populated in serverless node execution.
+2. **Native Supabase Auth (Section 2):** Removed obsolete custom variable-based email auth and backend proxies. `SignupPage.jsx` now uses browser-native `supabase.auth.signUp()` and `supabase.auth.resend()`. `ForgotPasswordPage.jsx` uses `supabase.auth.resetPasswordForEmail()`. Google OAuth uses native `supabase.auth.signInWithOAuth()`.
+3. **Live TV YouTube Player Error 153 (Section 9):** Replaced `referrerPolicy="no-referrer"` with `referrerPolicy="strict-origin-when-cross-origin"`, added explicit `origin` query parameter to embed URLs, and added a truthful fallback card with a direct "Watch on YouTube ↗" link for non-embeddable or offline broadcasts.
+4. **AI Research Authentication & Gateway (Section 4):** Attached `apikey` (`supabase.supabaseKey`) in `sendResearchTurn()` and in `server/aiApi.mjs` when proxying to `research-chat` Edge Function. `OPENROUTER_API_KEY` remains strictly server-side in Supabase Secrets.
+5. **Admin-Approved LLM Module (Section 6):** Reused `public.ai_models` allowlist via `loadRegistry()`. Added truthful empty and loading states in `ModelPicker.jsx`.
+6. **Semantic Card/Status Colors (Section 8):** Added `getStatusToneClass()` in `src/lib/format.js` and high-contrast semantic classes (`.status-green`, `.status-amber`, `.status-red`, `.status-neutral`) in `src/index.css`.
+7. **Supabase Clock Skew Warning (Section 16):** Confirmed non-breaking informational warning in `@supabase/gotrue-js` (`GoTrueClient.ts:3951`) caused by client machine clock lagging behind Supabase server UTC time.
+8. **External Extension Warnings:** Confirmed third-party web3/MetaMask wallet content scripts (`ObjectMultiplex`), not originating from NTER.
 
 

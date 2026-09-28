@@ -3,7 +3,7 @@ import { fetchFeature } from '../lib/featureFeed.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.js';
 import { buildTableSearchIndex, searchTableRows, shouldIndexSearch } from '../lib/tableSearch.js';
-import { formatCell, formatDate, formatStatus, truncateTwoLines } from '../lib/format.js';
+import { formatCell, formatDate, formatStatus, getStatusToneClass, truncateTwoLines } from '../lib/format.js';
 import { isTerminalState, resolveDataState } from '../lib/dataState.js';
 import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
@@ -731,7 +731,7 @@ export default function DeskView({
                                     )}
                                   </span>
                                 ) : c.pill && text !== '-' ? (
-                                  <span className="soft-pill">{display}</span>
+                                  <span className={`soft-pill ${getStatusToneClass(raw || display)}`}>{display}</span>
                                 ) : (
                                   display
                                 )}

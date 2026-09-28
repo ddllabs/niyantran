@@ -116,4 +116,11 @@ to backend contracts and does not establish a competing backend architecture.
 - **AI Gateway & OpenRouter Security:** `OPENROUTER_API_KEY` is maintained server-side in Supabase Secrets for Edge Functions (`research-chat`, `desk-brief`, `embed.ts`). `server/aiApi.mjs` proxies requests to the Supabase Edge Function with required `turn_key`, session JWT bearer, and `apikey`. Zero AI secrets exist in the client bundle.
 - **Operational Boundaries:** Deployment operations, Vercel configuration updates, Supabase dashboard changes, and production DNS adjustments are strictly governed by human authorization and are isolated from repository reconciliation tasks.
 
+### Semantic Card and Status Colors
 
+- **Direction & Accessibility:** Standardized high-contrast semantic tone mapping across desks and analytical feeds:
+  - **Active / Passed / Verified:** Green (`.soft-pill.status-green`)
+  - **Pending / Under Review / Medium:** Amber (`.soft-pill.status-amber`)
+  - **High / Critical / Escalating:** Red (`.soft-pill.status-red`)
+  - **Stable / Low / Frozen:** Neutral (`.soft-pill.status-neutral`)
+- **Theme Support:** Dedicated light and dark mode variables with full WCAG AA contrast ratio compliance.

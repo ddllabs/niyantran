@@ -120,7 +120,7 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
         {/* The rung rides on the label, so the setting in force is readable
             without opening anything. It is a real difference in what the turn
             will do and cost, and it lived two clicks deep. */}
-        <span className="ai-v2-model-name">{picked?.label || 'Model'}</span>
+        <span className="ai-v2-model-name">{picked?.label || (models.length === 0 ? 'No approved models' : 'Model')}</span>
         {picked && chosen && chosen !== 'off' ? (
           <span className="ai-v2-model-eff">{EFFORT_LABELS[chosen] || chosen}</span>
         ) : null}
@@ -129,6 +129,11 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
 
       {open ? (
         <div className="ai-v2-model-menu" role="group" aria-label="Model settings">
+          {models.length === 0 ? (
+            <div className="ai-v2-model-empty" style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+              No approved models available
+            </div>
+          ) : null}
           {roles.length ? (
             <>
               <p className="ai-v2-model-sec">Roles</p>

@@ -224,6 +224,21 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
     }
   }
 
+  // External watch URL for truthful fallback
+  const externalWatchUrl = useMemo(() => {
+    if (playbackMode === 'video' && activeVideo) {
+      const vid = activeVideo.videoId || activeVideo.id;
+      return vid ? `https://www.youtube.com/watch?v=${vid}` : activeChannel?.channelUrl || 'https://www.youtube.com';
+    }
+    if (playbackMode === 'archive' && selectedArchiveItem) {
+      return selectedArchiveItem.videoUrl?.replace('/embed/', '/watch?v=').split('?')[0] || activeChannel?.channelUrl || 'https://www.youtube.com';
+    }
+    if (activeChannel?.defaultVideoId) {
+      return `https://www.youtube.com/watch?v=${activeChannel.defaultVideoId}`;
+    }
+    return activeChannel?.channelUrl || 'https://www.youtube.com';
+  }, [playbackMode, activeVideo, selectedArchiveItem, activeChannel]);
+
   // Determine current player source
   const currentEmbedUrl =
     playbackMode === 'video' && activeVideo
@@ -232,9 +247,16 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
       ? selectedArchiveItem.videoUrl
       : activeChannel?.embedUrl || '';
 
-  const embedSrc = currentEmbedUrl
-    ? `${currentEmbedUrl}${currentEmbedUrl.includes('?') ? '&' : '?'}mute=${isMuted ? '1' : '0'}`
-    : '';
+  const embedSrc = useMemo(() => {
+    if (!currentEmbedUrl) return '';
+    try {
+      const originParam = typeof window !== 'undefined' && window.location.origin ? `&origin=${encodeURIComponent(window.location.origin)}` : '';
+      const sep = currentEmbedUrl.includes('?') ? '&' : '?';
+      return `${currentEmbedUrl}${sep}mute=${isMuted ? '1' : '0'}${originParam}`;
+    } catch {
+      return `${currentEmbedUrl}${currentEmbedUrl.includes('?') ? '&' : '?'}mute=${isMuted ? '1' : '0'}`;
+    }
+  }, [currentEmbedUrl, isMuted]);
 
   return (
     <div className="ltv-modal-backdrop" onClick={onClose}>
@@ -360,16 +382,27 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                     {playbackMode === 'archive' ? selectedArchiveItem?.title : activeChannel?.name || 'this channel'}{' '}
                     is currently unavailable or restricted for direct embedding.
                   </p>
-                  <button
-                    type="button"
-                    className="ltv-action-btn primary"
-                    onClick={() => {
-                      setStreamError(false);
-                      setReloadKey((k) => k + 1);
-                    }}
-                  >
-                    Retry Broadcast Feed
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
+                    <a
+                      href={externalWatchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ltv-action-btn primary"
+                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      Watch on YouTube ↗
+                    </a>
+                    <button
+                      type="button"
+                      className="ltv-action-btn secondary"
+                      onClick={() => {
+                        setStreamError(false);
+                        setReloadKey((k) => k + 1);
+                      }}
+                    >
+                      Retry Broadcast Feed
+                    </button>
+                  </div>
                 </div>
               ) : isPlaying ? (
                 <iframe
@@ -378,7 +411,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                   src={embedSrc}
                   title={`${playbackMode === 'archive' ? selectedArchiveItem?.title : activeChannel?.name || 'Live TV'} Player`}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                  referrerPolicy="no-referrer"
+                  referrerPolicy="strict-origin-when-cross-origin"
                   onError={() => setStreamError(true)}
                 />
               ) : (

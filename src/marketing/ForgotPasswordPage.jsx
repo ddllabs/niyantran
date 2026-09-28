@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { supabase } from '../lib/supabaseClient.js';
 
 export default function ForgotPasswordPage({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -36,16 +37,16 @@ export default function ForgotPasswordPage({ onLogin }) {
     setSuccessNotice('');
 
     try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed }),
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/#/reset-password` : undefined;
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo,
       });
-
-      const data = await res.json();
+      if (resetErr) {
+        console.warn('Supabase resetPasswordForEmail notice:', resetErr.message);
+      }
       // Anti-enumeration: always display friendly confirmation
       setSuccessNotice(
-        data.message || 'If an account exists for this email address, a password reset link has been sent.'
+        'If an account exists for this email address, a password reset link has been sent.'
       );
       setCooldown(60);
       const timer = setInterval(() => {

@@ -316,11 +316,14 @@ async function proxyResearchChat(payload, authHeader) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CHAT_MS);
   try {
-    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+    const anonKey =
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
     const headers = {
       'Authorization': authHeader,
       'Content-Type': 'application/json',
-      ...(anonKey ? { 'apikey': anonKey } : {}),
+      'apikey': anonKey,
     };
     const res = await fetch(endpoint, {
       method: 'POST',
