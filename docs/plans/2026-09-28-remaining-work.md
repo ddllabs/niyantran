@@ -97,7 +97,7 @@ production.
     cache) and the guard's allow-list gains that key.
   - *Accept:* the guard test covers it; no write under `public/`.
 - [x] **B5. `server/loadEnv.mjs` stops reading `nter/.env` (XS).** Done 2026-09-28.
-- [ ] **B6. A CI gate on GitHub Actions (M).**
+- [x] **B6. A CI gate on GitHub Actions (M).** Added 2026-09-28 (`.github/workflows/ci.yml`); it also fails if tests modify `public/`.
   - It runs `npm ci`, `npm test`, `npm run build`, the router import and
     the Deno suite on every push and pull request, plus a job that starts
     the two Postgres containers and runs `npm run test:sql`.

@@ -1,0 +1,59 @@
+# Advisory CI (plan task B6): runs on every push and pull request. A red run
+# is visible on the commit; nothing is blocked until branch protection says so.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Router import
+        run: node -e "import('./api/router.js').then(() => console.log('router import ok'))"
+      - run: npm test
+      - name: Tests leave committed data untouched
+        run: git diff --exit-code -- public/
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Function tests
+        run: deno test -A --config supabase/functions/deno.json supabase/functions
+
+  sql:
+    name: SQL fixtures (disposable Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # The image first runs a socket-only init server; TCP readiness means the
+      # real server is up.
+      - name: Start the two local databases
+        run: |
+          docker run -d --name niyantran-recovery-db -e POSTGRES_PASSWORD=postgres postgres:17-alpine
+          docker run -d --name niyantran-corpus-test-db -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg17
+          for c in niyantran-recovery-db niyantran-corpus-test-db; do
+            for i in $(seq 1 60); do
+              docker exec "$c" pg_isready -h 127.0.0.1 -U postgres -q && break
+              sleep 1
+            done
+            docker exec "$c" pg_isready -h 127.0.0.1 -U postgres
+          done
+      - run: npm run test:sql
