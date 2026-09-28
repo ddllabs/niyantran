@@ -654,7 +654,7 @@ function bearerOf(header) {
   return /^Bearer\s+\S+/i.test(h) ? h : '';
 }
 
-/** Same URL and publishable-key resolution as the research-chat proxy. */
+/** The desk-brief Edge Function URL and the project's publishable key. */
 function deskBriefFunction() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
   const apikey =

@@ -1,5 +1,7 @@
 /**
- * Local SQLite store (sql.js / WASM) for accounts + product analytics.
+ * Local SQLite store (sql.js / WASM). Its only remaining user is the
+ * desk-brief entry_briefs cache tier in deskBrief.mjs; accounts, analytics,
+ * preferences and invoices moved to Supabase. Removed by plan task T7.
  * File: tmp/niyantran.sqlite (or /tmp/niyantran on serverless).
  */
 import fs from 'fs';

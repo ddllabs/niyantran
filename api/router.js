@@ -418,7 +418,7 @@ export default async function handler(req, res) {
     const msg = /sql-wasm|sql\.js|ENOENT|WASM/i.test(raw)
       ? 'Sign-in is temporarily unavailable. Please try again in a moment, or create an account first.'
       : raw;
-    const status = /missing|required|requires|invalid|disabled|testing phase|Select a row|No rows|audience|issuer|expired|token|credential|verified|auth|unauthorized/i.test(
+    const status = /missing|required|requires|invalid|disabled|Select a row|No rows|audience|issuer|expired|token|credential|verified|auth|unauthorized/i.test(
       raw,
     )
       ? /audience|issuer|expired|token|credential|verified|auth|requires.*auth|unauthorized/i.test(raw)
