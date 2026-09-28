@@ -174,31 +174,37 @@ describe('legacy /api/ai/chat resolves the model against the live registry', () 
   });
 });
 
-describe('direct-OpenRouter fallback (dev only, key present) tries only live models', () => {
-  let savedKey;
+describe('a server-side OpenRouter key never bypasses Supabase (ADR 0008)', () => {
+  const saved = {};
   beforeEach(() => {
-    savedKey = process.env.OPENROUTER_API_KEY;
-    process.env.OPENROUTER_API_KEY = 'test-only-placeholder';
+    for (const k of ['OPENROUTER_API_KEY', 'NIYANTRAN_AI_KEY']) {
+      saved[k] = process.env[k];
+      process.env[k] = 'must-not-be-used';
+    }
   });
   afterEach(() => {
-    if (savedKey === undefined) delete process.env.OPENROUTER_API_KEY;
-    else process.env.OPENROUTER_API_KEY = savedKey;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
     vi.unstubAllGlobals();
   });
 
-  it.each(['gemini-lite', 'gemini-flash', 'gpt-astra', 'google/gemini-3.7-flash'])(
-    'for %s every attempted model is an enabled model',
+  it.each(['gemini-lite', 'gpt-astra', 'google/gemini-3.7-flash', 'custom-model'])(
+    'for %s the turn goes to research-chat and never to OpenRouter',
     async (model) => {
       const calls = installFetch();
-      await expect(ask(model)).rejects.toThrow(/unavailable/);
-      expect(calls.openrouter.length).toBeGreaterThan(0);
-      for (const m of calls.openrouter) expect(ENABLED).toContain(m);
+      const out = await ask(model);
+      expect(out.text).toBe('Answer from the record.');
+      expect(calls.forwarded).toHaveLength(1);
+      expect(calls.forwarded[0].authorization).toBe(`Bearer ${TOKEN}`);
+      expect(calls.openrouter).toEqual([]);
     },
   );
 
-  it('for an unrecognised name no retired ID is attempted', async () => {
-    const calls = installFetch();
-    await expect(ask('custom-model')).rejects.toThrow(/unavailable/);
-    expect(calls.openrouter.join(' ')).not.toMatch(RETIRED);
+  it('the proxy module holds no OpenRouter endpoint or key lookup', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../../server/aiApi.mjs', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/openrouter\.ai|OPENROUTER_API_KEY|NIYANTRAN_AI_KEY/);
   });
 });
