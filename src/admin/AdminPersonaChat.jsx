@@ -89,7 +89,7 @@ export default function AdminPersonaChat({ typeId, personaPrompt }) {
         <div>
           <b>Persona probe</b>
           <span>
-            Testing as {meta.label} · prompt hidden · {(personaPrompt || '').length.toLocaleString()} chars
+            Testing the shipped {meta.label} prompt · admin only
           </span>
         </div>
         <button

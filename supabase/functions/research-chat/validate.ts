@@ -2,6 +2,7 @@
 // browser sends is untrusted: the selection and the attachments are rendered
 // into the prompt, and the document keys are resolved against the corpus, so
 // they are shape-checked and bounded here before any of that happens.
+import { PERSONA_MAP } from '../_shared/personaMap.ts';
 
 export const FOCUS_VALUES = ['attached', 'selection', 'desk', 'broad'] as const;
 // OpenRouter's full ladder, cheapest first. It stopped at `high`, so `max` and
@@ -56,6 +57,8 @@ export interface ResearchRequest {
   selection?: Selection;
   attachments: Attachment[];
   desk_context?: { tier: string; feature?: string };
+  /** Admin persona probe: an app_persona value. research-chat honours it only for a platform admin. */
+  persona_probe?: string;
 }
 
 export type FieldErrors = Record<string, string>;
@@ -169,6 +172,13 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
     }
   }
 
+  let personaProbe: string | undefined;
+  if (b.persona_probe !== undefined && b.persona_probe !== null) {
+    if (typeof b.persona_probe !== 'string' || !PERSONA_MAP.some((p) => p.db === b.persona_probe)) {
+      fieldErrors.persona_probe = `persona_probe must be one of ${PERSONA_MAP.map((p) => p.db).join(', ')}`;
+    } else personaProbe = b.persona_probe;
+  }
+
   if (Object.keys(fieldErrors).length) return { fieldErrors };
   return {
     request: {
@@ -181,6 +191,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
       ...(selection ? { selection } : {}),
       attachments,
       ...(deskContext ? { desk_context: deskContext } : {}),
+      ...(personaProbe ? { persona_probe: personaProbe } : {}),
     },
   };
 }

@@ -208,3 +208,44 @@ describe('a server-side OpenRouter key never bypasses Supabase (ADR 0008)', () =
     expect(source).not.toMatch(/openrouter\.ai|OPENROUTER_API_KEY|NIYANTRAN_AI_KEY/);
   });
 });
+
+// The admin persona probe (plan C4): the panel sends probe + userType; the
+// proxy forwards it to research-chat as persona_probe (an app_persona value),
+// which research-chat honours only for a platform admin.
+describe('the admin persona probe is forwarded to research-chat', () => {
+  const saved = {};
+  beforeEach(() => {
+    for (const k of ['OPENROUTER_API_KEY', 'NIYANTRAN_AI_KEY']) {
+      saved[k] = process.env[k];
+      process.env[k] = '';
+    }
+  });
+  afterEach(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it('maps the probed user type to persona_probe', async () => {
+    const calls = installFetch();
+    await ask('gemini-flash', { probe: true, userType: 'journalist', personaPrompt: 'draft text' });
+    expect(calls.forwarded[0].body.persona_probe).toBe('journalist');
+    expect(JSON.stringify(calls.forwarded[0].body)).not.toContain('draft text');
+  });
+
+  it('maps frontend ids to their app_persona value', async () => {
+    const calls = installFetch();
+    await ask('gemini-flash', { probe: true, userType: 'student' });
+    expect(calls.forwarded[0].body.persona_probe).toBe('upsc_aspirant');
+  });
+
+  it('sends no persona_probe without probe, or for an unknown type', async () => {
+    for (const extra of [{ userType: 'journalist' }, { probe: true, userType: 'hacker' }]) {
+      const calls = installFetch();
+      await ask('gemini-flash', extra);
+      expect('persona_probe' in calls.forwarded[0].body).toBe(false);
+    }
+  });
+});

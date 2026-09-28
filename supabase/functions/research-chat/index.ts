@@ -7,7 +7,6 @@ import { deskCatalogBlock } from '../_shared/deskCatalog.ts';
 import { EMBED_DIMS, EMBED_MODEL, embedTexts, servedModelMatches } from '../_shared/embed.ts';
 import { errorResponse, HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
-import { promptFile } from '../_shared/personaMap.ts';
 import { personaPrompt } from '../_shared/personas.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
 import { search } from '../_shared/retrieval.ts';
@@ -15,6 +14,7 @@ import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
 import { type HandlerDeps, handleResearchChat, type RetrievalContext } from './handler.ts';
 import { rpcTurnStore } from './persistence.ts';
+import { resolvePersona } from './persona.ts';
 
 export const NETWORK_TIMEOUT_MS = 4_000;
 /** Which desk modules have indexed documents. Per-isolate; only an ingest moves it. */
@@ -247,12 +247,19 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       );
       return row ? { prompt_usd: number(row.prompt_usd), completion_usd: number(row.completion_usd) } : null;
     },
-    persona: async (userId) => {
+    persona: async (userId, probe) => {
       if (userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
-      const row = await query((signal) =>
-        caller().from('user_profiles').select('persona').eq('user_id', userId).abortSignal(signal).maybeSingle()
-      );
-      return await bounded(() => r.readPersona(promptFile(row?.persona) ?? 'analyst.md'), r.timeoutMs);
+      return await resolvePersona(probe, {
+        profilePersona: async () => {
+          const row = await query((signal) =>
+            caller().from('user_profiles').select('persona').eq('user_id', userId).abortSignal(signal).maybeSingle()
+          );
+          return row?.persona;
+        },
+        // Asked as the caller, so the answer is about this bearer, not the service key.
+        isAdmin: async () => (await query((signal) => caller().rpc('is_platform_admin').abortSignal(signal))) === true,
+        readPersona: (file) => bounded(() => r.readPersona(file), r.timeoutMs),
+      });
     },
     catalogue: deskCatalogBlock,
     documentModules: async () => {

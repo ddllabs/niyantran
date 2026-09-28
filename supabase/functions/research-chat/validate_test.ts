@@ -109,3 +109,17 @@ Deno.test('inherited columns remain excluded from the retained row', () => {
   const row = Object.assign(Object.create({ inherited: 'Ignored' }), { title: 'Own bill' });
   assertEquals(acceptedRow(row), { title: 'Own bill' });
 });
+
+Deno.test('persona_probe accepts a persona enum value and refuses anything else', () => {
+  const ok = validateRequest({ ...base, persona_probe: 'journalist' });
+  assert('request' in ok);
+  assertEquals(ok.request.persona_probe, 'journalist');
+  const none = validateRequest(base);
+  assert('request' in none);
+  assertEquals('persona_probe' in none.request, false);
+  for (const bad of ['student', 'hacker', 7, '']) {
+    const res = validateRequest({ ...base, persona_probe: bad });
+    assert('fieldErrors' in res, `refused ${String(bad)}`);
+    assert(res.fieldErrors.persona_probe);
+  }
+});

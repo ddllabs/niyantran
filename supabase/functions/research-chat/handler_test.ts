@@ -306,6 +306,19 @@ Deno.test('a plain answer streams as chunks, persists, and reports sources, timi
   assertEquals(rec.calls.at(-1)!.cost_usd, 0.0001, 'the provider figure is preferred');
 });
 
+Deno.test('a persona_probe reaches the persona lookup with the caller', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Probe answer.')), finish()]]);
+  const asked: unknown[][] = [];
+  const { deps } = fakeDeps(provider, {
+    persona: (...args: unknown[]) => {
+      asked.push(args);
+      return Promise.resolve('You are the newsroom desk.');
+    },
+  } as Partial<HandlerDeps>);
+  await frames(await handleResearchChat(post({ ...BODY, persona_probe: 'journalist' }), deps));
+  assertEquals(asked, [['user-1', 'journalist']]);
+});
+
 Deno.test('the same turn_key twice answers duplicate before any provider call', async () => {
   const provider = scripted([...DECLINES, [text(envelope('First')), finish()]]);
   const { deps, rec } = fakeDeps(provider);

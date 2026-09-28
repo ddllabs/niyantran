@@ -15,6 +15,7 @@ import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
 import { briefFromExtract, extractBuffer, extractSource } from './sourceExtract.mjs';
 import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.js';
+import { dbPersona } from '../src/lib/personaMap.js';
 
 loadEnv();
 const CHAT_MS = 90_000;
@@ -212,6 +213,9 @@ async function proxyResearchChat(payload, authHeader) {
     ...(selection ? { selection } : {}),
     ...(desk_context ? { desk_context } : {}),
     ...(payload.conversationId ? { conversation_id: payload.conversationId } : {}),
+    // Admin persona probe: research-chat honours it only for a platform admin.
+    // Draft prompt text is never forwarded; the shipped prompt is tested.
+    ...(payload.probe === true && dbPersona(payload.userType) ? { persona_probe: dbPersona(payload.userType) } : {}),
   };
 
   const controller = new AbortController();

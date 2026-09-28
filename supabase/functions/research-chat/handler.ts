@@ -113,7 +113,8 @@ export interface HandlerDeps {
   requireUser(req: Request): Promise<{ userId: string; token: string }>;
   models(): Promise<AiModelLike[]>;
   pricing(modelId: string): Promise<Pricing | null>;
-  persona(userId: string): Promise<string>;
+  /** The system persona prompt; `probe` is the admin persona probe, honoured only for admins. */
+  persona(userId: string, probe?: string): Promise<string>;
   catalogue(tier?: string): string;
   /** Desk modules with indexed source documents. Read from the corpus, not
    * configured, so it cannot drift away from what search_documents can reach. */
@@ -572,7 +573,7 @@ async function runTurnBody(
   const handles = createHandleAssigner();
   const evidence: EvidenceMap = new Map();
   const [persona, history] = await Promise.all([
-    deps.persona(caller.userId),
+    deps.persona(caller.userId, request.persona_probe),
     deps.db.recentMessages(conversation.id, [context.claim.user_message_id, context.claim.assistant.id]),
   ]);
   signal.throwIfAborted();
