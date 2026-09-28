@@ -199,8 +199,11 @@ questions are closed.
   - Follow-up done the same day: `aiChatStore.js` is gone. Preferences sync
     only the watchlist and tours; `/api/user-prefs` ignores `aiChats` and no
     longer reads `ai_chats`; each browser drops its legacy chat copies at
-    startup. The `ai_chats` column keeps its four old rows (8 KB) until the
-    owner decides whether to clear them.
+    startup. The four old `ai_chats` values (8 KB: three empty chat shells
+    and one question with its answer) were cleared on 2026-09-28 at the
+    owner's direction (the system is still in development). Next: drop the
+    column and its size check in a migration about a week later, once no
+    rollback to a pre-`f05a5b6` Vercel build is likely.
   - `VITE_AI_BACKEND=legacy`, the legacy panel branch, `/api/ai/chat` once
     C4 moves the admin probe to `research-chat`, and the unused
     `server/personas.mjs`.

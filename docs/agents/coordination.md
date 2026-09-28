@@ -730,6 +730,11 @@ marked otherwise. This supersedes the function table above.
   for persona-injection testing, and a sixth account uses Academic. The
   count is now one per persona and three profiles without one; those three
   see the persona chooser once at their next sign-in (`c24d379`).
+- **`user_preferences.ai_chats` cleared** (owner decision, ~19:00 UTC):
+  `update public.user_preferences set ai_chats = null where ai_chats is not
+  null` changed 4 rows; afterwards 0 rows hold `ai_chats` and all 4 keep their
+  `tours`. Nothing reads the column since `f05a5b6`. Dropping it is planned
+  for about a week later.
 - **Vercel:** production follows `main` (`niyantran-six.vercel.app`); every
   other branch gets a preview URL. `NTER_TERMINAL_API_KEY` is still unset
   there (plan C2).
