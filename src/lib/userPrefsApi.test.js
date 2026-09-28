@@ -135,7 +135,7 @@ describe('user preferences on Supabase', () => {
     expect(response.body).toEqual({
       ok: true,
       email: 'owner.a@example.test',
-      prefs: { watchlist: null, aiChats: null, tours: null },
+      prefs: { watchlist: null, tours: null },
       updatedAt: null,
       engine: 'supabase',
     });
@@ -152,13 +152,13 @@ describe('user preferences on Supabase', () => {
   });
 
   it('upserts own preferences and merges partial writes', async () => {
-    const full = { watchlist: [{ id: 'w1' }], aiChats: { chats: [{ id: 'c1' }], activeId: 'c1' }, tours: { home: true, desks: {} } };
+    const full = { watchlist: [{ id: 'w1' }], tours: { home: true, desks: {} } };
     const saved = await invoke(request('PUT', '/api/user-prefs', full), db);
     expect(saved.status).toBe(200);
     expect(saved.body).toEqual({ ok: true, email: 'owner.a@example.test', updatedAt: '2026-09-28T00:00:01.000Z', engine: 'supabase' });
     const upsert = db.calls.find((call) => call.write);
     expect(upsert).toMatchObject({ token: 'token-a', table: TABLE, options: { onConflict: 'user_id' } });
-    expect(upsert.write).toEqual({ user_id: USERS['token-a'].id, watchlist: full.watchlist, ai_chats: full.aiChats, tours: full.tours });
+    expect(upsert.write).toEqual({ user_id: USERS['token-a'].id, watchlist: full.watchlist, tours: full.tours });
 
     const partial = await invoke(request('PUT', '/api/user-prefs', { watchlist: [{ id: 'w2' }] }), db);
     expect(partial.status).toBe(200);
@@ -175,16 +175,24 @@ describe('user preferences on Supabase', () => {
     });
   });
 
+  it('ignores the retired aiChats field: nothing is written or returned for it', async () => {
+    const saved = await invoke(request('PUT', '/api/user-prefs', { aiChats: { chats: [{ id: 'c1' }] }, tours: { home: true } }), db);
+    expect(saved.status).toBe(200);
+    expect(db.calls.find((call) => call.write).write).toEqual({ user_id: USERS['token-a'].id, tours: { home: true } });
+    const loaded = await invoke(request('GET', '/api/user-prefs'), db);
+    expect(loaded.body.prefs).toEqual({ watchlist: null, tours: { home: true } });
+  });
+
   it('clears a field only when it is explicitly null', async () => {
     await invoke(request('PUT', '/api/user-prefs', { watchlist: ['a'], tours: { home: true } }), db);
     await invoke(request('PUT', '/api/user-prefs', { tours: null }), db);
-    expect((await invoke(request('GET', '/api/user-prefs'), db)).body.prefs).toEqual({ watchlist: ['a'], aiChats: null, tours: null });
+    expect((await invoke(request('GET', '/api/user-prefs'), db)).body.prefs).toEqual({ watchlist: ['a'], tours: null });
   });
 
   it('keeps separate users isolated', async () => {
-    await invoke(request('PUT', '/api/user-prefs', { aiChats: { chats: [{ id: 'private' }] } }), db);
+    await invoke(request('PUT', '/api/user-prefs', { watchlist: [{ id: 'private' }] }), db);
     const other = await invoke(request('GET', '/api/user-prefs', undefined, { authorization: 'Bearer token-b' }), db);
-    expect(other.body.prefs).toEqual({ watchlist: null, aiChats: null, tours: null });
+    expect(other.body.prefs).toEqual({ watchlist: null, tours: null });
     expect(other.body.email).toBe('owner.b@example.test');
   });
 
@@ -209,11 +217,11 @@ describe('user preferences on Supabase', () => {
     expect(asObject.status).toBe(200);
     const asString = await invoke(request('PUT', '/api/user-prefs', undefined, { parsed: JSON.stringify({ watchlist: ['s'] }) }), db);
     expect(asString.status).toBe(200);
-    expect((await invoke(request('GET', '/api/user-prefs'), db)).body.prefs).toEqual({ watchlist: ['s'], aiChats: null, tours: { home: true } });
+    expect((await invoke(request('GET', '/api/user-prefs'), db)).body.prefs).toEqual({ watchlist: ['s'], tours: { home: true } });
   });
 
-  it('rejects a request body over the 2.5 MiB limit before storage', async () => {
-    const huge = JSON.stringify({ aiChats: 'x'.repeat(2.5 * 1024 * 1024) });
+  it('rejects a request body over the 256 KiB limit before storage', async () => {
+    const huge = JSON.stringify({ watchlist: 'x'.repeat(256 * 1024) });
     const streamed = await invoke(request('PUT', '/api/user-prefs', huge), db);
     expect(streamed.status).toBe(413);
     const preParsed = await invoke(request('PUT', '/api/user-prefs', undefined, { parsed: JSON.parse(huge) }), db);
@@ -224,7 +232,6 @@ describe('user preferences on Supabase', () => {
   it.each([
     ['watchlist', 64 * 1024],
     ['tours', 64 * 1024],
-    ['aiChats', 2 * 1024 * 1024],
   ])('rejects an oversized %s field before storage', async (field, limit) => {
     // JSON.stringify of a string adds two quote bytes, so limit - 1 is one over.
     const response = await invoke(request('PUT', '/api/user-prefs', { [field]: 'x'.repeat(limit - 1) }), db);

@@ -1,6 +1,6 @@
 /**
  * Conversations on the server (streaming spec §G), exported under the same
- * names and the same synchronous signatures as `aiChatStore.js` so the panel
+ * names and the same synchronous signatures as the retired `aiChatStore.js`, so the panel
  * can switch stores with one import. Reads go through the Supabase client
  * under row-level security, so a user only ever sees their own.
  *

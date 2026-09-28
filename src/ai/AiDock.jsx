@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createAiChat } from '../lib/aiChatStore.js';
 import AiPanel from './AiPanel.jsx';
 
 export default function AiDock({ feed, selected, tab, featureName, lang, onOpenChange }) {
@@ -20,11 +19,7 @@ export default function AiDock({ feed, selected, tab, featureName, lang, onOpenC
         detail.attachFeed ||
         detail.droppedFiles?.length;
 
-      setOpen((wasOpen) => {
-        // New empty thread when opening research with a card — not when merely focusing the dock after a drop.
-        if (!wasOpen && intentional) createAiChat({ roleId: 'AUTO' });
-        return true;
-      });
+      setOpen(true);
 
       if (Object.keys(detail).length) {
         setSeed({

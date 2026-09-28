@@ -27,9 +27,9 @@ export const DEFAULT_WATCHLIST = [
   { tab: 'economics', feature: 'NSE/BSE Delayed Market Feed', label: 'Markets' },
 ];
 
-// Shared persistence helpers for the three account-owned stores. These contain
+// Shared persistence helpers for the account-owned stores. These contain
 // no Auth dependency; only an already bound store can mark an edit.
-const PREF_KINDS = ['watchlist', 'aiChats', 'tours'];
+const PREF_KINDS = ['watchlist', 'tours'];
 function revisionKey(id, kind) { return `niyPrefsRevision:user:${encodeURIComponent(id)}:${kind}`; }
 
 export function preferenceRevisions(id) {

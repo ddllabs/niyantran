@@ -195,8 +195,12 @@ questions are closed.
   persona probe calls `research-chat` directly (`src/lib/personaProbe.js`);
   `/api/ai/chat`, `aiBackend.js`, `aiModelsStore.js`, `server/personas.mjs`
   and the `VITE_AI_BACKEND` define are gone. The owner may delete the unused
-  `VITE_AI_BACKEND` variable on Vercel. Left for later: `aiChatStore.js`,
-  which `userPrefsSync` and the dock still write.
+  `VITE_AI_BACKEND` variable on Vercel.
+  - Follow-up done the same day: `aiChatStore.js` is gone. Preferences sync
+    only the watchlist and tours; `/api/user-prefs` ignores `aiChats` and no
+    longer reads `ai_chats`; each browser drops its legacy chat copies at
+    startup. The `ai_chats` column keeps its four old rows (8 KB) until the
+    owner decides whether to clear them.
   - `VITE_AI_BACKEND=legacy`, the legacy panel branch, `/api/ai/chat` once
     C4 moves the admin probe to `research-chat`, and the unused
     `server/personas.mjs`.

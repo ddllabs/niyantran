@@ -267,7 +267,7 @@ describe('preferences identity', () => {
   it('returns empty own preferences without writing when no row exists', async () => {
     const { deps } = setup();
     const response = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps);
-    expect(response.body.prefs).toEqual({ watchlist: null, aiChats: null, tours: null });
+    expect(response.body.prefs).toEqual({ watchlist: null, tours: null });
     expect(prefCalls).toEqual([['select', 'auth-user']]);
     expect(prefRows.size).toBe(0);
   });
@@ -293,7 +293,7 @@ describe('stable preference row ownership', () => {
 
   it('round-trips ordinary own preferences and preserves omitted fields on partial writes', async () => {
     const deps = ordinary();
-    const prefs = { watchlist: ['owned'], aiChats: [{ text: 'own conversation' }], tours: { done: true } };
+    const prefs = { watchlist: ['owned'], tours: { done: true } };
     const saved = await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { ...prefs, email: ' CALLER@example.test ' }), deps);
     expect(saved.status).toBe(200);
     expect(saved.body.email).toBe('caller@example.test');
@@ -307,13 +307,13 @@ describe('stable preference row ownership', () => {
   it('retains preferences for the same verified user ID after an email change', async () => {
     const before = ordinary({ email: 'before@example.test' });
     const after = ordinary({ email: 'after@example.test' });
-    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { watchlist: ['same-owner'], aiChats: ['private'] }), before)).status).toBe(200);
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { watchlist: ['same-owner'] }), before)).status).toBe(200);
     const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=after%40example.test'), after);
     expect(loaded.status).toBe(200);
     expect(loaded.body.email).toBe('after@example.test');
-    expect(loaded.body.prefs).toEqual({ watchlist: ['same-owner'], aiChats: ['private'], tours: null });
+    expect(loaded.body.prefs).toEqual({ watchlist: ['same-owner'], tours: null });
     expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { tours: { newEmail: true } }), after)).status).toBe(200);
-    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), after)).body.prefs).toEqual({ watchlist: ['same-owner'], aiChats: ['private'], tours: { newEmail: true } });
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), after)).body.prefs).toEqual({ watchlist: ['same-owner'], tours: { newEmail: true } });
     expect(prefCalls.every(([, userId]) => userId === 'auth-user')).toBe(true);
     expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=before%40example.test'), after)).status).toBe(403);
   });
@@ -321,13 +321,13 @@ describe('stable preference row ownership', () => {
   it('isolates different verified user IDs even when an email address is reused', async () => {
     const first = ordinary({ userId: 'original-owner' });
     const second = ordinary({ userId: 'new-owner' });
-    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { aiChats: ['first private chat'] }), first)).status).toBe(200);
+    expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { tours: { first: 'private' } }), first)).status).toBe(200);
     const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), second);
     expect(loaded.status).toBe(200);
-    expect(loaded.body.prefs).toEqual({ watchlist: null, aiChats: null, tours: null });
+    expect(loaded.body.prefs).toEqual({ watchlist: null, tours: null });
     expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { watchlist: ['second private watchlist'] }), second)).status).toBe(200);
-    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), first)).body.prefs).toEqual({ watchlist: null, aiChats: ['first private chat'], tours: null });
-    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), second)).body.prefs).toEqual({ watchlist: ['second private watchlist'], aiChats: null, tours: null });
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), first)).body.prefs).toEqual({ watchlist: null, tours: { first: 'private' } });
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), second)).body.prefs).toEqual({ watchlist: ['second private watchlist'], tours: null });
     expect([...prefRows.keys()]).toEqual(['original-owner', 'new-owner']);
   });
 
@@ -342,9 +342,9 @@ describe('stable preference row ownership', () => {
     const deps = ordinary();
     const loaded = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps);
     expect(loaded.status).toBe(200);
-    expect(loaded.body.prefs).toEqual({ watchlist: null, aiChats: null, tours: null });
+    expect(loaded.body.prefs).toEqual({ watchlist: null, tours: null });
     expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { tours: { owned: true } }), deps)).status).toBe(200);
-    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps)).body.prefs).toEqual({ watchlist: null, aiChats: null, tours: { owned: true } });
+    expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs'), deps)).body.prefs).toEqual({ watchlist: null, tours: { owned: true } });
     expect(others.map((row) => JSON.stringify(prefRows.get(row.user_id)))).toEqual(originalBytes);
     expect(prefCalls.every(([, userId]) => userId === 'auth-user')).toBe(true);
     expect(prefRows.size).toBe(3);

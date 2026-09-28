@@ -19,19 +19,27 @@ beforeEach(async () => {
     onAuthStateChange: vi.fn((fn) => { auth.listener = fn; return { data: { subscription: { unsubscribe: vi.fn() } } }; }),
   };
   auth.client.rpc = vi.fn(async () => ({ data: { user_id: auth.session?.user.id, role: 'user', status: 'active' } }));
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, email: `${auth.session?.user.id}@example.test`, prefs: { watchlist: null, aiChats: null, tours: null } }) })));
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, email: `${auth.session?.user.id}@example.test`, prefs: { watchlist: null, tours: null } }) })));
   prefs = await import('./userPrefsSync.js');
 });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('preference adapter', () => {
-  it('does not upload unowned cached chats when the server is empty', async () => {
+  it('removes the retired localStorage chat copies at startup and never uploads them', async () => {
     localStorage.setItem('niyantranAiChats', JSON.stringify({ chats: [{ id: 'old-account', messages: [{ content: 'private' }] }] }));
-    await prefs.hydrateUserPrefs();
-    expect(fetch).toHaveBeenCalledTimes(1);
+    localStorage.setItem('niyantranAiChats:user:a', JSON.stringify({ chats: [{ id: 'owned', messages: [{ content: 'private owned' }] }] }));
+    localStorage.setItem('niyPrefsRevision:user:a:aiChats', JSON.stringify({ revision: 'r', dirty: true }));
+    localStorage.setItem('niyPrefsRevision:user:a:watchlist', JSON.stringify({ revision: 'w', dirty: false }));
+    localStorage.setItem('unrelated', 'keep');
+    prefs.startUserPrefsSync();
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(localStorage.getItem('niyantranAiChats')).toBeNull();
+    expect(localStorage.getItem('niyantranAiChats:user:a')).toBeNull();
+    expect(localStorage.getItem('niyPrefsRevision:user:a:aiChats')).toBeNull();
+    expect(localStorage.getItem('niyPrefsRevision:user:a:watchlist')).not.toBeNull();
+    expect(localStorage.getItem('unrelated')).toBe('keep');
+    expect(fetch.mock.calls.every(([, options]) => options?.method !== 'PUT')).toBe(true);
     expect(fetch.mock.calls[0][1]?.headers?.Authorization).toBe('Bearer token-a');
-    expect(localStorage.getItem('niyantranAiChats')).toContain('old-account');
-    expect((await import('./aiChatStore.js')).loadAiState().chats).toEqual([]);
   });
   it('rejects arbitrary email overrides before network access', async () => {
     await prefs.hydrateUserPrefs('victim@example.test');
@@ -49,7 +57,7 @@ function switchAccount(id = 'b') {
   auth.listener?.(id ? 'SIGNED_IN' : 'SIGNED_OUT', auth.session);
 }
 function ownResponse(email = 'a@example.test', content = 'account-a') {
-  return { ok: true, json: async () => ({ ok: true, email, prefs: { aiChats: { chats: [{ id: content, messages: [{ content }] }], activeId: content }, tours: { home: true, desks: { law: true } }, watchlist: [{ tab: 'law', feature: content }] } }) };
+  return { ok: true, json: async () => ({ ok: true, email, prefs: { tours: { home: true, desks: { law: true } }, watchlist: [{ tab: 'law', feature: content }] } }) };
 }
 
 describe('preference identity races', () => {
@@ -69,24 +77,24 @@ describe('preference identity races', () => {
     fetch.mockResolvedValueOnce(ownResponse());
     await prefs.hydrateUserPrefs();
     fetch.mockClear();
-    (await import('./aiChatStore.js')).renameAiChat('account-a', 'Edited');
+    (await import('./watchlistStore.js')).saveWatchlist([{ tab: 'law', feature: 'Edited' }]);
     expect(await prefs.pushPrefs()).toEqual({ ok: true });
     expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer token-a');
     const body = JSON.parse(fetch.mock.calls[0][1].body);
     expect(body).not.toHaveProperty('email');
-    expect(body.aiChats.chats[0].id).toBe('account-a');
+    expect(body).toEqual({ watchlist: [expect.objectContaining({ feature: 'Edited' })] });
     expect(auth.client.auth.getUser).toHaveBeenCalledWith('token-a');
   });
   it('requires successful hydration before explicit upload', async () => {
     expect((await prefs.pushPrefs()).ok).toBe(false);
     expect(fetch).not.toHaveBeenCalled();
   });
-  it('clears chats and tours synchronously on account switch and logout', async () => {
+  it('clears the watchlist and tours synchronously on account switch and logout', async () => {
     fetch.mockResolvedValueOnce(ownResponse());
     await prefs.hydrateUserPrefs();
-    expect(JSON.stringify((await import('./aiChatStore.js')).loadAiState())).toContain('account-a');
+    expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).toContain('account-a');
     switchAccount();
-    expect(JSON.stringify((await import('./aiChatStore.js')).loadAiState())).not.toContain('account-a');
+    expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).not.toContain('account-a');
     expect(localStorage.getItem('niyOnboardHomeDone')).toBeNull();
     expect(localStorage.getItem('niyTour:law')).toBeNull();
     expect((await prefs.pushPrefs()).ok).toBe(false);
@@ -103,13 +111,13 @@ describe('preference identity races', () => {
     expect((await prefs.hydrateUserPrefs()).ok).toBe(true);
     response.resolve(ownResponse());
     expect((await old).ok).toBe(false);
-    expect(JSON.stringify((await import('./aiChatStore.js')).loadAiState())).toContain('account-b');
-    expect(JSON.stringify((await import('./aiChatStore.js')).loadAiState())).not.toContain('account-a');
+    expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).toContain('account-b');
+    expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).not.toContain('account-a');
   });
   it('rejects a response naming a different email', async () => {
     fetch.mockResolvedValueOnce(ownResponse('victim@example.test', 'private-victim'));
     expect((await prefs.hydrateUserPrefs()).ok).toBe(false);
-    expect(JSON.stringify((await import('./aiChatStore.js')).loadAiState())).not.toContain('private-victim');
+    expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).not.toContain('private-victim');
     expect((await prefs.pushPrefs()).ok).toBe(false);
   });
   it('does not upload old account data after a switch while verifying push', async () => {
@@ -140,7 +148,7 @@ describe('preference identity races', () => {
     await prefs.hydrateUserPrefs();
     fetch.mockClear();
     vi.useFakeTimers();
-    (await import('./aiChatStore.js')).renameAiChat('account-a', 'Edited');
+    (await import('./watchlistStore.js')).saveWatchlist([{ tab: 'law', feature: 'Edited' }]);
     prefs.schedulePrefsPush();
     prefs.schedulePrefsPush();
     await vi.advanceTimersByTimeAsync(600);
@@ -154,7 +162,7 @@ describe('preference identity races', () => {
     fetch.mockClear();
     await prefs.hydrateUserPrefs();
     expect(fetch).toHaveBeenCalledOnce();
-    (await import('./aiChatStore.js')).createAiChat({ title: 'Owned B' });
+    (await import('./watchlistStore.js')).saveWatchlist([{ tab: 'law', feature: 'Owned B' }]);
     await prefs.pushPrefs();
     expect(fetch.mock.calls[1][1].body).not.toContain('account-a');
   });
@@ -180,25 +188,24 @@ describe('preference identity races', () => {
     await prefs.hydrateUserPrefs();
     response.resolve(ownResponse());
     expect((await old).ok).toBe(false);
-    expect(JSON.stringify((await import('./aiChatStore.js')).loadAiState())).toContain('newest');
+    expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).toContain('newest');
   });
 });
 
 it('preserves every legacy preference key through hydration, edits, switches and logout', async () => {
   const legacy = {
-    niyantranAiChats: '{"chats":[{"id":"legacy-private"}]}',
     niyWatchlist: '[{"feature":"legacy-watch"}]',
     niyOnboardHomeDone: '1', niyTourDesks: '{"legacy":true}', 'niyTour:legacy': '1',
   };
   for (const [key, value] of Object.entries(legacy)) localStorage.setItem(key, value);
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
-  (await import('./aiChatStore.js')).createAiChat({ title: 'new-owned' });
+  (await import('./watchlistStore.js')).saveWatchlist([{ tab: 'law', feature: 'new-owned' }]);
   switchAccount();
   await prefs.hydrateUserPrefs();
   switchAccount(null);
   for (const [key, value] of Object.entries(legacy)) expect(localStorage.getItem(key)).toBe(value);
-  expect((await import('./aiChatStore.js')).loadAiState().chats).toEqual([]);
+  expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).not.toContain('new-owned');
 });
 
 it('shows known owned cache after independently verified identity when network hydration fails', async () => {
@@ -209,7 +216,7 @@ it('shows known owned cache after independently verified identity when network h
   switchAccount('a');
   fetch.mockRejectedValueOnce(new Error('offline'));
   expect((await prefs.hydrateUserPrefs()).ok).toBe(false);
-  expect((await import('./aiChatStore.js')).loadAiState().chats[0].id).toBe('account-a');
+  expect((await import('./watchlistStore.js')).loadWatchlist()[0].feature).toBe('account-a');
   expect((await import('./onboarding.js')).readToursState().home).toBe(true);
   expect((await prefs.pushPrefs()).ok).toBe(false);
 });
@@ -219,59 +226,58 @@ it('expiry synchronously unbinds all stores and prevents queued uploads', async 
   auth.session.expires_at = Date.now() / 1000 + 1;
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
-  const owned = localStorage.getItem('niyantranAiChats:user:a');
+  const owned = localStorage.getItem('niyWatchlist:user:a');
   fetch.mockClear();
   await vi.advanceTimersByTimeAsync(1001);
-  expect((await import('./aiChatStore.js')).loadAiState().chats).toEqual([]);
+  expect(JSON.stringify((await import('./watchlistStore.js')).loadWatchlist())).not.toContain('account-a');
   expect((await import('./onboarding.js')).readToursState()).toEqual({ home: false, desks: {} });
   expect((await prefs.pushPrefs()).ok).toBe(false);
   expect(fetch).not.toHaveBeenCalled();
-  expect(localStorage.getItem('niyantranAiChats:user:a')).toBe(owned);
+  expect(localStorage.getItem('niyWatchlist:user:a')).toBe(owned);
 });
 
 it('empty server hydration neither imports legacy data nor overwrites a known owned cache', async () => {
-  localStorage.setItem('niyantranAiChats:user:a', '{"chats":[{"id":"owned-local"}],"activeId":"owned-local"}');
-  localStorage.setItem('niyantranAiChats', '{"chats":[{"id":"legacy-private"}]}');
+  localStorage.setItem('niyWatchlist:user:a', '[{"tab":"law","feature":"owned-local"}]');
+  localStorage.setItem('niyWatchlist', '[{"tab":"law","feature":"legacy-private"}]');
   await prefs.hydrateUserPrefs();
   expect(fetch).toHaveBeenCalledOnce();
-  expect((await import('./aiChatStore.js')).loadAiState().chats[0].id).toBe('owned-local');
-  expect(localStorage.getItem('niyantranAiChats')).toContain('legacy-private');
+  expect((await import('./watchlistStore.js')).loadWatchlist()[0].feature).toBe('owned-local');
+  expect(localStorage.getItem('niyWatchlist')).toContain('legacy-private');
 });
 
-it('preserves and resumes a dirty chat across same-account token refresh', async () => {
+it('preserves and resumes a dirty watchlist across same-account token refresh', async () => {
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
   prefs.startUserPrefsSync();
   vi.useFakeTimers();
-  const chats = await import('./aiChatStore.js');
-  chats.renameAiChat('account-a', 'Unsynced edit');
+  const store = await import('./watchlistStore.js');
+  store.saveWatchlist([{ tab: 'law', feature: 'Unsynced edit' }]);
   auth.session = { ...auth.session, access_token: 'fresh-token' };
   auth.listener('TOKEN_REFRESHED', auth.session);
   fetch.mockResolvedValueOnce(ownResponse());
   await vi.advanceTimersByTimeAsync(0);
-  expect(chats.loadAiState().chats[0].title).toBe('Unsynced edit');
+  expect(store.loadWatchlist()[0].feature).toBe('Unsynced edit');
   await vi.advanceTimersByTimeAsync(600);
   const put = fetch.mock.calls.find(([, options]) => options?.method === 'PUT');
   expect(put[1].headers.Authorization).toBe('Bearer fresh-token');
-  expect(Object.keys(JSON.parse(put[1].body))).toEqual(['aiChats']);
+  expect(Object.keys(JSON.parse(put[1].body))).toEqual(['watchlist']);
   expect(put[1].body).toContain('Unsynced edit');
 });
 
-it('dirty chat survives reload while unrelated clean watchlist and tours hydrate', async () => {
+it('a dirty watchlist survives reload while clean tours hydrate', async () => {
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
-  (await import('./aiChatStore.js')).renameAiChat('account-a', 'Durable pending edit');
+  (await import('./watchlistStore.js')).saveWatchlist([{ tab: 'law', feature: 'Durable pending edit' }]);
   vi.resetModules();
   prefs = await import('./userPrefsSync.js');
   fetch.mockClear();
   fetch.mockResolvedValueOnce(ownResponse('a@example.test', 'fresh-server-fields'));
   await prefs.hydrateUserPrefs();
-  expect((await import('./aiChatStore.js')).loadAiState().chats[0].title).toBe('Durable pending edit');
-  expect((await import('./watchlistStore.js')).loadWatchlist()[0].feature).toBe('fresh-server-fields');
+  expect((await import('./watchlistStore.js')).loadWatchlist()[0].feature).toBe('Durable pending edit');
   expect((await import('./onboarding.js')).readToursState().home).toBe(true);
   expect(fetch).toHaveBeenCalledOnce();
   await prefs.pushPrefs();
-  expect(Object.keys(JSON.parse(fetch.mock.calls[1][1].body))).toEqual(['aiChats']);
+  expect(Object.keys(JSON.parse(fetch.mock.calls[1][1].body))).toEqual(['watchlist']);
 });
 
 it('a local edit made during GET wins while clean fields still hydrate', async () => {
@@ -279,48 +285,48 @@ it('a local edit made during GET wins while clean fields still hydrate', async (
   fetch.mockReturnValueOnce(response.promise);
   const pending = prefs.hydrateUserPrefs();
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
-  const chats = await import('./aiChatStore.js');
-  chats.createAiChat({ title: 'Created during GET' });
+  const store = await import('./watchlistStore.js');
+  store.saveWatchlist([{ tab: 'law', feature: 'Created during GET' }]);
   response.resolve(ownResponse('a@example.test', 'server-watchlist'));
   await pending;
-  expect(chats.loadAiState().chats[0].title).toBe('Created during GET');
-  expect((await import('./watchlistStore.js')).loadWatchlist()[0].feature).toBe('server-watchlist');
+  expect(store.loadWatchlist()[0].feature).toBe('Created during GET');
+  expect((await import('./onboarding.js')).readToursState().home).toBe(true);
   await prefs.pushPrefs();
-  expect(Object.keys(JSON.parse(fetch.mock.calls[1][1].body))).toEqual(['aiChats']);
+  expect(Object.keys(JSON.parse(fetch.mock.calls[1][1].body))).toEqual(['watchlist']);
 });
 
 it('an edit made during PUT remains dirty until that revision is acknowledged', async () => {
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
-  const chats = await import('./aiChatStore.js');
-  const watchlist = await import('./watchlistStore.js');
-  chats.renameAiChat('account-a', 'First edit');
+  const store = await import('./watchlistStore.js');
+  const watchlist = store;
+  store.saveWatchlist([{ tab: 'law', feature: 'First edit' }]);
   const response = deferred();
   fetch.mockClear();
   fetch.mockReturnValueOnce(response.promise);
   const pending = prefs.pushPrefs();
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
-  chats.renameAiChat('account-a', 'Second edit');
+  store.saveWatchlist([{ tab: 'law', feature: 'Second edit' }]);
   response.resolve({ ok: true });
   await pending;
-  expect(watchlist.preferenceRevisions('a').aiChats.dirty).toBe(true);
-  expect(watchlist.preferenceRevisions('a').watchlist.dirty).toBe(false);
+  expect(watchlist.preferenceRevisions('a').watchlist.dirty).toBe(true);
+  expect(watchlist.preferenceRevisions('a').tours.dirty).toBe(false);
   await prefs.pushPrefs();
   expect(fetch.mock.calls[1][1].body).toContain('Second edit');
-  expect(watchlist.preferenceRevisions('a').aiChats.dirty).toBe(false);
+  expect(watchlist.preferenceRevisions('a').watchlist.dirty).toBe(false);
 });
 
 it('failed PUT retains durable edits and later GET cannot overwrite them', async () => {
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
-  const chats = await import('./aiChatStore.js');
-  chats.renameAiChat('account-a', 'Keep after failure');
+  const store = await import('./watchlistStore.js');
+  store.saveWatchlist([{ tab: 'law', feature: 'Keep after failure' }]);
   fetch.mockRejectedValueOnce(new Error('offline'));
   expect((await prefs.pushPrefs()).ok).toBe(false);
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
-  expect(chats.loadAiState().chats[0].title).toBe('Keep after failure');
-  expect((await import('./watchlistStore.js')).preferenceRevisions('a').aiChats.dirty).toBe(true);
+  expect(store.loadWatchlist()[0].feature).toBe('Keep after failure');
+  expect((await import('./watchlistStore.js')).preferenceRevisions('a').watchlist.dirty).toBe(true);
 });
 
 it('server hydration alone creates no dirty revisions or PUT', async () => {
@@ -333,32 +339,32 @@ it('server hydration alone creates no dirty revisions or PUT', async () => {
 });
 
 it('resumes persisted dirty fields after verified startup without a new edit', async () => {
-  localStorage.setItem('niyantranAiChats:user:a', '{"chats":[{"id":"owned","title":"Persisted pending","messages":[]}],"activeId":"owned"}');
-  localStorage.setItem('niyantranAiChats', '{"chats":[{"id":"legacy-private"}]}');
+  localStorage.setItem('niyWatchlist:user:a', '[{"tab":"law","feature":"Persisted pending"}]');
+  localStorage.setItem('niyWatchlist', '[{"tab":"law","feature":"legacy-private"}]');
   const revisions = await import('./watchlistStore.js');
-  revisions.markPreferenceEdit('a', 'aiChats');
+  revisions.markPreferenceEdit('a', 'watchlist');
   await prefs.hydrateUserPrefs();
   prefs.startUserPrefsSync();
   await vi.advanceTimersByTimeAsync(1200);
   const puts = fetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
   expect(puts).toHaveLength(1);
-  expect(Object.keys(JSON.parse(puts[0][1].body))).toEqual(['aiChats']);
+  expect(Object.keys(JSON.parse(puts[0][1].body))).toEqual(['watchlist']);
   expect(puts[0][1].body).toContain('Persisted pending');
   expect(puts[0][1].body).not.toContain('legacy-private');
-  expect(revisions.preferenceRevisions('a').aiChats.dirty).toBe(false);
+  expect(revisions.preferenceRevisions('a').watchlist.dirty).toBe(false);
 });
 
 it('requeues dirty work when refresh hydration was blocked by an older pending PUT', async () => {
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
   prefs.startUserPrefsSync();
-  const chats = await import('./aiChatStore.js');
-  chats.renameAiChat('account-a', 'First pending');
+  const store = await import('./watchlistStore.js');
+  store.saveWatchlist([{ tab: 'law', feature: 'First pending' }]);
   const old = deferred();
   fetch.mockReturnValueOnce(old.promise);
   const pending = prefs.pushPrefs();
   await vi.advanceTimersByTimeAsync(0);
-  chats.renameAiChat('account-a', 'Newest pending');
+  store.saveWatchlist([{ tab: 'law', feature: 'Newest pending' }]);
   auth.session = { ...auth.session, access_token: 'refreshed-token' };
   auth.listener('TOKEN_REFRESHED', auth.session);
   await vi.advanceTimersByTimeAsync(600);
@@ -369,33 +375,33 @@ it('requeues dirty work when refresh hydration was blocked by an older pending P
   expect(puts).toHaveLength(2);
   expect(puts[1][1].body).toContain('Newest pending');
   expect(puts[1][1].headers.Authorization).toBe('Bearer refreshed-token');
-  expect((await import('./watchlistStore.js')).preferenceRevisions('a').aiChats.dirty).toBe(false);
+  expect((await import('./watchlistStore.js')).preferenceRevisions('a').watchlist.dirty).toBe(false);
 });
 
 it('a resumed dirty upload failure does not create a retry loop', async () => {
-  localStorage.setItem('niyantranAiChats:user:a', '{"chats":[{"id":"pending"}],"activeId":"pending"}');
+  localStorage.setItem('niyWatchlist:user:a', '[{"tab":"law","feature":"pending"}]');
   const revisions = await import('./watchlistStore.js');
-  revisions.markPreferenceEdit('a', 'aiChats');
+  revisions.markPreferenceEdit('a', 'watchlist');
   await prefs.hydrateUserPrefs();
   fetch.mockRejectedValueOnce(new Error('offline'));
   await vi.advanceTimersByTimeAsync(60000);
   expect(fetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1);
-  expect(revisions.preferenceRevisions('a').aiChats.dirty).toBe(true);
+  expect(revisions.preferenceRevisions('a').watchlist.dirty).toBe(true);
 });
 
 it('draining an old account PUT only resumes the newly verified account dirty fields', async () => {
   fetch.mockResolvedValueOnce(ownResponse());
   await prefs.hydrateUserPrefs();
   prefs.startUserPrefsSync();
-  const chats = await import('./aiChatStore.js');
-  chats.renameAiChat('account-a', 'Private A pending');
+  const store = await import('./watchlistStore.js');
+  store.saveWatchlist([{ tab: 'law', feature: 'Private A pending' }]);
   const old = deferred();
   fetch.mockReturnValueOnce(old.promise);
   const pending = prefs.pushPrefs();
   await vi.advanceTimersByTimeAsync(0);
-  localStorage.setItem('niyantranAiChats:user:b', '{"chats":[{"id":"pending-b","title":"Private B pending"}],"activeId":"pending-b"}');
+  localStorage.setItem('niyWatchlist:user:b', '[{"tab":"law","feature":"Private B pending"}]');
   const revisions = await import('./watchlistStore.js');
-  revisions.markPreferenceEdit('b', 'aiChats');
+  revisions.markPreferenceEdit('b', 'watchlist');
   switchAccount('b');
   await vi.advanceTimersByTimeAsync(600);
   old.resolve({ ok: true });
@@ -406,6 +412,6 @@ it('draining an old account PUT only resumes the newly verified account dirty fi
   expect(puts[1][1].headers.Authorization).toBe('Bearer token-b');
   expect(puts[1][1].body).toContain('Private B pending');
   expect(puts[1][1].body).not.toContain('Private A pending');
-  expect(revisions.preferenceRevisions('a').aiChats.dirty).toBe(true);
-  expect(revisions.preferenceRevisions('b').aiChats.dirty).toBe(false);
+  expect(revisions.preferenceRevisions('a').watchlist.dirty).toBe(true);
+  expect(revisions.preferenceRevisions('b').watchlist.dirty).toBe(false);
 });

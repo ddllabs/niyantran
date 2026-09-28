@@ -1,10 +1,12 @@
 /**
- * A-15 — sync watchlist / AI chats / tours to SQLite via /api/user-prefs.
+ * A-15 — sync the watchlist and tours to Supabase via /api/user-prefs.
  * LocalStorage remains the working copy; server is the cross-device backup.
+ * AI chats are not preferences: research conversations live in
+ * public.conversations, and the old localStorage chat copy was retired on
+ * 2026-09-28 (purgeLegacyAiChats removes what it left in this browser).
  */
 import { verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
 import { loadWatchlist, applyWatchlistFromServer, setWatchlistOwner, preferenceRevisions, acknowledgePreferenceEdits } from './watchlistStore.js';
-import { loadAiState, applyAiStateFromServer, setAiChatOwner } from './aiChatStore.js';
 import { readToursState, applyToursFromServer, setToursOwner } from './onboarding.js';
 
 const DIRTY = 'niy-prefs-dirty';
@@ -23,7 +25,6 @@ let queuedWhilePushing = false;
 
 function bindStores(identity) {
   setWatchlistOwner(identity);
-  setAiChatOwner(identity);
   setToursOwner(identity);
 }
 
@@ -61,34 +62,9 @@ function watchAccount() {
   subscribed = true;
 }
 
-function slimAiChats(state) {
-  const chats = (state?.chats || []).slice(0, 40).map((c) => ({
-    id: c.id,
-    title: c.title,
-    roleId: c.roleId,
-    createdAt: c.createdAt,
-    updatedAt: c.updatedAt,
-    messages: (c.messages || []).slice(-100).map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: String(m.content || '').slice(0, 24000),
-      at: m.at,
-      model: m.model,
-      error: m.error,
-    })),
-    attachments: (c.attachments || []).slice(0, 12).map((a) => {
-      const { dataUrl, file, bytes, ...rest } = a || {};
-      return rest;
-    }),
-  }));
-  const activeId = chats.some((c) => c.id === state?.activeId) ? state.activeId : chats[0]?.id || '';
-  return { chats, activeId };
-}
-
 function collectLocalPrefs() {
   return {
     watchlist: loadWatchlist(),
-    aiChats: slimAiChats(loadAiState()),
     tours: readToursState(),
   };
 }
@@ -178,7 +154,6 @@ export async function hydrateUserPrefs(emailOverride) {
     const unchanged = (kind) => !initialRevisions[kind].dirty && !currentRevisions[kind].dirty
       && initialRevisions[kind].revision === currentRevisions[kind].revision;
     if (unchanged('watchlist') && Array.isArray(prefs.watchlist)) applyWatchlistFromServer(prefs.watchlist);
-    if (unchanged('aiChats') && prefs.aiChats && Array.isArray(prefs.aiChats.chats)) applyAiStateFromServer(prefs.aiChats);
     if (unchanged('tours') && prefs.tours) applyToursFromServer(prefs.tours);
     readyToPush = true;
     if (Object.values(preferenceRevisions(identity.id)).some((value) => value.dirty)) pendingOwnerId = identity.id;
@@ -193,10 +168,29 @@ export async function hydrateUserPrefs(emailOverride) {
   }
 }
 
+// Keys the retired localStorage chat store wrote: its per-account chat copies
+// (niyantranAiChats, niyantranAiChats:user:<id>) and their edit revisions.
+// They can hold private chat text, so they are removed rather than left behind.
+export function purgeLegacyAiChats(storage = globalThis.localStorage) {
+  try {
+    const doomed = [];
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i);
+      if (key && (key === 'niyantranAiChats' || key.startsWith('niyantranAiChats:')
+        || (key.startsWith('niyPrefsRevision:') && key.endsWith(':aiChats')))) doomed.push(key);
+    }
+    for (const key of doomed) storage.removeItem(key);
+    return doomed.length;
+  } catch {
+    return 0;
+  }
+}
+
 /** Call once after app boot when authed. */
 let prefsSyncStarted = false;
 export function startUserPrefsSync() {
   watchAccount();
+  purgeLegacyAiChats();
   if (!prefsSyncStarted) {
     prefsSyncStarted = true;
     window.addEventListener(DIRTY, () => schedulePrefsPush());

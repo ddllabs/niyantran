@@ -1,8 +1,12 @@
 /**
- * A-15 — per-user prefs (watchlist, AI chats, tours) in Supabase
+ * A-15 — per-user prefs (watchlist, tours) in Supabase
  * `public.user_preferences` (migration 20260928100000_user_preferences.sql).
  *   GET  /api/user-prefs (optional matching email for compatibility)
- *   PUT  /api/user-prefs  { watchlist?, aiChats?, tours?, email? }
+ *   PUT  /api/user-prefs  { watchlist?, tours?, email? }
+ *
+ * AI chats are no longer a preference (2026-09-28): research conversations
+ * live in public.conversations. An `aiChats` field is ignored, and the
+ * ai_chats column is neither read nor written (its old rows are kept).
  *
  * Data access runs through a client bound to the caller's own bearer, so the
  * table's `user_id = auth.uid()` policies check ownership a second time. This
@@ -11,12 +15,11 @@
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 
 const TABLE = 'user_preferences';
-const MAX_BODY_CHARS = 2.5 * 1024 * 1024;
+const MAX_BODY_CHARS = 256 * 1024;
 // Per-field byte limits on the compact JSON. The migration's CHECK constraints
 // use the same numbers on the stored jsonb text as a backstop.
 const FIELD_LIMITS = {
   watchlist: { column: 'watchlist', maxBytes: 64 * 1024 },
-  aiChats: { column: 'ai_chats', maxBytes: 2 * 1024 * 1024 },
   tours: { column: 'tours', maxBytes: 64 * 1024 },
 };
 
@@ -105,7 +108,7 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
     if (req.method === 'GET') {
       const { data, error } = await client
         .from(TABLE)
-        .select('watchlist, ai_chats, tours, updated_at')
+        .select('watchlist, tours, updated_at')
         .eq('user_id', caller.id)
         .maybeSingle();
       if (error) throw new Error('Preference read failed');
@@ -114,7 +117,6 @@ export async function handleUserPrefsApi(req, res, next, deps = {}) {
         email,
         prefs: {
           watchlist: data?.watchlist ?? null,
-          aiChats: data?.ai_chats ?? null,
           tours: data?.tours ?? null,
         },
         updatedAt: data?.updated_at ?? null,
