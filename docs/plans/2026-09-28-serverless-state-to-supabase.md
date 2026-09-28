@@ -119,7 +119,12 @@ Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
   - no email is stored;
   - S2 leaves `KNOWN_OFFENDERS`.
 
-### T3 — S3 retire the local users store
+### T3 — S3 retire the local users store — **dispatched 2026-09-28 on `task/t3-retire-local-users`**
+
+Task spec: `docs/specs/2026-09-28-t3-retire-local-users.md`. It fixes the
+`PATCH /api/users/:userId` interface, the removal of the seed accounts and
+local passwords, and the rule that `sessionUser()` returns null.
+
 
 - **Depends on:** T0 and the owner's sensitive-scope approval.
 - **Write scope:**
