@@ -3,7 +3,7 @@
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
 import { runAiChat, runAiFetch } from '../server/aiApi.mjs';
-import { readAppFlags, writeAppFlags } from '../server/appFlags.mjs';
+import { handleAppFlagsApi } from '../server/appFlags.mjs';
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
 import { serveFeatureFeed } from '../server/featureFeed.mjs';
 import {
@@ -241,17 +241,11 @@ export default async function handler(req, res) {
     }
 
     if (path === '/api/app-flags') {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      if (method === 'GET') {
-        res.status(200).json({ ok: true, flags: readAppFlags() });
-        return;
-      }
-      if (method === 'PUT') {
-        const flags = writeAppFlags({ testingPhase: Boolean(parseBody(req).testingPhase) });
-        res.status(200).json({ ok: true, flags });
-        return;
-      }
-      res.status(405).json({ ok: false, error: 'GET or PUT /api/app-flags only' });
+      // GET is public; PUT requires an internal-admin bearer (checked in the handler).
+      req.url = path;
+      await handleAppFlagsApi(req, res, () => {
+        res.status(404).json({ ok: false, error: 'Not found' });
+      });
       return;
     }
 
