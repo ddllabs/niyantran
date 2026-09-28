@@ -390,17 +390,24 @@ export default async function handler(req, res) {
         res.status(400).json({ ok: false, error: 'Select a row to organise' });
         return;
       }
-      const out = await runDeskBrief({
-        feature: String(payload.feature || '').trim(),
-        tier: String(payload.tier || '').trim(),
-        row,
-        hash: String(payload.hash || ''),
-        force: Boolean(payload.force),
-        sourceNote: payload.sourceNote || '',
-        sourceExtract: payload.sourceExtract || '',
-        scope: payload.scope === 'substance' ? 'substance' : 'entry',
-      });
-      res.status(200).json({ ok: true, ...out });
+      try {
+        const out = await runDeskBrief({
+          feature: String(payload.feature || '').trim(),
+          tier: String(payload.tier || '').trim(),
+          row,
+          hash: String(payload.hash || ''),
+          force: Boolean(payload.force),
+          sourceNote: payload.sourceNote || '',
+          sourceExtract: payload.sourceExtract || '',
+          scope: payload.scope === 'substance' ? 'substance' : 'entry',
+          authorization: req.headers?.authorization,
+        });
+        res.status(200).json({ ok: true, ...out });
+      } catch (err) {
+        // Statuses set by the forwarder (401, upstream 4xx, generic 502/503).
+        if (!err?.status) throw err;
+        res.status(err.status).json({ ok: false, error: err.message });
+      }
       return;
     }
 

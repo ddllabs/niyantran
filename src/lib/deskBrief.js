@@ -179,34 +179,37 @@ export async function ensureDeskBrief({
   };
 
   let body = null;
+  const identity = await verifiedLocalIdentity().catch(() => null);
+  const auth = identity?.token ? { Authorization: `Bearer ${identity.token}` } : {};
   try {
-    const identity = await verifiedLocalIdentity().catch(() => null);
     if (identity?.token) {
       const edgeRes = await fetch(functionsUrl('desk-brief'), {
         method: 'POST',
         signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${identity.token}`,
-        },
+        headers: { 'Content-Type': 'application/json', ...auth },
         body: JSON.stringify(payload),
       });
-      if (edgeRes.ok) {
+      // Fall back only when the function is missing (404) or unreachable.
+      // Any other answer is final: retrying through Vercel would call the same
+      // function again and could pay for a failed brief twice.
+      if (edgeRes.status !== 404) {
         const edgeBody = await edgeRes.json().catch(() => ({}));
-        if (edgeBody?.ok) {
-          body = edgeBody;
+        if (!edgeRes.ok || !edgeBody?.ok) {
+          throw Object.assign(new Error(edgeBody?.error || 'AI research service is temporarily unavailable.'), { final: true });
         }
+        body = edgeBody;
       }
     }
   } catch (err) {
-    if (err?.name === 'AbortError') throw err;
+    if (err?.name === 'AbortError' || err?.final) throw err;
   }
 
   if (!body) {
+    // The route forwards to the same function and refuses without a bearer.
     const res = await fetch('/api/ai/desk-brief', {
       method: 'POST',
       signal,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...auth },
       body: JSON.stringify(payload),
     });
     body = await res.json().catch(() => ({}));

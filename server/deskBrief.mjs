@@ -1,7 +1,9 @@
 /**
  * Desk entry brief — organise ONE selected table row (not the whole desk).
  * Cached in SQLite (primary) + disk (secondary); regenerates only when the
- * row fingerprint changes or force=true.
+ * row fingerprint changes or force=true. Generation happens in the Supabase
+ * `desk-brief` Edge Function; this module forwards the caller's bearer to it
+ * and never holds a model-provider key (ADR 0008).
  */
 import crypto from 'crypto';
 import fs from 'fs';
@@ -12,11 +14,10 @@ import { writablePath } from './writableRoot.mjs';
 
 const CACHE_DIR = writablePath('desk-briefs');
 const CACHE_VER = 'v7-entry';
-const MODEL =
-  process.env.OPENROUTER_DESK_MODEL ||
-  process.env.GEMINI_DESK_MODEL ||
-  'google/gemini-2.0-flash-001';
-const CHAT_MS = 90_000;
+/** Below the router's 60 s maxDuration, above the function's own provider timeout. */
+const FORWARD_MS = 55_000;
+const MAX_SOURCE_EXTRACT = 12_000;
+const UNAVAILABLE = 'AI research service is temporarily unavailable.';
 const SAMPLE_ROWS = 40;
 const MAX_CELL = 220;
 
@@ -26,21 +27,6 @@ const memCache = new Map();
 function memKey(scope, tier, feature, hash) {
   return `${scope || 'entry'}|${tier || ''}|${feature || ''}|${hash || ''}`;
 }
-
-const SYSTEM = `You are the Niyantran Terminal record analyst.
-The analyst selected ONE row in a desk tab. Organise and explain THAT entry's fields only.
-Do not summarise the whole desk, feed volume, or other rows.
-Chart numbers are computed on the server from this row — you write narrative and may rename chart titles.
-
-Hard rules:
-- Never buy / sell / hold / accumulate / avoid language. No price targets or predicted moves.
-- Never use the word "correlation". Prefer connections, linkages, pathways, what this touches.
-- Evidence first: base every claim on the attached row fields. If a field is missing, say so.
-- Confidence only as labelled bands: strong / moderate / weak / speculative.
-- Market cap is market data — do not use it as materiality.
-- Do not invent chart series. Do not talk about "25 stories" or desk-wide totals.
-- Prefer summary bullets shaped as "Label: detail" (Facility:, Status:, Source:, etc.).
-- Return ONLY valid JSON matching the schema. No markdown fences.`;
 
 function ensureCacheDir() {
   try {
@@ -656,213 +642,80 @@ function extractTitleTokens(title) {
     }));
 }
 
-function slimEntry(row) {
-  const o = {};
-  let n = 0;
-  for (const [k, v] of Object.entries(row || {})) {
-    if (/^__|backup_/i.test(k)) continue;
-    o[k] = cell(v);
-    n += 1;
-    if (n >= 40) break;
-  }
-  return o;
+function httpError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
 }
 
-function parseJsonLoose(text) {
-  const raw = String(text || '').trim();
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = fenced ? fenced[1].trim() : raw;
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('Model did not return JSON');
-  return JSON.parse(body.slice(start, end + 1));
+/** The caller's Authorization header when it is a bearer, else ''. */
+function bearerOf(header) {
+  const h = typeof header === 'string' ? header.trim() : '';
+  return /^Bearer\s+\S+/i.test(h) ? h : '';
 }
 
-function sanitizeModelCharts(rawCharts) {
-  // Fallback only — prefer buildLocalCharts. Accept all viz types the UI can draw.
-  const charts = [];
-  for (const c of Array.isArray(rawCharts) ? rawCharts.slice(0, 4) : []) {
-    const type = String(c.type || '').toLowerCase();
-    const title = cell(c.title);
-    if (/sample topic mentions|feed volume by date/i.test(title)) continue;
-    if ((type === 'bars' || type === 'columns' || type === 'donut' || type === 'pie') && Array.isArray(c.items) && c.items.length) {
-      const items = c.items
-        .slice(0, 12)
-        .map((it) => ({
-          label: cell(it.label).slice(0, 40) || '—',
-          value: Number(it.value) || 0,
-          display: it.display != null ? cell(it.display) : undefined,
-          tone: it.tone || 'gradient',
-        }))
-        .filter((it) => it.value > 0);
-      if (items.length >= 2) {
-        charts.push({
-          type: type === 'bars' ? 'bars' : type === 'donut' ? 'pie' : type,
-          title: title.slice(0, 60) || 'Breakdown',
-          hint: cell(c.hint).slice(0, 120),
-          items,
-        });
-      }
-    } else if (type === 'spark' && Array.isArray(c.series) && c.series.length) {
-      const series = c.series.slice(0, 60).map((p) => {
-        const n = Number(p.n ?? p.v ?? p.value) || 0;
-        const t = cell(p.t || p.date || p.label).slice(0, 16);
-        return { t, n, date: t };
-      });
-      const peak = series.reduce((a, b) => (b.n > (a?.n || 0) ? b : a), series[0]);
-      if (peak?.n > 0 && series.some((p) => p.n > 0)) {
-        charts.push({
-          type: 'spark',
-          title: title.slice(0, 60) || 'Timeline',
-          hint: cell(c.hint).slice(0, 120),
-          series,
-          peak,
-          from: cell(c.from) || series[0].t,
-          through: cell(c.through) || series[series.length - 1].t,
-        });
-      }
-    } else if (type === 'matrix' && c.matrix?.rows?.length) {
-      charts.push({
-        type: 'matrix',
-        title: title.slice(0, 60) || 'Cross-tab',
-        hint: cell(c.hint).slice(0, 120),
-        matrix: c.matrix,
-      });
-    }
-  }
-  return charts;
+/** Same URL and publishable-key resolution as the research-chat proxy. */
+function deskBriefFunction() {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
+  const apikey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
+  return { endpoint: `${url.replace(/\/$/, '')}/functions/v1/desk-brief`, apikey };
 }
 
-function normalizeBrief(raw, meta, localCharts) {
-  const kpis = Array.isArray(raw.kpis)
-    ? raw.kpis.slice(0, 4).map((k) => ({
-        label: cell(k.label).slice(0, 40) || 'KPI',
-        value: cell(k.value).slice(0, 48) || '—',
-        sub: cell(k.sub).slice(0, 80),
-        tone: ['ok', 'warn', 'bad', ''].includes(k.tone) ? k.tone : '',
-      }))
-    : [];
-
-  // Prefer server-built charts so each desk differs; model titles can rename matching slots.
-  let charts = Array.isArray(localCharts) && localCharts.length ? localCharts : sanitizeModelCharts(raw.charts);
-  const titled = Array.isArray(raw.chartTitles) ? raw.chartTitles : [];
-  if (titled.length && charts.length) {
-    charts = charts.map((c, i) => ({
-      ...c,
-      title: cell(titled[i] || c.title).slice(0, 60) || c.title,
-    }));
+/**
+ * POST the request to the desk-brief Edge Function as the caller. A 4xx keeps
+ * its status and the function's own message; a network failure or 5xx becomes
+ * a generic 502/503 so upstream detail never reaches the browser.
+ */
+async function forwardToFunction(body, authorization) {
+  const { endpoint, apikey } = deskBriefFunction();
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), FORWARD_MS);
+  let res;
+  let data = null;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      signal: ac.signal,
+      headers: { Authorization: authorization, apikey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    data = await res.json().catch(() => null);
+  } catch {
+    throw httpError(502, UNAVAILABLE);
+  } finally {
+    clearTimeout(t);
   }
-
-  return {
-    ok: true,
-    cached: Boolean(meta.cached),
-    hash: meta.hash,
-    model: meta.model || '',
-    generatedAt: meta.generatedAt || new Date().toISOString(),
-    feature: meta.feature,
-    tier: meta.tier,
-    rowCount: meta.rowCount,
-    headline: cell(raw.headline).slice(0, 160) || meta.feature,
-    summary: (Array.isArray(raw.summary) ? raw.summary : [])
-      .map((s) => cell(s))
-      .filter(Boolean)
-      .slice(0, 6),
-    findings: (Array.isArray(raw.findings) ? raw.findings : [])
-      .slice(0, 5)
-      .map((f) => ({
-        title: cell(f.title).slice(0, 80),
-        detail: cell(f.detail).slice(0, 280),
-        band: /strong|moderate|weak|speculative/i.test(f.band || '')
-          ? String(f.band).toLowerCase()
-          : 'moderate',
-      })),
-    kpis,
-    charts,
-    caveats: (Array.isArray(raw.caveats) ? raw.caveats : [])
-      .map((s) => cell(s))
-      .filter(Boolean)
-      .slice(0, 4),
-  };
-}
-
-function resolveOpenRouterDeskModels(requestedModel) {
-  const m = String(requestedModel || '').trim();
-  const list = [];
-  if (m.includes('/')) {
-    list.push(m);
-  } else if (/gemini.*lite/i.test(m)) {
-    list.push('google/gemini-2.0-flash-lite-001', 'google/gemini-2.0-flash-001', 'google/gemini-flash-1.5');
-  } else if (/gemini/i.test(m)) {
-    list.push('google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-001');
-  } else if (m) {
-    list.push(m, `google/${m}`);
+  if (res.status >= 400 && res.status < 500) {
+    const msg = typeof data?.error === 'string' && data.error ? data.error.slice(0, 200) : 'Desk brief request refused.';
+    throw httpError(res.status, msg);
   }
-  list.push('google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'openai/gpt-4o-mini');
-  return [...new Set(list)];
-}
-
-async function callOpenRouter({ key, model, prompt }) {
-  const tried = resolveOpenRouterDeskModels(model);
-  let last = '';
-  for (const m of tried) {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), CHAT_MS);
-    try {
-      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        signal: ac.signal,
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://niyantran.local',
-          'X-Title': 'Niyantran Terminal',
-        },
-        body: JSON.stringify({
-          model: m,
-          temperature: 0.25,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: SYSTEM },
-            { role: 'user', content: prompt },
-          ],
-        }),
-      });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        last = body?.error?.message || body?.error || `OpenRouter HTTP ${r.status}`;
-        if (typeof last !== 'string') last = JSON.stringify(last);
-        continue;
-      }
-      const text = body?.choices?.[0]?.message?.content || '';
-      if (!text.trim()) {
-        last = 'Empty OpenRouter response';
-        continue;
-      }
-      return { text, model: body?.model || m };
-    } catch (err) {
-      last = err.message || String(err);
-    } finally {
-      clearTimeout(t);
-    }
-  }
-  throw new Error(last || 'OpenRouter desk brief request failed');
+  if (!res.ok) throw httpError(res.status === 503 ? 503 : 502, UNAVAILABLE);
+  if (!data?.ok) throw httpError(502, UNAVAILABLE);
+  return data;
 }
 
 /**
  * Organise one selected row. Pass `row` (preferred) or a single-element `rows`.
- * @param {{ feature: string, tier?: string, row?: object, rows?: object[], hash?: string, force?: boolean, sourceNote?: string, sourceExtract?: string, scope?: 'entry'|'substance' }} input
+ * `authorization` is the caller's own header; without a bearer nothing is read
+ * or forwarded.
+ * @param {{ feature: string, tier?: string, row?: object, rows?: object[], hash?: string, force?: boolean, sourceNote?: string, sourceExtract?: string, scope?: 'entry'|'substance', authorization?: string }} input
  */
 export async function runDeskBrief(input = {}) {
+  const authorization = bearerOf(input.authorization);
+  if (!authorization) throw httpError(401, 'Sign in required.');
   loadEnv();
   const feature = String(input.feature || '').trim();
   const tier = String(input.tier || '').trim();
-  if (!feature) throw new Error('feature required');
+  if (!feature) throw httpError(400, 'feature required');
 
   const row =
     input.row && typeof input.row === 'object'
       ? input.row
       : (Array.isArray(input.rows) ? input.rows : []).find((r) => r && r.status !== 'source_status');
-  if (!row || row.status === 'source_status') throw new Error('Select a row to organise');
+  if (!row || row.status === 'source_status') throw httpError(400, 'Select a row to organise');
 
   const scope = String(input.scope || 'entry') === 'substance' ? 'substance' : 'entry';
   const hash = String(input.hash || entryFingerprint(row, feature, tier));
@@ -876,132 +729,21 @@ export async function runDeskBrief(input = {}) {
     memCache.delete(memKey(scope, tier, feature, hash));
   }
 
-  const key = String(
-    process.env.OPENROUTER_API_KEY || process.env.NIYANTRAN_AI_KEY || '',
-  ).trim();
-  if (!key) {
-    throw new Error('AI research service is temporarily unavailable.');
-  }
-
-
-  const entry = slimEntry(row);
-  const localCharts = scope === 'substance' ? [] : buildEntryCharts(row, feature);
-  const chartSketch = localCharts.map((c) => ({
-    type: c.type,
-    title: c.title,
-    field: c.field || '',
-    itemCount: c.items?.length || c.series?.length || 0,
-    topLabels: (c.items || []).slice(0, 5).map((i) => i.label),
-  }));
-  const title =
-    entry.bill_name ||
-    entry.policy_name ||
-    entry.title ||
-    entry.record_title ||
-    entry.name ||
-    entry.subject ||
-    entry.case_title ||
-    entry.conflict_name ||
-    'Untitled entry';
-
-  const sourceBody = String(input.sourceExtract || '').replace(/\s+/g, ' ').trim().slice(0, 12_000);
-  const nounHint = /bill|act|amendment/i.test(feature) || entry.bill_name
-    ? 'bill / Act'
-    : /question/i.test(feature)
-      ? 'parliamentary question'
-      : /regulator|circular|notice/i.test(feature)
-        ? 'regulatory notice'
-        : /policy/i.test(feature)
-          ? 'policy'
-          : 'record';
-
-  const prompt =
-    scope === 'substance'
-      ? `You write the "What this ${nounHint} does" panel for Niyantran Terminal.
-Title: ${title}
-Desk: ${tier || '—'} / ${feature}
-
-Row fields (context only — do NOT turn these into the summary):
-${JSON.stringify(entry)}
-
-${
-  sourceBody
-    ? `Source document text (PRIMARY evidence — base the summary on this):\n${sourceBody}`
-    : 'No source document text was extracted. Infer only what the title and fields clearly state; say if substance is thin.'
-}
-
-Return ONLY valid JSON:
-{
-  "headline": "one plain sentence: what this ${nounHint} is about",
-  "summary": [
-    "Purpose: …",
-    "What it changes / provides: …",
-    "Who / what it covers: …",
-    "optional Mechanism: …",
-    "optional Why it exists: …"
-  ],
-  "findings": [],
-  "kpis": [],
-  "chartTitles": [],
-  "caveats": ["optional limits of the source text"]
-}
-
-Hard rules:
-- Summary must explain SUBSTANCE (what the law/notice/policy is about), not registry metadata.
-- FORBIDDEN labels in summary: Facility, Status, Source, Source and Verification, Bill Category, House, Sector, Ministry, Stage, Date, Verification, Adapter.
-- Prefer Purpose / What it changes / Scope / Mechanism / Context.
-- 3–5 short bullets. Plain English. No buy/sell/hold language. Never say "correlation".
-- Do not paste raw PDF preamble, Act number lines, or "WHEREAS" blocks.
-- Evidence first from the source text; if the extract is thin, say so in caveats — do not invent clauses.`
-      : `Desk tab: ${tier || '—'} / ${feature}
-Selected entry only (do NOT summarise other feed rows):
-Title: ${title}
-Source note: ${String(input.sourceNote || '').slice(0, 400)}
-Entry fingerprint: ${hash}
-
-Full field map for THIS entry:
-${JSON.stringify(entry)}
-${sourceBody ? `\nReadable text extracted from the source document / page for THIS entry (prefer this over thin row fields when they conflict):\n${sourceBody}\n` : ''}
-Charts already computed from THIS entry's fields (do not invent other series):
-${JSON.stringify(chartSketch)}
-
-Produce JSON with this exact shape:
-{
-  "headline": "one short line naming what THIS entry is about",
-  "summary": ["Facility: …", "Status: …", "Source: …", "3-6 Label: detail bullets for THIS entry only"],
-  "findings": [{"title":"...","detail":"...","band":"strong|moderate|weak|speculative"}],
-  "kpis": [{"label":"...","value":"...","sub":"...","tone":"ok|warn|bad|"}],
-  "chartTitles": ["optional better title for chart 0", "optional for chart 1"],
-  "caveats": ["missing fields or limits of this single record"]
-}
-
-Rules for this response:
-- Organise the selected entry only. Never quote feed totals or other headlines.
-- When source document text is present, write a short substance brief of what the document / notice does — not a field dump.
-- Every summary bullet MUST start with a short Label then a colon (e.g. "Facility:", "Status:", "Source and Verification:").
-- KPIs must come from fields on this row (source, date, verification, category, capacity, etc.).
-- Do NOT include a "charts" array with invented numbers.
-- chartTitles length should match the computed charts when you rename them.`;
-
-  const got = await callOpenRouter({ key, model: MODEL, prompt });
-  const parsed = parseJsonLoose(got.text);
-  const brief = normalizeBrief(
-    parsed,
+  const got = await forwardToFunction(
     {
-      cached: false,
-      hash,
-      model: got.model,
-      generatedAt: new Date().toISOString(),
       feature,
       tier,
-      rowCount: 1,
+      hash,
+      scope,
+      sourceNote: String(input.sourceNote || ''),
+      sourceExtract: String(input.sourceExtract || '').slice(0, MAX_SOURCE_EXTRACT),
+      row,
     },
-    localCharts,
+    authorization,
   );
-  brief.scope = scope;
-  brief.entryTitle = String(title).slice(0, 160);
+  const brief = { ...got, cached: false, hash };
 
-  const envelope = { hash, generatedAt: brief.generatedAt, model: got.model, brief };
+  const envelope = { hash, generatedAt: brief.generatedAt, model: brief.model || '', brief };
   writeCache(file, envelope);
   memCache.set(memKey(scope, tier, feature, hash), { ...brief, cached: true, hash });
   try {
@@ -1011,7 +753,7 @@ Rules for this response:
       feature,
       hash,
       brief,
-      model: got.model,
+      model: brief.model || '',
       generatedAt: brief.generatedAt,
     });
   } catch {

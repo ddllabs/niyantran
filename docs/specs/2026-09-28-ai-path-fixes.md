@@ -55,7 +55,9 @@ Desk briefs work in production. No route on Vercel needs an OpenRouter key.
    A missing role or model returns 503 with no provider detail. There is
    no hard-coded model ID.
 3. **Bounds.** `feature` and `tier` up to 64 characters; the serialised
-   `row` up to 12 KB, else 413; `sourceExtract` truncated to 12,000
+   `row` up to 32 KB, else 413 (raised from 12 KB during review: the
+   largest row the client sends, 40 fields of 220 Devanagari characters, is
+   about 27 KB); `sourceExtract` truncated to 12,000
    characters, matching the client.
 4. **Telemetry.** One `model_call_logs` row per provider attempt:
    - caller `desk-brief`, purpose `desk_brief`, status
