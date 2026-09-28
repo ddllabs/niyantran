@@ -470,7 +470,7 @@ function ago(iso) {
 
 async function fetchLiveLatest() {
   // Homepage Latest is nter.news only — never fall back to wire RSS.
-  const nter = serveNterLatest({ limit: 12 });
+  const nter = await serveNterLatest({ limit: 12 });
   return nter.rows?.length ? nter : null;
 }
 
@@ -525,7 +525,7 @@ async function fetchWireRssLatest() {
 }
 
 export async function serveHomeLatest(opts = {}) {
-  const live = serveNterLatest({ limit: 12 });
+  const live = await serveNterLatest({ limit: 12 });
   if (live.rows?.length) {
     writeDiskSnapshot('news', {
       rows: live.rows,
@@ -940,7 +940,7 @@ export async function handleHomeApi(req, res, next) {
       return;
     }
     if (p === '/data/news.json') {
-      const live = serveNterLatest({ limit: 12 });
+      const live = await serveNterLatest({ limit: 12 });
       if (live.rows?.length) {
         json(res, live);
         return;

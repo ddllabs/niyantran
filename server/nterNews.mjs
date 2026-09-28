@@ -4,35 +4,26 @@
  *   POST /api/news/ingest   Bearer NTER_TERMINAL_API_KEY
  *   (read path) serveNterLatest() for /api/home/latest
  *
- * Dedupes by article_id; applies revisions only when updated_at is newer.
- * On Vercel, /tmp is ephemeral — keep an in-memory store and fall back to the
- * committed public/data/nter-news.json seed when empty.
+ * Articles live in Supabase public.nter_news_articles (T6, ADR 0005). Ingest
+ * upserts through upsert_nter_article(), which dedupes by article_id then
+ * link and skips older revisions; the table keeps the newest 200. The home
+ * read falls back to the committed public/data/nter-news.json seed only when
+ * the table is empty or unreachable. Nothing is written to disk.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from './loadEnv.mjs';
-import { writablePath, isServerlessHost } from './writableRoot.mjs';
+import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 
 loadEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
-const MAX_ROWS = 120;
+const MAX_READ = 40;
 const KEY_RE = /^nter_news_live_[A-Za-z0-9_-]{16,}$/;
 const SEED_PATH = path.join(APP_ROOT, 'public', 'data', 'nter-news.json');
-
-/** Process-lifetime store (survives warm serverless instances). */
-let memStore = null;
-
-function storePaths() {
-  const primary = writablePath('nter-news.json');
-  const publicMirror = isServerlessHost()
-    ? null
-    : path.join(APP_ROOT, 'public', 'data', 'nter-news.json');
-  return { primary, publicMirror };
-}
 
 function emptyStore(note) {
   return {
@@ -57,9 +48,6 @@ function ts(iso) {
   return Number.isFinite(t) ? t : 0;
 }
 
-function rowStamp(row) {
-  return Math.max(ts(row?.updated_at), ts(row?.pub), Number(row?.t) || 0);
-}
 
 export function expectedApiKey() {
   return String(process.env.NTER_TERMINAL_API_KEY || '').trim();
@@ -165,102 +153,39 @@ function articleToRow(article) {
   };
 }
 
-function sameArticle(a, b) {
-  if (!a || !b) return false;
-  const aids = [a.article_id, a.id].filter(Boolean).map(String);
-  const bids = [b.article_id, b.id].filter(Boolean).map(String);
-  if (aids.some((id) => bids.includes(id))) return true;
-  if (a.link && b.link && String(a.link) === String(b.link)) return true;
-  return false;
+/** The committed seed, read-only. Every row is marked as a fallback. */
+function seedStore() {
+  const seed = readJson(SEED_PATH);
+  if (!seed || !Array.isArray(seed.rows) || !seed.rows.length) return emptyStore();
+  return { ...seed, rows: seed.rows.map((r) => ({ ...r, fallback: true })) };
 }
 
-function mergeStores(primary, secondary) {
-  const map = new Map();
-  for (const row of [...(secondary?.rows || []), ...(primary?.rows || [])]) {
-    if (!row) continue;
-    const key = String(row.article_id || row.id || row.link || row.title || '');
-    if (!key) continue;
-    const prev = map.get(key);
-    if (!prev || rowStamp(row) >= rowStamp(prev)) map.set(key, row);
-  }
-  // Also collapse link collisions under different ids
-  const list = [...map.values()];
-  const byLink = new Map();
-  for (const row of list) {
-    const link = String(row.link || '');
-    if (!link) continue;
-    const prev = byLink.get(link);
-    if (!prev || rowStamp(row) >= rowStamp(prev)) byLink.set(link, row);
-  }
-  const out = [];
-  const seen = new Set();
-  for (const row of list) {
-    const link = String(row.link || '');
-    const keep = link ? byLink.get(link) : row;
-    const key = String(keep.article_id || keep.id || keep.link || keep.title);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(keep);
-  }
-  out.sort((a, b) => rowStamp(b) - rowStamp(a));
-  const updated =
-    primary?.updated && ts(primary.updated) >= ts(secondary?.updated)
-      ? primary.updated
-      : secondary?.updated || primary?.updated || null;
+async function storedStore(limit, deps) {
+  const { data, error } = await deps
+    .adminClient()
+    .from('nter_news_articles')
+    .select('row, updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error('nter.news store unavailable');
+  const rows = (data || []).map((r) => ({ ...r.row, fallback: false }));
   return {
-    updated,
+    updated: data?.[0]?.updated_at || null,
     source: 'nter.news',
-    note:
-      out.some((r) => !r.fallback)
-        ? 'Latest from nter.news.'
-        : secondary?.note || primary?.note || 'Latest from nter.news.',
-    x_nter_source: primary?.x_nter_source || secondary?.x_nter_source || 'nter.news',
-    rows: out.slice(0, MAX_ROWS),
+    note: 'Latest from nter.news.',
+    rows,
   };
 }
 
-export function readNterNewsStore() {
-  if (memStore && Array.isArray(memStore.rows) && memStore.rows.length) {
-    return memStore;
-  }
-  const { primary, publicMirror } = storePaths();
-  const fromPrimary = readJson(primary);
-  const fromPublic = readJson(publicMirror) || readJson(SEED_PATH);
-  let store = emptyStore();
-  if (fromPrimary && Array.isArray(fromPrimary.rows) && fromPrimary.rows.length) {
-    store = fromPublic?.rows?.length ? mergeStores(fromPrimary, fromPublic) : fromPrimary;
-  } else if (fromPublic && Array.isArray(fromPublic.rows) && fromPublic.rows.length) {
-    store = fromPublic;
-  }
-  if (store.rows?.length) memStore = store;
-  return store;
-}
-
-function writeNterNewsStore(store) {
-  memStore = store;
-  const { primary, publicMirror } = storePaths();
-  const body = `${JSON.stringify(store, null, 2)}\n`;
-  try {
-    fs.mkdirSync(path.dirname(primary), { recursive: true });
-    fs.writeFileSync(primary, body);
-  } catch (err) {
-    console.warn('[nter-news] primary write failed', err.message);
-  }
-  if (publicMirror) {
-    try {
-      fs.mkdirSync(path.dirname(publicMirror), { recursive: true });
-      fs.writeFileSync(publicMirror, body);
-    } catch (err) {
-      console.warn('[nter-news] public mirror write failed', err.message);
-    }
-  }
+function resolveDeps(deps = {}) {
+  return { adminClient: deps.adminClient || getSupabaseAdminClient };
 }
 
 /**
- * Upsert one article.published / article.updated payload into the home Latest store.
- * Dedupes by article_id (then url). Skips older updated_at revisions.
+ * Upsert one article.published / article.updated payload into Supabase.
+ * Dedupes by article_id (then url); skips older updated_at revisions.
  */
-export function ingestNterArticle(payload, { sourceHeader = '' } = {}) {
+export async function ingestNterArticle(payload, { sourceHeader = '' } = {}, deps = {}) {
   const raw = unwrapPayload(payload);
   const event = String(raw?.event || payload?.event || 'article.published').trim();
   if (event && event !== 'article.published' && event !== 'article.updated') {
@@ -269,55 +194,30 @@ export function ingestNterArticle(payload, { sourceHeader = '' } = {}) {
   const title = String(raw?.title || '').trim();
   if (!title) return { ok: false, status: 400, error: 'title required' };
 
-  const row = articleToRow(raw);
+  const { ago: _ago, ...row } = articleToRow(raw);
   if (!row.link && !row.article_id) {
     return { ok: false, status: 400, error: 'article_id or url required' };
   }
+  row.x_nter_source = sourceHeader || String(raw?.source || payload?.source || 'nter.news');
 
-  const store = readNterNewsStore();
-  const rows = Array.isArray(store.rows) ? [...store.rows] : [];
-  const idx = rows.findIndex((r) => sameArticle(r, row));
-  if (idx >= 0) {
-    const prev = rows[idx];
-    const prevT = ts(prev.updated_at) || rowStamp(prev);
-    const nextT = ts(row.updated_at) || rowStamp(row);
-    if (prevT && nextT && nextT < prevT) {
-      return {
-        ok: true,
-        status: 200,
-        article_id: row.article_id,
-        upserted: 'skipped_stale',
-        count: rows.length,
-        updated: store.updated,
-      };
-    }
-    rows[idx] = { ...prev, ...row, fallback: false };
-  } else {
-    rows.unshift({ ...row, fallback: false });
+  try {
+    const { data, error } = await resolveDeps(deps).adminClient().rpc('upsert_nter_article', { p: row });
+    if (error) return { ok: false, status: 503, error: 'nter.news store unavailable' };
+    return { ok: true, status: 200, article_id: row.article_id, upserted: data, updated: new Date().toISOString() };
+  } catch {
+    return { ok: false, status: 503, error: 'nter.news store unavailable' };
   }
-
-  rows.sort((a, b) => rowStamp(b) - rowStamp(a));
-  const next = {
-    updated: new Date().toISOString(),
-    source: 'nter.news',
-    note: 'Latest from nter.news.',
-    x_nter_source: sourceHeader || String(raw?.source || payload?.source || 'nter.news'),
-    rows: rows.slice(0, MAX_ROWS),
-  };
-  writeNterNewsStore(next);
-  return {
-    ok: true,
-    status: 200,
-    article_id: row.article_id,
-    upserted: idx >= 0 ? 'updated' : 'created',
-    count: next.rows.length,
-    updated: next.updated,
-  };
 }
 
-export function serveNterLatest(opts = {}) {
-  const limit = Math.min(40, Math.max(1, Number(opts.limit) || 12));
-  const store = readNterNewsStore();
+export async function serveNterLatest(opts = {}, deps = {}) {
+  const limit = Math.min(MAX_READ, Math.max(1, Number(opts.limit) || 12));
+  let store;
+  try {
+    store = await storedStore(limit, resolveDeps(deps));
+  } catch {
+    store = null;
+  }
+  if (!store?.rows?.length) store = seedStore();
   const rows = (store.rows || []).slice(0, limit).map((r) => ({
     ...r,
     ago: r.ago || ago(r.pub || r.updated_at),
@@ -397,7 +297,7 @@ export async function handleNterNewsApi(req, res, next) {
     return;
   }
 
-  const out = ingestNterArticle(payload, { sourceHeader: auth.sourceHeader });
+  const out = await ingestNterArticle(payload, { sourceHeader: auth.sourceHeader });
   json(res, out, out.status || (out.ok ? 200 : 400));
 }
 

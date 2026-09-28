@@ -5,8 +5,8 @@ import { fetchNterLatest } from './nterNewsClient.js';
 import NterLatestRail from '../marketing/NterLatestRail.jsx';
 
 describe('CR-12 — NTER.news on Home Page / Live Latest Rail', () => {
-  beforeEach(() => {
-    const seed = serveNterLatest({ limit: 8 });
+  beforeEach(async () => {
+    const seed = await serveNterLatest({ limit: 8 });
     global.fetch = vi.fn().mockImplementation((url) => {
       return Promise.resolve({
         ok: true,
@@ -15,8 +15,8 @@ describe('CR-12 — NTER.news on Home Page / Live Latest Rail', () => {
     });
   });
 
-  it('retrieves valid data contract from server serveNterLatest()', () => {
-    const res = serveNterLatest({ limit: 8 });
+  it('retrieves valid data contract from server serveNterLatest()', async () => {
+    const res = await serveNterLatest({ limit: 8 });
     expect(res.ok).toBe(true);
     expect(res.source).toBe('nter.news');
     expect(Array.isArray(res.rows)).toBe(true);

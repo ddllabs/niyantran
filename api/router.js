@@ -244,7 +244,7 @@ export default async function handler(req, res) {
         res.status(auth.status).json({ ok: false, error: auth.error });
         return;
       }
-      const out = ingestNterArticle(parseBody(req), { sourceHeader: auth.sourceHeader });
+      const out = await ingestNterArticle(parseBody(req), { sourceHeader: auth.sourceHeader });
       res.status(out.status || (out.ok ? 200 : 400)).json(out);
       return;
     }

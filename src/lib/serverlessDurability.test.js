@@ -23,7 +23,6 @@ const CACHE_KEYS = new Set(['desk-briefs', 'stat1.xlsx']);
 // Supabase. The list may only shrink: a new offence fails, and so does an
 // entry whose offence is gone.
 const KNOWN_OFFENDERS = {
-  "server/nterNews.mjs writes writablePath('nter-news.json')": 'S7 nter.news (T6)',
   'server/deskBrief.mjs imports server/db.mjs': 'C1 entry_briefs cache tier on SQLite (T7)',
   "server/db.mjs writes writablePath('niyantran.sqlite')": 'the SQLite file itself (T7)',
 };
