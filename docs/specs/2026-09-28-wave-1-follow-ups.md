@@ -1,8 +1,8 @@
 # Spec: wave-1 follow-ups
 
-> **Status: Living.** The owner approved the wave-1 follow-ups on
-> 2026-09-28. Mark it Historical when every item below lands or moves to its
-> own spec.
+> **Status: Historical (2026-09-28).** Every item landed on 2026-09-28:
+> items 1–5 in `d43ec5d`, and item 6 in `483b3b2` once the owner chose the
+> design (hashed IP, 60 a minute).
 
 ## Current state
 
@@ -40,8 +40,9 @@ wave 1" list left these defects, each confirmed in the code on 2026-09-28:
 4. The test checks that the durable flag decides, and that the
    process-local view does not.
 5. The admin page says 50 MB.
-6. Rate limit: **needs an owner decision** on the design (below). It is not
-   part of this change.
+6. Rate limit: owner decision 2026-09-28, the design below, with the HMAC
+   keyed by `ANALYTICS_RATE_SALT` if set, otherwise the Supabase secret key.
+   Landed in `483b3b2`, migration applied live.
 
 ## Acceptance evidence
 
@@ -75,6 +76,5 @@ wave 1" list left these defects, each confirmed in the code on 2026-09-28:
   the client IP (from `x-forwarded-for`) salted with a server secret. It
   would reject with 429 above 60 events a minute. No raw IP is stored, and a
   cron job deletes windows older than an hour.
-- **Open questions:**
-  - Is hashing the IP acceptable for analytics under your privacy policy?
-  - Is 60 a minute the right limit?
+- **Owner decisions (2026-09-28):** hashing the IP is acceptable, and the
+  limit is 60 a minute.
