@@ -5,7 +5,7 @@ import AdminApp from './admin/AdminApp.jsx';
 import { startSiteHead } from './lib/siteHead.js';
 import { hydrateAppFlags } from './lib/appFlagsStore.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
-import { sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
+import { publishVerifiedSessionUser, sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
 import './shell/onboarding.css';
 
 function pathKey() {
@@ -37,6 +37,11 @@ function isMarketingOverlayPath() {
   );
 }
 
+/** Signed in means the session flag is set and a signed-in user is stored. */
+function isSignedIn() {
+  return sessionStorage.getItem('niyantranAuthed') === '1' && sessionUser() !== null;
+}
+
 function ensurePersonaFromSession() {
   if (readPersonaId()) return true;
   const user = sessionUser();
@@ -50,10 +55,10 @@ function ensurePersonaFromSession() {
 export default function App() {
   const [admin, setAdmin] = useState(isAdminPath);
   const [legal, setLegal] = useState(isLegalPath);
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('niyantranAuthed') === '1');
+  const [authed, setAuthed] = useState(isSignedIn);
   const [mktOverlay, setMktOverlay] = useState(isMarketingOverlayPath);
   const [personaReady, setPersonaReady] = useState(() => {
-    if (sessionStorage.getItem('niyantranAuthed') !== '1') return Boolean(readPersonaId());
+    if (!isSignedIn()) return Boolean(readPersonaId());
     return ensurePersonaFromSession();
   });
 
@@ -63,14 +68,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    return subscribeLocalIdentity((id) => {
+    let mounted = true;
+    const unsubscribe = subscribeLocalIdentity((id) => {
       if (id) {
         setAuthed(true);
         setPersonaReady(ensurePersonaFromSession());
+        // A Google OAuth return has a verified identity but no login form to
+        // publish the session user. Leave the Auth callback first: calling Auth
+        // methods from inside it can deadlock the client.
+        if (!sessionUser()) {
+          setTimeout(() => {
+            publishVerifiedSessionUser().then((user) => {
+              if (!mounted || !user) return;
+              setAuthed(true);
+              setPersonaReady(ensurePersonaFromSession());
+            });
+          }, 0);
+        }
       } else {
         setAuthed(false);
       }
     });
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -90,7 +112,7 @@ export default function App() {
   if (admin) return <AdminApp />;
 
   // A-10: pricing / login / signup hash must still resolve when already signed in.
-  if (legal || !authed || mktOverlay) {
+  if (legal || !authed || !isSignedIn() || mktOverlay) {
     return (
       <MarketingSite
         onAuthed={() => {

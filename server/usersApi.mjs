@@ -1,181 +1,27 @@
 /**
- * Shared issued-user store for Admin + marketing login.
- * SQLite (tmp/niyantran.sqlite) with JSON file migrate-on-read.
+ * Admin user directory, backed by Supabase `public.user_profiles`.
  *
- *   GET  /api/users
- *   PUT  /api/users   { users: [...] }
+ *   GET   /api/users           internal admin: every profile, oldest first
+ *   PATCH /api/users/:userId   internal admin: { active?: boolean, type?: persona }
+ *
+ * Accounts are created only through Supabase sign-up; this route never
+ * creates, deletes or sets a password for anyone. Reads and writes use the
+ * server's secret-key client after the route's own internal-admin check.
  */
-import fs from 'fs';
-import path from 'path';
-import { getDb, queryAll, run } from './db.mjs';
 import { createClient } from '@supabase/supabase-js';
-import { writablePath } from './writableRoot.mjs';
+import { getSupabaseAdminClient } from './authEmailProvider.mjs';
+import { dbPersona, frontendPersona } from '../src/lib/personaMap.js';
 
-const USERS_FILE = writablePath('issued-users.json');
-
-const SEEDS = [
-  {
-    id: 'seed-analyst',
-    name: 'Lead Analyst',
-    email: 'analyst@niyantran',
-    password: '12345678#',
-    plan: 'enterprise',
-    type: 'analyst',
-    personaId: 'analyst',
-    active: true,
-    createdAt: '2026-01-15T00:00:00.000Z',
-  },
-  {
-    id: 'seed-student',
-    name: 'Student Desk',
-    email: 'student@niyantran',
-    password: '12345678#',
-    plan: 'pro',
-    type: 'student',
-    personaId: 'student',
-    active: true,
-    createdAt: '2026-01-15T00:00:00.000Z',
-  },
-];
+const PROFILE_COLUMNS = 'user_id, email, first_name, last_name, persona, role, plan, status, created_at';
+const PATCH_FIELDS = new Set(['active', 'type']);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_BODY_BYTES = 16 * 1024;
 
 function json(res, body, status = 200) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(body));
-}
-
-function normalize(u) {
-  if (!u || typeof u !== 'object') return null;
-  const email = String(u.email || '')
-    .trim()
-    .toLowerCase();
-  if (!email) return null;
-  const plan = String(u.plan || 'explorer');
-  return {
-    id: String(u.id || `u-${email}`),
-    name: String(u.name || email.split('@')[0]),
-    email,
-    password: String(u.password || ''),
-    plan,
-    type: String(u.type || 'analyst'),
-    active: u.active !== false,
-    personaId: u.personaId || u.persona_id || null,
-    planStatus: u.planStatus || u.plan_status || (plan === 'explorer' ? 'free' : 'active'),
-    trialEndsAt: u.trialEndsAt || u.trial_ends_at || null,
-    billingYearly: Boolean(u.billingYearly ?? u.billing_yearly),
-    googleSub: u.googleSub || u.google_sub || null,
-    createdAt: u.createdAt || u.created_at || new Date().toISOString(),
-  };
-}
-
-function mergeWithSeeds(list) {
-  const byEmail = new Map();
-  for (const s of SEEDS) byEmail.set(s.email, { ...s });
-  for (const u of list || []) {
-    const n = normalize(u);
-    if (!n) continue;
-    const seed = SEEDS.find((s) => s.email === n.email);
-    if (seed) {
-      byEmail.set(n.email, {
-        ...seed,
-        ...n,
-        id: seed.id,
-        email: seed.email,
-        password: seed.password,
-        type: n.type || seed.type,
-        active: n.active !== false,
-      });
-      continue;
-    }
-    byEmail.set(n.email, n);
-  }
-  return [...byEmail.values()];
-}
-
-function rowToUser(r) {
-  return {
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    password: r.password,
-    plan: r.plan,
-    type: r.type,
-    active: Number(r.active) !== 0,
-    personaId: r.persona_id || null,
-    planStatus: r.plan_status || (r.plan === 'explorer' ? 'free' : 'active'),
-    trialEndsAt: r.trial_ends_at || null,
-    billingYearly: Number(r.billing_yearly) === 1,
-    googleSub: r.google_sub || null,
-    createdAt: r.created_at,
-  };
-}
-
-function readJsonFallback() {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-      const list = Array.isArray(parsed?.users) ? parsed.users : Array.isArray(parsed) ? parsed : [];
-      return mergeWithSeeds(list);
-    }
-  } catch {
-    /* fall through */
-  }
-  return mergeWithSeeds([]);
-}
-
-async function readUsers() {
-  const database = await getDb();
-  const rows = queryAll(database, `SELECT * FROM users ORDER BY created_at ASC`);
-  if (!rows.length) {
-    const fromJson = readJsonFallback();
-    await writeUsers(fromJson);
-    return fromJson;
-  }
-  return mergeWithSeeds(rows.map(rowToUser));
-}
-
-async function writeUsers(users) {
-  const database = await getDb();
-  // Exports omit passwords; metadata replacements must not erase credentials.
-  const existing = queryAll(database, 'SELECT id, email, password FROM users');
-  const list = mergeWithSeeds(users.map((user) => {
-    const prior = existing.find((row) => row.id === user.id && row.email === String(user.email || '').trim().toLowerCase());
-    return user.password === undefined && prior ? { ...user, password: prior.password } : user;
-  }));
-  const now = new Date().toISOString();
-  run(database, `DELETE FROM users`);
-  for (const u of list) {
-    run(
-      database,
-      `INSERT INTO users (id, name, email, password, plan, type, active, persona_id, plan_status, trial_ends_at, billing_yearly, created_at, updated_at, google_sub)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        u.id,
-        u.name,
-        u.email,
-        u.password,
-        u.plan,
-        u.type,
-        u.active === false ? 0 : 1,
-        u.personaId || null,
-        u.planStatus || (u.plan === 'explorer' ? 'free' : 'active'),
-        u.trialEndsAt || null,
-        u.billingYearly ? 1 : 0,
-        u.createdAt || now,
-        now,
-        u.googleSub || null,
-      ],
-    );
-  }
-  // Keep JSON mirror for older tooling / recovery.
-  try {
-    fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
-    fs.writeFileSync(USERS_FILE, JSON.stringify({ users: list, updatedAt: now, engine: 'sqlite' }, null, 2));
-  } catch {
-    /* non-fatal */
-  }
-  return list;
 }
 
 // Request-scoped client: RPCs use exactly the token independently checked by
@@ -227,53 +73,141 @@ export async function authorizeLocalUser(req, res, { admin = false, clientForTok
   }
 }
 
-function publicUsers(users) {
-  return users.map((user) => {
-    const { password: _password, ...safe } = normalize(user);
-    return safe;
-  });
+/** One user_profiles row in the directory shape. An allowlist: nothing else leaves. */
+function directoryUser(row) {
+  const email = String(row.email || '').trim().toLowerCase();
+  const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || email.split('@')[0];
+  const persona = frontendPersona(row.persona);
+  return {
+    id: row.user_id,
+    name,
+    email,
+    type: persona,
+    personaId: persona,
+    plan: row.plan === 'professional' ? 'pro' : row.plan,
+    active: row.status === 'active',
+    status: row.status,
+    role: row.role,
+    createdAt: row.created_at,
+  };
 }
 
-async function readBody(req) {
-  let body = '';
-  for await (const chunk of req) {
-    body += chunk;
-    if (body.length > 2 * 1024 * 1024) throw new Error('Request too large');
+function adminClientFrom(deps) {
+  return (deps.adminClient || getSupabaseAdminClient)();
+}
+
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  let raw = typeof req.body === 'string' ? req.body : '';
+  if (typeof req.body !== 'string') {
+    for await (const chunk of req) {
+      raw += chunk;
+      if (raw.length > MAX_BODY_BYTES) throw new Error('Request too large');
+    }
   }
-  return body;
+  if (raw.length > MAX_BODY_BYTES) throw new Error('Request too large');
+  return raw ? JSON.parse(raw) : undefined;
+}
+
+/** { status?, persona? } for a valid body, or null. Unknown fields are refused. */
+function profilePatch(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const keys = Object.keys(body);
+  if (!keys.length || keys.some((key) => !PATCH_FIELDS.has(key))) return null;
+  const patch = {};
+  if ('active' in body) {
+    if (typeof body.active !== 'boolean') return null;
+    patch.status = body.active ? 'active' : 'suspended';
+  }
+  if ('type' in body) {
+    const persona = typeof body.type === 'string' ? dbPersona(body.type) : null;
+    if (!persona) return null;
+    patch.persona = persona;
+  }
+  return patch;
+}
+
+async function listUsers(res, deps) {
+  try {
+    const { data, error } = await adminClientFrom(deps)
+      .from('user_profiles')
+      .select(PROFILE_COLUMNS)
+      .order('created_at', { ascending: true });
+    if (error || !Array.isArray(data)) throw new Error('Directory read failed');
+    return json(res, { ok: true, users: data.map(directoryUser) });
+  } catch {
+    return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);
+  }
+}
+
+async function updateUser(req, res, caller, userId, deps) {
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return json(res, { ok: false, error: 'Invalid JSON' }, 400);
+  }
+  const patch = profilePatch(body);
+  if (!patch) {
+    return json(res, { ok: false, error: 'Send only active (boolean) and/or type (a known persona)' }, 400);
+  }
+  if (!UUID.test(userId)) return json(res, { ok: false, error: 'User not found' }, 404);
+  try {
+    const client = adminClientFrom(deps);
+    const target = await client.from('user_profiles').select(PROFILE_COLUMNS).eq('user_id', userId).maybeSingle();
+    if (target.error) throw new Error('Directory read failed');
+    if (!target.data) return json(res, { ok: false, error: 'User not found' }, 404);
+    if (target.data.role === 'owner') return json(res, { ok: false, error: 'Owner accounts cannot be changed here' }, 403);
+    if ('status' in patch && userId === caller.id) {
+      return json(res, { ok: false, error: 'You cannot suspend or reactivate your own account' }, 409);
+    }
+    // The role filter keeps an owner promoted after the read above untouched.
+    const updated = await client
+      .from('user_profiles')
+      .update(patch)
+      .eq('user_id', userId)
+      .neq('role', 'owner')
+      .select(PROFILE_COLUMNS)
+      .maybeSingle();
+    if (updated.error) throw new Error('Directory write failed');
+    if (!updated.data) return json(res, { ok: false, error: 'Owner accounts cannot be changed here' }, 403);
+    return json(res, { ok: true, user: directoryUser(updated.data) });
+  } catch {
+    return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);
+  }
+}
+
+function methodNotAllowed(res, allow) {
+  res.setHeader('Allow', allow);
+  return json(res, { ok: false, error: `${allow} only` }, 405);
 }
 
 export async function handleUsersApi(req, res, next, deps = {}) {
-  const url = new URL(req.url, 'http://localhost');
+  const url = new URL(req.url || '/', 'http://localhost');
   if (!url.pathname.startsWith('/api/users')) {
     next();
     return;
   }
-  if (url.pathname !== '/api/users') return json(res, { ok: false, error: 'Not found' }, 404);
-  if (!['GET', 'PUT'].includes(req.method)) return json(res, { ok: false, error: 'GET or PUT only' }, 405);
-  const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
-  if (!caller) return;
-
-  let list;
-  if (req.method === 'PUT') {
+  const segments = url.pathname.split('/').slice(3);
+  if (url.pathname === '/api/users') {
+    if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+    const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
+    if (!caller) return;
+    return listUsers(res, deps);
+  }
+  if (url.pathname.startsWith('/api/users/') && segments.length === 1 && segments[0]) {
+    if (req.method !== 'PATCH') return methodNotAllowed(res, 'PATCH');
+    let userId;
     try {
-      const payload = JSON.parse((await readBody(req)) || '{}');
-      if (!Array.isArray(payload?.users) || payload.users.some((u) => !u || typeof u !== 'object' || Array.isArray(u))) {
-        throw new Error('Invalid users');
-      }
-      list = payload.users;
+      userId = decodeURIComponent(segments[0]);
     } catch {
-      return json(res, { ok: false, error: 'Invalid users payload' }, 400);
+      userId = '';
     }
+    const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
+    if (!caller) return;
+    return updateUser(req, res, caller, userId, deps);
   }
-  try {
-    const users = req.method === 'GET'
-      ? await (deps.readUsers || readUsers)()
-      : await (deps.writeUsers || writeUsers)(list);
-    return json(res, { ok: true, users: publicUsers(users), engine: 'sqlite' });
-  } catch {
-    return json(res, { ok: false, error: 'Unable to access local users' }, 500);
-  }
+  return json(res, { ok: false, error: 'Not found' }, 404);
 }
 
 export function usersApiPlugin() {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiStats, classifyApis, STATUS } from '../lib/apiStatus.js';
-import { createUser, removeUser, updateUser, USER_TYPES, userTypeOf } from '../lib/userStore.js';
+import { setUserActive, setUserType, USER_TYPES, userTypeOf } from '../lib/userStore.js';
 import { loadPricing, savePricing } from '../lib/pricingStore.js';
 import {
   formatAgo,
@@ -421,28 +421,15 @@ export function ApisPage() {
 }
 
 export function UsersPage({ users, onChange }) {
-  const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
-  function onCreate(e) {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const res = createUser({
-      name: fd.get('name'),
-      email: fd.get('email'),
-      password: fd.get('password'),
-      plan: fd.get('plan'),
-      type: fd.get('type'),
-      personaId: fd.get('type'),
-    });
-    if (!res.ok) {
-      setErr(res.reason);
-      setMsg('');
-      return;
-    }
-    e.target.reset();
+  async function change(id, action) {
+    setBusyId(id);
     setErr('');
-    setMsg(`Issued — sign in with User ID “${res.user.email}”`);
+    const res = await action();
+    setBusyId(null);
+    if (!res.ok) setErr(res.reason || 'The change was not saved.');
     onChange();
   }
 
@@ -450,59 +437,20 @@ export function UsersPage({ users, onChange }) {
     <>
       <h1 className="adm-h1">Dashboard users</h1>
       <p className="adm-lede">
-        Accounts created here can sign in on the marketing login and open the terminal. Assign a user type so each
-        seat opens the matching desks. Suspend to lock a desk without deleting the record.
+        Every account that has signed up. Assign a user type so each seat opens the matching desks. Suspend to lock an
+        account without deleting it, and restore to reopen it.
       </p>
       <div className="adm-card">
-        <h2>Issue access</h2>
-        <form className="adm-form" onSubmit={onCreate}>
-          <label className="adm-field">
-            <span>Name</span>
-            <input name="name" required />
-          </label>
-          <label className="adm-field">
-            <span>User ID</span>
-            <input
-              name="email"
-              type="text"
-              required
-              minLength={2}
-              autoComplete="off"
-              spellCheck="false"
-              placeholder="e.g. student1 or student@niyantran"
-            />
-          </label>
-          <label className="adm-field">
-            <span>Password</span>
-            <input name="password" type="text" required minLength={8} />
-          </label>
-          <label className="adm-field">
-            <span>User type</span>
-            <select name="type" defaultValue="analyst">
-              {USER_TYPES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="adm-field">
-            <span>Plan</span>
-            <select name="plan" defaultValue="pro">
-              <option value="explorer">Explorer</option>
-              <option value="pro">Professional</option>
-              <option value="enterprise">Enterprise</option>
-              <option value="gov">Government</option>
-            </select>
-          </label>
-          <div className="adm-actions span2">
-            <button className="adm-btn" type="submit">
-              Create user
-            </button>
-            {msg ? <span className="adm-msg">{msg}</span> : null}
-            {err ? <span className="adm-msg err">{err}</span> : null}
-          </div>
-        </form>
+        <h2>Adding people</h2>
+        <p className="adm-hint" style={{ marginTop: 0 }}>
+          Accounts are created only through sign-up on the website. Admins cannot create accounts or set passwords here;
+          people reset their own password from the sign-in page. Owner accounts cannot be changed from this screen.
+        </p>
+        {err ? (
+          <p className="adm-msg err" role="alert">
+            {err}
+          </p>
+        ) : null}
       </div>
       <div className="adm-card" style={{ padding: 0 }}>
         <div className="adm-table-wrap">
@@ -510,7 +458,7 @@ export function UsersPage({ users, onChange }) {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>User ID</th>
+                <th>Email</th>
                 <th>Type</th>
                 <th>Plan</th>
                 <th>State</th>
@@ -518,51 +466,48 @@ export function UsersPage({ users, onChange }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td className="feat">{u.name}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <select
-                      className="adm-inline-select"
-                      value={userTypeOf(u.type).id}
-                      onChange={(e) => {
-                        updateUser(u.id, { type: e.target.value });
-                        onChange();
-                      }}
-                    >
-                      {USER_TYPES.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.short}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>{u.plan}</td>
-                  <td>{u.active ? 'Active' : 'Suspended'}</td>
-                  <td>
-                    <div className="adm-actions" style={{ margin: 0 }}>
-                      <button type="button" className="adm-btn ghost" onClick={() => { updateUser(u.id, { active: !u.active }); onChange(); }}>
-                        {u.active ? 'Suspend' : 'Restore'}
-                      </button>
-                      <button
-                        type="button"
-                        className="adm-btn danger"
-                        onClick={() => {
-                          const res = removeUser(u.id);
-                          if (!res.ok) setErr(res.reason);
-                          else {
-                            setErr('');
-                            onChange();
-                          }
+              {users.map((u) => {
+                const locked = u.role === 'owner';
+                const busy = busyId !== null;
+                return (
+                  <tr key={u.id}>
+                    <td className="feat">{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <select
+                        className="adm-inline-select"
+                        aria-label={`User type for ${u.email}`}
+                        value={userTypeOf(u.type).id}
+                        disabled={locked || busy}
+                        onChange={(e) => {
+                          const type = e.target.value;
+                          void change(u.id, () => setUserType(u.id, type));
                         }}
                       >
-                        Remove
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {USER_TYPES.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.short}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>{u.plan}</td>
+                    <td>{locked ? 'Owner' : u.active ? 'Active' : 'Suspended'}</td>
+                    <td>
+                      <div className="adm-actions" style={{ margin: 0 }}>
+                        <button
+                          type="button"
+                          className={u.active ? 'adm-btn danger' : 'adm-btn ghost'}
+                          disabled={locked || busy}
+                          onClick={() => { void change(u.id, () => setUserActive(u.id, !u.active)); }}
+                        >
+                          {busyId === u.id ? 'Saving…' : u.active ? 'Suspend' : 'Restore'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

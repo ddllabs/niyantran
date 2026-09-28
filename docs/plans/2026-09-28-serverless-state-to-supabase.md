@@ -119,11 +119,36 @@ Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
   - no email is stored;
   - S2 leaves `KNOWN_OFFENDERS`.
 
-### T3 — S3 retire the local users store — **dispatched 2026-09-28 on `task/t3-retire-local-users`**
+### T3 — S3 retire the local users store — **implemented 2026-09-28 on `task/t3-retire-local-users`, not yet merged**
 
 Task spec: `docs/specs/2026-09-28-t3-retire-local-users.md`. It fixes the
 `PATCH /api/users/:userId` interface, the removal of the seed accounts and
 local passwords, and the rule that `sessionUser()` returns null.
+
+- **Evidence (executed):**
+  - Of the new tests: 37 handler tests failed against the SQLite handler,
+    36 client tests against the old client, and 26 ported authorization
+    tests against the old handler.
+  - The durability guard fails when `writablePath('issued-users.json')`
+    or the `db.mjs` import is restored.
+  - `npm test` 818/818 (49 files); the Deno suite 415 passed;
+    `npm run build` passed; the router imports.
+  - The built bundle contains the seed password 0 times.
+  - The guard's `KNOWN_OFFENDERS` is down to 4 entries.
+- **Supervisor fix during review.** Google OAuth returns through a
+  redirect, so no login form published the session user; the app had
+  worked only because `sessionUser()` fell back to the seed analyst.
+  `publishVerifiedSessionUser()` now publishes it from the verified
+  identity and its own active profile row. It never resumes a local
+  sign-out. `App.jsx` calls it outside the Auth callback. Four tests failed
+  before the fix. The App wiring itself has no DOM test (no DOM test
+  environment is installed), so it is verified by review and the build.
+- **Not verified:** the admin screens and a real Google sign-in have not
+  been exercised in a browser.
+- **Follow-up:** `src/Login.jsx` is an unused legacy login that still
+  hard-codes the old seed credential. It is not in the bundle and no
+  longer opens the Terminal under the new gate. Deleting it needs owner
+  approval.
 
 
 - **Depends on:** T0 and the owner's sensitive-scope approval.

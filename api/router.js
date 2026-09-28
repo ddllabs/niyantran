@@ -258,7 +258,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (path === '/api/users') {
+    if (path === '/api/users' || path.startsWith('/api/users/')) {
       req.url = path;
       await handleUsersApi(req, res, () => {
         res.status(404).json({ ok: false, error: 'Not found' });

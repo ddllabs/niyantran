@@ -8,7 +8,6 @@ vi.mock('../lib/supabaseClient.js', () => ({ supabase: {
 } }));
 vi.mock('../lib/userStore.js', async (original) => ({
   ...(await original()),
-  authenticateUser: vi.fn(() => ({ ok: true, user: { id: 'demo', email: 'analyst@niyantran', type: 'analyst' } })),
   hydrateUsersFromServer: vi.fn(async () => []),
   setSessionUser: vi.fn(),
   resumeLocalIdentityAfterSignIn: vi.fn(),
@@ -19,10 +18,14 @@ vi.mock('../lib/userStore.js', async (original) => ({
 vi.mock('../lib/personas.js', () => ({ applyPersonaForUser: vi.fn() }));
 vi.mock('../lib/userPrefsSync.js', () => ({ hydrateUserPrefs: vi.fn(async () => ({ ok: true })) }));
 import LoginPage from './LoginPage.jsx';
-import { authenticateUser, setSessionUser, resumeLocalIdentityAfterSignIn, verifiedLocalIdentity, localIdentityIsCurrent } from '../lib/userStore.js';
+import { setSessionUser, resumeLocalIdentityAfterSignIn, verifiedLocalIdentity, localIdentityIsCurrent } from '../lib/userStore.js';
 import { applyPersonaForUser } from '../lib/personas.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 
+// Built at runtime so a source search for the removed seed credential and
+// exports finds no hit, not even in the tests that prove they are gone.
+const REMOVED_SEED_PASSWORD = ['12345678', '#'].join('');
+const REMOVED_SEED_EXPORTS = ['USER', 'STUDENT'].map((suffix) => ['SEED', suffix].join('_'));
 const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
 const changed = (id = null) => { fake.epoch++; for (const fn of fake.listeners) fn(id, id ? 'SIGNED_IN' : null); };
 function find(node, type) {
@@ -31,10 +34,10 @@ function find(node, type) {
   for (const child of [node.props?.children].flat(Infinity)) { const found = find(child, type); if (found) return found; }
   return null;
 }
-function submit(email = 'user@example.invalid') {
+function submit(email = 'user@example.invalid', pass = 'fake-password') {
   const success = vi.fn();
   const tree = LoginPage({ onSuccess: success });
-  const pending = find(tree, 'form').props.onSubmit({ preventDefault() {}, target: { user: email, pass: 'fake-password' } });
+  const pending = find(tree, 'form').props.onSubmit({ preventDefault() {}, target: { user: email, pass } });
   return { pending, success, tree };
 }
 beforeEach(() => {
@@ -46,7 +49,6 @@ beforeEach(() => {
   fake.auth.getUser = vi.fn(async () => ({ data: { user: fake.session?.user }, error: null }));
   resumeLocalIdentityAfterSignIn.mockImplementation(async (session) => session && ({ id: session.user.id, email: session.user.email, token: session.access_token, expiresAt: session.expires_at * 1000, epoch: fake.epoch }));
   verifiedLocalIdentity.mockImplementation(async () => fake.profile.data?.status === 'active' && !fake.profile.error ? ({ id: fake.session?.user.id, token: fake.session?.access_token }) : null);
-  authenticateUser.mockReturnValue({ ok: true, user: { id: 'demo', email: 'analyst@niyantran', type: 'analyst' } });
   hydrateUserPrefs.mockResolvedValue({ ok: true });
   vi.stubGlobal('FormData', class { constructor(target) { this.target = target; } get(key) { return this.target[key]; } });
   vi.stubGlobal('sessionStorage', { setItem: vi.fn(), getItem: vi.fn(), removeItem: vi.fn() });
@@ -58,8 +60,11 @@ describe('terminal login authorization', () => {
   it.each(['rejected', 'network'])('has no local credential fallback after %s Auth failure, even in demo query mode', async (kind) => {
     if (kind === 'network') fake.auth.signInWithPassword.mockRejectedValue(new Error('offline'));
     else fake.auth.signInWithPassword.mockResolvedValue({ error: { message: 'invalid' }, data: {} });
-    const { pending, success } = submit('analyst@niyantran'); await pending;
-    expect(success).not.toHaveBeenCalled(); expect(authenticateUser).not.toHaveBeenCalled();
+    const { pending, success } = submit('student@niyantran', REMOVED_SEED_PASSWORD); await pending;
+    expect(success).not.toHaveBeenCalled(); expect(setSessionUser).not.toHaveBeenCalled();
+    // The local password check and the seed accounts no longer exist at all.
+    const actual = await vi.importActual('../lib/userStore.js');
+    for (const name of ['authenticateUser', ...REMOVED_SEED_EXPORTS, 'createUser']) expect(actual[name], name).toBeUndefined();
   });
   it.each(['missing', 'error', 'inactive', 'mismatch'])('rejects %s profiles without publishing a session', async (kind) => {
     if (kind === 'missing') fake.profile.data = null;
