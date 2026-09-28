@@ -75,9 +75,9 @@ check. No production provider mode is asserted by this README.
 
 ## AI, corpus and citations
 
-`VITE_AI_BACKEND` selects the legacy or Supabase AI path. Recovery work for the
-streaming research path is still under review; setting a flag does not deploy
-an Edge Function. Provider credentials stay server-side. The owner-selected
+Research chat goes from the browser to the `research-chat` Edge Function, the
+only AI path since the legacy `/api/ai/chat` path and its `VITE_AI_BACKEND`
+switch were retired on 2026-09-28. Provider credentials stay server-side. The owner-selected
 citation-repair model is applied only during an authorized rollout.
 
 Document OCR and embeddings live in Supabase, while the source export remains

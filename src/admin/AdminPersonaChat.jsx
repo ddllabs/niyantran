@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { sendAiChat } from '../lib/aiClient.js';
-import { loadAiModels, pickAiRole, shortModelLabel } from '../lib/aiModelsStore.js';
+import { runPersonaProbe } from '../lib/personaProbe.js';
 import { userTypeOf } from '../lib/userTypes.js';
 import AiMarkdown from '../ai/AiMarkdown.jsx';
 
@@ -9,21 +8,21 @@ const PROBES = {
   journalist: ['Write the lede on the latest RBI MPC decision', 'What is still unverified in this story?', 'List the documents I should pull next'],
   lawyer: ['Legal status of simultaneous elections proposals', 'Pin the holding in Puttaswamy (2017)', 'Is an as-introduced bill law in force?'],
   policy: ['Brief the National Green Hydrogen Mission', 'Who owns PM-JANMAN and what is its funding pattern?', 'Trade-offs in a carbon border adjustment'],
+  academic: ['How has anti-defection law been interpreted since 1985?', 'What does the record show on Lok Sabha sitting days over time?', 'Where are the gaps in the evidence on electoral bonds?'],
   analyst: ['What would a carbon border tax touch in Indian industry?', 'Extract the load-bearing facts from this packet', 'Where is the evidence thin?'],
 };
 
-export default function AdminPersonaChat({ typeId, personaPrompt }) {
+export default function AdminPersonaChat({ typeId }) {
   const meta = userTypeOf(typeId);
   const [threads, setThreads] = useState({});
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [roleId, setRoleId] = useState('AUTO');
-  const [roles] = useState(() => loadAiModels());
+  // research-chat conversation per persona, so follow-ups keep their context.
+  const [conversations, setConversations] = useState({});
   const scroller = useRef(null);
   const box = useRef(null);
   const messages = threads[typeId] || [];
-  const resolved = pickAiRole([], roleId);
 
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -49,14 +48,8 @@ export default function AdminPersonaChat({ typeId, personaPrompt }) {
     setErr('');
     setBusy(true);
     try {
-      const out = await sendAiChat({
-        roleId,
-        messages: history.map((m) => ({ role: m.role, content: m.content })),
-        attachments: [],
-        userType: probeType,
-        personaPrompt,
-        probe: true,
-      });
+      const out = await runPersonaProbe({ typeId: probeType, message: text, conversationId: conversations[probeType] });
+      if (out.conversationId) setConversations((map) => ({ ...map, [probeType]: out.conversationId }));
       setThreads((map) => ({
         ...map,
         [probeType]: [
@@ -65,7 +58,6 @@ export default function AdminPersonaChat({ typeId, personaPrompt }) {
             role: 'assistant',
             content: out.text,
             model: out.model,
-            provider: out.provider,
           },
         ],
       }));
@@ -98,6 +90,7 @@ export default function AdminPersonaChat({ typeId, personaPrompt }) {
           disabled={!messages.length && !err}
           onClick={() => {
             setThread([]);
+            setConversations((map) => ({ ...map, [typeId]: null }));
             setErr('');
           }}
         >
@@ -108,8 +101,9 @@ export default function AdminPersonaChat({ typeId, personaPrompt }) {
       <div ref={scroller} className="adm-mini-log">
         {!messages.length && !busy ? (
           <p className="adm-mini-empty">
-            Admin probe may override the shipped prompt for this thread. Live desk chats always use{' '}
-            <code>src/data/personas/*.md</code> on the server.
+            Answers use the shipped {meta.label} prompt (<code>src/data/personas/</code>) through
+            research-chat, which honours the probe for platform admins only. Each probe is saved as a
+            conversation in your account.
           </p>
         ) : null}
         {messages.map((m, i) => (
@@ -154,19 +148,6 @@ export default function AdminPersonaChat({ typeId, personaPrompt }) {
           }}
         />
         <div className="adm-mini-row">
-          <select
-            aria-label="Model"
-            value={roleId}
-            onChange={(e) => setRoleId(e.target.value)}
-            title={`${resolved.label} · ${resolved.model}`}
-          >
-            <option value="AUTO">auto [{resolved.provider || 'model'}]</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {shortModelLabel(r)}
-              </option>
-            ))}
-          </select>
           <button className="adm-btn" type="submit" disabled={busy || !draft.trim()}>
             Send
           </button>

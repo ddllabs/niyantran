@@ -1,6 +1,7 @@
 // Routes retired from the production entry (api/router.js) on 2026-09-28:
-// /api/app-flags with the testing-phase flag (plan task C6), and /api/auth/*,
-// which the app never called (it uses Supabase Auth directly).
+// /api/app-flags with the testing-phase flag (plan task C6), /api/auth/*,
+// which the app never called (it uses Supabase Auth directly), and
+// /api/ai/chat, the legacy AI path's proxy (plan task D4).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const adminClient = vi.hoisted(() => ({ from: null }));
@@ -42,7 +43,7 @@ describe('api/router.js /api/app-flags', () => {
   });
 });
 
-describe('api/router.js /api/auth/*', () => {
+describe('api/router.js /api/auth/* and /api/ai/chat', () => {
   beforeEach(() => {
     adminClient.from = vi.fn(() => { throw new Error('no table may be touched'); });
   });
@@ -55,6 +56,7 @@ describe('api/router.js /api/auth/*', () => {
     ['POST', 'auth/resend-verification', { email: 'a@example.test' }],
     ['GET', 'auth/provider', undefined],
     ['GET', 'auth/me', undefined],
+    ['POST', 'ai/chat', { messages: [{ role: 'user', content: 'Q' }] }],
   ])('%s /api/%s is not served', async (method, route, body) => {
     const res = vercelResponse();
     await handler({ method, url: `/api/router?__route=${route}`, query: { __route: route }, headers: { host: 'localhost', authorization: 'Bearer x' }, body }, res);

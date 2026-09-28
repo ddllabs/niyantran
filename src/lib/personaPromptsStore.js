@@ -71,8 +71,8 @@ export function shippedPersonaPromptFor(typeId) {
 }
 
 /**
- * Admin drafts (localStorage). Do not use for live /api/ai/chat —
- * those resolve shipped prompts on the server unless probe=true.
+ * Admin drafts (localStorage), never sent anywhere: research-chat always
+ * answers with the shipped prompt (src/data/personas/, bundled server-side).
  */
 export function personaPromptFor(typeId) {
   const id = userTypeOf(typeId).id;

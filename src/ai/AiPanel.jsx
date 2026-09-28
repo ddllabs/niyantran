@@ -1,20 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sendAiChat } from '../lib/aiClient.js';
-import {
-  activeAiChat,
-  addChatAttachments,
-  appendAiMessage,
-  createAiChat,
-  deleteAiChat,
-  ensureAiChat,
-  serverThreads,
-  setActiveAiChat,
-  setChatAttachments,
-  setChatRole,
-  subscribeAiChats,
-} from '../lib/aiThreads.js';
-import { liveAiProviders, activeAiProvider, shortModelLabel } from '../lib/aiModelsStore.js';
-import { sessionUser } from '../lib/userStore.js';
+import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
@@ -30,7 +15,6 @@ import SourceList from './SourceList.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
-import { trackProductEvent } from '../lib/productAnalytics.js';
 
 const FOCUS_OPTS = [
   { id: 'attached', en: 'Attached only', hi: 'केवल संलग्न', hint: 'Pins and files in this chat' },
@@ -157,33 +141,7 @@ export function researchSelection(row) {
   }
   return bounded;
 }
-function slimRow(row) {
-  if (!row || typeof row !== 'object') return null;
-  const out = {};
-  for (const [k, v] of Object.entries(row)) {
-    if (v == null || v === '') continue;
-    if (typeof v === 'object') continue;
-    out[k] = String(v).slice(0, 500);
-  }
-  if (!Object.keys(out).length) return null;
-  out.record_text = Object.entries(out)
-    .filter(([k]) => k !== 'record_text')
-    .map(([k, v]) => `${k}: ${v}`)
-    .join('\n')
-    .slice(0, 4_000);
-  return out;
-}
 
-function buildDeskContext(feed, tab, featureName) {
-  if (!feed) return null;
-  const rows = (feed.rows || []).filter((r) => r && r.status !== 'source_status').slice(0, 8).map(slimRow).filter(Boolean);
-  return {
-    feature: featureName || feed.feature || '',
-    tab: tab || feed.tier || '',
-    note: feed.fallback ? 'Desk is on a labelled fallback / archive pass.' : '',
-    rows,
-  };
-}
 
 function Ico({ name, size = 16 }) {
   const s = size;
@@ -284,29 +242,16 @@ function Ico({ name, size = 16 }) {
   }
 }
 
-function pickRoleForProvider(id) {
-  if (id === 'gpt-astra') return 'EXPERT_ESCALATION';
-  if (id === 'gemini-flash') return 'VISUAL_RESEARCH';
-  return 'DEFAULT_ANALYST';
-}
-
-const RECOMMENDED_IDS = ['gemini-lite', 'gemini-flash'];
 const FOCUS_KEY = 'niyantranAiFocus';
-const WORK_KEY = 'niyantranAiWorkMode';
 
 export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose }) {
   const hi = lang === 'hi';
-  const research = useResearchThread(serverThreads);
-  const [legacyState, setState] = useState(() => serverThreads ? { chats: [], activeId: '' } : ensureAiChat());
-  const state = serverThreads ? research.store : legacyState;
-  const [providerId, setProviderId] = useState(() => activeAiProvider().id);
-  const [legacyDraft, setLegacyDraft] = useState('');
-  const [legacyBusy, setBusy] = useState(false);
-  const [legacyError, setErr] = useState('');
-  const draft = serverThreads ? research.draft : legacyDraft;
-  const setDraft = serverThreads ? research.actions.setDraft : setLegacyDraft;
-  const busy = serverThreads ? research.locked : legacyBusy;
-  const err = serverThreads ? research.error : legacyError;
+  const research = useResearchThread(true);
+  const state = research.store;
+  const draft = research.draft;
+  const setDraft = research.actions.setDraft;
+  const busy = research.locked;
+  const err = research.error;
   const [dragOver, setDragOver] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   // The model whose reasoning rungs are expanded in the picker, '' for none.
@@ -329,20 +274,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       return 'attached';
     }
   });
-  const [workMode, setWorkMode] = useState(() => {
-    try {
-      return localStorage.getItem(WORK_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const viewer = serverThreads ? research.viewer : null;
-  // What the Work mode control is showing as. On the research path the button
-  // is the viewer (streaming spec §G), so its selected state is the viewer's -
-  // `workMode` is the legacy prompt flag and that path never writes it, which
-  // is why clicking a citation used to open the surface with the tab unlit.
-  const workOn = serverThreads ? Boolean(viewer) : workMode;
+  const viewer = research.viewer;
+  // The Work mode control is the viewer (streaming spec §G): its selected
+  // state is whether the evidence surface is open.
+  const workOn = Boolean(viewer);
   const registry = research.registry;
+  // Label for an answer whose served model is not known yet: the registry's
+  // default, as the model picker shows it.
+  const picked = { label: registry.models.find((m) => m.is_default)?.label || registry.models[0]?.label || 'Niyantran' };
   const modelChoice = research.choice;
   const seedOwner = useRef(null);
   const scroller = useRef(null);
@@ -352,46 +291,35 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const focusRef = useRef(null);
   const historyRef = useRef(null);
 
-  const providers = useMemo(() => liveAiProviders(), []);
   const chat = useMemo(
     () => state.chats.find((c) => c.id === state.activeId) || state.chats[0] || null,
     [state],
   );
-  const picked = providers.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
   const attachments = chat?.attachments || [];
   const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join(' ');
   useEffect(() => {
-    if (!serverThreads || !attachedKeys) { setIndexedKeys(null); return; }
+    if (!attachedKeys) { setIndexedKeys(null); return; }
     let alive = true;
     indexedDocumentKeys(attachedKeys.split(' ')).then((set) => { if (alive) setIndexedKeys(set); }).catch(() => {});
     return () => { alive = false; };
   }, [attachedKeys]);
-  const messages = (serverThreads ? research.messages : chat?.messages || []).filter((m) => m.role !== 'system');
+  const messages = research.messages.filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
 
-  useEffect(() => (serverThreads ? undefined : subscribeAiChats(setState)), [serverThreads]);
-  useEffect(() => {
-    const live = activeAiProvider().id;
-    if (!providers.find((p) => p.id === providerId)?.enabled) setProviderId(live);
-  }, [providerId, providers]);
-
-  const stream = serverThreads ? research.stream : null;
+  const stream = research.stream;
   // The turn in flight owns the follow-ups while it is on screen; after that
   // the ones saved with the last assistant message do, the same way the
   // controller falls back to savedSources. Reading only `stream` meant every
   // follow-up was lost on reload, on a chat switch, and on any turn but the
   // newest — the questions were in the database the whole time, unread.
-  const followUps = serverThreads
-    ? stream?.followUps?.length
-      ? stream.followUps
-      : [...messages].reverse().find((m) => m.role === 'assistant' && m.followUps?.length)?.followUps || []
-    : [];
+  const followUps = stream?.followUps?.length
+    ? stream.followUps
+    : [...messages].reverse().find((m) => m.role === 'assistant' && m.followUps?.length)?.followUps || [];
   const streaming = Boolean(stream?.isStreaming);
   const openSource = source => research.actions.openSource(source);
   const closeViewer = () => research.actions.closeViewer();
   useEffect(() => {
-    if (!serverThreads) return;
     setDragOver(false); setModelOpen(false); setFocusOpen(false); setHistoryOpen(false);
   }, [research.identityVersion]);
 
@@ -423,186 +351,51 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   }, [focus]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(WORK_KEY, workMode ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  }, [workMode]);
-
-  useEffect(() => {
     if (!seed) { seedOwner.current = null; return undefined; }
-    if (serverThreads) {
-      if (!research.ready) return undefined;
-      if (seedOwner.current?.seed === seed) return undefined;
-      seedOwner.current = { seed, version: research.identityVersion };
-      const version = research.identityVersion;
-      if (seed.prompt) research.actions.setDraft(seed.prompt);
-      void research.actions.attach(async () => {
-        const bits = [...(seed.droppedFiles || [])];
-        const payload = seed.drop || (seed.row ? { kind: 'row', row: seed.row, feature: featureName, tab }
-          : seed.attachFeed && feed ? { kind: 'feed', feature: feed.feature, tab }
-          : selected ? { kind: 'row', row: selected, feature: featureName, tab } : null);
-        if (payload) bits.push(...await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected: seed.row || selected }));
-        return bits;
-      }).then(applied => {
-        if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
-        onSeedConsumed?.();
-      });
-      return undefined;
-    }
-    if (seed.attachFeed && !feed && !seed.row && !seed.drop && !seed.droppedFiles?.length) return undefined;
-    let cancelled = false;
-    (async () => {
-      const st = ensureAiChat();
-      const id = st.activeId;
-      if (seed.drop) {
-        const bits = await materializeAiDrop(seed.drop, {
-          feed,
-          feature: featureName,
-          tier: tab,
-          selected,
-        });
-        if (!cancelled) addChatAttachments(id, bits);
-      }
-      if (seed.droppedFiles?.length && !cancelled) addChatAttachments(id, seed.droppedFiles);
-      if (seed.row) {
-        const bits = await materializeAiDrop(
-          {
-            kind: 'row',
-            row: seed.row,
-            feature: featureName,
-            tab,
-            title:
-              seed.row.bill_name ||
-              seed.row.title ||
-              seed.row.name ||
-              seed.row.subject ||
-              seed.row.conflict_name ||
-              seed.row.commodity,
-          },
-          { feed, feature: featureName, selected: seed.row },
-        );
-        if (!cancelled) {
-          addChatAttachments(id, bits);
-          setFocus('selection');
-        }
-      } else if (seed.attachFeed && feed) {
-        const bits = await materializeAiDrop(
-          { kind: 'feed', feature: feed.feature, tab },
-          { feed, feature: featureName, selected },
-        );
-        if (!cancelled) {
-          addChatAttachments(id, bits);
-          if (selected) setFocus('selection');
-        }
-      } else if (selected && !cancelled) {
-        // Any desk: opening AI with a highlighted row still grounds that row.
-        const bits = await materializeAiDrop(
-          {
-            kind: 'row',
-            row: selected,
-            feature: featureName,
-            tab,
-            title:
-              selected.bill_name ||
-              selected.title ||
-              selected.name ||
-              selected.subject ||
-              selected.conflict_name,
-          },
-          { feed, feature: featureName, selected },
-        );
-        addChatAttachments(id, bits);
-        setFocus('selection');
-      }
-      if (seed.prompt && !cancelled) setDraft(seed.prompt);
-      if (!cancelled) onSeedConsumed?.();
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (!research.ready) return undefined;
+    if (seedOwner.current?.seed === seed) return undefined;
+    seedOwner.current = { seed, version: research.identityVersion };
+    const version = research.identityVersion;
+    if (seed.prompt) research.actions.setDraft(seed.prompt);
+    void research.actions.attach(async () => {
+      const bits = [...(seed.droppedFiles || [])];
+      const payload = seed.drop || (seed.row ? { kind: 'row', row: seed.row, feature: featureName, tab }
+        : seed.attachFeed && feed ? { kind: 'feed', feature: feed.feature, tab }
+        : selected ? { kind: 'row', row: selected, feature: featureName, tab } : null);
+      if (payload) bits.push(...await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected: seed.row || selected }));
+      return bits;
+    }).then(applied => {
+      if (!applied || research.actions.getSnapshot().identityVersion !== version) return;
+      onSeedConsumed?.();
+    });
+    return undefined;
   }, [seed, feed, featureName, tab, selected, onSeedConsumed, research.ready, research.identityVersion]);
-
-  async function attachDrop(payload) {
-    const st = ensureAiChat();
-    const bits = await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected });
-    addChatAttachments(st.activeId, bits);
-    openAiResearch();
-  }
 
   async function onDrop(e) {
     e.preventDefault();
     setDragOver(false);
-    if (serverThreads) {
-      if (viewer) return;
-      const payload = readAiDrag(e);
-      const files = [...(e.dataTransfer?.files || [])];
-      await research.actions.attach(async () => [
-        ...(payload ? await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected }) : []),
-        ...await filesFromDrop({ dataTransfer: { files, items: [] } }),
-      ]);
-      return;
-    }
+    if (viewer) return;
     const payload = readAiDrag(e);
-    if (payload) await attachDrop(payload);
-    const dropped = await filesFromDrop(e);
-    if (dropped.length) {
-      const st = ensureAiChat();
-      addChatAttachments(st.activeId, dropped);
-    }
+    const files = [...(e.dataTransfer?.files || [])];
+    await research.actions.attach(async () => [
+      ...(payload ? await materializeAiDrop(payload, { feed, feature: featureName, tier: tab, selected }) : []),
+      ...await filesFromDrop({ dataTransfer: { files, items: [] } }),
+    ]);
   }
 
   async function onPickFiles(e) {
     const list = [...(e.target.files || [])];
     e.target.value = '';
     if (!list.length) return;
-    if (serverThreads) { await research.actions.attach(() => filesFromDrop({ dataTransfer: { files: list, items: [] } })); return; }
-    const dropped = await filesFromDrop({ dataTransfer: { files: list, items: [] } });
-    if (dropped.length) {
-      const st = ensureAiChat();
-      addChatAttachments(st.activeId, dropped);
-    }
+    await research.actions.attach(() => filesFromDrop({ dataTransfer: { files: list, items: [] } }));
   }
 
   function removePin(id) {
-    if (!chat || (serverThreads && busy)) return;
+    if (!chat || busy) return;
     setChatAttachments(
       chat.id,
       (chat.attachments || []).filter((a) => a.id !== id),
     );
-  }
-
-  function selectProvider(p) {
-    if (!p.enabled) return;
-    setProviderId(p.id);
-    setModelOpen(false);
-    if (chat) setChatRole(chat.id, pickRoleForProvider(p.id));
-  }
-
-  function onExport() {
-    if (!chat) return;
-    try {
-      const gate = window.__niyExportGate;
-      if (typeof gate === 'function' && gate({ kind: 'ai' }) === false) return;
-    } catch {
-      /* continue */
-    }
-    const md = exportChatMarkdown(chat, picked);
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${String(chat.title || 'research')
-      .replace(/[^\w\-]+/g, '_')
-      .slice(0, 48)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-    trackProductEvent('ai_export', {
-      chatId: chat.id,
-      title: chat.title || '',
-      messages: (chat.messages || []).length,
-    });
   }
 
   /**
@@ -672,101 +465,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     e?.preventDefault();
     const text = draft.trim();
     if (!text || busy || streaming) return;
-    if (serverThreads) {
-      await sendResearch(text);
-      return;
-    }
-    const st = ensureAiChat();
-    const id = st.activeId;
-    const current = activeAiChat();
-    let pins = [...(current?.attachments || [])];
-    appendAiMessage(id, { role: 'user', content: text });
-    setDraft('');
-    setErr('');
-    setBusy(true);
-    try {
-      // Every desk: if a table row is selected, ground this turn on its columns + real docs.
-      if (selected && selected.status !== 'source_status') {
-        if (!rowIsPinned(pins, selected)) {
-          const bits = await materializeAiDrop(
-            {
-              kind: 'row',
-              row: selected,
-              feature: featureName,
-              tab,
-              title: rowTitle(selected),
-            },
-            { feed, feature: featureName, selected, hydrate: true },
-          );
-          addChatAttachments(id, bits);
-          pins = [...pins, ...bits];
-        } else if (selected) {
-          // Pin already present from drag/drop — hydrate source URLs now (on Send only).
-          const bits = await materializeAiDrop(
-            {
-              kind: 'row',
-              row: selected,
-              feature: featureName,
-              tab,
-              title:
-                selected.bill_name ||
-                selected.title ||
-                selected.name ||
-                selected.subject ||
-                selected.conflict_name ||
-                selected.commodity ||
-                'Selected record',
-            },
-            { feed, feature: featureName, selected, hydrate: true },
-          );
-          if (bits.length) {
-            const without = pins.filter((a) => {
-              if (a.kind !== 'row') return true;
-              const prev = a.preview || {};
-              return rowPinKey(prev) !== key && a.title !== (selected.bill_name || selected.title || selected.name);
-            });
-            pins = [...without, ...bits];
-            setChatAttachments(id, pins);
-          }
-        }
-      }
-
-      const history = [...(current?.messages || []), { role: 'user', content: text }].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      const model = providers.find((p) => p.id === providerId && p.enabled) || activeAiProvider();
-      const hasRowPin = pins.some((a) => a.kind === 'row' || a.kind === 'feed');
-      const useSelection = true;
-      const out = await sendAiChat({
-        roleId: current?.roleId || 'AUTO',
-        messages: history.filter((m) => m.role === 'user' || m.role === 'assistant'),
-        attachments: pins,
-        userType: sessionUser()?.type,
-        model: model.model,
-        provider: model.provider,
-        focus: hasRowPin && focus === 'attached' ? 'selection' : focus,
-        workMode,
-        selection: useSelection
-          ? slimRow(selected) || pins.find((a) => a.kind === 'row')?.preview || null
-          : null,
-        deskContext:
-          focus === 'desk' || focus === 'broad' ? buildDeskContext(feed, tab, featureName) : null,
-      });
-      appendAiMessage(id, {
-        role: 'assistant',
-        content: out.text,
-        model: shortModelLabel({ model: out.model, provider: out.provider, id: model.id }) || model.label,
-        provider: out.provider,
-        roleUsed: out.role?.id,
-      });
-    } catch (ex) {
-      const msg = ex.message || String(ex);
-      setErr(msg);
-      appendAiMessage(id, { role: 'assistant', content: `Could not complete that pass: ${msg}`, error: true });
-    } finally {
-      setBusy(false);
-    }
+    await sendResearch(text);
   }
 
   const suggestions = useMemo(
@@ -774,19 +473,17 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     [chat?.attachments, selected, featureName],
   );
 
-  const recommended = providers.filter((p) => RECOMMENDED_IDS.includes(p.id));
-  const others = providers.filter((p) => !RECOMMENDED_IDS.includes(p.id));
   const docs = [
     ...(hi ? DOCS_HI : DOCS_EN),
-    serverThreads ? (hi ? DOCS_WORK_HI : DOCS_WORK_EN) : hi ? DOCS_FLAG_HI : DOCS_FLAG_EN,
+    hi ? DOCS_WORK_HI : DOCS_WORK_EN,
   ];
 
   return (
     <div
-      className={`ai-shell ai-shell-v2${serverThreads ? ' ai-shell-research' : ''}${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${workMode ? ' work' : ''}${historyOpen ? ' history-open' : ''}`}
+      className={`ai-shell ai-shell-v2 ai-shell-research${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${historyOpen ? ' history-open' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
-        if (!serverThreads || (!busy && !viewer)) setDragOver(true);
+        if (!busy && !viewer) setDragOver(true);
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
@@ -804,12 +501,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <button
             type="button"
             className="ai-v2-icon-btn"
-            disabled={serverThreads && busy}
+            disabled={busy}
             aria-label={hi ? 'नया अनुसंधान' : 'New research'}
             title={hi ? 'नया अनुसंधान' : 'New research'}
             onClick={() => {
-              if (serverThreads) research.actions.newChat();
-              else createAiChat({ roleId: chat?.roleId || 'AUTO' });
+              research.actions.newChat();
               setHistoryOpen(false);
               setDocsOpen(false);
               setModelOpen(false);
@@ -877,8 +573,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                                   className="danger"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (serverThreads) research.actions.deleteChat(c.id);
-                                    else { deleteAiChat(c.id); ensureAiChat(); }
+                                    research.actions.deleteChat(c.id);
                                     setPendingDelete('');
                                   }}
                                 >
@@ -897,7 +592,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                               type="button"
                               className="ai-v2-history-item"
                               onClick={() => {
-                                if (serverThreads) research.actions.selectChat(c.id); else setActiveAiChat(c.id);
+                                research.actions.selectChat(c.id);
                                 setHistoryOpen(false);
                               }}
                             >
@@ -970,7 +665,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
 
         <div className="ai-v2-toolbar" aria-label={hi ? 'चैट विकल्प' : 'Chat options'}>
-          <button type="button" className="ai-v2-attach-btn" disabled={serverThreads && busy} onClick={() => fileRef.current?.click()}>
+          <button type="button" className="ai-v2-attach-btn" disabled={busy} onClick={() => fileRef.current?.click()}>
             <Ico name="clip" size={14} />
             {hi ? 'फ़ाइलें जोड़ें' : 'Attach files'}
           </button>
@@ -1024,29 +719,16 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             className={`ai-v2-work${workOn ? ' on' : ''}`}
             aria-pressed={workOn}
             title={
-              serverThreads
-                ? workOn
-                  ? hi
-                    ? 'Work mode — उत्तर पर लौटें'
-                    : 'Work mode — back to the answer'
-                  : hi
-                    ? 'Work mode — उत्तर के स्रोत खोलें'
-                    : 'Work mode — open the evidence behind the answer'
-                : workMode
-                  ? hi
-                    ? 'Work mode चालू — घने, साक्ष्य-पहले उत्तर'
-                    : 'Work mode on — dense, evidence-first answers'
-                  : hi
-                    ? 'Work mode बंद'
-                    : 'Work mode off'
+              workOn
+                ? hi
+                  ? 'Work mode — उत्तर पर लौटें'
+                  : 'Work mode — back to the answer'
+                : hi
+                  ? 'Work mode — उत्तर के स्रोत खोलें'
+                  : 'Work mode — open the evidence behind the answer'
             }
             onClick={() => {
-              // On the research path the button is the viewer: answers are
-              // evidence-first either way, so the flag has nothing left to do.
-              if (!serverThreads) {
-                setWorkMode((v) => !v);
-                return;
-              }
+              // The button is the viewer: answers are evidence-first either way.
               if (viewer) closeViewer();
               else openSource(null);
             }}
@@ -1056,7 +738,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
       </div>
 
-      <div className="ai-v2-body" inert={serverThreads && viewer ? true : undefined}>
+      <div className="ai-v2-body" inert={viewer ? true : undefined}>
         <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
           <Ico name="doc-plus" size={28} />
           <p>{hi ? 'तालिका से पंक्ति खींचें — या फ़ाइलें यहाँ छोड़ें' : 'Drag a row from the table — or drop files here'}</p>
@@ -1104,13 +786,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {messages.map((m) => (
             <div key={m.id} className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
               <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : m.model || picked.label}</span>
-              {m.role === 'assistant' && (serverThreads || !m.error) ? (
+              {m.role === 'assistant' ? (
                 <>
-                  {serverThreads && (m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} /> : null}
-                  <AiMarkdown text={m.content} sources={serverThreads ? m.sources || [] : undefined} onOpenSource={openSource} />
-                  {serverThreads && Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
-                  {serverThreads && m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
-                  {serverThreads && m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
+                  {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} /> : null}
+                  <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={openSource} />
+                  {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
+                  {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
+                  {m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
                 </>
               ) : (
                 m.content
@@ -1119,7 +801,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           ))}
 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
-          {serverThreads && (research.live || research.submitting) && !stream?.error && !research.error ? (
+          {(research.live || research.submitting) && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
               <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} />
@@ -1135,7 +817,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ) : null}
 
-          {serverThreads && stream?.notice?.kind === 'window' ? (
+          {stream?.notice?.kind === 'window' ? (
             <p className="ai-foot">
               {hi
                 ? `पुराने ${stream.notice.dropped} संदेश इस उत्तर के संदर्भ से बाहर थे।`
@@ -1143,12 +825,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </p>
           ) : null}
 
-          {!serverThreads && busy ? (
-            <div className="ai-msg ai-msg-assistant">
-              <span>{picked.label}</span>
-              <NyAiThinking model={picked.label} lang={lang} />
-            </div>
-          ) : null}
           {emptyThread && !busy ? (
             <p className="ai-v2-empty muted">
               {hi
@@ -1181,7 +857,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             }}
           />
         ) : null}
-        {serverThreads ? <div className="ai-research-controls" aria-live="polite">
+        <div className="ai-research-controls" aria-live="polite">
           {research.loading ? <span>Loading research…</span> : null}
           {stream?.status === 'unknown' ? <span>Connection lost. The saved outcome is unknown.</span> : null}
           {research.storedRunning || stream?.status === 'running' && !streaming ? <span>Research is running.</span> : null}
@@ -1189,9 +865,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {research.cancelError || stream?.cancelError ? <span role="alert">{research.cancelError || stream.cancelError}</span> : null}
           {research.recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
           <button type="button" disabled={research.loading} onClick={() => research.actions.reload()}>Reload</button>
-        </div> : null}
-        {err || (serverThreads ? research.error || stream?.error : '') ? (
-          <p className="ai-foot warn" role="alert">{err || (serverThreads ? research.error || stream?.error : '')}</p>
+        </div>
+        {err || stream?.error ? (
+          <p className="ai-foot warn" role="alert">{err || stream?.error}</p>
         ) : null}
         <form className="ai-v2-composer" onSubmit={send}>
           <textarea
@@ -1220,95 +896,33 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               <button
                 type="button"
                 className="ai-v2-comp-clip"
-                disabled={serverThreads && busy}
+                disabled={busy}
                 onClick={() => fileRef.current?.click()}
                 aria-label={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
                 title={hi ? 'फ़ाइल जोड़ें' : 'Attach a file'}
               >
                 <Ico name="clip" size={16} />
               </button>
-          {serverThreads ? (
-            <div ref={modelRef}>
-              <ModelPicker
-                models={registry.models}
-                roles={registry.roles}
-                value={modelChoice}
-                open={modelOpen}
-                effortsOpenFor={effortsOpenFor}
-                onToggleEfforts={setEffortsOpenFor}
-                onToggle={() => {
-                  setModelOpen((v) => !v);
-                  setFocusOpen(false);
-                  setEffortsOpenFor('');
-                }}
-                onChange={(next) => research.actions.setChoice(next)}
-              />
-            </div>
-          ) : null}
-          {!serverThreads ? <div className="ai-v2-model" ref={modelRef}>
-            <button
-              type="button"
-              className={`ai-v2-model-btn${modelOpen ? ' open' : ''}`}
-              aria-expanded={modelOpen}
-              aria-label={hi ? 'मॉडल चुनें' : 'Choose model'}
-              onClick={() => {
+          <div ref={modelRef}>
+            <ModelPicker
+              models={registry.models}
+              roles={registry.roles}
+              value={modelChoice}
+              open={modelOpen}
+              effortsOpenFor={effortsOpenFor}
+              onToggleEfforts={setEffortsOpenFor}
+              onToggle={() => {
                 setModelOpen((v) => !v);
                 setFocusOpen(false);
+                setEffortsOpenFor('');
               }}
-            >
-              <AiBrandIcon id={picked.provider} size={16} />
-              <span>{picked.label.replace(/\s*-\s*/, ' ')}</span>
-              <Ico name="chevron" size={14} />
-            </button>
-            {modelOpen ? (
-              <div className="ai-v2-model-menu" role="listbox" aria-label={hi ? 'मॉडल' : 'Model'}>
-                <p className="ai-v2-model-sec">{hi ? 'अनुशंसित' : 'Recommended'}</p>
-                {recommended.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="option"
-                    aria-selected={p.id === picked.id}
-                    className={`ai-v2-model-opt${p.id === picked.id ? ' on' : ''}${p.enabled ? '' : ' locked'}`}
-                    disabled={!p.enabled}
-                    title={p.hint}
-                    onClick={() => selectProvider(p)}
-                  >
-                    <AiBrandIcon id={p.provider} size={16} />
-                    <span className="ai-v2-model-copy">
-                      <em>{p.label.replace(/\s*-\s*/, ' ')}</em>
-                      <small>{p.hint}</small>
-                    </span>
-                    {p.id === picked.id ? <Ico name="check" size={14} /> : null}
-                  </button>
-                ))}
-                <p className="ai-v2-model-sec">{hi ? 'अन्य मॉडल' : 'Other models'}</p>
-                {others.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="option"
-                    aria-selected={p.id === picked.id}
-                    className={`ai-v2-model-opt${p.id === picked.id ? ' on' : ''}${p.enabled ? '' : ' locked'}`}
-                    disabled={!p.enabled}
-                    title={p.hint}
-                    onClick={() => selectProvider(p)}
-                  >
-                    <AiBrandIcon id={p.provider} size={16} />
-                    <span className="ai-v2-model-copy">
-                      <em>{p.label.replace(/\s*-\s*/, ' ')}</em>
-                      <small>{p.enabled ? p.hint : p.hint || (hi ? 'अभी उपलब्ध नहीं' : 'Unavailable')}</small>
-                    </span>
-                    {p.id === picked.id ? <Ico name="check" size={14} /> : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div> : null}
+              onChange={(next) => research.actions.setChoice(next)}
+            />
+          </div>
             </div>
 
             <div className="ai-v2-comp-act">
-              {serverThreads && research.canStop ? (
+              {research.canStop ? (
                 <button
                   type="button"
                   className="ai-v2-send stop"
@@ -1327,7 +941,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         </form>
       </div>
-      {serverThreads && viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} /> : null}
+      {viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} /> : null}
       </div>
     </div>
   );

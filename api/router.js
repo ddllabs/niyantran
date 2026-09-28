@@ -2,7 +2,6 @@
  * Single Vercel serverless entry for ALL /api/* routes (Hobby ≤12 function files).
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
-import { runAiChat } from '../server/aiApi.mjs';
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
 import { serveFeatureFeed } from '../server/featureFeed.mjs';
 import {
@@ -323,15 +322,8 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (path === '/api/ai/chat') {
-      if (method !== 'POST') {
-        res.status(405).json({ ok: false, error: 'POST only' });
-        return;
-      }
-      const out = await runAiChat(parseBody(req), req.headers?.authorization);
-      res.status(200).json({ ok: true, ...out, answer: out.text });
-      return;
-    }
+    // /api/ai/chat (the legacy AI path's proxy) was retired on 2026-09-28: the
+    // panel and the admin persona probe call research-chat directly.
 
     if (path === '/api/ai/desk-brief') {
       if (method === 'GET') {

@@ -380,15 +380,11 @@ describe('aiConversations (server-backed thread store)', () => {
 });
 
 
-it('aiThreads preserves the legacy store and makes recovery-only APIs no-ops', async () => {
-  vi.doMock('./aiBackend.js', () => ({ aiBackend: () => 'legacy' }));
+it('aiThreads is the server conversation store, with no legacy fallback', async () => {
   const threads = await import('./aiThreads.js');
-  const legacy = await import('./aiChatStore.js');
-  expect(threads.serverThreads).toBe(false);
-  for (const name of ['loadAiState','createAiChat','appendAiMessage','renameAiChat','deleteAiChat']) {
-    expect(threads[name]).toBe(legacy[name]);
+  const server = await import('./aiConversations.js');
+  for (const name of ['loadAiState','createAiChat','appendAiMessage','renameAiChat','deleteAiChat','hydrateConversations','reconcileTurn','captureConversationContext','adoptConversation']) {
+    expect(threads[name]).toBe(server[name]);
   }
-  expect(threads.captureConversationContext()).toBeNull();
-  expect(threads.adoptConversation({id:'ignored'}, null)).toEqual(legacy.loadAiState());
-  vi.doUnmock('./aiBackend.js');
+  expect(threads).not.toHaveProperty('serverThreads');
 });

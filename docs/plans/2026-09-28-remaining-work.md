@@ -190,7 +190,13 @@ questions are closed.
 - [ ] **D3. E2 live round.**
   - Five paid-model scenarios plus a cross-account denial check.
   - Needs an admin account and a second ordinary account.
-- [ ] **D4. Retire the legacy AI path (M).**
+- [x] **D4. Retire the legacy AI path (M).** Done 2026-09-28. The panel,
+  thread store and admin models page take the research path only; the admin
+  persona probe calls `research-chat` directly (`src/lib/personaProbe.js`);
+  `/api/ai/chat`, `aiBackend.js`, `aiModelsStore.js`, `server/personas.mjs`
+  and the `VITE_AI_BACKEND` define are gone. The owner may delete the unused
+  `VITE_AI_BACKEND` variable on Vercel. Left for later: `aiChatStore.js`,
+  which `userPrefsSync` and the dock still write.
   - `VITE_AI_BACKEND=legacy`, the legacy panel branch, `/api/ai/chat` once
     C4 moves the admin probe to `research-chat`, and the unused
     `server/personas.mjs`.

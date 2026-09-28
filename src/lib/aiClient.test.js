@@ -4,8 +4,7 @@ vi.mock('./supabaseClient.js',()=>({functionsUrl:()=> 'https://fake.invalid/rese
  auth:{onAuthStateChange:fn=>{auth.callback=fn;return {data:{subscription:{unsubscribe(){}}}};},getSession:async()=>({data:{session:{access_token:`token-${auth.id}`,user:{id:auth.id},expires_at:Date.now()/1000+(auth.expired?-1:3600)}}}),getUser:async()=>({data:{user:{id:auth.id,email:`${auth.id}@example.invalid`}}})},
  rpc:async()=>({data:{user_id:auth.id,status:auth.blocked?'suspended':'active'}}),
 }}));
-vi.mock('./aiModelsStore.js',()=>({pickAiRole:()=>({id:'AUTO',model:'legacy-model',provider:'gemini'}),activeAiProvider:()=>({model:'legacy-model',provider:'gemini'}),AI_PROVIDERS:[]}));
-import { sendResearchTurn,sendAiChat } from './aiClient.js';
+import { sendResearchTurn } from './aiClient.js';
 import { invalidateLocalSession,resumeLocalIdentityAfterSignIn } from './userStore.js';
 const body={message:'Exact request',turn_key:'same-key',attachments:[{text:'private'}]};
 beforeEach(async()=>{
@@ -29,16 +28,4 @@ it('response resolving after an account change cannot escape the client boundary
  let resolve;const started=new Promise(r=>{fetch.mockImplementation(()=>{r();return new Promise(done=>resolve=done);});});
  const pending=sendResearchTurn({body});await started;auth.id='owner-b';auth.callback('SIGNED_IN',{user:{id:'owner-b'}});resolve(new Response('private A response'));
  await expect(pending).rejects.toThrow();
-});
-it('legacy sendAiChat transport sends verified Authorization header when signed in',async()=>{
- fetch.mockResolvedValue(new Response(JSON.stringify({ok:true,answer:'Legacy answer'})));
- const answer=await sendAiChat({messages:[{role:'user',content:'Legacy question'}],attachments:[],userType:'analyst'});
- expect(answer.answer).toBe('Legacy answer');const [url,request]=fetch.mock.calls[0];expect(url).toBe('/api/ai/chat');expect(request.headers).toEqual({'Content-Type':'application/json','Authorization':'Bearer token-owner-a'});
- expect(JSON.parse(request.body)).toMatchObject({roleId:'AUTO',provider:'gemini',model:'legacy-model',messages:[{role:'user',content:'Legacy question'}],userType:'analyst'});
-});
-it('legacy sendAiChat sends unauthenticated request when signed out',async()=>{
- invalidateLocalSession();
- fetch.mockResolvedValue(new Response(JSON.stringify({ok:true,answer:'Logged out'})));
- await sendAiChat({messages:[{role:'user',content:'Logged out'}]});
- const [,request]=fetch.mock.calls[0];expect(request.headers).toEqual({'Content-Type':'application/json'});
 });

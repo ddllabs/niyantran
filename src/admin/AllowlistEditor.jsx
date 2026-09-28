@@ -4,8 +4,8 @@ import { notifyRegistryChanged } from '../lib/aiRegistry.js';
 import { catalogueChoices, formatEfforts, modelDraftToRow, parseEfforts, pricingLabel, rolesForDisplay } from './allowlistEditor.js';
 
 /**
- * The allowlist editor (foundation spec §D.1): the admin "AI models" page
- * when VITE_AI_BACKEND=supabase. Reads and writes only through the
+ * The allowlist editor (foundation spec §D.1): the admin "AI models" page.
+ * Reads and writes only through the
  * admin-models edge function; a non-admin sees the list read-only with the
  * server's message. A model id is chosen from the OpenRouter catalogue or
  * not at all.

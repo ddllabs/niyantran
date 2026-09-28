@@ -20,16 +20,16 @@ export function AiPersonasPage() {
 
   function onSave() {
     savePersonaPrompts(drafts);
-    setMsg('Persona drafts saved for the admin probe only. Live desk chats keep using shipped src/data/personas/*.md on the server.');
+    setMsg('Drafts saved in this browser only. Chats, including the probe, use the shipped src/data/personas/*.md.');
   }
 
   return (
     <>
       <h1 className="adm-h1">AI personas</h1>
       <p className="adm-lede">
-        Shipped persona files power live desk chats (server-side). Edits here are for the admin probe only and are not
-        sent to production chats — save locally to try wording, then promote by updating{' '}
-        <code>src/data/personas/*.md</code>. Never shown to the user.
+        Shipped persona files power every chat, server-side. Drafts here stay in this browser: they are not sent
+        to research-chat, and the probe on the right tests the shipped prompt. To change a persona, edit{' '}
+        <code>src/data/personas/*.md</code> and redeploy research-chat. Never shown to the user.
       </p>
       <div className="adm-persona-types" role="tablist">
         {USER_TYPES.map((t) => (
@@ -64,7 +64,7 @@ export function AiPersonasPage() {
             />
           </label>
           <p className="adm-hint">
-            The probe uses this draft even before you save. Leave empty only for the generic research assistant.
+            A scratchpad for wording. The probe does not read it; it tests the shipped prompt.
           </p>
           <div className="adm-actions">
             <button className="adm-btn" type="button" onClick={onSave}>
@@ -94,7 +94,7 @@ export function AiPersonasPage() {
             {msg ? <span className="adm-msg">{msg}</span> : null}
           </div>
         </div>
-        <AdminPersonaChat typeId={typeId} personaPrompt={text} />
+        <AdminPersonaChat typeId={typeId} />
       </div>
     </>
   );

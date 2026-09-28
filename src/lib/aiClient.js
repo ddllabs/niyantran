@@ -1,11 +1,10 @@
-import { pickAiRole, activeAiProvider, AI_PROVIDERS } from './aiModelsStore.js';
-import { sessionUser, userTypeOf, verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
 import { functionsUrl, supabase } from './supabaseClient.js';
 
 /**
  * POST one turn to the research-chat edge function and hand back the raw
- * response so the caller can read its SSE frames. Additive: `sendAiChat`
- * below is the legacy path and is unchanged.
+ * response so the caller can read its SSE frames. The only AI send path since
+ * the legacy /api/ai/chat route was retired (plan task D4).
  */
 export async function sendResearchTurn({ body, signal, identity: expectedIdentity }) {
   const controller = new AbortController();
@@ -50,88 +49,4 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
     unsubscribe();
     signal?.removeEventListener('abort', abort);
   }
-}
-
-export async function sendAiChat({
-  roleId,
-  messages,
-  attachments,
-  files,
-  signal,
-  userType,
-  personaPrompt: override,
-  probe = false,
-  model: modelOverride,
-  provider: providerOverride,
-  focus = 'attached',
-  workMode = false,
-  selection = null,
-  deskContext = null,
-}) {
-  const role = pickAiRole(attachments, roleId);
-  const live = activeAiProvider();
-  const picked =
-    AI_PROVIDERS.find((p) => p.enabled && p.model === modelOverride) ||
-    AI_PROVIDERS.find((p) => p.enabled && p.id === providerOverride) ||
-    AI_PROVIDERS.find((p) => p.enabled && p.provider === providerOverride) ||
-    live;
-  const model = (modelOverride && String(modelOverride).trim()) || picked.model || role.model || live.model;
-  let provider = String(
-    (['gemini', 'openrouter', 'openai', 'gpt'].includes(String(providerOverride || '').toLowerCase())
-      ? providerOverride
-      : null) ||
-      picked.provider ||
-      role.provider ||
-      live.provider ||
-      'gemini',
-  ).toLowerCase();
-  if (provider === 'openai' || provider === 'gpt') provider = 'openrouter';
-
-  const typeId = userTypeOf(userType || sessionUser()?.type).id;
-
-  // A-07: live chats never send client-editable persona text. Admin probe may.
-  const body = {
-    roleId: role.id,
-    model,
-    provider,
-    userType: typeId,
-    focus: String(focus || 'attached'),
-    workMode: Boolean(workMode),
-    messages,
-    attachments,
-    files: files || attachments?.flatMap((a) => a.files || []) || [],
-    selection: selection || undefined,
-    deskContext: deskContext || undefined,
-  };
-  if (probe === true) {
-    body.probe = true;
-    body.personaPrompt = override != null ? String(override) : '';
-  }
-
-  const headers = { 'Content-Type': 'application/json' };
-  let authToken = null;
-  try {
-    const ident = await verifiedLocalIdentity();
-    if (ident?.token) authToken = ident.token;
-  } catch {
-    // Unauthenticated or invalid session
-  }
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
-
-  const res = await fetch('/api/ai/chat', {
-    method: 'POST',
-    signal,
-    headers,
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.error || `AI HTTP ${res.status}`);
-  }
-  return {
-    ...data,
-    role: { ...role, provider: data.provider || provider, model: data.model || model },
-  };
 }

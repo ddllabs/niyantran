@@ -4,7 +4,7 @@ import { useId } from 'react';
  * Brand marks for the model chips.
  *
  * Two vocabularies reach this component and they do not agree. The legacy
- * store hard-codes `provider: 'gemini'` (aiModelsStore.js) while the research
+ * store hard-coded `provider: 'gemini'` (the aiModelsStore.js retired in D4) while the research
  * path passes `ai_models.vendor`, which is the OpenRouter id prefix - 'google',
  * 'anthropic', 'openai', 'deepseek'. The switch used to key on the legacy
  * spelling only, so five of the seven enabled models - every Gemini row and

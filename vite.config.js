@@ -38,9 +38,6 @@ export default defineConfig({
     billingApiPlugin(),
     userPrefsApiPlugin(),
   ],
-  define: {
-    'import.meta.env.VITE_AI_BACKEND': JSON.stringify(process.env.VITE_AI_BACKEND || 'supabase'),
-  },
   envPrefix: ['VITE_'],
   server: {
     port: 5173,

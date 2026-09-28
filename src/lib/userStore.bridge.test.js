@@ -139,8 +139,7 @@ describe('admin adapter identity races', () => {
   });
 });
 
-it('signs out real Auth regardless of the AI backend and immediately invalidates exports', async () => {
-  vi.stubEnv('VITE_AI_BACKEND', 'legacy');
+it('signs out real Auth and immediately invalidates exports', async () => {
   await store.hydrateUsersFromServer();
   auth.client.auth.signOut = vi.fn(async () => ({}));
   store.clearSessionUser();

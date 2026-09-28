@@ -601,8 +601,11 @@ no Vercel handler; nothing calls them in production because the gate is closed.
    remain the fallback path.
 
 (Correction 2026-09-28: Vercel no longer needs `OPENROUTER_API_KEY`.
-Desk briefs go through the `desk-brief` Edge Function, and `/api/ai/chat`
-always forwards to `research-chat`. The Vercel project has no such key.)
+Desk briefs go through the `desk-brief` Edge Function. Later the same day
+plan task D4 retired the legacy AI path: `/api/ai/chat` and `/api/ai/fetch`
+are gone, `VITE_AI_BACKEND` is no longer read, and the panel and the admin
+persona probe call `research-chat` directly. The Vercel project has no such
+key.)
 
 **What E1 therefore has to confirm** is narrower than it sounds: that the Vercel
 project builds from the intended repository and branch; that `OPENROUTER_API_KEY`

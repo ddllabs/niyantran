@@ -1,229 +1,28 @@
 /**
- * Same-origin AI proxy.
- *   POST /api/ai/chat   { roleId, model, provider, messages, files }
+ * Same-origin AI helpers for the Vite dev server (the production router
+ * mounts the same handlers).
  *   POST /api/ai/desk-brief  { feature, tier, row, hash, force }  — organise one selected entry
  *   GET  /api/ai/desk-brief?feature=&tier=&hash=  cached entry brief only
  *   GET  /api/ai/source-extract?url=  fetch + extract readable text (PDF/HTML/CSV/XLSX);
  *        signed-in active accounts only, public addresses only
- * Chat is forwarded to the research-chat Edge Function, which holds the only
- * provider key (ADR 0008); nothing here calls a model provider directly.
- * Request-body `key` is ignored — never accept client-supplied credentials (D6).
+ * Research chat goes from the browser straight to the research-chat Edge
+ * Function, which holds the only provider key (ADR 0008); the /api/ai/chat
+ * proxy of the legacy AI path was retired on 2026-09-28 (plan task D4).
+ * Nothing here calls a model provider directly.
  */
-import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
 import { briefFromExtract, extractSource } from './sourceExtract.mjs';
 import { authorizeLocalUser } from './usersApi.mjs';
 import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.js';
-import { dbPersona } from '../src/lib/personaMap.js';
 
 loadEnv();
-const CHAT_MS = 90_000;
 
 function json(res, body, status = 200) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(body));
-}
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
-
-// Roles research-chat knows, and the legacy picker aliases that stand for them.
-const RESEARCH_ROLE_IDS = new Set(['DEFAULT_ANALYST', 'EXPERT_ESCALATION', 'PDF_PARSER', 'VISUAL_RESEARCH']);
-const LEGACY_MODEL_ROLES = {
-  'gemini-lite': 'DEFAULT_ANALYST',
-  'gemini-flash': 'VISUAL_RESEARCH',
-  'gpt-astra': 'EXPERT_ESCALATION',
-};
-const REGISTRY_MS = 5_000;
-
-// Request-scoped client bound to the caller's bearer, so the registry read runs
-// under RLS as that user (ai_models and ai_roles are readable by authenticated).
-// Same project and publishable key as the research-chat forward below.
-function registryClientForToken(token) {
-  const key =
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
-  return createClient(SUPABASE_URL, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-}
-
-/**
- * Map a requested model to a live, enabled model ID, or undefined so that
- * research-chat uses its own default. An enabled ID passes through; a role ID
- * or legacy alias becomes that role's model when it is enabled. A failed
- * registry read also yields undefined: it never fails the request.
- */
-async function resolveResearchModel(requested, token) {
-  const id = String(requested || '').trim();
-  if (!id || !token) return undefined;
-  // Bounded and without retries: a slow or failing registry must not delay the turn.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REGISTRY_MS);
-  try {
-    const client = registryClientForToken(token);
-    const [models, roles] = await Promise.all([
-      client.from('ai_models').select('model_id').eq('enabled', true).retry(false).abortSignal(controller.signal),
-      client.from('ai_roles').select('role_id,model_id').retry(false).abortSignal(controller.signal),
-    ]);
-    if (models.error || roles.error) return undefined;
-    const enabled = new Set((models.data || []).map((m) => m.model_id));
-    if (enabled.has(id)) return id;
-    const roleId = LEGACY_MODEL_ROLES[id] || (RESEARCH_ROLE_IDS.has(id) ? id : null);
-    const roleModel = roleId ? (roles.data || []).find((r) => r.role_id === roleId)?.model_id : null;
-    return roleModel && enabled.has(roleModel) ? roleModel : undefined;
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function proxyResearchChat(payload, authHeader) {
-  const userMessages = Array.isArray(payload.messages) ? payload.messages : [];
-  const lastUser = userMessages.filter((m) => m && m.role === 'user').pop();
-  const prompt = lastUser?.content || payload.message || '';
-  if (!prompt.trim()) {
-    throw new Error('Message missing.');
-  }
-
-  const token = String(authHeader || '').replace(/^Bearer\s+/i, '').trim();
-  const model = await resolveResearchModel(payload.model, token);
-
-  const rawAttachments = Array.isArray(payload.attachments) ? payload.attachments : [];
-  const attachments = rawAttachments
-    .map((a) => {
-      if (!a || typeof a !== 'object') return null;
-      const kind = a.kind === 'row' || a.kind === 'record' || a.kind === 'file' ? a.kind : 'file';
-      const title = String(a.title || a.name || 'Attachment').trim().slice(0, 200);
-      const text = String(a.text || a.content || a.preview?.record_text || (a.preview ? JSON.stringify(a.preview) : '') || '').trim().slice(0, 40000);
-      if (!title || !text) return null;
-      const item = { kind, title, text };
-      if (a.tier) item.tier = String(a.tier).slice(0, 200);
-      if (a.feature) item.feature = String(a.feature).slice(0, 200);
-      if (a.row_key || a.rowKey) item.row_key = String(a.row_key || a.rowKey).slice(0, 200);
-      if (a.document_key || a.documentKey) item.document_key = String(a.document_key || a.documentKey).slice(0, 200);
-      return item;
-    })
-    .filter(Boolean)
-    .slice(0, 12);
-
-  const rawDesk = payload.deskContext || payload.desk_context;
-  const desk_context = rawDesk && (rawDesk.tier || rawDesk.tab)
-    ? {
-        tier: String(rawDesk.tier || rawDesk.tab).trim().slice(0, 200),
-        ...(rawDesk.feature ? { feature: String(rawDesk.feature).trim().slice(0, 200) } : {}),
-      }
-    : undefined;
-
-  let selection = undefined;
-  if (payload.selection && typeof payload.selection === 'object' && !Array.isArray(payload.selection)) {
-    const s = payload.selection;
-    if (s.tier && s.feature && s.row && typeof s.row === 'object') {
-      selection = {
-        tier: String(s.tier).trim().slice(0, 200),
-        feature: String(s.feature).trim().slice(0, 200),
-        row: s.row,
-        ...(s.document_key ? { document_key: String(s.document_key).trim().slice(0, 200) } : {}),
-      };
-    }
-  }
-
-  const endpoint = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/research-chat`;
-  const body = {
-    message: prompt.slice(0, 4000),
-    turn_key: String(payload.turn_key || payload.turnKey || `turn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`).slice(0, 64),
-    focus: ['attached', 'selection', 'desk', 'broad'].includes(String(payload.focus))
-      ? String(payload.focus)
-      : 'attached',
-    attachments,
-    ...(model ? { model } : {}),
-    ...(payload.reasoning ? { reasoning: payload.reasoning } : {}),
-    ...(selection ? { selection } : {}),
-    ...(desk_context ? { desk_context } : {}),
-    ...(payload.conversationId ? { conversation_id: payload.conversationId } : {}),
-    // Admin persona probe: research-chat honours it only for a platform admin.
-    // Draft prompt text is never forwarded; the shipped prompt is tested.
-    ...(payload.probe === true && dbPersona(payload.userType) ? { persona_probe: dbPersona(payload.userType) } : {}),
-  };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CHAT_MS);
-  try {
-    const anonKey =
-      process.env.SUPABASE_ANON_KEY ||
-      process.env.VITE_SUPABASE_ANON_KEY ||
-      'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
-    const headers = {
-      'Authorization': authHeader,
-      'Content-Type': 'application/json',
-      'apikey': anonKey,
-    };
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      signal: controller.signal,
-      headers,
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      const msg = errBody?.error || errBody?.message || `research-chat HTTP ${res.status}`;
-      throw new Error(msg);
-    }
-
-    let text = '';
-    let servedModel = model || 'openrouter';
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    for await (const chunk of res.body) {
-      buffer += decoder.decode(chunk, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('data:')) {
-          const raw = trimmed.slice(5).trim();
-          if (raw === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(raw);
-            if (typeof parsed.chunk === 'string') text += parsed.chunk;
-            if (parsed.model?.served) servedModel = parsed.model.served;
-          } catch {}
-        }
-      }
-    }
-
-    if (!text.trim()) {
-      throw new Error('Empty response from AI research service');
-    }
-
-    return { text: text.trim(), model: servedModel, provider: 'openrouter' };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export async function runAiChat(payload = {}, authHeader = null) {
-  loadEnv();
-  const token = typeof authHeader === 'string' ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
-  if (!token) {
-    throw new Error('AI research service requires authentication.');
-  }
-
-  const model = String(payload.model || '').trim();
-  const rawProvider = String(payload.provider || '').toLowerCase();
-  if (rawProvider === 'deepseek') {
-    throw new Error('DeepSeek is no longer available. All AI requests are routed through OpenRouter.');
-  }
-
-  return await proxyResearchChat(payload, authHeader);
 }
 
 export async function handleAiApi(req, res, next) {
@@ -328,35 +127,7 @@ export async function handleAiApi(req, res, next) {
     }
   }
 
-  if (url.pathname !== '/api/ai/chat') {
-    next();
-    return;
-  }
-  if (req.method !== 'POST') return json(res, { ok: false, error: 'POST only' }, 405);
-
-  let body = '';
-  req.on('data', (c) => {
-    body += c;
-    if (body.length > 12 * 1024 * 1024) req.destroy();
-  });
-  await new Promise((resolve, reject) => {
-    req.on('end', resolve);
-    req.on('error', reject);
-  });
-  let payload = {};
-  try {
-    payload = JSON.parse(body || '{}');
-  } catch {
-    return json(res, { ok: false, error: 'Invalid JSON' }, 400);
-  }
-
-  try {
-    const out = await runAiChat(payload, req.headers.authorization);
-    json(res, { ok: true, ...out });
-  } catch (err) {
-    const msg = err.message || String(err);
-    json(res, { ok: false, error: msg }, /missing|invalid json|requires authentication/i.test(msg) ? 400 : 502);
-  }
+  next();
 }
 
 export function aiApiPlugin() {
