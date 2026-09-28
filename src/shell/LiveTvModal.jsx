@@ -192,8 +192,6 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
     );
   }, [transcript, transcriptQuery]);
 
-  if (!open) return null;
-
   function handleOpenDesk(deskId, feature) {
     if (typeof onNavigateDesk === 'function') {
       onNavigateDesk(deskId, feature);
@@ -257,6 +255,9 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
       return `${currentEmbedUrl}${currentEmbedUrl.includes('?') ? '&' : '?'}mute=${isMuted ? '1' : '0'}`;
     }
   }, [currentEmbedUrl, isMuted]);
+
+  // After every hook: React needs the same hooks on every render.
+  if (!open) return null;
 
   return (
     <div className="ltv-modal-backdrop" onClick={onClose}>
