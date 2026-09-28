@@ -2,7 +2,7 @@
  * Single Vercel serverless entry for ALL /api/* routes (Hobby ≤12 function files).
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
-import { runAiChat, runAiFetch } from '../server/aiApi.mjs';
+import { runAiChat } from '../server/aiApi.mjs';
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
 import { serveFeatureFeed } from '../server/featureFeed.mjs';
 import {
@@ -18,7 +18,7 @@ import { loadConstitutions, loadGrowth } from '../server/resourcesApi.mjs';
 import { briefFromExtract, extractSource } from '../server/sourceExtract.mjs';
 import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.js';
 import { handleAuthApi } from '../server/authApi.mjs';
-import { handleUsersApi } from '../server/usersApi.mjs';
+import { authorizeLocalUser, handleUsersApi } from '../server/usersApi.mjs';
 import { handleLiveTvApi } from '../server/liveTvApi.mjs';
 import { handleMarketingMediaApi } from '../server/marketingMediaApi.mjs';
 import { handleAnalyticsApi } from '../server/analyticsApi.mjs';
@@ -338,17 +338,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (path === '/api/ai/fetch') {
-      if (method !== 'GET') {
-        res.status(405).json({ ok: false, error: 'GET only' });
-        return;
-      }
-      const target = String(req.query?.url || q(req).get('url') || '');
-      const out = await runAiFetch(target);
-      res.status(200).json({ ok: true, ...out });
-      return;
-    }
-
     if (path === '/api/ai/desk-brief') {
       if (method === 'GET') {
         const sp = q(req);
@@ -406,6 +395,9 @@ export default async function handler(req, res) {
         res.status(405).json({ ok: false, error: 'GET only' });
         return;
       }
+      // Signed-in active accounts only; extractSource also refuses any hop
+      // that resolves to a non-public address.
+      if (!(await authorizeLocalUser(req, res))) return;
       const sp = q(req);
       const target = String(sp.get('url') || req.query?.url || '');
       const title = String(sp.get('title') || req.query?.title || '');

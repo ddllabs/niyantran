@@ -3,6 +3,7 @@ import { fetchFeature } from './featureFeed.js';
 import { githubCsvUrl } from './githubCsv.js';
 import { collectRowUrls, isHubListingUrl, rowPinKey, rowRecordText, sourceKindHint } from './sourceUrls.js';
 import { billDocumentKey } from './deskRows.js';
+import { authHeaders } from './authHeaders.js';
 
 export const AI_DND = 'application/x-niyantran-ai';
 
@@ -139,7 +140,7 @@ async function hydrateDocumentFiles(urls, title) {
     try {
       const q = new URLSearchParams({ url });
       if (title) q.set('title', title);
-      const res = await fetch(`/api/ai/source-extract?${q}`);
+      const res = await fetch(`/api/ai/source-extract?${q}`, { headers: await authHeaders() });
       const body = await res.json().catch(() => ({}));
       if (res.ok && body?.ok && String(body.text || '').replace(/\s/g, '').length >= 40) {
         files.push({

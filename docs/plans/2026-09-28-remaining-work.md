@@ -66,13 +66,17 @@ production.
 
 ### Phase B: hardening (no product decision needed)
 
-- [ ] **B1. Security review of the six `SECURITY DEFINER` RPCs that
-  `authenticated` can execute (S).**
+- [x] **B1. Security review of the six `SECURITY DEFINER` RPCs that
+  `authenticated` can execute (S).** Done 2026-09-28: all six are safe;
+  see `docs/specs/2026-09-28-authorization-review.md`.
   - Confirm each one checks `auth.uid()` or is harmless.
   - Document `research_turns` as service-role only.
   - *Accept:* a SQL fixture for any fix; the advisor list is explained
     line by line.
-- [ ] **B2. Authorization review of the routes `api/router.js` exposes (M).**
+- [x] **B2. Authorization review of the routes `api/router.js` exposes (M).**
+  Done 2026-09-28. The billing reads were fixed in T5. The review found and
+  fixed unauthenticated source fetching that could reach internal addresses.
+  One open hardening item (the unused `/api/auth/*` group) went to the owner.
   - The private security note already exists. Known finding:
     `GET /api/billing/invoices?email=` and `GET /api/billing/invoice/:id`
     have no authentication, so anyone can read an invoice (GSTIN, address)

@@ -3,8 +3,8 @@
  *   POST /api/ai/chat   { roleId, model, provider, messages, files }
  *   POST /api/ai/desk-brief  { feature, tier, row, hash, force }  — organise one selected entry
  *   GET  /api/ai/desk-brief?feature=&tier=&hash=  cached entry brief only
- *   GET  /api/ai/fetch?url=  text or base64 for pdf/image (CORS bypass)
- *   GET  /api/ai/source-extract?url=  fetch + extract readable text (PDF/HTML/CSV/XLSX)
+ *   GET  /api/ai/source-extract?url=  fetch + extract readable text (PDF/HTML/CSV/XLSX);
+ *        signed-in active accounts only, public addresses only
  * Chat is forwarded to the research-chat Edge Function, which holds the only
  * provider key (ADR 0008); nothing here calls a model provider directly.
  * Request-body `key` is ignored — never accept client-supplied credentials (D6).
@@ -12,84 +12,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
-import { briefFromExtract, extractBuffer, extractSource } from './sourceExtract.mjs';
+import { briefFromExtract, extractSource } from './sourceExtract.mjs';
+import { authorizeLocalUser } from './usersApi.mjs';
 import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.js';
 import { dbPersona } from '../src/lib/personaMap.js';
 
 loadEnv();
 const CHAT_MS = 90_000;
-const MAX_TEXT = 180_000;
 
 function json(res, body, status = 200) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(body));
-}
-
-async function loadFile(file) {
-  if (file?.text && !file?.base64) return { ...file, text: String(file.text).slice(0, MAX_TEXT) };
-  if (file?.base64 && !file?.url) {
-    try {
-      const buf = Buffer.from(String(file.base64), 'base64');
-      const got = await extractBuffer(buf, {
-        kind: file.kind || '',
-        mime: file.mime || '',
-        name: file.name || '',
-      });
-      return {
-        ...file,
-        kind: got.kind || file.kind,
-        mime: got.mime || file.mime,
-        text: got.text ? String(got.text).slice(0, MAX_TEXT) : file.text,
-        base64: got.base64 || file.base64,
-        error: got.error || undefined,
-      };
-    } catch (err) {
-      return { ...file, error: err.message || String(err) };
-    }
-  }
-  const url = file?.url;
-  if (!url || !/^https?:\/\//i.test(url)) {
-    if (file?.text) return { ...file, text: String(file.text).slice(0, MAX_TEXT) };
-    return file;
-  }
-  if (isHubListingUrl(url) || !isExtractableSourceUrl(url)) {
-    return {
-      ...file,
-      url,
-      error: 'Registry hub / non-document URL — not fetched. Use terminal row columns as the record.',
-    };
-  }
-  try {
-    const got = await extractSource(url);
-    return {
-      ...file,
-      url: got.url || url,
-      kind: file.kind || got.kind,
-      mime: got.mime || file.mime,
-      text: got.text ? String(got.text).slice(0, MAX_TEXT) : file.text,
-      base64: got.base64 || file.base64,
-      error: got.error || undefined,
-    };
-  } catch (err) {
-    return { ...file, url, error: err.message || String(err) };
-  }
-}
-
-export async function runAiFetch(target) {
-  if (!/^https?:\/\//i.test(target)) throw new Error('HTTPS url required');
-  const file = await loadFile({ url: target });
-  return {
-    file: {
-      url: file.url,
-      kind: file.kind,
-      mime: file.mime,
-      hasBinary: Boolean(file.base64),
-      text: file.text,
-      bytes: file.text?.length || file.base64?.length || 0,
-    },
-  };
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vfgcppstyzjarlzyqdac.supabase.co';
@@ -300,19 +235,9 @@ export async function handleAiApi(req, res, next) {
     return;
   }
 
-  if (url.pathname === '/api/ai/fetch') {
-    if (req.method !== 'GET') return json(res, { ok: false, error: 'GET only' }, 405);
-    try {
-      const out = await runAiFetch(url.searchParams.get('url') || '');
-      return json(res, { ok: true, ...out });
-    } catch (err) {
-      const msg = err.message || String(err);
-      return json(res, { ok: false, error: msg }, /required/i.test(msg) ? 400 : 502);
-    }
-  }
-
   if (url.pathname === '/api/ai/source-extract') {
     if (req.method !== 'GET') return json(res, { ok: false, error: 'GET only' }, 405);
+    if (!(await authorizeLocalUser(req, res))) return;
     try {
       const target = url.searchParams.get('url') || '';
       if (isHubListingUrl(target) || !isExtractableSourceUrl(target)) {

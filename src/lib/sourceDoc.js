@@ -3,6 +3,7 @@
  * Used by BillRecordPane / RecordDetail briefs and DeskIntel grounding.
  */
 
+import { authHeaders } from './authHeaders.js';
 import {
   collectRowUrls,
   isExtractableSourceUrl,
@@ -69,7 +70,7 @@ export async function fetchSourceExtract(url, { title = '', signal } = {}) {
   }
   const q = new URLSearchParams({ url: url.trim() });
   if (title) q.set('title', title);
-  const res = await fetch(`/api/ai/source-extract?${q}`, { signal });
+  const res = await fetch(`/api/ai/source-extract?${q}`, { signal, headers: await authHeaders() });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body?.ok) {
     return { ok: false, url, error: body?.error || `HTTP ${res.status}`, host: hostOf(url) };
