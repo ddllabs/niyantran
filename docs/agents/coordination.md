@@ -362,10 +362,11 @@ Correct this section when observations become stale.
 - Do not run a bulk PostgREST load and the embedding ingest at the same
   time on `NTER`: on 2026-09-21 PostgREST answered 503 / "Could not query
   the database for the schema cache" for several minutes while both ran.
-- `docs/` is untracked and gitignored since 2026-09-21 (owner decision:
-  not shared with the developers yet). Specs, plans, research and this
-  protocol exist only in the owner's checkout; a developer clone will not
-  have them until that decision is reversed.
+- `docs/` is tracked and published since 2026-09-27 (`f828ef5`, owner
+  decision reversing the 2026-09-21 one); every clone has the specs, plans,
+  research and this protocol. `docs/security/` stays local only because it
+  describes unfixed vulnerabilities; never commit it. (Superseded: `docs/`
+  was untracked and gitignored from 2026-09-21 to 2026-09-27.)
 - `NTER` is a shared live project. Dashboard actions on it, especially
   under Authentication → Users, are announced before they happen; on
   2026-09-21 every user was deleted from the dashboard while another team
@@ -452,7 +453,9 @@ Correct this section when observations become stale.
   directly against `NTER`. It is one of the two mutable-`search_path`
   advisor findings. Decide deliberately whether to adopt it into a migration
   or drop it; do not silently remove it.
-- **Updated 2026-09-21 after E2**: deployed Edge Function versions are `health`
+- (Superseded 2026-09-28 by "Supabase audit — 2026-09-28" at the end of this
+  document; the versions and row counts in this entry are historical.)
+  **Updated 2026-09-21 after E2**: deployed Edge Function versions are `health`
   v5, `refresh-model-pricing` v5, `admin-models` v5, `ingest-documents` v4 and
   `research-chat` **v1**. `research_turns` and `lookup/claim/finalize_research_turn`
   all exist live. `health` and `admin-models` rebuilt to byte-identical bundles,
@@ -480,6 +483,13 @@ Correct this section when observations become stale.
   hash — so `main` has been pushed. On 2026-09-24 there are 2 worktrees
   registered (the main checkout and one under `.claude/worktrees/`) and 2 local
   branches (`main`, `task/research-answer-once`).)
+  (corrected 2026-09-28: the remote has exactly two branches, `main` and
+  `dev`, and both point at `ca73200`; `git ls-remote --heads origin` returned
+  the same hash for each. Upstream `528dfb4` is an ancestor of `main` (merged
+  via PR #2, `8849c35`). The old `origin/dev` tip `25723f7` is also an
+  ancestor of `main`, so the disabled service-role JWT it carried is now in
+  `main`'s public history too; see the backlog's security section. Local
+  worktree state of the owner's machine was not observable from this audit.)
 - The review harness `review.config.mjs`/`review.probes.test.jsx` that the
   recovery plan cites as defining D7–D10 acceptance no longer exists in any
   worktree and is not tracked in git, as of the 2026-09-21 audit. D7/D10
@@ -513,6 +523,21 @@ remain pending this supervisor's independent verification (see shared
 knowledge above).
 
 ### Deployment architecture — established 2026-09-21 (E1 groundwork, E3 record)
+
+> **Corrected 2026-09-28 (by reading the code at `ca73200`).** The table and
+> the "three things" list below describe the pre-merge tree and are stale.
+> Production now has one Vercel function, `api/router.js`, and `vercel.json`
+> rewrites every `/api/*` path to it. The router imports handlers from
+> `server/*.mjs` (auth, users, app flags, home, Live TV, nter.news ingest,
+> marketing video, analytics, user prefs, billing, transit, diplomacy,
+> assets, desk brief, legacy AI), so most of `server/` now **does** run in
+> production. `src/lib/apiMode.js` also gained `homeLiveApiEnabled()` and
+> `featureFeedApiEnabled()`, which default to **on** in production; only
+> `liveApiEnabled()` keeps the old closed-by-default gate. Several routed
+> handlers persist through `server/db.mjs` (SQLite) or JSON files under
+> `writablePath()`, which is `/tmp/niyantran` on Vercel and is lost on cold
+> starts. That breaks ADR 0005's rule that nothing durable is written to
+> `/tmp`; the remedy is `docs/specs/2026-09-28-serverless-state-to-supabase.md`.
 
 No document previously recorded how this application is actually served, which
 made "why is Vercel needed" unanswerable from the repository. Established by
@@ -573,3 +598,73 @@ building `ddllabs/niyantran` `main`; the current nter.pro Vercel project and
 its settings are not accessible. Google sign-in will use Supabase Auth's
 native Google provider with a DDL Labs–owned OAuth client. See
 `docs/niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` and `docs/niyantran-conflict-audit-and-plan/03-upstream-integration-plan.md`.
+
+### Supabase audit — 2026-09-28 (read-only, through the Supabase MCP tools)
+
+Every figure here was observed by a live read-only query or tool call on
+2026-09-28, unless it is marked as an inference. Nothing was deployed, applied
+or changed.
+
+- **Project:** `NTER` (`vfgcppstyzjarlzyqdac`), `ap-south-1`, Postgres 17.6,
+  `ACTIVE_HEALTHY`. It is the only project on the account and has no Supabase
+  branches. Postgres last started at 2026-09-22 08:49:34 UTC.
+- **Deployed Edge Functions** (5), compared file by file with the repo at
+  `ca73200`:
+
+  | Function | Version | `verify_jwt` | Last deployed (UTC) | Against `ca73200` |
+  | --- | --- | --- | --- | --- |
+  | `health` | v6 | true | 2026-09-21 17:56 | identical |
+  | `admin-models` | v6 | true | 2026-09-21 17:56 | identical |
+  | `refresh-model-pricing` | v7 | false | 2026-09-22 12:20 | identical |
+  | `ingest-documents` | v9 | false | 2026-09-22 09:25 | differs only in `_shared/chunking.ts` exports (built from `a030847`, one commit before `3a1e565`); same logic |
+  | `research-chat` | v28 | false | 2026-09-23 02:12 | identical (32 files) |
+
+  `supabase/functions/desk-brief/` (added in `5e54af2`) is **not deployed**.
+  The `false` settings are by design: those handlers verify the bearer
+  themselves.
+- **Migrations:** the live history has 24 entries, the same set as
+  `supabase/migrations/`, with one version mismatch. The live history records
+  `20260922121946_reasoning_efforts_from_catalogue`; the repo file is
+  `20260922183000_reasoning_efforts_from_catalogue.sql`. The statements are
+  the same: live 6,484 characters against 6,472 for the repo file with
+  comments and blank lines stripped. Until the repo file is renamed, `supabase
+  db push` will see it as pending and re-run it, and its final statements
+  reset `ai_models.efforts`.
+- **Row counts** (`count(*)`, not planner estimates):
+
+  | Table | Rows |
+  | --- | --- |
+  | `documents` | 2,338 |
+  | `document_chunks` | 54,219 |
+  | `desk_rows` | 34,184 |
+  | `ai_models` (all enabled) | 8 |
+  | `ai_roles` | 4 |
+  | `auth.users` | 8 |
+  | `user_profiles` | 8 |
+  | `research_turns` | 61 |
+
+  `list_tables` reports `desk_rows` 0, `ai_models` 1 and `ai_roles` 0, because
+  it reads `n_live_tup`. `desk_rows` has never been analysed since the restart
+  (`last_analyze` and `last_autoanalyze` are both null). Run the AGENTS.md
+  `ANALYZE` set; that is a production action and needs the owner's go-ahead.
+- **Models:** the default is `google/gemini-3.7-flash` (role
+  `VISUAL_RESEARCH`); `google/gemini-3.5-flash-lite` holds `DEFAULT_ANALYST`
+  and `PDF_PARSER`; `openai/gpt-6-astra` holds `EXPERT_ESCALATION`. Also
+  enabled: `anthropic/claude-sonnet-5`, `deepseek/deepseek-v4-flash`,
+  `deepseek/deepseek-v4-pro`, `google/gemini-2.5-flash-lite` and
+  `google/gemma-4-31b-it`.
+- **Security advisors:**
+  - INFO: `research_turns` has RLS enabled with no policy. It is service-role
+    only; confirm that this is intended.
+  - WARN: six `SECURITY DEFINER` RPCs are executable by `authenticated`
+    (`ai_health`, `get_my_profile`, `is_org_member`, `is_org_owner`,
+    `is_platform_admin`, `update_my_onboarding_profile`). This is the
+    intended residue of migration 0012; review `ai_health`.
+  - WARN: leaked-password protection is disabled.
+  - None are `anon`-executable. The earlier `debug_timeout` and `search_path`
+    findings are gone.
+- **Not in Supabase at all:** there are no tables for application
+  preferences, analytics events, invoices, app flags, nter.news articles or
+  the marketing video, and there are no Storage buckets
+  (`storage.buckets` is empty). Those stores live
+  under `/tmp` on Vercel (see the deployment-architecture correction above).

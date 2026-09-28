@@ -1,15 +1,29 @@
 # Open backlog: everything not yet done, in one place
 
-Status: **Living.** Compiled 2026-09-24 from all plans, specs, ADRs and research docs, and both session transcripts. Update it in place as items close.
+Status: **Living.** Compiled 2026-09-24 from all plans, specs, ADRs and research docs, and both session transcripts; updated 2026-09-28. Update it in place as items close.
 
 - This is an index, not a plan. Each item points to the document that holds its detail.
-- **Order of work:** the upstream integration (03-upstream-integration-plan.md) comes first, because nothing else reaches production until it lands.
+- **Order of work (updated 2026-09-28):** the upstream merge has landed (PR #2, `8849c35`). What remains of the integration plan is the production cutover (Phases 4–6). The most urgent new item is §0: routes deployed on Vercel that write durable data to `/tmp`.
+
+## 0. Found in the 2026-09-28 audit
+
+| Item | Detail | Blocked on |
+|---|---|---|
+| **Durable data on `/tmp` in production:** users, analytics, user preferences, invoices, app flags, nter.news articles, the marketing intro video | specs/2026-09-28-serverless-state-to-supabase.md; plans/2026-09-28-serverless-state-to-supabase.md | Owner approval of the spec (billing, analytics and user data are sensitive scopes) |
+| **Authorization review of the routes `api/router.js` now exposes**, done before or alongside the move | Private security note (not published: the repository is public) | — |
+| **Migration version drift:** the live project recorded `reasoning_efforts_from_catalogue` as `20260922121946`; the repo file is `20260922183000_…`. The SQL is the same. A `supabase db push` would treat the repo file as unapplied and re-run it, which resets `ai_models.efforts`. Rename the repo file to the live version before the next push. | agents/coordination.md, "Supabase audit — 2026-09-28" | — (a one-file rename; needs a task) |
+| **`desk-brief` Edge Function is in the repo but not deployed**, so every desk brief falls back to `/api/ai/desk-brief`, which needs `OPENROUTER_API_KEY` on Vercel (ADR 0010 says that key is not there). Desk briefs in production are therefore likely failing. This is inferred from code and deploy state, not observed. | flow.md §3; ADR 0008 | Owner deploy authorization |
+| **`ingest-documents` v9 was built from `a030847`**, one commit before `3a1e565` changed `_shared/chunking.ts` exports. No behaviour difference; redeploy it with the next ingest change | agents/coordination.md, Supabase audit | — |
+| **Stale planner statistics:** `desk_rows` shows `n_live_tup` 0 against 34,184 real rows and has never been analysed since the 2026-09-22 restart. Run the standing `ANALYZE` from AGENTS.md. | AGENTS.md | Owner go-ahead (production write) |
+| **`server/loadEnv.mjs` still reads `nter/.env`** (the outdated `ddllabs/NTER` layout) | integration report §10, correction 6 | — |
+| **`VITE_AI_BACKEND` defaults to `legacy`**, contrary to the integration report. Confirm the value on the Vercel deployment. | integration report, correction 5 | Vercel access |
+| **Security advisors (2026-09-28):** `research_turns` has RLS with no policy (intended: service-role only, so confirm and document); six `SECURITY DEFINER` RPCs are executable by `authenticated` (intended for `get_my_profile`, `update_my_onboarding_profile` and the `is_*` helpers; review `ai_health`); leaked-password protection is still off | agents/coordination.md, Supabase audit | Dashboard setting for the last one |
 
 ## 1. Integration and deployment (active)
 
 | Item | Detail | Blocked on |
 |---|---|---|
-| Merge upstream once, rewire, OpenRouter-only, relink Vercel | 03-upstream-integration-plan.md | Owner prerequisites 0.1–0.6 |
+| ~~Merge upstream once~~ **Done 2026-09-26** (PR #2, `8849c35`). Remaining: Google sign-in (Phase 4), preview smoke on the DDL Labs Vercel project (Phase 5; a deployment exists at `niyantran-six.vercel.app`), nter.pro cutover and clean-up (Phase 6) | 03-upstream-integration-plan.md | Owner prerequisites 0.3–0.6 |
 | E1 launch checks: Vercel env, email delivery, `SITE_URL`, `ALLOWED_ORIGINS` | supervisor-recovery plan (E1); integration plan Phase 5 | New Vercel project |
 | E2 phase 3: five paid live scenarios plus a cross-account denial check | supervisor-recovery plan (~L2527); streaming-research plan, Task 8 | An admin account and a second ordinary account |
 | Spec to retire the legacy AI path (`api/ai/*`, `server/aiApi.mjs`, `VITE_AI_BACKEND=legacy`) | ADR 0001 L38–39; foundation spec | After integration |
@@ -46,7 +60,7 @@ Status: **Living.** Compiled 2026-09-24 from all plans, specs, ADRs and research
 | No live turn has yet shown the agent choosing document search *and* the browser highlighting a span | research-turn-findings L510–521 |
 | Unsettled: whether medium/high reasoning work in production, whether `require_parameters` turns reasoning into a hard routing constraint, how DeepSeek bills | ai-panel-ui-findings L534–545 |
 | Real runtime limits; `waitUntil` is not a durable queue | streaming-handover L58–60 |
-| Deferred features: web search, compaction, memories, binary attachments; `desk-brief` on the Supabase path | streaming spec L35, L46–50 |
+| Deferred features: web search, compaction, memories, binary attachments. (`desk-brief` on the Supabase path is written, `supabase/functions/desk-brief/`, but not deployed; see §0.) | streaming spec L35, L46–50 |
 | Dead code: `reasoningSegments` has no callers outside tests | ai-panel-ui-findings L470–483 |
 | Follow-up pills lack list semantics and a label | ai-panel-ui-findings L278–281 |
 | Whether a single attachment should be capped at its per-document quota | scoped-retrieval L230–232 |
@@ -65,14 +79,14 @@ Status: **Living.** Compiled 2026-09-24 from all plans, specs, ADRs and research
 | `backend/sql/auth_schema.sql` describes a database that doesn't exist: reconcile it or delete it | session transcript 2026-09-21 |
 | Legacy key-variable fallback in `supabase/functions/_shared/supabase.ts` | Arch 05 |
 | Priority-2 advisor findings: grants, foreign keys, indexes | supervisor-recovery L92 |
-| The public `origin/dev` history holds a disabled service-role JWT | integration plan, Phase 6.5 |
+| The public `origin/dev` history holds a disabled service-role JWT. **2026-09-28:** that commit (`25723f7`) is now also an ancestor of `main`, so rewriting `dev` alone no longer removes it | integration plan, Phase 6.5 |
 
 ## 5. Home feeds and nter.news (parked)
 
 | Item | Detail | Blocked on |
 |---|---|---|
 | Database-backed home feeds; the schema must be agreed first | 2026-09-23-home-feeds-plan.md | Schema discussion; market-data vendor |
-| Durable nter.news storage (the ingest route is disabled in the integration) | integration plan 1c; home-feeds plan | Same schema discussion |
+| Durable nter.news storage. **Correction 2026-09-28:** the ingest route is **enabled** in `api/router.js` and writes `nter-news.json` under `/tmp`. | integration plan 1c; home-feeds plan; specs/2026-09-28-serverless-state-to-supabase.md | Same schema discussion |
 | Conflict pulse shows the static war list on production | home-feeds plan §2 | — |
 
 ## 6. Telemetry and cost

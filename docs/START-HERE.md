@@ -1,11 +1,23 @@
 # Start here: guide for engineers joining the upstream integration
 
-Status: **Living.** Written 2026-09-24. Update it when a listed document changes status.
+Status: **Living.** Written 2026-09-24; current-state section corrected 2026-09-28. Update it when a listed document changes status.
 
-## The situation in five lines
+## Current state (2026-09-28)
+
+The upstream merge described below **has landed**. Read this section first; the rest of the page is the guide that got us here and is kept because the plan and audit it points to are still the record of why the code looks the way it does.
+
+1. Upstream `528dfb4` was merged into `dev` and then into `main` through PR #2 (`8849c35`, 2026-09-26). `origin/main` and `origin/dev` both point at `ca73200` (2026-09-28). Upstream is retired; there is no `upstream` remote to fetch in a fresh clone and none is needed.
+2. Since the merge `main` gained Live TV, desk landing pages, the segment carousel, the nter.news rail and the NyAI thinking indicator (`5e54af2`, ADRs 0006–0009), then Vercel router fixes (`ca73200`, ADR 0010).
+3. A DDL Labs Vercel deployment exists at `niyantran-six.vercel.app` (ADR 0010). The nter.pro cutover (integration plan Phases 4–6) is not recorded as done.
+4. `docs/` is tracked in git since 2026-09-27 (`f828ef5`). `docs/security/` stays local only.
+5. **Known gap:** several `api/router.js` routes still write to SQLite or JSON files under `/tmp` on Vercel, which ADR 0005 forbids for durable data. The move to Supabase is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
+6. The Supabase state as of 2026-09-28 (deployed function versions, migration history, row counts) is recorded in `agents/coordination.md` under "Supabase audit — 2026-09-28".
+7. The open work is indexed in `niyantran-conflict-audit-and-plan/04-open-backlog.md`.
+
+## The situation in five lines (2026-09-24, before the merge)
 
 1. `ddllabs/niyantran` `main` is the product and the only codebase: Supabase Auth and Postgres, Edge Functions, RAG, streaming research.
-2. `ItsCloudDev/niyantran` `main` (upstream) has 27 unmerged commits of UI work plus a different backend: Vercel router, SQLite in `/tmp`, local-seat and Google login, Gemini-only AI. Its author has left.
+2. `ItsCloudDev/niyantran` `main` (upstream) had 27 unmerged commits of UI work plus a different backend: Vercel router, SQLite in `/tmp`, local-seat and Google login, Gemini-only AI. Its author has left. (Merged 2026-09-26; see above.)
 3. www.nter.pro runs the upstream build on a Vercel project we cannot access. Production has no durable accounts to migrate.
 4. We merge upstream **once**, keeping our architecture and their UI, then deploy from a Vercel project owned by DDL Labs.
 5. The private `ddllabs/NTER` repo is outdated. Do not use it or its `nter/` layout.
@@ -29,7 +41,7 @@ Status: **Living.** Written 2026-09-24. Update it when a listed document changes
 | `Architectures/02-database-schema-and-tables.md` | Tables, ER diagram, RLS matrix |
 | `Architectures/03-rag-and-sql-retrieval.md` | `match_documents`, `search_desk_rows`, citations |
 | `Architectures/04-prompt-sandwich-and-agent-engine.md` | Agent loop, prompt blocks, SSE, turn persistence |
-| `Architectures/05-supabase-edge-functions.md` | The 5 functions and the shared library |
+| `Architectures/05-supabase-edge-functions.md` | The five deployed functions and the shared library (a sixth, `desk-brief`, is in the repo but not deployed as of 2026-09-28) |
 | `Architectures/06-stored-procedures-and-rpcs.md` | RPC catalogue and grants |
 | `decisions/0001`–`0004` | Edge Functions for AI, OpenRouter plus embeddings, the corpus/conversation model, chunk identity |
 
@@ -45,7 +57,9 @@ The architecture docs were corrected on 2026-09-24 against the code. Some small 
 - `research/2026-09-2*`: baseline audits and corpus measurements.
 - `2026-09-21-deleted-branch-tips.txt` and `.bundle`: an archive of deleted task branches. Do not unbundle unless asked.
 
-## Rules for the integration
+## Rules for the integration (historical: the merge landed 2026-09-26)
+
+Rules 1–3 described the one-time merge and no longer apply: there is no freeze on `main`, and no `upstream` remote is needed. Rules 4–7 still hold for all work.
 
 1. **Start from a fresh clone** of `https://github.com/ddllabs/niyantran.git`. Do not use the `PI Terminal` checkout: it is 113 commits behind, with its tree moved into `nter/`.
 2. Add upstream read-only: `git remote add upstream https://github.com/ItsCloudDev/niyantran.git && git fetch upstream`. Never push to it.

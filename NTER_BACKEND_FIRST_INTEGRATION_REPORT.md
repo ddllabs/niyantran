@@ -1,6 +1,18 @@
 # NTER — Backend-First Repository Reconciliation & Implementation Report
 
-**Status:** Completed  
+> **Status: Historical (dated 2026-09-24 → 2026-09-28).** A running log of the integration and the feature work that followed it. It is not maintained; where it disagrees with the code, the code wins. Current state: `docs/START-HERE.md`.
+>
+> **Corrections recorded 2026-09-28 (checked against the repository at `ca73200` and the live Supabase project):**
+>
+> 1. **The branch lines are obsolete.** The "local working tree, uncommitted" notes on `integration/reconcile-backend-frontend` below were true when written. The work was committed (`a21a3e8`), merged to `dev`, and reached `main` through PR #2 (`8849c35`). `main` and `dev` now both point at `ca73200`. §12's "Recommended Next Step" has been done.
+> 2. **The upstream commit is `528dfb4`, not `3b6eb4e`.** `3b6eb4e` does not exist in this repository. `528dfb4` is the upstream tip named in ADR 0005, and it is an ancestor of `main`.
+> 3. **Deno status.** §14 and §9.4 say Deno could not run (Windows host). The later sections (ADR 0009 and 0010) report 415 Deno tests passing. Each claim describes a different run on a different machine; neither was re-run for this correction.
+> 4. **The SQLite scope claims are wrong.** §2 and §14 say SQLite holds only the desk-brief cache and admin test fixtures. In fact `server/db.mjs` also stores users, analytics events, user preferences and invoices. Since ADR 0010 wired those routes into `api/router.js`, they write to `/tmp` on Vercel. See `docs/specs/2026-09-28-serverless-state-to-supabase.md`.
+> 5. **`VITE_AI_BACKEND` defaults to `legacy`, not `supabase`.** §10.7 says otherwise. `src/lib/aiBackend.js` returns `supabase` only for the exact value `supabase`, and `.env.example` ships `VITE_AI_BACKEND=legacy`. Which value the Vercel deployment uses was not observable.
+> 6. **The `nter/.env` fallback (§10) points into the outdated `ddllabs/NTER` layout.** `docs/START-HERE.md` says not to use that layout. The fallback is still in `server/loadEnv.mjs`, and removing it is a code change tracked in the backlog.
+> 7. **The `desk-brief` Edge Function is not deployed.** §10.4 names it as part of the gateway, but on 2026-09-28 the live project has five functions and `desk-brief` is not one of them.
+
+**Status (as originally written):** Completed  
 **Branch:** `integration/reconcile-backend-frontend` (local working tree, uncommitted per user instruction)  
 **Base Source of Truth:** `ddllabs/main` (commit `7352148`)  
 **Merged Upstream Branch:** `upstream/main` (commit `3b6eb4e`)  
