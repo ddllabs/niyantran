@@ -6,7 +6,7 @@ Status: **Living.** Written 2026-09-24; current-state section corrected 2026-09-
 
 The upstream merge described below **has landed**. Read this section first; the rest of the page is the guide that got us here and is kept because the plan and audit it points to are still the record of why the code looks the way it does.
 
-1. Upstream `528dfb4` was merged into `dev` and then into `main` through PR #2 (`8849c35`, 2026-09-26). `origin/main` and `origin/dev` both point at `ca73200` (2026-09-28). Upstream is retired; there is no `upstream` remote to fetch in a fresh clone and none is needed.
+1. Upstream `528dfb4` was merged into `dev` and then into `main` through PR #2 (`8849c35`, 2026-09-26). `origin/main` and `origin/dev` both point at `ca73200` (2026-09-28). Upstream is retired; there is no `upstream` remote to fetch in a fresh clone and none is needed. Since 2026-09-28 `main` is the only long-lived branch and `dev` is retired. Work happens on short-lived `task/` or `feature/` branches, each with its own Vercel preview URL (`agents/coordination.md`, "Branches and deployments").
 2. Since the merge `main` gained Live TV, desk landing pages, the segment carousel, the nter.news rail and the NyAI thinking indicator (`5e54af2`, ADRs 0006–0009), then Vercel router fixes (`ca73200`, ADR 0010).
 3. A DDL Labs Vercel deployment exists at `niyantran-six.vercel.app` (ADR 0010). The nter.pro cutover (integration plan Phases 4–6) is not recorded as done.
 4. `docs/` is tracked in git since 2026-09-27 (`f828ef5`). `docs/security/` stays local only.

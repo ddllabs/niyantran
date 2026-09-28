@@ -140,20 +140,40 @@ all delegated output.
 
 ## Repository synchronization
 
-The repository has two remotes:
+The repository has one working remote, `origin` (`ddllabs/niyantran`).
+`upstream` (`ItsCloudDev/niyantran`) was retired after the 2026-09-26 merge. A
+fresh clone does not need it; the rules below apply only if the owner
+reinstates it.
 
-- `origin` — `ddllabs/niyantran`, the DDL Labs fork.
-- `upstream` — `ItsCloudDev/niyantran`, the source repository.
-
-`main` is the only long-lived local branch. Before a new task, the supervisor:
+`main` is the only long-lived branch, locally and on `origin`. Before a new
+task, the supervisor runs:
 
 ```bash
 git status --short --branch
 git fetch origin --prune
-git fetch upstream --prune
 git rev-list --left-right --count main...origin/main
-git rev-list --left-right --count main...upstream/main
 ```
+
+### Branches and deployments (owner decision, 2026-09-28)
+
+- **No `dev` branch.** It was retired on 2026-09-28, when it was identical
+  to `main`. Two writers pushing to it caused a rejected push and a
+  production deploy race.
+- **Every change starts on a short-lived branch** created from `main`,
+  named `task/<slug>` or `feature/<slug>`. Never use a tool or agent name.
+- **Every pushed branch gets a Vercel preview** at
+  `https://niyantran-git-<branch>-ddl-labs.vercel.app`, with `/` in the
+  branch name replaced by `-`. For example, `task/foo` becomes
+  `niyantran-git-task-foo-ddl-labs.vercel.app`. The owner can check a change
+  there before it merges.
+- **Production** is `https://niyantran-six.vercel.app` and deploys only from
+  `main`.
+- **Vercel Authentication protects all of these URLs.**
+- **Previews and production share the one live Supabase project (NTER).**
+  A preview that writes data writes real data.
+- **After verification,** and with the owner's authorization for the push,
+  the supervisor merges the branch into `main`, pushes `main`, and deletes
+  the branch.
 
 Fetch updates references without changing working files. Fast-forward a clean
 local `main` when it is only behind `origin/main`. Review upstream changes as a
@@ -579,6 +599,10 @@ no Vercel handler; nothing calls them in production because the gate is closed.
    when `VITE_AI_BACKEND` is not `supabase`. With the Supabase backend selected,
    chat goes to the `research-chat` Edge Function and these are dormant, but they
    remain the fallback path.
+
+(Correction 2026-09-28: Vercel no longer needs `OPENROUTER_API_KEY`.
+Desk briefs go through the `desk-brief` Edge Function, and `/api/ai/chat`
+always forwards to `research-chat`. The Vercel project has no such key.)
 
 **What E1 therefore has to confirm** is narrower than it sounds: that the Vercel
 project builds from the intended repository and branch; that `OPENROUTER_API_KEY`
