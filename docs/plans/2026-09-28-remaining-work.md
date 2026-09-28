@@ -190,23 +190,26 @@ questions are closed.
 | Deploying an Edge Function by hand drifts from the repo | Medium | Standard CLI deploys (A1); pinned-commit deploys only in an emergency |
 | No CI | Medium | B6 |
 
-## Open questions (for the owner)
+## Owner decisions (2026-09-28)
 
-1. T5: approve moving invoices to Supabase, including auth on the billing
-   reads? (Recommended: yes.)
-2. T6 / D4: build the small nter.news table now, instead of choosing
-   between 503 and the lossy `/tmp` copy? Can you add
-   `NTER_TERMINAL_API_KEY` on Vercel and point nter.news at production?
-   (Recommended: yes.)
-3. D5 (from the serverless spec): confirm that no data needs recovering
-   from any old SQLite file. (Recommended: confirm; Vercel's copies are
-   gone and local ones are dev-only.)
-4. Admin persona probe: fix it (C4) or relabel it? (Recommended: fix.)
-5. Testing-phase flag: enforce it in research-chat or retire it?
-   (Recommended: retire, unless you plan a free-tier testing period.)
-6. Accounts with no persona: prompt them to choose one on sign-in (C5)?
-   (Recommended: yes.)
-7. UI (C7): the globe, signup order, Terminal Home, Live TV.
-   (Recommended: bright globe; keep the two-step signup; keep nter.news
-   and restore the watchlist below it; review Live TV.)
-8. CI (B6): allowed to add GitHub Actions workflows? (Recommended: yes.)
+1. **T5:** approved. Invoices move to Supabase, with auth on the billing
+   reads (C1).
+2. **T6:** build the small `nter_news_articles` table (C2). The owner
+   adds `NTER_TERMINAL_API_KEY` on Vercel and points nter.news at
+   production.
+3. **D5:** check the local SQLite files before deleting SQLite (C3).
+   - This cloud checkout's `tmp/niyantran.sqlite` holds only test data
+     (0 users, invoices, analytics and preferences; 10 cached briefs).
+   - The owner's machine and the other worker's machine still need
+     checking.
+4. **Admin persona probe:** fix it (C4).
+5. **Testing-phase flag:** retire it, with its table and admin toggle
+   (C6).
+6. **Accounts with no persona:** prompt once at sign-in (C5).
+7. **UI (C7):**
+   - bring back the bright globe;
+   - restore the watchlist and feed health below nter.news on Terminal
+     Home;
+   - review Live TV;
+   - keep the two-step signup.
+8. **CI (B6):** approved, advisory at first.
