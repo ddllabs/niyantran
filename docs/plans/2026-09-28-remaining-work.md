@@ -229,7 +229,7 @@ above: a `task/` branch, a test that fails first.
   legacy `SUPABASE_SERVICE_ROLE_KEY` beside `SUPABASE_SECRET_KEY`. The other
   half of this item is done 2026-09-28 (`9ed95b6`): `.env.example` no longer
   lists AI provider keys, which live only in Supabase secrets (ADR 0008).
-- [ ] **F4. Live TV YouTube quota (S).** `fetchYouTubeChannelVideos` in
+- [x] **F4. Live TV YouTube quota (S).** Done 2026-09-28: `playlistItems.list` + `videos.list` (2 units a refresh, was 101), and upcoming broadcasts are now reported; `src/lib/liveTvQuota.test.js`. Original note: `fetchYouTubeChannelVideos` in
   `server/liveTvApi.mjs` calls the YouTube `search` endpoint (100 quota
   units) for the live check whenever its per-instance, ten-minute memory
   cache misses. Cold instances therefore spend quota on every channel.

@@ -92,7 +92,7 @@ Exposes asynchronous fetch wrappers for all six endpoints with normalized error 
 Checked against `server/liveTvApi.mjs` on 2026-09-28. The code has not
 changed; this amendment records where it differs from the text above.
 
-- **Known gap: `search.list` is still called.** When `YOUTUBE_API_KEY` is set
+- **Known gap: `search.list` is still called.** *(Closed later on 2026-09-28 by plan task F4: the live check now uses `videos.list` on the recent uploads plus the channel's curated live video, so a refresh costs 2 units; `src/lib/liveTvQuota.test.js`.)* When `YOUTUBE_API_KEY` is set
   and a channel has no fresh cache entry, `fetchYouTubeChannelVideos` first
   calls `youtube/v3/search` with `eventType=live` for that channel (100 quota
   units), then `playlistItems.list` on the uploads playlist (1 unit). So each

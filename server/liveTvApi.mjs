@@ -871,47 +871,66 @@ export async function fetchYouTubeChannelVideos(channel) {
   }
 
   try {
-    // 1. Check if channel has an active live stream (search eventType=live)
-    const liveSearchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(
-      channel.channelId,
-    )}&type=video&eventType=live&maxResults=1&key=${encodeURIComponent(apiKey)}`;
-
-    let liveVideo = null;
-    let liveRes = null;
-
-    try {
-      const resp = await fetch(liveSearchUrl, { headers: { Accept: 'application/json' } });
-      if (resp.ok) {
-        liveRes = await resp.json();
-        if (Array.isArray(liveRes.items) && liveRes.items.length > 0) {
-          liveVideo = normalizeYouTubeVideo(liveRes.items[0], channel.id);
-          if (liveVideo) liveVideo.isLive = true;
-        }
-      }
-    } catch (e) {
-      // Ignore live check failure and fall through
-    }
-
-    // 2. Fetch recent videos via uploads playlist (1 quota point vs 100 for search!)
+    // Quota (ADR 0009): search.list costs 100 units, so it is not used. One
+    // refresh is playlistItems.list (1 unit) for the recent uploads, then
+    // videos.list (1 unit, up to 50 ids) for their live state. The channel's
+    // curated live video is added to that call, because a long-running 24/7
+    // stream drops out of the recent uploads.
     const playlistId = 'UU' + channel.channelId.slice(2);
     const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${encodeURIComponent(
       playlistId,
     )}&maxResults=6&key=${encodeURIComponent(apiKey)}`;
 
-    let recentVideos = [];
+    let uploads = [];
     try {
       const pResp = await fetch(playlistUrl, { headers: { Accept: 'application/json' } });
       if (pResp.ok) {
         const pData = await pResp.json();
-        if (Array.isArray(pData.items)) {
-          recentVideos = pData.items
-            .map((it) => normalizeYouTubeVideo(it, channel.id))
-            .filter(Boolean);
-        }
+        if (Array.isArray(pData.items)) uploads = pData.items;
       }
     } catch (e) {
       // Ignore playlist failure
     }
+
+    const uploadIds = uploads
+      .map((it) => extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || ''))
+      .filter((id) => /^[a-zA-Z0-9_-]{11}$/.test(id));
+    const curated = /^[a-zA-Z0-9_-]{11}$/.test(channel.defaultVideoId || '') ? [channel.defaultVideoId] : [];
+    const ids = [...new Set([...uploadIds, ...curated])].slice(0, 50);
+
+    const details = new Map();
+    if (ids.length) {
+      try {
+        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(
+          ids.join(','),
+        )}&key=${encodeURIComponent(apiKey)}`;
+        const vResp = await fetch(videosUrl, { headers: { Accept: 'application/json' } });
+        if (vResp.ok) {
+          const vData = await vResp.json();
+          for (const it of Array.isArray(vData.items) ? vData.items : []) {
+            if (typeof it?.id === 'string') details.set(it.id, it);
+          }
+        }
+      } catch (e) {
+        // Ignore the live-state check; recent uploads still show
+      }
+    }
+
+    const stateOf = (id) => details.get(id)?.snippet?.liveBroadcastContent;
+    const liveId = ids.find((id) => stateOf(id) === 'live');
+    const liveVideo = liveId ? normalizeYouTubeVideo(details.get(liveId), channel.id) : null;
+    if (liveVideo) liveVideo.isLive = true;
+    const upcomingVideos = ids
+      .filter((id) => stateOf(id) === 'upcoming')
+      .map((id) => normalizeYouTubeVideo(details.get(id), channel.id))
+      .filter(Boolean);
+
+    let recentVideos = uploads
+      .map((it) => {
+        const id = extractYouTubeVideoId(it?.snippet?.resourceId?.videoId || it?.id?.videoId || '');
+        return normalizeYouTubeVideo(details.get(id) || it, channel.id);
+      })
+      .filter(Boolean);
 
     // If API returned no recent videos, fall back to configured fallback videos
     if (recentVideos.length === 0 && Array.isArray(channel.fallbackVideos)) {
@@ -926,7 +945,7 @@ export async function fetchYouTubeChannelVideos(channel) {
       status,
       liveVideo,
       recentVideos,
-      upcomingVideos: [],
+      upcomingVideos,
     };
 
     setCached(cacheKey, result);
