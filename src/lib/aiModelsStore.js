@@ -12,29 +12,29 @@ export const AI_PROVIDERS = [
   {
     id: 'gemini-lite',
     label: 'Gemini - Lite',
-    model: 'google/gemini-2.0-flash-001',
+    model: 'google/gemini-3.5-flash-lite',
     provider: 'openrouter',
     tier: 'free',
     enabled: true,
-    hint: 'Default — fast briefing and desk questions (OpenRouter · Google Gemini 2.0 Flash)',
+    hint: 'Default — fast briefing and desk questions (OpenRouter · Google Gemini 3.5 Flash Lite)',
   },
   {
     id: 'gemini-flash',
     label: 'Gemini - Flash',
-    model: 'google/gemini-flash-1.5',
+    model: 'google/gemini-3.7-flash',
     provider: 'openrouter',
     tier: 'free',
     enabled: true,
-    hint: 'Heavier synthesis / visual research (OpenRouter · Google Gemini 1.5 Flash)',
+    hint: 'Heavier synthesis / visual research (OpenRouter · Google Gemini 3.7 Flash)',
   },
   {
     id: 'gpt-astra',
     label: 'GPT - Astra',
-    model: 'openai/gpt-4o-mini',
+    model: 'openai/gpt-6-astra',
     provider: 'openrouter',
     tier: 'paid',
     enabled: true,
-    hint: 'OpenRouter · OpenAI GPT-4o Mini',
+    hint: 'OpenRouter · OpenAI GPT-6 Astra',
   },
 ];
 
@@ -56,13 +56,17 @@ export function liveAiProviders() {
   });
 }
 
-/** Research role map — OpenRouter gateway across all models. */
+/**
+ * Research role map — OpenRouter gateway across all models. Static fallback
+ * (labels and the legacy picker) mirroring the live ai_roles rows; the server
+ * resolves the model a request finally uses against the live registry.
+ */
 export const AI_ROLES = [
   {
     id: 'DEFAULT_ANALYST',
     label: 'Default analyst',
     hint: 'Everyday briefing, tables, and multi-desk questions.',
-    model: 'google/gemini-2.0-flash-001',
+    model: 'google/gemini-3.5-flash-lite',
     provider: 'openrouter',
     key: '',
   },
@@ -70,7 +74,7 @@ export const AI_ROLES = [
     id: 'EXPERT_ESCALATION',
     label: 'Expert escalation',
     hint: 'Harder synthesis when the lite pass is not enough.',
-    model: 'openai/gpt-4o-mini',
+    model: 'openai/gpt-6-astra',
     provider: 'openrouter',
     key: '',
   },
@@ -78,7 +82,7 @@ export const AI_ROLES = [
     id: 'PDF_PARSER',
     label: 'PDF parser',
     hint: 'Read PDFs, scans, and attached documents.',
-    model: 'google/gemini-2.0-flash-001',
+    model: 'google/gemini-3.5-flash-lite',
     provider: 'openrouter',
     key: '',
   },
@@ -86,7 +90,7 @@ export const AI_ROLES = [
     id: 'VISUAL_RESEARCH',
     label: 'Visual research',
     hint: 'Charts, maps, images, and screenshot-backed questions.',
-    model: 'google/gemini-flash-1.5',
+    model: 'google/gemini-3.7-flash',
     provider: 'openrouter',
     key: '',
   },

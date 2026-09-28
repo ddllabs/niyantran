@@ -427,3 +427,7 @@ verify_jwt = false
 # User JWT is verified through Auth inside the handler; modern project keys are supported.
 [functions.research-chat]
 verify_jwt = false
+
+# desk-brief verifies the caller itself (requireUser), like research-chat.
+[functions.desk-brief]
+verify_jwt = false

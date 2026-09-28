@@ -8,6 +8,7 @@
  * Keys come from server env (OPENROUTER_API_KEY / NIYANTRAN_AI_KEY).
  * Request-body `key` is ignored — never accept client-supplied credentials (D6).
  */
+import { createClient } from '@supabase/supabase-js';
 import { assertAiAllowedInTesting } from './appFlags.mjs';
 import { loadEnv } from './loadEnv.mjs';
 import { entryFingerprint, getCachedDeskBrief, runDeskBrief } from './deskBrief.mjs';
@@ -218,15 +219,15 @@ function resolveOpenRouterModels(requestedModel) {
   if (m.includes('/')) {
     list.push(m);
   } else if (/gemini.*lite/i.test(m)) {
-    list.push('google/gemini-2.0-flash-lite-001', 'google/gemini-2.0-flash-001', 'google/gemini-flash-1.5');
+    list.push('google/gemini-3.5-flash-lite', 'google/gemini-2.5-flash-lite', 'google/gemini-3.7-flash');
   } else if (/gemini/i.test(m)) {
-    list.push('google/gemini-2.0-flash-001', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-001');
+    list.push('google/gemini-3.7-flash', 'google/gemini-3.5-flash-lite', 'google/gemini-2.5-flash-lite');
   } else if (/astra|gpt/i.test(m)) {
-    list.push('openai/gpt-4o-mini', 'openai/gpt-4o');
+    list.push('openai/gpt-6-astra');
   } else if (m) {
     list.push(m, `google/${m}`);
   }
-  list.push('google/gemini-2.0-flash-001', 'openai/gpt-4o-mini');
+  list.push('google/gemini-3.7-flash', 'google/gemini-3.5-flash-lite');
   return [...new Set(list)];
 }
 
@@ -313,6 +314,61 @@ async function validateSupabaseSession(token) {
   return await res.json();
 }
 
+// Roles research-chat knows, and the legacy picker aliases that stand for them.
+const RESEARCH_ROLE_IDS = new Set(['DEFAULT_ANALYST', 'EXPERT_ESCALATION', 'PDF_PARSER', 'VISUAL_RESEARCH']);
+const LEGACY_MODEL_ROLES = {
+  'gemini-lite': 'DEFAULT_ANALYST',
+  'gemini-flash': 'VISUAL_RESEARCH',
+  'gpt-astra': 'EXPERT_ESCALATION',
+};
+const REGISTRY_MS = 5_000;
+
+// Request-scoped client bound to the caller's bearer, so the registry read runs
+// under RLS as that user (ai_models and ai_roles are readable by authenticated).
+// Same project and publishable key as the research-chat forward below.
+function registryClientForToken(token) {
+  const key =
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    'sb_publishable_9X9OJnXkf-UuJcVvsY13nA_J_7oJ_-I';
+  return createClient(SUPABASE_URL, key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+/**
+ * Map a requested model to a live, enabled model ID, or undefined so that
+ * research-chat uses its own default. An enabled ID passes through; a role ID
+ * or legacy alias becomes that role's model when it is enabled. A failed
+ * registry read also yields undefined: it never fails the request.
+ */
+async function resolveResearchModel(requested, token) {
+  const id = String(requested || '').trim();
+  if (!id || !token) return undefined;
+  // Bounded and without retries: a slow or failing registry must not delay the turn.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REGISTRY_MS);
+  try {
+    const client = registryClientForToken(token);
+    const [models, roles] = await Promise.all([
+      client.from('ai_models').select('model_id').eq('enabled', true).retry(false).abortSignal(controller.signal),
+      client.from('ai_roles').select('role_id,model_id').retry(false).abortSignal(controller.signal),
+    ]);
+    if (models.error || roles.error) return undefined;
+    const enabled = new Set((models.data || []).map((m) => m.model_id));
+    if (enabled.has(id)) return id;
+    const roleId = LEGACY_MODEL_ROLES[id] || (RESEARCH_ROLE_IDS.has(id) ? id : null);
+    const roleModel = roleId ? (roles.data || []).find((r) => r.role_id === roleId)?.model_id : null;
+    return roleModel && enabled.has(roleModel) ? roleModel : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function proxyResearchChat(payload, authHeader) {
   const userMessages = Array.isArray(payload.messages) ? payload.messages : [];
   const lastUser = userMessages.filter((m) => m && m.role === 'user').pop();
@@ -321,14 +377,8 @@ async function proxyResearchChat(payload, authHeader) {
     throw new Error('Message missing.');
   }
 
-  const MODEL_MAP = {
-    'gemini-lite': 'google/gemini-2.0-flash-001',
-    'gemini-flash': 'google/gemini-flash-1.5',
-    'gpt-astra': 'openai/gpt-4o-mini',
-    'google/gemini-2.5-flash': 'google/gemini-2.0-flash-001',
-  };
-  const requestedModel = String(payload.model || '').trim();
-  const model = MODEL_MAP[requestedModel] || requestedModel || undefined;
+  const token = String(authHeader || '').replace(/^Bearer\s+/i, '').trim();
+  const model = await resolveResearchModel(payload.model, token);
 
   const rawAttachments = Array.isArray(payload.attachments) ? payload.attachments : [];
   const attachments = rawAttachments
@@ -627,11 +677,13 @@ export async function handleAiApi(req, res, next) {
         sourceNote: payload.sourceNote || '',
         sourceExtract: payload.sourceExtract || '',
         scope: payload.scope === 'substance' ? 'substance' : 'entry',
+        authorization: req.headers?.authorization,
       });
       return json(res, { ok: true, ...out });
     } catch (err) {
       const msg = err.message || String(err);
-      return json(res, { ok: false, error: msg }, /missing|required|Select a row|No rows/i.test(msg) ? 400 : 502);
+      const status = Number.isInteger(err.status) ? err.status : /missing|required|Select a row|No rows/i.test(msg) ? 400 : 502;
+      return json(res, { ok: false, error: msg }, status);
     }
   }
 
