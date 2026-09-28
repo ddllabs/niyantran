@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PERSONAS, applyPersonaForUser } from '../lib/personas.js';
 import {
-  createUser,
-  hydrateUsersFromServer,
   setSessionUser,
-  updateUser,
   userTypeOf,
 } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
@@ -80,10 +77,6 @@ export default function SignupPage({ onSuccess, onLogin }) {
   }
 
   useEffect(() => {
-    hydrateUsersFromServer().catch(() => {});
-  }, []);
-
-  useEffect(() => {
     hydrateAppFlags().then((f) => setTesting(Boolean(f.testingPhase)));
     return subscribeAppFlags((f) => setTesting(Boolean(f.testingPhase)));
   }, []);
@@ -130,11 +123,6 @@ export default function SignupPage({ onSuccess, onLogin }) {
     setPending(true);
     setError('');
     const fields = startTrialFields(planId);
-    updateUser(draftUser.user.id, {
-      ...fields,
-      type: draftUser.user.type || draftUser.user.personaId,
-      personaId: draftUser.user.personaId || draftUser.user.type,
-    });
     const next = {
       ...draftUser.user,
       ...fields,
@@ -204,21 +192,6 @@ export default function SignupPage({ onSuccess, onLogin }) {
       setPending(false);
       return;
     }
-
-    try {
-      await hydrateUsersFromServer();
-    } catch {
-      /* local-only */
-    }
-
-    createUser({
-      name,
-      email: user,
-      password: pass,
-      type: personaId,
-      personaId,
-      ...startTrialFields(planId || 'explorer'),
-    });
 
     sessionStorage.setItem('lastRegisteredEmail', user);
     setVerificationSentEmail(user);

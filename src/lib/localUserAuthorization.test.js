@@ -7,7 +7,6 @@ vi.mock('../../server/db.mjs', () => ({
   queryAll: vi.fn(() => [{ id: 'local', email: 'local@example.test', password: 'fixture-secret' }]),
   run: vi.fn(),
 }));
-import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import { getDb, queryAll, run } from '../../server/db.mjs';
 import { handleUsersApi, localClientForToken } from '../../server/usersApi.mjs';
@@ -66,12 +65,42 @@ function setup({ role = 'admin', status = 'active', admin = true, userId = 'auth
     rpc: vi.fn(async (name) => ({ data: name === 'is_platform_admin' ? admin : { user_id: profileId, role, status }, error: null })),
     from: preferenceTable(userId),
   };
+  const directory = profileDirectory();
   const deps = {
     clientForToken: vi.fn(() => client),
-    readUsers: vi.fn(async () => [{ id: 'local', email: 'local@example.test', password: 'fixture-secret' }]),
-    writeUsers: vi.fn(async (users) => users),
+    adminClient: vi.fn(() => directory.client),
   };
-  return { client, deps };
+  return { client, deps, directory };
+}
+
+// public.user_profiles behind the server's secret-key client. The row carries
+// a stray password column so a leak through the directory mapping would show.
+const TARGET_ID = '00000000-0000-4000-8000-0000000000a1';
+function profileDirectory() {
+  const row = { user_id: TARGET_ID, email: 'local@example.test', first_name: 'Local', last_name: null, persona: null, role: 'user', plan: 'explorer', status: 'active', created_at: '2026-09-01T00:00:00Z', password: 'fixture-secret' };
+  const directory = { writes: [], failure: null };
+  directory.client = {
+    from: vi.fn((table) => {
+      expect(table).toBe('user_profiles');
+      let patch = null;
+      const result = () => (directory.failure ? { data: null, error: { message: directory.failure } } : null);
+      const builder = {
+        select: () => builder,
+        order: () => builder,
+        eq: () => builder,
+        neq: () => builder,
+        update: (value) => { patch = value; return builder; },
+        maybeSingle: async () => {
+          if (result()) return result();
+          if (patch) directory.writes.push(patch);
+          return { data: { ...row, ...patch }, error: null };
+        },
+        then: (resolve, reject) => Promise.resolve(result() || { data: [{ ...row }], error: null }).then(resolve, reject),
+      };
+      return builder;
+    }),
+  };
+  return directory;
 }
 
 beforeEach(() => {
@@ -94,11 +123,12 @@ describe('local route authorization', () => {
     expect(getDb).not.toHaveBeenCalled();
   });
 
-  it('never exports stored passwords to even a verified admin', async () => {
+  it('never exports a password to even a verified admin', async () => {
     const { deps } = setup();
     const response = await invoke(handleUsersApi, request('GET', '/api/users'), deps);
     expect(response.status).toBe(200);
     expect(response.body.users.every((user) => !Object.hasOwn(user, 'password'))).toBe(true);
+    expect(JSON.stringify(response.body)).not.toContain('fixture-secret');
   });
 
   it('rejects another email on preferences reads', async () => {
@@ -111,7 +141,7 @@ describe('local route authorization', () => {
 
 const routes = [
   [handleUsersApi, 'GET', '/api/users', undefined],
-  [handleUsersApi, 'PUT', '/api/users', { users: [] }],
+  [handleUsersApi, 'PATCH', `/api/users/${'00000000-0000-4000-8000-0000000000a1'}`, { active: true }],
   [handleUserPrefsApi, 'GET', '/api/user-prefs', undefined],
   [handleUserPrefsApi, 'PUT', '/api/user-prefs', { watchlist: ['own'] }],
 ];
@@ -123,8 +153,7 @@ describe.each(routes)('%s %s %s', (handler, method, url, body) => {
     expect(response.status).toBe(401);
     expect(deps.clientForToken).not.toHaveBeenCalled();
     expect(getDb).not.toHaveBeenCalled();
-    expect(deps.readUsers).not.toHaveBeenCalled();
-    expect(deps.writeUsers).not.toHaveBeenCalled();
+    expect(deps.adminClient).not.toHaveBeenCalled();
   });
   it.each(['expired', 'missing-user', 'missing-email', 'throws', 'profile-error', 'wrong-profile', 'suspended', 'missing-profile'])('fails closed for %s', async (condition) => {
     const { client, deps } = setup();
@@ -141,33 +170,32 @@ describe.each(routes)('%s %s %s', (handler, method, url, body) => {
     expect(response.status).toBe(expected);
     expect(JSON.stringify(response.body)).not.toContain('private-provider-detail');
     expect(getDb).not.toHaveBeenCalled();
-    expect(deps.readUsers).not.toHaveBeenCalled();
-    expect(deps.writeUsers).not.toHaveBeenCalled();
+    expect(deps.adminClient).not.toHaveBeenCalled();
   });
 });
 
 describe('internal admin authority and safe export', () => {
-  it.each(['GET', 'PUT'])('verifies identity and both server checks for %s', async (method) => {
-    const { client, deps } = setup();
-    const users = [{ id: 'local', email: 'local@example.test', password: 'fixture-secret', name: 'Edited' }];
-    const response = await invoke(handleUsersApi, request(method, '/api/users', { users }), deps);
+  it.each([['GET', '/api/users'], ['PATCH', `/api/users/${TARGET_ID}`]])('verifies identity and both server checks for %s', async (method, url) => {
+    const { client, deps, directory } = setup();
+    const response = await invoke(handleUsersApi, request(method, url, { active: false }), deps);
     expect(response.status).toBe(200);
     expect(deps.clientForToken).toHaveBeenCalledWith('verified-token');
     expect(client.auth.getUser).toHaveBeenCalledWith('verified-token');
     expect(client.rpc.mock.calls).toEqual([['get_my_profile'], ['is_platform_admin']]);
     expect(JSON.stringify(response.body)).not.toContain('fixture-secret');
-    expect(response.body.users[0]).not.toHaveProperty('password');
-    if (method === 'PUT') expect(deps.writeUsers).toHaveBeenCalledWith(users);
+    expect(response.body.users?.[0] ?? response.body.user).not.toHaveProperty('password');
+    if (method === 'PATCH') expect(directory.writes).toEqual([{ status: 'suspended' }]);
   });
   it.each(['user', 'owner'])('denies %s despite forged metadata and true admin RPC', async (role) => {
-    const { deps } = setup({ role });
-    expect((await invoke(handleUsersApi, request('PUT', '/api/users', { users: [], role: 'admin' }), deps)).status).toBe(403);
-    expect(deps.writeUsers).not.toHaveBeenCalled();
+    const { deps, directory } = setup({ role });
+    expect((await invoke(handleUsersApi, request('PATCH', `/api/users/${TARGET_ID}`, { active: true, role: 'admin' }), deps)).status).toBe(403);
+    expect(deps.adminClient).not.toHaveBeenCalled();
+    expect(directory.writes).toEqual([]);
   });
   it.each([false, null, 'true', 1])('requires boolean server admin authority %s', async (admin) => {
     const { deps } = setup({ admin });
     expect((await invoke(handleUsersApi, request('GET', '/api/users'), deps)).status).toBe(403);
-    expect(deps.readUsers).not.toHaveBeenCalled();
+    expect(deps.adminClient).not.toHaveBeenCalled();
   });
   it('denies admin RPC errors without leaking provider detail', async () => {
     const { client, deps } = setup();
@@ -177,27 +205,28 @@ describe('internal admin authority and safe export', () => {
     expect(response.status).toBe(503);
     expect(JSON.stringify(response.body)).not.toContain('private-provider-detail');
   });
-  it.each([{}, null, { users: null }, { users: [null] }, { users: [[]] }])('rejects invalid replacements before writes: %j', async (payload) => {
-    const { deps } = setup();
-    expect((await invoke(handleUsersApi, request('PUT', '/api/users', payload), deps)).status).toBe(400);
-    expect(deps.writeUsers).not.toHaveBeenCalled();
+  // Whole-list replacement is gone: PUT answers 405 for any payload, before
+  // authorization or storage, so no list can be written back.
+  it.each([{}, null, { users: null }, { users: [null] }, { users: [[]] }, { users: [{ id: 'local', email: 'local@example.test', password: 'fixture-secret' }] }])('refuses whole-list replacement %j with 405 and no write', async (payload) => {
+    const { deps, directory } = setup();
+    expect((await invoke(handleUsersApi, request('PUT', '/api/users', payload), deps)).status).toBe(405);
+    expect(deps.adminClient).not.toHaveBeenCalled();
+    expect(directory.writes).toEqual([]);
+    expect(run).not.toHaveBeenCalled();
   });
-  it('preserves stored passwords when replacing exported metadata', async () => {
-    const { deps } = setup();
-    delete deps.writeUsers;
-    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined);
-    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => undefined);
-    const response = await invoke(handleUsersApi, request('PUT', '/api/users', { users: [{ id: 'local', email: 'local@example.test', name: 'Edited' }] }), deps);
-    expect(response.status).toBe(200);
-    const insert = run.mock.calls.find((call) => call[2]?.[0] === 'local');
-    expect(insert[2][3]).toBe('fixture-secret');
-    expect(JSON.stringify(response.body)).not.toContain('fixture-secret');
+  // There are no stored passwords to preserve any more; no route accepts one.
+  it('accepts no password through the narrow admin edit', async () => {
+    const { deps, directory } = setup();
+    const response = await invoke(handleUsersApi, request('PATCH', `/api/users/${TARGET_ID}`, { active: true, password: 'fixture-secret' }), deps);
+    expect(response.status).toBe(400);
+    expect(directory.writes).toEqual([]);
+    expect(run).not.toHaveBeenCalled();
   });
   it('does not expose storage errors', async () => {
-    const { deps } = setup();
-    deps.readUsers.mockRejectedValue(new Error('fixture-secret'));
+    const { deps, directory } = setup();
+    directory.failure = 'fixture-secret';
     const response = await invoke(handleUsersApi, request('GET', '/api/users'), deps);
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     expect(JSON.stringify(response.body)).not.toContain('fixture-secret');
   });
 });

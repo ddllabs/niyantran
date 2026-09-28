@@ -7,32 +7,6 @@ const SESSION_KEY = 'niyantranUser';
 
 export { USER_TYPES, userTypeOf, desksForType, tabsForType, canOpenDesk, DEFAULT_USER_TYPE } from './userTypes.js';
 
-export const SEED_USER = {
-  id: 'seed-analyst',
-  name: 'Lead Analyst',
-  email: 'analyst@niyantran',
-  password: '12345678#',
-  plan: 'enterprise',
-  planStatus: 'active',
-  personaId: 'analyst',
-  type: 'analyst',
-  active: true,
-  createdAt: '2026-01-15T00:00:00.000Z',
-};
-
-export const SEED_STUDENT = {
-  id: 'seed-student',
-  name: 'Student Desk',
-  email: 'student@niyantran',
-  password: '12345678#',
-  plan: 'explorer',
-  planStatus: 'free',
-  personaId: 'student',
-  type: 'student',
-  active: true,
-  createdAt: '2026-01-15T00:00:00.000Z',
-};
-
 function normalize(user) {
   if (!user || typeof user !== 'object') return null;
   const type = userTypeOf(user.type || user.personaId).id;
@@ -53,13 +27,6 @@ function normalize(user) {
     authProvider: user.authProvider || (user.googleSub || user.google_sub ? 'google' : 'password'),
     active: user.active !== false,
   };
-}
-
-function withSeeds(list) {
-  let out = Array.isArray(list) ? list.map(normalize).filter(Boolean) : [];
-  if (!out.some((u) => u.email === SEED_USER.email)) out = [SEED_USER, ...out];
-  if (!out.some((u) => u.email === SEED_STUDENT.email)) out = [...out, SEED_STUDENT];
-  return out.map(normalize).filter(Boolean);
 }
 
 // Protected data stays in memory and is invalidated on every Auth event.
@@ -163,6 +130,25 @@ export async function resumeLocalIdentityAfterSignIn(session) {
   return identity;
 }
 
+/**
+ * Publish the session user for an identity that arrived without a login form
+ * (the Google OAuth redirect). Same checks as a password sign-in: a verified
+ * session, an active profile row owned by that user, and still the current
+ * session when the profile answers. A local sign-out is never resumed.
+ */
+export async function publishVerifiedSessionUser() {
+  const identity = await verifiedLocalIdentity();
+  if (!identity) return null;
+  try {
+    const profile = await supabase.from('user_profiles').select('*').eq('user_id', identity.id).maybeSingle();
+    if (profile.error || profile.data?.user_id !== identity.id || profile.data.status !== 'active') return null;
+    if (!await localIdentityIsCurrent(identity)) return null;
+    return setSessionUser(userFromSupabase({ id: identity.id, email: identity.email }, profile.data));
+  } catch {
+    return null;
+  }
+}
+
 function currentDirectory() {
   if (locallySignedOut || !usersSnapshot || usersSnapshot.rows !== usersCache
       || usersSnapshot.identity.epoch !== identityEpoch || usersExpiresAt <= Date.now()) return null;
@@ -176,7 +162,7 @@ function directoryIsCurrent(snapshot, identity) {
 
 export function loadUsers() {
   if (usersExpiresAt <= Date.now()) usersCache = null;
-  return usersCache ? usersCache.map((user) => ({ ...user })) : withSeeds([]);
+  return usersCache ? usersCache.map((user) => ({ ...user })) : [];
 }
 
 function publishUsers(users, identity) {
@@ -210,39 +196,53 @@ export async function hydrateUsersFromServer() {
   }
 }
 
-async function pushUsersToServer(users, snapshot) {
+const RELOAD_DIRECTORY = 'Reload the verified admin directory before editing.';
+
+/**
+ * One narrow admin edit (PATCH /api/users/:id), then a fresh directory read.
+ * Refused unless the directory on screen is still the verified admin's
+ * current snapshot and contains the target; one mutation at a time.
+ */
+async function patchUser(id, change) {
+  const snapshot = currentDirectory();
+  if (!snapshot || directoryMutationPending || !snapshot.rows.some((user) => user.id === id)) {
+    return { ok: false, reason: RELOAD_DIRECTORY };
+  }
+  directoryMutationPending = true;
+  directoryMutationVersion += 1;
   let identity;
   try {
     identity = await verifiedLocalIdentity({ admin: true });
     // Verification may await an account switch, refresh or another directory
-    // response. Never send a replacement derived from an invalidated snapshot.
-    if (!identity || !directoryIsCurrent(snapshot, identity)) return { ok: false };
-    const res = await fetch('/api/users', {
-      method: 'PUT',
+    // response. Never send an edit derived from an invalidated snapshot.
+    if (!identity || !directoryIsCurrent(snapshot, identity)) return { ok: false, reason: RELOAD_DIRECTORY };
+    const res = await fetch(`/api/users/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
-      body: JSON.stringify({ users }),
+      body: JSON.stringify(change),
     });
-    if (!res.ok) throw new Error('Write failed');
-    const body = await res.json();
-    if (!body.ok || !Array.isArray(body.users) || !await localIdentityIsCurrent(identity)
-        || !directoryIsCurrent(snapshot, identity)) return { ok: false };
-    publishUsers(body.users, identity);
-    return { ok: true };
+    const body = await res.json().catch(() => null);
+    if (res.status === 401 && identity.epoch === identityEpoch) identityChanged(null);
+    if (!res.ok || !body?.ok) {
+      return { ok: false, reason: typeof body?.error === 'string' && body.error ? body.error : 'The change was not saved.' };
+    }
   } catch {
-    if (identity?.epoch === identityEpoch) identityChanged(null);
-    return { ok: false };
+    return { ok: false, reason: 'The change could not be sent. Check the connection and try again.' };
   } finally {
     directoryMutationPending = false;
   }
+  await hydrateUsersFromServer();
+  return { ok: true };
 }
 
-export function saveUsers(users, snapshot = currentDirectory()) {
-  if (!snapshot || snapshot !== currentDirectory() || directoryMutationPending) return [];
-  const list = users.map(normalize).filter(Boolean);
-  directoryMutationPending = true;
-  directoryMutationVersion += 1;
-  void pushUsersToServer(list, snapshot);
-  return list;
+/** Suspend (false) or reactivate (true) an account. Resolves to { ok, reason? }. */
+export function setUserActive(id, active) {
+  return patchUser(id, { active: Boolean(active) });
+}
+
+/** Change an account's persona type (a USER_TYPES id). Resolves to { ok, reason? }. */
+export function setUserType(id, type) {
+  return patchUser(id, { type: String(type || '') });
 }
 
 export function subscribeUsers(fn) {
@@ -340,145 +340,6 @@ export async function persistPersona(personaId) {
   }
 }
 
-export function authenticateUser(loginId, password) {
-  const needle = String(loginId || '').trim().toLowerCase();
-  const pass = String(password || '');
-  if (!needle) return { ok: false, reason: 'Unknown user ID.' };
-
-  const users = loadUsers();
-  const byEmail = users.filter((u) => String(u.email || '').toLowerCase() === needle);
-  const byId = users.filter((u) => String(u.id || '').toLowerCase() === needle);
-  const byLocal = users.filter((u) => {
-    const em = String(u.email || '').toLowerCase();
-    const at = em.indexOf('@');
-    return at > 0 && em.slice(0, at) === needle;
-  });
-  const byName = users.filter((u) => String(u.name || '').trim().toLowerCase() === needle);
-
-  let hit = byEmail[0] || byId[0] || (byLocal.length === 1 ? byLocal[0] : null);
-  if (!hit && byName.length === 1) hit = byName[0];
-
-  if (!hit) {
-    return {
-      ok: false,
-      reason: 'Unknown user ID. Open Admin → Users and use that exact User ID, or try student@niyantran / 12345678#',
-    };
-  }
-  if (!hit.active) return { ok: false, reason: 'This account is suspended.' };
-  if (String(hit.password) !== pass) return { ok: false, reason: 'Invalid user ID or password.' };
-  return { ok: true, user: hit };
-}
-
-export function createUser({ name, email, password, plan, type, personaId, planStatus, trialEndsAt, billingYearly }) {
-  const snapshot = currentDirectory();
-  if (!snapshot || directoryMutationPending) return { ok: false, reason: 'Reload the verified admin directory before editing.' };
-  const users = snapshot.rows;
-  const cleanEmail = String(email || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '');
-  if (!cleanEmail || !password) return { ok: false, reason: 'User ID and password are required.' };
-  if (cleanEmail.length < 2) return { ok: false, reason: 'User ID is too short.' };
-  if (String(password).length < 6) return { ok: false, reason: 'Password must be at least 6 characters.' };
-  if (users.some((u) => String(u.email).toLowerCase() === cleanEmail)) {
-    return { ok: false, reason: 'That user ID already exists.' };
-  }
-  const role = userTypeOf(personaId || type).id;
-  const planId = String(plan || 'explorer').toLowerCase();
-  const next = normalize({
-    id: `u-${Date.now()}`,
-    name: String(name || '').trim() || cleanEmail.split('@')[0],
-    email: cleanEmail,
-    password: String(password),
-    plan: planId,
-    planStatus: planStatus || (planId === 'explorer' ? 'free' : 'active'),
-    trialEndsAt: trialEndsAt || null,
-    billingYearly: Boolean(billingYearly),
-    type: role,
-    personaId: role,
-    active: true,
-    createdAt: new Date().toISOString(),
-  });
-  saveUsers([next, ...users], snapshot);
-  return { ok: true, user: next };
-}
-
-/**
- * Upsert a server-verified Google user into the local seat list.
- * Preserves existing plan/persona when the account already exists.
- */
-export function upsertGoogleUser(remote) {
-  const n = normalize(remote);
-  if (!n?.email) return { ok: false, reason: 'Invalid Google user.' };
-  const users = loadUsers();
-  const idx = users.findIndex(
-    (u) =>
-      (n.googleSub && u.googleSub === n.googleSub) ||
-      String(u.email).toLowerCase() === n.email,
-  );
-  if (idx >= 0) {
-    const prev = users[idx];
-    const merged = normalize({
-      ...prev,
-      ...n,
-      // Never downgrade existing plan / persona from a Google return trip
-      plan: prev.plan || n.plan,
-      planStatus: prev.planStatus || n.planStatus,
-      type: prev.type || n.type,
-      personaId: prev.personaId || n.personaId,
-      password: prev.password || '',
-      googleSub: n.googleSub || prev.googleSub,
-      authProvider: 'google',
-      id: prev.id || n.id,
-      email: prev.email || n.email,
-    });
-    const next = [...users];
-    next[idx] = merged;
-    saveUsers(next);
-    return { ok: true, user: merged };
-  }
-  const created = normalize({
-    ...n,
-    plan: n.plan || 'explorer',
-    planStatus: n.planStatus || 'free',
-    type: n.type || 'analyst',
-    personaId: n.personaId || 'analyst',
-    password: '',
-    authProvider: 'google',
-    active: true,
-    createdAt: n.createdAt || new Date().toISOString(),
-  });
-  saveUsers([created, ...users]);
-  return { ok: true, user: created };
-}
-
-export function updateUser(id, patch) {
-  const snapshot = currentDirectory();
-  if (!snapshot || directoryMutationPending || !snapshot.rows.some((user) => user.id === id)) return { ok: false, reason: 'User not found in the current admin directory.' };
-  const users = snapshot.rows.map((u) => {
-    if (u.id !== id) return u;
-    const next = { ...u, ...patch, id: u.id, email: u.email };
-    if (patch.type != null || patch.personaId != null) {
-      const role = userTypeOf(patch.personaId || patch.type || u.type).id;
-      next.type = role;
-      next.personaId = role;
-    }
-    return next;
-  });
-  saveUsers(users, snapshot);
-  return { ok: true };
-}
-
-export function removeUser(id) {
-  if (id === SEED_USER.id || id === SEED_STUDENT.id) {
-    return { ok: false, reason: 'Seed accounts cannot be removed.' };
-  }
-  const snapshot = currentDirectory();
-  if (!snapshot || directoryMutationPending || !snapshot.rows.some((user) => user.id === id)) return { ok: false, reason: 'User not found in the current admin directory.' };
-  saveUsers(snapshot.rows.filter((u) => u.id !== id), snapshot);
-  return { ok: true };
-}
-
 export function setSessionUser(user) {
   const pub = toPublicUser(user);
   sessionStorage.setItem('niyantranAuthed', '1');
@@ -486,26 +347,17 @@ export function setSessionUser(user) {
   return pub;
 }
 
+/** The signed-in user published by sign-in, or null. There is no fallback account. */
 export function sessionUser() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && parsed.email) return toPublicUser(parsed);
-      if (typeof parsed === 'string') {
-        const hit = loadUsers().find((u) => String(u.email).toLowerCase() === parsed.toLowerCase());
-        return hit ? toPublicUser(hit) : toPublicUser({ ...SEED_USER, email: parsed });
-      }
-    }
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.email) return toPublicUser(parsed);
   } catch {
-    /* empty */
+    /* unreadable or legacy value: no user */
   }
-  const email = sessionStorage.getItem(SESSION_KEY);
-  if (email && !email.startsWith('{')) {
-    const hit = loadUsers().find((u) => String(u.email).toLowerCase() === email.toLowerCase());
-    return hit ? toPublicUser(hit) : toPublicUser({ ...SEED_USER, email });
-  }
-  return toPublicUser(SEED_USER);
+  return null;
 }
 
 /** Synchronous local invalidation; callers own their single SDK signOut call. */

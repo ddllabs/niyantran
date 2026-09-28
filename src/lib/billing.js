@@ -5,7 +5,7 @@
  */
 import { loadPricing } from './pricingStore.js';
 import { paidFields, normalizePlanId, planOf } from './planEntitlements.js';
-import { sessionUser, setSessionUser, updateUser, loadUsers } from './userStore.js';
+import { sessionUser, setSessionUser } from './userStore.js';
 import { trackProductEvent } from './productAnalytics.js';
 
 const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -64,7 +64,6 @@ export function applyPaidPlan(user, planId, yearly = false, paymentMeta = {}) {
     lastOrderId: paymentMeta.orderId || null,
     lastInvoiceId: paymentMeta.invoiceId || null,
   };
-  if (user?.id) updateUser(user.id, patch);
   const next = { ...user, ...patch };
   setSessionUser(next);
   trackProductEvent('plan_upgraded', {
@@ -168,7 +167,6 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
   const plan = normalizePlanId(planId);
   if (plan === 'explorer') {
     const patch = { plan: 'explorer', planStatus: 'free', trialEndsAt: null, billingYearly: false };
-    if (user?.id) updateUser(user.id, patch);
     const next = { ...(user || sessionUser()), ...patch };
     setSessionUser(next);
     return { ok: true, user: next, mode: 'free' };
@@ -262,11 +260,7 @@ export function checkoutPlans() {
 }
 
 export function refreshSessionFromStore() {
-  const cur = sessionUser();
-  if (!cur?.email) return cur;
-  const hit = loadUsers().find((u) => String(u.email).toLowerCase() === String(cur.email).toLowerCase());
-  if (hit) return setSessionUser(hit);
-  return cur;
+  return sessionUser();
 }
 
 export function formatInr(n) {

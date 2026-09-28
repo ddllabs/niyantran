@@ -23,8 +23,6 @@ const CACHE_KEYS = new Set(['desk-briefs', 'stat1.xlsx']);
 // Supabase. The list may only shrink: a new offence fails, and so does an
 // entry whose offence is gone.
 const KNOWN_OFFENDERS = {
-  'server/usersApi.mjs imports server/db.mjs': 'S3 local users (T3)',
-  "server/usersApi.mjs writes writablePath('issued-users.json')": 'S3 local users (T3)',
   'server/billingApi.mjs imports server/db.mjs': 'S6 invoices (T5)',
   "server/nterNews.mjs writes writablePath('nter-news.json')": 'S7 nter.news (T6)',
   'server/deskBrief.mjs imports server/db.mjs': 'C1 entry_briefs cache tier on SQLite (T7)',

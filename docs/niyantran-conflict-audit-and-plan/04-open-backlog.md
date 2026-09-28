@@ -73,7 +73,7 @@ Status: **Living.** Compiled 2026-09-24 from all plans, specs, ADRs and research
 | Item | Detail |
 |---|---|
 | Google sign-in through Supabase | integration plan, Phase 4 |
-| **Seed accounts and the client-side Terminal gate** (`userStore.js`, `App.jsx`) | plan Phase 2.3; private security note |
+| ~~**Seed accounts and the client-side Terminal gate**~~ **Done by T3 (2026-09-28, pending merge):** the seed accounts and all local passwords are gone, and the Terminal needs a real session user. The unused `src/Login.jsx` is deleted too | plan Phase 2.3; specs/2026-09-28-t3-retire-local-users.md |
 | Leaked-password protection is off (a dashboard setting) | coordination.md |
 | Email delivery: Resend domain, `mailer_autoconfirm` back off | foundation plan L549 |
 | Unique index on the normalised email; the `app_plan` enum versus the frontend's plan names | foundation spec L111–115, L531–532 |
