@@ -57,7 +57,7 @@ changes run `npm run test:sql`.
     menu's "Change persona" and asks one question.
   - *Accept:* the answer opens with RESEARCH QUESTION / EVIDENCE /
     CHRONOLOGY, and the `model_call_logs` row is `success`.
-- [ ] **A3. Record the day in the docs (S).**
+- [x] **A3. Record the day in the docs (S).** Done 2026-09-28 (`agents/coordination.md`, "Operations — 2026-09-28").
   - The research-chat deploy, the five test-account personas, the
     compute upgrade, and this plan's links.
 

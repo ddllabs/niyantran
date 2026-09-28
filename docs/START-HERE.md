@@ -10,9 +10,10 @@ The upstream merge described below **has landed**. Read this section first; the 
 2. Since the merge `main` gained Live TV, desk landing pages, the segment carousel, the nter.news rail and the NyAI thinking indicator (`5e54af2`, ADRs 0006–0009), then Vercel router fixes (`ca73200`, ADR 0010).
 3. A DDL Labs Vercel deployment exists at `niyantran-six.vercel.app` (ADR 0010). The nter.pro cutover (integration plan Phases 4–6) is not recorded as done.
 4. `docs/` is tracked in git since 2026-09-27 (`f828ef5`). `docs/security/` stays local only.
-5. **Known gap:** several `api/router.js` routes still write to SQLite or JSON files under `/tmp` on Vercel, which ADR 0005 forbids for durable data. The move to Supabase is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
+5. **Known gap (narrowed 2026-09-28):** preferences, analytics, flags, invoices and nter.news articles now live in Supabase. Only the SQLite `entry_briefs` cache tier in `server/deskBrief.mjs` remains (plan task C3, T7). The move is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
 6. The Supabase state as of 2026-09-28 (deployed function versions, migration history, row counts) is recorded in `agents/coordination.md` under "Supabase audit — 2026-09-28".
 7. The open work is indexed in `niyantran-conflict-audit-and-plan/04-open-backlog.md`.
+8. The remaining work as of 2026-09-28 is planned in `plans/2026-09-28-remaining-work.md`. The same day's production changes (function versions, migrations, CI) are in `agents/coordination.md` under "Operations — 2026-09-28". The serverless move is done except T7 (the SQLite desk-brief cache tier).
 
 ## The situation in five lines (2026-09-24, before the merge)
 

@@ -695,3 +695,33 @@ or changed.
   the marketing video, and there are no Storage buckets
   (`storage.buckets` is empty). Those stores live
   under `/tmp` on Vercel (see the deployment-architecture correction above).
+
+### Operations — 2026-09-28 (later the same day)
+
+Observed through the Supabase and Vercel tools at about 17:05 UTC unless
+marked otherwise. This supersedes the function table above.
+
+- **Compute:** the owner upgraded NTER to a 2 GB instance.
+- **Edge Functions:** `health` v7, `admin-models` v7, `refresh-model-pricing`
+  v8, `ingest-documents` v10, `desk-brief` v2 (now deployed) and
+  `research-chat` **v30**. v30 was deployed by hand through a one-line entry
+  that imports `supabase/functions/research-chat/index.ts` from GitHub at the
+  pinned commit `93684e7`. It predates the admin persona probe (`8a21133`),
+  so plan task A1 (a standard `supabase functions deploy research-chat
+  --no-verify-jwt` from `main`) is still owed.
+- **Edge Function secret:** `ALLOWED_ORIGINS` now includes the production
+  site and `http://localhost:5173` (set by the owner).
+- **Migrations:** 31 applied, the last four today: `signup_persona`,
+  `analytics_rate_limit`, `invoices`, `nter_news_articles`. Each version was
+  pinned to its repository file name after the tool stamped the apply time.
+- **Test personas:** five profiles that had no persona were given one each
+  for persona-injection testing, and a sixth account uses Academic. The
+  count is now one per persona and three profiles without one; those three
+  see the persona chooser once at their next sign-in (`c24d379`).
+- **Vercel:** production follows `main` (`niyantran-six.vercel.app`); every
+  other branch gets a preview URL. `NTER_TERMINAL_API_KEY` is still unset
+  there (plan C2).
+- **CI:** `.github/workflows/ci.yml` (advisory) runs on every push from
+  `a47680e`.
+- The work is tracked in `docs/plans/2026-09-28-remaining-work.md`, with the
+  review in `docs/specs/2026-09-28-authorization-review.md`.
