@@ -112,7 +112,7 @@ down.
   - The demo `POST /api/billing/invoice` is refused in production.
   - *Accept:* a SQL fixture covering own-row reads and the numbering, the
     route tests, and one guard offender removed.
-- [ ] **C2. T6, nter.news to Supabase (M).**
+- [x] **C2. T6, nter.news to Supabase (M).** Done 2026-09-28 (`7160391`, migration `20260928150000_nter_news_articles` applied live). Waiting on the owner: `NTER_TERMINAL_API_KEY` on Vercel, and nter.news pointed at production.
   - A small `nter_news_articles` table (upsert by article id, keep the
     latest 200) fed by `POST /api/news/ingest`.
   - `NTER_TERMINAL_API_KEY` is added to Vercel, and nter.news pushes to

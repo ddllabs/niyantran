@@ -1,9 +1,10 @@
 # Spec: T6, nter.news articles to Supabase
 
-> **Status: Living.** Task C2 of `docs/plans/2026-09-28-remaining-work.md`
-> (T6 of the serverless-state plan). The owner decided on 2026-09-28 to
-> build a small table now rather than choose between 503 and the lossy
-> `/tmp` copy (D4).
+> **Status: Historical (2026-09-28).** Landed in `7160391`; migration
+> `20260928150000_nter_news_articles` applied to NTER the same day. Task C2
+> of `docs/plans/2026-09-28-remaining-work.md`. The owner decided D4 on
+> 2026-09-28: build a small table rather than choose between 503 and the
+> lossy `/tmp` copy.
 
 ## Current state (read in the code on 2026-09-28)
 
