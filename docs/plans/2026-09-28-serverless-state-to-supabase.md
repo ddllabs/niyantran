@@ -7,8 +7,12 @@
 
 ## Global constraints
 
-- **Work sequentially,** one `task/<slug>` branch per task. Each task
-  depends on the guard from T0, so there is no concurrency.
+- **One `task/<slug>` branch per task,** named after the task (for example
+  `task/t0-durability-guard`). Concurrent tasks each get a
+  supervisor-created worktree. Commits carry the project identity and no
+  attribution lines. T0 lands first, because every later task edits its
+  list; after that, the "Execution strategy" section below decides what may
+  run in parallel.
 - **Nothing reaches production from a task.** Migrations are written and
   tested only against the disposable local databases of `npm run test:sql`.
   Applying them to `NTER`, deploying functions and changing Vercel
@@ -31,7 +35,10 @@ npm run test:sql                                                          # when
 
 ## Tasks
 
-### T0 — durability guard (no behaviour change)
+### T0 — durability guard (no behaviour change) — **implemented 2026-09-28 on `task/t0-durability-guard`, awaiting owner review**
+
+Task spec: `docs/specs/2026-09-28-t0-serverless-durability-guard.md`.
+
 
 - **Write scope:** a new `src/lib/serverlessDurability.test.js`.
 - **Check:** statically walk the imports reachable from `api/router.js`.
@@ -43,6 +50,41 @@ npm run test:sql                                                          # when
   so the suite stays green, and so a new offender still fails it.
 - **Done when:** removing an entry from `KNOWN_OFFENDERS` makes the test
   fail for that store (the vacuity evidence).
+- **Evidence (executed 2026-09-28 on `task/t0-durability-guard`, base `ca73200`):**
+  - Baseline before the change: `npm test` 644/644; the Deno suite 415
+    passed; `npm run build` passed with the known chunk-size warning; the
+    router imports.
+  - With `KNOWN_OFFENDERS` empty, the guard failed and named exactly 10
+    offences: S1–S7, plus `server/deskBrief.mjs` importing `server/db.mjs`
+    (the C1 `entry_briefs` tier) and `server/db.mjs` writing
+    `niyantran.sqlite`.
+  - With the list filled in, each vacuity probe failed for the expected
+    reason:
+    - V1, removing the S1 entry;
+    - V2, appending `writablePath('probe.json')` to `server/appFlags.mjs`;
+    - V3, adding a stale entry;
+    - V4, changing `desk-briefs` to `desk-briefs.json` in
+      `server/deskBrief.mjs`.
+    All probes were reverted.
+  - An independent review then found five bypasses: aliased imports,
+    indirect references, raw `/tmp` or `os.tmpdir()` paths, `..` escapes
+    from a cache key, and functions under `api/` other than the router.
+    It also found spurious failures from commented-out imports. Each got a
+    unit test that failed before the fix and passes after it. The review
+    also confirmed that the walk reaches exactly the 50 modules in
+    esbuild's bundle metafile for `api/router.js`.
+  - Extra probes, all reverted:
+    - V5, aliasing the import in `server/budgetStat1.mjs`;
+    - V6, adding `os.tmpdir()` to `server/homeApi.mjs`;
+    - V7, adding a probe file `api/probe.js`.
+    Each failed the suite.
+  - After the change: `npm test` 656/656 (41 files); the Deno suite 415
+    passed; `npm run build` passed (295 modules); the router imports.
+  - Side effect seen: `npm test` rewrites `public/data/news.json` and
+    `markets.json` (timestamps only), through
+    `src/lib/{apiVerification,segmentCarousel}.test.js` →
+    `server/homeApi.mjs`. The files were restored with `git checkout` after
+    each run. This is out of T0's scope; see backlog §0.
 
 ### T1 — S1 user preferences
 
@@ -139,6 +181,8 @@ npm run test:sql                                                          # when
 - **Write scope:**
   - `api/router.js`
   - `vercel.json` (drop `node_modules/sql.js/dist/**` from `includeFiles`)
+  - `server/deskBrief.mjs` (drop the SQLite `entry_briefs` tier; the file
+    and memory caches remain)
   - `server/db.mjs` (dev-only or removed)
   - the T0 test (`KNOWN_OFFENDERS` must be empty)
   - docs
@@ -146,6 +190,31 @@ npm run test:sql                                                          # when
   - the spec's acceptance evidence is complete;
   - the owner-run preview shows values surviving a redeploy;
   - this plan and the spec are marked Historical.
+
+## Execution strategy: sequential, then parallel waves
+
+- **T0 runs alone.** Every later task shrinks its list, so it has to land
+  first.
+- **Wave 1, parallel in separate worktrees:** T1 (preferences), T2
+  (analytics) and T4 (flags and media). Their server files, client modules,
+  migrations and fixtures are disjoint.
+  - The only shared file is the T0 test. Each task deletes only its own
+    `KNOWN_OFFENDERS` lines, so the supervisor resolves any merge by
+    keeping both deletions.
+  - Fixed interface: `authorizeLocalUser` in `server/usersApi.mjs` is
+    consumed unchanged by T1, T2 and T4.
+  - Owner gates: T2 needs D3 and T4 needs D2; T1 needs approval for its
+    user-data scope.
+- **Wave 2, sequential:** T3 (users) after wave 1. It modifies
+  `server/usersApi.mjs`, which defines the `authorizeLocalUser` that wave 1
+  consumes, and it touches `src/admin/`.
+- **Independent, when authorised:** T5 (invoices) needs explicit billing
+  authorization; T6 (nter.news) needs D4 and possibly the home-feeds schema.
+  Neither overlaps waves 1–2, so either can run beside them.
+- **Last:** T7.
+- **Integration:** every task lands on the integration branch after the
+  supervisor's review. `main` and `dev` are fast-forwarded together once a
+  wave is verified and the owner approves the merge.
 
 ## Owner actions between tasks
 
