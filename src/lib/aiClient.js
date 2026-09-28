@@ -108,10 +108,22 @@ export async function sendAiChat({
     body.personaPrompt = override != null ? String(override) : '';
   }
 
+  const headers = { 'Content-Type': 'application/json' };
+  let authToken = null;
+  try {
+    const ident = await verifiedLocalIdentity();
+    if (ident?.token) authToken = ident.token;
+  } catch {
+    // Unauthenticated or invalid session
+  }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
     signal,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => null);
