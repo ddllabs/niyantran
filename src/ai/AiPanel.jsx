@@ -1121,12 +1121,15 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ))}
 
-          {/* The turn in flight: the ticker, then thinking animation, then the answer as it is written. */}
+          {/* The turn in flight: the ticker, then the answer as it is written. */}
           {serverThreads && (research.live || research.submitting) && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
               <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} />
-              {!stream?.streamingText && (research.submitting || stream?.isPending || streaming || research.live) ? (
+              {/* One indicator at a time: the card covers the wait before the stream
+                  opens, and the ticker takes over once it does. Showing both stacked
+                  two "thinking" states in every turn. */}
+              {!streaming && !stream?.streamingText && (research.submitting || stream?.isPending || research.live) ? (
                 <NyAiThinking model={stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label} lang={lang} />
               ) : null}
               {stream?.streamingText ? (

@@ -6,12 +6,12 @@
   gap: 0.85rem;
   padding: 0.75rem 1rem;
   margin: 0.5rem 0;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.7) 0%, rgba(30, 41, 59, 0.45) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.3), 0 0 12px rgba(56, 189, 248, 0.08);
+  box-shadow: var(--shadow);
   font-family: inherit;
-  color: #e2e8f0;
+  color: var(--fg);
   user-select: none;
 }
 
@@ -22,26 +22,21 @@
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  background: rgba(1, 46, 161, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   flex-shrink: 0;
 }
 
 .nyai-thinking-icon-svg {
-  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.5));
-  animation: nyaiSpinGlow 6s linear infinite;
+  animation: nyaiPulse 1.8s ease-in-out infinite;
 }
 
-@keyframes nyaiSpinGlow {
-  0% {
-    transform: rotate(0deg) scale(1);
+@keyframes nyaiPulse {
+  0%, 100% {
+    opacity: 0.55;
   }
   50% {
-    transform: rotate(180deg) scale(1.06);
-  }
-  100% {
-    transform: rotate(360deg) scale(1);
+    opacity: 1;
   }
 }
 
@@ -63,12 +58,12 @@
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #f1f5f9;
+  color: var(--fg);
 }
 
 .nyai-thinking-subtext {
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 /* Dots bounce */
@@ -82,7 +77,7 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #38bdf8;
+  background: var(--accent);
   opacity: 0.4;
   animation: nyaiDotBounce 1.4s infinite ease-in-out both;
 }
@@ -119,7 +114,7 @@
   width: 14px;
   height: 3px;
   border-radius: 2px;
-  background: linear-gradient(90deg, #012ea1, #38bdf8);
+  background: var(--accent);
   opacity: 0.6;
   animation: nyaiWaveShimmer 1.5s infinite ease-in-out;
 }
@@ -148,7 +143,6 @@
   50% {
     opacity: 1;
     transform: scaleX(1.15);
-    background: linear-gradient(90deg, #38bdf8, #f43f5e);
   }
 }
 

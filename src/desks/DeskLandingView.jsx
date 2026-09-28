@@ -108,15 +108,15 @@ export default function DeskLandingView({ tab, label, buckets = [], onFeature, l
       const cat = getCategoryValue(r, config.chartCol);
       counts.set(cat, (counts.get(cat) || 0) + 1);
     }
-    const tones = ['navy', 'sand', 'purple', 'green', 'gold', 'red'];
+    // No tone: BarList's default gradient is the app's bar colour. The six
+    // named tones used here had no CSS, so every fill was invisible.
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 7)
-      .map(([cat, count], idx) => ({
+      .map(([cat, count]) => ({
         label: cat,
         value: count,
         display: count.toLocaleString(),
-        tone: tones[idx % tones.length],
       }));
   }, [data.rows, config.chartCol]);
 

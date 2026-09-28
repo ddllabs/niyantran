@@ -122,10 +122,12 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   }
 
   return (
-    <div className="mkt-auth-page" ref={root} onMouseMove={onMove}>
-      <div className="mkt-backdrop" aria-hidden="true">
-        <div className="grid" />
-        <div className="world">
+    <div className="mkt-login mkt-login-globe" ref={root} onMouseMove={onMove}>
+      <div className="mkt-login-art" aria-hidden="true">
+        <img className="mkt-login-bg" src="/brand/bg.png?v=1" alt="" />
+        <span className="mkt-pr-gridlines mkt-login-grid" />
+        <div className="mkt-login-orb">
+          <span className="mkt-halo" />
           <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" />
         </div>
         <span className="sh navy" />

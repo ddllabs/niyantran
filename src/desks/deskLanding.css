@@ -7,7 +7,7 @@
   padding: 1.5rem 2rem 3rem;
   max-width: 1440px;
   margin: 0 auto;
-  color: var(--fg, #e2e8f0);
+  color: var(--fg);
 }
 
 .desk-landing-hero {
@@ -15,8 +15,9 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 1.5rem;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.5) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
   border-radius: 10px;
 }
 
@@ -28,7 +29,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent, #38bdf8);
+  color: var(--accent);
 }
 
 .desk-landing-header-row {
@@ -42,7 +43,7 @@
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #f8fafc;
+  color: var(--fg);
   margin: 0;
 }
 
@@ -55,23 +56,23 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   border-radius: 6px;
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  color: #4ade80;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--live);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .desk-landing-tv-btn:hover {
-  background: rgba(34, 197, 94, 0.22);
-  border-color: #4ade80;
-  color: #86efac;
+  background: var(--low);
+  border-color: var(--live);
+  color: var(--live);
 }
 
 .desk-landing-hero p {
   font-size: 0.92rem;
   line-height: 1.5;
-  color: #94a3b8;
+  color: var(--muted);
   margin: 0;
   max-width: 820px;
 }
@@ -88,14 +89,15 @@
   flex-direction: column;
   gap: 0.35rem;
   padding: 1.1rem 1.25rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
   border-radius: 8px;
   transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
 .desk-counter-card:hover {
-  border-color: rgba(56, 189, 248, 0.3);
+  border-color: var(--accent);
   transform: translateY(-2px);
 }
 
@@ -104,20 +106,20 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .desk-counter-value {
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.03em;
-  color: #f1f5f9;
+  color: var(--fg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .desk-counter-sub {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Chart & Flagship Section */
@@ -125,8 +127,9 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 1.25rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 1.5rem;
 }
@@ -139,13 +142,13 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--line);
 }
 
 .desk-chart-title {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--fg);
   margin: 0;
   display: flex;
   align-items: center;
@@ -154,7 +157,7 @@
 
 .desk-chart-source {
   font-size: 0.76rem;
-  color: #64748b;
+  color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -175,13 +178,13 @@
   font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #f1f5f9;
+  color: var(--fg);
   margin: 0;
 }
 
 .desk-bucket-blurb {
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--muted);
   margin: -0.5rem 0 0.5rem;
 }
 
@@ -196,8 +199,9 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 1.25rem;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
   border-radius: 8px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
@@ -205,10 +209,10 @@
 }
 
 .desk-module-card:hover {
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--panel);
+  border-color: var(--accent);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 20px -8px rgba(19, 19, 19, 0.18);
 }
 
 .desk-mod-top {
@@ -230,15 +234,15 @@
   text-transform: uppercase;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
-  background: rgba(56, 189, 248, 0.12);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
 }
 
 .desk-mod-heading {
   font-size: 1rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--fg);
   margin: 0;
   line-height: 1.35;
 }
@@ -246,7 +250,7 @@
 .desk-mod-desc {
   font-size: 0.82rem;
   line-height: 1.5;
-  color: #94a3b8;
+  color: var(--muted);
   margin: 0.25rem 0 1rem;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -260,7 +264,7 @@
   gap: 0.4rem;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #38bdf8;
+  color: var(--accent);
   margin-top: auto;
   border: 0;
   background: transparent;
@@ -269,7 +273,7 @@
 }
 
 .desk-module-card:hover .desk-mod-action {
-  color: #7dd3fc;
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -279,7 +283,7 @@
 .desk-chart-error {
   padding: 2.5rem;
   text-align: center;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 0.88rem;
 }
 

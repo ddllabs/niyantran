@@ -86,7 +86,10 @@ it('a module chip says it is a module; a bill chip does not',()=>{
  expect(html).toMatch(/<li class="module">[\s\S]*?Bill Passage Probability Index[\s\S]*?ai-v2-file-cover module[^>]*>Module</);
  expect(html.match(/ai-v2-file-cover module/g)).toHaveLength(1);
 });
-it('renders NyAiThinking during live turn before streamingText arrives, and unmounts it once streamingText is present', () => {
+// A turn in flight showed the NyAI card under the activity ticker ("Thinking
+// through your question..."), two thinking indicators at once. The card now
+// covers only the wait before the stream opens; the ticker takes over after.
+it('a live research turn shows one thinking indicator at a time', () => {
  const ready = { ...fake.research, ready: true, loading: false, locked: false };
  fake.research = {
    ...ready,
@@ -96,6 +99,16 @@ it('renders NyAiThinking during live turn before streamingText arrives, and unmo
  const thinkingHtml = renderToStaticMarkup(<AiPanel lang="en" />);
  expect(thinkingHtml).toContain('nyai-thinking');
  expect(thinkingHtml).toContain('NyAI is thinking');
+ expect(thinkingHtml).not.toContain('ai-ticker');
+
+ fake.research = {
+   ...ready,
+   live: true,
+   stream: { isPending: false, isStreaming: true, streamingText: '' },
+ };
+ const openHtml = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(openHtml).toContain('ai-ticker');
+ expect(openHtml).not.toContain('nyai-thinking');
 
  fake.research = {
    ...ready,

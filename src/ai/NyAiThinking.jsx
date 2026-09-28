@@ -34,8 +34,7 @@ export default function NyAiThinking({ model, lang = 'en', subtext }) {
           <defs>
             <linearGradient id={gradId} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#012ea1" />
-              <stop offset="45%" stopColor="#38bdf8" />
-              <stop offset="85%" stopColor="#f43f5e" />
+              <stop offset="100%" stopColor="#4f1d90" />
             </linearGradient>
           </defs>
           {/* Faceted neural diamond mark */}
