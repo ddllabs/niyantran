@@ -1,7 +1,10 @@
 /**
  * Lightweight product analytics (A-19).
- * Posts to /api/analytics/event when the Vite server is up; queues in localStorage otherwise.
+ * Posts to /api/analytics/event; queues in localStorage while the endpoint is
+ * unreachable. The session's bearer lets the server record user_id; no email
+ * is sent or kept on the device.
  */
+import { supabase } from './supabaseClient.js';
 
 const QUEUE_KEY = 'niyAnalyticsQueue';
 const SESSION_KEY = 'niyAnalyticsSession';
@@ -19,11 +22,18 @@ function sessionId() {
   }
 }
 
+// Older builds queued the signed-in email with each event; drop it on read.
+function withoutEmail(evt) {
+  if (!evt || typeof evt !== 'object') return null;
+  const { userEmail: _email, ...rest } = evt;
+  return rest;
+}
+
 function readQueue() {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
     const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.map(withoutEmail).filter(Boolean) : [];
   } catch {
     return [];
   }
@@ -37,14 +47,31 @@ function writeQueue(list) {
   }
 }
 
+async function bearer() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+/** A 4xx other than 408/429 is the event's fault: retrying cannot succeed. */
+function rejected(status) {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+// Resolves 'sent' or 'rejected'; throws while the endpoint is unreachable.
 async function postOne(evt) {
   const res = await fetch('/api/analytics/event', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(evt),
+    headers: { 'Content-Type': 'application/json', ...(await bearer()) },
+    body: JSON.stringify(withoutEmail(evt)),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json().catch(() => ({ ok: true }));
+  if (res.ok) return 'sent';
+  if (rejected(res.status)) return 'rejected';
+  throw new Error(`HTTP ${res.status}`);
 }
 
 export async function flushAnalyticsQueue() {
@@ -70,14 +97,6 @@ export function trackProductEvent(name, props = {}) {
     name: String(name || '').slice(0, 120),
     props: props && typeof props === 'object' ? props : {},
     sessionId: sessionId(),
-    userEmail: (() => {
-      try {
-        const u = JSON.parse(sessionStorage.getItem('niyantranUser') || 'null');
-        return u?.email || '';
-      } catch {
-        return '';
-      }
-    })(),
     at: new Date().toISOString(),
   };
   if (!evt.name) return;

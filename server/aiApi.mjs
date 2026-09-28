@@ -284,7 +284,7 @@ export async function runAiChat(payload = {}, authHeader = null) {
   if (rawProvider === 'deepseek') {
     throw new Error('DeepSeek is no longer available. All AI requests are routed through OpenRouter.');
   }
-  assertAiAllowedInTesting({ provider: rawProvider || (model.includes('gemini') ? 'gemini' : 'openrouter'), model });
+  await assertAiAllowedInTesting({ provider: rawProvider || (model.includes('gemini') ? 'gemini' : 'openrouter'), model });
 
   return await proxyResearchChat(payload, authHeader);
 }

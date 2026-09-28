@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { serveHomeSegments, serveHomeMarkets, serveHomeLatest } from '../../server/homeApi.mjs';
 import { getLiveTvChannels, getLiveTvSchedule, getLiveTvArchive, getLiveTvTranscript } from '../../server/liveTvApi.mjs';
-import { readAppFlags, writeAppFlags } from '../../server/appFlags.mjs';
+import { assertAiAllowedInTesting, readAppFlags, writeAppFlags } from '../../server/appFlags.mjs';
 import { briefFromExtract } from '../../server/sourceExtract.mjs';
 import { runAiChat } from '../../server/aiApi.mjs';
 import {
@@ -86,13 +86,29 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
       expect(Array.isArray(res.rows)).toBe(true);
     });
 
-    it('verifies /api/app-flags contract and state persistence', () => {
-      const flags = readAppFlags();
-      expect(typeof flags).toBe('object');
-      expect(typeof flags.testingPhase).toBe('boolean');
+    // The testing-phase check used to read only this process's copy of the
+    // flag, which starts at the defaults on a cold instance. The durable row
+    // must decide; the local copy is only the fallback when storage is down.
+    it('the stored testing-phase flag decides, not the process-local copy', async () => {
+      const store = (row, error = null) => ({
+        adminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row, error }) }) }) }) }),
+      });
+      const paid = { provider: 'openrouter', model: 'openai/gpt-6-astra' };
 
-      const toggled = writeAppFlags({ testingPhase: true });
-      expect(toggled.testingPhase).toBe(true);
+      writeAppFlags({ testingPhase: false });
+      await expect(assertAiAllowedInTesting(paid, store({ key: 'testing_phase', value: true, updated_at: 'now' })))
+        .rejects.toThrow(/testing phase/);
+      await expect(assertAiAllowedInTesting({ provider: 'gemini', model: 'google/gemini-3.8-flash' },
+        store({ key: 'testing_phase', value: true, updated_at: 'now' }))).resolves.toBeUndefined();
+
+      writeAppFlags({ testingPhase: true });
+      await expect(assertAiAllowedInTesting(paid, store(null))).resolves.toBeUndefined();
+
+      // Storage unreachable: fall back to the last value this process read.
+      writeAppFlags({ testingPhase: true });
+      await expect(assertAiAllowedInTesting(paid, store(null, { message: 'down' }))).rejects.toThrow(/testing phase/);
+      expect(readAppFlags().testingPhase).toBe(true);
+      writeAppFlags({ testingPhase: false });
     });
   });
 

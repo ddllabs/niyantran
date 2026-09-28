@@ -300,7 +300,7 @@ export function SiteSettingsPage() {
             <h2>Homepage walkthrough video</h2>
             <p className="adm-hint" style={{ marginTop: 0 }}>
               This replaces the first-scroll Bill Passage preview on the public homepage. Upload an mp4/webm (up to
-              120&nbsp;MB) or paste a YouTube / Vimeo / direct video URL. Uploaded files win when both are set.
+              50&nbsp;MB) or paste a YouTube / Vimeo / direct video URL. Uploaded files win when both are set.
             </p>
             <div className="adm-form">
               <label className="adm-field span2" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

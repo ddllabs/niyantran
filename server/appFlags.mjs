@@ -28,9 +28,9 @@ export function defaultAppFlags() {
   };
 }
 
-// Last flags this process read from or wrote to Supabase. Only synchronous
-// callers use it (assertAiAllowedInTesting in the legacy AI path); it starts
-// at the defaults on a cold instance until a GET or PUT refreshes it.
+// Last flags this process read from or wrote to Supabase. It starts at the
+// defaults on a cold instance; assertAiAllowedInTesting uses it only when a
+// durable read fails.
 let snapshot = defaultAppFlags();
 
 /** Synchronous, process-local view of the flags. Not a durable read. */
@@ -95,8 +95,18 @@ export function isFreeAiProvider(provider, model = '') {
 }
 
 
-export function assertAiAllowedInTesting({ provider, model } = {}) {
-  const flags = readAppFlags();
+/**
+ * Reads the durable flag on every call: the process-local copy starts at the
+ * defaults on a cold instance, so it cannot decide alone. If storage is
+ * unreachable, the last value this process read is used.
+ */
+export async function assertAiAllowedInTesting({ provider, model } = {}, deps = {}) {
+  let flags;
+  try {
+    flags = await fetchAppFlags(deps);
+  } catch {
+    flags = readAppFlags();
+  }
   if (!flags.testingPhase) return;
   if (isFreeAiProvider(provider, model)) return;
   throw new Error('Paid AI models are disabled during the testing phase. Use a free Gemini model.');
