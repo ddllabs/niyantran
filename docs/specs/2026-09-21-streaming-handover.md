@@ -1,6 +1,7 @@
 # Streaming research handover amendments
 
-> **Status: Living — local implementation authorized by owner on 2026-09-21; production actions remain separate.**
+> **Status: Historical (2026-09-28).** Local implementation was authorized by the owner on 2026-09-21; production actions remained separate.
+> Superseded: `research-chat` is deployed (v32 on 2026-09-28) and D10 is done; the legacy feature-flag path and its endpoint were retired in `14b2344`, and the local chat store in `f05a5b6`.
 > Module: `streaming-research-agent`. Prepared 2026-09-21.
 
 ## Purpose and actual cutoff

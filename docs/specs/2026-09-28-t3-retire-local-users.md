@@ -1,8 +1,10 @@
 # Spec: T3, retire the local users store and seed accounts
 
-> **Status: Living.** Task spec for T3 of
-> `docs/plans/2026-09-28-serverless-state-to-supabase.md` (store S3). The
-> owner approved it on 2026-09-28. Mark it Historical when it lands.
+> **Status: Historical (2026-09-28).** Task spec for T3 of
+> `docs/plans/2026-09-28-serverless-state-to-supabase.md` (store S3), approved
+> by the owner on 2026-09-28. Landed the same day in `e2aad15` (merged in
+> `5a2ded0`). T5, "not approved" below, was approved later that day and landed
+> in `19d25e6`.
 
 ## Current state (read from the code at `47977dc`)
 

@@ -3,7 +3,9 @@
 > **Status: Living.** Task spec for T0 of
 > `docs/plans/2026-09-28-serverless-state-to-supabase.md`. The owner
 > authorised the start on 2026-09-28. Mark it Historical when T7 closes the
-> plan.
+> plan. (State on 2026-09-28: the guard landed in `d55da42`; two offenders
+> remain, both for T7: `server/deskBrief.mjs` importing `server/db.mjs`, and
+> `server/db.mjs` writing `writablePath('niyantran.sqlite')`.)
 
 ## Objective
 
@@ -41,7 +43,10 @@ T0 changes no runtime behaviour.
    `require('xlsx')` in `server/sourceExtract.mjs`) are bare package
    specifiers, not app code.
 2. **The cache allow-list** is `desk-briefs` and `stat1.xlsx`. The spec
-   classifies both as caches (C1 and C2). The SQLite `entry_briefs` cache is
+   classifies both as caches (C1 and C2). (Corrected 2026-09-28: `CACHE_KEYS`
+   in the test is now `desk-briefs`, `stat1.xlsx`, `stat1.json` and
+   `home-snapshots`; `862c995` moved the home snapshot and STAT-1 JSON caches
+   under `writablePath()`.) The SQLite `entry_briefs` cache is
    reached through `server/db.mjs`, so it is listed as an offender until T7
    removes that tier.
 3. **It lives in one file,** `src/lib/serverlessDurability.test.js`, inside
@@ -51,7 +56,10 @@ T0 changes no runtime behaviour.
    directory are out of scope. Examples are the marketing video file and the
    STAT-1 JSON under `public/data/`. On Vercel those fail loudly with a
    read-only filesystem error rather than losing data quietly; they are
-   reported separately.
+   reported separately. (Corrected 2026-09-28: none remain. The intro video
+   moved to Supabase Storage in T4 (`c4b72e9`), and the STAT-1 and home
+   snapshot caches moved under `writablePath()` in `862c995`; the committed
+   `public/data/` files are now read-only seeds.)
 
 ## Known limits (from the 2026-09-28 independent review)
 
@@ -64,8 +72,9 @@ T0 changes no runtime behaviour.
   import-shaped string can still produce a spurious unresolved-import
   failure. Failures of this kind are loud, never silent.
 - **Writes to the app directory are not modelled** (assumption 4). This
-  covers `server/homeApi.mjs` writing `public/data/*.json`, as well as the
-  marketing video and STAT-1 writers.
+  covered `server/homeApi.mjs` writing `public/data/*.json`, as well as the
+  marketing video and STAT-1 writers; all three were fixed by T4 and
+  `862c995` (corrected 2026-09-28).
 
 ## Commands
 

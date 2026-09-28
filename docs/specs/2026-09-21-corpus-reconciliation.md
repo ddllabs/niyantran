@@ -142,6 +142,10 @@ span fields; a deterministic sample of 300 BMP-text chunks exactly matched the
 stored source text. Full semantic relevance and signed-in citation navigation
 remain launch acceptance gates. Live match_documents still lacks the locally
 verified indexed_at guard; migrations 0012–0015 are not yet deployed.
+(Corrected 2026-09-28: all four are applied to NTER, which now has all 31
+repository migrations. The live `match_documents` is the
+`20260922104646_match_documents_prefilter_and_quota` version, which keeps the
+`indexed_at is not null` guard.)
 
 Backfill assessment: 716 file URLs are missing and may only be populated from
 unambiguous source evidence. All page_count columns are null despite populated

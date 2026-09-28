@@ -76,8 +76,8 @@ This specification records the implementation of three core capability extension
   - Full `@media (prefers-reduced-motion: reduce)` support: disables rotation, wave shimmering, and dot bounces in favor of a clean static presentation.
 
 ### 3.2 Lifecycle & State Transitions
-- **Trigger:** Mounts inside `AiPanel.jsx` when `research.submitting || stream?.isPending || streaming` while `!stream?.streamingText`. Also renders in local chat during `busy`.
-- **Handoff:** The instant token chunks arrive and `stream.streamingText` is populated, `NyAiThinking` unmounts seamlessly and `<AiMarkdown text={stream.streamingText} streaming={true} />` takes over the visual field.
+- **Trigger:** Mounts inside `AiPanel.jsx` when `!streaming && !stream?.streamingText && (research.submitting || stream?.isPending || research.live)`, where `streaming` is `stream?.isStreaming`. It covers the wait before the stream opens; once it opens, the `ActivityTicker` takes over, so only one thinking indicator shows at a time. (Corrected 2026-09-28: the earlier condition also mounted it while streaming, and the local-chat `busy` case went with the legacy chat path in `14b2344`.)
+- **Handoff:** Once the stream opens `NyAiThinking` unmounts and the `ActivityTicker` shows progress; when token chunks arrive and `stream.streamingText` is populated, `<AiMarkdown text={stream.streamingText} streaming={streaming} />` takes over the visual field.
 - **Cleanup:** On completion, error (`stream.error`), abort (`research.cancelRequested`), or view teardown, `NyAiThinking` unmounts immediately. No orphaned thinking indicators remain.
 
 ---
@@ -121,10 +121,10 @@ This specification records the implementation of three core capability extension
 ## 5. Verification & Tests
 
 ### 5.1 Automated Suites
-- `src/lib/nterNewsRail.test.js`: Verifies data retrieval, contract validation, and `NterLatestRail` rendering.
-- `src/lib/nyAiThinking.test.js`: Verifies `NyAiThinking` accessibility, localization, model subtext, and DOM indicators.
-- `src/ai/AiPanel.test.jsx`: Verifies thinking animation during live inflight turn and smooth transition to streaming text.
-- `src/lib/deskLanding.test.js`: Verifies live counter computations, module capability cards, and real chart generation.
+- `src/lib/nterNewsRail.test.jsx`: Verifies data retrieval, contract validation, and `NterLatestRail` rendering.
+- `src/lib/nyAiThinking.test.jsx`: Verifies `NyAiThinking` accessibility, localization, model subtext, and DOM indicators.
+- `src/ai/AiPanel.test.jsx`: Verifies one thinking indicator at a time during a live in-flight turn, and that no thinking state is left after an error or completion.
+- `src/lib/deskLanding.test.jsx`: Verifies live counter computations, module capability cards, and real chart generation.
 
 ### 5.2 Build & Engine Gates
 - Production bundle verification via `npm run build` (PASSED: built in 7.72s, zero errors).
@@ -141,5 +141,5 @@ This specification records the implementation of three core capability extension
 2. **NTER Ingest Webhooks:**
    - Webhook ingest requires valid `NTER_TERMINAL_API_KEY` configuration on deployment hosts; local/test runs reliably consume seeded registers.
 3. **OpenRouter AI Key:**
-   - Real LLM streaming requires `OPENROUTER_API_KEY` in server environment (`.env`). When missing, server cleanly responds with HTTP 400 (`OPENROUTER_API_KEY missing on the server`), and `AiPanel` cleanly renders the error state without faking data or displaying orphaned thinking states.
+   - (Corrected 2026-09-28.) `OPENROUTER_API_KEY` is a Supabase secret read only by the Edge Functions (ADR 0008, `docs/decisions/0008-supabase-secret-openrouter-gateway.md`); nothing under `server/` or `api/` reads it and no `.env` entry is needed. The panel talks to `research-chat` directly. When a turn fails, `AiPanel` renders the error state without faking data or leaving an orphaned thinking state (`src/ai/AiPanel.test.jsx`).
 

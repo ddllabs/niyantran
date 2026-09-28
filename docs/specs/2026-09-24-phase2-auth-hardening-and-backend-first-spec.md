@@ -1,7 +1,13 @@
 # Phase 2: Backend & Authentication Hardening Specification
 
-> **Status: Normative.** Specifications governing authentication hardening, router endpoint
-> resolution, durable write boundaries, and dev-branch preparation for Niyantran Terminal.
+> **Status: Historical (2026-09-28).** Changed from Normative: the work it specified was
+> executed. It governed authentication hardening, router endpoint resolution, durable write
+> boundaries, and dev-branch preparation for Niyantran Terminal. The text below is not rewritten.
+> Superseded in part: production stopped serving `/api/auth/*` by owner decision (`93f31e6`;
+> `server/authApi.mjs` is mounted by the Vite dev server only); the local SQLite admin test
+> users were retired in T3 (`e2aad15`); `app-flags.json` and the testing-phase flag were retired
+> (`9e7a125`); the `dev` branch is retired; the tables are `public.user_profiles` and
+> `public.ai_models`, not `profiles` and `models`.
 
 ## 1. Context & Objectives
 

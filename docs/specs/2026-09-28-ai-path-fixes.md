@@ -1,8 +1,11 @@
 # Spec: AI path fixes (desk briefs, legacy chat models, backend flag)
 
-> **Status: Living.** The owner approved this on 2026-09-28. It landed the
-> same day (see Rollout); mark it Historical once the owner's browser checks
-> pass.
+> **Status: Historical (2026-09-28).** Approved and landed on 2026-09-28
+> (`a311cda`, `3602559`, `6391fd7`, merged in `bcea55d`); a production desk
+> brief and research-chat turn were confirmed at 11:33 UTC (`c23efe1`).
+> Superseded later that day: the legacy chat path it patched (`proxyResearchChat`,
+> `aiModelsStore.js`, `VITE_AI_BACKEND`, the persona probe's model picker) was
+> retired in `14b2344`, `/api/app-flags` in `9e7a125`, and `desk-brief` is now v2.
 
 ## Current state (evidence from 2026-09-28)
 

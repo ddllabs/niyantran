@@ -12,7 +12,7 @@
 
 ### 1.1 CR-08: Live TV Activation (Priority: P1)
 - Turn the existing Live TV placeholder into a fully functioning intelligence feature with:
-  1. **Live player**: Streams active broadcasts from canonical broadcasters (DD News, Sansad TV, NDTV, CNBC-TV18, WION); clear live state, loading state, unavailable/offline state, playback error handling, basic controls (mute, reload, desk link); non-fabricated viewer metrics.
+  1. **Live player**: Streams active broadcasts from canonical broadcasters (DD News, Sansad TV, NDTV, CNBC-TV18, WION) (corrected 2026-09-28: the catalogue is now the 13 curated sources in `YOUTUBE_SOURCES`, `server/liveTvApi.mjs`, per ADR 0009, `docs/decisions/0009-live-tv-youtube-source-and-api-integration.md`); clear live state, loading state, unavailable/offline state, playback error handling, basic controls (mute, reload, desk link); non-fabricated viewer metrics.
   2. **Schedule**: Structured broadcast schedule with current on-air segment, upcoming programs, start/end time, duration, and direct navigation to mapped analytical desks.
   3. **Archive**: Completed past broadcasts with real dates, durations, summaries, and topic tags.
   4. **Transcript**: Authoritative bilingual / English ASR transcript cues with timestamps and speaker identifiers; explicit `available: false` when unavailable (strictly no fabricated transcripts).
@@ -90,15 +90,16 @@
 ## 5. Testing & Verification
 
 1. **Targeted Vitest Suites:**
-   - `src/lib/liveTv.test.js`: 5 tests verifying channels, schedule, archive, transcript, and unavailable state handling.
+   - `src/lib/liveTv.test.js`: 12 tests verifying channels, schedule, archive, transcript, unavailable state handling, the client helpers, `LiveTvModal` rendering, and the curated YouTube sources and embed URLs.
    - `src/lib/segmentCarousel.test.js`: 3 tests verifying one-slide-per-segment parity, authoritative live counts, and session storage navigation gate.
-   - `src/lib/apiVerification.test.js`: 11 tests verifying endpoint contracts, PDF/document resolution, citation guards, grounded briefs, and ontology sector mappings.
-   - Result: **19 / 19 passed** in 0.93s.
+   - `src/lib/apiVerification.test.js`: 10 tests verifying endpoint contracts, PDF/document resolution, citation guards, grounded briefs, and ontology sector mappings.
+   - Result: **25 / 25 passed** (`npx vitest run src/lib/liveTv.test.js src/lib/apiVerification.test.js src/lib/segmentCarousel.test.js`, 2026-09-28).
+   - (Corrected 2026-09-28: the 2026-09-27 record was 5, 3 and 11 tests, 19 passed. `liveTv.test.js` grew with the YouTube source work of ADR 0009. The CR-06.6 group, two tests that `runAiChat` in `server/aiApi.mjs` rejected a missing or blank bearer, was deleted with the chat proxy in `14b2344`; `/api/ai/chat` is no longer routed, which `src/lib/retiredRoutes.test.js` covers.)
 2. **Full Repository Test Suite:**
    - Ran `npx vitest run --pool=forks --poolOptions.forks.singleFork=true`.
-   - Result: **37 test files passed (37 / 37)**, **624 tests passed (624 / 624)** with 0 failures in 26.93s.
+   - Result: **37 test files passed (37 / 37)**, **624 tests passed (624 / 624)** with 0 failures in 26.93s. (A 2026-09-27 figure; the suite has grown since and is run with `npm test`.)
 3. **Production Build:**
-   - Configured `build.sourcemap: false` in `vite.config.js` to eliminate Windows virtual allocation memory bottlenecks.
+   - Configured `build.sourcemap: false` in `vite.config.js` to eliminate Windows virtual allocation memory bottlenecks. (Corrected 2026-09-28: no `sourcemap` setting exists in `vite.config.js` or its history; Vite's default is already no source maps in production builds.)
    - Executed `npm run build`: **288 modules transformed**, built cleanly in 7.19s with exit code 0.
 4. **Router Import Verification:**
    - `node -e "import('./api/router.js').then(()=>console.log('ok'))"` returned `ok`.

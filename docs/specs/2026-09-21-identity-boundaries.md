@@ -115,11 +115,20 @@ cannot override a trusted profile plan, and missing or mismatched profiles
 cannot appear active. Logging out invalidates the Supabase session regardless
 of the AI transport feature flag. Preference hydration cannot upload an
 unowned prior account's cached chats into a new account with empty preferences.
+(Corrected 2026-09-28: the AI transport flag, `VITE_AI_BACKEND`, was removed in
+`14b2344`, so logout has no flag to depend on; chats are no longer preferences
+(`f05a5b6`), and the hydration rule now covers the watchlist and tours.)
 
 ### Preservation-safe local preference isolation
 
 The original global preference keys may contain the only copy of unsynced
 legacy chats. They must not be cleared or overwritten to enforce identity.
+(Corrected 2026-09-28: by owner decision the legacy chat keys are now removed.
+Research conversations live in `public.conversations`, the localStorage chat
+store was deleted in `f05a5b6`, and `purgeLegacyAiChats()` in
+`src/lib/userPrefsSync.js` deletes `niyantranAiChats`, `niyantranAiChats:user:<id>`
+and their revision keys at startup, since they can hold private chat text on a
+shared machine. The rest of this section applies to the watchlist and tours.)
 Unbound stores return empty/default ephemeral views; after verified identity
 they read and write only that user's separate keys. The sync module owns the
 binding and invalidates it on logout, account change and expiry. Stores must
@@ -130,10 +139,13 @@ destroy an already-owned local copy.
 
 Server-side preference ownership also uses the stable verified Auth user ID.
 A verified email can change or be reused by a different account, so it cannot
-be the durable authority key. New local rows use a namespaced user ID in the
-existing storage key column. Existing email-keyed rows are retained unchanged
-for explicit future reconciliation; they cannot be silently assigned to a
-new account. API responses still return the current verified email.
+be the durable authority key. API responses still return the current verified
+email. (Corrected 2026-09-28: preferences are stored in
+`public.user_preferences`, one row per `user_id`, with `user_id = auth.uid()`
+policies (T1, `631be0f`); `/api/user-prefs` writes as the caller. The browser
+keeps a per-user localStorage working copy (`<key>:user:<id>`) that syncs to
+that row. The earlier SQLite rows, namespaced or email-keyed, were not
+migrated.)
 
 ### Deliberate sign-in after local logout
 

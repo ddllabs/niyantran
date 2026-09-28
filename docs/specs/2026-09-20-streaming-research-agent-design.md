@@ -2,8 +2,13 @@
 
 **Date:** 2026-09-20
 **Module id:** `streaming-research-agent`
-> **Status:** Normative — an open design, binding on its implementation plan.
-> Becomes Historical (dated) when the plan is executed and verified.
+> **Status: Historical (2026-09-28).** Changed from Normative: built, and live
+> as the `research-chat` Edge Function (v32 on 2026-09-28). The design below is
+> not rewritten.
+> Superseded in part: the legacy branch it kept (`VITE_AI_BACKEND`,
+> `aiChatStore.js`, `sendAiChat`) was retired in `14b2344` and `f05a5b6`; desk
+> briefs now use the `desk-brief` Edge Function (`a311cda`); the admin persona
+> probe now calls `research-chat` with `persona_probe` (`src/lib/personaProbe.js`).
 
 **Origin:** Ask AI is one fetch that waits for one JSON reply
 (`docs/research/2026-09-20-ai-path-audit.md` §1). The owner wants what the
