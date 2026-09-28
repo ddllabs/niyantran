@@ -2,6 +2,8 @@
 
 > **Status: Historical (dated 2026-09-24 → 2026-09-28).** A running log of the integration and the feature work that followed it. It is not maintained; where it disagrees with the code, the code wins. Current state: `docs/START-HERE.md`.
 >
+> **Superseded later on 2026-09-28:** corrections 4–6 below are themselves out of date. Only the desk-brief cache tier still uses SQLite (users, analytics, preferences, invoices and news moved to Supabase in T1–T6); the legacy AI path, `runAiChat`, `proxyResearchChat` and `VITE_AI_BACKEND` were retired (`14b2344`); the `nter/.env` fallback was removed (`3851bc6`); and production no longer serves `/api/auth/*` (`93f31e6`). See `docs/plans/2026-09-28-remaining-work.md`.
+>
 > **Corrections recorded 2026-09-28 (checked against the repository at `ca73200` and the live Supabase project):**
 >
 > 1. **The branch lines are obsolete.** The "local working tree, uncommitted" notes on `integration/reconcile-backend-frontend` below were true when written. The work was committed (`a21a3e8`), merged to `dev`, and reached `main` through PR #2 (`8849c35`). `main` and `dev` now both point at `ca73200`. §12's "Recommended Next Step" has been done.
