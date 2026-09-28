@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PERSONAS, applyPersonaForUser } from '../lib/personas.js';
 import {
+  PENDING_PERSONA_KEY,
   setSessionUser,
   userTypeOf,
 } from '../lib/userStore.js';
@@ -411,7 +412,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
                   disabled={pending}
                   onClick={() => {
                     if (personaId) {
-                      sessionStorage.setItem('preferredPersona', personaId);
+                      sessionStorage.setItem(PENDING_PERSONA_KEY, personaId);
                     }
                   }}
                   onError={(err) => setError(err.message || 'Google Sign-In failed.')}

@@ -4,6 +4,8 @@ import { supabase } from './supabaseClient.js';
 
 const EVENT = 'niy-users';
 const SESSION_KEY = 'niyantranUser';
+// Written by SignupPage before the Google redirect; read once on the return.
+export const PENDING_PERSONA_KEY = 'preferredPersona';
 
 export { USER_TYPES, userTypeOf, desksForType, tabsForType, canOpenDesk, DEFAULT_USER_TYPE } from './userTypes.js';
 
@@ -143,7 +145,8 @@ export async function publishVerifiedSessionUser() {
     const profile = await supabase.from('user_profiles').select('*').eq('user_id', identity.id).maybeSingle();
     if (profile.error || profile.data?.user_id !== identity.id || profile.data.status !== 'active') return null;
     if (!await localIdentityIsCurrent(identity)) return null;
-    return setSessionUser(userFromSupabase({ id: identity.id, email: identity.email }, profile.data));
+    const row = await withPendingPersona(profile.data);
+    return setSessionUser(userFromSupabase({ id: identity.id, email: identity.email }, row));
   } catch {
     return null;
   }
@@ -326,6 +329,24 @@ export function userFromSupabase(supabaseUser, profile, extras = {}) {
  * @param {string} personaId a USER_TYPES id
  * @returns {Promise<boolean>} whether the profile now carries it
  */
+/**
+ * A Google sign-up cannot carry user metadata, so SignupPage keeps the pick in
+ * sessionStorage ('preferredPersona') across the redirect. Save it to a
+ * profile that has no persona yet; a persona the profile already has wins.
+ * The key is spent either way, so an old pick never lands on a later account.
+ */
+async function withPendingPersona(profile) {
+  let pick = null;
+  try {
+    pick = sessionStorage.getItem(PENDING_PERSONA_KEY);
+    sessionStorage.removeItem(PENDING_PERSONA_KEY);
+  } catch {
+    return profile;
+  }
+  if (!pick || profile.persona || !dbPersona(pick)) return profile;
+  return await persistPersona(pick) ? { ...profile, persona: dbPersona(pick) } : profile;
+}
+
 export async function persistPersona(personaId) {
   const persona = dbPersona(personaId);
   if (!persona) return false;

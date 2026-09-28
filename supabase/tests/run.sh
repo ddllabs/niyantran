@@ -57,7 +57,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|analytics_events|app_flags_and_marketing_media)
+    least_privilege|research_turn_persistence|user_preferences|analytics_events|app_flags_and_marketing_media|signup_persona)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -77,6 +77,7 @@ chain() {
         analytics_events) FILES+=("$(m 20260928100100_analytics_events.sql)") ;;
         app_flags_and_marketing_media)
           FILES+=("$TESTS/bootstrap_storage.sql" "$(m 20260928100200_app_flags_and_marketing_media.sql)") ;;
+        signup_persona) FILES+=("$(m 20260928120000_signup_persona.sql)") ;;
       esac
       return 0 ;;
     *) echo "unknown fixture: $1" >&2; return 1 ;;

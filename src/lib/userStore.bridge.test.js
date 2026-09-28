@@ -559,4 +559,43 @@ describe('session user after an OAuth return', () => {
     expect(await store.publishVerifiedSessionUser()).toBeNull();
     expect(store.sessionUser()).toBeNull();
   });
+
+  // Google sign-up cannot carry metadata, so SignupPage keeps the pick in
+  // sessionStorage across the redirect. Nothing read it, so every Google
+  // account answered with the analyst fallback.
+  function profileAndUpdate(row) {
+    const updates = [];
+    const maybeSingle = vi.fn(async () => ({ data: row, error: null }));
+    auth.client.from = vi.fn(() => ({
+      select: () => ({ eq: () => ({ maybeSingle }) }),
+      update: (patch) => ({ eq: async (column, value) => { updates.push({ patch, column, value }); return { error: null }; } }),
+    }));
+    return updates;
+  }
+
+  it('saves the persona picked before a Google sign-up to a profile that has none', async () => {
+    sessionStorage.setItem('preferredPersona', 'student');
+    const updates = profileAndUpdate({ user_id: 'a', email: 'a@example.test', persona: null, status: 'active' });
+    const user = await store.publishVerifiedSessionUser();
+    expect(updates).toEqual([{ patch: { persona: 'upsc_aspirant' }, column: 'user_id', value: 'a' }]);
+    expect(user).toMatchObject({ id: 'a', type: 'student' });
+    expect(sessionStorage.getItem('preferredPersona')).toBeNull();
+  });
+
+  it('keeps a persona the profile already has', async () => {
+    sessionStorage.setItem('preferredPersona', 'student');
+    const updates = profileAndUpdate({ user_id: 'a', email: 'a@example.test', persona: 'journalist', status: 'active' });
+    const user = await store.publishVerifiedSessionUser();
+    expect(updates).toEqual([]);
+    expect(user).toMatchObject({ type: 'journalist' });
+    expect(sessionStorage.getItem('preferredPersona')).toBeNull();
+  });
+
+  it('ignores a pick that is not a persona id', async () => {
+    sessionStorage.setItem('preferredPersona', 'upsc_aspirant');
+    const updates = profileAndUpdate({ user_id: 'a', email: 'a@example.test', persona: null, status: 'active' });
+    await store.publishVerifiedSessionUser();
+    expect(updates).toEqual([]);
+    expect(sessionStorage.getItem('preferredPersona')).toBeNull();
+  });
 });

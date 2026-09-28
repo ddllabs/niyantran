@@ -104,8 +104,8 @@ any restart, or after a bulk load, run:
     analyze public.document_chunks; analyze public.desk_rows; analyze public.documents;
 
 Check `n_live_tup` against the real counts rather than assuming autovacuum has
-caught up. `npm run test:sql` runs the six
-fixtures in `supabase/tests/` against the two local Docker Postgres containers,
+caught up. `npm run test:sql` runs every
+fixture in `supabase/tests/` against the two local Docker Postgres containers,
 creating each database from scratch. It also proves each fixture non-vacuous by
 rebuilding without the migration that fixture exists to test and requiring it to
 fail; a fixture that still passes is reported as VACUITY FAIL. The repository has no declared lint,
