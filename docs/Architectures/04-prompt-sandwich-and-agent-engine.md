@@ -18,7 +18,7 @@ sequenceDiagram
     participant Edge as research-chat (Deno Edge Function)
     participant DB as Supabase PostgreSQL
     participant LLM as Primary LLM (OpenRouter)
-    participant Repair as Repair LLM (Gemini 3.5 Flash Lite)
+    participant Repair as Repair LLM (AI_REPAIR_MODEL)
 
     Client->>Edge: POST /research-chat (SSE, turn_key, message, attachments, focus)
     Edge->>DB: RPC lookup_research_turn(turn_key)
@@ -522,14 +522,14 @@ Because the model produces a raw JSON envelope, a standard JSON parser would for
 
 ## 7. Citation Auto-Repair Pass (`repair.ts`)
 
-Smaller or faster models occasionally omit the formal `[n]` bracket markers in their markdown output despite accurate factual synthesis. When the citation ladder detects that an answer $\ge 200$ characters cited zero resolvable sources despite evidence having been retrieved (`repairWorthwhile()`), the Edge Function invokes a specialized **Citation Repair Pass**:
+Smaller or faster models occasionally omit the formal `[n]` bracket markers in their markdown output despite accurate factual synthesis. When the citation ladder detects that an answer $\ge 200$ characters cited zero resolvable sources despite evidence having been retrieved (`repairWorthwhile()`), the Edge Function invokes a specialized **Citation Repair Pass**. The repair model is the `AI_REPAIR_MODEL` function secret (`research-chat/index.ts`); it has no default, and when it is unset the pass is skipped *(corrected 2026-09-28: this section previously named `google/gemini-3.5-flash-lite` as the repair model)*:
 
 ```mermaid
 flowchart TD
     RawAnswer["Phase 2 Answer Synthesized"] --> CheckWorth{Answer >= 200 chars &<br/>evidence was retrieved &<br/>ladder cited nothing?}
     
     CheckWorth -->|No| StreamOutput["Accept Answer as Final"]
-    CheckWorth -->|Yes| InvokeRepair["Invoke Repair Model<br/>(google/gemini-3.5-flash-lite)"]
+    CheckWorth -->|Yes| InvokeRepair["Invoke Repair Model<br/>(AI_REPAIR_MODEL)"]
     
     InvokeRepair --> ParseCandidate["Receive Candidate Text with [n]"]
     ParseCandidate --> ValidateOnlyInsertions{"onlyCitationInsertions()<br/>Did the repair model modify,<br/>delete, or add ANY character<br/>other than valid [n] markers?"}

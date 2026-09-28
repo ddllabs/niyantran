@@ -1,7 +1,8 @@
 # Supabase Edge Functions & Shared Runtime Subsystem
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified implementation in `supabase/functions/` (`research-chat/`, `ingest-documents/`, `refresh-model-pricing/`, `admin-models/`, `health/`), `_shared/` library, `deno.json`, and database migrations `20260921115831` through `20260922104646`.
+> Reflects the verified implementation in `supabase/functions/` (`research-chat/`, `ingest-documents/`, `refresh-model-pricing/`, `admin-models/`, `health/`, `desk-brief/`), `_shared/` library, `deno.json`, and database migrations `20260921115831` through `20260922104646`.
+> Corrected 2026-09-28: six functions (the `desk-brief` row and §9 added), deployed versions, the repair model (read from `AI_REPAIR_MODEL`), and the test counts.
 
 ---
 
@@ -16,6 +17,9 @@ The server-side backend of Niyantran Terminal runs as a distributed suite of ser
 | **`refresh-model-pricing`** | `refresh-model-pricing/index.ts` | `pg_cron` via `pg_net` (HTTP POST) | `x-refresh-secret` or Secret Key | Ingests OpenRouter catalog, updates token pricing, normalizes reasoning efforts, syncs allowlist. | `MIN_CATALOGUE_ROWS = 100`<br/>Atomic `model_pricing_reconcile`<br/>Auto-disables orphaned models |
 | **`admin-models`** | `admin-models/index.ts` | Admin Panel (HTTP GET / PUT) | `requireUser` + `is_platform_admin` | Manages active LLM allowlist (`ai_models`) and user role mappings (`ai_roles`). | Restricts columns via `pickRow`<br/>Calls `admin_models_upsert`<br/>`invalidateRegistry()` |
 | **`health`** | `health/index.ts` | Deployment Gate / Ping (HTTP GET) | `requireUser` (Supabase User JWT) | End-to-end verification probe checking DB reachability, RLS identity, and vector extension. | Asserts `auth.uid() === token.userId`<br/>Reports `pricing_rows` & `models_enabled` |
+| **`desk-brief`** | `desk-brief/index.ts` | Browser desk rail, or the Vercel router forwarding the caller's bearer (HTTP POST) | `requireUser` (Supabase User JWT) | Organises one selected desk row into a JSON brief through OpenRouter; one `model_call_logs` row per attempt. | `MAX_BODY_BYTES = 131_072`<br/>`PROVIDER_TIMEOUT_MS = 50_000`<br/>503 when no model is enabled |
+
+**Deployed versions on 2026-09-28** (`docs/agents/coordination.md`, "Operations — 2026-09-28"): `health` v7, `admin-models` v7, `refresh-model-pricing` v8, `ingest-documents` v10, `desk-brief` v2 and `research-chat` v32. `research-chat` v32 was deployed through a one-file entry that imports `createResearchHandler` from a pinned commit and calls `Deno.serve` itself, so the dashboard does not show the repository files. The emergency deploy form, its checks and the rollback steps are in [`../agents/rollback-runbook.md`](../agents/rollback-runbook.md). There is no `embed` function: embedding is the shared module `_shared/embed.ts`.
 
 ---
 
@@ -157,8 +161,8 @@ flowchart TD
     end
     
     subgraph RepairPhase["Phase 3: Citation Auto-Repair"]
-        EmitChunks --> LadderCheck{"ladderFired == false && answer >= 200 chars?"}
-        LadderCheck -->|Yes| InvokeGemini["Invoke google/gemini-3.5-flash-lite"]
+        EmitChunks --> LadderCheck{"Ladder fired (nothing cited), answer >= 200 chars,<br/>evidence retrieved, AI_REPAIR_MODEL set?"}
+        LadderCheck -->|Yes| InvokeGemini["Invoke the AI_REPAIR_MODEL model"]
         InvokeGemini --> AssertProse["onlyCitationInsertions(): Zero text change?"]
         AssertProse -->|Passed| ApplyRepair["Accept repaired citation markers"]
         AssertProse -->|Failed| DropRepair["Reject: Retain unedited prose"]
@@ -404,7 +408,20 @@ export async function handleHealth(req: Request, deps: HealthDeps): Promise<Resp
 
 ---
 
-## 9. The Shared Library Subsystem (`supabase/functions/_shared/`)
+## 9. Deep-Dive: `desk-brief` Edge Function
+
+`desk-brief` organises **one** selected desk row (not the whole desk) into a short brief: headline, summary, findings and KPIs. `desk-brief/index.ts` only wires dependencies; `desk-brief/handler.ts` is framework-free and tested by `desk-brief/handler_test.ts`.
+
+1. **Preflight and caller:** CORS from `ALLOWED_ORIGINS`; `POST` only; `requireUser()` verifies the bearer before anything else is read.
+2. **Bounds:** the body is capped at 128 KiB, the row at 32 KiB and 40 fields, the source extract at 12,000 characters and the source note at 400.
+3. **Model choice (`chooseModel`):** `OPENROUTER_DESK_MODEL` when it names an enabled model in `public.ai_models`, otherwise the model holding the `DEFAULT_ANALYST` role in `public.ai_roles`. With neither, or with no `OPENROUTER_API_KEY`, it answers 503.
+4. **Provider call:** one OpenRouter chat completion with `response_format: { type: 'json_object' }` and a 50-second timeout, below the Vercel router's own limit.
+5. **Telemetry:** every attempt writes one `model_call_logs` row (`caller = 'desk-brief'`, `purpose = 'desk_brief'`) with the service client; a telemetry failure never fails the brief.
+6. **Response:** the parsed brief is normalised and returned as JSON with `hash`, `model`, `generatedAt` and `scope`. A malformed model answer is a 502; nothing is cached here. Caching happens in the browser and, for forwarded requests, in `server/deskBrief.mjs` (see `docs/flow.md` §3).
+
+---
+
+## 10. The Shared Library Subsystem (`supabase/functions/_shared/`)
 
 The `_shared/` directory contains cross-cutting utilities shared across edge functions, unit tested in isolation:
 
@@ -423,7 +440,7 @@ The `_shared/` directory contains cross-cutting utilities shared across edge fun
 
 ---
 
-## 10. Verification & Test Suite
+## 11. Verification & Test Suite
 
 All edge functions and shared library modules are verified under Deno's native test runner using the root configuration:
 
@@ -438,7 +455,9 @@ deno test -A --config supabase/functions/deno.json supabase/functions/research-c
 deno test -A --config supabase/functions/deno.json supabase/functions/_shared/
 ```
 
-### Verified Baseline Benchmark (2026-09-22)
+On 2026-09-28 the suite has **38** `*_test.ts` files, and the day's run passed **447** tests. `.github/workflows/ci.yml` runs the full command on every push (advisory).
+
+### Verified Baseline Benchmark (2026-09-22, historical)
 - **Total Deno Test Suites:** 17 files.
 - **Total Tests Passed:** **394 passed**, 0 failed.
 - **Total Runtime:** $\sim 3.8 \text{ seconds}$.

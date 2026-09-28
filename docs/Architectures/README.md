@@ -1,6 +1,6 @@
 # Niyantran Terminal — Master Architecture & Technical Documentation
 
-> **Status: Living.** Last updated on 2026-09-22; corrected 2026-09-24 (React 19, pricing refresh every 12 hours, embeddings via OpenRouter, relative links, table count).
+> **Status: Living.** Last updated on 2026-09-22; corrected 2026-09-24 (React 19, pricing refresh every 12 hours, embeddings via OpenRouter, relative links, table count) and 2026-09-28 (six Edge Functions including `desk-brief`, 25 public tables, repair model read from `AI_REPAIR_MODEL`, test counts).
 > Comprehensive architectural blueprints, data dictionaries, wire protocols, and security matrices for Niyantran Terminal (NTER).
 
 ---
@@ -24,6 +24,7 @@ graph TB
         RP["refresh-model-pricing<br/>(Catalog Sync Every 12 Hours)"]
         AM["admin-models<br/>(Allowlist & Role API)"]
         HE["health<br/>(Verification Probe)"]
+        DB["desk-brief<br/>(One-Row Brief)"]
         Shared["_shared/ Library<br/>(Auth, CORS, Handles, Stream)"]
     end
 
@@ -38,7 +39,7 @@ graph TB
     subgraph ExternalTier["External Intelligence Providers"]
         OR["OpenRouter API<br/>(Primary LLMs: DeepSeek, Claude, GPT)"]
         OAI["OpenRouter Embeddings API<br/>(openai/text-embedding-3-small)"]
-        Gemini["Google Vertex / OpenRouter<br/>(gemini-3.5-flash-lite Repair)"]
+        Gemini["OpenRouter<br/>(citation repair model from AI_REPAIR_MODEL)"]
     end
 
     UI <-->|HTTP POST / SSE Stream| RC
@@ -47,12 +48,14 @@ graph TB
     RC <-->|Stream Tokens & Tools| OR
     RC <-->|Citation Auto-Repair| Gemini
     RP <-->|Fetch Catalog & Pricing| OR
+    DB <-->|JSON Brief| OR
 
     RC --> Shared
     ID --> Shared
     RP --> Shared
     AM --> Shared
     HE --> Shared
+    DB --> Shared
 
     Shared <-->|RPC & SQL (JWT RLS / Service Role)| RPCs
     RPCs <--> DocCorpus
@@ -70,11 +73,11 @@ The architecture is documented across six specialized volumes. Each volume cover
 | Document | Title | Core Subsystems Covered | Primary Audience |
 | :--- | :--- | :--- | :--- |
 | [**`01-ingestion-pipeline.md`**](./01-ingestion-pipeline.md) | **Dual Ingestion & Structural Chunking** | OCR sidecar processing, PDF extraction, atomic table preservation (`colspan`/`rowspan`), deterministic chunk hashing (ADR 0004), 100-chunk slice commits (preventing Postgres OOM), PostgREST 1000-row pagination loop, desk row pin-key generation. | Data Engineers, Pipeline Developers |
-| [**`02-database-schema-and-tables.md`**](./02-database-schema-and-tables.md) | **Database Schema & Entity Topology** | Complete Mermaid ER diagram of the AI-backend tables (18 public tables in total), full data dictionary, indexing topology (380 MB HNSW cosine index, `pg_trgm` GIN, JSONB GIN, index-only window scans), RLS permissions matrix across roles. | Database Administrators, Backend Engineers |
+| [**`02-database-schema-and-tables.md`**](./02-database-schema-and-tables.md) | **Database Schema & Entity Topology** | Mermaid ER diagram of the AI-backend tables and data dictionary (25 public tables in total: 19 from `supabase/migrations/`, 6 from `backend/sql/auth_schema.sql`), full data dictionary, indexing topology (380 MB HNSW cosine index, `pg_trgm` GIN, JSONB GIN, index-only window scans), RLS permissions matrix across roles. | Database Administrators, Backend Engineers |
 | [**`03-rag-and-sql-retrieval.md`**](./03-rag-and-sql-retrieval.md) | **Dual Retrieval Architecture: RAG & SQL** | Dual routing philosophy, post-mortem of D1 HNSW post-filtering bug (which dropped 98% of candidates) and B-tree pre-filter resolution (`20260922104646`), fair quota partitions, dynamic parameterized SQL, zero-spill window scans, cryptographic citation ladder (`ref:xxxxxx-n`). | Search Engineers, AI Architects |
 | [**`04-prompt-sandwich-and-agent-engine.md`**](./04-prompt-sandwich-and-agent-engine.md) | **Prompt Sandwich & Agent Engine** | Master Prompt Sandwich visual blueprint, 60,000-character rolling window algorithm (`windowMessages`), verbatim system prompt blocks (`ROLE`, `GROUNDING`, `TOOLS`, `DESK_GROUNDING_RULES`), tool wire payloads, strict JSON schema streaming decoder, citation auto-repair pass (`repair.ts`), `research_turns` concurrency mutex. | Prompt Engineers, Full-Stack AI Engineers |
-| [**`05-supabase-edge-functions.md`**](./05-supabase-edge-functions.md) | **Edge Functions & Shared Runtime** | Catalog of all 5 deployed functions (`research-chat`, `ingest-documents`, `refresh-model-pricing`, `admin-models`, `health`), Deno runtime configuration, bounded execution wrapper (`NETWORK_TIMEOUT_MS = 4_000`), key rotation architecture (`SUPABASE_SECRET_KEYS`), OOM crash prevention, shared library catalog (`_shared/`). | Platform Engineers, Cloud DevOps |
-| [**`06-stored-procedures-and-rpcs.md`**](./06-stored-procedures-and-rpcs.md) | **Stored Procedures, RPCs & Security** | Catalog of all 11 database stored procedures, RPC Invocation Sandwich blueprint, B-tree vector pre-filtering, dynamic SQL assembly without `OR IS NULL`, 1536-dim vector assertion, `research_turns` lifecycle, pricing reconciliation, `search_path = ''` hardening audit, execution grant matrix. | Database Engineers, Security Auditors |
+| [**`05-supabase-edge-functions.md`**](./05-supabase-edge-functions.md) | **Edge Functions & Shared Runtime** | Catalog of all 6 deployed functions (`research-chat`, `ingest-documents`, `refresh-model-pricing`, `admin-models`, `health`, `desk-brief`), Deno runtime configuration, bounded execution wrapper (`NETWORK_TIMEOUT_MS = 4_000`), key rotation architecture (`SUPABASE_SECRET_KEYS`), OOM crash prevention, shared library catalog (`_shared/`). | Platform Engineers, Cloud DevOps |
+| [**`06-stored-procedures-and-rpcs.md`**](./06-stored-procedures-and-rpcs.md) | **Stored Procedures, RPCs & Security** | Catalog of the AI-backend stored procedures and the service-role functions added on 2026-09-28, RPC Invocation Sandwich blueprint, B-tree vector pre-filtering, dynamic SQL assembly without `OR IS NULL`, 1536-dim vector assertion, `research_turns` lifecycle, pricing reconciliation, `search_path = ''` hardening audit, execution grant matrix. | Database Engineers, Security Auditors |
 
 ---
 
@@ -129,7 +132,7 @@ To verify code changes, migrations, and Edge Function behaviors against the veri
 
 ### 4.1 Edge Function & Shared Library Tests (Deno)
 ```bash
-# Run all 394 Deno edge function unit tests
+# Run all Deno Edge Function tests (447 passed on 2026-09-28; CI runs this command on every push)
 deno test -A --config supabase/functions/deno.json supabase/functions/
 
 # Run research-chat tests only
@@ -141,21 +144,29 @@ deno test -A --config supabase/functions/deno.json supabase/functions/_shared/
 
 ### 4.2 Browser Application & Desk Feeds (Vitest)
 ```bash
-# Run all 589 browser client and desk feed tests
+# Run all Vitest tests (62 files, 909 tests on 2026-09-28; also run by CI)
 npm test
 ```
 
 ### 4.3 Production Build Verification
 ```bash
-# Ensure clean bundling with zero type or asset errors
+# Production build (the repository has no separate lint or type-check)
 npm run build
 ```
+
+### 4.4 SQL Fixtures (disposable local Postgres only)
+```bash
+# 12 fixtures in supabase/tests/, each rebuilt from scratch and checked for vacuity
+npm run test:sql
+```
+
+`.github/workflows/ci.yml` runs the build, both test suites and the SQL fixtures on every push. It is advisory: nothing is blocked on it.
 
 ---
 
 ## 5. Security & Operating Principles
 
-1. **Zero Secret Leakage:** Provider API keys (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`) and platform secrets (`SUPABASE_SECRET_KEYS`) are stored strictly server-side. No `VITE_` variable may ever carry a service credential.
+1. **Zero Secret Leakage:** The provider API key (`OPENROUTER_API_KEY`) and platform secrets (`SUPABASE_SECRET_KEYS`) are stored strictly server-side. No `VITE_` variable may ever carry a service credential.
 2. **Untrusted Evidence Isolation:** External feeds, parsed OCR text, user attachments, and LLM completions are treated as untrusted evidence, never instructions.
 3. **Deterministic Immutability:** Terminal results in `chat_messages` and claims in `research_turns` are guarded by PostgreSQL triggers that raise exception `23514` on tampering attempts.
 4. **Idempotent Concurrency:** Double submissions and concurrent tabs acquire distributed locks via `claim_research_turn`, returning cached streams rather than triggering redundant billable calls.

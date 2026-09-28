@@ -1,7 +1,8 @@
 # Database Architecture: Schema, Tables, Indexes, and RLS Security Matrix
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating migrations 0001 through 0015, `20260921115831`, `20260922073820`, `20260922073933`, `20260922082308`, `20260922084135`, `20260922104646`, and `20260922121946`.
+> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 31 migrations in `supabase/migrations/` (`20260921000001` through `20260928150000_nter_news_articles`), plus `backend/sql/auth_schema.sql`.
+> Corrected 2026-09-28: the seven tables added that day (Group E), the RLS matrix for them, and the `user_profiles`, `conversations`, `chat_messages`, `ai_models`, `ai_roles` and `model_call_logs` entries, which described columns that do not exist.
 
 ---
 
@@ -31,14 +32,17 @@ erDiagram
 
     user_profiles {
         uuid id PK
-        uuid user_id FK "REFERENCES auth.users(id)"
+        uuid user_id FK "UNIQUE, REFERENCES auth.users(id)"
+        uuid organisation_id FK "NULL for normal users"
         text email
-        text full_name
-        text role "user | admin"
-        text plan "explorer | pro | enterprise"
-        text status "active | suspended"
-        text active_persona "lawyer | analyst | journalist | etc"
-        boolean is_admin
+        text first_name
+        text last_name
+        app_persona persona "policy_analyst | journalist | upsc_aspirant | corporate_affairs | legal_researcher | academic"
+        text language "default en"
+        app_role role "user | admin | owner"
+        app_plan plan "explorer | professional | enterprise"
+        account_status status "active | inactive | suspended"
+        boolean onboarding_complete
         timestamptz updated_at
     }
 
@@ -46,10 +50,10 @@ erDiagram
         uuid id PK
         uuid user_id FK "REFERENCES auth.users(id)"
         text title
-        text persona "analyst | lawyer | journalist | student | policy"
-        text focus "attached | desk | broad"
+        text desk_tier
+        text desk_feature
         text model_id
-        text reasoning_effort "off | minimal | low | medium | high | xhigh | max"
+        timestamptz last_message_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -58,12 +62,19 @@ erDiagram
         uuid id PK
         uuid conversation_id FK "REFERENCES conversations(id)"
         uuid user_id FK "REFERENCES auth.users(id)"
-        text role "user | assistant | system"
+        text role "user | assistant"
         text content
         jsonb sources "Array of citable source objects"
         jsonb follow_ups "Array of suggested follow-up questions"
-        text status "in_progress | complete | error"
-        jsonb metadata
+        jsonb activity "Persisted ticker trace"
+        text model_requested
+        text model_served
+        text reasoning_effort
+        text status "running | complete | error | cancelled | truncated | interrupted"
+        text turn_key
+        jsonb usage
+        jsonb timing
+        timestamptz execution_expires_at
         timestamptz created_at
     }
 
@@ -121,16 +132,16 @@ erDiagram
     }
 
     ai_models {
-        uuid id PK
-        text model_id UK "OpenRouter ID e.g. google/gemini-3.7-flash"
+        text model_id PK "OpenRouter ID e.g. google/gemini-3.8-flash"
         text label
-        text vendor "google | anthropic | openai | deepseek"
-        int context_length
-        boolean enabled
-        boolean is_default
+        text vendor "derived from the id prefix when blank"
+        smallint tier "1-3 cost hint"
         text_array efforts "Allowed reasoning efforts"
         jsonb params
-        timestamptz created_at
+        boolean enabled
+        boolean is_default "at most one row"
+        int sort_order
+        timestamptz updated_at
     }
 
     model_pricing {
@@ -151,26 +162,31 @@ erDiagram
     }
 
     ai_roles {
-        text role_id PK "analyst | expert | pdf | visual"
+        text role_id PK "DEFAULT_ANALYST | EXPERT_ESCALATION | PDF_PARSER | VISUAL_RESEARCH"
+        text label
+        text hint
         text model_id FK "REFERENCES ai_models(model_id)"
-        text notes
+        int sort_order
     }
 
     model_call_logs {
         uuid id PK
         uuid user_id FK "REFERENCES auth.users(id)"
         uuid conversation_id FK
-        uuid message_id FK
-        text call_type "chat_research | chat_answer | embedding | repair"
-        text model_id
+        uuid message_id
+        text caller "research-chat | ingest-documents | desk-brief"
+        text purpose "chat_answer | embedding | citation_repair | desk_brief"
+        text model_requested
+        text model_served
+        text provider
         int prompt_tokens
         int completion_tokens
         int cached_prompt_tokens
         int reasoning_tokens
         numeric cost_usd
         int latency_ms
-        text status "success | error | abort"
-        text error
+        text status "success | error | aborted"
+        text error_message
         timestamptz created_at
     }
 ```
@@ -236,25 +252,30 @@ Stores real-time intelligence feeds across 34 modules (e.g. Sansad Bills, Cabine
 Chat sessions. Owned by authenticated users.
 - **`id`** (`uuid`, Primary Key, `DEFAULT gen_random_uuid()`).
 - **`user_id`** (`uuid`, `NOT NULL`, `REFERENCES auth.users(id)`).
-- **`title`** (`text`, `DEFAULT 'New Research'`): User-editable conversation title.
-- **`persona`** (`text`, `DEFAULT 'analyst'`): Analytical lens: `lawyer`, `analyst`, `journalist`, `student`, `policy`.
-- **`focus`** (`text`, `DEFAULT 'broad'`): Retrieval constraint: `attached`, `desk`, `broad`.
-- **`model_id`** (`text`, `DEFAULT 'google/gemini-3.7-flash'`).
-- **`reasoning_effort`** (`text`, `DEFAULT 'low'`): Selected reasoning budget (`off` through `max`).
-- **`created_at`** (`timestamptz`, `DEFAULT now()`).
-- **`updated_at`** (`timestamptz`, `DEFAULT now()`).
+- **`user_id`** defaults to `auth.uid()` and cascades on user deletion; `UNIQUE (id, user_id)` (migration 0013) lets child tables prove ownership.
+- **`title`** (`text`, `NOT NULL`, `DEFAULT 'New research'`): User-editable conversation title.
+- **`desk_tier`** / **`desk_feature`** (`text`, nullable): The desk the conversation was opened from.
+- **`model_id`** (`text`, nullable, no default).
+- **`last_message_at`** (`timestamptz`): Set by `claim_research_turn`; indexed with `user_id` for the recent-conversations list.
+- **`created_at`** / **`updated_at`** (`timestamptz`, `NOT NULL`, `DEFAULT now()`).
+- *(Corrected 2026-09-28 against `20260921000002_conversations.sql` and later migrations: there are no `persona`, `focus` or `reasoning_effort` columns. The persona comes from `user_profiles.persona`; focus and effort travel with each request, and the effort used is stored on the assistant `chat_messages` row.)*
 
 #### 5. `public.chat_messages`
 Individual turns within a conversation.
 - **`id`** (`uuid`, Primary Key, `DEFAULT gen_random_uuid()`).
 - **`conversation_id`** (`uuid`, `NOT NULL`, `REFERENCES conversations(id) ON DELETE CASCADE`).
-- **`user_id`** (`uuid`, `NOT NULL`, `REFERENCES auth.users(id)`).
-- **`role`** (`text`, `NOT NULL`): `user`, `assistant`, or `system`.
+- **`user_id`** (`uuid`, `NOT NULL`, `DEFAULT auth.uid()`); `(conversation_id, user_id)` references `conversations(id, user_id)` (migration 0013).
+- **`role`** (`text`, `NOT NULL`): `user` or `assistant`.
 - **`content`** (`text`, `NOT NULL`): Message markdown body.
 - **`sources`** (`jsonb`, `DEFAULT '[]'`): Array of verified citable objects: `[{ handle, kind, title, document_id, char_from, char_to, text_hash }]`.
 - **`follow_ups`** (`jsonb`, `DEFAULT '[]'`): Array of up to three context-aware follow-up question strings.
-- **`status`** (`text`, `DEFAULT 'complete'`): `in_progress`, `complete`, `error`.
-- **`metadata`** (`jsonb`, `DEFAULT '{}'`): Stores search stats (`search_ms`, `scoped`, `model_calls`).
+- **`activity`** (`jsonb`, `DEFAULT '[]'`): The persisted activity ticker trace.
+- **`model_requested`** / **`model_served`** / **`reasoning_effort`** (`text`).
+- **`status`** (`text`, `DEFAULT 'complete'`): `running`, `complete`, `error`, `cancelled`, `truncated` or `interrupted` (migration `20260921115831`).
+- **`error_message`** (`text`).
+- **`turn_key`** (`text`): Idempotency key on user turns; `UNIQUE (conversation_id, turn_key)`.
+- **`usage`** (`jsonb`): Tokens and `cost_usd`. **`timing`** (`jsonb`): `search_ms`, `reasoning_ms`, `writing_ms`, `total_ms`.
+- **`execution_expires_at`** (`timestamptz`): Required while `status = 'running'`.
 - **`created_at`** (`timestamptz`, `DEFAULT now()`).
 
 #### 6. `public.research_turns`
@@ -276,15 +297,15 @@ Durable, server-owned turn claims (migration `20260921115831`). Prevents duplica
 
 #### 7. `public.ai_models`
 Server-side allowlist of LLMs accessible through the platform.
-- **`id`** (`uuid`, Primary Key, `DEFAULT gen_random_uuid()`).
-- **`model_id`** (`text`, `NOT NULL`, Unique): OpenRouter identifier (e.g. `anthropic/claude-sonnet-5`).
-- **`label`** (`text`, `NOT NULL`): UI display label (e.g. `Claude Sonnet 3.5`).
-- **`vendor`** (`text`, `NOT NULL`): `google`, `anthropic`, `openai`, `deepseek`.
-- **`context_length`** (`int`, `NOT NULL`): Maximum context tokens.
-- **`enabled`** (`boolean`, `DEFAULT true`): Admin toggle.
-- **`is_default`** (`boolean`, `DEFAULT false`): Exactly one model is marked default.
+- **`model_id`** (`text`, Primary Key): OpenRouter identifier (e.g. `anthropic/claude-sonnet-5`).
+- **`label`** (`text`, `NOT NULL`): Picker label.
+- **`vendor`** (`text`, `NOT NULL`, `DEFAULT ''`): Derived from the id prefix by the guard trigger when blank.
+- **`tier`** (`smallint`, 1–3, `DEFAULT 2`): Cost hint.
+- **`enabled`** (`boolean`, `DEFAULT false`): Admin toggle. A row may be enabled only when the refreshed catalogue lists it as available with tool calling.
+- **`is_default`** (`boolean`, `DEFAULT false`): At most one row (partial unique index `ai_models_one_default`); a disabled row cannot be the default. On 2026-09-28 the default is `google/gemini-3.8-flash`.
 - **`efforts`** (`text[]`, `DEFAULT '{}'`): Allowed reasoning rungs. Clamped to `model_pricing.reasoning_efforts`.
-- **`params`** (`jsonb`, `DEFAULT '{}'`).
+- **`params`** (`jsonb`, `DEFAULT '{}'`). **`sort_order`** (`int`, `DEFAULT 100`). **`updated_at`** (`timestamptz`).
+- `public.ai_roles` maps each role (`DEFAULT_ANALYST`, `EXPERT_ESCALATION`, `PDF_PARSER`, `VISUAL_RESEARCH`) to one `model_id`, with a `label`, `hint` and `sort_order`.
 
 #### 8. `public.model_pricing`
 Live mirror of OpenRouter's model catalogue, synchronized every 12 hours.
@@ -305,15 +326,40 @@ Live mirror of OpenRouter's model catalogue, synchronized every 12 hours.
 #### 9. `public.model_call_logs`
 Financial and performance audit trail for every outbound model invocation.
 - **`id`** (`uuid`, Primary Key, `DEFAULT gen_random_uuid()`).
-- **`user_id`** (`uuid`, `REFERENCES auth.users(id)`).
-- **`conversation_id`** / **`message_id`** (`uuid`).
-- **`call_type`** (`text`, `NOT NULL`): `chat_research`, `chat_answer`, `embedding`, `repair`.
-- **`model_id`** (`text`, `NOT NULL`).
-- **`prompt_tokens`** / **`completion_tokens`** / **`cached_prompt_tokens`** / **`reasoning_tokens`** (`int`).
-- **`cost_usd`** (`numeric(12,8)`, `NOT NULL`): Exact spend reported by provider.
-- **`latency_ms`** (`int`, `NOT NULL`): Round-trip wall clock time.
-- **`status`** (`text`, `NOT NULL`): `success`, `error`, `abort`.
+- **`user_id`** / **`conversation_id`** / **`message_id`** (`uuid`, nullable, no foreign keys).
+- **`caller`** (`text`, `NOT NULL`): `research-chat`, `ingest-documents` or `desk-brief`.
+- **`purpose`** (`text`, `NOT NULL`): `chat_answer`, `citation_repair`, `embedding` or `desk_brief`.
+- **`model_requested`** / **`model_served`** / **`provider`** (`text`).
+- **`prompt_tokens`** / **`completion_tokens`** / **`total_tokens`** / **`cached_prompt_tokens`** / **`reasoning_tokens`** (`int`).
+- **`cost_usd`** (`numeric(12,6)`): Spend reported by the provider.
+- **`latency_ms`** (`int`): Round-trip wall clock time.
+- **`status`** (`text`, `NOT NULL`): `success`, `error` or `aborted`. **`error_message`** (`text`).
+- **`openrouter_generation_id`** (`text`), **`raw_usage`** (`jsonb`).
 - **`created_at`** (`timestamptz`, `DEFAULT now()`).
+
+---
+
+### Group E: Application state (migrations of 2026-09-28)
+
+These tables replaced files and a SQLite database under `/tmp` on Vercel (plan tasks T1–T6). RLS is enabled on all seven.
+
+#### 10. `public.user_preferences` (`20260928100000`)
+One row per user: `user_id` (PK, `REFERENCES auth.users ON DELETE CASCADE`), `watchlist`, `ai_chats`, `tours` (`jsonb`; 64 KiB each for watchlist and tours, 2 MiB for `ai_chats`), `updated_at` (set by the `touch_user_preferences` trigger). `/api/user-prefs` uses it as the caller. `ai_chats` is no longer read or written and its values were cleared on 2026-09-28; dropping the column is planned.
+
+#### 11. `public.analytics_events` (`20260928100100`)
+`id` (identity), `name` (≤ 64 chars, lower-case pattern), `props` (`jsonb` object, ≤ 4 KiB), `session_id`, `user_id` (nullable, `ON DELETE SET NULL`, set only from a verified bearer), `created_at`. No email is stored. Kept 180 days; `purge_analytics_events()` runs nightly under `pg_cron`.
+
+#### 12. `public.analytics_rate_windows` (`20260928130000`)
+`bucket` (an HMAC of the client IP, never the raw IP), `window_start`, `hits`; primary key `(bucket, window_start)`. Counted by `analytics_rate_hit()`; windows older than an hour are purged every 15 minutes.
+
+#### 13. `public.app_flags` (`20260928100200`)
+`key` (PK, `^[a-z][a-z0-9_]{0,63}$`), `value` (`jsonb`, ≤ 16 KiB), `updated_at`, `updated_by` (server-only column). Holds the `marketing_intro_video` metadata; the file itself is in the public Storage bucket `marketing` (50 MB limit, video types only), uploaded through server-issued signed URLs. The testing-phase flag was retired on 2026-09-28 (`9e7a125`); the table stays.
+
+#### 14. `public.invoices` and 15. `public.invoice_counters` (`20260928140000`)
+`invoices` holds GST tax invoices: `id` (`inv_…`), `invoice_no` (`NIY/<FY>/<seq>`, unique), `financial_year`, `seq`, `user_id` (nullable, `ON DELETE SET NULL`, because an invoice outlives the account), `user_email`, `plan_id`, amounts (`taxable`, `cgst`, `sgst`, `igst`, `total`), buyer fields, `payment_id`, `order_id`, `provider` (`razorpay` or `demo`), `payload`, `issued_at`. A unique index on `(provider, payment_id)` stops a replayed verification issuing twice. `invoice_counters` holds one `last_seq` per Indian financial year; `issue_invoice()` increments it in the same statement that inserts the invoice, so numbers are gapless.
+
+#### 16. `public.nter_news_articles` (`20260928150000`)
+`article_id` (PK), `link` (unique when present), `title`, `published_at`, `updated_at`, `row` (the normalised article, `jsonb`), `received_at`. Written through `upsert_nter_article()`, which keeps the newest 200.
 
 ---
 
@@ -364,7 +410,7 @@ The RPC `search_desk_rows` returns both a paginated row set and the `total` matc
 
 ## 4. Row-Level Security (RLS) Policy Matrix
 
-Row-Level Security is strictly enabled across all 18 public tables: 12 created in `supabase/migrations/` and 6 (`organisations`, `organisation_members`, `user_roles`, `organisation_invites`, `privacy_policy_consents`, `user_profiles`) created in `backend/sql/auth_schema.sql`. The `anon` role holds zero table privileges. The matrix below covers the AI-backend tables and `user_profiles`; the five organisation and consent tables are governed by the policies in `auth_schema.sql`. *(Corrected 2026-09-24: the count was 17, which predates `research_turns`, and the matrix omitted `chat_cancellations`, `chat_turn_traces` and `ai_roles`.)*
+Row-Level Security is strictly enabled across all 25 public tables: 19 created in `supabase/migrations/` and 6 (`organisations`, `organisation_members`, `user_roles`, `organisation_invites`, `privacy_policy_consents`, `user_profiles`) created in `backend/sql/auth_schema.sql`. The `anon` role holds no table privileges except `SELECT (key, value, updated_at)` on `app_flags`, which serves the public intro-video read *(corrected 2026-09-28: the count was 18 and the `anon` statement had no exception before the migrations of that day)*. The matrix below covers the AI-backend tables, `user_profiles` and the Group E tables; the five organisation and consent tables are governed by the policies in `auth_schema.sql`. *(Corrected 2026-09-24: the count was 17, which predates `research_turns`, and the matrix omitted `chat_cancellations`, `chat_turn_traces` and `ai_roles`.)*
 
 | Table Name | Public Read (`anon`) | Authenticated Read (`user`) | Authenticated Write (`user`) | Service Role (`service_role`) |
 | :--- | :---: | :---: | :---: | :---: |
@@ -375,12 +421,19 @@ Row-Level Security is strictly enabled across all 18 public tables: 12 created i
 | **`chat_messages`** | ❌ Denied | 🔒 Own Rows (`user_id = auth.uid()`) | 🔒 Own Rows (`user_id = auth.uid()`) | ✅ Full Access |
 | **`chat_cancellations`** | ❌ Denied | 🔒 Own Rows in own conversations | 🔒 Own Rows in own conversations | ✅ Full Access |
 | **`research_turns`** | ❌ Denied | ❌ Denied (no grant; corrected 2026-09-24) | ❌ Denied (server only) | 🔒 `SELECT, INSERT, UPDATE` |
-| **`ai_models`** | ❌ Denied | ✅ Enabled Models (`enabled = true`) | ❌ Denied (Admin RPC only) | ✅ Full Access |
+| **`ai_models`** | ❌ Denied | ✅ Full Read (`true`; the registry filters `enabled`) | ❌ Denied (Admin RPC only) | ✅ Full Access |
 | **`ai_roles`** | ❌ Denied | ✅ Full Read (`true`) | ❌ Denied | ✅ Full Access |
-| **`model_pricing`** | ❌ Denied | ✅ Available Models (`is_available`) | ❌ Denied (Cron sync only) | ✅ Full Access |
+| **`model_pricing`** | ❌ Denied | ✅ Full Read (`true`) | ❌ Denied (Cron sync only) | ✅ Full Access |
 | **`model_call_logs`** | ❌ Denied | 🔒 Own Rows (`user_id = auth.uid()`) | ❌ Denied (Service role logs) | ✅ Full Access |
 | **`chat_turn_traces`** | ❌ Denied | 🔒 Own Rows (`user_id = auth.uid()`) | ❌ Denied | ✅ Full Access |
 | **`user_profiles`** | ❌ Denied | 🔒 Own Profile (`user_id = auth.uid()`) | 🔒 Restricted Profile Fields | ✅ Full Access |
+| **`user_preferences`** | ❌ Denied | 🔒 Own Row | 🔒 Own Row: `INSERT`, `UPDATE` (no `DELETE`) | ❌ No grant |
+| **`analytics_events`** | ❌ Denied | ❌ Denied | ❌ Denied | 🔒 `SELECT, INSERT, DELETE` |
+| **`analytics_rate_windows`** | ❌ Denied | ❌ Denied | ❌ Denied | ✅ Full Access |
+| **`app_flags`** | ✅ `key`, `value`, `updated_at` | ✅ `key`, `value`, `updated_at` | ❌ Denied (server writes after an admin check) | ✅ Full Access |
+| **`invoices`** | ❌ Denied | 🔒 Own Rows, or all for a platform admin | ❌ Denied | 🔒 `SELECT, INSERT` (through `issue_invoice()`) |
+| **`invoice_counters`** | ❌ Denied | ❌ Denied | ❌ Denied | 🔒 `SELECT, INSERT, UPDATE` |
+| **`nter_news_articles`** | ❌ Denied | ❌ Denied | ❌ Denied | ✅ Full Access |
 
 ---
 

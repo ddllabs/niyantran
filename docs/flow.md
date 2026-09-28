@@ -36,35 +36,16 @@ sequenceDiagram
 3. **Session Establishment:** Upon return from OAuth redirect, Supabase Auth issues durable session JWTs.
 4. **Authorization:** All authenticated API requests attach the Supabase bearer token. PostgreSQL RLS policies enforce tenant and role isolation.
 
-### 1.2. Server-Side Authentication Endpoints Flow (`/api/auth/*`)
+### 1.2. Email and password sign-in (browser to Supabase Auth)
 
-Server-side authentication endpoints in `server/authApi.mjs` provide switchable transactional email delivery (`SUPABASE_NATIVE` or `RESEND_API`) and session verification:
+The browser calls Supabase Auth directly for every account action; no Niyantran server route sits in between:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Client as Frontend / Client
-    participant Router as API Router (/api/router.js)
-    participant AuthApi as Auth API Controller (server/authApi.mjs)
-    participant Supabase as Supabase Auth (Native / Admin)
-    participant Resend as Resend API (When configured)
+- `src/marketing/LoginPage.jsx`: `supabase.auth.signInWithPassword()`.
+- `src/marketing/SignupPage.jsx`: `supabase.auth.signUp()` and `supabase.auth.resend()`. The persona picked at signup travels as `personaId` in the user metadata; `handle_new_user()` maps it onto `user_profiles.persona` (migration `20260928120000_signup_persona.sql`).
+- `src/marketing/ForgotPasswordPage.jsx`: `supabase.auth.resetPasswordForEmail()`.
+- `src/marketing/GoogleSignInButton.jsx`: `supabase.auth.signInWithOAuth({ provider: 'google' })` (section 1).
 
-    Client->>Router: POST /api/auth/signup | resend-verification | forgot-password | login
-    Router->>AuthApi: Dispatches request to handleAuthApi()
-    alt Signup Flow
-        AuthApi->>Supabase: Calls signUp() or admin.generateLink()
-        opt RESEND_API Strategy
-            AuthApi->>Resend: Dispatches branded verification HTML template
-        end
-        AuthApi-->>Client: Returns 201 Created with user details
-    else Forgot Password Flow
-        AuthApi->>Supabase: Dispatches recovery link (Anti-enumeration guaranteed)
-        AuthApi-->>Client: Returns 200 OK with generic confirmation
-    else Session Verification (/api/auth/me)
-        AuthApi->>Supabase: Verifies Bearer token via getUser()
-        AuthApi-->>Client: Returns 200 OK with authenticated user record
-    end
-```
+`/api/auth/*` is **not served in production** (removed from `api/router.js` on 2026-09-28, `93f31e6`; the app never called it). `server/authApi.mjs`, with its switchable `SUPABASE_NATIVE` / `RESEND_API` email delivery, is still mounted by the Vite dev and preview servers only (`authApiPlugin()` in `vite.config.js`). *(Corrected 2026-09-28: this section previously described `/api/auth/*` as a live flow through the production router.)*
 
 ---
 
@@ -78,18 +59,20 @@ Browser
   |
   | Supabase Auth bearer token
   v
-Supabase Edge Function (research-chat / desk-brief / embed)
+Supabase Edge Function (research-chat / desk-brief)
   |
   | Deno.env.get("OPENROUTER_API_KEY")
   v
 OpenRouter (https://openrouter.ai/api/v1)
   |
-  +--> selected model (google/gemini-2.0-flash-001, openai/gpt-4o-mini, etc.)
+  +--> selected model (enabled rows of public.ai_models; default google/gemini-3.8-flash on 2026-09-28)
   |
   +--> streaming response (SSE token chunks)
   |
   +--> embeddings (openai/text-embedding-3-small, 1536 dims)
 ```
+
+There is no `embed` Edge Function: embedding is the shared module `supabase/functions/_shared/embed.ts`, used by `research-chat` (query vectors) and `ingest-documents` (chunk vectors). *(Corrected 2026-09-28.)*
 
 ```mermaid
 sequenceDiagram
@@ -99,7 +82,7 @@ sequenceDiagram
     participant Edge as Supabase Edge Runtime (research-chat)
     participant VectorDB as Supabase pgvector (document_chunks)
     participant OpenRouter as OpenRouter API Gateway
-    participant LLM as Target Model (e.g. Gemini 2.0 Flash / GPT-4o)
+    participant LLM as Target Model (from public.ai_models)
 
     Analyst->>Client: Submits research query / attachments
     Client->>Edge: POST /functions/v1/research-chat (Authorization: Bearer <JWT>)
@@ -119,48 +102,54 @@ sequenceDiagram
 2. **Edge Security Boundary:** The browser passes its authenticated Supabase access token to the Edge Function (`research-chat`); no API key is sent or possessed by the browser.
 3. **RAG Retrieval:** The Edge Function queries `public.document_chunks` using pgvector cosine similarity through the `match_documents` RPC (`_shared/retrieval.ts`), and desk rows through `search_desk_rows`.
 4. **Gateway Dispatch:** The Edge Function reads `Deno.env.get('OPENROUTER_API_KEY')` and queries OpenRouter (`https://openrouter.ai/api/v1/chat/completions`).
-5. **Model Execution & Streaming:** OpenRouter routes the request to the model chosen from `public.ai_models` (on 2026-09-28 the default is `google/gemini-3.7-flash`). The generated narrative and citation IDs stream back via SSE directly to the client interface.
+5. **Model Execution & Streaming:** OpenRouter routes the request to the model chosen from `public.ai_models` (the row with `is_default = true`; on 2026-09-28 that is `google/gemini-3.8-flash`). The generated narrative and citation IDs stream back via SSE directly to the client interface.
 
 
 ---
 
 ## 3. Desk Brief Generation Flow
 
-Desk briefs provide structured entity organization for selected table rows in analytical desks.
-Desk briefs are generated via OpenRouter and cached in memory, in `desk-briefs/*.json` and in the SQLite `entry_briefs` table. Those caches live under `/tmp` on Vercel and are not durable; briefs are **not** persisted in Supabase (corrected 2026-09-28). The browser first tries the `desk-brief` Edge Function and falls back to `/api/ai/desk-brief` on the Vercel router (`src/lib/deskBrief.js`). As of 2026-09-28 the `desk-brief` Edge Function is **not deployed**, so every brief takes the fallback, which needs `OPENROUTER_API_KEY` in the Vercel environment.
+Desk briefs organise one selected table row in an analytical desk. They are generated by the `desk-brief` Edge Function (deployed; v2 on 2026-09-28), which verifies the caller, picks the model and calls OpenRouter with the key held in Supabase secrets. `server/deskBrief.mjs` never holds a provider key: the `/api/ai/desk-brief` route forwards the caller's own bearer to the function. *(Corrected 2026-09-28: this section previously said the function was not deployed and that the Vercel fallback called OpenRouter itself with `OPENROUTER_API_KEY`.)*
+
+Caching: the browser keeps its own copy in `localStorage`. The router keeps briefs it has forwarded in memory, in `desk-briefs/*.json` under `writablePath()` and in the SQLite `entry_briefs` table (`server/db.mjs`). On Vercel those server tiers live under `/tmp` and are lost on cold starts; briefs are **not** stored in Supabase. The SQLite tier is due to be removed (plan task T7, open).
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Analyst as Analyst
-    participant Frontend as Desk Rail / Record View
-    participant Router as Backend Router (/api/ai/desk-brief)
-    participant Cache as Cache Layer (Memory / Disk / DB)
+    participant Frontend as Desk Rail / Record View (src/lib/deskBrief.js)
+    participant Router as Vercel router (/api/ai/desk-brief)
+    participant Edge as desk-brief Edge Function
     participant OpenRouter as OpenRouter API Gateway
-    participant LLM as Target Model (google/gemini-2.0-flash-001)
 
     Analyst->>Frontend: Selects table row in desk
-    Frontend->>Router: GET/POST /api/ai/desk-brief?feature=&tier=&hash=
-    Router->>Cache: Checks cache for row fingerprint
-    alt Cache Hit
-        Cache-->>Router: Returns existing brief envelope
-        Router-->>Frontend: Delivers cached desk brief
-    else Cache Miss / Force Regenerate
-        Router->>OpenRouter: POST https://openrouter.ai/api/v1/chat/completions (response_format: json_object, row prompt)
-        OpenRouter->>LLM: Requests structured brief extraction
-        LLM-->>OpenRouter: Returns JSON analysis
-        OpenRouter-->>Router: Delivers structured brief payload
-        Router->>Cache: Stores brief in cache
-        Router-->>Frontend: Delivers synthesized brief (headline, summary, findings, KPIs)
+    Frontend->>Frontend: localStorage lookup by row fingerprint
+    Frontend->>Router: GET /api/ai/desk-brief?feature=&tier=&hash=&scope=
+    alt Cached on the server
+        Router-->>Frontend: Cached brief (memory / SQLite / disk)
+    else Cache miss or force regenerate (signed in)
+        Frontend->>Edge: POST /functions/v1/desk-brief (Authorization: Bearer <JWT>)
+        Edge->>Edge: requireUser(), bound the request, choose model
+        Edge->>OpenRouter: POST /chat/completions (response_format: json_object)
+        OpenRouter-->>Edge: JSON brief
+        Edge->>Edge: One model_call_logs row per attempt
+        Edge-->>Frontend: Normalised brief (headline, summary, findings, KPIs)
+        opt Function missing (404) or unreachable
+            Frontend->>Router: POST /api/ai/desk-brief (same bearer)
+            Router->>Edge: Forwards the request as the caller
+            Edge-->>Router: Brief
+            Router->>Router: Stores it in the server cache tiers
+            Router-->>Frontend: Brief
+        end
     end
-    Frontend-->>Analyst: Displays interactive desk brief in right rail
+    Frontend-->>Analyst: Displays the desk brief in the right rail
 ```
 
 **Key Execution Stages:**
-1. **Fingerprint Evaluation:** Stable hash generated from row fields (`entryFingerprint`).
-2. **Cache Resolution:** Fast memory and disk check; if present, skips remote LLM call entirely.
-3. **Structured OpenRouter Call:** When cache misses, `callOpenRouter` queries OpenRouter using `response_format: { type: 'json_object' }`.
-4. **Normalization & Response:** The JSON response is normalized with server-calculated charts and returned to the frontend.
+1. **Fingerprint Evaluation:** A stable hash of the row fields (`entryFingerprint`) is the cache key.
+2. **Cache Resolution:** `localStorage`, then the router's cached-brief `GET` (which needs no bearer and returns only an exact fingerprint match).
+3. **Generation:** On a miss the browser calls the Edge Function directly. It falls back to the router's `POST` only when the function answers 404 or cannot be reached; any other answer is final, so a failed brief is not paid for twice. The router refuses a `POST` without a bearer.
+4. **Model choice:** `OPENROUTER_DESK_MODEL` when it names an enabled model, otherwise the model holding the `DEFAULT_ANALYST` role in `public.ai_roles`; with neither, the function answers 503.
 
 ---
 
@@ -241,7 +230,7 @@ sequenceDiagram
 
 ## 6. NTER.news Live Latest Rail Flow (CR-12)
 
-Replaces frozen Market Metrics in the primary position with live intelligence feed data from `nter.news`.
+Replaces frozen Market Metrics in the primary position with live intelligence feed data from `nter.news`. Since 2026-09-28 (`7160391`) ingested articles live in `public.nter_news_articles` and the ingest writes nothing to disk. `/api/home/latest` (`serveHomeLatest()` in `server/homeApi.mjs`) keeps its own snapshot cache under `writablePath('home-snapshots')`.
 
 ```mermaid
 sequenceDiagram
@@ -252,20 +241,24 @@ sequenceDiagram
     participant Client as nterNewsClient (src/lib/nterNewsClient.js)
     participant Router as API Router (/api/home/latest)
     participant Ingest as News Ingest (server/nterNews.mjs)
-    participant Store as Local / Seed Store (nter-news.json)
+    participant Store as Supabase (public.nter_news_articles)
+    participant Seed as Committed seed (public/data/nter-news.json)
 
-    Note over Ingest,Store: Webhook path: POST /api/news/ingest with Bearer NTER_TERMINAL_API_KEY
+    Note over Ingest,Store: Webhook path: POST /api/news/ingest with Bearer NTER_TERMINAL_API_KEY, stored through upsert_nter_article() (newest 200 kept)
     Visitor->>Landing: Visits home page
     Landing->>Rail: Mounts <NterLatestRail limit={8} />
     Rail->>Client: useNterLatest({ pollIntervalMs: 60000 })
     Client->>Router: GET /api/home/latest?limit=8
     alt Live API active
-        Router->>Ingest: serveNterLatest({ limit: 8 })
-        Ingest->>Store: Reads memory store or public mirror
+        Router->>Ingest: serveHomeLatest() calls serveNterLatest({ limit: 12 })
+        Ingest->>Store: Selects the newest articles with the server key
+        opt Table empty or unreachable
+            Ingest->>Seed: Reads the committed seed
+        end
         Ingest-->>Client: Returns { ok: true, rows: [...], updated, ageH, waiting }
     else Offline / Static host
-        Client->>Store: homeLatestFromStatic() from /data/nter-news.json
-        Store-->>Client: Returns fallback seed rows
+        Client->>Seed: homeLatestFromStatic() from /data/nter-news.json
+        Seed-->>Client: Returns fallback seed rows
     end
     Client-->>Rail: Updates state: { rows, loading: false, updated, ageH }
     Rail-->>Visitor: Renders live article cards with category, image, time ago, and source attribution
@@ -417,29 +410,34 @@ Browser Client (Vercel Origin / Production)
   ↓
 /api/* Request (Vercel Rewrite: /api/(.*) → /api/router?__route=$1)
   ↓
-api/router.js (Single Consolidated Serverless Gateway)
-  ├─ /api/feature-feed        → server/featureFeed.mjs
-  ├─ /api/home/*              → server/homeApi.mjs
-  ├─ /api/livetv/*            → server/liveTvApi.mjs (13 YouTube channels + cache)
-  ├─ /api/news/ingest         → server/nterNews.mjs (bearer authenticated)
-  ├─ /api/marketing/intro-video → server/marketingMediaApi.mjs
-  ├─ /api/analytics/*         → server/analyticsApi.mjs
-  ├─ /api/user-prefs          → server/userPrefsApi.mjs (Supabase JWT caller verified)
-  ├─ /api/billing/*           → server/billingApi.mjs
-  ├─ /api/air, /api/ships     → server/transitApi.mjs
-  ├─ /api/opensanctions, /api/fts → server/diplomacyApi.mjs
-  ├─ /api/portwatch, etc.     → server/assetsApi.mjs
-  ├─ /api/users               → server/usersApi.mjs (Supabase session verification)
-  ├─ /api/auth/*              → server/authApi.mjs
-  ├─ /api/ai/chat             → server/aiApi.mjs (OpenRouter server key OR Supabase Edge Function research-chat)
-  └─ /api/ai/desk-brief       → server/deskBrief.mjs
+api/router.js (Single Consolidated Serverless Gateway), in the order it matches:
+  ├─ GET /api/feature-feed                     → server/featureFeed.mjs          public
+  ├─ GET /api/constitutions, /api/growth       → server/resourcesApi.mjs         public
+  ├─ GET /api/ohlc                             → server/homeApi.mjs              public
+  ├─ GET /api/home/markets|latest|pulse|segments → server/homeApi.mjs            public
+  ├─ GET|POST /api/home/refresh                → server/homeApi.mjs              public
+  ├─ /api/livetv/*                             → server/liveTvApi.mjs            public (13 YouTube channels + cache)
+  ├─ POST /api/news/ingest                     → server/nterNews.mjs             bearer NTER_TERMINAL_API_KEY
+  ├─ /api/users, /api/users/:id                → server/usersApi.mjs             admin
+  ├─ /api/marketing/intro-video                → server/marketingMediaApi.mjs    GET public; writes admin
+  ├─ /api/analytics/*                          → server/analyticsApi.mjs         POST /event public, rate-limited; reads admin
+  ├─ /api/user-prefs                           → server/userPrefsApi.mjs         account
+  ├─ /api/billing/*                            → server/billingApi.mjs           GET /config, /quote public; orders, verify, invoices account
+  ├─ /api/air, /ships, /ais, /vessels          → server/transitApi.mjs           public
+  ├─ /api/opensanctions, /api/fts              → server/diplomacyApi.mjs         public
+  ├─ /api/portwatch, /launches, /celestrak, /wb-projects → server/assetsApi.mjs  public
+  ├─ GET /api/ai/desk-brief                    → server/deskBrief.mjs            public (cached brief for an exact fingerprint only)
+  ├─ POST /api/ai/desk-brief                   → server/deskBrief.mjs            bearer, forwarded to the desk-brief Edge Function
+  └─ GET /api/ai/source-extract                → server/sourceExtract.mjs        account; public addresses only
 ```
+
+"Account" means `authorizeLocalUser()` in `server/usersApi.mjs`: a verified Supabase session whose profile is active. "Admin" adds a platform-admin check. The same table, with notes, is in `docs/specs/2026-09-28-authorization-review.md` (B2). Routes retired on 2026-09-28: `/api/auth/*` (`93f31e6`), `/api/ai/fetch` (`def5f71`), `/api/ai/chat` (`14b2344`) and `/api/app-flags` (`9e7a125`). `server/aiApi.mjs` and `server/authApi.mjs` are Vite dev-server plugins; the router imports neither. *(Corrected 2026-09-28.)*
 
 **Resolution of Production Deployment Issues (Ready for Production):**
 1. **`/api/marketing/intro-video` & `/api/analytics/event` & `/api/user-prefs` (404 → 200/401):** Updated `routePath(req)` in `api/router.js` to extract `__route` from `req.url` search params when `req.query` is not pre-populated in serverless node execution.
 2. **Native Supabase Auth (Section 2):** Removed obsolete custom variable-based email auth and backend proxies. `SignupPage.jsx` now uses browser-native `supabase.auth.signUp()` and `supabase.auth.resend()`. `ForgotPasswordPage.jsx` uses `supabase.auth.resetPasswordForEmail()`. Google OAuth uses native `supabase.auth.signInWithOAuth()`.
 3. **Live TV YouTube Player Error 153 (Section 9):** Replaced `referrerPolicy="no-referrer"` with `referrerPolicy="strict-origin-when-cross-origin"`, added explicit `origin` query parameter to embed URLs, and added a truthful fallback card with a direct "Watch on YouTube ↗" link for non-embeddable or offline broadcasts.
-4. **AI Research Authentication & Gateway (Section 4):** Attached `apikey` (`supabase.supabaseKey`) in `sendResearchTurn()` and in `server/aiApi.mjs` when proxying to `research-chat` Edge Function. `OPENROUTER_API_KEY` remains strictly server-side in Supabase Secrets.
+4. **AI Research Authentication & Gateway (Section 4):** Attached `apikey` (`supabase.supabaseKey`) in `sendResearchTurn()` and in `server/aiApi.mjs` when proxying to `research-chat` Edge Function. `OPENROUTER_API_KEY` remains strictly server-side in Supabase Secrets. *(Corrected 2026-09-28: that proxy, `/api/ai/chat`, was retired in `14b2344`; the panel calls `research-chat` directly.)*
 5. **Admin-Approved LLM Module (Section 6):** Reused `public.ai_models` allowlist via `loadRegistry()`. Added truthful empty and loading states in `ModelPicker.jsx`.
 6. **Semantic Card/Status Colors (Section 8):** Added `getStatusToneClass()` in `src/lib/format.js` and high-contrast semantic classes (`.status-green`, `.status-amber`, `.status-red`, `.status-neutral`) in `src/index.css`.
 7. **Supabase Clock Skew Warning (Section 16):** Confirmed non-breaking informational warning in `@supabase/gotrue-js` (`GoTrueClient.ts:3951`) caused by client machine clock lagging behind Supabase server UTC time.

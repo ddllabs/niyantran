@@ -2,6 +2,7 @@
 
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
+> Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. The repository now has 31 migrations, the latest `20260928150000_nter_news_articles`.
 
 ---
 
@@ -22,6 +23,14 @@ Niyantran Terminal executes all performance-critical, concurrency-sensitive, and
 | **`admin_models_upsert`** | `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Administrative upsert for `ai_models` and `ai_roles` after validating foreign keys and triggers. | `20260921000008` |
 | **`ai_health`** | `SECURITY INVOKER` | `authenticated`, `service_role` | `''` (Hardened) | End-to-end foundation probe: asserts `pgvector` presence, pricing rows, enabled models, and `auth.uid()`. | `20260921000006` |
 | **`is_platform_admin`** | `SECURITY DEFINER` (`LANGUAGE sql`, `STABLE`, no arguments) | `authenticated`, `service_role` | `''` (Hardened) | Returns true when a `user_profiles` row exists with `user_id = auth.uid()`, `role = 'admin'` and `status = 'active'`. *(Corrected 2026-09-24: previously listed as `SECURITY INVOKER` checking `role = 'platform_admin'`.)* | Defined in `backend/sql/auth_schema.sql`; no repo migration defines it. `20260921000012` only re-grants it and sets its search path. |
+| **`handle_new_user`** (trigger on `auth.users`) | `SECURITY DEFINER` | none (revoked from `PUBLIC`, `anon`, `authenticated`) | `''` (Hardened) | Creates the `user_profiles` row for a new account with fixed role, plan and status; since 2026-09-28 it also maps the signup `personaId` onto `persona`. | Defined in `backend/sql/auth_schema.sql`; replaced by `20260928120000_signup_persona` |
+| **`touch_user_preferences`** (trigger) | `SECURITY INVOKER` | none (revoked from all API roles) | `''` (Hardened) | Stamps `user_preferences.updated_at` with the server clock. | `20260928100000` |
+| **`analytics_event_summary(p_limit)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Total and per-name event counts for the admin summary route. | `20260928100100` |
+| **`purge_analytics_events()`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Deletes events older than 180 days; scheduled nightly by `pg_cron` where present. | `20260928100100` |
+| **`analytics_rate_hit(p_bucket, p_limit, p_window_seconds)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Counts one hit in the bucket's fixed window and says whether it is within the limit. | `20260928130000` |
+| **`purge_analytics_rate_windows()`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Deletes rate windows older than an hour; scheduled every 15 minutes by `pg_cron` where present. | `20260928130000` |
+| **`issue_invoice(p)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Assigns the next gapless `NIY/<FY>/<seq>` number and inserts the invoice in one statement. | `20260928140000` |
+| **`upsert_nter_article(p)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Upserts one nter.news article (by `article_id`, then `link`), skips stale revisions and keeps the newest 200. | `20260928150000` |
 
 ---
 
@@ -368,7 +377,7 @@ GRANT EXECUTE ON FUNCTION public.ai_health() TO authenticated, service_role;
 
 ## 9. RPC Security Audit & Permission Matrix
 
-A comprehensive security audit of all 11 database stored procedures in production:
+A security audit of the 11 AI-backend stored procedures (written on 2026-09-22; §9.1 covers the functions added on 2026-09-28):
 
 | Function | Security Definer? | Search Path Hardened? | Anon Access? | Authenticated Access? | Service Role Access? | Primary Threat Mitigated |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
@@ -384,6 +393,21 @@ A comprehensive security audit of all 11 database stored procedures in productio
 | **`ai_health`** | No (`INVOKER`) | Yes (`''`) | **No** (Revoked) | Yes | Yes | Information leakage of cluster topology to anonymous users. |
 | **`is_platform_admin`**| **Yes (`DEFINER`)** (corrected 2026-09-24) | Yes (`''`) | **No** (Revoked) | Yes | Yes | Forged admin claims in client-side applications. |
 
+### 9.1 Functions added on 2026-09-28
+
+All eight are `search_path = ''`. None is executable by `anon` or `authenticated`.
+
+| Function | Security | Who may execute | Called by |
+| :--- | :---: | :--- | :--- |
+| `touch_user_preferences()` | `INVOKER` | No API role (trigger only) | `user_preferences_touch` trigger |
+| `analytics_event_summary(integer)` | `INVOKER` | `service_role` | `GET /api/analytics/summary` (after an admin check) |
+| `purge_analytics_events()` | `INVOKER` | `service_role` | `pg_cron` job `analytics-events-retention` (03:17 UTC) |
+| `analytics_rate_hit(text, integer, integer)` | `INVOKER` | `service_role` | `POST /api/analytics/event` |
+| `purge_analytics_rate_windows()` | `INVOKER` | `service_role` | `pg_cron` job `analytics-rate-windows-purge` (every 15 minutes) |
+| `issue_invoice(jsonb)` | `INVOKER` | `service_role` | `POST /api/billing/verify`, and the demo `POST /api/billing/invoice` (refused on the serverless host) |
+| `upsert_nter_article(jsonb)` | `INVOKER` | `service_role` | `POST /api/news/ingest` |
+| `handle_new_user()` (replaced) | `DEFINER` | No API role (trigger on `auth.users`) | Supabase Auth signup |
+
 ### Hardening Invariants:
 1. **Search Path Hardening (`SET search_path = ''`):** Every security-sensitive function sets an explicit, empty search path. All database objects must be fully qualified (e.g. `public.conversations`), preventing malicious users from creating shadowed tables or functions in untrusted schemas.
-2. **PostgREST Exposure Restriction:** Out of 11 functions, **7 functions are completely blocked from `anon` and `authenticated` roles**, making them completely invisible to standard Supabase REST endpoints. They can be invoked solely by Edge Functions holding `service_role` credentials.
+2. **PostgREST Exposure Restriction:** Out of the 11 functions in the table above, **7 functions are completely blocked from `anon` and `authenticated` roles** (and all eight in §9.1 are too), making them completely invisible to standard Supabase REST endpoints. They can be invoked solely by Edge Functions holding `service_role` credentials.

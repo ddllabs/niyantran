@@ -11,8 +11,9 @@ local API plugins, hosted API functions, administration and billing integrations
 Use the project-approved Node/npm environment and Deno for Edge Function tests.
 Install dependencies with `npm ci`. Configure an ignored `.env.local` using
 `.env.example` as a variable-name reference; placeholder values are not working
-credentials. Vite loads local server plugins during configuration, so even a
-build needs the authentication configuration expected by those plugins.
+credentials. A production build needs no environment variables (checked on
+2026-09-28 by building with none set; CI builds the same way). The dev server's
+local API plugins read `.env.local` for the routes they serve.
 
 ```bash
 npm run dev -- --host 127.0.0.1
@@ -26,9 +27,11 @@ host is network-visible unless overridden as above. `npm run preview` previews
 the built application; it does not establish that development API plugins are
 available in a production host.
 
-There is no declared lint, standalone type-check or CI command. SQL regression
-files under `supabase/tests/` are for disposable local databases with the required
-Auth stubs and migrations; do not execute write fixtures against production.
+There is no declared lint or standalone type-check. `.github/workflows/ci.yml`
+runs the build, both test suites and the SQL fixtures on every push; it is
+advisory, and nothing is blocked on it. `npm run test:sql` runs the fixtures in
+`supabase/tests/` against two disposable local Docker Postgres containers with the
+required Auth stubs and migrations; never run them against production.
 Build warnings about a large bundle and mixed static/dynamic imports remain.
 
 ## Application structure
@@ -44,9 +47,10 @@ Build warnings about a large bundle and mixed static/dynamic imports remain.
 | `scripts/` | Explicit maintenance, source-mapping and ingestion tools |
 | `public/data/` | Tracked data collections; preserve their provenance |
 
-Project specs and plans live under `docs/` in the owner's checkout. They are
-intentionally ignored and are not included in developer clones. `AGENTS.md`
-defines the coordination and verification requirements.
+Project specs, plans and architecture notes live under `docs/`, tracked in git
+since 2026-09-27 (`f828ef5`); `docs/security/` stays local only. Start with
+`docs/START-HERE.md`. `AGENTS.md` defines the coordination and verification
+requirements.
 
 ## Authentication and configuration
 
@@ -63,15 +67,16 @@ its historical variable name. Server configuration uses `SUPABASE_URL`,
 for explicitly privileged operations. The project disabled legacy JWT API keys;
 do not restore one as a fallback. Never expose a secret through `VITE_` variables.
 
-`AUTH_EMAIL_PROVIDER` selects `SUPABASE_NATIVE` (the code default) or `RESEND_API`.
-Native delivery depends on Supabase's configured email service/templates. Resend
-uses server-side link generation and `RESEND_API_KEY`/`RESEND_FROM_EMAIL` with a
-verified sender. Administrative helpers accept the modern secret-key variable;
-some startup diagnostics still refer to the legacy variable name and require
-review before changing modes. Configure `APP_URL`/`SITE_URL` and the Supabase
-redirect allowlist for the actual host. Do not infer successful email delivery
-from the selected mode or a successful build; real delivery remains a launch
-check. No production provider mode is asserted by this README.
+The browser signs up, signs in, resends verification and resets passwords
+through Supabase Auth directly, so account email in production is whatever
+Supabase's configured email service and templates send. Configure the Supabase
+redirect allowlist for the actual host. `/api/auth/*` is not served in production
+(removed 2026-09-28, `93f31e6`). `server/authApi.mjs` is still mounted by the Vite
+dev and preview servers only; there, `AUTH_EMAIL_PROVIDER` selects
+`SUPABASE_NATIVE` (the code default) or `RESEND_API`, which uses server-side link
+generation, `RESEND_API_KEY`/`RESEND_FROM_EMAIL` and `APP_URL`/`SITE_URL`. Do not
+infer successful email delivery from a successful build; real delivery remains a
+launch check.
 
 ## AI, corpus and citations
 
@@ -94,15 +99,15 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-**Updated 2026-09-21.** The recovery security and corpus-integrity migrations
-are now applied to the live Supabase project. Live migration history runs
-0001-0015 plus `20260921115831_research_turn_persistence`, and all five Edge
-Functions are deployed, including `research-chat` for the first time. `anon`
-holds no table privileges. Still outstanding as release checks: the bounded paid
-browser acceptance (it needs an internal-admin account and a second ordinary
-account, neither of which exists), the two-document corpus retry, email delivery
-and Vercel configuration. Consult the owner's recovery plan for current evidence
-rather than treating local tests as production verification.
+**Updated 2026-09-28.** The live Supabase project has all 31 repository
+migrations applied (latest `20260928150000_nter_news_articles`) and six Edge
+Functions deployed: `health`, `admin-models`, `refresh-model-pricing`,
+`ingest-documents`, `desk-brief` and `research-chat`. Production on Vercel
+(`niyantran-six.vercel.app`) follows `main`. Versions, the day's production
+changes and open owner actions are recorded in `docs/agents/coordination.md`,
+"Operations — 2026-09-28"; the remaining work is in
+`docs/plans/2026-09-28-remaining-work.md`. Local tests are not production
+verification.
 
 Do not push, deploy, apply migrations, retry ingestion or publish data without
 the owner's exact authorization. Billing/provider tests can incur costs; use

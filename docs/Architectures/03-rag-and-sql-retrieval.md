@@ -318,7 +318,7 @@ sequenceDiagram
 3. **Citation Ladder Mapping:**
    - Legitimate handles are translated into display-friendly numbered citations (`[1]`, `[2]`).
    - Sources carry: `{ document_id, char_from, char_to, text_hash }`.
-4. **Front-End Reader Verification ([`SourceReader.jsx`](file:///Users/vighneshshukla/Downloads/DDL%20Labs/Clients/AI%20Project%20-%3E%20Niyantran%20AI/src/ai/SourceReader.jsx)):**
+4. **Front-End Reader Verification ([`SourceReader.jsx`](../../src/ai/SourceReader.jsx)):**
    - The reader extracts `ocr_text.slice(char_from, char_to)` and hashes it.
    - If the hash matches `text_hash`: Displays `exact` with yellow highlight.
    - If offsets drifted: Flags `moved` or `changed`, guaranteeing the user is never shown the wrong passage.

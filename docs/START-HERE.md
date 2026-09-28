@@ -6,12 +6,12 @@ Status: **Living.** Written 2026-09-24; current-state section corrected 2026-09-
 
 The upstream merge described below **has landed**. Read this section first; the rest of the page is the guide that got us here and is kept because the plan and audit it points to are still the record of why the code looks the way it does.
 
-1. Upstream `528dfb4` was merged into `dev` and then into `main` through PR #2 (`8849c35`, 2026-09-26). `origin/main` and `origin/dev` both point at `ca73200` (2026-09-28). Upstream is retired; there is no `upstream` remote to fetch in a fresh clone and none is needed. Since 2026-09-28 `main` is the only long-lived branch and `dev` is retired. Work happens on short-lived `task/` or `feature/` branches, each with its own Vercel preview URL (`agents/coordination.md`, "Branches and deployments").
+1. Upstream `528dfb4` was merged into `dev` and then into `main` through PR #2 (`8849c35`, 2026-09-26). Upstream is retired; there is no `upstream` remote to fetch in a fresh clone and none is needed. Since 2026-09-28 `main` is the only branch, locally and on GitHub; `dev` is retired and production follows `main`. Work happens on short-lived `task/` or `feature/` branches, each with its own Vercel preview URL (`agents/coordination.md`, "Branches and deployments").
 2. Since the merge `main` gained Live TV, desk landing pages, the segment carousel, the nter.news rail and the NyAI thinking indicator (`5e54af2`, ADRs 0006–0009), then Vercel router fixes (`ca73200`, ADR 0010).
 3. A DDL Labs Vercel deployment exists at `niyantran-six.vercel.app` (ADR 0010). The nter.pro cutover (integration plan Phases 4–6) is not recorded as done.
 4. `docs/` is tracked in git since 2026-09-27 (`f828ef5`). `docs/security/` stays local only.
-5. **Known gap (narrowed 2026-09-28):** preferences, analytics, flags, invoices and nter.news articles now live in Supabase. Only the SQLite `entry_briefs` cache tier in `server/deskBrief.mjs` remains (plan task C3, T7). The move is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
-6. The Supabase state as of 2026-09-28 (deployed function versions, migration history, row counts) is recorded in `agents/coordination.md` under "Supabase audit — 2026-09-28".
+5. **Known gap (narrowed 2026-09-28):** accounts, preferences, analytics, flags, invoices and nter.news articles now live in Supabase. Only the SQLite `entry_briefs` cache tier in `server/deskBrief.mjs` remains (plan task C3, T7). The move is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
+6. The Supabase state as of 2026-09-28 (row counts, advisors) is recorded in `agents/coordination.md` under "Supabase audit — 2026-09-28"; its function table and migration count are superseded by "Operations — 2026-09-28" (31 migrations; six functions, including `desk-brief` v2).
 7. The open work is indexed in `niyantran-conflict-audit-and-plan/04-open-backlog.md`.
 8. The remaining work as of 2026-09-28 is planned in `plans/2026-09-28-remaining-work.md`. The same day's production changes (function versions, migrations, CI) are in `agents/coordination.md` under "Operations — 2026-09-28". The serverless move is done except T7 (the SQLite desk-brief cache tier).
 9. Rolling back Vercel or an Edge Function, and verifying any deploy: `agents/rollback-runbook.md`.
@@ -38,16 +38,16 @@ The upstream merge described below **has landed**. Read this section first; the 
 
 | Document | Covers |
 |---|---|
-| `Architectures/README.md` | Index of the six architecture docs; corrected 2026-09-24 |
+| `Architectures/README.md` | Index of the six architecture docs; corrected 2026-09-24 and 2026-09-28 |
 | `Architectures/01-ingestion-pipeline.md` | Document and desk-row ingestion |
 | `Architectures/02-database-schema-and-tables.md` | Tables, ER diagram, RLS matrix |
 | `Architectures/03-rag-and-sql-retrieval.md` | `match_documents`, `search_desk_rows`, citations |
 | `Architectures/04-prompt-sandwich-and-agent-engine.md` | Agent loop, prompt blocks, SSE, turn persistence |
-| `Architectures/05-supabase-edge-functions.md` | The five deployed functions and the shared library (a sixth, `desk-brief`, is in the repo but not deployed as of 2026-09-28) |
+| `Architectures/05-supabase-edge-functions.md` | The six deployed functions (including `desk-brief`) and the shared library |
 | `Architectures/06-stored-procedures-and-rpcs.md` | RPC catalogue and grants |
 | `decisions/0001`–`0004` | Edge Functions for AI, OpenRouter plus embeddings, the corpus/conversation model, chunk identity |
 
-The architecture docs were corrected on 2026-09-24 against the code. Some small inaccuracies remain and are listed in the backlog. **When a doc and the code disagree, the code and migrations win**, and the doc gets fixed.
+The architecture docs were corrected on 2026-09-24 and again on 2026-09-28 against the code. Some small inaccuracies remain and are listed in the backlog. **When a doc and the code disagree, the code and migrations win**, and the doc gets fixed.
 
 ## History, for context only
 
@@ -71,10 +71,11 @@ Rules 1–3 described the one-time merge and no longer apply: there is no freeze
 6. **Never commit secrets** (`.env*`, keys). Never delete or regenerate `backup/` or `public/data/`. Pushes, merges to `main`, and any Vercel, DNS or Supabase dashboard change need the owner's explicit go-ahead.
 7. **Verification commands** (AGENTS.md):
    - `npm ci`
-   - `npm run build`: needs the Supabase and auth env vars, or Phase 2.5 applied.
+   - `npm run build`: needs no environment variables (checked 2026-09-28).
    - `npm test`
    - `deno test -A --config supabase/functions/deno.json supabase/functions`
    - `npm run test:sql`: only if you touch SQL. Needs Docker and never runs against the live project.
+   - `.github/workflows/ci.yml` runs all of these on every push (advisory).
 
 ## Who does what
 

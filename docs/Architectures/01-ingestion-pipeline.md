@@ -1,7 +1,7 @@
 # Ingestion Pipeline Architecture: Documents, Chunks, Embeddings, and Desk Rows
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified implementation in `scripts/ingest-national-desk.mjs`, `scripts/load-desk-rows.mjs`, `supabase/functions/ingest-documents/`, `_shared/chunking.ts`, and database migrations 0003, 0004, 0009, 0014, and `20260922144105`.
+> Reflects the verified implementation in `scripts/ingest-national-desk.mjs`, `scripts/load-desk-rows.mjs`, `supabase/functions/ingest-documents/`, `_shared/chunking.ts`, and database migrations 0003, 0004, 0009 and 0014. *(Corrected 2026-09-28: this line also cited a migration `20260922144105`, which does not exist in `supabase/migrations/`.)*
 
 ---
 
@@ -125,7 +125,7 @@ Over 1,845 chunks in the corpus contain HTML tables, and 1,590 chunks contain me
 For all 54,219 chunks in production, the following mathematical invariant holds:
 $$\text{char\_to} - \text{char\_from} = \text{length}(\text{content})$$
 
-This guarantee allows the front-end citation reader ([`SourceReader.jsx`](file:///Users/vighneshshukla/Downloads/DDL%20Labs/Clients/AI%20Project%20-%3E%20Niyantran%20AI/src/ai/SourceReader.jsx)) to map citations directly onto the document DOM without character drift.
+This guarantee allows the front-end citation reader ([`SourceReader.jsx`](../../src/ai/SourceReader.jsx)) to map citations directly onto the document DOM without character drift.
 
 ---
 

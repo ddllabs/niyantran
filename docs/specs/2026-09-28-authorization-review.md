@@ -5,6 +5,8 @@
 > record lists only findings that are fixed or accepted. The one hardening
 > item reported to the owner separately (the unused `/api/auth/*` group) was
 > removed from production the same day.
+> Later the same day `/api/ai/chat`, listed below, was retired with the legacy
+> AI path (`14b2344`); the current route list is in `docs/flow.md` §11.
 
 ## B1. `SECURITY DEFINER` functions callable by `authenticated`
 
