@@ -11,7 +11,10 @@ import { writablePath } from './writableRoot.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
 const STAT1_URL = 'https://www.indiabudget.gov.in/doc/eb/stat1.xlsx';
-const CACHE_JSON = path.join(APP_ROOT, 'public', 'data', 'centre_state_fund_flow.json');
+// The committed file is a read-only seed; the parsed pack is cached under the
+// writable root (safe to lose) and nothing here writes into public/.
+const SEED_JSON = path.join(APP_ROOT, 'public', 'data', 'centre_state_fund_flow.json');
+const CACHE_JSON = writablePath('stat1.json');
 const CACHE_XLSX = writablePath('stat1.xlsx');
 
 const UA =
@@ -167,15 +170,16 @@ export async function loadCentreStateFundFlow() {
     if (mem?.rows?.length) {
       return { ...mem, stale: true, error: err.message || String(err) };
     }
-    try {
-      if (fs.existsSync(CACHE_JSON)) {
-        const disk = JSON.parse(fs.readFileSync(CACHE_JSON, 'utf8'));
+    for (const file of [CACHE_JSON, SEED_JSON]) {
+      try {
+        if (!fs.existsSync(file)) continue;
+        const disk = JSON.parse(fs.readFileSync(file, 'utf8'));
         if (disk?.rows?.length) {
           return { ...disk, stale: true, error: err.message || String(err) };
         }
+      } catch {
+        /* try the next copy */
       }
-    } catch {
-      /* ignore */
     }
     throw err;
   }

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
 import { serveNterLatest } from './nterNews.mjs';
+import { writablePath } from './writableRoot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -186,19 +187,29 @@ function snapshotAgeH(d) {
   return (Date.now() - t) / 3600000;
 }
 
+// The last good payload per feed is a cache (safe to lose) under the writable
+// root. The committed public/data/<feed>.json files are read-only seeds used
+// until the cache has a copy; nothing at runtime writes into public/.
+function snapshotCachePath(feed) {
+  return writablePath('home-snapshots', `${feed}.json`);
+}
+
 function readDiskSnapshot(feed) {
-  const file = path.join(PUBLIC_DATA, `${feed}.json`);
-  const d = readJsonFile(file);
-  if (!d || !(d.as_of || d.updated)) return null;
-  d.__ageH = snapshotAgeH(d);
-  return d;
+  for (const file of [snapshotCachePath(feed), path.join(PUBLIC_DATA, `${feed}.json`)]) {
+    const d = readJsonFile(file);
+    if (!d || !(d.as_of || d.updated)) continue;
+    d.__ageH = snapshotAgeH(d);
+    return d;
+  }
+  return null;
 }
 
 function writeDiskSnapshot(feed, body) {
   const rows = Array.isArray(body?.rows) ? body.rows : [];
   if (!rows.length) return;
   try {
-    fs.mkdirSync(PUBLIC_DATA, { recursive: true });
+    const file = snapshotCachePath(feed);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
     const quoteStamp =
       body.as_of ||
       body.updated ||
@@ -218,7 +229,7 @@ function writeDiskSnapshot(feed, body) {
       archive: Boolean(body.archive),
     };
     if (body.meta) out.meta = body.meta;
-    fs.writeFileSync(path.join(PUBLIC_DATA, `${feed}.json`), JSON.stringify(out));
+    fs.writeFileSync(file, JSON.stringify(out));
   } catch (err) {
     console.warn('[home-cache] write failed', feed, err.message);
   }

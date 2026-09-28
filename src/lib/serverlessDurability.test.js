@@ -17,7 +17,7 @@ const WRITABLE_ROOT_MODULE = 'server/writableRoot.mjs';
 
 // Keys whose contents are caches and safe to lose (spec C1, C2). Never add a
 // durable store here to get green.
-const CACHE_KEYS = new Set(['desk-briefs', 'stat1.xlsx']);
+const CACHE_KEYS = new Set(['desk-briefs', 'stat1.xlsx', 'stat1.json', 'home-snapshots']);
 
 // Offences that exist today, each removed by the task that moves its store to
 // Supabase. The list may only shrink: a new offence fails, and so does an
