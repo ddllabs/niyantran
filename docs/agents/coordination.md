@@ -815,3 +815,8 @@ marked otherwise. This supersedes the function table above.
   owner adds the pattern to `ALLOWED_ORIGINS` (open-work O5). `health` and
   `admin-models` keep `verify_jwt`, so an unauthenticated probe stops at the
   gateway; their boot is confirmed by the next authenticated call.
+- **Migration 33:** `20260929110000_email_unique` (open-work F10) applied and
+  pinned; `user_profiles_email_normalised_key` is unique and the old
+  non-unique index is gone. NTER had no duplicate normalised emails
+  (10 profiles) before the apply.
+

@@ -101,8 +101,8 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-**Updated 2026-09-29.** The live Supabase project has all 32 repository
-migrations applied (latest `20260929100000_plan_entitlements`) and six Edge
+**Updated 2026-09-29.** The live Supabase project has all 33 repository
+migrations applied (latest `20260929110000_email_unique`) and six Edge
 Functions deployed: `health`, `admin-models`, `refresh-model-pricing`,
 `ingest-documents`, `desk-brief` and `research-chat`. Not all of them run the
 code on `main`; redeploying them from one commit is open-work F9. `main` is the

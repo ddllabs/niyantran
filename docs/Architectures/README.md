@@ -156,7 +156,7 @@ npm run build
 
 ### 4.4 SQL Fixtures (disposable local Postgres only)
 ```bash
-# 13 fixtures in supabase/tests/ (plus two bootstrap files), each rebuilt from scratch and checked for vacuity
+# 14 fixtures in supabase/tests/ (plus two bootstrap files), each rebuilt from scratch and checked for vacuity
 npm run test:sql
 ```
 

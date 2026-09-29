@@ -11,6 +11,7 @@ import { refreshEntitlement, startTrial } from '../lib/entitlementStore.js';
 import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
+import { signupErrorMessage } from '../lib/signupErrors.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 function planFromRoute() {
@@ -171,7 +172,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
         },
       });
       if (signUpError) {
-        setError(signUpError.message || 'Failed to create account. Please check your details.');
+        setError(signupErrorMessage(signUpError));
         setPending(false);
         return;
       }

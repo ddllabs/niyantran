@@ -1,7 +1,7 @@
 # Database Architecture: Schema, Tables, Indexes, and RLS Security Matrix
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 32 migrations in `supabase/migrations/` (`20260921000001` through `20260929100000_plan_entitlements`), plus `backend/sql/auth_schema.sql`.
+> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 33 migrations in `supabase/migrations/` (`20260921000001` through `20260929110000_email_unique`, which makes `user_profiles.email_normalised` unique), plus `backend/sql/auth_schema.sql`.
 > Corrected 2026-09-28: the seven tables added that day (Group E), the RLS matrix for them, and the `user_profiles`, `conversations`, `chat_messages`, `ai_models`, `ai_roles` and `model_call_logs` entries, which described columns that do not exist.
 > Corrected 2026-09-29: migration `20260929100000_plan_entitlements` added the `user_profiles` plan columns and the `plan_grants` table (#17).
 

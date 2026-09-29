@@ -3,7 +3,7 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
 > Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. On 2026-09-28 the repository had 31 migrations.
-> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 32 migrations. NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
+> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 33 migrations (the 33rd, `20260929110000_email_unique`, adds only an index). NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
 
 ---
 
@@ -431,6 +431,30 @@ F11. The rest are `service_role` only or trigger-only. The plan columns on
 | `grant_manual_plan(uuid, text, timestamptz, uuid)` | `DEFINER` | `service_role` | `PATCH /api/users/:id` with `{ plan, planEnd }`, after the admin check. |
 | `entitlement_from(user_profiles)`, `paid_plan_of(text)` | `INVOKER` | `service_role` | Helpers for the functions above. |
 | `handle_new_user()` (replaced again) | `DEFINER` | No API role (trigger on `auth.users`) | Supabase Auth signup; starts the trial named by `raw_user_meta_data.plan` (pro or enterprise). |
+
+
+**Review of the two that signed-in users can call (F11, 2026-09-29).** This
+continues the 2026-09-28 review of the six older ones
+(`specs/2026-09-28-authorization-review.md`). It was read from the live
+catalogue on 2026-09-29: both are `SECURITY DEFINER` with `search_path = ''`,
+and neither is executable by `anon`.
+
+- `my_entitlement()` reads only the caller's own active profile
+  (`user_id = auth.uid()`) and returns that row's plan fields. It takes no
+  argument, so it can't be pointed at another account. Verdict: own data only.
+- `start_trial(text)`:
+  - raises without `auth.uid()`;
+  - accepts only `pro` or `enterprise` (`paid_plan_of`);
+  - locks and writes only the caller's own row, plus one `plan_grants` line;
+  - refuses a second trial (`trial_started_at` is set once and never cleared)
+    and refuses an account that already has a paid plan.
+
+  It can't grant a paid status, extend a period or touch another account.
+  Verdict: safe as a once-per-account self-service grant.
+
+Both are covered by `supabase/tests/plan_entitlements.sql`, including the
+refusal cases. The four other functions in this section are executable only
+by `service_role`.
 
 ### Hardening Invariants:
 1. **Search Path Hardening (`SET search_path = ''`):** Every security-sensitive function sets an explicit, empty search path. All database objects must be fully qualified (e.g. `public.conversations`), preventing malicious users from creating shadowed tables or functions in untrusted schemas.

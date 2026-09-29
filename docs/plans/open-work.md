@@ -28,9 +28,9 @@
 
 Current baseline:
 - `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
-- Supabase NTER has 32 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
+- Supabase NTER has 33 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The HNSW index is 404 MB.
-- Tests: 66 Vitest files (958 tests), 447 Deno tests and 13 SQL fixtures. CI is advisory.
+- Tests: 66 Vitest files (958 tests), 454 Deno tests and 14 SQL fixtures. CI is advisory.
 
 ## 1. Agent tasks (doable now, in this order)
 
@@ -61,14 +61,6 @@ new test must fail before the change.
   migration).** Nothing has read it since `f05a5b6`, and its values were
   cleared on 2026-09-28. It was planned for about a week later (from
   2026-10-05); the owner may approve it sooner.
-- [ ] **F10. A unique index on `user_profiles.email_normalised` (XS,
-  migration).** The foundation spec deferred this "until entitlements go
-  server-side", which happened in `f74c8c1`. Check the live data for
-  duplicates first. A SQL fixture checks that a duplicate is refused.
-- [ ] **F11. Record the review of `my_entitlement()` and `start_trial()`
-  (XS, docs).** The 2026-09-28 review (B1) covered the six
-  `SECURITY DEFINER` functions that `authenticated` could execute then.
-  These two are new, so the same line-by-line check goes on record.
 - [ ] **F13. Three turn-recovery defects (S–M).** From supervisor-recovery
   L1346–1363, all still in the code:
   - `reconcileSavedTurn` is not idempotent;
@@ -224,6 +216,7 @@ container can't reach it.
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F10, one account per normalised email (migration `20260929110000_email_unique`, live; fixture `email_unique.sql`); signup explains the refusal (`src/lib/signupErrors.js`). F11, the review of `my_entitlement` and `start_trial` (`Architectures/06` §9.2).
   - F8, preview origins in CORS; F9, no legacy keys in Edge Functions; F12, the chunker's table rule (version 2) (`d1567d1`). All six functions were redeployed from that commit: `health` v8, `admin-models` v8, `refresh-model-pricing` v9, `ingest-documents` v12, `desk-brief` v3, `research-chat` v33. The four that are reachable without a JWT answered their own 401 with the production CORS header.
   - F2 phase 1, server-owned plans (`f74c8c1`; `specs/2026-09-29-f2-entitlements.md`); this file (`docs:` commit of 2026-09-29).
 - **2026-09-28/29:**
