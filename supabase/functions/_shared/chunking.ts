@@ -23,7 +23,9 @@ export const CHUNK: Readonly<ChunkOptions> = Object.freeze({
   minChars: 200,
   tableAtomicMax: 1500,
   maxChars: 6000,
-  version: 1,
+  // 2 (2026-09-29, F12): a table row must start and end with '|' and hold a
+  // non-empty cell; version 1 treated any line starting with '|' as a table.
+  version: 2,
 });
 
 export interface ChunkUnit {
@@ -74,6 +76,17 @@ export function chunkHashInput(version: number, unitKey: string, content: string
  * same document the chunker cut, so a second implementation of this would drift and put a citation's
  * highlight in the wrong block.
  */
+/**
+ * A Markdown table row: starts and ends with '|' and has at least one non-empty
+ * cell. Scanned OCR leaves bare pipes for a table's printed rules ('|', '| |',
+ * '| THE SCHEDULE'); those are text, not table structure.
+ */
+function isTableRow(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 3 || !t.startsWith('|') || !t.endsWith('|')) return false;
+  return t.slice(1, -1).split('|').some((cell) => cell.trim() !== '');
+}
+
 export function blocks(text: string): Block[] {
   const out: Block[] = [];
   let current: Block | null = null;
@@ -86,7 +99,7 @@ export function blocks(text: string): Block[] {
       current = null;
       continue;
     }
-    const kind: Kind = /^#{1,6}\s/.test(line) ? 'heading' : /^\s*\|/.test(line) ? 'table' : 'para';
+    const kind: Kind = /^#{1,6}\s/.test(line) ? 'heading' : isTableRow(line) ? 'table' : 'para';
     if (kind === 'heading') {
       out.push({ kind, from, to });
       current = null;

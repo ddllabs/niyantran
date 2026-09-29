@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertNotEquals } from 'jsr:@std/assert@1';
-import { CHUNK, chunkDocument, chunkHashInput, chunkUnit, estimateTokens } from './chunking.ts';
+import { blocks, CHUNK, chunkDocument, chunkHashInput, chunkUnit, estimateTokens } from './chunking.ts';
 
 // A short real OCR passage (2006-32-gaz, Gazette of India), kept as the
 // exact-span fixture. OCR noise is part of the point.
@@ -104,7 +104,7 @@ Deno.test('a short trailing paragraph folds into the previous span', () => {
 
 Deno.test('the chunker version participates in the hash', async () => {
   const doc = paragraphs(3);
-  const v1 = (await chunkDocument(doc)).map((r) => r.chunkHash);
+  const v1 = (await chunkDocument(doc, { version: 1 })).map((r) => r.chunkHash);
   const v2 = (await chunkDocument(doc, { version: 2 })).map((r) => r.chunkHash);
   assertEquals(v1.length, v2.length);
   for (const h of v2) assert(!v1.includes(h));
@@ -134,4 +134,29 @@ Deno.test('empty and blank documents produce no chunks; tokens are estimated at 
   assertEquals(await chunkDocument('\n\n  \n'), []);
   assertEquals(estimateTokens('abcdefgh'), 2);
   assertEquals(estimateTokens('abcdefghi'), 3);
+});
+
+// F12: scanned tables leave bare '|' characters for the printed rules, so a
+// line that merely starts with a pipe is OCR noise, not table structure. A
+// table row starts and ends with a pipe and has at least one non-empty cell.
+Deno.test('a real pipe table is a table block; stray pipe lines are paragraph text', () => {
+  const table = '| Clause | Subject |\n|---|---|\n| 1 | Short title |';
+  const tb = blocks(table);
+  assertEquals(tb.length, 1);
+  assertEquals(tb[0].kind, 'table');
+
+  for (const noise of ['| THE SCHEDULE', '|', '| |', '|   |   |', '|the Bill shall come into force']) {
+    const b = blocks(noise);
+    assertEquals(b.length, 1, noise);
+    assertEquals(b[0].kind, 'para', noise);
+  }
+
+  const mixed = 'Section 2 of the Act\n| amended as follows\n| (a) in clause (i)';
+  const mb = blocks(mixed);
+  assertEquals(mb.map((b) => b.kind), ['para']);
+  assertEquals([mb[0].from, mb[0].to], [0, mixed.length]);
+});
+
+Deno.test('the table rule change bumps the chunker version so a re-ingest re-embeds', () => {
+  assertEquals(CHUNK.version, 2);
 });

@@ -2,9 +2,10 @@
 // bypasses RLS and is used only after the function has done its own checks.
 //
 // Keys: the platform injects SUPABASE_PUBLISHABLE_KEYS and SUPABASE_SECRET_KEYS
-// as JSON objects keyed by key name ('default'). The legacy SUPABASE_ANON_KEY
-// and SUPABASE_SERVICE_ROLE_KEY are read only as a fallback; this project's
-// legacy keys were disabled on 2026-09-21 after a service_role JWT leaked.
+// as JSON objects keyed by key name ('default'). They are the only keys read:
+// this project's legacy anon and service_role keys were disabled on 2026-09-21
+// after a service_role JWT leaked, so SUPABASE_ANON_KEY and
+// SUPABASE_SERVICE_ROLE_KEY are deliberately ignored.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
@@ -27,14 +28,14 @@ export function namedKey(raw: string | undefined, name = 'default'): string | nu
 }
 
 export function publishableKey(): string {
-  const k = namedKey(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')) ?? Deno.env.get('SUPABASE_ANON_KEY');
-  if (!k) throw new Error('no publishable key: SUPABASE_PUBLISHABLE_KEYS (or SUPABASE_ANON_KEY) is not set');
+  const k = namedKey(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS'));
+  if (!k) throw new Error('no publishable key: SUPABASE_PUBLISHABLE_KEYS is not set');
   return k;
 }
 
 export function secretKey(): string {
-  const k = namedKey(Deno.env.get('SUPABASE_SECRET_KEYS')) ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!k) throw new Error('no secret key: SUPABASE_SECRET_KEYS (or SUPABASE_SERVICE_ROLE_KEY) is not set');
+  const k = namedKey(Deno.env.get('SUPABASE_SECRET_KEYS'));
+  if (!k) throw new Error('no secret key: SUPABASE_SECRET_KEYS is not set');
   return k;
 }
 
