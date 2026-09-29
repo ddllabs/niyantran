@@ -5,8 +5,8 @@
  *   PUT  /api/user-prefs  { watchlist?, tours?, email? }
  *
  * AI chats are no longer a preference (2026-09-28): research conversations
- * live in public.conversations. An `aiChats` field is ignored, and the
- * ai_chats column is neither read nor written (its old rows are kept).
+ * live in public.conversations. An `aiChats` field is ignored; the ai_chats
+ * column was dropped by 20260929130000_drop_ai_chats.sql.
  *
  * Data access runs through a client bound to the caller's own bearer, so the
  * table's `user_id = auth.uid()` policies check ownership a second time. This
