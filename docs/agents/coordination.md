@@ -773,3 +773,19 @@ marked otherwise. This supersedes the function table above.
   `a47680e`.
 - The work is tracked in `docs/plans/2026-09-28-remaining-work.md`, with the
   review in `docs/specs/2026-09-28-authorization-review.md`.
+
+### Operations — 2026-09-29
+
+- **Migration 32:** `20260929100000_plan_entitlements` (plan task F2) was
+  applied to NTER through the MCP tool after `npm run test:sql` passed on the
+  disposable databases. Its version was pinned to the file name.
+  - Before the apply, all 10 profiles were explorer; afterwards all 10 read
+    `explorer`/`free`.
+  - A rolled-back probe as a signed-in user read its own entitlement and was
+    refused both a direct plan update (`42501`) and `grant_paid_plan`
+    (`42501`), and could not read `plan_grants`.
+- **Razorpay** is still unconfigured, so checkout says payments aren't
+  enabled. A payment grants a plan only once the keys exist on Vercel.
+  Server-side gating of desk data, exports and row caps (plan task F6) comes
+  first.
+

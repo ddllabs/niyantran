@@ -13,8 +13,8 @@ it:
 
 - Vercel `niyantran-six.vercel.app` follows `main` (corrected 2026-09-28;
   this line first named the commit `93684e7`).
-- Supabase NTER has 31 migrations (corrected 2026-09-28 from 29) and runs on
-  the 2 GB compute.
+- Supabase NTER has 32 migrations (corrected 2026-09-29 from 31, and on
+  2026-09-28 from 29) and runs on the 2 GB compute.
 
 Research chat with citations, desk briefs, the model registry, per-account
 personas, the Supabase-backed state stores and the analytics rate limit all
@@ -221,9 +221,23 @@ above: a `task/` branch, a test that fails first.
 - [ ] **F1. Drop `user_preferences.ai_chats` (XS, migration).** The column and
   its size check, about a week after `f05a5b6` (see D4); nothing reads it and
   its values are already cleared.
-- [ ] **F2. Server-side paid-plan entitlements (M).** Plan checks enforced on
-  the server, required before Razorpay is configured; a free testing period,
-  if wanted, belongs here (see C6).
+- [x] **F2. Server-side paid-plan entitlements (M).** Done 2026-09-29
+  (`f74c8c1`, spec `specs/2026-09-29-f2-entitlements.md`). Phase 1:
+  - the plan is stored on `user_profiles` and users can't set it;
+  - `my_entitlement()` is the browser's only source;
+  - one server-side 14-day trial per account;
+  - `/api/billing/verify` grants the paid month or year;
+  - admins grant or revoke from the Users page.
+
+  The original note read: "Plan checks enforced on the server, required
+  before Razorpay is configured; a free testing period, if wanted, belongs
+  here (see C6)."
+- [ ] **F6. Plan gating on the server (M, before charging real money).**
+  Phase 2 of F2. Today desk data is public and the locks, row caps and export
+  limits run in the browser from the server plan. Before Razorpay goes live:
+  - move premium desk data behind an entitlement check;
+  - run exports through the server;
+  - enforce row caps at the API.
 - [x] **F3. One Supabase secret-key variable name (S).** Done 2026-09-28: `SUPABASE_SECRET_KEY` is the only name read (server, scripts, `backend/`); the Resend startup check now looks at it (it read only the legacy name). The history below is kept.
   `server/authEmailProvider.mjs` and `server/analyticsApi.mjs` still read the
   legacy `SUPABASE_SERVICE_ROLE_KEY` beside `SUPABASE_SECRET_KEY`. The other

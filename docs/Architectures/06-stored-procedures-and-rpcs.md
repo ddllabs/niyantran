@@ -2,7 +2,8 @@
 
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
-> Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. The repository now has 31 migrations, the latest `20260928150000_nter_news_articles`.
+> Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. On 2026-09-28 the repository had 31 migrations.
+> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 32 migrations.
 
 ---
 
@@ -404,9 +405,24 @@ All eight are `search_path = ''`. None is executable by `anon` or `authenticated
 | `purge_analytics_events()` | `INVOKER` | `service_role` | `pg_cron` job `analytics-events-retention` (03:17 UTC) |
 | `analytics_rate_hit(text, integer, integer)` | `INVOKER` | `service_role` | `POST /api/analytics/event` |
 | `purge_analytics_rate_windows()` | `INVOKER` | `service_role` | `pg_cron` job `analytics-rate-windows-purge` (every 15 minutes) |
-| `issue_invoice(jsonb)` | `INVOKER` | `service_role` | `POST /api/billing/verify`, and the demo `POST /api/billing/invoice` (refused on the serverless host) |
+| `issue_invoice(jsonb)` | `INVOKER` | `service_role` | `POST /api/billing/verify`, and the demo `POST /api/billing/invoice` (refused on the serverless host; since 2026-09-29 the browser no longer calls it) |
 | `upsert_nter_article(jsonb)` | `INVOKER` | `service_role` | `POST /api/news/ingest` |
 | `handle_new_user()` (replaced) | `DEFINER` | No API role (trigger on `auth.users`) | Supabase Auth signup |
+
+### 9.2 Functions added on 2026-09-29 (plan entitlements)
+
+All are `search_path = ''`. The plan columns on `user_profiles` stay
+protected by the profile authority guard (`20260921000012`), and the grant
+log `plan_grants` is readable by `service_role` only.
+
+| Function | Security | Who may execute | Called by |
+| :--- | :---: | :--- | :--- |
+| `my_entitlement()` | `DEFINER` | `authenticated`, `service_role` | The browser (`src/lib/entitlementStore.js`). Returns the caller's effective plan; a period that has ended reads as free. |
+| `start_trial(text)` | `DEFINER` | `authenticated` | The upgrade dialog and the signup plan step. Grants 14 days of Pro or Enterprise, once per account. |
+| `grant_paid_plan(uuid, text, text, text)` | `DEFINER` | `service_role` | `POST /api/billing/verify`, after its checks. Grants one month or one year, once per payment id. |
+| `grant_manual_plan(uuid, text, timestamptz, uuid)` | `DEFINER` | `service_role` | `PATCH /api/users/:id` with `{ plan, planEnd }`, after the admin check. |
+| `entitlement_from(user_profiles)`, `paid_plan_of(text)` | `INVOKER` | `service_role` | Helpers for the functions above. |
+| `handle_new_user()` (replaced again) | `DEFINER` | No API role (trigger on `auth.users`) | Supabase Auth signup; starts the trial named by `raw_user_meta_data.plan` (pro or enterprise). |
 
 ### Hardening Invariants:
 1. **Search Path Hardening (`SET search_path = ''`):** Every security-sensitive function sets an explicit, empty search path. All database objects must be fully qualified (e.g. `public.conversations`), preventing malicious users from creating shadowed tables or functions in untrusted schemas.

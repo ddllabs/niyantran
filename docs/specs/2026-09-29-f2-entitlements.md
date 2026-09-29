@@ -1,8 +1,9 @@
 # Spec: server-owned plan entitlements (F2, phase 1)
 
-> **Status: Living.** Task F2 of `docs/plans/2026-09-28-remaining-work.md`.
-> Owner decisions of 2026-09-29 are recorded below. Becomes Historical when
-> phase 1 lands; phase 2 stays open in the plan.
+> **Status: Historical (2026-09-29).** Task F2 of
+> `docs/plans/2026-09-28-remaining-work.md`. Phase 1 landed in `f74c8c1`, and
+> its migration is live on NTER. Phase 2 (server-side gating before real
+> payments) is task F6 in the same plan.
 
 ## Current state (read from the code and NTER on 2026-09-29)
 
