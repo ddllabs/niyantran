@@ -2,13 +2,15 @@
  * Checkout / payment helpers — Razorpay Orders + GST tax invoices (CR-17).
  * Server holds RAZORPAY_KEY_SECRET; browser only gets key id + order id.
  * Every order, verify and invoice call carries the Supabase bearer; the
- * server takes the buyer's identity from it (T5). Without keys, a local dev
- * server records a demo invoice; production refuses and nothing is granted.
+ * server takes the buyer's identity from it (T5). The browser never grants a
+ * plan (F2): /api/billing/verify records the paid period on the server, and
+ * the browser then re-reads it. Without Razorpay keys, checkout is off.
  */
 import { supabase } from './supabaseClient.js';
 import { loadPricing } from './pricingStore.js';
-import { paidFields, normalizePlanId, planOf } from './planEntitlements.js';
-import { sessionUser, setSessionUser } from './userStore.js';
+import { normalizePlanId, planOf } from './planEntitlements.js';
+import { refreshEntitlement } from './entitlementStore.js';
+import { sessionUser } from './userStore.js';
 import { trackProductEvent } from './productAnalytics.js';
 
 const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -90,24 +92,6 @@ export async function openInvoice(invoiceId) {
   }
 }
 
-export function applyPaidPlan(user, planId, yearly = false, paymentMeta = {}) {
-  const patch = {
-    ...paidFields(planId, yearly),
-    lastPaymentId: paymentMeta.paymentId || null,
-    lastOrderId: paymentMeta.orderId || null,
-    lastInvoiceId: paymentMeta.invoiceId || null,
-  };
-  const next = { ...user, ...patch };
-  setSessionUser(next);
-  trackProductEvent('plan_upgraded', {
-    planId: patch.plan,
-    yearly: Boolean(yearly),
-    provider: paymentMeta.provider || 'unknown',
-    invoiceId: paymentMeta.invoiceId || null,
-  });
-  return next;
-}
-
 function buyerPayload(seat, billing = {}) {
   return {
     userId: seat.id || '',
@@ -160,15 +144,18 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
             resolve({ ok: false, reason: body.reason || 'Payment could not be verified.', mode: 'razorpay' });
             return;
           }
-          const next = applyPaidPlan(seat, plan, yearly, {
+          // The server recorded the paid period; read it back rather than
+          // trusting this response.
+          await refreshEntitlement();
+          trackProductEvent('plan_upgraded', {
+            planId: plan,
+            yearly: Boolean(yearly),
             provider: 'razorpay',
-            paymentId: response.razorpay_payment_id,
-            orderId: response.razorpay_order_id,
             invoiceId: body.invoice?.id || null,
           });
           resolve({
             ok: true,
-            user: next,
+            user: seat,
             mode: 'razorpay',
             paymentId: response.razorpay_payment_id,
             invoice: body.invoice || null,
@@ -199,10 +186,7 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
 export async function completeCheckout({ planId, yearly = false, user, billing = {} } = {}) {
   const plan = normalizePlanId(planId);
   if (plan === 'explorer') {
-    const patch = { plan: 'explorer', planStatus: 'free', trialEndsAt: null, billingYearly: false };
-    const next = { ...(user || sessionUser()), ...patch };
-    setSessionUser(next);
-    return { ok: true, user: next, mode: 'free' };
+    return { ok: false, reason: 'Explorer is the free plan; there is nothing to buy.', mode: 'free' };
   }
   if (plan === 'gov') {
     return { ok: false, reason: 'Government plans are issued by sales — use Contact Sales.', mode: 'sales' };
@@ -212,84 +196,43 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
 
   const meta = planOf(plan);
   const config = await fetchBillingConfig();
-  const buyer = buyerPayload(seat, billing);
-
-  if (config.enabled) {
-    try {
-      const orderRes = await fetch('/api/billing/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({
-          planId: plan,
-          yearly,
-          ...buyer,
-        }),
-      });
-      const order = await orderRes.json().catch(() => ({}));
-      if (!orderRes.ok || !order.ok) {
-        if (order.demoFallback) {
-          /* fall through to demo */
-        } else {
-          return { ok: false, reason: order.reason || 'Could not start Razorpay checkout.', mode: 'razorpay' };
-        }
-      } else {
-        return openRazorpayCheckout({
-          keyId: order.keyId || config.keyId,
-          orderId: order.orderId,
-          amount: order.amount,
-          currency: order.currency,
-          plan,
-          yearly,
-          seat,
-          meta,
-          billing,
-          quote: order.quote,
-        });
-      }
-    } catch (err) {
-      return { ok: false, reason: err.message || 'Could not open payment gateway.', mode: 'razorpay' };
-    }
+  if (!config.enabled) {
+    return {
+      ok: false,
+      mode: 'disabled',
+      reason: 'Online payments are not enabled yet. Start a free trial, or contact us for access.',
+    };
   }
-
-  // Demo gateway when keys are missing (local/dev) — still issue a GST invoice.
-  // A deployed server refuses it, and then nothing is granted.
-  let invoice = null;
-  let quote = null;
+  const buyer = buyerPayload(seat, billing);
   try {
-    const invRes = await fetch('/api/billing/invoice', {
+    const orderRes = await fetch('/api/billing/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({
         planId: plan,
         yearly,
-        provider: 'demo',
         ...buyer,
       }),
     });
-    const invBody = await invRes.json().catch(() => ({}));
-    if (invRes.status === 403 && invBody.paymentsDisabled) {
-      return { ok: false, mode: 'disabled', reason: invBody.reason || 'Online payments are not enabled yet.' };
+    const order = await orderRes.json().catch(() => ({}));
+    if (!orderRes.ok || !order.ok) {
+      return { ok: false, reason: order.reason || 'Could not start Razorpay checkout.', mode: 'razorpay' };
     }
-    if (invRes.ok && invBody.ok) {
-      invoice = invBody.invoice;
-      quote = invBody.quote;
-    }
-  } catch {
-    /* non-fatal */
+    return openRazorpayCheckout({
+      keyId: order.keyId || config.keyId,
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      plan,
+      yearly,
+      seat,
+      meta,
+      billing,
+      quote: order.quote,
+    });
+  } catch (err) {
+    return { ok: false, reason: err.message || 'Could not open payment gateway.', mode: 'razorpay' };
   }
-
-  const next = applyPaidPlan(seat, plan, yearly, {
-    provider: 'demo',
-    invoiceId: invoice?.id || null,
-  });
-  return {
-    ok: true,
-    user: next,
-    mode: 'demo',
-    invoice,
-    quote,
-    reason: 'Demo upgrade — GST invoice recorded locally. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env for live checkout.',
-  };
 }
 
 export function checkoutPlans() {

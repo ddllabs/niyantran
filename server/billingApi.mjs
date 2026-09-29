@@ -9,6 +9,9 @@
  *   GET  /api/billing/invoices
  *   GET  /api/billing/invoice/:id   HTML tax invoice
  *
+ * A verified payment grants its paid period through grant_paid_plan() (F2,
+ * docs/specs/2026-09-29-f2-entitlements.md); nothing else here grants a plan.
+ *
  * Invoices live in Supabase public.invoices (T5, ADR 0005). Every route but
  * config and quote needs a verified bearer, and the buyer's identity comes
  * from it, never from the body. Reads run as the caller, so RLS decides what
@@ -200,6 +203,22 @@ async function persistInvoice({ quote, buyer, payment }, deps) {
   return rowToInvoice(data);
 }
 
+/** Records the paid period on the profile (service role only). Returns my_entitlement's shape. */
+async function grantPaidPlan({ userId, quote, paymentId }, deps) {
+  const { data, error } = await deps.adminClient().rpc('grant_paid_plan', {
+    p_user: userId,
+    p_plan: quote.planId,
+    p_period: quote.yearly ? 'year' : 'month',
+    p_payment_id: paymentId,
+  });
+  if (error) {
+    const err = new Error('The payment was verified but the plan could not be recorded. Try again, or contact support with the payment id.');
+    err.status = 503;
+    throw err;
+  }
+  return data;
+}
+
 function buyerFrom(body, caller) {
   return {
     email: caller.email,
@@ -352,12 +371,21 @@ export async function handleBillingApi(req, res, url, deps = {}) {
         json(res, { ok: false, reason: `Payment status is ${payment.status}.` }, 400);
         return true;
       }
-      const invoice = await persistInvoice({
-        quote,
-        buyer: buyerFrom(body, who),
-        payment: { paymentId, orderId, provider: 'razorpay' },
-      }, d);
-      json(res, { ok: true, planId: quote.planId, yearly: quote.yearly, orderId, paymentId, invoice, quote });
+      // Grant first (F2): the grant is idempotent per payment id, and the
+      // invoice is refused for a payment it has already covered, so a retry
+      // after either step fails completes both and never extends twice.
+      const entitlement = await grantPaidPlan({ userId: who.id, quote, paymentId }, d);
+      let invoice = null;
+      try {
+        invoice = await persistInvoice({
+          quote,
+          buyer: buyerFrom(body, who),
+          payment: { paymentId, orderId, provider: 'razorpay' },
+        }, d);
+      } catch (err) {
+        if (err.status !== 409) throw err;
+      }
+      json(res, { ok: true, planId: quote.planId, yearly: quote.yearly, orderId, paymentId, invoice, quote, entitlement });
     } catch (err) {
       json(res, { ok: false, reason: err.message || 'Verification failed.' }, err.status || 500);
     }

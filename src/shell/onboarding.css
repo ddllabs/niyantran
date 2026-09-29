@@ -200,3 +200,14 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Shown for the moment it takes to read the account's plan (App.jsx). */
+.niy-plan-wait {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  color: var(--muted, inherit);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}

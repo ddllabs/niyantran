@@ -22,9 +22,6 @@ function normalize(user) {
     type,
     personaId,
     plan: plan === 'professional' ? 'pro' : plan,
-    planStatus: user.planStatus || user.plan_status || (plan === 'explorer' ? 'free' : 'active'),
-    trialEndsAt: user.trialEndsAt || user.trial_ends_at || null,
-    billingYearly: Boolean(user.billingYearly ?? user.billing_yearly),
     googleSub: user.googleSub || user.google_sub || null,
     authProvider: user.authProvider || (user.googleSub || user.google_sub ? 'google' : 'password'),
     active: user.active !== false,
@@ -248,6 +245,15 @@ export function setUserType(id, type) {
   return patchUser(id, { type: String(type || '') });
 }
 
+/**
+ * Grant a plan (pro or enterprise) until planEnd, open-ended when null, or
+ * revoke with explorer. The server records it as a manual grant (F2).
+ * Resolves to { ok, reason? }.
+ */
+export function setUserPlan(id, plan, planEnd = null) {
+  return patchUser(id, { plan: String(plan || ''), planEnd: planEnd || null });
+}
+
 export function subscribeUsers(fn) {
   const on = () => fn(loadUsers());
   window.addEventListener(EVENT, on);
@@ -286,10 +292,9 @@ export function userFromSupabase(supabaseUser, profile, extras = {}) {
       id: supabaseUser.id,
       name,
       email,
+      // The stored plan, for display only. Entitlements come from the server
+      // (entitlementStore.js); nothing reads plan fields from this record.
       plan: p.plan || 'explorer',
-      planStatus: p.plan_status,
-      trialEndsAt: p.trial_ends_at,
-      billingYearly: p.billing_yearly,
       type,
       personaId: type,
       role: p.role || 'user',

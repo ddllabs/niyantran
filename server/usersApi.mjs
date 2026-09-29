@@ -3,17 +3,23 @@
  *
  *   GET   /api/users           internal admin: every profile, oldest first
  *   PATCH /api/users/:userId   internal admin: { active?: boolean, type?: persona }
+ *                              or { plan: explorer|pro|enterprise, planEnd?: date|null }
  *
  * Accounts are created only through Supabase sign-up; this route never
  * creates, deletes or sets a password for anyone. Reads and writes use the
  * server's secret-key client after the route's own internal-admin check.
+ * A plan is granted or revoked only through grant_manual_plan() (F2,
+ * docs/specs/2026-09-29-f2-entitlements.md), which logs the granting admin.
  */
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { dbPersona, frontendPersona } from '../src/lib/personaMap.js';
 
-const PROFILE_COLUMNS = 'user_id, email, first_name, last_name, persona, role, plan, status, created_at';
+const PROFILE_COLUMNS = 'user_id, email, first_name, last_name, persona, role, plan, status, created_at, '
+  + 'plan_status, plan_period_end, plan_source, trial_started_at';
 const PATCH_FIELDS = new Set(['active', 'type']);
+const PLAN_FIELDS = new Set(['plan', 'planEnd']);
+const GRANTABLE_PLANS = new Set(['explorer', 'pro', 'enterprise']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -78,13 +84,23 @@ function directoryUser(row) {
   const email = String(row.email || '').trim().toLowerCase();
   const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || email.split('@')[0];
   const persona = frontendPersona(row.persona);
+  // The effective plan, as my_entitlement() reads it: a period that has
+  // ended is free. The stored plan stays until the next grant.
+  const status = row.plan_status || (row.plan === 'explorer' ? 'free' : 'active');
+  const end = row.plan_period_end || null;
+  const lapsed = status !== 'free' && Boolean(end) && Date.parse(end) <= Date.now();
   return {
     id: row.user_id,
     name,
     email,
     type: persona,
     personaId: persona,
-    plan: row.plan === 'professional' ? 'pro' : row.plan,
+    plan: lapsed ? 'explorer' : row.plan === 'professional' ? 'pro' : row.plan,
+    planStatus: lapsed ? 'free' : status,
+    planEnd: end,
+    planSource: row.plan_source || null,
+    planLapsed: lapsed,
+    trialUsed: Boolean(row.trial_started_at),
     active: row.status === 'active',
     status: row.status,
     role: row.role,
@@ -127,6 +143,21 @@ function profilePatch(body) {
   return patch;
 }
 
+/** { plan, periodEnd } for a valid plan body, or null. The end is optional; a past one is refused. */
+function planGrant(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const keys = Object.keys(body);
+  if (!keys.includes('plan') || keys.some((key) => !PLAN_FIELDS.has(key))) return null;
+  if (typeof body.plan !== 'string' || !GRANTABLE_PLANS.has(body.plan)) return null;
+  let periodEnd = null;
+  if (body.planEnd != null && body.planEnd !== '') {
+    const at = typeof body.planEnd === 'string' ? Date.parse(body.planEnd) : NaN;
+    if (!Number.isFinite(at) || at <= Date.now()) return null;
+    periodEnd = new Date(at).toISOString();
+  }
+  return { plan: body.plan, periodEnd: body.plan === 'explorer' ? null : periodEnd };
+}
+
 async function listUsers(res, deps) {
   try {
     const { data, error } = await adminClientFrom(deps)
@@ -147,11 +178,18 @@ async function updateUser(req, res, caller, userId, deps) {
   } catch {
     return json(res, { ok: false, error: 'Invalid JSON' }, 400);
   }
-  const patch = profilePatch(body);
-  if (!patch) {
+  const isPlan = Boolean(body && typeof body === 'object' && !Array.isArray(body)
+    && Object.keys(body).some((key) => PLAN_FIELDS.has(key)));
+  const grant = isPlan ? planGrant(body) : null;
+  const patch = isPlan ? null : profilePatch(body);
+  if (isPlan && !grant) {
+    return json(res, { ok: false, error: 'Send plan (explorer, pro or enterprise) and optionally a future planEnd, nothing else' }, 400);
+  }
+  if (!isPlan && !patch) {
     return json(res, { ok: false, error: 'Send only active (boolean) and/or type (a known persona)' }, 400);
   }
   if (!UUID.test(userId)) return json(res, { ok: false, error: 'User not found' }, 404);
+  if (grant) return grantPlan(res, caller, userId, grant, deps);
   try {
     const client = adminClientFrom(deps);
     const target = await client.from('user_profiles').select(PROFILE_COLUMNS).eq('user_id', userId).maybeSingle();
@@ -171,6 +209,30 @@ async function updateUser(req, res, caller, userId, deps) {
       .maybeSingle();
     if (updated.error) throw new Error('Directory write failed');
     if (!updated.data) return json(res, { ok: false, error: 'Owner accounts cannot be changed here' }, 403);
+    return json(res, { ok: true, user: directoryUser(updated.data) });
+  } catch {
+    return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);
+  }
+}
+
+async function grantPlan(res, caller, userId, grant, deps) {
+  try {
+    const client = adminClientFrom(deps);
+    const target = await client.from('user_profiles').select(PROFILE_COLUMNS).eq('user_id', userId).maybeSingle();
+    if (target.error) throw new Error('Directory read failed');
+    if (!target.data) return json(res, { ok: false, error: 'User not found' }, 404);
+    if (target.data.role === 'owner') return json(res, { ok: false, error: 'Owner accounts cannot be changed here' }, 403);
+    const granted = await client.rpc('grant_manual_plan', {
+      p_user: userId,
+      p_plan: grant.plan,
+      p_period_end: grant.periodEnd,
+      p_granted_by: caller.id,
+    });
+    // 22023 carries the function's own argument message (no provider detail).
+    if (granted.error?.code === '22023') return json(res, { ok: false, error: String(granted.error.message) }, 400);
+    if (granted.error) throw new Error('Plan grant failed');
+    const updated = await client.from('user_profiles').select(PROFILE_COLUMNS).eq('user_id', userId).maybeSingle();
+    if (updated.error || !updated.data) throw new Error('Directory read failed');
     return json(res, { ok: true, user: directoryUser(updated.data) });
   } catch {
     return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);

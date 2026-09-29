@@ -1,4 +1,5 @@
 import { TABS } from '../desks/catalog.js';
+import { serverEntitlement } from './entitlementStore.js';
 import { loadPricing } from './pricingStore.js';
 import { userTypeOf } from './userTypes.js';
 
@@ -43,35 +44,39 @@ export function normalizePlanId(plan) {
 }
 
 /**
- * Derive live entitlement from a user record.
- * status: free | trial | active
+ * The live entitlement for a signed-in user: status free | trial | active.
+ *
+ * Read only from the server (my_entitlement(), via entitlementStore.js),
+ * for this user's id. Plan fields on the user record come from
+ * sessionStorage and are ignored, so editing them unlocks nothing (F2).
+ * Until the server has answered, the account is treated as free.
  */
 export function entitlementOf(user) {
-  const plan = normalizePlanId(user?.plan);
-  let status = String(user?.planStatus || '').toLowerCase();
-  if (!status) {
-    if (plan === 'explorer') status = 'free';
-    else status = 'active';
-  }
-  const trialEndsAt = user?.trialEndsAt || null;
-  if (status === 'trial' && trialEndsAt) {
-    const end = Date.parse(trialEndsAt);
-    if (Number.isFinite(end) && end < Date.now()) {
-      return {
-        plan: 'explorer',
-        status: 'free',
-        trialEndsAt,
-        trialExpired: true,
-        yearly: Boolean(user?.billingYearly),
-      };
-    }
+  const server = serverEntitlement(user?.id);
+  const free = {
+    plan: 'explorer',
+    status: 'free',
+    trialEndsAt: null,
+    periodEnd: server?.periodEnd || null,
+    trialExpired: false,
+    trialUsed: Boolean(server?.trialUsed),
+    loaded: Boolean(server),
+  };
+  if (!server) return free;
+  const plan = normalizePlanId(server.plan);
+  const status = ['free', 'trial', 'active'].includes(server.status) ? server.status : 'free';
+  if (plan === 'explorer' || status === 'free') return free;
+  // A period that ends while the terminal is open reads as free straight away,
+  // as the server will on its next read.
+  const end = server.periodEnd ? Date.parse(server.periodEnd) : NaN;
+  if (Number.isFinite(end) && end <= Date.now()) {
+    return { ...free, trialExpired: status === 'trial' };
   }
   return {
+    ...free,
     plan,
-    status: status === 'trial' || status === 'active' || status === 'free' ? status : plan === 'explorer' ? 'free' : 'active',
-    trialEndsAt,
-    trialExpired: false,
-    yearly: Boolean(user?.billingYearly),
+    status,
+    trialEndsAt: status === 'trial' ? server.periodEnd : null,
   };
 }
 
@@ -145,27 +150,4 @@ export function trialDaysLeft(user) {
   const ms = Date.parse(e.trialEndsAt) - Date.now();
   if (!Number.isFinite(ms) || ms <= 0) return 0;
   return Math.ceil(ms / 86400000);
-}
-
-export function startTrialFields(planId) {
-  const plan = normalizePlanId(planId);
-  if (plan === 'explorer' || plan === 'gov') {
-    return { plan: plan === 'gov' ? 'gov' : 'explorer', planStatus: plan === 'gov' ? 'active' : 'free', trialEndsAt: null };
-  }
-  const end = new Date();
-  end.setDate(end.getDate() + TRIAL_DAYS);
-  return {
-    plan,
-    planStatus: 'trial',
-    trialEndsAt: end.toISOString(),
-  };
-}
-
-export function paidFields(planId, yearly = false) {
-  return {
-    plan: normalizePlanId(planId),
-    planStatus: 'active',
-    trialEndsAt: null,
-    billingYearly: Boolean(yearly),
-  };
 }

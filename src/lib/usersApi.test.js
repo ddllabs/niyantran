@@ -26,13 +26,17 @@ const ALICE_ID = '00000000-0000-4000-8000-0000000000a1';
 const OWNER_ID = '00000000-0000-4000-8000-0000000000f1';
 const UNKNOWN_ID = '00000000-0000-4000-8000-0000000000ff';
 
+const FREE = { planStatus: 'free', planEnd: null, planSource: null, planLapsed: false, trialUsed: false };
+const ALICE_PLAN = { planStatus: 'trial', planEnd: '2099-01-01T00:00:00Z', planSource: 'trial', planLapsed: false, trialUsed: true };
+const OWNER_PLAN = { planStatus: 'active', planEnd: null, planSource: 'manual', planLapsed: false, trialUsed: false };
+
 function profileRows() {
   // Deliberately out of order, and carrying columns the directory must not
   // expose (a provider that ignores the column list must not leak them).
   return [
-    { id: 'p-3', user_id: OWNER_ID, email: 'owner@example.test', first_name: 'Olu', last_name: 'Owner', persona: null, role: 'owner', plan: 'enterprise', status: 'active', created_at: '2026-09-03T00:00:00Z', phone_number: '+91-private', password: 'must-not-leak' },
-    { id: 'p-1', user_id: ADMIN_ID, email: 'admin@example.test', first_name: 'Ada', last_name: null, persona: 'corporate_affairs', role: 'admin', plan: 'explorer', status: 'active', created_at: '2026-09-01T00:00:00Z', phone_number: '+91-private', password: 'must-not-leak' },
-    { id: 'p-2', user_id: ALICE_ID, email: 'alice@example.test', first_name: null, last_name: null, persona: 'upsc_aspirant', role: 'user', plan: 'professional', status: 'suspended', created_at: '2026-09-02T00:00:00Z', phone_number: '+91-private', password: 'must-not-leak' },
+    { id: 'p-3', user_id: OWNER_ID, email: 'owner@example.test', first_name: 'Olu', last_name: 'Owner', persona: null, role: 'owner', plan: 'enterprise', plan_status: 'active', plan_period_end: null, plan_source: 'manual', trial_started_at: null, status: 'active', created_at: '2026-09-03T00:00:00Z', phone_number: '+91-private', password: 'must-not-leak' },
+    { id: 'p-1', user_id: ADMIN_ID, email: 'admin@example.test', first_name: 'Ada', last_name: null, persona: 'corporate_affairs', role: 'admin', plan: 'explorer', plan_status: 'free', plan_period_end: null, plan_source: null, trial_started_at: null, status: 'active', created_at: '2026-09-01T00:00:00Z', phone_number: '+91-private', password: 'must-not-leak' },
+    { id: 'p-2', user_id: ALICE_ID, email: 'alice@example.test', first_name: null, last_name: null, persona: 'upsc_aspirant', role: 'user', plan: 'professional', plan_status: 'trial', plan_period_end: '2099-01-01T00:00:00Z', plan_source: 'trial', trial_started_at: '2026-09-02T00:00:00Z', status: 'suspended', created_at: '2026-09-02T00:00:00Z', phone_number: '+91-private', password: 'must-not-leak' },
   ];
 }
 
@@ -41,6 +45,20 @@ function profilesAdmin(rows = profileRows()) {
   const state = { rows, calls: [], fail: null };
   const matches = (row, filters) => filters.every(([kind, column, value]) => (kind === 'eq' ? row[column] === value : row[column] !== value));
   const client = {
+    // grant_manual_plan, as the migration defines it (explorer revokes).
+    rpc: vi.fn(async (name, args) => {
+      state.calls.push({ op: 'rpc', name, args });
+      if (state.fail === 'rpc' || state.fail === 'all') return { data: null, error: { message: 'private-provider-detail', code: 'XX000' } };
+      if (state.rpcError) return { data: null, error: state.rpcError };
+      expect(name).toBe('grant_manual_plan');
+      const row = state.rows.find((r) => r.user_id === args.p_user);
+      if (!row) return { data: null, error: { message: 'No profile for this user', code: 'P0002' } };
+      const plan = args.p_plan === 'pro' ? 'professional' : args.p_plan;
+      Object.assign(row, plan === 'explorer'
+        ? { plan, plan_status: 'free', plan_source: 'manual', plan_period_end: null }
+        : { plan, plan_status: 'active', plan_source: 'manual', plan_period_end: args.p_period_end });
+      return { data: { plan, status: row.plan_status }, error: null };
+    }),
     from: vi.fn((table) => {
       expect(table).toBe('user_profiles');
       const q = { op: 'select', patch: null, filters: [], order: null };
@@ -76,7 +94,12 @@ function profilesAdmin(rows = profileRows()) {
       return builder;
     }),
   };
-  return { client, state, writes: () => state.calls.filter((call) => call.op === 'update') };
+  return {
+    client,
+    state,
+    writes: () => state.calls.filter((call) => call.op === 'update'),
+    grants: () => state.calls.filter((call) => call.op === 'rpc'),
+  };
 }
 
 function callerClient({ userId = ADMIN_ID, role = 'admin', status = 'active', admin = true } = {}) {
@@ -117,9 +140,9 @@ describe('GET /api/users', () => {
     expect(response.status).toBe(200);
     expect(response.body.ok).toBe(true);
     expect(response.body.users).toEqual([
-      { id: ADMIN_ID, name: 'Ada', email: 'admin@example.test', type: 'analyst', personaId: 'analyst', plan: 'explorer', active: true, status: 'active', role: 'admin', createdAt: '2026-09-01T00:00:00Z' },
-      { id: ALICE_ID, name: 'alice', email: 'alice@example.test', type: 'student', personaId: 'student', plan: 'pro', active: false, status: 'suspended', role: 'user', createdAt: '2026-09-02T00:00:00Z' },
-      { id: OWNER_ID, name: 'Olu Owner', email: 'owner@example.test', type: null, personaId: null, plan: 'enterprise', active: true, status: 'active', role: 'owner', createdAt: '2026-09-03T00:00:00Z' },
+      { id: ADMIN_ID, name: 'Ada', email: 'admin@example.test', type: 'analyst', personaId: 'analyst', plan: 'explorer', ...FREE, active: true, status: 'active', role: 'admin', createdAt: '2026-09-01T00:00:00Z' },
+      { id: ALICE_ID, name: 'alice', email: 'alice@example.test', type: 'student', personaId: 'student', plan: 'pro', ...ALICE_PLAN, active: false, status: 'suspended', role: 'user', createdAt: '2026-09-02T00:00:00Z' },
+      { id: OWNER_ID, name: 'Olu Owner', email: 'owner@example.test', type: null, personaId: null, plan: 'enterprise', ...OWNER_PLAN, active: true, status: 'active', role: 'owner', createdAt: '2026-09-03T00:00:00Z' },
     ]);
     const raw = JSON.stringify(response.body);
     expect(raw).not.toContain('password');
@@ -185,7 +208,7 @@ describe('PATCH /api/users/:userId', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       ok: true,
-      user: { id: ALICE_ID, name: 'alice', email: 'alice@example.test', type: 'student', personaId: 'student', plan: 'pro', active: false, status: 'suspended', role: 'user', createdAt: '2026-09-02T00:00:00Z' },
+      user: { id: ALICE_ID, name: 'alice', email: 'alice@example.test', type: 'student', personaId: 'student', plan: 'pro', ...ALICE_PLAN, active: false, status: 'suspended', role: 'user', createdAt: '2026-09-02T00:00:00Z' },
     });
     expect(admin.writes()).toHaveLength(1);
     expect(admin.writes()[0].patch).toEqual({ status: 'suspended' });
@@ -323,6 +346,99 @@ describe('PATCH /api/users/:userId', () => {
     const req = { ...request('PATCH', `/api/users/${ALICE_ID}`), body: { type: 'academic' } };
     expect((await invoke(req, deps)).status).toBe(200);
     expect(admin.writes()[0].patch).toEqual({ persona: 'academic' });
+  });
+});
+
+// F2: an admin grants or revokes a plan through grant_manual_plan(), never a table write.
+describe('PATCH /api/users/:userId plan', () => {
+  it('grants a plan until an end date, recorded as the calling admin', async () => {
+    const { admin, deps } = setup();
+    const response = await invoke(request('PATCH', `/api/users/${ALICE_ID}`, { plan: 'enterprise', planEnd: '2099-12-31' }), deps);
+    expect(response.status).toBe(200);
+    expect(admin.grants()).toEqual([{ op: 'rpc', name: 'grant_manual_plan', args: { p_user: ALICE_ID, p_plan: 'enterprise', p_period_end: '2099-12-31T00:00:00.000Z', p_granted_by: ADMIN_ID } }]);
+    expect(admin.writes()).toEqual([]);
+    expect(response.body.user).toMatchObject({ id: ALICE_ID, plan: 'enterprise', planStatus: 'active', planSource: 'manual', planEnd: '2099-12-31T00:00:00.000Z' });
+  });
+
+  it('grants open-ended when there is no end date', async () => {
+    for (const body of [{ plan: 'pro' }, { plan: 'pro', planEnd: null }, { plan: 'pro', planEnd: '' }]) {
+      const { admin, deps } = setup();
+      const response = await invoke(request('PATCH', `/api/users/${ADMIN_ID}`, body), deps);
+      expect(response.status).toBe(200);
+      expect(admin.grants()[0].args).toMatchObject({ p_plan: 'pro', p_period_end: null });
+      expect(response.body.user).toMatchObject({ plan: 'pro', planStatus: 'active', planEnd: null });
+    }
+  });
+
+  it('revokes to explorer', async () => {
+    const { admin, deps } = setup();
+    const response = await invoke(request('PATCH', `/api/users/${ALICE_ID}`, { plan: 'explorer' }), deps);
+    expect(response.status).toBe(200);
+    expect(admin.grants()[0].args).toMatchObject({ p_plan: 'explorer', p_period_end: null });
+    expect(response.body.user).toMatchObject({ plan: 'explorer', planStatus: 'free' });
+  });
+
+  it.each([
+    ['an unknown plan', { plan: 'gov' }],
+    ['a database plan name', { plan: 'professional' }],
+    ['a non-string plan', { plan: 1 }],
+    ['an unreadable end date', { plan: 'pro', planEnd: 'next tuesday' }],
+    ['an end date in the past', { plan: 'pro', planEnd: '2020-01-01' }],
+    ['an end date without a plan', { planEnd: '2099-01-01' }],
+    ['a plan with an account change', { plan: 'pro', active: true }],
+    ['a plan with a status', { plan: 'pro', planStatus: 'active' }],
+  ])('rejects %s with 400 and grants nothing', async (_label, body) => {
+    const { admin, deps } = setup();
+    const response = await invoke(request('PATCH', `/api/users/${ALICE_ID}`, body), deps);
+    expect(response.status).toBe(400);
+    expect(admin.grants()).toEqual([]);
+    expect(admin.writes()).toEqual([]);
+  });
+
+  it('refuses an owner row with 403', async () => {
+    const { admin, deps } = setup();
+    expect((await invoke(request('PATCH', `/api/users/${OWNER_ID}`, { plan: 'explorer' }), deps)).status).toBe(403);
+    expect(admin.grants()).toEqual([]);
+  });
+
+  it('answers 404 for an unknown user', async () => {
+    const { admin, deps } = setup();
+    expect((await invoke(request('PATCH', `/api/users/${UNKNOWN_ID}`, { plan: 'pro' }), deps)).status).toBe(404);
+    expect(admin.grants()).toEqual([]);
+  });
+
+  it('requires an internal admin', async () => {
+    for (const caller of [{ role: 'user', admin: false }, { admin: false }]) {
+      const { admin, deps } = setup(caller);
+      expect((await invoke(request('PATCH', `/api/users/${ALICE_ID}`, { plan: 'enterprise' }), deps)).status).toBe(403);
+      expect(admin.grants()).toEqual([]);
+    }
+  });
+
+  it('answers 503 without provider detail when the grant fails', async () => {
+    const { admin, deps } = setup();
+    admin.state.fail = 'rpc';
+    const response = await invoke(request('PATCH', `/api/users/${ALICE_ID}`, { plan: 'pro' }), deps);
+    expect(response.status).toBe(503);
+    expect(JSON.stringify(response.body)).not.toContain('private-provider-detail');
+  });
+
+  it('passes the database refusal of a bad argument back as 400', async () => {
+    const { admin, deps } = setup();
+    admin.state.rpcError = { code: '22023', message: 'The end date must be in the future' };
+    const response = await invoke(request('PATCH', `/api/users/${ALICE_ID}`, { plan: 'pro', planEnd: '2099-01-01' }), deps);
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('The end date must be in the future');
+  });
+});
+
+describe('the directory reads the effective plan', () => {
+  it('shows a lapsed period as explorer, with the lapse flagged', async () => {
+    const rows = profileRows();
+    Object.assign(rows[2], { plan_status: 'active', plan_period_end: '2020-01-01T00:00:00Z', plan_source: 'payment' });
+    const { deps } = setup({}, rows);
+    const response = await invoke(request('GET', '/api/users'), deps);
+    expect(response.body.users.find((u) => u.id === ALICE_ID)).toMatchObject({ plan: 'explorer', planStatus: 'free', planLapsed: true, planEnd: '2020-01-01T00:00:00Z' });
   });
 });
 

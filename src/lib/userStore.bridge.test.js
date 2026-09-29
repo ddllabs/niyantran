@@ -21,8 +21,9 @@ describe('userFromSupabase', () => {
     expect(u.type).toBe('policy');
     expect(u.name).toBe('person');
     expect(u.plan).toBe('explorer');
-    expect(u.planStatus).toBe('free');
-    expect(u.trialEndsAt).toBeNull();
+    // F2: the session record carries no plan status or trial end to trust.
+    expect(u.planStatus).toBeUndefined();
+    expect(u.trialEndsAt).toBeUndefined();
   });
 
   it('marks suspended and inactive profiles inactive, and returns null without a user id', () => {

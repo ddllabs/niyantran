@@ -6,7 +6,8 @@ import {
   userTypeOf,
 } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
-import { normalizePlanId, startTrialFields, TRIAL_DAYS } from '../lib/planEntitlements.js';
+import { entitlementOf, normalizePlanId, TRIAL_DAYS } from '../lib/planEntitlements.js';
+import { refreshEntitlement, startTrial } from '../lib/entitlementStore.js';
 import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
@@ -84,14 +85,18 @@ export default function SignupPage({ onSuccess, onLogin }) {
     el.style.setProperty('--py', `${((y - 0.5) * 10).toFixed(2)}px`);
   }
 
-  async function enterTerminal(user, { source = 'signup', plan } = {}) {
+  async function enterTerminal(user, { source = 'signup' } = {}) {
     const type = userTypeOf(user.personaId || user.type).id;
     const seat = { ...user, type, personaId: type };
     applyPersonaForUser(seat);
     setSessionUser(seat);
     sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
-    trackProductEvent('persona_selected', { personaId: type, source, plan: plan || seat.plan });
-    trackProductEvent('plan_selected', { plan: plan || seat.plan, status: seat.planStatus || 'free' });
+    // The plan is the server's: handle_new_user() started any trial picked
+    // here, so read it back rather than assuming it (F2).
+    await refreshEntitlement();
+    const ent = entitlementOf(seat);
+    trackProductEvent('persona_selected', { personaId: type, source, plan: ent.plan });
+    trackProductEvent('plan_selected', { plan: ent.plan, status: ent.status });
     await hydrateUserPrefs(seat.email);
     onSuccess();
   }
@@ -108,14 +113,21 @@ export default function SignupPage({ onSuccess, onLogin }) {
     if (!draftUser?.user?.id) return;
     setPending(true);
     setError('');
-    const fields = startTrialFields(planId);
+    if (planId !== 'explorer') {
+      const trial = await startTrial(planId);
+      // An account that already had its trial still enters, on its current plan.
+      if (!trial.ok && !/already/i.test(trial.reason)) {
+        setError(trial.reason);
+        setPending(false);
+        return;
+      }
+    }
     const next = {
       ...draftUser.user,
-      ...fields,
       type: draftUser.user.type || draftUser.user.personaId,
       personaId: draftUser.user.personaId || draftUser.user.type,
     };
-    await enterTerminal(next, { source: draftUser.source || 'signup', plan: fields.plan });
+    await enterTerminal(next, { source: draftUser.source || 'signup' });
   }
 
   async function handleSubmit(e) {
@@ -153,6 +165,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
             first_name: firstName,
             last_name: lastName,
             personaId,
+            // pro or enterprise: handle_new_user() starts this account's one trial.
             plan: planId || 'explorer',
           },
         },
@@ -164,11 +177,11 @@ export default function SignupPage({ onSuccess, onLogin }) {
       }
       if (signUpData?.session) {
         await enterTerminal({
+          id: signUpData.session.user?.id,
           name,
           email: user,
           type: personaId,
           personaId,
-          ...startTrialFields(planId || 'explorer'),
         });
         return;
       }

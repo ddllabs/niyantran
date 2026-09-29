@@ -11,6 +11,12 @@ vi.mock('./shell/PersonaChooser.jsx', () => ({ default: () => 'CHOOSER' }));
 vi.mock('./lib/siteHead.js', () => ({ startSiteHead: vi.fn() }));
 vi.mock('./lib/personas.js', () => ({ applyPersonaForUser: vi.fn(), readPersonaId: vi.fn(() => 'analyst') }));
 vi.mock('./lib/supabaseClient.js', () => ({ supabase: { auth: { onAuthStateChange: vi.fn() } } }));
+// The server's answer to my_entitlement() for the stored user (F2).
+const plan = vi.hoisted(() => ({ loaded: true }));
+vi.mock('./lib/entitlementStore.js', () => ({
+  serverEntitlement: (id) => (plan.loaded && id ? { userId: id, plan: 'explorer', status: 'free' } : null),
+  refreshEntitlement: vi.fn(async () => null),
+}));
 
 import App from './App.jsx';
 import { setSessionUser } from './lib/userStore.js';
@@ -22,6 +28,7 @@ function memoryStorage() {
 }
 
 beforeEach(() => {
+  plan.loaded = true;
   vi.stubGlobal('sessionStorage', memoryStorage());
   vi.stubGlobal('localStorage', memoryStorage());
   vi.stubGlobal('location', { pathname: '/', hash: '' });
@@ -64,6 +71,16 @@ describe('terminal sign-in gate', () => {
     expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'journalist' });
     expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
+  });
+});
+
+describe('the plan gate', () => {
+  it('waits for the server plan before opening the terminal', () => {
+    plan.loaded = false;
+    setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student', plan: 'enterprise', planStatus: 'active' });
+    const html = renderToStaticMarkup(createElement(App));
+    expect(html).not.toBe('TERMINAL');
+    expect(html).toContain('Opening terminal');
   });
 });
 

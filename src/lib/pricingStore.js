@@ -19,7 +19,14 @@ export const DEFAULT_PLANS = [
     cta: 'Get Started Free',
     ctaKind: 'ghost-blue',
     color: PLAN_COLORS.explorer,
-    items: ['Access to 5 core desks', 'Limited data coverage', 'Up to 3 saved views', 'Community support', 'Standard updates'],
+    items: [
+      'Access to 5 core desks',
+      'AI research assistant',
+      'Limited data coverage',
+      'Up to 3 saved views',
+      'Community support',
+      'Standard updates',
+    ],
   },
   {
     id: 'pro',
@@ -57,7 +64,6 @@ export const DEFAULT_PLANS = [
     plus: 'Everything in Professional, plus',
     items: [
       'Unlimited dashboards',
-      'AI research assistant',
       'API access',
       'Team collaboration',
       'Custom data exports',

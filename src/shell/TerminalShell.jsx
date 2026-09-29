@@ -30,6 +30,7 @@ import {
   planOf,
   trialDaysLeft,
 } from '../lib/planEntitlements.js';
+import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import AiDock from '../ai/AiDock.jsx';
 import { takePendingDeskRow } from '../ai/openRowSource.js';
@@ -68,7 +69,7 @@ export default function TerminalShell({ onLogout }) {
   const lockedIds = useMemo(
     () => new Set(deskTabs.filter((t) => deskLocked(user, t.id)).map((t) => t.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.plan, user?.planStatus, user?.personaId, user?.type, userTick],
+    [user?.id, user?.personaId, user?.type, userTick],
   );
 
   const active = deskTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
@@ -97,6 +98,14 @@ export default function TerminalShell({ onLogout }) {
   useEffect(() => {
     startUserPrefsSync();
     hydrateUserPrefs().catch(() => {});
+  }, []);
+
+  // The plan comes from the server (F2). Re-read it when the terminal opens,
+  // and re-render whenever it changes (a trial, a payment, a lapse).
+  useEffect(() => {
+    const unsubscribe = subscribeEntitlement(() => setUserTick((n) => n + 1));
+    refreshEntitlement();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -491,7 +500,9 @@ export default function TerminalShell({ onLogout }) {
                     <dt>Package</dt>
                     <dd>
                       {planLabel}
-                      {ent.yearly ? ' · yearly' : ''}
+                      {ent.status === 'active' && ent.periodEnd
+                        ? ` · to ${new Date(ent.periodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : ''}
                     </dd>
                   </div>
                   <div>

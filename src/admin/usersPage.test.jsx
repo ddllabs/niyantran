@@ -20,7 +20,7 @@ vi.mock('react', async (original) => {
 });
 vi.mock('../lib/userStore.js', async () => {
   const types = await vi.importActual('../lib/userTypes.js');
-  return { USER_TYPES: types.USER_TYPES, userTypeOf: types.userTypeOf, setUserActive: vi.fn(), setUserType: vi.fn() };
+  return { USER_TYPES: types.USER_TYPES, userTypeOf: types.userTypeOf, setUserActive: vi.fn(), setUserType: vi.fn(), setUserPlan: vi.fn() };
 });
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: {} }));
 vi.mock('../lib/refreshFeeds.js', () => ({
@@ -29,12 +29,12 @@ vi.mock('../lib/refreshFeeds.js', () => ({
 }));
 
 import { UsersPage } from './AdminPages.jsx';
-import { setUserActive, setUserType } from '../lib/userStore.js';
+import { setUserActive, setUserPlan, setUserType } from '../lib/userStore.js';
 
 const USERS = [
-  { id: 'u-owner', name: 'Olu Owner', email: 'owner@example.test', type: 'analyst', plan: 'enterprise', active: true, role: 'owner' },
-  { id: 'u-alice', name: 'alice', email: 'alice@example.test', type: 'student', plan: 'pro', active: true, role: 'user' },
-  { id: 'u-bob', name: 'bob', email: 'bob@example.test', type: 'lawyer', plan: 'explorer', active: false, role: 'user' },
+  { id: 'u-owner', name: 'Olu Owner', email: 'owner@example.test', type: 'analyst', plan: 'enterprise', planStatus: 'active', planEnd: null, active: true, role: 'owner' },
+  { id: 'u-alice', name: 'alice', email: 'alice@example.test', type: 'student', plan: 'pro', planStatus: 'trial', planEnd: '2026-10-13T10:00:00Z', trialUsed: true, active: true, role: 'user' },
+  { id: 'u-bob', name: 'bob', email: 'bob@example.test', type: 'lawyer', plan: 'explorer', planStatus: 'free', planEnd: '2026-09-01T00:00:00Z', planLapsed: true, active: false, role: 'user' },
 ];
 
 function find(node, predicate) {
@@ -48,6 +48,7 @@ function find(node, predicate) {
   if (typeof node.type === 'function') return find(node.type(node.props), predicate);
   return find(children, predicate);
 }
+const stateButton = (row) => find(row, (n) => n.type === 'button' && String(n.props.className).includes('adm-state'));
 const rowFor = (tree, email) => find(tree, (n) => n.type === 'tr' && n.key === USERS.find((u) => u.email === email).id);
 
 beforeEach(() => {
@@ -94,7 +95,7 @@ describe('UsersPage actions', () => {
   it('suspends through setUserActive, then refreshes', async () => {
     setUserActive.mockResolvedValue({ ok: true });
     const { tree: t, onChange } = tree();
-    const button = find(rowFor(t, 'alice@example.test'), (n) => n.type === 'button');
+    const button = stateButton(rowFor(t, 'alice@example.test'));
     await button.props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
     expect(setUserActive).toHaveBeenCalledWith('u-alice', false);
@@ -105,7 +106,7 @@ describe('UsersPage actions', () => {
   it('reactivates a suspended account', async () => {
     setUserActive.mockResolvedValue({ ok: true });
     const { tree: t, onChange } = tree();
-    find(rowFor(t, 'bob@example.test'), (n) => n.type === 'button').props.onClick();
+    stateButton(rowFor(t, 'bob@example.test')).props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
     expect(setUserActive).toHaveBeenCalledWith('u-bob', true);
   });
@@ -121,7 +122,7 @@ describe('UsersPage actions', () => {
   it('shows the reason when an action is refused', async () => {
     setUserActive.mockResolvedValue({ ok: false, reason: 'You cannot suspend or reactivate your own account' });
     const { tree: t, onChange } = tree();
-    find(rowFor(t, 'alice@example.test'), (n) => n.type === 'button').props.onClick();
+    stateButton(rowFor(t, 'alice@example.test')).props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
     expect(hooks.setters[setErr].mock.calls.at(-1)).toEqual(['You cannot suspend or reactivate your own account']);
   });
@@ -139,7 +140,41 @@ describe('UsersPage actions', () => {
     hooks.capture = true;
     hooks.presets = ['', 'u-alice'];
     const markup = renderToStaticMarkup(UsersPage({ users: USERS, onChange: () => {} }));
-    expect(markup.match(/<button[^>]*disabled=""/g)).toHaveLength(USERS.length);
+    // Two buttons a row: set plan, and suspend or restore.
+    expect(markup.match(/<button[^>]*disabled=""/g)).toHaveLength(USERS.length * 2);
     expect(markup).toContain('Saving…');
+  });
+
+  // F2: the admin grants or revokes a plan; the server records it as manual.
+  it('grants the chosen plan until the end of the chosen day, India time', async () => {
+    setUserPlan.mockResolvedValue({ ok: true });
+    hooks.capture = true;
+    hooks.presets = ['', null, { 'u-bob': { plan: 'enterprise', end: '2026-12-31' } }];
+    const onChange = vi.fn();
+    const t = UsersPage({ users: USERS, onChange });
+    find(rowFor(t, 'bob@example.test'), (n) => n.type === 'button' && String(n.props.className).includes('adm-plan-set')).props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(setUserPlan).toHaveBeenCalledWith('u-bob', 'enterprise', '2026-12-31T23:59:59+05:30');
+  });
+
+  it('grants open-ended when no end date is chosen, and revokes with Explorer', async () => {
+    setUserPlan.mockResolvedValue({ ok: true });
+    hooks.capture = true;
+    hooks.presets = ['', null, { 'u-bob': { plan: 'pro', end: '' }, 'u-alice': { plan: 'explorer', end: '2026-12-31' } }];
+    const onChange = vi.fn();
+    const t = UsersPage({ users: USERS, onChange });
+    const set = (email) => find(rowFor(t, email), (n) => n.type === 'button' && String(n.props.className).includes('adm-plan-set'));
+    set('bob@example.test').props.onClick();
+    set('alice@example.test').props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
+    expect(setUserPlan).toHaveBeenCalledWith('u-bob', 'pro', null);
+    expect(setUserPlan).toHaveBeenCalledWith('u-alice', 'explorer', null);
+  });
+
+  it('shows each plan as the server reports it', () => {
+    const markup = renderToStaticMarkup(createElement(UsersPage, { users: USERS, onChange: () => {} }));
+    expect(markup).toContain('Professional · trial to 13 Oct 2026');
+    expect(markup).toContain('Explorer · lapsed 1 Sept 2026');
+    expect(markup).toContain('Enterprise · open-ended');
   });
 });

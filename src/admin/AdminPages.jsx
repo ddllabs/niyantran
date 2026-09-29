@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiStats, classifyApis, STATUS } from '../lib/apiStatus.js';
-import { setUserActive, setUserType, USER_TYPES, userTypeOf } from '../lib/userStore.js';
+import { setUserActive, setUserPlan, setUserType, USER_TYPES, userTypeOf } from '../lib/userStore.js';
 import { loadPricing, savePricing } from '../lib/pricingStore.js';
 import {
   formatAgo,
@@ -359,9 +359,41 @@ export function ApisPage() {
   );
 }
 
+const PLAN_NAMES = { explorer: 'Explorer', pro: 'Professional', enterprise: 'Enterprise' };
+
+function planDate(iso) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+}
+
+/** The plan as /api/users reports it: effective plan, status and end. */
+function planSummary(u) {
+  const name = PLAN_NAMES[u.plan] || String(u.plan || 'explorer');
+  if (u.planLapsed && u.planEnd) return `${name} · lapsed ${planDate(u.planEnd)}`;
+  if (u.planStatus === 'trial') return u.planEnd ? `${name} · trial to ${planDate(u.planEnd)}` : `${name} · trial`;
+  if (u.planStatus === 'active') return u.planEnd ? `${name} · to ${planDate(u.planEnd)}` : `${name} · open-ended`;
+  return u.trialUsed ? `${name} · trial used` : name;
+}
+
 export function UsersPage({ users, onChange }) {
   const [err, setErr] = useState('');
   const [busyId, setBusyId] = useState(null);
+  // Per-row plan choice before "Set plan": { [id]: { plan, end } }.
+  const [planDrafts, setPlanDrafts] = useState({});
+
+  function draftFor(u) {
+    return planDrafts[u.id] || { plan: PLAN_NAMES[u.plan] ? u.plan : 'explorer', end: '' };
+  }
+
+  function editDraft(u, patch) {
+    setPlanDrafts((all) => ({ ...all, [u.id]: { ...draftFor(u), ...patch } }));
+  }
+
+  function grantPlan(u) {
+    const d = draftFor(u);
+    // A chosen day ends at 23:59:59 India time; no day means open-ended.
+    const end = d.plan !== 'explorer' && d.end ? `${d.end}T23:59:59+05:30` : null;
+    return change(u.id, () => setUserPlan(u.id, d.plan, end));
+  }
 
   async function change(id, action) {
     setBusyId(id);
@@ -376,8 +408,9 @@ export function UsersPage({ users, onChange }) {
     <>
       <h1 className="adm-h1">Dashboard users</h1>
       <p className="adm-lede">
-        Every account that has signed up. Assign a user type so each seat opens the matching desks. Suspend to lock an
-        account without deleting it, and restore to reopen it.
+        Every account that has signed up. Assign a user type so each seat opens the matching desks. Set a plan to grant
+        Professional or Enterprise until a date (or open-ended), or Explorer to revoke; payments and trials set plans on
+        their own. Suspend to lock an account without deleting it, and restore to reopen it.
       </p>
       <div className="adm-card">
         <h2>Adding people</h2>
@@ -430,13 +463,46 @@ export function UsersPage({ users, onChange }) {
                         ))}
                       </select>
                     </td>
-                    <td>{u.plan}</td>
+                    <td>
+                      <div className="adm-plan-cell">
+                        <span className="adm-plan-now">{planSummary(u)}</span>
+                        <select
+                          className="adm-inline-select"
+                          aria-label={`Plan for ${u.email}`}
+                          value={draftFor(u).plan}
+                          disabled={locked || busy}
+                          onChange={(e) => editDraft(u, { plan: e.target.value })}
+                        >
+                          {Object.entries(PLAN_NAMES).map(([id, label]) => (
+                            <option key={id} value={id}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="date"
+                          className="adm-inline-select"
+                          aria-label={`Plan end date for ${u.email} (empty for open-ended)`}
+                          value={draftFor(u).end}
+                          disabled={locked || busy || draftFor(u).plan === 'explorer'}
+                          onChange={(e) => editDraft(u, { end: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="adm-btn ghost adm-plan-set"
+                          disabled={locked || busy}
+                          onClick={() => { void grantPlan(u); }}
+                        >
+                          Set plan
+                        </button>
+                      </div>
+                    </td>
                     <td>{locked ? 'Owner' : u.active ? 'Active' : 'Suspended'}</td>
                     <td>
                       <div className="adm-actions" style={{ margin: 0 }}>
                         <button
                           type="button"
-                          className={u.active ? 'adm-btn danger' : 'adm-btn ghost'}
+                          className={u.active ? 'adm-btn danger adm-state' : 'adm-btn ghost adm-state'}
                           disabled={locked || busy}
                           onClick={() => { void change(u.id, () => setUserActive(u.id, !u.active)); }}
                         >

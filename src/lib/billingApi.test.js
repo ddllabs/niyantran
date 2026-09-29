@@ -30,6 +30,8 @@ function row(id, owner, n) {
 
 let invoices;
 let issued;
+let granted;
+let grantError;
 
 // A user-scoped client whose reads apply the same rule as the RLS policy.
 function userClient(token) {
@@ -55,6 +57,11 @@ function userClient(token) {
 function adminClient() {
   return {
     rpc: vi.fn(async (name, args) => {
+      if (name === 'grant_paid_plan') {
+        if (grantError) return { data: null, error: grantError };
+        granted.push(args);
+        return { data: { plan: 'professional', status: 'active', period_end: '2026-10-29T10:00:00Z', source: 'payment' }, error: null };
+      }
       if (name !== 'issue_invoice') throw new Error(`unexpected rpc ${name}`);
       issued.push(args.p);
       const n = invoices.length + 1;
@@ -95,6 +102,8 @@ async function call(req, d = deps()) {
 beforeEach(() => {
   invoices = [row('inv_a_one', A, 1), row('inv_b_one', B, 2)];
   issued = [];
+  granted = [];
+  grantError = null;
 });
 
 describe('billing routes require a verified caller', () => {
@@ -157,6 +166,11 @@ describe('the demo invoice record', () => {
     expect(issued).toHaveLength(1);
     expect(issued[0]).toMatchObject({ user_id: A.id, user_email: A.email, provider: 'demo', plan_id: 'pro' });
   });
+
+  it('never grants a plan (F2: only a verified payment does)', async () => {
+    await call(request('POST', '/api/billing/invoice', { as: A, body: { planId: 'pro' } }));
+    expect(granted).toEqual([]);
+  });
 });
 
 describe('Razorpay orders and verification', () => {
@@ -207,5 +221,59 @@ describe('Razorpay orders and verification', () => {
     const response = await verifyWith({ ...order, notes: { ...order.notes, userId: B.id } });
     expect(response.status).toBe(400);
     expect(issued).toEqual([]);
+  });
+
+  // F2: a verified payment is the only thing that grants a paid plan.
+  it('grants the paid plan to the verified caller, for the paid period, after every check', async () => {
+    const response = await verifyWith(await goodOrder());
+    expect(response.status).toBe(200);
+    expect(granted).toEqual([{ p_user: A.id, p_plan: 'pro', p_period: 'month', p_payment_id: 'pay_9' }]);
+    expect(response.body.entitlement).toMatchObject({ plan: 'professional', status: 'active' });
+  });
+
+  it('grants a year for a yearly order', async () => {
+    const q = await call(request('GET', '/api/billing/quote?planId=pro&yearly=1'));
+    const order = { amount: q.body.quote.amountPaise, notes: { userId: A.id, planId: 'pro', yearly: 'true' } };
+    const response = await verifyWith(order, { yearly: true });
+    expect(response.status).toBe(200);
+    expect(granted[0]).toMatchObject({ p_period: 'year' });
+  });
+
+  it('grants nothing when a check fails', async () => {
+    const order = await goodOrder();
+    await verifyWith({ ...order, amount: order.amount - 100 });
+    await verifyWith({ ...order, notes: { ...order.notes, userId: B.id } });
+    await verifyWith({ ...order, notes: { ...order.notes, planId: 'enterprise' } });
+    const badSignature = deps({ razorpayFetch: razorpay({ order }), verifySignature: () => false });
+    expect((await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 'x', planId: 'pro' } }), badSignature)).status).toBe(400);
+    const failed = deps({ razorpayFetch: razorpay({ order, payment: { status: 'failed' } }), verifySignature: () => true });
+    expect((await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro' } }), failed)).status).toBe(400);
+    expect(granted).toEqual([]);
+    expect(issued).toEqual([]);
+  });
+
+  it('issues no invoice when the grant fails, so a retry can complete both', async () => {
+    grantError = { code: 'XX000', message: 'down' };
+    const response = await verifyWith(await goodOrder());
+    expect(response.status).toBe(503);
+    expect(response.body.ok).toBe(false);
+    expect(issued).toEqual([]);
+  });
+
+  it('still answers ok when the invoice already exists for a granted payment (a retry)', async () => {
+    const d = deps({ razorpayFetch: razorpay({ order: await goodOrder() }), verifySignature: () => true });
+    const first = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro', yearly: false } }), d);
+    expect(first.status).toBe(200);
+    const original = d.adminClient;
+    d.adminClient = () => {
+      const client = original();
+      const rpc = client.rpc;
+      client.rpc = vi.fn(async (name, args) => (name === 'issue_invoice' ? { data: null, error: { code: '23505' } } : rpc(name, args)));
+      return client;
+    };
+    const retry = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro', yearly: false } }), d);
+    expect(retry.status).toBe(200);
+    expect(retry.body).toMatchObject({ ok: true, invoice: null });
+    expect(granted).toHaveLength(2);
   });
 });

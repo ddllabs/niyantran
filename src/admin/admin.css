@@ -600,6 +600,17 @@ html.adm-doc #root {
   color: var(--adm-black);
   max-width: 140px;
 }
+.adm-plan-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 260px;
+}
+.adm-plan-now {
+  flex-basis: 100%;
+  font: 600 12px var(--adm-ui);
+}
 .adm-persona-types {
   display: flex;
   flex-wrap: wrap;

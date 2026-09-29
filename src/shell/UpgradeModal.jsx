@@ -8,7 +8,8 @@ import {
   formatInr,
   openInvoice,
 } from '../lib/billing.js';
-import { entitlementOf, trialDaysLeft } from '../lib/planEntitlements.js';
+import { entitlementOf, TRIAL_DAYS, trialDaysLeft } from '../lib/planEntitlements.js';
+import { startTrial } from '../lib/entitlementStore.js';
 import { sessionUser } from '../lib/userStore.js';
 
 export default function UpgradeModal({
@@ -96,6 +97,24 @@ export default function UpgradeModal({
         ? 'Explorer and trial seats cannot copy or export records. Upgrade to Professional or Enterprise to download with provenance.'
         : 'Explorer includes 5 core desks for your persona. Upgrade to open every desk and full coverage.';
 
+  // The account's one trial (F2): the server refuses a second one.
+  const canTrial = ent.loaded && !ent.trialUsed && ent.status === 'free';
+
+  async function onTrial() {
+    setBusy(true);
+    setErr('');
+    setMsg('');
+    const res = await startTrial(picked?.id || 'pro');
+    setBusy(false);
+    if (!res.ok) {
+      setErr(res.reason);
+      return;
+    }
+    setMsg(`${picked?.name || 'Pro'} trial started: ${TRIAL_DAYS} days, no card.`);
+    onUpgraded?.(user);
+    setTimeout(() => onClose?.(), 900);
+  }
+
   async function onPay() {
     setBusy(true);
     setErr('');
@@ -114,16 +133,10 @@ export default function UpgradeModal({
     }
     if (res.invoice) setInvoice(res.invoice);
     if (res.quote) setQuote(res.quote);
-    if (res.mode === 'demo') {
-      setMsg(res.reason || 'Demo gateway — seat upgraded. GST invoice saved.');
-    } else if (res.mode === 'razorpay') {
-      setMsg('Payment verified. GST tax invoice issued.');
-    } else {
-      setMsg('Plan updated.');
-    }
+    setMsg(res.invoice ? 'Payment verified. Plan active; GST tax invoice issued.' : 'Payment verified. Plan active.');
     onUpgraded?.(res.user);
     if (!res.invoice) {
-      setTimeout(() => onClose?.(), res.mode === 'demo' ? 1200 : 700);
+      setTimeout(() => onClose?.(), 700);
     }
   }
 
@@ -243,7 +256,12 @@ export default function UpgradeModal({
         ) : null}
 
         <div className="plan-up-actions">
-          <button type="button" className="plan-up-pay" disabled={busy || !picked} onClick={onPay}>
+          {canTrial ? (
+            <button type="button" className="plan-up-pay" disabled={busy || !picked} onClick={onTrial}>
+              {`Start ${TRIAL_DAYS}-day ${picked?.name || 'Pro'} trial · no card`}
+            </button>
+          ) : null}
+          <button type="button" className={canTrial ? 'plan-up-later' : 'plan-up-pay'} disabled={busy || !picked} onClick={onPay}>
             {busy
               ? 'Opening checkout…'
               : quote
@@ -276,8 +294,8 @@ export default function UpgradeModal({
           </p>
         ) : null}
         <p className="plan-up-note">
-          Checkout runs through <b>Razorpay</b> (INR + 18% GST). Set seller <code>BILLING_GSTIN</code> and address in{' '}
-          <code>.env</code>. Without Razorpay keys, checkout is off on the live site; a local dev server issues a demo invoice.
+          Checkout runs through <b>Razorpay</b> (INR + 18% GST) once it is enabled. A payment covers one month or one
+          year; pay again to extend. Each account gets one {TRIAL_DAYS}-day trial.
         </p>
       </div>
     </div>,
