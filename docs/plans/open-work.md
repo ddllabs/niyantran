@@ -30,7 +30,7 @@ Current baseline:
 - `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
 - Supabase NTER has 35 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The search index is half precision, 204 MB (F22).
-- Tests: 66 Vitest files (958 tests), 454 Deno tests and 15 SQL fixtures. CI is advisory.
+- Tests: 68 Vitest files (971 tests), 454 Deno tests and 15 SQL fixtures. CI is advisory.
 
 ## 1. Agent tasks (doable now, in this order)
 
@@ -39,14 +39,6 @@ check. Changes under `src/lib/`, `src/admin/` or `supabase/` also run
 `npm test` and the Deno suite, and SQL changes run `npm run test:sql`. Each
 new test must fail before the change.
 
-- [ ] **F23. The `pdf_text` ingest path (S–M, prerequisite for L1).**
-  - A script that streams `documents.jsonl.gz`, selects `pdf_text` by
-    `doc_type` and year, and resolves `document_key` through `links.json`.
-  - It carries the seven dropped metadata fields and posts to
-    `ingest-documents`.
-  - It is tested against a small synthetic fixture, so it can be built
-    without the corpus.
-  - Specification: `plans/2026-09-29-corpus-ingestion.md`, "Prerequisites".
 - [ ] **F1. Drop `user_preferences.ai_chats` and its size check (XS,
   migration).** Nothing has read it since `f05a5b6`, and its values were
   cleared on 2026-09-28. It was planned for about a week later (from
@@ -136,7 +128,7 @@ container can't reach it.
   - 18,071 `pdf_text` documents that have never been ingested (7,966 bills,
     6,758 parliamentary questions, 2,813 regulatory documents and others);
   - phases A → B → C;
-  - it needs F23 first (F12, the chunker fix, and F22, the half-precision index, are live).
+  - every prerequisite is done (F12 chunker, F22 half-precision index, F23 `--pdf-text` mode); only the run on the owner's laptop remains.
 - [ ] **L2. Law-tier ingest.** 874 Supreme Court and NCLT PDFs, in the same
   runbook, after phase A.
 
@@ -206,6 +198,7 @@ container can't reach it.
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F23, the `--pdf-text` ingest mode in `scripts/ingest-national-desk.mjs` (tests in `src/lib/ingestPdfText.test.js`).
   - F22, a half-precision search index (migrations `20260929120000` and `20260929120100`, live; fixture `halfvec_retrieval.sql`). 204 MB instead of 404 MB; recall@40 0.9875 against 0.990, measured on 20 queries against an exact scan.
   - F10, one account per normalised email (migration `20260929110000_email_unique`, live; fixture `email_unique.sql`); signup explains the refusal (`src/lib/signupErrors.js`). F11, the review of `my_entitlement` and `start_trial` (`Architectures/06` §9.2).
   - F8, preview origins in CORS; F9, no legacy keys in Edge Functions; F12, the chunker's table rule (version 2) (`d1567d1`). All six functions were redeployed from that commit: `health` v8, `admin-models` v8, `refresh-model-pricing` v9, `ingest-documents` v12, `desk-brief` v3, `research-chat` v33. The four that are reachable without a JWT answered their own 401 with the production CORS header.

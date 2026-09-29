@@ -10,19 +10,26 @@
 //                       feature and in_current_corpus, each markdown_path as ocr_text, joined to the
 //                       link map from scripts/build-corpus-links.mjs (--links, default
 //                       ingest/national-desk/links.json). Plan: docs/plans/2026-09-21-corpus-ingest-first-pass.md
+//   --pdf-text <dir> --doc-type <type>
+//                       the same snapshot's 01_original_corpus/documents.jsonl.gz, streamed: records with
+//                       extraction pdf_text and the given doc_type, keyed through the same link map, carrying
+//                       the corpus fields the OCR sidecars lack. --from-year/--to-year (bill year, from the
+//                       link map) and --keyed-only narrow it. Plan: docs/plans/2026-09-29-corpus-ingestion.md
 // Options: --dry-run (writes nothing), --batch N (documents per request, default 10),
 //          --max-chars N (skip and list larger documents, default 2,000,000), --limit N (first N only).
 //          --only <source_key> (repeatable; --corpus mode only) selects exact source IDs instead of
 //          walking the whole feature, so a reconciled retry does not re-post every unaffected document.
 //          It filters OCR_FILES.csv rows after the in_current_corpus and feature filters, still honours
 //          --max-chars for the selected document(s), and exits non-zero naming any key that matches no
-//          eligible row. Mutually exclusive with --shard and --limit; rejected outside --corpus mode.
+//          eligible row. Mutually exclusive with --shard and --limit; accepted only with --corpus or --pdf-text.
 // Environment: SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_…; never in a browser, never committed).
 // A .env.local beside package.json is loaded when present.
 
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
+import readline from 'node:readline';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,7 +37,8 @@ import { fileURLToPath } from 'node:url';
 const SOLO_CHARS = 200_000;
 
 export function parseArgs(argv) {
-  const out = { dryRun: false, manifest: null, export: null, corpus: null, feature: null, links: 'ingest/national-desk/links.json', batch: 10, maxChars: 2_000_000, limit: 0, only: [] };
+  const out = { dryRun: false, manifest: null, export: null, corpus: null, feature: null, links: 'ingest/national-desk/links.json', batch: 10, maxChars: 2_000_000, limit: 0, only: [],
+    pdfText: null, docType: null, fromYear: null, toYear: null, keyedOnly: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') out.dryRun = true;
@@ -43,6 +51,11 @@ export function parseArgs(argv) {
     else if (a === '--max-chars') out.maxChars = Math.max(1, Number(argv[++i]) || 2_000_000);
     else if (a === '--limit') out.limit = Math.max(0, Number(argv[++i]) || 0);
     else if (a === '--only') out.only.push(argv[++i]);
+    else if (a === '--pdf-text') out.pdfText = argv[++i];
+    else if (a === '--doc-type') out.docType = argv[++i];
+    else if (a === '--from-year') out.fromYear = Number(argv[++i]);
+    else if (a === '--to-year') out.toYear = Number(argv[++i]);
+    else if (a === '--keyed-only') out.keyedOnly = true;
     else if (a === '--shard') {
       // "i/n": take every n-th document starting at i (1-based); run n processes side by side
       const m = /^(\d+)\/(\d+)$/.exec(argv[++i] || '');
@@ -112,6 +125,32 @@ async function readOcr(file) {
 
 function known(value) { return value !== undefined && value !== null && !(typeof value === 'string' && !value.trim()); }
 
+/**
+ * Link-map resolution owns the URL and bill-key fields as a unit. The boolean
+ * marker tells the handler to replace/clear this unit, rather than merge a
+ * sparse patch. Shared by the OCR (--corpus) and pdf_text paths so the two
+ * resolve keys identically. Returns the usable link, or null.
+ */
+function applyLink(metadata, link) {
+  const usable = link && !link.ambiguous ? link : null;
+  if (link?.ambiguous || usable) {
+    for (const key of ['document_key', 'bill_number', 'bill_year', 'house', 'status', 'file_url_source']) delete metadata[key];
+  }
+  if (link?.ambiguous) metadata.file_url_ambiguous = true;
+  if (usable) {
+    metadata.file_url_ambiguous = false;
+    metadata.file_url_source = `corpus ${usable.doc_type} record`;
+    if (usable.bill_number && usable.bill_year) {
+      metadata.document_key = `bill:${usable.bill_year}:${usable.bill_number}`;
+      metadata.bill_number = usable.bill_number;
+      metadata.bill_year = usable.bill_year;
+      if (usable.house) metadata.house = usable.house;
+      if (usable.status) metadata.status = usable.status;
+    }
+  }
+  return usable;
+}
+
 /** Sidecar supplies provenance; nonblank index fields own the current revision. */
 export function fromCorpusRow(row, link, ocrText, sidecar = {}) {
   validateSourceText(ocrText, row, true);
@@ -130,23 +169,7 @@ export function fromCorpusRow(row, link, ocrText, sidecar = {}) {
   const conflicts = Object.keys(indexMetadata).filter((key) => known(sidecar[key]) && sidecar[key] !== indexMetadata[key]);
   const metadata = { ...sidecar, ...indexMetadata, title_stem: stem };
   if (conflicts.length) metadata.index_metadata_conflicts = conflicts;
-  // Link-map resolution owns these fields as a unit. The boolean marker tells
-  // the handler to replace/clear this unit, rather than merge a sparse patch.
-  if (link?.ambiguous || usable) {
-    for (const key of ['document_key', 'bill_number', 'bill_year', 'house', 'status', 'file_url_source']) delete metadata[key];
-  }
-  if (link?.ambiguous) metadata.file_url_ambiguous = true;
-  if (usable) {
-    metadata.file_url_ambiguous = false;
-    metadata.file_url_source = `corpus ${usable.doc_type} record`;
-    if (usable.bill_number && usable.bill_year) {
-      metadata.document_key = `bill:${usable.bill_year}:${usable.bill_number}`;
-      metadata.bill_number = usable.bill_number;
-      metadata.bill_year = usable.bill_year;
-      if (usable.house) metadata.house = usable.house;
-      if (usable.status) metadata.status = usable.status;
-    }
-  }
+  applyLink(metadata, link);
   return {
     source_key: row.id,
     title: (usable?.title || stem).replace(/\s+/g, ' ').trim(),
@@ -209,6 +232,99 @@ export async function readCorpus(dir, feature, linksFile, maxChars, limit, shard
     }
   }
   return { docs, skipped, failed, warnings, indexed: rows.length };
+}
+
+/** Corpus record fields kept in documents.metadata. The last seven are the ones the
+ * OCR sidecars never had (docs/plans/2026-09-22-corpus-expansion.md, "What has to be built"). */
+const PDF_TEXT_FIELDS = ['extraction', 'doc_type', 'source_path', 'source_host', 'licence_class', 'section', 'feature',
+  'n_pages', 'n_chars', 'as_of', 'file_bytes',
+  'dataset_key', 'row_ref', 'integrity', 'licence_basis', 'prid', 'posted_on', 'profile_ref'];
+
+/** One documents.jsonl.gz pdf_text record → the ingest function's document shape. */
+export function fromPdfTextRecord(record, link) {
+  const text = typeof record?.text === 'string' ? record.text : '';
+  if (!record?.id) throw new Error('source id is required');
+  if (!text.trim()) throw new Error('record has no text');
+  // Every corpus record declares n_chars (Python code points); a text hash is checked only when present.
+  if (!known(record.n_chars)) throw new Error('invalid n_chars');
+  validateSourceText(text, { n_chars: record.n_chars, text_sha256: record.text_sha256 });
+  const fileName = path.posix.basename(String(record.source_path || ''));
+  const stem = String(record.title || fileName.replace(/\.pdf$/i, '') || record.id);
+  const metadata = Object.fromEntries(PDF_TEXT_FIELDS.filter((key) => known(record[key])).map((key) => [key, record[key]]));
+  metadata.title_stem = stem;
+  const usable = applyLink(metadata, link);
+  return {
+    source_key: record.id,
+    title: (usable?.title || stem).replace(/\s+/g, ' ').trim(),
+    file_name: fileName || null,
+    file_url: usable?.url ?? null,
+    desk_tier: 'national',
+    desk_feature: record.feature || String(record.source_path || '').split('/')[1] || null,
+    ocr_text: text,
+    metadata,
+  };
+}
+
+/**
+ * Stream documents.jsonl.gz and build the pdf_text documents to ingest. The archive is
+ * 747 MB compressed, so it is read line by line and only selected records are kept.
+ * Order: pdf_text + doc_type → --only → key and bill-year range → --shard → validation
+ * and --max-chars → --limit. A bill year comes from the link map (its bill_record), so a
+ * year range implies a keyed document.
+ */
+export async function readPdfText(dir, opts) {
+  const { docType, links: linksFile, fromYear = null, toYear = null, keyedOnly = false, maxChars = 2_000_000, limit = 0, shard = null, only = null } = opts;
+  const { links } = JSON.parse(await readFile(linksFile, 'utf8'));
+  const file = path.join(dir, '01_original_corpus', 'documents.jsonl.gz');
+  const rl = readline.createInterface({ input: createReadStream(file).pipe(zlib.createGunzip()), crlfDelay: Infinity });
+  const eligible = [];
+  const seen = new Map();
+  let malformed = 0;
+  for await (const line of rl) {
+    if (!line.includes('"pdf_text"')) continue;
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      malformed += 1;
+      continue;
+    }
+    if (record.extraction !== 'pdf_text' || record.doc_type !== docType) continue;
+    seen.set(record.id, (seen.get(record.id) ?? 0) + 1);
+    eligible.push(record);
+  }
+  if (only && only.size) {
+    const missing = [...only].filter((key) => !seen.has(key));
+    if (missing.length) throw new Error(`--only source key(s) not found among pdf_text "${docType}" records: ${missing.join(', ')}`);
+  }
+  const ranged = fromYear !== null || toYear !== null;
+  let rows = eligible.filter((r) => {
+    if (only && only.size && !only.has(r.id)) return false;
+    const link = links[path.posix.basename(String(r.source_path || ''))];
+    const year = link && !link.ambiguous && link.bill_number && link.bill_year ? Number(link.bill_year) : null;
+    if ((keyedOnly || ranged) && year === null) return false;
+    if (fromYear !== null && year < fromYear) return false;
+    if (toYear !== null && year > toYear) return false;
+    return true;
+  });
+  if (shard) rows = rows.filter((_, i) => i % shard.count === shard.index);
+  const docs = [], skipped = [], failed = [];
+  for (const record of rows) {
+    const fileName = path.posix.basename(String(record.source_path || ''));
+    try {
+      if (seen.get(record.id) > 1) throw new Error('duplicate source id');
+      const text = typeof record.text === 'string' ? record.text : '';
+      if (text.length > maxChars) {
+        skipped.push({ id: record.id, file: fileName, utf16_chars: text.length, reason: 'too_large' });
+        continue;
+      }
+      docs.push(fromPdfTextRecord(record, links[fileName]));
+      if (limit && docs.length >= limit) break;
+    } catch (err) {
+      failed.push({ source_key: record.id, file: fileName, error: err.message });
+    }
+  }
+  return { docs, skipped, failed, malformed, eligible: eligible.length, selected: rows.length };
 }
 
 /** Group documents into requests: `batch` per request, but a large document travels alone. */
@@ -303,13 +419,13 @@ async function post(url, key, body) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const mode = args.manifest ? 'manifest' : args.export ? 'export' : args.corpus ? 'corpus' : null;
-  if (args.help || !mode || (mode === 'corpus' && !args.feature)) {
-    console.log('usage: node scripts/ingest-national-desk.mjs (--manifest <file> | --export <dir> | --corpus <dir> --feature "<feature>") [--dry-run] [--batch N] [--max-chars N] [--limit N] [--only <source_key> ...] [--shard i/n]');
+  const mode = args.manifest ? 'manifest' : args.export ? 'export' : args.corpus ? 'corpus' : args.pdfText ? 'pdf-text' : null;
+  if (args.help || !mode || (mode === 'corpus' && !args.feature) || (mode === 'pdf-text' && !args.docType)) {
+    console.log('usage: node scripts/ingest-national-desk.mjs (--manifest <file> | --export <dir> | --corpus <dir> --feature "<feature>" | --pdf-text <dir> --doc-type <type> [--from-year Y] [--to-year Y] [--keyed-only]) [--dry-run] [--batch N] [--max-chars N] [--limit N] [--only <source_key> ...] [--shard i/n]');
     process.exit(args.help ? 0 : 2);
   }
-  // --only is a bounded retry of exact source IDs; it only has meaning against the corpus index.
-  if (args.only.length && mode !== 'corpus') throw new Error('--only is only supported with --corpus mode');
+  // --only is a bounded retry of exact source IDs; it only has meaning against the corpus snapshot.
+  if (args.only.length && mode !== 'corpus' && mode !== 'pdf-text') throw new Error('--only is only supported with --corpus or --pdf-text mode');
   await loadDotEnv(path.resolve('.env.local'));
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
@@ -321,7 +437,18 @@ async function main() {
   let sourceFailures = [];
   if (mode === 'manifest') docs = await readSpecManifest(args.manifest);
   else if (mode === 'export') docs = await readExport(args.export);
-  else {
+  else if (mode === 'pdf-text') {
+    const only = args.only.length ? new Set(args.only) : null;
+    const r = await readPdfText(args.pdfText, {
+      docType: args.docType, links: args.links, fromYear: args.fromYear, toYear: args.toYear, keyedOnly: args.keyedOnly,
+      maxChars: args.maxChars, limit: args.limit, shard: args.shard, only,
+    });
+    docs = r.docs;
+    skipped = r.skipped;
+    sourceFailures = r.failed;
+    const shardNote = args.shard ? ` (shard ${args.shard.index + 1}/${args.shard.count})` : '';
+    console.log(`${r.eligible} pdf_text "${args.docType}" record(s); ${r.selected} selected${shardNote}; ${skipped.length} explicitly skipped; ${sourceFailures.length} source validation failures; ${r.malformed} malformed pdf_text line(s)`);
+  } else {
     const only = args.only.length ? new Set(args.only) : null;
     const r = await readCorpus(args.corpus, args.feature, args.links, args.maxChars, args.limit, args.shard, only);
     docs = r.docs;
@@ -331,16 +458,16 @@ async function main() {
     const shardNote = args.shard ? ` (shard ${args.shard.index + 1}/${args.shard.count})` : '';
     console.log(`${r.indexed} document(s) in the index for "${args.feature}"${shardNote}; ${skipped.length} explicitly skipped; ${sourceFailures.length} source validation failures`);
   }
-  const source = args.manifest ?? args.export ?? args.corpus;
+  const source = args.manifest ?? args.export ?? args.corpus ?? args.pdfText;
   console.log(`${docs.length} document(s) from ${source}${args.dryRun ? ' (dry run)' : ''}`);
   const linked = docs.filter((d) => d.file_url).length;
   const keyed = docs.filter((d) => d.metadata?.document_key).length;
-  if (mode === 'corpus') console.log(`with file_url ${linked}, with document_key ${keyed}`);
+  if (mode === 'corpus' || mode === 'pdf-text') console.log(`with file_url ${linked}, with document_key ${keyed}`);
 
   const endpoint = `${url.replace(/\/$/, '')}/functions/v1/ingest-documents`;
   const totals = { documents: sourceFailures.length, indexed: 0, unchanged: 0, errors: sourceFailures.length, embedded_tokens: 0, cost_usd: 0 };
   const failed = [...sourceFailures];
-  const requests = planRequests(docs, mode === 'corpus' ? args.batch : 20);
+  const requests = planRequests(docs, mode === 'corpus' || mode === 'pdf-text' ? args.batch : 20);
   for (let i = 0; i < requests.length; i++) {
     const batch = requests[i];
     let results;
@@ -360,7 +487,7 @@ async function main() {
       if (r.error) failed.push({ source_key: r.source_key, error: r.error });
     }
     for (const k of Object.keys(totals)) totals[k] += t[k];
-    if (mode === 'corpus' && (i + 1) % 10 === 0) console.log(`… ${i + 1}/${requests.length} requests, ${totals.documents} documents, usd ${totals.cost_usd.toFixed(4)}`);
+    if ((mode === 'corpus' || mode === 'pdf-text') && (i + 1) % 10 === 0) console.log(`… ${i + 1}/${requests.length} requests, ${totals.documents} documents, usd ${totals.cost_usd.toFixed(4)}`);
   }
   console.log('totals', totals);
   if (skipped.length) console.log('skipped (with reasons):', skipped);

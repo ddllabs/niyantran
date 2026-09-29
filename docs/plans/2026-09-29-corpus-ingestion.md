@@ -4,7 +4,7 @@
 > ingesting the owner's corpus snapshot, and it replaces
 > `plans/2026-09-22-corpus-expansion.md`, which stays as the measured record.
 > Tracked in `plans/open-work.md` as L1 and L2, with prerequisites F12, F22
-> and F23 (F12 and F22 are done). **It runs in a Claude Code session on the owner's laptop**,
+> and F23 (all three are done; only the local run remains). **It runs in a Claude Code session on the owner's laptop**,
 > because the corpus is only there.
 
 ## Current state (2026-09-29)
@@ -72,23 +72,22 @@ took the database down for 2 min 38 s.
 2. **F22. Done 2026-09-29.** The half-precision index is live and measured:
    204 MB; recall@40 0.9875 against 0.990 for the old index; 161 ms against
    224 ms.
-3. **F23. Build the `pdf_text` ingest path** in `scripts/`:
-   - It streams `documents.jsonl.gz` line by line, never loading it whole.
-   - It selects `extraction: pdf_text` plus `--doc-type`, with `--from-year`
-     and `--to-year`.
-   - It resolves `document_key` through `links.json`, exactly as
-     `fromCorpusRow` in `scripts/ingest-national-desk.mjs` does.
-   - It carries into `documents.metadata` the fields that are dropped today:
-     `dataset_key`, `row_ref`, `integrity`, `licence_basis`, `prid`,
-     `posted_on`, `profile_ref`.
-   - It posts to the existing `ingest-documents` Edge Function, which
-     chunks, embeds and commits in slices of 100.
+3. **F23. Done 2026-09-29.** `scripts/ingest-national-desk.mjs --pdf-text <dir>
+   --doc-type <type>`:
+   - It streams `documents.jsonl.gz` line by line and keeps only
+     `extraction: pdf_text` records of the doc type.
+   - It resolves `document_key` through `links.json` with the same function
+     as the OCR mode.
+   - `--from-year` and `--to-year` filter on the bill year from the link map,
+     so they imply a keyed document. `--keyed-only` keeps keyed documents of
+     any year.
+   - It carries `dataset_key`, `row_ref`, `integrity`, `licence_basis`,
+     `prid`, `posted_on` and `profile_ref` into `documents.metadata`, beside
+     the other record fields (never the text).
    - It reuses `--dry-run`, `--batch`, `--max-chars`, `--limit`,
-     `--shard i/n` and `--only <source_key>` with their current meanings.
-   - Tests: Vitest over a small synthetic `.jsonl.gz` fixture committed
-     under `src/lib/fixtures/`, covering selection, key resolution, the
-     metadata carried, and a dry run writing nothing. The real corpus is
-     never needed to build or test it.
+     `--shard i/n` and `--only` with their existing meanings.
+   - Tests: `src/lib/ingestPdfText.test.js` builds a small `.jsonl.gz` at run
+     time.
 
 ## The local session, step by step
 
@@ -105,14 +104,14 @@ CORPUS=~/Downloads/NTER-Complete-Processed-Data
 node scripts/build-corpus-links.mjs --corpus "$CORPUS"
 
 # 1. Dry run of phase A: prints counts, sizes and skips, and writes nothing.
-node scripts/<F23 script> --corpus "$CORPUS" --doc-type bill --from-year 2015 --to-year 2026 --keyed-only --dry-run
+node scripts/ingest-national-desk.mjs --pdf-text "$CORPUS" --doc-type bill --from-year 2015 --to-year 2026 --keyed-only --dry-run
 
 # 2. A small real batch first, then check the database (step 4) before continuing.
-node scripts/<F23 script> --corpus "$CORPUS" --doc-type bill --from-year 2015 --to-year 2026 --keyed-only --limit 20
+node scripts/ingest-national-desk.mjs --pdf-text "$CORPUS" --doc-type bill --from-year 2015 --to-year 2026 --keyed-only --limit 20
 
 # 3. The rest of phase A, in shards that can run side by side (two at most).
-node scripts/<F23 script> ... --keyed-only --shard 1/2
-node scripts/<F23 script> ... --keyed-only --shard 2/2
+node scripts/ingest-national-desk.mjs --pdf-text "$CORPUS" --doc-type bill --from-year 2015 --to-year 2026 --keyed-only --shard 1/2
+node scripts/ingest-national-desk.mjs --pdf-text "$CORPUS" --doc-type bill --from-year 2015 --to-year 2026 --keyed-only --shard 2/2
 ```
 
 After each step, in the SQL editor or through the Supabase tools:
