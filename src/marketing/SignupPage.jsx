@@ -12,6 +12,7 @@ import { loadPricing } from '../lib/pricingStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
 import { signupErrorMessage } from '../lib/signupErrors.js';
+import { nextSignupStep } from '../lib/signupFlow.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 function planFromRoute() {
@@ -176,14 +177,13 @@ export default function SignupPage({ onSuccess, onLogin }) {
         setPending(false);
         return;
       }
-      if (signUpData?.session) {
-        await enterTerminal({
-          id: signUpData.session.user?.id,
-          name,
-          email: user,
-          type: personaId,
-          personaId,
-        });
+      const step = nextSignupStep({ hasSession: Boolean(signUpData?.session), planId });
+      if (step !== 'verify') {
+        const seat = { id: signUpData.session.user?.id, name, email: user, type: personaId, personaId };
+        // A free pick sees the second step, "Choose plan" (C7); a trial pick
+        // already has its trial from the server (open-work F24).
+        if (step === 'plan') goToPlanStep(seat);
+        else await enterTerminal(seat);
         return;
       }
     } catch (authErr) {

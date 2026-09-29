@@ -52,16 +52,6 @@ new test must fail before the change.
     `catch`.
 
   Each gets a failing test first.
-- [ ] **F24. The signup plan step never runs (S).**
-  - `src/marketing/SignupPage.jsx` defines `goToPlanStep`, but nothing calls
-    it. The second step ("Choose plan", which starts a trial through
-    `start_trial`) is unreachable.
-  - The owner decided on 2026-09-28 (C7) to keep a two-step signup.
-  - Today a plan picked from the pricing page reaches the server only through
-    the signup metadata; a Google sign-up picks nothing.
-  - Wire the step in after account creation (both email and Google), or
-    remove it with the owner's agreement.
-  - A test shows the step appears and that picking Pro starts a trial.
 - [ ] **F18. Real counts on the home carousel (S).** `serveHomeSegments` in
   `server/homeApi.mjs` returns literal "live counts" (9819, 543), but the
   spec calls them authoritative. Compute them from the data they describe,
@@ -163,7 +153,7 @@ container can't reach it.
 | P7 | Affidavits (10,492 documents, 809 M characters) | Compute; owner |
 | P8 | Re-crawl the 716 documents that have no `file_url` (the hosts are known; not in the corpus) | Owner decision |
 | P9 | Document keys for parliamentary questions and regulators; desk-row "cut two" (curated views, the 41 modules with no rows) and a refresh pipeline | Measuring the joins; after L1 |
-| P10 | Google sign-ups get no signup trial (they can start one from the upgrade dialog) | Revisit if it matters |
+| P10 | Google sign-ups, and email signups that wait for verification, skip the plan step and get no signup trial (they can start one from the upgrade dialog). F24 wired the step for email signups that return a session. | Revisit if it matters |
 | P11 | Whether `require_parameters` makes reasoning a hard routing constraint; whether a single attachment should be capped at its per-document quota | Evidence from D3 |
 | P12 | Priority-2 advisor findings (grants, foreign keys, indexes); the dependency audit; the Vite manifest-import warning | Housekeeping slot |
 | P14 | Bill-key collisions. Two documents that resolve to the same `bill:<year>:<number>` both keep the key, so a scoped search reads both. `build-corpus-links.mjs` drops a key only when one file name has conflicting URLs. | Decide before L1 phase B: accept it, or keep one document per key |
@@ -188,6 +178,7 @@ container can't reach it.
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F24, the signup plan step runs: a free email signup with a session sees "Choose plan" and can start its trial; a Pro or Enterprise pick enters directly (`src/lib/signupFlow.js`; checked in a browser against a mocked Supabase).
   - F16, the unused `reasoningSegments` modules (browser and Edge copies, and their tests) deleted; `params` and `max_tokens` parked as P15.
   - F14, the model and effort choice survives a reload (per browser, `useResearchThread.js`); F15, the follow-up pills are a labelled list (`SuggestionPills.jsx`).
   - F23, the `--pdf-text` ingest mode in `scripts/ingest-national-desk.mjs` (tests in `src/lib/ingestPdfText.test.js`).
