@@ -40,6 +40,13 @@ Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
 - **2026-09-29, evening (local session):**
+  - O2, closed without deleting (owner's decision). Four Vercel variables
+    are unused: `VITE_AI_BACKEND`, `PROJECT_ID`, `GOOGLE_CLIENT_ID` and
+    `VITE_GOOGLE_CLIENT_ID`. No code reads them, and nothing reads
+    `import.meta.env` as a whole, so Vite puts neither `VITE_` value in the
+    bundle. Google sign-in runs through Supabase's own provider settings.
+    They stay because the Vercel tools can't delete variables; remove them
+    whenever someone is in the dashboard.
   - D1 (part), the Auth redirect URLs: the owner added
     `http://localhost:5173/**` and `https://niyantran-*-ddl-labs.vercel.app/**`
     (site URL stays production). Verified by starting a Google sign-in from
@@ -224,9 +231,6 @@ stand, but its commands aren't to be run.
 
 ## 5. Launch
 
-- [ ] **O2.** Delete `VITE_AI_BACKEND` on Vercel (Settings → Environment
-  Variables). Nothing reads it (checked 2026-09-29), and the Vercel tools
-  can't delete a variable.
 - [ ] **D1. Supabase dashboard: what remains.** The Auth redirect URLs are
   done (see Done), and leaked-password protection was dropped by the owner
   (see accepted risks). Left:
