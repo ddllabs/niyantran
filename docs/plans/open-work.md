@@ -27,7 +27,7 @@ Current baseline (2026-09-29, evening):
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The
   search index is half precision, 204 MB.
 - Tests:
-  - 73 Vitest files (987 tests), 452 Deno tests, 16 SQL fixtures;
+  - 74 Vitest files (1,006 tests), 452 Deno tests, 16 SQL fixtures;
   - `npm run lint`: 0 errors, 0 warnings;
   - `scripts/verify-local-storage-paths.mjs`: 12 of 12 checks on a local
     stack.
@@ -40,8 +40,17 @@ Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
 - **2026-09-29, evening (local session):**
-  - F13 spec written: `specs/2026-09-29-f13-transient-identity-failure.md`
-    (`3a51724`). Implementation waits for approval (section 2).
+  - F13, a transient identity failure no longer signs the user out
+    (`179a708`; spec `specs/2026-09-29-f13-transient-identity-failure.md`,
+    `3a51724`, approved with no retry).
+    - Network errors and 5xx refuse the request but keep the identity, the
+      retained turns and the signed-in UI; callers show "Connection problem.
+      Try again."
+    - Authoritative failures still sign out.
+    - The new tests fail on the old code.
+    - In a browser against a local stack with PostgREST stopped, the old
+      code dropped a valid session to the landing page on reload; the new
+      code stays signed in.
   - F17, both untested database paths run against a local Supabase stack
     (`5259ffa`). `scripts/verify-local-storage-paths.mjs` checks:
     - the preferences merge-upsert through PostgREST, read back as the
@@ -126,11 +135,6 @@ Newest first. Detail is in `git log`, the linked documents and the
 
 Each needs one answer, then an agent can finish it.
 
-- [ ] **F13. Approve the spec** (`specs/2026-09-29-f13-transient-identity-failure.md`).
-  Also answer its one question: retry once before showing "Connection
-  problem", or not (default: no). The spec found more than the backlog
-  said: `App.jsx` treats any null identity as signed out, so one failed
-  profile read seems to show the signed-out app.
 - [ ] **P12. Advisor findings and the dependency audit** (checked 2026-09-29):
   - **`xlsx` 0.18.5: high severity, and no npm fix** (prototype pollution
     and ReDoS). `server/sourceExtract.mjs` parses fetched source documents

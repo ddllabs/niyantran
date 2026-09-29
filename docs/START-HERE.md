@@ -74,12 +74,13 @@ These are the facts new sessions most often get wrong.
   standard CLI from `b60c0dc`, so the dashboard shows the real files; 2 GB
   compute. `ALLOWED_ORIGINS` admits Vercel previews. Counts and the
   half-precision search index are in the open-work baseline.
-- The evening cleanup of 2026-09-29 closed F1, F17, F29, C3, A1, O3, O4 and
-  O5 (see open-work "Done" and coordination "Operations — 2026-09-29
-  (evening)"). SQLite is gone from the serverless routes.
+- The evening cleanup of 2026-09-29 closed F1, F13, F17, F29, C3, A1, O3,
+  O4 and O5 (see open-work "Done" and coordination "Operations — 2026-09-29
+  (evening)"). SQLite is gone from the serverless routes, and a network
+  blip no longer signs a user out.
 - What remains is sorted in `plans/open-work.md`:
-  - three decisions for the owner: F13 (approve the spec), P12
-    (dependencies and the advisor migration) and P16 (carousel numbers);
+  - two decisions for the owner: P12 (dependencies and the advisor
+    migration) and P16 (carousel numbers);
   - four later phases: Ingestion pipeline (parked for a new design),
     Payments, Launch (including the owner's dashboard and smoke-test steps)
     and Waiting on owner assets;

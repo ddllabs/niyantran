@@ -1,9 +1,9 @@
 # Spec: a transient identity failure must not sign the user out (F13)
 
-> **Status: Living.** Proposed 2026-09-29 for owner approval; not yet
-> implemented. Open-work item F13. Authentication scope: the owner authorised
-> the work on 2026-09-29, and the implementation waits for approval of this
-> spec.
+> **Status: Historical (2026-09-29).** Approved by the owner with no
+> automatic retry, and implemented in `179a708`. The `App.jsx` sign-out was
+> reproduced in a browser against a local stack before the fix, and is gone
+> after it. Open-work item F13.
 
 ## Current state (read from the code on 2026-09-29, `main` at `31c3915`)
 
