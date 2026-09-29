@@ -283,9 +283,11 @@ export async function reconcileSavedTurn(conversationId) {
     remove(entry, 'reconciled');
     notify();
     return true;
-  } catch {
+  } catch (err) {
     if (!stillCurrent()) return false;
-    throw new Error('The saved result could not be verified. Try Reload.');
+    // The reader sees one generic message; the real failure (a read error, or a
+    // programming error) stays attached as the cause instead of being masked.
+    throw new Error('The saved result could not be verified. Try Reload.', { cause: err });
   } finally { clearTimeout(timer); }
 }
 function raceAbort(promise, signal) {

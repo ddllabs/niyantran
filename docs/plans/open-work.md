@@ -43,19 +43,18 @@ new test must fail before the change.
   migration).** Nothing has read it since `f05a5b6`, and its values were
   cleared on 2026-09-28. It was planned for about a week later (from
   2026-10-05); the owner may approve it sooner.
-- [ ] **F13. Three turn-recovery defects (S–M).** From supervisor-recovery
-  L1346–1363, all still in the code:
-  - `reconcileSavedTurn` is not idempotent;
-  - `identityChanged(null)` discards every retained turn on one transient
-    failure (`src/lib/userStore.js:81,112,194`);
-  - the throw at `src/lib/researchChat.js:274` is unreachable behind a bare
-    `catch`.
-
-  Each gets a failing test first.
-- [ ] **F18. Real counts on the home carousel (S).** `serveHomeSegments` in
-  `server/homeApi.mjs` returns literal "live counts" (9819, 543), but the
-  spec calls them authoritative. Compute them from the data they describe,
-  or drop the number.
+- [ ] **F13. One transient identity failure discards every retained turn (S–M,
+  needs a short spec first; authentication scope).** One rejected
+  `get_my_profile` makes `verifyLocalIdentity` call `identityChanged(null)`
+  (`src/lib/userStore.js`). That bumps the generation and drops the retained
+  replay intent of every conversation, not only the current one. It fails
+  safe (nothing is spent or written), but one network blip loses recovery.
+  - The spec must define which failures are authoritative (signed out,
+    inactive, a different user) and which are transient (network, 5xx), and
+    keep failing closed for the first group.
+  - The other two recorded defects are settled:
+    - the masked error now keeps its cause (Done);
+    - the repeat-call return value is P17.
 - [ ] **F17. Four database paths no test has run (M).** From wave 1:
   1. the `pg_cron` retention branch in a test database;
   2. the preferences merge-upsert through PostgREST;
@@ -158,6 +157,13 @@ container can't reach it.
 | P12 | Priority-2 advisor findings (grants, foreign keys, indexes); the dependency audit; the Vite manifest-import warning | Housekeeping slot |
 | P14 | Bill-key collisions. Two documents that resolve to the same `bill:<year>:<number>` both keep the key, so a scoped search reads both. `build-corpus-links.mjs` drops a key only when one file name has conflicting URLs. | Decide before L1 phase B: accept it, or keep one document per key |
 | P15 | Two unused extension points, kept on purpose (F16): `ai_models.params` (an admin-editable registry column, `{}` on every row, never applied to a request) and `StreamRequest.max_tokens` (a model without native effort support would need it for a thinking budget). | Wire when a model needs either |
+| P16 | **The home carousel's numbers are hand-written** (`serveHomeSegments` in `server/homeApi.mjs`, about 30 figures across 8 segments; `src/lib/segmentCarousel.test.js` pins some; formerly F18):
+- some are real constants (543 Lok Sabha constituencies);
+- some could be computed (bills on record from `desk_rows`, about 9,817; open fronts from the war tracker);
+- some look invented (128 "statements this week", 1,280 open tenders, 42 macro series, 340 CBAM rows).
+
+For each figure: compute it, keep it as a constant, or drop it. | Owner (marketing copy) |
+| P17 | `reconcileSavedTurn` answers `false` both for "still locked" and for a repeat call after it already reconciled. The supervisor plan called this a defect, but a later review test pins the `false` (`src/lib/researchChat.test.js`, "a repeat call after a successful unlock reports false, not true"), and the only caller handles it correctly. | Decide only if a caller needs to tell them apart |
 | P13 | The two ADRs numbered 0005 | Leave, unless ADRs are renumbered |
 
 ## 5. Accepted risks and won't-fix
@@ -178,6 +184,7 @@ container can't reach it.
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F13 (part): the generic "Try Reload" error from `reconcileSavedTurn` keeps the real failure as its `cause`, instead of masking read and programming errors (`src/lib/researchChat.js`).
   - F24, the signup plan step runs: a free email signup with a session sees "Choose plan" and can start its trial; a Pro or Enterprise pick enters directly (`src/lib/signupFlow.js`; checked in a browser against a mocked Supabase).
   - F16, the unused `reasoningSegments` modules (browser and Edge copies, and their tests) deleted; `params` and `max_tokens` parked as P15.
   - F14, the model and effort choice survives a reload (per browser, `useResearchThread.js`); F15, the follow-up pills are a labelled list (`SuggestionPills.jsx`).

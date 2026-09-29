@@ -495,6 +495,14 @@ describe('authoritative saved-turn reconciliation', () => {
     await retained202(); expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
     expect(streamState('saved-c').isPending).toBe(true);
   });
+  // F13: the generic message stays, but the real failure is kept as its cause.
+  it('keeps the underlying failure as the cause of the generic error', async () => {
+    await retained202(); read({data:null,error:{message:'private internal database detail'}});
+    const err = await research.reconcileSavedTurn('saved-c').catch(e => e);
+    expect(err.message).toBe('The saved result could not be verified. Try Reload.');
+    expect(err.cause?.message).toBe('Saved result read failed');
+    expect(String(err.cause?.message)).not.toContain('private internal database detail');
+  });
   it('reports a generic database failure and preserves replay intent', async () => {
     await retained202(); read({data:null,error:{message:'private internal database detail'}});
     await expect(research.reconcileSavedTurn('saved-c')).rejects.toThrow('The saved result could not be verified. Try Reload.');
