@@ -1,4 +1,36 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// /api/home/latest reads nter.news articles from Supabase. With .env.local
+// present the real admin client would query the live project, so this suite
+// supplies a stub store instead: the test runs offline and never touches NTER.
+const newsStore = vi.hoisted(() => ({
+  tables: [],
+  client: {
+    from(table) {
+      newsStore.tables.push(table);
+      const query = {
+        select: () => query,
+        order: () => query,
+        limit: () =>
+          Promise.resolve({
+            data: [
+              {
+                row: { article_id: 'stub-f29', title: 'Stub nter.news headline', url: 'https://nter.news/stub-f29', pub: '2026-09-29T00:00:00Z' },
+                updated_at: '2026-09-29T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+      };
+      return query;
+    },
+  },
+}));
+vi.mock('../../server/authEmailProvider.mjs', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getSupabaseAdminClient: vi.fn(() => newsStore.client),
+}));
+
 import { serveHomeSegments, serveHomeMarkets, serveHomeLatest } from '../../server/homeApi.mjs';
 import { getLiveTvChannels, getLiveTvSchedule, getLiveTvArchive, getLiveTvTranscript } from '../../server/liveTvApi.mjs';
 import { briefFromExtract } from '../../server/sourceExtract.mjs';
@@ -81,6 +113,9 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
       expect(res.ok).toBe(true);
       expect(res.source).toBe('nter.news');
       expect(Array.isArray(res.rows)).toBe(true);
+      // The rows came from the stub store, not from a live project or the seed file.
+      expect(newsStore.tables).toContain('nter_news_articles');
+      expect(res.rows.map((r) => r.article_id)).toEqual(['stub-f29']);
     });
   });
 
