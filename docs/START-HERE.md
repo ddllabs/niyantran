@@ -1,22 +1,102 @@
-# Start here: guide for engineers joining the upstream integration
+# Start here
 
-Status: **Living.** Written 2026-09-24; current-state section corrected 2026-09-29. Update it when a listed document changes status.
+Status: **Living.** Rewritten 2026-09-29 as the entry point for any new agent
+or session, cloud or local. Update it when a listed document changes status
+or when the setup below changes.
 
-**Looking for what to do next? Open `plans/open-work.md`.** It is the one list of open work: agent tasks, local-session tasks, owner actions, parked items and accepted risks.
+**Looking for what to do next? Open `plans/open-work.md`.** It is the one list
+of open work: agent tasks, local-session tasks, owner actions, parked items,
+accepted risks and a Done log with commit hashes.
 
-## Current state (2026-09-28)
+## Read in this order
 
-The upstream merge described below **has landed**. Read this section first; the rest of the page is the guide that got us here and is kept because the plan and audit it points to are still the record of why the code looks the way it does.
+| # | Document | What it gives you |
+|---|---|---|
+| 1 | `../AGENTS.md` | The binding rules: authority, git, verification, safety |
+| 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day ("Operations — 2026-09-29" is the latest) |
+| 3 | `plans/open-work.md` | What is open, what is blocked and on whom, the current baseline, and what landed |
+| 4 | `agents/rollback-runbook.md` | How Edge Functions and migrations are deployed, verified and rolled back |
+| 5 | `plans/2026-09-29-corpus-ingestion.md` | Only for L1/L2: ingesting the large corpus from the owner's laptop |
+| 6 | `agents/onboarding.md` | Only when dispatching subagents: the onboarding text and dispatch template |
+| 7 | `Architectures/README.md`, `decisions/` | How the system is built and why; read the part you are changing |
 
-1. Upstream `528dfb4` was merged into `dev` and then into `main` through PR #2 (`8849c35`, 2026-09-26). Upstream is retired; there is no `upstream` remote to fetch in a fresh clone and none is needed. Since 2026-09-28 `main` is the only branch, locally and on GitHub; `dev` is retired and production follows `main`. Work happens on short-lived `task/` or `feature/` branches, each with its own Vercel preview URL (`agents/coordination.md`, "Branches and deployments").
-2. Since the merge `main` gained Live TV, desk landing pages, the segment carousel, the nter.news rail and the NyAI thinking indicator (`5e54af2`, ADRs 0006–0009), then Vercel router fixes (`ca73200`, ADR 0010).
-3. A DDL Labs Vercel deployment exists at `niyantran-six.vercel.app` (ADR 0010). The nter.pro cutover (integration plan Phases 4–6) is not recorded as done.
-4. `docs/` is tracked in git since 2026-09-27 (`f828ef5`). `docs/security/` stays local only.
-5. **Known gap (narrowed 2026-09-28):** accounts, preferences, analytics, flags, invoices and nter.news articles now live in Supabase. Only the SQLite `entry_briefs` cache tier in `server/deskBrief.mjs` remains (plan task C3, T7). The move is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
-6. The Supabase state as of 2026-09-28 (row counts, advisors) is recorded in `agents/coordination.md` under "Supabase audit — 2026-09-28"; its function table and migration count are superseded by "Operations — 2026-09-28" (31 migrations; six functions, including `desk-brief` v2). "Operations — 2026-09-29" records the 32nd, `plan_entitlements`.
-7. All open work is in `plans/open-work.md` (since 2026-09-29). It replaced `plans/2026-09-28-remaining-work.md` and `niyantran-conflict-audit-and-plan/04-open-backlog.md`, which are now Historical. Production changes by day (function versions, migrations, CI) are in `agents/coordination.md` under the "Operations" entries. The serverless move is done except T7 (open-work C3).
-8. Ingesting the large corpus from the owner's laptop: `plans/2026-09-29-corpus-ingestion.md` (open-work L1, L2).
-9. Rolling back Vercel or an Edge Function, and verifying any deploy: `agents/rollback-runbook.md`.
+When a document and the code disagree, the code and migrations win, and the
+document gets fixed.
+
+## How the setup works
+
+These are the facts new sessions most often get wrong.
+
+- **One Supabase project, no Supabase branching.** NTER
+  (`vfgcppstyzjarlzyqdac`) serves production, every Vercel preview and local
+  development. Which git branch is checked out never changes which database
+  is used, and a write from anywhere is a real write.
+- **Supabase changes are explicit.** A push deploys nothing to Supabase.
+  Migrations are applied one by one (Supabase MCP `apply_migration` or the
+  CLI) and their version pinned to the file name; Edge Functions are
+  deployed from a pinned commit. Both procedures are in
+  `agents/rollback-runbook.md`, and each production change is recorded in
+  an "Operations" entry in `agents/coordination.md`.
+- **Vercel follows git.** A push to `main` deploys production
+  (`niyantran-six.vercel.app`); any other pushed branch gets a preview. Edge
+  Functions refuse preview origins until owner action O5 is done.
+- **Local secrets.** `.env.local` beside `package.json` holds
+  `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for the dev server and the
+  maintenance scripts. Never commit or print it. A production build needs no
+  variables.
+- **Cloud containers may not reach Supabase.** Their network policy can
+  refuse `*.supabase.co`, so scripts and the dev server's Supabase calls fail
+  there while the Supabase MCP tools still work. A local session has no such
+  limit.
+- **The corpus is only on the owner's laptop**, at
+  `~/Downloads/NTER-Complete-Processed-Data` (open-work L1, L2).
+- **SQL fixtures need Docker** with the two containers named in the header
+  of `supabase/tests/run.sh`. They never run against NTER.
+
+## Owner conventions
+
+- Commits are authored as `Vighnesh Shukla <hello@ddllabs.ai>`, with no AI
+  or tool attribution in the message or trailers.
+- Branches are `task/<slug>` or `feature/<slug>`, never a tool or agent name.
+- Pushing, merging to `main`, deploying, applying migrations, ingesting and
+  changing any dashboard need the owner's authorization for that action
+  (`AGENTS.md`, "Authority").
+- The owner has said that user data may be cleared while the system is in
+  development. Destructive operations still name their exact target and are
+  confirmed first.
+
+## Where things stand (2026-09-29)
+
+- `main` is the only long-lived branch; CI passes on it and production
+  follows it. The upstream merge landed on 2026-09-26 and upstream is
+  retired.
+- Supabase NTER: 35 migrations, six Edge Functions all deployed from
+  `d1567d1`, 2 GB compute. Counts and the half-precision search index are in
+  the open-work baseline.
+- Open work that an agent can take needs a spec or an owner decision first
+  (F6 plan gating, F13 transient identity failure), an environment (F17), a
+  date (F1, from 2026-10-05) or owner action O4 (C3). L1/L2 run locally.
+  Everything else waits on owner actions O1–O9.
+
+## A new session's first steps
+
+1. Confirm `pwd`, the branch, `git status` and the remote; `git fetch origin`
+   and fast-forward a clean `main`.
+2. Read the documents above, in order, up to what the task needs.
+3. Run the baseline: `npm ci`, `npm run build`, `npm test`, `npm run lint`,
+   and the Deno suite (commands in `AGENTS.md`).
+4. Confirm the current state against the open-work baseline before relying
+   on it, and report any drift.
+5. Take a task from `plans/open-work.md`, or wait for the owner's
+   instruction.
+
+---
+
+# Historical: the upstream integration guide (written 2026-09-24)
+
+Kept as the record of why the code looks the way it does. Its reading order
+and rules were for the merge that landed on 2026-09-26; for current work use
+the sections above.
 
 ## The situation in five lines (2026-09-24, before the merge)
 
