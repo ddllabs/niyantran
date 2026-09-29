@@ -4,7 +4,7 @@
 > ingesting the owner's corpus snapshot, and it replaces
 > `plans/2026-09-22-corpus-expansion.md`, which stays as the measured record.
 > Tracked in `plans/open-work.md` as L1 and L2, with prerequisites F12, F22
-> and F23. **It runs in a Claude Code session on the owner's laptop**,
+> and F23 (F12 is done). **It runs in a Claude Code session on the owner's laptop**,
 > because the corpus is only there.
 
 ## Current state (2026-09-29)
@@ -66,8 +66,9 @@ took the database down for 2 min 38 s.
 
 ## Prerequisites (from the cloud, before the local session)
 
-1. **F12.** Fix the chunker's `|`-line table bug, so the new corpus chunks
-   correctly. Redeploy `ingest-documents` (F9).
+1. **F12. Done 2026-09-29** (`d1567d1`; `ingest-documents` v12 runs it).
+   The chunker no longer treats stray OCR pipes as tables, and the chunker
+   version is 2.
 2. **F22.** The half-precision index, measured and live.
 3. **F23. Build the `pdf_text` ingest path** in `scripts/`:
    - It streams `documents.jsonl.gz` line by line, never loading it whole.

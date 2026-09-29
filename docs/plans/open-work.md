@@ -39,32 +39,6 @@ check. Changes under `src/lib/`, `src/admin/` or `supabase/` also run
 `npm test` and the Deno suite, and SQL changes run `npm run test:sql`. Each
 new test must fail before the change.
 
-- [ ] **F8. Allow Vercel preview origins in Edge Function CORS (S).**
-  `supabase/functions/_shared/cors.ts` accepts exact origins only, and every
-  preview has its own hostname. So `research-chat` and `desk-brief` refuse
-  every Vercel preview. This was verified on 2026-09-29: production and
-  `localhost:5173` got an allow-origin header; the `git-main` URL, a
-  deployment URL and `localhost:5301` got none.
-  - Support one wildcard pattern in `ALLOWED_ORIGINS`, anchored to the
-    team's domain, e.g. `https://niyantran-*-ddl-labs.vercel.app`.
-    Plain-string origins keep working.
-  - Deno tests: the pattern matches previews and refuses look-alike hosts
-    such as `https://niyantran-x-ddl-labs.vercel.app.evil.test`.
-  - Then owner action O5.
-- [ ] **F9. Drop the legacy key fallback in Edge Functions, and redeploy
-  every function from `main` (S).**
-  - `supabase/functions/_shared/supabase.ts:30,36` still falls back to the
-    legacy service-role variable. F3 fixed only Vercel and the scripts.
-  - Redeploy all six functions from one commit, together with F8, so that:
-    - `ingest-documents` (built from `a030847`) stops trailing `_shared/chunking.ts`;
-    - `research-chat` leaves the pinned-commit entry (this covers A1 if the
-      deploy uploads the real files);
-    - each deploy is verified as in `agents/rollback-runbook.md` §3.
-- [ ] **F12. The chunker treats OCR lines starting with `|` as tables (S).**
-  `supabase/functions/_shared/chunking.ts:89`. Fix this **before** L1, so the
-  new corpus is chunked correctly. Deno tests: a real table still chunks as a
-  table, and a stray pipe line doesn't. Re-chunking the existing 2,338
-  documents is not part of this task.
 - [ ] **F22. A half-precision search index (S–M, prerequisite for L1).**
   - Add an expression index
     `hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops)`
@@ -180,13 +154,13 @@ container can't reach it.
   - 18,071 `pdf_text` documents that have never been ingested (7,966 bills,
     6,758 parliamentary questions, 2,813 regulatory documents and others);
   - phases A → B → C;
-  - it needs F12, F22 and F23 first.
+  - it needs F22 and F23 first (F12, the chunker fix, is live).
 - [ ] **L2. Law-tier ingest.** 874 Supreme Court and NCLT PDFs, in the same
   runbook, after phase A.
 
 ## 3. Owner actions
 
-- [ ] **A1. Standard CLI redeploy of `research-chat`** (not needed if F9 deploys the real files).
+- [ ] **A1. Standard CLI redeploy of all six Edge Functions** (`supabase functions deploy <name> --project-ref vfgcppstyzjarlzyqdac`, with `--no-verify-jwt` except for `health` and `admin-models`), so the dashboard shows the real files. Since 2026-09-29 all six run `main` at `d1567d1` through pinned-commit entries.
 - [ ] **A2. Academic end-to-end check.** Switch to Academic and ask one question. The answer should open with RESEARCH QUESTION / EVIDENCE / CHRONOLOGY.
 - [ ] **D1. Supabase dashboard:**
   - leaked-password protection on;
@@ -206,7 +180,7 @@ container can't reach it.
 - [ ] **O2. Delete the unused `VITE_AI_BACKEND` on Vercel.**
 - [ ] **O3. Delete the merged branches `task/docs-pass` and `task/f2-server-entitlements` on GitHub.** The agent's git proxy can't delete branches.
 - [ ] **O4. Check the SQLite files on your machine and the other worker's** for desk briefs worth keeping. This unblocks C3.
-- [ ] **O5. After F8, set `ALLOWED_ORIGINS`** to production, `http://localhost:5173` and the preview pattern.
+- [ ] **O5. Add the preview pattern to `ALLOWED_ORIGINS`** (F8 is live): `https://niyantran-six.vercel.app,http://localhost:5173,https://niyantran-*-ddl-labs.vercel.app`. Until then every Vercel preview is refused (re-probed 2026-09-29 after the deploy).
 - [ ] **O6. After F6, set the Razorpay keys on Vercel**, then run one real payment end to end.
 - [ ] **O7. Share the new Live TV sources, UI and sample codebase.** This unblocks F7.
 - [ ] **O9. Provide the desk-landing visual mockup** that `specs/2026-09-27-cr12-cr13-desk-landing.md` is still waiting for.
@@ -249,7 +223,9 @@ container can't reach it.
 
 Newest first. Detail is in `git log` and the linked documents.
 
-- **2026-09-29:** F2 phase 1, server-owned plans (`f74c8c1`; `specs/2026-09-29-f2-entitlements.md`); this file (`docs:` commit of 2026-09-29).
+- **2026-09-29:**
+  - F8, preview origins in CORS; F9, no legacy keys in Edge Functions; F12, the chunker's table rule (version 2) (`d1567d1`). All six functions were redeployed from that commit: `health` v8, `admin-models` v8, `refresh-model-pricing` v9, `ingest-documents` v12, `desk-brief` v3, `research-chat` v33. The four that are reachable without a JWT answered their own 401 with the production CORS header.
+  - F2 phase 1, server-owned plans (`f74c8c1`; `specs/2026-09-29-f2-entitlements.md`); this file (`docs:` commit of 2026-09-29).
 - **2026-09-28/29:**
   - F3, one secret-key name (`3572e53`);
   - F4, Live TV quota (`47fa681`);

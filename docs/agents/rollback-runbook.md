@@ -55,6 +55,20 @@ import { createResearchHandler } from 'https://raw.githubusercontent.com/ddllabs
 Deno.serve(createResearchHandler());
 ```
 
+The entry differs by function, because only some modules serve on import
+(all forms were deployed and verified on 2026-09-29 at `d1567d1`):
+
+| Function | Entry | `verify_jwt` |
+|---|---|---|
+| `health`, `admin-models` | `import '…/<name>/index.ts';` (their index calls `Deno.serve` at top level) | on |
+| `research-chat` | `import { createResearchHandler } from '…/research-chat/index.ts'; Deno.serve(createResearchHandler());` | off |
+| `desk-brief` | import `createDependencies` from `index.ts` and `handleDeskBrief` from `handler.ts`; `Deno.serve((req) => handleDeskBrief(req, createDependencies()));`. Its deploy must include a `deno.json` (`{}`) with `import_map_path: deno.json`, because the function was first deployed with an import map | off |
+| `refresh-model-pricing` | `import { createRefreshHandler } from '…/index.ts'; Deno.serve(createRefreshHandler((n) => Deno.env.get(n)));` | off |
+| `ingest-documents` | import `supabaseDb` (`index.ts`), `handleIngest` (`handler.ts`), `embedTexts` (`_shared/embed.ts`), `secretKey` and `serviceClient` (`_shared/supabase.ts`), and repeat the guarded `Deno.serve` block of its `index.ts` | off |
+
+Use static `import` statements only: the deploy bundles what it can see, and
+a dynamic `import()` of a template string is not bundled.
+
 **The entry must call `Deno.serve` itself.** `research-chat/index.ts` only
 serves when it is the entry module (`if (import.meta.main)`), so a bare
 `import '…/index.ts'` boots and then never answers a request. That is exactly

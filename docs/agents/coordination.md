@@ -803,4 +803,15 @@ marked otherwise. This supersedes the function table above.
 - **Open work** is now tracked only in `docs/plans/open-work.md`, which
   replaces `plans/2026-09-28-remaining-work.md` and
   `niyantran-conflict-audit-and-plan/04-open-backlog.md` as the tracker.
-
+- **Edge Functions redeployed (~12:30 UTC):** all six from `main` at `d1567d1`
+  (F8 preview-origin CORS, F9 no legacy keys, F12 chunker version 2), through
+  pinned-commit entries: `health` v8, `admin-models` v8,
+  `refresh-model-pricing` v9, `ingest-documents` v12, `desk-brief` v3,
+  `research-chat` v33. Probed through `pg_net` without credentials:
+  `research-chat` and `desk-brief` answered 401 `missing bearer token`,
+  `ingest-documents` 401 `service key required` and `refresh-model-pricing`
+  401 `refresh secret required`, each with the production origin in
+  `access-control-allow-origin`. A preview origin is still refused until the
+  owner adds the pattern to `ALLOWED_ORIGINS` (open-work O5). `health` and
+  `admin-models` keep `verify_jwt`, so an unauthenticated probe stops at the
+  gateway; their boot is confirmed by the next authenticated call.
