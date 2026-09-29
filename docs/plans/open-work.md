@@ -40,6 +40,15 @@ Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
 - **2026-09-29, evening (local session):**
+  - D1 (part), the Auth redirect URLs: the owner added
+    `http://localhost:5173/**` and `https://niyantran-*-ddl-labs.vercel.app/**`
+    (site URL stays production). Verified by starting a Google sign-in from
+    each origin and reading `auth.flow_state.referrer`: production, the
+    `main` alias, a preview deployment and localhost each return to
+    themselves, and an unknown origin falls back to production. Before
+    this, the Auth logs showed a preview sign-in (28 Sep 08:43 UTC) landing
+    on production. Google sign-in itself has worked since 27 Sep (5
+    accounts).
   - P16, the home carousel shows only computed figures and true constants
     (`87dc8bf`):
     - computed: bills 9,817 (unique IDs; the feed repeats two rows),
@@ -218,16 +227,17 @@ stand, but its commands aren't to be run.
 - [ ] **O2.** Delete `VITE_AI_BACKEND` on Vercel (Settings → Environment
   Variables). Nothing reads it (checked 2026-09-29), and the Vercel tools
   can't delete a variable.
-- [ ] **D1. Supabase dashboard:**
-  - leaked-password protection on;
-  - Auth URL configuration: site URL `https://niyantran-six.vercel.app`,
-    and redirects for it, `http://localhost:5173/**` and
-    `https://niyantran-*-ddl-labs.vercel.app/**`; nter.pro is added at D2;
-  - Storage global upload limit of at least 50 MB;
+- [ ] **D1. Supabase dashboard: what remains.** The Auth redirect URLs are
+  done (see Done), and leaked-password protection was dropped by the owner
+  (see accepted risks). Left:
+  - confirm the Storage global upload limit is at least 50 MB. The
+    `marketing` bucket allows 50 MB and Supabase's default global limit is
+    50 MB, but no tool here can read the global setting. The O8 intro-video
+    upload proves it either way;
   - optionally, Auth connections as a percentage.
 
-  The tools can't change Auth settings safely: the CLI's `config push`
-  would overwrite the whole Auth config.
+  The tools can't change Auth or Storage settings safely: the CLI's
+  `config push` would overwrite the whole remote config.
 - [ ] **O8 and A2. Signed-in smoke test on production** with a test
   account:
   - save preferences;
@@ -279,6 +289,10 @@ Each can be reopened by the condition named.
   is disabled, and removing it would mean rewriting `main`.
 - **1,288 documents with unknown `integrity`.** It can't be recovered from
   the inputs.
+- **No leaked-password protection** (Supabase's HaveIBeenPwned check).
+  Dropped by the owner on 2026-09-29. Most accounts sign in with Google;
+  email accounts keep Supabase's password rules. Reopen before a public
+  launch if email sign-ups grow.
 - **Previews share the live Supabase project.** There is no Supabase
   branching. Test writes use test accounts only, and migrations stay
   additive and fixture-tested.

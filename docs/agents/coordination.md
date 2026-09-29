@@ -886,3 +886,13 @@ redeploys and deleting the two merged GitHub branches. Times are UTC.
   CLI crashes at start, the Docker socket is refused, and Node ignores the
   proxy). They work outside it: the CLI is logged in on this laptop and
   linked to NTER.
+- **Auth redirect URLs (owner, ~17:45 UTC):** the owner added
+  `http://localhost:5173/**` and `https://niyantran-*-ddl-labs.vercel.app/**`
+  in Authentication → URL Configuration; the site URL stays
+  `https://niyantran-six.vercel.app`. Checked read-only at 17:47 UTC: a
+  PKCE Google authorize request from each origin (never completed) stored
+  `auth.flow_state.referrer` equal to that origin for production, the
+  `main` alias, a preview deployment and localhost, and the production URL
+  for `https://evil.example.com`. `ALLOWED_ORIGINS` was unchanged since
+  16:44 UTC (same digest). Leaked-password protection stays off by the
+  owner's decision.
