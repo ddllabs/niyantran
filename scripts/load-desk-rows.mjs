@@ -8,9 +8,13 @@
  * way (vite-node strips the script from process.argv, so this is a plain
  * runner that nothing imports). For every navigation module it runs the
  * desk's own pipeline with fetch served from public/ (src/lib/deskRowsFeed.js),
- * upserts the rows on (tier, feature, row_key) in batches, then prunes rows
- * of that module the run did not touch, so the table mirrors the desk.
- * Re-runnable; --dry-run prints the per-module table and writes nothing.
+ * reads the module's stored rows, and writes only the difference
+ * (src/lib/deskRowSync.js, open-work F20): new or changed rows are upserted on
+ * (tier, feature, row_key), and keys the module no longer shows are deleted.
+ * An unchanged module writes nothing, and loaded_at records a row's last
+ * change. The first run after F20 rewrites most rows once: rows loaded on
+ * 2026-09-21 hold record_text lines in jsonb key order, and the pipeline now
+ * writes them in source order (same content, checked on Cabinet Decisions). Re-runnable; --dry-run reads and compares but writes nothing.
  *
  * Environment: SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_…; never in a
  * browser, never committed). A .env.local beside package.json is read when
@@ -21,6 +25,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { deskRowsFor, installDiskFetch, loadableModules } from '../src/lib/deskRowsFeed.js';
+import { planDeskRowSync } from '../src/lib/deskRowSync.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 
@@ -66,12 +71,33 @@ async function upsertRows(client, rows, batch, loadedAt) {
   return n;
 }
 
-async function pruneModule(client, tab, feature, loadedAt) {
-  const res = ok(
-    await client.from('desk_rows').delete({ count: 'exact' }).eq('tier', tab).eq('feature', feature).lt('loaded_at', loadedAt),
-    `desk_rows prune (${feature})`,
-  );
-  return res.count ?? 0;
+/** Every stored row of one module, paged: PostgREST returns at most 1,000 rows a request. */
+async function storedRows(client, tab, feature) {
+  const out = [];
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    const res = ok(
+      await client.from('desk_rows').select('row_key,row,record_text,document_key,snapshot_at')
+        .eq('tier', tab).eq('feature', feature).order('row_key', { ascending: true }).range(from, from + page - 1),
+      `desk_rows read (${feature}, from ${from})`,
+    );
+    out.push(...(res.data || []));
+    if (!res.data || res.data.length < page) return out;
+  }
+}
+
+/** Delete the keys a module no longer shows, in slices small enough for a URL. */
+async function deleteKeys(client, tab, feature, keys) {
+  let n = 0;
+  for (let i = 0; i < keys.length; i += 200) {
+    const slice = keys.slice(i, i + 200);
+    const res = ok(
+      await client.from('desk_rows').delete({ count: 'exact' }).eq('tier', tab).eq('feature', feature).in('row_key', slice),
+      `desk_rows delete (${feature}, slice at ${i})`,
+    );
+    n += res.count ?? 0;
+  }
+  return n;
 }
 
 async function main(argv) {
@@ -81,7 +107,8 @@ async function main(argv) {
   // Supabase client keeps the real fetch, captured before the swap.
   const realFetch = globalThis.fetch;
   let client = null;
-  if (!opts.dryRun) {
+  {
+    // A dry run still reads the stored rows, so its table shows the real difference.
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY must be set (environment or .env.local)');
@@ -91,28 +118,33 @@ async function main(argv) {
 
   const restore = installDiskFetch(resolve(ROOT, 'public'));
   const loadedAt = new Date().toISOString();
-  const totals = { modules: 0, withRows: 0, rows: 0, collisions: 0, upserted: 0, pruned: 0, snapshot: {} };
+  const totals = { modules: 0, withRows: 0, rows: 0, collisions: 0, unchanged: 0, upserted: 0, pruned: 0, snapshot: {} };
   try {
     const modules = loadableModules().filter(({ mod, tab }) => (!opts.tier || tab === opts.tier) && (!opts.feature || mod.htmlFeature === opts.feature));
     console.log(`${opts.dryRun ? 'DRY RUN' : 'LIVE'} ${loadedAt}: ${modules.length} module(s)`);
-    console.log('tab           feature                                                     shown   rows  coll  snapshot  upserted  pruned');
+    console.log('tab           feature                                                     shown   rows  coll  snapshot  unchanged  upserted  pruned');
     for (const { mod } of modules) {
       const r = await deskRowsFor(mod, { publicDir: resolve(ROOT, 'public'), fallbackSnapshot: loadedAt });
+      const plan = planDeskRowSync(await storedRows(client, r.tab, r.feature), r.rows, { ignoreSnapshot: r.snapshot.source === 'run' });
       let upserted = 0;
       let pruned = 0;
-      if (client) {
-        upserted = await upsertRows(client, r.rows, opts.batch, loadedAt);
-        pruned = await pruneModule(client, r.tab, r.feature, loadedAt);
+      if (!opts.dryRun) {
+        if (plan.upserts.length) upserted = await upsertRows(client, plan.upserts, opts.batch, loadedAt);
+        if (plan.deleteKeys.length) pruned = await deleteKeys(client, r.tab, r.feature, plan.deleteKeys);
+      } else {
+        upserted = plan.upserts.length;
+        pruned = plan.deleteKeys.length;
       }
       totals.modules++;
       if (r.rows.length) totals.withRows++;
       totals.rows += r.rows.length;
       totals.collisions += r.collisions.length;
+      totals.unchanged += plan.unchanged;
       totals.upserted += upserted;
       totals.pruned += pruned;
       totals.snapshot[r.snapshot.source] = (totals.snapshot[r.snapshot.source] || 0) + 1;
       console.log(
-        `${r.tab.padEnd(13)} ${r.feature.slice(0, 58).padEnd(58)} ${String(r.shown).padStart(6)} ${String(r.rows.length).padStart(6)} ${String(r.collisions.length).padStart(5)}  ${r.snapshot.source.padEnd(8)} ${String(upserted).padStart(9)} ${String(pruned).padStart(7)}`,
+        `${r.tab.padEnd(13)} ${r.feature.slice(0, 58).padEnd(58)} ${String(r.shown).padStart(6)} ${String(r.rows.length).padStart(6)} ${String(r.collisions.length).padStart(5)}  ${r.snapshot.source.padEnd(8)} ${String(plan.unchanged).padStart(10)} ${String(upserted).padStart(9)} ${String(pruned).padStart(7)}`,
       );
       if (r.collisions.length) console.log(`  collisions (last row wins): ${r.collisions.join(' | ')}`);
     }

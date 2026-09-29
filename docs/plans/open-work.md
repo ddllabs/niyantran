@@ -64,14 +64,6 @@ new test must fail before the change.
   1 fits `npm run test:sql`. 2 and 3 need a disposable PostgREST and Storage,
   or a test account on NTER with the owner's approval. For 4, fail clearly
   or document it.
-- [ ] **F20. The desk-row loader writes only what changed (S–M).**
-  `scripts/load-desk-rows.mjs` rewrites all 34,184 rows on every run. Write
-  by key difference and prune removed keys. The owner asked for this on
-  2026-09-22.
-- [ ] **F19. `backend/sql/auth_schema.sql` (XS, docs).** It describes a schema
-  that doesn't exist as a whole, but `supabase/tests/run.sh` uses it as the
-  fixture bootstrap. Keep it, and state its purpose in its header and in
-  `Architectures/README.md`.
 - [ ] **F21. A lint gate (M).** There is no ESLint config and no lint script.
   Add one with the current code passing, and put it in CI as advisory.
   `AGENTS.md` must not claim lint passes until it does.
@@ -184,6 +176,7 @@ For each figure: compute it, keep it as a constant, or drop it. | Owner (marketi
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F20, the desk-row loader writes only new or changed rows and deletes removed keys (`src/lib/deskRowSync.js`, `scripts/load-desk-rows.mjs`). A dry run now reads the stored rows, so it needs the Supabase variables. The first run rewrites most rows once, because the stored `record_text` lines are in jsonb key order. F19 needed no change: the header of `backend/sql/auth_schema.sql` and `Architectures/README.md` already state its fixture-bootstrap role.
   - F13 (part): the generic "Try Reload" error from `reconcileSavedTurn` keeps the real failure as its `cause`, instead of masking read and programming errors (`src/lib/researchChat.js`).
   - F24, the signup plan step runs: a free email signup with a session sees "Choose plan" and can start its trial; a Pro or Enterprise pick enters directly (`src/lib/signupFlow.js`; checked in a browser against a mocked Supabase).
   - F16, the unused `reasoningSegments` modules (browser and Edge copies, and their tests) deleted; `params` and `max_tokens` parked as P15.
