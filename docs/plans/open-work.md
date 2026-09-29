@@ -30,7 +30,7 @@ Current baseline:
 - `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
 - Supabase NTER has 35 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The search index is half precision, 204 MB (F22).
-- Tests: 68 Vitest files (972 tests), 452 Deno tests and 15 SQL fixtures. CI is advisory.
+- Tests: 72 Vitest files (983 tests), 452 Deno tests and 15 SQL fixtures. `npm run lint`: 0 errors, 266 warnings (F25). CI is advisory.
 
 ## 1. Agent tasks (doable now, in this order)
 

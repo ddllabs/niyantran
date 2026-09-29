@@ -27,9 +27,10 @@ host is network-visible unless overridden as above. `npm run preview` previews
 the built application; it does not establish that development API plugins are
 available in a production host.
 
-There is no declared lint or standalone type-check. `.github/workflows/ci.yml`
-runs the build, both test suites and the SQL fixtures on every push; it is
-advisory, and nothing is blocked on it. `npm run test:sql` runs the fixtures in
+`npm run lint` runs ESLint (0 errors; warnings remain, open-work F25). There is
+no standalone type-check. `.github/workflows/ci.yml` runs the build, lint, both
+test suites and the SQL fixtures on every push; it is advisory, and nothing is
+blocked on it. `npm run test:sql` runs the fixtures in
 `supabase/tests/` against two disposable local Docker Postgres containers with the
 required Auth stubs and migrations; never run them against production.
 Build warnings about a large bundle and mixed static/dynamic imports remain.
@@ -107,8 +108,8 @@ are separate acceptance checks.
 **Updated 2026-09-29.** The live Supabase project has all 35 repository
 migrations applied (latest `20260929120100_match_documents_halfvec`) and six Edge
 Functions deployed: `health`, `admin-models`, `refresh-model-pricing`,
-`ingest-documents`, `desk-brief` and `research-chat`. Not all of them run the
-code on `main`; redeploying them from one commit is open-work F9. `main` is the
+`ingest-documents`, `desk-brief` and `research-chat`, all redeployed from one
+commit (`d1567d1`) on 2026-09-29. `main` is the
 only long-lived branch (see `git log` for its tip), and production on Vercel
 (`niyantran-six.vercel.app`) follows it. Versions and production changes are
 recorded in `docs/agents/coordination.md`, "Operations" entries. All open work,
