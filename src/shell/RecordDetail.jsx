@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { isArticleHref, displayUrl } from '../lib/normalise.js';
+import { resolveOrganisedBrief } from '../lib/sourceDoc.js';
 import { dossierFor, impactCards, isOpenFronts } from '../lib/openFronts.js';
 import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { formatDate, formatDateTime } from '../lib/format.js';

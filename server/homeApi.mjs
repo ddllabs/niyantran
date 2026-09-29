@@ -756,6 +756,12 @@ export async function refreshHomeSnapshots() {
   return fullRefreshInflight;
 }
 
+/** The last nter.news snapshot written to the cache, or null. (Restored: 5e54af2
+ * deleted it but left its caller in /data/news.json.) */
+function snapshotNewsFile() {
+  return readDiskSnapshot('news') || null;
+}
+
 function snapshotConflictFile() {
   const snap = readDiskSnapshot('conflict');
   if (snap?.rows?.length) return snap;
