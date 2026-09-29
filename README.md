@@ -66,6 +66,9 @@ its historical variable name. Server configuration uses `SUPABASE_URL`,
 `SUPABASE_ANON_KEY` where a public client is needed, and `SUPABASE_SECRET_KEY`
 for explicitly privileged operations. The project disabled legacy JWT API keys;
 do not restore one as a fallback. Never expose a secret through `VITE_` variables.
+Without `SUPABASE_SECRET_KEY` in `.env.local`, the dev server's store-backed
+routes (preferences, analytics, users, invoices, flags, nter.news) answer 503;
+the rest of the app works.
 
 The browser signs up, signs in, resends verification and resets passwords
 through Supabase Auth directly, so account email in production is whatever

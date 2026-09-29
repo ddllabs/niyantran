@@ -55,15 +55,13 @@ new test must fail before the change.
   - The other two recorded defects are settled:
     - the masked error now keeps its cause (Done);
     - the repeat-call return value is P17.
-- [ ] **F17. Four database paths no test has run (M).** From wave 1:
-  1. the `pg_cron` retention branch in a test database;
-  2. the preferences merge-upsert through PostgREST;
-  3. the signed-URL video upload against real Storage;
-  4. the dev server without `SUPABASE_SECRET_KEY`, where every GET returns 503.
+- [ ] **F17. Two database paths no test has run (M).** From wave 1:
+  - the preferences merge-upsert through PostgREST;
+  - the signed-URL video upload against real Storage.
 
-  1 fits `npm run test:sql`. 2 and 3 need a disposable PostgREST and Storage,
-  or a test account on NTER with the owner's approval. For 4, fail clearly
-  or document it.
+  Both need a disposable PostgREST and Storage, or a test account on NTER
+  with the owner's approval; the owner smoke test O8 covers them in part.
+  (The `pg_cron` branch and the dev-server behaviour are Done.)
 - [ ] **F21. A lint gate (M).** There is no ESLint config and no lint script.
   Add one with the current code passing, and put it in CI as advisory.
   `AGENTS.md` must not claim lint passes until it does.
@@ -176,6 +174,7 @@ For each figure: compute it, keep it as a constant, or drop it. | Owner (marketi
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F17 (part): the `pg_cron` branch verified live. `analytics-events-retention` ran at 03:17 UTC and succeeded; `analytics-rate-windows-purge` 105 of 105 runs; `refresh-model-pricing` 18 of 18. The dev server's 503 without `SUPABASE_SECRET_KEY` is documented in `README.md`.
   - F20, the desk-row loader writes only new or changed rows and deletes removed keys (`src/lib/deskRowSync.js`, `scripts/load-desk-rows.mjs`). A dry run now reads the stored rows, so it needs the Supabase variables. The first run rewrites most rows once, because the stored `record_text` lines are in jsonb key order. F19 needed no change: the header of `backend/sql/auth_schema.sql` and `Architectures/README.md` already state its fixture-bootstrap role.
   - F13 (part): the generic "Try Reload" error from `reconcileSavedTurn` keeps the real failure as its `cause`, instead of masking read and programming errors (`src/lib/researchChat.js`).
   - F24, the signup plan step runs: a free email signup with a session sees "Choose plan" and can start its trial; a Pro or Enterprise pick enters directly (`src/lib/signupFlow.js`; checked in a browser against a mocked Supabase).
