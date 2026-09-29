@@ -1,174 +1,77 @@
 # Open work: the one list
 
-> **Status: Living.** Created 2026-09-29 by merging
-> `plans/2026-09-28-remaining-work.md`, `niyantran-conflict-audit-and-plan/04-open-backlog.md`
-> and the open remainders of every other plan, spec and ADR (checked against
-> the code on 2026-09-29, `main` at `71292af`). Those documents are now
-> Historical and point here.
+> **Status: Living.** Created 2026-09-29 from the earlier trackers, and
+> rewritten the same evening as a clean slate after the local cleanup
+> session (`main` at `3a51724` and the docs commit after it). Every item is
+> either Done (with its commit or its operations record), waiting on one
+> named owner decision, in one of four later phases, or an accepted risk.
 
 ## How to use this file
 
 - **This is the only list of open work.** Plans, specs, ADRs and
   `agents/coordination.md` may describe a task in detail, but they don't
-  track it. If a document says something is "still open", "later" or
-  "follow-up", it must also appear here, or it isn't tracked.
-- An agent picks the first unblocked task in its section, follows
-  `AGENTS.md`, and uses a `task/<id>-<slug>` branch. When the task is done,
-  it moves the task's line to **Done** with the commit hash, and deletes it
-  from its section.
-- A new finding gets a new id (the next free `F` number) in the right section.
-  Put detail in a spec only when the task is too large for a few lines here.
-- Sections:
-  1. Agent tasks (a cloud or local agent can do them now);
-  2. Local-session tasks (they need the owner's laptop);
-  3. Owner actions;
-  4. Parked and decisions;
-  5. Accepted risks and won't-fix;
-  6. Done.
+  track it. Anything "still open", "later" or "follow-up" must appear here.
+- An agent takes an unblocked item, follows `AGENTS.md`, and works on a
+  `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
+  its commit hash.
+- A new finding gets the next free `F` number (F30 is next) and goes in the
+  right section.
 
-Current baseline:
-- `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
-- Supabase NTER has 35 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
-- The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The search index is half precision, 204 MB (F22).
-- Tests: 73 Vitest files (987 tests), 452 Deno tests and 15 SQL fixtures. `npm run lint`: 0 errors, 0 warnings; any warning fails it. CI is advisory.
+Current baseline (2026-09-29, evening):
+- `main` is the only long-lived branch, locally and on GitHub; production
+  (`niyantran-six.vercel.app`) follows it.
+- Supabase NTER: 36 migrations; 2 GB compute (`shared_buffers` 512 MB); six
+  Edge Functions CLI-deployed from `b60c0dc` (`health` v10, `admin-models`
+  v10, `refresh-model-pricing` v11, `ingest-documents` v14, `desk-brief` v5,
+  `research-chat` v35). `ALLOWED_ORIGINS` includes the preview pattern.
+- The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The
+  search index is half precision, 204 MB.
+- Tests:
+  - 73 Vitest files (987 tests), 452 Deno tests, 16 SQL fixtures;
+  - `npm run lint`: 0 errors, 0 warnings;
+  - `scripts/verify-local-storage-paths.mjs`: 12 of 12 checks on a local
+    stack.
 
-## 1. Agent tasks (doable now, in this order)
+  CI is advisory.
 
-Every task runs its focused tests, `npm run build`, and the router import
-check. Changes under `src/lib/`, `src/admin/` or `supabase/` also run
-`npm test` and the Deno suite, and SQL changes run `npm run test:sql`. Each
-new test must fail before the change.
+## 1. Done
 
-- [ ] **F1. Drop `user_preferences.ai_chats` and its size check (XS,
-  migration).** Nothing has read it since `f05a5b6`, and its values were
-  cleared on 2026-09-28. It was planned for about a week later (from
-  2026-10-05); the owner may approve it sooner.
-- [ ] **F13. One transient identity failure discards every retained turn (S–M,
-  needs a short spec first; authentication scope).** One rejected
-  `get_my_profile` makes `verifyLocalIdentity` call `identityChanged(null)`
-  (`src/lib/userStore.js`). That bumps the generation and drops the retained
-  replay intent of every conversation, not only the current one. It fails
-  safe (nothing is spent or written), but one network blip loses recovery.
-  - The spec must define which failures are authoritative (signed out,
-    inactive, a different user) and which are transient (network, 5xx), and
-    keep failing closed for the first group.
-  - The other two recorded defects are settled:
-    - the masked error now keeps its cause (Done);
-    - the repeat-call return value is P17.
-- [ ] **F17. Two database paths no test has run (M).** From wave 1:
-  - the preferences merge-upsert through PostgREST;
-  - the signed-URL video upload against real Storage.
+Newest first. Detail is in `git log`, the linked documents and the
+"Operations" entries in `agents/coordination.md`.
 
-  Both need a disposable PostgREST and Storage, or a test account on NTER
-  with the owner's approval; the owner smoke test O8 covers them in part.
-  (The `pg_cron` branch and the dev-server behaviour are Done.)
-- [ ] **F6. Plan gating on the server (M–L, needs a spec and owner
-  decisions; required before real payments).** F2 phase 1 made the plan
-  server-owned, but desk data is public (static files, and `desk_rows` is
-  readable by any signed-in user). Desk locks, row caps and export limits
-  run only in the browser. The spec must settle:
-  - which data is premium;
-  - how premium desks are served (an API behind `my_entitlement`, or RLS on
-    `desk_rows`);
-  - server-side exports;
-  - row caps at the API.
+- **2026-09-29, evening (local session):**
+  - F13 spec written: `specs/2026-09-29-f13-transient-identity-failure.md`
+    (`3a51724`). Implementation waits for approval (section 2).
+  - F17, both untested database paths run against a local Supabase stack
+    (`5259ffa`). `scripts/verify-local-storage-paths.mjs` checks:
+    - the preferences merge-upsert through PostgREST, read back as the
+      owner, with `service_role` refused;
+    - the intro-video signed-URL upload, finalize, public read and delete.
 
-  Then owner action O6.
-- [ ] **C3. T7, close out the serverless move (M). Blocked on O4.**
-  - Remove the SQLite `entry_briefs` cache tier from `server/deskBrief.mjs`.
-  - Delete `server/db.mjs`.
-  - Remove `sql.js` from `vercel.json` `includeFiles`, from `config.includeFiles` in `api/router.js` (line 30) and from `package.json`.
-  - Empty `KNOWN_OFFENDERS` in `src/lib/serverlessDurability.test.js`.
-  - Mark `specs/2026-09-28-serverless-state-to-supabase.md` and
-    `specs/2026-09-28-t0-serverless-durability-guard.md` Historical.
+    12 of 12 checks pass. The two merge checks fail when the handler nulls
+    omitted fields. The script refuses any non-local URL.
+  - C3 (T7), SQLite retired (`31c3915`):
+    - the `entry_briefs` tier removed from `server/deskBrief.mjs`;
+    - `server/db.mjs` and `sql.js` deleted;
+    - `KNOWN_OFFENDERS` emptied, so the guard fails with both offences when
+      SQLite is reinstated;
+    - the seven tests' dead `db.mjs` mocks removed;
+    - the two serverless specs marked Historical.
 
-## 2. Local-session tasks (the owner's laptop)
-
-The corpus lives only on the owner's machine
-(`~/Downloads/NTER-Complete-Processed-Data`, about 10 GB). A cloud
-container can't reach it.
-
-- [ ] **L1. Ingest the large corpus.** The full runbook is in
-  `plans/2026-09-29-corpus-ingestion.md`:
-  - 18,071 `pdf_text` documents that have never been ingested (7,966 bills,
-    6,758 parliamentary questions, 2,813 regulatory documents and others);
-  - phases A → B → C;
-  - every prerequisite is done (F12 chunker, F22 half-precision index, F23 `--pdf-text` mode); only the run on the owner's laptop remains.
-- [ ] **L2. Law-tier ingest.** 874 Supreme Court and NCLT PDFs, in the same
-  runbook, after phase A.
-
-## 3. Owner actions
-
-- [ ] **A1. Standard CLI redeploy of all six Edge Functions** (`supabase functions deploy <name> --project-ref vfgcppstyzjarlzyqdac`, with `--no-verify-jwt` except for `health` and `admin-models`), so the dashboard shows the real files. Since 2026-09-29 all six run `main` at `d1567d1` through pinned-commit entries.
-- [ ] **A2. Academic end-to-end check.** Switch to Academic and ask one question. The answer should open with RESEARCH QUESTION / EVIDENCE / CHRONOLOGY.
-- [ ] **D1. Supabase dashboard:**
-  - leaked-password protection on;
-  - Auth URL configuration for production (and nter.pro later);
-  - Storage global upload limit of at least 50 MB.
-- [ ] **D2. nter.pro cutover:**
-  - DNS to this Vercel project;
-  - the Google OAuth client for the domain;
-  - Resend email delivery, with `mailer_autoconfirm` back off;
-  - nter.pro in `ALLOWED_ORIGINS`;
-  - clean up the old upstream setup.
-- [ ] **D3. Paid live round.** Five paid-model scenarios plus a cross-account denial check, with an admin and a second ordinary account. It also covers:
-  - the first live `search_documents` turn with a highlighted span;
-  - the admin persona chat on Gemini Lite, Gemini Flash and GPT Astra;
-  - medium and high reasoning in production.
-- [ ] **O1. `NTER_TERMINAL_API_KEY` on Vercel, and nter.news pointed at production.** Until then every push is refused.
-- [ ] **O2. Delete the unused `VITE_AI_BACKEND` on Vercel.**
-- [ ] **O3. Delete the merged branches `task/docs-pass` and `task/f2-server-entitlements` on GitHub.** The agent's git proxy can't delete branches.
-- [ ] **O4. Check the SQLite files on your machine and the other worker's** for desk briefs worth keeping. This unblocks C3.
-- [ ] **O5. Add the preview pattern to `ALLOWED_ORIGINS`** (F8 is live): `https://niyantran-six.vercel.app,http://localhost:5173,https://niyantran-*-ddl-labs.vercel.app`. Until then every Vercel preview is refused (re-probed 2026-09-29 after the deploy).
-- [ ] **O6. After F6, set the Razorpay keys on Vercel**, then run one real payment end to end.
-- [ ] **O7. Share the new Live TV sources, UI and sample codebase.** This unblocks F7.
-- [ ] **O9. Provide the desk-landing visual mockup** that `specs/2026-09-27-cr12-cr13-desk-landing.md` is still waiting for.
-- [ ] **O8. Signed-in smoke test on production:** save preferences, and upload the intro video.
-
-## 4. Parked and decisions
-
-| Id | Item | Waiting on |
-|---|---|---|
-| F7 | **Live TV content is partly invented.** `server/liveTvApi.mjs:664` serves a hand-written transcript labelled "Official Parliamentary Broadcast / ASR Verified Record"; `:609` is an invented archive entry; channels without a schedule get made-up placeholder programmes. This contradicts the CR-06 spec's "no fabricated transcripts". The Live TV sources are changing. | O7 |
-| P1 | Database-backed home feeds (`plans/2026-09-23-home-feeds-plan.md`); the conflict pulse still shows the static war list | Schema agreement; market-data vendor |
-| P2 | Organisation seats, organisation billing, Razorpay subscriptions | Owner: after F6 |
-| P3 | Metering and credits (ADR 0002); an effort column in `model_call_logs` | Owner |
-| P4 | Deferred agent features: web search, compaction, memories, user uploads and binary attachments, a durable queue for long turns (`waitUntil` isn't one) | Owner |
-| P5 | Page-level citations (`page_count`, chunk `page_number`; ADR 0004) | Page-wise text from the provider |
-| P6 | Reranking and hybrid keyword search | After L1 |
-| P7 | Affidavits (10,492 documents, 809 M characters) | Compute; owner |
-| P8 | Re-crawl the 716 documents that have no `file_url` (the hosts are known; not in the corpus) | Owner decision |
-| P9 | Document keys for parliamentary questions and regulators; desk-row "cut two" (curated views, the 41 modules with no rows) and a refresh pipeline | Measuring the joins; after L1 |
-| P10 | Google sign-ups, and email signups that wait for verification, skip the plan step and get no signup trial (they can start one from the upgrade dialog). F24 wired the step for email signups that return a session. | Revisit if it matters |
-| P11 | Whether `require_parameters` makes reasoning a hard routing constraint; whether a single attachment should be capped at its per-document quota | Evidence from D3 |
-| P12 | Priority-2 advisor findings (grants, foreign keys, indexes); the dependency audit; the Vite manifest-import warning | Housekeeping slot |
-| P14 | Bill-key collisions. Two documents that resolve to the same `bill:<year>:<number>` both keep the key, so a scoped search reads both. `build-corpus-links.mjs` drops a key only when one file name has conflicting URLs. | Decide before L1 phase B: accept it, or keep one document per key |
-| P15 | Two unused extension points, kept on purpose (F16): `ai_models.params` (an admin-editable registry column, `{}` on every row, never applied to a request) and `StreamRequest.max_tokens` (a model without native effort support would need it for a thinking budget). | Wire when a model needs either |
-| P16 | **The home carousel's numbers are hand-written** (`serveHomeSegments` in `server/homeApi.mjs`, about 30 figures across 8 segments; `src/lib/segmentCarousel.test.js` pins some; formerly F18):
-- some are real constants (543 Lok Sabha constituencies);
-- some could be computed (bills on record from `desk_rows`, about 9,817; open fronts from the war tracker);
-- some look invented (128 "statements this week", 1,280 open tenders, 42 macro series, 340 CBAM rows).
-
-For each figure: compute it, keep it as a constant, or drop it. | Owner (marketing copy) |
-| P17 | `reconcileSavedTurn` answers `false` both for "still locked" and for a repeat call after it already reconciled. The supervisor plan called this a defect, but a later review test pins the `false` (`src/lib/researchChat.test.js`, "a repeat call after a successful unlock reports false, not true"), and the only caller handles it correctly. | Decide only if a caller needs to tell them apart |
-| P13 | The two ADRs numbered 0005 | Leave, unless ADRs are renumbered |
-
-## 5. Accepted risks and won't-fix
-
-- **DNS rebinding in source fetching** (`specs/2026-09-28-authorization-review.md`).
-  It needs a signed-in account. Closing it fully would mean pinning the
-  resolved address in the HTTP client.
-- **A disabled service-role JWT in public git history** (`25723f7`). The key
-  is disabled, and removing it would mean rewriting `main`.
-- **1,288 documents with unknown `integrity`.** It can't be recovered from
-  the inputs.
-- **Previews share the live Supabase project.** There is no Supabase
-  branching. Test writes use test accounts only, and migrations stay
-  additive and fixture-tested.
-
-## 6. Done
-
-Newest first. Detail is in `git log` and the linked documents.
+    O4: the laptop's only SQLite file held three 100-byte briefs written by
+    a test run, so nothing was kept. The other worker's machine was not
+    checked.
+  - F1, `user_preferences.ai_chats` dropped (`92893f1`; migration 36, live
+    and pinned). The `drop_ai_chats` fixture fails without the migration.
+  - A1, all six Edge Functions redeployed with the standard CLI. The
+    dashboard shows the real files, and each function was probed.
+  - O5, `ALLOWED_ORIGINS` includes `https://niyantran-*-ddl-labs.vercel.app`.
+    Preview and deployment hosts are allowed; foreign origins are refused.
+  - O3, the merged branches `task/docs-pass` and `task/f2-server-entitlements`
+    deleted on GitHub.
+  - F29, the `/api/home/latest` contract test runs offline (`b60c0dc`). It
+    used to query live Supabase whenever `.env.local` existed. It now fails
+    if the stub isn't used.
 
 - **2026-09-29:**
   - F28, the nuclear-site map builds its marker labels from text nodes (`fillSiteLabel` in `src/lib/geoTip.js`, used by `NuclearSiteMap.jsx`). Its test fails on the old `innerHTML` code. Both helpers were also run in Chromium with an `<img onerror>` name: no element was created and the handler never ran. The other `innerHTML` uses are deliberate: `siteHead.js` injects the admin-configured head snippet and `bootLegacy.js` a same-origin static file.
@@ -218,3 +121,173 @@ Newest first. Detail is in `git log` and the linked documents.
 - **2026-09-22 and earlier:** the first corpus pass, 2,338 documents all
   indexed (`plans/2026-09-21-corpus-ingest-first-pass.md`); scoped
   retrieval; the streaming research agent; citations; desk-row grounding.
+
+## 2. Awaiting the owner's decision
+
+Each needs one answer, then an agent can finish it.
+
+- [ ] **F13. Approve the spec** (`specs/2026-09-29-f13-transient-identity-failure.md`).
+  Also answer its one question: retry once before showing "Connection
+  problem", or not (default: no). The spec found more than the backlog
+  said: `App.jsx` treats any null identity as signed out, so one failed
+  profile read seems to show the signed-out app.
+- [ ] **P12. Advisor findings and the dependency audit** (checked 2026-09-29):
+  - **`xlsx` 0.18.5: high severity, and no npm fix** (prototype pollution
+    and ReDoS). `server/sourceExtract.mjs` parses fetched source documents
+    and chat uploads with it, so the input is untrusted. The fix is SheetJS's
+    own distribution (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`),
+    which is not on npm. Decide whether to allow that source.
+  - `vite` 5.4 (the esbuild dev-server advisory) and `vitest` 3.2
+    (`@vitest/mocker`): moderate and development-only. The fixes are major
+    upgrades (Vite 7+, Vitest 4.1.11+). Decide whether to take them now.
+  - Twelve RLS policies call `auth.uid()` per row (`auth_rls_initplan`), and
+    six foreign keys have no index. The fix is one migration of
+    `(select auth.uid())` rewrites and indexes, which needs approval.
+  - By design, recorded under accepted risks:
+    - RLS with no policy on six server-only tables;
+    - eight `SECURITY DEFINER` RPCs callable by signed-in users (they are
+      the API);
+    - 23 unused indexes (low traffic);
+    - three sets of multiple permissive policies.
+  - Leaked-password protection and the Auth connection strategy are
+    dashboard settings (D1).
+- [ ] **P16. The home carousel's numbers** (`serveHomeSegments` in
+  `server/homeApi.mjs`; every figure is hand-written). Proposal, awaiting
+  approval:
+
+  | Figure (shown) | Proposal | Evidence |
+  |---|---|---|
+  | Bills on record 9,819 | **Compute** from `desk_rows` | 9,817 rows in "Bill Passage Probability Index" |
+  | Ministries 48 (legislative) | **Compute** | 56 distinct ministries in the question database |
+  | Market indices 10, Open fronts 18 | **Compute** from the markets feed and the war tracker | both feeds exist |
+  | Indexed judgments 8,420 | **Drop**, or compute (it would be 654) | 220 Supreme Court and 434 NCLT rows; no judgments are ingested |
+  | LS constituencies 543, Houses covered 2, CBAM sectors 6, EU jurisdictions 27, High Court benches 25 | **Keep** as constants | true facts |
+  | States & UTs 28 | **Fix**: 36, or relabel it "States 28" | 28 states and 8 union territories |
+  | Statements this week 128, Weekly releases 128, Official sources 14, Houses 3 (media), Open tenders 1,280, Ministries 12 (tenders), Closing in 7 days 19, Macro series 42, Core publishers 8, CBAM rows 340, Theatres 6, Source feeds 9, Tribunals 12, By-elections 8 | **Drop** | no data behind them |
+
+## 3. Ingestion pipeline (next)
+
+Parked until the owner designs the new ingestion pipeline. The old runbook,
+`plans/2026-09-29-corpus-ingestion.md`, is parked with it: its measurements
+stand, but its commands aren't to be run.
+
+- [ ] **L1.** The 18,071 never-ingested `pdf_text` documents: 7,966 bills,
+  6,758 parliamentary questions, 2,813 regulatory documents and others. The
+  corpus is at `~/Downloads/NTER-Complete-Processed-Data`. `.env.local` on
+  the laptop has no `SUPABASE_URL` yet, and the ingest script needs it.
+- [ ] **L2.** Law tier: 874 Supreme Court and NCLT PDFs. First confirm they
+  have a text layer.
+- [ ] **P5.** Page-level citations (`page_count`, chunk `page_number`;
+  ADR 0004). Needs page-wise text.
+- [ ] **P6.** Reranking and hybrid keyword search, after the corpus grows.
+- [ ] **P7.** Affidavits (10,492 documents, 809 M characters): compute cost.
+- [ ] **P8.** Re-crawl the 716 documents that have no `file_url`.
+- [ ] **P9.** Document keys for parliamentary questions and regulators;
+  desk-row "cut two" (curated views, the 41 modules with no rows) and a
+  refresh pipeline.
+- [ ] **P14.** Bill-key collisions (two documents on one `bill:<year>:<number>`
+  key). Accept, or keep one document per key.
+
+## 4. Payments
+
+- [ ] **F6.** Plan gating on the server, before real payments. Desk data is
+  public (static files, and `desk_rows` is readable by any signed-in user).
+  Locks, row caps and export limits run only in the browser. The spec must
+  settle which data is premium, how premium desks are served (an API behind
+  `my_entitlement`, or RLS), server-side exports and API row caps.
+- [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
+  end to end.
+- [ ] **P2.** Organisation seats, organisation billing, Razorpay
+  subscriptions.
+- [ ] **P3.** Metering and credits (ADR 0002); an effort column in
+  `model_call_logs`.
+
+## 5. Launch
+
+- [ ] **O2.** Delete `VITE_AI_BACKEND` on Vercel (Settings → Environment
+  Variables). Nothing reads it (checked 2026-09-29), and the Vercel tools
+  can't delete a variable.
+- [ ] **D1. Supabase dashboard:**
+  - leaked-password protection on;
+  - Auth URL configuration: site URL `https://niyantran-six.vercel.app`,
+    and redirects for it, `http://localhost:5173/**` and
+    `https://niyantran-*-ddl-labs.vercel.app/**`; nter.pro is added at D2;
+  - Storage global upload limit of at least 50 MB;
+  - optionally, Auth connections as a percentage.
+
+  The tools can't change Auth settings safely: the CLI's `config push`
+  would overwrite the whole Auth config.
+- [ ] **O8 and A2. Signed-in smoke test on production** with a test
+  account:
+  - save preferences;
+  - upload the intro video;
+  - switch to Academic and ask one question (the answer opens with
+    RESEARCH QUESTION / EVIDENCE / CHRONOLOGY).
+
+  Agents may not create accounts or sign in on production, so this is the
+  owner's. Afterwards an agent can check the rows with read-only SQL.
+- [ ] **D2. nter.pro cutover:**
+  - DNS to this Vercel project;
+  - the Google OAuth client for the domain;
+  - Resend email delivery, with `mailer_autoconfirm` back off;
+  - nter.pro in `ALLOWED_ORIGINS` and the Auth URLs;
+  - clean up the old upstream setup.
+
+  The owner doesn't have the domain settings yet.
+- [ ] **D3. Paid live round.** Five paid-model scenarios plus a
+  cross-account denial check, including:
+  - the first live `search_documents` turn with a highlighted span;
+  - the admin persona chat on Gemini Lite, Gemini Flash and GPT Astra;
+  - medium and high reasoning in production.
+- [ ] **P11.** Whether `require_parameters` makes reasoning a hard routing
+  constraint, and whether a single attachment should be capped at its
+  per-document quota. Decided on D3's evidence.
+
+## 6. Waiting on owner assets
+
+- [ ] **F7 / O7.** Live TV content is partly invented. `server/liveTvApi.mjs:664`
+  serves a hand-written transcript labelled "ASR Verified Record"; `:609` is
+  an invented archive entry; channels without a schedule get placeholder
+  programmes. It needs the new Live TV sources, UI and sample codebase.
+- [ ] **O9.** The desk-landing visual mockup that
+  `specs/2026-09-27-cr12-cr13-desk-landing.md` is waiting for.
+- [ ] **O1.** `NTER_TERMINAL_API_KEY` on Vercel, and nter.news pointed at
+  production. Until then every nter.news push is refused.
+- [ ] **P1.** Database-backed home feeds (`plans/2026-09-23-home-feeds-plan.md`).
+  It needs the schema agreed and a market-data vendor. The conflict pulse
+  still shows the static war list.
+
+## 7. Accepted risks and won't-fix
+
+Each can be reopened by the condition named.
+
+- **DNS rebinding in source fetching** (`specs/2026-09-28-authorization-review.md`).
+  It needs a signed-in account. Closing it would mean pinning the resolved
+  address in the HTTP client.
+- **A disabled service-role JWT in public git history** (`25723f7`). The key
+  is disabled, and removing it would mean rewriting `main`.
+- **1,288 documents with unknown `integrity`.** It can't be recovered from
+  the inputs.
+- **Previews share the live Supabase project.** There is no Supabase
+  branching. Test writes use test accounts only, and migrations stay
+  additive and fixture-tested.
+- **The preview wildcard in `ALLOWED_ORIGINS`.** Anyone can name a Vercel
+  project so that its `*.vercel.app` host matches
+  `niyantran-*-ddl-labs.vercel.app`. The functions authenticate with a
+  bearer token that a foreign page can't read, so an allowed origin gains
+  nothing. Reopen if any function starts accepting cookies.
+- **Advisor findings that are by design** (see P12): RLS with no policy on
+  server-only tables, the `SECURITY DEFINER` RPCs that are the API, unused
+  indexes at today's traffic, and multiple permissive policies.
+- **P4. Deferred agent features:** web search, compaction, memories, user
+  uploads and binary attachments, a durable queue for long turns. Not
+  planned until the owner schedules them.
+- **P10.** Google sign-ups, and email sign-ups that wait for verification,
+  skip the plan step and get no signup trial. They can start one from the
+  upgrade dialog. Reopen if it matters commercially.
+- **P13.** Two ADRs are numbered 0005. Left unless the ADRs are renumbered.
+- **P15.** Two unused extension points, kept on purpose: `ai_models.params`
+  and `StreamRequest.max_tokens`. Wire them up when a model needs either.
+- **P17.** `reconcileSavedTurn` answers `false` both for "still locked" and
+  for a repeat call; a test pins it and the only caller handles it. Reopen
+  if a caller needs to tell them apart.

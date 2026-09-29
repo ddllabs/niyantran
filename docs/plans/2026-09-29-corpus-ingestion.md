@@ -1,6 +1,11 @@
 # Plan: ingest the large corpus (L1, L2)
 
-> **Status: Living.** Written 2026-09-29. It is the only runbook for
+> **Status: Parked (2026-09-29).** The owner will design a new ingestion
+> pipeline; until then, do not run the commands below. The measurements
+> (corpus slices, index sizes, the `shared_buffers` gate) stay valid input
+> for that design. Tracked in `plans/open-work.md`, "Ingestion pipeline (next)".
+>
+> Was: Living. Written 2026-09-29. It is the only runbook for
 > ingesting the owner's corpus snapshot, and it replaces
 > `plans/2026-09-22-corpus-expansion.md`, which stays as the measured record.
 > Tracked in `plans/open-work.md` as L1 and L2, with prerequisites F12, F22

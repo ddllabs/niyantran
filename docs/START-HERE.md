@@ -16,7 +16,7 @@ accepted risks and a Done log with commit hashes.
 | 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day ("Operations — 2026-09-29" is the latest) |
 | 3 | `plans/open-work.md` | What is open, what is blocked and on whom, the current baseline, and what landed |
 | 4 | `agents/rollback-runbook.md` | How Edge Functions and migrations are deployed, verified and rolled back |
-| 5 | `plans/2026-09-29-corpus-ingestion.md` | Only for L1/L2: ingesting the large corpus from the owner's laptop |
+| 5 | `plans/2026-09-29-corpus-ingestion.md` | Parked: the old L1/L2 runbook, kept for its measurements until the new ingestion pipeline is designed |
 | 6 | `agents/onboarding.md` | Only when dispatching subagents: the onboarding text and dispatch template |
 | 7 | `Architectures/README.md`, `decisions/` | How the system is built and why; read the part you are changing |
 
@@ -65,18 +65,28 @@ These are the facts new sessions most often get wrong.
   development. Destructive operations still name their exact target and are
   confirmed first.
 
-## Where things stand (2026-09-29)
+## Where things stand (2026-09-29, evening)
 
 - `main` is the only long-lived branch; CI passes on it and production
   follows it. The upstream merge landed on 2026-09-26 and upstream is
   retired.
-- Supabase NTER: 35 migrations, six Edge Functions all deployed from
-  `d1567d1`, 2 GB compute. Counts and the half-precision search index are in
-  the open-work baseline.
-- Open work that an agent can take needs a spec or an owner decision first
-  (F6 plan gating, F13 transient identity failure), an environment (F17), a
-  date (F1, from 2026-10-05) or owner action O4 (C3). L1/L2 run locally.
-  Everything else waits on owner actions O1–O9.
+- Supabase NTER: 36 migrations; six Edge Functions deployed with the
+  standard CLI from `b60c0dc`, so the dashboard shows the real files; 2 GB
+  compute. `ALLOWED_ORIGINS` admits Vercel previews. Counts and the
+  half-precision search index are in the open-work baseline.
+- The evening cleanup of 2026-09-29 closed F1, F17, F29, C3, A1, O3, O4 and
+  O5 (see open-work "Done" and coordination "Operations — 2026-09-29
+  (evening)"). SQLite is gone from the serverless routes.
+- What remains is sorted in `plans/open-work.md`:
+  - three decisions for the owner: F13 (approve the spec), P12
+    (dependencies and the advisor migration) and P16 (carousel numbers);
+  - four later phases: Ingestion pipeline (parked for a new design),
+    Payments, Launch (including the owner's dashboard and smoke-test steps)
+    and Waiting on owner assets;
+  - accepted risks.
+- **Local sessions:** the Supabase CLI, Docker and Node network calls fail
+  inside the Claude Code sandbox and work outside it. The CLI on the
+  owner's laptop is logged in and linked to NTER.
 
 ## A new session's first steps
 

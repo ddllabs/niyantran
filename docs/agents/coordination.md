@@ -829,3 +829,60 @@ marked otherwise. This supersedes the function table above.
   `analyze`, a live call as `service_role` returned 40 rows unscoped (143 ms)
   and 40 scoped (3 ms), each with the self-match at similarity 1.0.
 
+
+### Operations — 2026-09-29 (evening, local session on the owner's laptop)
+
+Authorised by the owner for this cleanup: pushes of verified commits to
+`main`, the F1 and C3 changes, the `ALLOWED_ORIGINS` secret, the CLI
+redeploys and deleting the two merged GitHub branches. Times are UTC.
+
+- **O3:** `task/docs-pass` (`4cfc876`) and `task/f2-server-entitlements`
+  (`71292af`) deleted on GitHub after checking both were ancestors of
+  `origin/main`. `origin` now has only `main`.
+- **O5 (16:44):** `ALLOWED_ORIGINS` set to
+  `https://niyantran-six.vercel.app,http://localhost:5173,https://niyantran-*-ddl-labs.vercel.app`
+  with `supabase secrets set`. The old value's SHA-256 matched the documented
+  two-origin value, and the new digest matches the new value. Probed without
+  credentials, `research-chat` and `desk-brief` gave production, a
+  deployment host (`niyantran-m58en4lu1-ddl-labs.vercel.app`) and a branch
+  host (`niyantran-git-task-foo-ddl-labs.vercel.app`) an
+  `access-control-allow-origin` header, and `https://evil.example.com` and
+  `http://localhost:5174` none; every body was the handler's own 401.
+- **A1 (16:45):** all six Edge Functions redeployed with the standard CLI
+  (`supabase functions deploy <name> --use-api`, Supabase CLI 2.117.0) from
+  `main` at `b60c0dc`, whose function code differs from `d1567d1` only by
+  the deleted, unused `reasoningSegments` module. The dashboard now shows
+  the real files (entrypoint `supabase/functions/<name>/index.ts`). Versions:
+  `health` v10, `admin-models` v10, `refresh-model-pricing` v11,
+  `ingest-documents` v14, `desk-brief` v5, `research-chat` v35; each went up
+  by two, because the server-side bundle uploads twice. `verify_jwt` is on
+  for `health` and `admin-models` and off for the other four, as in
+  `supabase/config.toml`. Probes: `research-chat` and `desk-brief` answered
+  401 `missing bearer token`, `ingest-documents` 401 `service key required`,
+  `refresh-model-pricing` 401 `refresh secret required`, all with the
+  production CORS header. `health` and `admin-models` stopped at the gateway
+  without a token; with the public publishable key as bearer they answered
+  `malformed token` from `_shared/auth.ts`, so both handlers serve.
+- **F1 migration 36 (16:50):** `20260929130000_drop_ai_chats` applied
+  through the MCP tool and its version pinned to the file name. Before:
+  0 of 4 `user_preferences` rows held `ai_chats`, and its size check was its
+  only dependent. After: the columns are `user_id, watchlist, tours,
+  updated_at`, the two remaining checks are intact, and all 4 rows keep
+  `tours`. `npm run test:sql` passed all 16 fixtures before the apply,
+  including the new `drop_ai_chats` fixture with its vacuity check.
+- **C3 on Vercel:** production deployed `31c3915` (SQLite and `sql.js`
+  removed) as READY. `/api/home/segments` and `/api/marketing/intro-video`
+  answered 200, and there were no runtime errors in the following hours'
+  window.
+- **Not production, recorded for the next session:** the local Supabase
+  stack used for F17 was started from a scratch copy of `supabase/` with
+  `backend/sql/auth_schema.sql` as migration zero (the migrations don't
+  create `user_profiles`) and migration 0007 without its cron job, which
+  would otherwise call production's `refresh-model-pricing` from the laptop.
+  The stack and the two fixture containers were stopped afterwards; the
+  Supabase images (about 3 GB) remain in Docker.
+- **Sandbox note for local sessions:** the Supabase CLI, Docker and Node
+  `fetch` to local or remote hosts fail inside the Claude Code sandbox (the
+  CLI crashes at start, the Docker socket is refused, and Node ignores the
+  proxy). They work outside it: the CLI is logged in on this laptop and
+  linked to NTER.
