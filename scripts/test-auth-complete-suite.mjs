@@ -71,7 +71,9 @@ async function runTestSuite() {
     const pRes = await fetch(`${API_BASE}/provider`);
     const pData = await pRes.json();
     activeProvider = pData.provider || 'UNKNOWN';
-  } catch {}
+  } catch {
+    /* the provider route is optional; report UNKNOWN */
+  }
   console.log(`Active Provider from /api/auth/provider: ${activeProvider}`);
 
   // -------------------------------------------------------------------------

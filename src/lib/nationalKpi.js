@@ -13,7 +13,7 @@ function val(row, key) {
 }
 
 function toNum(v) {
-  const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+  const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, ''));
   return Number.isNaN(n) ? null : n;
 }
 

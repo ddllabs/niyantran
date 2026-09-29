@@ -1070,7 +1070,7 @@ function shortFail(error) {
   if (/HTTP /i.test(s)) return `source returned ${s.match(/HTTP \d+/)?.[0] || 'an error'}`;
   if (/empty/i.test(s)) return 'source returned no rows';
   if (/fetch failed|ECONN|ENOTFOUND|certificate|network/i.test(s)) return 'host did not respond';
-  if (/^https?:/i.test(raw) || /[\?&=]/.test(raw) || raw.length > 140) return 'live feed unavailable';
+  if (/^https?:/i.test(raw) || /[?&=]/.test(raw) || raw.length > 140) return 'live feed unavailable';
   return raw;
 }
 

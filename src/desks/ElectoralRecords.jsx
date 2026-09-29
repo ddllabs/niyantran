@@ -21,7 +21,7 @@ function Tile({ k, v }) {
 export function AffidavitRecord({ row, onClear, onAskAi }) {
   const name = field(row, ['name', 'title']);
   const casesRaw = field(row, ['criminal_cases']) || '0';
-  const n = Number(String(casesRaw).replace(/[^0-9.\-]/g, '')) || 0;
+  const n = Number(String(casesRaw).replace(/[^0-9.-]/g, '')) || 0;
   const src = row.source_url;
   const pdf = row.pdf_url || (/\.pdf(\?|$)/i.test(String(src || '')) ? src : '');
   return (

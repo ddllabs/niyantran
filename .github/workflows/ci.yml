@@ -25,6 +25,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Lint (errors fail; warnings are a backlog)
+        run: npm run lint
       - run: npm run build
       - name: Router import
         run: node -e "import('./api/router.js').then(() => console.log('router import ok'))"

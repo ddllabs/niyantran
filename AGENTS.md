@@ -119,9 +119,11 @@ caught up. `npm run test:sql` runs every
 fixture in `supabase/tests/` against the two local Docker Postgres containers,
 creating each database from scratch. It also proves each fixture non-vacuous by
 rebuilding without the migration that fixture exists to test and requiring it to
-fail; a fixture that still passes is reported as VACUITY FAIL. The repository has no declared lint
-or standalone type-check; do not claim those passed. `.github/workflows/ci.yml`
-runs the build, both test suites and the SQL fixtures on every push; it is
+fail; a fixture that still passes is reported as VACUITY FAIL. `npm run lint`
+(ESLint, `eslint.config.js`) fails on errors and reports unused bindings as
+warnings; run it for code changes. There is no standalone type-check; do not
+claim one passed. `.github/workflows/ci.yml`
+runs lint, the build, both test suites and the SQL fixtures on every push; it is
 advisory (nothing is blocked on it). Record exact
 commands, outcomes, warnings and anything that could not be verified.
 

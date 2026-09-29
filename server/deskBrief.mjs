@@ -542,11 +542,11 @@ function extractMeasures(fields) {
     // Skip bare ISO / calendar strings
     if (/^\d{4}-\d{2}(-\d{2})?/.test(text) || /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(text)) continue;
 
-    const full = Number(String(text).replace(/,/g, '').replace(/[^\d.\-]/g, ''));
+    const full = Number(String(text).replace(/,/g, '').replace(/[^\d.-]/g, ''));
     if (
       Number.isFinite(full) &&
       full !== 0 &&
-      /^[\d,.\s\-]+[a-zA-Z%]*$/.test(text.replace(/\s/g, ' ').trim())
+      /^[\d,.\s-]+[a-zA-Z%]*$/.test(text.replace(/\s/g, ' ').trim())
     ) {
       const label = prettyField(k);
       if (!seen.has(label)) {

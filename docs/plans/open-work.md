@@ -62,9 +62,13 @@ new test must fail before the change.
   Both need a disposable PostgREST and Storage, or a test account on NTER
   with the owner's approval; the owner smoke test O8 covers them in part.
   (The `pg_cron` branch and the dev-server behaviour are Done.)
-- [ ] **F21. A lint gate (M).** There is no ESLint config and no lint script.
-  Add one with the current code passing, and put it in CI as advisory.
-  `AGENTS.md` must not claim lint passes until it does.
+- [ ] **F25. Clear the lint warnings, then make `no-unused-vars` an error (S–M).**
+  - `npm run lint` reported 266 warnings on 2026-09-29: unused bindings, most of
+    them imports left by refactors, plus 13 `react-hooks/exhaustive-deps` notes.
+  - Clear them file by file (`src/desks/DeskView.jsx` has 25), then raise the
+    rule in `eslint.config.js`.
+  - Treat each `exhaustive-deps` note as a possible stale-closure bug: read it
+    before silencing it.
 - [ ] **F6. Plan gating on the server (M–L, needs a spec and owner
   decisions; required before real payments).** F2 phase 1 made the plan
   server-owned, but desk data is public (static files, and `desk_rows` is
@@ -174,6 +178,9 @@ For each figure: compute it, keep it as a constant, or drop it. | Owner (marketi
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F21, a lint gate. `npm run lint` (ESLint 9 with `react-hooks`) fails on errors and runs in CI as an advisory step; the warnings are F25. Its first run found two `ReferenceError`s in shipped code, fixed in `03f039c`:
+    - the right rail's record detail crashed for rows without an analysis;
+    - `/data/news.json` answered 502 when nter.news had no live rows.
   - F17 (part): the `pg_cron` branch verified live. `analytics-events-retention` ran at 03:17 UTC and succeeded; `analytics-rate-windows-purge` 105 of 105 runs; `refresh-model-pricing` 18 of 18. The dev server's 503 without `SUPABASE_SECRET_KEY` is documented in `README.md`.
   - F20, the desk-row loader writes only new or changed rows and deletes removed keys (`src/lib/deskRowSync.js`, `scripts/load-desk-rows.mjs`). A dry run now reads the stored rows, so it needs the Supabase variables. The first run rewrites most rows once, because the stored `record_text` lines are in jsonb key order. F19 needed no change: the header of `backend/sql/auth_schema.sql` and `Architectures/README.md` already state its fixture-bootstrap role.
   - F13 (part): the generic "Try Reload" error from `reconcileSavedTurn` keeps the real failure as its `cause`, instead of masking read and programming errors (`src/lib/researchChat.js`).

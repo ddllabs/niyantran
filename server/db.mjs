@@ -53,7 +53,7 @@ function migrate(database) {
   const add = (name, ddl) => {
     if (!cols.includes(name)) database.run(`ALTER TABLE users ADD COLUMN ${ddl}`);
   };
-  add('plan_status', 'plan_status TEXT DEFAULT \"free\"');
+  add('plan_status', 'plan_status TEXT DEFAULT "free"');
   add('trial_ends_at', 'trial_ends_at TEXT');
   add('billing_yearly', 'billing_yearly INTEGER DEFAULT 0');
   add('google_sub', 'google_sub TEXT');
