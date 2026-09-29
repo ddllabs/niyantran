@@ -4,13 +4,13 @@
  * video itself goes straight to Supabase Storage through a signed upload URL.
  */
 import { supabase } from './supabaseClient.js';
-import { verifiedLocalIdentity } from './userStore.js';
+import { identityRefusalMessage, verifiedLocalIdentity } from './userStore.js';
 
 const API = '/api/marketing/intro-video';
 
 async function adminHeaders(extra = {}) {
   const identity = await verifiedLocalIdentity({ admin: true });
-  if (!identity) throw new Error('Internal admin sign-in required');
+  if (!identity) throw new Error(identityRefusalMessage('Internal admin sign-in required'));
   return { ...extra, Authorization: `Bearer ${identity.token}` };
 }
 

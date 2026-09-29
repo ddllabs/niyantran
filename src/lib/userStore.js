@@ -41,6 +41,39 @@ let authWatched = false;
 let locallySignedOut = false;
 let observedId = null;
 const identityListeners = new Set();
+// F13: the kind of the last failed identity check, for the caller's message.
+let lastFailure = null;
+
+/**
+ * 'transient' when the last identity check could not be answered (network,
+ * 5xx), 'authoritative' when the answer was no, null after a success.
+ */
+export function lastIdentityFailure() {
+  return lastFailure;
+}
+
+export const CONNECTION_PROBLEM = 'Connection problem. Try again.';
+
+/** The message for a refused identity check: a connection problem, or the caller's sign-in text. */
+export function identityRefusalMessage(signInMessage) {
+  return lastFailure === 'transient' ? CONNECTION_PROBLEM : signInMessage;
+}
+
+/** A failure that asked nothing: the identity is unknown, not gone. */
+class TransientIdentityError extends Error {}
+
+function transientStatus(status) {
+  const code = Number(status);
+  return Number.isInteger(code) && (code === 0 || code === 408 || code === 429 || code >= 500);
+}
+
+/** A thrown or returned error that means "could not ask", never "the answer was no". */
+function isTransient(error, status) {
+  if (!error) return false;
+  if (error instanceof TransientIdentityError) return true;
+  if (['TypeError', 'AbortError', 'TimeoutError', 'AuthRetryableFetchError'].includes(error.name)) return true;
+  return transientStatus(status ?? error.status);
+}
 
 function identityChanged(id, event = null) {
   observedId = id;
@@ -77,7 +110,18 @@ export async function localIdentityIsCurrent(identity) {
     const session = result.data?.session;
     if (!result.error && validSession(session) && identity.expiresAt > Date.now() && identity.epoch === identityEpoch
         && session.access_token === identity.token && session.user.id === identity.id) return true;
-  } catch { /* fail closed */ }
+    if (isTransient(result.error)) {
+      lastFailure = 'transient';
+      return false;
+    }
+  } catch (error) {
+    // Fail closed either way; only a real answer announces a signed-out identity.
+    if (isTransient(error)) {
+      lastFailure = 'transient';
+      return false;
+    }
+  }
+  lastFailure = 'authoritative';
   if (identity.epoch === identityEpoch) identityChanged(null);
   return false;
 }
@@ -90,15 +134,19 @@ async function verifyLocalIdentity({ admin = false, resumeSession = null } = {})
     epoch = identityEpoch;
     const initial = await supabase.auth.getSession();
     const session = initial.data?.session;
+    if (isTransient(initial.error)) throw new TransientIdentityError('Session unavailable');
     if ((locallySignedOut && !resumeSession) || initial.error || !validSession(session)) throw new Error('No session');
     if (resumeSession && (session.access_token !== resumeSession.access_token || session.user.id !== resumeSession.user?.id)) throw new Error('Sign-in changed');
     const verified = await supabase.auth.getUser(session.access_token);
+    if (isTransient(verified.error)) throw new TransientIdentityError('User check unavailable');
     const user = verified.data?.user;
     if (verified.error || user?.id !== session.user.id || !user.email?.trim()) throw new Error('Unverified');
     const profile = await supabase.rpc('get_my_profile');
+    if (isTransient(profile.error, profile.status)) throw new TransientIdentityError('Profile check unavailable');
     if (profile.error || profile.data?.user_id !== user.id || profile.data.status !== 'active') throw new Error('Inactive');
     if (admin) {
       const authority = await supabase.rpc('is_platform_admin');
+      if (isTransient(authority.error, authority.status)) throw new TransientIdentityError('Admin check unavailable');
       if (authority.error || authority.data !== true || profile.data.role !== 'admin') throw new Error('Not admin');
     }
     const identity = { id: user.id, email: user.email.trim().toLowerCase(), token: session.access_token, epoch, expiresAt: session.expires_at * 1000 };
@@ -107,8 +155,15 @@ async function verifyLocalIdentity({ admin = false, resumeSession = null } = {})
       identityChanged(identity.id);
       identity.epoch = identityEpoch;
     }
+    lastFailure = null;
     return identity;
-  } catch {
+  } catch (error) {
+    // Both kinds refuse this request; only an authoritative answer signs out.
+    if (isTransient(error)) {
+      lastFailure = 'transient';
+      return null;
+    }
+    lastFailure = 'authoritative';
     if (epoch === identityEpoch) identityChanged(null);
     return null;
   }
@@ -184,12 +239,20 @@ export async function hydrateUsersFromServer() {
   if (!identity || !readIsCurrent()) return [];
   try {
     const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${identity.token}` } });
+    if (transientStatus(res.status)) throw new TransientIdentityError('Directory unavailable');
     if (!res.ok) throw new Error('Read failed');
-    const body = await res.json();
+    let body;
+    try {
+      body = await res.json();
+    } catch {
+      throw new TransientIdentityError('Directory unreadable');
+    }
     if (!body.ok || !Array.isArray(body.users)) throw new Error('Invalid users');
     if (!await localIdentityIsCurrent(identity) || !readIsCurrent()) return [];
     return publishUsers(body.users, identity);
-  } catch {
+  } catch (error) {
+    // A network error or 5xx says nothing about the identity; keep it.
+    if (isTransient(error)) return [];
     // An old failed read cannot invalidate a newer read or completed mutation.
     if (identity.epoch === identityEpoch && readIsCurrent()) identityChanged(null);
     return [];

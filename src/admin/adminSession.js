@@ -1,6 +1,6 @@
 import {
   invalidateLocalSession, localIdentityIsCurrent, resumeLocalIdentityAfterSignIn,
-  subscribeLocalIdentity, verifiedLocalIdentity,
+  lastIdentityFailure, subscribeLocalIdentity, verifiedLocalIdentity,
 } from '../lib/userStore.js';
 import { supabase } from '../lib/supabaseClient.js';
 
@@ -82,6 +82,7 @@ export async function signInAdmin(email, password, client = supabase, now = Date
       return closed('signedOut', 'Your session changed. Sign in again.');
     }
     const current = await verifiedLocalIdentity({ admin: true });
+    if (!current && lastIdentityFailure() === 'transient') return unavailable();
     if (!current || current.id !== identity.id || current.token !== identity.token
         || !await localIdentityIsCurrent(identity) || cancelled) {
       return closed('signedOut', 'Your session changed. Sign in again.');

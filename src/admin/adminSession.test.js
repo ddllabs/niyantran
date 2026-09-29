@@ -18,13 +18,14 @@ vi.mock('../lib/userStore.js', () => ({
   localIdentityIsCurrent: vi.fn(async () => true),
   invalidateLocalSession: vi.fn(),
   subscribeLocalIdentity: vi.fn(() => () => {}),
+  lastIdentityFailure: vi.fn(() => null),
 }));
 vi.mock('../lib/refreshFeeds.js', () => ({ sweepApis: vi.fn() }));
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: {} }));
 
 import AdminApp from './AdminApp.jsx';
 import { createAdminSession, signInAdmin, verifyAdminSession } from './adminSession.js';
-import { loadUsers, resumeLocalIdentityAfterSignIn, localIdentityIsCurrent, invalidateLocalSession, subscribeLocalIdentity, verifiedLocalIdentity } from '../lib/userStore.js';
+import { lastIdentityFailure, loadUsers, resumeLocalIdentityAfterSignIn, localIdentityIsCurrent, invalidateLocalSession, subscribeLocalIdentity, verifiedLocalIdentity } from '../lib/userStore.js';
 
 const NOW = Date.UTC(2026, 8, 21);
 const user = (id = 'admin-1') => ({ id, email: `${id}@example.invalid` });
@@ -171,6 +172,17 @@ describe('admin sign-in', () => {
       .toMatchObject({ status: 'verified' });
     expect(client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'admin@example.invalid', password: 'fake password' });
     expect(client.auth.getUser).toHaveBeenCalledOnce();
+  });
+
+  // F13: a transient failure of the final identity check is "try again", not "signed out".
+  it.each([
+    ['transient', { status: 'error', message: 'Unable to verify admin access. Please try again.' }],
+    ['authoritative', { status: 'signedOut', message: 'Your session changed. Sign in again.' }],
+  ])('a %s failure of the final identity check', async (kind, expected) => {
+    const { client } = fakeClient();
+    verifiedLocalIdentity.mockResolvedValueOnce(null);
+    lastIdentityFailure.mockReturnValueOnce(kind);
+    expect(await signInAdmin('admin@example.invalid', 'fake', client, () => NOW)).toMatchObject({ ...expected, user: null });
   });
 
   it('rejects successful ordinary-user authentication', async () => {

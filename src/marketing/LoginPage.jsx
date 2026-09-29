@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { applyPersonaForUser } from '../lib/personas.js';
 import {
   localIdentityIsCurrent,
+  identityRefusalMessage,
   resumeLocalIdentityAfterSignIn,
   subscribeLocalIdentity,
   verifiedLocalIdentity,
@@ -103,7 +104,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
       const current = await verifiedLocalIdentity();
       if (!current || current.id !== identity.id || current.token !== identity.token
           || !await localIdentityIsCurrent(identity) || cancelled) {
-        setError('Your session changed. Sign in again.');
+        setError(identityRefusalMessage('Your session changed. Sign in again.'));
         return;
       }
       applyPersonaForUser(pub);

@@ -90,7 +90,7 @@ export function createResearchThread(overrides = {}) {
       const verified = await deps.verifiedLocalIdentity();
       if (!active || seq !== sequence || version !== generation) return;
       if (!verified || !await deps.localIdentityIsCurrent(verified)) {
-        if (version === generation) emit({ ready: false, loading: false, error: 'Sign in to use AI research.' });
+        if (version === generation) emit({ ready: false, loading: false, error: deps.identityRefusalMessage('Sign in to use AI research.') });
         return;
       }
       if (!active || version !== generation) return;

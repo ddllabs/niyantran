@@ -1,4 +1,4 @@
-import { verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { identityRefusalMessage, verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
 import { functionsUrl, supabase } from './supabaseClient.js';
 
 /**
@@ -24,7 +24,7 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
     if (!identity || controller.signal.aborted || (expectedIdentity &&
         (identity.id !== expectedIdentity.id || identity.epoch !== expectedIdentity.epoch || identity.token !== expectedIdentity.token))
         || !await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {
-      throw new Error('Sign in to use AI research.');
+      throw new Error(identityRefusalMessage('Sign in to use AI research.'));
     }
     const headers = {
       'content-type': 'application/json',

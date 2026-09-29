@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { supabase } from './supabaseClient.js';
 import * as research from './researchChat.js';
-import { invalidateLocalSession, resumeLocalIdentityAfterSignIn } from './userStore.js';
+import { invalidateLocalSession, resumeLocalIdentityAfterSignIn, verifiedLocalIdentity } from './userStore.js';
 import { clearStream, createTextCoalescer, readSseFrames, sendTurn, streamState } from './researchChat.js';
 
 const auth = vi.hoisted(() => ({ id: 'owner-a', callback: null, expires: false, cancellation: null, writes: [] }));
@@ -508,6 +508,14 @@ describe('authoritative saved-turn reconciliation', () => {
     await expect(research.reconcileSavedTurn('saved-c')).rejects.toThrow('The saved result could not be verified. Try Reload.');
     expect(streamState('saved-c').isPending).toBe(true); expect(research.retryRequest('saved-c').turn_key).toBe('saved-key');
   });
+  // F13: an authoritative identity failure (here an inactive profile) still
+  // removes retained turns; the transient case is pinned in the review block below.
+  it('an authoritative profile failure still removes the retained turn', async () => {
+    await retained202();
+    vi.spyOn(supabase,'rpc').mockResolvedValueOnce({data:{user_id:'owner-a',status:'suspended'},error:null,status:200});
+    expect(await verifiedLocalIdentity()).toBeNull();
+    expect(streamState('saved-c').isPending).toBe(false); expect(research.retryRequest('saved-c')).toBeNull();
+  });
   it('an owner change during the read cannot remove the next owner operation', async () => {
     await retained202(); const gate=deferred(); const db=read(gate.promise);
     const loading=research.reconcileSavedTurn('saved-c'); await vi.waitFor(()=>expect(db.reads()).toBe(1));
@@ -798,15 +806,15 @@ describe('review: reconcileSavedTurn cannot be unlocked by anything but an autho
   expect(research.retryRequest('new').turn_key).toBe('no-frame-key');
  });
 
- it('a transient profile-verification failure discards the retained replay intent instead of preserving it',async()=>{
-  // Documents a recovery gap, not an approved behaviour: verifiedLocalIdentity()
-  // fails closed through identityChanged(null), which retires every operation.
+ it('a transient profile-verification failure preserves the retained replay intent (F13)',async()=>{
+  // The check fails closed (no read, no send, no write), but a network error is
+  // not an identity change, so the operation and its replay intent survive.
   const send=await retained202();const db=read();
-  vi.spyOn(supabase,'rpc').mockRejectedValueOnce(new Error('network hiccup'));
+  vi.spyOn(supabase,'rpc').mockRejectedValueOnce(new TypeError('Failed to fetch'));
   expect(await research.reconcileSavedTurn('saved-c')).toBe(false);
   expect(db.from).not.toHaveBeenCalled();expect(send).toHaveBeenCalledOnce();expect(auth.writes).toEqual([]);
-  expect(streamState('saved-c')).toMatchObject({status:'idle',isPending:false});
-  expect(research.retryRequest('saved-c')).toBeNull();
+  expect(streamState('saved-c').isPending).toBe(true);
+  expect(research.retryRequest('saved-c').turn_key).toBe('saved-key');
  });
 
  it('logout still reports an identity change, not a reconciliation',async()=>{
