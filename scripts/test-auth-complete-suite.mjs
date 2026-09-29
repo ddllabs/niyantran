@@ -330,11 +330,23 @@ async function runTestSuite() {
   // TEST 13 — PROTECTED ROUTE / RLS VALIDATION (Phase 15: Test 13)
   // -------------------------------------------------------------------------
   console.log('\n--- 13. Testing RLS Protected Data Access & Session Isolation ---');
-  // Anonymous client should not be able to read all user profiles
-  await anonClient
+  // A client with no session must not read the profile. anonClient cannot
+  // stand in: it has held the test user's session since test 10. The anon
+  // role has no SELECT on user_profiles, so PostgREST answers 42501. Only that
+  // or zero rows pass; any other error (a network failure) proves nothing.
+  const signedOutClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: anonData, error: anonReadErr } = await signedOutClient
     .from('user_profiles')
     .select('*')
     .eq('user_id', userId);
+
+  assert(
+    anonReadErr?.code === '42501' || (!anonReadErr && Array.isArray(anonData) && anonData.length === 0),
+    'Profile is not readable without a session',
+    anonReadErr ? `Supabase Error: "${anonReadErr.message}"` : `Rows returned: ${anonData?.length}`
+  );
 
   // Authenticated user querying their own profile
   const authenticatedClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

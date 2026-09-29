@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import landmap from '../data/landmap.json';
+import { fillGeoTip } from '../lib/geoTip.js';
 
 let LAND = null;
 function landCells() {
@@ -146,7 +147,7 @@ export default function GeoDotsMap({ points, legend, onPick, ariaLabel }) {
             tip.hidden = false;
             tip.style.left = `${hit.x + 12}px`;
             tip.style.top = `${hit.y - 8}px`;
-            tip.innerHTML = `<b>${hit.d.name}</b><br>${hit.d.statusL || ''} · ${hit.d.intensity ?? ''}`;
+            fillGeoTip(tip, hit.d);
             canvas.style.cursor = 'pointer';
           } else if (tip) {
             tip.hidden = true;
