@@ -23,8 +23,8 @@ function sources(dir) {
 afterEach(() => { vi.unstubAllEnvs(); vi.resetModules(); });
 
 describe('Supabase secret key name', () => {
-  it('no server, api, script or backend file reads a legacy secret-key name', () => {
-    const offenders = ['server', 'api', 'scripts', 'backend/src']
+  it('no server, api or script file reads a legacy secret-key name', () => {
+    const offenders = ['server', 'api', 'scripts']
       .flatMap(sources)
       .filter((file) => LEGACY.test(fs.readFileSync(path.join(ROOT, file), 'utf8')));
     expect(offenders).toEqual([]);

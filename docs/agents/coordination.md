@@ -279,8 +279,8 @@ Correct this section when observations become stale.
 - The repository has Vitest and Deno suites but no tracked GitHub workflow.
   (corrected 2026-09-28: `.github/workflows/ci.yml` is an advisory workflow
   running the build, both suites and the SQL fixtures on every push.)
-  `.oxlintrc.json` exists, but Oxlint is not declared as a package dependency
-  or npm script.
+  `.oxlintrc.json` existed, but Oxlint was never a dependency or npm script
+  (removed 2026-09-29; `npm run lint` is ESLint).
 - The 2026-09-20 clean build transformed 204 modules and emitted chunk-size
   and mixed-import warnings. Dependency installation also reported known audit
   findings; dependency remediation requires its own reviewed task.

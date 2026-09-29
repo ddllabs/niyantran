@@ -150,7 +150,7 @@ The architecture docs were corrected on 2026-09-24 and again on 2026-09-28 again
   - `corpus-expansion.md` is the parked ingestion plan.
   - `2026-09-23-home-feeds-plan.md` is the parked home-feeds plan; its schema must be agreed before any build.
 - `research/2026-09-2*`: baseline audits and corpus measurements.
-- `2026-09-21-deleted-branch-tips.txt` and `.bundle`: an archive of deleted task branches. Do not unbundle unless asked.
+- `2026-09-21-deleted-branch-tips.txt` and `.bundle`: an archive of deleted task branches, removed from the repository on 2026-09-29 (still in git history before that date).
 
 ## Rules for the integration (historical: the merge landed 2026-09-26)
 

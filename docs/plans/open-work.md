@@ -40,6 +40,19 @@ Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
 - **2026-09-29, evening (local session):**
+  - Declutter before the new ingestion pipeline (owner-approved). Removed
+    from the repository: eleven unused scripts, `api-status.pdf`,
+    `_kpi_slides.txt`, `.oxlintrc.json`, the root
+    `NTER_BACKEND_FIRST_INTEGRATION_REPORT.md`, the deleted-branches archive
+    in `docs/`, the never-deployed backend module (`backend/src`,
+    `backend/index.ts`, `backend/package.json`, three invite functions) and
+    the `extract`, `feed` and `export-map` npm scripts. `backend/sql` stays
+    for the SQL fixtures. Outside git: `dist/` and `tmp/` removed, the old
+    link map `ingest/national-desk/` moved to the Trash, the local Supabase
+    stack's Docker images and volumes removed, and five superseded zips and
+    folders in Downloads moved to the Trash. The corpus folder was first
+    completed from its zip (7 files it lacked, about 1.1 GB, sizes and CRCs
+    checked). The Supabase corpus is kept until the new pipeline replaces it.
   - O2, closed without deleting (owner's decision). Four Vercel variables
     are unused: `VITE_AI_BACKEND`, `PROJECT_ID`, `GOOGLE_CLIENT_ID` and
     `VITE_GOOGLE_CLIENT_ID`. No code reads them, and nothing reads

@@ -4,9 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "export-map": "python scripts/export-source-map.py",
-    "feed": "node scripts/local-feed.mjs",
-    "extract": "python ../tools/extract_react_legacy.py",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
