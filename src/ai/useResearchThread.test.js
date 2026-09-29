@@ -167,3 +167,31 @@ it('a failed reconciliation read leaves a truthful message and an unlocked compo
  expect(c.getSnapshot()).toMatchObject({submitting:false,loading:false,locked:false});
  expect(f.deps.sendTurn).toHaveBeenCalledOnce();expect(f.deps.retryTurn).not.toHaveBeenCalled();
 });
+
+// F14: the reader's model and effort survive a reload, per browser, and a
+// broken or blocked storage never stops the thread.
+function memoryStorage(initial={}){const values=new Map(Object.entries(initial));return{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,String(v)),values}}
+const twoModels=async()=>({models:[{model_id:'model/default',is_default:true,efforts:['low']},{model_id:'model/deep',efforts:['low','high']}],roles:[]});
+it('restores a saved model and effort after a reload',async()=>{
+ const f=fixture();const storage=memoryStorage({niyResearchChoice:JSON.stringify({modelId:'model/deep',effort:'high'})});
+ const controller=createResearchThread({...f.deps,loadRegistry:twoModels,choiceStorage:storage});await controller.start();
+ expect(controller.getSnapshot().choice).toEqual({modelId:'model/deep',effort:'high'});
+});
+it('saves the normalised choice when the reader changes it',async()=>{
+ const f=fixture();const storage=memoryStorage();
+ const controller=createResearchThread({...f.deps,loadRegistry:twoModels,choiceStorage:storage});await controller.start();
+ controller.setChoice({modelId:'model/deep',effort:'high'});
+ expect(JSON.parse(storage.values.get('niyResearchChoice'))).toEqual({modelId:'model/deep',effort:'high'});
+ controller.setChoice({modelId:'model/gone',effort:'high'});
+ expect(JSON.parse(storage.values.get('niyResearchChoice'))).toEqual({modelId:'model/default',effort:'low'});
+});
+it('falls back to the default when the saved model is gone or storage throws',async()=>{
+ const f=fixture();
+ const gone=createResearchThread({...f.deps,loadRegistry:twoModels,choiceStorage:memoryStorage({niyResearchChoice:JSON.stringify({modelId:'model/removed',effort:'high'})})});await gone.start();
+ expect(gone.getSnapshot().choice).toEqual({modelId:'model/default',effort:'low'});
+ const throwing={getItem:()=>{throw new Error('blocked')},setItem:()=>{throw new Error('blocked')}};
+ const blocked=createResearchThread({...fixture().deps,loadRegistry:twoModels,choiceStorage:throwing});await blocked.start();
+ expect(blocked.getSnapshot().choice).toEqual({modelId:'model/default',effort:'low'});
+ expect(()=>blocked.setChoice({modelId:'model/deep',effort:'high'})).not.toThrow();
+ expect(blocked.getSnapshot().choice).toEqual({modelId:'model/deep',effort:'high'});
+});

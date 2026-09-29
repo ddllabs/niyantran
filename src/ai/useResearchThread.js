@@ -14,16 +14,43 @@ export function normalizeResearchChoice(models, value = {}) {
   return { modelId: model?.model_id || '', effort };
 }
 
+// F14: the reader's model and effort, kept per browser so a reload does not
+// reset them. A preference, not account state; storage can be absent or throw
+// (private windows, blocked site data), and then the default applies.
+const CHOICE_KEY = 'niyResearchChoice';
+
+export function readSavedChoice(storage) {
+  try {
+    const value = JSON.parse(storage?.getItem(CHOICE_KEY) || 'null');
+    return value && typeof value.modelId === 'string' && typeof value.effort === 'string'
+      ? { modelId: value.modelId, effort: value.effort }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveChoice(storage, choice) {
+  try {
+    storage?.setItem(CHOICE_KEY, JSON.stringify(choice));
+  } catch {
+    /* storage blocked or full: the choice still applies for this page */
+  }
+}
+
 // This controller owns only the research path. Its injected dependencies use
 // the same B4 identity and D7/D8 store interfaces as the production defaults.
 export function createResearchThread(overrides = {}) {
   const deps = { ...threads, ...streaming, ...identity, ...registry, ...overrides };
+  const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
+    : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
   const emptyStore = () => ({ chats: [], activeId: '', loaded: false });
   let data = { ready: false, loading: true, error: '', draft: '', viewer: null, store: emptyStore(),
     // No effort yet, rather than 'off': the model list has not loaded, so this
     // is the absence of a choice and must normalise to the default once it can.
     // 'off' here would be indistinguishable from a reader who picked it.
-    registry: { models: [], roles: [] }, choice: { modelId: '', effort: '' }, submitting: false,
+    // A saved choice (F14) is kept as given and normalised once models load.
+    registry: { models: [], roles: [] }, choice: readSavedChoice(storage) || { modelId: '', effort: '' }, submitting: false,
     cancelRequested: false, cancelPending: false, cancelError: '', identityVersion: 0 };
   let view = data;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
@@ -187,7 +214,12 @@ export function createResearchThread(overrides = {}) {
     dispose() { active = false; subscriptions.forEach(fn => fn()); subscriptions = []; invalidate(null); },
     reportError(error) { if (data.ready) emit({ error }); },
     setDraft(draft) { if (data.ready) emit({ draft }); },
-    setChoice(choice) { if (data.ready) emit({ choice: normalizeResearchChoice(data.registry.models, choice) }); },
+    setChoice(choice) {
+      if (!data.ready) return;
+      const next = normalizeResearchChoice(data.registry.models, choice);
+      emit({ choice: next });
+      saveChoice(storage, next);
+    },
     openSource(source) { if (data.ready) emit({ viewer: { kind: source?.kind || 'list', source: source || null } }); },
     closeViewer() { emit({ viewer: null }); },
     newChat() {

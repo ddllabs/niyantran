@@ -52,11 +52,6 @@ new test must fail before the change.
     `catch`.
 
   Each gets a failing test first.
-- [ ] **F14. The model and effort choice survive a reload (S).** They live
-  only in memory (`useResearchThread.js:26`). Keep them per viewer in
-  `localStorage`, guarded with `try`/`catch`.
-- [ ] **F15. Follow-up pills get list semantics and a label (XS).**
-  `src/ai/SuggestionPills.jsx:20` is a bare `role="group"`.
 - [ ] **F16. Dead AI code (S).** Remove, or wire and test:
   - `reasoningSegments` (`src/lib` and `_shared`), which has no callers
     outside tests;
@@ -198,6 +193,7 @@ container can't reach it.
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F14, the model and effort choice survives a reload (per browser, `useResearchThread.js`); F15, the follow-up pills are a labelled list (`SuggestionPills.jsx`).
   - F23, the `--pdf-text` ingest mode in `scripts/ingest-national-desk.mjs` (tests in `src/lib/ingestPdfText.test.js`).
   - F22, a half-precision search index (migrations `20260929120000` and `20260929120100`, live; fixture `halfvec_retrieval.sql`). 204 MB instead of 404 MB; recall@40 0.9875 against 0.990, measured on 20 queries against an exact scan.
   - F10, one account per normalised email (migration `20260929110000_email_unique`, live; fixture `email_unique.sql`); signup explains the refusal (`src/lib/signupErrors.js`). F11, the review of `my_entitlement` and `start_trial` (`Architectures/06` §9.2).
