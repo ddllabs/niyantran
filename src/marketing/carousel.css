@@ -94,6 +94,11 @@
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
+/* A segment with no computed or constant figures has no counts rail. */
+.mkt-carousel-slide.no-metrics {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 768px) {
   .mkt-carousel-slide {
     grid-template-columns: 1fr;

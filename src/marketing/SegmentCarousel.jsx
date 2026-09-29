@@ -1,23 +1,19 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import './carousel.css';
 
-const FALLBACK_SEGMENTS = [
+// Shown until /api/home/segments answers, or if it fails. Only true constants:
+// the computed counts (bills, ministries, fronts, instruments) come from the server.
+export const FALLBACK_SEGMENTS = [
   {
     id: 'legislative',
     title: 'Legislative & Policy Intelligence',
     category: 'National Governance',
     deskId: 'national',
     feature: 'Bill Passage Probability Index',
-    liveCount: 9819,
-    liveCountLabel: 'BILLS ON RECORD',
     status: 'LIVE REGISTRY',
     lastUpdated: 'Monitored Today',
     summary: 'Official parliamentary floor register tracking bills across Lok Sabha & Rajya Sabha.',
-    keyMetrics: [
-      { label: 'Bills on Record', value: '9,819' },
-      { label: 'Houses Covered', value: '2' },
-      { label: 'Ministries', value: '48' },
-    ],
+    keyMetrics: [{ label: 'Houses Covered', value: '2' }],
   },
   {
     id: 'electoral',
@@ -32,8 +28,7 @@ const FALLBACK_SEGMENTS = [
     summary: 'Official constituency returns, candidate affidavit disclosures, and demographic matrices.',
     keyMetrics: [
       { label: 'Constituencies', value: '543' },
-      { label: 'States & UTs', value: '28' },
-      { label: 'By-Elections', value: '8' },
+      { label: 'States & UTs', value: '36' },
     ],
   },
   {
@@ -42,16 +37,10 @@ const FALLBACK_SEGMENTS = [
     category: 'Public Communications',
     deskId: 'national',
     feature: 'Cabinet Decisions',
-    liveCount: 128,
-    liveCountLabel: 'STATEMENTS THIS WEEK',
     status: 'OFFICIAL WIRES',
     lastUpdated: 'Hourly Sync',
     summary: 'Track PIB statements, ministerial briefings, and parliamentary debates with provenance.',
-    keyMetrics: [
-      { label: 'Official Sources', value: '14' },
-      { label: 'Weekly Releases', value: '128' },
-      { label: 'Houses Covered', value: '3' },
-    ],
+    keyMetrics: [],
   },
   {
     id: 'operations',
@@ -59,16 +48,10 @@ const FALLBACK_SEGMENTS = [
     category: 'Public Procurement',
     deskId: 'national',
     feature: 'Central Tender Aggregator + Constituency Filter',
-    liveCount: 1280,
-    liveCountLabel: 'ACTIVE NOTICES',
     status: 'LIVE NOTICES',
     lastUpdated: 'Continuous',
     summary: 'GeM tenders, central procurement notices, and ministry infrastructure works.',
-    keyMetrics: [
-      { label: 'Open Tenders', value: '1,280+' },
-      { label: 'Ministries', value: '12' },
-      { label: 'Closing in 7D', value: '19' },
-    ],
+    keyMetrics: [],
   },
   {
     id: 'economy',
@@ -76,16 +59,10 @@ const FALLBACK_SEGMENTS = [
     category: 'Macroeconomics',
     deskId: 'economics',
     feature: 'NSE/BSE Delayed Market Feed',
-    liveCount: 42,
-    liveCountLabel: 'LIVE MACRO SERIES',
     status: 'MARKET DISPATCH',
     lastUpdated: 'Real-time',
     summary: 'CPI combined, IIP manufacturing, merchandise trade, and NSE/BSE indices.',
-    keyMetrics: [
-      { label: 'Macro Indicators', value: '42' },
-      { label: 'Core Publishers', value: '8' },
-      { label: 'Market Indices', value: '10' },
-    ],
+    keyMetrics: [],
   },
   {
     id: 'global',
@@ -93,16 +70,10 @@ const FALLBACK_SEGMENTS = [
     category: 'Security & Diplomacy',
     deskId: 'global',
     feature: 'Open Fronts',
-    liveCount: 18,
-    liveCountLabel: 'MONITORED FRONTS',
     status: 'CRISIS SENSOR',
     lastUpdated: 'Continuous',
     summary: 'Strategic event tracking across international hostilities, bilateral treaties, and multilateral sanctions.',
-    keyMetrics: [
-      { label: 'Open Fronts', value: '18' },
-      { label: 'Theatres', value: '6' },
-      { label: 'Source Feeds', value: '9' },
-    ],
+    keyMetrics: [],
   },
   {
     id: 'climate',
@@ -110,13 +81,10 @@ const FALLBACK_SEGMENTS = [
     category: 'Environmental Policy',
     deskId: 'carbon',
     feature: 'Carbon Border (CBAM) Watch',
-    liveCount: 340,
-    liveCountLabel: 'CBAM & REGISTRY ROWS',
     status: 'REGISTRY FEED',
     lastUpdated: 'Daily Audit',
     summary: 'European and domestic carbon tariff tracking, voluntary offset registries, and emissions targets.',
     keyMetrics: [
-      { label: 'Monitored Entities', value: '340+' },
       { label: 'Sectors', value: '6' },
       { label: 'Jurisdictions', value: '27' },
     ],
@@ -127,16 +95,10 @@ const FALLBACK_SEGMENTS = [
     category: 'Courts & Tribunals',
     deskId: 'law',
     feature: 'Supreme Court Order & Judgment Feed',
-    liveCount: 8420,
-    liveCountLabel: 'INDEXED JUDGMENTS',
     status: 'BENCH MONITOR',
     lastUpdated: 'Daily Digest',
     summary: 'Supreme Court order digests, High Court precedents, and tribunal dispute settlements.',
-    keyMetrics: [
-      { label: 'Orders Indexed', value: '8,420+' },
-      { label: 'Tribunals', value: '12' },
-      { label: 'Benches Covered', value: '25' },
-    ],
+    keyMetrics: [{ label: 'Benches Covered', value: '25' }],
   },
 ];
 
@@ -182,6 +144,8 @@ export default function SegmentCarousel({ onLogin }) {
   const activeSegment = useMemo(() => {
     return segments[activeIndex] || segments[0];
   }, [segments, activeIndex]);
+  const hasCount = typeof activeSegment.liveCount === 'number';
+  const metrics = activeSegment.keyMetrics || [];
 
   function handleOpenDesk(seg) {
     // Preserve intended destination across authentication gate
@@ -255,7 +219,10 @@ export default function SegmentCarousel({ onLogin }) {
 
         {/* Active Segment Slide */}
         <div className="mkt-carousel-stage">
-          <article className="mkt-carousel-slide" key={activeSegment.id}>
+          <article
+            className={`mkt-carousel-slide${hasCount || metrics.length ? '' : ' no-metrics'}`}
+            key={activeSegment.id}
+          >
             <div className="mkt-slide-info">
               <div className="mkt-slide-meta">
                 <span className="mkt-slide-index">
@@ -283,26 +250,28 @@ export default function SegmentCarousel({ onLogin }) {
               </div>
             </div>
 
-            {/* Authoritative Live Count Rail Card */}
-            <aside className="mkt-slide-metrics" aria-label="Segment Counts">
-              <div className="mkt-metric-hero">
-                <div className="mkt-metric-hero-val">
-                  {typeof activeSegment.liveCount === 'number'
-                    ? activeSegment.liveCount.toLocaleString()
-                    : activeSegment.liveCount}
-                </div>
-                <div className="mkt-metric-hero-label">{activeSegment.liveCountLabel}</div>
-              </div>
-
-              <div className="mkt-metric-chips">
-                {(activeSegment.keyMetrics || []).map((m, i) => (
-                  <div className="mkt-metric-chip-row" key={i}>
-                    <span>{m.label}</span>
-                    <strong>{m.value}</strong>
+            {/* Live count rail: only figures that exist; a slide without any has no rail. */}
+            {(hasCount || metrics.length > 0) && (
+              <aside className="mkt-slide-metrics" aria-label="Segment Counts">
+                {hasCount && (
+                  <div className="mkt-metric-hero">
+                    <div className="mkt-metric-hero-val">{activeSegment.liveCount.toLocaleString('en-US')}</div>
+                    <div className="mkt-metric-hero-label">{activeSegment.liveCountLabel}</div>
                   </div>
-                ))}
-              </div>
-            </aside>
+                )}
+
+                {metrics.length > 0 && (
+                  <div className="mkt-metric-chips">
+                    {metrics.map((m, i) => (
+                      <div className="mkt-metric-chip-row" key={i}>
+                        <span>{m.label}</span>
+                        <strong>{m.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </aside>
+            )}
           </article>
 
           {/* Navigation Controls & Dot Indicators */}

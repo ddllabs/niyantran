@@ -64,8 +64,11 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
         expect(seg.category).toBeDefined();
         expect(seg.deskId).toBeDefined();
         expect(seg.feature).toBeDefined();
-        expect(seg.liveCount).toBeGreaterThan(0);
-        expect(seg.liveCountLabel).toBeDefined();
+        // P16: a slide carries a count only when it is computed or a true constant.
+        if (seg.liveCount !== undefined) {
+          expect(seg.liveCount).toBeGreaterThan(0);
+          expect(seg.liveCountLabel).toBeDefined();
+        }
         expect(seg.status).toBeDefined();
         expect(seg.summary).toBeDefined();
         expect(Array.isArray(seg.keyMetrics)).toBe(true);

@@ -719,7 +719,38 @@ function snapshotConflictFile() {
   return { updated: new Date().toISOString(), rows: war.rows };
 }
 
+const BILLS_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'national_bill_tracker.json');
+const QUESTIONS_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'national_question_database.json');
+let segmentCountsCache = null;
+
+/**
+ * P16: the carousel's live figures, computed from the files the desks read.
+ * A figure whose file is missing is null and is left off the slide.
+ */
+function segmentCounts() {
+  if (segmentCountsCache) return segmentCountsCache;
+  const key = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const distinct = (rows, pick) =>
+    Array.isArray(rows) && rows.length ? new Set(rows.map(pick).filter(Boolean)).size : null;
+  segmentCountsCache = {
+    // Unique bill IDs: the feed repeats two rows.
+    bills: distinct(readJsonFile(BILLS_PATH), (r) => r.id),
+    ministries: distinct(readJsonFile(QUESTIONS_PATH), (r) => key(r.ministry)),
+    fronts: distinct(loadWar(), (r) => key(r.conflict_name)),
+    instruments: TICKERS.length,
+  };
+  return segmentCountsCache;
+}
+
+/** A metric row, or null when its figure is unknown. */
+function metric(label, value) {
+  return value == null ? null : { label, value: typeof value === 'number' ? value.toLocaleString('en-US') : value };
+}
+
 export async function serveHomeSegments() {
+  const counts = segmentCounts();
+  const headline = (value, label) => (value == null ? {} : { liveCount: value, liveCountLabel: label });
+  // Constants are true facts; everything else is computed above. No figure is hand-written.
   return {
     ok: true,
     timestamp: new Date().toISOString(),
@@ -730,17 +761,16 @@ export async function serveHomeSegments() {
         category: 'National Governance',
         deskId: 'national',
         feature: 'Bill Passage Probability Index',
-        liveCount: 9819,
-        liveCountLabel: 'BILLS ON RECORD',
+        ...headline(counts.bills, 'BILLS ON RECORD'),
         status: 'LIVE REGISTRY',
         lastUpdated: 'Monitored Today',
         icon: 'legislative',
         summary: 'Official parliamentary floor register tracking bills across Lok Sabha & Rajya Sabha.',
         keyMetrics: [
-          { label: 'Bills on Record', value: '9,819' },
-          { label: 'Houses Covered', value: '2' },
-          { label: 'Ministries', value: '48' },
-        ],
+          metric('Bills on Record', counts.bills),
+          metric('Houses Covered', '2'),
+          metric('Ministries', counts.ministries),
+        ].filter(Boolean),
       },
       {
         id: 'electoral',
@@ -756,8 +786,7 @@ export async function serveHomeSegments() {
         summary: 'Official constituency returns, candidate affidavit disclosures, and demographic matrices.',
         keyMetrics: [
           { label: 'Constituencies', value: '543' },
-          { label: 'States & UTs', value: '28' },
-          { label: 'By-Elections', value: '8' },
+          { label: 'States & UTs', value: '36' },
         ],
       },
       {
@@ -766,17 +795,11 @@ export async function serveHomeSegments() {
         category: 'Public Communications',
         deskId: 'national',
         feature: 'Cabinet Decisions',
-        liveCount: 128,
-        liveCountLabel: 'STATEMENTS THIS WEEK',
         status: 'OFFICIAL WIRES',
         lastUpdated: 'Hourly Sync',
         icon: 'media',
         summary: 'Track PIB statements, ministerial briefings, and parliamentary debates with provenance.',
-        keyMetrics: [
-          { label: 'Official Sources', value: '14' },
-          { label: 'Weekly Releases', value: '128' },
-          { label: 'Houses Covered', value: '3' },
-        ],
+        keyMetrics: [],
       },
       {
         id: 'operations',
@@ -784,17 +807,11 @@ export async function serveHomeSegments() {
         category: 'Public Procurement',
         deskId: 'national',
         feature: 'Central Tender Aggregator + Constituency Filter',
-        liveCount: 1280,
-        liveCountLabel: 'ACTIVE NOTICES',
         status: 'LIVE NOTICES',
         lastUpdated: 'Continuous',
         icon: 'ops',
         summary: 'GeM tenders, central procurement notices, and ministry infrastructure works.',
-        keyMetrics: [
-          { label: 'Open Tenders', value: '1,280+' },
-          { label: 'Ministries', value: '12' },
-          { label: 'Closing in 7D', value: '19' },
-        ],
+        keyMetrics: [],
       },
       {
         id: 'economy',
@@ -802,17 +819,11 @@ export async function serveHomeSegments() {
         category: 'Macroeconomics',
         deskId: 'economics',
         feature: 'NSE/BSE Delayed Market Feed',
-        liveCount: 42,
-        liveCountLabel: 'LIVE MACRO SERIES',
         status: 'MARKET DISPATCH',
         lastUpdated: 'Real-time',
         icon: 'economy',
         summary: 'CPI combined, IIP manufacturing, merchandise trade, and NSE/BSE indices.',
-        keyMetrics: [
-          { label: 'Macro Indicators', value: '42' },
-          { label: 'Core Publishers', value: '8' },
-          { label: 'Market Indices', value: '10' },
-        ],
+        keyMetrics: [metric('Market Instruments', counts.instruments)].filter(Boolean),
       },
       {
         id: 'global',
@@ -820,17 +831,12 @@ export async function serveHomeSegments() {
         category: 'Security & Diplomacy',
         deskId: 'global',
         feature: 'Open Fronts',
-        liveCount: 18,
-        liveCountLabel: 'MONITORED FRONTS',
+        ...headline(counts.fronts, 'MONITORED FRONTS'),
         status: 'CRISIS SENSOR',
         lastUpdated: 'Continuous',
         icon: 'global',
         summary: 'Strategic event tracking across international hostilities, bilateral treaties, and multilateral sanctions.',
-        keyMetrics: [
-          { label: 'Open Fronts', value: '18' },
-          { label: 'Theatres', value: '6' },
-          { label: 'Source Feeds', value: '9' },
-        ],
+        keyMetrics: [metric('Open Fronts', counts.fronts)].filter(Boolean),
       },
       {
         id: 'climate',
@@ -838,14 +844,11 @@ export async function serveHomeSegments() {
         category: 'Environmental Policy',
         deskId: 'carbon',
         feature: 'Carbon Border (CBAM) Watch',
-        liveCount: 340,
-        liveCountLabel: 'CBAM & REGISTRY ROWS',
         status: 'REGISTRY FEED',
         lastUpdated: 'Daily Audit',
         icon: 'carbon',
         summary: 'European and domestic carbon tariff tracking, voluntary offset registries, and emissions targets.',
         keyMetrics: [
-          { label: 'Monitored Entities', value: '340+' },
           { label: 'Sectors', value: '6' },
           { label: 'Jurisdictions', value: '27' },
         ],
@@ -856,17 +859,11 @@ export async function serveHomeSegments() {
         category: 'Courts & Tribunals',
         deskId: 'law',
         feature: 'Supreme Court Order & Judgment Feed',
-        liveCount: 8420,
-        liveCountLabel: 'INDEXED JUDGMENTS',
         status: 'BENCH MONITOR',
         lastUpdated: 'Daily Digest',
         icon: 'law',
         summary: 'Supreme Court order digests, High Court precedents, and tribunal dispute settlements.',
-        keyMetrics: [
-          { label: 'Orders Indexed', value: '8,420+' },
-          { label: 'Tribunals', value: '12' },
-          { label: 'Benches Covered', value: '25' },
-        ],
+        keyMetrics: [{ label: 'Benches Covered', value: '25' }],
       },
     ],
   };
