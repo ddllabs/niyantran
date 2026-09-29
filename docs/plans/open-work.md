@@ -30,7 +30,7 @@ Current baseline:
 - `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
 - Supabase NTER has 35 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The search index is half precision, 204 MB (F22).
-- Tests: 68 Vitest files (971 tests), 454 Deno tests and 15 SQL fixtures. CI is advisory.
+- Tests: 68 Vitest files (972 tests), 452 Deno tests and 15 SQL fixtures. CI is advisory.
 
 ## 1. Agent tasks (doable now, in this order)
 
@@ -52,12 +52,6 @@ new test must fail before the change.
     `catch`.
 
   Each gets a failing test first.
-- [ ] **F16. Dead AI code (S).** Remove, or wire and test:
-  - `reasoningSegments` (`src/lib` and `_shared`), which has no callers
-    outside tests;
-  - `ai_models.params`, typed at `research-chat/handler.ts:71` and never
-    applied;
-  - `StreamRequest.max_tokens`, which no caller sets.
 - [ ] **F24. The signup plan step never runs (S).**
   - `src/marketing/SignupPage.jsx` defines `goToPlanStep`, but nothing calls
     it. The second step ("Choose plan", which starts a trial through
@@ -173,6 +167,7 @@ container can't reach it.
 | P11 | Whether `require_parameters` makes reasoning a hard routing constraint; whether a single attachment should be capped at its per-document quota | Evidence from D3 |
 | P12 | Priority-2 advisor findings (grants, foreign keys, indexes); the dependency audit; the Vite manifest-import warning | Housekeeping slot |
 | P14 | Bill-key collisions. Two documents that resolve to the same `bill:<year>:<number>` both keep the key, so a scoped search reads both. `build-corpus-links.mjs` drops a key only when one file name has conflicting URLs. | Decide before L1 phase B: accept it, or keep one document per key |
+| P15 | Two unused extension points, kept on purpose (F16): `ai_models.params` (an admin-editable registry column, `{}` on every row, never applied to a request) and `StreamRequest.max_tokens` (a model without native effort support would need it for a thinking budget). | Wire when a model needs either |
 | P13 | The two ADRs numbered 0005 | Leave, unless ADRs are renumbered |
 
 ## 5. Accepted risks and won't-fix
@@ -193,6 +188,7 @@ container can't reach it.
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F16, the unused `reasoningSegments` modules (browser and Edge copies, and their tests) deleted; `params` and `max_tokens` parked as P15.
   - F14, the model and effort choice survives a reload (per browser, `useResearchThread.js`); F15, the follow-up pills are a labelled list (`SuggestionPills.jsx`).
   - F23, the `--pdf-text` ingest mode in `scripts/ingest-national-desk.mjs` (tests in `src/lib/ingestPdfText.test.js`).
   - F22, a half-precision search index (migrations `20260929120000` and `20260929120100`, live; fixture `halfvec_retrieval.sql`). 204 MB instead of 404 MB; recall@40 0.9875 against 0.990, measured on 20 queries against an exact scan.

@@ -353,7 +353,7 @@ Correct this section when observations become stale.
   `docs/plans/2026-09-21-corpus-ingest-first-pass.md`.
 - The research agent is `supabase/functions/research-chat/` (handler, agent,
   prompt, answer decoder, citation ladder, repair, telemetry) with
-  `_shared/{openrouterStream,handles,reasoningSegments,chatStream}.ts`.
+  `_shared/{openrouterStream,handles,reasoningSegments,chatStream}.ts` (corrected 2026-09-29: `reasoningSegments` had no callers and was deleted, open-work F16).
   **Updated 2026-09-21: it is now DEPLOYED**, version 1, `verify_jwt = false`
   (the handler verifies the caller itself). A credential-free probe returns
   `401 {"error":"missing bearer token"}` and CORS preflight returns 204.
