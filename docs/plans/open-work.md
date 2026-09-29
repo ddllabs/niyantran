@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F30 is next) and goes in the
+- A new finding gets the next free `F` number (F31 is next) and goes in the
   right section.
 
 Current baseline (2026-09-29, evening):
@@ -27,7 +27,7 @@ Current baseline (2026-09-29, evening):
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The
   search index is half precision, 204 MB.
 - Tests:
-  - 74 Vitest files (1,006 tests), 452 Deno tests, 16 SQL fixtures;
+  - 74 Vitest files (1,009 tests), 452 Deno tests, 16 SQL fixtures;
   - `npm run lint`: 0 errors, 0 warnings;
   - `scripts/verify-local-storage-paths.mjs`: 12 of 12 checks on a local
     stack.
@@ -40,6 +40,15 @@ Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
 - **2026-09-29, evening (local session):**
+  - P16, the home carousel shows only computed figures and true constants
+    (`87dc8bf`):
+    - computed: bills 9,817 (unique IDs; the feed repeats two rows),
+      ministries 56, fronts 88, market instruments 9;
+    - constants: 543 seats, 2 Houses, 36 states and UTs (was 28), 6 CBAM
+      sectors, 27 EU states, 25 High Courts;
+    - the invented figures are dropped.
+
+    Its test fails on any figure outside those.
   - F13, a transient identity failure no longer signs the user out
     (`179a708`; spec `specs/2026-09-29-f13-transient-identity-failure.md`,
     `3a51724`, approved with no retry).
@@ -155,19 +164,17 @@ Each needs one answer, then an agent can finish it.
     - three sets of multiple permissive policies.
   - Leaked-password protection and the Auth connection strategy are
     dashboard settings (D1).
-- [ ] **P16. The home carousel's numbers** (`serveHomeSegments` in
-  `server/homeApi.mjs`; every figure is hand-written). Proposal, awaiting
-  approval:
+- [ ] **F30. The other hand-written marketing figures** (found while doing
+  P16). They weren't part of P16's approval:
+  - `src/marketing/HomePage.jsx` shows "9,819" bills in four places (lines
+    36, 290, 584 and 736); the carousel now says 9,817 unique bills;
+  - "211+" live API endpoints (`HomePage.jsx:286` and `:727`, and
+    `PricingPage.jsx:135`);
+  - "UPTIME 99.9%" (`HomePage.jsx:294`, `PricingPage.jsx:143`), which nothing
+    measures.
 
-  | Figure (shown) | Proposal | Evidence |
-  |---|---|---|
-  | Bills on record 9,819 | **Compute** from `desk_rows` | 9,817 rows in "Bill Passage Probability Index" |
-  | Ministries 48 (legislative) | **Compute** | 56 distinct ministries in the question database |
-  | Market indices 10, Open fronts 18 | **Compute** from the markets feed and the war tracker | both feeds exist |
-  | Indexed judgments 8,420 | **Drop**, or compute (it would be 654) | 220 Supreme Court and 434 NCLT rows; no judgments are ingested |
-  | LS constituencies 543, Houses covered 2, CBAM sectors 6, EU jurisdictions 27, High Court benches 25 | **Keep** as constants | true facts |
-  | States & UTs 28 | **Fix**: 36, or relabel it "States 28" | 28 states and 8 union territories |
-  | Statements this week 128, Weekly releases 128, Official sources 14, Houses 3 (media), Open tenders 1,280, Ministries 12 (tenders), Closing in 7 days 19, Macro series 42, Core publishers 8, CBAM rows 340, Theatres 6, Source feeds 9, Tribunals 12, By-elections 8 | **Drop** | no data behind them |
+  Decide per figure: compute it (the bills count can reuse P16's), keep it
+  as a constant, or drop it.
 
 ## 3. Ingestion pipeline (next)
 

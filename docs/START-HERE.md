@@ -80,7 +80,7 @@ These are the facts new sessions most often get wrong.
   blip no longer signs a user out.
 - What remains is sorted in `plans/open-work.md`:
   - two decisions for the owner: P12 (dependencies and the advisor
-    migration) and P16 (carousel numbers);
+    migration) and F30 (the remaining hand-written marketing figures);
   - four later phases: Ingestion pipeline (parked for a new design),
     Payments, Launch (including the owner's dashboard and smoke-test steps)
     and Waiting on owner assets;
