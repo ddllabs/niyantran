@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { fillSiteLabel } from '../lib/geoTip.js';
 
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
@@ -100,7 +101,7 @@ export default function NuclearSiteMap({ selected, facilities, onPick }) {
       b.style.left = `${px}px`;
       b.style.top = `${py}px`;
       b.setAttribute('aria-label', x.name);
-      b.innerHTML = `<span>${x.name}<br>${x.country} · ${x.facilityKind || x.kind}</span>`;
+      fillSiteLabel(b, x);
       b.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();

@@ -30,7 +30,7 @@ Current baseline:
 - `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
 - Supabase NTER has 35 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The search index is half precision, 204 MB (F22).
-- Tests: 73 Vitest files (985 tests), 452 Deno tests and 15 SQL fixtures. `npm run lint`: 0 errors, 0 warnings; any warning fails it. CI is advisory.
+- Tests: 73 Vitest files (987 tests), 452 Deno tests and 15 SQL fixtures. `npm run lint`: 0 errors, 0 warnings; any warning fails it. CI is advisory.
 
 ## 1. Agent tasks (doable now, in this order)
 
@@ -62,13 +62,6 @@ new test must fail before the change.
   Both need a disposable PostgREST and Storage, or a test account on NTER
   with the owner's approval; the owner smoke test O8 covers them in part.
   (The `pg_cron` branch and the dev-server behaviour are Done.)
-- [ ] **F28. The nuclear-site map writes feed text as HTML (XS).**
-  `src/desks/NuclearSiteMap.jsx` builds each marker label with `innerHTML` from
-  the site's `name`, `country` and `facilityKind`. Same defect as F26: build
-  the label from elements and `textContent`, with a test like
-  `src/lib/geoTip.test.js`. Found during F26. (The other `innerHTML` uses are
-  deliberate: `siteHead.js` injects the admin-configured head snippet and
-  `bootLegacy.js` a same-origin static file.)
 - [ ] **F6. Plan gating on the server (M–L, needs a spec and owner
   decisions; required before real payments).** F2 phase 1 made the plan
   server-owned, but desk data is public (static files, and `desk_rows` is
@@ -178,6 +171,7 @@ For each figure: compute it, keep it as a constant, or drop it. | Owner (marketi
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F28, the nuclear-site map builds its marker labels from text nodes (`fillSiteLabel` in `src/lib/geoTip.js`, used by `NuclearSiteMap.jsx`). Its test fails on the old `innerHTML` code. Both helpers were also run in Chromium with an `<img onerror>` name: no element was created and the handler never ran. The other `innerHTML` uses are deliberate: `siteHead.js` injects the admin-configured head snippet and `bootLegacy.js` a same-origin static file.
   - F26, the map tooltip sets feed text with `textContent` (`src/lib/geoTip.js`, used by `GeoDotsMap.jsx`). Its test fails on the old `innerHTML` code with an `<img onerror>` name.
   - F27, test 13 of `scripts/test-auth-complete-suite.mjs` asserts the signed-out profile read. It uses a fresh client (the old `anonClient` had held the test user's session since test 10), and passes only on `42501` or zero rows, so a network error does not pass. `42501` confirmed live on NTER with `set local role anon`; the script itself was not run, because it creates real users.
   - F25, the lint backlog cleared:
