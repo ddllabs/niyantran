@@ -1,6 +1,6 @@
 # Niyantran Terminal — Master Architecture & Technical Documentation
 
-> **Status: Living.** Last updated on 2026-09-22; corrected 2026-09-24 (React 19, pricing refresh every 12 hours, embeddings via OpenRouter, relative links, table count) and 2026-09-28 (six Edge Functions including `desk-brief`, 25 public tables, repair model read from `AI_REPAIR_MODEL`, test counts) and 2026-09-29 (26 public tables with `plan_grants`, the plan-entitlement functions, Postgres 17 and the 404 MB index, test counts, the role of `backend/sql/auth_schema.sql`).
+> **Status: Living.** Last updated on 2026-09-22; corrected 2026-09-24 (React 19, pricing refresh every 12 hours, embeddings via OpenRouter, relative links, table count) and 2026-09-28 (six Edge Functions including `desk-brief`, 25 public tables, repair model read from `AI_REPAIR_MODEL`, test counts) and 2026-09-29 (26 public tables with `plan_grants`, the plan-entitlement functions, Postgres 17, the half-precision search index (204 MB, F22), test counts, the role of `backend/sql/auth_schema.sql`).
 > Comprehensive architectural blueprints, data dictionaries, wire protocols, and security matrices for Niyantran Terminal (NTER).
 
 ---
@@ -29,7 +29,7 @@ graph TB
     end
 
     subgraph DatabaseTier["Persistence Tier (PostgreSQL 17 + Extensions)"]
-        DocCorpus[("Document Corpus<br/>documents & document_chunks<br/>(54,219 Chunks, 404 MB HNSW)")]
+        DocCorpus[("Document Corpus<br/>documents & document_chunks<br/>(54,219 Chunks, 204 MB halfvec HNSW)")]
         DeskData[("Desk Datasets<br/>desk_rows (34,184 Rows)<br/>(GIN Trigram & JSONB)")]
         ChatState[("Chat & Turn State<br/>conversations, chat_messages,<br/>research_turns (Mutex)")]
         Telemetry[("Telemetry & Admin<br/>model_pricing, ai_models,<br/>chat_turn_traces, call_logs")]
@@ -73,7 +73,7 @@ The architecture is documented across six specialized volumes. Each volume cover
 | Document | Title | Core Subsystems Covered | Primary Audience |
 | :--- | :--- | :--- | :--- |
 | [**`01-ingestion-pipeline.md`**](./01-ingestion-pipeline.md) | **Dual Ingestion & Structural Chunking** | OCR sidecar processing, PDF extraction, atomic table preservation (`colspan`/`rowspan`), deterministic chunk hashing (ADR 0004), 100-chunk slice commits (preventing Postgres OOM), PostgREST 1000-row pagination loop, desk row pin-key generation. | Data Engineers, Pipeline Developers |
-| [**`02-database-schema-and-tables.md`**](./02-database-schema-and-tables.md) | **Database Schema & Entity Topology** | Mermaid ER diagram of the AI-backend tables and data dictionary (26 public tables in total: 20 from `supabase/migrations/`, 6 from `backend/sql/auth_schema.sql`), full data dictionary, indexing topology (HNSW cosine index, 404 MB in the open-work baseline of 2026-09-29, `pg_trgm` GIN, JSONB GIN, index-only window scans), RLS permissions matrix across roles. | Database Administrators, Backend Engineers |
+| [**`02-database-schema-and-tables.md`**](./02-database-schema-and-tables.md) | **Database Schema & Entity Topology** | Mermaid ER diagram of the AI-backend tables and data dictionary (26 public tables in total: 20 from `supabase/migrations/`, 6 from `backend/sql/auth_schema.sql`), full data dictionary, indexing topology (half-precision HNSW cosine index, 204 MB since F22 on 2026-09-29, `pg_trgm` GIN, JSONB GIN, index-only window scans), RLS permissions matrix across roles. | Database Administrators, Backend Engineers |
 | [**`03-rag-and-sql-retrieval.md`**](./03-rag-and-sql-retrieval.md) | **Dual Retrieval Architecture: RAG & SQL** | Dual routing philosophy, post-mortem of D1 HNSW post-filtering bug (which dropped 98% of candidates) and B-tree pre-filter resolution (`20260922104646`), fair quota partitions, dynamic parameterized SQL, zero-spill window scans, cryptographic citation ladder (`ref:xxxxxx-n`). | Search Engineers, AI Architects |
 | [**`04-prompt-sandwich-and-agent-engine.md`**](./04-prompt-sandwich-and-agent-engine.md) | **Prompt Sandwich & Agent Engine** | Master Prompt Sandwich visual blueprint, 60,000-character rolling window algorithm (`windowMessages`), verbatim system prompt blocks (`ROLE`, `GROUNDING`, `TOOLS`, `DESK_GROUNDING_RULES`), tool wire payloads, strict JSON schema streaming decoder, citation auto-repair pass (`repair.ts`), `research_turns` concurrency mutex. | Prompt Engineers, Full-Stack AI Engineers |
 | [**`05-supabase-edge-functions.md`**](./05-supabase-edge-functions.md) | **Edge Functions & Shared Runtime** | Catalog of all 6 deployed functions (`research-chat`, `ingest-documents`, `refresh-model-pricing`, `admin-models`, `health`, `desk-brief`), Deno runtime configuration, bounded execution wrapper (`NETWORK_TIMEOUT_MS = 4_000`), key rotation architecture (`SUPABASE_SECRET_KEYS`), OOM crash prevention, shared library catalog (`_shared/`). | Platform Engineers, Cloud DevOps |
@@ -156,7 +156,7 @@ npm run build
 
 ### 4.4 SQL Fixtures (disposable local Postgres only)
 ```bash
-# 14 fixtures in supabase/tests/ (plus two bootstrap files), each rebuilt from scratch and checked for vacuity
+# 15 fixtures in supabase/tests/ (plus two bootstrap files), each rebuilt from scratch and checked for vacuity
 npm run test:sql
 ```
 

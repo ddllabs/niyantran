@@ -819,4 +819,13 @@ marked otherwise. This supersedes the function table above.
   pinned; `user_profiles_email_normalised_key` is unique and the old
   non-unique index is gone. NTER had no duplicate normalised emails
   (10 profiles) before the apply.
+- **Migrations 34 and 35 (F22):** `20260929120000_halfvec_index` built
+  `document_chunks_embedding_halfvec_hnsw` (204 MB, valid; Postgres did not
+  restart). Measured on 20 queries against an exact scan of 54,219 chunks:
+  recall@40 was 0.9875 (worst 0.925) on the new index against 0.990 (worst
+  0.950) on the old one, and mean latency 161 ms against 224 ms (exact scan
+  782 ms). `20260929120100_match_documents_halfvec` then moved the unscoped
+  branch of `match_documents` onto it and dropped the 404 MB index. After
+  `analyze`, a live call as `service_role` returned 40 rows unscoped (143 ms)
+  and 40 scoped (3 ms), each with the self-match at similarity 1.0.
 

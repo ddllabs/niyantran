@@ -3,7 +3,7 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
 > Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. On 2026-09-28 the repository had 31 migrations.
-> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 33 migrations (the 33rd, `20260929110000_email_unique`, adds only an index). NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
+> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 35 migrations: `20260929110000_email_unique` adds a unique index, and `20260929120000`/`20260929120100` (F22) move the unscoped branch of `match_documents` onto a half-precision HNSW index, leaving its signature, grants and scoped branch unchanged. NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
 
 ---
 

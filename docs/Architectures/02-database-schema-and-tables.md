@@ -1,7 +1,7 @@
 # Database Architecture: Schema, Tables, Indexes, and RLS Security Matrix
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 33 migrations in `supabase/migrations/` (`20260921000001` through `20260929110000_email_unique`, which makes `user_profiles.email_normalised` unique), plus `backend/sql/auth_schema.sql`.
+> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 35 migrations in `supabase/migrations/` (`20260921000001` through `20260929120100_match_documents_halfvec`; the last three make `user_profiles.email_normalised` unique and move vector search to a half-precision index), plus `backend/sql/auth_schema.sql`.
 > Corrected 2026-09-28: the seven tables added that day (Group E), the RLS matrix for them, and the `user_profiles`, `conversations`, `chat_messages`, `ai_models`, `ai_roles` and `model_call_logs` entries, which described columns that do not exist.
 > Corrected 2026-09-29: migration `20260929100000_plan_entitlements` added the `user_profiles` plan columns and the `plan_grants` table (#17).
 
@@ -401,7 +401,7 @@ flowchart TD
         D1["document_chunks (54,219 rows)"]
         D1 -->|B-Tree| IDX_ORDER["document_chunks_document_order<br/>(document_id, chunk_index)"]
         D1 -->|B-Tree Unique| IDX_HASH["document_chunks_document_hash<br/>(document_id, chunk_hash)"]
-        D1 -->|pgvector HNSW Cosine| IDX_VEC["document_chunks_embedding_hnsw<br/>m=16, ef_construction=64, metric <=><br/>Size: 380 MB"]
+        D1 -->|pgvector HNSW Cosine, halfvec| IDX_VEC["document_chunks_embedding_halfvec_hnsw<br/>(embedding::halfvec(1536)), m=16, ef_construction=64<br/>Size: 204 MB"]
     end
 
     subgraph Desk Row Indexes
@@ -413,11 +413,14 @@ flowchart TD
     end
 ```
 
-### 3.1 Vector Index: HNSW Cosine (`document_chunks_embedding_hnsw`)
+### 3.1 Vector Index: HNSW Cosine on half precision (`document_chunks_embedding_halfvec_hnsw`)
+*(Corrected 2026-09-29, open-work F22: migrations `20260929120000` and `20260929120100` replaced the full-precision index below with a half-precision expression index. The stored embeddings stay `vector(1536)`; only the index and the unscoped ordering use `halfvec`. Measured on 20 queries against an exact scan: recall@40 0.9875 against 0.990 before, 161 ms against 224 ms, 204 MB against 404 MB. The historical text below describes the index as it was on 2026-09-22.)*
 ```sql
-CREATE INDEX document_chunks_embedding_hnsw ON public.document_chunks 
-USING hnsw (embedding vector_cosine_ops) 
-WITH (m = 16, ef_construction = 64);
+CREATE INDEX document_chunks_embedding_halfvec_hnsw ON public.document_chunks
+USING hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops);
+-- replaced (dropped 2026-09-29):
+-- CREATE INDEX document_chunks_embedding_hnsw ON public.document_chunks
+-- USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 ```
 - **Operational Footprint:** 380 MB index for 54,219 chunks.
 - **Memory Pressure:** On Supabase Nano tier (`shared_buffers = 224 MB`), the vector index exceeds available memory. *(Corrected 2026-09-29: the 380 MB and Nano figures are from 2026-09-22. The owner moved NTER to a 2 GB instance on 2026-09-28; `docs/plans/open-work.md` records `shared_buffers` at 512 MB and the index at 404 MB. A half-precision index is open-work F22.)*

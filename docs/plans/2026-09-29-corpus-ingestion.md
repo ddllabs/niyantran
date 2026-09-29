@@ -4,7 +4,7 @@
 > ingesting the owner's corpus snapshot, and it replaces
 > `plans/2026-09-22-corpus-expansion.md`, which stays as the measured record.
 > Tracked in `plans/open-work.md` as L1 and L2, with prerequisites F12, F22
-> and F23 (F12 is done). **It runs in a Claude Code session on the owner's laptop**,
+> and F23 (F12 and F22 are done). **It runs in a Claude Code session on the owner's laptop**,
 > because the corpus is only there.
 
 ## Current state (2026-09-29)
@@ -12,7 +12,7 @@
 - **Supabase NTER:**
   - 2,338 documents, all chunked; 54,219 chunks; 34,184 desk rows;
   - the last document was added on 2026-09-22;
-  - database 1,085 MB; HNSW index `document_chunks_embedding_hnsw` 404 MB;
+  - database 1,085 MB before F22; the search index is now `document_chunks_embedding_halfvec_hnsw`, 204 MB (it replaced the 404 MB full-precision index on 2026-09-29);
   - `shared_buffers` 512 MB (the 2 GB compute; it was 224 MB).
 - **The corpus snapshot:** `~/Downloads/NTER-Complete-Processed-Data`,
   about 10 GB. It isn't in any cloud container.
@@ -51,12 +51,12 @@ took the database down for 2 min 38 s.
 
 | Phase | New chunks | HNSW at full precision | With F22 (`halfvec`), approx. |
 |---|---|---|---|
-| Today | – | 404 MB | ~200 MB |
+| Today | – | 404 MB (dropped) | **204 MB (measured)** |
 | A: 2,104 recent keyed bills | ~74,600 | ~1.0 GB | ~0.5 GB |
 | B: + 3,114 keyed bills | ~110,000 | ~1.9 GB | ~1.0 GB |
 | C: + parl questions and regulatory | ~150,000 | ~3.1 GB | ~1.6 GB |
 
-- **F22** (a half-precision expression index, done from the cloud) brings
+- **F22** (the half-precision expression index, live since 2026-09-29) brings
   phase A within 512 MB.
 - **Phases B and C** need more compute, or acceptance that unscoped search
   will be slower. Scoped (attached-document) search doesn't use HNSW at
@@ -69,7 +69,9 @@ took the database down for 2 min 38 s.
 1. **F12. Done 2026-09-29** (`d1567d1`; `ingest-documents` v12 runs it).
    The chunker no longer treats stray OCR pipes as tables, and the chunker
    version is 2.
-2. **F22.** The half-precision index, measured and live.
+2. **F22. Done 2026-09-29.** The half-precision index is live and measured:
+   204 MB; recall@40 0.9875 against 0.990 for the old index; 161 ms against
+   224 ms.
 3. **F23. Build the `pdf_text` ingest path** in `scripts/`:
    - It streams `documents.jsonl.gz` line by line, never loading it whole.
    - It selects `extraction: pdf_text` plus `--doc-type`, with `--from-year`
@@ -119,7 +121,7 @@ After each step, in the SQL editor or through the Supabase tools:
 select count(*) from public.documents;                           -- rises by the batch
 select count(*) from public.documents d
  where not exists (select 1 from public.document_chunks c where c.document_id = d.id); -- 0
-select pg_size_pretty(pg_relation_size('public.document_chunks_embedding_hnsw'));
+select pg_size_pretty(pg_relation_size('public.document_chunks_embedding_halfvec_hnsw'));
 analyze public.document_chunks; analyze public.documents;       -- after every bulk load (AGENTS.md)
 ```
 

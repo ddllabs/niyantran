@@ -98,7 +98,9 @@ IF v_docs > 0 THEN
      ORDER BY s.dist ASC
      LIMIT v_limit;
 ELSE
-  -- BROAD BRANCH: Standard global HNSW cosine scan
+  -- BROAD BRANCH: global HNSW cosine scan. Since 2026-09-29 (F22) it orders by
+  -- (c.embedding::halfvec(1536)) <=> (query_embedding::halfvec(1536)) on the
+  -- half-precision index; the similarity returned stays full precision.
   ...
 ```
 
