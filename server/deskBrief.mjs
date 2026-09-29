@@ -1,14 +1,13 @@
 /**
  * Desk entry brief — organise ONE selected table row (not the whole desk).
- * Cached in SQLite (primary) + disk (secondary); regenerates only when the
- * row fingerprint changes or force=true. Generation happens in the Supabase
+ * Cached in memory and on disk; regenerates only when the row fingerprint
+ * changes or force=true. Generation happens in the Supabase
  * `desk-brief` Edge Function; this module forwards the caller's bearer to it
  * and never holds a model-provider key (ADR 0008).
  */
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { getEntryBrief, upsertEntryBrief } from './db.mjs';
 import { loadEnv } from './loadEnv.mjs';
 import { writablePath } from './writableRoot.mjs';
 
@@ -727,49 +726,16 @@ export async function runDeskBrief(input = {}) {
   const envelope = { hash, generatedAt: brief.generatedAt, model: brief.model || '', brief };
   writeCache(file, envelope);
   memCache.set(memKey(scope, tier, feature, hash), { ...brief, cached: true, hash });
-  try {
-    await upsertEntryBrief({
-      scope,
-      tier,
-      feature,
-      hash,
-      brief,
-      model: brief.model || '',
-      generatedAt: brief.generatedAt,
-    });
-  } catch {
-    /* DB write failure must not block the response — file + mem still hold it */
-  }
   return brief;
 }
 
-/**
- * Lookup order: memory → SQLite → disk file.
- * Disk hits are back-filled into SQLite so the next cold start still skips Gemini.
- */
+/** Lookup order: memory → disk file. */
 export async function getCachedDeskBrief(feature, tier, hash, scope = 'entry') {
   if (!feature || !hash) return null;
   const sc = scope === 'substance' ? 'substance' : 'entry';
   const mk = memKey(sc, tier, feature, hash);
   if (memCache.has(mk)) {
     return { ...memCache.get(mk), cached: true, hash };
-  }
-
-  try {
-    const fromDb = await getEntryBrief(sc, tier, feature, hash);
-    if (fromDb?.brief) {
-      const out = {
-        ...fromDb.brief,
-        cached: true,
-        hash,
-        generatedAt: fromDb.generatedAt || fromDb.brief.generatedAt,
-        model: fromDb.model || fromDb.brief.model || '',
-      };
-      memCache.set(mk, out);
-      return out;
-    }
-  } catch {
-    /* sql.js unavailable — fall through to file */
   }
 
   const hit = readCache(cachePath(tier, feature, hash, sc));
@@ -782,18 +748,5 @@ export async function getCachedDeskBrief(feature, tier, hash, scope = 'entry') {
     model: hit.model || hit.brief.model || '',
   };
   memCache.set(mk, out);
-  try {
-    await upsertEntryBrief({
-      scope: sc,
-      tier,
-      feature,
-      hash,
-      brief: hit.brief,
-      model: out.model,
-      generatedAt: out.generatedAt,
-    });
-  } catch {
-    /* backfill best-effort */
-  }
   return out;
 }

@@ -2,13 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 
-vi.mock('../../server/db.mjs', () => ({
-  getDb: vi.fn(async () => ({})),
-  queryAll: vi.fn(() => [{ id: 'local', email: 'local@example.test', password: 'fixture-secret' }]),
-  run: vi.fn(),
-}));
 import { createClient } from '@supabase/supabase-js';
-import { getDb, queryAll, run } from '../../server/db.mjs';
 import { handleUsersApi, localClientForToken } from '../../server/usersApi.mjs';
 import { handleUserPrefsApi } from '../../server/userPrefsApi.mjs';
 
@@ -105,11 +99,9 @@ function profileDirectory() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  run.mockReset();
   prefRows = new Map();
   prefCalls = [];
   prefFailure = null;
-  queryAll.mockReturnValue([{ id: 'local', email: 'local@example.test', password: 'fixture-secret' }]);
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
@@ -120,7 +112,6 @@ describe('local route authorization', () => {
   ])('rejects unauthenticated reads before storage', async (handler, url) => {
     const response = await invoke(handler, request('GET', url, undefined, null));
     expect(response.status).toBe(401);
-    expect(getDb).not.toHaveBeenCalled();
   });
 
   it('never exports a password to even a verified admin', async () => {
@@ -135,7 +126,6 @@ describe('local route authorization', () => {
     const { deps } = setup({ role: 'user', admin: false });
     const response = await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=victim@example.test'), deps);
     expect(response.status).toBe(403);
-    expect(getDb).not.toHaveBeenCalled();
   });
 });
 
@@ -152,7 +142,6 @@ describe.each(routes)('%s %s %s', (handler, method, url, body) => {
     const response = await invoke(handler, request(method, url, body, header), deps);
     expect(response.status).toBe(401);
     expect(deps.clientForToken).not.toHaveBeenCalled();
-    expect(getDb).not.toHaveBeenCalled();
     expect(deps.adminClient).not.toHaveBeenCalled();
   });
   it.each(['expired', 'missing-user', 'missing-email', 'throws', 'profile-error', 'wrong-profile', 'suspended', 'missing-profile'])('fails closed for %s', async (condition) => {
@@ -169,7 +158,6 @@ describe.each(routes)('%s %s %s', (handler, method, url, body) => {
     const response = await invoke(handler, request(method, url, body), deps);
     expect(response.status).toBe(expected);
     expect(JSON.stringify(response.body)).not.toContain('private-provider-detail');
-    expect(getDb).not.toHaveBeenCalled();
     expect(deps.adminClient).not.toHaveBeenCalled();
   });
 });
@@ -212,7 +200,6 @@ describe('internal admin authority and safe export', () => {
     expect((await invoke(handleUsersApi, request('PUT', '/api/users', payload), deps)).status).toBe(405);
     expect(deps.adminClient).not.toHaveBeenCalled();
     expect(directory.writes).toEqual([]);
-    expect(run).not.toHaveBeenCalled();
   });
   // There are no stored passwords to preserve any more; no route accepts one.
   it('accepts no password through the narrow admin edit', async () => {
@@ -220,7 +207,6 @@ describe('internal admin authority and safe export', () => {
     const response = await invoke(handleUsersApi, request('PATCH', `/api/users/${TARGET_ID}`, { active: true, password: 'fixture-secret' }), deps);
     expect(response.status).toBe(400);
     expect(directory.writes).toEqual([]);
-    expect(run).not.toHaveBeenCalled();
   });
   it('does not expose storage errors', async () => {
     const { deps, directory } = setup();
@@ -255,14 +241,11 @@ describe('preferences identity', () => {
     const response = await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', { email: 'victim@example.test', tours: {} }), deps);
     expect(response.status).toBe(403);
     expect(client.from).not.toHaveBeenCalled();
-    expect(getDb).not.toHaveBeenCalled();
-    expect(run).not.toHaveBeenCalled();
   });
   it('rejects conflicting duplicate email query parameters', async () => {
     const { client, deps } = setup();
     expect((await invoke(handleUserPrefsApi, request('GET', '/api/user-prefs?email=caller@example.test&email=victim@example.test'), deps)).status).toBe(403);
     expect(client.from).not.toHaveBeenCalled();
-    expect(getDb).not.toHaveBeenCalled();
   });
   it('returns empty own preferences without writing when no row exists', async () => {
     const { deps } = setup();
@@ -275,7 +258,6 @@ describe('preferences identity', () => {
     const { client, deps } = setup();
     expect((await invoke(handleUserPrefsApi, request('PUT', '/api/user-prefs', null), deps)).status).toBe(400);
     expect(client.from).not.toHaveBeenCalled();
-    expect(getDb).not.toHaveBeenCalled();
   });
   it('does not expose preference storage errors', async () => {
     const { deps } = setup();
@@ -376,7 +358,6 @@ describe('request-scoped Supabase transport', () => {
     const response = await invoke(handleUsersApi, request('GET', '/api/users'));
     expect(response.status).toBe(503);
     expect(createClient).not.toHaveBeenCalled();
-    expect(getDb).not.toHaveBeenCalled();
   });
   it('default handler factory executes provider identity verification', async () => {
     config();

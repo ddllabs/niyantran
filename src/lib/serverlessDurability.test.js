@@ -22,10 +22,7 @@ const CACHE_KEYS = new Set(['desk-briefs', 'stat1.xlsx', 'stat1.json', 'home-sna
 // Offences that exist today, each removed by the task that moves its store to
 // Supabase. The list may only shrink: a new offence fails, and so does an
 // entry whose offence is gone.
-const KNOWN_OFFENDERS = {
-  'server/deskBrief.mjs imports server/db.mjs': 'C1 entry_briefs cache tier on SQLite (T7)',
-  "server/db.mjs writes writablePath('niyantran.sqlite')": 'the SQLite file itself (T7)',
-};
+const KNOWN_OFFENDERS = {};
 
 const SPECIFIER = /\b(?:from|import|require)\s*\(?\s*['"]([^'"\n]+)['"]/g;
 const WRITABLE_CALL = /\b(writablePath|writableRoot)\s*\(([^)]*)\)/g;
@@ -213,7 +210,7 @@ describe('serverless durability of the Vercel functions', () => {
 
   it('walks the handlers the router serves', () => {
     expect(entries).toContain('api/router.js');
-    for (const file of [DB_MODULE, WRITABLE_ROOT_MODULE, 'server/userPrefsApi.mjs', 'server/deskBrief.mjs']) {
+    for (const file of [WRITABLE_ROOT_MODULE, 'server/userPrefsApi.mjs', 'server/deskBrief.mjs']) {
       expect(result.reached.has(file), file).toBe(true);
     }
     expect(result.unresolved).toEqual([]);

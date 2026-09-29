@@ -1,18 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The handler must never reach SQLite: on a serverless host that file lives in
-// a per-instance /tmp directory and is lost on cold starts (ADR 0005).
-vi.mock('../../server/db.mjs', () => ({
-  getDb: vi.fn(async () => {
-    throw new Error('analytics must not use SQLite');
-  }),
-  queryAll: vi.fn(() => {
-    throw new Error('analytics must not use SQLite');
-  }),
-  run: vi.fn(() => {
-    throw new Error('analytics must not use SQLite');
-  }),
-}));
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => {
     throw new Error('tests must inject their clients');

@@ -28,7 +28,7 @@ import { handleAssetsRequest } from '../server/assetsApi.mjs';
 
 export const config = {
   maxDuration: 60,
-  includeFiles: ['{src/data/**,public/data/**,node_modules/sql.js/dist/**}'],
+  includeFiles: ['{src/data/**,public/data/**}'],
 };
 
 function routePath(req) {

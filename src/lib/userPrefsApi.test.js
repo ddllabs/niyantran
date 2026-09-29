@@ -2,15 +2,8 @@ import fs from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
-// The handler must never reach SQLite (ADR 0005: nothing durable under /tmp).
-vi.mock('../../server/db.mjs', () => ({
-  getDb: vi.fn(async () => { throw new Error('SQLite must not be used for preferences'); }),
-  queryAll: vi.fn(() => { throw new Error('SQLite must not be used for preferences'); }),
-  run: vi.fn(() => { throw new Error('SQLite must not be used for preferences'); }),
-}));
 
 import { createClient } from '@supabase/supabase-js';
-import { getDb } from '../../server/db.mjs';
 import { handleUserPrefsApi } from '../../server/userPrefsApi.mjs';
 
 const TABLE = 'user_preferences';
@@ -126,7 +119,6 @@ describe('user preferences on Supabase', () => {
     expect(response.status).toBe(401);
     expect(db.clientForToken).not.toHaveBeenCalled();
     expect(db.calls).toEqual([]);
-    expect(getDb).not.toHaveBeenCalled();
   });
 
   it('returns the empty default shape when the caller has no row', async () => {
@@ -140,7 +132,6 @@ describe('user preferences on Supabase', () => {
       engine: 'supabase',
     });
     expect(db.rows.size).toBe(0);
-    expect(getDb).not.toHaveBeenCalled();
   });
 
   it('builds the data client from the caller token and scopes the query to the caller', async () => {

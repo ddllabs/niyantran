@@ -5,19 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const supabaseJs = vi.hoisted(() => ({ client: null }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn(() => supabaseJs.client) }));
-// SQLite must never be reached; a call would fail the assertions below.
-vi.mock('../../server/db.mjs', () => ({
-  getDb: vi.fn(async () => { throw new Error('SQLite must not be used'); }),
-  queryAll: vi.fn(() => []),
-  run: vi.fn(),
-}));
 const adminHolder = vi.hoisted(() => ({ client: null }));
 vi.mock('../../server/authEmailProvider.mjs', async (importOriginal) => ({
   ...(await importOriginal()),
   getSupabaseAdminClient: vi.fn(() => adminHolder.client),
 }));
 
-import { getDb } from '../../server/db.mjs';
 import { handleUsersApi } from '../../server/usersApi.mjs';
 import routerHandler from '../../api/router.js';
 
@@ -148,7 +141,6 @@ describe('GET /api/users', () => {
     expect(raw).not.toContain('password');
     expect(raw).not.toContain('must-not-leak');
     expect(raw).not.toContain('+91-private');
-    expect(getDb).not.toHaveBeenCalled();
   });
 
   it('requires an internal admin before touching the directory', async () => {

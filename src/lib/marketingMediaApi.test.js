@@ -4,11 +4,6 @@
 // testing-phase flag was retired on 2026-09-28.)
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../server/db.mjs', () => ({
-  getDb: vi.fn(async () => { throw new Error('SQLite must not be used'); }),
-  queryAll: vi.fn(() => []),
-  run: vi.fn(),
-}));
 vi.mock('../../server/authEmailProvider.mjs', () => ({
   getSupabaseAdminClient: vi.fn(() => { throw new Error('tests inject adminClient'); }),
 }));

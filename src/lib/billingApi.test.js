@@ -3,10 +3,6 @@
 // identity comes from that bearer, and verify checks the Razorpay order.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../server/db.mjs', () => {
-  const refuse = () => { throw new Error('billing must not use SQLite'); };
-  return { getDb: vi.fn(refuse), queryAll: vi.fn(refuse), run: vi.fn(refuse) };
-});
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => { throw new Error('tests must inject their clients'); }),
 }));

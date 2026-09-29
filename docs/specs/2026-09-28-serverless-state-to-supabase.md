@@ -1,6 +1,8 @@
 # Spec: move serverless state from `/tmp` to Supabase
 
-> **Status: Living.** Proposed 2026-09-28 and approved by the owner phase by
+> **Status: Historical (2026-09-29).** Closed by T7 (open-work C3): the SQLite
+> tier, `server/db.mjs` and `sql.js` are gone, and `KNOWN_OFFENDERS` is empty.
+> Was: Proposed 2026-09-28 and approved by the owner phase by
 > phase the same day (see "Decisions for the owner"). Billing, analytics,
 > user data and deployment config are sensitive scopes (AGENTS.md), so each
 > phase needed the owner's explicit go-ahead before it was

@@ -5,11 +5,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../server/db.mjs', async (importOriginal) => ({
-  ...(await importOriginal()),
-  getEntryBrief: vi.fn(async () => null),
-  upsertEntryBrief: vi.fn(async () => {}),
-}));
 
 import handler from '../../api/router.js';
 

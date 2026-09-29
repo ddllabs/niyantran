@@ -1,6 +1,8 @@
 # Spec: T0, the serverless durability guard
 
-> **Status: Living.** Task spec for T0 of
+> **Status: Historical (2026-09-29).** Closed by T7 (open-work C3): the SQLite
+> tier, `server/db.mjs` and `sql.js` are gone, and `KNOWN_OFFENDERS` is empty.
+> Was: Task spec for T0 of
 > `docs/plans/2026-09-28-serverless-state-to-supabase.md`. The owner
 > authorised the start on 2026-09-28. Mark it Historical when T7 closes the
 > plan. (State on 2026-09-29: the guard landed in `d55da42`; two offenders
