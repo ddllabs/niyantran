@@ -6,6 +6,7 @@
 > **Status:** Historical (dated 2026-09-21) — executed, verified and merged
 > to `main` locally the same day. Kept as the record of what was built.
 > One owner input remains open and is listed under "Integration record".
+> Superseded 2026-09-29: the spec's "Still open" questions are settled (plan enum mapped in `f74c8c1`; default model `google/gemini-3.8-flash` in `ai_models`; an admin account exists); the owner input (Resend, `site_url`, autoconfirm) is D2 and the unique email index F10 in `plans/open-work.md`.
 
 **Goal:** After this plan, the Supabase project `NTER` carries the complete
 AI schema under RLS with the `vector` extension, three deployed edge

@@ -48,6 +48,12 @@ Use the installed Addy Osmani agent-skills suite through
   publish data, or operate on production without the user's exact prior
   authorization.
 
+## Where open work is tracked
+
+`docs/plans/open-work.md` is the only list of open work. Start there, and
+record every new open item there, never only in a plan, spec or ADR. Move
+an item to its Done section, with the commit hash, when it lands.
+
 ## How work proceeds
 
 - Non-trivial work starts with a short spec covering current state, problem,
@@ -89,6 +95,10 @@ The verified repository baseline on 2026-09-20 is:
 npm ci
 npm run build
 ```
+
+CI also imports the Vercel router, so run it for any change under `api/`
+or `server/`:
+`node -e "import('./api/router.js').then(() => console.log('router import ok'))"`.
 
 The repository now defines `npm test` (Vitest). Edge Function tests run with
 `deno test -A --config supabase/functions/deno.json supabase/functions`.

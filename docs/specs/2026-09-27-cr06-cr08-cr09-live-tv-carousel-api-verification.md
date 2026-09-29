@@ -113,3 +113,25 @@
 2. **Live Telemetry & Broadcasting Permissions:**
    - Live stream playback relies on YouTube embedding permissions. Channels that restrict third-party iframe embedding trigger the offline fallback overlay.
    - Live viewer counts report unmetered status when external broadcast telemetry APIs are unconfigured; no fabricated metrics are generated.
+
+---
+
+## Amendment (2026-09-29)
+
+Checked against the code on 2026-09-29. The text above is kept as written;
+where it disagrees with the following, this amendment is correct.
+
+- **The code contradicts "strictly no fabricated transcripts" (§1.1 item 4).**
+  `server/liveTvApi.mjs` serves hand-written content as if it were a record:
+  - `BROADCAST_TRANSCRIPTS` holds hand-written cues labelled
+    `'Official Parliamentary Broadcast / ASR Verified Record'`;
+  - `CHANNEL_ARCHIVES` lists invented archive entries;
+  - `getLiveTvSchedule()` returns made-up placeholder programmes for any
+    channel without an entry in `CHANNEL_SCHEDULES`.
+
+  This is F7 in `docs/plans/open-work.md`, parked until the owner shares the
+  new Live TV sources (O7).
+- **The carousel's "authoritative live counts" are literals (§1.2).**
+  `serveHomeSegments()` in `server/homeApi.mjs` returns fixed numbers (for
+  example `liveCount: 9819` and `liveCount: 543`); nothing computes them
+  from the data they describe. This is F18 in `docs/plans/open-work.md`.

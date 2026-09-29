@@ -2,8 +2,7 @@
 
 **Date:** 2026-09-22
 **Status:** Historical (2026-09-28). R1–R4 were executed on 2026-09-22 (see the execution record) and R5 in `cff88fa`.
-> By 2026-09-28 C4 was done and E1 was partly done (email delivery remains under D2). E2 phase 3 and the two
-> live-turn checks at the end are tracked as D3 in `docs/plans/2026-09-28-remaining-work.md`.
+> Open remainders are tracked in `plans/open-work.md` (ids D3).
 **Source turn:** conversation `a80e9696-8f64-41b6-9f02-627b0086cec7`, assistant
 message at 2026-09-21 18:40:51Z, `status = complete`, 2,342 characters,
 $0.004547 across 18,256 tokens.

@@ -3,6 +3,7 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/functions/` (`research-chat/`, `ingest-documents/`, `refresh-model-pricing/`, `admin-models/`, `health/`, `desk-brief/`), `_shared/` library, `deno.json`, and database migrations `20260921115831` through `20260922104646`.
 > Corrected 2026-09-28: six functions (the `desk-brief` row and §9 added), deployed versions, the repair model (read from `AI_REPAIR_MODEL`), and the test counts.
+> Corrected 2026-09-29: the exact-match CORS limit (open-work F8), the legacy key fallback (F9) and the deploy drift that F9 redeploys.
 
 ---
 
@@ -20,6 +21,10 @@ The server-side backend of Niyantran Terminal runs as a distributed suite of ser
 | **`desk-brief`** | `desk-brief/index.ts` | Browser desk rail, or the Vercel router forwarding the caller's bearer (HTTP POST) | `requireUser` (Supabase User JWT) | Organises one selected desk row into a JSON brief through OpenRouter; one `model_call_logs` row per attempt. | `MAX_BODY_BYTES = 131_072`<br/>`PROVIDER_TIMEOUT_MS = 50_000`<br/>503 when no model is enabled |
 
 **Deployed versions on 2026-09-28** (`docs/agents/coordination.md`, "Operations — 2026-09-28"): `health` v7, `admin-models` v7, `refresh-model-pricing` v8, `ingest-documents` v10, `desk-brief` v2 and `research-chat` v32. `research-chat` v32 was deployed through a one-file entry that imports `createResearchHandler` from a pinned commit and calls `Deno.serve` itself, so the dashboard does not show the repository files. The emergency deploy form, its checks and the rollback steps are in [`../agents/rollback-runbook.md`](../agents/rollback-runbook.md). There is no `embed` function: embedding is the shared module `_shared/embed.ts`.
+
+The deployed code is not all `main` (as recorded in `docs/plans/open-work.md` on 2026-09-29): `ingest-documents` v10 was built from `a030847` and does not have the later `_shared/chunking.ts`, and `research-chat` still runs from the pinned-commit entry. Redeploying all six functions from one `main` commit is open-work F9 (with owner action A1 covering a CLI redeploy of `research-chat`).
+
+**CORS (open-work F8).** On `main` at `71292af`, and in every deployed function, `_shared/cors.ts` allows an origin only when it exactly equals one entry of the comma-separated `ALLOWED_ORIGINS` secret (without the secret, only `http://localhost:5173`). There are no wildcards, and every Vercel preview has its own hostname, so every function uses the same check and the browser-facing ones (`research-chat`, `desk-brief`, and `admin-models` from the admin panel) refuse calls from every preview. A probe on 2026-09-29 confirmed it: production and `http://localhost:5173` got an `access-control-allow-origin` header, while the `git-main` preview URL, a deployment URL and `localhost:5301` got none.
 
 ---
 
@@ -82,7 +87,7 @@ Edge functions run under Deno v1.x via Supabase Edge Runtime. The project mainta
 ```
 
 ### 3.2 Secret Management & Key Rotation Architecture (`_shared/supabase.ts`)
-On 2026-09-21, Niyantran Terminal deprecated legacy environment variables (`SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`) after an audit identified exposure risks. The architecture migrated to JSON-object key rings injected by the Supabase platform. *(Corrected 2026-09-24: "deprecated" does not mean removed. `publishableKey()` and `secretKey()` in `_shared/supabase.ts` still fall back to `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` when the key-ring variables are absent. The project's legacy keys themselves were disabled on 2026-09-21.)*
+On 2026-09-21, Niyantran Terminal deprecated legacy environment variables (`SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`) after an audit identified exposure risks. The architecture migrated to JSON-object key rings injected by the Supabase platform. *(Corrected 2026-09-24: "deprecated" does not mean removed. `publishableKey()` and `secretKey()` in `_shared/supabase.ts` still fall back to `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` when the key-ring variables are absent. The project's legacy keys themselves were disabled on 2026-09-21.)* *(Corrected 2026-09-29: on `main` at `71292af` the fallback is still in `_shared/supabase.ts`, and the thrown messages now name both variables, as the code below shows. Removing the fallback is open-work F9.)*
 
 ```typescript
 export function namedKey(raw: string | undefined, name = 'default'): string | null {
@@ -98,13 +103,13 @@ export function namedKey(raw: string | undefined, name = 'default'): string | nu
 
 export function publishableKey(): string {
   const k = namedKey(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')) ?? Deno.env.get('SUPABASE_ANON_KEY');
-  if (!k) throw new Error('no publishable key: SUPABASE_PUBLISHABLE_KEYS is not set');
+  if (!k) throw new Error('no publishable key: SUPABASE_PUBLISHABLE_KEYS (or SUPABASE_ANON_KEY) is not set');
   return k;
 }
 
 export function secretKey(): string {
   const k = namedKey(Deno.env.get('SUPABASE_SECRET_KEYS')) ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!k) throw new Error('no secret key: SUPABASE_SECRET_KEYS is not set');
+  if (!k) throw new Error('no secret key: SUPABASE_SECRET_KEYS (or SUPABASE_SERVICE_ROLE_KEY) is not set');
   return k;
 }
 ```
@@ -428,7 +433,7 @@ The `_shared/` directory contains cross-cutting utilities shared across edge fun
 | Module | Core Exports | Architectural Role |
 | :--- | :--- | :--- |
 | **`auth.ts`** | `requireUser()`, `Caller` | Structural Bearer verification, JWT subject extraction, auth error translation. |
-| **`cors.ts`** | `corsHeaders()`, `preflight()`, `allowedOrigins()` | Dynamic origin allowlist verification; handles HTTP OPTIONS preflights with 24h max-age. |
+| **`cors.ts`** | `corsHeaders()`, `preflight()`, `allowedOrigins()` | Exact-match origin allowlist from `ALLOWED_ORIGINS` (no patterns, so Vercel previews are refused; open-work F8); handles HTTP OPTIONS preflights with 24h max-age. |
 | **`supabase.ts`** | `userClient()`, `serviceClient()`, `publishableKey()`, `secretKey()` | Dual client resolution; multi-key JSON parsing; key-rotation safety. |
 | **`openrouterStream.ts`** | `streamChat()`, `StreamRequest`, `ModelEvent` | SSE chunk consumer for OpenRouter API, tool-call frame extraction, token usage accounting. |
 | **`embed.ts`** | `embedTexts()`, `EMBED_MODEL`, `EMBED_DIMS` | Generates 1536-dimensional embeddings with automatic retry and rate-limit backoff. |

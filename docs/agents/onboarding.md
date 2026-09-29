@@ -19,6 +19,7 @@ Before changing anything, read in full:
 1. `AGENTS.md`
 2. `docs/agents/coordination.md`
 3. The exact spec and implementation plan named in your dispatch
+4. Your task's entry in `docs/plans/open-work.md`, the one list of open work
 
 Use the installed Addy Osmani agent-skills suite through
 `using-agent-skills`. Select the relevant workflows, follow their verification

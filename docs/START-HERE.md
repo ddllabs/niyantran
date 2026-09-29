@@ -1,6 +1,8 @@
 # Start here: guide for engineers joining the upstream integration
 
-Status: **Living.** Written 2026-09-24; current-state section corrected 2026-09-28. Update it when a listed document changes status.
+Status: **Living.** Written 2026-09-24; current-state section corrected 2026-09-29. Update it when a listed document changes status.
+
+**Looking for what to do next? Open `plans/open-work.md`.** It is the one list of open work: agent tasks, local-session tasks, owner actions, parked items and accepted risks.
 
 ## Current state (2026-09-28)
 
@@ -12,8 +14,8 @@ The upstream merge described below **has landed**. Read this section first; the 
 4. `docs/` is tracked in git since 2026-09-27 (`f828ef5`). `docs/security/` stays local only.
 5. **Known gap (narrowed 2026-09-28):** accounts, preferences, analytics, flags, invoices and nter.news articles now live in Supabase. Only the SQLite `entry_briefs` cache tier in `server/deskBrief.mjs` remains (plan task C3, T7). The move is specified in `specs/2026-09-28-serverless-state-to-supabase.md`.
 6. The Supabase state as of 2026-09-28 (row counts, advisors) is recorded in `agents/coordination.md` under "Supabase audit — 2026-09-28"; its function table and migration count are superseded by "Operations — 2026-09-28" (31 migrations; six functions, including `desk-brief` v2). "Operations — 2026-09-29" records the 32nd, `plan_entitlements`.
-7. The open work is indexed in `niyantran-conflict-audit-and-plan/04-open-backlog.md`.
-8. The remaining work as of 2026-09-28 is planned in `plans/2026-09-28-remaining-work.md`. The same day's production changes (function versions, migrations, CI) are in `agents/coordination.md` under "Operations — 2026-09-28". The serverless move is done except T7 (the SQLite desk-brief cache tier).
+7. All open work is in `plans/open-work.md` (since 2026-09-29). It replaced `plans/2026-09-28-remaining-work.md` and `niyantran-conflict-audit-and-plan/04-open-backlog.md`, which are now Historical. Production changes by day (function versions, migrations, CI) are in `agents/coordination.md` under the "Operations" entries. The serverless move is done except T7 (open-work C3).
+8. Ingesting the large corpus from the owner's laptop: `plans/2026-09-29-corpus-ingestion.md` (open-work L1, L2).
 9. Rolling back Vercel or an Edge Function, and verifying any deploy: `agents/rollback-runbook.md`.
 
 ## The situation in five lines (2026-09-24, before the merge)
@@ -31,7 +33,7 @@ The upstream merge described below **has landed**. Read this section first; the 
 | 1 | `niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` | The binding decisions: Supabase is the record, OpenRouter only, Supabase Google sign-in, Vercel relink | First, 5 min |
 | 2 | `niyantran-conflict-audit-and-plan/02-merge-audit-reconciliation.md` | Your audit and Claude's, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
 | 3 | `niyantran-conflict-audit-and-plan/03-upstream-integration-plan.md` | **The work.** Phases 0–6, a resolution for every conflicted file, gates, the Vercel env inventory, the smoke list | The integrator, fully |
-| 4 | `niyantran-conflict-audit-and-plan/04-open-backlog.md` | Everything else still open, by theme, each with a pointer to its detail | After the integration |
+| 4 | `plans/open-work.md` | Everything still open, in one list (replaced the backlog on 2026-09-29) | After the integration |
 | 5 | `../AGENTS.md` and `agents/coordination.md` | Repository rules: authority, git, verification, safety | Before your first commit |
 
 ## Background: how the system is built
@@ -47,7 +49,7 @@ The upstream merge described below **has landed**. Read this section first; the 
 | `Architectures/06-stored-procedures-and-rpcs.md` | RPC catalogue and grants |
 | `decisions/0001`–`0004` | Edge Functions for AI, OpenRouter plus embeddings, the corpus/conversation model, chunk identity |
 
-The architecture docs were corrected on 2026-09-24 and again on 2026-09-28 against the code. Some small inaccuracies remain and are listed in the backlog. **When a doc and the code disagree, the code and migrations win**, and the doc gets fixed.
+The architecture docs were corrected on 2026-09-24 and again on 2026-09-28 against the code. Any inaccuracy found is fixed in place, or listed in `plans/open-work.md`. **When a doc and the code disagree, the code and migrations win**, and the doc gets fixed.
 
 ## History, for context only
 

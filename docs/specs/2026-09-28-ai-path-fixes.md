@@ -6,6 +6,7 @@
 > Superseded later that day: the legacy chat path it patched (`proxyResearchChat`,
 > `aiModelsStore.js`, `VITE_AI_BACKEND`, the persona probe's model picker) was
 > retired in `14b2344`, `/api/app-flags` in `9e7a125`, and `desk-brief` is now v2.
+> Open remainders are tracked in `plans/open-work.md` (ids D3). Of the three owner checks at the end, two were evidenced on 2026-09-28 (`c23efe1`: a desk brief logged at $0.000775, and citations [1]–[15] resolve); the admin persona chat is part of D3.
 
 ## Current state (evidence from 2026-09-28)
 

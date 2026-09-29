@@ -3,7 +3,7 @@
 > **Status: Normative.**
 > **Date:** 2026-09-28
 > **Deciders:** Niyantran Architecture & Intelligence Workbench Team
-> **Amended:** 2026-09-28 (section 4: search.list gap, categories, desks)
+> **Amended:** 2026-09-28 (section 4: search.list gap, categories, desks); 2026-09-29 (YouTube calls after F4, invented content)
 
 ---
 
@@ -107,3 +107,31 @@ changed; this amendment records where it differs from the text above.
   `POLITICS` and `ECONOMICS` are as listed.
 - **Linked desks.** The sources link to the desk ids `national`, `economics`,
   `global`, `legislative` and `media`, not the four named in section 2.1.
+
+---
+
+## Amendment (2026-09-29)
+
+Checked against `server/liveTvApi.mjs` on 2026-09-29. The original text and
+the 2026-09-28 amendment are kept; where they disagree with this section,
+this section is correct.
+
+- **YouTube calls.** Since F4 (`47fa681`, 2026-09-28) an uncached
+  `GET /api/livetv/videos` calls `playlistItems.list` on the channel's uploads
+  playlist, then one `videos.list` on the recent uploads plus the channel's
+  curated live video. `videos.list` supplies the live state and fills
+  `upcomingVideos`. Nothing calls `search.list`, so a refresh costs 2 quota
+  units (`src/lib/liveTvQuota.test.js`). If `videos.list` fails, the recent
+  uploads still show, without a live video.
+- **Superseded in the 2026-09-28 amendment:** the sentence "The code has not
+  changed" and the whole "Known gap: `search.list` is still called"
+  paragraph, including its pointer to `04-open-backlog.md`. The one list of
+  open work is now `docs/plans/open-work.md`.
+- **Invented content is still in the code.** `CHANNEL_ARCHIVES`,
+  `BROADCAST_TRANSCRIPTS` (hand-written cues labelled "Official Parliamentary
+  Broadcast / ASR Verified Record") and the placeholder schedules that
+  `getLiveTvSchedule()` returns for channels without one are not real
+  records, so section 2's "Authoritative Transcript Pane" is not yet true for
+  the archive entries.
+  It is F7 in `docs/plans/open-work.md`, parked until the owner shares the
+  new Live TV sources (O7).

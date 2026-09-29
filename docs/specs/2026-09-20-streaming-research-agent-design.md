@@ -9,6 +9,7 @@
 > `aiChatStore.js`, `sendAiChat`) was retired in `14b2344` and `f05a5b6`; desk
 > briefs now use the `desk-brief` Edge Function (`a311cda`); the admin persona
 > probe now calls `research-chat` with `persona_probe` (`src/lib/personaProbe.js`).
+> Open remainders are tracked in `plans/open-work.md` (ids D3, P4).
 
 **Origin:** Ask AI is one fetch that waits for one JSON reply
 (`docs/research/2026-09-20-ai-path-audit.md` §1). The owner wants what the

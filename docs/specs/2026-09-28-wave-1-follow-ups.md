@@ -3,6 +3,7 @@
 > **Status: Historical (2026-09-28).** Every item landed on 2026-09-28:
 > items 1–5 in `d43ec5d`, and item 6 in `483b3b2` once the owner chose the
 > design (hashed IP, 60 a minute).
+> Open remainders are tracked in `plans/open-work.md` (ids F17: the four excluded wave-1 notes below).
 
 ## Current state
 

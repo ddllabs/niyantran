@@ -1,9 +1,9 @@
 # Scoped retrieval — why attaching a bill does not scope the RAG, and what to change
 
 > **Status: Historical (2026-09-22).** Implemented by 406dd58 and migration
-> 20260922104646; D5 (ingest current bills) not done, carried by
-> docs/plans/2026-09-22-corpus-expansion.md. (Updated 2026-09-24; originally
+> 20260922104646; D5 (ingest current bills) not done. (Updated 2026-09-24; originally
 > "Status: proposed. 2026-09-22. No code changed while writing this.")
+> Open remainders are tracked in `plans/open-work.md` (ids L1 for D5, P6, P11).
 
 ## The complaint
 

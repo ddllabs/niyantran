@@ -3,9 +3,11 @@
 > **Status: Living.** Task spec for T0 of
 > `docs/plans/2026-09-28-serverless-state-to-supabase.md`. The owner
 > authorised the start on 2026-09-28. Mark it Historical when T7 closes the
-> plan. (State on 2026-09-28: the guard landed in `d55da42`; two offenders
+> plan. (State on 2026-09-29: the guard landed in `d55da42`; two offenders
 > remain, both for T7: `server/deskBrief.mjs` importing `server/db.mjs`, and
-> `server/db.mjs` writing `writablePath('niyantran.sqlite')`.)
+> `server/db.mjs` writing `writablePath('niyantran.sqlite')`. T7 is tracked
+> as C3 in `docs/plans/open-work.md`, including removing `sql.js` from
+> `vercel.json` and `package.json` and emptying `KNOWN_OFFENDERS`.)
 
 ## Objective
 

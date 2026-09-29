@@ -7,6 +7,7 @@
 plan executes). Module id `document-rag-and-citations`, follow-up cut.
 > **Status:** Historical (2026-09-21) — executed and verified; merged to
 > `main`. The verification record and the limitations below are the evidence.
+> Open remainders are tracked in `plans/open-work.md` (ids L1, P7).
 
 **Goal:** Every current OCR document of the Bill Passage Probability
 Index, Regulatory Body Watch, Parliamentary Question Database, Industry

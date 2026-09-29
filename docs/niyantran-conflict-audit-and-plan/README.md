@@ -1,8 +1,8 @@
 # Niyantran conflict audit and integration plan
 
-Status: **Living.** Written 2026-09-24 for the engineering team doing the upstream integration; corrected 2026-09-28.
+Status: **Living.** Written 2026-09-24 for the engineering team doing the upstream integration; corrected 2026-09-28 and 2026-09-29.
 
-> **Update 2026-09-28.** The merge this folder plans has landed: upstream `528dfb4` reached `main` through PR #2 (`8849c35`, 2026-09-26), and `origin/main` pointed at `ca73200` (corrected 2026-09-28: `dev` has since been retired; `main` is the only branch). The integration rules 1–3 below (fresh clone, upstream remote, freeze) no longer apply. Since `f828ef5` (2026-09-27) the whole of `docs/` is published, not only this folder; only `docs/security/` stays local. For the current state start at [../START-HERE.md](../START-HERE.md); the open work is in [04-open-backlog.md](04-open-backlog.md).
+> **Update 2026-09-29.** The integration this folder plans is finished: upstream `528dfb4` reached `main` through PR #2 (`8849c35`, 2026-09-26). `main` is the only long-lived branch and `origin` the only remote; for its latest commit see `git log`. The merged task branches `task/docs-pass` and `task/f2-server-entitlements` still exist on GitHub, pending deletion (owner action O3). None of the integration rules or roles below apply any more; they are kept as the record. Since `f828ef5` (2026-09-27) the whole of `docs/` is published, not only this folder; only `docs/security/` stays local. For the current state start at [../START-HERE.md](../START-HERE.md). **The one list of open work is [../plans/open-work.md](../plans/open-work.md).**
 
 - ~~This folder is the only part of `docs/` published to GitHub.~~ (Superseded 2026-09-27: all of `docs/` except `docs/security/` is published.)
 - The "full docs package" referred to below is now simply the rest of `docs/` in this repository.
@@ -22,7 +22,7 @@ Status: **Living.** Written 2026-09-24 for the engineering team doing the upstre
 | 1 | [01-decisions-adr-0005.md](01-decisions-adr-0005.md) | The binding decisions: Supabase is the record, OpenRouter only, Supabase Google sign-in, Vercel relink | First, 5 min |
 | 2 | [02-merge-audit-reconciliation.md](02-merge-audit-reconciliation.md) | The team audit and Claude's, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
 | 3 | [03-upstream-integration-plan.md](03-upstream-integration-plan.md) | **The work.** Phases 0–6, a resolution for every conflicted file, gates, the Vercel env inventory, the smoke list | The integrator, fully |
-| 4 | [04-open-backlog.md](04-open-backlog.md) | Everything else still open, by theme | After the integration |
+| 4 | [04-open-backlog.md](04-open-backlog.md) | Historical: the backlog as it stood after the integration. Open work is now in [../plans/open-work.md](../plans/open-work.md) | For history only |
 | 5 | [AGENTS.md](../../AGENTS.md) | Repository rules: authority, git, verification, safety | Before your first commit |
 
 References in these documents to other files (for example `supervisor-recovery`, `corpus-expansion`, `home-feeds-plan`, `Architectures/0N-*`) point into the full docs package.
@@ -30,6 +30,8 @@ References in these documents to other files (for example `supervisor-recovery`,
 **Security specifics are deliberately not published here.** The repository is public. Reproductions of the open security findings are in a private security note in the full docs package.
 
 ## Rules for the integration
+
+> Historical (2026-09-29): the integration is finished, so none of rules 1–7 binds new work. Rules 1–3 lapsed with the merge. The lasting parts of rules 4–7 (Supabase is the record, verification gates, no secrets, owner authorisation) are in [AGENTS.md](../../AGENTS.md) and ADR 0005, which govern instead.
 
 1. **Start from a fresh clone** of `https://github.com/ddllabs/niyantran.git`. Do not use the `PI Terminal` checkout: it is 113 commits behind, with its tree moved into `nter/`.
 2. Add upstream read-only: `git remote add upstream https://github.com/ItsCloudDev/niyantran.git && git fetch upstream`. Never push to it.
@@ -45,6 +47,8 @@ References in these documents to other files (for example `supervisor-recovery`,
    - `npm run test:sql`: only if you touch SQL. Needs Docker and never runs against the live project.
 
 ## Who does what
+
+> Historical (2026-09-29): these were the integration roles. Current roles are in [AGENTS.md](../../AGENTS.md) ("Authority") and [../agents/coordination.md](../agents/coordination.md); the owner's remaining actions are listed in [../plans/open-work.md](../plans/open-work.md) §3.
 
 - **Owner (DDL Labs):**
   - Phase 0: domain control of nter.pro, the new Vercel project, the Google OAuth client, Supabase Auth URLs, email provider.

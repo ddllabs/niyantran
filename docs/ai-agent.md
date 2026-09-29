@@ -37,7 +37,10 @@ Every coding agent working on this codebase must adhere to these eight non-negot
    **Mandatory Invariant:** Never ask for, add, expose, or copy `OPENROUTER_API_KEY` into the browser,
    repository `.env`, Vercel client configuration, or frontend code. The key exists **only in Supabase Secrets**
    (`Deno.env.get('OPENROUTER_API_KEY')`).
-   All production AI operations are executed via authenticated Supabase Edge Functions (`research-chat`, `desk-brief`, `embed.ts`).
+   All production AI operations are executed via Supabase Edge Functions: `research-chat` and `desk-brief`
+   (which verify the signed-in caller) and `ingest-documents` (secret-key callers only, for embeddings).
+   There is no `embed` function; embeddings go through the shared module `supabase/functions/_shared/embed.ts`.
+   *(Corrected 2026-09-29: this listed `embed.ts` as a function and omitted `ingest-documents`.)*
    The Node/Vite development server does not require a local `OPENROUTER_API_KEY`.
 
 
@@ -62,8 +65,8 @@ concrete evidence for the following gates:
 
 - [ ] `node -e "import('./api/router.js').then(()=>console.log('ok'))"` prints `ok`.
 - [ ] `/api/auth/*` is not served by `api/router.js` in production (93f31e6; the app signs in through Supabase Auth directly). `server/authApi.mjs` is mounted by the Vite dev server only; production keeps answering 404 for these routes (`src/lib/retiredRoutes.test.js`).
-- [ ] `/api/livetv/*` routes (channels, live, videos, schedule, archive, transcript) return valid backend contracts with real YouTube sources and privacy-enhanced embeds without fabricated data.
-- [ ] `/api/home/segments` exposes 8 canonical analytical segments with authoritative live counts.
+- [ ] `/api/livetv/*` routes (channels, live, videos, schedule, archive, transcript) return valid backend contracts with real YouTube sources and privacy-enhanced embeds without fabricated data. (On 2026-09-29 the code does not meet this: a hand-written transcript, an invented archive entry and placeholder programmes remain; open-work F7.)
+- [ ] `/api/home/segments` exposes 8 canonical analytical segments with authoritative live counts. (On 2026-09-29 the counts are literals in `server/homeApi.mjs`; open-work F18.)
 - [ ] `/api/home/latest` serves live NTER.news data; `NterLatestRail.jsx` replaces frozen Market Metrics in the primary position.
 - [ ] `NyAiThinking.jsx` renders accessible thinking state (`role="status"`, `aria-live="polite"`) during LLM generation and unmounts cleanly once streaming text arrives or on cancellation/error.
 - [ ] Desk Landing pages (`DeskLandingView.jsx`) replace text walls with live counters, module capability cards, and a real categorical chart derived from backend rows.

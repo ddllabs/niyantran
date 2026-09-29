@@ -1,6 +1,7 @@
 # Identity and internal administration
 
-> **Status: Living — local implementation authorized by owner on 2026-09-21; production actions remain separate.**
+> **Status: Historical (2026-09-29).** Implemented: migrations `0012` (profile authority), `0013` (conversation ownership) and `0015` (least privilege), T1 (preferences keyed to the signed-in caller) and T3 (local users store retired, `e2aad15`).
+> Superseded 2026-09-29: the open remainder, an organisation product (seats, provisioning, billing), is P2 in `plans/open-work.md`.
 > Module: `identity-boundaries`. Prepared 2026-09-21 from a read-only review.
 
 ## Objective and confirmed scope

@@ -4,6 +4,7 @@
 > reversed: production stopped serving `/api/auth/*` through `server/authApi.mjs`
 > (`93f31e6`, 2026-09-28; the Vite dev server still mounts it), and the `dev`
 > branch was retired on 2026-09-28 (`main` is the only branch).
+> Note 2026-09-29: the unticked checkboxes below were never updated; they are not open work, which is tracked only in `plans/open-work.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

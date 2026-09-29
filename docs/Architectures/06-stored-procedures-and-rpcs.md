@@ -3,7 +3,7 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
 > Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. On 2026-09-28 the repository had 31 migrations.
-> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 32 migrations.
+> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 32 migrations. NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
 
 ---
 
@@ -24,7 +24,7 @@ Niyantran Terminal executes all performance-critical, concurrency-sensitive, and
 | **`admin_models_upsert`** | `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Administrative upsert for `ai_models` and `ai_roles` after validating foreign keys and triggers. | `20260921000008` |
 | **`ai_health`** | `SECURITY INVOKER` | `authenticated`, `service_role` | `''` (Hardened) | End-to-end foundation probe: asserts `pgvector` presence, pricing rows, enabled models, and `auth.uid()`. | `20260921000006` |
 | **`is_platform_admin`** | `SECURITY DEFINER` (`LANGUAGE sql`, `STABLE`, no arguments) | `authenticated`, `service_role` | `''` (Hardened) | Returns true when a `user_profiles` row exists with `user_id = auth.uid()`, `role = 'admin'` and `status = 'active'`. *(Corrected 2026-09-24: previously listed as `SECURITY INVOKER` checking `role = 'platform_admin'`.)* | Defined in `backend/sql/auth_schema.sql`; no repo migration defines it. `20260921000012` only re-grants it and sets its search path. |
-| **`handle_new_user`** (trigger on `auth.users`) | `SECURITY DEFINER` | none (revoked from `PUBLIC`, `anon`, `authenticated`) | `''` (Hardened) | Creates the `user_profiles` row for a new account with fixed role, plan and status; since 2026-09-28 it also maps the signup `personaId` onto `persona`. | Defined in `backend/sql/auth_schema.sql`; replaced by `20260928120000_signup_persona` |
+| **`handle_new_user`** (trigger on `auth.users`) | `SECURITY DEFINER` | none (revoked from `PUBLIC`, `anon`, `authenticated`) | `''` (Hardened) | Creates the `user_profiles` row for a new account with a fixed role and status; since 2026-09-28 it also maps the signup `personaId` onto `persona`, and since 2026-09-29 it starts the 14-day signup trial when `raw_user_meta_data.plan` is pro or enterprise (otherwise the plan is explorer) and logs it in `plan_grants`. | Defined in `backend/sql/auth_schema.sql`; replaced by `20260928120000_signup_persona`, then by `20260929100000_plan_entitlements` |
 | **`touch_user_preferences`** (trigger) | `SECURITY INVOKER` | none (revoked from all API roles) | `''` (Hardened) | Stamps `user_preferences.updated_at` with the server clock. | `20260928100000` |
 | **`analytics_event_summary(p_limit)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Total and per-name event counts for the admin summary route. | `20260928100100` |
 | **`purge_analytics_events()`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Deletes events older than 180 days; scheduled nightly by `pg_cron` where present. | `20260928100100` |
@@ -32,6 +32,10 @@ Niyantran Terminal executes all performance-critical, concurrency-sensitive, and
 | **`purge_analytics_rate_windows()`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Deletes rate windows older than an hour; scheduled every 15 minutes by `pg_cron` where present. | `20260928130000` |
 | **`issue_invoice(p)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Assigns the next gapless `NIY/<FY>/<seq>` number and inserts the invoice in one statement. | `20260928140000` |
 | **`upsert_nter_article(p)`** | `SECURITY INVOKER` | `service_role` only | `''` (Hardened) | Upserts one nter.news article (by `article_id`, then `link`), skips stale revisions and keeps the newest 200. | `20260928150000` |
+| **`my_entitlement()`** | `SECURITY DEFINER` | `authenticated`, `service_role` | `''` (Hardened) | Returns the caller's effective plan; a period that has ended reads as free. | `20260929100000` |
+| **`start_trial(p_plan)`** | `SECURITY DEFINER` | `authenticated` | `''` (Hardened) | Grants the caller 14 days of Pro or Enterprise, once per account, and logs it in `plan_grants`. | `20260929100000` |
+| **`grant_paid_plan(p_user, p_plan, p_period, p_payment_id)`** | `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Grants a paid month or year after `/api/billing/verify`'s checks; a payment id is granted once. | `20260929100000` |
+| **`grant_manual_plan(p_user, p_plan, p_period_end, p_granted_by)`** | `SECURITY DEFINER` | `service_role` only | `''` (Hardened) | Admin grant or revoke (`explorer`) through `PATCH /api/users/:id`. | `20260929100000` |
 
 ---
 
@@ -378,7 +382,7 @@ GRANT EXECUTE ON FUNCTION public.ai_health() TO authenticated, service_role;
 
 ## 9. RPC Security Audit & Permission Matrix
 
-A security audit of the 11 AI-backend stored procedures (written on 2026-09-22; §9.1 covers the functions added on 2026-09-28):
+A security audit of the 11 AI-backend stored procedures (written on 2026-09-22; §9.1 covers the functions added on 2026-09-28 and §9.2 those added on 2026-09-29):
 
 | Function | Security Definer? | Search Path Hardened? | Anon Access? | Authenticated Access? | Service Role Access? | Primary Threat Mitigated |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
@@ -411,14 +415,18 @@ All eight are `search_path = ''`. None is executable by `anon` or `authenticated
 
 ### 9.2 Functions added on 2026-09-29 (plan entitlements)
 
-All are `search_path = ''`. The plan columns on `user_profiles` stay
-protected by the profile authority guard (`20260921000012`), and the grant
-log `plan_grants` is readable by `service_role` only.
+All are `search_path = ''`. Unlike §9.1, two of them are executable by
+`authenticated`: `my_entitlement()` and `start_trial(text)`. Both act only on
+the caller's own row (`auth.uid()`); their line-by-line review is open-work
+F11. The rest are `service_role` only or trigger-only. The plan columns on
+`user_profiles` stay protected by the profile authority guard
+(`20260921000012`), and the grant log `plan_grants` is readable by
+`service_role` only.
 
 | Function | Security | Who may execute | Called by |
 | :--- | :---: | :--- | :--- |
 | `my_entitlement()` | `DEFINER` | `authenticated`, `service_role` | The browser (`src/lib/entitlementStore.js`). Returns the caller's effective plan; a period that has ended reads as free. |
-| `start_trial(text)` | `DEFINER` | `authenticated` | The upgrade dialog and the signup plan step. Grants 14 days of Pro or Enterprise, once per account. |
+| `start_trial(text)` | `DEFINER` | `authenticated` | The upgrade dialog (`src/shell/UpgradeModal.jsx`). `SignupPage.jsx` also calls it from a plan step, but nothing opens that step (`goToPlanStep` has no caller, checked 2026-09-29); the signup trial comes from `handle_new_user()`. Grants 14 days of Pro or Enterprise, once per account. |
 | `grant_paid_plan(uuid, text, text, text)` | `DEFINER` | `service_role` | `POST /api/billing/verify`, after its checks. Grants one month or one year, once per payment id. |
 | `grant_manual_plan(uuid, text, timestamptz, uuid)` | `DEFINER` | `service_role` | `PATCH /api/users/:id` with `{ plan, planEnd }`, after the admin check. |
 | `entitlement_from(user_profiles)`, `paid_plan_of(text)` | `INVOKER` | `service_role` | Helpers for the functions above. |
@@ -426,4 +434,4 @@ log `plan_grants` is readable by `service_role` only.
 
 ### Hardening Invariants:
 1. **Search Path Hardening (`SET search_path = ''`):** Every security-sensitive function sets an explicit, empty search path. All database objects must be fully qualified (e.g. `public.conversations`), preventing malicious users from creating shadowed tables or functions in untrusted schemas.
-2. **PostgREST Exposure Restriction:** Out of the 11 functions in the table above, **7 functions are completely blocked from `anon` and `authenticated` roles** (and all eight in §9.1 are too), making them completely invisible to standard Supabase REST endpoints. They can be invoked solely by Edge Functions holding `service_role` credentials.
+2. **PostgREST Exposure Restriction:** Out of the 11 functions in the table above, **6 functions are completely blocked from `anon` and `authenticated` roles** (all eight in §9.1 are too, and five of the seven in §9.2), so the REST API refuses them to browser callers. They can be invoked only with `service_role` credentials (Edge Functions and the Vercel API routes) or as triggers. `my_entitlement()` and `start_trial(text)` in §9.2 are the exceptions: `authenticated` may execute them. *(Corrected 2026-09-29: this said 7, but the table lists 6 blocked functions: `chunk_commit`, the three research-turn RPCs, `model_pricing_reconcile` and `admin_models_upsert`.)*

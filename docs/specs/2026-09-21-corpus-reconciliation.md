@@ -1,6 +1,7 @@
 # Corpus reconciliation and citation integrity
 
-> **Status: Living — local implementation authorized by owner on 2026-09-21; production actions remain separate.**
+> **Status: Historical (2026-09-29).** Executed: all 2,338 of 2,338 documents are indexed (54,219 chunks). The 1,288 unknown `integrity` values are an accepted risk; the 716 missing `file_url` values are P8 in `plans/open-work.md`.
+> Note 2026-09-29: bill-key collisions still have no explicit handling (`scripts/build-corpus-links.mjs` drops a key only when one file name has conflicting URLs; two documents deriving the same `bill:<year>:<number>` both keep it).
 > Module: `corpus-reconciliation`. Prepared 2026-09-21.
 
 ## Objective

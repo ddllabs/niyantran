@@ -8,6 +8,7 @@
 > executed, verified and merged on 2026-09-21. The design below is not
 > rewritten. The questions listed under "Still open" in "Open questions"
 > remain open follow-ups.
+> Superseded 2026-09-29: the "Still open" questions are settled (the plan enum is mapped in `f74c8c1`; the default model is `google/gemini-3.8-flash` in `ai_models`; an admin account exists); the unique email index is F10 in `plans/open-work.md`.
 
 **Origin:** The application is a frontend shell. Its AI path has no database,
 no authentication provider, no vector store and no configured key

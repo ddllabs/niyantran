@@ -82,8 +82,10 @@ launch check.
 
 Research chat goes from the browser to the `research-chat` Edge Function, the
 only AI path since the legacy `/api/ai/chat` path and its `VITE_AI_BACKEND`
-switch were retired on 2026-09-28. Provider credentials stay server-side. The owner-selected
-citation-repair model is applied only during an authorized rollout.
+switch were retired on 2026-09-28. Provider credentials stay server-side. The
+citation-repair pass uses the model named by the `AI_REPAIR_MODEL` Edge Function
+secret; the owner approved `google/gemini-3.5-flash-lite`, recorded as set in
+`docs/agents/coordination.md` on 2026-09-21. Changing it is an owner decision.
 
 Document OCR and embeddings live in Supabase, while the source export remains
 outside the repository. `scripts/ingest-national-desk.mjs` and
@@ -99,15 +101,16 @@ are separate acceptance checks.
 
 ## Deployment status and verification
 
-**Updated 2026-09-28.** The live Supabase project has all 31 repository
-migrations applied (latest `20260928150000_nter_news_articles`) and six Edge
+**Updated 2026-09-29.** The live Supabase project has all 32 repository
+migrations applied (latest `20260929100000_plan_entitlements`) and six Edge
 Functions deployed: `health`, `admin-models`, `refresh-model-pricing`,
-`ingest-documents`, `desk-brief` and `research-chat`. Production on Vercel
-(`niyantran-six.vercel.app`) follows `main`. Versions, the day's production
-changes and open owner actions are recorded in `docs/agents/coordination.md`,
-"Operations — 2026-09-28"; the remaining work is in
-`docs/plans/2026-09-28-remaining-work.md`. Local tests are not production
-verification.
+`ingest-documents`, `desk-brief` and `research-chat`. Not all of them run the
+code on `main`; redeploying them from one commit is open-work F9. `main` is the
+only long-lived branch (see `git log` for its tip), and production on Vercel
+(`niyantran-six.vercel.app`) follows it. Versions and production changes are
+recorded in `docs/agents/coordination.md`, "Operations" entries. All open work,
+including owner actions, is tracked in one list, `docs/plans/open-work.md`.
+Local tests are not production verification.
 
 Do not push, deploy, apply migrations, retry ingestion or publish data without
 the owner's exact authorization. Billing/provider tests can incur costs; use

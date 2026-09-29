@@ -5,6 +5,7 @@
 Decisions 1–5, §A–§I). Module id `desk-row-grounding`.
 > **Status:** Historical (2026-09-21) — executed and verified; merged to
 > `main`. The verification record at the end is the evidence.
+> Open remainders are tracked in `plans/open-work.md` (ids F20, P9).
 
 **Goal:** Every row the terminal's desk navigation can show is in `NTER`'s
 `desk_rows` table with the same identity and text the desk itself uses; a

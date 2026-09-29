@@ -1,13 +1,7 @@
 # Plan: move serverless state from `/tmp` to Supabase
 
-> **Status: Living.** Proposed 2026-09-28. Not approved. Nothing here may be
-> dispatched until the owner approves the spec and the phase in question.
-> (corrected 2026-09-28: approved by the owner the same day. T0–T6 are merged
-> and live: T0 `d55da42`, wave 1 (T1, T2, T4) below, T3 `5a2ded0`, T5
-> `19d25e6`, T6 `7160391`. Only T7 remains, tracked as C3 in
-> `2026-09-28-remaining-work.md`, together with the owner steps still open
-> below: the Storage upload limit (D1), a signed-in smoke test, and settling
-> one secret-key variable name.)
+> **Status: Historical (2026-09-29).** T0–T6 landed on 2026-09-28: T0 `d55da42`; wave 1 T1 `631be0f`, T2 `ae74aca`, T4 `c4b72e9`; T3 `5a2ded0`; T5 `19d25e6`; T6 `7160391`.
+> Superseded 2026-09-29: the remainder, T7, is `plans/open-work.md` C3; the untested wave-1 paths are F17, and the owner steps below are D1 and O8.
 
 **Spec:** `docs/specs/2026-09-28-serverless-state-to-supabase.md`
 

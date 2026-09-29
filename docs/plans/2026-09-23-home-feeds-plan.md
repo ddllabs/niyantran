@@ -1,6 +1,7 @@
 # Home feeds: from committed JSON to a scheduled, database-backed pipeline
 
-Status: **Living — parked.** Nothing built, by decision on 2026-09-23. Resume from
+Status: **Living — parked.** Tracked as P1 in `docs/plans/open-work.md` (updated
+2026-09-29). Nothing built, by decision on 2026-09-23. Resume from
 section 8 ("Where to pick this up"). Nothing in this document is final, least of
 all the table schema, which is a draft for discussion.
 (corrected 2026-09-28: several blockers below have since cleared. `main` now
@@ -219,9 +220,9 @@ rows are resolved as noted in them.)
 
 | Blocker | Needed from | Unblocks |
 |---|---|---|
-| **Vercel project access** (who owns it; which repo it deploys) — *updated 2026-09-24: the owner decided to relink production to a new DDL Labs–owned Vercel project building `ddllabs/niyantran` `main`, because the old project is inaccessible*; *resolved 2026-09-28: the DDL Labs project serves `niyantran-six.vercel.app` from `main`; the nter.pro cutover is remaining-work D2* | ~~Owner of the nter.pro Vercel project (likely ItsCloudDev)~~ DDL Labs: create the new project and relink production to it | Any of this work — and the Supabase auth, research chat and persona work — reaching nter.pro |
+| **Vercel project access** (who owns it; which repo it deploys) — *updated 2026-09-24: the owner decided to relink production to a new DDL Labs–owned Vercel project building `ddllabs/niyantran` `main`, because the old project is inaccessible*; *resolved 2026-09-28: the DDL Labs project serves `niyantran-six.vercel.app` from `main`; the nter.pro cutover is D2 in `open-work.md`* | ~~Owner of the nter.pro Vercel project (likely ItsCloudDev)~~ DDL Labs: create the new project and relink production to it | Any of this work — and the Supabase auth, research chat and persona work — reaching nter.pro |
 | **Market data vendor** chosen (coverage of NSE/BSE indices incl. India VIX, display/redistribution rights, delay, price) | Product/business decision | Phase 3 (markets fetcher) |
-| **Google OAuth client ID + secret** — *updated 2026-09-24: a new DDL Labs–owned Google OAuth client can be created for Supabase Auth's native Google provider; the old credentials are not needed*; *2026-09-28: the code port is done (`GoogleSignInButton.jsx` calls `signInWithOAuth`); creating the OAuth client is remaining-work D2* | ~~Owner of the Google Cloud project whose OAuth client authorises `https://nter.pro` (the dev-branch commits are by ItsCloudDev)~~ DDL Labs: create the OAuth client | Google sign-in port (section 9) |
+| **Google OAuth client ID + secret** — *updated 2026-09-24: a new DDL Labs–owned Google OAuth client can be created for Supabase Auth's native Google provider; the old credentials are not needed*; *2026-09-28: the code port is done (`GoogleSignInButton.jsx` calls `signInWithOAuth`); creating the OAuth client is D2 in `open-work.md`* | ~~Owner of the Google Cloud project whose OAuth client authorises `https://nter.pro` (the dev-branch commits are by ItsCloudDev)~~ DDL Labs: create the OAuth client | Google sign-in port (section 9) |
 
 Resume order once unblocked:
 1. Agree the schema (4.1 open questions) and the news decision (7.2).

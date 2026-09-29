@@ -143,3 +143,23 @@ This specification records the implementation of three core capability extension
 3. **OpenRouter AI Key:**
    - (Corrected 2026-09-28.) `OPENROUTER_API_KEY` is a Supabase secret read only by the Edge Functions (ADR 0008, `docs/decisions/0008-supabase-secret-openrouter-gateway.md`); nothing under `server/` or `api/` reads it and no `.env` entry is needed. The panel talks to `research-chat` directly. When a turn fails, `AiPanel` renders the error state without faking data or leaving an orphaned thinking state (`src/ai/AiPanel.test.jsx`).
 
+
+---
+
+## Amendment (2026-09-29)
+
+Checked against the code on 2026-09-29. The text above is kept as written;
+where it disagrees with the following, this amendment is correct.
+
+- **nter.news storage.** Articles now live in the Supabase table
+  `public.nter_news_articles` (T6, `7160391`). `POST /api/news/ingest`
+  upserts through `upsert_nter_article()`, and `serveNterLatest()` in
+  `server/nterNews.mjs` (called by `serveHomeLatest()` in
+  `server/homeApi.mjs`) reads the table. It falls back to the committed
+  `public/data/nter-news.json` seed only when the table is empty or
+  unreachable. Nothing is written to disk.
+- **Ingest key (§6 item 2).** Setting `NTER_TERMINAL_API_KEY` on Vercel and
+  pointing nter.news at production is owner action O1 in
+  `docs/plans/open-work.md`.
+- **Desk landing mockup (§4.3, §6 item 1).** The visual mockup has still not
+  been supplied, so the final styling is still pending.

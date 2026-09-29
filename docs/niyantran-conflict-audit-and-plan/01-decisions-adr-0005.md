@@ -39,3 +39,31 @@ Status: **Normative.** Accepted 2026-09-24 by the owner. Extends ADR 0001 and AD
 - **nter.news keeps working from the committed seed file.** Its write path (`POST /api/news/ingest`) needs a Supabase table before it can be durable. That schema is part of the Home-feeds schema discussion (docs/plans/2026-09-23-home-feeds-plan.md).
 - **ADR 0001's "two deployment targets during the cutover" continues,** but the legacy AI routes must route through OpenRouter.
 - **Retiring the legacy AI path still needs its own spec** (ADR 0001).
+
+## Amendment (2026-09-29)
+
+Checked against the code on 2026-09-29. The decision and consequences above
+are kept as written; these statements in them are no longer true.
+
+- **"Production therefore has no durable user store"** (Context). Production
+  now keeps its durable stores in Supabase: preferences, analytics, the
+  intro video and app flags (T1, T2, T4), accounts (T3, local users store
+  retired in `e2aad15`), invoices (T5, `19d25e6`) and nter.news articles
+  (T6, `7160391`).
+- **"The legacy server paths ... today call Gemini and DeepSeek directly"**
+  (Decision 3). The legacy AI path was retired in `14b2344` (D4). No code
+  under `server/`, `api/` or `src/` calls Gemini or DeepSeek directly; every
+  model call goes through OpenRouter from an Edge Function.
+- **"nter.news keeps working from the committed seed file ... needs a
+  Supabase table"** (Consequences). It has one: `public.nter_news_articles`
+  (`7160391`). The seed file is only a fallback when the table is empty or
+  unreachable.
+- **"ADR 0001's two deployment targets ... legacy AI routes"** and
+  **"Retiring the legacy AI path still needs its own spec"**
+  (Consequences). The legacy AI retirement is done (D4, `14b2344`).
+- **"The `upstream` remote is kept read-only"** (Decision 1). It was removed
+  after the 2026-09-26 merge; `origin` is the only remote (`AGENTS.md`).
+
+Still true: SQLite remains in one place, the `entry_briefs` cache tier of
+`server/deskBrief.mjs` (through `server/db.mjs`). Removing it is C3 in
+`docs/plans/open-work.md`.

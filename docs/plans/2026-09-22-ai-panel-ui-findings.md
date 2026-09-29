@@ -2,15 +2,8 @@
 
 > **Status: Historical (2026-09-22).** Items 1–5 were implemented afterwards —
 > see commits 227b354, 1329be8, a030847, e0716a2, 3a1e565 and 79a3530.
-> Still open as of 2026-09-24 (checked against the code, not by running it):
-> the chunker still classifies any line starting with a pipe as a table
-> (`supabase/functions/_shared/chunking.ts:89`); the model and effort choice
-> is still held only in memory (`src/ai/useResearchThread.js:26`) and resets
-> on reload; `src/lib/reasoningSegments.js` and
-> `supabase/functions/_shared/reasoningSegments.ts` still have no importers
-> outside their tests; the pill row (`src/ai/SuggestionPills.jsx`) now has
-> `role="group"` and an `aria-label` but still no list semantics. The line
-> below records the state on the day it was written.
+> Open remainders are tracked in `plans/open-work.md` (ids F12, F14, F15, F16, P11, P3).
+> The line below records the state on the day it was written.
 
 2026-09-22. Investigation only; nothing in this document has been implemented.
 Five items raised by the owner, each checked against code, the live database

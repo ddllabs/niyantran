@@ -88,6 +88,9 @@ inside that scope and stops for choices that materially change the outcome.
 Implementation plans live under `docs/plans/` and reference their spec. A plan
 records ordered tasks, exact write scopes, dependencies, fixed interfaces,
 verification commands, and whether delegation or concurrency is permitted.
+Open work is tracked only in `docs/plans/open-work.md` (since 2026-09-29): a
+plan or spec may describe a task in detail, but the task is tracked only when
+it has a line there.
 
 Plans describe outcomes and boundaries, not speculative line-by-line edits.
 When code contradicts a plan, stop and report the conflict rather than silently
@@ -523,7 +526,8 @@ Correct this section when observations become stale.
   the same hash for each. Upstream `528dfb4` is an ancestor of `main` (merged
   via PR #2, `8849c35`). The old `origin/dev` tip `25723f7` is also an
   ancestor of `main`, so the disabled service-role JWT it carried is now in
-  `main`'s public history too; see the backlog's security section. Local
+  `main`'s public history too; see the backlog's security section, now
+  `docs/plans/open-work.md` §5. Local
   worktree state of the owner's machine was not observable from this audit.)
 - The review harness `review.config.mjs`/`review.probes.test.jsx` that the
   recovery plan cites as defining D7–D10 acceptance no longer exists in any
@@ -772,7 +776,8 @@ marked otherwise. This supersedes the function table above.
 - **CI:** `.github/workflows/ci.yml` (advisory) runs on every push from
   `a47680e`.
 - The work is tracked in `docs/plans/2026-09-28-remaining-work.md`, with the
-  review in `docs/specs/2026-09-28-authorization-review.md`.
+  review in `docs/specs/2026-09-28-authorization-review.md`. (Superseded
+  2026-09-29: open work is now tracked only in `docs/plans/open-work.md`.)
 
 ### Operations — 2026-09-29
 
@@ -788,4 +793,14 @@ marked otherwise. This supersedes the function table above.
   enabled. A payment grants a plan only once the keys exist on Vercel.
   Server-side gating of desk data, exports and row caps (plan task F6) comes
   first.
+- **`ALLOWED_ORIGINS` probe** (through `pg_net`): production and
+  `http://localhost:5173` got an `access-control-allow-origin` header; the
+  Vercel preview and deployment hostnames and other localhost ports got none.
+  The deployed `_shared/cors.ts` (as on `main` at `71292af`) matches exact
+  origins only, so every Vercel preview is refused by `research-chat` and
+  `desk-brief`. Tracked as open-work F8, then
+  owner action O5.
+- **Open work** is now tracked only in `docs/plans/open-work.md`, which
+  replaces `plans/2026-09-28-remaining-work.md` and
+  `niyantran-conflict-audit-and-plan/04-open-backlog.md` as the tracker.
 

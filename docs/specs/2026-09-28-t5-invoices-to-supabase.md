@@ -4,6 +4,7 @@
 > `20260928140000_invoices` applied to NTER the same day. Task C1 of
 > `docs/plans/2026-09-28-remaining-work.md` (T5 of the serverless-state
 > plan), approved by the owner on 2026-09-28.
+> Open remainders are tracked in `plans/open-work.md` (ids F6 for server-side plan gating, now that `f74c8c1` made the plan server-owned; O6 for Razorpay on Vercel; P2 for subscriptions).
 
 ## Current state (read in the code on 2026-09-28)
 

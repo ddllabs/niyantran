@@ -8,6 +8,7 @@
 > prefix (`servedModelMatches` in `_shared/embed.ts`), and `documents` gained
 > a `metadata jsonb` column for the export's provenance fields. The fixed
 > interfaces in §E–§H stand as written.
+> Open remainders are tracked in `plans/open-work.md` (ids P5, P4).
 
 **Origin:** Niyantran will supply the National Desk source documents as file
 names, file URLs and raw OCR text — whole-document text with no page

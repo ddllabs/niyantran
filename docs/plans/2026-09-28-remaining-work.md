@@ -1,10 +1,7 @@
 # Plan: remaining work after 2026-09-28
 
-> **Status: Living.** Written 2026-09-28 by the supervising agent using the
-> agent-skills `planning-and-task-breakdown` workflow. Tasks move to Done
-> here as they land. The open backlog stays in
-> `niyantran-conflict-audit-and-plan/04-open-backlog.md`; this plan orders
-> the part of it we intend to do next.
+> **Status: Historical (2026-09-29).** Superseded by `plans/open-work.md`, the
+> one list of open work; every open task here moved there with its id.
 
 ## Overview
 

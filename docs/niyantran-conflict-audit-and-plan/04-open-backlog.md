@@ -1,6 +1,6 @@
 # Open backlog: everything not yet done, in one place
 
-Status: **Living.** Compiled 2026-09-24 from all plans, specs, ADRs and research docs, and both session transcripts; updated 2026-09-28. Update it in place as items close.
+Status: **Historical (2026-09-29).** Superseded by `docs/plans/open-work.md`, the one list of open work; every open row moved there (as an `F`, `P`, `O` or `L` item, or an accepted risk) and stale rows were closed.
 
 - This is an index, not a plan. Each item points to the document that holds its detail.
 - **Order of work (updated 2026-09-28):** the upstream merge has landed (PR #2, `8849c35`). What remains of the integration plan is the production cutover (Phases 4–6). The most urgent new item is §0: routes deployed on Vercel that write durable data to `/tmp`.

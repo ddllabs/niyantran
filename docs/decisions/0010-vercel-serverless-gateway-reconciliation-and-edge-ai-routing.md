@@ -1,7 +1,7 @@
 # ADR 0010: Vercel Serverless Gateway Routing Reconciliation and Edge AI Routing
 
 > **Status: Normative.** Binding architectural decision for Vercel production deployment routing and AI proxying.
-> Amended 2026-09-28: the chat proxy and several routes are retired (see the end).
+> Amended 2026-09-28: the chat proxy and several routes are retired. Amended 2026-09-29: the routes served today (see the end).
 
 ## Context
 
@@ -74,3 +74,33 @@ above is kept as the record of what was decided at the time.
   connect (`src/lib/deskBrief.js`).
 - Decisions 1 and 2 still hold. The router still returns 401 for
   authentication failures.
+
+## Amendment (2026-09-29)
+
+Checked against `api/router.js` on 2026-09-29. The status line's "AI
+proxying" no longer applies: this ADR now governs only the Vercel routing.
+
+- **No AI proxying through Vercel.** `/api/ai/chat` was retired with the
+  legacy AI path (`14b2344`), and `/api/auth/*` is not served in production
+  (`93f31e6`). Both stay retired; nothing new replaced them.
+- **What `api/router.js` serves today:**
+  - feeds and reference data: `/api/feature-feed`, `/api/constitutions`,
+    `/api/growth`, `/api/ohlc`, `/api/home/markets`, `/api/home/latest`,
+    `/api/home/pulse`, `/api/home/segments`, `/api/home/refresh`;
+  - nter.news ingest: `/api/news/ingest` (bearer `NTER_TERMINAL_API_KEY`);
+  - Live TV: `/api/livetv/*`;
+  - accounts and state: `/api/users` and `/api/users/:id` (internal admin),
+    `/api/marketing/intro-video`, `/api/analytics/*`, `/api/user-prefs`,
+    `/api/billing/*`;
+  - external data: `/api/air`, `/api/ships`, `/api/ais`, `/api/vessels`,
+    `/api/opensanctions`, `/api/fts`, `/api/portwatch`, `/api/launches`,
+    `/api/celestrak`, `/api/wb-projects`;
+  - AI helpers: `/api/ai/desk-brief` (forwards the caller's bearer to the
+    `desk-brief` Edge Function) and `/api/ai/source-extract` (signed-in,
+    active accounts only).
+
+  Anything else gets 404. `docs/flow.md` §11 is the maintained route list.
+- **Still to remove:** `config.includeFiles` in `api/router.js` and the
+  `includeFiles` in `vercel.json` still bundle `node_modules/sql.js/dist/**`
+  for the SQLite desk-brief cache tier. Removing that tier is C3 in
+  `docs/plans/open-work.md`.

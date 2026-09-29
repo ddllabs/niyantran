@@ -7,21 +7,8 @@ viewer, evidence-first always, document scoping). Consumes the fixed
 interfaces of `document-rag-and-citations` (§F tool, §G ladder, §H reader)
 and `desk-row-grounding` (§C tool, §E rules, §F block, §G viewer), both
 Historical. Module id `streaming-research-agent`.
-> **Status:** Living — the earlier IDE execution record below is retained as
-> historical evidence. Supervisor recovery found additional correctness and
-> authorization defects; current acceptance is tracked in
-> `docs/plans/2026-09-21-supervisor-recovery.md` and the amended contract in
-> `docs/specs/2026-09-21-streaming-handover.md`. **Updated 2026-09-21:
-> D1–D10 are all accepted and integrated, and `research-chat` is deployed
-> (v1).** The migrations it depends on, including
-> `20260921115831_research_turn_persistence`, are applied. What remains is
-> live Task 8 — the bounded paid browser acceptance — which is blocked on an
-> internal-admin account and a second ordinary account. (Superseded: D1–D8
-> and D9 accepted with D10 in progress, deployment unperformed.)
-> (corrected 2026-09-28: only Task 8, the paid browser acceptance, remains; it
-> is tracked as D3 in `docs/plans/2026-09-28-remaining-work.md`. The goal of
-> parity "with the flag unset" is obsolete: `14b2344` retired the legacy AI
-> path and `VITE_AI_BACKEND` is no longer read.)
+> **Status: Historical (2026-09-29).** Executed: D1–D10 were accepted and integrated on 2026-09-21 and `research-chat` is deployed; the legacy flag path was retired in `14b2344`. The execution record below is kept as evidence.
+> Superseded 2026-09-29: the remainder, live Task 8 (the paid browser acceptance), is D3 in `plans/open-work.md`; the spec named above is now Historical, not Normative.
 
 **Goal:** Sign in, open Ask AI with the `supabase` backend, pick a model,
 ask. The ticker shows the model thinking and each tool step as it runs;

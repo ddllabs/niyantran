@@ -1,8 +1,9 @@
 # Database Architecture: Schema, Tables, Indexes, and RLS Security Matrix
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 31 migrations in `supabase/migrations/` (`20260921000001` through `20260928150000_nter_news_articles`), plus `backend/sql/auth_schema.sql`.
+> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 32 migrations in `supabase/migrations/` (`20260921000001` through `20260929100000_plan_entitlements`), plus `backend/sql/auth_schema.sql`.
 > Corrected 2026-09-28: the seven tables added that day (Group E), the RLS matrix for them, and the `user_profiles`, `conversations`, `chat_messages`, `ai_models`, `ai_roles` and `model_call_logs` entries, which described columns that do not exist.
+> Corrected 2026-09-29: migration `20260929100000_plan_entitlements` added the `user_profiles` plan columns and the `plan_grants` table (#17).
 
 ---
 
@@ -15,6 +16,7 @@ erDiagram
     auth_users ||--o{ user_profiles : "has profile (1:1)"
     auth_users ||--o{ conversations : "owns (1:N)"
     auth_users ||--o{ model_call_logs : "incurs spend (1:N)"
+    auth_users ||--o{ plan_grants : "plan grant log (1:N, cascade)"
     
     conversations ||--o{ chat_messages : "contains (1:N, cascade)"
     conversations ||--o{ research_turns : "tracks in-flight state (1:N)"
@@ -41,9 +43,25 @@ erDiagram
         text language "default en"
         app_role role "user | admin | owner"
         app_plan plan "explorer | professional | enterprise"
+        text plan_status "free | trial | active; default free"
+        timestamptz plan_period_end "NULL is open-ended"
+        text plan_source "trial | payment | manual"
+        timestamptz trial_started_at "set once; one trial per account"
         account_status status "active | inactive | suspended"
         boolean onboarding_complete
         timestamptz updated_at
+    }
+
+    plan_grants {
+        bigint id PK "identity"
+        uuid user_id FK "REFERENCES auth.users(id), cascade"
+        app_plan plan
+        text status "free | trial | active"
+        timestamptz period_end
+        text source "trial | payment | manual"
+        text payment_id UK "1-100 chars; a payment is granted once"
+        uuid granted_by FK "REFERENCES auth.users(id), SET NULL"
+        timestamptz created_at
     }
 
     conversations {
@@ -363,6 +381,18 @@ One row per user: `user_id` (PK, `REFERENCES auth.users ON DELETE CASCADE`), `wa
 
 ---
 
+### Group F: Plan entitlements (migration of 2026-09-29)
+
+The plan is server-owned (F2 phase 1, `docs/specs/2026-09-29-f2-entitlements.md`).
+
+#### `user_profiles` plan columns (`20260929100000`)
+Beside the existing `plan` (`app_plan`), `user_profiles` carries `plan_status` (`text`, `NOT NULL`, `DEFAULT 'free'`; `free`, `trial` or `active`), `plan_period_end` (`timestamptz`; null is open-ended), `plan_source` (`text`; `trial`, `payment` or `manual`) and `trial_started_at` (`timestamptz`; set once, so each account gets one trial). A check keeps `explorer` exactly equal to the `free` status and requires every trial to have an end date. Users cannot write any of them: the profile authority guard (migration 0012) refuses signed-in changes to every non-personal column, and `authenticated` holds `UPDATE` only on the personal columns. The writers are the `SECURITY DEFINER` functions `handle_new_user()` (the signup trial), `start_trial()`, `grant_paid_plan()` and `grant_manual_plan()`; `my_entitlement()` reads the effective plan, and a period that has ended reads as free (see `06-stored-procedures-and-rpcs.md` §9.2).
+
+#### 17. `public.plan_grants` (`20260929100000`)
+The grant log: `id` (identity PK), `user_id` (`REFERENCES auth.users ON DELETE CASCADE`), `plan`, `status`, `period_end`, `source`, `payment_id` (unique, 1–100 characters, so a payment id is granted once), `granted_by` (`ON DELETE SET NULL`), `created_at`; indexed on `(user_id, created_at DESC)`. RLS is enabled with no policies; nothing is granted to `anon` or `authenticated`, and `service_role` holds `SELECT` only. Rows are written only by the `SECURITY DEFINER` grant functions above.
+
+---
+
 ## 3. Indexing Topology & Performance Engineering
 
 ```mermaid
@@ -390,7 +420,7 @@ USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 ```
 - **Operational Footprint:** 380 MB index for 54,219 chunks.
-- **Memory Pressure:** On Supabase Nano tier (`shared_buffers = 224 MB`), the vector index exceeds available memory.
+- **Memory Pressure:** On Supabase Nano tier (`shared_buffers = 224 MB`), the vector index exceeds available memory. *(Corrected 2026-09-29: the 380 MB and Nano figures are from 2026-09-22. The owner moved NTER to a 2 GB instance on 2026-09-28; `docs/plans/open-work.md` records `shared_buffers` at 512 MB and the index at 404 MB. A half-precision index is open-work F22.)*
 - **Mitigation:** Unscoped searches query the HNSW graph directly. Scoped searches (attaching a document) completely **bypass HNSW**, using B-tree pre-filtering over `document_chunks_document_order` and scoring exact cosine distance in memory (<20 ms).
 
 ### 3.2 Full-Text Search: Trigram GIN (`desk_rows_record_text_trgm_gin`)
@@ -410,7 +440,7 @@ The RPC `search_desk_rows` returns both a paginated row set and the `total` matc
 
 ## 4. Row-Level Security (RLS) Policy Matrix
 
-Row-Level Security is strictly enabled across all 25 public tables: 19 created in `supabase/migrations/` and 6 (`organisations`, `organisation_members`, `user_roles`, `organisation_invites`, `privacy_policy_consents`, `user_profiles`) created in `backend/sql/auth_schema.sql`. The `anon` role holds no table privileges except `SELECT (key, value, updated_at)` on `app_flags`, which serves the public intro-video read *(corrected 2026-09-28: the count was 18 and the `anon` statement had no exception before the migrations of that day)*. The matrix below covers the AI-backend tables, `user_profiles` and the Group E tables; the five organisation and consent tables are governed by the policies in `auth_schema.sql`. *(Corrected 2026-09-24: the count was 17, which predates `research_turns`, and the matrix omitted `chat_cancellations`, `chat_turn_traces` and `ai_roles`.)*
+Row-Level Security is strictly enabled across all 26 public tables: 20 created in `supabase/migrations/` and 6 (`organisations`, `organisation_members`, `user_roles`, `organisation_invites`, `privacy_policy_consents`, `user_profiles`) created in `backend/sql/auth_schema.sql`. The `anon` role holds no table privileges except `SELECT (key, value, updated_at)` on `app_flags`, which serves the public intro-video read *(corrected 2026-09-28: the count was 18 and the `anon` statement had no exception before the migrations of that day; corrected 2026-09-29: 25 and 19 became 26 and 20 with `plan_grants`)*. The matrix below covers the AI-backend tables, `user_profiles` and the Group E and F tables; the five organisation and consent tables are governed by the policies in `auth_schema.sql`. *(Corrected 2026-09-24: the count was 17, which predates `research_turns`, and the matrix omitted `chat_cancellations`, `chat_turn_traces` and `ai_roles`.)*
 
 | Table Name | Public Read (`anon`) | Authenticated Read (`user`) | Authenticated Write (`user`) | Service Role (`service_role`) |
 | :--- | :---: | :---: | :---: | :---: |
@@ -426,7 +456,7 @@ Row-Level Security is strictly enabled across all 25 public tables: 19 created i
 | **`model_pricing`** | ❌ Denied | ✅ Full Read (`true`) | ❌ Denied (Cron sync only) | ✅ Full Access |
 | **`model_call_logs`** | ❌ Denied | 🔒 Own Rows (`user_id = auth.uid()`) | ❌ Denied (Service role logs) | ✅ Full Access |
 | **`chat_turn_traces`** | ❌ Denied | 🔒 Own Rows (`user_id = auth.uid()`) | ❌ Denied | ✅ Full Access |
-| **`user_profiles`** | ❌ Denied | 🔒 Own Profile (`user_id = auth.uid()`) | 🔒 Restricted Profile Fields | ✅ Full Access |
+| **`user_profiles`** | ❌ Denied | 🔒 Own Profile (`user_id = auth.uid()`) | 🔒 Restricted Profile Fields (never `role`, `status` or the plan columns) | ✅ Full Access |
 | **`user_preferences`** | ❌ Denied | 🔒 Own Row | 🔒 Own Row: `INSERT`, `UPDATE` (no `DELETE`) | ❌ No grant |
 | **`analytics_events`** | ❌ Denied | ❌ Denied | ❌ Denied | 🔒 `SELECT, INSERT, DELETE` |
 | **`analytics_rate_windows`** | ❌ Denied | ❌ Denied | ❌ Denied | ✅ Full Access |
@@ -434,6 +464,7 @@ Row-Level Security is strictly enabled across all 25 public tables: 19 created i
 | **`invoices`** | ❌ Denied | 🔒 Own Rows, or all for a platform admin | ❌ Denied | 🔒 `SELECT, INSERT` (through `issue_invoice()`) |
 | **`invoice_counters`** | ❌ Denied | ❌ Denied | ❌ Denied | 🔒 `SELECT, INSERT, UPDATE` |
 | **`nter_news_articles`** | ❌ Denied | ❌ Denied | ❌ Denied | ✅ Full Access |
+| **`plan_grants`** | ❌ Denied | ❌ Denied | ❌ Denied (written by the `SECURITY DEFINER` grant functions) | 🔒 `SELECT` |
 
 ---
 

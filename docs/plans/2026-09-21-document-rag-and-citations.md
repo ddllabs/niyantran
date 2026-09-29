@@ -6,6 +6,7 @@
 > **Status:** Historical (dated 2026-09-21) — executed, verified against the
 > live project and merged to `main` locally the same day. Kept as the record
 > of what was built. Known limitations are listed at the end.
+> Open remainders are tracked in `plans/open-work.md` (ids P5, P4).
 
 **Goal:** After this plan, Niyantran's OCR documents can be pushed into
 `NTER` by a script, are chunked and embedded through OpenRouter, are

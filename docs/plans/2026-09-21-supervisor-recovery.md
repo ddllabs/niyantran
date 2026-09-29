@@ -3,9 +3,8 @@
 > **Status: Historical (2026-09-28).** Implementation was authorized by the
 > owner on 2026-09-21. By 2026-09-28 C4 was done (2,338 documents indexed; see
 > `2026-09-22-corpus-expansion.md`), E1 was partly done (the DDL Labs Vercel
-> project exists and `ALLOWED_ORIGINS` is set) and E3 was obsolete. The
-> remainder is tracked in `2026-09-28-remaining-work.md`: email delivery and
-> `SITE_URL` under D2, and E2 phase 3 (the paid browser acceptance) as D3.
+> project exists and `ALLOWED_ORIGINS` is set) and E3 was obsolete.
+> Open remainders are tracked in `plans/open-work.md` (ids F13, D3, A1; email delivery and `SITE_URL` are D2).
 > **Updated 2026-09-21:** publication is done (`main` is pushed to `origin`) and
 > E2 phases 1 and 2 are executed — all five migrations applied and all five Edge
 > Functions deployed. The remaining gates are E2 phase 3 (bounded paid browser

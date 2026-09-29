@@ -7,10 +7,12 @@
 > dispatched. When a phase lands, record it here; when all phases land, mark
 > this spec Historical.
 >
-> **State on 2026-09-28:** S1–S7 have landed (T1, T2, T4 in wave 1; T3
-> `e2aad15`; T5 `19d25e6`; T6 `7160391`). Only T7, the close-out, remains:
-> task C3 of `docs/plans/2026-09-28-remaining-work.md`, blocked on the owner's
-> check of the local SQLite files (D5).
+> **State on 2026-09-29:** S1–S7 have landed (T1, T2, T4 in wave 1; T3
+> `e2aad15`; T5 `19d25e6`; T6 `7160391`). Only T7, the close-out, remains. It
+> is tracked as C3 in `docs/plans/open-work.md` (remove the SQLite
+> `entry_briefs` tier and `server/db.mjs`, and remove `sql.js` from
+> `vercel.json` and `package.json`), blocked on the owner's check of the local
+> SQLite files (D5 below; O4 in `open-work.md`).
 
 ## Current state (evidence)
 
@@ -212,7 +214,8 @@ applied to `NTER`. S3, S6 and S7 have since landed too: T3 (`e2aad15`), T5
 - **D3:** keep analytics events for 180 days, deleted by a nightly `pg_cron`
   job.
 - **D4, D5:** open. (D4 was decided later on 2026-09-28: build a small
-  table, which T6 did. D5 remains open and gates T7.)
+  table, which T6 did. D5 remains open and gates T7; it is O4 in
+  `plans/open-work.md`.)
 
 The original questions:
 

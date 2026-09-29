@@ -1,11 +1,6 @@
 # Corpus expansion — picking this up after the instance upgrade
 
-Status: **Living** — parked until the Supabase instance compute is raised
-(owner decision 2026-09-22). Nothing built.
-(corrected 2026-09-28: the owner raised NTER to a 2 GB instance on
-2026-09-28. The `shared_buffers` gate below has not been re-measured on it, so
-the plan stays parked until that is done; see
-`docs/plans/2026-09-28-remaining-work.md`.)
+Status: **Historical (2026-09-29).** Kept as the measured record; the runbook is now `plans/2026-09-29-corpus-ingestion.md` (tracked as L1/L2 in `plans/open-work.md`).
 
 Written 2026-09-22, parked deliberately. Everything below is measured, not
 estimated, unless a line says otherwise. Read with
