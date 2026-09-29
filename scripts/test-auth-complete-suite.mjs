@@ -331,7 +331,7 @@ async function runTestSuite() {
   // -------------------------------------------------------------------------
   console.log('\n--- 13. Testing RLS Protected Data Access & Session Isolation ---');
   // Anonymous client should not be able to read all user profiles
-  const { data: anonData, error: anonReadErr } = await anonClient
+  await anonClient
     .from('user_profiles')
     .select('*')
     .eq('user_id', userId);

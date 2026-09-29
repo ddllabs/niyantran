@@ -30,7 +30,6 @@ export default function GeoDotsMap({ points, legend, onPick, ariaLabel }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    const tip = tipRef.current;
     function draw() {
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;

@@ -27,7 +27,7 @@ host is network-visible unless overridden as above. `npm run preview` previews
 the built application; it does not establish that development API plugins are
 available in a production host.
 
-`npm run lint` runs ESLint (0 errors; warnings remain, open-work F25). There is
+`npm run lint` runs ESLint and fails on any error or warning. There is
 no standalone type-check. `.github/workflows/ci.yml` runs the build, lint, both
 test suites and the SQL fixtures on every push; it is advisory, and nothing is
 blocked on it. `npm run test:sql` runs the fixtures in

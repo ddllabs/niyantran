@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { setChatAttachments } from '../lib/aiThreads.js';
-import { filesFromDrop, isModuleAttachment, materializeAiDrop, openAiResearch, readAiDrag } from '../lib/aiDrop.js';
+import { filesFromDrop, isModuleAttachment, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
 import { coverageOf, indexedDocumentKeys } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
 import NyAiThinking from './NyAiThinking.jsx';
-import { AiBrandIcon } from './AiBrandIcon.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker from './ModelPicker.jsx';
@@ -41,8 +40,6 @@ const DOCS_HI = [
 // opens the evidence instead — answers are evidence-first either way.
 const DOCS_WORK_EN = 'Work mode opens the evidence behind an answer: the passage, or the record.';
 const DOCS_WORK_HI = 'Work mode उत्तर के पीछे का साक्ष्य खोलता है: अंश, या रिकॉर्ड।';
-const DOCS_FLAG_EN = 'Work mode keeps replies denser: Evidence → Read → Gaps → Confidence.';
-const DOCS_FLAG_HI = 'Work mode घने उत्तर रखता है: Evidence → Read → Gaps → Confidence।';
 
 function contextLabel({ attachments, selected, featureName }) {
   const attached = (attachments || []).map((a) => a.title || a.feature).filter(Boolean);
@@ -369,7 +366,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       onSeedConsumed?.();
     });
     return undefined;
-  }, [seed, feed, featureName, tab, selected, onSeedConsumed, research.ready, research.identityVersion]);
+  }, [seed, feed, featureName, tab, selected, onSeedConsumed, research.ready, research.identityVersion, research.actions]);
 
   async function onDrop(e) {
     e.preventDefault();

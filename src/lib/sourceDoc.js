@@ -6,7 +6,6 @@
 import { authHeaders } from './authHeaders.js';
 import {
   collectRowUrls,
-  isExtractableSourceUrl,
   isHttpUrl,
   isHubListingUrl,
   rowRecordText,

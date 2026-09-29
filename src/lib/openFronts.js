@@ -102,11 +102,6 @@ function headlineEntities(name) {
   return [...new Set(parts)].slice(0, 4);
 }
 
-function parseMillions(s, key) {
-  const m = String(s || '').match(new RegExp(`([\\d.]+)M\\s*${key}`, 'i'));
-  return m ? Number(m[1]) : null;
-}
-
 function prettyDate(v) {
   if (!v) return 'Unknown';
   const s = String(v);

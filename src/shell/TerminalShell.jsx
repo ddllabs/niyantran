@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bucketsFor, catalogModules, modulesForTier, TABS } from '../desks/catalog.js';
 import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
-import DeskGuide from '../desks/DeskGuide.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
 import RightRail from './RightRail.jsx';
@@ -141,6 +140,7 @@ export default function TerminalShell({ onLogout }) {
     (body) => {
       setFeed(applyRowCap(body, sessionUser()));
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionUser() is read outside React; userTick is its change signal.
     [userTick],
   );
   const onSelect = useCallback((row) => setSelected(row), []);
@@ -302,6 +302,7 @@ export default function TerminalShell({ onLogout }) {
     const s = new Set(deskTabs.filter((t) => canAccessDesk(user, t.id)).map((t) => t.tier));
     if (s.has('state')) s.add('local');
     return s;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- canAccessDesk reads the entitlement store outside React; userTick is its change signal.
   }, [deskTabs, user, userTick]);
 
   const hits = useMemo(() => {

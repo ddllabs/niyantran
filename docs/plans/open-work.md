@@ -30,7 +30,7 @@ Current baseline:
 - `main` is the only long-lived branch; production (`niyantran-six.vercel.app`) follows it.
 - Supabase NTER has 35 migrations and runs on the 2 GB compute (`shared_buffers` 512 MB).
 - The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The search index is half precision, 204 MB (F22).
-- Tests: 72 Vitest files (983 tests), 452 Deno tests and 15 SQL fixtures. `npm run lint`: 0 errors, 266 warnings (F25). CI is advisory.
+- Tests: 72 Vitest files (983 tests), 452 Deno tests and 15 SQL fixtures. `npm run lint`: 0 errors, 0 warnings; any warning fails it. CI is advisory.
 
 ## 1. Agent tasks (doable now, in this order)
 
@@ -62,13 +62,15 @@ new test must fail before the change.
   Both need a disposable PostgREST and Storage, or a test account on NTER
   with the owner's approval; the owner smoke test O8 covers them in part.
   (The `pg_cron` branch and the dev-server behaviour are Done.)
-- [ ] **F25. Clear the lint warnings, then make `no-unused-vars` an error (S–M).**
-  - `npm run lint` reported 266 warnings on 2026-09-29: unused bindings, most of
-    them imports left by refactors, plus 13 `react-hooks/exhaustive-deps` notes.
-  - Clear them file by file (`src/desks/DeskView.jsx` has 25), then raise the
-    rule in `eslint.config.js`.
-  - Treat each `exhaustive-deps` note as a possible stale-closure bug: read it
-    before silencing it.
+- [ ] **F26. The map tooltip writes feed text as HTML (XS).**
+  `src/desks/GeoDotsMap.jsx` sets `tip.innerHTML` from a point's `name` and
+  `statusL`, which come from the Energy and Chokepoints feeds. Those feeds are
+  curated today, but external feed text is untrusted (AGENTS.md). Build the
+  tooltip with `textContent`. Found during F25.
+- [ ] **F27. Test 13 of the manual auth suite asserts nothing (XS).**
+  `scripts/test-auth-complete-suite.mjs` runs the anonymous `user_profiles`
+  read but never checks its result, so an RLS regression there would pass.
+  Assert that the read returns no rows or an error. Found during F25.
 - [ ] **F6. Plan gating on the server (M–L, needs a spec and owner
   decisions; required before real payments).** F2 phase 1 made the plan
   server-owned, but desk data is public (static files, and `desk_rows` is
@@ -178,6 +180,11 @@ For each figure: compute it, keep it as a constant, or drop it. | Owner (marketi
 Newest first. Detail is in `git log` and the linked documents.
 
 - **2026-09-29:**
+  - F25, the lint backlog cleared:
+    - ESLint 9 core ignores JSX, so 218 of the 253 "unused" warnings were components used only as `<Foo />`, and an undefined `<Bar />` was never reported. `eslint-plugin-react` now supplies `jsx-uses-vars` and `jsx-no-undef` (it found no undefined component).
+    - The 35 real unused bindings are gone, including dead code: the Wire RSS fetcher in `server/homeApi.mjs`, `sampleRows` in `server/deskBrief.mjs`, and `QuestionRecord` and `RegulatoryRecord` (both desks render through `BillRecord`).
+    - Of the 13 hook notes: `LiveTvModal` compared a loaded archive against the broadcast selected when the fetch began, so a pick made while it loaded could be overwritten (found by reading, not reproduced; now functional updates). Three desks rebuilt memos every render from a fresh `[]` fallback. `AiPanel` now lists `research.actions`, a stable ref. The other seven are deliberate and carry a reason.
+    - `no-unused-vars` is an error and `npm run lint` runs with `--max-warnings 0`. F26 and F27 were found on the way.
   - F21, a lint gate. `npm run lint` (ESLint 9 with `react-hooks`) fails on errors and runs in CI as an advisory step; the warnings are F25. Its first run found two `ReferenceError`s in shipped code, fixed in `03f039c`:
     - the right rail's record detail crashed for rows without an analysis;
     - `/data/news.json` answered 502 when nter.news had no live rows.

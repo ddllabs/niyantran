@@ -14,6 +14,8 @@ function filterOptions(list, key) {
   return [...new Set(list.map((p) => p[key]).filter(Boolean))].sort();
 }
 
+const NO_FILTERS = [];
+
 export default function AssetRegister({ feed, selected, onSelect, featureName, vizFilter, onClearViz }) {
   const kind = strategicKind(featureName || feed?.feature);
   const copy = deskCopy(kind);
@@ -32,7 +34,7 @@ export default function AssetRegister({ feed, selected, onSelect, featureName, v
   const selectedId = selected?.id || selected?.__saId || '';
   const current = list.find((p) => p.id === selectedId) || list[0];
   const stats = statsFor(kind, list);
-  const filterKeys = copy.filters || [];
+  const filterKeys = copy.filters || NO_FILTERS;
   const opt1 = filterKeys[0] ? filterOptions(list, filterKeys[0]) : [];
   const opt2 = filterKeys[1] ? filterOptions(list, filterKeys[1]) : [];
   const opt3 = filterKeys[2] ? filterOptions(list, filterKeys[2]) : [];

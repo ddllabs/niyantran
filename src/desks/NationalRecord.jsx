@@ -189,58 +189,6 @@ function TransferRecord({ row, onClear }) {
   );
 }
 
-function QuestionRecord({ row, onClear }) {
-  return (
-    <div className="nat-rec">
-      <header>
-        <h2>{field(row, ['subject', 'title'])}</h2>
-        <button type="button" onClick={onClear}>
-          All questions
-        </button>
-      </header>
-      <div className="nat-tiles">
-        <Tile k="Ministry" v={field(row, ['ministry'])} />
-        <Tile k="Asked by" v={[field(row, ['mp_name']), field(row, ['party']), field(row, ['house'])].filter(Boolean).join(' · ')} />
-        <Tile k="Type" v={field(row, ['question_type'])} />
-        <Tile k="Tabled" v={field(row, ['date'])} />
-        <Tile k="House" v={field(row, ['house'])} />
-        <Tile k="Session" v={field(row, ['session'])} />
-        <Tile k="Has answer" v={field(row, ['has_answer']) || 'Not reported'} />
-      </div>
-      <p className="desk-note">
-        Answer text is not on this archive row. The Has-answer field stays Not reported until Sansad answer status is wired — that is a
-        source gap, not missing volume.
-      </p>
-      <div className="nat-rec-actions">
-        <SourceBtn href={row.source_url} label="↗ Source" />
-      </div>
-    </div>
-  );
-}
-
-function RegulatoryRecord({ row, onClear }) {
-  return (
-    <div className="nat-rec">
-      <header>
-        <h2>{field(row, ['title'])}</h2>
-        <button type="button" onClick={onClear}>
-          All notices
-        </button>
-      </header>
-      <div className="nat-tiles">
-        <Tile k="Regulator" v={field(row, ['regulator'])} />
-        <Tile k="Action type" v={field(row, ['action_type']) || '—'} />
-        <Tile k="Reported" v={field(row, ['date'])} />
-        <Tile k="Tags" v="—" />
-      </div>
-      <div className="nat-rec-actions">
-        <SourceBtn href={row.pdf_url} label="↓ Download PDF" />
-        <SourceBtn href={row.detail_url || row.source_url} label="↗ Source" />
-      </div>
-    </div>
-  );
-}
-
 function GenericRecord({ row, onClear, noun, feed, loading }) {
   const title = field(row, ['policy_name', 'topic', 'title', 'name', 'promise', 'programme']);
   const skip = new Set(['source_url', 'status', 'pdf_url', 'id']);

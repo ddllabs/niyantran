@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run",
     "test:sql": "./supabase/tests/run.sh",
-    "lint": "eslint src server api scripts eslint.config.js vite.config.js vitest.config.js"
+    "lint": "eslint --max-warnings 0 src server api scripts eslint.config.js vite.config.js vitest.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
@@ -30,6 +30,7 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^15.15.0",
     "vite": "^5.4.19",

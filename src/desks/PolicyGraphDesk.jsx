@@ -12,8 +12,10 @@ import {
   pigYearCounts,
 } from '../lib/pigModel.js';
 
+const NO_ROWS = [];
+
 export default function PolicyGraphDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
-  const rows = feed?.rows || [];
+  const rows = feed?.rows || NO_ROWS;
   const model = useMemo(() => buildPigModel(rows), [rows]);
   const [expanded, setExpanded] = useState(() => new Set());
   const [picked, setPicked] = useState('india');

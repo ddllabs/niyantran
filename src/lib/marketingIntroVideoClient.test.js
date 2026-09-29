@@ -21,7 +21,6 @@ vi.mock('./supabaseClient.js', () => ({
   },
 }));
 
-import { verifiedLocalIdentity } from './userStore.js';
 import { clearIntroVideo, saveIntroVideoMeta, uploadIntroVideo } from './marketingIntroVideo.js';
 
 function reply(body, status = 200) {

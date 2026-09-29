@@ -16,7 +16,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from './loadEnv.mjs';
 import {
-  AUTH_EMAIL_PROVIDERS,
   getActiveEmailProvider,
   validateEmailProviderStartup,
   getEmailProviderStrategy,

@@ -20,9 +20,11 @@ export function isFundFlowFeature(name) {
   return /centre[-–]?state fund flow/i.test(String(name || ''));
 }
 
+const NO_ROWS = [];
+
 export default function FundFlowDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
   const [q, setQ] = useState('');
-  const rows = Array.isArray(feed?.rows) ? feed.rows : [];
+  const rows = Array.isArray(feed?.rows) ? feed.rows : NO_ROWS;
   const meta = feed?.meta || {};
   const profile = meta.profile || rows[0]?.profile || 'Expenditure Profile';
   const unit = meta.unit || '₹ crore';

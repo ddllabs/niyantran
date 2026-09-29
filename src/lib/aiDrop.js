@@ -1,7 +1,7 @@
 import { TABS, catalogModules, modulesForTier } from '../desks/catalog.js';
 import { fetchFeature } from './featureFeed.js';
 import { githubCsvUrl } from './githubCsv.js';
-import { collectRowUrls, isHubListingUrl, rowPinKey, rowRecordText, sourceKindHint } from './sourceUrls.js';
+import { collectRowUrls, isHubListingUrl, rowRecordText, sourceKindHint } from './sourceUrls.js';
 import { billDocumentKey } from './deskRows.js';
 import { authHeaders } from './authHeaders.js';
 

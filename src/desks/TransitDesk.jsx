@@ -225,6 +225,7 @@ export default function TransitDesk({ onFeed, onSelect, onLoading, reload }) {
       return [...airRef.current.values()].filter((a) => inBB(a.lon, a.lat, b));
     }
     return [...shipsRef.current.values()].filter((s) => inBB(s.lon, s.lat, b) && filterRef.current[s.cat]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the data lives in refs; tick, regionId and filter are the signals to re-read them.
   }, [mode, tick, regionId, filter]);
 
   const publishFeed = useCallback(

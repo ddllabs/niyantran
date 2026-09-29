@@ -126,7 +126,6 @@ export function formatNull(value, { omitted = false, empty = '-' } = {}) {
 const DATEISH =
   /^(date|introduced|tabled|published|updated|verified|effective|deadline|as_of|asof|net|order_date|event_date|last_verified|data_through|started|since)$/i;
 const PCTISH = /(pct|percent|%|vote_share|turnout|utilization|utilisation|gap_pct|net_pct)/i;
-const INRISH = /(asset|liabilit|mplads|outlay|value_inr|budget|sanction)/i;
 
 export function formatCell(value, col = {}) {
   if (value == null || String(value).trim() === '') return '-';

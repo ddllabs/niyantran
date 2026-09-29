@@ -19,7 +19,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   const [userId, setUserId] = useState('');
   const [pass, setPass] = useState('');
   const root = useRef(null);
-  const [verifiedNotice, setVerifiedNotice] = useState(() => {
+  const [verifiedNotice] = useState(() => {
     if (typeof location === 'undefined') return false;
     return location.href?.includes('verified=true') || location.hash?.includes('verified=true');
   });

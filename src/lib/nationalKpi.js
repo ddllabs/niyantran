@@ -82,7 +82,6 @@ function maxYear(rows, key) {
 }
 
 function bars(pairs, { total, pctMode, filterCol, fmt } = {}) {
-  const max = Math.max(1, ...pairs.map((p) => p[1]));
   return pairs.map(([label, value]) => ({
     label,
     value,

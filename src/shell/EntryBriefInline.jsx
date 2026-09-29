@@ -58,6 +58,7 @@ export function useEntryBrief({ feed, selected, loading }) {
       alive = false;
       ac.abort();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on rowKey and the row fingerprint, so a re-created row object does not refetch.
   }, [feature, tier, rowKey, fp, loading]);
 
   return { brief, err, busy };

@@ -56,7 +56,7 @@ async function runTests() {
   console.log('\n--- 2. Testing SUPABASE_NATIVE Configuration ---');
   process.env.AUTH_EMAIL_PROVIDER = 'SUPABASE_NATIVE';
   const provider1 = getActiveEmailProvider();
-  const startup1 = validateEmailProviderStartup();
+  validateEmailProviderStartup();
   const strategy1 = getEmailProviderStrategy();
   assert(
     provider1 === AUTH_EMAIL_PROVIDERS.SUPABASE_NATIVE && strategy1.name === AUTH_EMAIL_PROVIDERS.SUPABASE_NATIVE,
@@ -68,7 +68,7 @@ async function runTests() {
   console.log('\n--- 3. Testing RESEND_API Configuration ---');
   process.env.AUTH_EMAIL_PROVIDER = 'RESEND_API';
   const provider2 = getActiveEmailProvider();
-  const startup2 = validateEmailProviderStartup();
+  validateEmailProviderStartup();
   const strategy2 = getEmailProviderStrategy();
   assert(
     provider2 === AUTH_EMAIL_PROVIDERS.RESEND_API && strategy2.name === AUTH_EMAIL_PROVIDERS.RESEND_API,

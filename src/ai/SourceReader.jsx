@@ -49,6 +49,7 @@ export default function SourceReader({ citation, onClose, client = supabase }) {
     return () => {
       alive = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the citation's fields: a re-created object for the same span must not reload.
   }, [citation.document_id, citation.chunk_id, citation.char_from, citation.char_to, citation.text_hash, client]);
 
   useEffect(() => {

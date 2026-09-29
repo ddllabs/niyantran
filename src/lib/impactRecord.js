@@ -114,7 +114,7 @@ function analysisIndex(map) {
   if (ix) return ix;
   const byNumCat = new Map();
   const byNum = new Map();
-  for (const [k, v] of Object.entries(map)) {
+  for (const v of Object.values(map)) {
     if (!v || typeof v !== 'object') continue;
     const n = String(v.enrichment?.bill_number || '').trim();
     if (!n) {

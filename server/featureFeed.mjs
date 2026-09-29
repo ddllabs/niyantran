@@ -2863,13 +2863,10 @@ export async function serveFeatureFeed(searchParams) {
     let note = 'Live Google News RSS — India district / local-admin coverage themes.';
     let adapter = 'news-search';
     let gdelt = false;
-    let linkPrimary = newsUrl;
-
     if (!live.rows?.length) {
       live = await tryUrls([gdeltUrl]);
       note = 'GDELT DOC 2.0 district/local-admin reporting search — not a vernacular edition archive.';
       gdelt = true;
-      linkPrimary = gdeltUrl;
     }
 
     if (live.rows?.length) {
@@ -3120,12 +3117,10 @@ export async function serveFeatureFeed(searchParams) {
     let wire = await tryUrls([newsUrl]);
     let wireNote = 'Google News RSS MLA/assembly coverage';
     let wireGdelt = false;
-    let wireLink = newsUrl;
     if (!wire.rows?.length) {
       wire = await tryUrls([gdeltUrl]);
       wireNote = 'GDELT DOC 2.0 MLA/assembly reporting search';
       wireGdelt = true;
-      wireLink = gdeltUrl;
     }
     const wireRows = (wire.rows || []).map((r) => ({
       ...r,

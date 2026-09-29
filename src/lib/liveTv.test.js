@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  LIVE_TV_CHANNELS,
-  CHANNEL_SCHEDULES,
-  CHANNEL_ARCHIVES,
-  BROADCAST_TRANSCRIPTS,
   getLiveTvChannels,
   getLiveTvSchedule,
   getLiveTvArchive,

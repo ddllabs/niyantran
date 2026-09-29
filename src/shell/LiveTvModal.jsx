@@ -57,8 +57,8 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
         if (Array.isArray(data.categories) && data.categories.length) {
           setCategories(['ALL', ...data.categories.filter((c) => c !== 'ALL')]);
         }
-        if (!activeChannelId && data.channels[0]) {
-          setActiveChannelId(data.channels[0].id);
+        if (data.channels[0]) {
+          setActiveChannelId((cur) => cur || data.channels[0].id);
         }
       }
     });
@@ -120,8 +120,8 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
         if (data.ok && Array.isArray(data.items)) {
           const items = data.items;
           setArchive(items);
-          if (items.length && !items.some((it) => it.id === selectedBroadcastId)) {
-            setSelectedBroadcastId(items[0].id);
+          if (items.length) {
+            setSelectedBroadcastId((cur) => (items.some((it) => it.id === cur) ? cur : items[0].id));
           }
         } else {
           setArchive([]);

@@ -485,56 +485,6 @@ async function fetchLiveLatest() {
   return nter.rows?.length ? nter : null;
 }
 
-const WIRE_FEEDS = [
-  { src: 'THE WIRE', site: 'https://thewire.in', url: 'https://cms.thewire.in/feed' },
-  { src: 'OCCRP', site: 'https://www.occrp.org', url: 'https://www.occrp.org/en/feed' },
-  { src: 'SCROLL.IN', site: 'https://scroll.in', url: 'https://feeds.feedburner.com/ScrollinArticles.rss' },
-  { src: 'THE HINDU', site: 'https://www.thehindu.com', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
-];
-
-async function fetchWireRssLatest() {
-  const parts = await Promise.all(
-    WIRE_FEEDS.map(async (f) => {
-      try {
-        const xml = await fetchRssXml(f.url);
-        return parseRss(xml).map((it) => ({
-          ...it,
-          src: f.src,
-          site: f.site,
-          source: 'wire-rss',
-          t: new Date(it.pub).getTime() || Date.now(),
-          ago: ago(it.pub),
-        }));
-      } catch {
-        return [];
-      }
-    }),
-  );
-  const seen = new Set();
-  const rows = parts
-    .flat()
-    .filter((r) => {
-      const k = String(r.link || r.title || '').toLowerCase();
-      if (!k || seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    })
-    .sort((a, b) => (b.t || 0) - (a.t || 0))
-    .slice(0, 12);
-  if (!rows.length) return null;
-  return {
-    ok: true,
-    rows,
-    note: 'Headlines from The Wire, OCCRP, Scroll.in and The Hindu RSS.',
-    source: 'wire-rss',
-    archive: false,
-    updated: new Date().toISOString(),
-    as_of: new Date().toISOString(),
-    ageH: 0,
-    cached: false,
-  };
-}
-
 export async function serveHomeLatest(opts = {}) {
   const live = await serveNterLatest({ limit: 12 });
   if (live.rows?.length) {

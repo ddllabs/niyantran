@@ -11,7 +11,6 @@ import {
 import {
   isPlaceholderCitation,
   isAbsoluteHttpUrl,
-  citationUrlOf,
   applyCitationGuardToFeed,
 } from './citationGuard.js';
 import { DESKS, deskForFeature } from './impactRecord.js';

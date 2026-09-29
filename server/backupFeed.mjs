@@ -112,7 +112,7 @@ function scoreMatch(featureNorm, functionNorm) {
 }
 
 function resolveParts(featureName, tier) {
-  const { byDesk, byFunction } = loadIndex();
+  const { byFunction } = loadIndex();
   const featureNorm = norm(featureName);
   const aliasTarget = FEATURE_ALIASES[featureNorm];
   const want = aliasTarget || featureNorm;

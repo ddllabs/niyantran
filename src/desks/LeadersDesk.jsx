@@ -59,6 +59,7 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
   useEffect(() => {
     if (!current || !detailRef.current) return;
     detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll only when the selected leader changes, not on every filter pass.
   }, [current?.id]);
 
   function goAsk(prompt) {

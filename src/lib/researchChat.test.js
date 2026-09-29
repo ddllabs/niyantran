@@ -192,8 +192,8 @@ describe('sendTurn', () => {
 describe('D7 ownership and durable outcomes',()=>{
  const body={message:'Question',turn_key:'original-key',focus:'broad',selection:{tier:'national',feature:'Bills',row:{title:'Bill'}},attachments:[{kind:'file',title:'Private input',text:'Exact input'}]};
  it('logout clears private state, aborts the reader and prevents late coalesced frames',async()=>{
-  const q=frameQueue(); let wire;const started=deferred();let cancelled=0;
-  const pending=sendTurn(body,{send:async()=>new Response(new ReadableStream({start(c){wire=c;c.enqueue(frame({conversation:{id:'a',title:'A'}}));c.enqueue(frame({chunk:'PRIVATE A'}));started.resolve();},cancel(){cancelled++;}})),schedule:q.schedule});
+  const q=frameQueue();const started=deferred();let cancelled=0;
+  const pending=sendTurn(body,{send:async()=>new Response(new ReadableStream({start(c){c.enqueue(frame({conversation:{id:'a',title:'A'}}));c.enqueue(frame({chunk:'PRIVATE A'}));started.resolve();},cancel(){cancelled++;}})),schedule:q.schedule});
   await started.promise;await vi.waitFor(()=>expect(research.streamState('a').conversationId).toBe('a'));
   invalidateLocalSession();q.run();const result=await pending;
   expect(research.streamState('a').streamingText).toBe('');expect(research.streamState('new').streamingText).toBe('');expect(cancelled).toBe(1);expect(result.error).toBeTruthy();
@@ -289,7 +289,7 @@ it('manual replay is single-flight even during its initial identity verification
  expect(send).toHaveBeenCalledTimes(1);expect(streamState('single').retryCount).toBe(1);
 });
 it('clearStream detaches without erasing the pending execution lock or claiming Stop',async()=>{
- let wire;const started=deferred();const send=vi.fn(async()=>new Response(new ReadableStream({start:c=>{wire=c;started.resolve();}})));
+ const started=deferred();const send=vi.fn(async()=>new Response(new ReadableStream({start:()=>{started.resolve();}})));
  const body={message:'Question',turn_key:'clear-key',focus:'broad'};const pending=sendTurn(body,{send});await started.promise;clearStream('new');await pending;
  expect(streamState('new')).toMatchObject({isPending:true,status:'unknown'});expect(auth.writes).toEqual([]);
  await sendTurn({...body,turn_key:'new-paid-key'},{send});expect(send).toHaveBeenCalledTimes(1);

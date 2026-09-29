@@ -18,7 +18,6 @@ const CACHE_VER = 'v7-entry';
 const FORWARD_MS = 55_000;
 const MAX_SOURCE_EXTRACT = 12_000;
 const UNAVAILABLE = 'AI research service is temporarily unavailable.';
-const SAMPLE_ROWS = 40;
 const MAX_CELL = 220;
 
 /** Process-lifetime L1 so repeat GETs in the same Node process skip I/O. */
@@ -96,24 +95,6 @@ function cell(v) {
   if (v == null) return '';
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   return String(v).replace(/\s+/g, ' ').trim().slice(0, MAX_CELL);
-}
-
-function sampleRows(rows) {
-  const list = (rows || []).filter((r) => r && r.status !== 'source_status');
-  const take = list.slice(0, SAMPLE_ROWS);
-  const keys = new Set();
-  for (const r of take) {
-    Object.keys(r)
-      .filter((k) => !/^__|backup_/i.test(k))
-      .slice(0, 24)
-      .forEach((k) => keys.add(k));
-  }
-  const cols = [...keys].slice(0, 18);
-  return take.map((r) => {
-    const o = {};
-    for (const k of cols) o[k] = cell(r[k]);
-    return o;
-  });
 }
 
 const SKIP_COLS = new Set([
