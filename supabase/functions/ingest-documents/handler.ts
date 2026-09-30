@@ -2,6 +2,8 @@
 // Service role only: the bearer must equal the project's secret key. Per
 // document: upsert, chunk, embed only the hash misses, chunk_commit, log the
 // embedding call. A failing document never aborts the batch. RAG spec §A.
+// A page-aware document (documents.extract_hash set) is refused untouched:
+// its ocr_text carries page offsets this path would invalidate (RAG v2 R6).
 
 import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { errorResponse, HttpError, json } from '../_shared/http.ts';
@@ -11,6 +13,9 @@ import { CHUNK, chunkDocument, type ChunkRow } from '../_shared/chunking.ts';
 import { EMBED_MODEL, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
 
 export const MAX_DOCUMENTS_PER_REQUEST = 50;
+
+/** Why a page-aware document is refused (RAG v2 chunk contract, R6). */
+export const PAGE_AWARE_REFUSAL = 'page-aware document: managed by the page pipeline';
 
 /**
  * Chunks per chunk_commit call. Each row carries its content and a 1536-float
@@ -96,7 +101,7 @@ export interface CallLogRow {
 
 export interface DocumentResult {
   source_key: string;
-  status: 'indexed' | 'unchanged' | 'dry_run' | 'error';
+  status: 'indexed' | 'unchanged' | 'dry_run' | 'refused' | 'error';
   chunks: number;
   inserted: number;
   kept: number;
@@ -104,13 +109,16 @@ export interface DocumentResult {
   embedded_tokens: number;
   cost_usd: number;
   error?: string;
+  /** Set only with status 'refused'. */
+  reason?: string;
 }
 
 export interface IngestDeps {
   secretKey: string;
   embed: (inputs: string[]) => Promise<EmbedResult>;
   db: {
-    findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null; metadata: Record<string, unknown> } | null>;
+    /** extract_hash is non-null only for a page-aware document (RAG v2 R6). */
+    findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null; metadata: Record<string, unknown>; extract_hash: string | null } | null>;
     /** Insert or update on source_key; clears chunker_version and indexed_at until markIndexed. */
     upsertDocument(row: DocumentRow): Promise<{ id: string }>;
     /** Refresh the descriptive fields of a document whose text and chunks are unchanged. */
@@ -244,6 +252,12 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   const sha = await sha256Hex(doc.ocr_text);
   validateTextClaims(doc.ocr_text, sha, doc.metadata ?? {});
   const existing = await deps.db.findDocument(doc.source_key);
+  // R6: a page-aware document belongs to ingestion-v2. Upserting it here would
+  // overwrite ocr_text and invalidate every page offset, so it is not touched at
+  // all - no metadata refresh, no chunking, no embedding - dry run or not.
+  if (existing && existing.extract_hash !== null && existing.extract_hash !== undefined) {
+    return { ...base, status: 'refused', reason: PAGE_AWARE_REFUSAL };
+  }
   const metadata = mergeDocumentMetadata(existing?.metadata ?? {}, doc.metadata ?? {});
   // An inherited text claim must not describe the previous revision.
   if ('n_chars' in metadata) metadata.n_chars = unicodeLength(doc.ocr_text);
@@ -391,6 +405,7 @@ export async function handleIngest(req: Request, deps: IngestDeps): Promise<Resp
       documents: results.length,
       indexed: results.filter((r) => r.status === 'indexed').length,
       unchanged: results.filter((r) => r.status === 'unchanged').length,
+      refused: results.filter((r) => r.status === 'refused').length,
       errors: results.filter((r) => r.status === 'error').length,
       embedded_tokens: results.reduce((n, r) => n + r.embedded_tokens, 0),
       cost_usd: results.reduce((n, r) => n + r.cost_usd, 0),

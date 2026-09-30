@@ -64,3 +64,25 @@ Deno.test('existingHashes reads exactly twice when the count is an exact multipl
   assertEquals((await supabaseDb(client).existingHashes('doc-4')).size, 2000);
   assertEquals(ranges.length, 3);
 });
+
+Deno.test('findDocument selects extract_hash and returns it (R6: the handler refuses page-aware documents)', async () => {
+  let selected = '';
+  const row = { id: 'd1', content_sha256: 'sha', chunker_version: 1, metadata: {}, extract_hash: 'e'.repeat(64) };
+  const client = {
+    from: () => ({ select: (columns: string) => (selected = columns, { eq: () => ({ maybeSingle: () => Promise.resolve({
+      data: Object.fromEntries(columns.split(',').map((k) => [k.trim(), row[k.trim() as keyof typeof row]])), error: null,
+    }) }) }) }),
+  } as unknown as SupabaseClient;
+  const found = await supabaseDb(client).findDocument('P');
+  assert(selected.split(',').map((c) => c.trim()).includes('extract_hash'), `select was "${selected}"`);
+  assertEquals(found?.extract_hash, row.extract_hash);
+});
+
+Deno.test('findDocument maps an absent or null extract_hash to null', async () => {
+  const client = {
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({
+      data: { id: 'd2', content_sha256: 'sha', chunker_version: 1, metadata: {}, extract_hash: null }, error: null,
+    }) }) }) }),
+  } as unknown as SupabaseClient;
+  assertEquals((await supabaseDb(client).findDocument('L'))?.extract_hash, null);
+});
