@@ -231,6 +231,14 @@ describe('leaks', () => {
     expect(leaks('Reserve Bank', passage)).toBe(false);
   });
 
+  it('does not count a shared sequence that is part of the document title', () => {
+    const act = 'The Computer Training Centres (Regulation) Bill, 2004 prescribes a penalty of three years.';
+    const title = 'The Computer Training Centres (Regulation) Bill, 2004';
+    expect(leaks('What penalty does the Computer Training Centres (Regulation) Bill, 2004 set?', act, 5, title)).toBe(false);
+    expect(leaks('What penalty does the Computer Training Centres (Regulation) Bill, 2004 set?', act)).toBe(true);
+    expect(leaks('Does it prescribe a penalty of three years?', act, 5, title)).toBe(true);
+  });
+
   const hindi = 'भारत सरकार ने आज संसद में नया विधेयक पेश किया जो किसानों की आय बढ़ाने के लिए है।';
 
   it('detects a 5-word Hindi overlap', () => {

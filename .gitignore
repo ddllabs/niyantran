@@ -58,3 +58,6 @@ docs/security/
 
 # Claude Code session config — local only
 .claude/
+
+# RAG v2 eval: query-embedding and build caches (eval spec)
+eval/retrieval/.cache/

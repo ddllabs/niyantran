@@ -142,10 +142,15 @@ function ngrams(tokens, n) {
   return out;
 }
 
-/** True when the question shares any n-token sequence with the passage, after normalisation. */
-export function leaks(question, passage, n = 5) {
+/**
+ * True when the question shares any n-token sequence with the passage, after normalisation.
+ * A sequence that also occurs in `exempt` (the document title) does not count: naming the
+ * Act or Bill is what a researcher does, not copying the passage.
+ */
+export function leaks(question, passage, n = 5, exempt = '') {
   const passageGrams = ngrams(normaliseTokens(passage), n);
-  for (const gram of ngrams(normaliseTokens(question), n)) if (passageGrams.has(gram)) return true;
+  const exemptGrams = ngrams(normaliseTokens(exempt), n);
+  for (const gram of ngrams(normaliseTokens(question), n)) if (passageGrams.has(gram) && !exemptGrams.has(gram)) return true;
   return false;
 }
 
