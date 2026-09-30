@@ -1,7 +1,11 @@
 # Spec: platform-admin document upload (`admin-upload`)
 
-> **Status: Normative — draft, revision 2, for the owner's review
-> (2026-10-01).** Module `admin-upload` of
+> **Status: Normative — revision 2, approved by the owner on 2026-10-01**
+> with the recommendations accepted: 300 MB per file in v1; every platform
+> admin may upload and act on any job; `pdf-lib`, the `ingest_discard`
+> migration and the schedule at go-live approved in principle. Each production
+> action (the migration, the deploys, the schedule, uploads on NTER) still gets
+> its own go-ahead when it is reached. Module `admin-upload` of
 > `docs/specs/2026-09-30-rag-v2-capability-map.md` (open-work R8). It feeds the
 > pipeline of `docs/specs/2026-10-01-rag-v2-ingestion-v2.md` (R4, live on NTER
 > since 2026-10-01) through its single entry point, `ingest_register`. The
