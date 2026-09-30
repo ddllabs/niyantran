@@ -278,7 +278,9 @@ Part 2 needs its specs first, in this order:
   with "Request Rejected", and may refuse Mistral's fetch as well. Its 76
   links need another route, such as an admin upload.
 - [ ] **R8. `admin-upload`.** A platform-admin upload tab, with splitting
-  in the browser.
+  in the browser. Spec `specs/2026-10-01-rag-v2-admin-upload.md` (draft,
+  revision 2, awaiting the owner). Moved ahead of R5–R7 by the owner
+  (2026-10-01): it is the milestone.
 
 Follow-ups and findings:
 
