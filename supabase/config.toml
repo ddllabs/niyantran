@@ -431,3 +431,8 @@ verify_jwt = false
 # desk-brief verifies the caller itself (requireUser), like research-chat.
 [functions.desk-brief]
 verify_jwt = false
+
+# ingest-worker is called by pg_cron through pg_net with an x-ingest-secret header, not a user
+# JWT; the handler compares it to INGEST_WORKER_SECRET in constant time and refuses when unset.
+[functions.ingest-worker]
+verify_jwt = false
