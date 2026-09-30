@@ -1,0 +1,1745 @@
+{
+ "generator": "google/gemini-3.8-flash",
+ "judge": "anthropic/claude-sonnet-5",
+ "rejected": [
+  {
+   "chunk_id": "e92d70fe-e4bd-4290-9341-9c5870fd8e85",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "b529452f-d8c8-4e2c-b867-95a80b6efa06",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "aac4f63f-4836-4d61-b601-30397ed38e92",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "b529452f-d8c8-4e2c-b867-95a80b6efa06",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e92d70fe-e4bd-4290-9341-9c5870fd8e85",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "76129e7b-6d81-4d68-954a-0151830d54e4",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "76129e7b-6d81-4d68-954a-0151830d54e4",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "f401d14a-733b-4f2a-9b9a-32155a663796",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "f401d14a-733b-4f2a-9b9a-32155a663796",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "d7879687-90df-4f4a-89c1-e9614d66cece",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "d7879687-90df-4f4a-89c1-e9614d66cece",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "05ac79f5-eb72-45c8-8118-01394ef36c75",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "686f5941-7a8b-467d-9ce4-9350f5725241",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "686f5941-7a8b-467d-9ce4-9350f5725241",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "05ac79f5-eb72-45c8-8118-01394ef36c75",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "fe547bfa-2412-4fcf-82e7-6b28af0a9eac",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "fe547bfa-2412-4fcf-82e7-6b28af0a9eac",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "62d221b1-548f-4f61-b15b-d330645ddeff",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "54a0a772-1926-4fbf-a259-1da7105362d1",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "54a0a772-1926-4fbf-a259-1da7105362d1",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "62d221b1-548f-4f61-b15b-d330645ddeff",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e651fe7e-7526-44c1-ad46-3cee863d67a3",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "db5cab62-f6d3-41cf-9e45-ae0324f6c91c",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "db5cab62-f6d3-41cf-9e45-ae0324f6c91c",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e651fe7e-7526-44c1-ad46-3cee863d67a3",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "023cc6d3-5780-4783-8e92-c4387f9bf04b",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "17a2c99a-526e-4e16-b7eb-9624196b2a42",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "023cc6d3-5780-4783-8e92-c4387f9bf04b",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "17a2c99a-526e-4e16-b7eb-9624196b2a42",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "167e6830-8a7b-445f-8a82-77fda0818314",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "595c26ee-6856-4365-a14b-c731b1c60dd1",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "167e6830-8a7b-445f-8a82-77fda0818314",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "595c26ee-6856-4365-a14b-c731b1c60dd1",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "1a551857-52c7-488a-94ac-ebebee253a45",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e5b295b7-ff6b-4eef-8ec8-082f3edab989",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "1a551857-52c7-488a-94ac-ebebee253a45",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e5b295b7-ff6b-4eef-8ec8-082f3edab989",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "2388ef11-af47-4c27-a5c2-223630e14e02",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "2388ef11-af47-4c27-a5c2-223630e14e02",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "86ae737c-c3ae-49a7-a97c-d1cca3e61eac",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "369fc5c9-6982-468b-830d-2a2bef7ccc82",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "86ae737c-c3ae-49a7-a97c-d1cca3e61eac",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "369fc5c9-6982-468b-830d-2a2bef7ccc82",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "a70ef5df-e877-4e2b-a612-271591f30245",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "a70ef5df-e877-4e2b-a612-271591f30245",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "a5d6412d-d7d5-46f0-a860-e7d4415966d2",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "a5d6412d-d7d5-46f0-a860-e7d4415966d2",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "a3194695-a492-49bd-9d58-c1d0560bdfd4",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "a3194695-a492-49bd-9d58-c1d0560bdfd4",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "c1e8eaa1-eec8-4492-ad8f-adce1c5e8c8f",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "06383f2e-6799-43bc-992f-9d7b8a86397a",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "06383f2e-6799-43bc-992f-9d7b8a86397a",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "cfcc3685-7fdf-45a9-874c-c3bb1a705498",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "cfcc3685-7fdf-45a9-874c-c3bb1a705498",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "4e1fee01-fe9c-4c71-91d7-6c23e83b978b",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "1a1a042f-3bfe-455b-8a8e-7a1a823c952c",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "6dc6c3c8-fa4b-496d-be3f-f877721707ff",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "6dc6c3c8-fa4b-496d-be3f-f877721707ff",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "1a1a042f-3bfe-455b-8a8e-7a1a823c952c",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "bb322f59-eeeb-49d2-bc63-a81944814105",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "788d2fe9-166c-4bb3-8b10-3a82221bcdd7",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "bb322f59-eeeb-49d2-bc63-a81944814105",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "fffe97be-9dad-4ff3-a9fc-24fa400afcbb",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "788d2fe9-166c-4bb3-8b10-3a82221bcdd7",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "fffe97be-9dad-4ff3-a9fc-24fa400afcbb",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "720ed0a9-c5e2-4db3-bc9f-d4d5ffe707f7",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "4a86208d-1018-4c80-b4bf-0278451386ba",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "14774367-816d-4e91-bdf1-549f9f86b037",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "ab6251d4-80fb-402b-a793-0cdf8034613f",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "ab6251d4-80fb-402b-a793-0cdf8034613f",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "b3a55d28-9aa2-4856-847c-c12577356265",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "b3a55d28-9aa2-4856-847c-c12577356265",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "cc250255-4c56-4ee1-8f67-e4c5014f98a5",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "cc250255-4c56-4ee1-8f67-e4c5014f98a5",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "82861a62-cee3-4144-847f-2723378f4b88",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "d56b1aba-2469-4588-b621-8aec2c5449ab",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "cf2ba863-13b4-4703-b2f0-f752d5f570dd",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "d56b1aba-2469-4588-b621-8aec2c5449ab",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "82861a62-cee3-4144-847f-2723378f4b88",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "cf2ba863-13b4-4703-b2f0-f752d5f570dd",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "ad7582db-157a-4c31-b712-86f2fa10f39e",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "242d8c01-fc57-47b5-9b20-18120e94dc6d",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "f05486ce-7f92-43b5-89b6-3f0f0a9abb61",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "242d8c01-fc57-47b5-9b20-18120e94dc6d",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "f05486ce-7f92-43b5-89b6-3f0f0a9abb61",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e1e93b7d-2fcf-4e96-8475-c92d23d4a9b1",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "31ee3a1f-7d47-467e-bd64-1edfbc70fb59",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "4e75f841-7c1d-428f-a8d1-d536301e4b22",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "e1e93b7d-2fcf-4e96-8475-c92d23d4a9b1",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "63712ac1-e757-4ea2-88be-5f936d817dba",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "63712ac1-e757-4ea2-88be-5f936d817dba",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "bfe88ca8-72fb-4ef7-8370-a60851b046a1",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "ad5b93ed-301a-4ab0-9151-6f30373febf7",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "ad5b93ed-301a-4ab0-9151-6f30373febf7",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "d271620b-5b98-4091-b80b-31c40886c9a9",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "3e64004d-9d23-425b-abcb-85ecca296d9c",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "d271620b-5b98-4091-b80b-31c40886c9a9",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "3e64004d-9d23-425b-abcb-85ecca296d9c",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "de2a6471-9f38-4782-888d-2277d79005da",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "52d0332c-5fb3-4460-9efe-9b7ad04878fb",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "f5172b28-8885-471f-9ebf-15fc81a4ce9f",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "de2a6471-9f38-4782-888d-2277d79005da",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "f5172b28-8885-471f-9ebf-15fc81a4ce9f",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "52d0332c-5fb3-4460-9efe-9b7ad04878fb",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "c1039f5a-1495-48c8-844e-5a342523411e",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "36fafc74-ea10-406a-bd08-7c9a394ac69e",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "1a8fb76b-2930-4dd4-9b29-0f66b27cad9a",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "c1039f5a-1495-48c8-844e-5a342523411e",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "36fafc74-ea10-406a-bd08-7c9a394ac69e",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "1a8fb76b-2930-4dd4-9b29-0f66b27cad9a",
+   "attempt": 2,
+   "reason": "leaks 5 words"
+  },
+  {
+   "chunk_id": "61b275c6-da31-4f63-8306-54872dc38d20",
+   "attempt": 1,
+   "reason": "leaks 5 words"
+  }
+ ],
+ "judged": [
+  {
+   "chunk_id": "8eb4602e-949e-48ce-bd92-c297a06996be",
+   "pass": true,
+   "reason": "Passage explicitly states the minimum number of judges (not less than three) nominated to sit at Dharwar."
+  },
+  {
+   "chunk_id": "f07d722f-daf8-4ace-93c1-4851a9ac55e5",
+   "pass": true,
+   "reason": "Passage describes the Joint Committee under new Chapter III-E of the RBI Act for resolving differences among regulators, directly answering the question."
+  },
+  {
+   "chunk_id": "cc41ed8e-a014-4452-8bd8-78f580fb7ebc",
+   "pass": true,
+   "reason": "Passage explicitly states minimum imprisonment of three years and fine of one lakh rupees for violations."
+  },
+  {
+   "chunk_id": "aac4f63f-4836-4d61-b601-30397ed38e92",
+   "pass": true,
+   "reason": "Passage specifically describes proposed amendments to section 11 and section 12AA(1)(e) to allow consumers and recognised consumer associations to file complaints in courts."
+  },
+  {
+   "chunk_id": "ce80531f-4af0-41cc-adf7-ef63b0b52446",
+   "pass": true,
+   "reason": "Passage states domestic air transport services opened to private sector in 1994, matching the question."
+  },
+  {
+   "chunk_id": "15cb30c3-405a-4649-8d02-1640597ce2ba",
+   "pass": true,
+   "reason": "Passage lists specific administrative procedures, penalties, and appeal mechanisms for the Commodities Transaction Tax matching the question."
+  },
+  {
+   "chunk_id": "849eda41-092b-4b75-bc98-49ef2ce7a1c0",
+   "pass": true,
+   "reason": "Passage specifies 120 days for Parliament and 100/60 days for state assemblies based on size, directly answering the question."
+  },
+  {
+   "chunk_id": "6007366a-a579-4260-9474-a3c98962724c",
+   "pass": true,
+   "reason": "Passage states assessee claiming 35AD deduction cannot also claim deduction under Chapter VI A heading C for certain incomes, directly answering the question."
+  },
+  {
+   "chunk_id": "71c5bd49-5690-4d02-979e-6f5d45ca5eb8",
+   "pass": true,
+   "reason": "The passage names W. Wangyuh Konyak as the signatory of the bill on the given date."
+  },
+  {
+   "chunk_id": "d496bd91-60b4-40e8-9425-81fe3d3940ef",
+   "pass": true,
+   "reason": "Passage specifically describes Article 243U mechanism for keeping and auditing Municipal Corporation accounts via Governor and CAG."
+  },
+  {
+   "chunk_id": "f33868c2-2262-4301-8bea-91a12dcef289",
+   "pass": true,
+   "reason": "Passage explicitly defines 'destitute woman' as a separated, divorced, or widowed woman with no source of income."
+  },
+  {
+   "chunk_id": "b8319484-3df9-4bb8-a2ca-7b6c57a70eff",
+   "pass": true,
+   "reason": "The passage explicitly lists 'General Superintendence and Services on Railways' under Vote No. 3 in the Schedule."
+  },
+  {
+   "chunk_id": "e42ea600-b8c6-4b26-bccc-6b8d2da914e7",
+   "pass": true,
+   "reason": "The passage lists the exact figure for 'Operating Expenses — Traffic' (6271,49,35,000), which the question asks about."
+  },
+  {
+   "chunk_id": "9bfbb302-ec8b-4965-9b50-2012837816b0",
+   "pass": true,
+   "reason": "Passage explicitly mentions a proviso allowing adaptation of computer programmes for debugging, directly answering the question."
+  },
+  {
+   "chunk_id": "6f558722-179b-4c46-a040-387b93c4adcc",
+   "pass": true,
+   "reason": "Passage specifically explains the lacuna identified in Dr. Ashok v. Union of India that prompted the amendment."
+  },
+  {
+   "chunk_id": "60a8372f-9cca-42ef-b850-de398c51cefd",
+   "pass": true,
+   "reason": "Passage directly describes denial of increment/promotion and restriction of leave travel concession for public sector employees with more than two children."
+  },
+  {
+   "chunk_id": "e520c8a0-6f93-4987-a149-d7fd30fba3ce",
+   "pass": true,
+   "reason": "The passage explicitly states the Bill repeals the Air Corporations Act, 1953."
+  },
+  {
+   "chunk_id": "ae9bd286-5b57-41b9-96b7-adbfce5cb8da",
+   "pass": true,
+   "reason": "Passage explicitly states the Comptroller and Auditor-General audits the Commission's accounts."
+  },
+  {
+   "chunk_id": "1e2cc7a9-2ac3-4a09-820a-61fdf92ecd21",
+   "pass": true,
+   "reason": "Passage explicitly states entries 1 and 2 of the State List are excluded from Delhi's Legislative Assembly powers."
+  },
+  {
+   "chunk_id": "eba5e300-3545-4cb0-9057-6f91beddc66a",
+   "pass": true,
+   "reason": "Passage states the proviso that reservation clause does not apply if seats allotted are less than three, directly answering the threshold question."
+  },
+  {
+   "chunk_id": "3aeb4fd2-11a3-40d6-948c-67c1655e941a",
+   "pass": true,
+   "reason": "Passage specifically cites the 1998 Supreme Court judgement on free and compulsory education as the motivating precedent."
+  },
+  {
+   "chunk_id": "f1b124c5-d7e1-4cea-9122-3f7dde84090d",
+   "pass": true,
+   "reason": "Passage states Bihar Legislative Council strength reduced from 96 to 75 and that no Legislative Council was provided for Jharkhand."
+  },
+  {
+   "chunk_id": "a30ff1f0-d714-41c8-8cfd-549b73bca3c3",
+   "pass": true,
+   "reason": "Passage directly describes the Authority's power to execute contracts and regulate its own procedure, committees, and delegation of powers."
+  },
+  {
+   "chunk_id": "a5e41ad5-8dea-46cc-b560-00b10a19e8c8",
+   "pass": true,
+   "reason": "Passage specifically states the bill proposes making it obligatory for State Governments to set up special courts for each district for speedy trial of human rights violations."
+  },
+  {
+   "chunk_id": "6e096746-c170-4f4b-bd08-71abbe7cfb39",
+   "pass": true,
+   "reason": "Passage specifically describes the Lieutenant Governor's power under Section 32 to authorise expenditure for up to six months pending Legislative Assembly sanction."
+  },
+  {
+   "chunk_id": "bc77c207-7ffb-4a54-b5c0-832c407e90e9",
+   "pass": true,
+   "reason": "Passage states the appropriate government must conduct a survey to identify children of manual scavengers and prepare/revise a list, which directly answers the question."
+  },
+  {
+   "chunk_id": "4eeafb3b-e30e-4235-b9d8-c3d695759cb7",
+   "pass": true,
+   "reason": "Passage specifies Section 13B grants civil court powers like summoning persons, seeking documents, and issuing search warrants."
+  },
+  {
+   "chunk_id": "46bd47e1-6650-4553-8957-b8824bb03a20",
+   "pass": true,
+   "reason": "Passage specifies that such laws must be submitted to the Governor for reservation for President's consideration, directly answering the question."
+  },
+  {
+   "chunk_id": "4de53ac0-779e-4d03-87ea-8e813433ded8",
+   "pass": true,
+   "reason": "Passage states proceedings are deemed judicial proceedings under sections 193 and 228 IPC, directly answering the question."
+  },
+  {
+   "chunk_id": "7dec8f28-ac7a-496e-8a7a-82d2f81c916b",
+   "pass": true,
+   "reason": "Passage details the Commission's member composition and chairmanship, directly answering the question."
+  },
+  {
+   "chunk_id": "936df8ce-26ec-4ee0-814d-1f67bee0d8b2",
+   "pass": true,
+   "reason": "Passage provides specific dates for introduction, committee referral, debate, passage in both houses, and presidential assent, all directly answering the question."
+  },
+  {
+   "chunk_id": "ec34cc51-103b-49e9-bf2d-b474d0afcfa2",
+   "pass": true,
+   "reason": "Passage specifically describes Hatti community's shyness, practices similar to other tribes, and lack of infrastructure, matching the question."
+  },
+  {
+   "chunk_id": "dc26a93f-5bf1-48f5-96b8-dacce11f3755",
+   "pass": true,
+   "reason": "Passage specifically lists rule-making powers on identity card form (sec 46) and annual report form/timing (sec 39), matching the question."
+  },
+  {
+   "chunk_id": "afc0fc11-1e1e-405b-a300-788bc6f74e84",
+   "pass": true,
+   "reason": "Passage lists specific exempted organizations (Intelligence Bureau, RAW, Enforcement Directorate, BSF, ITBP) under Section 16, directly answering the question."
+  },
+  {
+   "chunk_id": "7ccc2bd2-9c2e-4b27-82f7-809dde8c6b59",
+   "pass": true,
+   "reason": "Passage names Shri Vilas Muttemwar, M.P. as the introducer of the Bill on 25 Feb 2000."
+  },
+  {
+   "chunk_id": "396906de-5891-4ca8-b40b-eec50c746f7a",
+   "pass": true,
+   "reason": "The passage specifically states associate councillors cannot vote but may speak and participate in proceedings, directly answering the question."
+  },
+  {
+   "chunk_id": "5270bdff-570c-4a13-89c4-9d6bf43f8d5f",
+   "pass": true,
+   "reason": "Passage explicitly states the 75:25 and 50:50 revenue sharing ratios for television and radio."
+  },
+  {
+   "chunk_id": "bbad0bfd-5b58-43da-b092-c817ab765da4",
+   "pass": true,
+   "reason": "The passage specifically states hawkers must not obstruct traffic/public place and vendors must not sell health-injurious goods, matching the question's specifics."
+  },
+  {
+   "chunk_id": "687fdad0-732d-484c-b758-77dcbdc3591f",
+   "pass": true,
+   "reason": "Passage specifies that State Government must direct the Committee to increase sitting frequency or cause constitution of additional Committees when reviewing case pendency every six months."
+  },
+  {
+   "chunk_id": "58a51a14-64af-46d4-a361-0e28c83eee3a",
+   "pass": true,
+   "reason": "Passage specifically lists the assessment years against which losses from AY 2000-01 and 2001-02 could be set off."
+  },
+  {
+   "chunk_id": "68df6304-4b39-48ce-aa3c-f96eb89fffef",
+   "pass": true,
+   "reason": "Passage clause (za) directly addresses conditions for loans to directors/officers and their affiliated entities, matching the question."
+  },
+  {
+   "chunk_id": "da31ff2c-6eb1-46a6-93e0-1068308c2aef",
+   "pass": true,
+   "reason": "Passage states TA/DA expenditure would be part of the normal expenditure of the House, directly answering the question."
+  },
+  {
+   "chunk_id": "9f76cb27-6e35-425b-9b28-fcfeff529fa1",
+   "pass": true,
+   "reason": "Passage explicitly states the provisos to Section 80-HHC(3) were inserted with effect from 1 April 1998."
+  },
+  {
+   "chunk_id": "814802bc-9518-42c2-b7cc-987ecbf4137e",
+   "pass": true,
+   "reason": "Passage lists specific sources (grants, donations, insurance contributions, section 12 sums) credited to the Right to Work Fund, directly answering the question."
+  },
+  {
+   "chunk_id": "9fbacffe-b6f5-4fb2-9789-23724a1adb1f",
+   "pass": true,
+   "reason": "Passage lists the exact orders (1950, 1951, 1956, 1962, 1964) the bill sought to amend"
+  },
+  {
+   "chunk_id": "2dacb679-47b7-43a7-98d6-216d8875e2cf",
+   "pass": true,
+   "reason": "Passage specifically states ethanol blending saves foreign exchange on crude oil imports and reduces vehicular emissions, directly answering the question."
+  },
+  {
+   "chunk_id": "2c5843a6-fc0a-4972-92c4-ba1a3a474724",
+   "pass": true,
+   "reason": "Passage specifically states unfilled seats are elected by proportional representation via single transferable vote among elected assembly members."
+  },
+  {
+   "chunk_id": "818cb3e9-0e02-4a04-bc45-6cf8f5d7cccc",
+   "pass": true,
+   "reason": "The passage table explicitly states the bill was introduced in Lok Sabha on 26 October, 1999."
+  },
+  {
+   "chunk_id": "1245ccea-4bb0-400e-8ca4-671532db754d",
+   "pass": true,
+   "reason": "Passage explicitly states the added duty under Article 51A(k) for parents/guardians to provide education opportunities for children aged six to fourteen."
+  },
+  {
+   "chunk_id": "18a047c2-63c2-406e-9315-5746111fdae4",
+   "pass": true,
+   "reason": "Passage explicitly states the proposed amendment to Article 217(1) regarding High Court judge appointments via Judicial Committee recommendation."
+  },
+  {
+   "chunk_id": "a5332250-b4bb-4e37-8499-673caf11a189",
+   "pass": true,
+   "reason": "The passage explicitly states the President's Assent date as 28th March, 2002."
+  },
+  {
+   "chunk_id": "8e8c855a-fff2-4818-b3d7-4db2c377477e",
+   "pass": true,
+   "reason": "Passage directly states the change from one year to two years imprisonment and from fifteen to thirty days notice period under Section 138."
+  },
+  {
+   "chunk_id": "e18c42b6-cd68-4357-bf32-7ef92e39562e",
+   "pass": true,
+   "reason": "Passage defines 'recognised security organisation' criteria, directly answering the question."
+  },
+  {
+   "chunk_id": "d81af5c0-49c7-44ae-be32-94e98b975ca1",
+   "pass": true,
+   "reason": "Passage directly states the Central Government may constitute Advisory Committees to advise on implementation and administration of the fund."
+  },
+  {
+   "chunk_id": "b90fe174-fcb2-4fe6-8bab-059643e6a768",
+   "pass": false,
+   "reason": "The passage is a garbled table fragment with no clear context distinguishing this figure specifically, making the question unanswerable and trivial."
+  },
+  {
+   "chunk_id": "22a8b3a5-18f2-44c7-94da-b1131446c8f5",
+   "pass": true,
+   "reason": "Passage gives specific justification (speaker population, literature, scholars, university teaching) for including Kurmali in the Eighth Schedule."
+  },
+  {
+   "chunk_id": "aa161a7a-fa7a-4329-95de-74a5d6c81494",
+   "pass": true,
+   "reason": "Passage lists specific facilities for couples with one child under section 4."
+  },
+  {
+   "chunk_id": "4133b7a2-54fe-4dfe-9250-3438897c4111",
+   "pass": true,
+   "reason": "The passage explicitly states five percent of housing units constructed by the government must be reserved for blind and handicapped persons."
+  },
+  {
+   "chunk_id": "d641d102-5807-49e0-a6c5-ba26d483a885",
+   "pass": true,
+   "reason": "Passage specifies the proviso allowing defense of lack of knowledge or due diligence to avoid liability."
+  },
+  {
+   "chunk_id": "b0373d85-a11c-458b-a4d8-7349f927384d",
+   "pass": true,
+   "reason": "Passage states the Speaker may permit a member who cannot adequately express himself in the official languages to address the Assembly in his mother-tongue."
+  },
+  {
+   "chunk_id": "d2ccd19b-2dc0-421c-b595-3602b8ea0770",
+   "pass": true,
+   "reason": "Passage explains that litigation over the tenure of the Director's post at AIIMS prompted the amendment, which answers the question."
+  },
+  {
+   "chunk_id": "9fd2ed36-cb45-4124-afcd-2f6302722319",
+   "pass": true,
+   "reason": "The passage shows Water Resources capital charged amount as 15,42,000 on the Consolidated Fund."
+  },
+  {
+   "chunk_id": "87c54995-29ef-4e8a-a96d-493b18c6a6c1",
+   "pass": true,
+   "reason": "Passage states the borrowing limit is ten times the paid up capital and reserve fund, directly answering the question."
+  },
+  {
+   "chunk_id": "09e18d4c-b48f-48bb-82e4-e6404b896b8d",
+   "pass": true,
+   "reason": "Passage specifies minimum of three women and two Scheduled Caste members, directly answering the question."
+  },
+  {
+   "chunk_id": "9006f513-5b2f-4821-bfdb-0464a71fbeb4",
+   "pass": true,
+   "reason": "Passage explicitly states the proposed annual grant of rupees one thousand crore for developmental and infrastructural works in Kerala."
+  },
+  {
+   "chunk_id": "78ba47c3-928f-41e6-89fc-28368f53bd1a",
+   "pass": true,
+   "reason": "Passage states a seven-hour workday standard for setting unskilled wage schedules, directly answering the question."
+  },
+  {
+   "chunk_id": "b149f386-73ca-446c-82de-47553cf68782",
+   "pass": true,
+   "reason": "Passage lists specific functions of the Designated Authority under this Bill, directly answering the question."
+  },
+  {
+   "chunk_id": "cd0674c2-6fea-4653-8416-6baa32d585f3",
+   "pass": true,
+   "reason": "Passage specifically lists sections 75, 76 omitted, clause (j) of section 80 omitted, and related amendments to sections 77 and 81, directly answering the question."
+  },
+  {
+   "chunk_id": "726398e2-ccb4-48b7-9039-a3792baeb945",
+   "pass": true,
+   "reason": "The passage explicitly states the capital amount (500,01,00,000) for Department of Urban Development, matching the question."
+  },
+  {
+   "chunk_id": "a7cfa043-8512-4b06-8b67-bc3f188460db",
+   "pass": true,
+   "reason": "Passage specifies imprisonment up to six months and fine up to twenty five thousand rupees for emotional/psychological abuse or foul language, matching the question."
+  },
+  {
+   "chunk_id": "ca7ab8c5-15a4-478e-aff5-87724a075ede",
+   "pass": true,
+   "reason": "Passage specifies a 3% per annum reduction in interest rate for service providers with turnover below sixty lakh rupees."
+  },
+  {
+   "chunk_id": "a705a91e-cb24-47e0-bb8f-eb1266ee08f6",
+   "pass": true,
+   "reason": "Passage explicitly lists the three Acts providing definitions, directly answering the question."
+  },
+  {
+   "chunk_id": "127ce544-6c26-4a39-b3cc-5e49097aae9e",
+   "pass": true,
+   "reason": "Passage explicitly defines 'declaration of security' and states the exemption for war ships, naval auxiliaries, and other government-operated non-commercial ships."
+  },
+  {
+   "chunk_id": "929107af-d549-411d-a367-8204da52d3c8",
+   "pass": true,
+   "reason": "Passage states the 1971 census figures under the Delimitation Act, 1972 formed the basis for the deemed readjustment."
+  },
+  {
+   "chunk_id": "691e80ee-39b9-454d-8746-9fbef4004d77",
+   "pass": true,
+   "reason": "The passage explicitly states the bill was introduced in Rajya Sabha on 24 November, 2000."
+  },
+  {
+   "chunk_id": "14493170-f65c-4876-be58-aab116d631c7",
+   "pass": true,
+   "reason": "Passage explicitly names the Representation of the People Act, 1951 and the Indian Penal Code as the statutes needing amendment for proxy voting by armed forces."
+  },
+  {
+   "chunk_id": "8deed8a5-a682-41b2-964d-4b2f98444d90",
+   "pass": true,
+   "reason": "Passage explicitly states DD-Lok Sabha and DD-Rajya Sabha channels were mandated for non-prime band re-transmission per the notification."
+  },
+  {
+   "chunk_id": "e33849e6-7f8c-4600-bd9d-7684126137ea",
+   "pass": true,
+   "reason": "The passage explicitly lists the Railway Safety Fund total as 333,33,34,000, matching the question."
+  },
+  {
+   "chunk_id": "65e2da74-6603-433e-b4ae-ae27723802fb",
+   "pass": true,
+   "reason": "Passage directly describes the interim continuation of the Academic Council until a new Senate is constituted."
+  },
+  {
+   "chunk_id": "7025a675-6622-4b75-9867-2fb55058dc30",
+   "pass": true,
+   "reason": "Passage specifically states examiner reports can be produced/inspected in legal proceedings only if the court certifies it is desirable in the interests of justice."
+  },
+  {
+   "chunk_id": "c1e8eaa1-eec8-4492-ad8f-adce1c5e8c8f",
+   "pass": true,
+   "reason": "The passage states the proposed proviso requiring each House of Parliament to sit for a minimum of 100 days a year, matching the question."
+  },
+  {
+   "chunk_id": "b04f500f-d053-49cd-9fd9-7d83ffca8331",
+   "pass": true,
+   "reason": "Passage explicitly states the rate for sub-heading 5210 39 as 12.5% or Rs. 150 per kg, whichever is higher."
+  },
+  {
+   "chunk_id": "0fe3b572-59ec-44a2-a068-c030a6535b8f",
+   "pass": true,
+   "reason": "Passage specifies arrest occurs if the person fails to comply with the notice or refuses to identify himself, matching the question."
+  },
+  {
+   "chunk_id": "e384448a-ce76-453e-a465-e12abf72398a",
+   "pass": true,
+   "reason": "Passage states the extension to 'three years and six months' for the Punjab proclamation issued 11 May 1987, answering the question."
+  },
+  {
+   "chunk_id": "c4dc5b98-b5ce-4162-b131-cfd19ccab290",
+   "pass": true,
+   "reason": "Passage specifically states 40% arrears paid in 2008-09 and 60% in 2009-10, matching the question."
+  },
+  {
+   "chunk_id": "94d78f52-4f9b-4163-99f1-bbda74e49cc4",
+   "pass": true,
+   "reason": "The passage explicitly states the informant sought interim relief under section 33 of the Competition Act."
+  },
+  {
+   "chunk_id": "e9bfd290-42a1-4644-9bd3-d9bd833d8c1a",
+   "pass": false,
+   "reason": "The OCR passage is garbled and does not clearly state a minimum qualifying service period matching the question's specifics."
+  },
+  {
+   "chunk_id": "62728fa5-99a2-43d5-9675-3026788008ca",
+   "pass": true,
+   "reason": "Passage states CCI concluded no violation of Section 4 was established in the relevant meter market, directly answering the question."
+  },
+  {
+   "chunk_id": "32719f19-9597-4697-a3cd-6ef302ad1cd5",
+   "pass": true,
+   "reason": "The passage directly states that without a prima facie case, the Section 33 interim relief application does not survive and is dismissed."
+  },
+  {
+   "chunk_id": "22f35695-4917-435c-9e42-8a2f799dd724",
+   "pass": true,
+   "reason": "Passage explains dealers quoting different rates undermines the resale price maintenance claim."
+  },
+  {
+   "chunk_id": "4e1fee01-fe9c-4c71-91d7-6c23e83b978b",
+   "pass": true,
+   "reason": "Passage names Paper Merchants Association, Delhi as the entity whose regulations were found violative of Section 3 in Case No. 7/2010"
+  },
+  {
+   "chunk_id": "cda3ec43-80f9-4990-a6e5-165e16832cc0",
+   "pass": true,
+   "reason": "Passage specifies the revised entry (iii) requiring 21 years of Group A service with at least 3 years in SAG for Principal Advisor deputation, matching the question."
+  },
+  {
+   "chunk_id": "c9835aa6-ea81-4dc8-a4dd-51a971c1cea5",
+   "pass": true,
+   "reason": "Passage directly states the tariff cap of not exceeding twice the retail tariff for FTTH plans up to 200 Mbps under PM-WANI."
+  },
+  {
+   "chunk_id": "750b292f-f1dd-40e2-8756-65a6f303502c",
+   "pass": true,
+   "reason": "Passage states the first DTH licence is due to expire on 30 September 2013, answering the question."
+  },
+  {
+   "chunk_id": "05b8cdec-660c-4351-b87d-84c8f43019e2",
+   "pass": true,
+   "reason": "Passage names the chairs: Vishal Arya (Tata Play), Ashok Kumar (DDG, DoT), and Syed Tausif Abbas (DDG, DoT)."
+  },
+  {
+   "chunk_id": "ae509fb9-06c6-4a07-bcab-12fa43ffb081",
+   "pass": true,
+   "reason": "Passage states S Tel disconnected from MNP clearing house for Zone-2 effective 27th Feb, 2012, directly answering the question."
+  },
+  {
+   "chunk_id": "b41f02b6-e2bc-45ae-9764-7ae6d73ef2b8",
+   "pass": true,
+   "reason": "Passage explicitly states DoT sought reserve price recommendations for 800 MHz, 900 MHz and 1800 MHz bands via its 10 July 2013 letter."
+  },
+  {
+   "chunk_id": "c3bcfc16-eb86-42cc-992e-125839eeb47b",
+   "pass": true,
+   "reason": "The passage states the consultation paper was issued on 15 March 2013, directly answering the question."
+  },
+  {
+   "chunk_id": "11f5d6f5-ff2d-49b3-b449-c13da08b0f0d",
+   "pass": true,
+   "reason": "Passage specifically details the interference concern between 800 MHz downlink and 900 MHz uplink and states the 1.6 MHz guard band demanded by Airtel and Vodafone Idea."
+  },
+  {
+   "chunk_id": "4fde72e1-dc17-4c38-bc01-aba68bd2c923",
+   "pass": true,
+   "reason": "The passage specifically details concerns about bypassing regulations, gaming IUC regime, predatory pricing, and network congestion from disguised trial services."
+  },
+  {
+   "chunk_id": "34b57e9b-7450-47c2-ab74-eefe10dfd318",
+   "pass": true,
+   "reason": "Passage explicitly states the November 15 and May 15 deadlines for carbon footprint reporting."
+  },
+  {
+   "chunk_id": "36f7ff49-3524-45d2-9dc3-8a9d76325e7e",
+   "pass": true,
+   "reason": "Passage explicitly states DoT referred back Recommendation No. 3.8 of TRAI's 6 Jan 2015 recommendations via letter dated 02.11.2022."
+  },
+  {
+   "chunk_id": "4792c24d-e5d2-4a16-a0d2-9a59f8b7ae9d",
+   "pass": true,
+   "reason": "Passage explains that even though the agreement was not acted upon, it was not abrogated and thus must be held void under Section 3(2)."
+  },
+  {
+   "chunk_id": "f168f27a-5df3-4d2d-bbe2-9d9a982af6a5",
+   "pass": true,
+   "reason": "The passage specifies section 11(1)(a) of TRAI Act, 1997 as the provision under which DoT sought recommendations on submarine cable landing licensing."
+  },
+  {
+   "chunk_id": "55a0ad6f-0647-4868-8357-2677cb41ba43",
+   "pass": true,
+   "reason": "The passage lists the specific remedies sought (supply of motorcycles, payment of credit memo amount) which directly answer the question."
+  },
+  {
+   "chunk_id": "b4869400-ff04-4c33-aec5-a6587bfcda66",
+   "pass": true,
+   "reason": "Passage explains CCI closed the case under Section 26(2) due to forum shopping and failure to allege dominant position, directly answering the question."
+  },
+  {
+   "chunk_id": "4f3da73c-8bde-4d0e-b76b-bfbb4c68a961",
+   "pass": true,
+   "reason": "Passage explicitly states the extended deadlines of 01.07.2016 for comments and 08.07.2016 for counter-comments."
+  },
+  {
+   "chunk_id": "c77d04c7-ad4b-4054-a221-27a4e3330be2",
+   "pass": true,
+   "reason": "Passage explains proceedings were kept pending at parties' request because allegations matched Case No. 19 of 2010 until that order was passed."
+  },
+  {
+   "chunk_id": "c89cedd3-4474-46d7-81c2-e1fc9acb5303",
+   "pass": true,
+   "reason": "Passage states responses are formulated under section 11 of TRAI Act 1997, as amended in 2000."
+  },
+  {
+   "chunk_id": "3a98d66c-ab9d-4996-8212-7848f697eed4",
+   "pass": true,
+   "reason": "Passage specifically lists call centre, COCO stores, and authorised direct franchisees as the special channels proposed for UPC requests in Mumbai."
+  },
+  {
+   "chunk_id": "21c4e572-dc10-40f2-b32b-eb163f30069d",
+   "pass": true,
+   "reason": "Passage explicitly states NTP-2012 addresses need for non-discriminatory interconnection including at IP level."
+  },
+  {
+   "chunk_id": "54739b0f-6f74-4eab-b8a7-63bd3eecb5ee",
+   "pass": false,
+   "reason": "The passage only mentions 'The Secretary' without confirming this matches the specific case number or providing details beyond what's generic to such orders."
+  },
+  {
+   "chunk_id": "f191f593-4bda-4393-b9e5-08400c1d9bc3",
+   "pass": false,
+   "reason": "The passage is garbled OCR text and does not establish Arun Agarwal as an 'authorized signatory' or that he 'approved' the release; this framing is not supported."
+  },
+  {
+   "chunk_id": "6ccb8e54-ee71-4a8a-bbb0-0a145264002a",
+   "pass": true,
+   "reason": "Passage specifically lists the withheld amounts (Rs. 8.64 crore, 5% opportunity cost, Rs. 19 lakh tyres) alleged as abuse of dominance."
+  },
+  {
+   "chunk_id": "4490a252-b92c-48d8-8c9f-c6536a9c7002",
+   "pass": true,
+   "reason": "Passage explicitly lists case Nos.18, 24, 30, 31, 32, 33, 34, 35 of 2010 as the related cases."
+  },
+  {
+   "chunk_id": "e420d052-1c3f-480d-879d-44a35477b600",
+   "pass": true,
+   "reason": "Passage explicitly states short code 1072 was designated for train accident information to be opened toll-free."
+  },
+  {
+   "chunk_id": "b3203668-c551-45a8-a2bb-5cf715b7370b",
+   "pass": true,
+   "reason": "The passage explicitly states the extended counter-comments deadline of 28th July 2016."
+  },
+  {
+   "chunk_id": "720ed0a9-c5e2-4db3-bc9f-d4d5ffe707f7",
+   "pass": true,
+   "reason": "Passage explicitly lists SMS, USSD, IVR, WAP, and STK as channels access providers must support under the 2012 regulations."
+  },
+  {
+   "chunk_id": "0e2db06c-7760-40d4-8b36-c2f29348b659",
+   "pass": true,
+   "reason": "Passage states only 1 bidder qualified for financial bid opening and it was very highly priced, leading KMRCL to scrap the tender."
+  },
+  {
+   "chunk_id": "f7c8285b-c524-489f-b0ff-ce9e67156ece",
+   "pass": true,
+   "reason": "Asks about specific evidence (firm demand letter dated 21.06.2016, willingness to pay demand notes) mentioned in the passage regarding denied augmentation requests."
+  },
+  {
+   "chunk_id": "a8608ed8-1598-4562-87f2-6bf3ae1bd31d",
+   "pass": true,
+   "reason": "Passage gives specific relaxed benchmark timelines for urban vs rural/hilly areas proposed by TSPs, directly answering the question."
+  },
+  {
+   "chunk_id": "b9c274e2-1ee4-4c80-8198-001020222d46",
+   "pass": true,
+   "reason": "Passage names Shri Rakesh Garg as the DoT Secretary addressed, matching the question's specific details."
+  },
+  {
+   "chunk_id": "db742bea-615a-4ac9-8ff3-1fe4ea3a0d52",
+   "pass": true,
+   "reason": "Passage specifically attributes speculative stock buildup and implicit trader cartels blocking new entrants as explanations from named economists, matching the question."
+  },
+  {
+   "chunk_id": "4a86208d-1018-4c80-b4bf-0278451386ba",
+   "pass": true,
+   "reason": "The passage explicitly states the Open House Discussion on cloud computing was held on 03.04.2017, directly answering the question."
+  },
+  {
+   "chunk_id": "b809e8bd-a4d7-465d-8e88-11c8bb7a9eb8",
+   "pass": true,
+   "reason": "The passage specifically states the informant requested an investigation into KBC and similar quiz shows, compensation for his loss/inconvenience, and heavy penalty on opposite parties."
+  },
+  {
+   "chunk_id": "c8301d53-c034-499f-899b-b74399b8dc2b",
+   "pass": true,
+   "reason": "Passage specifically lists Sec.36A(1)(i)(ii)(iv)(vi) for unsubstantiated claims and Sec 2(o) for limited liability clause, directly answering the question."
+  },
+  {
+   "chunk_id": "b470bd3b-487b-4bcf-9a2e-b69c50d17ca5",
+   "pass": true,
+   "reason": "The passage explicitly states the direction was issued under section 13 and sub-clauses (i) and (v) of clause (b) of sub-section (1) of section 11 of the TRAI Act, matching the question."
+  },
+  {
+   "chunk_id": "06ad6f4f-a57a-4049-a35d-da3d4d3de5a4",
+   "pass": true,
+   "reason": "The passage explicitly states DoT referred back recommendations under section 11 of TRAI Act 1997, as amended in 2000."
+  },
+  {
+   "chunk_id": "d94bfd85-9ea0-4099-94c7-51ecd855cac0",
+   "pass": true,
+   "reason": "Passage states missions have discretion within broad guideline parameters to set suitable conditions individually, answering the autonomy question."
+  },
+  {
+   "chunk_id": "3c39b9c3-d8b8-4a68-86ca-6cdd3dd3f6ba",
+   "pass": true,
+   "reason": "Passage explicitly lists benefits like reduced CAPEX/OPEX, lower prices for subscribers, lower entry barriers, and more space for niche channels."
+  },
+  {
+   "chunk_id": "d65bf560-2ef7-45f8-ab8d-38fd12801f25",
+   "pass": true,
+   "reason": "Passage states GoM recommended reserve prices for new channels based on actual prices from second Phase for comparable cities, directly answering the question."
+  },
+  {
+   "chunk_id": "341a0e81-08ed-4b6d-80fd-2b29cf236455",
+   "pass": true,
+   "reason": "The passage explicitly names M/s TUV SUD as the independent agency conducting the drive tests in Delhi and Mumbai."
+  },
+  {
+   "chunk_id": "cb0bec69-3dc1-4ae3-9652-a98eeb33c7d6",
+   "pass": true,
+   "reason": "Passage states the revised deadline as 26th May, 2025, directly answering the question."
+  },
+  {
+   "chunk_id": "e1624ec9-454c-4857-a2bb-b9d3c52b285c",
+   "pass": true,
+   "reason": "Passage explains RINL's justification: production planning based on bookings, losses if goods not lifted, recouped via forfeiture."
+  },
+  {
+   "chunk_id": "af15b6f7-426f-47bd-bc51-2ba9e66f72e7",
+   "pass": true,
+   "reason": "Passage states the Open House Discussion was conducted on 4 January 2016 in New Delhi, directly answering the question."
+  },
+  {
+   "chunk_id": "59376fbb-9fe6-40b6-a255-5070c4b20498",
+   "pass": true,
+   "reason": "Passage specifies the April 2013 letter asked for base year 2011-12 and first half yearly report 2012-13 carbon footprint reports."
+  },
+  {
+   "chunk_id": "7c08d75c-06f7-4bfb-94e2-e314a054f797",
+   "pass": true,
+   "reason": "The passage lists specific metrics (E1s, utilization %, originating/terminating traffic in Erlangs, call attempts, failed call attempts, failure %) for POIs with RJIL during busy hour for specific dates in Sept 2016."
+  },
+  {
+   "chunk_id": "d37c223f-6799-4330-a120-d479f4185843",
+   "pass": true,
+   "reason": "Passage explains Single RAN SDR reduces number of sites and enables network convergence/sharing, directly answering the question."
+  },
+  {
+   "chunk_id": "d93989f9-5745-4b66-93dc-61d023be70cf",
+   "pass": false,
+   "reason": "The passage is OCR-garbled and does not clearly state the actual order content; question is too generic and answer isn't substantively derivable."
+  },
+  {
+   "chunk_id": "9a051950-e941-4cab-8739-225fda5dd277",
+   "pass": true,
+   "reason": "Passage explicitly states phase IV of cable TV digitization is targeted to be completed by March 2017."
+  },
+  {
+   "chunk_id": "14774367-816d-4e91-bdf1-549f9f86b037",
+   "pass": true,
+   "reason": "Passage states the extended deadline (12.09.2014) for comments on the 2014 draft amendment, directly answering the question."
+  },
+  {
+   "chunk_id": "fe8d0871-9c7f-4dee-9c4f-cf7f85a4cd5d",
+   "pass": true,
+   "reason": "The passage directly states the complainant cannot insist on retaining the old number after the original allottee's death."
+  },
+  {
+   "chunk_id": "72675062-2bdb-4074-b62d-7a253fd341eb",
+   "pass": true,
+   "reason": "The passage explains that such placement captures artificial viewership impressions and creates a discriminatory, non-level playing field, directly answering the question."
+  },
+  {
+   "chunk_id": "eaa4200b-dcae-454e-8723-7b9ed23fff57",
+   "pass": true,
+   "reason": "The passage explicitly states a penalty of Rs.72.50 lakhs levied on Kingfisher Airlines under Section 43 of the Act."
+  },
+  {
+   "chunk_id": "ed43154b-903e-4d9e-a693-10c9159e6b29",
+   "pass": false,
+   "reason": "The passage table is garbled/misaligned OCR data, making it impossible to reliably match specific utilization and failure percentages to Chennai, Kolkata, and Mumbai."
+  },
+  {
+   "chunk_id": "a5b6bd11-510a-4f41-8522-87f5533f7f45",
+   "pass": true,
+   "reason": "The passage explicitly names TAFI, TAAI, and IAAI as the associations that boycotted Singapore Airlines in December 2008."
+  },
+  {
+   "chunk_id": "b7cbdecf-72fe-40f3-9edb-e9b6126788ac",
+   "pass": true,
+   "reason": "Passage gives the revised deadlines (14.03.2017 for comments, 28.03.2017 for counter-comments) matching the question."
+  },
+  {
+   "chunk_id": "167eacd8-a6eb-4172-b440-d32a1b94c5bd",
+   "pass": true,
+   "reason": "The passage directly explains that consumer lock-in arises from high switching costs and information asymmetry arises because agreement terms are not fully read or explained, matching the question."
+  },
+  {
+   "chunk_id": "64c25936-0a8b-4ec3-a341-f9adbae9f1bb",
+   "pass": true,
+   "reason": "Passage directly describes allegations of arbitrary inaction and improper license renewal for a developer delaying housing construction, matching the question."
+  },
+  {
+   "chunk_id": "08956e3f-2b0d-4dbd-8fe0-6e33e7ad0a33",
+   "pass": true,
+   "reason": "Passage explicitly states the 21-day timeline for GTPL Hathway's compliance report."
+  },
+  {
+   "chunk_id": "24190713-a1ef-4080-8bfa-b7106141bbca",
+   "pass": true,
+   "reason": "Passage explicitly states the deadline of 19th May 2025 for comments on the DLC pre-consultation paper."
+  },
+  {
+   "chunk_id": "21253c9c-080a-4929-8017-94ed9491be2e",
+   "pass": true,
+   "reason": "Passage states TRAI recommends minimum download speed be increased to 2 Mbps, directly answering the question."
+  },
+  {
+   "chunk_id": "807565a5-c6ed-4883-947f-d4c4b53ceff9",
+   "pass": true,
+   "reason": "The passage shows row 43 with values 2739, 2083, and 76.05% matching the question's specifics."
+  },
+  {
+   "chunk_id": "d49141d1-36b4-4e1e-876a-cd6ad82832f7",
+   "pass": true,
+   "reason": "Passage explains that non-availability of '1072' would adversely affect consumer interest and hinder dissemination of accident information, directly answering the question."
+  },
+  {
+   "chunk_id": "0720b13b-4039-4118-820e-2eae348110f9",
+   "pass": true,
+   "reason": "Passage explicitly states 57,789 SC cases and 12,960 ST cases registered in 2023 per NCRB data, directly answering the question."
+  },
+  {
+   "chunk_id": "621bb1e8-cbe4-4c26-92d7-83603bfd7724",
+   "pass": true,
+   "reason": "The passage confirms Shri A. Raja's unstarred question about SC/ST/OBC scholarship schemes with focus on Tamil Nadu, matching the question's details."
+  },
+  {
+   "chunk_id": "b57fbf84-c6d6-4f36-abf3-87dabf0b96f6",
+   "pass": false,
+   "reason": "The passage is unreadable OCR noise, so the question cannot be answered from it."
+  },
+  {
+   "chunk_id": "e62f223a-f3f0-43e6-bee4-bbc058ad13af",
+   "pass": true,
+   "reason": "Passage provides specific funding amounts and beneficiary numbers per component for FY2023-24 to 2025-26 under SEED scheme."
+  },
+  {
+   "chunk_id": "fa7b37d9-7551-44e8-bad7-54ba8b40ca20",
+   "pass": true,
+   "reason": "Passage explicitly states PMU inspects progress and grant-in-aid is released based on PMU recommendations."
+  },
+  {
+   "chunk_id": "284f4ab1-e2f5-4338-b62d-7c4f21230671",
+   "pass": true,
+   "reason": "The passage names NSFDC and NSTFDC as providers of concessional loans to SC/ST individuals for livelihood activities, directly answering the question."
+  },
+  {
+   "chunk_id": "2d375235-43de-41a8-9549-f07b3ad09719",
+   "pass": true,
+   "reason": "The passage directly states the MP's question about drug usage in schools/colleges in Kerala and steps taken by the government."
+  },
+  {
+   "chunk_id": "ad7582db-157a-4c31-b712-86f2fa10f39e",
+   "pass": true,
+   "reason": "Passage explicitly states Rs. 21.36 Cr released under SHREYAS to Bihar from 2021-22 to 2023-24."
+  },
+  {
+   "chunk_id": "4e75f841-7c1d-428f-a8d1-d536301e4b22",
+   "pass": true,
+   "reason": "Passage explicitly lists 58.29 crore for 2024-25 under grants-in-aid for West Bengal."
+  },
+  {
+   "chunk_id": "eec85966-9760-4054-ba88-8d731bfe2fec",
+   "pass": true,
+   "reason": "Passage explicitly states proposals must be submitted online via the E-anudaan portal under the AVYAY scheme guidelines."
+  },
+  {
+   "chunk_id": "31ee3a1f-7d47-467e-bd64-1edfbc70fb59",
+   "pass": true,
+   "reason": "Passage details the specific parliamentary question by MP Hanuman Beniwal about OBC reservation for Jats from Bharatpur, Deeg, and Dholpur districts at the central level."
+  },
+  {
+   "chunk_id": "5dd39477-37e5-4c8d-b4b9-cd7f9d3b714e",
+   "pass": false,
+   "reason": "The passage is unreadable OCR garbage and the question is not a real, answerable question about content."
+  },
+  {
+   "chunk_id": "170a93f4-8c64-4e70-a516-7b0eda8e271a",
+   "pass": true,
+   "reason": "Passage explicitly names NSFDC, NBCFDC, NSKFDC as implementing corporations and states PM-DAKSH will merge with PMKVY."
+  },
+  {
+   "chunk_id": "2baf5dbe-07f4-4afa-b711-c12b75257972",
+   "pass": true,
+   "reason": "Passage specifies the Oct 29, 2024 expansion of AB-PMJAY giving ₹5 lakh free coverage to seniors 70+ regardless of socio-economic status, directly answering the question."
+  },
+  {
+   "chunk_id": "6fd4fb89-7be4-42e2-b89c-b2442eef121b",
+   "pass": false,
+   "reason": "The passage only shows the question asked, not the actual answer with specific exam streams or target numbers."
+  },
+  {
+   "chunk_id": "94f7a3da-f70a-4d26-a3bc-f5447186d7a4",
+   "pass": true,
+   "reason": "The passage explicitly lists SCs, OBCs, EBCs, DNTs, and sanitation workers/waste pickers as the marginalized groups targeted under PM-DAKSH, directly answering the question."
+  },
+  {
+   "chunk_id": "1b29aac8-eee3-4802-ba01-1dbf15cf350f",
+   "pass": true,
+   "reason": "Passage directly states the 70% placement benchmark and the withheld 30% installment condition."
+  },
+  {
+   "chunk_id": "cd253d57-ed4e-4b1a-9e4b-605f5dbffa3e",
+   "pass": true,
+   "reason": "The passage lists specific schemes and quotas for OBCs matching the question."
+  },
+  {
+   "chunk_id": "2a9f8f6a-2135-42ee-bfca-c7e11e96783c",
+   "pass": true,
+   "reason": "The passage lists the MPs who raised Unstarred Question No. 2778 on the NAMASTE Scheme, directly answering the question."
+  },
+  {
+   "chunk_id": "4f01238d-5bce-431f-855a-224d7e6fd6bf",
+   "pass": true,
+   "reason": "The passage explicitly states the '*' notation indicates the State/UT did not send material for the annual report."
+  },
+  {
+   "chunk_id": "ab4ae74a-1cba-41a7-a087-91caa8a7d61b",
+   "pass": false,
+   "reason": "The passage is corrupted OCR text with no coherent content, and the question is not a real question about the document."
+  },
+  {
+   "chunk_id": "d839a27c-294d-4485-8767-88d83f0ce738",
+   "pass": false,
+   "reason": "The passage is a garbled table of district data and does not provide coherent information answering this question."
+  },
+  {
+   "chunk_id": "974935af-a40d-4753-a12f-70e947bda8df",
+   "pass": true,
+   "reason": "Passage gives the exact question (core objective and socio-economic impact on SC students) asked in the July 2024 Lok Sabha query on SHRESHTA."
+  },
+  {
+   "chunk_id": "c40ea74d-f3ee-4fec-8961-30cb2d947d69",
+   "pass": true,
+   "reason": "Passage explicitly states the 103rd Amendment Act, 2019 introduced EWS reservation provisions, directly answering the question."
+  },
+  {
+   "chunk_id": "8207baa3-3c50-4b9b-a849-d4e1b4841447",
+   "pass": false,
+   "reason": "The table's column headers/categories are missing from the passage, making the numbers uninterpretable and the question generic rather than specific."
+  },
+  {
+   "chunk_id": "e82947e5-c599-436a-bd33-787ce91408cb",
+   "pass": true,
+   "reason": "Passage specifically identifies Punjab as the state with Writ Petitions over withheld degrees for SC scholarship recipients."
+  },
+  {
+   "chunk_id": "4bdb3281-4355-4379-9039-9ff632c71775",
+   "pass": true,
+   "reason": "Passage specifies tertiary services are delivered via Regional Geriatric Centres at 17 medical colleges and two National Centres of Aging at AIIMS Delhi and Madras Medical College."
+  },
+  {
+   "chunk_id": "41fe481e-f3eb-48f8-94be-becccc8eec8a",
+   "pass": true,
+   "reason": "Passage gives exact slot distribution (115 SC, 6 DNT, 4 landless labourers) among 125 total slots for NOS."
+  },
+  {
+   "chunk_id": "bfe88ca8-72fb-4ef7-8370-a60851b046a1",
+   "pass": true,
+   "reason": "Passage explicitly states the Rs. 30/20/10 lakh compensation amounts ordered by the Supreme Court for deaths, permanent injury, and other injuries."
+  },
+  {
+   "chunk_id": "08b2a4f7-18ac-4f03-b087-e0f9cf883f63",
+   "pass": true,
+   "reason": "Passage specifically lists Ministry of AYUSH's responsibilities including developing training modules/treatment protocols for geriatric caregivers and substance abuse counselors, matching the question."
+  },
+  {
+   "chunk_id": "bc9588fd-584c-4f0f-9db2-abf568a17eb2",
+   "pass": true,
+   "reason": "The passage identifies MP Raja A's question about Supreme Court ruling on adjusting reserved category candidates against unreserved seats and government compliance mechanisms, matching the question's specifics."
+  },
+  {
+   "chunk_id": "7a53c8ef-b4c8-43de-8fb2-bb7385dc1fe4",
+   "pass": true,
+   "reason": "The passage lists the specific queries (a)-(c) about schemes, allocations, and reservation for nomadic groups including Banjara, matching the question."
+  },
+  {
+   "chunk_id": "93c0c29b-a2d7-4302-ae94-341e1f85b3c0",
+   "pass": false,
+   "reason": "The passage is unreadable OCR garbage and the question is a meta-statement, not an answerable factual question."
+  },
+  {
+   "chunk_id": "bccb9ed5-67d8-4def-adc7-3e7e6fc5991e",
+   "pass": true,
+   "reason": "Passage states Mode-1 was introduced in 2021-22, answering the question"
+  },
+  {
+   "chunk_id": "12977d14-5687-4758-9f69-123cd0f6626d",
+   "pass": true,
+   "reason": "Passage identifies NCSK as the agency reporting state-wise sanitation worker fatality statistics."
+  },
+  {
+   "chunk_id": "d090e2a9-9c56-4b97-bbb4-75cc2c4b391a",
+   "pass": true,
+   "reason": "Passage specifies PM-DAKSH beneficiary groups (SCs, OBCs, EWSs, DNTs, sanitation workers) and age range 18-45, directly answering the question."
+  },
+  {
+   "chunk_id": "ffa3ac5d-e59e-43fb-8774-2574b583fb7c",
+   "pass": true,
+   "reason": "Passage details facilities provided (food, medical care, yoga, skill development) and total funding released (Rs 8.25 Crores), directly answering the question."
+  },
+  {
+   "chunk_id": "e464d80d-4488-4c58-9c86-588e601222a8",
+   "pass": true,
+   "reason": "Answerable from passage listing parts (a)-(e) about implementation, criteria, and beneficiaries of the PM CARES scholarship scheme, and specific to this question."
+  },
+  {
+   "chunk_id": "a160a462-4a05-4dd6-887c-2f20911254d6",
+   "pass": false,
+   "reason": "The passage is unreadable OCR garbage and the 'question' is not an actual question about content."
+  },
+  {
+   "chunk_id": "29bf43f6-0254-4f37-9c7a-eeb1418983bc",
+   "pass": true,
+   "reason": "Passage lists 2023-2024, 2024-2025, and 2025-2026 specifically for Sribhumi district."
+  },
+  {
+   "chunk_id": "0e079667-6652-43d9-a081-8d8753cb04be",
+   "pass": false,
+   "reason": "This is a meta-statement about the passage's unreadability, not an actual answerable question about document content."
+  },
+  {
+   "chunk_id": "69e5f344-b861-47f4-a368-7526dce6cc52",
+   "pass": true,
+   "reason": "Passage gives specific numbers for Andhra Pradesh beneficiaries and central assistance released"
+  },
+  {
+   "chunk_id": "7bc7992f-bdb6-48b0-8ae2-7962c0248455",
+   "pass": true,
+   "reason": "Passage states the October 29, 2024 expansion of AB PM-JAY to cover senior citizens aged 70+ irrespective of income, directly answering the question."
+  },
+  {
+   "chunk_id": "8d276d0c-3b26-451b-ab1b-6a51304d93fb",
+   "pass": true,
+   "reason": "The passage lists specific steps (capacity building meetings, advertisements, field visits) taken to reduce delays in scholarship disbursement, directly answering the question."
+  },
+  {
+   "chunk_id": "cfe48c54-ab00-4344-90ba-f3a173b24cb9",
+   "pass": true,
+   "reason": "Passage specifically states Rs. 21.00 lakh per village, split into Rs. 20.00 lakh for gap-filling and Rs. 1.00 lakh for administrative expenses."
+  },
+  {
+   "chunk_id": "c7f1ca3c-b738-4f2d-a9b6-df88b8c8cc6c",
+   "pass": true,
+   "reason": "Passage explicitly describes the two components: SC children and children of parents in unclean/hazardous occupations."
+  },
+  {
+   "chunk_id": "6ba6ad5c-eee3-41ba-b2a9-be5ee3625f15",
+   "pass": true,
+   "reason": "Answerable directly from passage details about Rs.10,200 Cr outlay and up to 50% allocation to Adarsh Gram component."
+  },
+  {
+   "chunk_id": "db896c67-0d61-4d15-abbc-61461bc2596a",
+   "pass": true,
+   "reason": "Passage lists specific NAMASTE scheme initiatives answering the question"
+  },
+  {
+   "chunk_id": "35b348e7-63cc-4456-b8c9-37fbbaa071c8",
+   "pass": false,
+   "reason": "The passage is garbled OCR table data with no coherent content, and no real question was asked."
+  },
+  {
+   "chunk_id": "940c5188-5496-49d2-9ed5-c19003da8115",
+   "pass": true,
+   "reason": "Passage details the specific questions Anand Bhadauria raised about DA/DR withholding during COVID-19, matching the question."
+  },
+  {
+   "chunk_id": "0d19a622-120e-4cb1-899a-95a715d09ce7",
+   "pass": true,
+   "reason": "Passage details the specific questions (a)-(d) about SC welfare funding and educational schemes for Barmer, Jaisalmer, matching the question."
+  },
+  {
+   "chunk_id": "23ca4cd6-8a03-4974-9b44-557b3a5f34ff",
+   "pass": true,
+   "reason": "Passage explicitly states no city has declared itself beggar-free under the SMILE scheme."
+  },
+  {
+   "chunk_id": "1abab05b-8d2a-466b-96cb-6b40391fd549",
+   "pass": true,
+   "reason": "Passage specifically details the three-part question about scheme funding, amount sanctioned in Durg, and beneficiary data for NGOs in Chhattisgarh."
+  },
+  {
+   "chunk_id": "4fd4b070-3535-4d0a-b039-58bd8a517cd8",
+   "pass": true,
+   "reason": "The passage gives specific figures (Rs. 86.59 Cr/125 beneficiaries and Rs. 88.56 Cr/125 beneficiaries) for the National Overseas Scholarship scheme for SC candidates across two periods."
+  },
+  {
+   "chunk_id": "4d1832ee-8a55-44d1-bc1b-b1687a241a03",
+   "pass": true,
+   "reason": "The passage lists Manipur's PM-DAKSH beneficiary figure for 2020-21 (60) directly in the table."
+  },
+  {
+   "chunk_id": "1f371961-64d6-4063-acad-d2371216f8ba",
+   "pass": true,
+   "reason": "Passage specifies ICC handles complaints for DPIIT and O/o Economic Advisor, directly answering the question."
+  },
+  {
+   "chunk_id": "b06710dd-d6b2-4c24-b515-88a7a63a84ec",
+   "pass": true,
+   "reason": "Passage names Ms. Megha Arora as the contact official for WPI/PPI queries"
+  },
+  {
+   "chunk_id": "c500b3d7-bbb3-4caf-8acb-663d2c86b99d",
+   "pass": true,
+   "reason": "Passage names Reema Jain, Joint Director (TFP & Admin), as the signatory of the office memorandum"
+  },
+  {
+   "chunk_id": "102f77c9-4021-4781-85ad-1c22adf064f6",
+   "pass": true,
+   "reason": "Passage lists specific named non-official members (Bhalla, Ravi, Joshi) answering the question."
+  },
+  {
+   "chunk_id": "1f5917eb-bacc-4f3b-908f-68f82d8b12bb",
+   "pass": true,
+   "reason": "Passage specifically details eligibility criteria and the 56-year age limit for this deputation post."
+  },
+  {
+   "chunk_id": "5a5318d2-0d0f-4ab9-9c91-21e4d08f8c45",
+   "pass": true,
+   "reason": "The passage table lists sector weights and fertilizer's weight (2.731) can be read directly."
+  },
+  {
+   "chunk_id": "8178b055-5fdb-48e9-b248-c11a5e0571f4",
+   "pass": true,
+   "reason": "Passage states OEA is designated as Nodal Point for multilateral agreements including BRICS and G20"
+  },
+  {
+   "chunk_id": "673e9116-e9f9-47ee-ad89-4a98a2dadaff",
+   "pass": true,
+   "reason": "Passage specifies Under Secretary rank as the minimum for attesting CR photocopies."
+  },
+  {
+   "chunk_id": "6817e7ff-3837-4ce8-b466-455d60647765",
+   "pass": true,
+   "reason": "Passage lists the names and designations of ICC members for DPIIT, directly answering the question."
+  },
+  {
+   "chunk_id": "dec193a0-e9d7-45b2-a5e1-46ec4bbaa21e",
+   "pass": true,
+   "reason": "The passage's weight row gives specific values for coal, steel, cement, and electricity."
+  },
+  {
+   "chunk_id": "814dfde4-27c1-48cb-bf8b-41afa03013a8",
+   "pass": true,
+   "reason": "The passage names Prof. Ramesh Chand as Chairman of the Working Group for WPI base revision to 2022-23."
+  },
+  {
+   "chunk_id": "f09f0f03-b6cd-48b0-9ddc-b70bb425515c",
+   "pass": true,
+   "reason": "Passage identifies Shubra Mendirata as the nominee from AIWC, an NGO, answering the question."
+  },
+  {
+   "chunk_id": "b85258d2-4dd6-47a5-ae42-d7e014dee16c",
+   "pass": true,
+   "reason": "Passage states max age 56 years and deputation period of three years, matching the question specifics."
+  },
+  {
+   "chunk_id": "12900c8d-2fbb-4f98-a025-f51cc90656db",
+   "pass": true,
+   "reason": "Passage explicitly states OEA, DPIIT is the nodal office processing the Working Group's recommendations."
+  },
+  {
+   "chunk_id": "61b275c6-da31-4f63-8306-54872dc38d20",
+   "pass": true,
+   "reason": "Passage states provisional WPI figures are finalized after 10 weeks from the reference month."
+  },
+  {
+   "chunk_id": "b6a55b99-894a-4b63-8b7f-b3680e1f2459",
+   "pass": false,
+   "reason": "The passage's chart data is garbled/unreadable and does not clearly indicate which sectors had negative growth rates"
+  },
+  {
+   "chunk_id": "30be3ee1-de76-440f-9220-edc262f46635",
+   "pass": true,
+   "reason": "The passage explicitly lists Oct-26 release date as 16th Nov, 2026"
+  },
+  {
+   "chunk_id": "a6ebc1f2-fffe-4842-8576-644a32018807",
+   "pass": true,
+   "reason": "Passage table gives per capita net national income at constant prices for 1991-92 as -1.5, directly answering the question."
+  },
+  {
+   "chunk_id": "765fb228-e391-4c32-aaef-45ca08e54360",
+   "pass": true,
+   "reason": "The passage lists 1979-80 per capita net national income at constant prices as -8.1%."
+  },
+  {
+   "chunk_id": "5fe8d788-4dec-4cf8-b1e1-1b5abc724936",
+   "pass": false,
+   "reason": "The passage's numeric table is garbled/ambiguous without clear column headers, making it impossible to reliably identify which figures correspond to which indicators for 2024-25."
+  },
+  {
+   "chunk_id": "87189003-00aa-4f95-87df-27cbe8907779",
+   "pass": true,
+   "reason": "Passage lists per capita net national income constant price growth for 2020-21 as -8.9%."
+  },
+  {
+   "chunk_id": "31b6f534-f386-4d4a-88cb-edb7fe078f6c",
+   "pass": true,
+   "reason": "The passage lists 1979-80 constant price net national income growth as -5.8, which directly answers the question."
+  },
+  {
+   "chunk_id": "abd7a182-6435-4b18-b917-1326b6ddda18",
+   "pass": true,
+   "reason": "The passage lists GNI, NNI, and per capita NNI evaluated at current and constant prices, matching the question."
+  }
+ ],
+ "ambiguous": [
+  "ae9bd286-5b57-41b9-96b7-adbfce5cb8da",
+  "6e096746-c170-4f4b-bd08-71abbe7cfb39",
+  "58a51a14-64af-46d4-a361-0e28c83eee3a",
+  "68df6304-4b39-48ce-aa3c-f96eb89fffef",
+  "d641d102-5807-49e0-a6c5-ba26d483a885",
+  "4133b7a2-54fe-4dfe-9250-3438897c4111",
+  "127ce544-6c26-4a39-b3cc-5e49097aae9e",
+  "a705a91e-cb24-47e0-bb8f-eb1266ee08f6",
+  "f7c8285b-c524-489f-b0ff-ce9e67156ece",
+  "7c08d75c-06f7-4bfb-94e2-e314a054f797",
+  "cb0bec69-3dc1-4ae3-9652-a98eeb33c7d6"
+ ],
+ "created_at": "2026-09-30T17:47:14.266Z",
+ "counts": {
+  "Bill Passage Probability Index": 80,
+  "Regulatory Body Watch (RBI SEBI TRAI CCI)": 60,
+  "Parliamentary Question Database": 40,
+  "Industry Updates (Ministry Data)": 12,
+  "Budget Utilisation & Schemes": 3
+ },
+ "spent_usd": 0.5426857399999998
+}
