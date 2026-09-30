@@ -165,6 +165,25 @@ test. For example:
 - page 2's definitions must have the heading "CHAPTER I PRELIMINARY" (one
   title block, its lines joined with a space) and the note "Definitions.".
 
+**Known limitations of R2, found by T13's tests on the real bill (2026-09-30).**
+The pilot checks each of these on other documents:
+
+1. **The letter rule is applied to a title's first line.** The back page's
+   title block is `# A\nBILL`, and would otherwise become the heading
+   "A BILL".
+2. **Section state carries across pages to the end of the document,** so the
+   last page inherits "MEMORANDUM REGARDING DELEGATED LEGISLATION".
+3. **The 200-character window gives a chunk the next heading** when that
+   heading starts inside its first 200 characters. A definitions chunk
+   ending 107 characters before "CHAPTER II" is labelled Chapter II.
+4. **Margin line numbers that OCR puts into the text** ("25 6. (1)",
+   "46 of 2023. 17.") stop the numbered-section pattern from matching, so
+   those sections don't clear the note.
+5. **Mistral often places a margin note after its section's first block,**
+   so the note takes effect only from that position.
+6. **Removing trailing digits would also strip a real number** from a
+   heading such as "PART 3".
+
 ### R3. Chunking pages (page chunker version 3)
 
 1. **A separate constant, `PAGE_CHUNK_VERSION = 3`.** `CHUNK.version` stays
