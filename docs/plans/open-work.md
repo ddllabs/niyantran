@@ -244,7 +244,7 @@ Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
 Part 2 needs its specs first, in this order:
 
 - [ ] **R4. `ingestion-v2`** (spec `specs/2026-10-01-rag-v2-ingestion-v2.md`,
-  draft):
+  approved; plan `plans/2026-10-01-rag-v2-ingestion-v2.md`):
   - a private `corpus` bucket, content-addressed by file hash;
   - a job-table queue (skip-locked claims, lease, fencing), with a pg_cron
     timer switched on by the owner;
@@ -253,6 +253,12 @@ Part 2 needs its specs first, in this order:
   - first extractions only.
 
   The owner sets `MISTRAL_API_KEY` and runs the secret steps.
+
+  Built on `task/rag-v2-ingestion-v2` (I0–I5, checkpoint D, 2026-10-01). The
+  local end-to-end run (I7) passed:
+  `research/2026-10-01-ingestion-v2-local-run.md`, $0.197. Next: checkpoint
+  E (the owner reads that report), then I8 on NTER, with a go-ahead per step.
+  `MISTRAL_API_KEY` is already set on NTER (the owner, 2026-10-01).
 - [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
   doc §6, which proves pages, boxes, images, cost and re-run cost.
 - [ ] **R6. `citations-pdf`.** The PDF.js viewer with box highlights; a
@@ -264,6 +270,9 @@ Part 2 needs its specs first, in this order:
   records (5,218 sansad.in bills), then backfill on a separate owner
   go-ahead. This replaces L1 for the linked records; the unlinked ones wait
   for R8.
+  Finding (I7, 2026-10-01): rbidocs.rbi.org.in answers a scripted download
+  with "Request Rejected", and may refuse Mistral's fetch as well. Its 76
+  links need another route, such as an admin upload.
 - [ ] **R8. `admin-upload`.** A platform-admin upload tab, with splitting
   in the browser.
 
@@ -291,6 +300,15 @@ Follow-ups and findings:
   Also measure lowering the feature filter's exact threshold T (15,000)
   so that Regulatory takes the index path. Its exact scan takes 733 ms on
   NTER.
+- [ ] **F36.** `_shared/logging.ts` redacts by field name, and any name
+  containing "token" is hidden. So `embed_tokens` and other counts appear as
+  `[redacted]` in Edge logs (seen in the I7 run). Redact known secret names
+  and secret-shaped values instead.
+- [ ] **F37.** The `index` step recomposes the whole document on every
+  claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
+  document of 3,000 or more pages would pass the spec's 1.5 s threshold.
+  Persist the composed pages after the first run (the spec's own fallback)
+  before ingesting documents that large.
 
 Earlier items, updated:
 
