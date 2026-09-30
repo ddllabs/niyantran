@@ -46,6 +46,8 @@
 .ai-work-bar { display: flex; align-items: center; flex-shrink: 0; gap: 12px; padding: 12px; border-bottom: 1px solid var(--line, #e4ddd4); }
 .ai-work-back { flex: none; border: 0; background: transparent; color: var(--accent, #012ea1); font: inherit; cursor: pointer; padding: 6px 4px; }
 .ai-work-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.ai-work-ask { flex: none; margin-left: auto; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; background: transparent; color: var(--accent, #012ea1); font: inherit; font-size: 12px; padding: 6px 8px; cursor: pointer; }
+.ai-work-ask:disabled { opacity: .5; cursor: not-allowed; }
 .ai-work-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; overflow-wrap: anywhere; }
 .ai-work-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .ai-work-sources button { display: grid; gap: 4px; width: 100%; text-align: left; padding: 12px; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; background: var(--panel, white); color: inherit; font: inherit; cursor: pointer; overflow-wrap: anywhere; }

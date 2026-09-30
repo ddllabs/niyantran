@@ -15,10 +15,12 @@ import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 
-const FOCUS_OPTS = [
+export const FOCUS_OPTS = [
   { id: 'attached', en: 'Attached only', hi: 'केवल संलग्न', hint: 'Pins and files in this chat' },
   { id: 'selection', en: 'Selection + pins', hi: 'चयन + पिन', hint: 'Selected desk row plus attachments' },
-  { id: 'desk', en: 'Desk sample', hi: 'डेस्क नमूना', hint: 'A few rows from the open module plus pins' },
+  // retrieval-scope decision 3: desk focus filters document searches to the
+  // open module when it has documents, so it is no longer only a row sample.
+  { id: 'desk', en: 'Desk', hi: 'डेस्क', hint: 'Rows from the open module plus pins; document searches are limited to this module' },
   { id: 'broad', en: 'Broad context', hi: 'विस्तृत संदर्भ', hint: 'Pins, selection, and desk sample' },
 ];
 
@@ -139,6 +141,78 @@ export function researchSelection(row) {
   return bounded;
 }
 
+/**
+ * The chips as research-chat attachments. A `document` chip is a pointer to a
+ * corpus document, never its text (retrieval-scope spec): it travels as
+ * `{kind, title, document_id}` and the server scopes searches to that id.
+ */
+export function requestAttachments(pins) {
+  return (pins || [])
+    .map((a) => a.kind === 'document' ? {
+      kind: 'document',
+      title: String(a.title || 'Document'),
+      document_id: String(a.document_id || ''),
+    } : ({
+      kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
+      title: String(a.title || a.feature || 'Attachment'),
+      text: String(a.text || a.preview?.record_text || ''),
+      ...(a.feature ? { feature: a.feature } : {}),
+      ...(a.preview ? { row_key: deskRowKey(a.preview) } : {}),
+      ...(a.document_key ? { document_key: a.document_key } : {}),
+    }))
+    .filter((a) => (a.kind === 'document' ? a.document_id : a.text));
+}
+
+/** The chip "Ask about this document" attaches for a text citation, or null. */
+export function documentChip(citation) {
+  const id = typeof citation?.document_id === 'string' ? citation.document_id.trim() : '';
+  const title = typeof citation?.title === 'string' ? citation.title.trim() : '';
+  if (!id || !title) return null;
+  return { kind: 'document', title, document_id: id, ...(typeof citation.desk_feature === 'string' && citation.desk_feature ? { feature: citation.desk_feature } : {}) };
+}
+
+/**
+ * retrieval-scope decision 2: a document chip confines searches only under a
+ * confining focus, so from `broad` or `desk` the button moves focus to
+ * `attached`. `attached` and `selection` already confine and are kept.
+ */
+export function focusForDocument(focus) {
+  return focus === 'broad' || focus === 'desk' ? 'attached' : focus;
+}
+
+/** How many distinct attached documents a confined search covers. */
+export function confiningCount(attachments, indexed) {
+  const seen = new Set();
+  for (const a of attachments || []) {
+    if (coverageOf(a, indexed) !== 'full') continue;
+    seen.add(a.kind === 'document' ? `id:${a.document_id}` : `key:${a.document_key}`);
+  }
+  return seen.size;
+}
+
+/** The one-line notice after "Ask about this document". */
+export function documentNotice({ switched, count, hi = false }) {
+  const many = count > 1;
+  if (hi) {
+    const n = many ? ` ${count} संलग्न दस्तावेज़ों में खोज।` : '';
+    return switched ? `फोकस “केवल संलग्न” पर सेट किया गया, ताकि प्रश्न केवल संलग्न दस्तावेज़ों में खोजें।${n}` : `दस्तावेज़ संलग्न किया गया।${n}`;
+  }
+  const n = many ? ` Searching ${count} attached documents.` : '';
+  return switched ? `Focus set to Attached so questions search only the attached documents.${n}` : `Document attached.${n}`;
+}
+
+/**
+ * Attaches the cited document and says what the next question will search.
+ * Null when nothing was attached: an unusable citation, or a thread that is
+ * locked (attach refuses then), in which case focus is left alone.
+ */
+export async function askAboutDocument(citation, { attach, focus, attachments = [], indexed = null, hi = false }) {
+  const chip = documentChip(citation);
+  if (!chip || !await attach(async () => [chip])) return null;
+  const next = focusForDocument(focus);
+  const count = confiningCount([...attachments, chip], indexed);
+  return { focus: next, notice: documentNotice({ switched: next !== focus, count, hi }) };
+}
 
 function Ico({ name, size = 16 }) {
   const s = size;
@@ -264,6 +338,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // conversation removes its messages with it (chat_messages cascades on the
   // conversation) and cannot be undone, so it does not happen on one click.
   const [pendingDelete, setPendingDelete] = useState('');
+  // What the last "Ask about this document" did to the search scope, '' for none.
+  const [scopeNotice, setScopeNotice] = useState('');
   const [focus, setFocus] = useState(() => {
     try {
       return localStorage.getItem(FOCUS_KEY) || 'attached';
@@ -317,7 +393,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const openSource = source => research.actions.openSource(source);
   const closeViewer = () => research.actions.closeViewer();
   useEffect(() => {
-    setDragOver(false); setModelOpen(false); setFocusOpen(false); setHistoryOpen(false);
+    setDragOver(false); setModelOpen(false); setFocusOpen(false); setHistoryOpen(false); setScopeNotice('');
   }, [research.identityVersion]);
 
   useEffect(() => {
@@ -387,6 +463,21 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     await research.actions.attach(() => filesFromDrop({ dataTransfer: { files: list, items: [] } }));
   }
 
+  async function onAskAboutDocument(citation) {
+    if (busy) return;
+    const result = await askAboutDocument(citation, {
+      attach: (materialize) => research.actions.attach(materialize),
+      focus,
+      attachments,
+      indexed: indexedKeys,
+      hi,
+    });
+    if (!result) return;
+    setFocus(result.focus);
+    setScopeNotice(result.notice);
+    box.current?.focus();
+  }
+
   function removePin(id) {
     if (!chat || busy) return;
     setChatAttachments(
@@ -442,17 +533,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         : {}),
       // The selected row's own chip is left out while the selection is sent: the
       // selection carries the same record and key, verified against desk_rows.
-      attachments: pins
-        .filter((a) => !(sendsSelection && rowIsPinned([a], selected)))
-        .map((a) => ({
-          kind: a.kind === 'row' || a.kind === 'record' ? a.kind : 'file',
-          title: String(a.title || a.feature || 'Attachment'),
-          text: String(a.text || a.preview?.record_text || ''),
-          ...(a.feature ? { feature: a.feature } : {}),
-          ...(a.preview ? { row_key: deskRowKey(a.preview) } : {}),
-          ...(a.document_key ? { document_key: a.document_key } : {}),
-        }))
-        .filter((a) => a.text),
+      attachments: requestAttachments(pins.filter((a) => !(sendsSelection && rowIsPinned([a], selected)))),
       ...(featureName || tab ? { desk_context: { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } } : {}),
     };
 
@@ -462,6 +543,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     e?.preventDefault();
     const text = draft.trim();
     if (!text || busy || streaming) return;
+    setScopeNotice('');
     await sendResearch(text);
   }
 
@@ -700,6 +782,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                     onClick={() => {
                       setFocus(o.id);
                       setFocusOpen(false);
+                      setScopeNotice('');
                     }}
                   >
                     <span>{hi ? o.hi : o.en}</span>
@@ -750,6 +833,16 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 <li key={a.id} className={module ? 'module' : undefined}>
                   <Ico name={module ? 'table' : 'doc'} size={15} />
                   <span title={a.title}>{a.title}</span>
+                  {/* A corpus document attached from the reader: a pointer that
+                      confines searches to it, not text pasted into the chat. */}
+                  {a.kind === 'document' ? (
+                    <em className="ai-v2-file-cover document"
+                      title={hi
+                        ? 'संलग्न दस्तावेज़: फोकस “केवल संलग्न” या “चयन” होने पर खोज इसी तक सीमित रहती है'
+                        : 'An attached document: under Attached or Selection focus, searches are limited to it'}>
+                      {hi ? 'दस्तावेज़' : 'Document'}
+                    </em>
+                  ) : null}
                   {/* A module's name reads like a bill's in this row, and it
                       names no document, so it cannot hold a search to one. */}
                   {module ? (
@@ -854,6 +947,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             }}
           />
         ) : null}
+        {scopeNotice ? <p className="ai-foot" role="status">{scopeNotice}</p> : null}
         <div className="ai-research-controls" aria-live="polite">
           {research.loading ? <span>Loading research…</span> : null}
           {stream?.status === 'unknown' ? <span>Connection lost. The saved outcome is unknown.</span> : null}
@@ -938,7 +1032,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         </form>
       </div>
-      {viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} /> : null}
+      {viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} onAskAboutDocument={onAskAboutDocument} locked={busy} /> : null}
       </div>
     </div>
   );

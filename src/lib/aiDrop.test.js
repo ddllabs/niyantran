@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { isModuleAttachment, materializeAiDrop } from './aiDrop.js';
+import { attachmentIdentity, isModuleAttachment, materializeAiDrop } from './aiDrop.js';
 
 const BILL = {
   bill_name: 'The Competition (Amendment) Bill, 2007',
@@ -35,4 +35,13 @@ it('a module, a desk and a feature are modules; a row, a record and a file are n
   expect(['feed', 'feature', 'tab'].map((kind) => isModuleAttachment({ kind }))).toEqual([true, true, true]);
   expect(['row', 'record', 'file', undefined].map((kind) => isModuleAttachment({ kind }))).toEqual([false, false, false, false]);
   expect(isModuleAttachment(null)).toBe(false);
+});
+
+// "Ask about this document" adds a chip with no text, so kind, title and
+// feature are all the identity had: two documents sharing a title (the same
+// bill's two versions, say) were one chip, and the second was never attached.
+it('a document chip is identified by its document id', () => {
+  const a = { kind: 'document', title: 'The Delimitation Bill, 2026', feature: 'Bills', document_id: 'd1' };
+  expect(attachmentIdentity({ ...a, id: 'x1' })).toBe(attachmentIdentity({ ...a, id: 'x2' }));
+  expect(attachmentIdentity({ ...a, document_id: 'd2' })).not.toBe(attachmentIdentity(a));
 });

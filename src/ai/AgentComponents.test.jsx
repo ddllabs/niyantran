@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
-import WorkSurface from './WorkSurface.jsx';
+import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
 import CitationBubble from './CitationBubble.jsx';
 
 const TEXT_SOURCE = {
@@ -135,6 +135,39 @@ describe('WorkSurface', () => {
     expect(list).toContain('The Delimitation Bill, 2026');
     const empty = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'list' }} sources={[]} />);
     expect(empty).toContain('cites no sources yet');
+  });
+
+  // retrieval-scope decision 1: from the reader, one click confines the next
+  // questions to the document being read. Text sources only: a desk row is
+  // not a document, and the source list names none in particular.
+  it('offers "Ask about this document" on a text source only', () => {
+    const ask = vi.fn();
+    const text = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: TEXT_SOURCE }} onAskAboutDocument={ask} locked={false} />);
+    expect(text).toMatch(/<button[^>]*>Ask about this document<\/button>/);
+    expect(text).not.toMatch(/<button[^>]*disabled=""[^>]*>Ask about this document/);
+    const row = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'row', source: ROW_SOURCE }} onAskAboutDocument={ask} locked={false} />);
+    expect(row).not.toContain('Ask about this document');
+    const list = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'list' }} sources={[TEXT_SOURCE]} onAskAboutDocument={ask} locked={false} />);
+    expect(list).not.toContain('Ask about this document');
+  });
+
+  // attach() refuses while the thread is locked, so a live button would be a
+  // click that silently does nothing. Without a handler or a lock state it is
+  // off too, rather than guessing the thread is free.
+  it('the button is disabled while the thread is locked, or with no handler', () => {
+    const disabled = /<button[^>]*disabled=""[^>]*>Ask about this document/;
+    expect(renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: TEXT_SOURCE }} onAskAboutDocument={() => {}} locked />)).toMatch(disabled);
+    expect(renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: TEXT_SOURCE }} locked={false} />)).toMatch(disabled);
+    expect(renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: TEXT_SOURCE }} onAskAboutDocument={() => {}} />)).toMatch(disabled);
+  });
+
+  it('clicking it hands the citation to onAskAboutDocument, and a locked one does not', () => {
+    const ask = vi.fn();
+    AskAboutDocument({ citation: TEXT_SOURCE, locked: false, onAsk: ask }).props.onClick();
+    expect(ask).toHaveBeenCalledWith(TEXT_SOURCE);
+    ask.mockClear();
+    AskAboutDocument({ citation: TEXT_SOURCE, locked: true, onAsk: ask }).props.onClick();
+    expect(ask).not.toHaveBeenCalled();
   });
 });
 

@@ -173,12 +173,14 @@ async function hydrateDocumentFiles(urls, title) {
  * copies, each paid for in the prompt on every turn.
  *
  * Identity is content, not the generated id. `tab` and `feature` separate two
- * rows that share a title, which the title and url alone would collide.
+ * rows that share a title, which the title and url alone would collide. A
+ * `document` chip carries no text, so its `document_id` is what separates two
+ * documents that share a title.
  */
 export function attachmentIdentity(a) {
   if (!a || typeof a !== 'object') return '';
   const text = typeof a.text === 'string' ? a.text.length : 0;
-  return [a.kind || '', a.title || '', a.tab || '', a.feature || '', a.url || '', text].join('\u0000');
+  return [a.kind || '', a.title || '', a.tab || '', a.feature || '', a.url || '', text, a.document_id || ''].join('\u0000');
 }
 
 /**

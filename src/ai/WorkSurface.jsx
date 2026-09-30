@@ -11,7 +11,28 @@ import { isReadableCitation } from './CitationBubble.jsx';
 import './research.css';
 import SourceReader from './SourceReader.jsx';
 
-export default function WorkSurface({ viewer, sources = [], onOpen, onClose, client }) {
+/**
+ * "Ask about this document" (retrieval-scope decision 1): attaches the cited
+ * document as a chip, so the next questions search only it. Off unless the
+ * thread is known to be free (`locked === false`) and there is a handler:
+ * attach() refuses while a turn runs, and a live button would do nothing.
+ */
+export function AskAboutDocument({ citation, locked, onAsk }) {
+  const off = locked !== false || typeof onAsk !== 'function';
+  return (
+    <button
+      type="button"
+      className="ai-work-ask"
+      disabled={off}
+      title={off ? 'Available when the current answer has finished' : 'Attach this document so the next questions search only it'}
+      onClick={() => { if (!off) onAsk(citation); }}
+    >
+      Ask about this document
+    </button>
+  );
+}
+
+export default function WorkSurface({ viewer, sources = [], onOpen, onClose, client, onAskAboutDocument, locked }) {
   const back = useRef(null);
   const visible = Boolean(viewer);
   useEffect(() => {
@@ -36,6 +57,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         <span className="ai-work-title">
           {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : 'Sources'}
         </span>
+        {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} /> : null}
       </div>
 
       <div className="ai-work-body">

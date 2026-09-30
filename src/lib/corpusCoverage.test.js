@@ -62,3 +62,12 @@ it('blank and duplicate keys are never sent to the database', async () => {
   await indexedDocumentKeys([], { from: none });
   expect(none).not.toHaveBeenCalled();
 });
+
+// A document chip names a document the reader just opened from a citation, so
+// it is in the corpus by construction; there is no key to look up.
+it('a document chip is full text without a lookup', () => {
+  expect(coverageOf({ kind: 'document', document_id: 'd1', title: 'T' }, null)).toBe('full');
+  expect(coverageOf({ kind: 'document', document_id: 'd1', title: 'T' }, new Set())).toBe('full');
+  // Without an id it names nothing.
+  expect(coverageOf({ kind: 'document', title: 'T' }, new Set())).toBe(null);
+});
