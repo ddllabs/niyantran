@@ -112,3 +112,26 @@ An exact, index-free search over the whole corpus (diagnostic function
 - This is outside `retrieval-scope`, whose unscoped branch must not change. It is recorded
   as open-work **F35**: measure raising `ef_search` for the unscoped branch (for example
   100–200) with the `eval` harness before and after.
+
+## Confirmation on NTER (2026-10-01, read-only)
+
+Run with owner approval. Three `EXPLAIN (ANALYZE, BUFFERS)` statements, each a single
+implicit transaction under `SET LOCAL role authenticated`. Each uses a gold chunk's stored
+embedding as the query vector: q-0001 for Bills, q-0081 for Regulatory. Nothing was written.
+
+| Path | Plan | Execution |
+| --- | --- | --- |
+| Bills, index (`SET LOCAL hnsw.ef_search = 400`) | HNSW index scan, then a memoised `documents` probe; 40 rows | **19.5 ms** warm; **2,006 ms** on the first, cold run (3,296 blocks read) |
+| Regulatory, exact | `documents_desk` index (506 documents), then `document_chunks_document_order` (11,040 chunks), top-N sort | **733 ms** (92,515 buffer hits, 1,401 reads) |
+| Choice of path, bounded count for Bills (limit 15,001) | Seq scan plus hash join | **29 ms** |
+
+**Reading:**
+- Both paths are within the spec's bar (p95 ≤ 1.5 s, p99 ≤ 2.5 s) and well under
+  `research-chat`'s 4 s limit.
+- The Bills path is fast once the index is cached. Broad search keeps it warm, and a cold
+  cache after a restart costs about 2 s once.
+- The Regulatory exact path costs about 3× the replica's, because 11k full-precision
+  vectors are read and unpacked. That is acceptable now. Under concurrency it is the
+  heaviest path, and it is the first thing to tune: for example, lowering T so that
+  Regulatory also takes the index path. That must be measured with the harness first, and
+  is recorded with open-work F35.

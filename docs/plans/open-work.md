@@ -272,6 +272,9 @@ Follow-ups and findings:
 
   Next: measure raising `hnsw.ef_search` for the unscoped branch (100–200)
   with the `eval` harness, on the replica and then live.
+  Also measure lowering the feature filter's exact threshold T (15,000)
+  so that Regulatory takes the index path. Its exact scan takes 733 ms on
+  NTER.
 
 Earlier items, updated:
 
