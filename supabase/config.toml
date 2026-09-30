@@ -436,3 +436,7 @@ verify_jwt = false
 # JWT; the handler compares it to INGEST_WORKER_SECRET in constant time and refuses when unset.
 [functions.ingest-worker]
 verify_jwt = false
+
+# admin-ingest verifies the caller itself (requireUser + is_platform_admin), so 401/403 carry CORS.
+[functions.admin-ingest]
+verify_jwt = false
