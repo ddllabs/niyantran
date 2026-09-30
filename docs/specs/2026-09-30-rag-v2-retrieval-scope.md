@@ -1,7 +1,7 @@
 # Spec: focus on a document, and filter by desk (`retrieval-scope`)
 
-> **Status: Living — draft for owner approval (2026-09-30).** It becomes
-> Normative once approved. Module `retrieval-scope` of
+> **Status: Normative — approved by the owner on 2026-09-30,** with the
+> recommendations below accepted. Module `retrieval-scope` of
 > `docs/specs/2026-09-30-rag-v2-capability-map.md`. It depends on `eval`
 > (`docs/specs/2026-09-30-rag-v2-eval.md`), whose bar it must meet before
 > deployment. The evidence is `docs/research/2026-09-30-rag-v2-investigation.md`

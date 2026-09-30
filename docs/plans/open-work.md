@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F31 is next) and goes in the
+- A new finding gets the next free `F` number (F35 is next) and goes in the
   right section.
 
 Current baseline (2026-09-29, evening):
@@ -205,22 +205,74 @@ Each needs one answer, then an agent can finish it.
   Decide per figure: compute it (the bills count can reuse P16's), keep it
   as a constant, or drop it.
 
-## 3. Ingestion pipeline (next)
+## 3. RAG v2: retrieval and page-aware ingestion (in progress)
 
-Parked until the owner designs the new ingestion pipeline. The old runbook,
-`plans/2026-09-29-corpus-ingestion.md`, is parked with it: its measurements
-stand, but its commands aren't to be run.
+Designed on 2026-09-30. The map and every decision are in
+`specs/2026-09-30-rag-v2-capability-map.md`, and the evidence in
+`research/2026-09-30-rag-v2-investigation.md`. The old runbook
+`plans/2026-09-29-corpus-ingestion.md` is superseded: its measurements stand,
+but its commands aren't to be run.
+
+Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
+(tasks T1–T17):
+
+- [ ] **R1. `eval`** (spec `specs/2026-09-30-rag-v2-eval.md`, approved).
+  A frozen set of 195 questions, the harness, and the live baseline
+  (T1–T5).
+- [ ] **R2. `retrieval-scope`** (spec approved):
+  - "Ask about this document" for cited documents;
+  - desk focus filters to the module's documents;
+  - the feature filter chosen by measurement on a local replica;
+  - fixes F32 (T6–T11).
+- [ ] **R3. `chunk-contract`** (spec approved): the page, block and image
+  tables, the page chunker (version 3), the citation fields, and the
+  ADR 0004 and ADR 0002 amendments (T12–T17).
+
+Part 2 needs its specs first, in this order:
+
+- [ ] **R4. `ingestion-v2`.** A private `corpus` bucket; a pgmq queue with
+  a pg_cron timer and a worker Edge Function; Mistral OCR; PDFs split in the
+  browser or by script above 1,000 pages or 50 MB; a jobs table.
+  `MISTRAL_API_KEY` becomes a Supabase secret, set by the owner.
+- [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
+  doc §6, which proves pages, boxes, images, cost and re-run cost.
+- [ ] **R6. `citations-pdf`.** The PDF.js viewer with box highlights; a
+  page label and image strip in the reader; signed URLs.
+- [ ] **R7. `acquisition`.** Download the 5,327 linked `pdf_text`
+  records (5,218 sansad.in bills), then backfill on a separate owner
+  go-ahead. This replaces L1 for the linked records; the unlinked ones wait
+  for R8.
+- [ ] **R8. `admin-upload`.** A platform-admin upload tab, with splitting
+  in the browser.
+
+Follow-ups and findings:
+
+- [ ] **F31.** `deno.lock` is stale: it still lists `sql.js` (removed in C3)
+  and lacks the ESLint packages. Regenerate it in its own commit.
+- [ ] **F32.** `research-chat` `documentModules` (`index.ts:265-281`)
+  reads one row per document with no range. PostgREST caps a read at
+  `max_rows` 1000, so modules can be missing from the list. Fixed by R2
+  (`document_modules()`).
+- [ ] **F33.** A document picker (title search), to focus on a document no
+  answer has cited yet.
+- [ ] **F34.** Let the model choose a desk filter itself. It needs an
+  answer-level evaluation first.
+
+Earlier items, updated:
 
 - [ ] **L1.** The 18,071 never-ingested `pdf_text` documents: 7,966 bills,
-  6,758 parliamentary questions, 2,813 regulatory documents and others. The
-  corpus is at `~/Downloads/NTER-Complete-Processed-Data`. `.env.local` on
-  the laptop has no `SUPABASE_URL` yet, and the ingest script needs it.
+  6,758 parliamentary questions, 2,813 regulatory documents and others.
+  The 5,327 with direct links are R7. The rest have no link and wait for
+  admin upload (R8) or an API source.
 - [ ] **L2.** Law tier: 874 Supreme Court and NCLT PDFs. First confirm they
   have a text layer.
-- [ ] **P5.** Page-level citations (`page_count`, chunk `page_number`;
-  ADR 0004). Needs page-wise text.
+- [ ] **P5.** Page-level citations. Now R3 and R6, for new documents. The
+  2,338 existing documents keep unpaged citations (owner decision,
+  2026-09-30).
 - [ ] **P6.** Reranking and hybrid keyword search, after the corpus grows.
-- [ ] **P7.** Affidavits (10,492 documents, 809 M characters): compute cost.
+- [ ] **P7.** Affidavits (10,492 documents, 809 M characters; 5,093 current,
+  100,151 pages). **Out of scope by owner decision (2026-09-30):** no links,
+  personal data.
 - [ ] **P8.** Re-crawl the 716 documents that have no `file_url`.
 - [ ] **P9.** Document keys for parliamentary questions and regulators;
   desk-row "cut two" (curated views, the 41 modules with no rows) and a

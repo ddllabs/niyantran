@@ -1,7 +1,7 @@
 # Spec: the page, block and image contract (`chunk-contract`)
 
-> **Status: Living — draft for owner approval (2026-09-30).** It becomes
-> Normative once approved. Module `chunk-contract` of
+> **Status: Normative — approved by the owner on 2026-09-30,** with the
+> recommendations below accepted. Module `chunk-contract` of
 > `docs/specs/2026-09-30-rag-v2-capability-map.md`. The evidence is the
 > research doc §2 and §4, the Mistral test of 2026-09-30 (the saved response
 > for the 12-page Classified Information and Espionage Control Bill, 2025),
