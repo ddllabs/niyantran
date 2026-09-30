@@ -86,3 +86,16 @@ Deno.test('findDocument maps an absent or null extract_hash to null', async () =
   } as unknown as SupabaseClient;
   assertEquals((await supabaseDb(client).findDocument('L'))?.extract_hash, null);
 });
+
+Deno.test('findDocument selects storage_path and returns it (ingestion-v2: a pending page-aware job is refused)', async () => {
+  let selected = '';
+  const row = { id: 'd1', content_sha256: 'sha', chunker_version: null, metadata: {}, extract_hash: null, storage_path: `files/${'a'.repeat(64)}.pdf` };
+  const client = {
+    from: () => ({ select: (columns: string) => (selected = columns, { eq: () => ({ maybeSingle: () => Promise.resolve({
+      data: Object.fromEntries(columns.split(',').map((k) => [k.trim(), row[k.trim() as keyof typeof row]])), error: null,
+    }) }) }) }),
+  } as unknown as SupabaseClient;
+  const found = await supabaseDb(client).findDocument('Q');
+  assert(selected.split(',').map((c) => c.trim()).includes('storage_path'), `select was "${selected}"`);
+  assertEquals(found?.storage_path, row.storage_path);
+});

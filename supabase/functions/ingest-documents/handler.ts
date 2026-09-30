@@ -4,6 +4,8 @@
 // embedding call. A failing document never aborts the batch. RAG spec §A.
 // A page-aware document (documents.extract_hash set) is refused untouched:
 // its ocr_text carries page offsets this path would invalidate (RAG v2 R6).
+// So is one with storage_path set: ingestion-v2 registered it and its job may
+// still be pending, before extract_hash is set ("The old path").
 
 import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { errorResponse, HttpError, json } from '../_shared/http.ts';
@@ -117,8 +119,11 @@ export interface IngestDeps {
   secretKey: string;
   embed: (inputs: string[]) => Promise<EmbedResult>;
   db: {
-    /** extract_hash is non-null only for a page-aware document (RAG v2 R6). */
-    findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null; metadata: Record<string, unknown>; extract_hash: string | null } | null>;
+    /**
+     * extract_hash is non-null only for a page-aware document (RAG v2 R6); storage_path is set from
+     * ingestion-v2's registration on, so it also marks one whose job is still pending.
+     */
+    findDocument(sourceKey: string): Promise<{ id: string; content_sha256: string; chunker_version: number | null; metadata: Record<string, unknown>; extract_hash: string | null; storage_path: string | null } | null>;
     /** Insert or update on source_key; clears chunker_version and indexed_at until markIndexed. */
     upsertDocument(row: DocumentRow): Promise<{ id: string }>;
     /** Refresh the descriptive fields of a document whose text and chunks are unchanged. */
@@ -255,7 +260,8 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   // R6: a page-aware document belongs to ingestion-v2. Upserting it here would
   // overwrite ocr_text and invalidate every page offset, so it is not touched at
   // all - no metadata refresh, no chunking, no embedding - dry run or not.
-  if (existing && existing.extract_hash !== null && existing.extract_hash !== undefined) {
+  // storage_path covers a registered document whose ingestion-v2 job is pending.
+  if (existing && (existing.extract_hash != null || existing.storage_path != null)) {
     return { ...base, status: 'refused', reason: PAGE_AWARE_REFUSAL };
   }
   const metadata = mergeDocumentMetadata(existing?.metadata ?? {}, doc.metadata ?? {});

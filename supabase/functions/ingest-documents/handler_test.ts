@@ -12,6 +12,8 @@ interface Stored {
   hashes: Map<string, CommitRow>;
   /** Set only for a page-aware document (spec R6). */
   extract_hash?: string | null;
+  /** Set by ingestion-v2's ingest_register, before extract_hash (ingestion-v2 spec, "The old path"). */
+  storage_path?: string | null;
 }
 
 /** An in-memory stand-in for the four tables the function touches. */
@@ -23,7 +25,7 @@ function fakeDb() {
   const db: IngestDeps['db'] = {
     findDocument: (key) => {
       const d = docs.get(key);
-      return Promise.resolve(d ? { id: d.id, content_sha256: d.row.content_sha256, chunker_version: d.chunker_version, metadata: d.row.metadata, extract_hash: d.extract_hash ?? null } : null);
+      return Promise.resolve(d ? { id: d.id, content_sha256: d.row.content_sha256, chunker_version: d.chunker_version, metadata: d.row.metadata, extract_hash: d.extract_hash ?? null, storage_path: d.storage_path ?? null } : null);
     },
     upsertDocument: (row) => {
       let d = docs.get(row.source_key);
@@ -533,4 +535,28 @@ Deno.test('R6: a dry run reports the refusal and writes nothing', async () => {
   assertEquals(calls.length, 0);
   assertEquals(logs.length, 0);
   assertEquals(docs.size, 1);
+});
+
+// ---- ingestion-v2 "The old path": a registered document whose job is still pending ----
+
+Deno.test('ingestion-v2: a document with storage_path set and extract_hash null (job pending) is refused untouched', async () => {
+  const { db, docs, logs } = fakeDb();
+  // As ingest_register leaves it: ocr_text '', indexed_at null, storage_path and file_sha256 set,
+  // extract_hash still null until ingest_activate.
+  const row: DocumentRow = { source_key: 'Q', title: 'Queued', file_name: null, file_url: null, desk_tier: null,
+    desk_feature: null, content_sha256: 'e3b0c442', ocr_text: '', metadata: {} };
+  docs.set('Q', { id: 'q-1', row, chunker_version: null, hashes: new Map(), extract_hash: null, storage_path: `files/${'a'.repeat(64)}.pdf` });
+  const before = structuredClone(row);
+  const spy = spyWrites(db);
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db: spy.db };
+
+  const res = await (await handleIngest(post({ documents: [{ source_key: 'Q', title: 'Old path', ocr_text: longText('overwrite') }] }), deps)).json();
+
+  assertEquals(res.results[0], { source_key: 'Q', status: 'refused', chunks: 0, inserted: 0, kept: 0, deleted: 0,
+    embedded_tokens: 0, cost_usd: 0, reason: PAGE_AWARE_REASON });
+  assertEquals(spy.writes, []);
+  assertEquals(calls.length, 0);
+  assertEquals(logs.length, 0);
+  assertEquals(docs.get('Q')!.row, before);
 });
