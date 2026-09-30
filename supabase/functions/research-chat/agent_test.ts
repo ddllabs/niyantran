@@ -5,7 +5,15 @@ import { createHandleAssigner } from '../_shared/handles.ts';
 import type { ModelEvent, StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
-import { type AgentDeps, type AgentEvent, BUDGET, createAgentBudget, rowSourceKey, runAgent } from './agent.ts';
+import {
+  type AgentDeps,
+  type AgentEvent,
+  BUDGET,
+  createAgentBudget,
+  type DocumentSearchArgs,
+  rowSourceKey,
+  runAgent,
+} from './agent.ts';
 import { FOCUS_VALUES } from './validate.ts';
 
 const input = {
@@ -213,11 +221,11 @@ Deno.test('a focus that confines discloses an unscoped search when nothing resol
 // for a gap in an index that held the bill all along.
 Deno.test('an unscoped search says whether a document was named or nothing was', async () => {
   const disclosed: Record<string, string | null> = {};
-  for (const [label, documentKeysSent] of [['named', true], ['nothing', false]] as const) {
+  for (const [label, scopeSent] of [['named', true], ['nothing', false]] as const) {
     const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
       searchDocuments: () => Promise.resolve([chunk('a')]),
     });
-    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: [], focus: 'attached', documentKeysSent });
+    const result = await runAgent(f.deps, { ...input, scopedDocumentIds: [], focus: 'attached', scopeSent });
     assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: result.widened! }]);
     disclosed[label] = result.widened;
   }
@@ -251,6 +259,140 @@ Deno.test('a checkpoint cannot be resumed under a different focus', async () => 
     Error,
     'different turn or budget',
   );
+});
+
+// retrieval-scope (2026-09-30 spec). Desk focus on a module that has documents
+// filters every document search to that module. The server chooses the module
+// (owner decision 4): the model's arguments never name one that is used, and
+// never loosen a confinement or the module filter.
+const BILLS = { tier: 'national', feature: 'Bills' };
+const docCallWith = (args: Record<string, unknown>, id = 'call-doc'): ModelEvent => ({
+  type: 'tool-call',
+  id,
+  name: 'search_documents',
+  args: JSON.stringify(args),
+});
+function searchLog(result: (args: DocumentSearchArgs, ids?: string[]) => Chunk[] = () => [chunk('a')]) {
+  const calls: { args: DocumentSearchArgs; ids?: string[] }[] = [];
+  const searchDocuments = (args: DocumentSearchArgs, ids?: string[]) => {
+    calls.push({ args: structuredClone(args), ids: ids && [...ids] });
+    return Promise.resolve(result(args, ids));
+  };
+  return { calls, searchDocuments };
+}
+
+Deno.test('desk focus with a feature scope filters every document search to that module', async () => {
+  const log = searchLog();
+  const f = fake([
+    [docCallWith({ query: 'clause', desk_tier: 'state' }), finish('tool_calls')],
+    [docCallWith({ query: 'schedule' }, 'again'), finish('tool_calls')],
+    ready(),
+    answer(),
+  ], { searchDocuments: log.searchDocuments });
+  const result = await runAgent(f.deps, { ...input, focus: 'desk', featureScope: BILLS });
+  // The model asked for another tier; the module's own tier wins, with its feature.
+  assertEquals(log.calls, [
+    { args: { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }, ids: undefined },
+    { args: { query: 'schedule', desk_tier: 'national', desk_feature: 'Bills' }, ids: undefined },
+  ]);
+  assertEquals(result.widened, null);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
+});
+
+Deno.test('confinement beats the feature scope, which beats the model desk_tier', async () => {
+  // 1. Confined ids under a confining focus: the module is ignored.
+  for (const focus of ['attached', 'selection'] as const) {
+    const log = searchLog();
+    const f = fake([[docCallWith({ query: 'clause', desk_tier: 'state' }), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: log.searchDocuments,
+    });
+    await runAgent(f.deps, { ...input, scopedDocumentIds: ['doc-1'], focus, featureScope: BILLS });
+    assertEquals(log.calls, [{ args: { query: 'clause', desk_tier: 'state' }, ids: ['doc-1'] }], focus);
+  }
+  // 3. No confinement and no module filter: the model's desk_tier, as before.
+  for (const [focus, featureScope] of [['broad', BILLS], ['desk', undefined]] as const) {
+    const log = searchLog();
+    const f = fake([[docCallWith({ query: 'clause', desk_tier: 'state' }), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: log.searchDocuments,
+    });
+    await runAgent(f.deps, { ...input, focus, ...(featureScope ? { featureScope } : {}) });
+    assertEquals(log.calls, [{ args: { query: 'clause', desk_tier: 'state' }, ids: undefined }], focus);
+  }
+});
+
+Deno.test('a desk_feature the model sends is stripped: the model never chooses the module', async () => {
+  for (const [focus, featureScope, expected] of [
+    ['broad', undefined, { query: 'clause' }],
+    ['desk', undefined, { query: 'clause' }],
+    ['desk', BILLS, { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }],
+  ] as const) {
+    const log = searchLog();
+    const f = fake([[docCallWith({ query: 'clause', desk_feature: 'Budget' }), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: log.searchDocuments,
+    });
+    await runAgent(f.deps, { ...input, focus, ...(featureScope ? { featureScope } : {}) });
+    assertEquals(log.calls.map((c) => c.args), [expected], `${focus} ${featureScope ? 'with' : 'without'} a module`);
+  }
+});
+
+Deno.test('an empty module search re-runs once without the module and discloses feature-empty once', async () => {
+  const log = searchLog((args) => args.desk_feature ? [] : [chunk('a')]);
+  const f = fake([
+    [docCall(), finish('tool_calls')],
+    [docCall('again'), finish('tool_calls')],
+    ready(),
+    answer(),
+  ], { searchDocuments: log.searchDocuments });
+  const result = await runAgent(f.deps, { ...input, focus: 'desk', featureScope: BILLS });
+  assertEquals(log.calls, [
+    { args: { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }, ids: undefined },
+    { args: { query: 'clause' }, ids: undefined },
+    { args: { query: 'clause', desk_tier: 'national', desk_feature: 'Bills' }, ids: undefined },
+    { args: { query: 'clause' }, ids: undefined },
+  ]);
+  assertEquals(result.searches, 4);
+  assertEquals(result.widened, 'feature-empty');
+  assertEquals(f.events.filter((e) => 'widened' in e), [{ widened: 'feature-empty' }]);
+});
+
+Deno.test('an empty module search that the re-run also finds nothing for still discloses, and only once it ran', async () => {
+  const log = searchLog(() => []);
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
+  const result = await runAgent(f.deps, { ...input, focus: 'desk', featureScope: BILLS });
+  assertEquals(log.calls.length, 2);
+  assertEquals(result.widened, 'feature-empty');
+
+  // No room for the re-run: nothing was widened, so nothing is said.
+  const budget = createAgentBudget();
+  budget.searches = 9;
+  const refused = searchLog(() => []);
+  const g = fake([[docCall(), finish('tool_calls')], answer()], { budget, searchDocuments: refused.searchDocuments });
+  const second = await runAgent(g.deps, { ...input, focus: 'desk', featureScope: BILLS });
+  assertEquals(refused.calls.length, 1);
+  assertEquals(second.widened, null);
+});
+
+Deno.test('desk focus on a module with no documents searches unfiltered with no banner', async () => {
+  const log = searchLog(() => []);
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
+  const result = await runAgent(f.deps, { ...input, focus: 'desk' });
+  assertEquals(log.calls, [{ args: { query: 'clause' }, ids: undefined }], 'one search, no re-run');
+  assertEquals(result.widened, null);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
+});
+
+// featureScope decides what every search may reach, so a checkpoint made under
+// one module cannot be resumed under another, or under none.
+Deno.test('a checkpoint cannot be resumed under a different feature scope', async () => {
+  for (const other of [{ tier: 'national', feature: 'Budget' }, { tier: 'state', feature: 'Bills' }, undefined]) {
+    const f = fake([ready(), answer()]);
+    await runAgent(f.deps, { ...input, focus: 'desk', featureScope: BILLS, conversational: true });
+    await assertRejects(
+      () => runAgent(f.deps, { ...input, focus: 'desk', ...(other ? { featureScope: other } : {}), conversational: true }),
+      Error,
+      'different turn or budget',
+    );
+  }
 });
 
 Deno.test('scope fallback cannot exceed the last available search slot', async () => {

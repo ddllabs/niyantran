@@ -373,3 +373,27 @@ Deno.test('no focus line offers the attachment as an answer about what a documen
     );
   }
 });
+
+// retrieval-scope (2026-09-30 spec). A document chip is a pointer, never corpus
+// content: the prompt names it and says the searches are confined to it, and
+// nothing else about it - no body, even if one arrives, and no id.
+Deno.test('a document chip renders as one pointer line, with no body and no id', () => {
+  const turn = buildUserTurn('What does it require?', [
+    { kind: 'document', title: 'KYC Direction, 2016' },
+    { kind: 'document', title: 'Line one\nLine two', text: 'CORPUS BODY 0b6f1a52-3c4d-4e5f-8a9b-0c1d2e3f4a5b' },
+    { kind: 'file', title: 'notes.txt', text: 'user notes' },
+  ]);
+  assert(turn.startsWith('Attached document: KYC Direction, 2016 — searches are limited to it.\n\n'));
+  assertStringIncludes(turn, 'Attached document: Line one Line two — searches are limited to it.');
+  assert(!turn.includes('CORPUS BODY'), 'a chip never carries corpus text into the prompt');
+  assert(!turn.includes('0b6f1a52'), 'the id scopes the search; it is not for the model');
+  assertEquals(turn.match(/User-supplied attachment/g)?.length, 1, 'only the file is a user-supplied block');
+  assert(turn.endsWith(BEFORE_YOU_ANSWER));
+});
+
+Deno.test('the desk focus line says document searches are limited to the open module when it has documents', () => {
+  const line = FOCUS_LINES.desk;
+  assertStringIncludes(line, 'search_desk_rows');
+  assertStringIncludes(line, 'every search_documents call is limited to its documents');
+  assertStringIncludes(line, 'When the module has indexed documents');
+});

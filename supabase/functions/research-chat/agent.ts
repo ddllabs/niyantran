@@ -32,6 +32,10 @@ export function createAgentBudget(): AgentBudget {
 export interface DocumentSearchArgs {
   query: string;
   desk_tier?: string;
+  /** Set only by the server, from AgentInput.featureScope, and always beside
+   * that scope's tier. The tool schema has no such key and documentArguments
+   * drops one the model sends: the model never chooses the module. */
+  desk_feature?: string;
 }
 export type ToolFrame =
   | { name: string; phase: 'start'; input: DocumentSearchArgs | SearchDeskRowsArgs; step: number }
@@ -57,13 +61,16 @@ export interface TraceStep {
   status: 'ok' | 'error';
 }
 /** Why a document search ran across the whole corpus on a turn that asked for
- * the attached documents. 'empty': the scoped search found nothing and the
- * fallback widened it. 'unresolved': "Attached only" had no indexed document to
- * scope to, so the search was never confined in the first place. 'unkeyed': the
+ * less: the attached documents, or the open desk module's. 'empty': the scoped
+ * search found nothing and the fallback widened it. 'unresolved': "Attached
+ * only" had no indexed document to scope to, so the search was never confined
+ * in the first place. 'unkeyed': the
  * same, but because nothing the turn carried named a document at all - a desk
  * module, an uploaded file - which the reader fixes differently: the bill is not
- * missing from the corpus, it was never attached. */
-export type WidenedScope = 'empty' | 'unresolved' | 'unkeyed';
+ * missing from the corpus, it was never attached. 'feature-empty': desk focus
+ * filtered to a module with documents, the module held nothing for the query,
+ * and the search ran again across all of them. */
+export type WidenedScope = 'empty' | 'unresolved' | 'unkeyed' | 'feature-empty';
 /** Internal handler events, NOT SSE frames. Never forward internalReasoning.
  * researchText is a private draft, never evidence or public answer content.
  * Text enters the answer decoder from one of two places, and only after the
@@ -122,11 +129,14 @@ export interface AgentInput {
    * no-search push-back must not fire. Derived from the same message as
    * userTurn, so it cannot disagree with a resumed checkpoint. */
   conversational?: boolean;
-  /** Whether the turn named any document - a bill row's key, the selection's.
-   * An unscoped search owes one of two different disclosures: the named bill
-   * has no indexed text ('unresolved'), or nothing attached named a bill at all
-   * ('unkeyed'). Omitted reads as named. */
-  documentKeysSent?: boolean;
+  /** Whether the turn named any document - a bill row's key, the selection's,
+   * a document chip's id. An unscoped search owes one of two different
+   * disclosures: the named document has no indexed text ('unresolved'), or
+   * nothing attached named one at all ('unkeyed'). Omitted reads as named. */
+  scopeSent?: boolean;
+  /** The open desk module's documents, as exact `documents` values. Binds only
+   * under focus 'desk', and only below a confinement: see execute(). */
+  featureScope?: { tier: string; feature: string };
 }
 
 /** In-process checkpoint, not a database persistence format. All successful
@@ -158,16 +168,17 @@ export interface AgentCheckpoint {
 }
 
 function inputKey(a: AgentInput): string {
-  // focus decides whether a search may leave the attachments, and
-  // documentKeysSent what leaving them discloses, so a resumed checkpoint must
-  // not be handed different ones.
+  // focus decides whether a search may leave the attachments, scopeSent what
+  // leaving them discloses, and featureScope which module every desk search is
+  // filtered to, so a resumed checkpoint must not be handed different ones.
   return JSON.stringify([
     a.system,
     a.window,
     a.userTurn,
     a.scopedDocumentIds,
     a.focus ?? null,
-    a.documentKeysSent ?? true,
+    a.scopeSent ?? true,
+    a.featureScope ? [a.featureScope.tier, a.featureScope.feature] : null,
   ]);
 }
 export function createAgentCheckpoint(
@@ -383,22 +394,39 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       //
       // Only the two focuses that promise confinement confine. `broad` is
       // labelled "Broad context" and its prompt line is "the whole record; use
-      // both tools freely"; `desk` is a sample of the open module. Scoping
-      // those to an attachment would make the control mean the opposite of
-      // what it says, so an attachment narrows the search only under
-      // "Attached only" and "Selection + pins".
+      // both tools freely"; `desk` is the open module, and narrows to that
+      // module's documents below. Scoping those to an attachment would make
+      // the control mean the opposite of what it says, so an attachment
+      // narrows the search only under "Attached only" and "Selection + pins".
       const confines = a.focus === 'attached' || a.focus === 'selection';
       const scope = confines && a.scopedDocumentIds.length ? [...a.scopedDocumentIds] : undefined;
-      let found = await searchAttempt(call, args, scope) as Chunk[] | null;
+      // Precedence, per search: a confinement, then the desk module, then the
+      // model's own desk_tier. The module binds only where no confinement can
+      // (desk focus), and it replaces the model's tier rather than joining it:
+      // a model argument never loosens either one.
+      const module = !confines && a.focus === 'desk' ? a.featureScope : undefined;
+      const asked = args as DocumentSearchArgs;
+      const scoped: DocumentSearchArgs = module
+        ? { query: asked.query, desk_tier: module.tier, desk_feature: module.feature }
+        : asked;
+      let found = await searchAttempt(call, scoped, scope) as Chunk[] | null;
       // A focus that confines, over an attachment the corpus has never indexed,
       // cannot scope to nothing - so it searches everything, which is what the
       // reported session did on every bill while the focus control said
       // otherwise. Whichever focus made the promise owes the reader the same
       // disclosure, so this tracks `confines` rather than naming one value.
-      if (found && !scope && confines) widenScope(a.documentKeysSent === false ? 'unkeyed' : 'unresolved');
+      if (found && !scope && confines) widenScope(a.scopeSent === false ? 'unkeyed' : 'unresolved');
       if (found && !found.length && scope) {
         found = await searchAttempt(call, args) as Chunk[] | null;
         if (found) widenScope('empty');
+      }
+      // The module held nothing for this query: once more without it, as the
+      // model asked, and the reader is told the answer left the module. A desk
+      // module with no documents never gets here - it has no featureScope - so
+      // it searches unfiltered in silence, as the coverage line already says.
+      if (found && !found.length && module) {
+        found = await searchAttempt(call, args) as Chunk[] | null;
+        if (found) widenScope('feature-empty');
       }
       if (!found) return EXHAUSTED;
       state.chunks = accumulate(state.chunks, found);

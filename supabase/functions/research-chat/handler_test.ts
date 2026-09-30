@@ -1818,7 +1818,7 @@ Deno.test('an unindexed document id or key discloses as unresolved, and an id al
   }
 });
 
-Deno.test('a document chip reaches the prompt as its title and kind, with no corpus text or id', async () => {
+Deno.test('a document chip reaches the prompt as its pointer line, with no corpus text or id', async () => {
   const provider = scripted([...DECLINES, [text(envelope('Read it.')), finish()]]);
   const { deps } = fakeDeps(provider);
   await frames(
@@ -1828,8 +1828,35 @@ Deno.test('a document chip reaches the prompt as its title and kind, with no cor
     ),
   );
   const user = String(provider.seen[0].messages.at(-1)!.content);
-  assertStringIncludes(user, 'document | KYC Direction, 2016');
+  assertStringIncludes(user, 'Attached document: KYC Direction, 2016 — searches are limited to it.');
+  assert(!user.includes('User-supplied attachment'), 'a pointer is not a user-supplied text block');
   assert(!user.includes(DOC_A), 'the id is for scoping, not for the model');
+});
+
+// The spec's smoke test: "Ask about this document" is one chip under
+// "Attached only", and every document search of the turn reaches exactly that
+// document - through validation, resolution and the agent - and no other.
+Deno.test('a document chip under attached scopes every search to exactly that id', async () => {
+  const asked: { keys: string[]; ids: string[] }[] = [];
+  const searches: { args: unknown; ids?: string[] }[] = [];
+  const { deps, rec } = fakeDeps(documentTurn(2), {
+    searchDocuments: (args, ids) => {
+      searches.push({ args, ids });
+      return Promise.resolve([chunk(`c${searches.length}`)]);
+    },
+  }, {
+    // The index keeps what is indexed; this one is.
+    resolveDocumentIds: (scope) => (asked.push(scope), Promise.resolve([...scope.ids])),
+  });
+  await frames(
+    await handleResearchChat(
+      post({ ...BODY, focus: 'attached', turn_key: 'ask-about-doc', attachments: [docChip()] }),
+      deps,
+    ),
+  );
+  assertEquals(asked, [{ keys: [], ids: [DOC_A] }]);
+  assertEquals(searches, [{ args: { query: 'committee' }, ids: [DOC_A] }, { args: { query: 'committee' }, ids: [DOC_A] }]);
+  assert(!String(rec.messages[0].content).includes('Search widened'), 'nothing left the document');
 });
 
 Deno.test('a malformed document id is refused with a field error before any work', async () => {
@@ -1880,4 +1907,97 @@ Deno.test('featureScope is absent on the wrong tier, with no match, without a mo
   for (const focus of ['broad', 'attached', 'selection'] as const) {
     assertEquals(featureScopeOf(desk('national', 'Bills', focus), MODULES), undefined, focus);
   }
+});
+
+// Desk focus on a module with documents filters every document search to it,
+// through the handler: the scope comes from the server's module list, never
+// from the model.
+const PBI = 'Bill Passage Probability Index';
+const deskBody = (feature: string, turnKey: string) => ({
+  ...BODY,
+  focus: 'desk' as const,
+  turn_key: turnKey,
+  desk_context: { tier: 'national', feature },
+});
+
+Deno.test('desk focus on a module with documents sends that module with every document search', async () => {
+  const seen: unknown[] = [];
+  const { deps, rec } = fakeDeps(documentTurn(2), {
+    searchDocuments: (args, ids) => (seen.push({ args, ids }), Promise.resolve([chunk(`c${seen.length}`)])),
+  });
+  await frames(await handleResearchChat(post(deskBody(PBI, 'desk-module')), deps));
+  const scoped = { args: { query: 'committee', desk_tier: 'national', desk_feature: PBI }, ids: undefined };
+  assertEquals(seen, [scoped, scoped]);
+  assert(!String(rec.messages[0].content).includes('Search widened'));
+});
+
+Deno.test('a module that held nothing widens to all documents and says so, naming the module', async () => {
+  const seen: unknown[] = [];
+  const { deps, rec } = fakeDeps(documentTurn(1), {
+    searchDocuments: (args) => (seen.push(args), Promise.resolve(args.desk_feature ? [] : [chunk('c1')])),
+  });
+  const sent = await frames(await handleResearchChat(post(deskBody(PBI, 'desk-empty')), deps));
+  assertEquals(seen, [{ query: 'committee', desk_tier: 'national', desk_feature: PBI }, { query: 'committee' }]);
+  const content = String(rec.messages[0].content);
+  const note = `**Search widened.** Nothing in ${PBI} matched, so all documents were searched.`;
+  assert(content.startsWith(note), `the answer header names the module, saw ${content.slice(0, 160)}`);
+  assert(!content.slice(0, content.indexOf(LONG)).includes('attached'), 'a module is not an attachment');
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'feature-empty');
+  const ticker = sent.filter((f) => keyOf(f) === 'reasoning').map((f) => (f as { reasoning: string }).reasoning);
+  assert(
+    ticker.includes(`Nothing in ${PBI} matched; searching all documents.`),
+    `the ticker names the module, saw ${JSON.stringify(ticker)}`,
+  );
+  assertStringIncludes(JSON.stringify(rec.messages[0].activity), `Nothing in ${PBI} matched`);
+});
+
+Deno.test('desk focus on a module with no documents searches unfiltered and shows no banner', async () => {
+  const seen: unknown[] = [];
+  const { deps, rec } = fakeDeps(documentTurn(1), {
+    searchDocuments: (args, ids) => (seen.push({ args, ids }), Promise.resolve([])),
+  });
+  const sent = await frames(await handleResearchChat(post(deskBody('Lok Sabha Questions', 'desk-rows-only')), deps));
+  assertEquals(seen, [{ args: { query: 'committee' }, ids: undefined }], 'one unfiltered search, no re-run');
+  assert(!String(rec.messages[0].content).includes('Search widened'));
+  assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, undefined);
+  assert(!sent.some((f) => /searching (all documents|the whole record)/.test((f as { reasoning?: string }).reasoning ?? '')));
+});
+
+// Each reason says what was actually left: the attached documents, the record's
+// missing index, nothing named, or the desk module. Only the attachment reasons
+// may speak of attachments.
+Deno.test('every widening reason has its own note and ticker label, and only attachment reasons say attached', async () => {
+  const cases: [string, Record<string, unknown>, Partial<HandlerDeps>, Partial<UserDb>][] = [
+    ['empty', { focus: 'attached' }, { searchDocuments: (_a, ids) => Promise.resolve(ids ? [] : [chunk('c1')]) }, {
+      resolveDocumentIds: () => Promise.resolve(['doc-1']),
+    }],
+    ['unresolved', { focus: 'attached', attachments: [docChip()] }, {}, {}],
+    ['unkeyed', { focus: 'attached' }, {}, {}],
+    ['feature-empty', { focus: 'desk', desk_context: { tier: 'national', feature: PBI } }, {
+      searchDocuments: (args) => Promise.resolve(args.desk_feature ? [] : [chunk('c1')]),
+    }, {}],
+  ];
+  const notes = new Set<string>();
+  const labels = new Set<string>();
+  for (const [reason, body, over, dbOver] of cases) {
+    const { deps, rec } = fakeDeps(documentTurn(1), {
+      searchDocuments: () => Promise.resolve([chunk('c1')]),
+      ...over,
+    }, dbOver);
+    const sent = await frames(
+      await handleResearchChat(post({ ...BODY, ...body, turn_key: `reason-${reason}` }), deps),
+    );
+    assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, reason);
+    const content = String(rec.messages[0].content);
+    const note = content.slice(0, content.indexOf(LONG)).trim();
+    assert(note.startsWith('**Search widened.**'), reason);
+    notes.add(note);
+    const label = sent.map((f) => (f as { reasoning?: string }).reasoning ?? '')
+      .find((t) => /searching (all documents|the whole record)/.test(t));
+    assert(label, `${reason} has a ticker label`);
+    labels.add(label);
+    assertEquals(/attached/i.test(note), reason !== 'feature-empty', `${reason}: ${note}`);
+  }
+  assertEquals(notes.size, 4, 'one note per reason');
+  assertEquals(labels.size, 4, 'one label per reason');
 });

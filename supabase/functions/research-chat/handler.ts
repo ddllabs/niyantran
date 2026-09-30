@@ -437,14 +437,16 @@ function unverifiedNote(searches: number): string {
 }
 
 /**
- * The header on an answer whose evidence came from outside the attached
- * documents. Same reason as the unverified note: the two ways a turn leaves its
- * attachments are different facts - the document had no matching passage, or
- * the corpus holds no document for it at all - and the reader can act on the
- * difference. Without this the widening is invisible, which is how "Attached
- * only" returned passages from fifteen other bills.
+ * The header on an answer whose evidence came from outside the scope the turn
+ * asked for. Same reason as the unverified note: the ways a turn leaves its
+ * scope are different facts - the document had no matching passage, the corpus
+ * holds no document for it at all, nothing named a document, or the desk
+ * module held nothing - and the reader can act on the difference. Without this
+ * the widening is invisible, which is how "Attached only" returned passages
+ * from fifteen other bills. Each text names the scope that was actually left,
+ * so a module is never called an attachment.
  */
-const WIDENED_NOTE: Record<WidenedScope, string> = {
+const WIDENED_NOTE: Record<Exclude<WidenedScope, 'feature-empty'>, string> = {
   empty:
     '**Search widened.** The attached documents held no matching passage, so this turn searched the whole record. What is cited below is not confined to what you attached.',
   unresolved:
@@ -456,8 +458,11 @@ const WIDENED_NOTE: Record<WidenedScope, string> = {
   unkeyed:
     '**Search widened.** Nothing attached to this turn names a source document - a desk module or an uploaded file does not - so this turn searched the whole record. Drag a bill\'s row into the chat to confine the search to that bill.',
 };
-function widenedNote(reason: WidenedScope): string {
-  return WIDENED_NOTE[reason];
+/** `module` is the desk module the turn was filtered to; only 'feature-empty' uses it. */
+function widenedNote(reason: WidenedScope, module?: string): string {
+  return reason === 'feature-empty'
+    ? `**Search widened.** Nothing in ${module || 'the open desk module'} matched, so all documents were searched.`
+    : WIDENED_NOTE[reason];
 }
 
 /** Every terminal frame reflects the row returned by finalization/replay. */
@@ -525,9 +530,7 @@ export function featureScopeOf(
  */
 function promptAttachment(a: Attachment): RenderedAttachment {
   if (a.kind !== 'document') return { kind: a.kind, title: a.title, text: a.text };
-  // TODO(T9b): prompt.ts's RenderedAttachment gains the 'document' kind with no
-  // text and renders its pointer line; this cast then goes.
-  return { kind: a.kind, title: a.title } as unknown as RenderedAttachment;
+  return { kind: a.kind, title: a.title };
 }
 
 interface TurnInput {
@@ -729,7 +732,7 @@ async function runTurnBody(
       // The ticker is where the reader watches the turn work, so it is where
       // leaving the attachments has to show; the answer header repeats it for
       // anyone reading the message later.
-      const label = WIDENED_LABEL[e.widened];
+      const label = widenedLabel(e.widened, featureScope?.feature);
       sender.send({ reasoning: label });
       activity.push({ type: 'activity', text: label });
       context.checkpoint({ activity: [...activity] });
@@ -799,10 +802,9 @@ async function runTurnBody(
     // scopeSent: the reader named a document, by key or by id. Whether it
     // resolved is what `scopedDocumentIds` says; this says whether leaving the
     // attachments is "unresolved" or "unkeyed".
-    // TODO(T9b): agent.ts renames documentKeysSent to scopeSent.
-    documentKeysSent: documentKeys.length > 0 || documentIds.length > 0,
-    // The desk module's documents, under desk focus. agent.ts consumes it from
-    // T9b (precedence: confinement, then this, then the model's desk_tier).
+    scopeSent: documentKeys.length > 0 || documentIds.length > 0,
+    // The desk module's documents, under desk focus. agent.ts applies it after
+    // any confinement and ahead of the model's desk_tier.
     ...(featureScope ? { featureScope } : {}),
   };
   const chain = failoverChain(t.models, t.chosen.model_id);
@@ -969,7 +971,7 @@ async function runTurnBody(
   // and they answer different questions, so neither replaces the other.
   const notes = [
     ...(grounded ? [] : [unverifiedNote(result.searches)]),
-    ...(result.widened ? [widenedNote(result.widened)] : []),
+    ...(result.widened ? [widenedNote(result.widened, featureScope?.feature)] : []),
   ];
   const content = notes.length ? `${notes.join('\n\n')}\n\n${ladder.answer}` : ladder.answer;
 
@@ -1033,11 +1035,16 @@ export interface Timing {
 }
 
 const SEARCHING = 'Searching relevant sources.';
-const WIDENED_LABEL: Record<WidenedScope, string> = {
+const WIDENED_LABEL: Record<Exclude<WidenedScope, 'feature-empty'>, string> = {
   empty: 'The attached documents held nothing; searching the whole record.',
   unresolved: 'No indexed source document for the attached material; searching the whole record.',
   unkeyed: 'Nothing attached names a source document; searching the whole record.',
 };
+function widenedLabel(reason: WidenedScope, module?: string): string {
+  return reason === 'feature-empty'
+    ? `Nothing in ${module || 'the open desk module'} matched; searching all documents.`
+    : WIDENED_LABEL[reason];
+}
 
 function timingOf(
   startedAt: number,

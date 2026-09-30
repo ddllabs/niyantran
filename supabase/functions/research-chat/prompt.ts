@@ -128,7 +128,8 @@ export const FOCUS_LINES: Record<string, string> = {
     'Focus: the attached material first for its own fields; search the record for whatever they do not answer, and always for what a document says.',
   selection:
     'Focus: the selected record and the attached material first for their own fields; search the record for whatever they do not answer, and always for what a document says.',
-  desk: 'Focus: the current desk module; use search_desk_rows for its rows and search_documents for its documents.',
+  desk:
+    'Focus: the current desk module; use search_desk_rows for its rows and search_documents for its documents. When the module has indexed documents, every search_documents call is limited to its documents.',
   broad: 'Focus: the whole record; use both tools freely.',
 };
 
@@ -216,12 +217,13 @@ export function buildSystemPrompt(a: PromptInput): string {
     .filter(Boolean).join('\n\n');
 }
 
-export interface RenderedAttachment {
-  kind: 'row' | 'record' | 'file';
-  title: string;
-  text: string;
-  handle?: string;
-}
+/** What the prompt shows for an attachment. A `document` chip is a pointer:
+ * only its title is rendered, as one line, and any `text` it carries is
+ * ignored - the chip never brings corpus content into the prompt, and its id
+ * never reaches the model (the handler passes the title only). */
+export type RenderedAttachment =
+  | { kind: 'row' | 'record' | 'file'; title: string; text: string; handle?: string }
+  | { kind: 'document'; title: string; text?: string; handle?: undefined };
 
 export const MAX_ATTACHMENT_CHARS = 12_000;
 const SERVER_HANDLE_RE = /^ref:[a-z0-9]{6}-\d+$/;
@@ -232,6 +234,10 @@ export function buildUserTurn(
   verifiedServerHandles: ReadonlySet<string> = new Set(),
 ): string {
   const blocks = attachments.map((a) => {
+    if (a.kind === 'document') {
+      const title = String(a.title ?? '').replace(/\s+/g, ' ').trim();
+      return `Attached document: ${title} — searches are limited to it.`;
+    }
     const handle = String(a.handle ?? '');
     const citable = a.kind !== 'file' && SERVER_HANDLE_RE.test(handle) && verifiedServerHandles.has(handle);
     const head = citable
