@@ -12,7 +12,8 @@
 #   scripts/ingest-ops.sh status          # the cron job and the latest jobs (no secret values)
 #
 # Uses the Supabase CLI's login (`supabase db query` goes through the Management API),
-# so no database password or psql is needed. Project: NTER unless INGEST_PROJECT_REF is set.
+# so no database password or psql is needed. Project: NTER unless INGEST_PROJECT_REF is set;
+# the repository must be linked to that project (`supabase link`), as db query needs --linked.
 set -euo pipefail
 
 REF="${INGEST_PROJECT_REF:-vfgcppstyzjarlzyqdac}"
@@ -22,7 +23,7 @@ VAULT_NAME=ingest_worker_secret
 say() { printf '\n>> %s\n' "$*"; }
 
 # SQL to the project, read from a file descriptor so nothing lands in argv or on disk.
-sql() { supabase db query --project-ref "$REF" -f <(printf '%s\n' "$1"); }
+sql() { supabase db query --linked --project-ref "$REF" -f <(printf '%s\n' "$1"); }
 
 # One http_post to the worker, the secret read from Vault inside the database.
 POST_SQL="select net.http_post(
