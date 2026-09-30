@@ -112,3 +112,20 @@ the `VITE_AI_BACKEND` flag. The admin "AI models" page is always the allowlist
 editor (`src/admin/AiModelsPage.jsx`, `src/admin/AllowlistEditor.jsx`). The
 browser reads the allowlist from the database (`src/lib/aiRegistry.js`). The
 decisions themselves are unchanged.
+
+## Amendment (2026-09-30): OpenRouter first, direct integrations allowed
+
+Decision 1 said OpenRouter is "the only outbound model endpoint". The owner
+relaxed it on 2026-09-30:
+
+- **OpenRouter is the first preference** for any model call, and is required
+  whenever it offers the endpoint.
+- **A direct integration is allowed only when OpenRouter has no endpoint for
+  the capability.** Its key is held as a server-side Supabase secret, never
+  in the browser, and the call is logged with its cost like any other.
+- **The first case is Mistral OCR** (`POST https://api.mistral.ai/v1/ocr`,
+  with a pinned model version), which OpenRouter does not provide with page
+  blocks, boxes and images. It is called with `MISTRAL_API_KEY`, only from
+  the ingestion worker (`docs/specs/2026-09-30-rag-v2-capability-map.md`).
+- **Unchanged:** chat and embeddings stay on OpenRouter, and so do decisions
+  2–4.

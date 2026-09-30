@@ -82,3 +82,35 @@ re-embedded whether or not it changed.
   a splitter change.
 - The `text_hash` on a citation is what makes an "edited since cited" notice
   possible, at no cost beyond one column.
+
+## Amendment (2026-09-30): page-aware documents
+
+This records the page contract of `docs/specs/2026-09-30-rag-v2-chunk-contract.md`,
+the rules for PDFs ingested with page-aware OCR. The 2,338 documents already
+ingested are unaffected.
+
+- **Unit key.** Point 2's "the document id today" was never what the code did.
+  The unit key is the literal `'document'` for whole-document chunks
+  (`chunkDocument`), and `'page:<n>'` for page chunks. It is a page
+  **number**, not a page row id, so re-extracting a document keeps the vectors
+  of pages whose text is unchanged.
+- **Identity is unchanged.** `chunk_hash` still covers the chunk's own text,
+  so a chunk whose text on its page is unchanged keeps its id and its
+  citations. Page chunks use their own `PAGE_CHUNK_VERSION`. `CHUNK.version`
+  and `chunkDocument` stay as they are.
+- **Vector reuse is decided separately.** A page chunk's embedding input adds
+  its section context, and a repeated table header when it starts inside a
+  table. A new column, `embed_hash`, hashes that input. When a chunk's
+  identity matches but its `embed_hash` differs, `chunk_commit` replaces the
+  vector and keeps the id.
+- **Pages, blocks and images are tables of their own**
+  (`document_pages`, `document_page_blocks`, `document_page_images`), keyed
+  by `(document_id, extract_hash, …)`. Chunks carry `block_ids` and
+  `image_ids`, which `chunk_commit` refreshes on a hit.
+- **Originals and images are content-addressed** in the private `corpus`
+  bucket and never overwritten. A citation records the `extract_hash` its
+  boxes belong to, so a viewer can say when the document has changed since
+  it was cited, instead of drawing stale boxes.
+- **Point 5 is unchanged.** Citations keep the span and `text_hash`. New,
+  optional citation fields are stripped when malformed, never used to reject a
+  citation.

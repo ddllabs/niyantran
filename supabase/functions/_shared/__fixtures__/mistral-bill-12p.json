@@ -1,0 +1,1798 @@
+{
+ "pages": [
+  {
+   "index": 0,
+   "markdown": "**Bill No. XLV of 2025**\n\n# THE CLASSIFIED INFORMATION AND ESPIONAGE\nCONTROL BILL, 2025\n\nA\nBILL\n\nto establish a comprehensive legal framework for the classification,\nprotection and management of sensitive information relating to\nnational security; to regulate the authorised access, handling\nand disclosure of such information; to penalise\nunauthorised access and disclosure, including\nacts of espionage; to safeguard constitutional\nrights and ensure transparency; and to repeal\nthe Official Secrets Act, 1923, along with\nmatters connected therewith or\nincidental thereto.\n\nWHEREAS it is expedient to provide a comprehensive and contemporary\nlegislative framework for the classification and protection of sensitive\ninformation pertaining to the sovereignty, integrity, defence and strategic\ninterests of India;\n\nAND WHEREAS it is necessary to criminalise espionage and unlawful disclosures\nwhile safeguarding the right to information, whistleblower protection and\ndemocratic oversight.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": "AS INTRODUCED IN THE RAJYA SABHA\nON THE 5TH DECEMBER, 2025",
+   "footer": null,
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 367,
+     "top_left_y": 87,
+     "bottom_right_x": 557,
+     "bottom_right_y": 116,
+     "content": "AS INTRODUCED IN THE RAJYA SABHA\nON THE 5TH DECEMBER, 2025",
+     "confidence_scores": null,
+     "type": "header"
+    },
+    {
+     "top_left_x": 443,
+     "top_left_y": 548,
+     "bottom_right_x": 557,
+     "bottom_right_y": 565,
+     "content": "**Bill No. XLV of 2025**",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 205,
+     "top_left_y": 573,
+     "bottom_right_x": 546,
+     "bottom_right_y": 606,
+     "content": "# THE CLASSIFIED INFORMATION AND ESPIONAGE\nCONTROL BILL, 2025",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 361,
+     "top_left_y": 614,
+     "bottom_right_x": 390,
+     "bottom_right_y": 644,
+     "content": "A\nBILL",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 208,
+     "top_left_y": 651,
+     "bottom_right_x": 542,
+     "bottom_right_y": 791,
+     "content": "to establish a comprehensive legal framework for the classification,\nprotection and management of sensitive information relating to\nnational security; to regulate the authorised access, handling\nand disclosure of such information; to penalise\nunauthorised access and disclosure, including\nacts of espionage; to safeguard constitutional\nrights and ensure transparency; and to repeal\nthe Official Secrets Act, 1923, along with\nmatters connected therewith or\nincidental thereto.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 164,
+     "top_left_y": 797,
+     "bottom_right_x": 554,
+     "bottom_right_y": 854,
+     "content": "WHEREAS it is expedient to provide a comprehensive and contemporary\nlegislative framework for the classification and protection of sensitive\ninformation pertaining to the sovereignty, integrity, defence and strategic\ninterests of India;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 164,
+     "top_left_y": 860,
+     "bottom_right_x": 554,
+     "bottom_right_y": 903,
+     "content": "AND WHEREAS it is necessary to criminalise espionage and unlawful disclosures\nwhile safeguarding the right to information, whistleblower protection and\ndemocratic oversight.",
+     "confidence_scores": null,
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "markdown": "BE it enacted by Parliament in the Seventy-sixth Year of the Republic of India as follows:—\n\n# CHAPTER I\nPRELIMINARY\n\nShort title,\napplication and\ncommencement.\n\n1. (1) This Act may be called the Classified Information and Espionage Control Act, 2025. 5\n(2) The provisions of this Act shall apply to,—\n(a) every citizen of India, whether within or outside the territory of India;\n(b) any person on board a ship or aircrafts registered in India, wherever they may be; and 10\n(c) any person, irrespective of citizenship, whether within or beyond the territorial boundaries of India, who unlawfully obtains or discloses classified information concerning the national interest of India and thereby commits an offence under this Act. 15\n(3) It shall come into force on such date as the Central Government may, by notification in the Official Gazette, appoint, and different dates may be appointed for different provisions of this Act.\n\nDefinitions.\n\n2. In this Act, unless the context otherwise requires—\n(a) “Board” for the purpose of this Act is Independent Review Board on National Security and Disclosures, established under section 11; 20\n(b) “classified information” means any information, document, material or communication declared by the Central or State Government to be sensitive to national security, defence or strategic interests, and marked confidential, secret or top secret, the unauthorised disclosure of which is likely to prejudice national security or international relations; 25\nExplanation.— For the purpose of this clause, “unauthorized disclosure” means dissemination of classified information by a person who is not authorised or who acts in violation of this Act. 30\n(c) “espionage” means any act of accessing, obtaining, recording, copying, disclosing, transmitting or retaining classified information with the intent to harm the sovereignty, integrity or security of India; 35\n(d) “information” means any oral, written, electronic or any other form of communication or data, whether tangible or intangible, and whether stored, transmitted or received by any means;\n(e) “public interest disclosure” means disclosure made in good faith to an authorised constitutional authority for exposing corruption, illegality or abuse of power; and 40\n(f) “prescribed” means prescribed under the rules made under this Act.\n\n# CHAPTER II\n\n# CLASSIFICATION AND HANDLING OF INFORMATION 45\n\nClassification\nProtocol.\n\n3. (1) The Central Government shall, by notification in the official Gazette, establish a system for classification of information based on sensitivity, and such system shall include levels of category such as “Confidential”, “Secret” and “Top Secret” or such other levels as may be notified from time to time. 50",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "2",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 177,
+     "top_left_y": 84,
+     "bottom_right_x": 554,
+     "bottom_right_y": 114,
+     "content": "BE it enacted by Parliament in the Seventy-sixth Year of the Republic of India as follows:—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 342,
+     "top_left_y": 122,
+     "bottom_right_x": 409,
+     "bottom_right_y": 153,
+     "content": "# CHAPTER I\nPRELIMINARY",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 54,
+     "top_left_y": 162,
+     "bottom_right_x": 123,
+     "bottom_right_y": 197,
+     "content": "Short title,\napplication and\ncommencement.",
+     "confidence_scores": null,
+     "type": "aside_text"
+    },
+    {
+     "top_left_x": 177,
+     "top_left_y": 162,
+     "bottom_right_x": 581,
+     "bottom_right_y": 394,
+     "content": "1. (1) This Act may be called the Classified Information and Espionage Control Act, 2025. 5\n(2) The provisions of this Act shall apply to,—\n(a) every citizen of India, whether within or outside the territory of India;\n(b) any person on board a ship or aircrafts registered in India, wherever they may be; and 10\n(c) any person, irrespective of citizenship, whether within or beyond the territorial boundaries of India, who unlawfully obtains or discloses classified information concerning the national interest of India and thereby commits an offence under this Act. 15\n(3) It shall come into force on such date as the Central Government may, by notification in the Official Gazette, appoint, and different dates may be appointed for different provisions of this Act.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 72,
+     "top_left_y": 400,
+     "bottom_right_x": 123,
+     "bottom_right_y": 413,
+     "content": "Definitions.",
+     "confidence_scores": null,
+     "type": "aside_text"
+    },
+    {
+     "top_left_x": 177,
+     "top_left_y": 400,
+     "bottom_right_x": 581,
+     "bottom_right_y": 800,
+     "content": "2. In this Act, unless the context otherwise requires—\n(a) “Board” for the purpose of this Act is Independent Review Board on National Security and Disclosures, established under section 11; 20\n(b) “classified information” means any information, document, material or communication declared by the Central or State Government to be sensitive to national security, defence or strategic interests, and marked confidential, secret or top secret, the unauthorised disclosure of which is likely to prejudice national security or international relations; 25\nExplanation.— For the purpose of this clause, “unauthorized disclosure” means dissemination of classified information by a person who is not authorised or who acts in violation of this Act. 30\n(c) “espionage” means any act of accessing, obtaining, recording, copying, disclosing, transmitting or retaining classified information with the intent to harm the sovereignty, integrity or security of India; 35\n(d) “information” means any oral, written, electronic or any other form of communication or data, whether tangible or intangible, and whether stored, transmitted or received by any means;\n(e) “public interest disclosure” means disclosure made in good faith to an authorised constitutional authority for exposing corruption, illegality or abuse of power; and 40\n(f) “prescribed” means prescribed under the rules made under this Act.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 342,
+     "top_left_y": 807,
+     "bottom_right_x": 412,
+     "bottom_right_y": 821,
+     "content": "# CHAPTER II",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 253,
+     "top_left_y": 827,
+     "bottom_right_x": 581,
+     "bottom_right_y": 842,
+     "content": "# CLASSIFICATION AND HANDLING OF INFORMATION 45",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 54,
+     "top_left_y": 856,
+     "bottom_right_x": 113,
+     "bottom_right_y": 878,
+     "content": "Classification\nProtocol.",
+     "confidence_scores": null,
+     "type": "aside_text"
+    },
+    {
+     "top_left_x": 177,
+     "top_left_y": 856,
+     "bottom_right_x": 581,
+     "bottom_right_y": 926,
+     "content": "3. (1) The Central Government shall, by notification in the official Gazette, establish a system for classification of information based on sensitivity, and such system shall include levels of category such as “Confidential”, “Secret” and “Top Secret” or such other levels as may be notified from time to time. 50",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 355,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 964,
+     "content": "2",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "markdown": "(2) The classification referred to in sub-section (1), shall be based on the sensitivity, potential harm to national security, and duration for which secrecy is warranted in the interest of the state.\n(3) No classification shall be made or maintained with the intent to conceal corruption, abuse of authority, or violations of human rights.\n\n4. (1) All information classified under section 3, shall be subject to periodic review by the Board, constituted under section 12, at an interval not exceeding five years from the date of such classification or of the last review, as the case may be.\n\nDeclassification and Review.\n\n10 (2) Notwithstanding anything contained in sub-section (1), the Board referred to in sub-section (1), on its own motion or on the recommendation of any such authority or person as may be prescribed, may declassify any information at any time prior to the expiry of the period specified therein, if it is satisfied that disclosure of such information no longer prejudices national security.\n\nSecurity clearance and need-to-know access.\n\n15 5. (1) No person shall be granted access to any information classified under the provisions of this Act, except where such person is holding a valid security clearance, issued by such authority and after following due clearances as may be prescribed.\n\n20 (2) Information shall be shared strictly on a need-to-know basis, and any unauthorised access or attempt to obtain such information without lawful authority shall be a punishable offence under this Act.\n\n### CHAPTER III\n\n#### OFFENCES AND PENALTIES\n\n25 6. (1) A person shall be deemed to have committed the offence of espionage, if such person with wilful intent or purpose prejudicial to the sovereignty, integrity, security, or strategic interests of the State,—\n\nEspionage.\n\n30 (a) approaches, inspects, photographs, records, surveys, geolocates, flies drones over, or enters any prohibited place, sensitive digital network, secured defence installation, or protected perimeter, without lawful authority; or\n\n35 (b) makes, copies, transmits, digitises, hacks, decrypts, models, or otherwise generates any sketch, plan, schematic, model, map, topographic data, digital representation, or other record, in any form, physical or digital, which is calculated to be, or is likely to be, or is intended to be, directly or indirectly useful to a foreign power, non-state actor, or enemy entity; or\n\n40 (c) obtains, collects, mines, leaks, records, sells, trades, or communicates, whether directly or indirectly, through artificial intelligence systems, spyware, hacking, data scrapers, bots, or digital surveillance tools; any secret official password, classified document, data set, protocol, communication, intelligence, model, program, code, algorithm, or information, which,—\n\n45 (i) is likely to be, or is intended to be, directly or indirectly useful to an enemy or a foreign power; or\n\n(ii) relates to a matter the disclosure of which is likely to affect the sovereignty and integrity of India, the security of the State, defence preparedness, critical infrastructure, or friendly relations with foreign States.\n\n50 (2) Any person found guilty of the offence of espionage under sub-section (1) shall be punished with imprisonment for a term not less than ten years, which may extend to life imprisonment, or with fine upto one crore rupees or with both.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "3",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 141,
+     "top_left_y": 86,
+     "bottom_right_x": 554,
+     "bottom_right_y": 164,
+     "content": "(2) The classification referred to in sub-section (1), shall be based on the sensitivity, potential harm to national security, and duration for which secrecy is warranted in the interest of the state.\n(3) No classification shall be made or maintained with the intent to conceal corruption, abuse of authority, or violations of human rights.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 175,
+     "top_left_y": 170,
+     "bottom_right_x": 554,
+     "bottom_right_y": 227,
+     "content": "4. (1) All information classified under section 3, shall be subject to periodic review by the Board, constituted under section 12, at an interval not exceeding five years from the date of such classification or of the last review, as the case may be.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 170,
+     "bottom_right_x": 668,
+     "bottom_right_y": 194,
+     "content": "Declassification and Review.",
+     "confidence_scores": null,
+     "type": "aside_text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 233,
+     "bottom_right_x": 554,
+     "bottom_right_y": 317,
+     "content": "10 (2) Notwithstanding anything contained in sub-section (1), the Board referred to in sub-section (1), on its own motion or on the recommendation of any such authority or person as may be prescribed, may declassify any information at any time prior to the expiry of the period specified therein, if it is satisfied that disclosure of such information no longer prejudices national security.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 322,
+     "bottom_right_x": 659,
+     "bottom_right_y": 368,
+     "content": "Security clearance and need-to-know access.",
+     "confidence_scores": null,
+     "type": "aside_text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 322,
+     "bottom_right_x": 554,
+     "bottom_right_y": 380,
+     "content": "15 5. (1) No person shall be granted access to any information classified under the provisions of this Act, except where such person is holding a valid security clearance, issued by such authority and after following due clearances as may be prescribed.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 387,
+     "bottom_right_x": 554,
+     "bottom_right_y": 429,
+     "content": "20 (2) Information shall be shared strictly on a need-to-know basis, and any unauthorised access or attempt to obtain such information without lawful authority shall be a punishable offence under this Act.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 337,
+     "top_left_y": 434,
+     "bottom_right_x": 414,
+     "bottom_right_y": 448,
+     "content": "### CHAPTER III",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 309,
+     "top_left_y": 456,
+     "bottom_right_x": 442,
+     "bottom_right_y": 470,
+     "content": "#### OFFENCES AND PENALTIES",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 477,
+     "bottom_right_x": 554,
+     "bottom_right_y": 520,
+     "content": "25 6. (1) A person shall be deemed to have committed the offence of espionage, if such person with wilful intent or purpose prejudicial to the sovereignty, integrity, security, or strategic interests of the State,—",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 477,
+     "bottom_right_x": 646,
+     "bottom_right_y": 489,
+     "content": "Espionage.",
+     "confidence_scores": null,
+     "type": "aside_text"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 526,
+     "bottom_right_x": 554,
+     "bottom_right_y": 582,
+     "content": "30 (a) approaches, inspects, photographs, records, surveys, geolocates, flies drones over, or enters any prohibited place, sensitive digital network, secured defence installation, or protected perimeter, without lawful authority; or",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 588,
+     "bottom_right_x": 554,
+     "bottom_right_y": 674,
+     "content": "35 (b) makes, copies, transmits, digitises, hacks, decrypts, models, or otherwise generates any sketch, plan, schematic, model, map, topographic data, digital representation, or other record, in any form, physical or digital, which is calculated to be, or is likely to be, or is intended to be, directly or indirectly useful to a foreign power, non-state actor, or enemy entity; or",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 680,
+     "bottom_right_x": 554,
+     "bottom_right_y": 764,
+     "content": "40 (c) obtains, collects, mines, leaks, records, sells, trades, or communicates, whether directly or indirectly, through artificial intelligence systems, spyware, hacking, data scrapers, bots, or digital surveillance tools; any secret official password, classified document, data set, protocol, communication, intelligence, model, program, code, algorithm, or information, which,—",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 769,
+     "bottom_right_x": 554,
+     "bottom_right_y": 798,
+     "content": "45 (i) is likely to be, or is intended to be, directly or indirectly useful to an enemy or a foreign power; or",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 232,
+     "top_left_y": 804,
+     "bottom_right_x": 554,
+     "bottom_right_y": 861,
+     "content": "(ii) relates to a matter the disclosure of which is likely to affect the sovereignty and integrity of India, the security of the State, defence preparedness, critical infrastructure, or friendly relations with foreign States.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 138,
+     "top_left_y": 867,
+     "bottom_right_x": 554,
+     "bottom_right_y": 923,
+     "content": "50 (2) Any person found guilty of the offence of espionage under sub-section (1) shall be punished with imprisonment for a term not less than ten years, which may extend to life imprisonment, or with fine upto one crore rupees or with both.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 353,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 964,
+     "content": "3",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "markdown": "Presumption of prejudicial purpose.\n\n7. In a prosecution under section 6, it shall not be necessary to prove that the accused committed a specific act with prejudicial intent, and the Court may presume such intent if:—\n\n(a) the accused was found in possession of any classified material without lawful authority;\n\n(b) the act occurred in or involved a prohibited area or critical information infrastructure;\n\n(c) the nature of the information and the circumstances suggest use or potential use by foreign powers, hostile entities, or unlawful groups; or\n\n(d) the accused’s past conduct, known affiliations, or use of clandestine or anonymised digital tools indicate malicious intent.\n\n*Explanation 1.*— For the purposes of this section,—\n\n(a) \"enemy\" includes any country, organisation, individual, or non-state actor engaged in hostile actions or intelligence operations against India; and\n\n(b) \"prohibited place\" includes any area, building, data centre, server room, airspace, territorial zone, military base, or digital network declared restricted or classified as such by the Central Government.\n\n*Explanation 2.*— Mere unauthorised possession, access, or communication of classified content—whether physical, digital, or algorithmic—without lawful justification or authority shall constitute a violation under this section.\n\nPossession of classified material without authority.\n\n8. (1) Whoever, without lawful authority, is found in possession of any classified information, document, model, article, data, record or material, whether in physical, electronic, or any other form, which is marked or deemed to be classified under the provisions of this Act or the rules made thereunder, shall be punished with imprisonment for a term which may extend to five years, or with fine which may extend to ten lakh rupees, or with both.\n\n(2) It shall not be a defence under this section that the accused was not aware of the classified nature of the information, unless it is proved that such possession was accidental, without intent, and without any failure to exercise due diligence.\n\n(3) Nothing in this section shall apply to any person who makes a bona fide disclosure in public interest to a designated authority in accordance with the provisions of this Act.\n\nAttempts, conspiracy and abetment.\n\n9. Any person who attempts to commit, conspires to commit, or abets any offence under this Act shall be deemed to have committed the offence and punished with the same penalties for the said offence under this Act.\n\nOffences by companies.\n\n10. (1) Where an offence under this Act has been committed by a company, every person who, at the time the offence was committed, was in charge of and responsible to the company for the conduct of its business shall be deemed to be guilty of the offence and shall be liable to be proceeded against and punished accordingly:\n\nProvided that nothing in this sub-section shall render any such person liable to any punishment provided in this Act, if he proves that the contravention or offence was committed without his knowledge or that he had exercised all due diligence to prevent the commission of such contravention or offence.\n\n(2) Notwithstanding anything contained in sub-section (1), where a contravention or an offence under this Act has been committed by a",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "4",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 55,
+     "top_left_y": 87,
+     "bottom_right_x": 120,
+     "bottom_right_y": 122,
+     "content": "Presumption of prejudicial purpose.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 175,
+     "top_left_y": 87,
+     "bottom_right_x": 555,
+     "bottom_right_y": 130,
+     "content": "7. In a prosecution under section 6, it shall not be necessary to prove that the accused committed a specific act with prejudicial intent, and the Court may presume such intent if:—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 136,
+     "bottom_right_x": 579,
+     "bottom_right_y": 165,
+     "content": "(a) the accused was found in possession of any classified material without lawful authority;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 170,
+     "bottom_right_x": 555,
+     "bottom_right_y": 200,
+     "content": "(b) the act occurred in or involved a prohibited area or critical information infrastructure;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 206,
+     "bottom_right_x": 582,
+     "bottom_right_y": 249,
+     "content": "(c) the nature of the information and the circumstances suggest use or potential use by foreign powers, hostile entities, or unlawful groups; or",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 255,
+     "bottom_right_x": 555,
+     "bottom_right_y": 284,
+     "content": "(d) the accused’s past conduct, known affiliations, or use of clandestine or anonymised digital tools indicate malicious intent.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 241,
+     "top_left_y": 289,
+     "bottom_right_x": 500,
+     "bottom_right_y": 305,
+     "content": "*Explanation 1.*— For the purposes of this section,—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 310,
+     "bottom_right_x": 582,
+     "bottom_right_y": 353,
+     "content": "(a) \"enemy\" includes any country, organisation, individual, or non-state actor engaged in hostile actions or intelligence operations against India; and",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 359,
+     "bottom_right_x": 582,
+     "bottom_right_y": 415,
+     "content": "(b) \"prohibited place\" includes any area, building, data centre, server room, airspace, territorial zone, military base, or digital network declared restricted or classified as such by the Central Government.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 216,
+     "top_left_y": 421,
+     "bottom_right_x": 555,
+     "bottom_right_y": 478,
+     "content": "*Explanation 2.*— Mere unauthorised possession, access, or communication of classified content—whether physical, digital, or algorithmic—without lawful justification or authority shall constitute a violation under this section.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 484,
+     "bottom_right_x": 113,
+     "bottom_right_y": 541,
+     "content": "Possession of classified material without authority.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 175,
+     "top_left_y": 484,
+     "bottom_right_x": 582,
+     "bottom_right_y": 582,
+     "content": "8. (1) Whoever, without lawful authority, is found in possession of any classified information, document, model, article, data, record or material, whether in physical, electronic, or any other form, which is marked or deemed to be classified under the provisions of this Act or the rules made thereunder, shall be punished with imprisonment for a term which may extend to five years, or with fine which may extend to ten lakh rupees, or with both.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 588,
+     "bottom_right_x": 582,
+     "bottom_right_y": 645,
+     "content": "(2) It shall not be a defence under this section that the accused was not aware of the classified nature of the information, unless it is proved that such possession was accidental, without intent, and without any failure to exercise due diligence.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 651,
+     "bottom_right_x": 555,
+     "bottom_right_y": 694,
+     "content": "(3) Nothing in this section shall apply to any person who makes a bona fide disclosure in public interest to a designated authority in accordance with the provisions of this Act.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 700,
+     "bottom_right_x": 125,
+     "bottom_right_y": 735,
+     "content": "Attempts, conspiracy and abetment.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 175,
+     "top_left_y": 700,
+     "bottom_right_x": 582,
+     "bottom_right_y": 743,
+     "content": "9. Any person who attempts to commit, conspires to commit, or abets any offence under this Act shall be deemed to have committed the offence and punished with the same penalties for the said offence under this Act.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 748,
+     "bottom_right_x": 125,
+     "bottom_right_y": 772,
+     "content": "Offences by companies.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 169,
+     "top_left_y": 748,
+     "bottom_right_x": 582,
+     "bottom_right_y": 819,
+     "content": "10. (1) Where an offence under this Act has been committed by a company, every person who, at the time the offence was committed, was in charge of and responsible to the company for the conduct of its business shall be deemed to be guilty of the offence and shall be liable to be proceeded against and punished accordingly:",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 825,
+     "bottom_right_x": 582,
+     "bottom_right_y": 896,
+     "content": "Provided that nothing in this sub-section shall render any such person liable to any punishment provided in this Act, if he proves that the contravention or offence was committed without his knowledge or that he had exercised all due diligence to prevent the commission of such contravention or offence.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 901,
+     "bottom_right_x": 555,
+     "bottom_right_y": 931,
+     "content": "(2) Notwithstanding anything contained in sub-section (1), where a contravention or an offence under this Act has been committed by a",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 353,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 965,
+     "content": "4",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "markdown": "company and it is proved that the contravention or offence was committed with the consent or connivance of, or is attributable to any neglect on the part of, any director, manager, secretary, or any other officer of the company, such person shall also be deemed to be guilty of that offence and shall be liable to be proceeded against and punished accordingly.\n\n5\n\n*Explanation.*— For the purposes of this section,—\n\n10\n\n(a) \"company\" means anybody corporate and includes a co-operative society registered or deemed to be registered under any law for the time being in force, a firm or other association of individuals; and\n\n(b) \"director\", in relation to a firm, means a partner in the firm.\n\n#### CHAPTER IV\n\n##### PUBLIC INTEREST AND OVERSIGHT\n\n15\n\n11. (1) Notwithstanding anything contained in this Act, no person shall be liable to prosecution or any form of penal action under this Act for making a disclosure, in good faith and in the larger public interest, of any classified information to a designated authority.\n\nPublic interest disclosure and whistleblower protection.\n\n20\n\n(2) A disclosure under sub-section (1) shall be entitled to protection under this section only if,—\n\n(a) it is supported by reasonable grounds and verifiable evidence;\n\n(b) it is made in writing or through such secure and verifiable means as may be prescribed;\n\n25\n\n(c) it is made only to a designated authority, as notified by the Central Government in the official Gazette, including but not limited to the Supreme Court, High Courts, Lokpal, or the Comptroller and Auditor General of India; and\n\n30\n\n(d) it is not disclosed to any unauthorised person, media outlet, foreign entity, or digital platform prior to the completion of formal review by the designated authority or the Board.\n\n35\n\n(3) The Board constituted under section 12 shall, upon receipt of a reference from a designated authority, examine whether such disclosure qualifies for protection under this section and shall communicate its decision within a period of ninety days from the date of such reference.\n\n40\n\n*Explanation.*— For the purposes of this section, \"good faith\" shall mean an honest belief held with due care and reasonable diligence; and \"public interest\" shall include the exposure of corruption, abuse of power, gross mismanagement, or serious threats to public health, safety, or democratic accountability.\n\n45\n\n12. (1) The Central Government shall, by notification in the official Gazette, establish a body to be known as the Independent Review Board on National Security and Disclosures for the purposes of this Act.\n\nEstablishment of the Independent Review Board on National Security and Disclosures.\n\n(2) The Board shall consist of the following members, to be appointed by the Central Government in such manner as may be prescribed, namely—\n\n(a) a retired Judge of the Supreme Court or a retired Chief Justice of a High Court, who shall be the Chairperson;\n\n50\n\n(b) one senior officer, who retired from not below the rank of Secretary to the Government of India, with experience in defence, intelligence, or national security — Member;",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "5",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 197,
+     "top_left_y": 87,
+     "bottom_right_x": 555,
+     "bottom_right_y": 171,
+     "content": "company and it is proved that the contravention or offence was committed with the consent or connivance of, or is attributable to any neglect on the part of, any director, manager, secretary, or any other officer of the company, such person shall also be deemed to be guilty of that offence and shall be liable to be proceeded against and punished accordingly.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 145,
+     "bottom_right_x": 150,
+     "bottom_right_y": 157,
+     "content": "5",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 178,
+     "bottom_right_x": 465,
+     "bottom_right_y": 194,
+     "content": "*Explanation.*— For the purposes of this section,—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 227,
+     "bottom_right_x": 152,
+     "bottom_right_y": 239,
+     "content": "10",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 199,
+     "bottom_right_x": 554,
+     "bottom_right_y": 254,
+     "content": "(a) \"company\" means anybody corporate and includes a co-operative society registered or deemed to be registered under any law for the time being in force, a firm or other association of individuals; and",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 243,
+     "top_left_y": 262,
+     "bottom_right_x": 551,
+     "bottom_right_y": 277,
+     "content": "(b) \"director\", in relation to a firm, means a partner in the firm.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 338,
+     "top_left_y": 282,
+     "bottom_right_x": 413,
+     "bottom_right_y": 297,
+     "content": "#### CHAPTER IV",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 290,
+     "top_left_y": 304,
+     "bottom_right_x": 461,
+     "bottom_right_y": 318,
+     "content": "##### PUBLIC INTEREST AND OVERSIGHT",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 324,
+     "bottom_right_x": 152,
+     "bottom_right_y": 336,
+     "content": "15",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 171,
+     "top_left_y": 324,
+     "bottom_right_x": 554,
+     "bottom_right_y": 381,
+     "content": "11. (1) Notwithstanding anything contained in this Act, no person shall be liable to prosecution or any form of penal action under this Act for making a disclosure, in good faith and in the larger public interest, of any classified information to a designated authority.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 594,
+     "top_left_y": 324,
+     "bottom_right_x": 668,
+     "bottom_right_y": 370,
+     "content": "Public interest disclosure and whistleblower protection.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 400,
+     "bottom_right_x": 152,
+     "bottom_right_y": 413,
+     "content": "20",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 387,
+     "bottom_right_x": 554,
+     "bottom_right_y": 416,
+     "content": "(2) A disclosure under sub-section (1) shall be entitled to protection under this section only if,—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 422,
+     "bottom_right_x": 554,
+     "bottom_right_y": 450,
+     "content": "(a) it is supported by reasonable grounds and verifiable evidence;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 457,
+     "bottom_right_x": 554,
+     "bottom_right_y": 487,
+     "content": "(b) it is made in writing or through such secure and verifiable means as may be prescribed;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 494,
+     "bottom_right_x": 152,
+     "bottom_right_y": 506,
+     "content": "25",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 492,
+     "bottom_right_x": 554,
+     "bottom_right_y": 548,
+     "content": "(c) it is made only to a designated authority, as notified by the Central Government in the official Gazette, including but not limited to the Supreme Court, High Courts, Lokpal, or the Comptroller and Auditor General of India; and",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 570,
+     "bottom_right_x": 152,
+     "bottom_right_y": 582,
+     "content": "30",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 555,
+     "bottom_right_x": 554,
+     "bottom_right_y": 598,
+     "content": "(d) it is not disclosed to any unauthorised person, media outlet, foreign entity, or digital platform prior to the completion of formal review by the designated authority or the Board.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 648,
+     "bottom_right_x": 152,
+     "bottom_right_y": 660,
+     "content": "35",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 603,
+     "bottom_right_x": 554,
+     "bottom_right_y": 659,
+     "content": "(3) The Board constituted under section 12 shall, upon receipt of a reference from a designated authority, examine whether such disclosure qualifies for protection under this section and shall communicate its decision within a period of ninety days from the date of such reference.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 721,
+     "bottom_right_x": 152,
+     "bottom_right_y": 734,
+     "content": "40",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 666,
+     "bottom_right_x": 554,
+     "bottom_right_y": 737,
+     "content": "*Explanation.*— For the purposes of this section, \"good faith\" shall mean an honest belief held with due care and reasonable diligence; and \"public interest\" shall include the exposure of corruption, abuse of power, gross mismanagement, or serious threats to public health, safety, or democratic accountability.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 807,
+     "bottom_right_x": 152,
+     "bottom_right_y": 819,
+     "content": "45",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 171,
+     "top_left_y": 742,
+     "bottom_right_x": 554,
+     "bottom_right_y": 798,
+     "content": "12. (1) The Central Government shall, by notification in the official Gazette, establish a body to be known as the Independent Review Board on National Security and Disclosures for the purposes of this Act.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 594,
+     "top_left_y": 742,
+     "bottom_right_x": 660,
+     "bottom_right_y": 821,
+     "content": "Establishment of the Independent Review Board on National Security and Disclosures.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 801,
+     "bottom_right_x": 554,
+     "bottom_right_y": 844,
+     "content": "(2) The Board shall consist of the following members, to be appointed by the Central Government in such manner as may be prescribed, namely—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 847,
+     "bottom_right_x": 554,
+     "bottom_right_y": 876,
+     "content": "(a) a retired Judge of the Supreme Court or a retired Chief Justice of a High Court, who shall be the Chairperson;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 140,
+     "top_left_y": 885,
+     "bottom_right_x": 152,
+     "bottom_right_y": 897,
+     "content": "50",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 881,
+     "bottom_right_x": 554,
+     "bottom_right_y": 925,
+     "content": "(b) one senior officer, who retired from not below the rank of Secretary to the Government of India, with experience in defence, intelligence, or national security — Member;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 354,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 965,
+     "content": "5",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "markdown": "(c) one expert in cybersecurity, information warfare, or digital data protection — Member; and\n\n(d) one person of eminence in the field of constitutional law, civil liberties, or public accountability — Member.\n\n(3) The term of office, salaries and/or allowances payable to, and other terms and conditions of service of, the Chairperson and Members of the Board shall be such as may be prescribed.\n\n5\n\n(4) The Board shall have the following powers and functions, namely—\n\n(a) to receive and review references from designated authorities regarding disclosures made under section 11 of this Act;\n\n10\n\n(b) to determine whether such disclosures qualify for protection as public interest disclosures under section 11;\n\n(c) to recommend classification or declassification of information in accordance with national security and democratic transparency;\n\n15\n\n(d) to issue guidance to public authorities on classification, retention, and dissemination of sensitive material;\n\n(e) to investigate into complaints regarding violation of the provisions of this Act and hear appeals from individuals aggrieved by decisions of competent authorities under this Act;\n\n20\n\n(f) to prepare and submit annual reports on its activities and findings to the Central Government; and\n\n(g) any other function related to the subject, as may be assigned to it by the Central Government.\n\n(5) The Board shall regulate its own procedure and while investigating any matter under clause (e) of sub-section (3) have all the powers of a civil court under the Code of Civil Procedure, 1908, while trying a suit in respect of the following matters, namely—\n\n25\n\n5 of 1908.\n\n(a) summoning and enforcing the attendance of any person and examining him on oath;\n\n30\n\n(b) requiring the discovery and production of documents;\n\n(c) receiving evidence on affidavits; and\n\n(d) issuing commissions for the examination of witnesses or documents.\n\n(6) The decisions of the Board shall be binding on all public authorities and shall not be called in question in any court except by way of a petition under article 226 of the Constitution before the High Court having jurisdiction.\n\n35\n\n(7) The Central Government may appoint such number of officers and staff to the Board, as it deems necessary, to assist it in the efficient discharge of its functions under this Act.\n\n40\n\n(8) The method of appointment, salaries and allowances payable to, and the other terms and conditions of service of the Chairperson, Members, officers and other employees, so appointed for the purpose of the Board shall be such as may be prescribed.\n\n45\n\n13. The Central Government shall cause the reports of the Board under clause (f) of sub-section (4) of section 12 to be laid before each House of Parliament, as soon as may be after they are received.\n\n50\n\n14. The Central Government, after due appropriation made by Parliament by law in this behalf, pay to the Board by way of grants\n\nLaying of reports.\n\nGrants by the Central Government.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "6",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 217,
+     "top_left_y": 87,
+     "bottom_right_x": 554,
+     "bottom_right_y": 116,
+     "content": "(c) one expert in cybersecurity, information warfare, or digital data protection — Member; and",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 121,
+     "bottom_right_x": 554,
+     "bottom_right_y": 151,
+     "content": "(d) one person of eminence in the field of constitutional law, civil liberties, or public accountability — Member.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 156,
+     "bottom_right_x": 554,
+     "bottom_right_y": 200,
+     "content": "(3) The term of office, salaries and/or allowances payable to, and other terms and conditions of service of, the Chairperson and Members of the Board shall be such as may be prescribed.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 159,
+     "bottom_right_x": 580,
+     "bottom_right_y": 171,
+     "content": "5",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 205,
+     "bottom_right_x": 551,
+     "bottom_right_y": 221,
+     "content": "(4) The Board shall have the following powers and functions, namely—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 227,
+     "bottom_right_x": 554,
+     "bottom_right_y": 256,
+     "content": "(a) to receive and review references from designated authorities regarding disclosures made under section 11 of this Act;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 236,
+     "bottom_right_x": 582,
+     "bottom_right_y": 250,
+     "content": "10",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 262,
+     "bottom_right_x": 554,
+     "bottom_right_y": 290,
+     "content": "(b) to determine whether such disclosures qualify for protection as public interest disclosures under section 11;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 297,
+     "bottom_right_x": 554,
+     "bottom_right_y": 339,
+     "content": "(c) to recommend classification or declassification of information in accordance with national security and democratic transparency;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 325,
+     "bottom_right_x": 582,
+     "bottom_right_y": 338,
+     "content": "15",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 344,
+     "bottom_right_x": 554,
+     "bottom_right_y": 374,
+     "content": "(d) to issue guidance to public authorities on classification, retention, and dissemination of sensitive material;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 380,
+     "bottom_right_x": 554,
+     "bottom_right_y": 423,
+     "content": "(e) to investigate into complaints regarding violation of the provisions of this Act and hear appeals from individuals aggrieved by decisions of competent authorities under this Act;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 404,
+     "bottom_right_x": 582,
+     "bottom_right_y": 416,
+     "content": "20",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 429,
+     "bottom_right_x": 554,
+     "bottom_right_y": 458,
+     "content": "(f) to prepare and submit annual reports on its activities and findings to the Central Government; and",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 464,
+     "bottom_right_x": 554,
+     "bottom_right_y": 492,
+     "content": "(g) any other function related to the subject, as may be assigned to it by the Central Government.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 498,
+     "bottom_right_x": 554,
+     "bottom_right_y": 556,
+     "content": "(5) The Board shall regulate its own procedure and while investigating any matter under clause (e) of sub-section (3) have all the powers of a civil court under the Code of Civil Procedure, 1908, while trying a suit in respect of the following matters, namely—",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 500,
+     "bottom_right_x": 582,
+     "bottom_right_y": 513,
+     "content": "25",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 529,
+     "bottom_right_x": 643,
+     "bottom_right_y": 541,
+     "content": "5 of 1908.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 562,
+     "bottom_right_x": 554,
+     "bottom_right_y": 591,
+     "content": "(a) summoning and enforcing the attendance of any person and examining him on oath;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 576,
+     "bottom_right_x": 582,
+     "bottom_right_y": 588,
+     "content": "30",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 242,
+     "top_left_y": 597,
+     "bottom_right_x": 524,
+     "bottom_right_y": 612,
+     "content": "(b) requiring the discovery and production of documents;",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 242,
+     "top_left_y": 618,
+     "bottom_right_x": 442,
+     "bottom_right_y": 633,
+     "content": "(c) receiving evidence on affidavits; and",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 217,
+     "top_left_y": 639,
+     "bottom_right_x": 554,
+     "bottom_right_y": 667,
+     "content": "(d) issuing commissions for the examination of witnesses or documents.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 674,
+     "bottom_right_x": 554,
+     "bottom_right_y": 731,
+     "content": "(6) The decisions of the Board shall be binding on all public authorities and shall not be called in question in any court except by way of a petition under article 226 of the Constitution before the High Court having jurisdiction.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 676,
+     "bottom_right_x": 582,
+     "bottom_right_y": 688,
+     "content": "35",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 737,
+     "bottom_right_x": 554,
+     "bottom_right_y": 780,
+     "content": "(7) The Central Government may appoint such number of officers and staff to the Board, as it deems necessary, to assist it in the efficient discharge of its functions under this Act.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 752,
+     "bottom_right_x": 582,
+     "bottom_right_y": 765,
+     "content": "40",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 786,
+     "bottom_right_x": 554,
+     "bottom_right_y": 843,
+     "content": "(8) The method of appointment, salaries and allowances payable to, and the other terms and conditions of service of the Chairperson, Members, officers and other employees, so appointed for the purpose of the Board shall be such as may be prescribed.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 835,
+     "bottom_right_x": 582,
+     "bottom_right_y": 848,
+     "content": "45",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 170,
+     "top_left_y": 848,
+     "bottom_right_x": 554,
+     "bottom_right_y": 891,
+     "content": "13. The Central Government shall cause the reports of the Board under clause (f) of sub-section (4) of section 12 to be laid before each House of Parliament, as soon as may be after they are received.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 908,
+     "bottom_right_x": 582,
+     "bottom_right_y": 920,
+     "content": "50",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 170,
+     "top_left_y": 895,
+     "bottom_right_x": 554,
+     "bottom_right_y": 920,
+     "content": "14. The Central Government, after due appropriation made by Parliament by law in this behalf, pay to the Board by way of grants",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 848,
+     "bottom_right_x": 99,
+     "bottom_right_y": 872,
+     "content": "Laying of reports.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 896,
+     "bottom_right_x": 112,
+     "bottom_right_y": 931,
+     "content": "Grants by the Central Government.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 353,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 964,
+     "content": "6",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "markdown": "**such sums of money as it may consider necessary for carrying out the purposes of this Act.**\n\n15. (1) The Board shall, in consultation with the Comptroller and Auditor-General of India, maintain proper accounts and other relevant records and prepare an annual statement of accounts in such form and manner and at such time of each financial year or at such intervals, as may be prescribed.\n\nAccounts and audit.\n\n(2) The accounts of the Board shall be audited by the Comptroller and Auditor-General or by any person appointed by him in this behalf at such intervals as may be specified by him and any expenditure incurred in connection with such audit shall be payable by the Board to the Comptroller and Auditor-General.\n\n(3) The accounts of the Board, as certified by the Comptroller and Auditor-General or any other person appointed by him in this behalf, together with the audit report thereon shall be forwarded annually by the Board to the Central Government, which shall cause it to be laid, as soon as may be after it is received, before each House of Parliament.\n\n## CHAPTER V\n\n### PROCEDURE, JURISDICTION, AND MISCELLANEOUS\n\n16. (1) Offences under this Act shall be cognizable and non-bailable.\n\nCognizance and investigation.\n\n(2) No investigation of any offence under this Act shall be initiated without the prior approval of a Joint Secretary-level officer in the Government of India.\n\n46 of 2023. 17. (1) Notwithstanding anything contained in the Bharatiya Nagarik Suraksha Sanhita, 2023, all offences punishable under this Act shall be triable only by a Sessions Court, specially designated by the Central Government for the said purpose, by notification in the Official Gazette.\n\nJurisdiction and trial.\n\n(2) Proceedings or any part thereof may be held by the Court in camera, if it is satisfied that it is expedient so to do in the interest of national security.\n\n30 18. This Act shall apply to any person outside India who commits an offence under this Act affecting the security of India, and such person shall be dealt with in accordance with the provisions of this Act.\n\nExtraterritorial jurisdiction.\n\n19. (1) The Central Government may, by notification in the Official Gazette, make rules to carry out the purposes of this Act, including classification, review procedure, whistleblower protocols, and reporting.\n\nPower of Central Government to make rules and of the Board to make regulations.\n\n(2) The Board may, with the prior approval of the Central Government, by notification in the Official Gazette, make regulations not inconsistent with the provisions of this Act and the rules made thereunder, to provide for all matters for which provision is necessary or expedient for the purposes of giving effect to the provisions of this Act.\n\n(3) Every rule made by the Central Government and every regulation made by the Board under this Act shall be laid, as soon as may be after it is made, before each House of Parliament, while it is in session, for a total period of thirty days which may be comprised in one session or in two or more successive sessions, and if, before the expiry of the session immediately following the session or the successive sessions aforesaid, both Houses agree in making any modification in the rule or regulation or both Houses agree that the rule or regulation should not be made, the rule or regulation shall thereafter have effect only in such modified form or be of no effect, as the case may be; so however, that any such modification or annulment shall be without prejudice to the validity of anything previously done under that rule or regulation.\n\n19 of 1923. 20. (1) The Official Secrets Act, 1923 is hereby repealed.\n\nRepeal and Savings.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "7",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 197,
+     "top_left_y": 86,
+     "bottom_right_x": 554,
+     "bottom_right_y": 112,
+     "content": "**such sums of money as it may consider necessary for carrying out the purposes of this Act.**",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 116,
+     "bottom_right_x": 554,
+     "bottom_right_y": 174,
+     "content": "15. (1) The Board shall, in consultation with the Comptroller and Auditor-General of India, maintain proper accounts and other relevant records and prepare an annual statement of accounts in such form and manner and at such time of each financial year or at such intervals, as may be prescribed.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 116,
+     "bottom_right_x": 658,
+     "bottom_right_y": 141,
+     "content": "Accounts and audit.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 180,
+     "bottom_right_x": 554,
+     "bottom_right_y": 252,
+     "content": "(2) The accounts of the Board shall be audited by the Comptroller and Auditor-General or by any person appointed by him in this behalf at such intervals as may be specified by him and any expenditure incurred in connection with such audit shall be payable by the Board to the Comptroller and Auditor-General.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 257,
+     "bottom_right_x": 554,
+     "bottom_right_y": 326,
+     "content": "(3) The accounts of the Board, as certified by the Comptroller and Auditor-General or any other person appointed by him in this behalf, together with the audit report thereon shall be forwarded annually by the Board to the Central Government, which shall cause it to be laid, as soon as may be after it is received, before each House of Parliament.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 339,
+     "top_left_y": 332,
+     "bottom_right_x": 411,
+     "bottom_right_y": 346,
+     "content": "## CHAPTER V",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 252,
+     "top_left_y": 355,
+     "bottom_right_x": 498,
+     "bottom_right_y": 369,
+     "content": "### PROCEDURE, JURISDICTION, AND MISCELLANEOUS",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 375,
+     "bottom_right_x": 515,
+     "bottom_right_y": 391,
+     "content": "16. (1) Offences under this Act shall be cognizable and non-bailable.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 375,
+     "bottom_right_x": 668,
+     "bottom_right_y": 399,
+     "content": "Cognizance and investigation.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 397,
+     "bottom_right_x": 554,
+     "bottom_right_y": 438,
+     "content": "(2) No investigation of any offence under this Act shall be initiated without the prior approval of a Joint Secretary-level officer in the Government of India.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 56,
+     "top_left_y": 445,
+     "bottom_right_x": 554,
+     "bottom_right_y": 502,
+     "content": "46 of 2023. 17. (1) Notwithstanding anything contained in the Bharatiya Nagarik Suraksha Sanhita, 2023, all offences punishable under this Act shall be triable only by a Sessions Court, specially designated by the Central Government for the said purpose, by notification in the Official Gazette.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 445,
+     "bottom_right_x": 668,
+     "bottom_right_y": 469,
+     "content": "Jurisdiction and trial.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 508,
+     "bottom_right_x": 554,
+     "bottom_right_y": 550,
+     "content": "(2) Proceedings or any part thereof may be held by the Court in camera, if it is satisfied that it is expedient so to do in the interest of national security.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 557,
+     "bottom_right_x": 554,
+     "bottom_right_y": 599,
+     "content": "30 18. This Act shall apply to any person outside India who commits an offence under this Act affecting the security of India, and such person shall be dealt with in accordance with the provisions of this Act.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 557,
+     "bottom_right_x": 663,
+     "bottom_right_y": 580,
+     "content": "Extraterritorial jurisdiction.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 605,
+     "bottom_right_x": 554,
+     "bottom_right_y": 648,
+     "content": "19. (1) The Central Government may, by notification in the Official Gazette, make rules to carry out the purposes of this Act, including classification, review procedure, whistleblower protocols, and reporting.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 605,
+     "bottom_right_x": 665,
+     "bottom_right_y": 685,
+     "content": "Power of Central Government to make rules and of the Board to make regulations.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 654,
+     "bottom_right_x": 554,
+     "bottom_right_y": 726,
+     "content": "(2) The Board may, with the prior approval of the Central Government, by notification in the Official Gazette, make regulations not inconsistent with the provisions of this Act and the rules made thereunder, to provide for all matters for which provision is necessary or expedient for the purposes of giving effect to the provisions of this Act.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 141,
+     "top_left_y": 732,
+     "bottom_right_x": 554,
+     "bottom_right_y": 899,
+     "content": "(3) Every rule made by the Central Government and every regulation made by the Board under this Act shall be laid, as soon as may be after it is made, before each House of Parliament, while it is in session, for a total period of thirty days which may be comprised in one session or in two or more successive sessions, and if, before the expiry of the session immediately following the session or the successive sessions aforesaid, both Houses agree in making any modification in the rule or regulation or both Houses agree that the rule or regulation should not be made, the rule or regulation shall thereafter have effect only in such modified form or be of no effect, as the case may be; so however, that any such modification or annulment shall be without prejudice to the validity of anything previously done under that rule or regulation.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 56,
+     "top_left_y": 904,
+     "bottom_right_x": 461,
+     "bottom_right_y": 920,
+     "content": "19 of 1923. 20. (1) The Official Secrets Act, 1923 is hereby repealed.",
+     "confidence_scores": null,
+     "type": "list"
+    },
+    {
+     "top_left_x": 595,
+     "top_left_y": 904,
+     "bottom_right_x": 648,
+     "bottom_right_y": 928,
+     "content": "Repeal and Savings.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 353,
+     "top_left_y": 951,
+     "bottom_right_x": 364,
+     "bottom_right_y": 965,
+     "content": "7",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 7,
+   "markdown": "(2) Notwithstanding such repeal, anything done or any action taken, including any investigation, inquiry, prosecution or legal proceeding commenced under the said Act, shall, in so far as it is not inconsistent with the provisions of this Act, be deemed to have been done or taken under the corresponding provisions of this Act as if this Act were in force at the time such act or action was done or taken.\n\n5\n\nAct to override other laws.\n\n21. The provisions of this Act shall prevail over any other law for the time being in force, in the case of any inconsistency therewith, save as to such laws which relate to the enforcement of rights guaranteed under Part III of the Constitution.\n\n10\n\nPower to remove difficulties.\n\n22. (1) If any difficulty arises in giving effect to the provisions of this Act, the Central Government may, by order published in the Official Gazette, make such provisions, not inconsistent with the provisions of this Act, as appear to it to be necessary or expedient for removing the difficulty:\n\nProvided that no such orders shall be made after the expiry of the period of two years from the date of commencement of this Act.\n\n15\n\n(2) Every order made under this section shall be laid, as soon as may be after it is made, before each House of Parliament.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "8",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 197,
+     "top_left_y": 87,
+     "bottom_right_x": 555,
+     "bottom_right_y": 171,
+     "content": "(2) Notwithstanding such repeal, anything done or any action taken, including any investigation, inquiry, prosecution or legal proceeding commenced under the said Act, shall, in so far as it is not inconsistent with the provisions of this Act, be deemed to have been done or taken under the corresponding provisions of this Act as if this Act were in force at the time such act or action was done or taken.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 569,
+     "top_left_y": 147,
+     "bottom_right_x": 580,
+     "bottom_right_y": 159,
+     "content": "5",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 177,
+     "bottom_right_x": 119,
+     "bottom_right_y": 201,
+     "content": "Act to override other laws.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 169,
+     "top_left_y": 177,
+     "bottom_right_x": 555,
+     "bottom_right_y": 233,
+     "content": "21. The provisions of this Act shall prevail over any other law for the time being in force, in the case of any inconsistency therewith, save as to such laws which relate to the enforcement of rights guaranteed under Part III of the Constitution.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 566,
+     "top_left_y": 222,
+     "bottom_right_x": 582,
+     "bottom_right_y": 234,
+     "content": "10",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 55,
+     "top_left_y": 239,
+     "bottom_right_x": 105,
+     "bottom_right_y": 275,
+     "content": "Power to remove difficulties.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 169,
+     "top_left_y": 239,
+     "bottom_right_x": 555,
+     "bottom_right_y": 298,
+     "content": "22. (1) If any difficulty arises in giving effect to the provisions of this Act, the Central Government may, by order published in the Official Gazette, make such provisions, not inconsistent with the provisions of this Act, as appear to it to be necessary or expedient for removing the difficulty:",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 303,
+     "bottom_right_x": 555,
+     "bottom_right_y": 332,
+     "content": "Provided that no such orders shall be made after the expiry of the period of two years from the date of commencement of this Act.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 566,
+     "top_left_y": 305,
+     "bottom_right_x": 582,
+     "bottom_right_y": 317,
+     "content": "15",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 197,
+     "top_left_y": 336,
+     "bottom_right_x": 555,
+     "bottom_right_y": 367,
+     "content": "(2) Every order made under this section shall be laid, as soon as may be after it is made, before each House of Parliament.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 352,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 966,
+     "content": "8",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 8,
+   "markdown": "# STATEMENT OF OBJECTS AND REASONS\n\nThe Second Administrative Reforms Commission, in its 2006 report, recommended that secrecy provisions be integrated into a broader national security framework that is consistent with democratic accountability, constitutional safeguards, and transparency obligations. The rise of cyber-espionage, AI-enabled surveillance, data leaks, and emerging threats to critical infrastructure underscores the urgency of a robust legal mechanism to protect India’s strategic interests.\n\nThe Official Secrets Act, 1923, a colonial-era law, has been long criticised for its vague provisions and alleged incompatibility with democratic norms. Its proposed repeal is a necessary reform to clearly address the issue of unauthorised access, communication or retention of classified information related to national security, defence, and intelligence. In the absence of a modern legal framework, the State remains exposed to espionage, cyber-infiltration, and digital breaches in an era of transnational data flows and growing threats from foreign powers and non-state actors.\n\nThis Bill seeks to establish a comprehensive and rights-compatible legal framework for the classification and protection of sensitive information. It clearly defines key terms such as espionage, unauthorised disclosure, and public interest disclosure, and criminalises the use of modern technological means, such as hacking, spyware, and surveillance tools for espionage. It safeguards whistleblowers acting in good faith by exempting disclosures made to designated authorities. The Bill also establishes an Independent Review Board on National Security and Disclosures to oversee the classification decisions and protect whistleblower rights. Harmonised with the existing laws including the Right to Information Act, 2005, the Whistle Blowers Protection Act, 2014, and the Digital Personal Data Protection Act, 2023, this Bill proposes to repeal the Official Secrets Act, 1923 and replace it with a modern and constitutionally sound regime that balances national security with democratic accountability.\n\nHence, this Bill.\n\nSUJEET KUMAR.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "9",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 242,
+     "top_left_y": 85,
+     "bottom_right_x": 476,
+     "bottom_right_y": 99,
+     "content": "# STATEMENT OF OBJECTS AND REASONS",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 163,
+     "top_left_y": 116,
+     "bottom_right_x": 555,
+     "bottom_right_y": 215,
+     "content": "The Second Administrative Reforms Commission, in its 2006 report, recommended that secrecy provisions be integrated into a broader national security framework that is consistent with democratic accountability, constitutional safeguards, and transparency obligations. The rise of cyber-espionage, AI-enabled surveillance, data leaks, and emerging threats to critical infrastructure underscores the urgency of a robust legal mechanism to protect India’s strategic interests.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 163,
+     "top_left_y": 221,
+     "bottom_right_x": 555,
+     "bottom_right_y": 334,
+     "content": "The Official Secrets Act, 1923, a colonial-era law, has been long criticised for its vague provisions and alleged incompatibility with democratic norms. Its proposed repeal is a necessary reform to clearly address the issue of unauthorised access, communication or retention of classified information related to national security, defence, and intelligence. In the absence of a modern legal framework, the State remains exposed to espionage, cyber-infiltration, and digital breaches in an era of transnational data flows and growing threats from foreign powers and non-state actors.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 163,
+     "top_left_y": 339,
+     "bottom_right_x": 555,
+     "bottom_right_y": 523,
+     "content": "This Bill seeks to establish a comprehensive and rights-compatible legal framework for the classification and protection of sensitive information. It clearly defines key terms such as espionage, unauthorised disclosure, and public interest disclosure, and criminalises the use of modern technological means, such as hacking, spyware, and surveillance tools for espionage. It safeguards whistleblowers acting in good faith by exempting disclosures made to designated authorities. The Bill also establishes an Independent Review Board on National Security and Disclosures to oversee the classification decisions and protect whistleblower rights. Harmonised with the existing laws including the Right to Information Act, 2005, the Whistle Blowers Protection Act, 2014, and the Digital Personal Data Protection Act, 2023, this Bill proposes to repeal the Official Secrets Act, 1923 and replace it with a modern and constitutionally sound regime that balances national security with democratic accountability.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 185,
+     "top_left_y": 528,
+     "bottom_right_x": 268,
+     "bottom_right_y": 543,
+     "content": "Hence, this Bill.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 455,
+     "top_left_y": 549,
+     "bottom_right_x": 554,
+     "bottom_right_y": 565,
+     "content": "SUJEET KUMAR.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 353,
+     "top_left_y": 950,
+     "bottom_right_x": 365,
+     "bottom_right_y": 964,
+     "content": "9",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 9,
+   "markdown": "# FINANCIAL MEMORANDUM\n\nClause 12 of the Bill provides for the establishment of an Independent Review Board on National Security and Disclosures, its composition, the appointment of officers and staff by the Central Government to assist the Board as well as for the salaries and allowances payable to and the other terms and conditions of service of the Chairperson, Members, officers and staff thereof. Clause 14 of the Bill empowers the Central Government to make grants to the Board, after due appropriation made by Parliament in this behalf, for the purposes of carrying out the provisions of the Act.\n\nThe Bill, therefore, if enacted, would involve expenditure from the Consolidated Fund of India. It is estimated that a recurring expenditure of about rupees one crore would be incurred per annum from the Consolidated Fund of India. A non-recurring expenditure of about rupees five crore is also likely to be involved.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "10",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 277,
+     "top_left_y": 87,
+     "bottom_right_x": 442,
+     "bottom_right_y": 102,
+     "content": "# FINANCIAL MEMORANDUM",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 163,
+     "top_left_y": 107,
+     "bottom_right_x": 557,
+     "bottom_right_y": 221,
+     "content": "Clause 12 of the Bill provides for the establishment of an Independent Review Board on National Security and Disclosures, its composition, the appointment of officers and staff by the Central Government to assist the Board as well as for the salaries and allowances payable to and the other terms and conditions of service of the Chairperson, Members, officers and staff thereof. Clause 14 of the Bill empowers the Central Government to make grants to the Board, after due appropriation made by Parliament in this behalf, for the purposes of carrying out the provisions of the Act.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 163,
+     "top_left_y": 226,
+     "bottom_right_x": 557,
+     "bottom_right_y": 297,
+     "content": "The Bill, therefore, if enacted, would involve expenditure from the Consolidated Fund of India. It is estimated that a recurring expenditure of about rupees one crore would be incurred per annum from the Consolidated Fund of India. A non-recurring expenditure of about rupees five crore is also likely to be involved.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 350,
+     "top_left_y": 949,
+     "bottom_right_x": 369,
+     "bottom_right_y": 966,
+     "content": "10",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 10,
+   "markdown": "## MEMORANDUM REGARDING DELEGATED LEGISLATION\n\nClause 19 of the Bill empowers the Central Government to make rules and the Board to make regulations for carrying out the purposes of the Bill. Clause 22 of the Bill empowers the Central Government to make such provisions through an order for removing any difficulty that might arise in giving effect to the provisions of the Bill.\n\nAs the rules or regulations or orders will relate to matters of procedural and administrative detail only, the delegation of legislative power is of a normal character.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": null,
+   "footer": "11",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 205,
+     "top_left_y": 87,
+     "bottom_right_x": 533,
+     "bottom_right_y": 103,
+     "content": "## MEMORANDUM REGARDING DELEGATED LEGISLATION",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 162,
+     "top_left_y": 115,
+     "bottom_right_x": 559,
+     "bottom_right_y": 187,
+     "content": "Clause 19 of the Bill empowers the Central Government to make rules and the Board to make regulations for carrying out the purposes of the Bill. Clause 22 of the Bill empowers the Central Government to make such provisions through an order for removing any difficulty that might arise in giving effect to the provisions of the Bill.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 162,
+     "top_left_y": 192,
+     "bottom_right_x": 556,
+     "bottom_right_y": 235,
+     "content": "As the rules or regulations or orders will relate to matters of procedural and administrative detail only, the delegation of legislative power is of a normal character.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 350,
+     "top_left_y": 950,
+     "bottom_right_x": 367,
+     "bottom_right_y": 967,
+     "content": "11",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  },
+  {
+   "index": 11,
+   "markdown": "# A\nBILL\n\nto establish a comprehensive legal framework for the classification,\nprotection and management of sensitive information relating to\nnational security; to regulate the authorised access, handling\nand disclosure of such information; to penalise\nunauthorised access and disclosure, including\nacts of espionage; to safeguard constitutional\nrights and ensure transparency; and to repeal\nthe Official Secrets Act, 1923, along with\nmatters connected therewith or\nincidental thereto.",
+   "images": [],
+   "tables": [],
+   "hyperlinks": [],
+   "header": "RAJYA SABHA",
+   "footer": "(Shri Sujeet Kumar, M.P.)\nRS-P&P-PMB(H)—329—08.12.2025.",
+   "dimensions": {
+    "dpi": 87,
+    "height": 1018,
+    "width": 720
+   },
+   "confidence_scores": null,
+   "blocks": [
+    {
+     "top_left_x": 316,
+     "top_left_y": 87,
+     "bottom_right_x": 402,
+     "bottom_right_y": 102,
+     "content": "RAJYA SABHA",
+     "confidence_scores": null,
+     "type": "header"
+    },
+    {
+     "top_left_x": 342,
+     "top_left_y": 371,
+     "bottom_right_x": 375,
+     "bottom_right_y": 406,
+     "content": "# A\nBILL",
+     "confidence_scores": null,
+     "type": "title"
+    },
+    {
+     "top_left_x": 192,
+     "top_left_y": 412,
+     "bottom_right_x": 525,
+     "bottom_right_y": 552,
+     "content": "to establish a comprehensive legal framework for the classification,\nprotection and management of sensitive information relating to\nnational security; to regulate the authorised access, handling\nand disclosure of such information; to penalise\nunauthorised access and disclosure, including\nacts of espionage; to safeguard constitutional\nrights and ensure transparency; and to repeal\nthe Official Secrets Act, 1923, along with\nmatters connected therewith or\nincidental thereto.",
+     "confidence_scores": null,
+     "type": "text"
+    },
+    {
+     "top_left_x": 293,
+     "top_left_y": 838,
+     "bottom_right_x": 424,
+     "bottom_right_y": 856,
+     "content": "(Shri Sujeet Kumar, M.P.)",
+     "confidence_scores": null,
+     "type": "footer"
+    },
+    {
+     "top_left_x": 88,
+     "top_left_y": 911,
+     "bottom_right_x": 242,
+     "bottom_right_y": 925,
+     "content": "RS-P&P-PMB(H)—329—08.12.2025.",
+     "confidence_scores": null,
+     "type": "footer"
+    }
+   ]
+  }
+ ],
+ "model": "mistral-ocr-latest",
+ "document_annotation": null,
+ "usage_info": {
+  "pages_processed": 12,
+  "doc_size_bytes": 159325
+ }
+}
