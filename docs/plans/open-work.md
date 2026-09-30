@@ -243,10 +243,16 @@ Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
 
 Part 2 needs its specs first, in this order:
 
-- [ ] **R4. `ingestion-v2`.** A private `corpus` bucket; a pgmq queue with
-  a pg_cron timer and a worker Edge Function; Mistral OCR; PDFs split in the
-  browser or by script above 1,000 pages or 50 MB; a jobs table.
-  `MISTRAL_API_KEY` becomes a Supabase secret, set by the owner.
+- [ ] **R4. `ingestion-v2`** (spec `specs/2026-10-01-rag-v2-ingestion-v2.md`,
+  draft):
+  - a private `corpus` bucket, content-addressed by file hash;
+  - a job-table queue (skip-locked claims, lease, fencing), with a pg_cron
+    timer switched on by the owner;
+  - the `ingest-worker` Edge Function running Mistral OCR in page ranges and
+    indexing slice by slice;
+  - first extractions only.
+
+  The owner sets `MISTRAL_API_KEY` and runs the secret steps.
 - [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
   doc §6, which proves pages, boxes, images, cost and re-run cost.
 - [ ] **R6. `citations-pdf`.** The PDF.js viewer with box highlights; a
