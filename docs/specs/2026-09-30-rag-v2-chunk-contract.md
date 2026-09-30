@@ -135,10 +135,12 @@ These limits were **measured on the bill**:
 
 - Left notes span x 0.075–0.174, and right notes x 0.825–0.928.
 - The body spans x 0.19–0.81.
-- Line numbers sit at 0.786–0.808, and are excluded both by position and
-  by having no letters.
-- The margin citation "5 of 1908." sits at 0.826 and is excluded by the
-  pattern.
+- Line numbers sit either at 0.786–0.808 or just inside the body's left
+  edge (0.194–0.211 on some pages). They are excluded because they have no
+  letters, and in the first case by position too.
+- The margin citation "5 of 1908." sits at 0.826. It is excluded by the
+  letter rule ("of" has only 2 letters), so the citation pattern is a second,
+  redundant guard (corrected 2026-09-30 by T12's tests).
 
 A note **replaces** `note` from its position onwards. The note is **cleared**
 at the next numbered section start that has no note of its own (a line
