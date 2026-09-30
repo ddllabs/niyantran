@@ -3,6 +3,9 @@
 -- A new build, so replica rankings are compared only with a replica baseline.
 \set ON_ERROR_STOP on
 set maintenance_work_mem = '1GB';
+-- Docker gives the container 64 MB of shared memory; a parallel build needs more (it failed
+-- with "No space left on device" on 2026-10-01), so build in one process.
+set max_parallel_maintenance_workers = 0;
 set statement_timeout = 0;
 create index if not exists document_chunks_embedding_halfvec_hnsw
   on public.document_chunks

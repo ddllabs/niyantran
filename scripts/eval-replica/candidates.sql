@@ -150,3 +150,30 @@ grant execute on function public.match_documents_e(extensions.vector, int, uuid[
   public.match_documents_h1000(extensions.vector, int, uuid[], text, text),
   public.match_documents_i(extensions.vector, int, uuid[], text, text)
   to authenticated;
+
+-- X: hybrid. Exact (E) when the feature holds at most p_exact_max indexed chunks, else the
+-- index with ef_search = 400 (H400). The count is one indexed query; its cost is measured too.
+create or replace function public.match_documents_x(
+  query_embedding extensions.vector(1536), match_count int default 40,
+  p_document_ids uuid[] default null, p_desk_tier text default null, p_desk_feature text default null
+) returns setof public.match_row language plpgsql stable security invoker
+set search_path = public, extensions as $fn$
+declare
+  v_chunks bigint;
+  p_exact_max constant int := 15000;
+begin
+  if coalesce(array_length(p_document_ids, 1), 0) > 0 or p_desk_feature is null then
+    return query select * from public.match_documents(query_embedding, match_count, p_document_ids, p_desk_tier);
+    return;
+  end if;
+  select count(*) into v_chunks
+    from public.document_chunks c join public.documents d on d.id = c.document_id
+   where d.desk_feature = p_desk_feature and (p_desk_tier is null or d.desk_tier = p_desk_tier)
+     and d.indexed_at is not null and c.embedding is not null;
+  if v_chunks <= p_exact_max then
+    return query select * from public.match_documents_e(query_embedding, match_count, null, p_desk_tier, p_desk_feature);
+  else
+    return query select * from public.match_documents_h400(query_embedding, match_count, null, p_desk_tier, p_desk_feature);
+  end if;
+end $fn$;
+grant execute on function public.match_documents_x(extensions.vector, int, uuid[], text, text) to authenticated;
