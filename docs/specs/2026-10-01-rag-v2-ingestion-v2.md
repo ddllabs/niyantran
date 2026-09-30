@@ -1,7 +1,7 @@
 # Spec: page-aware PDF ingestion (`ingestion-v2`)
 
-> **Status: Living — draft for owner approval (2026-10-01).** It becomes
-> Normative once approved. Module `ingestion-v2` of
+> **Status: Normative — approved by the owner on 2026-10-01,** with the
+> recommendations accepted. Downloads remain a separate go-ahead. Module `ingestion-v2` of
 > `docs/specs/2026-09-30-rag-v2-capability-map.md` (open-work R4). It writes
 > into the chunk contract (`docs/specs/2026-09-30-rag-v2-chunk-contract.md`,
 > live since 2026-10-01 as migration `20261001120000`). Revision 2 folds in a
