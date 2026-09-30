@@ -8,6 +8,7 @@ import {
   type AiModelLike,
   type AssistantMessage,
   failoverChain,
+  featureScopeOf,
   type HandlerDeps,
   handleResearchChat,
   type UserDb,
@@ -208,7 +209,7 @@ function fakeDeps(
     pricing: () => Promise.resolve({ prompt_usd: 0.000001, completion_usd: 0.000002 }),
     persona: () => Promise.resolve('You are the analyst desk.'),
     catalogue: () => 'Modules on the national desk: …',
-    documentModules: () => Promise.resolve(['Bill Passage Probability Index']),
+    documentModules: () => Promise.resolve([{ desk_tier: 'national', desk_feature: 'Bill Passage Probability Index' }]),
     db,
     persistence,
     telemetry: {
@@ -1577,9 +1578,18 @@ Deno.test('the modules that have documents reach the system prompt', async () =>
     yield finish();
   };
   const { deps } = fakeDeps({ stream });
-  deps.documentModules = () => Promise.resolve(['Bill Passage Probability Index']);
+  // A module name that repeats across tiers is one module to the coverage line.
+  deps.documentModules = () =>
+    Promise.resolve([
+      { desk_tier: 'national', desk_feature: 'Bill Passage Probability Index' },
+      { desk_tier: 'national', desk_feature: 'Cabinet Decisions' },
+      { desk_tier: 'state', desk_feature: 'Cabinet Decisions' },
+    ]);
   await frames(await handleResearchChat(post({ ...BODY, turn_key: 'coverage-ok' }), deps));
-  assertStringIncludes(seen[0], 'Indexed source documents exist only for these modules: Bill Passage Probability Index');
+  assertStringIncludes(
+    seen[0],
+    'Indexed source documents exist only for these modules: Bill Passage Probability Index, Cabinet Decisions. ',
+  );
 });
 
 // The turn that forced this. Message de5ae3a0: the same question asked twice in
@@ -1759,5 +1769,115 @@ Deno.test('a focus that never promised confinement claims no widening', async ()
       !String(rec.messages[0].content).includes('Search widened'),
       `focus "${focus}" asked for no confinement and must not report breaking one`,
     );
+  }
+});
+
+// retrieval-scope (2026-09-30 spec). A document chip names an id; a dragged row
+// names a key. They resolve as one scope, and either one means the reader asked
+// for confinement, so failing to resolve it is "unresolved", never "unkeyed".
+const DOC_A = '0b6f1a52-3c4d-4e5f-8a9b-0c1d2e3f4a5b';
+const docChip = (title = 'RBI Master Direction on KYC') => ({ kind: 'document', title, document_id: DOC_A });
+
+Deno.test('document ids and document keys resolve together as one scope', async () => {
+  const asked: { keys: string[]; ids: string[] }[] = [];
+  const scopes: (string[] | undefined)[] = [];
+  const { deps } = fakeDeps(documentTurn(1), {
+    searchDocuments: (_args, ids) => {
+      scopes.push(ids);
+      return Promise.resolve([chunk('c1')]);
+    },
+  }, {
+    resolveDocumentIds: (scope) => {
+      asked.push(scope);
+      return Promise.resolve(['doc-1', DOC_A]);
+    },
+  });
+  const bill = { kind: 'row', title: 'The Delimitation Bill', text: 'row', document_key: 'bill:2026:108' };
+  await frames(
+    await handleResearchChat(
+      post({ ...BODY, focus: 'attached', turn_key: 'ids-and-keys', attachments: [bill, docChip()] }),
+      deps,
+    ),
+  );
+  assertEquals(asked, [{ keys: ['bill:2026:108'], ids: [DOC_A] }]);
+  assertEquals(scopes, [['doc-1', DOC_A]]);
+});
+
+Deno.test('an unindexed document id or key discloses as unresolved, and an id alone counts as scope sent', async () => {
+  const bill = { kind: 'row', title: 'The Delimitation Bill', text: 'row', document_key: 'bill:2026:999' };
+  for (const [name, attachments] of [['id', [docChip()]], ['key', [bill]]] as const) {
+    // The index keeps only indexed documents, so an unindexed one resolves to nothing.
+    const { deps, rec } = fakeDeps(documentTurn(1), { searchDocuments: () => Promise.resolve([chunk('c1')]) });
+    await frames(
+      await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: `unindexed-${name}`, attachments }), deps),
+    );
+    const content = String(rec.messages[0].content);
+    assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'unresolved', name);
+    assertStringIncludes(content, 'holds no indexed source document');
+    assert(!content.includes('Nothing attached to this turn names'), `a ${name} was sent, so one was named`);
+  }
+});
+
+Deno.test('a document chip reaches the prompt as its title and kind, with no corpus text or id', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Read it.')), finish()]]);
+  const { deps } = fakeDeps(provider);
+  await frames(
+    await handleResearchChat(
+      post({ ...BODY, focus: 'attached', turn_key: 'doc-chip', attachments: [docChip('KYC Direction, 2016')] }),
+      deps,
+    ),
+  );
+  const user = String(provider.seen[0].messages.at(-1)!.content);
+  assertStringIncludes(user, 'document | KYC Direction, 2016');
+  assert(!user.includes(DOC_A), 'the id is for scoping, not for the model');
+});
+
+Deno.test('a malformed document id is refused with a field error before any work', async () => {
+  const provider = scripted([]);
+  const { deps, rec } = fakeDeps(provider);
+  const res = await handleResearchChat(
+    post({ ...BODY, turn_key: 'bad-doc', attachments: [{ kind: 'document', title: 'T', document_id: 'doc-1' }] }),
+    deps,
+  );
+  assertEquals(res.status, 400);
+  assertStringIncludes((await res.json()).fieldErrors.attachments, 'document_id');
+  assertEquals(rec.messages.length, 0);
+  assertEquals(provider.seen.length, 0);
+});
+
+// Desk focus filters documents to the open module - when that module has any.
+const MODULES = [
+  { desk_tier: 'national', desk_feature: 'Bills' },
+  { desk_tier: 'national', desk_feature: 'Regulatory (RBI SEBI TRAI CCI)' },
+  { desk_tier: 'national', desk_feature: 'Cabinet Decisions' },
+  { desk_tier: 'state', desk_feature: 'Cabinet Decisions' },
+];
+const desk = (tier: string, feature?: string, focus: 'desk' | 'broad' | 'attached' | 'selection' = 'desk') => ({
+  focus,
+  desk_context: feature === undefined ? { tier } : { tier, feature },
+});
+
+Deno.test('featureScope matches the desk module on tier and feature, whatever the punctuation', () => {
+  assertEquals(
+    featureScopeOf(desk('national', 'Regulatory (RBI/SEBI/TRAI/CCI)'), MODULES),
+    { tier: 'national', feature: 'Regulatory (RBI SEBI TRAI CCI)' },
+    'the catalogue spells it with slashes, documents with spaces; the scope carries the documents spelling',
+  );
+  assertEquals(featureScopeOf(desk('National', '  bills '), MODULES), { tier: 'national', feature: 'Bills' });
+  assertEquals(featureScopeOf(desk('state', 'Cabinet Decisions'), MODULES), {
+    tier: 'state',
+    feature: 'Cabinet Decisions',
+  });
+});
+
+Deno.test('featureScope is absent on the wrong tier, with no match, without a module, or outside desk focus', () => {
+  assertEquals(featureScopeOf(desk('state', 'Bills'), MODULES), undefined, 'a module name on another tier');
+  assertEquals(featureScopeOf(desk('national', 'Lok Sabha Questions'), MODULES), undefined, 'no documents');
+  assertEquals(featureScopeOf(desk('national', 'Regulatory'), MODULES), undefined, 'no partial match');
+  assertEquals(featureScopeOf(desk('national'), MODULES), undefined, 'no module named');
+  assertEquals(featureScopeOf({ focus: 'desk' }, MODULES), undefined, 'no desk context');
+  assertEquals(featureScopeOf(desk('national', 'Bills'), []), undefined, 'module list unavailable');
+  for (const focus of ['broad', 'attached', 'selection'] as const) {
+    assertEquals(featureScopeOf(desk('national', 'Bills', focus), MODULES), undefined, focus);
   }
 });

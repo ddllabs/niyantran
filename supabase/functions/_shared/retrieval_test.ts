@@ -76,3 +76,17 @@ Deno.test('document scope passes through unchanged; absent scope stays null and 
   await search(d, { query: 'q' });
   assertEquals(calls.map((c) => c.p_document_ids), [['doc-1', 'doc-2'], [], null]);
 });
+
+// Deploy order (retrieval-scope spec): the migration adds p_desk_feature with a
+// default, but a function deployed ahead of it - or rolled back behind it - must
+// never name an argument the SQL does not have, so it is sent only when set.
+Deno.test('p_desk_feature is omitted when no feature is set and sent when one is', async () => {
+  const calls: Record<string, unknown>[] = [];
+  const d = deps({ calls });
+  await search(d, { query: 'q', deskTier: 'national' });
+  await search(d, { query: 'q', deskTier: 'national', deskFeature: '' });
+  await search(d, { query: 'q', deskTier: 'national', deskFeature: 'Parliamentary Questions' });
+  assertEquals(calls.map((c) => 'p_desk_feature' in c), [false, false, true]);
+  assertEquals(calls[2].p_desk_feature, 'Parliamentary Questions');
+  assertEquals(calls[2].p_desk_tier, 'national');
+});

@@ -56,7 +56,15 @@ import {
   type TurnState,
   type TurnStore,
 } from './persistence.ts';
-import { DEFAULT_REASONING, documentKeysOf, type ResearchRequest, validateRequest } from './validate.ts';
+import {
+  type Attachment,
+  DEFAULT_REASONING,
+  documentIdsOf,
+  documentKeysOf,
+  type Focus,
+  type ResearchRequest,
+  validateRequest,
+} from './validate.ts';
 
 export const WINDOW_CHARS = 60_000;
 export const CANCEL_POLL_MS = 2_000;
@@ -98,11 +106,34 @@ export interface UserDb {
   ): Promise<{ role: 'user' | 'assistant'; content: string }[]>;
   cancelRequestedSince(conversationId: string, since: string): Promise<boolean>;
   clearCancellation(conversationId: string): Promise<void>;
-  /** document.id for each metadata->>'document_key' that exists. */
-  resolveDocumentIds(keys: string[]): Promise<string[]>;
+  /** The scope of a turn, resolved once: the documents whose
+   * metadata->>'document_key' is one of `keys`, and the documents in `ids`,
+   * keeping only those with indexed_at set. Distinct ids. An unindexed
+   * document is dropped, so it discloses as unresolved rather than scoping
+   * every search to a document with nothing to search. */
+  resolveDocumentIds(scope: { keys: string[]; ids: string[] }): Promise<string[]>;
   /** The stored row, so a client-supplied selection can be trusted before it is cited. */
   findDeskRow(tier: string, feature: string, rowKey: string): Promise<DeskRow | null>;
 }
+
+/** One desk module that has indexed documents: `documents.desk_tier` and `documents.desk_feature`, verbatim. */
+export interface DocumentModule {
+  desk_tier: string;
+  desk_feature: string;
+}
+
+/** The document scope a desk module gives a turn: exact `documents` values, so they can filter. */
+export interface FeatureScope {
+  tier: string;
+  feature: string;
+}
+
+/**
+ * A document search as it reaches retrieval. `desk_feature` is never the
+ * model's: the tool schema has no such key. It is set by the server from a
+ * FeatureScope, always with that scope's tier as `desk_tier`.
+ */
+export type ScopedSearchArgs = DocumentSearchArgs & { desk_feature?: string };
 
 export interface RetrievalContext {
   signal: AbortSignal;
@@ -116,15 +147,17 @@ export interface HandlerDeps {
   /** The system persona prompt; `probe` is the admin persona probe, honoured only for admins. */
   persona(userId: string, probe?: string): Promise<string>;
   catalogue(tier?: string): string;
-  /** Desk modules with indexed source documents. Read from the corpus, not
-   * configured, so it cannot drift away from what search_documents can reach. */
-  documentModules(): Promise<string[]>;
+  /** Desk modules with indexed source documents, as the exact
+   * `(desk_tier, desk_feature)` pairs `documents` holds. Read from the corpus,
+   * not configured, so it cannot drift away from what search_documents can
+   * reach. The prompt's coverage line and the desk feature scope both use it. */
+  documentModules(): Promise<DocumentModule[]>;
   db: UserDb;
   persistence: TurnStore;
   executeTurn?: (context: TurnExecution) => Promise<TerminalResult>;
   telemetry: TelemetryDb;
   stream(req: StreamRequest): AsyncGenerator<ModelEvent>;
-  searchDocuments(args: DocumentSearchArgs, documentIds?: string[], context?: RetrievalContext): Promise<Chunk[]>;
+  searchDocuments(args: ScopedSearchArgs, documentIds?: string[], context?: RetrievalContext): Promise<Chunk[]>;
   searchDeskRows(args: SearchDeskRowsArgs, context?: Pick<RetrievalContext, 'signal'>): Promise<DeskRowsResult>;
   repairModel: string;
   headers?: Record<string, string>;
@@ -458,6 +491,45 @@ function sendTerminal(
   sender.send({ done: { message_id: row.id } });
 }
 
+/** Lowercase, punctuation (including `/`) as spaces, whitespace collapsed:
+ * the catalogue's "Regulatory (RBI/SEBI/TRAI/CCI)" and the corpus's
+ * "Regulatory (RBI SEBI TRAI CCI)" are the same module. */
+function moduleName(s: string): string {
+  return s.toLowerCase().replace(/[\p{P}/]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * The desk module a desk-focused turn is confined to, as the exact
+ * `documents` values, or undefined when the open module has no indexed
+ * documents (most of them) - in which case nothing is filtered and nothing is
+ * disclosed, because the coverage line already tells the model. Matched on
+ * tier and feature together: module names repeat across tiers.
+ */
+export function featureScopeOf(
+  request: { focus: Focus; desk_context?: { tier: string; feature?: string } },
+  modules: DocumentModule[],
+): FeatureScope | undefined {
+  const context = request.desk_context;
+  if (request.focus !== 'desk' || !context?.feature) return undefined;
+  const tier = moduleName(context.tier);
+  const feature = moduleName(context.feature);
+  if (!tier || !feature) return undefined;
+  const match = modules.find((m) => moduleName(m.desk_tier) === tier && moduleName(m.desk_feature) === feature);
+  return match ? { tier: match.desk_tier, feature: match.desk_feature } : undefined;
+}
+
+/**
+ * What the prompt is given for an attachment. A document chip is a pointer:
+ * its title and kind reach the prompt, never its id and never corpus text -
+ * the turn's document scope is what keeps the searches inside it.
+ */
+function promptAttachment(a: Attachment): RenderedAttachment {
+  if (a.kind !== 'document') return { kind: a.kind, title: a.title, text: a.text };
+  // TODO(T9b): prompt.ts's RenderedAttachment gains the 'document' kind with no
+  // text and renders its pointer line; this cast then goes.
+  return { kind: a.kind, title: a.title } as unknown as RenderedAttachment;
+}
+
 interface TurnInput {
   request: ResearchRequest;
   caller: { userId: string; token: string };
@@ -602,7 +674,10 @@ async function runTurnBody(
   // A corpus fact, and a cheap one: cached for the isolate and never fatal. A
   // turn is still answerable without it, so a failure here costs the coverage
   // line, not the turn.
-  const documentModules = await deps.documentModules().catch(() => [] as string[]);
+  const modules = await deps.documentModules().catch(() => [] as DocumentModule[]);
+  // The coverage line names modules, not tiers: a name on two tiers is listed once.
+  const documentModules = [...new Set(modules.map((m) => m.desk_feature.trim()).filter(Boolean))];
+  const featureScope = featureScopeOf(request, modules);
   const system = buildSystemPrompt({
     persona,
     today: deps.today?.() ?? new Date(startedAt).toISOString().slice(0, 10),
@@ -617,14 +692,11 @@ async function runTurnBody(
   // follow-ups here; withholding the attachments removes what the model was
   // summarising instead of greeting.
   const conversational = isConversational(request.message);
-  const attachments: RenderedAttachment[] = conversational ? [] : request.attachments.map((a) => ({
-    kind: a.kind,
-    title: a.title,
-    text: a.text,
-  }));
+  const attachments: RenderedAttachment[] = conversational ? [] : request.attachments.map(promptAttachment);
   const userTurn = buildUserTurn(request.message, attachments);
   const documentKeys = documentKeysOf(request);
-  const scopedDocumentIds = await deps.db.resolveDocumentIds(documentKeys);
+  const documentIds = documentIdsOf(request);
+  const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
 
   signal.throwIfAborted();
 
@@ -724,7 +796,14 @@ async function runTurnBody(
     scopedDocumentIds,
     focus: request.focus,
     conversational,
-    documentKeysSent: documentKeys.length > 0,
+    // scopeSent: the reader named a document, by key or by id. Whether it
+    // resolved is what `scopedDocumentIds` says; this says whether leaving the
+    // attachments is "unresolved" or "unkeyed".
+    // TODO(T9b): agent.ts renames documentKeysSent to scopeSent.
+    documentKeysSent: documentKeys.length > 0 || documentIds.length > 0,
+    // The desk module's documents, under desk focus. agent.ts consumes it from
+    // T9b (precedence: confinement, then this, then the model's desk_tier).
+    ...(featureScope ? { featureScope } : {}),
   };
   const chain = failoverChain(t.models, t.chosen.model_id);
   let result: AgentResult | null = null;

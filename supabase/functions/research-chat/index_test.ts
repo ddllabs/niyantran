@@ -18,7 +18,7 @@ function fixture() {
     value?: unknown;
     signal?: AbortSignal;
   }[] = [];
-  let reply = (side: string, table: string, _op: string, _value?: unknown): unknown => {
+  let reply = (side: string, table: string, _op: string, _value?: unknown, _filters?: unknown[][]): unknown => {
     if (table === 'lookup_research_turn') return { data: { kind: 'missing' }, error: null };
     if (table === 'claim_research_turn') return { data: { kind: 'forbidden' }, error: null };
     if (table === 'ai_models') {
@@ -62,6 +62,10 @@ function fixture() {
         entry.filters.push(['in', ...v]);
         return q;
       },
+      not(...v: unknown[]) {
+        entry.filters.push(['not', ...v]);
+        return q;
+      },
       order(...v: unknown[]) {
         entry.filters.push(['order', ...v]);
         return q;
@@ -90,7 +94,7 @@ function fixture() {
       },
       then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
         calls.push(entry);
-        return Promise.resolve(reply(side, table, entry.op, entry.value)).then(resolve, reject);
+        return Promise.resolve(reply(side, table, entry.op, entry.value, entry.filters)).then(resolve, reject);
       },
     };
     return q;
@@ -542,4 +546,100 @@ Deno.test('D6: model timeout cannot reserve a claim or reach the provider', asyn
   assertEquals(response.status, 503);
   assertEquals(f.calls.some((c) => c.table === 'claim_research_turn'), false);
   assertEquals(f.sent.length, 0);
+});
+
+// retrieval-scope. A document chip names an id, a dragged row names a key; both
+// resolve in one place, and only a document that is actually indexed counts, so
+// an unindexed one discloses as unresolved rather than scoping to nothing.
+const DOC_A = '0b6f1a52-3c4d-4e5f-8a9b-0c1d2e3f4a5b';
+const DOC_B = '1c7e2b63-4d5e-4f60-9bac-1d2e3f4a5b6c';
+Deno.test('document scope resolves keys and ids together and keeps only indexed documents', async () => {
+  const f = fixture();
+  const corpus = [
+    { id: 'key-indexed', document_key: 'bill:1', indexed_at: '2026-09-01' },
+    { id: 'key-unindexed', document_key: 'bill:2', indexed_at: null },
+    { id: DOC_A, document_key: 'bill:3', indexed_at: '2026-09-01' },
+    { id: DOC_B, document_key: null, indexed_at: null },
+  ];
+  // A PostgREST stand-in for the three filters the resolution may use.
+  f.setReply((_side, table, _op, _value, filters = []) => {
+    if (table !== 'documents') return { data: [], error: null };
+    const rows = corpus.filter((d) =>
+      filters.every(([op, column, ...rest]) => {
+        const value = column === 'metadata->>document_key'
+          ? d.document_key
+          : (d as Record<string, unknown>)[column as string];
+        if (op === 'in') return (rest[0] as unknown[]).includes(value);
+        if (op === 'not') return !(rest[0] === 'is' && rest[1] === null && value === null);
+        return true;
+      })
+    );
+    return { data: rows.map(({ id }) => ({ id })), error: null };
+  });
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  assertEquals(
+    await d.db.resolveDocumentIds({ keys: ['bill:1', 'bill:2', 'bill:3'], ids: [DOC_A, DOC_B] }),
+    ['key-indexed', DOC_A],
+    'unindexed keys and ids are dropped, and a document named both ways is kept once',
+  );
+  const reads = f.calls.filter((c) => c.table === 'documents');
+  assert(reads.length > 0 && reads.every((c) => c.side === 'caller'));
+  assertEquals(await d.db.resolveDocumentIds({ keys: [], ids: [DOC_B] }), []);
+  assertEquals(await d.db.resolveDocumentIds({ keys: ['bill:2'], ids: [] }), []);
+  const before = f.calls.length;
+  assertEquals(await d.db.resolveDocumentIds({ keys: [], ids: [] }), []);
+  assertEquals(f.calls.length, before, 'nothing named, nothing read');
+});
+
+Deno.test('a feature scope reaches match_documents as p_desk_feature, and only when set', async () => {
+  const f = fixture(), c = embeddingContext();
+  f.runtime.fetch = () => Promise.resolve(new Response(JSON.stringify(vector())));
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await d.searchDocuments({ query: 'Q', desk_tier: 'national' }, undefined, c.context);
+  await d.searchDocuments(
+    { query: 'Q', desk_tier: 'national', desk_feature: 'Parliamentary Questions' },
+    undefined,
+    c.context,
+  );
+  const sent = f.calls.filter((x) => x.table === 'match_documents').map((x) => x.value as Record<string, unknown>);
+  assertEquals(sent.map((a) => 'p_desk_feature' in a), [false, true]);
+  assertEquals(sent[1].p_desk_feature, 'Parliamentary Questions');
+  assertEquals(sent[1].p_desk_tier, 'national');
+});
+
+// Last in the file on purpose: the module list is cached for the isolate, and
+// this is the test that fills the cache.
+Deno.test('document modules come from document_modules() pairs, not a capped per-document read', async () => {
+  const f = fixture();
+  // What a one-row-per-document read sees under PostgREST's max_rows: 1,000
+  // rows, all from the biggest module, so the 1-document Budget module is lost.
+  const perDocument = Array.from({ length: 1_000 }, () => ({ desk_feature: 'Bills' }));
+  // What document_modules() returns for the same 2,338 documents.
+  const pairs = [
+    { desk_tier: 'national', desk_feature: 'Bills' },
+    { desk_tier: 'national', desk_feature: 'Regulatory (RBI SEBI TRAI CCI)' },
+    { desk_tier: 'national', desk_feature: 'Parliamentary Questions' },
+    { desk_tier: 'national', desk_feature: 'Industry' },
+    { desk_tier: 'national', desk_feature: 'Budget' },
+    { desk_tier: 'national', desk_feature: null },
+    { desk_tier: 'state', desk_feature: '  ' },
+  ];
+  f.setReply((_side, table) => ({
+    data: table === 'document_modules' ? pairs : table === 'documents' ? perDocument : [],
+    error: null,
+  }));
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  const modules = await d.documentModules();
+  assertEquals(modules, pairs.slice(0, 5), 'every module, with its tier; blank features are not modules');
+  assertEquals(f.calls.some((c) => c.table === 'documents'), false, 'no per-document read');
+  const rpc = f.calls.filter((c) => c.table === 'document_modules');
+  assertEquals(rpc.length, 1);
+  assertEquals(rpc[0].side, 'caller');
+  const again = createDependencies(request(), f.runtime);
+  await again.requireUser(request());
+  assertEquals(await again.documentModules(), modules);
+  assertEquals(f.calls.filter((c) => c.table === 'document_modules').length, 1, 'cached for the isolate');
 });

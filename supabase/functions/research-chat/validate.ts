@@ -37,7 +37,8 @@ export interface Selection {
   document_key?: string;
 }
 
-export interface Attachment {
+/** Material the reader attached, rendered into the prompt as untrusted context. */
+export interface TextAttachment {
   kind: 'row' | 'record' | 'file';
   title: string;
   text: string;
@@ -46,6 +47,21 @@ export interface Attachment {
   row_key?: string;
   document_key?: string;
 }
+
+/**
+ * "Ask about this document": a pointer to an indexed document, never its
+ * content. It has no `text` - the corpus is searched for it, not inlined - and
+ * its id scopes every document search of the turn.
+ */
+export interface DocumentAttachment {
+  kind: 'document';
+  title: string;
+  document_id: string;
+  tier?: string;
+  feature?: string;
+}
+
+export type Attachment = TextAttachment | DocumentAttachment;
 
 export interface ResearchRequest {
   conversation_id?: string;
@@ -139,16 +155,30 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
   if (b.attachments !== undefined && b.attachments !== null) {
     if (!Array.isArray(b.attachments)) fieldErrors.attachments = 'attachments must be an array';
     else {
-      for (const raw of b.attachments.slice(0, LIMITS.attachments)) {
+      for (const [index, raw] of b.attachments.slice(0, LIMITS.attachments).entries()) {
         if (!raw || typeof raw !== 'object') continue;
         const a = raw as Record<string, unknown>;
-        const kind = a.kind === 'row' || a.kind === 'record' || a.kind === 'file' ? a.kind : null;
         const title = str(a.title, LIMITS.title);
-        const text = str(a.text, LIMITS.attachmentText);
-        if (!kind || !title || !text) continue;
-        const item: Attachment = { kind, title, text };
         const tier = str(a.tier, LIMITS.key);
         const feature = str(a.feature, LIMITS.title);
+        if (a.kind === 'document') {
+          // A bad id is a client bug, and dropping the chip would silently turn
+          // "search this document" into "search everything", so it is refused.
+          if (typeof a.document_id !== 'string' || !UUID_RE.test(a.document_id)) {
+            fieldErrors.attachments = `attachment ${index}: document_id must be a uuid`;
+            continue;
+          }
+          if (!title) continue;
+          const item: DocumentAttachment = { kind: 'document', title, document_id: a.document_id.toLowerCase() };
+          if (tier) item.tier = tier;
+          if (feature) item.feature = feature;
+          attachments.push(item);
+          continue;
+        }
+        const kind = a.kind === 'row' || a.kind === 'record' || a.kind === 'file' ? a.kind : null;
+        const text = str(a.text, LIMITS.attachmentText);
+        if (!kind || !title || !text) continue;
+        const item: TextAttachment = { kind, title, text };
         const rowKey = str(a.row_key, LIMITS.key);
         const docKey = str(a.document_key, LIMITS.key);
         if (tier) item.tier = tier;
@@ -200,6 +230,13 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
 export function documentKeysOf(r: ResearchRequest): string[] {
   const keys = new Set<string>();
   if (r.selection?.document_key) keys.add(r.selection.document_key);
-  for (const a of r.attachments) if (a.document_key) keys.add(a.document_key);
+  for (const a of r.attachments) if (a.kind !== 'document' && a.document_key) keys.add(a.document_key);
   return [...keys];
+}
+
+/** The indexed documents a turn's document chips name: distinct, at most one per attachment slot. */
+export function documentIdsOf(r: ResearchRequest): string[] {
+  const ids = new Set<string>();
+  for (const a of r.attachments) if (a.kind === 'document') ids.add(a.document_id);
+  return [...ids].slice(0, LIMITS.attachments);
 }

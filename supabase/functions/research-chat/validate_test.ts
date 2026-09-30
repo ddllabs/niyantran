@@ -1,6 +1,6 @@
-import { assert, assertEquals } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { fingerprintRequest } from './persistence.ts';
-import { documentKeysOf, LIMITS, validateRequest } from './validate.ts';
+import { documentIdsOf, documentKeysOf, LIMITS, type TextAttachment, validateRequest } from './validate.ts';
 
 const base = { message: 'Question', turn_key: 'turn', focus: 'selection' as const };
 function selection(row: Record<string, unknown>) {
@@ -101,7 +101,7 @@ Deno.test('turn key rejection, attachment limits and document scoping retain exi
   });
   assert('request' in validated);
   assertEquals(validated.request.attachments.length, 12);
-  assertEquals(validated.request.attachments[0].text.length, 40_000);
+  assertEquals((validated.request.attachments[0] as TextAttachment).text.length, 40_000);
   assertEquals(documentKeysOf(validated.request), ['bill:1', 'bill:2']);
 });
 
@@ -121,5 +121,77 @@ Deno.test('persona_probe accepts a persona enum value and refuses anything else'
     const res = validateRequest({ ...base, persona_probe: bad });
     assert('fieldErrors' in res, `refused ${String(bad)}`);
     assert(res.fieldErrors.persona_probe);
+  }
+});
+
+// retrieval-scope: the "Ask about this document" chip. It is a pointer to an
+// indexed document, never corpus content, so it carries an id and no text.
+const DOC_A = '0b6f1a52-3c4d-4e5f-8a9b-0c1d2e3f4a5b';
+const DOC_B = '1c7e2b63-4d5e-4f60-9bac-1d2e3f4a5b6c';
+
+Deno.test('a document attachment is accepted with a title and a uuid, and needs no text', () => {
+  const validated = validateRequest({
+    ...base,
+    focus: 'attached',
+    attachments: [{ kind: 'document', title: 'RBI circular', document_id: DOC_A, feature: 'Regulatory' }],
+  });
+  assert('request' in validated, JSON.stringify(validated));
+  assertEquals(validated.request.attachments, [
+    { kind: 'document', title: 'RBI circular', document_id: DOC_A, feature: 'Regulatory' },
+  ]);
+  assertEquals(documentIdsOf(validated.request), [DOC_A]);
+  assertEquals(documentKeysOf(validated.request), [], 'an id is not a document key');
+});
+
+Deno.test('a document attachment never carries text into the request, even when the client sends some', () => {
+  const validated = validateRequest({
+    ...base,
+    attachments: [{ kind: 'document', title: 'T', document_id: DOC_A, text: 'inlined corpus text' }],
+  });
+  assert('request' in validated);
+  assertEquals('text' in validated.request.attachments[0], false);
+});
+
+Deno.test('a malformed document_id is a 400 field error, not a silently dropped chip', () => {
+  for (const bad of ['not-a-uuid', '', 42, null, undefined, `${DOC_A} `.repeat(2)]) {
+    const res = validateRequest({ ...base, attachments: [{ kind: 'document', title: 'T', document_id: bad }] });
+    assert('fieldErrors' in res, `refused ${JSON.stringify(bad)}`);
+    assertStringIncludes(res.fieldErrors.attachments, 'document_id');
+  }
+});
+
+Deno.test('documentIdsOf is distinct and the attachment cap still bounds the chips', () => {
+  const chips = Array.from({ length: 14 }, (_, i) => ({
+    kind: 'document',
+    title: `Doc ${i}`,
+    document_id: i < 13 ? DOC_B.slice(0, -2) + String(i).padStart(2, '0') : DOC_A,
+  }));
+  const validated = validateRequest({
+    ...base,
+    attachments: [{ kind: 'document', title: 'Dup', document_id: DOC_A.toUpperCase() }, ...chips],
+  });
+  assert('request' in validated);
+  assertEquals(validated.request.attachments.length, LIMITS.attachments);
+  const ids = documentIdsOf(validated.request);
+  assertEquals(ids.length, LIMITS.attachments);
+  assertEquals(ids[0], DOC_A, 'ids are compared case-insensitively and kept once');
+
+  const twice = validateRequest({
+    ...base,
+    attachments: [
+      { kind: 'document', title: 'One', document_id: DOC_A },
+      { kind: 'document', title: 'Again', document_id: DOC_A },
+      { kind: 'document', title: 'Two', document_id: DOC_B },
+    ],
+  });
+  assert('request' in twice);
+  assertEquals(documentIdsOf(twice.request), [DOC_A, DOC_B]);
+});
+
+Deno.test('an empty desk_context feature counts as absent', () => {
+  for (const feature of ['', '   ']) {
+    const validated = validateRequest({ ...base, focus: 'desk', desk_context: { tier: 'national', feature } });
+    assert('request' in validated);
+    assertEquals(validated.request.desk_context, { tier: 'national' });
   }
 });

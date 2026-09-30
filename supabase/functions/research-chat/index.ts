@@ -12,13 +12,13 @@ import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts
 import { search } from '../_shared/retrieval.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
-import { type HandlerDeps, handleResearchChat, type RetrievalContext } from './handler.ts';
+import { type DocumentModule, type HandlerDeps, handleResearchChat, type RetrievalContext } from './handler.ts';
 import { rpcTurnStore } from './persistence.ts';
 import { resolvePersona } from './persona.ts';
 
 export const NETWORK_TIMEOUT_MS = 4_000;
 /** Which desk modules have indexed documents. Per-isolate; only an ingest moves it. */
-let documentModulesCache: string[] | null = null;
+let documentModulesCache: DocumentModule[] | null = null;
 export interface Runtime {
   userClient: typeof userClient;
   serviceClient: typeof serviceClient;
@@ -265,19 +265,24 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     documentModules: async () => {
       // Cached for the life of the isolate. The set changes only when documents
       // are ingested, and a stale-by-one-isolate list is far cheaper than a
-      // grouped count on every turn - PostgREST has no GROUP BY, so this reads
-      // one short column and folds it here.
+      // distinct scan on every turn. It used to read one desk_feature per
+      // document and fold them here, which PostgREST's max_rows (1,000) cut
+      // short of the corpus's 2,338 documents, so a module whose documents
+      // sorted late could vanish. document_modules() returns the distinct
+      // (desk_tier, desk_feature) pairs instead: a handful of rows.
       if (documentModulesCache) return documentModulesCache;
-      const rows = await query((signal) =>
-        caller().from('documents').select('desk_feature').not('desk_feature', 'is', null).abortSignal(signal)
-      ) as { desk_feature: string | null }[] | null;
-      const seen: string[] = [];
-      for (const r of rows ?? []) {
-        const name = String(r.desk_feature ?? '').trim();
-        if (name && !seen.includes(name)) seen.push(name);
+      const rows = await query((signal) => caller().rpc('document_modules').abortSignal(signal)) as
+        | { desk_tier: unknown; desk_feature: unknown }[]
+        | null;
+      const modules: DocumentModule[] = [];
+      for (const r of Array.isArray(rows) ? rows : []) {
+        // Verbatim, not trimmed: a feature scope filters on these exact values.
+        if (typeof r?.desk_tier !== 'string' || typeof r.desk_feature !== 'string') continue;
+        if (!r.desk_tier.trim() || !r.desk_feature.trim()) continue;
+        modules.push({ desk_tier: r.desk_tier, desk_feature: r.desk_feature });
       }
-      if (seen.length) documentModulesCache = seen;
-      return seen;
+      if (modules.length) documentModulesCache = modules;
+      return modules;
     },
     db: {
       recentMessages: async (conversationId, excluded) => {
@@ -317,12 +322,20 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         );
         if (observedCancellations.get(id) === timestamp) observedCancellations.delete(id);
       },
-      resolveDocumentIds: async (keys) =>
-        keys.length
-          ? (await query((signal) =>
-            caller().from('documents').select('id').in('metadata->>document_key', keys).abortSignal(signal)
-          ) ?? []).map((d) => d.id)
-          : [],
+      resolveDocumentIds: async ({ keys, ids }) => {
+        // Two reads rather than one `or`: a key is free text, and PostgREST's
+        // `or` grammar would need it quoted. Both keep only indexed documents,
+        // so a key and an id that name nothing searchable resolve the same way.
+        const indexed = (column: string, values: string[]) =>
+          values.length
+            ? query((signal) =>
+              caller().from('documents').select('id').in(column, values).not('indexed_at', 'is', null)
+                .abortSignal(signal)
+            )
+            : Promise.resolve([] as { id: string }[]);
+        const [byKey, byId] = await Promise.all([indexed('metadata->>document_key', keys), indexed('id', ids)]);
+        return [...new Set([...(byKey ?? []), ...(byId ?? [])].map((d) => String(d.id)))];
+      },
       findDeskRow: async (tier, feature, key) =>
         await query((signal) =>
           caller().from('desk_rows').select('tier,feature,row_key,row,record_text,document_key,snapshot_at').eq(
@@ -351,7 +364,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return await search({
         embed: (q) => embedQuery(q, context, r, r.env('OPENROUTER_API_KEY') ?? ''),
         rpc: (fn, a) => bounded((signal) => caller().rpc(fn, a).abortSignal(signal), r.timeoutMs, context.signal),
-      }, { query: args.query, deskTier: args.desk_tier, documentIds: ids });
+      }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids });
     },
     searchDeskRows: async (args, context) => {
       caller();

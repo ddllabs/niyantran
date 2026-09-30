@@ -69,7 +69,16 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   };
 }
 
-export async function search(deps: RetrievalDeps, input: { query: string; topK?: number; deskTier?: string; documentIds?: string[] }): Promise<Chunk[]> {
+export interface SearchInput {
+  query: string;
+  topK?: number;
+  deskTier?: string;
+  /** A desk module's exact `documents.desk_feature`, sent with its tier. */
+  deskFeature?: string;
+  documentIds?: string[];
+}
+
+export async function search(deps: RetrievalDeps, input: SearchInput): Promise<Chunk[]> {
   const now = deps.now ?? (() => Date.now());
   const started = now();
   const query = input.query.trim();
@@ -82,6 +91,11 @@ export async function search(deps: RetrievalDeps, input: { query: string; topK?:
     match_count: input.topK ?? DEFAULT_TOP_K,
     p_document_ids: input.documentIds ?? null,
     p_desk_tier: input.deskTier ?? null,
+    // Omitted, never null, when absent: the SQL before the feature migration
+    // has no such argument, and PostgREST refuses a call that names one it
+    // does not know. Omitting it keeps this function deployable either side
+    // of that migration.
+    ...(input.deskFeature ? { p_desk_feature: input.deskFeature } : {}),
   });
   if (error) throw new Error(`match_documents: ${error.message}`);
   const chunks: Chunk[] = [];
