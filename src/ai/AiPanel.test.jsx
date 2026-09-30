@@ -146,3 +146,93 @@ it('does not leave orphaned thinking state when research completes', () => {
 });
 
 
+
+// retrieval-scope (spec "Browser"): "Ask about this document" attaches a
+// pointer to a corpus document. It must reach research-chat as
+// {kind, title, document_id} with no text - the chip is never corpus content -
+// and must not be dropped by the filter that removes text-less chips.
+const CITED={id:1,kind:'text',chunk_id:'c1',document_id:'0b6c1c62-3a8e-4a57-9d55-2f0c7a1e9b10',title:'SEBI Circular on Mutual Funds',desk_feature:'Regulatory Circulars',char_from:0,char_to:40,text_hash:'h',source_kind:'document'};
+it('a document chip is forwarded with its document id and without text',async()=>{
+ const {requestAttachments}=await import('./AiPanel.jsx');
+ const out=requestAttachments([
+  {id:'a1',kind:'document',title:CITED.title,document_id:CITED.document_id,feature:'Regulatory Circulars'},
+  {id:'a2',kind:'row',title:'Bill',text:'row text',document_key:'bill:2007:70'},
+ ]);
+ expect(out[0]).toEqual({kind:'document',title:CITED.title,document_id:CITED.document_id});
+ expect(out[0]).not.toHaveProperty('text');
+ expect(out[1]).toMatchObject({kind:'row',title:'Bill',text:'row text',document_key:'bill:2007:70'});
+ // A document chip that names no document is not sent at all.
+ expect(requestAttachments([{id:'a3',kind:'document',title:'x'}])).toEqual([]);
+});
+function attachSpy(ok=true){const got=[];return {got,attach:async(fn)=>{if(!ok)return false;got.push(...await fn());return true;}};}
+it('asking about a document attaches a text-less document chip',async()=>{
+ const {askAboutDocument}=await import('./AiPanel.jsx');
+ const spy=attachSpy();
+ await askAboutDocument(CITED,{attach:spy.attach,focus:'attached'});
+ expect(spy.got).toEqual([{kind:'document',title:CITED.title,document_id:CITED.document_id,feature:'Regulatory Circulars'}]);
+ expect(spy.got[0]).not.toHaveProperty('text');
+});
+// Owner decision 2: from broad or desk the focus moves to attached, with a
+// notice saying why; a focus that already confines is left as it is.
+it('asking about a document moves broad and desk focus to attached, with a notice',async()=>{
+ const {askAboutDocument}=await import('./AiPanel.jsx');
+ for(const focus of ['broad','desk']){
+  const r=await askAboutDocument(CITED,{attach:attachSpy().attach,focus});
+  expect(r.focus).toBe('attached');
+  expect(r.notice).toBe('Focus set to Attached so questions search only the attached documents.');
+ }
+ for(const focus of ['attached','selection']){
+  const r=await askAboutDocument(CITED,{attach:attachSpy().attach,focus});
+  expect(r.focus).toBe(focus);
+  expect(r.notice).not.toMatch(/Focus set/);
+ }
+});
+it('the notice counts the attached documents the search is shared with',async()=>{
+ const {askAboutDocument}=await import('./AiPanel.jsx');
+ const other={id:'a1',kind:'document',title:'Other',document_id:'d-other'};
+ const bill={id:'a2',kind:'row',title:'Bill',document_key:'bill:2007:70'};
+ const r=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'broad',attachments:[other,bill],indexed:new Set(['bill:2007:70'])});
+ expect(r.notice).toBe('Focus set to Attached so questions search only the attached documents. Searching 3 attached documents.');
+ // The same document attached twice is one document; a row with no indexed text confines nothing.
+ const same={id:'a3',kind:'document',title:CITED.title,document_id:CITED.document_id};
+ const one=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'attached',attachments:[same,bill],indexed:new Set()});
+ expect(one.notice).toBe('Document attached.');
+ const two=await askAboutDocument(CITED,{attach:attachSpy().attach,focus:'attached',attachments:[other]});
+ expect(two.notice).toBe('Document attached. Searching 2 attached documents.');
+});
+it('a locked thread attaches nothing and leaves focus alone',async()=>{
+ const {askAboutDocument}=await import('./AiPanel.jsx');
+ expect(await askAboutDocument(CITED,{attach:attachSpy(false).attach,focus:'broad'})).toBeNull();
+ const spy=attachSpy();
+ expect(await askAboutDocument({...CITED,document_id:''},{attach:spy.attach,focus:'broad'})).toBeNull();
+ expect(spy.got).toEqual([]);
+});
+it('the reader offers the button, and turns it off while the thread is locked',()=>{
+ const ready={...fake.research,ready:true,loading:false,locked:false,viewer:{kind:'text',source:CITED},actions:{attach:async()=>true}};
+ fake.research=ready;
+ const open=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(open).toMatch(/<button[^>]*>Ask about this document<\/button>/);
+ expect(open).not.toMatch(/<button[^>]*disabled=""[^>]*>Ask about this document/);
+ fake.research={...ready,locked:true};
+ expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/<button[^>]*disabled=""[^>]*>Ask about this document/);
+});
+it('a document chip shows its title, a document marker and full text',()=>{
+ const chat={id:'c1',title:'t',messages:[],attachments:[{id:'a1',kind:'document',title:CITED.title,document_id:CITED.document_id}]};
+ fake.research={...fake.research,ready:true,loading:false,locked:false,store:{chats:[chat],activeId:'c1',loaded:true}};
+ const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(html).toMatch(/SEBI Circular on Mutual Funds<\/span><em class="ai-v2-file-cover document"[^>]*>Document<\/em><em class="ai-v2-file-cover full"[^>]*>Full text</);
+});
+// Decision 3: desk focus now filters documents to the open module.
+it('the desk focus is labelled "Desk", with a hint that documents are limited to the module',async()=>{
+ const {FOCUS_OPTS}=await import('./AiPanel.jsx');
+ const desk=FOCUS_OPTS.find(o=>o.id==='desk');
+ expect(desk.en).toBe('Desk');
+ expect(desk.hint).toMatch(/document searches are limited to this module/i);
+ vi.stubGlobal('localStorage',{getItem:()=> 'desk',setItem(){}});
+ try{
+  fake.research={...fake.research,ready:true,loading:false,locked:false};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html).toContain('<span class="ai-v2-tool-v">Desk</span>');
+  expect(html).not.toContain('Desk sample');
+ }finally{vi.unstubAllGlobals();}
+});

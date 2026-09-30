@@ -61,11 +61,15 @@ export async function indexedDocumentKeys(keys, client = defaultClient) {
  * an attachment with no key at all (a dropped file, a desk sample), or a
  * lookup that has not answered yet.
  *
- * @param {{ document_key?: string }} attachment
+ * A `document` chip ("Ask about this document") names a document opened from
+ * a citation, so it is in the corpus by construction and needs no lookup.
+ *
+ * @param {{ kind?: string, document_id?: string, document_key?: string }} attachment
  * @param {Set<string> | null} indexed
  * @returns {'full' | 'row' | null}
  */
 export function coverageOf(attachment, indexed) {
+  if (attachment?.kind === 'document') return attachment.document_id ? 'full' : null;
   const key = attachment?.document_key;
   if (!key || !indexed) return null;
   if (indexed.has(key)) return 'full';
