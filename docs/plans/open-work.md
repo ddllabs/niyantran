@@ -259,6 +259,10 @@ Part 2 needs its specs first, in this order:
   `research/2026-10-01-ingestion-v2-local-run.md`, $0.197. Next: checkpoint
   E (the owner reads that report), then I8 on NTER, with a go-ahead per step.
   `MISTRAL_API_KEY` is already set on NTER (the owner, 2026-10-01).
+  **Live on NTER, 2026-10-01** (`agents/coordination.md`): migration 39, the worker
+  secret, both functions deployed, and the first document (the 12-page bill) ingested
+  for $0.048. The schedule is off. Remaining: the owner's signed-in citation check, then
+  mark R4 done.
 - [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
   doc §6, which proves pages, boxes, images, cost and re-run cost.
 - [ ] **R6. `citations-pdf`.** The PDF.js viewer with box highlights; a

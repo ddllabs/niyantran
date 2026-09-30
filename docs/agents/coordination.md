@@ -982,3 +982,49 @@ Authorised by the owner as one four-step sequence, stopping at the first failure
 - **Live eval after the deploy,** all four modes: "no worse" against the 2026-09-30
   baseline.
 - Nothing is page-aware yet, so users see no change. The contract waits for `ingestion-v2`.
+
+### Operations — 2026-10-01, night (RAG v2 part 2a: ingestion-v2, first document)
+
+Authorised by the owner: "apply the migration … do everything else", with no bulk
+ingestion. Code from `task/rag-v2-ingestion-v2` at `3a5655a`. Local end-to-end run first:
+`docs/research/2026-10-01-ingestion-v2-local-run.md`.
+
+- **Migration 39** `20261001140000_ingestion_v2`:
+  - Applied with `supabase db query --linked` in one transaction, together with its
+    `schema_migrations` row, so the version is the file name.
+  - It creates the private `corpus` bucket (50,000,000 bytes; PDF, JPEG, PNG, WebP; no
+    object policies), `document_files`, `document_ocr_pages` and `ingest_jobs` (RLS on),
+    and the six `ingest_*` functions.
+  - Verified live: the functions are security definer with only `search_path` set; only
+    service_role executes them; service_role can only SELECT `ingest_jobs`; authenticated
+    can SELECT `document_files` only.
+  - The security advisor adds only an INFO "RLS enabled, no policy" for the two
+    service-only tables, which is intended.
+  - Before and after: 2,338 documents and 54,219 chunks; no jobs.
+- **Worker secret:** run with `scripts/ingest-ops.sh secret` on the owner's instruction.
+  `INGEST_WORKER_SECRET` and the Vault copy `ingest_worker_secret` have the same fingerprint,
+  `bb474de1`; the value was never printed. `MISTRAL_API_KEY` was set by the owner earlier
+  (fingerprint `97aea555`).
+  - `ingest-ops.sh` needed `--linked` with `--project-ref`; fixed in `3a5655a`.
+- **Deployed** `ingest-worker` (new; `verify_jwt` off) and `ingest-documents` (it now also
+  refuses a document with `storage_path` set) with
+  `supabase functions deploy <name> --use-api`.
+  - Probes: the worker gives 405 on GET, and its own 401 `unauthorized` with no secret or a
+    wrong one; `ingest-documents` gives 401 `service key required`.
+- **First document:** The Classified Information and Espionage Control Bill, 2025 (Rajya
+  Sabha, as introduced).
+  - It keeps the corpus record's own key, `9fca8fe3ef9a99ccad71710b9ba7c0a810ac1f4f`,
+    so `acquisition` (R7) will find it rather than add it again. Filed under national /
+    *Bill Passage Probability Index*.
+  - Registered with `scripts/ingest-register.mjs --target nter`, and uploaded to
+    `corpus/files/cf4621b3….pdf`.
+  - Two manual kicks (`ingest-ops.sh kick`, secret read from Vault in the database):
+    - OCR of 12 pages through a signed URL, `mistral-ocr-4-1`, $0.048;
+    - then the index step: 40 chunks, 6,964 tokens, $0.000139, activated.
+  - Verified: the job succeeded; 12 pages, 176 blocks, 40 chunks all linked to blocks, and
+    0 chunk spans differ from `ocr_text`. `model_call_logs` has both calls.
+  - Now 2,339 documents and 54,259 chunks, exactly +1 and +40.
+  - `match_documents` as authenticated finds it with page, blocks and section in the
+    focused, feature (*Bill Passage Probability Index*) and broad modes.
+- **The schedule is off:** no `ingest-worker` cron job exists. Nothing else is queued.
+- **Still open:** the owner's signed-in citation check. The PDF viewer and page UI are R6.
