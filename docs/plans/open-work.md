@@ -216,9 +216,15 @@ but its commands aren't to be run.
 Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
 (tasks T1–T17):
 
-- [ ] **R1. `eval`** (spec `specs/2026-09-30-rag-v2-eval.md`, approved).
-  A frozen set of 195 questions, the harness, and the live baseline
-  (T1–T5).
+- [x] **R1. `eval`** (spec `specs/2026-09-30-rag-v2-eval.md`). Done on
+  2026-10-01 (`952d4e8`):
+  - the frozen set of 195 questions and its vectors;
+  - the harness;
+  - the live baseline in `research/2026-09-30-retrieval-baseline.md`
+    (broad doc@10 85.3%, focused chunk@10 97.8%).
+
+  The 20-question owner review was done by the supervisor on the owner's
+  behalf.
 - [ ] **R2. `retrieval-scope`** (spec approved):
   - "Ask about this document" for cited documents;
   - desk focus filters to the module's documents;
