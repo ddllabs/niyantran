@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
 import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
-import CitationBubble from './CitationBubble.jsx';
+import CitationBubble, { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
 
 const TEXT_SOURCE = {
   id: 1,
@@ -271,4 +271,80 @@ it('row evidence opts out of generated briefs while ordinary desk records retain
 
 it('served model is retained even when durable timing is absent',()=>{
  expect(renderToStaticMarkup(<ActivityTicker model={{requested:'first',served:'served-model'}}/>)).toContain('Answered by served-model');
+});
+
+describe('RAG v2 optional citation fields (chunk contract, citation payload)', () => {
+ const SHA = 'a'.repeat(64);
+ const PDF_SOURCE = { ...TEXT_SOURCE, id: 3, source_kind: 'pdf_page', page_number: 2 };
+ const BOX = { page: 2, x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.3 };
+ const RICH = {
+  ...PDF_SOURCE,
+  extract_hash: 'e'.repeat(64),
+  boxes: [BOX, { page: 3, x0: 0, y0: 0, x1: 1, y1: 1 }],
+  images: [{ page: 2, sha256: SHA, mime: 'image/png' }],
+  section: { heading: 'Section 4', note: 'Substituted by Act 12 of 2019' },
+ };
+ const MALFORMED = {
+  ...PDF_SOURCE,
+  extract_hash: 42,
+  boxes: 'not an array',
+  images: [{ page: 2, sha256: 'nothex', mime: 'image/png' }],
+  section: { heading: 7, note: ['x'] },
+ };
+
+ it('saved citations without the new fields validate and sanitise exactly as before', () => {
+  for (const source of [TEXT_SOURCE, ROW_SOURCE, PDF_SOURCE]) {
+   expect(isReadableCitation(source)).toBe(true);
+   expect(sanitizeCitation(source)).toEqual(source);
+  }
+  for (const source of [null, {}, { ...TEXT_SOURCE, document_id: '' }, { ...PDF_SOURCE, page_number: 0 }]) {
+   expect(isReadableCitation(source)).toBe(false);
+  }
+ });
+ it('malformed optional fields never reject a citation or hide its bubble', () => {
+  expect(isReadableCitation(MALFORMED)).toBe(true);
+  expect(renderToStaticMarkup(<CitationBubble n={3} source={MALFORMED}/>)).toContain('Source 3');
+ });
+ it('a well-formed new citation keeps every field', () => {
+  expect(sanitizeCitation(RICH)).toEqual(RICH);
+ });
+ it('a malformed box is dropped and the rest of the citation kept', () => {
+  const bad = [
+   { ...BOX, x0: -0.1 }, { ...BOX, y1: 1.5 }, { ...BOX, x0: 0.95 }, { ...BOX, y0: 0.4 },
+   { ...BOX, page: 0 }, { ...BOX, page: 1.5 }, { ...BOX, x1: '0.9' }, { ...BOX, y0: Number.NaN }, null,
+  ];
+  for (const box of bad) {
+   const out = sanitizeCitation({ ...RICH, boxes: [BOX, box] });
+   expect(out.boxes).toEqual([BOX]);
+   expect(out).toEqual({ ...RICH, boxes: [BOX] });
+  }
+  expect('boxes' in sanitizeCitation({ ...RICH, boxes: [{ ...BOX, page: -1 }] })).toBe(false);
+  expect('boxes' in sanitizeCitation({ ...RICH, boxes: 'nope' })).toBe(false);
+ });
+ it('more than twenty boxes are truncated to twenty', () => {
+  const boxes = Array.from({ length: 25 }, (_, i) => ({ ...BOX, page: i + 1 }));
+  const out = sanitizeCitation({ ...RICH, boxes });
+  expect(out.boxes).toHaveLength(20);
+  expect(out.boxes).toEqual(boxes.slice(0, 20));
+ });
+ it('a bad image, section or extract_hash is removed on its own', () => {
+  for (const image of [{ page: 2, sha256: 'a'.repeat(63), mime: 'image/png' }, { page: 2, sha256: `${'a'.repeat(63)}g`, mime: 'image/png' },
+   { page: 2, sha256: SHA, mime: 'application/pdf' }, { page: 2, sha256: SHA }, { page: 0, sha256: SHA, mime: 'image/png' }]) {
+   expect(sanitizeCitation({ ...RICH, images: [...RICH.images, image] })).toEqual(RICH);
+  }
+  expect('images' in sanitizeCitation({ ...RICH, images: { sha256: SHA } })).toBe(false);
+  expect(sanitizeCitation({ ...RICH, section: { heading: 'Section 4', note: 9 } }).section).toEqual({ heading: 'Section 4' });
+  expect('section' in sanitizeCitation({ ...RICH, section: 'Section 4' })).toBe(false);
+  expect('section' in sanitizeCitation({ ...RICH, section: { heading: null } })).toBe(false);
+  expect(sanitizeCitation({ ...RICH, section: { heading: 'h'.repeat(250) } }).section.heading).toBe('h'.repeat(200));
+  const { extract_hash: _drop, ...noHash } = RICH;
+  expect(sanitizeCitation({ ...RICH, extract_hash: 42 })).toEqual(noHash);
+  expect(sanitizeCitation(MALFORMED)).toEqual(PDF_SOURCE);
+ });
+ it('the bubble hands the reader the sanitised citation', () => {
+  const calls = [];
+  const button = CitationBubble({ n: 3, source: { ...RICH, boxes: [BOX, { ...BOX, x1: 2 }] }, onOpen: s => calls.push(s) });
+  button.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  expect(calls).toEqual([{ ...RICH, boxes: [BOX] }]);
+ });
 });

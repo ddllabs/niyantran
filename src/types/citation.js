@@ -18,7 +18,32 @@
  * @property {number} char_to
  * @property {string} text_hash   sha256(normalise(content)) as stored when cited
  * @property {'document' | 'pdf_page'} source_kind
- * @property {number} [page_number]
+ * @property {number} [page_number]   physical page, 1-based (not the printed label)
+ * @property {string} [extract_hash]  the extraction the boxes belong to; a mismatch
+ *   with the document's current one means the boxes are stale and are not drawn
+ * @property {CitationBox[]} [boxes]  at most 20, resolved from the chunk's block ids
+ * @property {CitationImage[]} [images]  content-addressed page images
+ * @property {{heading?: string, note?: string}} [section]
+ *
+ * The optional RAG v2 fields above (chunk-contract spec, "Citation payload")
+ * never make a citation unreadable: `sanitizeCitation` in
+ * src/ai/CitationBubble.jsx strips any that are malformed.
+ */
+
+/**
+ * @typedef {Object} CitationBox   normalised to the page, 0..1, x0 <= x1, y0 <= y1
+ * @property {number} page   physical page, integer >= 1
+ * @property {number} x0
+ * @property {number} y0
+ * @property {number} x1
+ * @property {number} y1
+ */
+
+/**
+ * @typedef {Object} CitationImage
+ * @property {number} page     physical page, integer >= 1
+ * @property {string} sha256   64 lowercase hex characters
+ * @property {string} mime     an image/* media type
  */
 
 /**
