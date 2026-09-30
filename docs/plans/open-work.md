@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F35 is next) and goes in the
+- A new finding gets the next free `F` number (F36 is next) and goes in the
   right section.
 
 Current baseline (2026-09-29, evening):
@@ -263,6 +263,15 @@ Follow-ups and findings:
   answer has cited yet.
 - [ ] **F34.** Let the model choose a desk filter itself. It needs an
   answer-level evaluation first.
+- [ ] **F35.** NTER's unscoped search loses results to its HNSW index.
+  Measured 2026-10-01 in `research/2026-10-01-feature-filter-measurements.md`:
+  - against an exact search, NTER's top 40 has a recall of 0.913;
+  - exact search finds the right document in the top 10 for 170 of 184
+    questions, NTER's index for 157;
+  - Budget and Industry are lost on NTER's index build.
+
+  Next: measure raising `hnsw.ef_search` for the unscoped branch (100–200)
+  with the `eval` harness, on the replica and then live.
 
 Earlier items, updated:
 
