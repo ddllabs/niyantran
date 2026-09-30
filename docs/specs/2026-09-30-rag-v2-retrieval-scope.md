@@ -1,377 +1,437 @@
-# Spec: focus on any document, and filter by desk feature (`retrieval-scope`)
+# Spec: focus on a document, and filter by desk (`retrieval-scope`)
 
 > **Status: Living — draft for owner approval (2026-09-30).** It becomes
 > Normative once approved. Module `retrieval-scope` of
 > `docs/specs/2026-09-30-rag-v2-capability-map.md`. It depends on `eval`
-> (`docs/specs/2026-09-30-rag-v2-eval.md`), whose "no worse" bar it must meet
-> **before** deployment. The evidence is
-> `docs/research/2026-09-30-rag-v2-investigation.md` §3.
+> (`docs/specs/2026-09-30-rag-v2-eval.md`), whose bar it must meet before
+> deployment. The evidence is `docs/research/2026-09-30-rag-v2-investigation.md`
+> §3. Revision 2 folds in a fresh-context adversarial review: 16 findings, all
+> accepted (see "Review record").
 
 ## Objective
 
-Two changes, on today's corpus:
-
-1. **Focus on any document.** A researcher reading any document in the
-   evidence reader can ask about that document alone. Today only a bill that
-   arrives through a desk row's `bill:<year>:<number>` key can be focused,
-   which reaches 1,235 of the 2,338 documents at most.
-2. **Filter by desk feature.** Search can be restricted to one desk module's
-   documents, such as parliamentary questions only. Today a `desk_tier` filter
-   exists, but every document is on the same tier (`national`), so it filters
-   nothing.
+1. **Focus on a document the researcher is reading.** From the evidence
+   reader, one click confines the next questions to that document.
+   - Today only bills that arrive through a desk row's `bill:<year>:<number>`
+     key can be focused. Of 9,415 distinct desk keys, 1,235 resolve to an
+     indexed document (`src/lib/corpusCoverage.js:11-12`).
+   - The reader opens only on a cited document (`WorkSurface.jsx:42`). So
+     this reaches **any document an answer has cited**, which is not the same
+     as any document. Reaching an uncited document needs a document picker:
+     see decision 1.
+2. **Desk focus filters documents.** With focus "desk" on a module that has
+   documents, every document search covers only that module's documents.
+   Today desk focus changes one prompt line (`prompt.ts:131`) and filters
+   nothing. The `desk_tier` filter filters nothing either, because every
+   document is on the `national` tier.
 
 ## Current state (read and executed 2026-09-30)
 
 **Request**
 
-- `validate.ts` accepts `focus ∈ {attached, selection, desk, broad}`
-  (`:7`), a `selection` with an optional `document_key`, `attachments` of
-  kind `row`, `record` or `file`, each **requiring non-empty `text`**
-  (`:132-148`), and a `desk_context {tier, feature?}`.
+- `validate.ts` accepts:
+  - `focus ∈ {attached, selection, desk, broad}` (`:7`);
+  - a `selection` with an optional `document_key`;
+  - attachments of kind `row`, `record` or `file`, each **requiring
+    non-empty `text`**. Invalid ones are silently dropped (`:132-148`);
+  - `desk_context {tier, feature?}`.
 - There is no document-id field. `documentKeysOf` (`:200-205`) collects the
   keys.
-- `handler.ts:626-627` resolves the keys to ids through
-  `metadata->>'document_key'` (`index.ts:320-325`), with no `indexed_at`
-  check.
+- The keys resolve through `metadata->>'document_key'` with **no
+  `indexed_at` check** (`index.ts:320-325`).
 
-**Confinement**
+**Confinement and disclosure**
 
-- `agent.ts:390` confines a search only when focus is `attached` or
-  `selection` and ids exist. Otherwise it widens, with the disclosure "Search
-  widened" (`handler.ts:414-425`).
-- Focus `desk` changes only one prompt line (`prompt.ts:131`). It does not
-  filter anything.
+- `agent.ts:390` confines only under `attached` or `selection`.
+- The "Search widened" disclosure is raised **only** under a confining focus
+  (`agent.ts:398-401`), with the reasons `unkeyed`, `unresolved` and `empty`.
+- Their texts all speak of "attached documents" (`handler.ts:414-425`,
+  labels `:957-961`).
+- `AgentInput` and the checkpoint `inputKey` (`agent.ts:160-171`) carry
+  `scopedDocumentIds`, `focus` and `documentKeysSent`.
 
-**Tool**
+**Tool and prompt**
 
-- `SEARCH_DOCUMENTS_TOOL` exposes `{query, desk_tier}` with
-  `additionalProperties: false` (`_shared/tools/searchDocuments.ts:8-24`).
-  `searchDocuments_test.ts:10` pins those keys.
-- The model already sees the live `documents.desk_feature` values, from
-  `documentModules` (`index.ts:265-281`, cached per isolate) and
-  `coverageLine` (`prompt.ts:157-163`).
+- `SEARCH_DOCUMENTS_TOOL` is `{query, desk_tier}`, with
+  `additionalProperties: false`, pinned by `searchDocuments_test.ts:10`.
+- `documentArguments` (`agent.ts:271-275`) keeps only those keys.
+- The attachments reach the prompt as `{kind, title, text}`
+  (`handler.ts:619-623`). `RenderedAttachment.kind` allows `row`, `record`
+  and `file` (`prompt.ts:219-240`).
+
+**The module list has an existing bug.** `documentModules` (`index.ts:265-281`)
+reads one `desk_feature` per document (2,338 rows) with no range.
+PostgREST's `max_rows` is 1000 (`supabase/config.toml:18`; the hosted
+default is the same). So the list can silently miss modules whose documents
+sort after row 1000; the 1-document Budget module is the likeliest. This
+spec fixes it, because it depends on that list.
 
 **SQL**
 
-- `match_documents(vector, int, uuid[], text)` (`20260929120100`) is
-  `security invoker` and granted to `authenticated` and `service_role`. It has
-  two branches:
-  - **scoped:** exact, a per-document quota, and the `documents` join after
-    ranking;
-  - **unscoped:** HNSW on `embedding::halfvec(1536)`, `ef_search` at its
-    default of 40, and `indexed_at` and `desk_tier` applied after the index
-    scan.
-- No function sets `hnsw.ef_search` or `hnsw.iterative_scan`. The full-vector
-  index was dropped, so ordering by `embedding <=> query` (full precision)
-  cannot use an index and is an exact scan.
-- The 2026-09-22 scoped-retrieval spec said the "signature, return type,
-  volatility and grants must not change" (`:104-106`). **This spec
-  supersedes that constraint for the signature only.**
+- `match_documents(vector, int, uuid[], text)` (`20260929120100`):
+  - `security invoker`;
+  - revoked from public and anon, granted to `authenticated` and
+    `service_role` (`:107-108`);
+  - scoped branch: exact, with a quota of `ceil(match_count / n)` (`:63`);
+  - unscoped branch: HNSW on `embedding::halfvec(1536)` at the default
+    `ef_search` 40, with `indexed_at` and `desk_tier` applied after the
+    index scan.
+- The full-vector index is gone, so an order by full-precision distance is an
+  exact scan (782 ms over the whole corpus on live).
+- The 2026-09-22 spec's "signature … must not change" (`:104-106`) is
+  **superseded for the signature only**.
 
-**Feature values** (executed)
+**Features** (executed): Bills 42,025 chunks (78%); Regulatory 11,040 (20%);
+Parliamentary Questions 1,108; Industry 40; Budget 6. The catalogue has 75
+modules, so 70 have no documents. Module names repeat across tiers (for
+example "Cabinet Decisions" on both the national and state tiers). The
+catalogue spells the regulatory module "(RBI/SEBI/TRAI/CCI)", while
+`documents` has spaces.
 
-`desk_feature` holds desk module names:
-
-| desk_feature | Chunks | Share of chunks |
-| --- | --- | --- |
-| Bill Passage Probability Index | 42,025 | 78% |
-| Regulatory Body Watch (RBI SEBI TRAI CCI) | 11,040 | 20% |
-| Parliamentary Question Database | 1,108 | 2% |
-| Industry Updates (Ministry Data) | 40 | 0.07% |
-| Budget Utilisation & Schemes | 6 | 0.01% |
-
-`deskCatalog.json` spells the regulatory module with slashes, while
-`documents` has spaces. `desk_context.feature` comes from the catalogue name.
-
-**Measured behaviour of the filtering options** (scoped-retrieval spec
-D1, document filter):
-
-| Strategy | Small doc (45 chunks) | Large doc (915 chunks) |
-| --- | --- | --- |
-| HNSW, then filter | 1 of 40 chunks | 12 of 40 chunks |
-| Iterative scan (relaxed) | 19,820 ms | 1,019 ms |
-| Exact pre-filter | 12 ms | 840 ms |
-
-pgvector's README recommends an exact scan for selective filters, and more
-`ef_search` or an iterative scan for broad ones.
-
-**Timeouts** (executed)
-
-- `research-chat` abandons an RPC after 4 s
-  (`NETWORK_TIMEOUT_MS`).
-- The `authenticated` role's statement timeout is 8 s.
-- `service_role`'s is 300 s.
+**Timeouts** (executed): `research-chat` abandons an RPC after 4 s;
+`authenticated` 8 s; `service_role` 300 s.
 
 **Browser**
 
-- The reader (`SourceReader.jsx`) holds `citation.document_id` and
-  `title`. `WorkSurface.jsx` renders its header.
-- `research.actions.attach` (`useResearchThread.js:238-247`) adds a chip.
-- `AiPanel.jsx:447-454` maps chips to request attachments.
-- `aiDrop.js:178 attachmentIdentity` and `corpusCoverage.js` (keyed on
-  `document_key`) decide dedupe and the "full text" badge.
-- There is no document picker.
+- `research.actions.attach(materialize)` takes a **function** returning the
+  attachments. It refuses while the thread is locked
+  (`useResearchThread.js:238-247`).
+- `WorkSurface` gets no research or focus props (`AiPanel.jsx:941`).
+- Focus is `AiPanel` state persisted in `localStorage` (`:267-273, :344`).
+- The desk focus option is labelled "Desk sample" (`:21`).
 
-## Owner decisions this spec needs (recommendations in bold)
+## Owner decisions (recommendations in bold)
 
-1. **Where "focus on this document" starts: a button in the evidence reader's
-   header, "Ask about this document".** A document picker (search by title)
-   is a separate, later piece of UI.
-2. **What the button does:**
-   - **It adds a document chip.**
-   - **If the current focus is `broad` or `desk`, it switches focus to
-     `attached` and says so in the panel**, because a chip only confines
-     search under `attached` or `selection`.
-   - **Otherwise it leaves focus alone.**
-3. **Focus `desk` filters search:** when focus is `desk` and a desk module
-   is open, **every document search is filtered to that module's documents**.
-   If the module has no documents, the search widens with the existing
-   disclosure.
-4. **The model may choose a feature filter itself** in any focus except a
-   confined one, through a new optional `desk_feature` tool argument. **Yes.**
+1. **Reach:** **ship the reader button now: "Ask about this document", for
+   cited documents.** A title-search document picker, for any document, is a
+   separate follow-up (a new open-work item), not in this module.
+2. **The button's effect on focus:** it adds a document chip. **If focus is
+   `broad` or `desk`, it switches to `attached`, and that stays, as any focus
+   change does.** The focus control shows the change and a one-line notice
+   says why. Other chips stay: the scope is shared, and the notice says
+   "searching N attached documents" when N > 1.
+3. **Desk focus filters:** **yes, when the module has documents.** When it
+   has none (70 of 75 modules), searches run unfiltered **with no banner**.
+   The coverage line already tells the model, and a banner on almost every
+   module would be noise. The label "Desk sample" becomes "Desk", with a hint
+   saying documents are limited to this module.
+4. **The model choosing a feature filter itself: not in this module.**
+   Nothing here measures whether the model picks well, and a wrong pick makes
+   answers worse. It needs an answer-level evaluation first. It becomes a
+   follow-up open-work item.
 
 ## Expected outcome
 
 ### Request (`validate.ts`)
 
 - **A new attachment kind, `document`:** `{kind: 'document', title,
-  document_id}`, with `document_id` a UUID and **no `text` required**. The
-  chip is a pointer, not content. The corpus text is never inlined into the
-  prompt.
-- **`documentIdsOf(request)`** returns the distinct `document_id`s of those
-  attachments, at most `LIMITS.attachments`.
-- **`desk_context.feature`** is matched to a `documents.desk_feature` value
-  by normalised comparison: lowercase, `/` and punctuation turned into
-  spaces, whitespace collapsed. That makes "(RBI/SEBI/TRAI/CCI)" match
-  "(RBI SEBI TRAI CCI)". It is resolved against the live list, not
-  hard-coded.
+  document_id}`.
+  - **No `text`.** The chip is a pointer, never corpus content.
+  - A malformed `document_id` is a **400 field error**, not silently dropped,
+    because a client bug should surface.
+- **`documentIdsOf(request)`** returns the distinct ids, capped at
+  `LIMITS.attachments`.
+- **`desk_context.feature`:** an empty string counts as absent.
 
-### Handler (`handler.ts`, `index.ts`)
+### Handler and index
 
-- **Scope ids** are the ids resolved from keys, plus the validated
-  `document_id`s. The document ids are checked: only ids of documents with
-  `indexed_at` set are kept. Unknown or unindexed ids are dropped, and they
-  count as "unresolved" for the disclosure, like an unresolved key.
-- **`documentKeysSent`** becomes "a key **or a document id** was sent", so
-  the text "Drag a bill's row…" isn't shown when the user attached a
-  document.
-- **Feature scope:** with focus `desk` and a matched feature, every document
-  search carries that feature. With no match, search is not filtered and
-  widens with a new reason, `'no-feature-documents'`, which gets its own
-  disclosure text.
+- **One resolution for keys and ids:** keys are resolved as today, the ids
+  are validated, and **both** keep only documents with `indexed_at` set. So
+  an unindexed key and an unindexed id both disclose as `unresolved`.
+  **This changes behaviour for keys,** which today disclose `empty`.
+- **`documentKeysSent`** is renamed `scopeSent`, and is true when a key or an
+  id was sent. The text "Drag a bill's row…" appears only when neither was.
+- **Feature scope:**
+  - Condition: focus is `desk`, and `desk_context` names a module.
+  - Matching: the module is matched on **tier and feature**, against the live
+    list of `(desk_tier, desk_feature)` pairs, comparing lowercase text with
+    punctuation and `/` turned into spaces.
+  - A match gives `featureScope = {tier, feature}` (the exact `documents`
+    values). No match gives none, with no banner.
+- **The live list** comes from a new SQL function,
+  `document_modules() returns table(desk_tier text, desk_feature text)`: a
+  `select distinct` over indexed documents, `security invoker`, `stable`,
+  granted to `authenticated` and `service_role`. It replaces the capped read,
+  and is still cached per isolate.
+- **The prompt** gets a pointer line for each document chip: "Attached
+  document: <title> — searches are limited to it." `RenderedAttachment`
+  gains the `document` kind. `handler.ts` passes the title only.
 
-### Agent and tool
+### Agent (`agent.ts`)
 
-- **`SEARCH_DOCUMENTS_TOOL`** gains an optional `desk_feature`, an `enum` of
-  the live `documentModules` values, built when the tool list is assembled
-  for the turn. `searchDocuments_test.ts` is updated deliberately.
-- **`agent.ts` precedence:**
-  1. confined document ids;
-  2. otherwise the handler's feature scope, when focus is `desk`;
-  3. otherwise the model's `desk_feature` argument.
+- **`AgentInput`** gains `featureScope?: {tier, feature}`, and it is part of
+  `inputKey`, so a resumed turn can't diverge.
+- **Search precedence:**
+  1. confined document ids (under `attached` or `selection`, as today);
+  2. otherwise `featureScope` (under `desk`);
+  3. otherwise the model's `desk_tier`, as today.
+- **Empty feature result:** it re-runs once without the feature, and raises a
+  new reason, `feature-empty`, with its own text: "Search widened: nothing in
+  <module> matched, so all documents were searched." It has its own ticker
+  label.
+- **The disclosure texts** are rewritten per reason, so that none claims
+  "attached documents" when the scope was a module.
 
-  A model argument never overrides a confinement.
-- **Widening on empty results** also applies to feature scope: zero rows
-  means it re-runs unfiltered, once, and discloses that.
-- **The prompt** (`prompt.ts:32` tool line, `FOCUS_LINES.desk`) describes
-  the filter.
+### SQL: migration `…_match_documents_feature.sql`
 
-### SQL: one migration, `…_match_documents_feature.sql`
+- **Replace the function:**
+  - `drop function match_documents(vector, int, uuid[], text)`;
+  - `create function match_documents(query_embedding, match_count,
+    p_document_ids, p_desk_tier, p_desk_feature text default null)`;
+  - the same return columns, `security invoker`, `stable` and `search_path`;
+  - `revoke all … from public, anon`, and `grant execute … to
+    authenticated, service_role`. `create function` grants PUBLIC by default,
+    which the revoke undoes.
+- **Branches:**
+  - ids given: the scoped branch, unchanged, with `p_desk_feature` ignored;
+  - no ids, no feature: the unscoped branch, byte-for-byte unchanged;
+  - no ids, with a feature: the **feature branch**, using the strategy
+    chosen below. It must return the full `match_count` whenever the
+    feature (with its tier) holds at least that many indexed chunks.
+- **Session settings** such as `hnsw.ef_search` and `hnsw.iterative_scan`
+  are set only inside a **helper function with a `SET` clause**, which
+  scopes them to that call. Never with `set_config(…, true)`, which would
+  leak to later statements in the same transaction.
+- **`document_modules()`**, as above.
+- **The down script** is in the file header, and runs **after** rolling back
+  the function code:
+  1. drop the 5-argument function;
+  2. recreate the `20260929120100` definition;
+  3. revoke and grant as before;
+  4. drop `document_modules()`.
 
-- **Replace `match_documents`:** drop it, then create it with
-  `p_desk_feature text default null` added after `p_desk_tier`. The return
-  columns, `security invoker`, `stable`, the `search_path` and the grants
-  are unchanged. The grants are re-applied, because a drop removes them.
-- **The scoped branch** (document ids) is unchanged. `p_desk_feature` is
-  ignored when ids are given, because confinement wins.
-- **A new feature branch** (feature set, no ids) uses the strategy chosen by
-  measurement, below. It must return the full `match_count` whenever the
-  feature holds at least that many indexed chunks.
-- **The unscoped branch** without a feature is unchanged: the same SQL and
-  the same index.
-- **Down script** (in the file's comment): recreate the
-  `20260929120100` definition exactly.
+### Deploy order and compatibility
 
-### Choosing the feature-branch strategy (measured, not assumed)
+1. **Apply the migration.** The old `research-chat` keeps working, because
+   PostgREST fills in the new defaulted argument.
+2. **Deploy `research-chat`.** `retrieval.ts` **omits** `p_desk_feature`
+   when there is no feature scope; it never sends `null`.
+3. **Deploy the frontend.**
 
-Candidates, each written as a separate function on the replica (below):
+A rollback runs in reverse: the frontend, then the function, then the down
+script. A fixture assertion checks that exactly one `match_documents`
+overload exists.
 
-| Id | Strategy | Expected fit |
-| --- | --- | --- |
-| **E** | Exact: join to `documents` on the feature, order by full-precision distance, no quota | Correct by construction. Cost grows with the feature's size: fine for Parliamentary Questions, Industry and Budget; to be measured for Regulatory (11k) and Bills (42k). |
-| **H** | HNSW with `set_config('hnsw.ef_search', N, true)`, filtered afterwards | Should work for Bills (78%); fails for small features. |
-| **I** | HNSW with `hnsw.iterative_scan = relaxed_order`, a MATERIALIZED CTE, and a re-sort on `distance + 0` | Measured pathological for tiny targets in D1. Included only for Bills and Regulatory. |
-| **X** | Hybrid: E when the feature's indexed chunk count is ≤ T, else H or I | The likely winner. T and N come from the measurements. The count comes from a cheap indexed query, measured too. |
+### Choosing the feature-branch strategy
 
-A partial HNSW index per feature isn't possible: the feature lives on
-`documents`, and an index predicate can't reference another table. Putting
-the feature on each chunk (denormalising it) is out of scope.
+| Id | Strategy |
+| --- | --- |
+| **E** | Exact: join to `documents` on tier and feature, order by full-precision distance, no quota |
+| **Eh** | Like E, but ordered by `halfvec` distance: half the bytes read, then a full-precision re-rank of the top `match_count` |
+| **H** | HNSW through the helper with `SET hnsw.ef_search = N`, filtered after the index scan |
+| **I** | HNSW with `iterative_scan = relaxed_order`, a MATERIALIZED CTE and a re-sort on `distance + 0` |
+| **X** | Hybrid: E or Eh when the feature's indexed chunk count is ≤ T, else H or I. The count comes from an indexed query, which is measured too. |
 
-**The decision rule.** Take the simplest candidate that meets the `eval` bar
-for `feature` mode:
-- per feature, document hit@10 at least the `broad` baseline;
-- the full `match_count` returned;
-- p95 within the latency bar;
-- **no feature above 2 s on the replica**, or 4 s at most on the server.
+**The decision rule:** the simplest candidate that, on the replica, meets
+all of these:
 
-The chosen strategy is recorded, with the measurements, in
+- the `eval` `feature` bar: per feature, document hit@10 at least the same
+  feature's `broad` baseline, and the full `match_count`;
+- **an absolute latency bar for the feature branch:** p95 ≤ 1.5 s and
+  p99 ≤ 2.5 s per feature, measured as the `authenticated` role with an 8 s
+  timeout. It has no earlier baseline, so it gets an absolute bar with room
+  under the 4 s limit. An empty result's re-run can double the cost;
+- **no effect on broad search while feature calls run:** broad p95 measured
+  while 4 concurrent Bills feature calls run stays within the `eval` latency
+  bar. This checks that a big exact scan doesn't push the halfvec index out
+  of memory.
+
+Then, **before deployment**, with the owner's go-ahead: one read-only
+`EXPLAIN (ANALYZE, BUFFERS)` of the chosen Bills query on NTER, under
+`set local role authenticated`. This confirms the replica's timing holds on
+the real instance. The choice, T, N and every measurement go into
 `docs/research/<date>-feature-filter-measurements.md`.
 
-### A local replica, for measuring before deploying
+### The local replica (for measuring)
 
-- **Database** `niyantran_retrieval_replica_test` in
-  `niyantran-corpus-test-db`. The name satisfies the `niyantran_%_test`
-  guard convention.
-- **A minimal schema,** not the migration chain:
-  - `documents` with the columns `match_documents` reads, and no `ocr_text`;
-  - `document_chunks` with the columns it returns plus `embedding`;
-  - the same indexes as live (`documents (desk_tier, desk_feature)`,
-    `document_chunks (document_id, chunk_index)`, and the halfvec HNSW with
-    default `m` and `ef_construction`);
-  - the live `match_documents` body, copied from `20260929120100`, plus the
-    candidate functions.
-
-  No auth, cron or net: the replica needs none of them, and 0007's cron job
-  must never run on the laptop. The schema lives in
-  `scripts/eval-replica/schema.sql` and is written for this purpose, not
-  replayed from migrations.
-- **Data:** a read-only copy from NTER of `documents` (without `ocr_text`)
-  and `document_chunks` (with embeddings), about 700 MB. It can be a
-  data-only dump of those two tables through the linked Supabase CLI, or a
-  paged service-key read. The plan picks one after a dry run. `analyze`
-  runs after the load. The copy is gitignored, never committed, and
-  rebuildable.
-- **Harness target:** `eval` gains `--target replica`, which calls
-  functions through `docker exec … psql` (results as `json_agg`) instead of
-  PostgREST. **Quality figures** from the replica compare directly with live,
-  because they're hardware-independent once the corpus fingerprint matches.
-  **Latency** on the replica is compared only with a replica baseline.
-- **Building the replica** is an explicit owner go-ahead (per the `eval`
-  boundaries).
+- **Database** `niyantran_retrieval_replica` in `niyantran-corpus-test-db`.
+  The loader refuses any other target.
+- **Schema** (`scripts/eval-replica/schema.sql`):
+  - `documents`: `id`, `desk_tier`, `desk_feature`, `title`, `file_name`,
+    `file_url`, `indexed_at`, `metadata`, `content_sha256`; **no
+    `ocr_text`**;
+  - `document_chunks`: every live column **except** `content` is kept.
+    `content` is kept too: it is returned, and response size matters;
+  - the same indexes as live;
+  - the roles `authenticated` (8 s `statement_timeout`) and `anon`, and the
+    same RLS policies;
+  - the live `match_documents`, the candidates and `document_modules`;
+  - a table `replica_meta(source_migration, copied_at, doc_count,
+    chunk_count)` so the `eval` fingerprint works.
+- **Loading:** a paged, service-key read. `pg_dump` can't leave out one
+  column. It is **rate-limited** (for example 2 requests per second) and run
+  at a quiet hour, so NTER's cache isn't flushed at a busy time. It is
+  written to the container through `docker exec psql`. The local copy stays
+  in Docker; nothing lands in the repository.
+- **Comparisons are replica against replica only.** The replica's HNSW is a
+  new build, so the baseline is re-run on it, and `eval`'s same-build rule
+  applies. No replica figure is compared with a live figure.
+- **Building the replica** needs the owner's go-ahead.
 
 ### Browser
 
-- **`WorkSurface` header** (for a text source): a button, "Ask about this
-  document". It calls
-  `research.actions.attach({kind: 'document', title, document_id,
-  feature: citation.desk_feature})`, then applies decision 2 on focus.
-- **`AiPanel.jsx`** forwards `document_id` for `document` chips, and never
-  sends `text` for them.
-- **`attachmentIdentity`** includes `document_id`, so the same document isn't
-  added twice.
-- **`corpusCoverage`** treats a `document` chip as "full".
-- **The chip** shows the document title and a "document" marker.
+- **`AiPanel`** passes `onAskAboutDocument(citation)` to `WorkSurface`. The
+  handler:
+  - calls `research.actions.attach(async () => [{kind: 'document', title,
+    document_id, feature: desk_feature}])`;
+  - applies decision 2 to focus;
+  - shows the notice.
+
+  It does nothing while the thread is locked, and the button is disabled
+  then.
+- **`WorkSurface`** shows the button for text sources only.
+- **`AiPanel`** forwards `document_id` for `document` chips, with no `text`.
+- **`attachmentIdentity`** includes `document_id`.
+- **`corpusCoverage`** marks a `document` chip "full".
+- **The focus labels and hints change** for "Desk", per decision 3.
+
+## Tests
+
+- **A new SQL fixture, `feature_filter.sql`,** with its own chain in
+  `run.sh`. `halfvec_retrieval` keeps its own chain and still guards
+  `20260929120100`; its regprocedure line gets a second variant after this
+  migration. The fixture uses:
+  - a few hundred out-of-feature chunks placed **nearer** the query than a
+    small in-feature set;
+  - `set enable_seqscan = off`.
+
+  It asserts:
+  - the feature call returns the full count, all in-feature, in exact order;
+  - ids given means the feature is ignored;
+  - the unscoped branch returns the same rows as before;
+  - there is exactly one overload;
+  - `NOT has_function_privilege('anon', …)`, and the same for PUBLIC;
+  - `authenticated` can execute;
+  - `document_modules()` returns distinct pairs beyond 1,000 documents.
+
+  It is **shown red against an H-only body** (filtering after HNSW). The
+  vacuity check drops the migration.
+- **Deno:**
+  - `validate` (the document kind; a bad UUID gives a 400; no text
+    required);
+  - `handler` (id and key resolution with `indexed_at`; `scopeSent`;
+    `featureScope` matched on tier and feature; no match means no scope and
+    no banner);
+  - `agent` (the precedence; `feature-empty` widening; `inputKey` includes
+    the feature scope);
+  - `prompt` (the pointer line);
+  - `retrieval` (omits `p_desk_feature` when absent);
+  - `searchDocuments` (unchanged keys);
+  - a handler-level smoke test: a document chip under `attached` scopes to
+    exactly that id.
+- **Vitest:**
+  - `AiPanel` (forwarding; focus switching and its notice);
+  - `AgentComponents` (the button calls `onAskAboutDocument` and is disabled
+    while locked);
+  - `aiDrop` identity;
+  - `corpusCoverage`.
+- **Every new test is shown to fail first.**
+- **`eval`:** a replica baseline, the candidates, then the chosen function.
+  After deployment, a live run against the live baseline.
 
 ## Commands
 
 ```bash
 npm test
 deno test -A --config supabase/functions/deno.json supabase/functions
-npm run test:sql                      # includes the updated halfvec_retrieval fixture
+npm run test:sql
 npm run lint
 npm run build
-# measurements (after the replica is approved and built)
-npx vite-node --config vitest.config.js scripts/eval-retrieval.mjs -- --target replica --modes broad,focused,focused-multi,feature
+npx vite-node --config vitest.config.js scripts/eval-retrieval.mjs -- --set eval/retrieval/questions.v1.jsonl --target replica --modes broad,focused,focused-multi,feature
 ```
-
-## Testing strategy
-
-- **Deno:**
-  - `validate_test.ts`: a `document` attachment with and without a valid
-    UUID; the cap; no `text` required; `documentIdsOf`.
-  - `handler_test.ts`: ids merged with keys; unindexed ids dropped and
-    reported as unresolved; `documentKeysSent` for ids; the feature scope
-    for `desk` focus, including a no-match widening.
-  - `agent_test.ts`: the precedence (confinement beats feature beats model
-    argument); widening from an empty feature result.
-  - `searchDocuments_test.ts`: the new key and its enum.
-  - `retrieval_test.ts`: `p_desk_feature` passed through, and `null` when
-    absent.
-  - A **handler-level smoke test**: a request with a `document` chip and
-    focus `attached` produces a search scoped to exactly that id.
-- **Vitest:**
-  - `AiPanel.test.jsx`: the document chip is forwarded without text.
-  - `SourceComponents.test.jsx` or `AgentComponents.test.jsx`: the button
-    adds the chip and switches focus.
-  - `aiDrop` identity.
-  - `corpusCoverage`.
-- **SQL fixture `halfvec_retrieval.sql`** (updated, with the new migration
-  appended to its chain in `run.sh`):
-  - the new regprocedure `(vector,int,uuid[],text,text)`;
-  - the feature filter returns the full count for a small feature;
-  - it ranks exactly within the feature;
-  - it is ignored when ids are given;
-  - the unscoped branch is unchanged;
-  - the grants are present.
-
-  The vacuity check fails when the new migration is removed.
-- **Every new test is shown to fail first.** For example, a model argument
-  overriding confinement, or a feature branch that filters after HNSW, must
-  turn a test red.
-- **`eval`:** a replica baseline, then each candidate, then the chosen
-  function against the bar. **After** deployment, a live run against the live
-  baseline.
 
 ## Boundaries
 
 - **Always:**
   - Measure before choosing.
-  - Keep the unscoped no-feature branch identical.
-  - Re-apply the grants.
-  - Keep confinement stronger than any filter.
+  - Keep the unscoped branch unchanged.
+  - Revoke public and anon.
+  - Keep confinement ahead of any filter.
+  - Omit arguments that are absent.
 - **Ask first:**
   - Building the replica.
-  - Applying the migration to NTER.
-  - Deploying `research-chat`.
-  - Pushing the frontend.
+  - The `EXPLAIN` on NTER.
+  - The migration.
+  - The function deploy.
+  - The push.
 - **Never:**
-  - Filter with JSON containment on chunk metadata.
-  - Change the return columns here (`chunk-contract` owns that).
-  - Inline corpus text for a document chip.
-  - Raise the role timeouts to make a slow strategy pass.
+  - Filter on chunk `metadata`.
+  - Change the return columns (that belongs to `chunk-contract`).
+  - Inline corpus text for a chip.
+  - Raise the role timeouts to make a strategy pass.
+  - Let the model choose the feature (decision 4).
 
 ## Acceptance evidence
 
-1. All Deno and Vitest tests pass, lint and build are clean, and
-   `npm run test:sql` passes including vacuity. There is fail-first evidence
-   for each new test.
-2. The measurements report is committed: every candidate, per feature, with
-   quality and latency on the replica, and the chosen strategy with its T
-   and N.
-3. The chosen function meets the full `eval` bar on the replica.
-4. **After deployment**, with the owner's go-ahead:
-   - a live `eval` run meets the bar against the live baseline;
-   - a manual check in the app: open a Regulatory document in the reader,
-     click "Ask about this document", ask a question, and see citations only
-     from that document;
-   - focus `desk` on the Parliamentary Questions module cites only
-     parliamentary questions.
-5. The rollback was tested on the replica: the down script restores the
-   previous function and the `eval` figures return to the baseline.
+1. Both suites, lint, build and `npm run test:sql` pass, with vacuity checks
+   and fail-first evidence, including the red H-only run.
+2. The measurements report is committed, with the chosen strategy meeting
+   the decision rule.
+3. Before deployment, the `EXPLAIN` on NTER is within the bar.
+4. After deployment:
+   - the live `eval` meets the bar against the live baseline;
+   - "Ask about this document" on a cited Regulatory document gives
+     citations only from it;
+   - desk focus on Parliamentary Questions cites only parliamentary
+     questions;
+   - desk focus on a module with no documents shows no banner.
+5. A rollback rehearsal on the replica restores one overload and the
+   baseline figures.
 
 ## Scope
 
-- `validate.ts`, `handler.ts`, `index.ts`, `agent.ts`, `prompt.ts`;
-- `_shared/tools/searchDocuments.ts`, `_shared/retrieval.ts` and their tests;
-- one migration, the fixture and `run.sh`;
-- `WorkSurface.jsx`, `AiPanel.jsx`, `src/lib/aiDrop.js`,
-  `src/lib/corpusCoverage.js` and their tests;
-- the replica schema and loader under `scripts/eval-replica/`;
-- the `eval` replica target;
-- the measurements report.
+- `research-chat/{validate,handler,index,agent,prompt}.ts`;
+- `_shared/retrieval.ts`;
+- one migration and a new fixture, plus `run.sh`;
+- `src/ai/{AiPanel,WorkSurface}.jsx`;
+- `src/lib/{aiDrop,corpusCoverage}.js`;
+- tests for all of the above;
+- `scripts/eval-replica/`;
+- the `eval` `--target replica` option;
+- the measurements report;
+- two new open-work items: the document picker, and the model-chosen
+  feature filter.
 
 ## Exclusions
 
-- A document picker or title search.
+- A document picker.
+- The model choosing a feature.
 - A feature column on chunks.
-- New return columns: `chunk-contract` adds page, block and image fields,
-  with its own drop and recreate afterwards.
-- Reranking and hybrid keyword search (P6).
-- Changing the scoped (document-id) branch or its quota.
-- Anything about ingestion.
+- New return columns (`chunk-contract`).
+- Reranking and hybrid search (P6).
+- Any change to the scoped branch or its quota.
+- Ingestion.
 
-## Open questions for the owner
+## Review record
 
-1. Decisions 1–4 above. I recommend yes to each, as described.
-2. Building the local replica (about 700 MB in Docker; a read-only copy of
-   public corpus data).
+A fresh-context adversarial review of revision 1 (2026-09-30) raised 16
+findings. All were accepted and addressed:
+
+1. Comparing replica figures with live was invalid: every comparison is now
+   replica against replica, and the replica carries fingerprint data.
+2. The latency bar couldn't be measured: an absolute feature bar, the
+   `authenticated` role in the replica, and an `EXPLAIN` on NTER.
+3. The module list was capped at 1,000 rows: `document_modules()` replaces
+   it.
+4. "Any document" overclaimed: it is now "any cited document", with the
+   picker deferred and shared scope disclosed.
+5. The model's feature choice was unmeasured: it is dropped from this
+   module.
+6. The SQL test was vacuous: a new fixture, red against an H-only body.
+7. Deploy and rollback were coupled: the argument is omitted, and the order
+   is fixed.
+8. Grants: public and anon are now revoked, and the fixture asserts it.
+9. `set_config` could leak into later statements: a helper with a `SET`
+   clause instead.
+10. A big exact scan could slow everyone else's searches: a concurrency
+    check, plus the `Eh` candidate.
+11. Widening semantics were loose: reasons, texts, `inputKey`, and no banner
+    when there are no documents.
+12. The browser interface was wrong: `onAskAboutDocument`, `attach`'s
+    function argument, and the focus persistence decided.
+13. Chip rendering in the prompt: a pointer line.
+14. Matching and validation edges: tier and feature, empty strings, a 400
+    on a bad UUID, `indexed_at` for keys too.
+15. Replica logistics: a paged, rate-limited read, the guard, and the
+    commands.
+16. The "1,235 documents" figure was wrong: it is 1,235 of 9,415 keys.
