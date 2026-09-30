@@ -6,8 +6,16 @@
 // with no bubble behind it. The three named failure modes are reported so the
 // handler can decide whether a repair pass is worth paying for.
 
-import type { CitationSource, RowCitation, TextCitation } from '../_shared/citation.types.ts';
-import { citedIds, expandGroupedCitations, MAX_CITATION_ID, recoverHandleCitations, renumberCitations } from '../_shared/citations.ts';
+import type { CitationSource, RowCitation } from '../_shared/citation.types.ts';
+import {
+  citedIds,
+  expandGroupedCitations,
+  MAX_CITATION_ID,
+  type PageEvidence,
+  recoverHandleCitations,
+  renumberCitations,
+  textCitation,
+} from '../_shared/citations.ts';
 import { handlesIn, noncesOf, restoreHandlePrefixes, stripResidualHandles } from '../_shared/handles.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
@@ -59,7 +67,8 @@ export function rowTitle(row: DeskRow): string {
   return row.row_key;
 }
 
-function toSource(id: number, e: Evidence): CitationSource {
+/** Pure and synchronous: page evidence arrives prepared, never fetched here. */
+function toSource(id: number, e: Evidence, page?: PageEvidence): CitationSource {
   if (e.kind === 'row') {
     const row: RowCitation = {
       id,
@@ -73,24 +82,9 @@ function toSource(id: number, e: Evidence): CitationSource {
     };
     return row;
   }
-  const c = e.chunk;
-  const text: TextCitation = {
-    id,
-    kind: 'text',
-    chunk_id: c.id,
-    document_id: c.document_id,
-    title: c.title,
-    file_name: c.file_name,
-    file_url: c.file_url,
-    desk_tier: c.desk_tier,
-    desk_feature: c.desk_feature,
-    char_from: c.char_from,
-    char_to: c.char_to,
-    text_hash: c.text_hash,
-    source_kind: c.source_kind,
-    page_number: c.page_number,
-  };
-  return text;
+  // The same mapping as the test twin _shared/citations.ts buildSources, so
+  // the two cannot drift: an old chunk gives the pre-contract shape exactly.
+  return textCitation(id, e.chunk, page);
 }
 
 export interface LadderInput {
@@ -98,6 +92,12 @@ export interface LadderInput {
   /** The model's own "sources": [{ id, source }] — ids and handles are both untrusted. */
   modelSources: unknown;
   evidence: EvidenceMap;
+  /**
+   * Boxes, images and extract_hash for the cited page chunks, read by the
+   * handler's async step between two runs of this ladder. Absent on the first
+   * run, and whenever that read failed: the citations then carry none.
+   */
+  page?: PageEvidence;
 }
 
 /**
@@ -151,7 +151,7 @@ export function applyCitationLadder(input: LadderInput): LadderResult {
   const sources: CitationSource[] = [];
   for (const id of cited) {
     const e = byId.get(id);
-    if (e) sources.push(toSource(id, e));
+    if (e) sources.push(toSource(id, e, input.page));
   }
   const final = renumberCitations(withHandles, sources);
   // 4. Anything still shaped like a handle named nothing we retrieved. It has no

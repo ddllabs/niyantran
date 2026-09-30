@@ -17,6 +17,7 @@ function fixture() {
     op: string;
     value?: unknown;
     signal?: AbortSignal;
+    columns?: string;
   }[] = [];
   let reply = (side: string, table: string, _op: string, _value?: unknown, _filters?: unknown[][]): unknown => {
     if (table === 'lookup_research_turn') return { data: { kind: 'missing' }, error: null };
@@ -45,9 +46,11 @@ function fixture() {
       op: 'read',
       value,
       signal: undefined as AbortSignal | undefined,
+      columns: undefined as string | undefined,
     };
     const q = {
-      select(_s?: string) {
+      select(s?: string) {
+        entry.columns = s;
         return q;
       },
       eq(...v: unknown[]) {
@@ -607,6 +610,50 @@ Deno.test('a feature scope reaches match_documents as p_desk_feature, and only w
   assertEquals(sent.map((a) => 'p_desk_feature' in a), [false, true]);
   assertEquals(sent[1].p_desk_feature, 'Parliamentary Questions');
   assertEquals(sent[1].p_desk_tier, 'national');
+});
+
+Deno.test('page evidence: one bounded service read per table, by id, never a storage path; paged by PAGE_EVIDENCE_IDS', async () => {
+  const f = fixture();
+  f.setReply((_side, table, _op, _value, filters = []) => {
+    const ids = (filters.find(([op]) => op === 'in')?.[2] ?? []) as string[];
+    if (table === 'document_page_blocks') {
+      return { data: ids.map((id) => ({ id, document_id: 'd', extract_hash: 'x', page_number: 1, x0: 0, y0: 0, x1: 1, y1: 1 })), error: null };
+    }
+    if (table === 'document_page_images') {
+      return { data: ids.map((id) => ({ id, document_id: 'd', extract_hash: 'x', page_number: 1, sha256: 's', mime: 'image/png' })), error: null };
+    }
+    return { data: [], error: null };
+  });
+  const d = createDependencies(request(), f.runtime);
+  await assertRejects(() => d.pageEvidence({ blockIds: ['b1'], imageIds: [] }), Error, 'Sign in required');
+  await d.requireUser(request());
+  const rows = await d.pageEvidence({ blockIds: ['b1', 'b2'], imageIds: ['i1'] });
+  assertEquals(rows.blocks.map((b: { id: string }) => b.id), ['b1', 'b2']);
+  assertEquals(rows.images.map((i: { id: string }) => i.id), ['i1']);
+  const reads = f.calls.filter((c) => c.table.startsWith('document_page_'));
+  assertEquals(reads.map((c) => [c.side, c.table]), [['service', 'document_page_blocks'], ['service', 'document_page_images']]);
+  assertEquals(reads[0].filters, [['in', 'id', ['b1', 'b2']]]);
+  for (const r of reads) {
+    assert(r.signal, 'bounded');
+    // Named columns only: a wildcard would carry storage_path along.
+    assert(r.columns && !r.columns.includes('storage_path') && !r.columns.includes('*'), r.columns);
+  }
+
+  // Nothing to read, no read; more than a PostgREST page of ids, one read per page.
+  const before = f.calls.length;
+  assertEquals(await d.pageEvidence({ blockIds: [], imageIds: [] }), { blocks: [], images: [] });
+  assertEquals(f.calls.length, before);
+  const many = Array.from({ length: 1_500 }, (_, i) => `b${i}`);
+  const paged = await d.pageEvidence({ blockIds: many, imageIds: [] });
+  assertEquals(paged.blocks.length, 1_500);
+  const pages = f.calls.slice(before).filter((c) => c.table === 'document_page_blocks');
+  const PAGE_EVIDENCE_IDS = module.PAGE_EVIDENCE_IDS as number;
+  assert(PAGE_EVIDENCE_IDS < 1_500, "the test needs more ids than one page");
+  const expected = Array.from({ length: Math.ceil(1_500 / PAGE_EVIDENCE_IDS) }, (_, i) => Math.min(PAGE_EVIDENCE_IDS, 1_500 - i * PAGE_EVIDENCE_IDS));
+  assertEquals(pages.map((c) => (c.filters[0][2] as string[]).length), expected);
+
+  f.setReply(() => ({ data: null, error: { message: 'relation does not exist' } }));
+  await assertRejects(() => d.pageEvidence({ blockIds: ['b1'], imageIds: [] }));
 });
 
 // Last in the file on purpose: the module list is cached for the isolate, and

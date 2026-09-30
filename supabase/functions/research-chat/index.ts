@@ -2,6 +2,7 @@
 // or contact Auth/providers. The handler owns the durable turn lifecycle.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireUser } from '../_shared/auth.ts';
+import type { PageBlockRow, PageImageRow } from '../_shared/citations.ts';
 import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { deskCatalogBlock } from '../_shared/deskCatalog.ts';
 import { EMBED_DIMS, EMBED_MODEL, embedTexts, servedModelMatches } from '../_shared/embed.ts';
@@ -17,6 +18,13 @@ import { rpcTurnStore } from './persistence.ts';
 import { resolvePersona } from './persona.ts';
 
 export const NETWORK_TIMEOUT_MS = 4_000;
+/** PostgREST's max_rows. A read by id returns at most one row per id, so a page of ids is never truncated. */
+// 100 uuids keep the PostgREST query URL near 3.7 KB, well inside gateway URL limits.
+export const PAGE_EVIDENCE_IDS = 100;
+// The storage path is deliberately not selected: nothing downstream of this
+// read needs it, and the model must never see one (chunk-contract spec).
+const BLOCK_COLUMNS = 'id,document_id,extract_hash,page_number,x0,y0,x1,y1';
+const IMAGE_COLUMNS = 'id,document_id,extract_hash,page_number,sha256,mime';
 /** Which desk modules have indexed documents. Per-isolate; only an ingest moves it. */
 let documentModulesCache: DocumentModule[] | null = null;
 export interface Runtime {
@@ -372,6 +380,28 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return await executeSearchDeskRows({
         rpc: (fn, a) => bounded((signal) => caller().rpc(fn, a).abortSignal(signal), r.timeoutMs, context.signal),
       }, args);
+    },
+    pageEvidence: async ({ blockIds, imageIds }, signal) => {
+      caller();
+      // One bounded service-role select per table, by id; paged only past
+      // PAGE_EVIDENCE_IDS ids. The handler asks for the cited chunks' ids only.
+      const read = async <T>(table: string, columns: string, ids: string[]): Promise<T[]> => {
+        const out: T[] = [];
+        for (let i = 0; i < ids.length; i += PAGE_EVIDENCE_IDS) {
+          const page = ids.slice(i, i + PAGE_EVIDENCE_IDS);
+          const rows = await query(
+            (s) => service().from(table).select(columns).in('id', page).abortSignal(s),
+            signal,
+          );
+          if (Array.isArray(rows)) out.push(...(rows as T[]));
+        }
+        return out;
+      };
+      const [blocks, images] = await Promise.all([
+        read<PageBlockRow>('document_page_blocks', BLOCK_COLUMNS, blockIds),
+        read<PageImageRow>('document_page_images', IMAGE_COLUMNS, imageIds),
+      ]);
+      return { blocks, images };
     },
     repairModel: r.env('AI_REPAIR_MODEL') ?? '',
     headers: corsHeaders(req),

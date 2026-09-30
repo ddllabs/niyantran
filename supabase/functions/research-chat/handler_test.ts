@@ -224,6 +224,7 @@ function fakeDeps(
     },
     stream: provider.stream,
     searchDocuments: () => Promise.resolve([]),
+    pageEvidence: () => Promise.reject(new Error('pageEvidence called by a test that did not expect it')),
     searchDeskRows: () => Promise.resolve({ rows: [], total: 0, snapshot_at: null } as DeskRowsResult),
     repairModel: 'google/gemini-3.5-flash-lite',
     now: () => (clock += 10),
@@ -2000,4 +2001,100 @@ Deno.test('every widening reason has its own note and ticker label, and only att
   }
   assertEquals(notes.size, 4, 'one note per reason');
   assertEquals(labels.size, 4, 'one label per reason');
+});
+
+// ---- The page contract's async evidence step (chunk-contract spec, "Resolving boxes").
+
+function pageChunk(id: string, blocks: number): Chunk {
+  return {
+    ...chunk(id),
+    source_kind: 'pdf_page',
+    page_number: 4,
+    block_ids: Array.from({ length: blocks }, (_, i) => `${id}-b${i}`),
+    image_ids: [`${id}-i0`],
+    section: { heading: 'CHAPTER II', note: 'Espionage.' },
+  };
+}
+
+/** Searches once, then answers citing only the first handle the search was given. */
+function citesFirstHandle(): HandlerDeps['stream'] {
+  let handle = '';
+  return async function* (req) {
+    handle ||= /ref:[a-z0-9]{6}-1\b/.exec(JSON.stringify(req.messages))?.[0] ?? '';
+    if (!handle) {
+      yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"espionage"}' };
+      yield finish('tool_calls');
+    } else {
+      yield text(envelope('Presumed prejudicial [1].', [{ id: 1, source: handle }]));
+      yield finish();
+    }
+  };
+}
+
+type Box = { page: number; x0: number; y0: number; x1: number; y1: number };
+
+Deno.test('page evidence is read once, for the cited chunks only, and reaches the saved and streamed citations capped at 20', async () => {
+  const reads: { blockIds: string[]; imageIds: string[] }[] = [];
+  const cited = pageChunk('p1', 25);
+  const { deps, rec } = fakeDeps({ stream: citesFirstHandle() }, {
+    searchDocuments: () => Promise.resolve([cited, pageChunk('p2', 3), chunk('old')]),
+    pageEvidence: (ids) => {
+      reads.push(ids);
+      return Promise.resolve({
+        blocks: ids.blockIds.map((id, i) => ({
+          id,
+          document_id: 'doc-p1',
+          extract_hash: 'xh-1',
+          page_number: 4,
+          // The first block's page region is unknown: null box, skipped.
+          ...(i === 0 ? { x0: null, y0: null, x1: null, y1: null } : { x0: 0.2, y0: i / 100, x1: 0.8, y1: i / 100 + 0.01 }),
+        })),
+        images: [{ id: 'p1-i0', document_id: 'doc-p1', extract_hash: 'xh-1', page_number: 4, sha256: 'e'.repeat(64), mime: 'image/png' }],
+      });
+    },
+  });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(reads.length, 1, 'one read per turn');
+  assertEquals(reads[0].blockIds.every((id) => id.startsWith('p1-')), true, 'the uncited page chunk is not read');
+  assertEquals(reads[0].imageIds, ['p1-i0']);
+  const streamed = (got.find((f) => 'sources' in f) as unknown as { sources: Record<string, unknown>[] }).sources;
+  const saved = rec.messages[0].sources as unknown as Record<string, unknown>[];
+  for (const s of [streamed[0], saved[0]]) {
+    assertEquals(s.chunk_id, 'p1');
+    assertEquals((s.boxes as Box[]).length, 20);
+    assertEquals((s.boxes as Box[])[0].y0, 0.01, 'the null box was skipped');
+    assertEquals(s.images, [{ page: 4, sha256: 'e'.repeat(64), mime: 'image/png' }]);
+    assertEquals(s.extract_hash, 'xh-1');
+    assertEquals(s.section, { heading: 'CHAPTER II', note: 'Espionage.' });
+  }
+  assertEquals(rec.messages[0].content, 'Presumed prejudicial [1].');
+});
+
+Deno.test('a turn citing only old chunks never reads page evidence', async () => {
+  let reads = 0;
+  const { deps, rec } = fakeDeps({ stream: citesFirstHandle() }, {
+    searchDocuments: () => Promise.resolve([chunk('old'), pageChunk('uncited', 2)]),
+    pageEvidence: () => {
+      reads++;
+      return Promise.resolve({ blocks: [], images: [] });
+    },
+  });
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(reads, 0);
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals('boxes' in (rec.messages[0].sources[0] as object), false);
+});
+
+Deno.test('a failed page evidence read does not fail the turn: citations go out without boxes or images', async () => {
+  const { deps, rec } = fakeDeps({ stream: citesFirstHandle() }, {
+    searchDocuments: () => Promise.resolve([pageChunk('p1', 3)]),
+    pageEvidence: () => Promise.reject(new Error('503 Research service unavailable')),
+  });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'complete');
+  const s = rec.messages[0].sources[0] as unknown as Record<string, unknown>;
+  assertEquals(s.chunk_id, 'p1');
+  assertEquals(['boxes' in s, 'images' in s, 'extract_hash' in s], [false, false, false]);
+  assertEquals(s.section, { heading: 'CHAPTER II', note: 'Espionage.' }, 'the section needs no read');
+  assert(got.some((f) => 'done' in f));
 });

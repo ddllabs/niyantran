@@ -15,6 +15,7 @@ import {
   createChatSender,
 } from '../_shared/chatStream.ts';
 import type { CitationSource } from '../_shared/citation.types.ts';
+import { citedPageRefs, type PageEvidence, pageEvidenceMaps, type PageEvidenceRows } from '../_shared/citations.ts';
 import { deskRecordText, deskRowKey } from '../_shared/deskRows.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
@@ -39,7 +40,14 @@ import {
 import { createAnswerDecoder } from './answerStream.ts';
 import { buildSystemPrompt, buildUserTurn, type RenderedAttachment } from './prompt.ts';
 import { repairCitations, repairSources, repairWorthwhile } from './repair.ts';
-import { applyCitationLadder, type Evidence, type EvidenceMap, ladderFired, UNCITED_ANSWER_CHARS } from './sources.ts';
+import {
+  applyCitationLadder,
+  type Evidence,
+  type EvidenceMap,
+  type LadderInput,
+  ladderFired,
+  UNCITED_ANSWER_CHARS,
+} from './sources.ts';
 import {
   type AttemptRecorder,
   createAttemptRecorder,
@@ -159,6 +167,11 @@ export interface HandlerDeps {
   stream(req: StreamRequest): AsyncGenerator<ModelEvent>;
   searchDocuments(args: ScopedSearchArgs, documentIds?: string[], context?: RetrievalContext): Promise<Chunk[]>;
   searchDeskRows(args: SearchDeskRowsArgs, context?: Pick<RetrievalContext, 'signal'>): Promise<DeskRowsResult>;
+  /** The page contract's evidence for cited page chunks: document_page_blocks
+   * and document_page_images rows by id. Called at most once per turn, only
+   * when a cited chunk links blocks or images; a rejection costs the citations
+   * their boxes and images, never the turn. */
+  pageEvidence(ids: { blockIds: string[]; imageIds: string[] }, signal?: AbortSignal): Promise<PageEvidenceRows>;
   repairModel: string;
   headers?: Record<string, string>;
   now?: () => number;
@@ -918,7 +931,9 @@ async function runTurnBody(
   for (const row of result.rows) evidence.set(handles.assign(rowSourceKey(row)), { kind: 'row', row });
 
   const rawAnswer = envelope?.answer ?? decoder.text ?? '';
-  let ladder = applyCitationLadder({ answer: rawAnswer, modelSources: envelope?.sources, evidence });
+  // Kept so the ladder can run once more, on the same input, with page evidence.
+  let ladderInput: LadderInput = { answer: rawAnswer, modelSources: envelope?.sources, evidence };
+  let ladder = applyCitationLadder(ladderInput);
   // Enforced, not requested. The prompt asks for no follow-ups on small talk and
   // the model returned three anyway; this is the half the server can guarantee.
   const followUps = conversational ? [] : (envelope?.followUps ?? []);
@@ -945,16 +960,30 @@ async function runTurnBody(
         attempts.rejectLast('citation_repair', `Repair declined by this server: ${repaired.rejected}.`);
       }
       if (repaired.text && !signal.aborted) {
-        const second = applyCitationLadder({
+        const secondInput: LadderInput = {
           answer: repaired.text,
           modelSources: repairSources(repaired.byNumber, handleOf),
           evidence,
-        });
-        if (second.sources.length > ladder.sources.length) ladder = second;
+        };
+        const second = applyCitationLadder(secondInput);
+        if (second.sources.length > ladder.sources.length) {
+          ladder = second;
+          ladderInput = secondInput;
+        }
       }
     } catch {
       log('research_chat.repair_failed', { reason: signal.aborted ? 'aborted' : 'provider_failed' });
     }
+  }
+
+  // 7. Boxes and images for the cited page chunks (chunk-contract spec,
+  //    "Resolving boxes"). The ladder is pure, so the read happens here, once,
+  //    after every ladder run has settled which chunks are cited, and the
+  //    ladder runs once more on the same input with the prepared maps. The
+  //    rerun is deterministic: the answer and the numbering are unchanged.
+  if (!signal.aborted) {
+    const page = await citedPageEvidence(deps, ladder.sources, evidence, signal);
+    if (page) ladder = applyCitationLadder({ ...ladderInput, page });
   }
 
   // A substantial answer that cites nothing, on a turn that retrieved nothing,
@@ -1019,6 +1048,39 @@ async function runTurnBody(
   }
 
   return terminal;
+}
+
+/**
+ * Read the blocks and images linked by the cited page chunks and prepare them
+ * for the ladder. Undefined - and no read at all - when no cited chunk links
+ * any, which is every turn over the pre-contract corpus. A failed read is
+ * logged and tolerated: the citations then go out as they would have without
+ * the page contract.
+ */
+async function citedPageEvidence(
+  deps: HandlerDeps,
+  sources: CitationSource[],
+  evidence: EvidenceMap,
+  signal: AbortSignal,
+): Promise<PageEvidence | undefined> {
+  const citedIds = new Set(sources.flatMap((s) => (s.kind === 'text' ? [s.chunk_id] : [])));
+  const cited: Chunk[] = [];
+  for (const e of evidence.values()) {
+    if (e.kind === 'text' && citedIds.has(e.chunk.id) && !cited.includes(e.chunk)) cited.push(e.chunk);
+  }
+  const refs = citedPageRefs(cited);
+  if (!refs.blockIds.length && !refs.imageIds.length) return undefined;
+  try {
+    return pageEvidenceMaps(cited, await deps.pageEvidence(refs, signal));
+  } catch (error) {
+    log('research_chat.page_evidence_failed', {
+      reason: signal.aborted ? 'aborted' : 'read_failed',
+      message: String((error as Error)?.message ?? error).slice(0, 200),
+      blocks: refs.blockIds.length,
+      images: refs.imageIds.length,
+    });
+    return undefined;
+  }
 }
 
 function effortOf(t: TurnInput, modelId: string): string | null {

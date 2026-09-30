@@ -3,6 +3,7 @@
 // client, and returns structured chunks with a text hash the reader can
 // recheck. `accumulate` unions the chunks of several sub-queries.
 
+import type { CitationSection } from './citation.types.ts';
 import { EMBED_DIMS, servedModelMatches } from './embed.ts';
 import { normalise, sha256Hex } from './textNormalise.ts';
 
@@ -23,6 +24,13 @@ export interface Chunk {
   desk_feature?: string;
   /** sha256(normalise(content)) — what a citation carries and the reader recomputes. */
   text_hash: string;
+  // Page chunks only (chunk-contract spec). Absent - never null or empty - on
+  // an old row, so an old row maps to exactly the chunk it always did.
+  /** document_page_blocks ids whose span overlaps this chunk's. */
+  block_ids?: string[];
+  /** document_page_images ids whose placeholder lies inside this chunk. */
+  image_ids?: string[];
+  section?: CitationSection;
 }
 
 export interface RetrievalTrace {
@@ -47,10 +55,25 @@ function optional(v: unknown): string | undefined {
   return typeof v === 'string' && v ? v : undefined;
 }
 
+function ids(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out = v.filter((x): x is string => typeof x === 'string' && x.length > 0);
+  return out.length ? out : undefined;
+}
+
+function section(v: unknown): CitationSection | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const s = v as Record<string, unknown>;
+  const heading = optional(s.heading);
+  const note = optional(s.note);
+  if (!heading && !note) return undefined;
+  return { ...(heading ? { heading } : {}), ...(note ? { note } : {}) };
+}
+
 export async function rowToChunk(raw: unknown): Promise<Chunk> {
   const r = (raw ?? {}) as Record<string, unknown>;
   const content = String(r.content ?? '');
-  return {
+  const chunk: Chunk = {
     id: String(r.id),
     document_id: String(r.document_id),
     content,
@@ -67,6 +90,13 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
     desk_feature: optional(r.desk_feature),
     text_hash: await sha256Hex(normalise(content)),
   };
+  const blockIds = ids(r.block_ids);
+  const imageIds = ids(r.image_ids);
+  const sect = section(r.section);
+  if (blockIds) chunk.block_ids = blockIds;
+  if (imageIds) chunk.image_ids = imageIds;
+  if (sect) chunk.section = sect;
+  return chunk;
 }
 
 export interface SearchInput {

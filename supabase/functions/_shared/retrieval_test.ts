@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { EMBED_DIMS } from './embed.ts';
 import { sha256Hex } from './textNormalise.ts';
-import { accumulate, type Chunk, DEFAULT_TOP_K, type RetrievalDeps, type RetrievalTrace, search } from './retrieval.ts';
+import { accumulate, type Chunk, DEFAULT_TOP_K, type RetrievalDeps, type RetrievalTrace, rowToChunk, search } from './retrieval.ts';
 
 const vec = (n = EMBED_DIMS) => new Array(n).fill(0.01);
 
@@ -89,4 +89,37 @@ Deno.test('p_desk_feature is omitted when no feature is set and sent when one is
   assertEquals(calls.map((c) => 'p_desk_feature' in c), [false, false, true]);
   assertEquals(calls[2].p_desk_feature, 'Parliamentary Questions');
   assertEquals(calls[2].p_desk_tier, 'national');
+});
+
+// The page contract (chunk-contract spec, "match_documents"): three nullable
+// return columns. Old rows carry nulls - or, before the migration, no such
+// keys at all - and must map to exactly the chunk they mapped to before.
+Deno.test('rowToChunk: an old row, with the new columns null or absent, keeps the old chunk shape', async () => {
+  const base = row('c1', 0.5);
+  const absent = await rowToChunk(base);
+  const nulls = await rowToChunk({ ...base, block_ids: null, image_ids: null, section: null });
+  const empties = await rowToChunk({ ...base, block_ids: [], image_ids: [], section: {} });
+  for (const c of [absent, nulls, empties]) {
+    assertEquals(Object.keys(c).sort(), Object.keys(absent).sort());
+    assertEquals('block_ids' in c || 'image_ids' in c || 'section' in c, false, JSON.stringify(c));
+  }
+  assertEquals(nulls, absent);
+});
+
+Deno.test('rowToChunk: a page row maps block_ids, image_ids and section; junk inside them is dropped', async () => {
+  const c = await rowToChunk({
+    ...row('c2', 0.7),
+    source_kind: 'pdf_page',
+    page_number: 4,
+    block_ids: ['b-1', 'b-2', null, 7],
+    image_ids: ['i-1'],
+    section: { heading: 'CHAPTER I PRELIMINARY', note: 'Definitions.', extra: 'x' },
+  });
+  assertEquals(c.page_number, 4);
+  assertEquals(c.block_ids, ['b-1', 'b-2']);
+  assertEquals(c.image_ids, ['i-1']);
+  assertEquals(c.section, { heading: 'CHAPTER I PRELIMINARY', note: 'Definitions.' });
+  const noteOnly = await rowToChunk({ ...row('c3', 0.7), section: { heading: '', note: 'Espionage.' } });
+  assertEquals(noteOnly.section, { note: 'Espionage.' });
+  assertEquals((await rowToChunk({ ...row('c4', 0.7), section: 'not an object', block_ids: 'b-1' })).section, undefined);
 });

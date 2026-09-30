@@ -1,5 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import type { RowCitation, TextCitation } from '../_shared/citation.types.ts';
+import { pageEvidenceMaps } from '../_shared/citations.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
 import { applyCitationLadder, type EvidenceMap, ladderFired, rowTitle } from './sources.ts';
@@ -209,4 +210,59 @@ Deno.test('uncited_claims fires on a substantial answer with no sources, evidenc
 
   // A short answer is not a body of claims, and a greeting is not either.
   assertEquals(applyCitationLadder({ answer: 'Hello.', modelSources: [], evidence: new Map() }).flags.uncited_claims, false);
+});
+
+// ---- The page contract (chunk-contract spec, "Citation payload").
+
+Deno.test('toSource: an old chunk gives exactly the pre-contract citation, page evidence or not', () => {
+  const c = chunk('c1');
+  const expected = {
+    id: 1,
+    kind: 'text',
+    chunk_id: 'c1',
+    document_id: 'doc-c1',
+    title: 'The Delimitation Bill, 2026',
+    file_name: undefined,
+    file_url: 'https://sansad.in/x.pdf',
+    desk_tier: 'national',
+    desk_feature: 'Bill Passage Probability Index',
+    char_from: 0,
+    char_to: 59,
+    text_hash: 'hash-c1',
+    source_kind: 'document',
+    page_number: undefined,
+  };
+  const page = pageEvidenceMaps([c], { blocks: [], images: [] });
+  for (const input of [{}, { page }]) {
+    const r = applyCitationLadder({ answer: 'A [1].', modelSources: [{ id: 1, source: 'ref:ab12cd-1' }], evidence: evidence(), ...input });
+    assertEquals(r.sources[0], expected as TextCitation);
+    assertEquals(Object.keys(r.sources[0]).sort(), Object.keys(expected).sort());
+    assertEquals(JSON.stringify(r.sources[0]), JSON.stringify(expected));
+  }
+});
+
+Deno.test('toSource maps section always, and boxes, images and extract_hash from the prepared maps', () => {
+  const page: Chunk = {
+    ...chunk('p1', 'The Classified Information and Espionage Control Bill, 2025'),
+    source_kind: 'pdf_page',
+    page_number: 4,
+    block_ids: ['b1'],
+    image_ids: ['i1'],
+    section: { heading: 'CHAPTER II', note: 'Presumption of prejudicial purpose.' },
+  };
+  const ev: EvidenceMap = new Map([['ref:ab12cd-1', { kind: 'text', chunk: page }]]);
+  const prepared = pageEvidenceMaps([page], {
+    blocks: [{ id: 'b1', document_id: 'doc-p1', extract_hash: 'xh', page_number: 4, x0: 0.2, y0: 0.1, x1: 0.8, y1: 0.2 }],
+    images: [{ id: 'i1', document_id: 'doc-p1', extract_hash: 'xh', page_number: 4, sha256: 'f'.repeat(64), mime: 'image/png' }],
+  });
+  const r = applyCitationLadder({ answer: 'Presumed [1].', modelSources: [{ id: 1, source: 'ref:ab12cd-1' }], evidence: ev, page: prepared });
+  const s = r.sources[0] as TextCitation;
+  assertEquals(s.section, { heading: 'CHAPTER II', note: 'Presumption of prejudicial purpose.' });
+  assertEquals(s.page_number, 4);
+  assertEquals(s.extract_hash, 'xh');
+  assertEquals(s.boxes, [{ page: 4, x0: 0.2, y0: 0.1, x1: 0.8, y1: 0.2 }]);
+  assertEquals(s.images, [{ page: 4, sha256: 'f'.repeat(64), mime: 'image/png' }]);
+  const bare = applyCitationLadder({ answer: 'Presumed [1].', modelSources: [{ id: 1, source: 'ref:ab12cd-1' }], evidence: ev }).sources[0] as TextCitation;
+  assertEquals(bare.section, s.section);
+  assertEquals([bare.boxes, bare.images, bare.extract_hash], [undefined, undefined, undefined]);
 });

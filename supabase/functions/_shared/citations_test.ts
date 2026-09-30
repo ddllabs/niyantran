@@ -1,7 +1,18 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
-import type { CitationSource } from './citation.types.ts';
+import type { CitationSource, TextCitation } from './citation.types.ts';
 import type { Chunk } from './retrieval.ts';
-import { buildSources, citedIds, expandGroupedCitations, parseCitationIds, recoverHandleCitations, renumberCitations, stripInventedMarkers } from './citations.ts';
+import {
+  buildSources,
+  citedIds,
+  citedPageRefs,
+  expandGroupedCitations,
+  MAX_CITATION_BOXES,
+  pageEvidenceMaps,
+  parseCitationIds,
+  recoverHandleCitations,
+  renumberCitations,
+  stripInventedMarkers,
+} from './citations.ts';
 
 const fixture = JSON.parse(await Deno.readTextFile(new URL('../../../src/lib/__fixtures__/citations.json', import.meta.url))) as {
   name: string;
@@ -159,4 +170,106 @@ Deno.test('text with no invented marker is returned byte for byte', () => {
   ) {
     assertEquals(stripInventedMarkers(text), text, `must be identical: ${JSON.stringify(text)}`);
   }
+});
+
+// ---- The page contract's citation payload (chunk-contract spec, "Citation payload").
+
+/** The exact shape buildSources produced before the page contract, for an old chunk. */
+function oldShape(id: number, c: Chunk) {
+  return {
+    id,
+    kind: 'text',
+    chunk_id: c.id,
+    document_id: c.document_id,
+    title: c.title,
+    file_name: c.file_name,
+    file_url: c.file_url,
+    desk_tier: c.desk_tier,
+    desk_feature: c.desk_feature,
+    char_from: c.char_from,
+    char_to: c.char_to,
+    text_hash: c.text_hash,
+    source_kind: c.source_kind,
+    page_number: c.page_number,
+  };
+}
+
+function pageChunk(id: string, over: Partial<Chunk> = {}): Chunk {
+  return chunk(id, {
+    document_id: 'd-bill',
+    source_kind: 'pdf_page',
+    page_number: 4,
+    block_ids: [`${id}-b1`, `${id}-b2`],
+    image_ids: [`${id}-i1`],
+    section: { heading: 'CHAPTER II', note: 'Presumption of prejudicial purpose.' },
+    ...over,
+  });
+}
+
+function block(id: string, over: Record<string, unknown> = {}) {
+  return { id, document_id: 'd-bill', extract_hash: 'xh-1', page_number: 4, x0: 0.19, y0: 0.2, x1: 0.81, y1: 0.3, ...over };
+}
+
+Deno.test('buildSources: an old chunk, with or without page evidence, gives exactly the old citation', () => {
+  const old = chunk('x', { file_url: 'https://e.org/x.pdf', page_number: 3, source_kind: 'pdf_page' });
+  const evidence = pageEvidenceMaps([old], { blocks: [block('stray')], images: [] });
+  for (const out of [buildSources({ 1: old }, [1]), buildSources({ 1: old }, [1], evidence)]) {
+    assertEquals(out[0], oldShape(1, old) as TextCitation);
+    assertEquals(Object.keys(out[0]).sort(), Object.keys(oldShape(1, old)).sort());
+    assertEquals(JSON.stringify(out[0]), JSON.stringify(oldShape(1, old)));
+  }
+});
+
+Deno.test('buildSources maps section, boxes, images and extract_hash for a page chunk', () => {
+  const c = pageChunk('p');
+  const evidence = pageEvidenceMaps([c], {
+    blocks: [block('p-b2', { x0: 0.5 }), block('p-b1')],
+    images: [{ id: 'p-i1', document_id: 'd-bill', extract_hash: 'xh-1', page_number: 4, sha256: 'ab'.repeat(32), mime: 'image/jpeg' }],
+  });
+  const [s] = buildSources({ 2: c }, [2], evidence);
+  assertEquals(s.section, { heading: 'CHAPTER II', note: 'Presumption of prejudicial purpose.' });
+  assertEquals(s.page_number, 4);
+  assertEquals(s.extract_hash, 'xh-1');
+  // In block_ids order, not row order.
+  assertEquals(s.boxes, [
+    { page: 4, x0: 0.19, y0: 0.2, x1: 0.81, y1: 0.3 },
+    { page: 4, x0: 0.5, y0: 0.2, x1: 0.81, y1: 0.3 },
+  ]);
+  assertEquals(s.images, [{ page: 4, sha256: 'ab'.repeat(32), mime: 'image/jpeg' }]);
+  // Without evidence the section still maps; boxes, images and the hash do not.
+  const [bare] = buildSources({ 2: c }, [2]);
+  assertEquals(bare.section, c.section);
+  assertEquals('boxes' in bare || 'images' in bare || 'extract_hash' in bare, false);
+});
+
+Deno.test('pageEvidenceMaps caps boxes at 20, skips null or out-of-range boxes and foreign rows', () => {
+  const many = Array.from({ length: 30 }, (_, i) => `m-b${i}`);
+  const c = pageChunk('m', { block_ids: ['m-null', 'm-bad', 'm-foreign', ...many], image_ids: undefined });
+  const rows = [
+    block('m-null', { x0: null, y0: null, x1: null, y1: null }),
+    block('m-bad', { x1: 1.4 }),
+    block('m-foreign', { document_id: 'd-other' }),
+    ...many.map((id, i) => block(id, { y0: i / 100, y1: i / 100 + 0.01 })),
+  ];
+  const e = pageEvidenceMaps([c], { blocks: rows, images: [] });
+  const boxes = e.boxesByChunk.get('m')!;
+  assertEquals(MAX_CITATION_BOXES, 20);
+  assertEquals(boxes.length, 20);
+  assertEquals(boxes[0].y0, 0, 'the first valid block, after the skipped ones');
+  assertEquals(e.imagesByChunk.has('m'), false);
+  // A chunk whose every block is boxless gets no boxes and no extract_hash.
+  const boxless = pageEvidenceMaps([pageChunk('n', { block_ids: ['m-null'], image_ids: undefined })], { blocks: rows, images: [] });
+  assertEquals(boxless.boxesByChunk.has('n'), false);
+  assertEquals(boxless.extractHashByChunk.has('n'), false);
+});
+
+Deno.test('citedPageRefs: distinct ids of the given chunks only, none for old chunks', () => {
+  const a = pageChunk('a', { block_ids: ['b1', 'b2'], image_ids: ['i1'] });
+  const b = pageChunk('b', { block_ids: ['b2', 'b3'], image_ids: ['i1', 'i2'] });
+  assertEquals(citedPageRefs([a, b, chunk('old')]), { blockIds: ['b1', 'b2', 'b3'], imageIds: ['i1', 'i2'] });
+  assertEquals(citedPageRefs([chunk('old')]), { blockIds: [], imageIds: [] });
+  // Bounded per chunk: all of a chunk's blocks share one page, so a box is null
+  // for all of them or none; twice the cap leaves room for missing rows.
+  const wide = pageChunk('w', { block_ids: Array.from({ length: 100 }, (_, i) => `w${i}`), image_ids: undefined });
+  assertEquals(citedPageRefs([wide]).blockIds.length, MAX_CITATION_BOXES * 2);
 });
