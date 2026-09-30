@@ -34,6 +34,22 @@ These are part 1's rules, plus the lessons from part 1:
 - **SQL function signatures,** exactly as in the spec: `ingest_register`,
   `ingest_claim`, `ingest_advance`, `ingest_retry`, `ingest_cancel` and
   `ingest_activate`.
+- **Decisions made while writing I0 (2026-10-01):**
+  - `ingest_jobs` also has `file_sha256` (copied at registration, the input
+    to `ocr_hash`) and `pages_per_call` (default 25, the adaptive range the
+    spec stores "in the job").
+  - The worker computes `ocr_hash`, `extract_hash` and `model_id` and sends
+    them in its first `ingest_advance` patch. SQL sets each one once and
+    rejects a different value later.
+  - `ingest_advance` and `ingest_activate` take the patch keys named in
+    `AdvancePatch` and `ActivatePatch`.
+  - `RawOcrPage.index` is stored as the **global** 0-based page.
+  - The model is pinned to `mistral-ocr-4-1`, the explicit OCR 4.1 id that
+    `GET /v1/models` listed on 2026-10-01 (aliases `mistral-ocr-4` and
+    `mistral-ocr-latest`). The echoed name may be an alias; it is recorded,
+    not enforced.
+  - `paging.ts` (`readAll`) is the one pager; every `IngestDb` list read
+    takes a range.
 
 ## Tasks
 
