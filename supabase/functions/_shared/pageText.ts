@@ -93,6 +93,12 @@ export interface LocatedBlock {
 /** Separator between page texts in ocr_text (R1.5). */
 export const PAGE_SEPARATOR = '\n\n';
 
+/**
+ * Version of composeDocument's output. It goes into extract_hash (ingestion-v2 spec), so raise it
+ * whenever a change here alters page text, offsets, placeholders or block locations.
+ */
+export const COMPOSITION_VERSION = 1;
+
 // ─── Boxes ───────────────────────────────────────────────────────────────────
 
 function num(value: unknown): number | undefined {
