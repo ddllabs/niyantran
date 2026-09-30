@@ -43,15 +43,21 @@ sed -n '22,101p' "$MIG/20260921000007_pricing_reconcile_and_schedule.sql" > "$WO
 sed -n "1,$(( $(grep -n '^-- 23\. PROFILE AUTHORITY AND RPC PRIVILEGES' backend/sql/auth_schema.sql | cut -d: -f1) - 2 ))p" \
   backend/sql/auth_schema.sql > "$WORK/auth_schema_no_0012.sql"
 
-# The page-contract migration applied as NTER applies migrations: by a role that
-# owns the schema's objects but is NOT a superuser. NTER refused a function's
+# A migration applied as NTER applies migrations: by a role that owns the
+# schema's objects but is NOT a superuser. NTER refused a function's
 # `SET hnsw.ef_search` clause for exactly that reason on 2026-10-01; applied as
 # the container's superuser, the same migration would pass here. The role is a
 # member of postgres (so it may alter postgres's tables and replace its
 # functions) and gets Supabase-style default grants, so a missing revoke still
 # shows. CREATE ROLE is cluster-wide, hence the existence check.
-{
-  cat <<'SQL'
+#
+#   as_non_superuser <migration file under supabase/migrations>
+# writes $WORK/<name>.as_non_superuser.sql and prints its path, for chain().
+as_non_superuser() {
+  local name
+  name="$(basename "$1" .sql)"
+  {
+    cat <<'SQL'
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'nter_migrator') THEN
     CREATE ROLE nter_migrator NOLOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS;
@@ -64,8 +70,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE nter_migrator IN SCHEMA public GRANT ALL ON SE
 ALTER DEFAULT PRIVILEGES FOR ROLE nter_migrator IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
 SET ROLE nter_migrator;
 SQL
-  cat "$MIG/20261001120000_page_contract.sql"
-} > "$WORK/20261001120000_page_contract.as_non_superuser.sql"
+    cat "$MIG/$name.sql"
+  } > "$WORK/$name.as_non_superuser.sql"
+  echo "$WORK/$name.as_non_superuser.sql"
+}
 
 m() { echo "$MIG/$1"; }
 
@@ -81,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|halfvec_retrieval|feature_filter|page_contract)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|halfvec_retrieval|feature_filter|page_contract|ingestion_v2)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -116,9 +124,12 @@ chain() {
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
                   "$(m 20261001100000_match_documents_feature.sql)") ;;
         # feature_filter's chain plus the page contract, applied as a non-superuser.
-        page_contract)
+        page_contract|ingestion_v2)
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
-                  "$(m 20261001100000_match_documents_feature.sql)" "$WORK/20261001120000_page_contract.as_non_superuser.sql") ;;
+                  "$(m 20261001100000_match_documents_feature.sql)" "$(as_non_superuser 20261001120000_page_contract.sql)")
+          # page_contract's chain plus the Storage stub and ingestion-v2, also
+          # applied as a non-superuser; the chain ends with the migration it proves.
+          [ "$1" = ingestion_v2 ] && FILES+=("$TESTS/bootstrap_storage.sql" "$(as_non_superuser 20261001140000_ingestion_v2.sql)") ;;
         email_unique)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(m 20260929110000_email_unique.sql)") ;;
       esac
