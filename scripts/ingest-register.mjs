@@ -69,7 +69,7 @@ const isLocalhost = (url) => ['localhost', '127.0.0.1', '[::1]'].includes(new UR
 function connection(target) {
   if (target === 'nter') loadDotEnv(resolve(ROOT, '.env.local'));
   const url = process.env.SUPABASE_URL || (target === 'nter' ? process.env.VITE_SUPABASE_URL : undefined);
-  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY are required');
   if (target === 'local' && !isLocalhost(url)) throw new Error(`--target local but SUPABASE_URL is ${new URL(url).host}`);
   if (target === 'nter' && isLocalhost(url)) throw new Error('--target nter but SUPABASE_URL is localhost');
