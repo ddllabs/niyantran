@@ -241,7 +241,7 @@ Work uses the service client. Every action logs `{action, user_id, ids}`.
 
 ### `ingest_discard(p_document uuid)` (migration, service_role only)
 
-In one statement, it deletes the document only when all of these hold:
+It locks the document row, then deletes the document only when all of these hold (each refusal names its reason):
 - `source_key like 'upload:%'`;
 - `indexed_at is null` and `extract_hash is null`;
 - no job is queued, running or succeeded.
