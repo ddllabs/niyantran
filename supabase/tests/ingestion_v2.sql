@@ -576,6 +576,8 @@ SELECT pg_temp.refused(format($q$SELECT pg_temp.activate(pg_temp.job('iv2-act'),
 SELECT pg_temp.refused(format($q$SELECT pg_temp.activate(pg_temp.job('iv2-act'), %L, '{"extract_hash": "xb", "ocr_text": "page one", "content_sha256": "%s", "page_count": 2, "embed_tokens": 0, "embed_cost_usd": 0}')$q$,
                               (SELECT token FROM t WHERE k = 'a2'), encode(sha256(convert_to('page one', 'UTF8')), 'hex')),
                        'extract_hash differs from the job', 'activate refuses an extract_hash other than the job''s');
+-- An earlier failure's error, as the local end-to-end run left on a job that later succeeded.
+UPDATE ingest_jobs SET error_code = 'internal', last_error = 'an earlier failure' WHERE id = pg_temp.job('iv2-act');
 SELECT pg_temp.activate(pg_temp.job('iv2-act'), (SELECT token FROM t WHERE k = 'a2'), jsonb_build_object(
   'extract_hash', 'xa', 'ocr_text', E'page one\n\npage two', 'content_sha256', encode(sha256(convert_to(E'page one\n\npage two', 'UTF8')), 'hex'),
   'page_count', 2, 'embed_tokens', 60, 'embed_cost_usd', 0.00006));
@@ -587,6 +589,8 @@ SELECT pg_temp.assert_true((SELECT stage = 'done' AND status = 'succeeded' AND f
                               FROM ingest_jobs WHERE id = pg_temp.job('iv2-act')),
                            'activate finishes the job: done, succeeded, lease cleared');
 SELECT pg_temp.assert_true((SELECT embed_tokens = 100 AND embed_cost_usd = 0.0001 FROM ingest_jobs WHERE id = pg_temp.job('iv2-act')), 'activate adds its embedding counters');
+SELECT pg_temp.assert_true((SELECT error_code IS NULL AND last_error IS NULL FROM ingest_jobs WHERE id = pg_temp.job('iv2-act')),
+                           'activate clears an earlier failure''s error');
 SELECT pg_temp.assert_true((SELECT count(*) FROM match_documents(pg_temp.v(1), 5, array[(SELECT id FROM documents WHERE source_key = 'iv2-act')])) = 1,
                            'after activation the chunks are searchable');
 SELECT pg_temp.refused(format($q$SELECT pg_temp.advance(pg_temp.job('iv2-act'), %L, '{"progressed": true}')$q$, (SELECT token FROM t WHERE k = 'a2')),

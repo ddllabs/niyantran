@@ -537,6 +537,22 @@ Deno.test('index: an EmbeddingError logs the spend, commits nothing more and rep
   assertEquals(f.activations, []);
 });
 
+Deno.test('index: a failed activation reports its error with the claim\'s embedding spend (I7 finding)', async () => {
+  // Seen in the local end-to-end run: ingest_activate raised after every slice was committed, and the
+  // claim's embedding cost reached model_call_logs but never the job's totals.
+  const pages = longDocument(25, 10);
+  const f = fakeDb(pages);
+  f.db.activate = () => Promise.reject(new Error('ingest_activate: forced failure'));
+  const e = fakeEmbed(f.events);
+  const out = await indexStep(deps(f.db, e.embed, clock().now), job({ pages_total: pages.length }), FAR);
+  assertEquals([out.activated, out.patch.stage, out.patch.progressed], [undefined, undefined, true]);
+  assertEquals([out.patch.error?.code, out.patch.error?.permanent], ['internal', false]);
+  assert(out.patch.error?.message.includes('forced failure'));
+  const loggedTokens = f.logs.reduce((n, l) => n + (l.prompt_tokens ?? 0), 0);
+  assert(loggedTokens > 0);
+  assertEquals(out.patch.embed_tokens, loggedTokens);
+});
+
 // ─── Budget, resume and activation ───────────────────────────────────────────
 
 Deno.test('index: out of budget before a slice, it returns without a stage change or activation', async () => {

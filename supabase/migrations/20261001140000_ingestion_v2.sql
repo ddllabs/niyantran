@@ -721,6 +721,8 @@ begin
          embed_tokens   = embed_tokens + v_tokens,
          embed_cost_usd = embed_cost_usd + v_cost,
          attempts       = 0,
+         error_code     = null,   -- an earlier, recovered failure no longer describes the job
+         last_error     = null,
          claim_token    = null,
          lease_until    = null,
          finished_at    = now()

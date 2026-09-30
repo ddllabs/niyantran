@@ -278,6 +278,17 @@ export const indexStep: Step = async (deps, job, deadline): Promise<StepOutcome>
     // With every slice skipped, no call above removed chunks outside the keep list: one empty commit
     // does. (Any committed slice already did, and nothing else writes this document's chunks.)
     if (!committed) await db.chunkCommit(documentId, [], keep);
+
+    // 6. Activation: the last write. It sets indexed_at, which makes the chunks visible. A failure here
+    // is reported like any other, so this claim's spend still reaches the job (I7 finding).
+    await db.activate(job.id, job.claim_token, {
+      extract_hash: extractHash,
+      ocr_text: plan.document.ocrText,
+      content_sha256: await sha256Hex(plan.document.ocrText),
+      page_count: job.pages_total,
+      embed_tokens: spend.tokens,
+      embed_cost_usd: spend.cost,
+    });
   } catch (err) {
     // Reported rather than thrown, so the spend of this claim reaches the job's totals as well as
     // model_call_logs. Slices committed before the failure stay committed.
@@ -292,15 +303,6 @@ export const indexStep: Step = async (deps, job, deadline): Promise<StepOutcome>
     };
   }
 
-  // 6. Activation: the last write. It sets indexed_at, which makes the chunks visible.
-  await db.activate(job.id, job.claim_token, {
-    extract_hash: extractHash,
-    ocr_text: plan.document.ocrText,
-    content_sha256: await sha256Hex(plan.document.ocrText),
-    page_count: job.pages_total,
-    embed_tokens: spend.tokens,
-    embed_cost_usd: spend.cost,
-  });
   deps.log('ingest.index_activated', { job_id: job.id, chunks: rows.length, embed_tokens: spend.tokens });
   return { patch: { progressed: true }, activated: true };
 };
