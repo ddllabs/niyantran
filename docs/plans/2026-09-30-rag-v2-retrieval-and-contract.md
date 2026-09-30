@@ -1,7 +1,8 @@
 # Plan: RAG v2, part 1 — `eval`, `retrieval-scope`, `chunk-contract`
 
-> **Status: Living (2026-09-30).** It becomes Historical when its last task
-> lands. It implements three approved specs:
+> **Status: Historical (completed 2026-10-01).** Every task, T1–T17, has
+> landed and is live. The record is in `docs/agents/coordination.md`, under
+> "Operations — 2026-10-01" and "Operations — 2026-10-01, later". It implements three approved specs:
 > - `docs/specs/2026-09-30-rag-v2-eval.md`
 > - `docs/specs/2026-09-30-rag-v2-retrieval-scope.md`
 > - `docs/specs/2026-09-30-rag-v2-chunk-contract.md`

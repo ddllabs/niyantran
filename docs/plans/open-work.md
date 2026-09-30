@@ -232,9 +232,14 @@ Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
   - F32 fixed by `document_modules()`.
 
   Remaining: the owner's signed-in check of the button.
-- [ ] **R3. `chunk-contract`** (spec approved): the page, block and image
-  tables, the page chunker (version 3), the citation fields, and the
-  ADR 0004 and ADR 0002 amendments (T12–T17).
+- [x] **R3. `chunk-contract`**. Done on 2026-10-01 (`b9bcb6c`):
+  - migration `20261001120000` live;
+  - `research-chat` and `ingest-documents` redeployed;
+  - page text rules, the page chunker (version 3), citation fields, and the refusal of
+    page-aware documents by the old path;
+  - the ADR 0002 and 0004 amendments.
+
+  Live eval "no worse".
 
 Part 2 needs its specs first, in this order:
 
@@ -246,6 +251,9 @@ Part 2 needs its specs first, in this order:
   doc §6, which proves pages, boxes, images, cost and re-run cost.
 - [ ] **R6. `citations-pdf`.** The PDF.js viewer with box highlights; a
   page label and image strip in the reader; signed URLs.
+  Requirement from R3: `WorkSurface`, `SourceList` (`AiPanel.jsx`) and
+  `AiMarkdown` must pass citations through `sanitizeCitation`
+  (`src/ai/CitationBubble.jsx`) before drawing boxes or images.
 - [ ] **R7. `acquisition`.** Download the 5,327 linked `pdf_text`
   records (5,218 sansad.in bills), then backfill on a separate owner
   go-ahead. This replaces L1 for the linked records; the unlinked ones wait

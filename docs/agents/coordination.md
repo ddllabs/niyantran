@@ -943,3 +943,42 @@ Authorised by the owner step by step. Times are UTC.
   owner is to check them.
 - **Found and recorded:** open-work F35. NTER's unscoped HNSW search has a recall@40 of
   0.913 against exact search.
+
+### Operations — 2026-10-01, later (RAG v2 part 1: chunk-contract)
+
+Authorised by the owner as one four-step sequence, stopping at the first failure.
+
+- **Migration 38** `20261001120000_page_contract`:
+  - Applied through the MCP tool; its version is pinned to the file name.
+  - It adds `documents.storage_path`, `file_sha256`, `extract_hash`, `source_mime`, and
+    `document_chunks.block_ids`, `image_ids`, `embed_hash`.
+  - It creates `document_pages`, `document_page_blocks` and `document_page_images`, with
+    RLS and authenticated SELECT only.
+  - `chunk_commit` now refreshes the page columns on a hit, replaces the vector when a row
+    carries one, and refuses a changed `embed_hash` that arrives without a new vector.
+  - `match_documents` and its helper are recreated with `block_ids`, `image_ids` and
+    `section`.
+  - Tested as a non-superuser in `npm run test:sql` (the `page_contract` fixture).
+  - Verified live as `authenticated`:
+    - the old-style call returns 40 rows, with the new columns null for all 2,338
+      existing documents;
+    - the Bills and Industry filters return full results;
+    - `ef_search` is restored;
+    - there is exactly one overload of each function;
+    - `chunk_commit` is service_role only;
+    - the new tables are empty.
+  - Note: the function bodies applied live omit some of the repository file's inline
+    comments inside the `match_documents` branches. Behaviour is identical; the
+    repository file is the reference text.
+- **`research-chat` and `ingest-documents` redeployed** from `b9bcb6c` with
+  `supabase functions deploy <name> --use-api --project-ref vfgcppstyzjarlzyqdac`.
+  - Probes: 401 `missing bearer token` and 401 `service key required`, each with the
+    production CORS header.
+  - A dry run of `ingest-documents` for an unknown key read the new `extract_hash` column
+    without error, returned `dry_run` with a `refused` counter in the totals, and wrote
+    nothing: 2,338 documents and 54,219 chunks, unchanged.
+- **Frontend:** `main` pushed at `b9bcb6c`, and the Vercel production deploy is READY. It
+  adds `sanitizeCitation` and the optional citation fields.
+- **Live eval after the deploy,** all four modes: "no worse" against the 2026-09-30
+  baseline.
+- Nothing is page-aware yet, so users see no change. The contract waits for `ingestion-v2`.
