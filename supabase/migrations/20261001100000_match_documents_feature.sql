@@ -30,8 +30,8 @@
 -- The return columns, security invoker, stable and search_path are unchanged.
 -- create function grants EXECUTE to PUBLIC, so every new function is revoked
 -- from public and anon and granted to authenticated and service_role.
--- No session setting is changed with set_config: it would outlive the call
--- for the rest of the transaction.
+-- The helper sets hnsw.ef_search with set_config(..., true) and restores it
+-- before returning, so the setting never outlives the call (see its comment).
 --
 -- Deploy order:
 --   1. This migration. The research-chat already deployed keeps working:
@@ -61,9 +61,17 @@
 
 -- The large-feature path. Filtering after the index scan is correct only
 -- while the feature is a large share of the corpus: with N = 400 the scan
--- yields up to 400 nearest chunks before the feature filter. N is fixed here,
--- in the SET clause, which applies for this call only and is restored on
--- return (never set_config). Measured: the research doc above.
+-- yields up to 400 nearest chunks before the feature filter. Measured: the
+-- research doc above.
+--
+-- N is applied with set_config(..., true) and restored before returning,
+-- rather than with a SET clause. NTER refused the SET clause on 2026-10-01
+-- ("permission denied to set parameter hnsw.ef_search"): until pgvector's
+-- library is loaded in a session, hnsw.ef_search is a placeholder, and only
+-- a superuser may attach a placeholder to a function. set_config is allowed
+-- for any role (verified as authenticated on NTER). RETURN QUERY runs the
+-- query to completion before the next statement, so restoring the old value
+-- afterwards means nothing outlives the call.
 create function public.match_documents_feature_hnsw(
   query_embedding extensions.vector(1536),
   match_count     int,
@@ -85,24 +93,33 @@ create function public.match_documents_feature_hnsw(
   desk_tier     text,
   desk_feature  text
 )
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = public, extensions
-set hnsw.ef_search = 400
 as $fn$
-  select c.id, c.document_id, c.content,
-         (1 - (c.embedding <=> query_embedding))::float8,
-         c.chunk_index, c.source_kind, c.page_number, c.char_from, c.char_to,
-         d.title, d.file_name, d.file_url, d.desk_tier, d.desk_feature
-    from public.document_chunks c
-    join public.documents d on d.id = c.document_id
-   where c.embedding is not null
-     and d.indexed_at is not null
-     and d.desk_feature = p_desk_feature
-     and (p_desk_tier is null or d.desk_tier = p_desk_tier)
-   order by (c.embedding::extensions.halfvec(1536)) <=> (query_embedding::extensions.halfvec(1536))
-   limit least(greatest(coalesce(match_count, 40), 1), 200);
+declare
+  c_ef_search constant text := '400';
+  v_previous  text := current_setting('hnsw.ef_search', true);
+begin
+  perform set_config('hnsw.ef_search', c_ef_search, true);
+  return query
+    select c.id, c.document_id, c.content,
+           (1 - (c.embedding <=> query_embedding))::float8,
+           c.chunk_index, c.source_kind, c.page_number, c.char_from, c.char_to,
+           d.title, d.file_name, d.file_url, d.desk_tier, d.desk_feature
+      from public.document_chunks c
+      join public.documents d on d.id = c.document_id
+     where c.embedding is not null
+       and d.indexed_at is not null
+       and d.desk_feature = p_desk_feature
+       and (p_desk_tier is null or d.desk_tier = p_desk_tier)
+     order by (c.embedding::extensions.halfvec(1536)) <=> (query_embedding::extensions.halfvec(1536))
+     limit least(greatest(coalesce(match_count, 40), 1), 200);
+  -- Restore what the caller had ('' when the setting did not exist yet reads
+  -- back as the default, 40, once the library is loaded).
+  perform set_config('hnsw.ef_search', coalesce(nullif(v_previous, ''), '40'), true);
+end
 $fn$;
 
 revoke all on function public.match_documents_feature_hnsw(extensions.vector, int, text, text) from public, anon;

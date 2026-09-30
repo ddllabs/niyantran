@@ -21,11 +21,11 @@ SELECT pg_temp.assert_true(to_regprocedure('public.match_documents_feature_hnsw(
 SELECT pg_temp.assert_true(to_regprocedure('public.document_modules()') IS NOT NULL, 'document_modules() exists');
 
 -- Session settings live only on the helper, as a SET clause (scoped to the call).
-SELECT pg_temp.assert_true((SELECT 'hnsw.ef_search=400' = ANY (proconfig) FROM pg_proc WHERE oid = to_regprocedure('public.match_documents_feature_hnsw(extensions.vector,int,text,text)')), 'the helper sets hnsw.ef_search = 400 in its SET clause');
-SELECT pg_temp.assert_true(pg_get_functiondef(to_regprocedure('public.match_documents_feature_hnsw(extensions.vector,int,text,text)')) ~* 'SET "?hnsw\.ef_search"? TO ''400''', 'the helper definition shows SET hnsw.ef_search TO 400');
 SELECT pg_temp.assert_true(pg_get_functiondef(to_regprocedure('public.match_documents(extensions.vector,int,uuid[],text,text)')) ILIKE '%match_documents_feature_hnsw(%', 'match_documents routes large features to the helper');
-SELECT pg_temp.assert_true(pg_get_functiondef(to_regprocedure('public.match_documents(extensions.vector,int,uuid[],text,text)')) NOT ILIKE '%set_config%'
-                       AND pg_get_functiondef(to_regprocedure('public.match_documents_feature_hnsw(extensions.vector,int,text,text)')) NOT ILIKE '%set_config%', 'no set_config anywhere');
+SELECT pg_temp.assert_true(pg_get_functiondef(to_regprocedure('public.match_documents_feature_hnsw(extensions.vector,int,text,text)')) ILIKE '%set_config(''hnsw.ef_search'', c_ef_search, true)%'
+                       AND pg_get_functiondef(to_regprocedure('public.match_documents_feature_hnsw(extensions.vector,int,text,text)')) ~* 'c_ef_search\s+constant\s+text\s*:=\s*''400''', 'the helper sets hnsw.ef_search = 400 for its own query');
+SELECT pg_temp.assert_true((SELECT proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(proconfig) s WHERE s LIKE 'hnsw.%') FROM pg_proc WHERE oid = to_regprocedure('public.match_documents_feature_hnsw(extensions.vector,int,text,text)')), 'no hnsw SET clause (NTER refuses it for a non-superuser)');
+SELECT pg_temp.assert_true(pg_get_functiondef(to_regprocedure('public.match_documents(extensions.vector,int,uuid[],text,text)')) NOT ILIKE '%set_config%', 'match_documents itself sets nothing');
 SELECT pg_temp.assert_true((SELECT proconfig FROM pg_proc WHERE oid = to_regprocedure('public.match_documents(extensions.vector,int,uuid[],text,text)')) = array['search_path=public, extensions'], 'match_documents sets only search_path');
 
 -- Privileges: PUBLIC and anon cannot execute any of the three; authenticated and service_role can.
@@ -146,6 +146,11 @@ SELECT pg_temp.assert_true((SELECT bool_and(a.dist <= b.dist) FROM
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM match_documents_feature_hnsw(pg_temp.v(1), 40, 'national', 'Small') WHERE desk_feature <> 'Small'), 'the helper never leaks other features');
 SELECT pg_temp.assert_true((SELECT count(*) FROM match_documents_feature_hnsw(pg_temp.v(1), 100000, NULL, 'Large')) = 200, 'the helper clamps match_count to 200');
 SELECT pg_temp.assert_true(current_setting('hnsw.ef_search') = '40', 'the helper''s ef_search does not leak into the session');
+SET LOCAL hnsw.ef_search = 77;
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.assert_true((SELECT count(*) FROM match_documents_feature_hnsw(pg_temp.v(1), 10, 'national', 'Large')) = 10, 'authenticated can call the helper');
+SELECT pg_temp.assert_true(current_setting('hnsw.ef_search') = '77', 'the helper restores the caller''s own ef_search');
+RESET ROLE;
 
 -- document_modules(): every (tier, feature) pair once, only indexed documents,
 -- no null feature, and still complete past 1,000 documents (PostgREST's max_rows

@@ -192,6 +192,15 @@ catalogue spells the regulatory module "(RBI/SEBI/TRAI/CCI)", while
   are set only inside a **helper function with a `SET` clause**, which
   scopes them to that call. Never with `set_config(…, true)`, which would
   leak to later statements in the same transaction.
+
+  **Amended 2026-10-01, at deploy:** NTER refused the `SET` clause with
+  "permission denied to set parameter hnsw.ef_search". Until pgvector's
+  library is loaded, the setting is a placeholder, and only a superuser may
+  attach one to a function. The helper therefore uses
+  `set_config('hnsw.ef_search', '400', true)`, runs its query to completion
+  with `RETURN QUERY`, and restores the caller's value before returning, so
+  nothing leaks. The fixture proves the caller's own value survives the call
+  as `authenticated`, and goes red without the restore.
 - **`document_modules()`**, as above.
 - **The down script** is in the file header, and runs **after** rolling back
   the function code:
