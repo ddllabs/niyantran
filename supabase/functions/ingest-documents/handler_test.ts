@@ -10,6 +10,8 @@ interface Stored {
   row: DocumentRow;
   chunker_version: number | null;
   hashes: Map<string, CommitRow>;
+  /** Set only for a page-aware document (spec R6). */
+  extract_hash?: string | null;
 }
 
 /** An in-memory stand-in for the four tables the function touches. */
@@ -21,7 +23,7 @@ function fakeDb() {
   const db: IngestDeps['db'] = {
     findDocument: (key) => {
       const d = docs.get(key);
-      return Promise.resolve(d ? { id: d.id, content_sha256: d.row.content_sha256, chunker_version: d.chunker_version, metadata: d.row.metadata } : null);
+      return Promise.resolve(d ? { id: d.id, content_sha256: d.row.content_sha256, chunker_version: d.chunker_version, metadata: d.row.metadata, extract_hash: d.extract_hash ?? null } : null);
     },
     upsertDocument: (row) => {
       let d = docs.get(row.source_key);
@@ -413,4 +415,122 @@ Deno.test('a failed slice leaves the document unindexed, and the retry commits o
   assertEquals(docs.get('resume')!.hashes.size, second.results[0].chunks);
   // The retry re-embeds only the chunks the failed run never committed.
   assertEquals(embedCalls[1].length, second.results[0].chunks - landed);
+});
+
+// ---- R6: the old whole-document path never touches a page-aware document ----
+
+const PAGE_AWARE_REASON = 'page-aware document: managed by the page pipeline';
+
+/** Puts a page-aware document (extract_hash set) straight into the fake store, as ingestion-v2 would leave it. */
+function seedPageAware(docs: Map<string, Stored>, sourceKey: string): Stored {
+  const row: DocumentRow = { source_key: sourceKey, title: 'Page-aware', file_name: null, file_url: null, desk_tier: null,
+    desk_feature: null, content_sha256: 'page-sha', ocr_text: 'page-aware text with offsets', metadata: { pipeline: 'v2' } };
+  const stored: Stored = { id: `pa-${sourceKey}`, row, chunker_version: CHUNK.version, hashes: new Map([['h1', {} as CommitRow]]), extract_hash: 'e'.repeat(64) };
+  docs.set(sourceKey, stored);
+  return stored;
+}
+
+/** Records every db call after findDocument, with the document it named. */
+function spyWrites(db: IngestDeps['db']) {
+  const writes: { op: string; target: string }[] = [];
+  const spied: IngestDeps['db'] = {
+    ...db,
+    upsertDocument: (row) => (writes.push({ op: 'upsert', target: row.source_key }), db.upsertDocument(row)),
+    updateDocumentMeta: (id, f) => (writes.push({ op: 'meta', target: id }), db.updateDocumentMeta(id, f)),
+    existingHashes: (id) => (writes.push({ op: 'hashes', target: id }), db.existingHashes(id)),
+    chunkCommit: (id, rows, keep) => (writes.push({ op: 'commit', target: id }), db.chunkCommit(id, rows, keep)),
+    markIndexed: (id, v) => (writes.push({ op: 'indexed', target: id }), db.markIndexed(id, v)),
+  };
+  return { db: spied, writes };
+}
+
+Deno.test('R6: a page-aware document is refused: no upsert, chunking, embedding or commit', async () => {
+  const { db, docs, logs } = fakeDb();
+  const before = structuredClone(seedPageAware(docs, 'P').row);
+  const spy = spyWrites(db);
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db: spy.db };
+
+  const res = await (await handleIngest(post({ documents: [{ source_key: 'P', title: 'Old path', ocr_text: longText('overwrite') }] }), deps)).json();
+
+  assertEquals(res.results[0], { source_key: 'P', status: 'refused', chunks: 0, inserted: 0, kept: 0, deleted: 0,
+    embedded_tokens: 0, cost_usd: 0, reason: PAGE_AWARE_REASON });
+  assertEquals(spy.writes, []);
+  assertEquals(calls.length, 0);
+  assertEquals(logs.length, 0);
+  assertEquals(docs.get('P')!.row, before, 'ocr_text and every other field untouched');
+  assertEquals(res.totals.refused, 1);
+  assertEquals(res.totals.errors, 0);
+});
+
+Deno.test('R6: an unchanged-text resend of a page-aware document is refused too (no metadata refresh)', async () => {
+  const { db, docs } = fakeDb();
+  const stored = seedPageAware(docs, 'P');
+  const spy = spyWrites(db);
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed([]), db: spy.db };
+  const res = await (await handleIngest(post({ documents: [{ source_key: 'P', title: 'Retitled', ocr_text: stored.row.ocr_text }] }), deps)).json();
+  assertEquals(res.results[0].status, 'refused');
+  assertEquals(spy.writes, []);
+  assertEquals(docs.get('P')!.row.title, 'Page-aware');
+});
+
+Deno.test('R6: a mixed batch refuses the page-aware document and processes the others normally', async () => {
+  const { db, docs } = fakeDb();
+  const calls: string[][] = [];
+  // An existing whole-document entry (extract_hash null), ingested the old way first.
+  await handleIngest(post({ documents: [{ source_key: 'E', title: 'E', ocr_text: longText('existing') }] }), { secretKey: SECRET, embed: fakeEmbed(calls), db });
+  assertEquals(docs.get('E')!.extract_hash ?? null, null);
+  const pageAware = seedPageAware(docs, 'P');
+  const spy = spyWrites(db);
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db: spy.db };
+
+  const res = await (await handleIngest(post({ documents: [
+    { source_key: 'N', title: 'New', ocr_text: longText('new') },
+    { source_key: 'P', title: 'Old path', ocr_text: longText('overwrite') },
+    { source_key: 'E', title: 'E', ocr_text: `${longText('existing')} Amended.` },
+  ] }), deps)).json();
+
+  assertEquals(res.results.map((r: { status: string }) => r.status), ['indexed', 'refused', 'indexed']);
+  assertEquals(res.results[1].reason, PAGE_AWARE_REASON);
+  assert(res.results[0].inserted > 0 && res.results[2].inserted > 0);
+  assertEquals(res.totals, { ...res.totals, documents: 3, indexed: 2, refused: 1, errors: 0 });
+  assertEquals(spy.writes.filter((w) => w.target === 'P' || w.target === pageAware.id), []);
+  assertEquals(calls.length, 3, 'one embed for E originally, then one each for N and E - none for P');
+  assertEquals(docs.get('P')!.row.ocr_text, 'page-aware text with offsets');
+  assertEquals(docs.get('E')!.chunker_version, CHUNK.version);
+});
+
+Deno.test('R6: an existing document with extract_hash null keeps the old behaviour (unchanged refresh)', async () => {
+  const { db, docs, metaUpdates } = fakeDb();
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db };
+  const doc = { source_key: 'L', title: 'Legacy', ocr_text: longText('legacy') };
+  await handleIngest(post({ documents: [doc] }), deps);
+  docs.get('L')!.extract_hash = null;
+  const res = await (await handleIngest(post({ documents: [{ ...doc, title: 'Legacy, retitled' }] }), deps)).json();
+  assertEquals(res.results[0].status, 'unchanged');
+  assertEquals(res.results[0].reason, undefined);
+  assertEquals(metaUpdates, ['doc-1']);
+  assertEquals(docs.get('L')!.row.title, 'Legacy, retitled');
+  assertEquals(calls.length, 1);
+});
+
+Deno.test('R6: a dry run reports the refusal and writes nothing', async () => {
+  const { db, docs, logs } = fakeDb();
+  seedPageAware(docs, 'P');
+  const spy = spyWrites(db);
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, embed: fakeEmbed(calls), db: spy.db };
+  const res = await (await handleIngest(post({ dry_run: true, documents: [
+    { source_key: 'P', title: 'Old path', ocr_text: longText('overwrite') },
+    { source_key: 'D', title: 'D', ocr_text: longText('dry') },
+  ] }), deps)).json();
+  assertEquals(res.results.map((r: { status: string }) => r.status), ['refused', 'dry_run']);
+  assertEquals(res.results[0].reason, PAGE_AWARE_REASON);
+  assertEquals(res.results[0].chunks, 0);
+  assertEquals(spy.writes.filter((w) => w.op !== 'hashes'), []);
+  assertEquals(spy.writes.filter((w) => w.target === 'pa-P'), []);
+  assertEquals(calls.length, 0);
+  assertEquals(logs.length, 0);
+  assertEquals(docs.size, 1);
 });

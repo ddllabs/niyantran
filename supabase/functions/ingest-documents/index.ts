@@ -7,9 +7,11 @@ import { handleIngest, type CallLogRow, type CommitRow, type DocumentRow, type I
 export function supabaseDb(client: SupabaseClient): IngestDeps['db'] {
   return {
     async findDocument(sourceKey) {
-      const { data, error } = await client.from('documents').select('id, content_sha256, chunker_version, metadata').eq('source_key', sourceKey).maybeSingle();
+      // extract_hash exists only once the page-contract migration has run; this
+      // function must be deployed after it (RAG v2 R6).
+      const { data, error } = await client.from('documents').select('id, content_sha256, chunker_version, metadata, extract_hash').eq('source_key', sourceKey).maybeSingle();
       if (error) throw new Error(`documents read: ${error.message}`);
-      return data ? { id: data.id as string, content_sha256: data.content_sha256 as string, chunker_version: (data.chunker_version as number | null) ?? null, metadata: (data.metadata as Record<string, unknown>) ?? {} } : null;
+      return data ? { id: data.id as string, content_sha256: data.content_sha256 as string, chunker_version: (data.chunker_version as number | null) ?? null, metadata: (data.metadata as Record<string, unknown>) ?? {}, extract_hash: (data.extract_hash as string | null) ?? null } : null;
     },
     async upsertDocument(row: DocumentRow) {
       const { data, error } = await client
