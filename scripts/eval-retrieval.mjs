@@ -145,7 +145,15 @@ function liveBackend(url, secret) {
       }
     },
     async featureChunkCounts() {
-      return null; // not needed live until the feature filter is deployed
+      // Indexed, embedded chunks per feature, through an inner join (one head count per feature).
+      const features = [...new Set((await this.documents()).map((d) => d.desk_feature).filter(Boolean))];
+      const out = new Map();
+      for (const f of features) {
+        const { count } = ok(await db.from('document_chunks').select('id, documents!inner(desk_feature, indexed_at)', { count: 'exact', head: true })
+          .eq('documents.desk_feature', f).not('documents.indexed_at', 'is', null).not('embedding', 'is', null), `chunk count (${f})`);
+        out.set(f, count);
+      }
+      return out;
     },
     async rpc(fn, params) {
       return ok(await db.rpc(fn, params), fn).data;

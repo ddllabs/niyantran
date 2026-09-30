@@ -896,3 +896,50 @@ redeploys and deleting the two merged GitHub branches. Times are UTC.
   for `https://evil.example.com`. `ALLOWED_ORIGINS` was unchanged since
   16:44 UTC (same digest). Leaked-password protection stays off by the
   owner's decision.
+
+### Operations — 2026-10-01 (RAG v2 part 1: eval and retrieval-scope)
+
+Authorised by the owner step by step. Times are UTC.
+
+- **Evaluation assets** (open-work R1, pushed at `50207cc`):
+  - `eval/retrieval/questions.v1.jsonl`: 195 questions, frozen, with their vectors;
+  - `scripts/eval-retrieval.mjs`;
+  - the live baseline in `docs/research/2026-09-30-retrieval-baseline.md`:
+    broad doc@10 157/184, focused chunk@10 97.8%.
+- **Local replica** for measurement: database `niyantran_retrieval_replica` in
+  `niyantran-corpus-test-db` (`scripts/eval-replica/`). It is a read-only copy of NTER's
+  documents (without `ocr_text`) and chunks. The container's `shared_buffers` was raised to
+  512 MB with `ALTER SYSTEM`. It is only compared with itself.
+- **Migration 37** `20261001100000_match_documents_feature`:
+  - Applied through the MCP tool; its version is pinned to the file name.
+  - The first attempt failed and rolled back in full. NTER refused `SET hnsw.ef_search` in
+    a function's SET clause for a non-superuser ("permission denied to set parameter").
+    The helper `match_documents_feature_hnsw` now uses
+    `set_config('hnsw.ef_search','400', true)` and restores the caller's value before
+    returning; the fixture proves the restore.
+  - `match_documents` now takes `p_desk_feature`. It uses hybrid X: an exact scan when the
+    feature has at most 15,000 chunks, else HNSW at `ef_search` 400
+    (`docs/research/2026-10-01-feature-filter-measurements.md`).
+  - `document_modules()` was added.
+  - Each function has exactly one overload, with no anon or PUBLIC execute.
+  - Verified live as `authenticated`: an old-style call returns 40 rows, the PQ, Budget
+    and Bills filters return full in-feature results, and `ef_search` is restored to 40.
+  - The eval after the migration was "no worse" in every mode.
+  - A small wart: `match_documents`' inline comment still says the helper applies N "in
+    its SET clause". The helper's own comment is correct. Fix it at the next redefinition.
+- **`research-chat` redeployed** from `2d4f9bd` with
+  `supabase functions deploy research-chat --use-api` (CLI 2.117.0). This deploys T9a and
+  T9b: document chips, one scope from ids and keys with an `indexed_at` check,
+  `document_modules()`, desk-focus feature scope, `feature-empty` widening and `scopeSent`.
+  An unauthenticated probe gave 401 `missing bearer token` with the production CORS header.
+- **Frontend:** `main` pushed at `6f1b94b`, and the Vercel production deploy is READY. T10
+  added "Ask about this document", document chips, the switch of focus to Attached, and the
+  "Desk" label. The rollback candidate is `50207cc`.
+- **Live eval after the deploy,** all four modes: "no worse" against the baseline. With the
+  desk filter, doc@10 is 171/184 against broad's 157, with Industry 12/12 and Budget 3/3.
+  Every filtered call returned full results. Filtered-search p95 from the laptop is 814 ms,
+  mostly the Regulatory exact path (733 ms on the server).
+- **Not verified by an agent:** the button and notice in a signed-in browser session. The
+  owner is to check them.
+- **Found and recorded:** open-work F35. NTER's unscoped HNSW search has a recall@40 of
+  0.913 against exact search.

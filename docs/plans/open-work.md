@@ -225,11 +225,13 @@ Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
 
   The 20-question owner review was done by the supervisor on the owner's
   behalf.
-- [ ] **R2. `retrieval-scope`** (spec approved):
-  - "Ask about this document" for cited documents;
-  - desk focus filters to the module's documents;
-  - the feature filter chosen by measurement on a local replica;
-  - fixes F32 (T6–T11).
+- [x] **R2. `retrieval-scope`**. Done on 2026-10-01:
+  - migration `20261001100000`, and `research-chat` deployed from `2d4f9bd`;
+  - frontend `6f1b94b`;
+  - live eval "no worse", with the desk filter at doc@10 171/184 against 157;
+  - F32 fixed by `document_modules()`.
+
+  Remaining: the owner's signed-in check of the button.
 - [ ] **R3. `chunk-contract`** (spec approved): the page, block and image
   tables, the page chunker (version 3), the citation fields, and the
   ADR 0004 and ADR 0002 amendments (T12–T17).
@@ -255,7 +257,7 @@ Follow-ups and findings:
 
 - [ ] **F31.** `deno.lock` is stale: it still lists `sql.js` (removed in C3)
   and lacks the ESLint packages. Regenerate it in its own commit.
-- [ ] **F32.** `research-chat` `documentModules` (`index.ts:265-281`)
+- [x] **F32.** (fixed by R2, 2026-10-01) `research-chat` `documentModules` (`index.ts:265-281`)
   reads one row per document with no range. PostgREST caps a read at
   `max_rows` 1000, so modules can be missing from the list. Fixed by R2
   (`document_modules()`).
