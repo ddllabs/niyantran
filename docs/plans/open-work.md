@@ -272,7 +272,11 @@ Part 2 needs its specs first, in this order:
   mark R4 done.
 - [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
   doc §6, which proves pages, boxes, images, cost and re-run cost.
-- [ ] **R6. `citations-pdf`.** The PDF.js viewer with box highlights; a
+- [ ] **R6. `citations-pdf`.** **Built and passed locally on 2026-10-01**: spec revision 3
+  (approved), plan V0–V9, branch `task/rag-v2-citations-pdf`, local run
+  `research/2026-10-01-citations-pdf-local-run.md`. Next: checkpoint K (the owner reads it), then
+  V8 on NTER, each step with a go-ahead: deploy `document-file`, then push the frontend.
+  Original scope: The PDF.js viewer with box highlights; a
   page label and image strip in the reader; signed URLs.
   Requirement from R3: `WorkSurface`, `SourceList` (`AiPanel.jsx`) and
   `AiMarkdown` must pass citations through `sanitizeCitation`
@@ -355,6 +359,14 @@ Follow-ups and findings:
   of widened turns and cap it.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
+- [ ] **F45.** Page viewer polish (R6 local run):
+  - rapid paging inside a part whose signature has expired asks `document-file` once per page,
+    not once per part. The viewer knows the part layout from `document_files`, so it should key
+    requests by part;
+  - "Ask about this document" stays enabled on a deleted document's citation.
+- [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
+  step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
+  than 1,000 pages on a busy machine.
 - [ ] **F44.** The shared CORS allowlist's Vercel preview pattern (`_shared/cors.ts:21-36`;
   production `ALLOWED_ORIGINS` includes it) matches any `niyantran-*-ddl-labs.vercel.app` host.
   A third party could probably claim such a name.
