@@ -382,6 +382,24 @@ Follow-ups and findings:
 
   Also covered there: loading in stages, the thinking indicators, the agent loop's speed and cost
   (53 s and $0.105 for one answer), no visible streaming, and re-render cost.
+
+  **Bug fixes on `task/chat-bug-fixes` (2026-10-02):** `7abd31e`, `a5f84af`, `8dfc571`,
+  `cd6a7ac`. All five defects above are fixed, each with a test shown red first.
+  - **Verified in a local browser run:**
+    - the composer is pinned 14 px from the bottom from first paint;
+    - a reload opens at the newest message (0 px from the bottom, re-pinned after the pills);
+    - saved steps keep their three lookups;
+    - "thought 23.5s" shows when the row has a reasoning count;
+    - the saved answer reads "Gemini - Flash".
+  - **Not yet on NTER.** The rest of F46 waits for the owner's discussion.
+- [ ] **F47.** Found during the F46 fixes and left out of their scope:
+  - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
+    71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
+  - **Dead dimming:** the history-open dimming selectors (`index.css`,
+    `.ai-shell.ai-shell-v2.history-open > .ai-v2-body` etc.) match nothing in the research
+    shell, because its rows sit inside `.ai-panel-background`.
+  - **Live timing word:** it reads "waited" until the saved row replaces it, even when the saved
+    row then says "thought". The live stream carries no reasoning count.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
