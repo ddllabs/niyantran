@@ -1129,8 +1129,13 @@ first: `docs/research/2026-10-01-admin-records-local-run.md`.
   - **From `https://evil.example.com`:** 204 with no `access-control-allow-origin`.
   - The new actions (records, unlinked, link, unlink, swap, delete) and the admin-only 403 were
     proven locally (C5). Agents don't sign in to production.
-- **Still to do (each needs the owner's go-ahead):**
-  - step 3: push the frontend;
-  - step 4: the owner's three signed-in checks.
+- **C6 step 3 (owner: "Push main to origin"):** `main` was fast-forwarded from `8714320` to
+  `c9b4644` (19 commits from `task/admin-records`, including the F43 fix) and pushed.
+  - **Vercel:** production deploy `dpl_12EbgpkciGMgdVKMYmar3BRHsPrj` is READY and aliased to
+    `niyantran-six.vercel.app`. The rollback candidate is the `8714320` deploy.
+  - **Served page:** production serves the lazy chunk `DocumentsPage-BYR_OfOP.js` (59.9 KB). It
+    contains the records view, "Documents without a record", Swap, the stale-refresh message and
+    the keyless-desk upload.
+- **Still to do:** step 4, the owner's three signed-in checks. Then R8 is marked done.
 - **Safe in between:** the deployed `admin-ingest` works with the new SQL, because
   `ingest_discard`'s `p_actor` has a default.
