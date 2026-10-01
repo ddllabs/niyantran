@@ -176,7 +176,7 @@ export default function ActivityTicker({
 
       {open && found.length ? (
         <p className="ai-ticker-found">
-          <span>{hi ? 'अब तक मिला' : 'Found so far'}: </span>
+          <span>{active ? (hi ? 'अब तक मिला' : 'Found so far') : (hi ? 'मिला' : 'Found')}: </span>
           {found.map((d) => (d.pages.length ? `${d.title} (p. ${d.pages.join(', ')})` : d.title)).join(' · ')}
         </p>
       ) : null}

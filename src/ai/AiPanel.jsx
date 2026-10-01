@@ -435,7 +435,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   if (inFlight && !flightStart) setFlightStart(Date.now());
   if (!inFlight && flightStart) setFlightStart(0);
   const lastRole = messages[messageCount - 1]?.role;
-  const turnStartedAt = (lastRole === 'user' && messages[messageCount - 1]?.at) || flightStart;
+  const lastUserAt = [...messages].reverse().find((m) => m.role === 'user')?.at || 0;
+  const turnStartedAt = Math.max(flightStart, lastUserAt);
+  // In flight while the stream is live, or while the question just sent is the last message: the
+  // transport clears the stream as the answer is saved, a moment before `submitting` drops, and the
+  // block must not render empty beside the saved answer.
+  const showFlight = research.live || (research.submitting && lastRole === 'user');
   useLayoutEffect(() => {
     const sent = messageCount > seenCount.current && lastRole === 'user';
     seenCount.current = messageCount;
@@ -953,7 +958,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           ))}
 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
-          {(research.live || research.submitting) && !stream?.error && !research.error ? (
+          {showFlight && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{stream?.model?.served ? labelOf(stream.model.served) : registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
               {/* One indicator from Send (thinking-display spec §1): the ticker opens at once on

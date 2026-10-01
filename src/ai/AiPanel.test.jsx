@@ -88,7 +88,8 @@ it('a module chip says it is a module; a bill chip does not',()=>{
 // sized ticker; now the ticker itself opens at once on "Starting…" and stays until the answer.
 it('a live research turn shows one thinking indicator, the ticker, from Send to the answer', () => {
  const ready = { ...fake.research, ready: true, loading: false, locked: false };
- fake.research = { ...ready, submitting: true, live: false, stream: null };
+ const asked = [{ id: 'u1', role: 'user', content: 'What penalties apply?', at: Date.now() }];
+ fake.research = { ...ready, submitting: true, live: false, stream: null, messages: asked };
  const submitted = renderToStaticMarkup(<AiPanel lang="en" />);
  expect(submitted).toContain('ai-ticker active');
  expect(submitted).toContain('Starting…');
@@ -338,15 +339,30 @@ it('a saved answer is headed by the model label, as the live one is, and so is "
  expect(html).toContain('Answered by Claude - Sonnet');
  expect(html).toContain('<span>old/model-x</span>');
 });
-// thinking-display §1: the clock starts at Send, not at the previous question in the thread.
+// thinking-display §1: the clock starts at Send, not at an earlier question (a retried turn
+// reuses its old question).
 it('the in-flight clock never counts from an earlier question', () => {
  const ready = { ...fake.research, ready: true, loading: false, locked: false };
  const old = Date.now() - 3 * 60 * 60 * 1000;
  fake.research = { ...ready, submitting: true, live: false, stream: null, messages: [
    { id: 'u0', role: 'user', content: 'Earlier question', at: old },
-   { id: 'a0', role: 'assistant', content: 'Earlier answer', at: old + 5000 },
  ] };
  const html = renderToStaticMarkup(<AiPanel lang="en" />);
  expect(html).toContain('Starting…');
  expect(html).toMatch(/class="ai-ticker-clock">0:0\d</);
+});
+
+// V7 of thinking-display: as the answer was saved, the transport cleared the stream a moment
+// before `submitting` dropped, so the in-flight block rendered empty ("Starting…") beside the
+// saved answer for one frame. Once the answer is the last message, nothing is in flight.
+it('a saved answer never sits beside an empty in-flight indicator', () => {
+ const ready = { ...fake.research, ready: true, loading: false, locked: false };
+ fake.research = { ...ready, submitting: true, live: false, stream: null, messages: [
+   { id: 'u1', role: 'user', content: 'Q', at: Date.now() - 16000 },
+   { id: 'a1', role: 'assistant', content: 'Saved answer', at: Date.now(), timing: { total_ms: 13000 }, activity: [] },
+ ] };
+ const html = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(html).toContain('Saved answer');
+ expect(html).not.toContain('ai-ticker active');
+ expect(html).not.toContain('Starting…');
 });
