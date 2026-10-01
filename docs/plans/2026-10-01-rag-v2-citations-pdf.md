@@ -28,7 +28,7 @@
       - a method other than POST, after authentication, is 400;
       - a body over 1 KB is 400.
 - **`src/lib/documentFile.js`**
-  - `createDocumentFileClient({client, baseUrl, now})` returns `{partFor(documentId, page)}`.
+  - `createDocumentFileClient({request, baseUrl, now})` (`request` is an injected POST; `defaultDocumentFileClient()` wires the app's Supabase session) returns `{partFor(documentId, page)}`.
   - `partFor` resolves to `{url, partIndex, pageOffset, pageCount, byteSize}`. The url is
     absolute (`baseUrl + '/storage/v1/' + signed_path`).
   - It caches per `(documentId, partIndex)` until `expires_in` runs out, minus 30 seconds.
