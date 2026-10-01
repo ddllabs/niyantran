@@ -26,7 +26,7 @@ function recordingClient(result: (r: Recorded) => { data: unknown; error: unknow
   const log: Recorded[] = [];
   const builder = (r: Recorded) => {
     const b: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'in', 'lt', 'order', 'limit', 'range', 'abortSignal']) {
+    for (const m of ['select', 'eq', 'in', 'lt', 'gt', 'not', 'order', 'limit', 'range', 'abortSignal']) {
       b[m] = (...a: unknown[]) => {
         r.calls.push([m, ...a]);
         return b;
@@ -167,7 +167,13 @@ Deno.test('jobs embeds the document, pages on created_at and flattens the row', 
       requested_by: 'u1',
       created_at: '2026-10-01T10:00:00.5+00:00',
       finished_at: null,
-      documents: { title: 'T', source_key: 'upload:x', desk_tier: 'national', desk_feature: 'Cabinet Decisions', indexed_at: null },
+      documents: {
+        title: 'T',
+        source_key: 'upload:x',
+        desk_tier: 'national',
+        desk_feature: 'Cabinet Decisions',
+        indexed_at: null,
+      },
     }],
     error: null,
   }));
@@ -237,15 +243,168 @@ Deno.test('retry, cancel and discard call their RPCs with the right argument nam
   const db = supabaseAdminDb(() => client);
   assertEquals(await db.retry('j'), { data: { status: 'queued', stage: 'ocr' }, error: null });
   assertEquals(await db.cancel('j'), { data: { status: 'queued', stage: 'ocr' }, error: null });
-  assertEquals(await db.discard('d'), {
+  assertEquals(await db.discard('d', 'u'), {
     data: null,
     error: { message: 'ingest_discard: already live', code: undefined },
   });
   assertEquals(log.map((r) => [r.rpc, r.args]), [
     ['ingest_retry', { p_job: 'j' }],
     ['ingest_cancel', { p_job: 'j' }],
-    ['ingest_discard', { p_document: 'd' }],
+    ['ingest_discard', { p_document: 'd', p_actor: 'u' }],
   ]);
+});
+
+// ─── Amendment A ─────────────────────────────────────────────────────────────
+
+Deno.test('records and unlinked call their read functions with the p_ argument names', async () => {
+  const records = { records: [], total: 0, coverage: { keys: 1, full_text: 0, orphaned: 0 } };
+  const unlinked = { documents: [], total: 0 };
+  const { client, log } = recordingClient((r) => ({
+    data: r.rpc === 'admin_desk_records' ? records : unlinked,
+    error: null,
+  }));
+  const db = supabaseAdminDb(() => client);
+  const q = { tier: 'national', feature: 'Bill Passage Probability Index', query: 'finance', limit: 20, offset: 40 };
+  assertEquals(await db.records({ ...q, status: 'record_only' }), { data: records, error: null });
+  assertEquals(await db.unlinked(q), { data: unlinked, error: null });
+  assertEquals(log.map((r) => [r.rpc, r.args]), [
+    ['admin_desk_records', {
+      p_tier: 'national',
+      p_feature: 'Bill Passage Probability Index',
+      p_query: 'finance',
+      p_status: 'record_only',
+      p_limit: 20,
+      p_offset: 40,
+    }],
+    ['admin_unlinked_documents', {
+      p_tier: 'national',
+      p_feature: 'Bill Passage Probability Index',
+      p_query: 'finance',
+      p_limit: 20,
+      p_offset: 40,
+    }],
+  ]);
+  // A missing or malformed answer is an error, not an empty page.
+  const empty = recordingClient(() => ({ data: null, error: null }));
+  assert((await supabaseAdminDb(() => empty.client).records({ ...q, status: null })).error);
+  assert((await supabaseAdminDb(() => empty.client).unlinked(q)).error);
+});
+
+Deno.test('link, unlink, swap and delete call their SQL functions with p_actor and hand back refusals', async () => {
+  const { client, log } = recordingClient((r) => {
+    if (r.rpc === 'ingest_link') return { data: { document_id: 'd', document_key: 'k', extra: 1 }, error: null };
+    if (r.rpc === 'ingest_unlink') return { data: { document_id: 'd', document_key: null }, error: null };
+    if (r.rpc === 'ingest_swap') {
+      return { data: { document_id: 'd', document_key: 'k', old_document_id: null }, error: null };
+    }
+    return {
+      data: null,
+      error: {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "documents_v2_document_key_unique"',
+        details: "Key ((metadata ->> 'document_key'::text))=(k) already exists.",
+        hint: null,
+      },
+    };
+  });
+  const db = supabaseAdminDb(() => client);
+  assertEquals(await db.link('d', 'k', null, 'u'), { data: { document_id: 'd', document_key: 'k' }, error: null });
+  assertEquals(await db.unlink('d', 'k', 'u'), { data: { document_id: 'd', document_key: null }, error: null });
+  assertEquals(await db.swap('d', null, 'u'), {
+    data: { document_id: 'd', document_key: 'k', old_document_id: null },
+    error: null,
+  });
+  assertEquals(await db.deleteDocument('d', 'u'), {
+    data: null,
+    error: {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "documents_v2_document_key_unique"',
+      details: "Key ((metadata ->> 'document_key'::text))=(k) already exists.",
+    },
+  });
+  assertEquals(log.map((r) => [r.rpc, r.args]), [
+    ['ingest_link', { p_document: 'd', p_key: 'k', p_expected_key: null, p_actor: 'u' }],
+    ['ingest_unlink', { p_document: 'd', p_expected_key: 'k', p_actor: 'u' }],
+    ['ingest_swap', { p_new: 'd', p_expected_old: null, p_actor: 'u' }],
+    ['ingest_delete', { p_document: 'd', p_actor: 'u' }],
+  ]);
+});
+
+Deno.test('keyHolder reads one document by key, ingestion-v2 and indexed first', async () => {
+  const { client, log } = recordingClient(() => ({
+    data: [{ id: 'd1', title: 'Bill', storage_path: null, indexed_at: '2026-01-01T00:00:00Z' }],
+    error: null,
+  }));
+  const db = supabaseAdminDb(() => client);
+  assertEquals(await db.keyHolder('bill:2025:XLV'), { document_id: 'd1', title: 'Bill', legacy: true });
+  const r = log[0];
+  assertEquals(r.table, 'documents');
+  assert(r.calls.some((c) => c[0] === 'eq' && c[1] === 'metadata->>document_key' && c[2] === 'bill:2025:XLV'));
+  assertEquals(
+    r.calls.filter((c) => c[0] === 'order').map((c) => [c[1], c[2]]),
+    [
+      ['storage_path', { ascending: true, nullsFirst: false }],
+      ['indexed_at', { ascending: false, nullsFirst: false }],
+      ['id', { ascending: true }],
+    ],
+  );
+  assertEquals(rangeOf(r), [0, 0]);
+
+  const v2 = recordingClient(() => ({
+    data: [{ id: 'd2', title: 'New', storage_path: 'd2/x.pdf', indexed_at: null }],
+    error: null,
+  }));
+  assertEquals(await supabaseAdminDb(() => v2.client).keyHolder('k'), {
+    document_id: 'd2',
+    title: 'New',
+    legacy: false,
+  });
+  const none = recordingClient(() => ({ data: [], error: null }));
+  assertEquals(await supabaseAdminDb(() => none.client).keyHolder('k'), null);
+  const down = recordingClient(() => ({ data: null, error: { message: 'down' } }));
+  await assertRejects(() => supabaseAdminDb(() => down.client).keyHolder('k'), Error, 'down');
+});
+
+Deno.test('deskSourceUrls reads distinct source URLs a page at a time, skipping past each page', async () => {
+  // 1,000 rows of the hub, then a page with one more URL: two reads, the second after the first's last value.
+  const pages = [
+    Array.from({ length: READ_PAGE }, () => ({ source_url: 'https://sansad.in/ls/legislation/bills' })),
+    [{ source_url: 'https://sansad.in/rs/legislation/bills' }, { source_url: '' }],
+  ];
+  let n = 0;
+  const { client, log } = recordingClient(() => ({ data: pages[n++] ?? [], error: null }));
+  const urls = await supabaseAdminDb(() => client).deskSourceUrls('national', 'Bill Passage Probability Index');
+  assertEquals(urls, ['https://sansad.in/ls/legislation/bills', 'https://sansad.in/rs/legislation/bills']);
+  assertEquals(log.length, 2);
+  for (const r of log) {
+    assertEquals(r.table, 'desk_rows');
+    assertEquals(r.calls[0], ['select', 'source_url:row->>source_url']);
+    assert(r.calls.some((c) => c[0] === 'eq' && c[1] === 'tier' && c[2] === 'national'));
+    assert(r.calls.some((c) => c[0] === 'eq' && c[1] === 'feature' && c[2] === 'Bill Passage Probability Index'));
+    assert(r.calls.some((c) => c[0] === 'not' && c[1] === 'row->>source_url' && c[2] === 'is' && c[3] === null));
+    assert(r.calls.some((c) => c[0] === 'order' && c[1] === 'row->>source_url'));
+    assertEquals(rangeOf(r), [0, READ_PAGE - 1]);
+  }
+  assertEquals(log[0].calls.filter((c) => c[0] === 'gt'), []);
+  assertEquals(log[1].calls.filter((c) => c[0] === 'gt'), [[
+    'gt',
+    'row->>source_url',
+    'https://sansad.in/ls/legislation/bills',
+  ]]);
+
+  const down = recordingClient(() => ({ data: null, error: { message: 'down' } }));
+  await assertRejects(() => supabaseAdminDb(() => down.client).deskSourceUrls('t', 'f'), Error, 'down');
+});
+
+Deno.test('deskSourceUrls stops with an error rather than read without bound', async () => {
+  let n = 0;
+  const { client, log } = recordingClient(() => ({
+    data: Array.from({ length: READ_PAGE }, (_, i) => ({ source_url: `https://x/${String(n).padStart(4, '0')}/${i}` })),
+    error: null,
+  }));
+  const counting = { ...client, from: (t: string) => (n++, client.from(t)) } as unknown as SupabaseClient;
+  await assertRejects(() => supabaseAdminDb(() => counting).deskSourceUrls('t', 'f'), Error, 'source URLs');
+  assert(log.length <= 20, `read ${log.length} pages`);
 });
 
 Deno.test('documentIdBySourceKey reads one row by key', async () => {

@@ -18,7 +18,10 @@ import {
   type DbError,
   type DbResult,
   handleAdminIngest,
+  type LinkData,
   type RawJobRow,
+  type RecordsData,
+  type UnlinkedData,
 } from './handler.ts';
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -30,6 +33,8 @@ export const READ_PAGE = 1000;
 /** Documents sharing one file_sha256: a handful at most; one page is plenty. */
 const SAME_FILE_PAGE = 100;
 export const WORKER_START_TIMEOUT_MS = 3_000;
+/** deskSourceUrls reads at most this many pages (20,000 rows; the largest desk has about 9,800). */
+export const SOURCE_URL_MAX_PAGES = 20;
 
 const CONTENT_ADDRESS = /^files\/[0-9a-f]{64}\.pdf$/;
 
@@ -45,8 +50,18 @@ function fail(op: string, error: { message?: string } | null): void {
   if (error) throw new Error(`${op}: ${error.message ?? 'failed'}`);
 }
 
-function dbError(error: { message?: unknown; code?: unknown }): DbError {
-  return { message: String(error.message ?? ''), code: typeof error.code === 'string' ? error.code : undefined };
+/**
+ * supabase-js's PostgrestError ({message, code, details, hint}) as a DbError. `details` is kept
+ * when it is a string: the handler maps a unique violation by the constraint name it finds in
+ * `message` or `details` (isKeyHeldViolation).
+ */
+function dbError(error: { message?: unknown; code?: unknown; details?: unknown }): DbError {
+  const out: DbError = {
+    message: String(error.message ?? ''),
+    code: typeof error.code === 'string' ? error.code : undefined,
+  };
+  if (typeof error.details === 'string' && error.details) out.details = error.details;
+  return out;
 }
 
 const num = (v: unknown) => (typeof v === 'number' ? v : Number(v ?? 0) || 0);
@@ -70,6 +85,27 @@ export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
   }
   const statusStage = (r: DbResult<Record<string, unknown>>): DbResult<{ status: string; stage: string }> =>
     r.error ? r : { data: { status: String(r.data?.status ?? ''), stage: String(r.data?.stage ?? '') }, error: null };
+  /** A read function's jsonb answer; one that is missing or the wrong shape is an error, not an empty page. */
+  async function jsonb<T>(
+    name: string,
+    args: Record<string, unknown>,
+    shaped: (d: Record<string, unknown>) => boolean,
+  ): Promise<DbResult<T>> {
+    const r = await rpc<Record<string, unknown>>(name, args);
+    if (r.error) return r;
+    if (!r.data || typeof r.data !== 'object' || !shaped(r.data)) {
+      return { data: null, error: { message: `${name}: unexpected answer` } };
+    }
+    return { data: r.data as T, error: null };
+  }
+  async function linkData(p: Promise<DbResult<Record<string, unknown>>>): Promise<DbResult<LinkData>> {
+    const r = await p;
+    if (r.error) return r;
+    return {
+      data: { document_id: String(r.data?.document_id ?? ''), document_key: strOrNull(r.data?.document_key) },
+      error: null,
+    };
+  }
 
   return {
     async documentsBySha(fileSha256) {
@@ -165,7 +201,96 @@ export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
     },
     retry: async (jobId) => statusStage(await rpc('ingest_retry', { p_job: jobId })),
     cancel: async (jobId) => statusStage(await rpc('ingest_cancel', { p_job: jobId })),
-    discard: (documentId) => rpc('ingest_discard', { p_document: documentId }),
+    discard: (documentId, actor) => rpc('ingest_discard', { p_document: documentId, p_actor: actor }),
+
+    // Amendment A.
+    async keyHolder(documentKey) {
+      // An ingestion-v2 document (storage_path set) first, then an indexed one, then by id: one row.
+      const { data, error } = await client()
+        .from('documents')
+        .select('id, title, storage_path, indexed_at')
+        .eq('metadata->>document_key', documentKey)
+        .order('storage_path', { ascending: true, nullsFirst: false })
+        .order('indexed_at', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: true })
+        .range(0, 0);
+      fail('documents read', error);
+      const d = (data ?? [])[0] as Record<string, unknown> | undefined;
+      if (!d) return null;
+      return {
+        document_id: String(d.id),
+        title: String(d.title ?? ''),
+        legacy: d.storage_path === null || d.storage_path === undefined,
+      };
+    },
+    async deskSourceUrls(tier, feature) {
+      // Distinct values without reading every row twice: each page is ordered by the URL, and the
+      // next starts after the last URL seen, which skips the rest of that URL's rows. A desk whose
+      // rows share a hub URL is read in one or two pages.
+      const out = new Set<string>();
+      let after: string | null = null;
+      for (let page = 0; page < SOURCE_URL_MAX_PAGES; page++) {
+        let q = client()
+          .from('desk_rows')
+          .select('source_url:row->>source_url')
+          .eq('tier', tier)
+          .eq('feature', feature)
+          .not('row->>source_url', 'is', null);
+        if (after !== null) q = q.gt('row->>source_url', after);
+        const { data, error } = await q.order('row->>source_url', { ascending: true }).range(0, READ_PAGE - 1);
+        fail('desk_rows read', error);
+        const rows = (data ?? []) as unknown as Array<{ source_url?: unknown }>;
+        for (const r of rows) {
+          const url = r?.source_url;
+          if (typeof url === 'string' && url) out.add(url);
+        }
+        if (rows.length < READ_PAGE) return [...out];
+        const last = rows[rows.length - 1]?.source_url;
+        if (typeof last !== 'string') return [...out];
+        after = last;
+      }
+      throw new Error(`desk_rows read: more than ${SOURCE_URL_MAX_PAGES} pages of source URLs`);
+    },
+    records: (q) =>
+      jsonb('admin_desk_records', {
+        p_tier: q.tier,
+        p_feature: q.feature,
+        p_query: q.query,
+        p_status: q.status,
+        p_limit: q.limit,
+        p_offset: q.offset,
+      }, (d): d is RecordsData => Array.isArray(d.records)),
+    unlinked: (q) =>
+      jsonb('admin_unlinked_documents', {
+        p_tier: q.tier,
+        p_feature: q.feature,
+        p_query: q.query,
+        p_limit: q.limit,
+        p_offset: q.offset,
+      }, (d): d is UnlinkedData => Array.isArray(d.documents)),
+    link: (documentId, documentKey, expectedKey, actor) =>
+      linkData(
+        rpc('ingest_link', { p_document: documentId, p_key: documentKey, p_expected_key: expectedKey, p_actor: actor }),
+      ),
+    unlink: (documentId, expectedKey, actor) =>
+      linkData(rpc('ingest_unlink', { p_document: documentId, p_expected_key: expectedKey, p_actor: actor })),
+    async swap(newId, expectedOld, actor) {
+      const r = await rpc<Record<string, unknown>>('ingest_swap', {
+        p_new: newId,
+        p_expected_old: expectedOld,
+        p_actor: actor,
+      });
+      if (r.error) return r;
+      return {
+        data: {
+          document_id: String(r.data?.document_id ?? ''),
+          document_key: String(r.data?.document_key ?? ''),
+          old_document_id: strOrNull(r.data?.old_document_id),
+        },
+        error: null,
+      };
+    },
+    deleteDocument: (documentId, actor) => rpc('ingest_delete', { p_document: documentId, p_actor: actor }),
   };
 }
 

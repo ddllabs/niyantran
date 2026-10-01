@@ -12,6 +12,11 @@
 // address, `files/<sha256>.pdf`. The only delete this module performs is of a staged object
 // (removeStaged, guarded here and again in index.ts); nothing under `files/` is ever deleted or
 // overwritten.
+//
+// Amendment A (records-first management): records, unlinked, link, unlink, swap and delete, each
+// through one SQL function with the admin as p_actor. SQL refusals read `<function>: <token>: ...`
+// and map by token; D2's unique index maps to key_held by its name (isKeyHeldViolation). register
+// takes the record link and D6's source-URL rule; prepare reports the key's holder.
 
 import { createHash } from 'node:crypto';
 import { requireUser, type Verify } from '../_shared/auth.ts';
@@ -25,11 +30,16 @@ import {
   type ExistingDocument,
   type JobRow,
   LIMITS,
+  type LinkResult,
   type PreparedPart,
+  type RecordsResult,
+  type RecordStatus,
   type RegisterPart,
   SHA256,
   STAGING_PATH,
   STATUS_OF,
+  type SwapResult,
+  type UnlinkedResult,
   UPLOAD_KEY_PREFIX,
 } from './contract.ts';
 
@@ -38,6 +48,8 @@ import {
 export interface DbError {
   message: string;
   code?: string;
+  /** PostgREST's `details`, when it is a string (a unique violation's "Key (...)=(...) already exists."). */
+  details?: string;
 }
 
 /** supabase-js's own result shape: a refusal is a value, not a throw. */
@@ -65,7 +77,39 @@ export interface RegisterPayload {
     parts: number;
   };
   files: Array<RegisterPart & { storage_path: string }>;
+  // Amendment A. document_key and replaces are sent only when given; key_check only with a
+  // document_key (the admin path's desk check, D8). no_public_source and actor always.
+  document_key?: string;
+  key_check?: 'desk';
+  replaces?: string;
+  no_public_source: boolean;
+  actor: string;
 }
+
+/** The document holding a record key, for prepare (Amendment A). */
+export interface KeyHolder {
+  document_id: string;
+  title: string;
+  /** storage_path is null: a legacy document. */
+  legacy: boolean;
+}
+
+/** admin_desk_records's arguments, validated; tier and feature in the desk catalog's spelling. */
+export interface RecordsQuery {
+  tier: string;
+  feature: string;
+  query: string | null;
+  status: RecordStatus | null;
+  limit: number;
+  offset: number;
+}
+
+export type UnlinkedQuery = Omit<RecordsQuery, 'status'>;
+
+export type RecordsData = Omit<RecordsResult, 'ok'>;
+export type UnlinkedData = Omit<UnlinkedResult, 'ok'>;
+export type LinkData = Omit<LinkResult, 'ok'>;
+export type SwapData = Omit<SwapResult, 'ok'>;
 
 export interface Hasher {
   update(chunk: Uint8Array): void;
@@ -92,7 +136,18 @@ export interface AdminIngestDb {
   emails(userIds: string[]): Promise<Record<string, string>>;
   retry(jobId: string): Promise<DbResult<{ status: string; stage: string }>>;
   cancel(jobId: string): Promise<DbResult<{ status: string; stage: string }>>;
-  discard(documentId: string): Promise<DbResult<unknown>>;
+  discard(documentId: string, actor: string): Promise<DbResult<unknown>>;
+  // Amendment A.
+  /** The document holding this key (metadata->>'document_key'), an ingestion-v2 one first; null if none. */
+  keyHolder(documentKey: string): Promise<KeyHolder | null>;
+  /** The distinct row->>'source_url' values of a desk's rows (D6's hub URLs). */
+  deskSourceUrls(tier: string, feature: string): Promise<string[]>;
+  records(q: RecordsQuery): Promise<DbResult<RecordsData>>;
+  unlinked(q: UnlinkedQuery): Promise<DbResult<UnlinkedData>>;
+  link(documentId: string, documentKey: string, expectedKey: string | null, actor: string): Promise<DbResult<LinkData>>;
+  unlink(documentId: string, expectedKey: string, actor: string): Promise<DbResult<LinkData>>;
+  swap(newId: string, expectedOld: string | null, actor: string): Promise<DbResult<SwapData>>;
+  deleteDocument(documentId: string, actor: string): Promise<DbResult<unknown>>;
 }
 
 export interface AdminIngestStorage {
@@ -257,6 +312,80 @@ export function moduleName(s: string): string {
   return s.toLowerCase().replace(/[\p{P}/]+/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// ─── Amendment A: validation ─────────────────────────────────────────────────
+
+const KEY_MAX = 200;
+const QUERY_MAX = 200;
+const RECORDS_DEFAULT_LIMIT = 20;
+const RECORDS_MAX_LIMIT = 50;
+const RECORDS_MAX_OFFSET = 100_000;
+const RECORD_STATUSES: readonly RecordStatus[] = [
+  'processing',
+  'failed',
+  'full_text',
+  'full_text_legacy',
+  'record_only',
+];
+
+/**
+ * A record key as the desks compute it (`bill:2025:XLV`): 1..200 characters, no control
+ * characters, and not padded. Keys are matched exactly, so a padded key is refused rather than
+ * trimmed into a different one.
+ */
+function documentKey(v: unknown, name: string): string {
+  if (typeof v !== 'string' || !v) throw bad(`${name} is required`);
+  if ([...v].length > KEY_MAX) throw bad(`${name} must be at most ${KEY_MAX} characters`);
+  if (CONTROL.test(v)) throw bad(`${name} must not contain control characters`);
+  if (v.trim() !== v) throw bad(`${name} must not start or end with spaces`);
+  return v;
+}
+
+/** An optional key: absent, null or '' is none. */
+function optionalKey(v: unknown, name: string): string | null {
+  return v === undefined || v === null || v === '' ? null : documentKey(v, name);
+}
+
+function optionalQuery(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'string') throw bad('query must be a string');
+  if (CONTROL.test(v)) throw bad('query must not contain control characters');
+  const s = v.trim();
+  if ([...s].length > QUERY_MAX) throw bad(`query must be at most ${QUERY_MAX} characters`);
+  return s || null;
+}
+
+function optionalStatus(v: unknown): RecordStatus | null {
+  if (v === undefined || v === null) return null;
+  if (!RECORD_STATUSES.includes(v as RecordStatus)) throw bad(`status must be one of ${RECORD_STATUSES.join(', ')}`);
+  return v as RecordStatus;
+}
+
+function paging(body: Body): { limit: number; offset: number } {
+  return {
+    limit: body.limit === undefined || body.limit === null
+      ? RECORDS_DEFAULT_LIMIT
+      : int(body.limit, 'limit', 1, RECORDS_MAX_LIMIT),
+    offset: body.offset === undefined || body.offset === null ? 0 : int(body.offset, 'offset', 0, RECORDS_MAX_OFFSET),
+  };
+}
+
+/**
+ * What makes two URLs the same page for D6's hub check: host (without `www.`) and port, and the
+ * path without trailing slashes, lowercased. The scheme, query and fragment are ignored, so
+ * `http://www.sansad.in/ls/legislation/bills/?page=2` is the hub `https://sansad.in/ls/legislation/bills`.
+ * A value that is not a URL is compared as text, lowercased, without its query and trailing slashes.
+ */
+export function urlIdentity(s: string): string {
+  const raw = s.trim();
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    return `${host}${u.port ? `:${u.port}` : ''}${u.pathname.replace(/\/+$/, '')}`.toLowerCase();
+  } catch {
+    return raw.toLowerCase().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+}
+
 // ─── The body ────────────────────────────────────────────────────────────────
 
 async function readBody(req: Request): Promise<Body> {
@@ -299,17 +428,32 @@ interface Ctx {
   deps: AdminIngestDeps;
   userId: string;
   log: (event: string, fields: Record<string, unknown>) => void;
+  /** A desk's hub URL identities, read at most once per invocation. */
+  hubs: Map<string, Promise<Set<string>>>;
 }
 
 const contentAddress = (sha256: string) => `files/${sha256}.pdf`;
 
+/**
+ * prepare. Amendment A adds optional `desk_tier`, `desk_feature` and `document_key`, and the
+ * answer gains `key_holder: { document_id, title, legacy } | null` (KeyHolder): the document,
+ * indexed or not, that holds `document_key` now, an ingestion-v2 one in preference to a legacy
+ * one; null when none does or no key was asked (PrepareResult.key_holder; additive, so existing
+ * callers are unaffected). The holder is found by key alone, because chat joins by key alone (D10);
+ * the desk pair, when given, is checked against the catalog like everywhere else.
+ */
 async function prepare(ctx: Ctx, body: Body): Promise<unknown> {
   const fileSha = sha(body.file_sha256, 'file_sha256');
   const pageCount = int(body.page_count, 'page_count', 1, LIMITS.registerMaxPages);
   const parts = partList(body.parts).map(declaredPart);
   checkPageSum(pageCount, parts);
+  const key = optionalKey(body.document_key, 'document_key');
+  if (body.desk_tier !== undefined || body.desk_feature !== undefined) {
+    resolveDesk(body.desk_tier, body.desk_feature, []);
+  }
 
   const { db, storage } = ctx.deps;
+  const keyHolder = key ? await db.keyHolder(key) : null;
   const found = await db.documentsBySha(fileSha);
   // Live (indexed) documents first; otherwise the order the read gave.
   const documents: ExistingDocument[] = [...found.filter((d) => d.indexed), ...found.filter((d) => !d.indexed)].map((
@@ -341,8 +485,17 @@ async function prepare(ctx: Ctx, body: Body): Promise<unknown> {
     parts: parts.length,
     stored: prepared.filter((p) => p.stored).length,
     documents: documents.map((d) => d.document_id),
+    document_key: key,
+    key_holder: keyHolder?.document_id ?? null,
   });
-  return { ok: true, documents, parts: prepared };
+  return {
+    ok: true,
+    documents,
+    parts: prepared,
+    key_holder: keyHolder
+      ? { document_id: keyHolder.document_id, title: keyHolder.title, legacy: keyHolder.legacy }
+      : null,
+  };
 }
 
 /** Deletes a staged object, and refuses outright to delete anything else. */
@@ -438,12 +591,80 @@ function resolveDesk(tierIn: unknown, featureIn: unknown, modules: Array<{ desk_
   const corpus = modules.find((m) =>
     typeof m?.desk_tier === 'string' && typeof m.desk_feature === 'string' && same(m.desk_tier, m.desk_feature)
   );
-  return corpus
-    ? { tier: corpus.desk_tier, feature: corpus.desk_feature }
-    : { tier: entry.tier, feature: entry.feature };
+  // `catalog` is the catalog's own spelling, which desk_rows uses (the loader writes it).
+  const catalog = { tier: entry.tier, feature: entry.feature };
+  return corpus ? { tier: corpus.desk_tier, feature: corpus.desk_feature, catalog } : { ...catalog, catalog };
 }
 
 const ALREADY = /already extracted|already has an active or succeeded job/;
+
+/**
+ * D6's hub URLs of a desk (catalog spelling) as urlIdentity values, read once per invocation.
+ */
+function hubIdentities(ctx: Ctx, tier: string, feature: string): Promise<Set<string>> {
+  const cacheKey = `${tier}\u0000${feature}`;
+  let hit = ctx.hubs.get(cacheKey);
+  if (!hit) {
+    hit = ctx.deps.db.deskSourceUrls(tier, feature).then((urls) =>
+      new Set(urls.filter((u) => typeof u === 'string' && u.trim()).map(urlIdentity).filter(Boolean))
+    );
+    ctx.hubs.set(cacheKey, hit);
+  }
+  return hit;
+}
+
+// ─── Amendment A: refusals by token and by constraint name ───────────────────
+
+/** D2's partial unique index (migration 20261001180000_corpus_records.sql). */
+export const D2_UNIQUE = 'documents_v2_document_key_unique';
+const D2_NAMED = new RegExp(`\\b${D2_UNIQUE}\\b`);
+
+/**
+ * A unique violation (23505) of D2's index, told apart from every other unique violation by the
+ * index name. PostgREST passes Postgres's error through as {code, message, details, hint}; for a
+ * unique violation the name is only in `message` ('duplicate key value violates unique constraint
+ * "documents_v2_document_key_unique"'), while `details` carries the key ('Key (...)=(...) already
+ * exists.'). Both are searched, so a server that moves the name into details still maps.
+ */
+export function isKeyHeldViolation(error: DbError): boolean {
+  return error.code === '23505' &&
+    [error.message, error.details].some((s) => typeof s === 'string' && D2_NAMED.test(s));
+}
+
+/**
+ * The token of a refusal raised as `<fn>: <token>: <detail>`; null when the message is not from
+ * `fn` in that form.
+ */
+function refusalToken(fn: string, message: string): string | null {
+  if (!message.startsWith(`${fn}: `)) return null;
+  const m = /^([a-z_]+):(\s|$)/.exec(message.slice(fn.length + 2));
+  return m ? m[1] : null;
+}
+
+const UNAVAILABLE = 'the ingest pipeline is unavailable; try again';
+
+/** A refusal of ingest_link, ingest_unlink, ingest_swap or ingest_delete as a coded Refusal. */
+function recordRefusal(fn: string, action: string, error: DbError): Refusal {
+  if (isKeyHeldViolation(error)) return new Refusal('key_held', 'another document already holds this record key');
+  const message = String(error.message ?? '');
+  const token = refusalToken(fn, message);
+  switch (token) {
+    case null:
+      return new Refusal('unavailable', UNAVAILABLE);
+    case 'not_found':
+      return bad(message);
+    case 'key_held':
+    case 'stale':
+    case 'not_deletable':
+      return new Refusal(token, message);
+    case 'legacy':
+      return action === 'delete'
+        ? new Refusal('not_deletable', message)
+        : new Refusal('refused', 'legacy documents are read-only');
+    default: // wrong_desk, not_replacement, not_live, conflict, and any token added later
+      return new Refusal('refused', message);
+  }
+}
 
 async function register(ctx: Ctx, body: Body): Promise<unknown> {
   const fileSha = sha(body.file_sha256, 'file_sha256');
@@ -455,11 +676,34 @@ async function register(ctx: Ctx, body: Body): Promise<unknown> {
   const fileUrl = optionalUrl(body.file_url);
   const fileName = text(body.file_name, 'file_name', FILE_NAME_MAX);
   if (CONTROL.test(fileName)) throw bad('file_name must not contain control characters');
+  // Amendment A: the record link (D8), a pending replacement (D5), and D6's source-URL rule.
+  const key = optionalKey(body.document_key, 'document_key');
+  const replaces = body.replaces === undefined || body.replaces === null ? null : uuid(body.replaces, 'replaces');
+  if (body.no_public_source !== undefined && typeof body.no_public_source !== 'boolean') {
+    throw bad('no_public_source must be true or false');
+  }
+  const noPublicSource = body.no_public_source === true;
+  if (!fileUrl && !noPublicSource) throw bad('file_url is required unless no_public_source is true');
+  if (fileUrl && noPublicSource) throw bad('no_public_source must not be true when a file_url is given');
   // Checked against the catalog before any read, so an unknown pair touches nothing.
   resolveDesk(body.desk_tier, body.desk_feature, []);
 
   const { db, storage } = ctx.deps;
   const desk = resolveDesk(body.desk_tier, body.desk_feature, await db.documentModules());
+  const fields = {
+    action: 'register',
+    user_id: ctx.userId,
+    file_sha256: fileSha,
+    parts: parts.length,
+    document_key: key,
+  };
+  if (fileUrl && (await hubIdentities(ctx, desk.catalog.tier, desk.catalog.feature)).has(urlIdentity(fileUrl))) {
+    ctx.log('admin_ingest.register', { ...fields, outcome: 'hub_url', file_url: fileUrl });
+    throw new Refusal(
+      'hub_url',
+      "file_url is this desk's provenance page, not the document; give the document's own URL or tick no public source",
+    );
+  }
   for (const part of parts) {
     if (!(await storage.exists(contentAddress(part.sha256)))) {
       throw new Refusal(
@@ -495,11 +739,23 @@ async function register(ctx: Ctx, body: Body): Promise<unknown> {
       byte_size: p.byte_size,
       storage_path: contentAddress(p.sha256),
     })),
+    ...(key ? { document_key: key, key_check: 'desk' as const } : {}),
+    ...(replaces ? { replaces } : {}),
+    no_public_source: noPublicSource,
+    actor: ctx.userId,
   };
   const { data, error } = await db.register(payload);
-  const fields = { action: 'register', user_id: ctx.userId, file_sha256: fileSha, parts: parts.length };
   if (error) {
     const message = String(error.message ?? '');
+    const token = refusalToken('ingest_register', message);
+    if (isKeyHeldViolation(error) || token === 'key_held') {
+      ctx.log('admin_ingest.register', { ...fields, outcome: 'key_held', message });
+      throw new Refusal('key_held', token ? message : 'another document already holds this record key');
+    }
+    if (token === 'conflict') {
+      ctx.log('admin_ingest.register', { ...fields, outcome: 'refused', message });
+      throw new Refusal('refused', message);
+    }
     if (error.code === '23505' || ALREADY.test(message)) {
       const existing = await db.documentIdBySourceKey(sourceKey).catch(() => null);
       ctx.log('admin_ingest.register', { ...fields, outcome: 'already_uploaded', document_id: existing });
@@ -510,7 +766,7 @@ async function register(ctx: Ctx, body: Body): Promise<unknown> {
       throw new Refusal('refused', message);
     }
     ctx.log('admin_ingest.register', { ...fields, outcome: 'error', code: error.code ?? null, message });
-    throw new Refusal('unavailable', 'the ingest pipeline is unavailable; try again');
+    throw new Refusal('unavailable', UNAVAILABLE);
   }
   const documentId = String(data?.document_id ?? '');
   const jobId = String(data?.job_id ?? '');
@@ -586,7 +842,7 @@ async function jobAction(ctx: Ctx, action: 'retry' | 'cancel', body: Body): Prom
 
 async function discard(ctx: Ctx, body: Body): Promise<unknown> {
   const documentId = uuid(body.document_id, 'document_id');
-  const { error } = await ctx.deps.db.discard(documentId);
+  const { error } = await ctx.deps.db.discard(documentId, ctx.userId);
   const fields = { action: 'discard', user_id: ctx.userId, document_id: documentId };
   if (error) {
     const message = String(error.message ?? '');
@@ -598,6 +854,107 @@ async function discard(ctx: Ctx, body: Body): Promise<unknown> {
   }
   ctx.log('admin_ingest.discard', { ...fields, outcome: 'discarded' });
   return { ok: true, discarded: true };
+}
+
+// ─── Amendment A: records-first actions ──────────────────────────────────────
+// Each goes through one SQL function (the plan's "Fixed interfaces"), with the admin as p_actor
+// for the writes, which audit themselves in the same transaction.
+
+/** records and unlinked: the desk in the catalog's spelling, which desk_rows uses. */
+function deskQuery(body: Body): UnlinkedQuery {
+  const desk = resolveDesk(body.desk_tier, body.desk_feature, []);
+  return { tier: desk.catalog.tier, feature: desk.catalog.feature, query: optionalQuery(body.query), ...paging(body) };
+}
+
+async function records(ctx: Ctx, body: Body): Promise<unknown> {
+  const q: RecordsQuery = { ...deskQuery(body), status: optionalStatus(body.status) };
+  const { data, error } = await ctx.deps.db.records(q);
+  const fields = { action: 'records', user_id: ctx.userId, ...q };
+  if (error || !data) {
+    ctx.log('admin_ingest.records', { ...fields, outcome: 'error', message: error?.message ?? 'no data' });
+    throw new Refusal('unavailable', UNAVAILABLE);
+  }
+  ctx.log('admin_ingest.records', { ...fields, outcome: 'ok', returned: data.records.length, total: data.total });
+  return { ok: true, records: data.records, total: data.total, coverage: data.coverage };
+}
+
+async function unlinked(ctx: Ctx, body: Body): Promise<unknown> {
+  const q = deskQuery(body);
+  const { data, error } = await ctx.deps.db.unlinked(q);
+  const fields = { action: 'unlinked', user_id: ctx.userId, ...q };
+  if (error || !data) {
+    ctx.log('admin_ingest.unlinked', { ...fields, outcome: 'error', message: error?.message ?? 'no data' });
+    throw new Refusal('unavailable', UNAVAILABLE);
+  }
+  ctx.log('admin_ingest.unlinked', { ...fields, outcome: 'ok', returned: data.documents.length, total: data.total });
+  return { ok: true, documents: data.documents, total: data.total };
+}
+
+/** Logs and throws a write's refusal, or logs its success. */
+function settle<T>(
+  ctx: Ctx,
+  fn: string,
+  fields: Record<string, unknown> & { action: string },
+  r: DbResult<T>,
+): T {
+  if (r.error) {
+    const refusal = recordRefusal(fn, fields.action, r.error);
+    ctx.log(`admin_ingest.${fields.action}`, {
+      ...fields,
+      outcome: refusal.code === 'unavailable' ? 'error' : 'refused',
+      code: refusal.code,
+      db_code: r.error.code ?? null,
+      message: r.error.message,
+    });
+    throw refusal;
+  }
+  ctx.log(`admin_ingest.${fields.action}`, { ...fields, outcome: 'ok' });
+  return r.data;
+}
+
+async function link(ctx: Ctx, body: Body): Promise<unknown> {
+  const documentId = uuid(body.document_id, 'document_id');
+  const key = documentKey(body.document_key, 'document_key');
+  // Compare-and-set (D11): the caller states the key it expects, null for "none"; omitting it is refused.
+  const expected = body.expected_key === null ? null : documentKey(body.expected_key, 'expected_key');
+  const fields = {
+    action: 'link',
+    user_id: ctx.userId,
+    document_id: documentId,
+    document_key: key,
+    expected_key: expected,
+  };
+  const data = settle(ctx, 'ingest_link', fields, await ctx.deps.db.link(documentId, key, expected, ctx.userId));
+  return { ok: true, document_id: String(data?.document_id ?? documentId), document_key: data?.document_key ?? null };
+}
+
+async function unlink(ctx: Ctx, body: Body): Promise<unknown> {
+  const documentId = uuid(body.document_id, 'document_id');
+  const expected = documentKey(body.expected_key, 'expected_key');
+  const fields = { action: 'unlink', user_id: ctx.userId, document_id: documentId, expected_key: expected };
+  const data = settle(ctx, 'ingest_unlink', fields, await ctx.deps.db.unlink(documentId, expected, ctx.userId));
+  return { ok: true, document_id: String(data?.document_id ?? documentId), document_key: null };
+}
+
+async function swap(ctx: Ctx, body: Body): Promise<unknown> {
+  const documentId = uuid(body.document_id, 'document_id');
+  // Compare-and-set (D11): null means "no document held the key"; omitting it is refused.
+  const expectedOld = body.expected_old === null ? null : uuid(body.expected_old, 'expected_old');
+  const fields = { action: 'swap', user_id: ctx.userId, document_id: documentId, expected_old: expectedOld };
+  const data = settle(ctx, 'ingest_swap', fields, await ctx.deps.db.swap(documentId, expectedOld, ctx.userId));
+  return {
+    ok: true,
+    document_id: String(data?.document_id ?? documentId),
+    document_key: String(data?.document_key ?? ''),
+    old_document_id: data?.old_document_id ?? null,
+  };
+}
+
+async function deleteDocument(ctx: Ctx, body: Body): Promise<unknown> {
+  const documentId = uuid(body.document_id, 'document_id');
+  const fields = { action: 'delete', user_id: ctx.userId, document_id: documentId };
+  settle(ctx, 'ingest_delete', fields, await ctx.deps.db.deleteDocument(documentId, ctx.userId));
+  return { ok: true, deleted: true };
 }
 
 // ─── The request ─────────────────────────────────────────────────────────────
@@ -625,7 +982,7 @@ export async function handleAdminIngest(req: Request, deps: AdminIngestDeps): Pr
     }
     if (req.method !== 'POST') throw bad('POST only');
     const body = await readBody(req);
-    const ctx: Ctx = { deps, userId: caller.userId, log };
+    const ctx: Ctx = { deps, userId: caller.userId, log, hubs: new Map() };
     let result: unknown;
     switch (body.action) {
       case 'prepare':
@@ -646,6 +1003,24 @@ export async function handleAdminIngest(req: Request, deps: AdminIngestDeps): Pr
         break;
       case 'discard':
         result = await discard(ctx, body);
+        break;
+      case 'records':
+        result = await records(ctx, body);
+        break;
+      case 'unlinked':
+        result = await unlinked(ctx, body);
+        break;
+      case 'link':
+        result = await link(ctx, body);
+        break;
+      case 'unlink':
+        result = await unlink(ctx, body);
+        break;
+      case 'swap':
+        result = await swap(ctx, body);
+        break;
+      case 'delete':
+        result = await deleteDocument(ctx, body);
         break;
       default:
         throw bad('unknown action');
