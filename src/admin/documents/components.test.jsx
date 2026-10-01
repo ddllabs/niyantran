@@ -429,10 +429,9 @@ describe('upload outcomes and offers', () => {
     expect(upload.mock.calls[0][1]).toMatchObject({ document_key: 'bill:2025:XLV', file_url: 'https://sansad.in/getFile/45.pdf' });
   });
 
-  it('replaces with `replaces` and no key', async () => {
+  it('replaces with `replaces` and the record key (the server keeps it as the link target)', async () => {
     const upload = vi.fn(async () => ({ document_id: 'd', job_id: 'j', duplicates: [] }));
     await uploadFile({ plan: PLAN, draft: draft(), target: REPLACE, upload, api: {}, onProgress: () => {}, setPrompt: () => {} });
-    expect(upload.mock.calls[0][1]).toMatchObject({ replaces: 'doc-v2' });
-    expect(upload.mock.calls[0][1]).not.toHaveProperty('document_key');
+    expect(upload.mock.calls[0][1]).toMatchObject({ replaces: 'doc-v2', document_key: REPLACE.record.document_key });
   });
 });

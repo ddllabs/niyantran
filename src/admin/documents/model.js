@@ -297,8 +297,9 @@ export function draftFor(target, file) {
 }
 
 /**
- * uploadPlan's `meta`: the record key for Attach; `replaces` and no key for Replace (the
- * replacement registers unlinked and is swapped in when live, D5); neither for a standalone file.
+ * uploadPlan's `meta`: the record key for Attach; the record key with `replaces` for Replace (the
+ * server keeps that key as metadata.link_target, so the replacement registers unlinked and is
+ * swapped in when live, D5); neither for a standalone file.
  */
 export function uploadMeta(draft, plan, target) {
   const desk = parsePairValue(draft.desk) ?? { tier: '', feature: '' };
@@ -313,7 +314,10 @@ export function uploadMeta(draft, plan, target) {
   };
   if (draft.no_public_source) meta.no_public_source = true;
   if (target?.mode === 'attach') meta.document_key = target.record.document_key;
-  if (target?.mode === 'replace') meta.replaces = target.holder.document_id;
+  if (target?.mode === 'replace') {
+    meta.document_key = target.record.document_key;
+    meta.replaces = target.holder.document_id;
+  }
   return meta;
 }
 

@@ -314,10 +314,13 @@ describe('draftFor and uploadMeta', () => {
     });
   });
 
-  it('replaces with `replaces` and no document_key (D5)', () => {
+  // Supervisor fix (C4 review): the server stores a replacement's target only when the record key
+  // arrives with `replaces` (ingest_register keeps it as metadata.link_target, never as the live link),
+  // so a replacement sent without its key could never be swapped in.
+  it('replaces with `replaces` and the record key, which the server keeps as the link target (D5)', () => {
     const meta = uploadMeta({ ...draftFor(replace, { name: 'bill.pdf' }), no_public_source: true, file_url: 'https://ignored.test/' }, PLAN, replace);
-    expect(meta).toMatchObject({ replaces: 'doc-v2', no_public_source: true, file_url: null });
-    expect(meta).not.toHaveProperty('document_key');
+    expect(meta).toMatchObject({ replaces: 'doc-v2', document_key: replace.record.document_key, no_public_source: true, file_url: null });
+    expect(meta.document_key).toBeTruthy();
   });
 
   it('registers a standalone upload without a key or a replacement', () => {
