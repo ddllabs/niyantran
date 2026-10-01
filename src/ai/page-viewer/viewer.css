@@ -1,0 +1,66 @@
+/* The page-wise citation viewer (docs/specs/2026-10-01-rag-v2-citations-pdf.md). Tokens are the
+   AI panel's, as in research.css and reader.css, so the viewer follows .theme-dark with them.
+   Loaded with the lazy page-viewer chunk only. */
+
+.pv { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pv .ai-reader-notice { margin: 0; }
+.pv .ai-reader-body { margin: 0; }
+
+/* Header controls: the PDF | Text switch, zoom, and "Open stored copy". */
+.pv-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.pv-switch, .pv-zoom { display: inline-flex; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; overflow: hidden; }
+.pv-switch button, .pv-zoom button {
+  min-width: 36px; min-height: 30px; padding: 4px 10px; border: 0; background: var(--panel, white);
+  color: var(--text, #3d3a36); font: inherit; cursor: pointer;
+}
+.pv-switch button + button, .pv-zoom button + button { border-left: 1px solid var(--line, #e4ddd4); }
+.pv-switch button[aria-pressed="true"] { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font-weight: 600; }
+.pv-zoom button:disabled { opacity: .45; cursor: not-allowed; }
+.pv-stored, .pv-retry {
+  min-height: 30px; padding: 4px 10px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
+  background: transparent; color: var(--accent, #012ea1); font: inherit; font-size: 12px; cursor: pointer;
+}
+.pv-stored { margin-left: auto; }
+
+/* The page bar. */
+.pv-bar { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line, #e4ddd4); border-bottom: 1px solid var(--line, #e4ddd4); font-size: 12px; }
+.pv-section { margin: 0; color: var(--muted, #6d675f); overflow-wrap: anywhere; }
+.pv-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pv-bar-row button {
+  min-height: 30px; padding: 4px 10px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
+  background: var(--panel, white); color: var(--accent, #012ea1); font: inherit; cursor: pointer;
+}
+.pv-bar-row button:disabled { color: var(--muted, #6d675f); opacity: .55; cursor: not-allowed; }
+.pv-bar-label { color: var(--text, #3d3a36); font-variant-numeric: tabular-nums; }
+.pv-bar-back { margin-left: auto; }
+
+.pv :is(button, a):focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: 2px; }
+
+/* Visually hidden, still announced. */
+.pv-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* The PDF view. The wrapper is measured for fit-width; zoomed in, the page scrolls inside it. */
+.pv-pdf { position: relative; width: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+.pv-page {
+  position: relative; margin: 0 auto; min-height: 120px; background: white;
+  box-shadow: 0 0 0 1px var(--line, #e4ddd4), var(--shadow, 0 1px 2px rgba(19, 19, 19, .06));
+}
+.pv-canvas { display: block; }
+.pv-page-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted, #6d675f); font-size: 12px; }
+
+/* The cited blocks: translucent amber with a 2px outline, never in the way of the text layer. */
+.pv-boxes { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.pv-box {
+  position: absolute; pointer-events: none; box-sizing: border-box;
+  background: rgba(250, 204, 21, .28); outline: 2px solid rgba(217, 119, 6, .9); border-radius: 2px;
+  mix-blend-mode: multiply;
+}
+.pv-page .textLayer { z-index: 2; }
+.pv-hint { margin: 0 0 8px; padding: 8px 12px; border-radius: 6px; background: var(--warn-bg, #f3e6d0); color: var(--text, #3d3a36); font-size: 12px; }
+
+/* The Text view. */
+.pv-text { padding-top: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pv * { scroll-behavior: auto !important; }
+}
