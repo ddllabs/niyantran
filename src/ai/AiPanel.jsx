@@ -958,9 +958,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               <span /><span /><span />
             </div>
           ) : null}
-          {messages.map((m) => (
+          {research.ready ? messages.map((m) => (
             <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} />
-          ))}
+          )) : null}
 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
           {showFlight && !stream?.error && !research.error ? (

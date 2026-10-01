@@ -385,3 +385,11 @@ it('C: the question row keeps its room while a turn runs', () => {
  fake.research = { ...ready, locked: false, submitting: false };
  expect(renderToStaticMarkup(<AiPanel lang="en" />)).not.toContain('is-held');
 });
+// panel-loading spec C, found in the browser run: the store emitted the thread one frame before
+// `ready`, so messages drew under the placeholder for 16 ms. The thread waits for ready too.
+it('C: no message is drawn until the panel is ready', () => {
+ fake.research = { ...fake.research, ready: false, loading: true, messages: [{ id: 'u1', role: 'user', content: 'Early question' }] };
+ const html = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(html).toContain('ai-thread-skeleton');
+ expect(html).not.toContain('Early question');
+});
