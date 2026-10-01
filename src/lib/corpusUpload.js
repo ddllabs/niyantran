@@ -13,12 +13,12 @@
  * - `uploadPlan` runs prepare → upload to staging → verify → register for one planned file.
  *
  * Both PDF libraries are loaded lazily with `import()`, so they cost nothing until an admin picks
- * a file. pdfjs is environment-aware (see `loadPdfjs`): in a browser it uses the modern build and
- * its worker from a Vite `?url` asset; without `window` (Vitest's node environment, scripts) it uses
- * the legacy build, which runs its worker in-process. Tests can inject `inspectPdf` and
+ * a file. pdfjs comes from the shared loader in `./pdfjs.js` (the legacy build; in a browser its
+ * worker is a Vite `?url` asset, in Node it runs in-process). Tests can inject `inspectPdf` and
  * `loadPdfLib` through `planUploadWith`.
  */
 import deskCatalog from '../../supabase/functions/_shared/deskCatalog.json';
+import { loadPdfjs } from './pdfjs.js';
 import { accessToken as sessionAccessToken, functionsUrl, supabase } from './supabaseClient.js';
 
 // ─── Limits (the plan's fixed interface) ─────────────────────────────────────
@@ -218,42 +218,7 @@ function hasPdfHeader(bytes) {
 const megabytes = (n) => `${(n / 1_000_000).toFixed(1)} MB`;
 
 // ─── pdfjs ───────────────────────────────────────────────────────────────────
-
-let pdfjsLoading = null;
-
-/**
- * pdfjs-dist, loaded once and lazily.
- * - Browser (`window` and `Worker` exist): `pdfjs-dist` (the modern build) with
- *   `GlobalWorkerOptions.workerSrc` set from Vite's `?url` import of
- *   `pdfjs-dist/build/pdf.worker.min.mjs`, so parsing runs off the main thread.
- * - Otherwise (Vitest's node environment, Node scripts): the legacy build, as
- *   scripts/ingest-register.mjs uses it; it sets up its own in-process worker. The specifier is a
- *   variable with `@vite-ignore` so the production bundle does not carry the legacy build.
- */
-function loadPdfjs() {
-  if (!pdfjsLoading) {
-    const browser = typeof window !== 'undefined' && typeof Worker !== 'undefined';
-    pdfjsLoading = (browser ? loadBrowserPdfjs() : loadNodePdfjs()).catch((error) => {
-      pdfjsLoading = null;
-      throw error;
-    });
-  }
-  return pdfjsLoading;
-}
-
-async function loadBrowserPdfjs() {
-  const [pdfjs, worker] = await Promise.all([
-    import('pdfjs-dist'),
-    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
-  ]);
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-  return pdfjs;
-}
-
-function loadNodePdfjs() {
-  const legacy = 'pdfjs-dist/legacy/build/pdf.mjs';
-  return import(/* @vite-ignore */ legacy);
-}
+// `loadPdfjs` is the shared, memoised loader in ./pdfjs.js.
 
 /**
  * Page count and encryption, from pdfjs.
