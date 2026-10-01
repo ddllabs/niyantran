@@ -504,3 +504,35 @@ in-panel view has the same limit; its full-file dialog has zoom but drops the hi
   - zooming in, with horizontal scroll and the boxes still aligned;
   - the full view and its Esc behaviour.
 - **NTER:** a frontend push only, with its own go-ahead.
+
+## Amendment (revision 5): click outside, and closing loose ends (approved by the owner, 2026-10-01)
+
+**Why.** The owner found on NTER that clicking outside an open citation closes nothing. Revisions
+3 and 4 only provided Back, the close control and Esc.
+
+**Decisions (owner, 2026-10-01).**
+
+1. **Click outside** applies while a citation is open in the overlay:
+   - **Inside the chat or the viewer:** a click there, or in anything the chat or viewer opens
+     (menus, pickers, the full view), closes nothing.
+   - **Elsewhere:** a click anywhere outside the chat area (the desk, the top bar, the
+     navigation) closes **both** the citation and the AI Research panel.
+   - **What counts:** it is a completed click (pointerdown and click both outside). Dragging a
+     desk row into the chat, or a resize drag that ends outside, closes nothing.
+   - **Without a citation open:** the docked chat keeps today's behaviour; outside clicks do not
+     close it.
+   - **Phones:** the viewer is full-screen, so there is no "outside".
+2. **Closing only the citation.** "← Back" and the viewer's close control (accessible name
+   "Close citation") close the citation and keep the chat open. Esc in the viewer does the same.
+3. **The full view.** A click on its backdrop (the 24 px margin) closes the full view only.
+4. **F45, folded in:**
+   - **Signatures per part.** The viewer passes the part layout it already read from
+     `document_files`, so `document-file` is asked once per part, not once per page, while paging
+     quickly.
+   - **"Ask about this document"** is disabled, with a reason in its tooltip, when the cited
+     document is gone (deleted) or not live.
+
+**Testing.** Each test is shown red first, and the behaviour is checked in a local browser run.
+- **Click outside:** inside, outside, drag from a desk row, a resize drag released outside, a
+  portalled menu, and the full-view backdrop.
+- **F45:** the request count for rapid paging inside one part, and the Ask button's state.

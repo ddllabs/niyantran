@@ -205,3 +205,21 @@ V0 ─ V1 (gate) ─┬─ V2 (document-file) ───────────�
 - **Checkpoint J2:** lint, build, the bundle check, both test suites, and a review of the diffs.
 - **V7b. Local browser run**, with an addendum written into the V7 report.
 - **V8b. NTER:** the frontend push, with its own go-ahead; then the owner's checks.
+
+## Revision 5 tasks (approved 2026-10-01)
+
+- **X1. Click outside** (agent; in parallel with X2).
+  - **Files:** `src/ai/CitationOverlay.jsx`, `src/ai/citationOverlayModel.js`, `src/ai/AiPanel.jsx`,
+    `src/ai/AiDock.jsx`, `src/ai/WorkSurface.jsx` (labels only) and their tests.
+  - **Acceptance:** spec revision 5, points 1 and 2.
+- **X2. Full-view backdrop and F45** (agent; in parallel with X1).
+  - **Files:** `src/ai/page-viewer/*` and `src/lib/documentFile.js`, with their tests.
+  - **Acceptance:** spec revision 5, points 3 and 4.
+  - The Ask-button state reaches `WorkSurface` through a callback prop that X1 wires.
+- **J3:** the checks; **V7c:** a local browser run; **V8c:** the frontend push, with its own
+  go-ahead.
+- **Owner checks on NTER:**
+  - R6: the stored-copy tab and the legacy reader;
+  - R8: the split upload and a delete.
+- **Close-out:** R6 and R8 are marked done, the plan is made Historical, and the records are
+  pushed.
