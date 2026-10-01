@@ -1259,3 +1259,11 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Compatibility:** the live frontend (`b3b95d0`) shows the streamed text with its existing
     chunk and patch handling. The "first word" field arrives with the frontend push.
   - No database change.
+- **Frontend push (2026-10-02)** (owner: "Proceed ahead with all recommendations. Go push.").
+  `main` was fast-forwarded from `b3b95d0` to `0aa8077` and pushed. It carried the thinking
+  display (`1c882af`, `c234e51`), the answer-streaming client pieces (`6e0e9e7`) and the records.
+  - **Vercel:** production deploy `dpl_FBmzyDPE94dWAKKyJA8kTJNJ1qAF` is READY on
+    `niyantran-six.vercel.app`.
+  - **Served main entry:** `index-XTAx65h7.js`. It carries "Starting…", "Found so far" and
+    "first word", has no NyAI card, and has no `GlobalWorkerOptions`.
+  - No server or database change.
