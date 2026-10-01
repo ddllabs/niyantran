@@ -1,6 +1,6 @@
 # Spec: the AI Research thinking display (`thinking-display`)
 
-> **Status: Normative — draft, awaiting the owner's approval (2026-10-02).**
+> **Status: Normative — approved by the owner on 2026-10-02.**
 > Owner decisions, 2026-10-02:
 > - option A, "real progress";
 > - sources are shown while the answer is worked out;

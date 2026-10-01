@@ -8,7 +8,7 @@ export type ToolPhase = 'start' | 'end';
 export type ChatFrame =
   | { conversation: { id: string; title: string } }
   | { reasoning: string }
-  | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number } }
+  | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
   | { chunk: string }
   | { patch: { from: number; text: string } }
   | { model: { requested: string; served: string; reason: string } }

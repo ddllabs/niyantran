@@ -59,6 +59,35 @@ export interface TraceStep {
   topSimilarity: number | null;
   latencyMs: number;
   status: 'ok' | 'error';
+  /** A document search's finds, for the reader to watch (thinking-display spec §3). */
+  found?: Found[];
+}
+/** A document a search returned: its title and the pages it came from. Never passage text. */
+export interface Found {
+  document_id: string;
+  title: string;
+  pages: number[];
+}
+export const FOUND_DOCUMENTS = 3;
+export const FOUND_PAGES = 5;
+
+/** Up to 3 documents in result order, each with its first 5 distinct pages, sorted. */
+export function foundOf(chunks: Chunk[]): Found[] {
+  const out: Found[] = [];
+  for (const c of chunks) {
+    let doc = out.find((d) => d.document_id === c.document_id);
+    if (!doc) {
+      if (out.length >= FOUND_DOCUMENTS) continue;
+      doc = { document_id: c.document_id, title: c.title, pages: [] };
+      out.push(doc);
+    }
+    const page = c.page_number;
+    if (typeof page === 'number' && Number.isInteger(page) && !doc.pages.includes(page) && doc.pages.length < FOUND_PAGES) {
+      doc.pages.push(page);
+    }
+  }
+  for (const d of out) d.pages.sort((a, b) => a - b);
+  return out;
 }
 /** Why a document search ran across the whole corpus on a turn that asked for
  * less: the attached documents, or the open desk module's. 'empty': the scoped
@@ -381,6 +410,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       if (Array.isArray(result)) {
         trace.chunkIds = result.map((c) => c.id);
         trace.resultCount = result.length;
+        trace.found = foundOf(result);
         // Chunks come back ordered by distance, but a refinement merges two
         // result sets, so take the maximum rather than trusting the first.
         if (result.length) trace.topSimilarity = Math.max(...result.map((c) => Number(c.similarity) || 0));

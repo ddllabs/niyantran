@@ -723,20 +723,26 @@ async function runTurnBody(
   let searchMs = 0;
   let writingStart = 0;
   let writingEnd = 0;
+  // thinking-display spec §2: each stage is announced once, by what is happening.
+  let researchRounds = 0;
+  const said = new Set<string>();
+  const stage = (label: string) => {
+    if (said.has(label)) return;
+    said.add(label);
+    sender.send({ reasoning: label });
+    activity.push({ type: 'activity', text: label });
+    context.checkpoint({ activity: [...activity] });
+  };
 
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
     if ('internalReasoning' in e) return;
     else if ('attempt' in e) {
-      // The research phase announces that it is reviewing the question, not
-      // that it is searching: it may call no tool at all. A real turn showed
-      // "Searching relevant sources." while chat_turn_traces held a single
-      // answer step and search_ms was 0. The searching label is emitted below,
-      // when a search actually starts.
-      const label = e.attempt.phase === 'research' ? 'Reviewing the question.' : 'Writing the answer.';
-      sender.send({ reasoning: label });
-      activity.push({ type: 'activity', text: label });
-      context.checkpoint({ activity: [...activity] });
+      // A research round may call no tool at all, so it never claims to be searching; the
+      // searches announce themselves. A real turn repeated "Reviewing the question." for
+      // each of its six rounds, which is why every label is said once (F46).
+      if (e.attempt.phase === 'research') stage(researchRounds++ === 0 ? READING_QUESTION : READING_RESULTS);
+      else stage(WRITING);
     } else if ('promoted' in e) {
       // The research reply is the answer, so it is the call the answer trace
       // and any later rejection belong to.
@@ -753,10 +759,6 @@ async function runTurnBody(
       const f = e.tool;
       if (f.phase === 'start') {
         if (f.name === 'search_documents' || f.name === 'search_desk_rows') {
-          if (!activity.some((a) => (a as { text?: string } | null)?.text === SEARCHING)) {
-            sender.send({ reasoning: SEARCHING });
-            activity.push({ type: 'activity', text: SEARCHING });
-          }
           attempts.addTraces([{
             user_id: caller.userId,
             conversation_id: conversation.id,
@@ -780,7 +782,8 @@ async function runTurnBody(
           turnTraceRows({ userId: caller.userId, conversationId: conversation.id, messageId, steps: [f] }),
         );
         searchMs += f.latencyMs;
-        sender.send({ tool: { name: f.name, phase: 'end', step: f.step, resultCount: f.resultCount } });
+        const found = f.found ? { found: f.found } : {};
+        sender.send({ tool: { name: f.name, phase: 'end', step: f.step, resultCount: f.resultCount, ...found } });
         activity.push({
           type: 'tool',
           name: f.name,
@@ -789,11 +792,14 @@ async function runTurnBody(
           resultCount: f.resultCount,
           latencyMs: f.latencyMs,
           status: f.status,
+          ...found,
         });
       }
     } else if ('text' in e) {
       const shown = decoder.push(e.text);
       if (shown) {
+        // A research reply promoted to the answer has no answer round to announce it.
+        stage(WRITING);
         if (!writingStart) writingStart = now();
         writingEnd = now();
         streamed += shown;
@@ -1096,7 +1102,9 @@ export interface Timing {
   total_ms: number;
 }
 
-const SEARCHING = 'Searching relevant sources.';
+const READING_QUESTION = 'Reading the question';
+const READING_RESULTS = 'Reading the results';
+const WRITING = 'Writing the answer';
 const WIDENED_LABEL: Record<Exclude<WidenedScope, 'feature-empty'>, string> = {
   empty: 'The attached documents held nothing; searching the whole record.',
   unresolved: 'No indexed source document for the attached material; searching the whole record.',

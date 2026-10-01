@@ -2098,3 +2098,33 @@ Deno.test('a failed page evidence read does not fail the turn: citations go out 
   assertEquals(s.section, { heading: 'CHAPTER II', note: 'Espionage.' }, 'the section needs no read');
   assert(got.some((f) => 'done' in f));
 });
+
+// thinking-display spec §2-3: each stage is labelled once, by what is happening, and a finished
+// document search carries what it found - on the live end frame and in the saved activity row.
+Deno.test('thinking display: one label per stage, and a finished search says what it found', async () => {
+  const provider = scripted([
+    [
+      { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee stage"}' },
+      finish('tool_calls'),
+    ],
+    [
+      { type: 'tool-call', id: 'c2', name: 'search_documents', args: '{"query":"standing committee report"}' },
+      finish('tool_calls'),
+    ],
+    NO_RESEARCH,
+    [text(envelope('It reached committee.', [])), finish()],
+  ]);
+  const { deps, rec } = fakeDeps({ stream: provider.stream }, {
+    searchDocuments: () => Promise.resolve([{ ...chunk('c-1'), source_kind: 'pdf_page', page_number: 4 }]),
+  });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const labels = got.filter((f) => 'reasoning' in f).map((f) => (f as { reasoning: string }).reasoning);
+  assertEquals(labels, ['Reading the question', 'Reading the results', 'Writing the answer']);
+  const ends = got.filter((f) => 'tool' in f && f.tool.phase === 'end') as { tool: { found?: unknown } }[];
+  assertEquals(ends.length, 2);
+  assertEquals(ends[0].tool.found, [{ document_id: 'doc-c-1', title: 'The Delimitation Bill, 2026', pages: [4] }]);
+  const saved = rec.messages[0].activity as { type: string; text?: string; found?: unknown }[];
+  assertEquals(saved.filter((a) => a.type === 'activity').map((a) => a.text), labels);
+  assertEquals(saved.find((a) => a.type === 'tool')?.found, ends[0].tool.found);
+  assertEquals(JSON.stringify(got).includes('The Bill was referred'), false, 'no passage text in frames');
+});

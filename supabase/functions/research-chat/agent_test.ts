@@ -6,6 +6,7 @@ import type { ModelEvent, StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
 import {
+  foundOf,
   type AgentDeps,
   type AgentEvent,
   BUDGET,
@@ -1097,4 +1098,25 @@ Deno.test('a document search reply renders page chunks with their page and secti
   const reply = f.requests[1].messages.at(-1)!.content!;
   assert(reply.includes('ref:abc123-1 | Title | Bills | page 4 | CHAPTER II › Presumption of prejudicial purpose.\nEvidence p'), reply);
   assert(reply.includes('ref:abc123-2 | Title | Bills\nEvidence a'), reply);
+});
+
+// thinking-display spec §3: a finished document search says what it found - at most 3 documents
+// in result order, each with up to 5 pages - and never carries passage text.
+Deno.test('foundOf: up to 3 documents in result order, up to 5 pages each, titles only', () => {
+  const c = (id: string, doc: string, page?: number): Chunk => ({
+    id, document_id: doc, content: 'SECRET PASSAGE TEXT', similarity: 0.9, chunk_index: 0,
+    source_kind: page === undefined ? 'document' : 'pdf_page', page_number: page,
+    char_from: 0, char_to: 10, title: `Title ${doc}`, text_hash: 'h',
+  });
+  const found = foundOf([
+    c('1', 'A', 9), c('2', 'A', 4), c('3', 'B'), c('4', 'A', 4), c('5', 'A', 7), c('6', 'A', 1),
+    c('7', 'A', 2), c('8', 'A', 3), c('9', 'C', 2), c('10', 'D', 5),
+  ]);
+  assertEquals(found, [
+    { document_id: 'A', title: 'Title A', pages: [1, 2, 4, 7, 9] },
+    { document_id: 'B', title: 'Title B', pages: [] },
+    { document_id: 'C', title: 'Title C', pages: [2] },
+  ]);
+  assertEquals(JSON.stringify(found).includes('SECRET'), false);
+  assertEquals(foundOf([]), []);
 });
