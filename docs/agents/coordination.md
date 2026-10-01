@@ -1119,8 +1119,17 @@ first: `docs/research/2026-10-01-admin-records-local-run.md`.
   - the bill keeps `bill:2025:XLV`, and `admin_desk_records` returns it as `full_text`;
   - coverage reads 9,415 keys, 1,236 with full text and 0 orphaned; the unlinked list is empty;
   - `ingest-worker` cron runs after the migration succeeded.
+- **C6 step 2 (owner: "Deploy admin-ingest to NTER"):** `admin-ingest` deployed from
+  `task/admin-records` at `a306d5d` with `supabase functions deploy admin-ingest --use-api`. It is
+  version 2, ACTIVE, with `verify_jwt` off (the handler checks the admin).
+  - **Probes from `https://niyantran-six.vercel.app`:**
+    - preflight 204, with that exact origin allowed;
+    - no token: the function's own 401 `missing bearer token`, with production CORS;
+    - a malformed bearer: 401.
+  - **From `https://evil.example.com`:** 204 with no `access-control-allow-origin`.
+  - The new actions (records, unlinked, link, unlink, swap, delete) and the admin-only 403 were
+    proven locally (C5). Agents don't sign in to production.
 - **Still to do (each needs the owner's go-ahead):**
-  - step 2: deploy `admin-ingest` from `task/admin-records`;
   - step 3: push the frontend;
   - step 4: the owner's three signed-in checks.
 - **Safe in between:** the deployed `admin-ingest` works with the new SQL, because
