@@ -1193,3 +1193,21 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - No server or database change.
   - **Still to do:** the owner's checks on NTER; then R6 (and R8, after its deferred checks) is
     marked done.
+- **R6 revision 5, frontend push (2026-10-02)** (owner: "Push main to origin"). `main` was
+  fast-forwarded from `e76a48a` to `3a44ff2` and pushed. The 6 commits:
+  - X2 `0181b71`: the full-view backdrop, and F45 per-part signatures;
+  - X1 `ee206bb`: click outside, Close citation, and the Ask state;
+  - the spec revision 5, the V7c addendum, and the open-work and record docs.
+  - **Vercel:** production deploy `dpl_GCXPnvLq22y1NozM5ewKcnVhuiKn` is READY on
+    `niyantran-six.vercel.app`.
+  - **Served main entry:** `index-eGc8u5yH.js`. It has no `GlobalWorkerOptions`, and carries
+    `data-cov-keep`, "Close citation" and both Ask tooltips.
+  - **Viewer chunk:** `PageViewer-DyzWAVlJ.js`, with the `data-citation-viewer` marker.
+  - No server or database change.
+  - **Still to do:** the owner's checks on NTER:
+    - click outside with a real mouse;
+    - the stored-copy tab;
+    - the legacy reader;
+    - R8: the split upload and a delete.
+
+    Then R6 and R8 are marked done.
