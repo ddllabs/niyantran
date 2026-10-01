@@ -277,6 +277,16 @@ Part 2 needs its specs first, in this order:
   Requirement from R3: `WorkSurface`, `SourceList` (`AiPanel.jsx`) and
   `AiMarkdown` must pass citations through `sanitizeCitation`
   (`src/ai/CitationBubble.jsx`) before drawing boxes or images.
+  **Owner direction, 2026-10-01:**
+  - a page-wise viewer that shows a citation both on the original PDF and on the OCR text,
+    as today;
+  - the OCR text view gains a page switcher;
+  - legacy documents keep their current text view unchanged;
+  - the DDL Labs project has the same implementation, to be used as a reference.
+
+  The data is ready. Verified on NTER (the Anti-Doping bill, `bill:2025:77`): every stored
+  citation carries `page_number`, page-normalised `boxes`, the character span, `chunk_id`,
+  `section`, `extract_hash` and `file_url`.
 - [ ] **R7. `acquisition`.** Download the 5,327 linked `pdf_text`
   records (5,218 sansad.in bills), then backfill on a separate owner
   go-ahead. This replaces L1 for the linked records; the unlinked ones wait
