@@ -372,6 +372,16 @@ Follow-ups and findings:
   of widened turns and cap it.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
+- [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`
+  (owner request, 2026-10-02). The owner discusses it before a spec. Confirmed defects:
+  - the composer is not pinned to the bottom;
+  - the thread opens at the top;
+  - finished turns lose their search steps;
+  - "thought" is never shown;
+  - one model has two names.
+
+  Also covered there: loading in stages, the thinking indicators, the agent loop's speed and cost
+  (53 s and $0.105 for one answer), no visible streaming, and re-render cost.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
