@@ -431,67 +431,219 @@ every migration. The same migration adds an index on `documents.file_sha256`
 3. **Every platform admin may upload and act on any job,** as recommended, or
    the owner only?
 
-## Amendment A: link an upload to its desk record (draft, 2026-10-01, awaiting the owner)
+## Amendment A (revision 2): records-first document management (draft, 2026-10-01, awaiting the owner)
 
-**Why.** The first NTER go-live showed a gap.
-- The 12-page bill was ingested and searchable.
-- But dragging its row from *Bill Passage Probability Index* attached the row alone ("Record
-  only"), and the answer widened to the whole corpus.
-- The cause: a desk row reaches its document only through `document_key` (`bill:<year>:<number>`
-  on the row, `metadata->>'document_key'` on the document). The document carried none.
-- The owner's requirement: dropping a desk record into the chat must attach its text,
-  embeddings and context. An upload that no row can reach breaks that. Revision 2 had excluded
-  this linking.
+> Revision 1 of this amendment (a record picker in the upload form) was replaced on the owner's
+> direction the same day. The owner accepted four recommendations: records first; bills first,
+> with keys for other desks as a follow-up (open-work F40); admins may delete live documents; and
+> the source URL is filled from the record and required unless "no public source" is ticked.
 
-**Current state** (NTER, 2026-10-01):
-- Rows carry `document_key` in only two features: *Bill Passage Probability Index* and *Policy
-  Intelligence Graph*. Both hold the same 9,817 bills, with 9,415 distinct keys.
-- The other 73 features have no key on their rows.
-- 1,620 legacy documents carry a key.
-- The bill was linked by hand that day: `bill:2025:XLV` was added to its metadata.
+### Why
 
-**A1. "Link to a desk record" in the upload form.**
-- After the desk is chosen, a search box finds rows of that desk through `search_desk_rows` (as
-  the admin; it already returns `document_key`). The admin picks one row.
-- Its `document_key` is sent with `register` and stored at `metadata.document_key`.
-- **Required** when the chosen desk's rows carry keys (today, the two bill features).
-- **Not offered** for other desks: the form says the document will be found by desk search and
-  the desk filter, not by dragging a row (see A4).
-- The title defaults to the row's title.
+**The first production upload showed the gap.** The 12-page bill was ingested and searchable,
+but dragging its desk row into the chat attached the row alone ("Record only"), and the answer
+widened to the whole corpus. The document carried no `document_key`. It was linked by hand
+(`bill:2025:XLV`).
 
-**A2. The server checks the link (`admin-ingest`).**
-- `register` accepts an optional `document_key`. It must belong to a row of the chosen tier and
-  feature in `desk_rows`, otherwise 422.
-- If a live document already holds the key, for example a legacy bill, `prepare` returns it.
-  The tab then warns: "This record already has full text (title). Uploading adds a second
-  document for it." The admin must confirm.
+**The owner's requirement:**
+- the Documents page maps files to desk records end to end;
+- dropping a record into the chat attaches its text, embeddings and context;
+- admins can attach, unlink, re-link, replace and delete.
 
-**A3. Link existing documents** (a `link` action and a "Link to record" button in the jobs
-table).
-- It sets `metadata.document_key` on a document registered through ingestion-v2 that has none,
-  with the same checks as A2.
-- This repairs uploads made without a link. It would also have replaced the manual fix of
-  2026-10-01.
+The form in revision 2 of this spec asked for a desk and a title, with nothing to say which
+record a file belongs to.
 
-**A4. Other desks (follow-up, not in this amendment).**
-- Rows in the other 73 features need a stable key before a dropped row can attach a document.
-- That needs a loader change (`scripts/load-desk-rows.mjs`, `deskRows.ts` / `deskRows.js`), so
-  that every row gets a key, and a generalised client function to replace `billDocumentKey`.
-- To be recorded in open-work with its own spec.
+### Current state (NTER, 2026-10-01; read)
 
-**A5. Scripts.** `scripts/ingest-register.mjs` gains `--document-key`, checked against
-`desk_rows` the same way. Acquisition (R7) derives the bill key from each corpus record, so the
-5,327 linked bills are linked from the start.
+- **How a link works:**
+  - The client computes a row's key (`billDocumentKey`, `src/lib/deskRows.js:93`).
+  - `research-chat` scopes document search to documents whose `metadata->>'document_key'`
+    equals it (`index.ts:344`).
+  - The panel's "Full text / Record only" badge does the same lookup
+    (`src/lib/corpusCoverage.js`).
+  - **The link is that one metadata field.**
+- **Rows with keys:** only *Bill Passage Probability Index* and *Policy Intelligence Graph* (the
+  same 9,817 bills, 9,415 distinct keys). The other 73 features have none (F40).
+- **Coverage:**
+  - **1,236 of 9,415 bill keys (13 %) have an indexed document**, all of them legacy.
+  - 1,620 legacy documents carry keys.
+  - **294 keys already have more than one document.**
+- **Search:** `search_desk_rows(p_tier, p_feature, p_query, p_filters, p_limit)` is security
+  invoker, readable by `authenticated`, at most 50 rows, with **no offset and no status filter**.
+- **The legacy rule:** the 2,338 legacy documents are never re-OCR'd or converted (owner,
+  2026-09-30; ingestion-v2 spec, Boundaries).
 
-**Acceptance for Amendment A:**
-- Deno tests for A2 and A3: an unknown key, a key from another desk, an existing live holder,
-  `link` on a document that already has a key. Vitest for the picker and the warning. Each test
-  shown red first.
-- **Locally:** upload the bill linked to its row; a row drag then shows "Full text", and a
-  focused answer cites only that bill's pages.
-- **On NTER:** the owner's *Budget at a Glance* run uses *Budget Utilisation & Schemes*. Its rows
-  carry no keys, so the run also checks the A1 wording for keyless desks. A bill run checks
-  "Full text" on a row drag.
+### Objective
+
+A platform admin manages the corpus **by record**:
+
+1. **Browse a desk's records with their document status.** Search, filter by status, and page
+   through the desk; see a coverage summary, e.g. "1,236 of 9,415 bills have full text".
+2. **Attach a PDF to a record.** Desk, title, `document_key` and source URL come from the record.
+   It goes through the existing pipeline. When it is live, dragging that row into the chat
+   attaches its full text.
+3. **Manage a record's documents:**
+   - unlink (the document stays searchable but the row no longer attaches it);
+   - re-link to another record of the same desk;
+   - replace (a new PDF goes live, then swaps in for the old);
+   - delete (removed from search).
+   Every action is confirmed in the page and audited.
+4. **Upload a standalone document** with no record (e.g. a report), clearly labelled: found by
+   the desk's search and filter, never by a row drag.
+5. **For desks whose rows have no keys yet:** the page says so and offers standalone upload only,
+   until F40.
+
+**Success looks like:** the owner opens a bill marked "Record only", attaches its PDF, waits for
+"Full text", drags the row into the chat, and gets an answer scoped to that bill with page
+citations. They then unlink and re-link it, and delete a test upload, each reflected at once in
+the badge and in search.
+
+### Decisions in this amendment (recommendations in bold)
+
+- **D1. The link stays `documents.metadata->>'document_key'`.** It is the field `research-chat`
+  and the badge already read, so nothing on the chat side changes.
+- **D2. At most one linked ingestion-v2 document per key**, enforced by a partial unique index on
+  `(metadata->>'document_key')` where `storage_path is not null` and the key is present.
+  - The 294 legacy duplicates are untouched (their `storage_path` is null).
+  - Replace swaps the link in one transaction (D5).
+- **D3. Legacy documents are read-only** (your rule). They show as **"Full text (legacy)"** and
+  cannot be unlinked or deleted here.
+  - **Attaching a new PDF to a record that has a legacy document is allowed, with a warning**
+    ("this record already has legacy text; your upload adds a second document, both will be
+    searched"). A newly OCR'd PDF is usually better than the legacy `pdf_text` extraction.
+  - Retiring a legacy document is a separate owner decision, recorded as open-work.
+- **D4. Delete applies to ingestion-v2 documents in any state.**
+  - A queued or running job is cancelled first.
+  - It cascades to pages, blocks, images, chunks, files and jobs.
+  - **Stored PDFs and images are kept for the sweeper (F38)**, since content-addressed objects
+    may be shared.
+  - Costs already paid stay in `model_call_logs`.
+- **D5. Replace is two-step, so a record is never left without text:**
+  1. upload the new PDF to the same record; it registers unlinked, marked `replaces = <old id>`;
+  2. when it is live, "Swap" unlinks the old document and links the new one in one transaction,
+     then optionally deletes the old one.
+- **D6. The source URL comes from the record and is required.**
+  - It is pre-filled from the row's provenance URL (bill rows hold sansad.in's legislation page,
+    not the PDF itself), and the admin can paste the exact PDF link.
+  - It may be left empty only when "No public source" is ticked; that choice is stored in
+    metadata.
+- **D7. An audit table, `corpus_admin_actions`:** who, when, what (attach, link, unlink,
+  re-link, swap, delete, discard), the document, the key and the old key.
+  - Service role only; insert-only for the functions below.
+  - Function logs alone are lost after retention, and these are data changes.
+
+### Design
+
+**SQL (one migration; service_role only; security definer with only `search_path` set; tested
+as a non-superuser):**
+
+- **`admin_desk_records(p_tier, p_feature, p_query, p_status, p_limit, p_offset) → jsonb`**
+  - Returns a page (≤ 50) of a desk's records: `row_key`, title, date, `document_key`, `source_url`.
+  - Each record also carries its documents (`id`, `title`, `legacy`, `indexed`, the latest job's
+    `status`/`stage`/`error_code`) and a derived status:
+    - `full_text`
+    - `full_text_legacy`
+    - `processing`
+    - `failed`
+    - `record_only`
+    - `no_key`
+  - Plus `total` and a coverage summary for the desk.
+  - Filtering by status is done in SQL.
+  - Search uses `record_text ilike` (the trigram index `search_desk_rows` already relies on).
+- **`ingest_link(p_document, p_key, p_actor)`**
+  - Only for an ingestion-v2 document.
+  - The key must be a `desk_rows.document_key` of the document's own tier and feature.
+  - No other ingestion-v2 document may hold it (D2).
+  - It writes the audit row.
+- **`ingest_unlink(p_document, p_actor)`** removes the key and writes the audit row.
+- **`ingest_swap(p_old, p_new, p_actor)`**
+  - Both documents are ingestion-v2 documents with the same key target.
+  - The new one must be live.
+  - In one transaction: unlink the old, link the new, write the audit rows.
+- **`ingest_delete(p_document, p_actor)`**
+  - Only for an ingestion-v2 document (legacy refused).
+  - It cancels any active job, deletes the document (cascade) and writes the audit row.
+- **`ingest_register` gains:**
+  - `document_key`: checked as in `ingest_link`; refused if another ingestion-v2 document holds it,
+    unless `replaces` names that document;
+  - `source_url` / `no_public_source`;
+  - `replaces`.
+- **Index and table:** the D2 partial unique index, and the D7 audit table.
+
+**`admin-ingest` (new actions; the same admin check, CORS, body cap and logging):**
+
+| Action | Purpose |
+| --- | --- |
+| `records` | desk, query, status, page → `admin_desk_records` |
+| `link` / `unlink` / `swap` / `delete` | the SQL functions above; the actor is the admin's id |
+| `register` | gains `document_key`, `source_url`, `no_public_source`, `replaces`; the title defaults to the record's |
+
+**The Documents page, rebuilt in three areas:**
+
+1. **Records** (the default view):
+   - a desk picker (keyed desks first, others marked "no record keys yet");
+   - the coverage line;
+   - search and status filter chips;
+   - a paged table: title, date, status badge, linked documents, actions.
+   - **Row actions:** Attach PDF (opens the upload panel pre-filled from the record), Unlink,
+     Re-link (search another record of the desk), Replace, Delete. Each asks for confirmation in
+     the page.
+2. **Upload panel** (shared by Attach, Replace and Standalone):
+   - the existing plan summary and cost, the split option, title (from the record), and the
+     source URL (from the record, required unless "No public source");
+   - a duplicate and legacy warning where relevant.
+3. **Jobs:** the existing table, plus a "Record" column. It refreshes as today.
+
+**Unchanged:** the ingestion pipeline, the worker, the staging and verify flow, and
+`research-chat`.
+
+### Testing and acceptance
+
+- **SQL fixture (non-superuser):**
+  - every function's checks and refusals, including legacy refused, a key from another desk, a
+    key already held, and swap atomicity;
+  - the unique index;
+  - delete cascades while storage objects remain;
+  - an audit row for each action;
+  - privileges.
+- **Deno:** the new actions' validation, mapping and logging.
+- **Vitest:** the records table, statuses, actions by status, the upload panel pre-fill, and the
+  source-URL rule.
+- Each test is shown red first.
+- **Local end to end** (built-in browser, local test admin):
+  - attach the bill to its record; the badge shows `processing`, then `full_text`, and a row drag
+    in the chat shows "Full text";
+  - unlink, re-link, then replace with a swap;
+  - delete a test upload;
+  - a standalone upload on a keyless desk;
+  - the audit rows.
+- **On NTER** (the owner, signed in):
+  1. attach a PDF to one "Record only" bill, then check the row drag and the citations;
+  2. do the split test as a standalone *Budget at a Glance* (split every 10);
+  3. delete one test upload.
+
+### Boundaries (in addition to the spec's)
+
+- **Always:**
+  - every action goes through the SQL functions, with the audit row in the same transaction;
+  - legacy documents are read-only;
+  - the source URL is required unless "no public source" is ticked.
+- **Ask first:**
+  - the migration;
+  - deploys;
+  - any action on NTER data beyond the owner's own test.
+- **Never:**
+  - unlink, delete or modify a legacy document;
+  - delete a content-addressed object;
+  - a bulk action across records.
+
+### Follow-ups (open-work)
+
+- **F40:** keys for rows of the document-holding desks (parliamentary questions, regulators,
+  cabinet decisions, court orders, …).
+- **The legacy decision:** retire or replace legacy documents per record, including the 294
+  duplicate keys.
+- **F38:** the sweeper also removes objects orphaned by delete.
 
 ## Review record
 
