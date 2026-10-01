@@ -111,6 +111,23 @@ export async function refreshCoverage(keys, client = defaultClient, now = Date.n
 }
 
 /**
+ * Asks about `keys` now, whatever their age, and answers with the keys whose latest answer is
+ * "full text". The panel's periodic re-check (D9): its tick drifts against COVERAGE_TTL_MS, so it
+ * must not skip an answer a few ms short of its lifetime. Unlike `refreshCoverage`, the old
+ * answers stay until new ones land, so a failed lookup keeps the last answer.
+ *
+ * @param {string[]} keys
+ * @param {object} [client]  a Supabase client
+ * @param {() => number} [now]  the clock, for tests
+ * @returns {Promise<Set<string>>}
+ */
+export async function recheckCoverage(keys, client = defaultClient, now = Date.now) {
+  const wanted = keysOf(keys);
+  await lookUp(wanted, client, now);
+  return new Set(wanted.filter((k) => known.get(k)?.value === true));
+}
+
+/**
  * What the panel shows for one attachment: 'full' when the record's text is in
  * the corpus, 'row' when it is not, and null when there is nothing to say -
  * an attachment with no key at all (a dropped file, a desk sample), a lookup

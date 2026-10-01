@@ -3,7 +3,7 @@ import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
-import { COVERAGE_TTL_MS, coverageOf, indexedDocumentKeys, refreshCoverage } from '../lib/corpusCoverage.js';
+import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
 import NyAiThinking from './NyAiThinking.jsx';
@@ -319,13 +319,14 @@ const FOCUS_KEY = 'niyantranAiFocus';
  * Keeps the coverage badge current for the attached record keys (admin-upload Amendment A, D9).
  * When the attached set changes, its keys are re-queried at once (`refresh`), so a document an
  * admin just linked or unlinked shows without a reload; while any keyed attachment remains, the
- * keys are re-checked every `every` ms (`recheck` asks again only about answers past their
- * lifetime, and keeps the last answer if the lookup fails). Answers arriving after the returned
- * stop function ran are dropped. Returns null, starting nothing, when no key is attached.
+ * keys are re-checked every `every` ms (`recheck` asks about every key whatever its age, since
+ * the tick drifts against the answers' lifetime, and keeps the last answer if the lookup fails).
+ * Answers arriving after the returned stop function ran are dropped. Returns null, starting
+ * nothing, when no key is attached.
  * @param {string} attachedKeys  document keys joined with U+0000, as the panel builds them
  * @param {(indexed: Set<string>) => void} onAnswer
  */
-export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverage, recheck = indexedDocumentKeys, every = COVERAGE_TTL_MS } = {}) {
+export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverage, recheck = recheckCoverage, every = COVERAGE_TTL_MS } = {}) {
   const keys = String(attachedKeys || '').split('\u0000').filter(Boolean);
   if (!keys.length) return null;
   let alive = true;

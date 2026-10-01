@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { COVERAGE_TTL_MS, coverageOf, indexedDocumentKeys, refreshCoverage, resetCoverageCache } from './corpusCoverage.js';
+import { COVERAGE_TTL_MS, coverageOf, indexedDocumentKeys, recheckCoverage, refreshCoverage, resetCoverageCache } from './corpusCoverage.js';
 
 /** A Supabase query chain that answers with `rows`, recording what it was asked. */
 function client(rows, { error = null, calls = [] } = {}) {
@@ -144,6 +144,35 @@ describe('answer lifetime', () => {
     expect(coverageOf({ document_key: 'a' }, found, now)).toBe('row');
     now.advance(COVERAGE_TTL_MS * 3);
     expect(coverageOf({ document_key: 'a' }, found, now)).toBe('row');
+  });
+
+  // The panel re-checks every COVERAGE_TTL_MS. Timers drift, so the last answer is often a few
+  // milliseconds short of its lifetime when the tick fires; a re-check that skipped "fresh" answers
+  // then waited a whole extra minute (C5: a re-link showed after more than 90 s).
+  it('recheckCoverage asks about every key again, even an answer a few ms short of its lifetime', async () => {
+    const calls = [];
+    const db = liveClient(calls);
+    const now = clock();
+    await indexedDocumentKeys(['a', 'b'], db.client, now);
+    db.rows = [{ document_key: 'a' }];
+    now.advance(COVERAGE_TTL_MS - 10);
+    const found = await recheckCoverage(['a', 'b'], db.client, now);
+    expect(calls).toEqual([['a', 'b'], ['a', 'b']]);
+    expect([...found]).toEqual(['a']);
+    expect(coverageOf({ document_key: 'a' }, found, now)).toBe('full');
+    expect(coverageOf({ document_key: 'b' }, found, now)).toBe('row');
+  });
+
+  it('a failed recheckCoverage keeps the last answers, whatever their age', async () => {
+    const db = liveClient();
+    const now = clock();
+    db.rows = [{ document_key: 'a' }];
+    await indexedDocumentKeys(['a', 'b'], db.client, now);
+    db.fail = true;
+    now.advance(COVERAGE_TTL_MS * 2);
+    const found = await recheckCoverage(['a', 'b'], db.client, now);
+    expect([...found]).toEqual(['a']);
+    expect(coverageOf({ document_key: 'b' }, found, now)).toBe('row');
   });
 
   it('refreshCoverage asks again now, even inside the lifetime, and answers the new set', async () => {
