@@ -23,6 +23,7 @@ import {
   deskPairs,
   estimateCostUsd,
   inspectPdf,
+  isHubUrl,
   planUpload,
   planUploadWith,
   sha256Bytes,
@@ -451,6 +452,156 @@ describe('createAdminIngestApi', () => {
   });
 });
 
+// ─── Amendment A: records-first management (plan C3) ───────────────────────
+
+describe('createAdminIngestApi: records-first actions', () => {
+  const DOC = '11111111-1111-4111-8111-111111111111';
+  const OLD = '22222222-2222-4222-8222-222222222222';
+
+  function recording(body = { ok: true }, status = 200) {
+    const fetch = vi.fn(async () => reply(body, status));
+    let n = 0;
+    const accessToken = vi.fn(async () => `token-${(n += 1)}`);
+    const api = createAdminIngestApi({ fetch, url: 'u', accessToken });
+    const sent = () => fetch.mock.calls.map(([, init]) => JSON.parse(init.body));
+    const tokens = () => fetch.mock.calls.map(([, init]) => init.headers.authorization);
+    return { api, fetch, accessToken, sent, tokens };
+  }
+
+  it('sends each new action under its contract name, with a fresh token per call', async () => {
+    const { api, sent, tokens } = recording();
+    await api.records({ desk_tier: 'law', desk_feature: 'Bill Passage Probability Index', query: 'tribunal', status: 'record_only', limit: 50, offset: 100 });
+    await api.unlinked({ desk_tier: 'law', desk_feature: 'Bill Passage Probability Index', query: 'budget', limit: 20, offset: 0 });
+    await api.link({ document_id: DOC, document_key: 'bill:2025:45', expected_key: null });
+    await api.unlink({ document_id: DOC, expected_key: 'bill:2025:45' });
+    await api.swap({ document_id: DOC, expected_old: OLD });
+    await api.remove({ document_id: DOC });
+    expect(sent()).toEqual([
+      { action: 'records', desk_tier: 'law', desk_feature: 'Bill Passage Probability Index', query: 'tribunal', status: 'record_only', limit: 50, offset: 100 },
+      { action: 'unlinked', desk_tier: 'law', desk_feature: 'Bill Passage Probability Index', query: 'budget', limit: 20, offset: 0 },
+      { action: 'link', document_id: DOC, document_key: 'bill:2025:45', expected_key: null },
+      { action: 'unlink', document_id: DOC, expected_key: 'bill:2025:45' },
+      { action: 'swap', document_id: DOC, expected_old: OLD },
+      { action: 'delete', document_id: DOC },
+    ]);
+    expect(tokens()).toEqual(['Bearer token-1', 'Bearer token-2', 'Bearer token-3', 'Bearer token-4', 'Bearer token-5', 'Bearer token-6']);
+  });
+
+  it('sends only the contract’s fields: extras are dropped, and blank optional filters are omitted', async () => {
+    const { api, sent } = recording();
+    const extra = { action: 'delete', document_id: 'smuggled', user_id: 'u-1', key_check: 'none' };
+    await api.records({ ...extra, desk_tier: 'law', desk_feature: 'Bills', query: '  ', status: null, limit: undefined });
+    await api.unlinked({ ...extra, desk_tier: 'law', desk_feature: 'Bills', query: '' });
+    await api.link({ ...extra, document_id: DOC, document_key: 'bill:2025:45', expected_key: 'bill:2024:1' });
+    await api.unlink({ ...extra, document_id: DOC, expected_key: 'bill:2025:45' });
+    await api.swap({ ...extra, document_id: DOC, expected_old: null });
+    await api.remove({ ...extra, document_id: DOC });
+    expect(sent()).toEqual([
+      { action: 'records', desk_tier: 'law', desk_feature: 'Bills' },
+      { action: 'unlinked', desk_tier: 'law', desk_feature: 'Bills' },
+      { action: 'link', document_id: DOC, document_key: 'bill:2025:45', expected_key: 'bill:2024:1' },
+      { action: 'unlink', document_id: DOC, expected_key: 'bill:2025:45' },
+      { action: 'swap', document_id: DOC, expected_old: null },
+      { action: 'delete', document_id: DOC },
+    ]);
+  });
+
+  // Compare-and-set (D11): "I expect no key" and "I expect no old document" are statements the
+  // server checks, so a missing expectation is sent as null, never dropped.
+  it('sends a missing expectation as null so compare-and-set still has something to compare', async () => {
+    const { api, sent } = recording();
+    await api.link({ document_id: DOC, document_key: 'bill:2025:45' });
+    await api.swap({ document_id: DOC });
+    expect(sent()).toEqual([
+      { action: 'link', document_id: DOC, document_key: 'bill:2025:45', expected_key: null },
+      { action: 'swap', document_id: DOC, expected_old: null },
+    ]);
+  });
+
+  it('resolves to the server’s body', async () => {
+    const result = { ok: true, document_id: DOC, document_key: 'bill:2025:45', old_document_id: OLD };
+    const { api } = recording(result);
+    expect(await api.swap({ document_id: DOC, expected_old: OLD })).toEqual(result);
+  });
+
+  it.each([
+    ['key_held', 409, 'link'],
+    ['stale', 409, 'unlink'],
+    ['not_deletable', 409, 'remove'],
+    ['hub_url', 422, 'records'],
+  ])('passes %s through with the server’s message and status', async (code, status, method) => {
+    const { api } = recording({ ok: false, code, error: `Server says ${code}`, document_id: DOC }, status);
+    const err = await api[method]({ document_id: DOC, document_key: 'k', expected_key: 'k', desk_tier: 't', desk_feature: 'f' }).catch((e) => e);
+    expect(err).toBeInstanceOf(UploadError);
+    expect(err).toMatchObject({ code, message: `Server says ${code}`, status, document_id: DOC });
+  });
+
+  it.each([
+    ['key_held', 409, /another document/i],
+    ['stale', 409, /changed|out of date/i],
+    ['not_deletable', 409, /cannot be deleted/i],
+    ['hub_url', 422, /source url/i],
+  ])('writes an admin-readable message for %s when the server sends none', async (code, status, pattern) => {
+    const { api } = recording({ ok: false, code }, status);
+    const err = await api.link({ document_id: DOC, document_key: 'k', expected_key: null }).catch((e) => e);
+    expect(err).toMatchObject({ code, status, message: expect.stringMatching(pattern) });
+    expect(err.message).not.toBe(code);
+  });
+});
+
+describe('isHubUrl', () => {
+  const HUB = 'https://sansad.in/ls/legislation/bills';
+
+  it('matches the same URL, with or without a trailing slash', () => {
+    expect(isHubUrl(HUB, [HUB])).toBe(true);
+    expect(isHubUrl(`${HUB}/`, [HUB])).toBe(true);
+    expect(isHubUrl(HUB, [`${HUB}/`])).toBe(true);
+  });
+
+  it('ignores the case of the scheme and host, but not of the path', () => {
+    expect(isHubUrl('HTTPS://Sansad.IN/ls/legislation/bills', [HUB])).toBe(true);
+    expect(isHubUrl('https://sansad.in/LS/Legislation/Bills', [HUB])).toBe(false);
+  });
+
+  it('ignores the query and the fragment', () => {
+    expect(isHubUrl(`${HUB}?page=2&sort=date`, [HUB])).toBe(true);
+    expect(isHubUrl(`${HUB}/#top`, [HUB])).toBe(true);
+    expect(isHubUrl(HUB, [`${HUB}?tab=passed`])).toBe(true);
+  });
+
+  it('a different path is the document, not the hub', () => {
+    expect(isHubUrl('https://sansad.in/ls/legislation/bills/2025/45.pdf', [HUB])).toBe(false);
+    expect(isHubUrl('https://sansad.in/ls/legislation', [HUB])).toBe(false);
+    expect(isHubUrl('https://sansad.in/getFile/BillsTexts/LSBillTexts/Asintroduced/45_2025.pdf', [HUB])).toBe(false);
+  });
+
+  it('matches any one of several hints, and skips blank or broken hints', () => {
+    const hints = [null, '', 'not a url', 'https://prsindia.org/billtrack', HUB];
+    expect(isHubUrl('https://prsindia.org/billtrack/', hints)).toBe(true);
+    expect(isHubUrl(`${HUB}/`, hints)).toBe(true);
+    expect(isHubUrl('https://example.test/bill.pdf', hints)).toBe(false);
+  });
+
+  it('is false for an empty or unparsable URL, and for no hints', () => {
+    expect(isHubUrl('', [HUB])).toBe(false);
+    expect(isHubUrl('   ', [HUB])).toBe(false);
+    expect(isHubUrl(null, [HUB])).toBe(false);
+    expect(isHubUrl('sansad.in/ls/legislation/bills', [HUB])).toBe(false);
+    expect(isHubUrl(HUB, [])).toBe(false);
+    expect(isHubUrl(HUB, undefined)).toBe(false);
+  });
+
+  it('trims surrounding whitespace before comparing', () => {
+    expect(isHubUrl(`  ${HUB}/  `, [HUB])).toBe(true);
+  });
+
+  it('does not modify the hints it is given', () => {
+    const hints = Object.freeze([`${HUB}/`]);
+    expect(isHubUrl(HUB, hints)).toBe(true);
+    expect(hints).toEqual([`${HUB}/`]);
+  });
+});
+
 // ─── uploadPlan orchestration ────────────────────────────────────────────────
 
 const SHA_FILE = 'f'.repeat(64);
@@ -592,5 +743,103 @@ describe('uploadPlan', () => {
     api.prepare.mockResolvedValueOnce({ ok: true, documents: [], parts: [{ sha256: SHA_B, stored: true }] });
     expect(await codeOf(() => uploadPlan(samplePlan(), META, { api, storage }))).toBe('bad_response');
     expect(api.register).not.toHaveBeenCalled();
+  });
+});
+
+describe('uploadPlan: record links (Amendment A)', () => {
+  const OLD = '22222222-2222-4222-8222-222222222222';
+  const HOLDER = { document_id: OLD, title: 'The Bill (first upload)', indexed: true };
+  const LINKED = { ...META, document_key: 'bill:2025:45' };
+
+  it('passes document_key, replaces and no_public_source to register', async () => {
+    const { api, storage } = fakes();
+    await uploadPlan(samplePlan(), { ...LINKED, file_url: '', replaces: OLD, no_public_source: true }, { api, storage });
+    expect(api.register.mock.calls[0][0]).toMatchObject({
+      document_key: 'bill:2025:45',
+      replaces: OLD,
+      no_public_source: true,
+      file_url: null,
+    });
+  });
+
+  it('trims the link fields and omits blank ones, so a standalone upload registers as before', async () => {
+    const { api, storage } = fakes();
+    await uploadPlan(samplePlan(), { ...META, document_key: '  bill:2025:45 ', replaces: '   ', no_public_source: false }, { api, storage });
+    const sent = api.register.mock.calls[0][0];
+    expect(sent.document_key).toBe('bill:2025:45');
+    expect(sent).not.toHaveProperty('replaces');
+    expect(sent).not.toHaveProperty('no_public_source');
+
+    const plain = fakes();
+    await uploadPlan(samplePlan(), { ...META, document_key: '', replaces: null }, { api: plain.api, storage: plain.storage });
+    const standalone = plain.api.register.mock.calls[0][0];
+    expect(standalone).not.toHaveProperty('document_key');
+    expect(standalone).not.toHaveProperty('replaces');
+    expect(standalone).not.toHaveProperty('no_public_source');
+  });
+
+  it('sends no_public_source only as true: a truthy string is not a tick', async () => {
+    const { api, storage } = fakes();
+    await uploadPlan(samplePlan(), { ...META, no_public_source: 'yes' }, { api, storage });
+    expect(api.register.mock.calls[0][0]).not.toHaveProperty('no_public_source');
+  });
+
+  it('asks prepare about the record’s key, with its desk, when the upload targets a record', async () => {
+    const { api, storage } = fakes();
+    await uploadPlan(samplePlan(), LINKED, { api, storage });
+    expect(api.prepare).toHaveBeenCalledWith({
+      file_sha256: SHA_FILE,
+      page_count: 12,
+      parts: [{ sha256: SHA_A, byte_size: 3, page_count: 10 }, { sha256: SHA_B, byte_size: 2, page_count: 2 }],
+      desk_tier: 'law',
+      desk_feature: 'Bills',
+      document_key: 'bill:2025:45',
+    });
+  });
+
+  it('surfaces the key holder from prepare before sending any byte, and in the result', async () => {
+    const { api, storage } = fakes();
+    api.prepare.mockImplementationOnce(async (req) => ({
+      ok: true,
+      documents: [],
+      key_holder: HOLDER,
+      parts: req.parts.map((p) => ({ sha256: p.sha256, stored: false, staging_path: 'staging/00000000-0000-4000-8000-000000000000.pdf', token: 't' })),
+    }));
+    const onKeyHolder = vi.fn(async () => {
+      expect(storage.uploadToSignedUrl).not.toHaveBeenCalled();
+    });
+    const result = await uploadPlan(samplePlan(), { ...LINKED, replaces: OLD }, { api, storage, onKeyHolder });
+    expect(onKeyHolder).toHaveBeenCalledWith(HOLDER);
+    expect(result).toEqual({ document_id: 'doc-1', job_id: 'job-1', duplicates: [], key_holder: HOLDER });
+  });
+
+  it('lets the tab stop on a key holder: a throw from onKeyHolder uploads and registers nothing', async () => {
+    const { api, storage } = fakes({ stored: [false, false] });
+    api.prepare.mockImplementationOnce(async (req) => ({
+      ok: true,
+      documents: [],
+      key_holder: HOLDER,
+      parts: req.parts.map((p) => ({ sha256: p.sha256, stored: false, staging_path: 'staging/00000000-0000-4000-8000-000000000000.pdf', token: 't' })),
+    }));
+    const stop = new UploadError('key_held', 'Replace it instead');
+    const err = await uploadPlan(samplePlan(), LINKED, { api, storage, onKeyHolder: () => { throw stop; } }).catch((e) => e);
+    expect(err).toBe(stop);
+    expect(storage.uploadToSignedUrl).not.toHaveBeenCalled();
+    expect(api.register).not.toHaveBeenCalled();
+  });
+
+  it('reports no key holder when prepare names none, and keeps the old result shape', async () => {
+    const { api, storage } = fakes();
+    const onKeyHolder = vi.fn();
+    const result = await uploadPlan(samplePlan(), LINKED, { api, storage, onKeyHolder });
+    expect(onKeyHolder).not.toHaveBeenCalled();
+    expect(result).toEqual({ document_id: 'doc-1', job_id: 'job-1', duplicates: [] });
+  });
+
+  it('passes a key_held refusal from register through unchanged', async () => {
+    const { api, storage } = fakes();
+    api.register.mockRejectedValueOnce(new UploadError('key_held', 'Another document holds this record', { status: 409 }));
+    const err = await uploadPlan(samplePlan(), LINKED, { api, storage }).catch((e) => e);
+    expect(err).toMatchObject({ code: 'key_held', status: 409 });
   });
 });

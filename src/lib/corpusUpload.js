@@ -109,7 +109,9 @@ const PDF_TYPE = 'application/pdf';
  *   (the plan's list), plus `unreadable` (pdfjs or pdf-lib cannot open the file, e.g. it needs a
  *   password) and `split_failed` (a built part did not count as planned; a bug guard);
  * - the server's codes, passed through from `{ ok: false, code, error }` (contract.ts ErrorCode),
- *   with `status` and, for `already_uploaded`, `document_id`;
+ *   with `status` and, when the server names one, `document_id`. Amendment A's codes
+ *   (`key_held`, `stale`, `not_deletable`, `hub_url`) get a message of their own when the server
+ *   sends none (SERVER_MESSAGES);
  * - client-side transport: `unauthorized` (no session), `unavailable` (network),
  *   `bad_response` (not JSON, or an answer that does not fit the request), `upload_failed`
  *   (Storage refused a part).
@@ -123,6 +125,14 @@ export class UploadError extends Error {
     Object.assign(this, extra);
   }
 }
+
+/** Messages for server refusals that arrive without one (Amendment A's codes, contract.ts). */
+const SERVER_MESSAGES = Object.freeze({
+  key_held: 'Another document already holds this record. Replace it instead, or unlink it first.',
+  stale: 'This record changed since the page loaded. Reload it and try again.',
+  not_deletable: 'This document cannot be deleted here: only documents uploaded from this page can be.',
+  hub_url: 'That source URL is the desk’s listing page, not this document. Paste the document’s own URL, or tick “No public source”.',
+});
 
 // ─── Small pieces ────────────────────────────────────────────────────────────
 
@@ -158,6 +168,41 @@ export function deskPairs() {
   }
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   return [...pairs.values()].sort((a, b) => cmp(a.tier, b.tier) || cmp(a.feature, b.feature));
+}
+
+/**
+ * A URL reduced for comparison: scheme and host lowercased (by URL parsing, which also drops a
+ * default port), no query or fragment, no trailing slash. The path keeps its case. Null when the
+ * value is blank or not an absolute URL.
+ */
+function comparableUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  let url;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, '')}`;
+}
+
+/**
+ * Whether `url` is one of a desk's provenance hub URLs rather than a document's own address
+ * (Amendment A, D6: the record's `source_url` is a hint, never the value). Both sides are compared
+ * without query, fragment or trailing slash, with scheme and host case-folded; a different path is
+ * not the hub. Blank or unparsable values match nothing. admin-ingest refuses a hub URL (`hub_url`)
+ * whatever this says; this is the form's early warning.
+ * @param {string|null|undefined} url
+ * @param {Iterable<string|null|undefined>|null|undefined} hints
+ * @returns {boolean}
+ */
+export function isHubUrl(url, hints) {
+  const target = comparableUrl(url);
+  if (!target || !hints) return false;
+  for (const hint of hints) {
+    if (comparableUrl(hint) === target) return true;
+  }
+  return false;
 }
 
 function hasPdfHeader(bytes) {
@@ -397,6 +442,16 @@ export function planUpload(file, options) {
  * `retry(jobId)`, `cancel(jobId)`, `discard(documentId)`, which also accept `{job_id}` /
  * `{document_id}`. Request and response shapes are contract.ts's.
  *
+ * Amendment A (records-first management) adds, each sending only its contract fields:
+ * - `records({desk_tier, desk_feature, query?, status?, limit?, offset?})` → RecordsResult;
+ * - `unlinked({desk_tier, desk_feature, query?, limit?, offset?})` → UnlinkedResult;
+ *   (blank or null optional filters are left out);
+ * - `link({document_id, document_key, expected_key})` and `unlink({document_id, expected_key})`
+ *   → LinkResult; `swap({document_id, expected_old})` → SwapResult. The expectation is the
+ *   compare-and-set value (D11): a missing one is sent as null ("I expect none"), never dropped;
+ * - `remove({document_id})`, the `delete` action → DeleteResult.
+ * Their refusals: `key_held`, `stale`, `not_deletable`, `hub_url` (plus the usual codes).
+ *
  * @param {{fetch?: typeof fetch, url?: string, accessToken?: () => Promise<string|null>}} [deps]
  *   defaults: the global fetch, `functionsUrl('admin-ingest')`, and the Supabase session token.
  */
@@ -425,11 +480,17 @@ export function createAdminIngestApi({
     if (body.ok !== true || !res.ok) {
       const extra = { status: res.status };
       if (body.document_id) extra.document_id = body.document_id;
-      throw new UploadError(body.code || 'bad_response', body.error || `The upload service failed (${res.status}).`, extra);
+      const code = body.code || 'bad_response';
+      const message = body.error || SERVER_MESSAGES[code] || `The upload service failed (${res.status}).`;
+      throw new UploadError(code, message, extra);
     }
     return body;
   }
   const id = (key, value) => (value && typeof value === 'object' ? value : { [key]: value });
+  /** `fields` without undefined, null or blank-string values; strings trimmed. */
+  const optional = (fields) => Object.fromEntries(Object.entries(fields)
+    .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])
+    .filter(([, value]) => value !== undefined && value !== null && value !== ''));
 
   return {
     prepare: (request) => call('prepare', request),
@@ -439,6 +500,18 @@ export function createAdminIngestApi({
     retry: (jobId) => call('retry', id('job_id', jobId)),
     cancel: (jobId) => call('cancel', id('job_id', jobId)),
     discard: (documentId) => call('discard', id('document_id', documentId)),
+    records: ({ desk_tier, desk_feature, query, status, limit, offset } = {}) => (
+      call('records', { desk_tier, desk_feature, ...optional({ query, status, limit, offset }) })
+    ),
+    unlinked: ({ desk_tier, desk_feature, query, limit, offset } = {}) => (
+      call('unlinked', { desk_tier, desk_feature, ...optional({ query, limit, offset }) })
+    ),
+    link: ({ document_id, document_key, expected_key = null } = {}) => (
+      call('link', { document_id, document_key, expected_key })
+    ),
+    unlink: ({ document_id, expected_key = null } = {}) => call('unlink', { document_id, expected_key }),
+    swap: ({ document_id, expected_old = null } = {}) => call('swap', { document_id, expected_old }),
+    remove: ({ document_id } = {}) => call('delete', { document_id }),
   };
 }
 
@@ -460,30 +533,43 @@ const textOrNull = (value) => (typeof value === 'string' && value.trim() ? value
  *   content address) or `queued`; each queued part then reports `uploading`, `verifying`, `stored`.
  * - Errors throw UploadError; nothing is registered unless every part verified.
  *
+ * Record links (Amendment A). `meta.document_key` attaches the upload to a record: `prepare` is
+ * also sent the desk and the key, and when it names a live document already holding that key
+ * (`key_holder`), `onKeyHolder(holder)` is awaited before any byte is sent (throw from it to stop)
+ * and the result carries `key_holder`. `document_key`, `replaces` (the document a replacement will
+ * swap out, D5) and `no_public_source` (only when exactly `true`, D6) are passed to `register`;
+ * blank ones are left out, so a standalone upload registers exactly as before.
+ *
  * @param {Plan} plan
- * @param {{title?: string, desk_tier: string, desk_feature: string, file_url?: string|null, note?: string|null, file_name?: string}} meta
+ * @param {{title?: string, desk_tier: string, desk_feature: string, file_url?: string|null, note?: string|null, file_name?: string, document_key?: string|null, replaces?: string|null, no_public_source?: boolean}} meta
  *   `title` defaults to the file name; blank `file_url` and `note` are sent as null.
- * @param {{api?: ReturnType<typeof createAdminIngestApi>, storage?: {uploadToSignedUrl: Function}, onProgress?: (event: {part_index: number, state: 'queued'|'uploading'|'verifying'|'stored'}) => void, onDuplicates?: (documents: ExistingDocument[]) => unknown}} [deps]
+ * @param {{api?: ReturnType<typeof createAdminIngestApi>, storage?: {uploadToSignedUrl: Function}, onProgress?: (event: {part_index: number, state: 'queued'|'uploading'|'verifying'|'stored'}) => void, onDuplicates?: (documents: ExistingDocument[]) => unknown, onKeyHolder?: (holder: object) => unknown}} [deps]
  *   `storage` defaults to `supabase.storage.from('corpus')`, `api` to `createAdminIngestApi()`.
- * @returns {Promise<{document_id: string, job_id: string, duplicates: ExistingDocument[]} | {existing: ExistingDocument | {document_id: string}}>}
+ * @returns {Promise<{document_id: string, job_id: string, duplicates: ExistingDocument[], key_holder?: object} | {existing: ExistingDocument | {document_id: string}, key_holder?: object}>}
  */
 export async function uploadPlan(plan, meta = {}, {
   api = createAdminIngestApi(),
   storage = supabase.storage.from('corpus'),
   onProgress,
   onDuplicates,
+  onKeyHolder,
 } = {}) {
   const report = (part_index, state) => onProgress?.({ part_index, state });
+  const documentKey = textOrNull(meta.document_key);
+  const replaces = textOrNull(meta.replaces);
 
   const prepared = await api.prepare({
     file_sha256: plan.file_sha256,
     page_count: plan.page_count,
     parts: plan.parts.map(({ sha256, byte_size, page_count }) => ({ sha256, byte_size, page_count })),
+    ...(documentKey ? { desk_tier: meta.desk_tier, desk_feature: meta.desk_feature, document_key: documentKey } : {}),
   });
+  const keyHolder = prepared?.key_holder ?? null;
+  const holderField = keyHolder ? { key_holder: keyHolder } : {};
 
   const documents = Array.isArray(prepared?.documents) ? prepared.documents : [];
   const existing = documents.find((doc) => String(doc?.source_key ?? '').startsWith(UPLOAD_KEY_PREFIX));
-  if (existing) return { existing };
+  if (existing) return { existing, ...holderField };
 
   const answers = prepared?.parts;
   const fits = Array.isArray(answers) && answers.length === plan.parts.length && answers.every((answer, i) => (
@@ -491,6 +577,7 @@ export async function uploadPlan(plan, meta = {}, {
   ));
   if (!fits) throw new UploadError('bad_response', 'The upload service answered with a part list that does not match this file.');
 
+  if (keyHolder) await onKeyHolder?.(keyHolder);
   if (documents.length) await onDuplicates?.(documents);
 
   answers.forEach((answer, i) => report(plan.parts[i].part_index, answer.stored ? 'stored' : 'queued'));
@@ -523,8 +610,11 @@ export async function uploadPlan(plan, meta = {}, {
       file_url: textOrNull(meta.file_url),
       note: textOrNull(meta.note),
       file_name: textOrNull(meta.file_name) ?? plan.file_name,
+      ...(documentKey ? { document_key: documentKey } : {}),
+      ...(replaces ? { replaces } : {}),
+      ...(meta.no_public_source === true ? { no_public_source: true } : {}),
     });
-    return { document_id: registered.document_id, job_id: registered.job_id, duplicates: documents };
+    return { document_id: registered.document_id, job_id: registered.job_id, duplicates: documents, ...holderField };
   } catch (error) {
     if (error instanceof UploadError && error.code === 'already_uploaded') return { existing: { document_id: error.document_id } };
     throw error;

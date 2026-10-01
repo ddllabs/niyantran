@@ -17,61 +17,118 @@
  * the rows and the ingest writes the documents - so a stored flag has two
  * writers and can be wrong in a way this cannot. `documents_document_key`
  * already indexes the expression, and a turn attaches at most twelve records.
+ *
+ * Answers expire (Amendment A, D9). Admins now link, unlink and delete
+ * documents from the Documents page, so an answer is trusted for
+ * COVERAGE_TTL_MS, and the panel calls `refreshCoverage` when a key is newly
+ * attached, so a change shows without a reload.
  */
 import { supabase as defaultClient } from './supabaseClient.js';
 
-/** document_key -> boolean. Coverage only changes on ingest, so this holds for the session. */
+/** How long one key's answer is trusted (D9). */
+export const COVERAGE_TTL_MS = 60_000;
+
+/**
+ * document_key -> { value: boolean, at: number }. `at` is when the lookup that
+ * produced the answer was sent, so an answer never claims to be newer than
+ * the question.
+ */
 const known = new Map();
 
 export function resetCoverageCache() {
   known.clear();
 }
 
+const keysOf = (keys) => [...new Set((keys || []).filter((k) => typeof k === 'string' && k.trim()))];
+
+/** The answer for `key` while it is within its lifetime, else undefined. */
+function fresh(key, now) {
+  const entry = known.get(key);
+  return entry && now() - entry.at < COVERAGE_TTL_MS ? entry.value : undefined;
+}
+
+/**
+ * Asks the database about `keys` in one request and records the answers. A
+ * failed request records nothing. An answer lands only if no newer lookup has
+ * answered the key meanwhile, so a slow request cannot undo a refresh.
+ */
+async function lookUp(keys, client, now) {
+  if (!keys.length || !client) return;
+  const at = now();
+  const { data, error } = await client
+    .from('documents')
+    .select('metadata->>document_key')
+    .in('metadata->>document_key', keys)
+    .not('indexed_at', 'is', null);
+  if (error) return;
+  const found = new Set((data || []).map((r) => r.document_key).filter(Boolean));
+  for (const k of keys) {
+    const prev = known.get(k);
+    if (!prev || prev.at <= at) known.set(k, { value: found.has(k), at });
+  }
+}
+
+const indexedOf = (keys, now) => new Set(keys.filter((k) => fresh(k, now) === true));
+
 /**
  * The subset of `keys` that has indexed text behind it.
  *
- * Unknown keys are looked up in one request; keys already answered are not
- * asked about again. A failed lookup answers nothing rather than answering
- * "no", because "no full text" is a claim about the corpus and a network error
- * is not evidence for it - the caller shows no badge instead of a wrong one.
+ * Keys without a fresh answer (never asked, or asked COVERAGE_TTL_MS or more
+ * ago) are looked up in one request; keys with a fresh answer are not asked
+ * about again. A failed lookup answers nothing rather than answering "no",
+ * because "no full text" is a claim about the corpus and a network error is
+ * not evidence for it - the caller shows no badge instead of a wrong one.
  *
  * @param {string[]} keys
+ * @param {object} [client]  a Supabase client
+ * @param {() => number} [now]  the clock, for tests
  * @returns {Promise<Set<string>>}
  */
-export async function indexedDocumentKeys(keys, client = defaultClient) {
-  const wanted = [...new Set((keys || []).filter((k) => typeof k === 'string' && k.trim()))];
-  const missing = wanted.filter((k) => !known.has(k));
-  if (missing.length && client) {
-    const { data, error } = await client
-      .from('documents')
-      .select('metadata->>document_key')
-      .in('metadata->>document_key', missing)
-      .not('indexed_at', 'is', null);
-    if (!error) {
-      const found = new Set((data || []).map((r) => r.document_key).filter(Boolean));
-      for (const k of missing) known.set(k, found.has(k));
-    }
-  }
-  return new Set(wanted.filter((k) => known.get(k) === true));
+export async function indexedDocumentKeys(keys, client = defaultClient, now = Date.now) {
+  const wanted = keysOf(keys);
+  await lookUp(wanted.filter((k) => fresh(k, now) === undefined), client, now);
+  return indexedOf(wanted, now);
+}
+
+/**
+ * Asks about `keys` now, whatever is cached, and answers like
+ * `indexedDocumentKeys`. The panel calls it when a key is newly attached, so
+ * a document an admin linked or unlinked a moment ago shows at once (D9).
+ * The old answers are dropped first: if the lookup fails, those keys answer
+ * nothing rather than repeating what may no longer be true.
+ *
+ * @param {string[]} keys
+ * @param {object} [client]  a Supabase client
+ * @param {() => number} [now]  the clock, for tests
+ * @returns {Promise<Set<string>>}
+ */
+export async function refreshCoverage(keys, client = defaultClient, now = Date.now) {
+  const wanted = keysOf(keys);
+  if (!wanted.length || !client) return new Set();
+  for (const k of wanted) known.delete(k);
+  await lookUp(wanted, client, now);
+  return indexedOf(wanted, now);
 }
 
 /**
  * What the panel shows for one attachment: 'full' when the record's text is in
  * the corpus, 'row' when it is not, and null when there is nothing to say -
- * an attachment with no key at all (a dropped file, a desk sample), or a
- * lookup that has not answered yet.
+ * an attachment with no key at all (a dropped file, a desk sample), a lookup
+ * that has not answered yet, or a "no" past COVERAGE_TTL_MS that has not been
+ * asked again.
  *
  * A `document` chip ("Ask about this document") names a document opened from
  * a citation, so it is in the corpus by construction and needs no lookup.
  *
  * @param {{ kind?: string, document_id?: string, document_key?: string }} attachment
  * @param {Set<string> | null} indexed
+ * @param {() => number} [now]  the clock, for tests
  * @returns {'full' | 'row' | null}
  */
-export function coverageOf(attachment, indexed) {
+export function coverageOf(attachment, indexed, now = Date.now) {
   if (attachment?.kind === 'document') return attachment.document_id ? 'full' : null;
   const key = attachment?.document_key;
   if (!key || !indexed) return null;
   if (indexed.has(key)) return 'full';
-  return known.get(key) === false ? 'row' : null;
+  return fresh(key, now) === false ? 'row' : null;
 }
