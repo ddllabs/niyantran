@@ -1240,3 +1240,22 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Compatibility:** the live frontend (`b3b95d0`) ignores the new `found` field. It shows the
     new labels in its ticker.
   - No database change.
+- **answer-streaming T6 step 1: `research-chat` deployed (2026-10-02)** (owner: "Deploy
+  research-chat to NTER"). Deployed from `main` at `4f865d2` with
+  `supabase functions deploy research-chat --use-api --project-ref vfgcppstyzjarlzyqdac`, giving
+  version 41 (was 40).
+  - **What it adds** (`4150197`):
+    - research-call answer text streams live;
+    - a draft that is not the answer is taken back with `patch` (0, ''), which the live frontend
+      already applies;
+    - `timing` gains `first_model_ms`, `first_answer_ms` and `rounds`;
+    - `session_id` is the conversation id;
+    - `research.draft_retracted` is logged.
+  - **Unchanged:** Gemini cache breakpoints. That patch is parked for the owner's decision.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - **Compatibility:** the live frontend (`b3b95d0`) shows the streamed text with its existing
+    chunk and patch handling. The "first word" field arrives with the frontend push.
+  - No database change.
