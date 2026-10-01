@@ -1181,3 +1181,15 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   4. After the split test, a citation in part 2 or 3.
 
   Then R6 is marked done.
+- **R6 revision 4, frontend push** (owner: "Push main to origin"). `main` was fast-forwarded
+  from `af74493` to `e76a48a` (7 commits: W1 resizable overlay, W2 Fit text, zoom and full view,
+  the crop-scroll fix, the bundle re-baseline, docs) and pushed.
+  - **Vercel:** production deploy `dpl_BVpFB2QeDineASUDPzxtpf2BXYfz` is READY on
+    `niyantran-six.vercel.app`.
+  - **Served main entry:** `index-CjMT_cwW.js`, with no `GlobalWorkerOptions` and with the
+    resize handles.
+  - **Viewer chunk:** `PageViewer-D5_n7szv.js`, containing Fit text, the full view and the
+    remembered zoom.
+  - No server or database change.
+  - **Still to do:** the owner's checks on NTER; then R6 (and R8, after its deferred checks) is
+    marked done.
