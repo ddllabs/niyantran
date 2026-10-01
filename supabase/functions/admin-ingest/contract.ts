@@ -29,6 +29,10 @@ export type ErrorCode =
   | 'forbidden' // 403
   | 'already_uploaded' // 409
   | 'not_discardable' // 409
+  | 'key_held' // 409: another ingestion-v2 document holds this record's key (Amendment A, D2/D8)
+  | 'stale' // 409: the page was out of date (compare-and-set, D11)
+  | 'not_deletable' // 409: legacy, or not an admin upload (D4)
+  | 'hub_url' // 422: a desk's provenance hub URL given as the document's source (D6)
   | 'too_large' // 413
   | 'hash_mismatch' // 422
   | 'refused' // 422
@@ -40,6 +44,10 @@ export const STATUS_OF: Readonly<Record<ErrorCode, number>> = Object.freeze({
   forbidden: 403,
   already_uploaded: 409,
   not_discardable: 409,
+  key_held: 409,
+  stale: 409,
+  not_deletable: 409,
+  hub_url: 422,
   too_large: 413,
   hash_mismatch: 422,
   refused: 422,
@@ -67,6 +75,9 @@ export interface RegisterPart extends DeclaredPart {
   page_offset: number;
 }
 
+/** One record's status, by precedence (Amendment A, admin_desk_records). */
+export type RecordStatus = 'processing' | 'failed' | 'full_text' | 'full_text_legacy' | 'record_only';
+
 export type Request =
   | { action: 'prepare'; file_sha256: string; page_count: number; parts: DeclaredPart[] }
   | { action: 'verify'; staging_path: string; sha256: string; byte_size: number }
@@ -81,7 +92,26 @@ export type Request =
     file_url?: string | null;
     note?: string | null;
     file_name: string;
+    // Amendment A. A record link (checked against the desk, D8) or a pending replacement (D5).
+    document_key?: string | null;
+    replaces?: string | null;
+    /** Required true when file_url is empty (D6). */
+    no_public_source?: boolean;
   }
+  | {
+    action: 'records';
+    desk_tier: string;
+    desk_feature: string;
+    query?: string | null;
+    status?: RecordStatus | null;
+    limit?: number;
+    offset?: number;
+  }
+  | { action: 'unlinked'; desk_tier: string; desk_feature: string; query?: string | null; limit?: number; offset?: number }
+  | { action: 'link'; document_id: string; document_key: string; expected_key: string | null }
+  | { action: 'unlink'; document_id: string; expected_key: string }
+  | { action: 'swap'; document_id: string; expected_old: string | null }
+  | { action: 'delete'; document_id: string }
   | { action: 'jobs'; limit?: number; before?: string | null }
   | { action: 'retry'; job_id: string }
   | { action: 'cancel'; job_id: string }
@@ -164,4 +194,92 @@ export interface JobActionResult {
 export interface DiscardResult {
   ok: true;
   discarded: true;
+}
+
+// ─── Amendment A: records-first management ──────────────────────────────────
+
+/** The latest ingest job of a document, if any. */
+export interface JobSummary {
+  status: string;
+  stage: string;
+  error_code: string | null;
+}
+
+/** A document holding (or targeting) a record's key. */
+export interface RecordDocument {
+  document_id: string;
+  title: string;
+  source_key: string;
+  /** storage_path is null: a legacy document, read-only here (D3). */
+  legacy: boolean;
+  indexed: boolean;
+  job: JobSummary | null;
+}
+
+/** A desk row that shares the record's key. */
+export interface RecordRow {
+  row_key: string;
+  title: string;
+  house: string | null;
+  date: string | null;
+}
+
+/** One record: one document key, every row that shares it, every document holding it. */
+export interface DeskRecord {
+  document_key: string;
+  status: RecordStatus;
+  rows: RecordRow[];
+  /** The rows' provenance URL, shown as a hint only (D6). */
+  source_hint: string | null;
+  documents: RecordDocument[];
+}
+
+export interface RecordsResult {
+  ok: true;
+  records: DeskRecord[];
+  /** Keys matching the query and status (not rows). */
+  total: number;
+  coverage: {
+    /** Distinct keys of the desk. */
+    keys: number;
+    /** Keys with an indexed document (legacy or ingestion-v2). */
+    full_text: number;
+    /** Ingestion-v2 documents whose key no desk row has. */
+    orphaned: number;
+  };
+}
+
+/** An ingestion-v2 document without a working record link (Objective 4). */
+export interface UnlinkedDocument extends RecordDocument {
+  /** Its current key when that key matches no desk row (an orphaned link). */
+  orphaned_key: string | null;
+  /** A replacement waiting to swap (D5). */
+  link_target: string | null;
+  replaces: string | null;
+  created_at: string;
+}
+
+export interface UnlinkedResult {
+  ok: true;
+  documents: UnlinkedDocument[];
+  total: number;
+}
+
+export interface LinkResult {
+  ok: true;
+  document_id: string;
+  document_key: string | null;
+}
+
+export interface SwapResult {
+  ok: true;
+  document_id: string;
+  document_key: string;
+  /** The document that held the key before, or null when none did. */
+  old_document_id: string | null;
+}
+
+export interface DeleteResult {
+  ok: true;
+  deleted: true;
 }
