@@ -83,41 +83,32 @@ it('a module chip says it is a module; a bill chip does not',()=>{
  expect(html).toMatch(/<li class="module">[\s\S]*?Bill Passage Probability Index[\s\S]*?ai-v2-file-cover module[^>]*>Module</);
  expect(html.match(/ai-v2-file-cover module/g)).toHaveLength(1);
 });
-// A turn in flight showed the NyAI card under the activity ticker ("Thinking
-// through your question..."), two thinking indicators at once. The card now
-// covers only the wait before the stream opens; the ticker takes over after.
-it('a live research turn shows one thinking indicator at a time', () => {
+// thinking-display spec §1 (owner decision 2026-10-02, ADR 0007 §2 amended): one indicator from
+// Send. The NyAI card covered the client's identity re-check and then gave way to a differently
+// sized ticker; now the ticker itself opens at once on "Starting…" and stays until the answer.
+it('a live research turn shows one thinking indicator, the ticker, from Send to the answer', () => {
  const ready = { ...fake.research, ready: true, loading: false, locked: false };
- fake.research = {
-   ...ready,
-   live: true,
-   stream: { isPending: true, isStreaming: false, streamingText: '' },
- };
- const thinkingHtml = renderToStaticMarkup(<AiPanel lang="en" />);
- expect(thinkingHtml).toContain('nyai-thinking');
- expect(thinkingHtml).toContain('NyAI is thinking');
- expect(thinkingHtml).not.toContain('ai-ticker');
+ fake.research = { ...ready, submitting: true, live: false, stream: null };
+ const submitted = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(submitted).toContain('ai-ticker active');
+ expect(submitted).toContain('Starting…');
+ expect(submitted).not.toContain('nyai-thinking');
 
- fake.research = {
-   ...ready,
-   live: true,
-   stream: { isPending: false, isStreaming: true, streamingText: '' },
- };
- const openHtml = renderToStaticMarkup(<AiPanel lang="en" />);
- expect(openHtml).toContain('ai-ticker');
- expect(openHtml).not.toContain('nyai-thinking');
+ fake.research = { ...ready, live: true, stream: { isPending: true, isStreaming: false, streamingText: '' } };
+ const pending = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(pending).toContain('ai-ticker active');
+ expect(pending).not.toContain('nyai-thinking');
 
- fake.research = {
-   ...ready,
-   live: true,
-   stream: { isPending: false, isStreaming: true, streamingText: 'Here is the analysis from the record.' },
- };
+ fake.research = { ...ready, live: true, stream: { isPending: false, isStreaming: true, streamingText: '' } };
+ expect(renderToStaticMarkup(<AiPanel lang="en" />).match(/class="ai-ticker active"/g)).toHaveLength(1);
+
+ fake.research = { ...ready, live: true, stream: { isPending: false, isStreaming: true, streamingText: 'Here is the analysis from the record.' } };
  const streamHtml = renderToStaticMarkup(<AiPanel lang="en" />);
- expect(streamHtml).not.toContain('nyai-thinking');
+ expect(streamHtml).toContain('ai-ticker active');
  expect(streamHtml).toContain('Here is the analysis from the record.');
 });
 
-it('removes NyAiThinking and renders error message when research turn fails or backend is unavailable', () => {
+it('a failed research turn leaves no running indicator and shows the error', () => {
  const ready = { ...fake.research, ready: true, loading: false, locked: false };
  fake.research = {
    ...ready,
@@ -127,7 +118,7 @@ it('removes NyAiThinking and renders error message when research turn fails or b
    stream: { isPending: false, isStreaming: false, error: 'research-chat HTTP 503: OpenRouter API gateway unavailable' },
  };
  const errorHtml = renderToStaticMarkup(<AiPanel lang="en" />);
- expect(errorHtml).not.toContain('nyai-thinking');
+ expect(errorHtml).not.toContain('ai-ticker active');
  expect(errorHtml).toContain('OpenRouter API gateway unavailable');
  expect(errorHtml).toMatch(/class="ai-foot warn"[^>]*role="alert"/);
 });
@@ -142,7 +133,7 @@ it('does not leave orphaned thinking state when research completes', () => {
    stream: { isPending: false, isStreaming: false, status: 'complete' },
  };
  const doneHtml = renderToStaticMarkup(<AiPanel lang="en" />);
- expect(doneHtml).not.toContain('nyai-thinking');
+ expect(doneHtml).not.toContain('ai-ticker active');
  expect(doneHtml).toContain('Final verified answer');
 });
 
@@ -346,4 +337,16 @@ it('a saved answer is headed by the model label, as the live one is, and so is "
  expect(html).not.toContain('<span>anthropic/claude-sonnet-5</span>');
  expect(html).toContain('Answered by Claude - Sonnet');
  expect(html).toContain('<span>old/model-x</span>');
+});
+// thinking-display §1: the clock starts at Send, not at the previous question in the thread.
+it('the in-flight clock never counts from an earlier question', () => {
+ const ready = { ...fake.research, ready: true, loading: false, locked: false };
+ const old = Date.now() - 3 * 60 * 60 * 1000;
+ fake.research = { ...ready, submitting: true, live: false, stream: null, messages: [
+   { id: 'u0', role: 'user', content: 'Earlier question', at: old },
+   { id: 'a0', role: 'assistant', content: 'Earlier answer', at: old + 5000 },
+ ] };
+ const html = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(html).toContain('Starting…');
+ expect(html).toMatch(/class="ai-ticker-clock">0:0\d</);
 });

@@ -6,7 +6,6 @@ import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
 import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
-import NyAiThinking from './NyAiThinking.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker from './ModelPicker.jsx';
@@ -429,7 +428,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     seenCount.current = 0;
   }, [stick, chat?.id]);
   const messageCount = messages.length;
+  // The ticker's clock counts from Send. The question joins the thread only after an await, so
+  // until it does the clock counts from when the turn went in flight, never from an older question.
+  const inFlight = Boolean(research.live || research.submitting);
+  const [flightStart, setFlightStart] = useState(0);
+  if (inFlight && !flightStart) setFlightStart(Date.now());
+  if (!inFlight && flightStart) setFlightStart(0);
   const lastRole = messages[messageCount - 1]?.role;
+  const turnStartedAt = (lastRole === 'user' && messages[messageCount - 1]?.at) || flightStart;
   useLayoutEffect(() => {
     const sent = messageCount > seenCount.current && lastRole === 'user';
     seenCount.current = messageCount;
@@ -934,7 +940,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : (m.model ? labelOf(m.model) : picked.label)}</span>
               {m.role === 'assistant' ? (
                 <>
-                  {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} labelOf={labelOf} /> : null}
+                  {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} labelOf={labelOf} sourceCount={(m.sources || []).filter(isReadableCitation).length} lang={lang} /> : null}
                   <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={openSource} />
                   {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
                   {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
@@ -950,13 +956,20 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {(research.live || research.submitting) && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
               <span>{stream?.model?.served ? labelOf(stream.model.served) : registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
-              <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} labelOf={labelOf} />
-              {/* One indicator at a time: the card covers the wait before the stream
-                  opens, and the ticker takes over once it does. Showing both stacked
-                  two "thinking" states in every turn. */}
-              {!streaming && !stream?.streamingText && (research.submitting || stream?.isPending || research.live) ? (
-                <NyAiThinking model={stream?.model?.served ? labelOf(stream.model.served) : registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label} lang={lang} />
-              ) : null}
+              {/* One indicator from Send (thinking-display spec §1): the ticker opens at once on
+                  "Starting…" and runs until the turn ends; the NyAI card it replaced covered only
+                  the client's identity re-check before a differently sized ticker took over. */}
+              <ActivityTicker
+                activity={stream?.activity || []}
+                active={Boolean(research.submitting || streaming || stream?.isPending)}
+                startedAt={turnStartedAt}
+                model={stream?.model}
+                timing={stream?.timing}
+                usage={stream?.usage}
+                labelOf={labelOf}
+                sourceCount={(stream?.sources || []).filter(isReadableCitation).length}
+                lang={lang}
+              />
               {stream?.streamingText ? (
                 <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} />
               ) : null}

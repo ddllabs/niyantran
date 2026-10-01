@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import ActivityTicker, { tickerSteps } from './ActivityTicker.jsx';
+import ActivityTicker, { tickerSteps, timingLine } from './ActivityTicker.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
 import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
 import CitationBubble, { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
@@ -49,29 +49,27 @@ describe('ActivityTicker', () => {
   it('while active it is expanded and shows the latest step', () => {
     const html = renderToStaticMarkup(<ActivityTicker activity={activity} active />);
     expect(html).toContain('ai-ticker active');
-    expect(html).toContain('Looked up · 20 rows');
+    expect(html).toContain('Looked up Bill Passage Probability Index · 20 rows');
     expect(html).toContain('Searching relevant sources.');
     expect(html).toContain('320ms');
   });
 
-  it('when done it collapses and reports the buckets and a model swap', () => {
-    const html = renderToStaticMarkup(
-      <ActivityTicker
-        activity={activity}
-        timing={{ search_ms: 320, reasoning_ms: 1200, writing_ms: 800, total_ms: 2320 }}
-        usage={{ reasoning_tokens: 256 }}
-        model={{ requested: 'google/gemini-3.5-flash-lite', served: 'deepseek/deepseek-v4-flash' }}
-      />,
-    );
+  it('when done it collapses to its summary; the details report the buckets and a model swap', () => {
+    const timing = { search_ms: 320, reasoning_ms: 1200, writing_ms: 800, total_ms: 2320 };
+    const model = { requested: 'google/gemini-3.5-flash-lite', served: 'deepseek/deepseek-v4-flash' };
+    const html = renderToStaticMarkup(<ActivityTicker activity={activity} timing={timing} usage={{ reasoning_tokens: 256 }} model={model} />);
     expect(html).not.toContain('ai-ticker active');
-    expect(html).toContain('searched 320ms');
-    expect(html).toContain('thought 1.2s');
-    expect(html).toContain('Answered by deepseek/deepseek-v4-flash');
+    expect(html).toContain('1 search · 2 s');
+    const line = timingLine({ timing, usage: { reasoning_tokens: 256 } });
+    expect(line).toContain('searched 320ms');
+    expect(line).toContain('thought 1.2s');
+    // A swap is said on the summary line itself, not hidden in the details.
+    expect(html).toContain('1 search · 2 s · Answered by deepseek/deepseek-v4-flash');
   });
 
   it('a search for a phrase names the phrase; nothing at all renders nothing', () => {
     const html = renderToStaticMarkup(<ActivityTicker activity={[{ type: 'tool', name: 'search_documents', phase: 'start', step: 1, input: { query: 'committee stage' } }]} active />);
-    expect(html).toContain('Searching documents for “committee stage”');
+    expect(html).toContain('Searching “committee stage”…');
     expect(renderToStaticMarkup(<ActivityTicker activity={[]} />)).toBe('');
   });
 });
@@ -176,16 +174,16 @@ describe('WorkSurface', () => {
 // `answer` step, and "thought 9.9s" with reasoning_tokens 0.
 it('reports thinking only when the model produced reasoning tokens', () => {
   const timing = { search_ms: 0, reasoning_ms: 9874, writing_ms: 2061, total_ms: 11935 };
-  const thought = renderToStaticMarkup(<ActivityTicker timing={timing} usage={{ reasoning_tokens: 512 }} />);
+  const thought = timingLine({ timing, usage: { reasoning_tokens: 512 } });
   expect(thought).toContain('thought 9.9s');
   expect(thought).not.toContain('waited');
 
-  const waited = renderToStaticMarkup(<ActivityTicker timing={timing} usage={{ reasoning_tokens: 0 }} />);
+  const waited = timingLine({ timing, usage: { reasoning_tokens: 0 } });
   expect(waited).toContain('waited 9.9s');
   expect(waited).not.toContain('thought');
 
   // No usage at all is the same claim-nothing case.
-  expect(renderToStaticMarkup(<ActivityTicker timing={timing} />)).toContain('waited 9.9s');
+  expect(timingLine({ timing })).toContain('waited 9.9s');
 });
 
 it('legacy hidden reasoning and unknown events never become public activity or tools',()=>{
@@ -193,8 +191,9 @@ it('legacy hidden reasoning and unknown events never become public activity or t
  expect(html).toContain('Writing the answer.');expect(html).not.toContain('PRIVATE');expect(html).not.toContain('Looking up');
 });
 it('only timing can render a completed summary without making unsupported failover claims',()=>{
- const html=renderToStaticMarkup(<ActivityTicker timing={{writing_ms:800}} model={{requested:'a',served:'b'}} />);
- expect(html).toContain('800ms');expect(html).toContain('b');expect(html).not.toContain('unavailable');
+ const line=timingLine({timing:{writing_ms:800}});
+ expect(line).toContain('800ms');expect(line).not.toContain('unavailable');
+ expect(renderToStaticMarkup(<ActivityTicker timing={{writing_ms:800}} model={{requested:'a',served:'b'}} />)).toContain('Answered by b');
 });
 it('efforts are known, unique, and unavailable models offer no choices',()=>{
  expect(effortsFor([{model_id:'m',efforts:['low','bogus','low','off',null]}],'m')).toEqual(['off','low']);
@@ -363,9 +362,11 @@ it('a saved turn keeps its searches: a stored tool step without phase is a finis
   const steps = tickerSteps(saved);
   expect(steps.filter((s) => s.type === 'tool')).toHaveLength(2);
   expect(steps.every((s) => s.type !== 'tool' || s.phase === 'end')).toBe(true);
-  // The collapsed line of the finished turn names its last real step, not a stage label.
+  // The collapsed line of the finished turn counts its searches, not a stage label.
   const html = renderToStaticMarkup(<ActivityTicker activity={saved} timing={{ search_ms: 977, total_ms: 9000 }} />);
-  expect(html).toContain('Looked up · 1 row');
+  expect(html).toContain('2 searches · 9 s');
+  // A legacy row repeated its stage label every round; each line is listed once.
+  expect(steps.filter((s) => s.text === 'Reviewing the question.')).toHaveLength(1);
 });
 
 it('live steps: a started search shows once, and its end replaces it', () => {

@@ -14,6 +14,9 @@
 .ai-ticker-step { overflow-wrap: anywhere; line-height: 1.5; }
 .ai-ticker-step small { margin-left: 8px; color: var(--muted, #6d675f); }
 .ai-ticker-timing { margin: 0; padding: 0 12px 10px; color: var(--muted, #6d675f); font-size: 11px; overflow-wrap: anywhere; }
+.ai-ticker-clock { flex: none; color: var(--muted, #6d675f); font-variant-numeric: tabular-nums; }
+.ai-ticker-found { margin: 0; padding: 0 12px 10px 32px; color: var(--muted, #6d675f); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.ai-ticker-found span { color: var(--text, #1f2937); }
 .cite-bubble { display: inline-flex; justify-content: center; align-items: center; min-width: 22px; height: 22px; padding: 0 4px; margin: 0 2px; vertical-align: baseline; border: 1px solid var(--line, #e4ddd4); border-radius: 5px; background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font: 600 11px/1 var(--font-ui, Arial, sans-serif); cursor: pointer; }
 .cite-bubble.placeholder { box-sizing: border-box; opacity: .55; cursor: default; }
 .ai-research-model .ai-v2-model-menu { max-width: calc(100vw - 32px); max-height: min(420px, 65vh); overflow-y: auto; overscroll-behavior: contain; }
