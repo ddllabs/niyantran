@@ -366,3 +366,22 @@ it('a saved answer never sits beside an empty in-flight indicator', () => {
  expect(html).not.toContain('ai-ticker active');
  expect(html).not.toContain('Starting…');
 });
+// panel-loading spec C: one reveal. While the thread loads, its area holds a placeholder rather
+// than an empty thread, the model button a fixed placeholder rather than "No approved models", and
+// the question row keeps its room (hidden) while busy, so nothing shifts when the answer settles.
+it('C: loading shows a placeholder thread and model button, never an empty chat or "No approved models"', () => {
+ const html = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(html).toContain('ai-thread-skeleton');
+ expect(html).not.toContain('Chat is empty');
+ expect(html).not.toContain('No approved models');
+ expect(html).toContain('ai-v2-model-name pending');
+});
+it('C: the question row keeps its room while a turn runs', () => {
+ const ready = { ...fake.research, ready: true, loading: false, locked: true, submitting: true,
+   messages: [{ id: 'a1', role: 'assistant', content: 'Answer', followUps: ['What next?'] }] };
+ fake.research = ready;
+ const html = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(html).toMatch(/class="ai-suggest ai-v2-suggest is-held"[^>]*aria-hidden="true"/);
+ fake.research = { ...ready, locked: false, submitting: false };
+ expect(renderToStaticMarkup(<AiPanel lang="en" />)).not.toContain('is-held');
+});

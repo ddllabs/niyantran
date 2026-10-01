@@ -951,6 +951,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         ) : null}
 
         <div className="ai-v2-history">
+          {/* panel-loading spec C: until the thread is in, a placeholder of fixed shape holds its place. */}
+          {!research.ready && !research.error ? (
+            <div className="ai-thread-skeleton" aria-hidden="true">
+              <span /><span /><span />
+            </div>
+          ) : null}
           {messages.map((m) => (
             <div key={m.id} className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
               <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : (m.model ? labelOf(m.model) : picked.label)}</span>
@@ -1000,7 +1006,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </p>
           ) : null}
 
-          {emptyThread && !busy ? (
+          {emptyThread && !busy && research.ready ? (
             <p className="ai-v2-empty muted">
               {hi
                 ? 'चैट खाली है। पंक्ति या फ़ाइल जोड़ें, फिर Send दबाएँ।'
@@ -1017,10 +1023,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             the end of it is only reachable by scrolling to the end of the
             answer. The foot is its own grid row, so the questions stay put
             above the composer however long the answer runs. */}
-        {!busy && !streaming ? (
+        {research.ready ? (
           <SuggestionPills
             questions={emptyThread ? suggestions : followUps}
             disabled={busy}
+            held={busy || streaming}
             label={
               emptyThread
                 ? hi ? 'सुझाए गए प्रश्न' : 'Suggested questions'
@@ -1081,6 +1088,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               </button>
           <div ref={modelRef}>
             <ModelPicker
+              pending={!research.ready}
               models={registry.models}
               roles={registry.roles}
               value={modelChoice}

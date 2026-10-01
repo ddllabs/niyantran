@@ -17,14 +17,16 @@
  */
 import './research.css';
 
-export default function SuggestionPills({ questions, onPick, disabled = false, label }) {
+export default function SuggestionPills({ questions, onPick, disabled = false, label, held = false }) {
   const list = (Array.isArray(questions) ? questions : []).filter((q) => typeof q === 'string' && q.trim());
   if (!list.length) return null;
+  // held (panel-loading spec C): kept in the layout but hidden and inert while a turn runs, so the
+  // row's arrival or departure never shifts the thread.
   return (
-    <ul className="ai-suggest ai-v2-suggest" role="list" aria-label={label}>
+    <ul className={`ai-suggest ai-v2-suggest${held ? ' is-held' : ''}`} role="list" aria-label={label} aria-hidden={held ? 'true' : undefined}>
       {list.map((q) => (
         <li key={q} role="listitem">
-          <button type="button" disabled={disabled} onClick={() => onPick?.(q)}>
+          <button type="button" disabled={disabled || held} tabIndex={held ? -1 : undefined} onClick={() => onPick?.(q)}>
             {q}
           </button>
         </li>

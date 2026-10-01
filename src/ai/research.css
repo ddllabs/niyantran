@@ -102,3 +102,13 @@ ul.ai-suggest > li { display: contents; }
 
 /* panel-loading A: the dock stays mounted while closed; .ai-dock's display: grid must not override [hidden]. */
 .ai-dock[hidden] { display: none !important; }
+
+/* panel-loading spec C: fixed-shape placeholders, and a question row that keeps its room while held. */
+.ai-thread-skeleton { display: grid; gap: 10px; padding: 12px 4px; }
+.ai-thread-skeleton span { display: block; height: 14px; border-radius: 6px; background: var(--line, #e4ddd4); opacity: 0.6; }
+.ai-thread-skeleton span:nth-child(1) { width: 40%; }
+.ai-thread-skeleton span:nth-child(2) { width: 85%; }
+.ai-thread-skeleton span:nth-child(3) { width: 70%; }
+.ai-v2-model-name.pending { display: inline-block; width: 7em; height: 0.9em; border-radius: 4px; background: var(--line, #e4ddd4); opacity: 0.6; }
+.ai-suggest.is-held { visibility: hidden; pointer-events: none; }
+

@@ -95,7 +95,7 @@ export function defaultEffortFor(models, modelId) {
   return efforts.find(e => e !== 'off') || efforts[0] || 'off';
 }
 
-export default function ModelPicker({ models = [], roles = [], value, onChange, open, onToggle, effortsOpenFor = '', onToggleEfforts }) {
+export default function ModelPicker({ models = [], roles = [], value, onChange, open, onToggle, effortsOpenFor = '', onToggleEfforts, pending = false }) {
   models = allowedModels(models);
   const groups = groupByVendor(models);
   const picked = models.find((m) => m.model_id === value?.modelId) || models.find((m) => m.is_default) || models[0] || null;
@@ -120,7 +120,10 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
         {/* The rung rides on the label, so the setting in force is readable
             without opening anything. It is a real difference in what the turn
             will do and cost, and it lived two clicks deep. */}
-        <span className="ai-v2-model-name">{picked?.label || (models.length === 0 ? 'No approved models' : 'Model')}</span>
+        {/* pending (panel-loading spec C): the list has not loaded, which is not the same as empty. */}
+        {pending && !picked
+          ? <span className="ai-v2-model-name pending" aria-label="Loading models" />
+          : <span className="ai-v2-model-name">{picked?.label || (models.length === 0 ? 'No approved models' : 'Model')}</span>}
         {picked && chosen && chosen !== 'off' ? (
           <span className="ai-v2-model-eff">{EFFORT_LABELS[chosen] || chosen}</span>
         ) : null}
