@@ -13,7 +13,7 @@
  */
 import { supabase } from './supabaseClient.js';
 import { sendResearchTurn } from './aiClient.js';
-import { verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { verifiedLocalIdentity, localIdentityIsCurrent, reverifiedAccount, subscribeLocalIdentity } from './userStore.js';
 
 export const SAFETY_TIMEOUT_MS = 120_000;
 const EVENT = 'niy-research-stream';
@@ -140,6 +140,14 @@ function watchIdentity() {
   subscribeLocalIdentity((id, event) => {
     generation++;
     for (const entry of new Set(operations.values())) {
+      // F43: supabase-js re-announces the same account as SIGNED_IN on every tab
+      // refocus, and a token refresh is the same account too. Its turn keeps
+      // streaming; the next check verifies that account again before it publishes.
+      if (id && entry.identity?.id === id) {
+        entry.generation = generation;
+        entry.reverify = true;
+        continue;
+      }
       // The first successful B4 verification may announce its identity before
       // the unbound preflight has received it. Actual Auth/logout events cancel it.
       if (entry.identity || event || !id) remove(entry);
@@ -154,9 +162,37 @@ function bound(entry, attempt = entry?.attempt) {
 async function current(entry, attempt = entry.attempt) {
   if (!bound(entry, attempt) || entry.signal?.aborted) return false;
   try {
-    const verified = await raceAbort(localIdentityIsCurrent(entry.identity), entry.signal);
-    return verified && !entry.signal.aborted && bound(entry, attempt);
+    // Bounded: a run of same-account events cannot keep a check spinning.
+    for (let tries = 0; tries < 3; tries++) {
+      if ((entry.reverify || entry.reverifying) && !await reverify(entry)) return false;
+      if (!bound(entry, attempt)) return false;
+      const verified = await raceAbort(localIdentityIsCurrent(entry.identity), entry.signal);
+      if (verified) return !entry.signal.aborted && bound(entry, attempt);
+      // Superseded meanwhile by another same-account event: verify again.
+      if (!entry.reverify) return false;
+    }
+    return false;
   } catch { return false; }
+}
+/** One shared re-verification per entry after a same-account Auth event (F43).
+ * Any other account, or a failed check, leaves the entry unverified. */
+function reverify(entry) {
+  if (!entry.reverifying) {
+    const check = (async () => {
+      await null;
+      while (entry.reverify && bound(entry)) {
+        entry.reverify = false;
+        const held = entry.identity;
+        const live = await raceAbort(reverifiedAccount(held), entry.signal);
+        if (live && entry.identity === held) entry.identity = live;
+        else if (!entry.reverify) return false;
+      }
+      return bound(entry);
+    })().catch(() => false);
+    entry.reverifying = check;
+    void check.finally(() => { if (entry.reverifying === check) entry.reverifying = null; });
+  }
+  return entry.reverifying;
 }
 async function publish(entry, patch, attempt = entry.attempt, stillCurrent = () => true) {
   if (!await current(entry, attempt) || !bound(entry, attempt) || !stillCurrent()) return false;
@@ -235,6 +271,7 @@ export async function reconcileSavedTurn(conversationId) {
   const entry = operations.get(conversationId);
   if (!conversationId || !bound(entry) || !entry.request
       || entry.state.conversationId !== conversationId) return false;
+  if ((entry.reverify || entry.reverifying) && !await reverify(entry)) return false;
   const attempt = entry.attempt, identity = entry.identity, turnKey = entry.request.turn_key;
   const messageId = entry.state.messageId;
   const stillCurrent = () => bound(entry, attempt) && operations.get(conversationId) === entry;
@@ -428,6 +465,11 @@ async function run(entry, opts) {
   };
   try {
     bump();
+    // A replay after a same-account Auth event first adopts that account's
+    // current identity, so the check below compares like with like (F43).
+    if (entry.identity && (entry.reverify || entry.reverifying) && !await raceAbort(reverify(entry), controller.signal)) {
+      throw new Error('Your research session changed.');
+    }
     const identity = await raceAbort(verifiedLocalIdentity(), controller.signal);
     const version = generation;
     if (!identity || (entry.identity && (identity.id !== entry.identity.id || identity.epoch !== entry.identity.epoch || identity.token !== entry.identity.token))

@@ -212,6 +212,84 @@ describe('aiConversations (server-backed thread store)', () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+  // F43: supabase-js emits a same-user SIGNED_IN on every tab refocus.
+  function refocus() {
+    auth.callback?.('SIGNED_IN', { access_token: `token-${auth.id}`, user: { id: auth.id } });
+  }
+
+  it('a same-account SIGNED_IN on tab refocus keeps an unsent draft and its attachments', async () => {
+    await hydrateConversations();
+    createAiChat();
+    addChatAttachments('', [{ kind: 'row', title: 'Dropped row' }]);
+    refocus();
+    expect(activeAiChat()).toMatchObject({ draft: true, attachments: [{ title: 'Dropped row' }] });
+    await hydrateConversations();
+    expect(loadAiState().chats.map((c) => c.id)).toEqual(['', 'c-1', 'c-2']);
+    expect(activeAiChat().attachments.map((a) => a.title)).toEqual(['Dropped row']);
+  });
+
+  it('after a refocus, protected reads and writes run under the re-verified identity', async () => {
+    await hydrateConversations();
+    refocus();
+    setActiveAiChat('c-2');
+    await loadMessages('c-2');
+    expect(loadAiState().chats.find((c) => c.id === 'c-2').loaded).toBe(true);
+    renameAiChat('c-1', 'Renamed after refocus');
+    await vi.waitFor(() => expect(client.writes).toEqual([
+      expect.objectContaining({ op: 'update', row: { title: 'Renamed after refocus' } }),
+    ]));
+  });
+
+  it('returning after the held identity expired keeps the draft while the refreshed account is verified', async () => {
+    await hydrateConversations();
+    createAiChat();
+    addChatAttachments('', [{ title: 'Dropped row' }]);
+    const later = Date.now() + 2 * 3600 * 1000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    auth.callback?.('TOKEN_REFRESHED', { access_token: `token-${auth.id}`, user: { id: auth.id } });
+    expect(activeAiChat()?.attachments).toEqual([expect.objectContaining({ title: 'Dropped row' })]);
+    await vi.waitFor(async () => {
+      await hydrateConversations();
+      expect(loadAiState().chats.map((c) => c.id)).toEqual(['', 'c-1', 'c-2']);
+    });
+    expect(activeAiChat().attachments.map((a) => a.title)).toEqual(['Dropped row']);
+  });
+
+  it('a failed check after a same-account event clears the cache', async () => {
+    await hydrateConversations();
+    createAiChat();
+    addChatAttachments('', [{ title: 'Dropped row' }]);
+    auth.blocked = true;
+    refocus();
+    await vi.waitFor(() => expect(loadAiState().chats).toEqual([]));
+  });
+
+  it('an unanswered check after a same-account event fails closed too', async () => {
+    await hydrateConversations();
+    createAiChat();
+    addChatAttachments('', [{ title: 'Dropped row' }]);
+    vi.spyOn(supabase, 'rpc').mockRejectedValue(new TypeError('Failed to fetch'));
+    refocus();
+    await vi.waitFor(() => expect(loadAiState().chats).toEqual([]));
+  });
+
+  it('an expired identity with no Auth event still hides the cache', async () => {
+    await hydrateConversations();
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 2 * 3600 * 1000);
+    expect(loadAiState().chats).toEqual([]);
+  });
+
+  it('a different account after a refocus still clears the cache synchronously', async () => {
+    await hydrateConversations();
+    createAiChat();
+    addChatAttachments('', [{ title: 'A private' }]);
+    refocus();
+    switchAccount('owner-b');
+    expect(loadAiState().chats).toEqual([]);
+    await hydrateConversations();
+    expect(loadAiState().chats.some((c) => c.draft)).toBe(false);
+  });
+
   it('logout synchronously clears private cache and prevents new protected operations', async () => {
     await hydrateConversations(); addChatAttachments('c-1', [{title:'Private pin'}]);
     invalidateLocalSession();

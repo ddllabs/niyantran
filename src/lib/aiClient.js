@@ -1,4 +1,4 @@
-import { identityRefusalMessage, verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { identityRefusalMessage, verifiedLocalIdentity, localIdentityIsCurrent, reverifiedAccount, subscribeLocalIdentity } from './userStore.js';
 import { functionsUrl, supabase } from './supabaseClient.js';
 
 /**
@@ -10,7 +10,10 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
   const controller = new AbortController();
   let identity = null;
   let version = 0;
-  const unsubscribe = subscribeLocalIdentity(() => {
+  const unsubscribe = subscribeLocalIdentity((id) => {
+    // F43: the same account re-announced (a tab refocus, a token refresh) keeps
+    // the request; the check after the fetch verifies that account again.
+    if (identity && id === identity.id) return;
     version++;
     if (identity) controller.abort();
   });
@@ -21,8 +24,9 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
   try {
     identity = await verifiedLocalIdentity();
     const verifiedVersion = version;
-    if (!identity || controller.signal.aborted || (expectedIdentity &&
-        (identity.id !== expectedIdentity.id || identity.epoch !== expectedIdentity.epoch || identity.token !== expectedIdentity.token))
+    // The caller's identity may have been superseded by its own account's
+    // refocus or token refresh (F43); only another account is refused.
+    if (!identity || controller.signal.aborted || (expectedIdentity && identity.id !== expectedIdentity.id)
         || !await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {
       throw new Error(identityRefusalMessage('Sign in to use AI research.'));
     }
@@ -38,7 +42,7 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
       headers,
       body: JSON.stringify(body),
     });
-    if (!await localIdentityIsCurrent(identity) || version !== verifiedVersion || controller.signal.aborted) {
+    if (!await reverifiedAccount(identity) || version !== verifiedVersion || controller.signal.aborted) {
       throw new Error('Your research session changed.');
     }
     return response;

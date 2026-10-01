@@ -19,7 +19,9 @@ function fixture(){
  setActiveAiChat:id=>{state.activeId=id;callback?.(state);return state},loadMessages:async()=>state,deleteAiChat:vi.fn(),addChatAttachments:vi.fn(),
  };
  const controller=createResearchThread(deps);
- return{controller,deps,sent,append,reconciled,adopted,setStreams:v=>{streams=v;streamListener?.()},changeOwner(id='b'){owner={id,epoch:owner.epoch+1,token:id,expiresAt:Date.now()+60000};state={chats:[],activeId:'',loaded:false};listener?.(id,'TOKEN_REFRESHED')},setState:s=>{state=s;callback?.(state)}};
+ return{controller,deps,sent,append,reconciled,adopted,setStreams:v=>{streams=v;streamListener?.()},changeOwner(id='b'){owner={id,epoch:owner.epoch+1,token:id,expiresAt:Date.now()+60000};state={chats:[],activeId:'',loaded:false};listener?.(id,'TOKEN_REFRESHED')},
+ // F43: supabase-js re-announces the same account on every tab refocus; userStore bumps the epoch, so the held identity goes stale.
+ refocus(event='SIGNED_IN'){owner={...owner,epoch:owner.epoch+1};listener?.(owner.id,event)},signOut(){owner=null;listener?.(null,'SIGNED_OUT')},getState:()=>state,setState:s=>{state=s;callback?.(state)}};
 }
 it('hydrates the verified owner before creating a local empty draft',async()=>{
  const f=fixture();const gate=deferred();f.deps.hydrateConversations.mockImplementation(()=>gate.promise);const start=f.controller.start();
@@ -194,4 +196,48 @@ it('falls back to the default when the saved model is gone or storage throws',as
  expect(blocked.getSnapshot().choice).toEqual({modelId:'model/default',effort:'low'});
  expect(()=>blocked.setChoice({modelId:'model/deep',effort:'high'})).not.toThrow();
  expect(blocked.getSnapshot().choice).toEqual({modelId:'model/deep',effort:'high'});
+});
+
+// F43: an unsent chat lost its attachments whenever its tab regained focus.
+function attachable(f){f.deps.addChatAttachments.mockImplementation((id,list)=>{const s=f.getState();f.setState({...s,chats:s.chats.map(c=>c.id===id?{...c,attachments:[...c.attachments,...list]}:c)})});}
+it('a same-account SIGNED_IN on tab refocus keeps the unsent draft, its attachments and the viewer',async()=>{
+ const f=fixture();attachable(f);await f.controller.start();
+ expect(await f.controller.attach(async()=>[{kind:'row',title:'Dropped row'}])).toBe(true);
+ f.controller.setDraft('Unsent question');f.controller.openSource({title:'Evidence'});const version=f.controller.getSnapshot().identityVersion;
+ f.refocus();
+ expect(f.controller.getSnapshot()).toMatchObject({ready:true,draft:'Unsent question',viewer:{source:{title:'Evidence'}},identityVersion:version});
+ expect(f.controller.getSnapshot().chat.attachments.map(a=>a.title)).toEqual(['Dropped row']);
+ await vi.waitFor(()=>expect(f.deps.verifiedLocalIdentity).toHaveBeenCalledTimes(2));
+ expect(f.deps.hydrateConversations).toHaveBeenCalledOnce();
+ // The re-verified identity is the one later work runs under: a send succeeds.
+ expect(await f.controller.send({message:'Unsent question',turn_key:'k'})).toBe(true);expect(f.deps.sendTurn).toHaveBeenCalledOnce();
+});
+it('a token refresh for the same account is re-checked quietly too',async()=>{
+ const f=fixture();attachable(f);await f.controller.start();await f.controller.attach(async()=>[{title:'Dropped row'}]);f.controller.setDraft('Unsent');
+ f.refocus('TOKEN_REFRESHED');expect(f.controller.getSnapshot()).toMatchObject({ready:true,draft:'Unsent'});
+ await vi.waitFor(()=>expect(f.deps.verifiedLocalIdentity).toHaveBeenCalledTimes(2));
+ expect(f.controller.getSnapshot().chat.attachments).toHaveLength(1);expect(f.deps.hydrateConversations).toHaveBeenCalledOnce();
+});
+it('a turn in flight across a refocus still reconciles and unlocks',async()=>{
+ const f=fixture();await f.controller.start();const gate=deferred();let opts;
+ f.deps.sendTurn.mockImplementation((_body,o)=>{opts=o;return gate.promise});const pending=f.controller.send({message:'Q',turn_key:'q'});
+ await vi.waitFor(()=>expect(opts).toBeDefined());f.refocus();
+ await opts.onConversation({id:'server-c'});gate.resolve({conversationId:'server-c',isPending:false,status:'complete',messageId:'m'});await pending;
+ expect(f.reconciled).toHaveLength(1);expect(f.controller.getSnapshot().submitting).toBe(false);
+});
+it('a failed same-account re-check still clears the thread',async()=>{
+ const f=fixture();attachable(f);await f.controller.start();await f.controller.attach(async()=>[{title:'Dropped row'}]);f.controller.setDraft('Unsent');
+ f.deps.verifiedLocalIdentity.mockResolvedValue(null);f.refocus();
+ await vi.waitFor(()=>expect(f.controller.getSnapshot().ready).toBe(false));
+ expect(f.controller.getSnapshot()).toMatchObject({draft:'',viewer:null,store:{chats:[]}});
+});
+it('a sign-out after attaching still clears the thread synchronously',async()=>{
+ const f=fixture();attachable(f);await f.controller.start();await f.controller.attach(async()=>[{title:'Dropped row'}]);f.controller.setDraft('Unsent');
+ f.signOut();
+ expect(f.controller.getSnapshot()).toMatchObject({ready:false,draft:'',viewer:null,store:{chats:[]},error:'Sign in to use AI research.'});
+});
+it('another account after attaching still clears the thread synchronously',async()=>{
+ const f=fixture();attachable(f);await f.controller.start();await f.controller.attach(async()=>[{title:'Dropped row'}]);f.controller.setDraft('Unsent');
+ f.changeOwner('b');
+ expect(f.controller.getSnapshot()).toMatchObject({ready:false,draft:'',store:{chats:[]}});
 });

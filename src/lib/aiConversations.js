@@ -14,7 +14,7 @@
  */
 import { attachmentIdentity } from './aiDrop.js';
 import { supabase } from './supabaseClient.js';
-import { verifiedLocalIdentity, localIdentityIsCurrent, subscribeLocalIdentity } from './userStore.js';
+import { verifiedLocalIdentity, localIdentityIsCurrent, reverifiedAccount, subscribeLocalIdentity } from './userStore.js';
 
 const EVENT = 'niy-ai-chats';
 const PINS_KEY = 'niyantranAiPins';
@@ -26,36 +26,65 @@ let state = { chats: [], activeId: '', loaded: false };
 let owner = null;
 let generation = 0;
 let watching = false;
+let reverifying = null;
 let listSequence = 0;
 let draftSequence = 0;
 const messageSequences = new Map();
 
 function clearIdentity() {
   owner = null;
+  reverifying = null;
   generation++;
   state = { chats: [], activeId: '', loaded: false };
   messageSequences.clear();
   emit();
 }
+// F43: supabase-js re-announces the same account as SIGNED_IN on every tab
+// refocus, and a token refresh is the same account too. Keep that account's
+// cache (an unsent draft and its attachments) for the length of one check of
+// the account, made outside the Auth callback; a failed check clears it. A
+// sign-out or another account clears it at once. Nothing protected runs on the
+// superseded identity meanwhile: current() still requires a current one.
+function identityEvent(id) {
+  if (!id || owner?.id !== id) {
+    clearIdentity();
+    return;
+  }
+  const held = owner, version = generation;
+  const check = new Promise((resolve) => { setTimeout(resolve, 0); })
+    .then(() => reverifiedAccount(held)).catch(() => null)
+    .then((live) => {
+      if (reverifying !== check) return;
+      reverifying = null;
+      if (generation !== version || owner?.id !== held.id) return;
+      if (live) owner = live;
+      else clearIdentity();
+    });
+  reverifying = check;
+}
 function watchIdentity() {
   if (watching) return;
   watching = true;
-  subscribeLocalIdentity(clearIdentity);
+  subscribeLocalIdentity(identityEvent);
 }
 function currentOwner() {
   watchIdentity();
-  if (owner && owner.expiresAt <= Date.now()) clearIdentity();
+  // An identity that expired while its tab was away is kept only while the
+  // refreshed account is being checked (F43).
+  if (owner && owner.expiresAt <= Date.now() && !reverifying) clearIdentity();
   return owner;
 }
 function scope() {
   return currentOwner() ? { identity: owner, generation, client } : null;
 }
+// Bound to the account, not one verification of it: a re-verification of the
+// same account replaces `owner` without bumping the generation (F43).
 function bound(snapshot) {
-  return Boolean(snapshot && currentOwner() === snapshot.identity
+  return Boolean(snapshot && currentOwner()?.id === snapshot.identity.id
     && generation === snapshot.generation && client === snapshot.client);
 }
 async function current(snapshot) {
-  return bound(snapshot) && await localIdentityIsCurrent(snapshot.identity) && bound(snapshot);
+  return bound(snapshot) && await localIdentityIsCurrent(owner) && bound(snapshot);
 }
 async function verifiedScope(snapshot = null) {
   watchIdentity();
@@ -63,10 +92,10 @@ async function verifiedScope(snapshot = null) {
   if (!identity || (snapshot && !bound(snapshot))) return null;
   const verifiedGeneration = generation;
   if (!await localIdentityIsCurrent(identity) || generation !== verifiedGeneration) return null;
-  if (snapshot && (!bound(snapshot) || identity.id !== snapshot.identity.id
-      || identity.epoch !== snapshot.identity.epoch || identity.token !== snapshot.identity.token)) return null;
-  if (owner && (owner.id !== identity.id || owner.epoch !== identity.epoch || owner.token !== identity.token)) clearIdentity();
-  owner ??= identity;
+  if (snapshot && (!bound(snapshot) || identity.id !== snapshot.identity.id)) return null;
+  if (owner && owner.id !== identity.id) clearIdentity();
+  // Current as of the check above: the same account keeps its cache (F43).
+  owner = identity;
   return scope();
 }
 

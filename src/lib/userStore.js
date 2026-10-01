@@ -173,6 +173,21 @@ export async function verifiedLocalIdentity(options = {}) {
   return verifyLocalIdentity({ admin: options.admin === true });
 }
 
+/**
+ * F43: `identity` while it is still current; otherwise the same account,
+ * verified again. supabase-js re-announces the account as SIGNED_IN on every
+ * tab refocus and on a token refresh, and each Auth event supersedes the
+ * identities issued before it. Null for any other account or a failed check.
+ */
+export async function reverifiedAccount(identity) {
+  if (!identity?.id) return null;
+  if (await localIdentityIsCurrent(identity)) return identity;
+  if (lastFailure === 'transient') return null;
+  // verifyLocalIdentity returns only an identity that is current when it returns.
+  const verified = await verifyLocalIdentity();
+  return verified?.id === identity.id ? verified : null;
+}
+
 /** Call only after a deliberate signInWithPassword success, passing its session.
  * Cached sessions and passive Auth events must never resume a local logout.
  * The supplied session is independently verified before the latch is reopened.

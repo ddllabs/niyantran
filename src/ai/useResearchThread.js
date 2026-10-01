@@ -54,11 +54,19 @@ export function createResearchThread(overrides = {}) {
     cancelRequested: false, cancelPending: false, cancelError: '', identityVersion: 0 };
   let view = data;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
+  let rechecking = null, recheckSequence = 0;
   let subscriptions = [];
   const listeners = new Set();
   const token = () => ({ owner, generation });
-  const valid = t => active && t.owner && owner === t.owner && generation === t.generation;
-  const current = async t => valid(t) && await deps.localIdentityIsCurrent(t.owner) && valid(t);
+  // Bound to the account, not one verification of it: a same-account re-check
+  // replaces `owner` without bumping the generation (F43). Work that asks while
+  // that re-check runs waits for it, then runs under the re-verified identity.
+  const valid = t => active && t.owner && owner?.id === t.owner.id && generation === t.generation;
+  const current = async t => {
+    if (!valid(t)) return false;
+    while (rechecking) await rechecking;
+    return valid(t) && await deps.localIdentityIsCurrent(owner) && valid(t);
+  };
   const contextChat = context => data.store.chats.find(c => context?.draftId ? c.draftId === context.draftId : c.id === context?.chatId);
   function emit(patch = {}) {
     data = { ...data, ...patch };
@@ -111,6 +119,33 @@ export function createResearchThread(overrides = {}) {
       identityVersion: data.identityVersion + 1 });
     // Never invoke another Auth method inside its synchronous event callback.
     if (id) queueMicrotask(() => { if (active) void hydrate(); });
+  }
+  /**
+   * F43: supabase-js re-announces the same account as SIGNED_IN on every tab
+   * refocus, and a token refresh is the same account too. Re-verify it without
+   * clearing the thread, so an unsent chat keeps its draft and attachments, as
+   * the admin panel does (dcf7034). A sign-out or another account still clears
+   * everything synchronously, and a failed re-check clears as one would.
+   */
+  function identityEvent(id, event) {
+    if (!id || owner?.id !== id) { invalidate(id, event); return; }
+    const seq = ++recheckSequence, version = generation;
+    const check = (async () => {
+      // Never invoke another Auth method inside its synchronous event callback.
+      await null;
+      let verified = null;
+      try {
+        verified = await deps.verifiedLocalIdentity();
+        if (verified?.id !== id || !await deps.localIdentityIsCurrent(verified)) verified = null;
+      } catch { verified = null; }
+      // A sign-out, account change or dispose meanwhile has already cleared.
+      if (!active || version !== generation || seq !== recheckSequence) return;
+      if (verified) { owner = verified; return; }
+      invalidate(null);
+      emit({ error: deps.identityRefusalMessage('Sign in to use AI research.') });
+    })();
+    rechecking = check;
+    void check.finally(() => { if (rechecking === check) rechecking = null; });
   }
   async function settleSaved(conversationId, snapshot) {
     // Fence the matching operation before the read begins. Reconciliation is
@@ -205,7 +240,7 @@ export function createResearchThread(overrides = {}) {
     async start() {
       if (active) return;
       active = true;
-      subscriptions = [deps.subscribeLocalIdentity(invalidate),
+      subscriptions = [deps.subscribeLocalIdentity(identityEvent),
         deps.subscribeAiChats(store => { if (owner) emit({ store }); }),
         deps.subscribeStream(() => { if (owner) emit(); }),
         deps.subscribeRegistry(choices => { if (owner) emit({ registry: choices }); })];

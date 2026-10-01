@@ -826,3 +826,58 @@ describe('review: reconcileSavedTurn cannot be unlocked by anything but an autho
   expect(wire).toBeDefined();
  });
 });
+
+// F43: supabase-js re-announces the same account as SIGNED_IN on every tab
+// refocus; a token refresh is the same account too. Neither may end a turn.
+describe('same-account auth events keep the turn (F43)', () => {
+ const refocus=()=>auth.callback('SIGNED_IN',{access_token:`token-${auth.id}`,user:{id:auth.id}});
+ function openStream(id,key){
+  let wire;const started=deferred();
+  const pending=sendTurn({message:'Question',turn_key:key},{send:async()=>new Response(new ReadableStream({start(c){wire=c;c.enqueue(frame({conversation:{id}}));started.resolve();}})),schedule:fn=>fn()});
+  return {pending,finish(){try{for(const f of [{chunk:'Saved answer'},{sources:[]},{done:{message_id:`${id}-m`}}])wire.enqueue(frame(f));wire.close();}catch{/* an aborted turn already closed it */}},
+   ready:started.promise.then(()=>vi.waitFor(()=>expect(streamState(id).conversationId).toBe(id)))};
+ }
+
+ it('a refocus SIGNED_IN mid-stream keeps the answer streaming to its saved result',async()=>{
+  const turn=openStream('refocus-c','refocus-key');await turn.ready;
+  refocus();turn.finish();
+  expect(await turn.pending).toMatchObject({status:'complete',aborted:false,endReason:''});
+  expect(streamState('refocus-c')).toMatchObject({status:'complete',streamingText:'Saved answer',messageId:'refocus-c-m'});
+ });
+
+ it('a token refresh mid-stream re-verifies the same account and keeps the answer',async()=>{
+  const turn=openStream('refresh-c','refresh-key');await turn.ready;
+  vi.spyOn(supabase.auth,'getSession').mockImplementation(async()=>({data:{session:{access_token:'token-owner-a-refreshed',user:{id:'owner-a'},expires_at:Date.now()/1000+3600}}}));
+  auth.callback('TOKEN_REFRESHED',{access_token:'token-owner-a-refreshed',user:{id:'owner-a'}});turn.finish();
+  expect(await turn.pending).toMatchObject({status:'complete',aborted:false});
+ });
+
+ it('Stop after a refocus requests cancellation for the open turn',async()=>{
+  const turn=openStream('stop-c','stop-key');await turn.ready;
+  refocus();
+  expect(await research.stopTurn('stop-c')).toMatchObject({cancelRequested:true});
+  expect(streamState('stop-c')).toMatchObject({isPending:true,cancelRequested:true});
+  expect(auth.writes).toEqual([expect.objectContaining({table:'chat_cancellations'})]);
+  turn.finish();await turn.pending;
+ });
+
+ it('a retained turn still reconciles from its saved row after a refocus',async()=>{
+  const send=await retained202();chatMessages({data:answerRow(),error:null});
+  refocus();
+  expect(await research.reconcileSavedTurn('saved-c')).toBe(true);expect(send).toHaveBeenCalledOnce();
+ });
+
+ it('replaying an unknown outcome after a refocus sends again under the same account',async()=>{
+  const send=await retainedUnknown();
+  refocus();
+  await research.retryTurn('saved-c',{send,schedule:fn=>fn()});
+  expect(send).toHaveBeenCalledTimes(2);
+ });
+
+ it('another account mid-stream still ends the turn as an identity change',async()=>{
+  const turn=openStream('switch-c','switch-key');await turn.ready;
+  switchAccount('owner-b');turn.finish();
+  expect(await turn.pending).toMatchObject({errorCode:'identity_changed',endReason:'identity_changed',aborted:true});
+  expect(streamState('switch-c')).toMatchObject({status:'idle',streamingText:''});
+ });
+});

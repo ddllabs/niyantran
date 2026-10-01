@@ -29,3 +29,31 @@ it('response resolving after an account change cannot escape the client boundary
  const pending=sendResearchTurn({body});await started;auth.id='owner-b';auth.callback('SIGNED_IN',{user:{id:'owner-b'}});resolve(new Response('private A response'));
  await expect(pending).rejects.toThrow();
 });
+// F43: supabase-js re-announces the same account as SIGNED_IN on every tab refocus.
+it('a same-account refocus SIGNED_IN while the request is in flight neither aborts nor refuses it',async()=>{
+ let resolve;const started=new Promise(r=>{fetch.mockImplementation((_url,init)=>{r(init.signal);return new Promise(done=>resolve=done);});});
+ const pending=sendResearchTurn({body});const signal=await started;
+ auth.callback('SIGNED_IN',{access_token:'token-owner-a',user:{id:'owner-a'}});
+ expect(signal.aborted).toBe(false);
+ const response=new Response('own answer');resolve(response);
+ await expect(pending).resolves.toBe(response);
+});
+it('a caller identity superseded by a same-account refocus still sends under the re-verified one',async()=>{
+ const { verifiedLocalIdentity } = await import('./userStore.js');
+ const identity=await verifiedLocalIdentity();
+ auth.callback('SIGNED_IN',{access_token:'token-owner-a',user:{id:'owner-a'}});
+ await sendResearchTurn({body,identity});expect(fetch).toHaveBeenCalledOnce();
+});
+it('a caller identity for another account is still refused',async()=>{
+ const { verifiedLocalIdentity } = await import('./userStore.js');
+ const identity=await verifiedLocalIdentity();
+ auth.id='owner-b';auth.callback('SIGNED_IN',{access_token:'token-owner-b',user:{id:'owner-b'}});
+ await expect(sendResearchTurn({body,identity})).rejects.toThrow();expect(fetch).not.toHaveBeenCalled();
+});
+it('another account while the request is in flight aborts it',async()=>{
+ let resolve;const started=new Promise(r=>{fetch.mockImplementation((_url,init)=>{r(init.signal);return new Promise(done=>resolve=done);});});
+ const pending=sendResearchTurn({body});const signal=await started;
+ auth.id='owner-b';auth.callback('SIGNED_IN',{access_token:'token-owner-b',user:{id:'owner-b'}});
+ expect(signal.aborted).toBe(true);
+ resolve(new Response('private A response'));await expect(pending).rejects.toThrow();
+});
