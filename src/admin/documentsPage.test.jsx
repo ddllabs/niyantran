@@ -10,17 +10,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fixtures = vi.hoisted(() => ({
   pairs: [
     { tier: 'global', feature: 'Treaties' },
+    { tier: 'national', feature: 'Bill Passage Probability Index' },
     { tier: 'national', feature: 'Cabinet Decisions' },
     { tier: 'national', feature: 'Union Budget' },
     { tier: 'state', feature: 'Cabinet Decisions' },
   ],
 }));
-vi.mock('../lib/corpusUpload.js', () => ({
-  deskPairs: () => fixtures.pairs,
-  planUpload: vi.fn(),
-  uploadPlan: vi.fn(),
-  createAdminIngestApi: vi.fn(() => ({ jobs: vi.fn(async () => ({ ok: true, jobs: [], next_before: null })) })),
-}));
+vi.mock('../lib/supabaseClient.js', () => ({ supabase: {}, functionsUrl: () => 'http://fn.test/admin-ingest', accessToken: async () => 't' }));
+vi.mock('../lib/corpusUpload.js', async () => {
+  const actual = await vi.importActual('../lib/corpusUpload.js');
+  return {
+    isHubUrl: actual.isHubUrl,
+    UploadError: actual.UploadError,
+    deskPairs: () => fixtures.pairs,
+    planUpload: vi.fn(),
+    uploadPlan: vi.fn(),
+    createAdminIngestApi: vi.fn(() => ({ jobs: vi.fn(async () => ({ ok: true, jobs: [], next_before: null })) })),
+  };
+});
 
 import DocumentsPage, {
   DuplicateWarning,
@@ -76,7 +83,7 @@ const PLAN = {
     { part_index: 2, page_offset: 20, page_count: 5, sha256: 'd'.repeat(64), byte_size: 300_000 },
   ],
 };
-const DRAFT = { title: 'Budget at a Glance', desk: 'national|Union Budget', file_url: '', note: '', splitEvery: '' };
+const DRAFT = { title: 'Budget at a Glance', desk: 'national|Union Budget', file_url: 'https://budget.example/glance.pdf', no_public_source: false, note: '', splitEvery: '' };
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -140,7 +147,7 @@ describe('the desk choice', () => {
   it('groups the catalog pairs by tier, in catalog order', () => {
     expect(deskGroups(fixtures.pairs)).toEqual([
       { tier: 'global', features: ['Treaties'] },
-      { tier: 'national', features: ['Cabinet Decisions', 'Union Budget'] },
+      { tier: 'national', features: ['Bill Passage Probability Index', 'Cabinet Decisions', 'Union Budget'] },
       { tier: 'state', features: ['Cabinet Decisions'] },
     ]);
   });
@@ -149,7 +156,7 @@ describe('the desk choice', () => {
     const markup = renderToStaticMarkup(createElement(UploadForm, { draft: { ...DRAFT, desk: '' }, pairs: fixtures.pairs, planCurrent: true, onChange: () => {} }));
     expect(markup.match(/<select/g)).toHaveLength(1);
     expect(markup).toMatch(/<select[^>]*required=""/);
-    expect(markup).toContain('<optgroup label="national"><option value="national|Cabinet Decisions">Cabinet Decisions</option><option value="national|Union Budget">Union Budget</option></optgroup>');
+    expect(markup).toContain('<optgroup label="national"><option value="national|Bill Passage Probability Index">Bill Passage Probability Index</option><option value="national|Cabinet Decisions">Cabinet Decisions</option><option value="national|Union Budget">Union Budget</option></optgroup>');
     expect(markup).toContain('<optgroup label="state"><option value="state|Cabinet Decisions">Cabinet Decisions</option></optgroup>');
     // The placeholder is chosen and cannot be picked back; React marks the chosen option selected="".
     expect(markup).toMatch(/<option value="" disabled=""[^>]*>Choose a desk<\/option>/);
@@ -157,10 +164,10 @@ describe('the desk choice', () => {
 
   it('labels every input', () => {
     const markup = renderToStaticMarkup(createElement(UploadForm, { draft: DRAFT, pairs: fixtures.pairs, planCurrent: true, onChange: () => {} }));
-    for (const label of ['Title', 'Desk', 'Source URL (optional)', 'Note (optional)', 'Split every N pages (advanced)']) {
+    for (const label of ['Title', 'Desk', 'Source URL', 'No public source', 'Note (optional)', 'Split every N pages (advanced)']) {
       expect(markup).toContain(`<span>${label}</span>`);
     }
-    expect(markup.match(/<label/g)).toHaveLength(5);
+    expect(markup.match(/<label/g)).toHaveLength(6);
   });
 });
 
@@ -182,9 +189,11 @@ describe('the confirm gate', () => {
     }
   });
 
-  it('refuses a source URL that is not http(s) and a split that is not a whole number', () => {
+  it('refuses a source URL that is not http(s), a blank one without "No public source" (D6), and a split that is not a whole number', () => {
     expect(validateDraft({ ...DRAFT, file_url: 'ftp://x.example/a.pdf' }, fixtures.pairs).errors.file_url).toBeTruthy();
     expect(validateDraft({ ...DRAFT, file_url: 'https://x.example/a.pdf' }, fixtures.pairs).valid).toBe(true);
+    expect(validateDraft({ ...DRAFT, file_url: '' }, fixtures.pairs).errors.file_url).toBeTruthy();
+    expect(validateDraft({ ...DRAFT, file_url: '', no_public_source: true }, fixtures.pairs).valid).toBe(true);
     expect(validateDraft({ ...DRAFT, splitEvery: '2.5' }, fixtures.pairs).errors.splitEvery).toBeTruthy();
     expect(validateDraft({ ...DRAFT, splitEvery: '0' }, fixtures.pairs).valid).toBe(false);
     expect(validateDraft({ ...DRAFT, splitEvery: '10' }, fixtures.pairs).valid).toBe(true);
@@ -209,6 +218,7 @@ describe('the confirm gate', () => {
     expect(metaFromDraft({ ...DRAFT, title: '  Budget  ', file_url: ' ', note: ' n ' }, PLAN)).toEqual({
       title: 'Budget', desk_tier: 'national', desk_feature: 'Union Budget', file_url: null, note: 'n', file_name: 'Budget at a Glance.pdf',
     });
+    expect(metaFromDraft({ ...DRAFT, file_url: '', no_public_source: true }, PLAN)).toMatchObject({ file_url: null, no_public_source: true });
   });
 });
 
@@ -359,9 +369,16 @@ describe('JobsTable', () => {
   it('sits in the scrolling table wrapper with every column', () => {
     const markup = html();
     expect(markup).toMatch(/^<div class="adm-table-wrap"><table class="adm-table">/);
-    for (const h of ['Title', 'Pages', 'Stage', 'Status', 'Attempts', 'Next attempt', 'Error', 'Cost', 'Requested by', 'Created']) {
+    for (const h of ['Title', 'Record', 'Pages', 'Stage', 'Status', 'Attempts', 'Next attempt', 'Error', 'Cost', 'Requested by', 'Created']) {
       expect(markup).toContain(`<th>${h}</th>`);
     }
+  });
+
+  it('names the record a job’s document is linked to, or a dash', () => {
+    const jobs = [job({ job_id: 'j-keyed', document_key: 'bill:2025:XLV' }), job({ job_id: 'j-free' })];
+    const markup = html({ jobs });
+    expect(rowMarkup(markup, 'j-keyed')).toContain('<td class="note">bill:2025:XLV</td>');
+    expect(rowMarkup(markup, 'j-free')).toContain('<td class="note">—</td>');
   });
 
   it('shows attempts, the backoff time, the error, the cost and the requester', () => {
@@ -429,12 +446,25 @@ describe('JobsTable', () => {
 // ─── The page ────────────────────────────────────────────────────────────────
 
 describe('DocumentsPage', () => {
-  it('renders the upload card with a multiple PDF picker, and the jobs card', () => {
-    const markup = renderToStaticMarkup(createElement(DocumentsPage, { api: { jobs: vi.fn() } }));
+  const pending = () => new Promise(() => {});
+  const api = () => ({ jobs: vi.fn(pending), records: vi.fn(pending), unlinked: vi.fn(pending) });
+  const cards = (markup) => [...markup.matchAll(/<h2>([^<]+)<\/h2>/g)].map((m) => m[1]);
+
+  it('opens on the records of the bill desk, then documents without a record, the upload panel and the jobs', () => {
+    const markup = renderToStaticMarkup(createElement(DocumentsPage, { api: api() }));
     expect(markup).toContain('<h1 class="adm-h1">Documents</h1>');
-    expect(markup).toMatch(/<input type="file" multiple="" accept="application\/pdf,\.pdf"/);
-    expect(markup).toContain('<span>PDF files</span>');
+    expect(cards(markup)).toEqual(['Records', 'Documents without a record', 'Upload', 'Ingest jobs']);
+    expect(markup).toMatch(/<option value="national\|Bill Passage Probability Index" selected="">/);
+    expect(markup).toContain('Loading records…');
+    expect(markup).toContain('Loading documents…');
     expect(markup).toContain('Loading jobs…');
     expect(markup).not.toContain('role="alert"');
+  });
+
+  it('starts the upload panel standalone, with a multiple PDF picker', () => {
+    const markup = renderToStaticMarkup(createElement(DocumentsPage, { api: api() }));
+    expect(markup).toContain('Standalone upload: the document is not linked to a record.');
+    expect(markup).toMatch(/<input type="file" multiple="" accept="application\/pdf,\.pdf"/);
+    expect(markup).toContain('<span>PDF files</span>');
   });
 });

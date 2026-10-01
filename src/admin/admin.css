@@ -811,6 +811,20 @@ html.adm-doc #root {
 .adm-parts li[data-state='uploading'] b,
 .adm-parts li[data-state='verifying'] b { color: var(--adm-blue); }
 .adm-parts li[data-state='stored'] b { color: var(--adm-ok); }
+/* Documents tab, records-first (Amendment A): documents in a record row, in-page confirmations,
+   the record picker, the "No public source" tick, the fixed desk of an attach, the panel's mode. */
+.adm-recdoc { padding: 4px 0; }
+.adm-recdoc + .adm-recdoc { border-top: 1px dashed var(--adm-line); }
+.adm-recdoc .adm-pill { margin-left: 4px; }
+.adm-confirm { margin-top: 6px; padding: 8px 10px; max-width: 420px; border: 1px solid var(--adm-red); border-radius: 8px; background: var(--adm-surface); }
+.adm-confirm p { margin: 0; }
+.adm-picker { display: grid; gap: 6px; margin-top: 6px; max-width: 420px; }
+.adm-picker .adm-search { min-width: 0; }
+.adm-picker-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.adm-field.adm-check { display: flex; align-items: center; gap: 8px; align-self: end; }
+.adm-field.adm-check input { padding: 0; }
+.adm-fixed { padding: 8px 0; font: 600 13px var(--adm-ui); color: var(--adm-black); }
+.adm-target { display: grid; gap: 6px; justify-items: start; }
 a.adm-btn {
   display: inline-flex;
   align-items: center;

@@ -236,3 +236,41 @@ it('the desk focus is labelled "Desk", with a hint that documents are limited to
   expect(html).not.toContain('Desk sample');
  }finally{vi.unstubAllGlobals();}
 });
+// D9 (admin-upload Amendment A): an admin links, unlinks or deletes a record's
+// document while the chat is open. The badge asked once per session, so it kept
+// saying "Record only" (or "Full text") until a reload. Now a newly attached key
+// is re-queried at once, and attached keys are re-checked every COVERAGE_TTL_MS.
+it('coverage: attaching re-queries at once, then re-checks every lifetime until nothing keyed is attached',async()=>{
+ const {watchCoverage}=await import('./AiPanel.jsx');
+ vi.useFakeTimers();
+ try{
+  const refresh=vi.fn(async(keys)=>new Set(keys));const recheck=vi.fn(async()=>new Set());const answers=[];
+  expect(watchCoverage('',(s)=>answers.push(s),{refresh,recheck,every:60_000})).toBeNull();
+  expect(refresh).not.toHaveBeenCalled();
+  // The panel joins the attached keys with U+0000 (a key may hold a space).
+  const stop=watchCoverage('bill:2025:XLV\u0000bill:2024:XX',(s)=>answers.push(s),{refresh,recheck,every:60_000});
+  expect(refresh).toHaveBeenCalledWith(['bill:2025:XLV','bill:2024:XX']);
+  await vi.advanceTimersByTimeAsync(59_999);
+  expect(recheck).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(recheck).toHaveBeenCalledTimes(1);
+  expect(recheck).toHaveBeenCalledWith(['bill:2025:XLV','bill:2024:XX']);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(recheck).toHaveBeenCalledTimes(2);
+  expect(answers.map((s)=>[...s])).toEqual([['bill:2025:XLV','bill:2024:XX'],[],[]]);
+  stop();
+  await vi.advanceTimersByTimeAsync(180_000);
+  expect(recheck).toHaveBeenCalledTimes(2);
+ }finally{vi.useRealTimers();}
+});
+it('coverage: an answer that lands after the attachments changed is dropped, and a failed lookup changes nothing',async()=>{
+ const {watchCoverage}=await import('./AiPanel.jsx');
+ let settle;const refresh=vi.fn(()=>new Promise((r)=>{settle=r;}));const answers=[];
+ const stop=watchCoverage('k1',(s)=>answers.push(s),{refresh,recheck:vi.fn(),every:60_000});
+ stop();settle(new Set(['k1']));await Promise.resolve();await Promise.resolve();
+ expect(answers).toEqual([]);
+ const stop2=watchCoverage('k2',(s)=>answers.push(s),{refresh:vi.fn(async()=>{throw new Error('down');}),recheck:vi.fn(),every:60_000});
+ await Promise.resolve();await Promise.resolve();
+ expect(answers).toEqual([]);
+ stop2();
+});
