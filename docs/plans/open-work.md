@@ -39,7 +39,24 @@ Current baseline (2026-09-29, evening):
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
-- **2026-10-02, F45 (local `main`, not yet pushed):** `0181b71`, wired in `ee206bb`.
+- **2026-10-02, R6 `citations-pdf`:** a page-wise viewer for ingestion-v2 citations.
+  - **What it does:**
+    - the original PDF, with box highlights;
+    - an OCR text view, both with page switching;
+    - signed byte-range reads through `document-file`;
+    - the chat widens into a resizable overlay;
+    - Fit text, zoom and a full view;
+    - a click outside closes both panels, while Close citation keeps the chat.
+  - Legacy documents keep the old reader.
+  - **Spec:** `specs/2026-10-01-rag-v2-citations-pdf.md`, revisions 3–5.
+  - **Local runs:** `research/2026-10-01-citations-pdf-local-run.md` (V7, V7b and V7c).
+  - **On NTER:**
+    - `document-file` deployed (V8 step 1);
+    - frontend at `e76a48a` (revision 4) and `3a44ff2` (revision 5), Vercel READY.
+  - **Owner checks passed (2026-10-02):** citations on the Anti-Doping bill, click outside,
+    Close citation and the full view. The "Open stored copy" tab is still to check, listed
+    under R8.
+- **2026-10-02, F45 (on NTER with R6 revision 5):** `0181b71`, wired in `ee206bb`.
   - **Per-part requests:** the viewer passes the part layout it read from `document_files`, so
     `document-file` is asked once per part, not once per page.
   - **Ask state:** "Ask about this document" is disabled, with a reason, for a deleted or not-live
@@ -279,31 +296,6 @@ Part 2 needs its specs first, in this order:
   mark R4 done.
 - [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
   doc §6, which proves pages, boxes, images, cost and re-run cost.
-- [ ] **R6. `citations-pdf`.** **Built and passed locally on 2026-10-01**: spec revision 3
-  (approved), plan V0–V9, branch `task/rag-v2-citations-pdf`, local run
-  `research/2026-10-01-citations-pdf-local-run.md`.
-  - **On NTER:** revision 3 (`document-file` deployed, frontend pushed) and revision 4
-    (`e76a48a`).
-  - **Revision 5:** click outside closes citation and chat; Close citation keeps the chat; F45.
-    Built as X1/X2 (`0181b71`, `ee206bb`); J3 and the local run V7c passed on 2026-10-02 (report
-    addendum).
-  - **Next:** V8c, the frontend push, with a go-ahead. Then the owner's NTER checks: the
-    stored-copy tab, the legacy reader, and click outside with a real mouse.
-  Original scope: The PDF.js viewer with box highlights; a
-  page label and image strip in the reader; signed URLs.
-  Requirement from R3: `WorkSurface`, `SourceList` (`AiPanel.jsx`) and
-  `AiMarkdown` must pass citations through `sanitizeCitation`
-  (`src/ai/CitationBubble.jsx`) before drawing boxes or images.
-  **Owner direction, 2026-10-01:**
-  - a page-wise viewer that shows a citation both on the original PDF and on the OCR text,
-    as today;
-  - the OCR text view gains a page switcher;
-  - legacy documents keep their current text view unchanged;
-  - the DDL Labs project has the same implementation, to be used as a reference.
-
-  The data is ready. Verified on NTER (the Anti-Doping bill, `bill:2025:77`): every stored
-  citation carries `page_number`, page-normalised `boxes`, the character span, `chunk_id`,
-  `section`, `extract_hash` and `file_url`.
 - [ ] **R7. `acquisition`.** Download the 5,327 linked `pdf_text`
   records (5,218 sansad.in bills), then backfill on a separate owner
   go-ahead. This replaces L1 for the linked records; the unlinked ones wait
@@ -325,8 +317,16 @@ Part 2 needs its specs first, in this order:
   `plans/2026-10-01-rag-v2-admin-records.md`): built on `task/admin-records`
   (C0–C4, migration `20261001180000_corpus_records`), checkpoint H passed, and the
   local end to end (C5) passed: `research/2026-10-01-admin-records-local-run.md`.
-  Next: checkpoint I (the owner reads it), then C6 on NTER with a go-ahead per step
-  (migration, then `admin-ingest`, then the frontend; then the owner's three checks).
+  **Live on NTER, 2026-10-01:** the migration, `admin-ingest` and the frontend. Owner check 1
+  passed: the Anti-Doping bill was attached to `bill:2025:77`.
+  **Remaining, deferred by the owner on 2026-10-02.** The NTER logs and audit table showed none of
+  these had run yet:
+  1. upload *Budget at a Glance* with "split every 10 pages" (3 parts), then open a citation on
+     page 11 or later;
+  2. delete one document (it must show in `corpus_admin_actions`);
+  3. from R6, "Open stored copy" opening the PDF in a new tab.
+
+  Then mark R8 done and make its plans Historical.
 
 Follow-ups and findings:
 

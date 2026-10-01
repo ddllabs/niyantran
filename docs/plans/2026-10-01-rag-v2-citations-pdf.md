@@ -1,7 +1,8 @@
 # Plan: RAG v2 — page-wise citation viewer (`citations-pdf`, R6)
 
-> **Status: Living (2026-10-01).** Implements `docs/specs/2026-10-01-rag-v2-citations-pdf.md`
-> (revision 3, approved). Tracked as open-work R6. Historical when V9 lands.
+> **Status: Historical (dated 2026-10-02).** Implemented
+> `docs/specs/2026-10-01-rag-v2-citations-pdf.md` (revisions 3–5). R6 is done: the record is in
+> `docs/plans/open-work.md` and `docs/agents/coordination.md`.
 
 ## Ground rules
 
