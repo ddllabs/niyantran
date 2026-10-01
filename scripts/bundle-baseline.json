@@ -1,6 +1,6 @@
 {
-  "mainEntryGzipBytes": 644149,
-  "measuredAt": "R6 rev 4 tip (W1+W2 merged), npm run build (vite 5.4.21), zlib default level as vite reports it",
+  "mainEntryGzipBytes": 646171,
+  "measuredAt": "main at 4a5f1ed + docs (panel-loading merged), npm run build (vite 5.4.21), zlib default level as vite reports it",
   "spec": "docs/specs/2026-10-01-rag-v2-citations-pdf.md (Testing, Bundle check)",
-  "note": "Re-measured 2026-10-01 for R6 (citations-pdf): intended main-entry growth of +2,476 B gzip since the V3 baseline (641,673) = lazy page-viewer branch in WorkSurface (~0.4 KB), the citation overlay host (~0.8 KB) and its resize handles (~1.3 KB). pdf.js stays lazy."
+  "note": "Re-measured 2026-10-02 at the owner's request: intended main-entry growth of +2,022 B gzip since the R6 baseline (644,149) = the F46 chat bug fixes (stick-to-bottom, saved-step and label fixes), the thinking display (ActivityTicker rewrite: clock, Found line, summary; the NyAI card it replaced was removed), answer streaming (first-word timing) and panel loading (dock keep-alive, placeholders, memoised MessageRow). pdf.js stays lazy."
 }
