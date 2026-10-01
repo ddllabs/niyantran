@@ -428,8 +428,19 @@ Follow-ups and findings:
     - one reveal;
     - one layout per open;
     - memoised message rows.
-  - **Next:** the frontend push, with a go-ahead.
-  - **Still open from F46:** the agent loop's speed and cost.
+  - **Pushed:** to NTER at `a4da602`, with the bundle re-baselined.
+
+  **Answer speed (2026-10-02).** Spec `specs/2026-10-02-answer-speed.md`, approved; chunks stay
+  at 40.
+  - **The change:** the question is searched before the first model call (`3efcca9`).
+  - **The benchmark** (`research/2026-10-02-answer-speed-benchmark.md`, two passes):
+    - 32% fewer model calls;
+    - first word earlier;
+    - cost 13–38% lower;
+    - citations valid 40/40, gold citations 38/40 against 34/40.
+  - **Batching** was measured and is not recommended.
+  - **Next:** deploy `research-chat`, with a go-ahead. A fast routing model (step 4) needs a
+    design first.
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
