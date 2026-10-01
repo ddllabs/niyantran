@@ -985,12 +985,13 @@ Deno.test('a research reply that is a complete, grounded answer is the answer, a
   assertEquals(result.text, draft());
   assertEquals(result.finish, 'stop');
   assertEquals(result.modelCalls, 2);
-  // The reply streamed as private research text; it reaches the decoder only
-  // after its call finished, announced first so the handler can account for it.
+  // answer-streaming spec §1: the reply reaches the handler live, as draft text, before its call
+  // finishes; promotion then only confirms it - the answer is never sent a second time.
   const tail = order.slice(order.lastIndexOf('finish'));
-  assertEquals(tail, ['finish', 'promoted', 'text']);
-  assertEquals(order.filter((k) => k === 'text').length, 1);
-  assertEquals(order.indexOf('researchText') < order.lastIndexOf('finish'), true);
+  assertEquals(tail, ['finish', 'promoted']);
+  assertEquals(order.filter((k) => k === 'text').length, 0);
+  assert(order.indexOf('draftText') > -1 && order.indexOf('draftText') < order.lastIndexOf('finish'));
+  assertEquals(order.includes('retract'), false);
 });
 
 Deno.test('small talk that answers without searching is the answer', async () => {
@@ -1119,4 +1120,77 @@ Deno.test('foundOf: up to 3 documents in result order, up to 5 pages each, title
   ]);
   assertEquals(JSON.stringify(found).includes('SECRET'), false);
   assertEquals(foundOf([]), []);
+});
+
+// answer-streaming spec §1: a research call's text goes out live, and is taken back when the call
+// turns out not to be the answer.
+Deno.test('streaming: draft text is sent live, delta by delta, before the call finishes', async () => {
+  const order: string[] = [];
+  const whole = draft();
+  const parts = [whole.slice(0, 20), whole.slice(20, 60), whole.slice(60)];
+  const f = fake([[docCall(), finish('tool_calls')], [...parts.map((t) => ({ type: 'text' as const, text: t })), finish()]], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+    onEvent: (e) => order.push('draftText' in e ? `draft:${(e as { draftText: string }).draftText}` : Object.keys(e)[0]),
+  });
+  await runAgent(f.deps, input);
+  const drafts = order.filter((k) => k.startsWith('draft:')).map((k) => k.slice(6));
+  assertEquals(drafts, parts);
+  assert(order.indexOf(`draft:${parts[2]}`) < order.lastIndexOf('finish'));
+});
+
+Deno.test('streaming: a draft that ends in a tool call is retracted, and only the later answer stands', async () => {
+  const events: AgentEvent[] = [];
+  const f = fake([
+    [{ type: 'text', text: '{"answer":"Early guess' }, docCall(), finish('tool_calls')],
+    [{ type: 'text', text: draft() }, finish()],
+  ], { searchDocuments: () => Promise.resolve([chunk('a')]), onEvent: (e) => events.push(e) });
+  const result = await runAgent(f.deps, input);
+  const keys = events.map((e) => Object.keys(e)[0]);
+  assertEquals(events.filter((e) => 'retract' in e), [{ retract: 'searching' }]);
+  assert(keys.indexOf('retract') < keys.indexOf('tool'), 'retracted before the search runs');
+  assertEquals(result.text, draft());
+});
+
+Deno.test('streaming: a draft that fails acceptance is retracted before the answer phase writes', async () => {
+  const events: AgentEvent[] = [];
+  const bad = draft({ sources: [{ id: 1, source: 'ref:zzz999-9' }] });
+  const f = fake([
+    [docCall(), finish('tool_calls')],
+    [{ type: 'text', text: bad }, finish()],
+    [{ type: 'text', text: draft() }, finish()],
+  ], { searchDocuments: () => Promise.resolve([chunk('a')]), onEvent: (e) => events.push(e) });
+  const result = await runAgent(f.deps, input);
+  const keys = events.map((e) => Object.keys(e)[0]);
+  assertEquals(events.filter((e) => 'retract' in e), [{ retract: 'rewriting' }]);
+  assert(keys.indexOf('retract') < keys.indexOf('text'), 'the answer phase streams after the retraction');
+  assertEquals(result.text, draft());
+});
+
+Deno.test('streaming: a draft cut off by a failed call is retracted before the error propagates', async () => {
+  const events: AgentEvent[] = [];
+  const f = fake([[docCall(), finish('tool_calls')]], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+    onEvent: (e) => events.push(e),
+    model: (() => {
+      let n = 0;
+      return async function* () {
+        n++;
+        if (n === 1) { yield docCall(); yield finish('tool_calls'); return; }
+        yield { type: 'text' as const, text: '{"answer":"Half' };
+        throw new Error('stream broke');
+      };
+    })(),
+  });
+  await assertRejects(() => runAgent(f.deps, input));
+  assertEquals(events.filter((e) => 'retract' in e), [{ retract: 'error' }]);
+});
+
+Deno.test('streaming: a call with no draft text retracts nothing', async () => {
+  const events: AgentEvent[] = [];
+  const f = fake([[docCall(), finish('tool_calls')], [{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+    onEvent: (e) => events.push(e),
+  });
+  await runAgent(f.deps, input);
+  assertEquals(events.some((e) => 'retract' in e), false);
 });

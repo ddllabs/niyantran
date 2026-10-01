@@ -723,6 +723,10 @@ async function runTurnBody(
   let searchMs = 0;
   let writingStart = 0;
   let writingEnd = 0;
+  // answer-streaming spec §2: time to the first model call and to the first answer character.
+  let firstModelAt = 0;
+  let firstAnswerAt = 0;
+  let rounds = 0;
   // thinking-display spec §2: each stage is announced once, by what is happening.
   let researchRounds = 0;
   const said = new Set<string>();
@@ -737,7 +741,22 @@ async function runTurnBody(
   const onEvent = (e: AgentEvent) => {
     if (signal.aborted) return;
     if ('internalReasoning' in e) return;
-    else if ('attempt' in e) {
+    else if ('retract' in e) {
+      // A research draft that was not the answer: take it back from the reader, the checkpoint
+      // and the clocks, so a later answer (or another model) starts clean. The reader is cleared
+      // with the existing patch frame (from 0, empty), which every client already applies, so the
+      // server can ship before or after the frontend (answer-streaming spec, amendment 1).
+      if (streamed) sender.send({ patch: { from: 0, text: '' } });
+      log('research.draft_retracted', { reason: e.retract, chars: streamed.length });
+      decoder.reset();
+      streamed = '';
+      writingStart = 0;
+      writingEnd = 0;
+      firstAnswerAt = 0;
+      context.checkpoint({ content: '' });
+    } else if ('attempt' in e) {
+      rounds++;
+      if (!firstModelAt) firstModelAt = now();
       // A research round may call no tool at all, so it never claims to be searching; the
       // searches announce themselves. A real turn repeated "Reviewing the question." for
       // each of its six rounds, which is why every label is said once (F46).
@@ -795,12 +814,13 @@ async function runTurnBody(
           ...found,
         });
       }
-    } else if ('text' in e) {
-      const shown = decoder.push(e.text);
+    } else if ('text' in e || 'draftText' in e) {
+      const shown = decoder.push('text' in e ? e.text : e.draftText);
       if (shown) {
         // A research reply promoted to the answer has no answer round to announce it.
         stage(WRITING);
         if (!writingStart) writingStart = now();
+        if (!firstAnswerAt) firstAnswerAt = now();
         writingEnd = now();
         streamed += shown;
         context.checkpoint({ content: streamed });
@@ -840,6 +860,7 @@ async function runTurnBody(
           request: {
             model,
             signal,
+            session_id: conversation.id,
             ...(effortOf(t, model) ? { reasoning: { effort: effortOf(t, model)! } } : {}),
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
@@ -903,7 +924,7 @@ async function runTurnBody(
       status: context.signal.aborted ? 'interrupted' : 'error',
       error: context.signal.aborted ? 'Execution interrupted.' : 'The turn failed. Please try a new turn.',
       usage: attempts.summary(),
-      timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd),
+      timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds }),
     });
   }
 
@@ -925,7 +946,7 @@ async function runTurnBody(
       status: signal.aborted ? 'interrupted' : 'error',
       error: 'The turn did not produce a complete answer.',
       usage: attempts.summary(),
-      timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd),
+      timing: timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds }),
     });
   }
 
@@ -1010,7 +1031,7 @@ async function runTurnBody(
   ];
   const content = notes.length ? `${notes.join('\n\n')}\n\n${ladder.answer}` : ladder.answer;
 
-  const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd);
+  const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds });
   // `searches` is a step count, not a token figure; `attempts` beside it already
   // is one. It is written on every completed turn, including when it is zero,
   // because zero is a finding: a record question answered without retrieving
@@ -1100,6 +1121,11 @@ export interface Timing {
   reasoning_ms: number;
   writing_ms: number;
   total_ms: number;
+  /** answer-streaming spec §2: from the request's arrival to the first model call opening and
+   * to the first answer character sent (0 when none was), and the number of model calls. */
+  first_model_ms: number;
+  first_answer_ms: number;
+  rounds: number;
 }
 
 const READING_QUESTION = 'Reading the question';
@@ -1122,6 +1148,7 @@ function timingOf(
   searchMs: number,
   writingStart: number,
   writingEnd: number,
+  marks: { firstModelAt: number; firstAnswerAt: number; rounds: number },
 ): Timing {
   const total = Math.max(0, endedAt - startedAt);
   const writing = writingStart && writingEnd ? Math.max(0, writingEnd - writingStart) : 0;
@@ -1131,6 +1158,9 @@ function timingOf(
     writing_ms: Math.round(writing),
     reasoning_ms: Math.max(0, Math.round(total - search - writing)),
     total_ms: Math.round(total),
+    first_model_ms: marks.firstModelAt ? Math.max(0, Math.round(marks.firstModelAt - startedAt)) : 0,
+    first_answer_ms: marks.firstAnswerAt ? Math.max(0, Math.round(marks.firstAnswerAt - startedAt)) : 0,
+    rounds: marks.rounds,
   };
 }
 

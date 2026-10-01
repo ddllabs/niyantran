@@ -396,3 +396,11 @@ Deno.test('accounting observer errors cannot fail a valid provider response', as
   );
   assertEquals(events.at(-1)?.type, 'finish');
 });
+
+// answer-streaming spec §4: OpenRouter's sticky-routing key travels on every call of a turn.
+Deno.test('session_id reaches the body, capped at 256 characters, and is absent when not given', () => {
+  const base = { model: 'google/gemini-3.8-flash', messages: [{ role: 'user' as const, content: 'q' }] };
+  assertEquals(buildRequestBody({ ...base, session_id: 'conv-1' }).session_id, 'conv-1');
+  assertEquals((buildRequestBody({ ...base, session_id: 'x'.repeat(300) }).session_id as string).length, 256);
+  assertEquals('session_id' in buildRequestBody(base), false);
+});

@@ -2128,3 +2128,65 @@ Deno.test('thinking display: one label per stage, and a finished search says wha
   assertEquals(saved.find((a) => a.type === 'tool')?.found, ends[0].tool.found);
   assertEquals(JSON.stringify(got).includes('The Bill was referred'), false, 'no passage text in frames');
 });
+
+// answer-streaming spec (approved 2026-10-02): the answer reaches the reader as the model writes
+// it, a research draft that is not the answer is taken back with a `reset` frame, and every turn
+// records when its first model call opened, when its first answer character went out, and how
+// many model calls it made.
+const SEARCH = { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"committee stage"}' } as ModelEvent;
+const conversationOf = (got: ChatFrame[]) => (got.find((f) => 'conversation' in f) as { conversation: { id: string } }).conversation.id;
+
+Deno.test('streaming: a promoted research answer reaches the reader in many chunks, as it is written', async () => {
+  const whole = envelope('The Bill was referred to the Standing Committee on Home Affairs for detailed examination.');
+  const provider = scripted([
+    [SEARCH, finish('tool_calls')],
+    [text(whole.slice(0, 30)), text(whole.slice(30, 70)), text(whole.slice(70)), finish()],
+  ]);
+  const { deps, rec } = fakeDeps({ stream: provider.stream }, { searchDocuments: () => Promise.resolve([chunk('c-1')]) });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const chunks = got.filter((f) => 'chunk' in f).map((f) => (f as { chunk: string }).chunk);
+  assert(chunks.length >= 2, `streamed in pieces, got ${chunks.length}`);
+  assertEquals(chunks.join(''), 'The Bill was referred to the Standing Committee on Home Affairs for detailed examination.');
+  assertEquals(rec.messages[0].content, chunks.join(''));
+  assertEquals(got.some((f) => 'patch' in f), false, 'nothing to take back or repaint');
+  // TTFT measurement and sticky routing.
+  const timing = rec.messages[0].timing as unknown as Record<string, number>;
+  assertEquals(timing.rounds, 2);
+  assert(timing.first_model_ms >= 0 && timing.first_answer_ms >= timing.first_model_ms);
+  assert(provider.seen.length === 2 && provider.seen.every((r) => r.session_id === conversationOf(got)));
+});
+
+Deno.test('streaming: a draft that turns into a search is reset, and only the final answer is kept', async () => {
+  const provider = scripted([
+    [text('{"answer":"Early guess about the Bill'), SEARCH, finish('tool_calls')],
+    [text(envelope('Final answer.')), finish()],
+  ]);
+  const { deps, rec } = fakeDeps({ stream: provider.stream }, { searchDocuments: () => Promise.resolve([chunk('c-1')]) });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const clears = got.map((f, i) => ('patch' in f && f.patch.from === 0 && f.patch.text === '' ? i : -1)).filter((i) => i >= 0);
+  assertEquals(clears.length, 1, 'the draft is taken back once, with a patch every client applies');
+  const before = got.slice(0, clears[0]).filter((f) => 'chunk' in f).map((f) => (f as { chunk: string }).chunk).join('');
+  const after = got.slice(clears[0]).filter((f) => 'chunk' in f).map((f) => (f as { chunk: string }).chunk).join('');
+  assertEquals(before, 'Early guess about the Bill');
+  assertEquals(after, 'Final answer.');
+  assertEquals(rec.messages[0].content, 'Final answer.');
+  assertEquals(got.filter((f) => 'patch' in f).length, 1, 'no repaint at the end: the reader already shows the saved answer');
+});
+
+Deno.test('streaming: a draft cut off by a provider failure is reset, so the next model may still answer', async () => {
+  let n = 0;
+  async function* stream(req: StreamRequest): AsyncGenerator<ModelEvent> {
+    n++;
+    if (n === 1) {
+      yield text('{"answer":"Half a sentence');
+      throw new ProviderError(503, 'died mid-draft');
+    }
+    yield* (n <= 3 ? NO_RESEARCH : [text(envelope('Answered by the second model.')), finish()]);
+    void req;
+  }
+  const { deps, rec } = fakeDeps({ stream });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assert(got.some((f) => 'patch' in f && f.patch.from === 0 && f.patch.text === ''), 'the cut-off draft is taken back');
+  assert(got.some((f) => 'model' in f), 'the swap was allowed: no answer text was left with the reader');
+  assertEquals(rec.messages[0].content, 'Answered by the second model.');
+});

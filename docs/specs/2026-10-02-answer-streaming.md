@@ -1,6 +1,6 @@
 # Spec: stream the answer token by token, cut time to first token, and cache (`answer-streaming`)
 
-> **Status: Normative — draft, awaiting the owner's approval (2026-10-02).**
+> **Status: Normative — approved by the owner on 2026-10-02.**
 >
 > **Owner direction, 2026-10-02:**
 > - receive OpenRouter's response as it streams and show each answer token as it arrives,
@@ -185,3 +185,15 @@ They are saved with the message.
 - streaming the model's reasoning;
 - the loading-in-stages work;
 - the end-of-turn `patch` jump, beyond keeping it working.
+
+## Amendment 1 (2026-10-02, during the build)
+
+**How a draft is taken back.** The draft is cleared with the existing
+`{ patch: { from: 0, text: '' } }` frame, not with a new `reset` frame.
+- **Why:** the live frontend ignores frame names it does not know. With a new frame, a server
+  deployed before the frontend would have left a withdrawn draft on screen, joined to the final
+  answer. Every client already applies `patch`, so either side can ship first.
+- **The reason is logged instead.** `research.draft_retracted` records `reason` and `chars` in
+  the Edge logs.
+- **Behaviour:** the same as the approved outcome.
+

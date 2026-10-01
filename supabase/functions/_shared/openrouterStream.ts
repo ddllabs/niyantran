@@ -47,6 +47,9 @@ export interface StreamRequest {
   /** Add Anthropic-style cache breakpoints when the system prompt is long enough,
    * and on Anthropic cache the moving tail too. */
   cache?: boolean;
+  /** OpenRouter's sticky-routing key: a conversation stays on the provider that holds its
+   * prompt cache (answer-streaming spec §4). At most 256 characters. */
+  session_id?: string;
   signal?: AbortSignal;
   onAttemptMetadata?: (metadata: AttemptMetadata) => void;
 }
@@ -124,6 +127,7 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
     body.provider = { require_parameters: true };
   }
   if (req.reasoning) body.reasoning = { effort: req.reasoning.effort };
+  if (req.session_id) body.session_id = req.session_id.slice(0, 256);
   if (req.max_tokens) body.max_tokens = req.max_tokens;
   return body;
 }

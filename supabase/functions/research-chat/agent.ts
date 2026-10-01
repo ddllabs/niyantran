@@ -101,15 +101,17 @@ export function foundOf(chunks: Chunk[]): Found[] {
  * and the search ran again across all of them. */
 export type WidenedScope = 'empty' | 'unresolved' | 'unkeyed' | 'feature-empty';
 /** Internal handler events, NOT SSE frames. Never forward internalReasoning.
- * researchText is a private draft, never evidence or public answer content.
- * Text enters the answer decoder from one of two places, and only after the
- * research it depends on has finished: the tools-disabled answer phase, or a
- * research reply that called no tool and passed acceptedDraft() once its call
- * had finished. That reply arrives as `promoted` and then one `text` event;
- * research text beside a tool call never becomes answer text. */
+ * Answer text reaches the handler live (answer-streaming spec §1): `text` from the
+ * tools-disabled answer phase, and `draftText` from a research call, which may still turn
+ * out to be the answer. A research call whose draft is not the answer - it ends in tool
+ * calls, fails acceptedDraft(), is pressed to search, or breaks - ends with `retract`, sent
+ * only if it sent any draft text, and the handler takes that text back from the reader. A
+ * draft that is the answer ends with `promoted`; it is never sent a second time. */
+export type RetractReason = 'searching' | 'rewriting' | 'error';
 export type AgentEvent =
   | { internalReasoning: string }
-  | { researchText: string }
+  | { draftText: string }
+  | { retract: RetractReason }
   | { attempt: { phase: 'research' | 'answer'; index: number; model: string } }
   | { text: string }
   | { promoted: { index: number; model: string } }
@@ -568,6 +570,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     const calls: ToolCall[] = [];
     let partial = '';
     let ended: Extract<ModelEvent, { type: 'finish' }> | null = null;
+    // A research call's draft has reached the reader live; take it back unless it is the answer.
+    const retract = (reason: RetractReason) => {
+      if (phase === 'research' && partial) deps.onEvent({ retract: reason });
+    };
     const request: StreamRequest = {
       response_format: ANSWER_JSON_SCHEMA,
       cache: true,
@@ -588,7 +594,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
             state.text += event.text;
             if (event.text) state.answerModel = deps.request.model;
             deps.onEvent({ text: event.text });
-          } else deps.onEvent({ researchText: event.text });
+          } else if (event.text) deps.onEvent({ draftText: event.text });
         } else if (event.type === 'tool-call') calls.push(event);
         else {
           ended = event;
@@ -605,11 +611,13 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       if (partial) messages.push({ role: 'assistant', content: partial });
       if (phase === 'answer' && state.text) state.resumeAnswer = true;
       state.finish = 'error';
+      retract('error');
       throw error;
     }
     state.finish = ended.reason;
     if (phase === 'research') {
       if (calls.length) {
+        retract('searching');
         messages.push({
           role: 'assistant',
           content: partial || null,
@@ -622,21 +630,22 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         budget.modelAttempts < BUDGET.maxSteps - 1
       ) {
         state.pressedToSearch = true;
+        retract('searching');
         if (partial) messages.push({ role: 'assistant', content: partial });
         messages.push({ role: 'user', content: SEARCH_FIRST });
       } else if (
         state.finish === 'stop' && (a.conversational || state.steps.some((s) => s.status === 'ok')) &&
         acceptedDraft(partial, deps.handles)
       ) {
-        // A reply is promoted only after its call finished, so text that turned
-        // out to precede a tool call can never have reached the reader.
+        // A reply is promoted only after its call finished. It already reached the reader as
+        // draft text; text that turned out to precede a tool call was retracted above.
         messages.push({ role: 'assistant', content: partial });
         state.text = partial;
         state.answerModel = deps.request.model;
         deps.onEvent({ promoted: { index: budget.modelAttempts, model: deps.request.model } });
-        deps.onEvent({ text: partial });
         state.phase = 'complete';
       } else {
+        retract('rewriting');
         if (partial) messages.push({ role: 'assistant', content: partial });
         beginAnswer();
       }
