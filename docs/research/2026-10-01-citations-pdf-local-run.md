@@ -199,3 +199,71 @@ full view.
 - **Layout:** at the default 480 px half, the header's "Open stored copy (part 2 of 3)" wraps to
   its own line, which is acceptable.
 - **The desk tour pop-up** reappears after a reload. That is pre-existing and unrelated.
+
+## Addendum: revision 5 (V7c, executed 2026-10-02)
+
+**Why.** On NTER the owner found that clicking outside an open citation closed nothing. Spec
+revision 5 makes a completed click outside the chat and the viewer close both, keeps the chat when
+only the citation is closed, closes only the full view on a backdrop click, and folds in F45.
+
+**Set-up.**
+- **Code:** `task/rag-v2-citations-pdf` at `ee206bb` (X2 `0181b71`, X1 `ee206bb`).
+- **Checkpoint J3:**
+  - lint clean;
+  - Vitest 1,748 (98 files);
+  - Deno 807;
+  - build ok;
+  - `check:bundle` ok: 644,923 bytes gzip, +774 over the baseline against a +2,048 limit, with no
+    pdf.js in the main entry.
+- **Local stack:** rebuilt as before:
+  - the 42 migrations;
+  - both bill desks (9,817 rows each);
+  - NTER's model configuration, copied read-only;
+  - functions served with a mode-600 env file, deleted afterwards;
+  - a local test admin, whose credentials were deleted afterwards.
+- **Document:** only the 12-page bill, attached to `bill:2025:XLV` through the Documents page and
+  indexed in one pass (40 chunks).
+  - It was then converted into a 3-part shape, pages 1–4, 5–8 and 9–12, in the same way as the
+    budget in V7: pdf-lib parts stored at `files/<sha256>.pdf`, and `document_files` rewritten
+    to offsets 0, 4 and 8.
+  - One answer carried 29 sources.
+- **Cost:** $0.080 ($0.048 OCR, $0.032 for three chat calls, $0.0001 embeddings).
+- **Viewport:** 1440 × 900. The overlay spanned x 480–1440: the chat 480–960, the viewer
+  960–1440, the outer edge at 474.
+- **Input method.** The browser pane was not on screen, so it could not take real mouse input.
+  Each click was dispatched as the browser's own sequence, aimed with `elementFromPoint` at the
+  stated coordinates: `pointerdown`, `mousedown`, `pointerup`, `mouseup`, then `click` on the
+  common ancestor of the down and up targets.
+  - That is the path a real click takes through the capture-phase listener.
+  - Real-mouse confirmation is left to the owner's check on NTER.
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | Click inside the chat (an answer heading) | **Pass.** The chat and viewer stay open |
+| 2 | Click inside the viewer (the page area) | **Pass.** Both stay open |
+| 3 | Desk row dragged into the chat | **Pass.** The HTML5 drag (`pointerdown`, `pointercancel`, `dragstart`, `drop`) attached the row; a plain press-and-release from the row into the chat also closed nothing |
+| 4 | Resize drag on the outer edge released over the desk | **Pass.** Nothing closed: the press began on the handle. The synthetic move did not resize; the real drag was measured in V7b |
+| 5 | A menu opened by the chat (the model picker) | **Pass.** It renders inside the chat, not in a portal; a click inside it closed nothing. No chat menu is portalled today; `data-cov-keep` is there for one that is |
+| 6 | Full view, backdrop click (x 10, inside the 24 px margin) | **Pass.** Only the full view closed (dialog 1,392 × 852, `aria-modal`); the overlay and viewer stayed |
+| 7 | ✕ "Close citation" | **Pass.** The viewer closed and the chat stayed docked |
+| 8 | "← Back" | **Pass.** As 7 |
+| 9 | Esc in the viewer | **Pass.** As 7 |
+| 10 | Outside click with no citation open (desk strip) | **Pass.** The chat stayed open, as today |
+| 11 | Outside click with a citation open, on the desk strip | **Pass.** Both closed. Reopening the chat showed the same conversation and its 29 sources |
+| 12 | Outside click with a citation open, on the top bar (search field) | **Pass.** Both closed |
+| 13 | F45a: requests while paging | **Pass.** Opening page 2, paging to 12 and back to 1 (21 moves) made **3** `document-file` requests (pages 2, 5 and 9: one per part); the return trip came from the cache. The header showed the right part on every page |
+| 14 | F45b: Ask, document not live (`indexed_at` cleared locally) | **Pass.** The viewer reads "still being processed"; "Ask about this document" is disabled, with the title "This document is still processing" |
+| 15 | F45b: Ask, document deleted | **Pass.** The viewer reads "no longer available"; Ask is disabled, with the title "This document is no longer available" |
+
+**Notes.**
+- **Missed first press:** one synthetic press on a source, made right after reopening the chat,
+  opened nothing; a second press opened it. The likely cause is that the dock was still sliding
+  in, so the press landed off the button. It was not reproduced, and is noted rather than claimed
+  as a fault.
+- **Console:** the only errors were 503s from `/api/analytics/event`. The local dev server has no
+  analytics backend; this is unrelated.
+- **The served-function log** holds no keys, bearer tokens or signed-URL tokens.
+
+**State after the run.** The dev server, functions and local stack are stopped. The env file,
+the test admin's credentials, the model-configuration dump and the temporary `launch.json`
+entry have all been removed.

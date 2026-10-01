@@ -274,8 +274,14 @@ Part 2 needs its specs first, in this order:
   doc §6, which proves pages, boxes, images, cost and re-run cost.
 - [ ] **R6. `citations-pdf`.** **Built and passed locally on 2026-10-01**: spec revision 3
   (approved), plan V0–V9, branch `task/rag-v2-citations-pdf`, local run
-  `research/2026-10-01-citations-pdf-local-run.md`. Next: checkpoint K (the owner reads it), then
-  V8 on NTER, each step with a go-ahead: deploy `document-file`, then push the frontend.
+  `research/2026-10-01-citations-pdf-local-run.md`.
+  - **On NTER:** revision 3 (`document-file` deployed, frontend pushed) and revision 4
+    (`e76a48a`).
+  - **Revision 5:** click outside closes citation and chat; Close citation keeps the chat; F45.
+    Built as X1/X2 (`0181b71`, `ee206bb`); J3 and the local run V7c passed on 2026-10-02 (report
+    addendum).
+  - **Next:** V8c, the frontend push, with a go-ahead. Then the owner's NTER checks: the
+    stored-copy tab, the legacy reader, and click outside with a real mouse.
   Original scope: The PDF.js viewer with box highlights; a
   page label and image strip in the reader; signed URLs.
   Requirement from R3: `WorkSurface`, `SourceList` (`AiPanel.jsx`) and
