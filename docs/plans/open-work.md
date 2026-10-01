@@ -404,6 +404,19 @@ Follow-ups and findings:
     - the NyAI card removed (ADR 0007 amended).
   - **Next:** deploy `research-chat`, then push the frontend, each with a go-ahead.
   - **Still open from F46:** loading in stages, and the agent loop's speed and cost.
+
+  **Answer streaming (2026-10-02).** Spec `specs/2026-10-02-answer-streaming.md`, approved, with
+  amendments 1 and 2. Built on `task/answer-streaming` (`4150197`, `6e0e9e7`). The local run
+  passed: `research/2026-10-02-answer-streaming-local-run.md`.
+  - **Result:** answers arrive in 13–37 pieces instead of one block. `timing` records
+    `first_model_ms`, `first_answer_ms` and `rounds`. `session_id` is sent.
+  - **Owner decisions pending:**
+    1. **Gemini cache breakpoints.** Dropping them takes time to first word from 9–25 s to 5–6 s,
+       for about 60% more cost per answer. The patch is parked.
+    2. **The duplicate pre-send identity check.** Removing it saves about 0.45 s; the change
+       sits in a sensitive scope.
+  - **Next:** deploy `research-chat` and push the frontend, each with a go-ahead. Either order
+    works.
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.

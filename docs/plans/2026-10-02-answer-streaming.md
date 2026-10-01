@@ -47,7 +47,7 @@
    - build;
    - `check:bundle`;
    - the router import.
-5. **T5. Local run.**
+5. **T5. Local run** (executed 2026-10-02; see `research/2026-10-02-answer-streaming-local-run.md`).
    - visible TTFT and the number of chunk frames;
    - a forced retraction;
    - the cache A/B on Gemini, with and without breakpoints, plus Claude, recorded with costs.
