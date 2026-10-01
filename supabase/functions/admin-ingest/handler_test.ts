@@ -946,6 +946,7 @@ function job(i: number, over: Partial<RawJobRow> = {}): RawJobRow {
     desk_tier: 'national',
     desk_feature: 'Cabinet Decisions',
     indexed: false,
+    document_key: null,
     status: 'running',
     stage: 'ocr',
     ocr_pages: 5,

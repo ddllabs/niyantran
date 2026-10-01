@@ -180,6 +180,8 @@ export interface JobRow {
   desk_feature: string | null;
   /** The document is live in search (indexed_at set); such a document can't be discarded. */
   indexed: boolean;
+  /** Amendment A: the record the document is linked to (metadata.document_key), or null. */
+  document_key: string | null;
   status: string;
   stage: string;
   ocr_pages: number;
