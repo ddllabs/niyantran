@@ -51,3 +51,33 @@ it('loaded document links are sanitized and exact span checking remains intact',
  const client={from:table=>({select(){return this},eq(){return this},maybeSingle:async()=>({data:table==='documents'?{ocr_text:'Hello world',file_url:'javascript:alert(1)'}:{content:'Hello'}})})};
  const state=await reader.loadSource(citation,client);expect(state.error).toBe('');expect(state.doc.file_url).toBeNull();expect(state.span.status).toBe('changed');
 });
+
+// Revision 5 point 4 (F45): "Ask about this document" is disabled when the cited document is gone.
+// The reader reports what it found through onDocumentState: 'gone' with no row, 'ok' once loaded.
+describe('SourceReader document state', () => {
+  const rows = docs => ({ from: table => ({ select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: table === 'documents' ? docs : { content: 'Hello' } }) }) });
+
+  it('reports gone when the document row is missing (the "no longer available" branch)', async () => {
+    const seen = [];
+    const state = await reader.readSource(text(1, 'd', 'Document'), rows(null), () => true, s => seen.push(s));
+    expect(state.error).toContain('no longer available');
+    expect(seen).toEqual(['gone']);
+  });
+
+  it('reports ok when the document loads', async () => {
+    const seen = [];
+    await reader.readSource(text(1, 'd', 'Document'), rows({ ocr_text: 'Hello world' }), () => true, s => seen.push(s));
+    expect(seen).toEqual(['ok']);
+  });
+
+  it('reports nothing for a failed read (not known to be gone) or a stale one', async () => {
+    const seen = [];
+    await reader.readSource(text(1, 'd', 'Document'), { from() { throw Error('down'); } }, () => true, s => seen.push(s));
+    await reader.readSource(text(1, 'd', 'Document'), rows(null), () => false, s => seen.push(s));
+    expect(seen).toEqual([]);
+  });
+
+  it('works without a callback', async () => {
+    await expect(reader.readSource(text(1, 'd', 'Document'), rows(null), () => true)).resolves.toMatchObject({ doc: null });
+  });
+});

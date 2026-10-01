@@ -12,7 +12,15 @@
  *
  * Phones (the 900 px breakpoint at which the dock stacks under the desk): the chat stays where it
  * is and the viewer pane alone is fixed over the app area; the hidden chat is inert meanwhile.
- * No focus is trapped on wider screens. Esc and "← Back" are WorkSurface's.
+ * No focus is trapped on wider screens. Esc, "← Back" and "Close citation" are WorkSurface's.
+ *
+ * Click outside (revision 5, point 1; desktop and a citation open only): a completed click
+ * outside the overlay, the page viewer's full view and anything marked [data-cov-keep] calls
+ * `onOutside`, which AiPanel uses to close both the citation and the chat. Found 2026-10-01: the
+ * chat's menus (model picker, focus, history, documents) render inside the panel, so inside this
+ * root; the full view is the only portal the chat or viewer opens, and it is kept by its
+ * [data-citation-viewer] root and aria-modal dialog. A future portal from either should carry
+ * data-cov-keep.
  *
  * Resizing (revision 4, point 1; desktop and the open state only): the outer left edge sets the
  * overlay's width and the divider between the chat and the viewer sets the viewer's share. Both
@@ -23,9 +31,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import './citation-overlay.css';
 import {
-  NARROW_QUERY, REDUCED_MOTION_QUERY, SPLIT_MAX, SPLIT_MIN, SPLIT_STORAGE_KEY, WIDTH_STORAGE_KEY, dragSplit, dragWidth,
-  nextPhase, overlayShift, readStoredSplit, readStoredWidth, resolveSplit, resolveWidth, stepSplit, stepWidth,
-  widthBounds, writeStored,
+  NARROW_QUERY, REDUCED_MOTION_QUERY, SPLIT_MAX, SPLIT_MIN, SPLIT_STORAGE_KEY, WIDTH_STORAGE_KEY, attachOutsideClose,
+  dragSplit, dragWidth, nextPhase, outsideCloseActive, overlayShift, readStoredSplit, readStoredWidth, resolveSplit,
+  resolveWidth, stepSplit, stepWidth, widthBounds, writeStored,
 } from './citationOverlayModel.js';
 
 /** The fallback in case transitionend never arrives (a hidden tab, an interrupted transition). */
@@ -155,8 +163,26 @@ function useOverlaySize(vw, storageOverride, active) {
   return { width: now.edge, split: now.divider, resizing, handle };
 }
 
+/**
+ * Click outside (revision 5, point 1): while `active`, a completed click outside the overlay root
+ * and the other keep zones (citationOverlayModel.js, isOutsideTarget) calls `onOutside`. The
+ * listeners are on the document in the capture phase, attached only while active and removed on
+ * close and unmount. `onOutside` is read through a ref, so a new callback each render does not
+ * re-attach them.
+ */
+function useOutsideClose(node, active, onOutside, doc) {
+  const latest = useRef(onOutside);
+  useEffect(() => { latest.current = onOutside; }, [onOutside]);
+  useEffect(() => {
+    if (!active) return undefined;
+    const target = doc || (typeof document === 'undefined' ? null : document);
+    return attachOutsideClose(target, { zones: () => [node.current], onOutside: () => latest.current?.() });
+  }, [node, active, doc]);
+}
+
 export default function CitationOverlay({
-  open, viewer, children, narrow: narrowOverride, reducedMotion: reducedOverride, viewportWidth, storage,
+  open, viewer, children, onOutside, narrow: narrowOverride, reducedMotion: reducedOverride, viewportWidth, storage,
+  outsideDocument,
 }) {
   const narrow = useMediaQuery(NARROW_QUERY, narrowOverride);
   const reduced = useMediaQuery(REDUCED_MOTION_QUERY, reducedOverride);
@@ -168,6 +194,7 @@ export default function CitationOverlay({
   if (next !== phase) setPhase(next);
 
   const node = useRef(null);
+  useOutsideClose(node, outsideCloseActive({ open: shown, narrow, onOutside }), onOutside, outsideDocument);
   const handles = phase === 'open' && !narrow;
   const { width, split, resizing, handle } = useOverlaySize(vw, storage, handles);
   useDockGeometry(node, width);

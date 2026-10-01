@@ -6,7 +6,7 @@
  * the record for a row. The panel stays the single right-side surface.
  */
 import RowSource from './RowSource.jsx';
-import { Suspense, lazy, useEffect, useMemo, useRef } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
 import './research.css';
 import SourceReader from './SourceReader.jsx';
@@ -39,19 +39,36 @@ export function resolveViewer(viewer, sources) {
 }
 
 /**
+ * The document states, reported by the open viewer, that rule out "Ask about this document"
+ * (revision 5, F45), with the reason its tooltip gives. Every other state leaves it to `locked`.
+ */
+const DOCUMENT_REASONS = new Map([
+  ['gone', 'This document is no longer available'],
+  ['not_live', 'This document is still processing'],
+]);
+
+/** The reported state if it was reported for this source (`document_id:chunk_id`), else null. */
+export function currentDocumentState(record, key) {
+  return record && record.key === key ? record.state : null;
+}
+
+/**
  * "Ask about this document" (retrieval-scope decision 1): attaches the cited
  * document as a chip, so the next questions search only it. Off unless the
  * thread is known to be free (`locked === false`) and there is a handler:
  * attach() refuses while a turn runs, and a live button would do nothing.
+ * Off too, with the reason as its tooltip, when the viewer found the document
+ * gone or not live (`documentState`).
  */
-export function AskAboutDocument({ citation, locked, onAsk }) {
-  const off = locked !== false || typeof onAsk !== 'function';
+export function AskAboutDocument({ citation, locked, onAsk, documentState }) {
+  const reason = DOCUMENT_REASONS.get(documentState) || '';
+  const off = Boolean(reason) || locked !== false || typeof onAsk !== 'function';
   return (
     <button
       type="button"
       className="ai-work-ask"
       disabled={off}
-      title={off ? 'Available when the current answer has finished' : 'Attach this document so the next questions search only it'}
+      title={reason || (off ? 'Available when the current answer has finished' : 'Attach this document so the next questions search only it')}
       onClick={() => { if (!off) onAsk(citation); }}
     >
       Ask about this document
@@ -72,9 +89,17 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   useEffect(() => { if (visible) back.current?.focus(); }, [visible, sourceKey]);
   // Memoised so the viewers see one citation object per opened source, not a copy per render.
   const resolved = useMemo(() => resolveViewer(viewer, sources), [viewer, sources]);
+  // What the open viewer found about its document (revision 5, F45), kept against the citation it
+  // was reported for, so a new source starts unknown until its own viewer reports.
+  const citationKey = resolved.source?.kind === 'text' ? `${resolved.source.document_id}:${resolved.source.chunk_id}` : '';
+  const [reported, setReported] = useState(null);
+  const onDocumentState = useCallback((state) => setReported({ key: citationKey, state }), [citationKey]);
+  const documentState = currentDocumentState(reported, citationKey);
   if (!viewer) return null;
   const { source, invalid, sources: validSources, reader } = resolved;
 
+  // "← Back" and the ✕ close the citation only; the chat stays open (revision 5, point 2). The ✕
+  // is the viewer's one close control, so the readers below are not given their own.
   return (
     <div className="ai-work-surface" role="region" aria-label="Evidence" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose?.(); } }}>
       <div className="ai-work-bar">
@@ -84,16 +109,17 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         <span className="ai-work-title">
           {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : 'Sources'}
         </span>
-        {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} /> : null}
+        {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} documentState={documentState} /> : null}
+        <button type="button" className="ai-work-close" onClick={onClose} aria-label="Close citation" title="Close citation">✕</button>
       </div>
 
       <div className="ai-work-body">
         {reader === 'page' ? (
           <Suspense fallback={<p className="ai-reader-notice pv-lazy">Loading the page viewer…</p>}>
-            <PageViewer key={`${source.document_id}:${source.chunk_id}`} citation={source} onClose={onClose} client={client} />
+            <PageViewer key={citationKey} citation={source} client={client} onDocumentState={onDocumentState} />
           </Suspense>
         ) : null}
-        {reader === 'text' ? <SourceReader key={`${source.document_id}:${source.chunk_id}`} citation={source} onClose={onClose} client={client} /> : null}
+        {reader === 'text' ? <SourceReader key={citationKey} citation={source} client={client} onDocumentState={onDocumentState} /> : null}
         {reader === 'row' ? <RowSource citation={source} onClose={onClose} /> : null}
         {invalid ? <p role="status">This source is unavailable. Return to the answer to choose another.</p> : null}
         {!source && !invalid ? (validSources.length ? (

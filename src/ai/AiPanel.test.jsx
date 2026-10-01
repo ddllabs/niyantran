@@ -307,6 +307,26 @@ it('WorkSurface still receives the same props from the new host',async()=>{
  expect(props.locked).toBe(true);
  for (const k of ['onOpen','onClose','onAskAboutDocument']) expect(typeof props[k]).toBe('function');
 });
+// Revision 5 point 1: a click outside the open overlay closes both the citation and the chat.
+it('the overlay gets an onOutside that closes the citation and then the chat',async()=>{
+ const seen=[];
+ vi.resetModules();
+ vi.doMock('./CitationOverlay.jsx',()=>({default:(props)=>{seen.push(props);return null;}}));
+ const {default:Panel}=await import('./AiPanel.jsx');
+ const calls=[];
+ fake.research={...fake.research,ready:true,loading:false,locked:false,viewer:{kind:'list',source:null},actions:{openSource(){},closeViewer(){calls.push('closeViewer');}}};
+ renderToStaticMarkup(<Panel lang="en" onClose={()=>calls.push('onClose')}/>);
+ renderToStaticMarkup(<Panel lang="en"/>);
+ vi.doUnmock('./CitationOverlay.jsx');
+ expect(seen).toHaveLength(2);
+ expect(seen[0].open).toBe(true);
+ expect(typeof seen[0].onOutside).toBe('function');
+ seen[0].onOutside();
+ expect(calls).toEqual(['closeViewer','onClose']);
+ // With no chat to close (no onClose), only the citation closes.
+ calls.length=0;seen[1].onOutside();
+ expect(calls).toEqual(['closeViewer']);
+});
 // The attachedKeys separator was a literal NUL byte, which made grep treat the file as binary.
 it('AiPanel.jsx contains no literal NUL byte',async()=>{
  const {readFileSync}=await import('node:fs');

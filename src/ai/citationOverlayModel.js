@@ -155,3 +155,85 @@ export function nextPhase(phase, open, { instant = false } = {}) {
   if (phase === 'closed') return 'closed';
   return instant ? 'closed' : 'closing';
 }
+
+/* Revision 5, point 1: click outside. While a citation is open in the overlay (desktop only), a
+   completed click outside the chat and the viewer closes both the citation and the chat. */
+
+/** Marks an element portalled out of the overlay by the chat or the viewer (a menu, a picker). */
+export const KEEP_ATTRIBUTE = 'data-cov-keep';
+/**
+ * The page viewer's full-view root, backdrop included (src/ai/page-viewer/viewerDom.js,
+ * VIEWER_ATTRIBUTE). Its backdrop click closes only the full view and does not stop propagation,
+ * so this marker is what keeps that click from also closing the overlay. Spelled out rather than
+ * imported, so the overlay does not pull the page viewer's lazy chunk into the main bundle.
+ */
+export const CITATION_VIEWER_ATTRIBUTE = 'data-citation-viewer';
+/** An open modal (the page viewer's full view, the upgrade dialog) owns every click, backdrop included. */
+const MODAL_SELECTOR = '[aria-modal="true"]';
+const KEEP_SELECTOR = `[${KEEP_ATTRIBUTE}], [${CITATION_VIEWER_ATTRIBUTE}], ${MODAL_SELECTOR}`;
+
+/**
+ * Whether one event target lies outside the keep zone: the overlay root (chat, viewer, handles),
+ * anything under a [data-cov-keep] or [data-citation-viewer] mark, or inside a modal dialog. While
+ * a modal is open nothing is outside, so a click on its backdrop closes only the modal. A target
+ * that cannot be judged (missing, removed from the page by the press itself, not an element) is
+ * never outside: when in doubt, close nothing.
+ */
+export function isOutsideTarget(target, { keepZones = [], modalOpen = false } = {}) {
+  if (modalOpen || !target || target.isConnected !== true || typeof target.closest !== 'function') return false;
+  if (keepZones.some(zone => zone && typeof zone.contains === 'function' && zone.contains(target))) return false;
+  return !target.closest(KEEP_SELECTOR);
+}
+
+/**
+ * A completed click outside: the pointerdown, the pointerup and the click all land outside the
+ * keep zone. A drag into the chat, a resize drag released outside (it starts on a handle) and a
+ * click with no pointerdown (keyboard activation) all close nothing.
+ */
+export function isOutsideClick({ downTarget, upTarget, clickTarget, keepZones = [], modalOpen = false }) {
+  const ctx = { keepZones, modalOpen };
+  return [downTarget, upTarget, clickTarget].every(target => isOutsideTarget(target, ctx));
+}
+
+/** The listener runs only with a citation open, on a desktop, and with something to call. */
+export function outsideCloseActive({ open, narrow, onOutside }) {
+  return Boolean(open) && !narrow && typeof onOutside === 'function';
+}
+
+/**
+ * Listens on `doc` in the capture phase, so a handler that stops propagation cannot hide a click.
+ * The pointerdown and the pointerup are judged when they happen (against the zones and any modal
+ * as they are then), and the click calls `onOutside` only when both were outside and it is too.
+ * Only the main button counts. Returns the detach function; with no document it attaches nothing.
+ */
+export function attachOutsideClose(doc, { zones, onOutside }) {
+  if (!doc || typeof doc.addEventListener !== 'function') return () => {};
+  let down = false;
+  let up = false;
+  const judge = (target) => {
+    const modalOpen = Boolean(doc.querySelector?.(MODAL_SELECTOR));
+    return isOutsideTarget(target, { keepZones: zones(), modalOpen });
+  };
+  const onPointerDown = (e) => {
+    down = !e.button && judge(e.target);
+    up = false;
+  };
+  const onPointerUp = (e) => {
+    up = down && !e.button && judge(e.target);
+  };
+  const onClick = (e) => {
+    const outside = down && up && !e.button && judge(e.target);
+    down = false;
+    up = false;
+    if (outside) onOutside();
+  };
+  const options = { capture: true };
+  doc.addEventListener('pointerdown', onPointerDown, options);
+  doc.addEventListener('pointerup', onPointerUp, options);
+  doc.addEventListener('click', onClick, options);
+  return () => {
+    doc.removeEventListener('pointerdown', onPointerDown, options);
+    doc.removeEventListener('pointerup', onPointerUp, options);
+    doc.removeEventListener('click', onClick, options);
+  };
+}

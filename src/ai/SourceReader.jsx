@@ -19,13 +19,26 @@ export async function loadSource(citation, client, current = () => true) {
     const { data: doc, error } = await client.from('documents')
       .select('id, title, file_name, file_url, desk_feature, ocr_text').eq('id', citation.document_id).maybeSingle();
     if (!current()) return null;
-    if (error || !doc) return unavailable;
+    if (error) return unavailable;
+    // No row and no error: the document was deleted (or is not readable), known to be gone.
+    if (!doc) return { ...unavailable, documentState: 'gone' };
     const { data: chunk, error: chunkError } = await client.from('document_chunks').select('content').eq('id', citation.chunk_id).maybeSingle();
     if (!current()) return null;
     if (chunkError) return unavailable;
     const span = await resolveSpan(doc.ocr_text, citation, chunk?.content);
-    return { loading: false, error: '', doc: { ...doc, file_url: safeSourceUrl(doc.file_url) }, span };
+    return { loading: false, error: '', doc: { ...doc, file_url: safeSourceUrl(doc.file_url) }, span, documentState: 'ok' };
   } catch { return unavailable; }
+}
+
+/**
+ * loadSource, then the document's state for "Ask about this document" (revision 5, F45): 'gone'
+ * when the row is missing, 'ok' once loaded. A failed read is not known to be gone and a stale
+ * one is dropped, so neither reports anything.
+ */
+export async function readSource(citation, client, current = () => true, onDocumentState) {
+  const result = await loadSource(citation, client, current);
+  if (result?.documentState && current()) onDocumentState?.(result.documentState);
+  return result;
 }
 
 /**
@@ -34,18 +47,23 @@ export async function loadSource(citation, client, current = () => true) {
  * scrolls to the cited span and highlights it — or says the passage moved or
  * changed. Rendered inside the AI dock by streaming-research-agent.
  *
- * @param {{ citation: import('../types/citation.js').TextCitation, onClose?: () => void, client?: typeof supabase }} props
+ * `onDocumentState` hears 'gone' when the document is no longer available and 'ok' once it loads.
+ *
+ * @param {{ citation: import('../types/citation.js').TextCitation, onClose?: () => void, client?: typeof supabase, onDocumentState?: (state: string) => void }} props
  */
-export default function SourceReader({ citation, onClose, client = supabase }) {
+export default function SourceReader({ citation, onClose, client = supabase, onDocumentState }) {
   const [state, setState] = useState({ loading: true, error: '', doc: null, span: null });
   const [budget, setBudget] = useState(WINDOW_CHARS);
   const mark = useRef(null);
+  // Read through a ref, so a new callback each render does not reload the document.
+  const reportState = useRef(onDocumentState);
+  useEffect(() => { reportState.current = onDocumentState; }, [onDocumentState]);
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true, error: '', doc: null, span: null });
     setBudget(WINDOW_CHARS);
-    loadSource(citation, client, () => alive).then(result => { if (alive && result) setState(result); });
+    readSource(citation, client, () => alive, s => reportState.current?.(s)).then(result => { if (alive && result) setState(result); });
     return () => {
       alive = false;
     };

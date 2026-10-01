@@ -584,8 +584,15 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} onAskAboutDocument={onAskAboutDocument} locked={busy} />
   ) : null;
 
+  // R6 revision 5, point 1: a click outside the open overlay closes the citation and then the chat
+  // (the dock's close; a host without one keeps the chat). "← Back" and ✕ close the citation only.
+  const closeAll = () => {
+    closeViewer();
+    onClose?.();
+  };
+
   return (
-    <CitationOverlay open={Boolean(viewer)} viewer={evidence}>
+    <CitationOverlay open={Boolean(viewer)} viewer={evidence} onOutside={closeAll}>
     <div
       className={`ai-shell ai-shell-v2 ai-shell-research${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${historyOpen ? ' history-open' : ''}`}
       onDragOver={(e) => {

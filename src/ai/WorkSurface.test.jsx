@@ -1,10 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import WorkSurface, { resolveViewer } from './WorkSurface.jsx';
+import WorkSurface, { AskAboutDocument, currentDocumentState, resolveViewer } from './WorkSurface.jsx';
 
+const handedProps = vi.hoisted(() => []);
 // The real viewer loads data in effects; this stand-in shows exactly what WorkSurface hands it.
 vi.mock('./page-viewer/PageViewer.jsx', () => ({
-  default: ({ citation }) => <div className="viewer-probe" data-citation={JSON.stringify(citation)} />,
+  default: (props) => {
+    handedProps.push(props);
+    return <div className="viewer-probe" data-citation={JSON.stringify(props.citation)} />;
+  },
 }));
 
 const PDF_PAGE = {
@@ -80,5 +84,81 @@ describe('WorkSurface branching', () => {
     const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'row', source: ROW }} />);
     expect(html).toContain('as captured on 2026-09-07');
     expect(html).not.toContain('viewer-probe');
+  });
+});
+
+// Revision 5 point 2: "← Back" and the close control ("Close citation") close the citation only.
+describe('WorkSurface closing controls', () => {
+  const closeTag = html => html.match(/<button[^>]*aria-label="Close citation"[^>]*>[^<]*<\/button>/g) || [];
+
+  it('has "← Back" and one visible ✕ named and titled "Close citation", for every reader', () => {
+    for (const viewer of [{ kind: 'text', source: LEGACY }, { kind: 'row', source: ROW }, { kind: 'list' }]) {
+      const html = renderToStaticMarkup(<WorkSurface viewer={viewer} onClose={() => {}} />);
+      expect(html).toContain('← Back');
+      expect(html).toContain('aria-label="Back to the answer"');
+      const tags = closeTag(html);
+      expect(tags).toHaveLength(1);
+      expect(tags[0]).toContain('title="Close citation"');
+      expect(tags[0]).toContain('>✕</button>');
+    }
+  });
+
+  it('the text reader no longer draws a second close control of its own', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: LEGACY }} onClose={() => {}} />);
+    expect(html).not.toContain('Close reader');
+  });
+
+  it('the page viewer gets onDocumentState and no close control of its own', async () => {
+    renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: PDF_PAGE }} onClose={() => {}} />);
+    await settle();
+    handedProps.length = 0;
+    renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: PDF_PAGE }} onClose={() => {}} />);
+    expect(handedProps).toHaveLength(1);
+    expect(typeof handedProps[0].onDocumentState).toBe('function');
+    expect(handedProps[0].onClose).toBeUndefined();
+  });
+});
+
+// Revision 5 point 4 (F45): Ask is disabled, with the reason as its tooltip, for a gone or not-live document.
+describe('AskAboutDocument and the document state', () => {
+  const ask = (props) => renderToStaticMarkup(<AskAboutDocument citation={LEGACY} locked={false} onAsk={() => {}} {...props} />);
+  const disabled = html => /<button[^>]*disabled=""/.test(html);
+  const title = html => /title="([^"]*)"/.exec(html)?.[1];
+
+  it('is disabled with "no longer available" when the document is gone', () => {
+    const html = ask({ documentState: 'gone' });
+    expect(disabled(html)).toBe(true);
+    expect(title(html)).toBe('This document is no longer available');
+  });
+
+  it('is disabled with "still processing" when the document is not live', () => {
+    const html = ask({ documentState: 'not_live' });
+    expect(disabled(html)).toBe(true);
+    expect(title(html)).toBe('This document is still processing');
+  });
+
+  it('the document reason wins over a running answer', () => {
+    expect(title(ask({ documentState: 'gone', locked: true }))).toBe('This document is no longer available');
+  });
+
+  it('stays enabled for ok, unknown and the soft states', () => {
+    for (const documentState of [undefined, null, 'ok', 'stale', 'text_only', 'unknown_freshness', 'no_page_text']) {
+      const html = ask({ documentState });
+      expect(disabled(html)).toBe(false);
+      expect(title(html)).toBe('Attach this document so the next questions search only it');
+    }
+  });
+
+  it('keeps today\'s reason while an answer runs', () => {
+    const html = ask({ locked: true });
+    expect(disabled(html)).toBe(true);
+    expect(title(html)).toBe('Available when the current answer has finished');
+  });
+
+  it('the reported state belongs to one source and resets when the source changes', () => {
+    const record = { key: 'd3:c3', state: 'gone' };
+    expect(currentDocumentState(record, 'd3:c3')).toBe('gone');
+    expect(currentDocumentState(record, 'd1:c1')).toBeNull();
+    expect(currentDocumentState(null, 'd3:c3')).toBeNull();
   });
 });

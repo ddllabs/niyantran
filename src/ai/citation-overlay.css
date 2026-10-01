@@ -48,6 +48,28 @@
 /* WorkSurface fills its half rather than floating over a thread. */
 .cov-viewer > .ai-work-surface { border: 0; border-radius: 0; }
 
+/* "Close citation" (revision 5, point 2): the bar's last control, at its right end. After "Ask
+   about this document", whose own auto margin already takes the free space, it adds none. */
+.ai-work-close {
+  flex: none;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #6d675f);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ai-work-ask + .ai-work-close { margin-left: 0; }
+.ai-work-close:hover { border-color: var(--line, #e4ddd4); color: var(--text, inherit); }
+.ai-work-close:focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: 1px; }
+
 /* The resize handles: 12 px hit areas centred on the overlay's outer edge and on the line between
    the chat and the viewer. Out of the grid flow (absolute), so the two panes keep their columns.
    A 2 px accent line shows on hover (which stays on the handle while it holds the pointer
