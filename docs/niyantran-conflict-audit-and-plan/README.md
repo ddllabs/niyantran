@@ -20,7 +20,7 @@ Status: **Living.** Written 2026-09-24 for the engineering team doing the upstre
 | # | Document | What it gives you | Read when |
 |---|---|---|---|
 | 1 | [01-decisions-adr-0005.md](01-decisions-adr-0005.md) | The binding decisions: Supabase is the record, OpenRouter only, Supabase Google sign-in, Vercel relink | First, 5 min |
-| 2 | [02-merge-audit-reconciliation.md](02-merge-audit-reconciliation.md) | The team audit and Claude's, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
+| 2 | [02-merge-audit-reconciliation.md](02-merge-audit-reconciliation.md) | The team audit and the DDL Labs audit, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
 | 3 | [03-upstream-integration-plan.md](03-upstream-integration-plan.md) | **The work.** Phases 0–6, a resolution for every conflicted file, gates, the Vercel env inventory, the smoke list | The integrator, fully |
 | 4 | [04-open-backlog.md](04-open-backlog.md) | Historical: the backlog as it stood after the integration. Open work is now in [../plans/open-work.md](../plans/open-work.md) | For history only |
 | 5 | [AGENTS.md](../../AGENTS.md) | Repository rules: authority, git, verification, safety | Before your first commit |

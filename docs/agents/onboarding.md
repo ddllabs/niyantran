@@ -59,9 +59,10 @@ configuration require explicit scope and focused verification.
 The repository has `npm test` (Vitest), Deno Edge Function tests and
 `npm run build`. Run both suites for src/lib/, src/admin/ or supabase/ changes,
 plus the focused checks in your plan. Use disposable local targets for SQL write
-tests. `.github/workflows/ci.yml` runs the build, both suites and the SQL
-fixtures on every push; it is advisory and blocks nothing. No lint or
-standalone type-check is declared. Never report a
+tests. `.github/workflows/ci.yml` runs lint, the build, both suites and the
+SQL fixtures on every push; it is advisory and blocks nothing. Run
+`npm run lint` for code changes; it fails on any error or warning. There is no
+standalone type-check. Never report a
 check you did not execute. An execution is evidence; reading code is a claim.
 
 When finished, report:

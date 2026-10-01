@@ -216,10 +216,10 @@ observations, not evidence that future warnings are harmless.
 
 The current recovery checkout defines `npm test` (Vitest) and Edge Function
 checks via `deno test -A --config supabase/functions/deno.json supabase/functions`.
-There is no declared lint or standalone type-check. (corrected 2026-09-28:
-an advisory CI workflow, `.github/workflows/ci.yml`, runs the build, both
-suites and `npm run test:sql` on every push since `a47680e`; it blocks
-nothing.) Run focused checks
+`npm run lint` (ESLint) fails on any error or warning; there is no standalone
+type-check. (corrected 2026-10-01: an advisory CI workflow,
+`.github/workflows/ci.yml`, runs lint, the build, both suites and
+`npm run test:sql` on every push; it blocks nothing.) Run lint, focused checks
 and the production build for code changes, and both suites for src/lib/,
 src/admin/ or supabase/ changes. Use disposable local SQL targets for database
 write tests. Exercise rejection paths, report missing gates, and never translate

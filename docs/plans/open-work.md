@@ -39,6 +39,13 @@ Current baseline (2026-09-29, evening):
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
+- **2026-10-01, F43 (local, `task/admin-records`):** `ad34438`. The chat panel kept
+  resetting on every same-account auth event (tab refocus, token refresh), which dropped
+  an unsent chat's attachments and draft and aborted a streaming answer. A same-account
+  event now re-verifies quietly; a sign-out or another account still clears at once.
+  Reproduced and verified in the browser on the local stack (the old code drops the
+  attached row on one same-account `SIGNED_IN`; the fix keeps it; `SIGNED_OUT` clears it).
+
 - **2026-09-29, evening (local session):**
   - Declutter before the new ingestion pipeline (owner-approved). Removed
     from the repository: eleven unused scripts, `api-status.pdf`,
@@ -338,14 +345,6 @@ Follow-ups and findings:
   of widened turns and cap it.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
-- [ ] **F43.** The chat panel loses an unsent chat's attachments whenever its tab regains
-  focus. supabase-js emits a same-user `SIGNED_IN` on every visibility change, and
-  `useResearchThread` (through `subscribeLocalIdentity`) treats every auth event as an account
-  change: it resets the store and rehydrates. Reproduced in C5
-  (`research/2026-10-01-admin-records-local-run.md`, finding 2): attach a row, switch tabs and
-  back, and the chip is gone. Likely part of the owner's 2026-10-01 "dragging did not attach"
-  report. Fix as the admin panel was fixed (`dcf7034`): keep the store for the same user, and
-  reset only for a different user or a sign-out.
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.

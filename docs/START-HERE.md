@@ -122,7 +122,7 @@ the sections above.
 | # | Document | What it gives you | Read when |
 |---|---|---|---|
 | 1 | `niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` | The binding decisions: Supabase is the record, OpenRouter only, Supabase Google sign-in, Vercel relink | First, 5 min |
-| 2 | `niyantran-conflict-audit-and-plan/02-merge-audit-reconciliation.md` | Your audit and Claude's, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
+| 2 | `niyantran-conflict-audit-and-plan/02-merge-audit-reconciliation.md` | The team audit and the DDL Labs audit, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
 | 3 | `niyantran-conflict-audit-and-plan/03-upstream-integration-plan.md` | **The work.** Phases 0–6, a resolution for every conflicted file, gates, the Vercel env inventory, the smoke list | The integrator, fully |
 | 4 | `plans/open-work.md` | Everything still open, in one list (replaced the backlog on 2026-09-29) | After the integration |
 | 5 | `../AGENTS.md` and `agents/coordination.md` | Repository rules: authority, git, verification, safety | Before your first commit |

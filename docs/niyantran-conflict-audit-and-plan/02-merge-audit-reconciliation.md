@@ -1,9 +1,9 @@
-# Merge audit reconciliation: engineering team report vs. Claude audit
+# Merge audit reconciliation: engineering team report vs. DDL Labs audit
 
 Status: **Historical (2026-09-24).** It checks two independent read-only audits of the `upstream/main` ↔ `ddllabs/main` divergence against the repository, so the team works from one set of facts.
 
 - **Team report:** "NTER Git Repository Divergence & Merge Audit", 2026-09-24, run from `C:\Users\nawa\PI Terminal`.
-- **Claude audit:** this repository, 2026-09-24.
+- **DDL Labs audit:** this repository, 2026-09-24.
 
 Every claim marked **verified** below was checked by running a command on 2026-09-24 against refs fetched that day. `ddllabs/NTER` was fetched into `FETCH_HEAD` only; no remote was added.
 
@@ -80,7 +80,7 @@ Every claim marked **verified** below was checked by running a command on 2026-0
     - But `api/router.js` could not load: `google-auth-library` was missing.
     - That is the team report's own point that "a Git-clean merge does not mean the functionality is compatible", confirmed concretely. See the integration plan's Phase 1 gate.
 
-## 4. Things the Claude audit got wrong or missed
+## 4. Things the DDL Labs audit got wrong or missed
 
 | # | Earlier claim | Correction |
 |---|---|---|
