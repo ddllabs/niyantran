@@ -2190,3 +2190,28 @@ Deno.test('streaming: a draft cut off by a provider failure is reset, so the nex
   assert(got.some((f) => 'model' in f), 'the swap was allowed: no answer text was left with the reader');
   assertEquals(rec.messages[0].content, 'Answered by the second model.');
 });
+
+// answer-speed spec §1: the handler hands the reader's question to the agent as its pre-search,
+// so the first model call already holds the evidence and can answer.
+Deno.test('answer speed: the question is searched before the first model call', async () => {
+  const queries: string[] = [];
+  const provider = scripted([[text(envelope('It reached committee.')), finish()]]);
+  const { deps, rec } = fakeDeps({ stream: provider.stream }, {
+    presearch: true,
+    searchDocuments: (args: { query: string }) => { queries.push(args.query); return Promise.resolve([chunk('c-1')]); },
+  });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(queries[0], BODY.message);
+  assertEquals(provider.seen.length, 1, 'one model call: the answer');
+  assert((provider.seen[0].messages as { role: string }[]).some((m) => m.role === 'tool'), 'the first call holds the search result');
+  assert(got.some((f) => 'tool' in f && f.tool.phase === 'end'), 'the reader sees the search in the thinking display');
+  assertEquals(rec.messages[0].content, 'It reached committee.');
+});
+
+Deno.test('answer speed: small talk is not pre-searched', async () => {
+  const provider = scripted([[text(envelope('Hello — what would you like to check?')), finish()]]);
+  let searched = 0;
+  const { deps } = fakeDeps({ stream: provider.stream }, { presearch: true, searchDocuments: () => { searched++; return Promise.resolve([]); } });
+  await frames(await handleResearchChat(post({ ...BODY, message: 'hi there' }), deps));
+  assertEquals(searched, 0);
+});

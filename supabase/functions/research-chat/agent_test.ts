@@ -2,7 +2,7 @@ import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { createAnswerDecoder } from './answerStream.ts';
 import { HttpError } from '../_shared/http.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
-import type { ModelEvent, StreamRequest } from '../_shared/openrouterStream.ts';
+import { type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
 import {
@@ -1193,4 +1193,67 @@ Deno.test('streaming: a call with no draft text retracts nothing', async () => {
   });
   await runAgent(f.deps, input);
   assertEquals(events.some((e) => 'retract' in e), false);
+});
+
+// answer-speed spec §1: a turn that is not small talk searches with the reader's question before
+// the first model call, as a search the model had already made, so the first call can answer.
+Deno.test('presearch: the first request already carries the question\'s search and its result, and can answer at once', async () => {
+  const seen: string[] = [];
+  const f = fake([[{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: (args) => { seen.push((args as { query: string }).query); return Promise.resolve([chunk('a')]); },
+  });
+  const result = await runAgent(f.deps, { ...input, presearch: 'What penalty does clause 4 set?' });
+  assertEquals(seen, ['What penalty does clause 4 set?']);
+  assertEquals(f.requests.length, 1, 'no decide-to-search round, no search-first press');
+  const first = f.requests[0].messages as { role: string; tool_calls?: { id: string; function: { name: string } }[]; tool_call_id?: string; content?: unknown }[];
+  const call = first.find((m) => m.role === 'assistant' && m.tool_calls?.length);
+  assertEquals(call?.tool_calls?.[0].function.name, 'search_documents');
+  const reply = first.find((m) => m.role === 'tool' && m.tool_call_id === call?.tool_calls?.[0].id);
+  assert(typeof reply?.content === 'string' && reply.content.includes('ref:abc123-1'), 'the result is rendered with its handle');
+  assertEquals(result.text, draft());
+  assertEquals(result.searches, 1);
+});
+
+Deno.test('presearch: small talk skips it; the question is trimmed to 300 characters', async () => {
+  const small = fake([answer()], { searchDocuments: () => { throw new Error('must not search'); } });
+  await runAgent(small.deps, { ...input, conversational: true, presearch: 'hello' });
+  assertEquals((small.requests[0].messages as { role: string }[]).some((m) => m.role === 'tool'), false);
+  const seen: string[] = [];
+  const long = fake([[{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: (args) => { seen.push((args as { query: string }).query); return Promise.resolve([chunk('a')]); },
+  });
+  await runAgent(long.deps, { ...input, presearch: 'x'.repeat(400) });
+  assertEquals(seen[0].length, 300);
+});
+
+Deno.test('presearch: a failed pre-search is recorded and the model is still asked', async () => {
+  const f = fake([[{ type: 'text', text: draft() }, finish()], [{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: () => Promise.reject(new Error('timeout')),
+  });
+  const result = await runAgent(f.deps, { ...input, presearch: 'q' });
+  assert(f.requests.length >= 1);
+  assertEquals(result.steps[0].status, 'error');
+  const tool = (f.requests[0].messages as { role: string; content?: unknown }[]).find((m) => m.role === 'tool');
+  assert(String(tool?.content).startsWith('TOOL_EXECUTION_FAILED'));
+});
+
+Deno.test('presearch: a resumed turn (failover) does not search again', async () => {
+  let searches = 0;
+  const f = fake([[{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: () => { searches++; return Promise.resolve([chunk('a')]); },
+  });
+  const failing: AgentDeps = { ...f.deps, model: async function* () { throw new ProviderError(503, 'down'); } };
+  await assertRejects(() => runAgent(failing, { ...input, presearch: 'q' }));
+  await runAgent({ ...f.deps, checkpoint: failing.checkpoint }, { ...input, presearch: 'q' });
+  assertEquals(searches, 1);
+});
+
+Deno.test('presearch: a turn aborted during the pre-search makes no model call', async () => {
+  const controller = new AbortController();
+  const f = fake([[{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: () => { controller.abort(); return Promise.resolve([chunk('a')]); },
+  });
+  f.deps.request = { ...f.deps.request, signal: controller.signal };
+  await assertRejects(() => runAgent(f.deps, { ...input, presearch: 'q' }));
+  assertEquals(f.requests.length, 0);
 });

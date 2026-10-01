@@ -404,6 +404,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return { blocks, images };
     },
     repairModel: r.env('AI_REPAIR_MODEL') ?? '',
+    presearch: true,
     headers: corsHeaders(req),
     waitUntil: r.waitUntil,
     today: () =>

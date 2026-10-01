@@ -16,6 +16,8 @@ import { ANSWER_JSON_SCHEMA } from './prompt.ts';
 import type { Focus } from './validate.ts';
 
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
+/** The pre-search query is the reader's question, trimmed. */
+export const PRESEARCH_MAX_CHARS = 300;
 
 /** Mutable turn-wide counters. Reuse across failover/schema retries; the handler
  * must also charge repair attempts against modelAttempts before calling them.
@@ -160,6 +162,9 @@ export interface AgentInput {
    * no-search push-back must not fire. Derived from the same message as
    * userTurn, so it cannot disagree with a resumed checkpoint. */
   conversational?: boolean;
+  /** answer-speed spec §1: the reader's question, searched before the first model call on a
+   * turn that is not small talk, so the first call can answer instead of asking to search. */
+  presearch?: string;
   /** Whether the turn named any document - a bill row's key, the selection's,
    * a document chip's id. An unscoped search owes one of two different
    * disclosures: the named document has no indexed text ('unresolved'), or
@@ -193,6 +198,8 @@ export interface AgentCheckpoint {
   answerModel: string | null;
   /** The no-search push-back is spent at most once per turn. */
   pressedToSearch: boolean;
+  /** The pre-search runs once per turn; a resumed checkpoint (failover) does not repeat it. */
+  presearched: boolean;
   /** Announced at most once per turn, and kept across failover so a retry that
    * does not widen again cannot un-say it. */
   widened: WidenedScope | null;
@@ -210,6 +217,7 @@ function inputKey(a: AgentInput): string {
     a.focus ?? null,
     a.scopeSent ?? true,
     a.featureScope ? [a.featureScope.tier, a.featureScope.feature] : null,
+    a.presearch ?? null,
   ]);
 }
 export function createAgentCheckpoint(
@@ -237,6 +245,7 @@ export function createAgentCheckpoint(
     resumeAnswer: false,
     answerModel: null,
     pressedToSearch: false,
+    presearched: false,
     widened: null,
   };
 }
@@ -547,6 +556,20 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     messages.push({ role: 'user', content: ANSWER_NOW });
   }
 
+  // answer-speed spec §1: search with the reader's question before the first model call, as a
+  // search the model had already made - the same execution path, so handles, traces, the budget,
+  // widening and the found list are unchanged - and the first call can answer at once.
+  const presearch = a.presearch?.trim().slice(0, PRESEARCH_MAX_CHARS);
+  if (presearch && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
+    state.presearched = true;
+    const call: ToolCall = { type: 'tool-call', id: 'presearch-1', name: 'search_documents', args: JSON.stringify({ query: presearch }) };
+    messages.push({
+      role: 'assistant',
+      content: null,
+      tool_calls: [{ id: call.id, type: 'function', function: { name: call.name, arguments: call.args } }],
+    });
+    state.pendingTools.push(call);
+  }
   await completeToolReplies();
   while (state.phase !== 'complete' && budget.modelAttempts < BUDGET.maxSteps) {
     checkAbort();

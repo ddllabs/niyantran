@@ -173,6 +173,10 @@ export interface HandlerDeps {
    * their boxes and images, never the turn. */
   pageEvidence(ids: { blockIds: string[]; imageIds: string[] }, signal?: AbortSignal): Promise<PageEvidenceRows>;
   repairModel: string;
+  /** answer-speed spec §1: search with the question before the first model call. On in
+   * production (index.ts); the scripted handler tests opt in, since their model scripts are
+   * written call by call. */
+  presearch?: boolean;
   headers?: Record<string, string>;
   now?: () => number;
   today?: () => string;
@@ -838,6 +842,8 @@ async function runTurnBody(
     scopedDocumentIds,
     focus: request.focus,
     conversational,
+    // answer-speed spec §1: search with the question before the first model call (not small talk).
+    ...(deps.presearch && !conversational ? { presearch: request.message } : {}),
     // scopeSent: the reader named a document, by key or by id. Whether it
     // resolved is what `scopedDocumentIds` says; this says whether leaving the
     // attachments is "unresolved" or "unkeyed".
