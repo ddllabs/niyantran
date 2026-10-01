@@ -96,6 +96,8 @@ function seconds(ms) {
 /** The measured buckets. */
 export function timingLine({ timing = null, usage = null }) {
   return [
+    // answer-streaming spec §2: how long the reader waited for the answer's first word.
+    timing?.first_answer_ms ? `first word ${seconds(timing.first_answer_ms)}` : '',
     timing?.search_ms ? `searched ${seconds(timing.search_ms)}` : '',
     // reasoning_ms is residual time - total minus search minus writing - not thinking. Calling it
     // "thought" claims reasoning the model may not have done: a real turn reported "thought 9.9s"

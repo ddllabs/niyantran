@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel } from './ActivityTicker.jsx';
+import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel, timingLine } from './ActivityTicker.jsx';
 
 // thinking-display spec (docs/specs/2026-10-02-thinking-display.md), owner-approved 2026-10-02.
 describe('thinking display', () => {
@@ -56,3 +56,12 @@ describe('thinking display', () => {
     expect(html).not.toContain('ai-ticker-steps');
   });
 });
+
+// answer-streaming spec §2: the details say how long the first word of the answer took.
+it('the timing details lead with the first word, when the server measured one', () => {
+  const timing = { search_ms: 900, reasoning_ms: 12_000, writing_ms: 4_000, total_ms: 17_000, first_answer_ms: 3_100, rounds: 2 };
+  expect(timingLine({ timing })).toBe('first word 3.1s · searched 900ms · waited 12.0s · wrote 4.0s');
+  expect(timingLine({ timing: { ...timing, first_answer_ms: 0 } })).not.toContain('first word');
+  expect(timingLine({ timing: { search_ms: 900 } })).toBe('searched 900ms');
+});
+

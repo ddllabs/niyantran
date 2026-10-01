@@ -197,3 +197,21 @@ They are saved with the message.
   the Edge logs.
 - **Behaviour:** the same as the approved outcome.
 
+## Amendment 2 (2026-10-02, during the build): §3 is withdrawn from this change
+
+**What was tried.** Reusing a successful ordinary identity check, within the same epoch and
+token, with at least 60 s of token left and a check no more than 5 minutes old.
+- **Result:** 13 existing tests failed (`userStore.identityFailure`, the reconciliation and
+  preference-race tests, and the Stop-race test).
+- **What they encode:** every protected request in the browser re-verifies the account from
+  scratch. So a suspended or switched account, or a transient failure, is acted on at the next
+  request, not up to 5 minutes later.
+- **Why that matters:** the server would still refuse a bad request. But this is the
+  sign-in path, a sensitive scope, and weakening that invariant was not what the owner approved.
+
+**The change was reverted.** The send path is unchanged.
+
+**Next:**
+- the local run measures what the pre-send check actually costs;
+- a narrower option goes to the owner if it is material.
+

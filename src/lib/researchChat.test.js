@@ -136,6 +136,37 @@ describe('sendTurn', () => {
     clearStream('conv-9');
   });
 
+  // answer-streaming spec, amendment 1: a research draft that was not the answer is taken back
+  // with patch(0, ''); the reader keeps only the answer that followed, and the found list and
+  // first-word timing pass through untouched.
+  it('a taken-back draft leaves only the final answer, and found and first-word timing pass through', async () => {
+    const q = frameQueue();
+    const found = [{ document_id: 'd1', title: 'The Bill', pages: [4, 9] }];
+    const send = () =>
+      Promise.resolve(
+        sse([
+          { conversation: { id: 'conv-10', title: 'Bills' } },
+          { chunk: 'Early guess about' },
+          { chunk: ' the Bill' },
+          { patch: { from: 0, text: '' } },
+          { tool: { name: 'search_documents', phase: 'start', step: 1, input: { query: 'clause 16' } } },
+          { tool: { name: 'search_documents', phase: 'end', step: 1, resultCount: 40, found } },
+          { chunk: 'Final ' },
+          { chunk: 'answer [1].' },
+          { sources: [{ id: 1, kind: 'row', row_key: 'k', title: 'A bill' }] },
+          { timing: { search_ms: 5, reasoning_ms: 1, writing_ms: 2, total_ms: 8, first_answer_ms: 3, rounds: 2 } },
+          { done: { message_id: 'msg-10' } },
+        ]),
+      );
+    await sendTurn(body, { send, schedule: q.schedule });
+    q.run();
+    const s = streamState('conv-10');
+    expect(s.streamingText).toBe('Final answer [1].');
+    expect(s.activity.find((a) => a.type === 'tool')).toMatchObject({ phase: 'end', found });
+    expect(s.timing).toMatchObject({ first_answer_ms: 3, rounds: 2 });
+    clearStream('conv-10');
+  });
+
   it('a patch frame rewrites the streamed answer from its offset', async () => {
     const q = frameQueue();
     const send = () =>
