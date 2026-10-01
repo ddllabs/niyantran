@@ -130,5 +130,7 @@ export function coverageOf(attachment, indexed, now = Date.now) {
   const key = attachment?.document_key;
   if (!key || !indexed) return null;
   if (indexed.has(key)) return 'full';
-  return fresh(key, now) === false ? 'row' : null;
+  // The last answer, even past its lifetime: re-querying is the caller's job (indexedDocumentKeys,
+  // refreshCoverage), and a badge that blanks every minute tells the reader nothing.
+  return known.get(key)?.value === false ? 'row' : null;
 }

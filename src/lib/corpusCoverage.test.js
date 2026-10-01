@@ -135,13 +135,15 @@ describe('answer lifetime', () => {
     expect(coverageOf({ document_key: 'a' }, found, now)).toBe('full');
   });
 
-  it('an expired "no" is unknown, not "Record only", until it is asked again', async () => {
+  // Supervisor decision (C3 review): a badge keeps its last answer while a re-check is due, rather
+  // than going blank every minute; the panel's periodic re-query (C4) replaces it.
+  it('an expired "no" keeps showing "Record only" until it is asked again', async () => {
     const db = liveClient();
     const now = clock();
     const found = await indexedDocumentKeys(['a'], db.client, now);
     expect(coverageOf({ document_key: 'a' }, found, now)).toBe('row');
-    now.advance(COVERAGE_TTL_MS);
-    expect(coverageOf({ document_key: 'a' }, found, now)).toBe(null);
+    now.advance(COVERAGE_TTL_MS * 3);
+    expect(coverageOf({ document_key: 'a' }, found, now)).toBe('row');
   });
 
   it('refreshCoverage asks again now, even inside the lifetime, and answers the new set', async () => {

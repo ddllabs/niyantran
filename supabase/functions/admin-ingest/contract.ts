@@ -79,7 +79,16 @@ export interface RegisterPart extends DeclaredPart {
 export type RecordStatus = 'processing' | 'failed' | 'full_text' | 'full_text_legacy' | 'record_only';
 
 export type Request =
-  | { action: 'prepare'; file_sha256: string; page_count: number; parts: DeclaredPart[] }
+  | {
+    action: 'prepare';
+    file_sha256: string;
+    page_count: number;
+    parts: DeclaredPart[];
+    // Amendment A: name the record being attached to, so prepare can report its key holder.
+    desk_tier?: string;
+    desk_feature?: string;
+    document_key?: string;
+  }
   | { action: 'verify'; staging_path: string; sha256: string; byte_size: number }
   | {
     action: 'register';
@@ -138,6 +147,15 @@ export interface PrepareResult {
   ok: true;
   documents: ExistingDocument[];
   parts: PreparedPart[];
+  /** Amendment A: the document already holding `document_key`, preferring an ingestion-v2 one. */
+  key_holder?: KeyHolder | null;
+}
+
+export interface KeyHolder {
+  document_id: string;
+  title: string;
+  /** A legacy holder is read-only; attaching adds a second document (D3). */
+  legacy: boolean;
 }
 
 export interface VerifyResult {
