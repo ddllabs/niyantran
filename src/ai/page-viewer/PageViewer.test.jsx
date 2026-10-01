@@ -214,6 +214,11 @@ describe('FullViewDialog', () => {
     expect(html).toMatch(/class="pv-full-root theme-dark"/);
     expect(html).toContain('<strong id="pv-t1">Bill</strong>');
   });
+
+  it('marks its root as part of the citation viewer, so a click on the backdrop is not "outside"', () => {
+    const html = renderToStaticMarkup(<FullViewDialog titleId="pv-t1"><strong id="pv-t1">Bill</strong></FullViewDialog>);
+    expect(html).toMatch(/^<div class="pv-full-root" data-citation-viewer="full-view"><div class="pv-full" role="dialog"/);
+  });
 });
 
 describe('cropStyles', () => {

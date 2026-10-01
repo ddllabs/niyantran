@@ -8,6 +8,12 @@
  * inside it without a request. `invalidate` drops one part's signature, for the range reader
  * to call when Storage refuses it.
  *
+ * A caller that knows the part layout (the `document_files` rows the viewer reads) passes it as
+ * `partFor(documentId, page, {parts})`. The part index is then computed locally and concurrent
+ * calls for any pages of one part share a single request, so rapid paging asks once per part
+ * (F45). Without a layout, concurrent calls are shared per page, as before. A layout is only a
+ * hint: the reply must still hold the requested page, or that page is asked for on its own.
+ *
  * Contract: POST `{document_id, page}` →
  * `{ok:true, signed_path, part_index, page_offset, page_count, byte_size, expires_in}` or
  * `{ok:false, code, error}`. `signed_path` is relative to `/storage/v1`; the client prefixes
@@ -33,6 +39,14 @@ function failure(code) {
 
 const isInt = (value, min) => Number.isSafeInteger(value) && value >= min;
 const covers = (part, page) => part.pageOffset < page && page <= part.pageOffset + part.pageCount;
+
+/** The layout's part index for `page` (rows shaped as `document_files`), or null when none is known. */
+function layoutPartIndex(parts, page) {
+  if (!Array.isArray(parts)) return null;
+  const row = parts.find(p => p && isInt(p.part_index, 0) && isInt(p.page_offset, 0) && isInt(p.page_count, 1)
+    && p.page_offset < page && page <= p.page_offset + p.page_count);
+  return row ? row.part_index : null;
+}
 
 /**
  * The only signed_path document-file produces: a corpus signature for a content-addressed part with
@@ -71,9 +85,19 @@ function readPart(body, page, baseUrl) {
 export function createDocumentFileClient({ request, baseUrl, now = Date.now }) {
   /** `${documentId}\u0000${partIndex}` → {part, documentId, expiresAt} */
   const cache = new Map();
-  /** `${documentId}\u0000${page}` → the in-flight request for that page */
+  /**
+   * In-flight requests: `${documentId}\u0000page:${page}` without a layout, or
+   * `${documentId}\u0000part:${partIndex}` when the layout places the page.
+   */
   const inflight = new Map();
   const key = (documentId, n) => `${documentId}\u0000${n}`;
+
+  function shared(k, documentId, page) {
+    if (!inflight.has(k)) {
+      inflight.set(k, sign(documentId, page).finally(() => inflight.delete(k)));
+    }
+    return inflight.get(k);
+  }
 
   function cached(documentId, page) {
     const t = now();
@@ -103,15 +127,20 @@ export function createDocumentFileClient({ request, baseUrl, now = Date.now }) {
   }
 
   return {
-    async partFor(documentId, page) {
+    /**
+     * @param {string} documentId
+     * @param {number} page  1-based
+     * @param {{parts?: Array<{part_index: number, page_offset: number, page_count: number}>}} [options]
+     */
+    async partFor(documentId, page, { parts } = {}) {
       if (typeof documentId !== 'string' || !documentId.trim() || !isInt(page, 1)) throw failure('bad_request');
       const hit = cached(documentId, page);
       if (hit) return hit;
-      const k = key(documentId, page);
-      if (!inflight.has(k)) {
-        inflight.set(k, sign(documentId, page).finally(() => inflight.delete(k)));
-      }
-      return inflight.get(k);
+      const partIndex = layoutPartIndex(parts, page);
+      if (partIndex === null) return shared(key(documentId, `page:${page}`), documentId, page);
+      const part = await shared(key(documentId, `part:${partIndex}`), documentId, page);
+      // A stale layout: the shared reply was for another page and does not hold this one.
+      return covers(part, page) ? part : shared(key(documentId, `page:${page}`), documentId, page);
     },
     invalidate(documentId, partIndex) {
       cache.delete(key(documentId, partIndex));

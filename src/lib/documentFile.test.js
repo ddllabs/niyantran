@@ -129,6 +129,128 @@ describe('createDocumentFileClient.partFor', () => {
   });
 });
 
+// F45 (local run 2026-10-01, finding 2): rapid paging inside a part whose signature had expired asked
+// document-file once per page. With the part layout from document_files, requests are per part.
+describe('createDocumentFileClient.partFor with a part layout', () => {
+  /** A request that stays pending until the test releases it, counting calls. */
+  function heldFunction() {
+    const { request, calls } = fakeFunction();
+    const held = [];
+    const hold = body => new Promise((resolve) => { held.push(() => resolve(request(body))); });
+    // calls(): requests still pending; signed: every request answered so far.
+    return { request: hold, calls: () => held.length, release: () => held.splice(0).forEach(go => go()), signed: calls };
+  }
+
+  it('three rapid calls for three pages of one part make ONE request', async () => {
+    const fn = heldFunction();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+    const pending = [11, 12, 13].map(page => client.partFor(DOC, page, { parts: PARTS }));
+    expect(fn.calls()).toBe(1);
+    fn.release();
+    const [a, b, c] = await Promise.all(pending);
+    expect(a.partIndex).toBe(1);
+    expect(b).toEqual(a);
+    expect(c).toEqual(a);
+  });
+
+  it('pages in different parts make separate requests, one per part', async () => {
+    const fn = heldFunction();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+    const pending = [3, 4, 12, 13, 27].map(page => client.partFor(DOC, page, { parts: PARTS }));
+    expect(fn.calls()).toBe(3);
+    fn.release();
+    expect((await Promise.all(pending)).map(p => p.partIndex)).toEqual([0, 0, 1, 1, 2]);
+  });
+
+  it('keeps per-part requests apart per document', async () => {
+    const fn = heldFunction();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+    const pending = [client.partFor(DOC, 3, { parts: PARTS }), client.partFor('another-document', 4, { parts: PARTS })];
+    expect(fn.calls()).toBe(2);
+    fn.release();
+    await Promise.all(pending);
+  });
+
+  it('signs a part again once its signature is within 30 seconds of expiry, once for rapid pages', async () => {
+    const fn = heldFunction();
+    const c = clock();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: c.now });
+    const first = client.partFor(DOC, 11, { parts: PARTS });
+    fn.release();
+    await first;
+    c.t += 269_999;
+    expect((await client.partFor(DOC, 20, { parts: PARTS })).url).toMatch(/token=t1$/);
+    expect(fn.signed).toHaveLength(1);
+    c.t += 1;
+    const again = [14, 15, 16].map(page => client.partFor(DOC, page, { parts: PARTS }));
+    expect(fn.calls()).toBe(1);
+    fn.release();
+    for (const part of await Promise.all(again)) expect(part.url).toMatch(/token=t2$/);
+    expect(fn.signed).toHaveLength(2);
+  });
+
+  it('invalidate drops one part; the next rapid pages in it sign once, the other part stays cached', async () => {
+    const fn = heldFunction();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+    const warm = [client.partFor(DOC, 3, { parts: PARTS }), client.partFor(DOC, 12, { parts: PARTS })];
+    fn.release();
+    await Promise.all(warm);
+    client.invalidate(DOC, 1);
+    const again = [12, 13].map(page => client.partFor(DOC, page, { parts: PARTS }));
+    expect(fn.calls()).toBe(1);
+    fn.release();
+    for (const part of await Promise.all(again)) expect(part.url).toMatch(/token=t3$/);
+    expect((await client.partFor(DOC, 4, { parts: PARTS })).url).toMatch(/token=t1$/);
+    expect(fn.signed).toHaveLength(3);
+  });
+
+  it('a page the layout does not place, or a malformed layout, falls back to per-page requests', async () => {
+    for (const parts of [[], null, 'parts', [{ part_index: 'x', page_offset: 0, page_count: 30 }], [{ ...PARTS[0], page_count: 0 }]]) {
+      const fn = heldFunction();
+      const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+      const pending = [2, 3].map(page => client.partFor(DOC, page, { parts }));
+      expect(fn.calls(), JSON.stringify(parts)).toBe(2);
+      fn.release();
+      await Promise.all(pending);
+    }
+  });
+
+  it('a stale layout never hands a page a part that does not hold it', async () => {
+    // The layout claims pages 1-30 are one part; the server's real parts are split.
+    const stale = [{ part_index: 0, page_offset: 0, page_count: 30, byte_size: 9000 }];
+    const fn = heldFunction();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+    const pending = [3, 12].map(page => client.partFor(DOC, page, { parts: stale }));
+    fn.release();
+    await new Promise(r => setTimeout(r, 0));
+    fn.release();
+    const [a, b] = await Promise.all(pending);
+    expect(a.partIndex).toBe(0);
+    expect(b.partIndex).toBe(1);
+  });
+
+  it('without a layout, rapid calls for different pages still request per page (unchanged)', async () => {
+    const fn = heldFunction();
+    const client = createDocumentFileClient({ request: fn.request, baseUrl: BASE, now: clock().now });
+    const pending = [11, 12, 13].map(page => client.partFor(DOC, page));
+    expect(fn.calls()).toBe(3);
+    fn.release();
+    await Promise.all(pending);
+  });
+
+  it('a failed per-part request is not shared with the next call', async () => {
+    let n = 0;
+    const request = async (body) => {
+      n += 1;
+      if (n === 1) throw new Error('offline');
+      return fakeFunction().request(body);
+    };
+    const client = createDocumentFileClient({ request, baseUrl: BASE, now: clock().now });
+    expect((await failure(client.partFor(DOC, 12, { parts: PARTS }))).code).toBe('unavailable');
+    expect((await client.partFor(DOC, 13, { parts: PARTS })).partIndex).toBe(1);
+  });
+});
+
 describe('createDocumentFileClient refusals', () => {
   it('rejects a refusal with its code and a fixed message, never the server text', async () => {
     for (const code of ['bad_request', 'unauthorized', 'not_found', 'bad_page', 'unavailable']) {

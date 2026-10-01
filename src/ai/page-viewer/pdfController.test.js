@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DOCUMENT_FILE_FAILED } from '../../lib/documentFile.js';
+import { DOCUMENT_FILE_FAILED, createDocumentFileClient } from '../../lib/documentFile.js';
 import { PDF_FETCH_FAILED, PDF_RANGE_MISMATCH } from './rangeTransport.js';
 import {
   MAX_CANVAS_PIXELS, PDF_NOTICES, canvasSize, createPartTransport, createPdfController, pdfFailureNotice,
@@ -272,6 +272,59 @@ describe('createPdfController.render', () => {
     });
     const error = await controller.render({ page: 1, canvas: fakeCanvas(), width: 300 }).catch(e => e);
     expect(pdfFailureNotice(error)).toBe(PDF_NOTICES.loader);
+  });
+});
+
+// F45: the controller passes the part layout it was given (document_files rows), so the file client
+// asks document-file once per part, not once per page, while the reader pages quickly.
+describe('createPdfController part layout', () => {
+  const LAYOUT = [
+    { part_index: 0, page_offset: 0, page_count: 5, byte_size: 1000 },
+    { part_index: 1, page_offset: 5, page_count: 7, byte_size: 2000 },
+  ];
+
+  it('passes the layout on every partFor: opening a part and renewing its signature', async () => {
+    const { pdfjs } = fakePdfjs({ range: 'request' });
+    const documentFile = fakeDocumentFile();
+    const fetch = vi.fn(async () => ({ status: 403, arrayBuffer: async () => new ArrayBuffer(0) }));
+    const controller = createPdfController({ documentId: 'd1', documentFile, parts: LAYOUT, loadPdfjs: async () => pdfjs, fetch });
+    await controller.render({ page: 7, canvas: fakeCanvas(), width: 300 }).catch(() => {});
+    expect(documentFile.partFor.mock.calls.length).toBeGreaterThanOrEqual(2);
+    for (const call of documentFile.partFor.mock.calls) expect(call[2]).toEqual({ parts: LAYOUT });
+  });
+
+  it('rapid paging through three pages of one part asks document-file once, through the real client', async () => {
+    const { pdfjs } = fakePdfjs();
+    const bodies = [];
+    const held = [];
+    const request = body => new Promise((resolve) => {
+      bodies.push(body);
+      held.push(() => resolve({
+        ok: true, signed_path: `object/sign/corpus/files/${'1'.repeat(64)}.pdf?token=t${bodies.length}`, ...LAYOUT[1], expires_in: 300,
+      }));
+    });
+    const documentFile = createDocumentFileClient({ request, baseUrl: 'http://127.0.0.1:54321' });
+    const controller = createPdfController({ documentId: 'd1', documentFile, parts: LAYOUT, loadPdfjs: async () => pdfjs, fetch: vi.fn() });
+    const canvas = fakeCanvas();
+    const renders = [6, 7, 8].map(page => controller.render({ page, canvas, width: 300 }));
+    await flush();
+    expect(bodies).toEqual([{ document_id: 'd1', page: 6 }]);
+    held.forEach(go => go());
+    for (let i = 0; i < 5; i += 1) await flush();
+    controller.destroy();
+    const results = await Promise.all(renders.map(r => r.catch(e => e)));
+    expect(results.every(r => r.status === 'cancelled')).toBe(true);
+    expect(bodies).toHaveLength(1);
+  });
+
+  it('without a layout the controller still works, asking per page as before', async () => {
+    const { pdfjs } = fakePdfjs();
+    const documentFile = fakeDocumentFile();
+    const controller = createPdfController({ documentId: 'd1', documentFile, loadPdfjs: async () => pdfjs, fetch: vi.fn() });
+    controller.render({ page: 2, canvas: fakeCanvas(), width: 300 }).catch(() => {});
+    await flush();
+    expect(documentFile.partFor).toHaveBeenCalledWith('d1', 2, { parts: undefined });
+    controller.destroy();
   });
 });
 

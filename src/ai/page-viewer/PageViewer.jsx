@@ -23,7 +23,7 @@ import { createPdfController, pdfFailureNotice } from './pdfController.js';
 import { openStoredCopy } from './storedCopy.js';
 import TextPage from './TextPage.jsx';
 import { createPageLoader, loadDocument } from './viewerData.js';
-import { attachFullView, narrowQuery, isNarrow, themeClassOf } from './viewerDom.js';
+import { VIEWER_ATTRIBUTE, attachFullView, narrowQuery, isNarrow, themeClassOf } from './viewerDom.js';
 import {
   NOTICES, chooseView, pageTotal, pagingKey, pdfAvailable, readViewChoice, resolvePageSpan, storedCopyLabel,
   writeViewChoice,
@@ -145,10 +145,13 @@ export function ViewerHeader({ title, titleId, fileName, fileUrl, onClose, close
   );
 }
 
-/** The full view's markup: a modal dialog labelled by the document title, in the app's theme. */
-export function FullViewDialog({ titleId, themeClass = '', dialogRef = null, children }) {
+/**
+ * The full view's markup: a modal dialog labelled by the document title, in the app's theme. The
+ * root is the backdrop (the 24 px margin) and is marked as part of the citation viewer.
+ */
+export function FullViewDialog({ titleId, themeClass = '', rootRef = null, dialogRef = null, children }) {
   return (
-    <div className={`pv-full-root${themeClass ? ` ${themeClass}` : ''}`}>
+    <div className={`pv-full-root${themeClass ? ` ${themeClass}` : ''}`} {...{ [VIEWER_ATTRIBUTE]: 'full-view' }} ref={rootRef}>
       <div className="pv-full" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialogRef}>
         {children}
       </div>
@@ -158,10 +161,11 @@ export function FullViewDialog({ titleId, themeClass = '', dialogRef = null, chi
 
 /**
  * The full view, portalled to the body over the whole screen. Focus moves to its close control,
- * Tab stays inside, and Esc closes it without reaching the overlay (attachFullView); on close,
- * focus returns to the Expand control.
+ * Tab stays inside, and Esc or a click on the backdrop closes it without reaching the overlay
+ * (attachFullView); on close, focus returns to the Expand control.
  */
 function FullView({ titleId, themeClass, onClose, initialFocusRef, returnFocusRef, children }) {
+  const rootRef = useRef(null);
   const dialogRef = useRef(null);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
@@ -170,12 +174,13 @@ function FullView({ titleId, themeClass, onClose, initialFocusRef, returnFocusRe
     if (!node) return undefined;
     return attachFullView({
       container: node,
+      backdrop: rootRef.current,
       initialFocus: initialFocusRef.current,
       returnFocus: () => returnFocusRef.current,
       onClose: () => closeRef.current?.(),
     });
   }, [initialFocusRef, returnFocusRef]);
-  return createPortal(<FullViewDialog titleId={titleId} themeClass={themeClass} dialogRef={dialogRef}>{children}</FullViewDialog>, document.body);
+  return createPortal(<FullViewDialog titleId={titleId} themeClass={themeClass} rootRef={rootRef} dialogRef={dialogRef}>{children}</FullViewDialog>, document.body);
 }
 
 /** True at phone width, following the breakpoint; desktop when matchMedia is unavailable. */
@@ -283,11 +288,16 @@ function ViewerBody({ shared, onExpand = null, expandRef = null }) {
  *   loadPdfjs?: typeof loadPdfjs,
  *   fetch?: typeof fetch,
  *   storage?: Storage,
+ *   onDocumentState?: (state: 'ok' | 'gone' | 'not_live' | 'stale' | 'text_only' | 'unknown_freshness'
+ *     | 'no_page_text') => void,
  * }} props
+ *   `onDocumentState` is told the document's row of the state table once per change, so the host
+ *   can disable "Ask about this document" for a deleted or not-live document (revision 5,
+ *   point 4). Nothing is reported while the document is loading or failed to load.
  */
 export default function PageViewer({
   citation, onClose, client = supabase, documentFile = sharedDocumentFile(), loadPdfjs: load = loadPdfjs,
-  fetch: fetchImpl = defaultFetch, storage,
+  fetch: fetchImpl = defaultFetch, storage, onDocumentState,
 }) {
   const documentId = citation.document_id;
   const cited = citation.page_number;
@@ -311,6 +321,8 @@ export default function PageViewer({
   const sectionRef = useRef(null);
   const expandRef = useRef(null);
   const closeFullRef = useRef(null);
+  const onStateRef = useRef(onDocumentState);
+  const reportedRef = useRef(null);
   const titleId = useId();
 
   const doc = docState.status === 'ok' ? docState.doc : null;
@@ -376,16 +388,28 @@ export default function PageViewer({
     return () => { alive = false; };
   }, [citation, cited, page, pageRow, spanAllowed]);
 
-  // The PDF controller lives while the PDF view is available; Retry replaces it.
+  // The document state goes up once per change (the host's Ask button). The last reported value is
+  // kept in a ref, so StrictMode's effect replay does not report twice; it starts at null, so a
+  // loading or failed document (state null) is never reported.
+  useEffect(() => { onStateRef.current = onDocumentState; });
   useEffect(() => {
-    if (!available) return undefined;
-    const created = createPdfController({ documentId, documentFile, loadPdfjs: load, fetch: fetchImpl });
+    if (state === reportedRef.current) return;
+    reportedRef.current = state;
+    onStateRef.current?.(state);
+  }, [state]);
+
+  // The PDF controller lives while the PDF view is available; Retry replaces it. It gets the part
+  // layout, so the file client signs once per part however fast the reader pages (F45).
+  const layout = available ? parts : null;
+  useEffect(() => {
+    if (!layout) return undefined;
+    const created = createPdfController({ documentId, documentFile, parts: layout, loadPdfjs: load, fetch: fetchImpl });
     setController(created);
     return () => {
       created.destroy();
       setController(previous => (previous === created ? null : previous));
     };
-  }, [available, documentId, documentFile, load, fetchImpl, pdfNonce]);
+  }, [layout, documentId, documentFile, load, fetchImpl, pdfNonce]);
 
   // The chosen fit or zoom is remembered in this browser.
   useEffect(() => { writeZoomState(zoomState, storage); }, [zoomState, storage]);
@@ -422,7 +446,7 @@ export default function PageViewer({
   const onPdfFailure = useCallback(error => setPdfError(pdfFailureNotice(error)), []);
   const onStoredCopy = () => {
     setCopyNotice('');
-    openStoredCopy({ documentFile, documentId, page }).then((result) => {
+    openStoredCopy({ documentFile, documentId, page, parts }).then((result) => {
       if (!result.ok) setCopyNotice(result.notice);
     });
   };

@@ -15,12 +15,13 @@ export const STORED_COPY_NOTICES = Object.freeze({
 /**
  * @param {object} deps
  * @param {(url: string, target: string) => Window | null} [deps.open]   window.open
- * @param {{partFor(documentId: string, page: number): Promise<{url: string}>}} deps.documentFile
+ * @param {{partFor(documentId: string, page: number, options?: {parts?: object[]}): Promise<{url: string}>}} deps.documentFile
  * @param {string} deps.documentId
  * @param {number} deps.page   the viewer's current page; its part is the one opened
+ * @param {object[]} [deps.parts]   the `document_files` rows, so the part's cached signature is shared
  * @returns {Promise<{ok: true} | {ok: false, notice: string}>}
  */
-export function openStoredCopy({ open = (...args) => globalThis.window?.open(...args), documentFile, documentId, page }) {
+export function openStoredCopy({ open = (...args) => globalThis.window?.open(...args), documentFile, documentId, page, parts }) {
   // Synchronous up to here: this must run inside the click's user activation.
   let tab = null;
   try {
@@ -36,7 +37,7 @@ export function openStoredCopy({ open = (...args) => globalThis.window?.open(...
   }
   return (async () => {
     try {
-      const { url } = await documentFile.partFor(documentId, page);
+      const { url } = await documentFile.partFor(documentId, page, { parts });
       tab.location.href = url;
       return { ok: true };
     } catch {

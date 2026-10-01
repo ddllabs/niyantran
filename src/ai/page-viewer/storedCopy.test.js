@@ -20,9 +20,16 @@ describe('openStoredCopy', () => {
     expect(tab.opener).toBeNull();
 
     await expect(pending).resolves.toEqual({ ok: true });
-    expect(documentFile.partFor).toHaveBeenCalledWith('d1', 7);
+    expect(documentFile.partFor).toHaveBeenCalledWith('d1', 7, { parts: undefined });
     expect(tab.location.href).toBe(SIGNED);
     expect(tab.close).not.toHaveBeenCalled();
+  });
+
+  it('passes the part layout to the file client, so the stored copy shares the part\'s signature (F45)', async () => {
+    const parts = [{ part_index: 0, page_offset: 0, page_count: 10, byte_size: 1000 }];
+    const documentFile = { partFor: vi.fn(async () => ({ url: SIGNED, partIndex: 0 })) };
+    await openStoredCopy({ open: () => fakeTab(), documentFile, documentId: 'd1', page: 3, parts });
+    expect(documentFile.partFor).toHaveBeenCalledWith('d1', 3, { parts });
   });
 
   it('closes the tab and returns a fixed notice when the part cannot be signed', async () => {

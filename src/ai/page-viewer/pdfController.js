@@ -103,13 +103,16 @@ function coded(code) {
 /**
  * @param {object} deps
  * @param {string} deps.documentId
- * @param {{partFor(id: string, page: number): Promise<{url: string, partIndex: number, pageOffset: number,
- *   pageCount: number, byteSize: number}>, invalidate(id: string, partIndex: number): void}} deps.documentFile
+ * @param {{partFor(id: string, page: number, options?: {parts?: object[]}): Promise<{url: string, partIndex: number,
+ *   pageOffset: number, pageCount: number, byteSize: number}>, invalidate(id: string, partIndex: number): void}} deps.documentFile
+ * @param {Array<{part_index: number, page_offset: number, page_count: number, byte_size: number}>} [deps.parts]
+ *   the document's `document_files` rows, passed to every `partFor` so the file client asks once
+ *   per part rather than once per page (F45)
  * @param {() => Promise<object>} deps.loadPdfjs
  * @param {typeof fetch} deps.fetch
  * @param {{setTimeout: Function, clearTimeout: Function}} [deps.timers]
  */
-export function createPdfController({ documentId, documentFile, loadPdfjs, fetch, timers = globalThis }) {
+export function createPdfController({ documentId, documentFile, parts, loadPdfjs, fetch, timers = globalThis }) {
   let pdfjs = null;
   let part = null;
   let job = null;
@@ -131,7 +134,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
     const opened = { info, closed: false, failure, task: null, abort: new AbortController() };
     const reader = createRangeReader({
       async getUrl() {
-        const signed = await documentFile.partFor(documentId, info.pageOffset + 1);
+        const signed = await documentFile.partFor(documentId, info.pageOffset + 1, { parts });
         if (signed.partIndex !== info.partIndex) throw coded(PDF_FETCH_FAILED);
         return signed.url;
       },
@@ -160,7 +163,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
 
   async function ensurePart(page) {
     if (part && covers(part.info, page)) return part;
-    const info = await documentFile.partFor(documentId, page);
+    const info = await documentFile.partFor(documentId, page, { parts });
     if (destroyed) throw coded('cancelled');
     if (!pdfjs) {
       try {

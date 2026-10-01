@@ -1,10 +1,18 @@
 /**
  * The page viewer's DOM wiring, kept as small functions over injected elements so it runs
  * against fakes in node (docs/specs/2026-10-01-rag-v2-citations-pdf.md, amendment revision 4,
- * points 2 and 3): the full view's Esc, focus trap and focus return; ⌘/Ctrl + wheel zoom over
- * the page; the phone breakpoint; and the theme class a portalled dialog must carry.
+ * points 2 and 3, and revision 5 point 3): the full view's Esc, backdrop click, focus trap and
+ * focus return; ⌘/Ctrl + wheel zoom over the page; the phone breakpoint; and the theme class a
+ * portalled dialog must carry.
  */
 import { wheelZoomFactor } from './zoomModel.js';
+
+/**
+ * Marks the full view's root (portalled to the body) as part of the citation viewer, so the
+ * overlay's click-outside handling can tell a click there from a click on the desk:
+ * `node.closest('[data-citation-viewer]')`.
+ */
+export const VIEWER_ATTRIBUTE = 'data-citation-viewer';
 
 /** The existing phone breakpoint (citation-overlay.css): no Full view at or below it. */
 export const NARROW_QUERY = '(max-width: 900px)';
@@ -52,15 +60,37 @@ export function fullViewKeyHandler({ container, onClose, getActive = activeEleme
 }
 
 /**
- * Open the full view's behaviour on its dialog node: focus moves in, keys are handled there,
- * and the returned detach puts focus back on `returnFocus()` (the Expand control).
+ * Backdrop listeners: a completed click on the backdrop itself — pressed, released and clicked
+ * there, never inside the dialog panel — calls `onClose`. A press in the panel released on the
+ * backdrop (a text-selection drag), the reverse, and a keyboard click close nothing.
  */
-export function attachFullView({ container, initialFocus = null, returnFocus = () => null, onClose, getActive }) {
+function backdropHandlers(backdrop, onClose) {
+  let pressed = false;
+  return {
+    pointerdown: (event) => { pressed = event.target === backdrop; },
+    pointerup: (event) => { if (event.target !== backdrop) pressed = false; },
+    click: (event) => {
+      const completed = pressed && event.target === backdrop;
+      pressed = false;
+      if (completed) onClose();
+    },
+  };
+}
+
+/**
+ * Open the full view's behaviour on its dialog node: focus moves in, keys are handled there, a
+ * click on `backdrop` (the root around the panel) closes it, and the returned detach puts focus
+ * back on `returnFocus()` (the Expand control).
+ */
+export function attachFullView({ container, backdrop = null, initialFocus = null, returnFocus = () => null, onClose, getActive }) {
   const onKey = fullViewKeyHandler({ container, onClose, getActive });
+  const onBackdrop = backdrop ? Object.entries(backdropHandlers(backdrop, onClose)) : [];
   container.addEventListener('keydown', onKey);
+  for (const [type, fn] of onBackdrop) backdrop.addEventListener(type, fn);
   (initialFocus ?? container).focus?.();
   return () => {
     container.removeEventListener('keydown', onKey);
+    for (const [type, fn] of onBackdrop) backdrop.removeEventListener(type, fn);
     returnFocus()?.focus?.();
   };
 }

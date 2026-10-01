@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  NARROW_QUERY, attachFullView, createWheelHandler, fullViewKeyHandler, isNarrow, scrollTargetFor, themeClassOf,
+  NARROW_QUERY, VIEWER_ATTRIBUTE, attachFullView, createWheelHandler, fullViewKeyHandler, isNarrow, scrollTargetFor,
+  themeClassOf,
 } from './viewerDom.js';
 
 const el = name => ({ name, focus: vi.fn() });
@@ -96,6 +97,83 @@ describe('attachFullView', () => {
     const detach = attachFullView({ container, returnFocus: () => null, onClose: vi.fn() });
     expect(container.focus).toHaveBeenCalled();
     expect(() => detach()).not.toThrow();
+  });
+});
+
+// Revision 5, point 3: a click on the full view's backdrop (the 24 px margin around the dialog panel)
+// closes the full view only, by the same path as its close control.
+describe('attachFullView backdrop', () => {
+  /** The full-view root (the backdrop) holding the dialog panel; panel nodes are its descendants. */
+  function setup() {
+    const close = el('close');
+    const expand = el('expand');
+    const container = fakeContainer([close]);
+    const backdrop = fakeContainer([]);
+    const panelChild = { name: 'page text' };
+    const onClose = vi.fn();
+    const detach = attachFullView({ container, backdrop, initialFocus: close, returnFocus: () => expand, onClose });
+    const fire = (type, target) => backdrop.dispatch(type, { type, target });
+    return { close, expand, container, backdrop, panelChild, onClose, detach, fire };
+  }
+
+  it('listens for pointerdown and click on the backdrop', () => {
+    const { backdrop } = setup();
+    expect(backdrop.listeners.has('pointerdown')).toBe(true);
+    expect(backdrop.listeners.has('click')).toBe(true);
+  });
+
+  it('a completed click on the backdrop closes the full view, and detach returns focus to Full view', () => {
+    const { backdrop, onClose, detach, expand, fire } = setup();
+    fire('pointerdown', backdrop);
+    fire('pointerup', backdrop);
+    fire('click', backdrop);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // The host closes the full view on onClose and unmounts it, which detaches.
+    detach();
+    expect(expand.focus).toHaveBeenCalled();
+    expect(backdrop.listeners.size).toBe(0);
+  });
+
+  it('a click inside the dialog panel closes nothing', () => {
+    const { container, panelChild, onClose, fire } = setup();
+    for (const target of [container, panelChild]) {
+      fire('pointerdown', target);
+      fire('pointerup', target);
+      fire('click', target);
+    }
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('a press in the panel released on the backdrop (a text selection drag) closes nothing', () => {
+    const { container, backdrop, onClose, fire } = setup();
+    fire('pointerdown', container);
+    fire('pointerup', backdrop);
+    fire('click', backdrop);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('a press on the backdrop released in the panel closes nothing', () => {
+    const { container, backdrop, onClose, fire } = setup();
+    fire('pointerdown', backdrop);
+    fire('pointerup', container);
+    // The browser fires the click on the nearest common ancestor: the backdrop itself.
+    fire('click', backdrop);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('a click with no press (keyboard activation) closes nothing', () => {
+    const { backdrop, onClose, fire } = setup();
+    fire('click', backdrop);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('works without a backdrop, as before', () => {
+    const container = fakeContainer([]);
+    expect(() => attachFullView({ container, onClose: vi.fn() })()).not.toThrow();
+  });
+
+  it('names the attribute that marks the full view as part of the citation viewer', () => {
+    expect(VIEWER_ATTRIBUTE).toBe('data-citation-viewer');
   });
 });
 
