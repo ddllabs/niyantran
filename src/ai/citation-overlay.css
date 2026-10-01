@@ -3,7 +3,10 @@
    viewport's right edge, max(50vw, 960px) wide and capped at the viewport, from the top of the
    desk area to the bottom, split into two equal halves: the chat, then the viewer. The dock keeps
    its grid track meanwhile, so nothing under the overlay is resized or reflowed.
-   --cov-shift and --cov-top are measured from the dock by CitationOverlay. */
+   --cov-shift and --cov-top are measured from the dock by CitationOverlay.
+   Revision 4: on desktop the outer edge (.cov-edge) and the divider (.cov-divider) resize it;
+   CitationOverlay sets --cov-width (the clamped width) and --cov-split (the viewer's share), and
+   without them the overlay keeps the rule above and two equal halves. */
 
 .cov {
   display: grid;
@@ -23,12 +26,13 @@
   top: var(--cov-top, 84px);
   right: 0;
   bottom: 0;
-  width: min(100vw, max(50vw, 960px));
+  width: var(--cov-width, min(100vw, max(50vw, 960px)));
+  max-width: 100vw;
   height: auto;
   /* Above the desk's own layers; .workspace is the stacking context, so app menus and modals
      outside it still sit above the overlay. */
   z-index: 100;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, calc(100% - var(--cov-split, 50%))) minmax(0, var(--cov-split, 50%));
   background: var(--panel, #fff);
   border-left: 1px solid var(--line, #e8ecf1);
   box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
@@ -43,6 +47,50 @@
 .cov-viewer { border-left: 1px solid var(--line, #e8ecf1); }
 /* WorkSurface fills its half rather than floating over a thread. */
 .cov-viewer > .ai-work-surface { border: 0; border-radius: 0; }
+
+/* The resize handles: 12 px hit areas centred on the overlay's outer edge and on the line between
+   the chat and the viewer. Out of the grid flow (absolute), so the two panes keep their columns.
+   A 2 px accent line shows on hover (which stays on the handle while it holds the pointer
+   capture, i.e. while dragging) and on keyboard focus. */
+.cov-edge,
+.cov-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 12px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.cov-edge { left: 0; }
+.cov-divider { left: calc(100% - var(--cov-split, 50%)); }
+.cov-edge::after,
+.cov-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+.cov-edge:hover::after,
+.cov-divider:hover::after,
+.cov-edge:focus-visible::after,
+.cov-divider:focus-visible::after { background: var(--accent, #012ea1); }
+
+/* While a handle is dragged: the width follows the pointer with no transition anywhere in the
+   overlay, and no text is selected. */
+.cov.is-resizing,
+.cov.is-resizing * {
+  transition: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cov.is-resizing { cursor: col-resize; }
 
 @media (prefers-reduced-motion: reduce) {
   .cov.is-open,
@@ -74,4 +122,7 @@
     height: auto;
     border-left: 0;
   }
+  /* Phones keep the full-screen viewer; there is nothing to resize. */
+  .cov-edge,
+  .cov-divider { display: none; }
 }
