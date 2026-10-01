@@ -60,7 +60,7 @@ function one(v: unknown): Record<string, unknown> | null {
 
 const JOB_COLUMNS = 'id, document_id, status, stage, ocr_pages, pages_total, attempts, next_attempt_at, ' +
   'error_code, last_error, ocr_cost_usd, embed_tokens, embed_cost_usd, requested_by, created_at, finished_at, ' +
-  'documents(title, source_key, desk_tier, desk_feature)';
+  'documents(title, source_key, desk_tier, desk_feature, indexed_at)';
 
 /** AdminIngestDb over PostgREST with the service client (the handler has checked the caller). */
 export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
@@ -133,6 +133,7 @@ export function supabaseAdminDb(client: () => SupabaseClient): AdminIngestDb {
           source_key: String(d.source_key ?? ''),
           desk_tier: strOrNull(d.desk_tier),
           desk_feature: strOrNull(d.desk_feature),
+          indexed: d.indexed_at !== null && d.indexed_at !== undefined,
           status: String(r.status ?? ''),
           stage: String(r.stage ?? ''),
           ocr_pages: num(r.ocr_pages),

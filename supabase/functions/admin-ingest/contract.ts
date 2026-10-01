@@ -130,6 +130,8 @@ export interface JobRow {
   source_key: string;
   desk_tier: string | null;
   desk_feature: string | null;
+  /** The document is live in search (indexed_at set); such a document can't be discarded. */
+  indexed: boolean;
   status: string;
   stage: string;
   ocr_pages: number;

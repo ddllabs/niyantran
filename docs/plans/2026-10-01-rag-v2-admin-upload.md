@@ -50,7 +50,7 @@ Every response is JSON:
 
 A `jobs[]` row has:
 - `job_id`, `document_id`, `title`, `source_key`;
-- `desk_tier`, `desk_feature`;
+- `desk_tier`, `desk_feature`, `indexed` (the document is live, so it cannot be discarded);
 - `status`, `stage`, `ocr_pages`, `pages_total`;
 - `attempts`, `next_attempt_at`, `error_code`, `last_error`;
 - `ocr_cost_usd`, `embed_tokens`, `embed_cost_usd`;

@@ -852,6 +852,7 @@ function job(i: number, over: Partial<RawJobRow> = {}): RawJobRow {
     source_key: `upload:${SHA_F}`,
     desk_tier: 'national',
     desk_feature: 'Cabinet Decisions',
+    indexed: false,
     status: 'running',
     stage: 'ocr',
     ocr_pages: 5,
@@ -904,6 +905,13 @@ Deno.test('jobs pages by created_at: limit + 1 is read, next_before is the last 
   assertEquals(rows[1].requested_by_email, null);
   assertFalse('requested_by' in rows[0]);
   assertEquals(w.rpc[1], { name: 'emails', args: ['user-odd'] });
+});
+
+Deno.test('jobs says whether each document is live, so the tab can hide Discard', async () => {
+  const w = world();
+  const { body } = await call(w, { action: 'jobs' }, { jobs: [job(1, { indexed: true }), job(2)], emails: {} });
+  const rows = body.jobs as Record<string, unknown>[];
+  assertEquals(rows.map((r) => r.indexed), [true, false]);
 });
 
 Deno.test('jobs defaults to 20, never reads more than 51 rows, and the last page has no cursor', async () => {

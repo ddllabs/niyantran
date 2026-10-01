@@ -547,6 +547,7 @@ async function jobs(ctx: Ctx, body: Body): Promise<unknown> {
     source_key: r.source_key,
     desk_tier: r.desk_tier,
     desk_feature: r.desk_feature,
+    indexed: r.indexed,
     status: r.status,
     stage: r.stage,
     ocr_pages: r.ocr_pages,

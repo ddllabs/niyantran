@@ -167,7 +167,7 @@ Deno.test('jobs embeds the document, pages on created_at and flattens the row', 
       requested_by: 'u1',
       created_at: '2026-10-01T10:00:00.5+00:00',
       finished_at: null,
-      documents: { title: 'T', source_key: 'upload:x', desk_tier: 'national', desk_feature: 'Cabinet Decisions' },
+      documents: { title: 'T', source_key: 'upload:x', desk_tier: 'national', desk_feature: 'Cabinet Decisions', indexed_at: null },
     }],
     error: null,
   }));
@@ -179,6 +179,7 @@ Deno.test('jobs embeds the document, pages on created_at and flattens the row', 
     source_key: 'upload:x',
     desk_tier: 'national',
     desk_feature: 'Cabinet Decisions',
+    indexed: false,
     status: 'failed',
     stage: 'ocr',
     ocr_pages: 3,
@@ -196,7 +197,7 @@ Deno.test('jobs embeds the document, pages on created_at and flattens the row', 
   });
   const r = log[0];
   assertEquals(r.table, 'ingest_jobs');
-  assert(String(r.calls[0][1]).includes('documents(title, source_key, desk_tier, desk_feature)'));
+  assert(String(r.calls[0][1]).includes('documents(title, source_key, desk_tier, desk_feature, indexed_at)'));
   assert(r.calls.some((c) => c[0] === 'lt' && c[1] === 'created_at' && c[2] === '2026-10-01T11:00:00Z'));
   assertEquals(
     r.calls.filter((c) => c[0] === 'order').map((c) => [c[1], c[2]]),
