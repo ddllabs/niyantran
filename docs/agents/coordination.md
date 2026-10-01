@@ -1280,3 +1280,5 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     caller's still-current identity, so a send makes one user-plus-profile round trip instead
     of two.
   - No database change.
+  - **Vercel:** production deploy `dpl_o1LCjWANzyNSZYhEdjKrxTmHQ2Tt` (`947dc82`) is READY. It
+    serves `index-gJ2dNSaY.js`, with no `GlobalWorkerOptions`.
