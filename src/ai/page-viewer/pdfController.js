@@ -119,6 +119,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
   function closePart() {
     if (!part) return;
     part.closed = true;
+    part.abort.abort();
     Promise.resolve(part.task.destroy()).catch(() => {});
     part = null;
   }
@@ -127,7 +128,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
     let failNow;
     const failure = new Promise((_, reject) => { failNow = reject; });
     failure.catch(() => {});
-    const opened = { info, closed: false, failure, task: null };
+    const opened = { info, closed: false, failure, task: null, abort: new AbortController() };
     const reader = createRangeReader({
       async getUrl() {
         const signed = await documentFile.partFor(documentId, info.pageOffset + 1);
@@ -136,6 +137,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
       },
       invalidate: () => documentFile.invalidate(documentId, info.partIndex),
       fetch,
+      signal: opened.abort.signal,
     });
     const range = createPartTransport({
       pdfjs,

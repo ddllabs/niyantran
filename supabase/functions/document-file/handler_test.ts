@@ -466,3 +466,21 @@ Deno.test('a foreign origin gets no Access-Control-Allow-Origin, on preflight or
   assertEquals(refused.status, 401);
   assertEquals(refused.res.headers.get('access-control-allow-origin'), null);
 });
+
+// ─── Security review L1, I3 (2026-10-01) ─────────────────────────────────────
+
+Deno.test('a part whose storage_path is not files/<sha256>.pdf is never signed (503)', async () => {
+  for (const path of ['../avatars/x.png', 'staging/abc.pdf', `files/${SHA0}.pdf/../../x`, `files/${SHA0}.PDF`, '']) {
+    const w = world({ parts: [{ ...PARTS[0], storage_path: path }] });
+    const res = await handleDocumentFile(post({ document_id: DOC, page: 1 }), deps(w));
+    assertEquals(res.status, 503, path);
+    assertEquals(w.signed.length, 0, `signed ${path}`);
+  }
+});
+
+Deno.test('every reply carries x-content-type-options: nosniff', async () => {
+  const ok = await handleDocumentFile(post({ document_id: DOC, page: 1 }), deps(world()));
+  const refused = await handleDocumentFile(post({ document_id: DOC, page: 1 }, { auth: null }), deps(world()));
+  assertEquals(ok.headers.get('x-content-type-options'), 'nosniff');
+  assertEquals(refused.headers.get('x-content-type-options'), 'nosniff');
+});

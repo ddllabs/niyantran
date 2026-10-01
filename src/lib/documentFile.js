@@ -34,14 +34,25 @@ function failure(code) {
 const isInt = (value, min) => Number.isSafeInteger(value) && value >= min;
 const covers = (part, page) => part.pageOffset < page && page <= part.pageOffset + part.pageCount;
 
+/**
+ * The only signed_path document-file produces: a corpus signature for a content-addressed part with
+ * a token. Anything else (dot segments, other buckets, backslashes) is refused, so a tampered reply
+ * cannot point the range fetch or the stored-copy tab elsewhere on the project origin.
+ */
+const SIGNED_PATH = /^object\/sign\/corpus\/files\/[0-9a-f]{64}\.pdf\?(?:[^#\\]*&)?token=[^&#\\]+(?:&[^#\\]*)?$/;
+
 /** The validated part for `page`, or null when the success body is malformed. */
 function readPart(body, page, baseUrl) {
   if (!body || body.ok !== true || typeof body.signed_path !== 'string') return null;
   const path = body.signed_path.replace(/^\/+/, '');
+  if (!SIGNED_PATH.test(path)) return null;
   if (!path || !isInt(body.part_index, 0) || !isInt(body.page_offset, 0) || !isInt(body.page_count, 1)
     || !isInt(body.byte_size, 1) || typeof body.expires_in !== 'number' || !Number.isFinite(body.expires_in)) return null;
+  const root = `${baseUrl.replace(/\/+$/, '')}/`;
+  const url = new URL(`storage/v1/${path}`, root);
+  if (url.origin !== new URL(root).origin || !url.pathname.startsWith(`${new URL(root).pathname}storage/v1/object/sign/corpus/files/`)) return null;
   const part = {
-    url: `${baseUrl.replace(/\/+$/, '')}/storage/v1/${path}`,
+    url: url.href,
     partIndex: body.part_index,
     pageOffset: body.page_offset,
     pageCount: body.page_count,

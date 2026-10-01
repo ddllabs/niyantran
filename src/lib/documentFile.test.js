@@ -20,7 +20,7 @@ function fakeFunction({ expiresIn = 300 } = {}) {
     if (!part) return { ok: false, code: 'bad_page', error: 'Page out of range.' };
     return {
       ok: true,
-      signed_path: `object/sign/corpus/part${part.part_index}.pdf?token=t${calls.length}`,
+      signed_path: `object/sign/corpus/files/${String(part.part_index).repeat(64)}.pdf?token=t${calls.length}`,
       ...part,
       expires_in: expiresIn,
     };
@@ -49,7 +49,7 @@ describe('createDocumentFileClient.partFor', () => {
     const part = await client.partFor(DOC, 12);
     expect(calls).toEqual([{ document_id: DOC, page: 12 }]);
     expect(part).toEqual({
-      url: 'http://127.0.0.1:54321/storage/v1/object/sign/corpus/part1.pdf?token=t1',
+      url: `http://127.0.0.1:54321/storage/v1/object/sign/corpus/files/${'1'.repeat(64)}.pdf?token=t1`,
       partIndex: 1,
       pageOffset: 10,
       pageCount: 15,
@@ -123,9 +123,9 @@ describe('createDocumentFileClient.partFor', () => {
   });
 
   it('accepts a base URL without a trailing slash and a signed path with a leading one', async () => {
-    const request = async () => ({ ok: true, signed_path: '/object/sign/corpus/x.pdf?token=a', ...PARTS[0], expires_in: 300 });
+    const request = async () => ({ ok: true, signed_path: `/object/sign/corpus/files/${'d'.repeat(64)}.pdf?token=a`, ...PARTS[0], expires_in: 300 });
     const client = createDocumentFileClient({ request, baseUrl: 'https://abc.supabase.co', now: clock().now });
-    expect((await client.partFor(DOC, 1)).url).toBe('https://abc.supabase.co/storage/v1/object/sign/corpus/x.pdf?token=a');
+    expect((await client.partFor(DOC, 1)).url).toBe(`https://abc.supabase.co/storage/v1/object/sign/corpus/files/${'d'.repeat(64)}.pdf?token=a`);
   });
 });
 
@@ -160,11 +160,11 @@ describe('createDocumentFileClient refusals', () => {
       null,
       { ok: true, ...PARTS[0], expires_in: 300 },
       { ok: true, signed_path: '', ...PARTS[0], expires_in: 300 },
-      { ok: true, signed_path: 'object/sign/a', ...PARTS[0], byte_size: 0, expires_in: 300 },
-      { ok: true, signed_path: 'object/sign/a', ...PARTS[0], page_count: 0, expires_in: 300 },
-      { ok: true, signed_path: 'object/sign/a', ...PARTS[0], expires_in: 'soon' },
+      { ok: true, signed_path: `object/sign/corpus/files/${'e'.repeat(64)}.pdf?token=a`, ...PARTS[0], byte_size: 0, expires_in: 300 },
+      { ok: true, signed_path: `object/sign/corpus/files/${'e'.repeat(64)}.pdf?token=a`, ...PARTS[0], page_count: 0, expires_in: 300 },
+      { ok: true, signed_path: `object/sign/corpus/files/${'e'.repeat(64)}.pdf?token=a`, ...PARTS[0], expires_in: 'soon' },
       // A part that does not hold the requested page.
-      { ok: true, signed_path: 'object/sign/a', ...PARTS[1], expires_in: 300 },
+      { ok: true, signed_path: `object/sign/corpus/files/${'e'.repeat(64)}.pdf?token=a`, ...PARTS[1], expires_in: 300 },
     ];
     for (const body of bad) {
       let calls = 0;
@@ -190,10 +190,36 @@ describe('createDocumentFileClient refusals', () => {
     const request = async () => {
       n += 1;
       if (n === 1) throw new Error('offline');
-      return { ok: true, signed_path: 'object/sign/a', ...PARTS[0], expires_in: 300 };
+      return { ok: true, signed_path: `object/sign/corpus/files/${'e'.repeat(64)}.pdf?token=a`, ...PARTS[0], expires_in: 300 };
     };
     const client = createDocumentFileClient({ request, baseUrl: BASE, now: clock().now });
     await failure(client.partFor(DOC, 1));
     expect((await client.partFor(DOC, 1)).partIndex).toBe(0);
+  });
+});
+
+// Security review L2 (2026-10-01): a tampered signed_path could climb out of /storage/v1 on the
+// project origin. Only the shape the function produces is accepted.
+describe('createDocumentFileClient signed_path shape', () => {
+  const SHA = 'a'.repeat(64);
+  const shaped = (signed_path) => async () => ({ ok: true, signed_path, ...PARTS[0], expires_in: 300 });
+  it('refuses any signed_path that is not object/sign/corpus/files/<sha256>.pdf with a token', async () => {
+    for (const bad of [
+      '../../rest/v1/user_profiles?select=*',
+      '..\\..\\auth/v1/user',
+      `object/sign/corpus/../../../rest/v1/x?token=a`,
+      `object/sign/corpus/files/../../../../auth/v1/user?token=a`,
+      `object/sign/avatars/files/${SHA}.pdf?token=a`,
+      `object/sign/corpus/files/${SHA}.pdf`,
+      `object/sign/corpus/staging/${SHA}.pdf?token=a`,
+    ]) {
+      const client = createDocumentFileClient({ request: shaped(bad), baseUrl: BASE });
+      expect((await failure(client.partFor(DOC, 1))).code, bad).toBe('bad_response');
+    }
+  });
+  it('accepts the shape the function produces, on the client\'s own origin', async () => {
+    const client = createDocumentFileClient({ request: shaped(`object/sign/corpus/files/${SHA}.pdf?token=abc.def`), baseUrl: BASE });
+    const part = await client.partFor(DOC, 1);
+    expect(part.url).toBe(`http://127.0.0.1:54321/storage/v1/object/sign/corpus/files/${SHA}.pdf?token=abc.def`);
   });
 });

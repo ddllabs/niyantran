@@ -137,3 +137,51 @@ describe('createRangeReader', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+// Security review L3 (2026-10-01): reads are cancellable, time out, and never download a whole
+// part that Storage failed to slice.
+describe('createRangeReader cancellation, timeout and unsliced replies', () => {
+  /** A fetch that never answers until its signal aborts. */
+  function stalledFetch() {
+    const calls = [];
+    const fetch = (url, init) => new Promise((_, reject) => {
+      calls.push(init);
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    });
+    return { fetch, calls };
+  }
+
+  it('aborts an in-flight read when the reader\'s signal fires, without a retry', async () => {
+    const u = urls();
+    const { fetch, calls } = stalledFetch();
+    const outer = new AbortController();
+    const reader = createRangeReader({ ...u, fetch, signal: outer.signal, timeoutMs: 60_000 });
+    const pending = failure(reader.read(0, 10));
+    await Promise.resolve();
+    outer.abort();
+    const error = await pending;
+    expect(error.message).toBe(PDF_FETCH_FAILED);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].signal.aborted).toBe(true);
+  });
+
+  it('times out a stalled fetch, renews once, then gives the fixed error', async () => {
+    const u = urls();
+    const { fetch, calls } = stalledFetch();
+    const reader = createRangeReader({ ...u, fetch, timeoutMs: 5 });
+    const error = await failure(reader.read(0, 10));
+    expect(error.message).toBe(PDF_FETCH_FAILED);
+    expect(calls).toHaveLength(2);
+    expect(u.state.invalidations).toBeGreaterThanOrEqual(1);
+  });
+
+  it('refuses a 200 whose length is not the range without reading its body', async () => {
+    let pulled = 0;
+    const body = new ReadableStream({ pull(c) { pulled += 1; if (pulled > 64) c.close(); else c.enqueue(new Uint8Array(1024)); } });
+    const fetch = async () => new Response(body, { status: 200, headers: { 'content-length': '50000000' } });
+    const reader = createRangeReader({ ...urls(), fetch });
+    const error = await failure(reader.read(0, 10));
+    expect(error.message).toBe(PDF_RANGE_MISMATCH);
+    expect(pulled).toBeLessThanOrEqual(1);
+  });
+});

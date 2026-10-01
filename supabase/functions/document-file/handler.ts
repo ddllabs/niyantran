@@ -55,6 +55,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** What supabase-js's createSignedUrl returns after SUPABASE_URL: the corpus bucket's sign route. */
 const SIGN_PREFIX = '/storage/v1/';
 const SIGNED_PATH = /^object\/sign\/corpus\/[^?#]+\?(?:.*&)?token=[^&#]+/;
+/** The only part path ingest_register writes (content-addressed); anything else is never signed. */
+const PART_PATH = /^files\/[0-9a-f]{64}\.pdf$/;
 
 // ─── Dependencies ────────────────────────────────────────────────────────────
 
@@ -160,7 +162,12 @@ async function readBody(req: Request): Promise<{ document_id: string; page: numb
 function reply(body: unknown, status: number, cors: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...cors },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+      ...cors,
+    },
   });
 }
 
@@ -197,6 +204,7 @@ export async function handleDocumentFile(req: Request, deps: DocumentFileDeps): 
     if (!part) throw new Refusal('not_found');
     seen.part_index = part.part_index;
 
+    if (!PART_PATH.test(part.storage_path)) throw new Error('unexpected part path');
     const signedPath = relativeSignedPath(await deps.sign(part.storage_path, SIGN_SECONDS));
     if (!signedPath) throw new Error('unexpected signed URL shape');
 

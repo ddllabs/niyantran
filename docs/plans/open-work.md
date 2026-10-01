@@ -355,6 +355,13 @@ Follow-ups and findings:
   of widened turns and cap it.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
+- [ ] **F44.** The shared CORS allowlist's Vercel preview pattern (`_shared/cors.ts:21-36`;
+  production `ALLOWED_ORIGINS` includes it) matches any `niyantran-*-ddl-labs.vercel.app` host.
+  A third party could probably claim such a name.
+  - **Risk:** small, because functions authenticate with bearer tokens, not cookies.
+  - **Fix:** pin previews to the team scope, or drop them from production and point previews at
+    a separate Supabase project.
+  - Raised in the R6 security review (2026-10-01).
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.

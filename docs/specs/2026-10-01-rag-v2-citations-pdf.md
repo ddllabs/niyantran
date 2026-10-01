@@ -224,7 +224,7 @@ here for the owner's confirmation (open question 2).
   - `signed_path` is relative to `/storage/v1`, and the client prefixes its own Supabase URL.
   - This works locally, where the function sees `http://kong:8000`. It also means the server
     never tells the browser to fetch an arbitrary origin.
-- **Logging:** `user_id`, `document_id`, `part_index` and the outcome only. Never the path,
+- **Logging:** `user_id`, `document_id`, `page`, `part_index`, the outcome and the refusal code only. Never the path,
   the signature or the URL.
 - **CORS:** the `_shared/cors.ts` allowlist.
 - **No per-user cap in v1.** The client caches each part's signature until it expires; a cap

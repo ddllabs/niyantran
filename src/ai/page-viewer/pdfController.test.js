@@ -206,10 +206,25 @@ describe('createPdfController.render', () => {
     const fetch = vi.fn(async () => ({ status: 500, arrayBuffer: async () => new ArrayBuffer(0) }));
     const controller = createPdfController({ documentId: 'd1', documentFile, loadPdfjs: async () => pdfjs, fetch });
     const error = await controller.render({ page: 1, canvas: fakeCanvas(), width: 300 }).catch(e => e);
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('part=0'), { headers: { Range: 'bytes=0-1023' } });
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('part=0'), expect.objectContaining({ headers: { Range: 'bytes=0-1023' } }));
     expect(error.code).toBe(PDF_FETCH_FAILED);
     expect(String(error.message)).not.toContain('http');
     expect(pdfFailureNotice(error)).toBe(PDF_NOTICES.download);
+  });
+
+  // Security review L3: closing the part (destroy, part switch) cancels its in-flight range reads.
+  it('destroy aborts the part\'s in-flight range fetch', async () => {
+    const { pdfjs } = fakePdfjs({ range: 'request' });
+    const signals = [];
+    const fetch = vi.fn((url, init) => new Promise(() => { signals.push(init.signal); }));
+    const controller = createPdfController({ documentId: 'd1', documentFile: fakeDocumentFile(), loadPdfjs: async () => pdfjs, fetch });
+    controller.render({ page: 1, canvas: fakeCanvas(), width: 300 }).catch(() => {});
+    await flush();
+    await flush();
+    expect(signals).toHaveLength(1);
+    expect(signals[0].aborted).toBe(false);
+    controller.destroy();
+    expect(signals[0].aborted).toBe(true);
   });
 
   it('renews the signature for its own part when Storage refuses it', async () => {
