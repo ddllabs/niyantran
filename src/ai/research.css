@@ -75,7 +75,9 @@
 
 /* The reader opens in the citation overlay beside the chat (citation-overlay.css), not over it. */
 .ai-panel-background { display: contents; }
-.ai-shell-research { display: block; }
+/* Two classes: index.css's .ai-shell and .ai-shell-v2 (display: grid) load after this file and would
+   win a tie, leaving the wrapper in an auto row and the composer mid-panel (F46, panelLayout.test). */
+.ai-shell.ai-shell-research { display: block; }
 .ai-shell-research > .ai-panel-background {
   display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: 100%; min-height: 0;
