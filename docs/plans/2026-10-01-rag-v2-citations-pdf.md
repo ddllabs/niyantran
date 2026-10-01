@@ -51,6 +51,16 @@
   - the CORS preflight allows `Range`.
 - Record the response headers.
 - **If it fails,** stop and revise the spec (fallback: proxy ranges through the function).
+- **Result (2026-10-01, local, executed): passed.**
+  - **curl:** `Range: bytes=0-1023` gave `206 Partial Content`, with `content-range: bytes
+    0-1023/2744811` and `accept-ranges: bytes`. The preflight answered 200 with
+    `Access-Control-Allow-Headers: range`.
+  - **Browser** (a page on `http://localhost:5173`, fetching `127.0.0.1:54321`): both the first
+    1,024 bytes (`%PDF-1.7`) and the last 44,811 bytes came back as `206` with exact lengths.
+  - `Content-Range` is not readable from the page, as the review predicted. The transport
+    relies on `document_files.byte_size` and checks each body's length instead.
+  - **Hosted Storage still needs the same check.** It is measured in V8 step 1, with the
+    owner's go-ahead.
 
 **V2. `document-file`** (agent, M). In parallel with V3 and V4.
 - **Files:**
