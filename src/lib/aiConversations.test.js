@@ -443,6 +443,28 @@ describe('aiConversations (server-backed thread store)', () => {
     expect(activeAiChat().messages[0]).toMatchObject({timing:row.timing,model_requested:'requested-model',model_served:row.model_served,reasoning_effort:'high'});
   });
 
+  // F46: the ticker says "thought" only when the model reported reasoning tokens, and a reload
+  // never selected that count, so every saved turn said "waited". Only the two counts are read,
+  // never the rest of `usage` (cost and token totals stay server-side).
+  it('reload carries the reasoning-token count: the full total, or a partial observed count', async () => {
+    let selected = '';
+    const rows = [
+      {...MESSAGES[1], id:'m-total', reasoning_tokens:512, observed_reasoning_tokens:null},
+      {...MESSAGES[1], id:'m-partial', created_at:'2026-09-21T09:01:00Z', reasoning_tokens:null, observed_reasoning_tokens:96},
+      {...MESSAGES[1], id:'m-none', created_at:'2026-09-21T09:02:00Z', reasoning_tokens:0, observed_reasoning_tokens:null},
+    ];
+    const base = fakeClient({conversations:CONVERSATIONS,chat_messages:rows});
+    useClient({ ...base, from(table) { const q = base.from(table); const select = q.select; q.select = (cols) => { if (table === 'chat_messages') selected = cols; return select(cols); }; return q; } });
+    await hydrateConversations();
+    const byId = Object.fromEntries(activeAiChat().messages.map((m) => [m.id, m]));
+    expect(byId['m-total'].usage).toEqual({ reasoning_tokens: 512 });
+    expect(byId['m-partial'].usage).toEqual({ reasoning_tokens: 96 });
+    expect(byId['m-none'].usage).toEqual({ reasoning_tokens: 0 });
+    expect(selected).toContain('reasoning_tokens:usage->reasoning_tokens');
+    expect(selected).toContain('observed_reasoning_tokens:usage->observed->reasoning_tokens');
+    expect(selected).not.toMatch(/(^|,)\s*usage\s*(,|$)/);
+  });
+
   it('account change at the final verification await cannot bind an old owner or issue a query', async () => {
     const original=supabase.auth.getSession; let checks=0;
     vi.spyOn(supabase.auth,'getSession').mockImplementation(async()=>{

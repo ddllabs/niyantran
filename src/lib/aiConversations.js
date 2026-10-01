@@ -219,6 +219,17 @@ export async function hydrateConversations() {
   return loadAiState();
 }
 
+/**
+ * The one usage figure the thread shows: did the model reason ("thought" rather than "waited").
+ * The turn's total is null when any attempt was silent (research-chat telemetry), but a positive
+ * partial count still proves reasoning happened, so it is used when the total is missing.
+ */
+function reasoningUsage(m) {
+  const known = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
+  const count = known(m.reasoning_tokens) ?? known(m.observed_reasoning_tokens);
+  return count === null ? null : { reasoning_tokens: count };
+}
+
 export async function loadMessages(conversationId) {
   const snapshot = scope();
   if (!conversationId || !snapshot || !state.chats.some(c => c.id === conversationId)) return loadAiState();
@@ -226,7 +237,7 @@ export async function loadMessages(conversationId) {
   messageSequences.set(conversationId, sequence);
   if (!await verifiedScope(snapshot) || !bound(snapshot)) return loadAiState();
   const { data, error } = await Promise.resolve(snapshot.client.from('chat_messages')
-    .select('id, role, content, sources, follow_ups, activity, timing, model_requested, model_served, reasoning_effort, status, error_message, execution_expires_at, turn_key, created_at')
+    .select('id, role, content, sources, follow_ups, activity, timing, model_requested, model_served, reasoning_effort, status, error_message, execution_expires_at, turn_key, created_at, reasoning_tokens:usage->reasoning_tokens, observed_reasoning_tokens:usage->observed->reasoning_tokens')
     .eq('conversation_id', conversationId).eq('user_id', snapshot.identity.id)
     .order('created_at', { ascending: true })).catch(error => ({ error }));
   if (!await current(snapshot) || !bound(snapshot) || messageSequences.get(conversationId) !== sequence) return loadAiState();
@@ -236,6 +247,7 @@ export async function loadMessages(conversationId) {
     followUps: m.follow_ups || [], activity: m.activity || [], model: m.model_served || m.model_requested || '',
     timing: m.timing ?? null, model_requested: m.model_requested ?? null,
     model_served: m.model_served ?? null, reasoning_effort: m.reasoning_effort ?? null,
+    usage: reasoningUsage(m),
     status: m.status || 'complete', error: m.status === 'error' || m.status === 'interrupted',
     error_message: m.error_message ?? null, execution_expires_at: m.execution_expires_at ?? null,
     turn_key: m.turn_key ?? null, at: Date.parse(m.created_at || '') || Date.now(),
