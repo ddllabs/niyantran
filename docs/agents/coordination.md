@@ -1139,3 +1139,27 @@ first: `docs/research/2026-10-01-admin-records-local-run.md`.
 - **Still to do:** step 4, the owner's three signed-in checks. Then R8 is marked done.
 - **Safe in between:** the deployed `admin-ingest` works with the new SQL, because
   `ingest_discard`'s `p_actor` has a default.
+
+### Operations — 2026-10-01, evening (R6 citations-pdf, V8 step 1: `document-file`)
+
+Authorised by the owner: "Deploy document-file to NTER". Code from `task/rag-v2-citations-pdf`
+at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pdf-local-run.md`.
+
+- **Deployed `document-file`** (new; `verify_jwt` off; `requireUser` in the handler) with
+  `supabase functions deploy document-file --use-api`. No migration: the tables and grants it
+  reads already exist.
+- **Probes from `https://niyantran-six.vercel.app`:**
+  - preflight 204, with that exact origin allowed;
+  - no token: the function's own 401 `sign in to open this document`, with production CORS,
+    `cache-control: no-store` and `x-content-type-options: nosniff`;
+  - a malformed bearer: 401.
+- **From `https://evil.example.com`:** 204 with no `access-control-allow-origin`.
+- **Hosted Storage range check.** A 60-second signature was minted for the live Anti-Doping
+  part, `files/fadd34c6….pdf` (591,389 bytes), and probed with the production origin; the token
+  was not printed.
+  - The `Range` preflight returned 200, allowing the `range` header for any origin.
+  - Three ranges (start, middle, end) each returned **206** with exactly the requested bytes and
+    no content encoding.
+  - The signed path matches the client's strict pattern.
+- **Nothing else changed.** The deployed frontend does not call this function yet. That is V8
+  step 2, the frontend push, which needs its own go-ahead.
