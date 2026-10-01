@@ -1163,3 +1163,21 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - The signed path matches the client's strict pattern.
 - **Nothing else changed.** The deployed frontend does not call this function yet. That is V8
   step 2, the frontend push, which needs its own go-ahead.
+- **V8 step 2 (owner: "Push main to origin"):** `main` was fast-forwarded from `c9b4644` to
+  `af74493` (15 commits) and pushed. That includes R6 V2–V7, the security-review fixes, and the
+  R8 doc commits that were waiting.
+  - **Vercel:** production deploy `dpl_DUZ8uFa7Q2DPURCcokpo7KCqSaw7` is READY and aliased to
+    `niyantran-six.vercel.app`. The rollback candidate is the `c9b4644` deploy.
+  - **What is served:**
+    - the main entry, `index-Bi9s6Y2-.js`, is 641,594 bytes gzip, with no `GlobalWorkerOptions`
+      (pdf.js stays lazy);
+    - the viewer chunk, `PageViewer-ChvJnOpH.js`, contains "Open stored copy", the page bar,
+      the `document-file` client, the strict signed-path pattern and the no-location hint;
+    - the overlay code is in the main entry.
+- **Still to do: the owner's NTER checks.**
+  1. Citations from the Espionage and Anti-Doping bills: page, boxes and the Text view.
+  2. "Open stored copy" opens the PDF in a new tab.
+  3. A legacy citation still opens the old text reader.
+  4. After the split test, a citation in part 2 or 3.
+
+  Then R6 is marked done.
