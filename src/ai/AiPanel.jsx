@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -9,7 +9,7 @@ import './research.css';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker from './ModelPicker.jsx';
-import SourceList from './SourceList.jsx';
+import MessageRow from './MessageRow.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
 import CitationOverlay from './CitationOverlay.jsx';
@@ -378,7 +378,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // default, as the model picker shows it.
   const picked = { label: registry.models.find((m) => m.is_default)?.label || registry.models[0]?.label || 'Niyantran' };
   // One name per model: a saved turn stores only ids, so it is labelled here as the live one is.
-  const labelOf = (id) => registry.models.find((x) => x.model_id === id)?.label || id;
+  // Stable across renders (panel-loading spec E), so memoised message rows are not redrawn.
+  const labelOf = useCallback((id) => registry.models.find((x) => x.model_id === id)?.label || id, [registry.models]);
   const modelChoice = research.choice;
   const seedOwner = useRef(null);
   const scroller = useRef(null);
@@ -415,7 +416,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     ? stream.followUps
     : [...messages].reverse().find((m) => m.role === 'assistant' && m.followUps?.length)?.followUps || [];
   const streaming = Boolean(stream?.isStreaming);
-  const openSource = source => research.actions.openSource(source);
+  const openSource = useCallback((source) => research.actions.openSource(source), [research.actions]);
   const closeViewer = () => research.actions.closeViewer();
   useEffect(() => {
     setDragOver(false); setModelOpen(false); setFocusOpen(false); setHistoryOpen(false); setScopeNotice('');
@@ -958,20 +959,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ) : null}
           {messages.map((m) => (
-            <div key={m.id} className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
-              <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : (m.model ? labelOf(m.model) : picked.label)}</span>
-              {m.role === 'assistant' ? (
-                <>
-                  {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} labelOf={labelOf} sourceCount={(m.sources || []).filter(isReadableCitation).length} lang={lang} /> : null}
-                  <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={openSource} />
-                  {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
-                  {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
-                  {m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
-                </>
-              ) : (
-                m.content
-              )}
-            </div>
+            <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} />
           ))}
 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
