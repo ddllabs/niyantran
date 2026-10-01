@@ -1091,3 +1091,37 @@ the owner's go-ahead ("Go").
     - an upload completed with focus events fired during it.
 - **Still open:** Amendment A to the admin-upload spec (link an upload to its desk record),
   drafted for the owner. The owner's *Budget at a Glance* run is still to do.
+
+### Operations — 2026-10-01, midday (R8 Amendment A, C6 step 1: migration 41)
+
+Authorised by the owner: "Apply migration 20261001180000_corpus_records to NTER". Code from
+`task/admin-records` at `0768d33` (migration last changed in `249bd6e`). Local end-to-end run
+first: `docs/research/2026-10-01-admin-records-local-run.md`.
+
+- **Before:** the last migration was `20261001160000`. NTER held 2,339 documents and 54,259
+  chunks, one ingestion-v2 document (the bill, `bill:2025:XLV`), no duplicate keys and no
+  active jobs. The worker schedule was on.
+- **Migration 41** `20261001180000_corpus_records`:
+  - Applied with `supabase db query --linked` in one transaction, together with its
+    `schema_migrations` row (version, name and the file as its one statement).
+  - **New objects:**
+    - `corpus_admin_actions` (RLS on, empty);
+    - the D2 partial unique index `documents_v2_document_key_unique`;
+    - `ingest_jobs_document_created`.
+  - **Functions and execute rights:**
+    - `ingest_link`, `ingest_unlink`, `ingest_swap`, `ingest_delete` and `ingest_discard(uuid, uuid)`
+      are security definer;
+    - `ingest_register` is replaced and security definer;
+    - `admin_desk_records` and `admin_unlinked_documents` are security invoker;
+    - all eight are executable by service_role and by neither anon nor authenticated.
+- **After:**
+  - counts are unchanged: 2,339 documents and 54,259 chunks;
+  - the bill keeps `bill:2025:XLV`, and `admin_desk_records` returns it as `full_text`;
+  - coverage reads 9,415 keys, 1,236 with full text and 0 orphaned; the unlinked list is empty;
+  - `ingest-worker` cron runs after the migration succeeded.
+- **Still to do (each needs the owner's go-ahead):**
+  - step 2: deploy `admin-ingest` from `task/admin-records`;
+  - step 3: push the frontend;
+  - step 4: the owner's three signed-in checks.
+- **Safe in between:** the deployed `admin-ingest` works with the new SQL, because
+  `ingest_discard`'s `p_actor` has a default.
