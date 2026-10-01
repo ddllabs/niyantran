@@ -279,8 +279,12 @@ Part 2 needs its specs first, in this order:
   links need another route, such as an admin upload.
 - [ ] **R8. `admin-upload`.** A platform-admin upload tab, with splitting
   in the browser. Spec `specs/2026-10-01-rag-v2-admin-upload.md` (draft,
-  revision 2, awaiting the owner). Moved ahead of R5–R7 by the owner
+  approved 2026-10-01). Moved ahead of R5–R7 by the owner
   (2026-10-01): it is the milestone.
+  Built on `task/rag-v2-admin-upload` (B0–B4, checkpoint F). The local end
+  to end (B5) passed: `research/2026-10-01-admin-upload-local-run.md`. Next:
+  checkpoint G (the owner reads that report), then B6 on NTER with a go-ahead
+  per step.
 
 Follow-ups and findings:
 
@@ -310,6 +314,12 @@ Follow-ups and findings:
   containing "token" is hidden. So `embed_tokens` and other counts appear as
   `[redacted]` in Edge logs (seen in the I7 run). Redact known secret names
   and secret-shaped values instead.
+- [ ] **F38.** A sweeper for `corpus/staging/` objects older than 24 h, and
+  for content-addressed objects no document references after a discard
+  (admin-upload spec, "Follow-ups").
+- [ ] **F39.** `research-chat`'s `featureScopeOf` keeps only the first
+  spelling of a desk feature (`handler.ts:515-536`). It should collect every
+  spelling, e.g. "(RBI / SEBI / TRAI / CCI)" and "(RBI/SEBI/TRAI/CCI)".
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.
