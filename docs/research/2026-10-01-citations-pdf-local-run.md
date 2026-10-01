@@ -148,3 +148,54 @@ stored-copy button.
 - The env file and test-admin credentials are deleted.
 - The temporary launch entry is removed, and so are the fixtures (`ingest/r6/`).
 - Nothing was written to NTER.
+
+## Addendum: revision 4 (V7b, executed 2026-10-01)
+
+**Why.** The owner tested revision 3 on NTER and found bill pages too small to read. Spec
+revision 4 added a resizable overlay, "Fit text" as the default, zoom from 50% to 300%, and a
+full view.
+
+**Set-up.**
+- **Code:** `task/rag-v2-citations-pdf` at `7880492`, with W1, W2 and the fix below.
+- **Checkpoint J2:** lint clean; build ok; Vitest 1,677; Deno 807.
+- **Bundle check:** the main entry is 644,147 bytes gzip. The baseline was re-measured at
+  `f5637f9` for R6's intended growth of +2,476 B: the viewer branch, the overlay host and the
+  resize handles. There is no pdf.js in the main entry.
+- **Local stack:** rebuilt as before. The bill was attached to `bill:2025:XLV`, and *Budget at a
+  Glance* was uploaded standalone and then converted into the 3-part shape. Both were indexed in
+  one pass, with no CPU-limit hit this time.
+- **Cost:** $0.180 for OCR and two chat answers.
+- **Viewport:** 1440 × 900.
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | Fit text is the default; bill text is readable | **Pass, after a fix.** The page renders at 763 px instead of 447 in the default pane (96%), cropped to the text column; 5 boxes |
+| 2 | Outer edge drag | **Pass.** A real mouse drag took the overlay from 960 px to 1,191 px and stored the width once; the desk did not reflow |
+| 3 | Middle divider drag | **Pass.** The viewer went to 827 px (70%, stored 69.5) and Fit text re-fitted to 171%; boxes aligned. One frame mid-resize showed the old bitmap stretched (cosmetic) |
+| 4 | Zoom | **Pass.** + steps to 300% and then disables; the page area scrolls horizontally (1,395/795 px); canvas, boxes and text layer stay aligned to 0 px after scrolling |
+| 5 | Fit page and Fit width | **Pass.** Fit page: 50%, 557 px in a 558 px area. Fit width: 100%, 794 px in 795 px. Back to Fit text: 171%; the choice is remembered |
+| 6 | ⌘/Ctrl + wheel | **Pass.** 171% to 219% over the page, with `preventDefault`; a plain wheel is not intercepted |
+| 7 | Full view | **Pass.** A dialog of 1,392 × 852 at a 24 px inset, labelled with the title, focus inside; Fit text at 292%, 5 boxes; the inline canvas is unmounted while it is open |
+| 8 | Esc in full view | **Pass.** Only the dialog closed: the overlay and viewer stayed and focus returned to "Full view" |
+| 9 | Shared state | **Pass.** Text view and page 2 chosen in the full view were kept inline after closing |
+| 10 | Persistence and reset | **Pass.** 1,191 px and 70% survived a reload; double-clicking each handle reset 960 px and 50% and cleared storage |
+| 11 | The split budget | **Pass.** Page 12 from part 2 in Fit text (62%; the tables leave little margin to crop), 3 boxes on the cited table |
+
+**Fixed in the run (`7880492`).**
+- **The fault:** in Fit text the first view cut the left edge of the text off. The crop
+  (`overflow: hidden`) had `scrollLeft` 148, because `scrollIntoView({inline: 'center'})` on the
+  first box scrolls hidden-overflow ancestors too.
+- **The fix:**
+  - the crop now uses `overflow: clip`, which cannot be scrolled;
+  - the page area alone is scrolled to the box, using the new tested `scrollTargetFor`;
+  - a horizontal scroll happens only when the box is outside the visible width.
+- **Tests:** shown red first. Verified in the browser: crop scroll 0/0, and the full column
+  visible.
+
+**Not checked here.**
+- **Safari trackpad pinch:** it sends gesture events rather than ctrl+wheel, so it probably
+  zooms the browser rather than the page. − and + work everywhere.
+- **Touch and pen drags** on tablets wider than 900 px.
+- **Layout:** at the default 480 px half, the header's "Open stored copy (part 2 of 3)" wraps to
+  its own line, which is acceptable.
+- **The desk tour pop-up** reappears after a reload. That is pre-existing and unrelated.
