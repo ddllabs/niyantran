@@ -1,0 +1,77 @@
+/* The citation overlay (CitationOverlay.jsx; docs/specs/2026-10-01-rag-v2-citations-pdf.md,
+   decision 7). Closed, .cov is a transparent wrapper filling the dock. Open, it is fixed to the
+   viewport's right edge, max(50vw, 960px) wide and capped at the viewport, from the top of the
+   desk area to the bottom, split into two equal halves: the chat, then the viewer. The dock keeps
+   its grid track meanwhile, so nothing under the overlay is resized or reflowed.
+   --cov-shift and --cov-top are measured from the dock by CitationOverlay. */
+
+.cov {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+.cov-chat { position: relative; height: 100%; min-height: 0; min-width: 0; }
+.cov-viewer { position: relative; height: 100%; min-height: 0; min-width: 0; background: var(--panel, #fff); }
+
+.cov.is-opening,
+.cov.is-open,
+.cov.is-closing {
+  position: fixed;
+  top: var(--cov-top, 84px);
+  right: 0;
+  bottom: 0;
+  width: min(100vw, max(50vw, 960px));
+  height: auto;
+  /* Above the desk's own layers; .workspace is the stacking context, so app menus and modals
+     outside it still sit above the overlay. */
+  z-index: 100;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  background: var(--panel, #fff);
+  border-left: 1px solid var(--line, #e8ecf1);
+  box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
+}
+/* Slides out from the dock: it starts (and, closing, ends) with its left edge on the dock's. */
+.cov.is-opening,
+.cov.is-closing { transform: translateX(var(--cov-shift, 0px)); }
+.cov.is-open,
+.cov.is-closing { transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1); }
+.cov.is-opening { transition: none; }
+
+.cov-viewer { border-left: 1px solid var(--line, #e8ecf1); }
+/* WorkSurface fills its half rather than floating over a thread. */
+.cov-viewer > .ai-work-surface { border: 0; border-radius: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cov.is-open,
+  .cov.is-closing { transition: none; }
+}
+
+/* Phones and narrow screens, where the dock stacks under the desk: the chat stays where it is and
+   the viewer alone covers the app area below the top bars, with its "← Back" control. */
+@media (max-width: 900px) {
+  .cov.is-opening,
+  .cov.is-open,
+  .cov.is-closing {
+    position: static;
+    width: auto;
+    height: 100%;
+    transform: none;
+    transition: none;
+    grid-template-columns: minmax(0, 1fr);
+    border-left: 0;
+    box-shadow: none;
+  }
+  .cov-viewer {
+    position: fixed;
+    top: var(--cov-top, 0px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    height: auto;
+    border-left: 0;
+  }
+}

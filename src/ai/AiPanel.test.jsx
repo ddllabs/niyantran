@@ -25,7 +25,8 @@ it('opening a source lights the Work mode tab and leaves the tab reachable',()=>
  expect(open).toMatch(/class="ai-v2-work on"[^>]*aria-pressed="true"/);
  expect(open).toContain('ai-work-surface');
  expect(open).not.toMatch(/class="ai-panel-background"[^>]*inert/);
- expect(open).toMatch(/class="ai-v2-body"[^>]*inert/);
+ // R6 decision 7: the viewer now opens beside the chat, not over it, so the thread stays usable.
+ expect(open).not.toMatch(/class="ai-v2-body"[^>]*inert/);
  fake.research={...ready,viewer:null};
  const shut=renderToStaticMarkup(<AiPanel lang="en"/>);
  expect(shut).toMatch(/class="ai-v2-work"[^>]*aria-pressed="false"/);
@@ -273,4 +274,42 @@ it('coverage: an answer that lands after the attachments changed is dropped, and
  await Promise.resolve();await Promise.resolve();
  expect(answers).toEqual([]);
  stop2();
+});
+// R6 decision 7 (docs/specs/2026-10-01-rag-v2-citations-pdf.md): the citation overlay hosts the
+// viewer beside the chat instead of the work surface over it.
+it('the overlay hosts the viewer: closed, the chat alone; open, the chat left and the viewer right, outside the chat',()=>{
+ const ready={...fake.research,ready:true,loading:false,locked:false};
+ fake.research={...ready,viewer:null};
+ const shut=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(shut).toMatch(/^<div class="cov"><div class="cov-chat"><div class="ai-shell /);
+ expect(shut).not.toContain('cov-viewer');
+ fake.research={...ready,viewer:{kind:'list',source:null}};
+ const open=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(open).toMatch(/^<div class="cov is-open"><div class="cov-chat"><div class="ai-shell /);
+ expect(open).toMatch(/<div class="cov-viewer"><div class="ai-work-surface"/);
+ // The surface is no longer inside the chat's grid.
+ expect(open.slice(0,open.indexOf('<div class="cov-viewer">'))).not.toContain('ai-work-surface');
+});
+it('WorkSurface still receives the same props from the new host',async()=>{
+ const seen=[];
+ vi.resetModules();
+ vi.doMock('./WorkSurface.jsx',()=>({default:(props)=>{seen.push(props);return null;}}));
+ const {default:Panel}=await import('./AiPanel.jsx');
+ const viewer={kind:'list',source:null};const sources=[{kind:'text',id:1}];
+ fake.research={...fake.research,ready:true,loading:false,locked:true,viewer,sources,actions:{openSource(){},closeViewer(){}}};
+ renderToStaticMarkup(<Panel lang="en"/>);
+ vi.doUnmock('./WorkSurface.jsx');
+ expect(seen).toHaveLength(1);
+ const props=seen[0];
+ expect(Object.keys(props).sort()).toEqual(['locked','onAskAboutDocument','onClose','onOpen','sources','viewer']);
+ expect(props.viewer).toBe(viewer);
+ expect(props.sources).toBe(sources);
+ expect(props.locked).toBe(true);
+ for (const k of ['onOpen','onClose','onAskAboutDocument']) expect(typeof props[k]).toBe('function');
+});
+// The attachedKeys separator was a literal NUL byte, which made grep treat the file as binary.
+it('AiPanel.jsx contains no literal NUL byte',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('./AiPanel.jsx',import.meta.url));
+ expect(source.includes(0)).toBe(false);
 });

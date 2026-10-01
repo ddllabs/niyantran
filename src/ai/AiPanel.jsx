@@ -13,6 +13,7 @@ import ModelPicker from './ModelPicker.jsx';
 import SourceList from './SourceList.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
+import CitationOverlay from './CitationOverlay.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 
 export const FOCUS_OPTS = [
@@ -390,7 +391,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     [state],
   );
   const attachments = chat?.attachments || [];
-  const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join(' ');
+  const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join('\u0000');
   useEffect(() => {
     const stop = watchCoverage(attachedKeys, setIndexedKeys);
     if (!stop) setIndexedKeys(null);
@@ -467,7 +468,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   async function onDrop(e) {
     e.preventDefault();
     setDragOver(false);
-    if (viewer) return;
     const payload = readAiDrag(e);
     const files = [...(e.dataTransfer?.files || [])];
     await research.actions.attach(async () => [
@@ -577,19 +577,24 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     hi ? DOCS_WORK_HI : DOCS_WORK_EN,
   ];
 
+  // R6 decision 7: the viewer opens in the citation overlay, beside the chat rather than over it.
+  // The chat keeps its place in the tree whether the overlay is open or not (CitationOverlay), so
+  // this component and its research hook are never remounted by opening a citation.
+  const evidence = viewer ? (
+    <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} onAskAboutDocument={onAskAboutDocument} locked={busy} />
+  ) : null;
+
   return (
+    <CitationOverlay open={Boolean(viewer)} viewer={evidence}>
     <div
       className={`ai-shell ai-shell-v2 ai-shell-research${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${historyOpen ? ' history-open' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
-        if (!busy && !viewer) setDragOver(true);
+        if (!busy) setDragOver(true);
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      {/* The surface is the Work mode tab's pane, not a cover over the panel:
-          only the thread it replaces goes inert, so the tab that closes it and
-          the composer stay reachable. */}
       <div className="ai-panel-background">
       <header className="ai-v2-head">
         <div className="ai-v2-title">
@@ -838,7 +843,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
       </div>
 
-      <div className="ai-v2-body" inert={viewer ? true : undefined}>
+      <div className="ai-v2-body">
         <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
           <Ico name="doc-plus" size={28} />
           <p>{hi ? 'तालिका से पंक्ति खींचें — या फ़ाइलें यहाँ छोड़ें' : 'Drag a row from the table — or drop files here'}</p>
@@ -1052,8 +1057,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         </form>
       </div>
-      {viewer ? <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} onAskAboutDocument={onAskAboutDocument} locked={busy} /> : null}
       </div>
     </div>
+    </CitationOverlay>
   );
 }
