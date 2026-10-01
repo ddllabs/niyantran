@@ -282,9 +282,11 @@ Part 2 needs its specs first, in this order:
   approved 2026-10-01). Moved ahead of R5–R7 by the owner
   (2026-10-01): it is the milestone.
   Built on `task/rag-v2-admin-upload` (B0–B4, checkpoint F). The local end
-  to end (B5) passed: `research/2026-10-01-admin-upload-local-run.md`. Next:
-  checkpoint G (the owner reads that report), then B6 on NTER with a go-ahead
-  per step.
+  to end (B5) passed: `research/2026-10-01-admin-upload-local-run.md`.
+  **Live on NTER, 2026-10-01** (`agents/coordination.md`): migration 40,
+  `admin-ingest`, the Documents tab, and the schedule ON. Remaining: the owner's
+  upload of *Budget at a Glance* with "split every 10 pages" and the citation
+  check on pages 10/11. Then mark R8 done and make the plan Historical.
 
 Follow-ups and findings:
 

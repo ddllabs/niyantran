@@ -1028,3 +1028,38 @@ ingestion. Code from `task/rag-v2-ingestion-v2` at `3a5655a`. Local end-to-end r
     focused, feature (*Bill Passage Probability Index*) and broad modes.
 - **The schedule is off:** no `ingest-worker` cron job exists. Nothing else is queued.
 - **Still open:** the owner's signed-in citation check. The PDF viewer and page UI are R6.
+
+### Operations — 2026-10-01, early hours (RAG v2 R8: admin upload, B6 steps 1–4)
+
+Authorised by the owner: "Go ahead with B6, do everything except my upload". Code from
+`main` at `75eb2cf`. Local end-to-end run first: `docs/research/2026-10-01-admin-upload-local-run.md`.
+
+- **Migration 40** `20261001160000_ingest_discard`:
+  - Applied with `supabase db query --linked` in one transaction, together with its
+    `schema_migrations` row.
+  - `ingest_discard(uuid)` is security definer with only `search_path` set, and only
+    service_role may execute it.
+  - The partial index `documents_file_sha256` was created.
+  - Counts are unchanged: 2,339 documents, 54,259 chunks, 1 job.
+- **Deployed `admin-ingest`** (new; `verify_jwt` off; admin check in the handler) with
+  `supabase functions deploy admin-ingest --use-api`.
+  - Probes from `https://niyantran-six.vercel.app`:
+    - preflight 204, with that exact origin allowed;
+    - no token: the function's own 401 `missing bearer token`, with production CORS;
+    - a malformed bearer: 401.
+  - From `https://evil.example.com`: no `access-control-allow-origin`.
+  - The admin-only 403 path was proven locally on all seven actions. Agents don't sign in
+    to production.
+- **Frontend:** `main` pushed at `75eb2cf`, and the Vercel production deploy is READY.
+  - The admin panel's new **Documents** tab ships as a lazy chunk,
+    `DocumentsPage-HmMf-9M4.js` (34.5 KB). It contains the `admin-ingest` calls.
+  - The main bundle contains no pdf-lib or pdfjs code.
+- **Schedule ON:** `scripts/ingest-ops.sh schedule on` created cron job 4, `ingest-worker`,
+  every 30 s.
+  - Its command reads the secret from Vault at run time; no secret is stored in the job.
+  - The first three runs succeeded, and the worker answered 202 to each. They were idle
+    passes, with no jobs queued.
+  - To stop it: `scripts/ingest-ops.sh schedule off`.
+- **Remaining (owner):** step 5. Sign in to `/admin`, open Documents, and upload
+  `ingest/pilot/budget-at-a-glance.pdf` with "split every 10 pages" (3 parts, about $0.10).
+  Then check citations on pages 10 and 11 in the chat. After that, R8 is done.
