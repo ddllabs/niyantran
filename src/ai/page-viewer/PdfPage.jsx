@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { pageBoxes } from './pageModel.js';
-import { createWheelHandler } from './viewerDom.js';
+import { createWheelHandler, scrollTargetFor } from './viewerDom.js';
 import { NOTICES, overlayFor } from './viewerModel.js';
 import { layoutPage } from './zoomModel.js';
 
@@ -170,8 +170,12 @@ export default function PdfPage({
   const shownPage = current?.page ?? null;
   useEffect(() => {
     if (shownPage === null) return;
-    wrapRef.current?.scrollTo?.({ top: 0, left: 0 });
-    if (overlay.boxes.length) firstBoxRef.current?.scrollIntoView?.({ block: 'center', inline: 'center' });
+    const area = wrapRef.current;
+    area?.scrollTo?.({ top: 0, left: 0 });
+    const box = overlay.boxes.length ? firstBoxRef.current : null;
+    if (area && box?.getBoundingClientRect) {
+      area.scrollTo?.(scrollTargetFor(box.getBoundingClientRect(), area.getBoundingClientRect(), { top: 0, left: 0 }));
+    }
   }, [shownPage, overlay.boxes.length]);
 
   const styles = current ? cropStyles(current.layout) : null;

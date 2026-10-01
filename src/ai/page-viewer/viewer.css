@@ -64,7 +64,7 @@
 /* The clip: the content box (Fit text) or the whole page. The page inside keeps its full size
    and is shifted, so the text layer and the boxes stay in page coordinates. */
 .pv-crop {
-  position: relative; margin: 0 auto; min-height: 120px; overflow: hidden; background: white;
+  position: relative; margin: 0 auto; min-height: 120px; overflow: hidden; overflow: clip; background: white;
   box-shadow: 0 0 0 1px var(--line, #e4ddd4), var(--shadow, 0 1px 2px rgba(19, 19, 19, .06));
 }
 .pv-page { position: absolute; left: 0; top: 0; }

@@ -98,3 +98,18 @@ export function themeClassOf(element) {
   const host = element?.closest?.('[class*="theme-"]');
   return host ? [...host.classList].filter(name => name.startsWith('theme-')).join(' ') : '';
 }
+
+/**
+ * Where the page area should scroll to show a cited box: centred vertically; horizontally only when
+ * the box lies outside the visible width (a zoomed page). Rects are viewport rects (getBoundingClientRect);
+ * `current` is the area's scroll position. scrollIntoView is not used: it also scrolls the
+ * overflow-clipped crop, which hid the text's left edge (local run V7b, 2026-10-01).
+ */
+export function scrollTargetFor(box, area, current) {
+  const boxTop = box.top - area.top + current.top;
+  const top = Math.max(0, Math.round(boxTop + box.height / 2 - area.height / 2));
+  const boxLeft = box.left - area.left + current.left;
+  const visible = boxLeft >= current.left && boxLeft + box.width <= current.left + area.width;
+  const left = visible ? current.left : Math.max(0, Math.round(boxLeft + box.width / 2 - area.width / 2));
+  return { top, left };
+}

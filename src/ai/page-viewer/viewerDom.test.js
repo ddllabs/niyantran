@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  NARROW_QUERY, attachFullView, createWheelHandler, fullViewKeyHandler, isNarrow, themeClassOf,
+  NARROW_QUERY, attachFullView, createWheelHandler, fullViewKeyHandler, isNarrow, scrollTargetFor, themeClassOf,
 } from './viewerDom.js';
 
 const el = name => ({ name, focus: vi.fn() });
@@ -158,5 +158,24 @@ describe('themeClassOf', () => {
     expect(themeClassOf({ closest: () => host })).toBe('theme-dark');
     expect(themeClassOf({ closest: () => null })).toBe('');
     expect(themeClassOf(null)).toBe('');
+  });
+});
+
+// Local run V7b (2026-10-01): scrollIntoView({inline: 'center'}) scrolled the overflow-hidden crop
+// itself sideways and cut the text's left edge off. The page area alone is scrolled, by numbers.
+describe('scrollTargetFor', () => {
+  const area = { top: 100, left: 1000, width: 447, height: 600 };
+  it('centres the box vertically in the page area and keeps the horizontal position when the box is visible', () => {
+    const box = { top: 700, left: 1100, width: 120, height: 20 }; // 600 below the area top
+    expect(scrollTargetFor(box, area, { top: 0, left: 0 })).toEqual({ top: 600 + 10 - 300, left: 0 });
+  });
+  it('never scrolls above the top', () => {
+    expect(scrollTargetFor({ top: 120, left: 1100, width: 50, height: 10 }, area, { top: 0, left: 0 }).top).toBe(0);
+  });
+  it('moves horizontally only when the box is outside the visible width (zoomed in)', () => {
+    const right = { top: 300, left: 1600, width: 100, height: 20 }; // starts 600 px right of the area
+    expect(scrollTargetFor(right, area, { top: 0, left: 0 }).left).toBe(600 + 50 - 223);
+    const inside = { top: 300, left: 1300, width: 100, height: 20 };
+    expect(scrollTargetFor(inside, area, { top: 0, left: 0 }).left).toBe(0);
   });
 });
