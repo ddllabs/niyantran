@@ -1063,3 +1063,31 @@ Authorised by the owner: "Go ahead with B6, do everything except my upload". Cod
 - **Remaining (owner):** step 5. Sign in to `/admin`, open Documents, and upload
   `ingest/pilot/budget-at-a-glance.pdf` with "split every 10 pages" (3 parts, about $0.10).
   Then check citations on pages 10 and 11 in the chat. After that, R8 is done.
+
+### Operations — 2026-10-01, morning (R8 go-live fixes)
+
+The owner's first production upload attempt surfaced two problems; investigated and fixed with
+the owner's go-ahead ("Go").
+
+- **Data fix:** the 12-page bill registered in I8 had no `document_key`, so its desk row
+  (`bill:2025:XLV`) showed "Record only", and a dropped row widened to the whole corpus.
+  - `metadata.document_key = 'bill:2025:XLV'` was set on document `7d30c003…` (one row; guarded
+    on its id, its source key and an absent key).
+  - Verified as `authenticated`: the UI's coverage lookup finds the key, and a search scoped
+    to it returns only the bill's pages.
+  - The UI caches coverage per session, so a page reload is needed.
+- **Admin panel fix, deployed:** `main` pushed at `dcf7034`, and the Vercel production deploy is
+  READY.
+  - The cause: every window focus (closing the file picker included), and the same-user
+    `SIGNED_IN` supabase-js emits on refocus, re-verified the admin by first closing the panel.
+    That unmounted the open page, and the Documents tab lost the chosen file and form.
+  - NTER logs for 06:41–06:53 show 22 tab mounts and no upload request.
+  - Now: same-user re-checks run quietly, and a failed result still closes access at once. An
+    account change still clears access synchronously.
+  - Evidence:
+    - four new tests, each red first, and all 105 admin tests pass;
+    - in the browser, the old code lost the plan summary on one focus event; the fix kept it
+      through three focus events and a real token refresh;
+    - an upload completed with focus events fired during it.
+- **Still open:** Amendment A to the admin-upload spec (link an upload to its desk record),
+  drafted for the owner. The owner's *Budget at a Glance* run is still to do.

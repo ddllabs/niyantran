@@ -322,6 +322,15 @@ Follow-ups and findings:
 - [ ] **F39.** `research-chat`'s `featureScopeOf` keeps only the first
   spelling of a desk feature (`handler.ts:515-536`). It should collect every
   spelling, e.g. "(RBI / SEBI / TRAI / CCI)" and "(RBI/SEBI/TRAI/CCI)".
+- [ ] **F40.** Rows in 73 of 75 desk features carry no `document_key`, so a dropped row
+  from those desks can never attach its document. Only the two bill features have keys. This
+  needs stable keys from the loader for every row, and a generalised client key in place of
+  `billDocumentKey`. It is admin-upload Amendment A, part A4, and needs its own spec.
+- [ ] **F41.** A widened chat turn is slow: on 2026-10-01 a bill question waited 65 s, of which
+  Gemini Flash took 46 s on a 25,850-token prompt. Search took 0.6 s. Measure the prompt size
+  of widened turns and cap it.
+- [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
+  (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.
