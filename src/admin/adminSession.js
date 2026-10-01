@@ -109,34 +109,68 @@ export function createAdminSession(client, onChange, now = Date.now) {
     return generation;
   }
 
-  async function refresh() {
-    if (disposed || signedOut) return closed('signedOut');
-    const version = invalidate(closed('checking'));
+  // The admin verified last; a recheck of that same account keeps the panel up.
+  let verifiedUserId = null;
+
+  async function verify(version) {
     const state = await verifyAdminSession(client, now);
     if (disposed || version !== generation) return closed('signedOut');
+    verifiedUserId = state.status === 'verified' ? state.user.id : null;
     onChange(state);
     if (state.status === 'verified') {
-      timer = setTimeout(() => { void refresh(); }, Math.max(0, state.expiresAt - now()));
+      timer = setTimeout(() => { void recheck(); }, Math.max(0, state.expiresAt - now()));
     }
     return state;
   }
 
+  async function refresh() {
+    if (disposed || signedOut) return closed('signedOut');
+    verifiedUserId = null;
+    return verify(invalidate(closed('checking')));
+  }
+
+  /**
+   * Re-verify the admin already verified without first closing the panel: window focus, the
+   * same-user SIGNED_IN supabase-js emits on refocus, a token refresh, and the expiry timer.
+   * Closing first unmounted every page, so an upload in progress was lost. Pending checks are
+   * still invalidated, and any failed result still closes access; the server authorises every
+   * protected operation itself, so the panel staying up for the length of one check grants
+   * nothing. With no verified admin it is a full refresh.
+   */
+  async function recheck() {
+    if (disposed || signedOut) return closed('signedOut');
+    if (!verifiedUserId) return refresh();
+    generation += 1;
+    clearTimeout(timer);
+    return verify(generation);
+  }
+
   const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
     if (disposed || signedOut) return;
-    invalidate(closed(session ? 'checking' : 'signedOut'));
     // Auth callbacks must remain synchronous; defer SDK calls until the
     // callback has returned to avoid nested Auth lock acquisition.
+    if (session && verifiedUserId && session.user?.id === verifiedUserId) {
+      generation += 1;
+      clearTimeout(timer);
+      timer = setTimeout(() => { void recheck(); }, 0);
+      return;
+    }
+    // No session, or a different account: access is cleared synchronously.
+    verifiedUserId = null;
+    invalidate(closed(session ? 'checking' : 'signedOut'));
     if (session) timer = setTimeout(() => { void refresh(); }, 0);
   });
 
   return {
     refresh,
+    recheck,
     resume() {
       signedOut = false;
       return refresh();
     },
     async signOut() {
       signedOut = true;
+      verifiedUserId = null;
       invalidateLocalSession();
       const version = invalidate(closed('checking', 'Signing out…'));
       let message = '';

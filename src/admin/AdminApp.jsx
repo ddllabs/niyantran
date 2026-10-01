@@ -56,8 +56,10 @@ export default function AdminApp() {
       }
     });
     adminSession.current = session;
-    const recheck = () => { void session.refresh(); };
-    recheck();
+    // Focus rechecks quietly: a full refresh closed the panel while it checked, which unmounted
+    // the open page (an upload in the Documents tab was lost each time the file picker closed).
+    const recheck = () => { void session.recheck(); };
+    void session.refresh();
     window.addEventListener('focus', recheck);
     return () => {
       window.removeEventListener('focus', recheck);

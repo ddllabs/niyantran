@@ -295,6 +295,60 @@ describe('admin session lifecycle', () => {
     controller.dispose();
   });
 
+  // R8 go-live (2026-10-01): every window focus (closing the OS file picker included) and every
+  // same-user SIGNED_IN that supabase-js emits on refocus replaced the whole panel with the login
+  // screen while re-verifying, which unmounted the Documents tab and lost an upload in progress.
+  it('rechecks the same admin quietly: the panel never leaves the verified state while checking', async () => {
+    const { client } = fakeClient();
+    const changed = vi.fn();
+    const controller = createAdminSession(client, changed, () => NOW);
+    await controller.refresh();
+    const before = changed.mock.calls.length;
+    const pending = controller.recheck();
+    expect(changed.mock.calls.slice(before).some(([s]) => s.status !== 'verified')).toBe(false);
+    await pending;
+    expect(client.auth.getUser).toHaveBeenCalledTimes(2);
+    expect(changed.mock.calls.slice(before).map(([s]) => s.status)).toEqual(['verified']);
+    controller.dispose();
+  });
+
+  it('treats a same-user SIGNED_IN (supabase-js refocus) as a quiet recheck', async () => {
+    vi.useFakeTimers();
+    const { client, emit } = fakeClient();
+    const changed = vi.fn();
+    const controller = createAdminSession(client, changed, () => NOW);
+    await controller.refresh();
+    const before = changed.mock.calls.length;
+    emit('SIGNED_IN', session('admin-1'));
+    emit('TOKEN_REFRESHED', session('admin-1'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(changed.mock.calls.slice(before).some(([s]) => s.status !== 'verified')).toBe(false);
+    expect(client.auth.getUser.mock.calls.length).toBeGreaterThan(1);
+    controller.dispose();
+  });
+
+  it('a quiet recheck still closes access when admin authority is revoked', async () => {
+    const { client, state } = fakeClient();
+    const changed = vi.fn();
+    const controller = createAdminSession(client, changed, () => NOW);
+    await controller.refresh();
+    state.authority = false;
+    await controller.recheck();
+    expect(changed.mock.lastCall[0]).toMatchObject({ status: 'denied', user: null });
+    controller.dispose();
+  });
+
+  it('a quiet recheck before any verification behaves like a full refresh', async () => {
+    const { client } = fakeClient();
+    const changed = vi.fn();
+    const controller = createAdminSession(client, changed, () => NOW);
+    const pending = controller.recheck();
+    expect(changed.mock.lastCall[0]).toMatchObject({ status: 'checking', user: null });
+    await pending;
+    expect(changed.mock.lastCall[0].status).toBe('verified');
+    controller.dispose();
+  });
+
   it('unsubscribes and ignores a pending check after disposal', async () => {
     const { client, unsubscribe } = fakeClient();
     const auth = deferred();
