@@ -440,3 +440,8 @@ verify_jwt = false
 # admin-ingest verifies the caller itself (requireUser + is_platform_admin), so 401/403 carry CORS.
 [functions.admin-ingest]
 verify_jwt = false
+
+# document-file verifies the caller itself (requireUser), so its 401 carries CORS; it reads with the
+# caller's token (RLS) and uses the secret key only to sign one corpus part for 300 seconds.
+[functions.document-file]
+verify_jwt = false

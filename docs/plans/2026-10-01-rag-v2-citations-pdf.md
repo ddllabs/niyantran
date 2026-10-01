@@ -22,6 +22,11 @@
     - 401 `unauthorized`;
     - 404 `not_found` (missing, legacy, not live, no part);
     - 422 `bad_page`.
+    - **Added in V2 (accepted):**
+      - 503 `unavailable`, for a database, storage or Auth outage;
+      - `cache-control: no-store` on every reply;
+      - a method other than POST, after authentication, is 400;
+      - a body over 1 KB is 400.
 - **`src/lib/documentFile.js`**
   - `createDocumentFileClient({client, baseUrl, now})` returns `{partFor(documentId, page)}`.
   - `partFor` resolves to `{url, partIndex, pageOffset, pageCount, byteSize}`. The url is
