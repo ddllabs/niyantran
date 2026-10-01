@@ -665,6 +665,10 @@ begin
     raise exception 'ingest_swap: not_found: document %', p_new;
   end if;
   v_target := v_new.metadata->>'link_target';
+  -- Linked meanwhile (link clears link_target): the caller's view is out of date.
+  if v_new.storage_path is not null and v_target is null and v_new.metadata ? 'document_key' then
+    raise exception 'ingest_swap: stale: document % was linked to % meanwhile', p_new, v_new.metadata->>'document_key';
+  end if;
   if v_new.storage_path is null or v_target is null then
     raise exception 'ingest_swap: not_replacement: document % has no link_target', p_new;
   end if;
@@ -716,6 +720,8 @@ declare
   v_doc       public.documents%rowtype;
   v_cancelled uuid;
 begin
+  -- The active job first, then the document: ingest_activate's order, so the two cannot deadlock.
+  perform 1 from public.ingest_jobs where document_id = p_document and status in ('queued', 'running') for update;
   select * into v_doc from public.documents where id = p_document for update;
   if not found then
     raise exception 'ingest_delete: not_found: document %', p_document;
@@ -759,7 +765,8 @@ begin
   if not found then
     raise exception 'ingest_discard: document not found';
   end if;
-  if not starts_with(v_doc.source_key, 'upload:') then
+  -- A legacy document (storage_path null) is never modified, whatever its source key (D3).
+  if v_doc.storage_path is null or not starts_with(v_doc.source_key, 'upload:') then
     raise exception 'ingest_discard: not an upload';
   end if;
   if v_doc.indexed_at is not null or v_doc.extract_hash is not null then

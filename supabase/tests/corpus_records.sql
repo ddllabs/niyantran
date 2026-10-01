@@ -331,6 +331,9 @@ UPDATE documents SET metadata = metadata - 'document_key' WHERE id = pg_temp.id(
 
 SELECT pg_temp.refused_token($q$SELECT pg_temp.swap(pg_temp.id(999), NULL)$q$, 'ingest_swap', 'not_found', 'swap refuses a document that does not exist');
 SELECT pg_temp.refused_token($q$SELECT pg_temp.swap(pg_temp.id(130), NULL)$q$, 'ingest_swap', 'not_replacement', 'swap refuses a document without link_target');
+SELECT pg_temp.v2(135, 'Bill Passage Probability Index', '{"document_key": "bill:2021:10"}', true);  -- a replacement linked meanwhile
+SELECT pg_temp.refused_token($q$SELECT pg_temp.swap(pg_temp.id(135), NULL)$q$, 'ingest_swap', 'stale',
+                             'swap of a document that holds a key and no link_target (linked meanwhile) is stale, so the page reloads');
 SELECT pg_temp.refused_token($q$SELECT pg_temp.swap(pg_temp.id(131), NULL)$q$, 'ingest_swap', 'not_replacement', 'swap refuses a legacy document');
 SELECT pg_temp.refused_token($q$SELECT pg_temp.swap(pg_temp.id(103), pg_temp.id(130))$q$, 'ingest_swap', 'stale', 'swap refuses an expected old document that is not the one replaced');
 SELECT pg_temp.refused_token($q$SELECT pg_temp.swap(pg_temp.id(103), NULL)$q$, 'ingest_swap', 'stale', 'swap refuses a null expected old document when one is replaced');
@@ -470,6 +473,9 @@ DECLARE r jsonb; BEGIN SET LOCAL ROLE service_role; r := public.ingest_discard(d
 CREATE FUNCTION pg_temp.discard(doc uuid, actor uuid) RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE r jsonb; BEGIN SET LOCAL ROLE service_role; r := public.ingest_discard(doc, actor); RESET ROLE; RETURN r; END; $$;
 SELECT pg_temp.refused($q$SELECT pg_temp.discard(pg_temp.id(140))$q$, 'ingest_discard: not an upload', 'discard still refuses a document that is not an upload');
+SELECT pg_temp.legacy(146, 'Bill Passage Probability Index', '{}', false, 'upload:' || pg_temp.h(146));
+SELECT pg_temp.refused($q$SELECT pg_temp.discard(pg_temp.id(146))$q$, 'ingest_discard: not an upload',
+                       'discard refuses a legacy document (no storage_path) even with an upload: source key (D3)');
 SELECT pg_temp.refused($q$SELECT pg_temp.discard(pg_temp.id(152))$q$, 'ingest_discard: already live', 'discard still refuses a live document');
 SELECT pg_temp.keep('discard150', $q$pg_temp.discard(pg_temp.id(150), pg_temp.id(504))$q$, 'discard accepts an actor');
 SELECT pg_temp.assert_true((SELECT r = '{"discarded": true}' FROM res WHERE k = 'discard150') AND NOT EXISTS (SELECT FROM documents WHERE id = pg_temp.id(150)),
@@ -868,9 +874,29 @@ SELECT fixture_dblink.dblink_exec('rec_a', 'COMMIT');
 SELECT pg_temp.assert_true((SELECT r::jsonb FROM fixture_dblink.dblink_get_result('rec_b') AS t(r text))
                            = jsonb_build_object('document_id', pg_temp.id(304), 'document_key', 'bill:2040:2', 'old_document_id', NULL),
                            'a swap that waited on the old document re-reads it and links the new one directly');
+-- (c) ingest_activate locks the job, then the document. Session A takes the
+-- running job's row lock as activate does; B's delete must wait on that job
+-- without holding the document, so A can still lock the document (NOWAIT).
+-- Holding the document first would deadlock with activate.
+SELECT * FROM fixture_dblink.dblink_get_result('rec_b') AS t(r text);  -- drain (b)'s async query before the next
+SELECT pg_temp.v2(305, 'Bill Passage Probability Index');
+SELECT pg_temp.job(pg_temp.id(305), 'running');
+SELECT fixture_dblink.dblink_exec('rec_a', 'BEGIN');
+SELECT fixture_dblink.dblink_exec('rec_a', $q$DO $d$ BEGIN PERFORM 1 FROM public.ingest_jobs WHERE document_id = 'c0000000-0000-4000-8000-000000000305' FOR UPDATE; END $d$$q$);
+SELECT fixture_dblink.dblink_send_query('rec_b', $q$SELECT public.ingest_delete('c0000000-0000-4000-8000-000000000305', NULL)::text$q$);
+SELECT pg_sleep(0.5);
+SELECT pg_temp.assert_true(fixture_dblink.dblink_is_busy('rec_b') = 1, 'session B''s delete waits on the running job''s lock');
+SELECT pg_temp.assert_true(fixture_dblink.dblink_exec('rec_a', $q$DO $d$ BEGIN PERFORM 1 FROM public.documents WHERE id = 'c0000000-0000-4000-8000-000000000305' FOR UPDATE NOWAIT; END $d$$q$, false) = 'DO',
+                           'a delete waiting on the job holds no lock on the document, so it cannot deadlock with ingest_activate (job, then document)');
+SELECT fixture_dblink.dblink_exec('rec_a', 'COMMIT');
+SELECT pg_temp.assert_true((SELECT r::jsonb FROM fixture_dblink.dblink_get_result('rec_b') AS t(r text)) = '{"deleted": true}',
+                           'the delete that waited on the job then succeeds');
+-- A new statement: the one above took its snapshot before B committed.
+SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM documents WHERE id = pg_temp.id(305)), 'the delete that waited on the job removed the document');
+SELECT * FROM fixture_dblink.dblink_get_result('rec_b') AS t(r text);
 SELECT fixture_dblink.dblink_disconnect('rec_a');
 SELECT fixture_dblink.dblink_disconnect('rec_b');
-DELETE FROM corpus_admin_actions WHERE document_id IN (pg_temp.id(301), pg_temp.id(302), pg_temp.id(303), pg_temp.id(304));
+DELETE FROM corpus_admin_actions WHERE document_id IN (pg_temp.id(301), pg_temp.id(302), pg_temp.id(303), pg_temp.id(304), pg_temp.id(305));
 DELETE FROM documents WHERE id IN (pg_temp.id(301), pg_temp.id(302), pg_temp.id(303), pg_temp.id(304));
 DELETE FROM desk_rows WHERE row_key = 'lock1';
 DROP EXTENSION dblink;
