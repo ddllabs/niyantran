@@ -1211,3 +1211,14 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - R8: the split upload and a delete.
 
     Then R6 and R8 are marked done.
+- **F46 chat bug fixes, frontend push (2026-10-02)** (owner: "Push main to origin"). `main` was
+  fast-forwarded from `3a44ff2` to `b3b95d0` and pushed. Contents:
+  - the R6 close-out records and the chat experience review;
+  - fixes `7abd31e` (saved search steps), `a5f84af` (reasoning count on reload), `8dfc571` (one
+    model label; the thread opens at its newest message) and `cd6a7ac` (composer pinned).
+  - **Vercel:** production deploy `dpl_5WCLM1iyktUjXDBTYiJiADinqrg6` is READY on
+    `niyantran-six.vercel.app`.
+  - **Served files:** main entry `index-CHscyyjr.js`, with the reasoning-count select and no
+    `GlobalWorkerOptions`; stylesheet `index-5HWPu5-g.css`, with
+    `.ai-shell.ai-shell-research{display:block}`.
+  - No server or database change.
