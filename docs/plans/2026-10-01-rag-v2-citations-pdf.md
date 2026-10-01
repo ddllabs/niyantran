@@ -148,6 +148,18 @@ including:
 
 Write it up as `docs/research/<date>-citations-pdf-local-run.md`.
 
+- **Box-alignment measurement (2026-10-01, executed ahead of V7):** three generated one-page
+  fixtures in `ingest/r6/`: plain, `/Rotate 90`, and a CropBox of 540×640 inside a 612×792
+  MediaBox. Each page carries three text markers at known positions.
+  - **Method:** each page was OCR'd directly by `mistral-ocr-4-1`, with the worker's flags and a
+    base64 document. It cost 3 pages, about $0.012. Each marker's pdf.js text origin was then
+    compared with Mistral's normalised block box.
+  - **Result:** all 9 markers lie inside their Mistral box.
+    - Mistral rasterises the CropBox with `/Rotate` applied, exactly as pdf.js renders it: the
+      rotated page is reported as 1023×791.
+    - The aspect ratios agree to within 0.1% (0.773/0.773, 1.293/1.294, 0.844/0.844), so the 2%
+      guard does not trip on these pages.
+
 **Checkpoint K.** The owner reads the report.
 
 **V8. NTER**, each step with its own go-ahead:
