@@ -431,7 +431,7 @@ every migration. The same migration adds an index on `documents.file_sha256`
 3. **Every platform admin may upload and act on any job,** as recommended, or
    the owner only?
 
-## Amendment A (revision 3): records-first document management (draft, 2026-10-01, awaiting the owner)
+## Amendment A (revision 3): records-first document management (approved by the owner, 2026-10-01)
 
 > **History.**
 > - Revision 1 (a record picker in the upload form) was replaced on the owner's direction.
