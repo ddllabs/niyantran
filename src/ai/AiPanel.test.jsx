@@ -333,3 +333,17 @@ it('AiPanel.jsx contains no literal NUL byte',async()=>{
  const source=readFileSync(new URL('./AiPanel.jsx',import.meta.url));
  expect(source.includes(0)).toBe(false);
 });
+// F46: a live answer was headed by the admin label ("Gemini - Flash") and the same answer, once
+// saved, by the raw id ("google/gemini-3.8-flash"), because only the ids are stored. Both now
+// show the registry label; an id the registry no longer lists still shows as itself.
+it('a saved answer is headed by the model label, as the live one is, and so is "Answered by"',()=>{
+ const registry={models:[{model_id:'google/gemini-3.8-flash',label:'Gemini - Flash',is_default:true},{model_id:'anthropic/claude-sonnet-5',label:'Claude - Sonnet'}],roles:[]};
+ const saved={id:'a1',role:'assistant',content:'Answer',sources:[],model:'anthropic/claude-sonnet-5',model_requested:'google/gemini-3.8-flash',model_served:'anthropic/claude-sonnet-5',timing:{total_ms:2000,writing_ms:500}};
+ const retired={id:'a2',role:'assistant',content:'Older',sources:[],model:'old/model-x',model_served:'old/model-x',timing:{total_ms:900}};
+ fake.research={...fake.research,ready:true,loading:false,locked:false,registry,messages:[saved,retired]};
+ const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(html).toContain('<span>Claude - Sonnet</span>');
+ expect(html).not.toContain('<span>anthropic/claude-sonnet-5</span>');
+ expect(html).toContain('Answered by Claude - Sonnet');
+ expect(html).toContain('<span>old/model-x</span>');
+});

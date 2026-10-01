@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -15,6 +15,7 @@ import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
 import CitationOverlay from './CitationOverlay.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
+import { createStickToBottom } from './stickToBottom.js';
 
 export const FOCUS_OPTS = [
   { id: 'attached', en: 'Attached only', hi: 'केवल संलग्न', hint: 'Pins and files in this chat' },
@@ -377,6 +378,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // Label for an answer whose served model is not known yet: the registry's
   // default, as the model picker shows it.
   const picked = { label: registry.models.find((m) => m.is_default)?.label || registry.models[0]?.label || 'Niyantran' };
+  // One name per model: a saved turn stores only ids, so it is labelled here as the live one is.
+  const labelOf = (id) => registry.models.find((x) => x.model_id === id)?.label || id;
   const modelChoice = research.choice;
   const seedOwner = useRef(null);
   const scroller = useRef(null);
@@ -417,9 +420,30 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     setDragOver(false); setModelOpen(false); setFocusOpen(false); setHistoryOpen(false); setScopeNotice('');
   }, [research.identityVersion]);
 
+  // .ai-v2-body is the element that scrolls (index.css, .ai-v2-history); the thread opens on its
+  // newest message and follows it while the reader is at the bottom (F46).
+  const [stick] = useState(() => createStickToBottom(() => scroller.current));
+  const seenCount = useRef(0);
+  useLayoutEffect(() => {
+    stick.reset();
+    seenCount.current = 0;
+  }, [stick, chat?.id]);
+  const messageCount = messages.length;
+  const lastRole = messages[messageCount - 1]?.role;
+  useLayoutEffect(() => {
+    const sent = messageCount > seenCount.current && lastRole === 'user';
+    seenCount.current = messageCount;
+    stick.follow({ force: sent });
+  }, [stick, messageCount, lastRole, busy, stream?.streamingText]);
   useEffect(() => {
-    if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
-  }, [chat?.messages?.length, busy]);
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver !== 'function') return undefined;
+    // Pills, warnings and badges resize the body after the thread renders.
+    const observer = new ResizeObserver(() => stick.follow());
+    observer.observe(el);
+    if (el.querySelector('.ai-v2-history')) observer.observe(el.querySelector('.ai-v2-history'));
+    return () => observer.disconnect();
+  }, [stick]);
 
   useEffect(() => {
     if (!modelOpen && !focusOpen && !historyOpen) return undefined;
@@ -850,7 +874,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
       </div>
 
-      <div className="ai-v2-body">
+      <div ref={scroller} className="ai-v2-body" onScroll={() => stick.onScroll()}>
         <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
           <Ico name="doc-plus" size={28} />
           <p>{hi ? 'तालिका से पंक्ति खींचें — या फ़ाइलें यहाँ छोड़ें' : 'Drag a row from the table — or drop files here'}</p>
@@ -904,13 +928,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </ul>
         ) : null}
 
-        <div ref={scroller} className="ai-v2-history">
+        <div className="ai-v2-history">
           {messages.map((m) => (
             <div key={m.id} className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
-              <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : m.model || picked.label}</span>
+              <span>{m.role === 'user' ? (hi ? 'आप' : 'You') : (m.model ? labelOf(m.model) : picked.label)}</span>
               {m.role === 'assistant' ? (
                 <>
-                  {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} /> : null}
+                  {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} labelOf={labelOf} /> : null}
                   <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={openSource} />
                   {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={m.sources.filter(isReadableCitation)} onOpen={openSource} /> : null}
                   {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
@@ -925,13 +949,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
           {(research.live || research.submitting) && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
-              <span>{stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
-              <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} />
+              <span>{stream?.model?.served ? labelOf(stream.model.served) : registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
+              <ActivityTicker activity={stream?.activity || []} active={streaming} model={stream?.model} timing={stream?.timing} usage={stream?.usage} labelOf={labelOf} />
               {/* One indicator at a time: the card covers the wait before the stream
                   opens, and the ticker takes over once it does. Showing both stacked
                   two "thinking" states in every turn. */}
               {!streaming && !stream?.streamingText && (research.submitting || stream?.isPending || research.live) ? (
-                <NyAiThinking model={stream?.model?.served || registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label} lang={lang} />
+                <NyAiThinking model={stream?.model?.served ? labelOf(stream.model.served) : registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label} lang={lang} />
               ) : null}
               {stream?.streamingText ? (
                 <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} />
