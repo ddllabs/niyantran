@@ -184,3 +184,24 @@ V0 ─ V1 (gate) ─┬─ V2 (document-file) ───────────�
 | Boxes misalign on rotated or cropped pages | The aspect guard, plus fixtures in V7 |
 | The overlay fights the desk's own layout | A portal to the body, fixed position, and tested from both mount points |
 | The lazy chunk leaks into the main bundle | The bundle check fails the build |
+
+## Revision 4 tasks (approved 2026-10-01)
+
+- **W1. Resizable overlay** (agent, M; in parallel with W2).
+  - **Files:** `src/ai/CitationOverlay.jsx`, `src/ai/citationOverlayModel.js`,
+    `src/ai/citation-overlay.css` and their tests.
+  - **Acceptance:** spec revision 4, point 1.
+- **W2. Readable pages and full view** (agent, L; in parallel with W1).
+  - **Files:**
+    - `src/ai/page-viewer/*`, covering:
+      - the zoom and fit model;
+      - block reads in `viewerData.js`;
+      - the crop render in `PdfPage.jsx` / `pdfController.js`;
+      - the header controls;
+      - the full-view dialog;
+      - `viewer.css`;
+    - their tests.
+  - **Acceptance:** spec revision 4, points 2 and 3.
+- **Checkpoint J2:** lint, build, the bundle check, both test suites, and a review of the diffs.
+- **V7b. Local browser run**, with an addendum written into the V7 report.
+- **V8b. NTER:** the frontend push, with its own go-ahead; then the owner's checks.

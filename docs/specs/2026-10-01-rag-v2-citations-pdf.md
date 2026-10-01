@@ -431,3 +431,76 @@ migrations, specs and pdf.js 4.10.38 sources. All findings were accepted.
   - O6: the stale wording follow-up;
   - O7: the missing tests;
   - the nits: zoom wording, 400 for malformed, an exact pdf.js pin.
+
+## Amendment (revision 4): resizable overlay, readable pages, full view (approved by the owner, 2026-10-01)
+
+**Why.** The owner tested revision 3 on NTER. The overlay's fixed halves render a bill page about
+470 px wide. Bills have wide margins, so body text comes out about 6 px tall. Zoom offered one step
+each way, and the only larger view was "Open stored copy", which has no highlights. TenderBase's
+in-panel view has the same limit; its full-file dialog has zoom but drops the highlights.
+
+**Decisions (owner, 2026-10-01):**
+
+1. **A resizable overlay.**
+   - **The outer edge.** The overlay's outer left edge gets a drag handle.
+     - The width runs from **960 px** (or the viewport, if narrower) to the **viewport width less
+       120 px**, so a sliver of the desk stays visible.
+   - **The middle divider.** A second handle between the chat and the viewer sets the viewer's
+     share between **30% and 75%** (default 50%).
+   - **Both handles:**
+     - are remembered per browser (try/catch storage);
+     - reset on double-click;
+     - have the `separator` role, with `aria-valuenow`, and move with the arrow keys (Shift for
+       bigger steps);
+     - turn transitions off while dragging;
+     - appear on desktop only. Phones keep the full-screen viewer.
+2. **Readable pages.**
+   - **The default is "Fit text".** The page is scaled so that the union of its body-block boxes
+     fills the pane width. Header and footer blocks are left out; margin notes are kept; there is
+     a small padding. The blank margins are cropped visually, and the text layer and highlight
+     boxes stay in page coordinates.
+     - With no block boxes for the page, it falls back to "Fit width".
+   - **"Fit width"** and **"Fit page"** are also offered.
+   - **Manual zoom:** steps from 50% to 300%, with a % readout. 100% is the PDF's natural size at
+     96 CSS px per inch.
+   - **Pointer zoom:** ⌘/Ctrl + wheel, and pinch (trackpads send ctrl+wheel), zoom only while the
+     pointer is inside the page.
+   - **Wider than the pane:** a zoomed page scrolls horizontally inside the viewer, never the
+     whole page.
+   - **Memory:** the chosen mode or zoom is remembered per browser.
+   - **Reads:** block boxes come from `document_page_blocks` (existing authenticated read grant),
+     for the document's `extract_hash`, one page at a time, with the page row.
+3. **Full view.**
+   - **Opening:** an "Expand" control opens the same viewer as a modal dialog over the whole
+     screen (24 px inset). It keeps:
+     - the highlights;
+     - the PDF | Text switch;
+     - the page bar;
+     - zoom, fit and "Open stored copy".
+   - **State:** the page, view and zoom are shared both ways with the overlay's viewer.
+   - **Closing:** Esc or the close control returns to the overlay, and Esc does not also close
+     the overlay.
+   - **Focus** is held in the dialog and returned on close.
+   - **Phones:** there is no Expand button, because the viewer is already full-screen.
+
+**Out of scope (follow-ups):**
+
+- all pages in one continuous scroll;
+- thumbnails;
+- in-document search (cheap later, from `document_pages.text`).
+
+**Testing:**
+
+- **Vitest:** each test is shown red first. They cover:
+  - the clamping and storage of both handles, and their keyboard steps;
+  - the Fit text and Fit page maths (crop, scale, and box positions inside the crop);
+  - the fallback with no blocks;
+  - zoom steps and the readout;
+  - ctrl+wheel handled only inside the page;
+  - Esc in the full view not closing the overlay.
+- **Local browser run:** a bill and the split budget, checking:
+  - resizing both handles;
+  - the default Fit text, so bill text is readable;
+  - zooming in, with horizontal scroll and the boxes still aligned;
+  - the full view and its Esc behaviour.
+- **NTER:** a frontend push only, with its own go-ahead.
