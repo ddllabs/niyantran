@@ -270,9 +270,10 @@ sequenceDiagram
 
 ---
 
-## 7. NyAI Thinking Animation & Streaming Transition Flow (CR-13)
+## 7. Thinking display and streaming transition (CR-13, replaced 2026-10-02)
 
-Provides an accessible, branded research assistant thinking state during LLM reasoning and retrieval before streaming tokens arrive.
+One indicator runs from Send to the answer (`docs/specs/2026-10-02-thinking-display.md`; the
+NyAI card was removed, ADR 0007 amended 2026-10-02).
 
 ```mermaid
 sequenceDiagram
@@ -280,27 +281,23 @@ sequenceDiagram
     actor Analyst as Analyst
     participant Panel as AI Panel (AiPanel.jsx)
     participant Thread as Research Thread Controller (useResearchThread.js)
-    participant Thinking as NyAI Thinking (NyAiThinking.jsx)
-    participant Gateway as Universal OpenRouter Gateway
+    participant Ticker as Activity ticker (ActivityTicker.jsx)
+    participant Chat as research-chat (Edge Function)
     participant Stream as Streaming Markdown (AiMarkdown.jsx)
 
-    Analyst->>Panel: Submits question ("Analyze bill amendments...")
+    Analyst->>Panel: Submits question
     Panel->>Thread: research.actions.send(turnPayload)
-    Thread->>Thread: Sets submitting=true, stream.isPending=true
-    Panel->>Thinking: Mounts <NyAiThinking model={modelChoice} lang={lang} />
-    Thinking-->>Analyst: Displays [NyAI icon] "NyAI is thinking..." + neural wave shimmer
-    Thread->>Gateway: Dispatches HTTP POST to research stream
-    Gateway-->>Thread: First token chunks arrive via SSE
-    Thread->>Thread: Populates stream.streamingText
-    Panel->>Thinking: streamingText is non-empty -> NyAiThinking unmounts
-    Panel->>Stream: Mounts <AiMarkdown text={stream.streamingText} streaming={true} />
-    Stream-->>Analyst: Live markdown answers stream onto the terminal
-    alt Request Complete
-        Gateway-->>Thread: SSE complete -> settles saved turn
-    else User Abort / Navigation
-        Analyst->>Thread: Cancels turn or navigates away
-        Thread->>Gateway: AbortController.abort()
-        Panel->>Thinking: Clears state -> No orphaned thinking indicators
+    Thread->>Thread: submitting=true
+    Panel->>Ticker: Mounts active: "Starting…" and an elapsed clock
+    Thread->>Chat: POST, SSE stream
+    Chat-->>Ticker: reasoning "Reading the question" (once per stage)
+    Chat-->>Ticker: tool start "Searching “q”…", then end "Searched “q” · N passages" plus found documents and pages
+    Ticker-->>Analyst: Steps and a "Found so far" line
+    Chat-->>Stream: answer chunks
+    alt Complete
+        Chat-->>Ticker: timing, done; the ticker collapses to "N searches · N sources · N s"
+    else Abort or error
+        Panel->>Ticker: In-flight block unmounts; no orphaned indicator
     end
 ```
 

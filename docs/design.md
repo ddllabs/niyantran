@@ -97,11 +97,18 @@ to backend contracts and does not establish a competing backend architecture.
 - **Data Invariant:** No synthetic headlines, fabricated dates, or generated live counts. When live ingests have not occurred, the interface explicitly signals "waiting for ingest" from fallback seeds.
 - **Visual Design Standard:** Public landing page features polished dark-mode aesthetics, responsive card grids, strong typography contrast, and high-visibility CTAs into research desks.
 
-### NyAI Thinking Component & State Engine (CR-13)
+### The thinking display (CR-13, replaced 2026-10-02)
 
-- **Dedicated Visual Indicator:** Canonical component (`NyAiThinking.jsx`) renders a branded neural diamond mark, localized status text ("NyAI is thinking"), and a pulsating wave shimmer.
-- **Accessibility Invariant:** Implements `role="status"`, `aria-live="polite"`, and `@media (prefers-reduced-motion: reduce)` compliance.
-- **Clean State Transitions:** Mounts when request is inflight/pending prior to the arrival of first stream tokens; transitions seamlessly into streaming markdown as soon as tokens arrive; guaranteed cleanup upon completion, cancel, or network error.
+- **One indicator from Send.** `ActivityTicker.jsx` opens as soon as the question is sent, on
+  "Starting…" with an elapsed clock. It labels each stage once ("Reading the question", "Reading
+  the results", "Writing the answer") and each search by what it did. A "Found so far" line names
+  the documents and pages the searches returned. The NyAI card it replaced was removed (ADR 0007,
+  amended 2026-10-02).
+- **Finished state.** It collapses to "N searches · N sources · N s", plus "Answered by …" when
+  another model answered. The details keep the steps, the finds and the timing buckets.
+- **Accessibility.** The status line is `role="status"` with `aria-live="polite"`. The client
+  strings have Hindi. There is no animation.
+- **Spec:** `docs/specs/2026-10-02-thinking-display.md`.
 
 ### Desk Landing Pages Architecture
 

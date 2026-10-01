@@ -4,7 +4,8 @@
 > **Date:** 2026-09-27
 > **Deciders:** Supervising Agent, Architecture Review
 > **Consulted:** AGENTS.md, docs/flow.md, docs/design.md, docs/decisions.md
-> **Amended:** 2026-09-28 (the NyAiThinking render rule and the news store; see the end)
+> **Amended:** 2026-09-28 (the NyAiThinking render rule and the news store); 2026-10-02 (decision 2
+> superseded: the NyAiThinking card is removed; see the end)
 
 ---
 
@@ -76,3 +77,25 @@ turn above is the only case.
 **Decision 1, backing store.** `server/nterNews.mjs` now reads articles from
 `public.nter_news_articles` in Supabase (7160391). The committed
 `public/data/nter-news.json` is only a read-only fallback seed.
+
+## Amendment (2026-10-02)
+
+**Decision 2 is superseded.** The owner decided on 2026-10-02 to drop the NyAI thinking card
+(`docs/specs/2026-10-02-thinking-display.md`, open-work F46).
+- **Why:**
+  - The card covered only the client's identity re-check before the request was sent, not any
+    model work.
+  - It then gave way, with no transition, to a differently sized activity ticker. In a recorded
+    turn the heights went 137, then 93, then 105 px (`docs/research/2026-10-02-chat-experience-review.md`, C3).
+- **What replaces it:** `NyAiThinking.jsx`, `nyAiThinking.css` and their test are deleted. The
+  `ActivityTicker` is now the one indicator from Send:
+  - It opens at once on "Starting…" (Hindi: "शुरू हो रहा है…") with an elapsed clock.
+  - It labels each stage once and each search by what it did.
+  - It says what the searches found.
+  - When the turn ends, it collapses to a one-line summary.
+- **What carries over from the card:**
+  - **The accessibility invariant:** the ticker's status line is `role="status"` with
+    `aria-live="polite"`.
+  - **Cleanup:** the in-flight block still unmounts on error and cancellation. The ticker has
+    no animation, so there is no motion to reduce.
+

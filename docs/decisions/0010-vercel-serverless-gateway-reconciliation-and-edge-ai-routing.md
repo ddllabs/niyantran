@@ -46,7 +46,7 @@ During initial deployment testing, the production console surfaced several issue
    - Pass `apikey` header (`SUPABASE_ANON_KEY`) alongside the `Authorization: Bearer <token>`.
    - Classify unauthenticated / auth-required errors as `401 Unauthorized` in `api/router.js`.
 4. **Preserve Client-Side Edge Streaming:**
-   The primary interactive research path in `AiPanel.jsx` continues to utilize `sendResearchTurn` connecting directly to Supabase Edge Functions with full SSE streaming and NyAiThinking animations.
+   The primary interactive research path in `AiPanel.jsx` continues to utilize `sendResearchTurn` connecting directly to Supabase Edge Functions with full SSE streaming and the activity ticker as its thinking indicator (the NyAiThinking card was removed on 2026-10-02, ADR 0007).
 
 ## Amendment (2026-09-28)
 

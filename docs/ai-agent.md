@@ -68,7 +68,7 @@ concrete evidence for the following gates:
 - [ ] `/api/livetv/*` routes (channels, live, videos, schedule, archive, transcript) return valid backend contracts with real YouTube sources and privacy-enhanced embeds without fabricated data. (On 2026-09-29 the code does not meet this: a hand-written transcript, an invented archive entry and placeholder programmes remain; open-work F7.)
 - [ ] `/api/home/segments` exposes 8 canonical analytical segments with authoritative live counts. (On 2026-09-29 the counts are literals in `server/homeApi.mjs`; open-work F18.)
 - [ ] `/api/home/latest` serves live NTER.news data; `NterLatestRail.jsx` replaces frozen Market Metrics in the primary position.
-- [ ] `NyAiThinking.jsx` renders accessible thinking state (`role="status"`, `aria-live="polite"`) during LLM generation and unmounts cleanly once streaming text arrives or on cancellation/error.
+- [ ] `ActivityTicker.jsx` is the one thinking indicator from Send (the NyAI card was removed, ADR 0007 amended 2026-10-02): its status line is `role="status"`, `aria-live="polite"`, and the in-flight block unmounts cleanly on completion, cancellation or error.
 - [ ] Desk Landing pages (`DeskLandingView.jsx`) replace text walls with live counters, module capability cards, and a real categorical chart derived from backend rows.
 - [ ] Client authentication gating preserves intended desk destination (`niyantranLand` and `niyantranFeature`) after login.
 - [ ] Client authentication gating in `App.jsx` reactively synchronizes with `subscribeLocalIdentity`.
@@ -78,7 +78,7 @@ concrete evidence for the following gates:
 - [ ] Zero unmerged Git conflicts (`git diff --name-only --diff-filter=U` returns empty).
 - [ ] `npm ci` executes cleanly.
 - [ ] `npm run build` succeeds with zero errors.
-- [ ] `npm test` passes all tests (including `nterNewsRail.test.jsx`, `nyAiThinking.test.jsx`, `deskLanding.test.jsx`).
+- [ ] `npm test` passes all tests (including `nterNewsRail.test.jsx`, `ActivityTicker.test.jsx`, `deskLanding.test.jsx`).
 - [ ] `deno test -A --config supabase/functions/deno.json supabase/functions` passes (required for changes under `src/lib/`, `src/admin/` or `supabase/`).
 - [ ] `npm run test:sql` passes, with no VACUITY FAIL, for SQL or migration changes (disposable local databases only).
 - [ ] Durable data files in `backup/` and `public/data/` are protected and unmodified.
