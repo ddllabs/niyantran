@@ -46,3 +46,23 @@ describe('createStickToBottom', () => {
     expect(() => createStickToBottom(() => null).follow()).not.toThrow();
   });
 });
+
+// panel-loading spec A: a hidden panel loses its scroll offset; reopening puts the reader back -
+// on the newest message if they were there, otherwise where they had scrolled to.
+describe('restore', () => {
+  it('a reader at the bottom reopens at the bottom, a reader who scrolled up reopens where they were', () => {
+    const el = box({ scrollTop: 2208 - 333 });
+    const stick = createStickToBottom(() => el);
+    stick.onScroll();
+    el.scrollTop = 0; el.scrollHeight = 2500; // hidden and shown again, content grew meanwhile
+    stick.restore();
+    expect(el.scrollTop).toBe(2500);
+
+    const up = box({ scrollTop: 640 });
+    const s2 = createStickToBottom(() => up);
+    s2.onScroll();
+    up.scrollTop = 0;
+    s2.restore();
+    expect(up.scrollTop).toBe(640);
+  });
+});

@@ -337,7 +337,7 @@ export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverag
   return () => { alive = false; clearInterval(id); };
 }
 
-export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose }) {
+export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true }) {
   const hi = lang === 'hi';
   const research = useResearchThread(true);
   const state = research.store;
@@ -395,10 +395,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const attachments = chat?.attachments || [];
   const attachedKeys = attachments.map((a) => a.document_key).filter(Boolean).join('\u0000');
   useEffect(() => {
+    // panel-loading A: a hidden panel stays mounted; its coverage re-check waits until it reopens.
+    if (!open) return undefined;
     const stop = watchCoverage(attachedKeys, setIndexedKeys);
     if (!stop) setIndexedKeys(null);
     return stop ?? undefined;
-  }, [attachedKeys]);
+  }, [attachedKeys, open]);
   const messages = research.messages.filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
@@ -441,6 +443,15 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // transport clears the stream as the answer is saved, a moment before `submitting` drops, and the
   // block must not render empty beside the saved answer.
   const showFlight = research.live || (research.submitting && lastRole === 'user');
+  // panel-loading A: closing hides the panel and closes any open citation (its outside-click
+  // listener goes with it); reopening puts the reader back where they were.
+  const closeOnHide = research.actions.closeViewer;
+  useEffect(() => {
+    if (!open) closeOnHide();
+  }, [open, closeOnHide]);
+  useLayoutEffect(() => {
+    if (open) stick.restore();
+  }, [open, stick]);
   useLayoutEffect(() => {
     const sent = messageCount > seenCount.current && lastRole === 'user';
     seenCount.current = messageCount;

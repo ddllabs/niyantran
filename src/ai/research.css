@@ -99,3 +99,6 @@
 /* F15: the pills are a <ul>; the items add no box, so the buttons stay flex items. */
 ul.ai-suggest { list-style: none; margin: 0; padding: 0; }
 ul.ai-suggest > li { display: contents; }
+
+/* panel-loading A: the dock stays mounted while closed; .ai-dock's display: grid must not override [hidden]. */
+.ai-dock[hidden] { display: none !important; }

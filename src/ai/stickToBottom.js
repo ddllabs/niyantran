@@ -7,6 +7,7 @@ const SLACK_PX = 48;
 
 export function createStickToBottom(getEl, slack = SLACK_PX) {
   let stuck = true;
+  let lastTop = 0;
   return {
     /** A new thread: start at the bottom again. */
     reset() {
@@ -15,7 +16,14 @@ export function createStickToBottom(getEl, slack = SLACK_PX) {
     /** The reader scrolled: stay stuck only while they are within `slack` of the bottom. */
     onScroll() {
       const el = getEl();
-      if (el) stuck = el.scrollHeight - el.scrollTop - el.clientHeight <= slack;
+      if (!el) return;
+      stuck = el.scrollHeight - el.scrollTop - el.clientHeight <= slack;
+      lastTop = el.scrollTop;
+    },
+    /** Shown again after being hidden (panel-loading A): the bottom if stuck, else where it was. */
+    restore() {
+      const el = getEl();
+      if (el) el.scrollTop = stuck ? el.scrollHeight : lastTop;
     },
     /** Content changed: follow it down if stuck, or always when `force` (the reader sent). */
     follow({ force = false } = {}) {
