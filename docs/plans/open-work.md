@@ -39,6 +39,13 @@ Current baseline (2026-09-29, evening):
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
+- **2026-10-02, F45 (local `main`, not yet pushed):** `0181b71`, wired in `ee206bb`.
+  - **Per-part requests:** the viewer passes the part layout it read from `document_files`, so
+    `document-file` is asked once per part, not once per page.
+  - **Ask state:** "Ask about this document" is disabled, with a reason, for a deleted or not-live
+    document.
+  - **Verified:** V7c on the local stack. Paging 21 times across a 3-part document made 3
+    requests.
 - **2026-10-01, F43 (local, `task/admin-records`):** `ad34438`. The chat panel kept
   resetting on every same-account auth event (tab refocus, token refresh), which dropped
   an unsent chat's attachments and draft and aborted a streaming answer. A same-account
@@ -365,11 +372,6 @@ Follow-ups and findings:
   of widened turns and cap it.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
-- [ ] **F45.** Page viewer polish (R6 local run):
-  - rapid paging inside a part whose signature has expired asks `document-file` once per page,
-    not once per part. The viewer knows the part layout from `document_files`, so it should key
-    requests by part;
-  - "Ask about this document" stays enabled on a deleted document's citation.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
