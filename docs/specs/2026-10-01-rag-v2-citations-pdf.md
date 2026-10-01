@@ -1,6 +1,15 @@
 # Spec: page-wise citation viewer (`citations-pdf`)
 
-> **Status: Normative — draft, revision 2 (2026-10-01), awaiting the owner's approval.**
+> **Status: Normative — revision 3, approved by the owner on 2026-10-01.**
+> The owner approved:
+> - all six recommendations below;
+> - "any signed-in user" may open and download the PDFs.
+>
+> The owner added:
+> - an "Open stored copy" button (decision 6);
+> - the overlay layout (decision 7).
+>
+> Each production action still gets its own go-ahead.
 > Module `citations-pdf` of `docs/specs/2026-09-30-rag-v2-capability-map.md` (open-work R6).
 > It depends on `chunk-contract` (R3) and `ingestion-v2` (R4), both live on NTER.
 > - **Design source:** the owner's direction of 2026-10-01 (open-work R6). The reference
@@ -95,12 +104,23 @@ here for the owner's confirmation (open question 2).
    a signature for the part holding the requested page, valid for **5 minutes**. The viewer
    fetches that part **by byte range**, renewing the signature whenever it expires, so neither
    a long stay on a page nor a 50 MB part breaks the view.
-6. **Out of v1:**
-   - the image strip and figure boxes;
-   - zoom beyond fit-width plus one step in each direction;
-   - a full-file download button.
-
-   The existing "Open file" link to the public source stays.
+6. **Out of v1:** the image strip and figure boxes, and zoom beyond fit-width plus one step
+   in each direction.
+   - **In v1, added by the owner:** an **"Open stored copy"** button that opens our stored PDF
+     in a new browser tab. For a split document it opens the part holding the current page,
+     labelled "part 2 of 3".
+   - The existing "Open file ↗" link to the public source stays.
+7. **Layout (owner, 2026-10-01): an overlay that widens the chat.**
+   - **Closed:** with no citation open, the chat stays on the right, as today.
+   - **Open:** when a citation opens, the chat pane animates out to the middle of the screen
+     as an **overlay**. The desk underneath is neither resized nor reflowed.
+   - **Split:** inside it, the chat takes the left half and the citation viewer the right
+     half, with equal space. This holds for the PDF and Text views, and for legacy text
+     citations too.
+   - **Closing:** closing the viewer animates the pane back to today's width.
+   - **Phones:** the overlay is full-screen, with the viewer over the chat and a back control.
+   - The current "Work mode" surface, which opens on top of the chat, is replaced by this
+     host.
 
 ## Design
 
@@ -229,8 +249,31 @@ here for the owner's confirmation (open question 2).
 
 ### Layout
 
-The viewer fills the existing work surface. The page renders at fit-width, with zoom − and +
-one step each way. On phones it uses the panel's full-width mode.
+- **The host.** The citation pane of decision 7 hosts the viewer, replacing the work surface
+  that opens on top of the chat.
+  - The overlay animates its width with a transform or width transition of about 250 ms.
+  - It honours `prefers-reduced-motion` by switching instantly.
+  - It traps no focus: the chat stays usable while a citation is open.
+  - `Esc` from the viewer closes it.
+- **Width:** the overlay's left edge sits at the middle of the screen. It is never narrower
+  than 960 px where the screen allows it, so each half is at least 480 px; on narrower screens
+  it widens leftward. It works the same whether the chat is the global dock or a desk's "AI
+  research" tab, because the overlay is portalled to the document body.
+- **The page** renders at fit-width within the right half, with zoom − and + one step each
+  way.
+- **Phones:** a full-screen viewer with a back control.
+
+### "Open stored copy"
+
+- **Visible** only when the document is live and has stored parts.
+- **On click:**
+  1. The button opens a blank tab synchronously, to avoid popup blocking.
+  2. It asks `document-file` for the current page's part.
+  3. It points the tab at the signed URL.
+  4. If that fails, it closes the tab and shows a fixed notice.
+- **The link** lasts 5 minutes, which is enough to load the file. It is opened, not stored or
+  logged. Browsers show it in the address bar, which is acceptable under decision 6 and the
+  any-signed-in-user rule.
 
 ## From TenderBase
 
@@ -342,11 +385,11 @@ Each test is shown red first.
   - the image strip, once documents have images.
 - **A per-user signing cap**, if the logs show abuse.
 
-## Open questions for the owner
+## Owner answers (2026-10-01)
 
-1. Approve the six decisions above (recommendations in bold)?
-2. Confirm that **any signed-in user may open, and therefore download, every uploaded PDF**.
-   This is the existing RAG v2 decision, stated plainly.
+1. The six decisions are approved as recommended. The owner added the "Open stored copy"
+   button and the overlay layout (decisions 6 and 7).
+2. Any signed-in user may open, and therefore download, every uploaded PDF: confirmed.
 
 ## Review record
 
