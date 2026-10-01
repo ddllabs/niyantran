@@ -22,9 +22,6 @@ export const NOTICES = Object.freeze({
 export const VIEW_KEY = 'niyantranCitationView';
 const VIEWS = new Set(['pdf', 'text']);
 
-/** Fit-width, with one step out and one step in (spec decision 6). */
-export const ZOOM_STEPS = Object.freeze([0.8, 1, 1.25]);
-
 const defaultStorage = () => {
   try {
     return globalThis.localStorage;

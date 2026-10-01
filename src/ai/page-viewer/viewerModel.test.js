@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalise, sha256Hex } from '../../lib/textNormalise.js';
 import {
-  NOTICES, VIEW_KEY, ZOOM_STEPS, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable,
+  NOTICES, VIEW_KEY, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable,
   readViewChoice, resolvePageSpan, sectionLabel, storedCopyLabel, writeViewChoice,
 } from './viewerModel.js';
 
@@ -160,13 +160,6 @@ describe('labels', () => {
     expect(sectionLabel({ heading: 'Chapter II' })).toBe('Chapter II');
     expect(sectionLabel({ note: 'Definitions' })).toBe('Definitions');
     expect(sectionLabel(undefined)).toBe('');
-  });
-
-  it('keeps one zoom step either side of fit-width', () => {
-    expect(ZOOM_STEPS).toHaveLength(3);
-    expect(ZOOM_STEPS[1]).toBe(1);
-    expect(ZOOM_STEPS[0]).toBeLessThan(1);
-    expect(ZOOM_STEPS[2]).toBeGreaterThan(1);
   });
 
   it('has the spec notices', () => {

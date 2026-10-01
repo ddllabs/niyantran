@@ -1,25 +1,43 @@
-/* The page-wise citation viewer (docs/specs/2026-10-01-rag-v2-citations-pdf.md). Tokens are the
-   AI panel's, as in research.css and reader.css, so the viewer follows .theme-dark with them.
+/* The page-wise citation viewer (docs/specs/2026-10-01-rag-v2-citations-pdf.md, revisions 3
+   and 4). Tokens are the AI panel's, as in research.css and reader.css, so the viewer follows
+   .theme-dark with them; the portalled full view carries the theme class itself.
    Loaded with the lazy page-viewer chunk only. */
 
 .pv { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .pv .ai-reader-notice { margin: 0; }
 .pv .ai-reader-body { margin: 0; }
 
-/* Header controls: the PDF | Text switch, zoom, and "Open stored copy". */
-.pv-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+/* In the PDF view the viewer fills its pane and the page area scrolls by itself (both ways),
+   so the header, controls and page bar stay in view and Fit page knows the height it has. */
+.pv.pv-fill { height: 100%; }
+.pv.pv-fill .pv-pdf { flex: 1 1 0; min-height: 240px; }
+
+/* Header controls: PDF | Text, fit, − readout +, Full view, and "Open stored copy". Sized to
+   keep the main row on one line in a ~480 px pane; the stored copy wraps right when it must. */
+.pv-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.pv-zoom-tools { display: inline-flex; align-items: center; gap: 6px; }
 .pv-switch, .pv-zoom { display: inline-flex; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; overflow: hidden; }
 .pv-switch button, .pv-zoom button {
-  min-width: 36px; min-height: 30px; padding: 4px 10px; border: 0; background: var(--panel, white);
+  min-width: 30px; min-height: 30px; padding: 4px 8px; border: 0; background: var(--panel, white);
   color: var(--text, #3d3a36); font: inherit; cursor: pointer;
 }
-.pv-switch button + button, .pv-zoom button + button { border-left: 1px solid var(--line, #e4ddd4); }
+.pv-switch button + button { border-left: 1px solid var(--line, #e4ddd4); }
 .pv-switch button[aria-pressed="true"] { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font-weight: 600; }
 .pv-zoom button:disabled { opacity: .45; cursor: not-allowed; }
-.pv-stored, .pv-retry {
+.pv-readout {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 0 4px;
+  border-left: 1px solid var(--line, #e4ddd4); border-right: 1px solid var(--line, #e4ddd4);
+  color: var(--text, #3d3a36); font-variant-numeric: tabular-nums;
+}
+.pv-fit {
+  min-height: 30px; max-width: 100px; padding: 4px 6px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
+  background: var(--panel, white); color: var(--text, #3d3a36); font: inherit; cursor: pointer;
+}
+.pv-stored, .pv-retry, .pv-expand {
   min-height: 30px; padding: 4px 10px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
   background: transparent; color: var(--accent, #012ea1); font: inherit; font-size: 12px; cursor: pointer;
 }
+.pv-expand { min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
 .pv-stored { margin-left: auto; }
 
 /* The page bar. */
@@ -34,17 +52,22 @@
 .pv-bar-label { color: var(--text, #3d3a36); font-variant-numeric: tabular-nums; }
 .pv-bar-back { margin-left: auto; }
 
-.pv :is(button, a):focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: 2px; }
+.pv :is(button, a, select):focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: 2px; }
 
 /* Visually hidden, still announced. */
 .pv-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-/* The PDF view. The wrapper is measured for fit-width; zoomed in, the page scrolls inside it. */
-.pv-pdf { position: relative; width: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; }
-.pv-page {
-  position: relative; margin: 0 auto; min-height: 120px; background: white;
+/* The PDF view. The page area is measured for the fit; a page wider (or taller) than it scrolls
+   inside it, never the document. The stable gutter keeps a scrollbar from changing the width it
+   was measured at. */
+.pv-pdf { position: relative; width: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+/* The clip: the content box (Fit text) or the whole page. The page inside keeps its full size
+   and is shifted, so the text layer and the boxes stay in page coordinates. */
+.pv-crop {
+  position: relative; margin: 0 auto; min-height: 120px; overflow: hidden; background: white;
   box-shadow: 0 0 0 1px var(--line, #e4ddd4), var(--shadow, 0 1px 2px rgba(19, 19, 19, .06));
 }
+.pv-page { position: absolute; left: 0; top: 0; }
 .pv-canvas { display: block; }
 .pv-page-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted, #6d675f); font-size: 12px; }
 
@@ -56,10 +79,26 @@
   mix-blend-mode: multiply;
 }
 .pv-page .textLayer { z-index: 2; }
-.pv-hint { margin: 0 0 8px; padding: 8px 12px; border-radius: 6px; background: var(--warn-bg, #f3e6d0); color: var(--text, #3d3a36); font-size: 12px; }
+.pv-hint { margin: 0; padding: 8px 12px; border-radius: 6px; background: var(--warn-bg, #f3e6d0); color: var(--text, #3d3a36); font-size: 12px; }
 
 /* The Text view. */
 .pv-text { padding-top: 4px; }
+
+/* The full view: the same viewer in a modal dialog over the whole screen, 24 px in. */
+.pv-full-root { position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, .45); }
+.pv-full {
+  position: absolute; inset: 24px; display: flex; flex-direction: column; min-height: 0; padding: 16px;
+  overflow: hidden; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; background: var(--panel, white);
+  color: var(--text, #3d3a36); font-family: var(--font-ui, Inter, Arial, sans-serif);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, .3);
+}
+.pv-full:focus { outline: none; }
+.pv-full > .pv { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.pv-full > .pv.pv-fill { height: auto; overflow: hidden; }
+.pv-close-full {
+  min-width: 30px; min-height: 30px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
+  background: transparent; color: var(--text, #3d3a36); font: inherit; font-size: 16px; cursor: pointer;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .pv * { scroll-behavior: auto !important; }

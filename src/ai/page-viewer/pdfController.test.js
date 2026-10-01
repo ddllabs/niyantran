@@ -121,7 +121,35 @@ describe('createPdfController.render', () => {
     expect(log.renders[0].params.transform).toEqual([2, 0, 0, 2, 0, 0]);
     expect(textLayer.props['--scale-factor']).toBe('0.5');
     expect(log.textLayers[0].options.container).toBe(textLayer);
-    expect(result).toEqual({ status: 'done', viewport: { width: 600, height: 800 }, cssWidth: 300, cssHeight: 400 });
+    expect(result).toEqual({ status: 'done', viewport: { width: 600, height: 800 }, scale: 0.5, cssWidth: 300, cssHeight: 400 });
+  });
+
+  it('renders the whole page at the scale chosen from its natural size (fit and zoom)', async () => {
+    const { controller, log } = setup();
+    const canvas = fakeCanvas();
+    const textLayer = fakeTextLayer();
+    const scaleFor = vi.fn(() => 2);
+    const pending = controller.render({ page: 1, canvas, textLayer, scaleFor, dpr: 1 });
+    await waitForRenders(log, 1);
+    log.renders[0].finish();
+    const result = await pending;
+    expect(scaleFor).toHaveBeenCalledWith({ width: 600, height: 800 });
+    expect(canvas.style).toEqual({ width: '1200px', height: '1600px' });
+    expect(textLayer.props['--scale-factor']).toBe('2');
+    expect(result).toEqual({ status: 'done', viewport: { width: 600, height: 800 }, scale: 2, cssWidth: 1200, cssHeight: 1600 });
+  });
+
+  it('cancels the in-flight render when the zoom changes', async () => {
+    const { controller, log } = setup();
+    const canvas = fakeCanvas();
+    const first = controller.render({ page: 1, canvas, scaleFor: () => 1 });
+    await waitForRenders(log, 1);
+    const second = controller.render({ page: 1, canvas, scaleFor: () => 1.5 });
+    expect(log.renders[0].cancel).toHaveBeenCalledTimes(1);
+    expect(await first).toEqual({ status: 'cancelled' });
+    await waitForRenders(log, 2);
+    log.renders[1].finish();
+    expect((await second).scale).toBe(1.5);
   });
 
   it('cancels the in-flight render when the reader pages again, and only the last one lands', async () => {

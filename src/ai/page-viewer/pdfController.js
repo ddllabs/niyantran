@@ -189,11 +189,13 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
   }
 
   /**
-   * Render 1-based `page` of the document into `canvas` (and its text into `textLayer`) at
-   * `width` CSS pixels × `zoom`. Resolves `{status: 'done', viewport, cssWidth, cssHeight}`, where
-   * `viewport` is the unscaled page size for the aspect guard, or `{status: 'cancelled'}`.
+   * Render 1-based `page` of the document into `canvas` (and its text into `textLayer`). The
+   * scale is `scaleFor(base)` when given — `base` is the page's unscaled viewport size, so a fit
+   * or zoom can be chosen from it — else `width` CSS pixels × `zoom`. Resolves `{status: 'done',
+   * viewport, scale, cssWidth, cssHeight}`, where `viewport` is the unscaled page size (for the
+   * aspect guard and the layout), or `{status: 'cancelled'}`.
    */
-  async function render({ page, canvas, textLayer = null, width, zoom = 1, dpr = 1 }) {
+  async function render({ page, canvas, textLayer = null, width, zoom = 1, scaleFor = null, dpr = 1 }) {
     cancel();
     const mine = { cancelled: false, renderTask: null, textLayer: null };
     job = mine;
@@ -208,7 +210,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
       if (mine.cancelled) return CANCELLED;
 
       const base = pdfPage.getViewport({ scale: 1 });
-      const scale = (width / base.width) * zoom;
+      const scale = scaleFor ? scaleFor({ width: base.width, height: base.height }) : (width / base.width) * zoom;
       const viewport = pdfPage.getViewport({ scale });
       const size = canvasSize(viewport.width, viewport.height, dpr);
       canvas.width = size.width;
@@ -231,7 +233,7 @@ export function createPdfController({ documentId, documentFile, loadPdfjs, fetch
         await race(mine.textLayer.render());
         if (mine.cancelled) return CANCELLED;
       }
-      return { status: 'done', viewport: { width: base.width, height: base.height }, cssWidth: size.cssWidth, cssHeight: size.cssHeight };
+      return { status: 'done', viewport: { width: base.width, height: base.height }, scale, cssWidth: size.cssWidth, cssHeight: size.cssHeight };
     } catch (error) {
       if (mine.cancelled || destroyed || CANCELLED_NAMES.has(error?.name)) return CANCELLED;
       // A failed part is not reused: Retry opens it afresh.
