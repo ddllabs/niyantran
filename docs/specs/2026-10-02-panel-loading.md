@@ -112,3 +112,27 @@ handler that changes them, so the shell renders the new layout once.
 - the agent loop's speed;
 - the phone dock height (F47);
 - streaming of the answer, already done.
+
+## Local browser run (executed 2026-10-02)
+
+**Setup:**
+- a local stack with two seeded accounts, A and B, and a 12-message thread for A;
+- the dev server on `task/panel-loading` at `4a5f1ed`;
+- 1440 × 900.
+
+| Check | Result |
+| --- | --- |
+| B: verification on open | **1** `getUser` and **1** `get_my_profile` (was 3 pairs). Then models, roles, pricing and the conversation list load in parallel, and the messages straight after |
+| D: one layout | The first recorded state already has `.workspace.ai-open`, no right rail and the dock shown, all in one render |
+| C: one reveal | Exactly two states: the placeholder (composer at 776, model placeholder), then the full thread with "Gemini - Flash" (composer at 776), at the newest message |
+| A: close, then reopen | Close hides the dock and restores the rail in one render. Reopen makes **0** network calls, keeps the same DOM node, and restores the scroll offset (1,200 px) |
+| Account switch while hidden | Signing in as B cleared A's thread at once (0 messages, no A text); B opens to an empty chat |
+
+**Fixed in the run:** messages drew under the placeholder for one frame (about 16 ms). The
+thread now waits for `ready` too. The test was shown red first.
+
+**Noted, not changed:**
+- **Bundle headroom:** `check:bundle` is at +2,022 of the +2,048 bytes allowed over the
+  baseline.
+- **The remaining delay:** click to first paint is about 200–370 ms locally. It is the shell
+  re-rendering the desk table, which is out of scope.

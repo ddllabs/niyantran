@@ -417,6 +417,19 @@ Follow-ups and findings:
        sits in a sensitive scope.
   - **Next:** deploy `research-chat` and push the frontend, each with a go-ahead. Either order
     works.
+  - **Done since (2026-10-02):** all of the above is on NTER (research-chat v42; the frontend
+    pushes at `0aa8077` and `947dc82`).
+
+  **Panel loading, A–E (2026-10-02).** Spec `specs/2026-10-02-panel-loading.md`, approved. Built
+  on `task/panel-loading`, and the local browser run passed.
+  - **What changed:**
+    - one verification per open;
+    - the panel kept alive between opens (reopen makes 0 network calls and keeps scroll);
+    - one reveal;
+    - one layout per open;
+    - memoised message rows.
+  - **Next:** the frontend push, with a go-ahead.
+  - **Still open from F46:** the agent loop's speed and cost.
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
