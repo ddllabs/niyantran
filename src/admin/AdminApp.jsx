@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import AdminLogin from './AdminLogin.jsx';
 import { createAdminSession } from './adminSession.js';
 import { supabase } from '../lib/supabaseClient.js';
@@ -11,6 +11,10 @@ import { isDue, loadRefreshCfg, refreshProgress } from '../lib/refreshStore.js';
 import { sweepApis } from '../lib/refreshFeeds.js';
 import './admin.css';
 
+// Loaded on first visit so corpusUpload.js, its desk catalog and the PDF libraries stay out of the
+// main bundle (plan B4).
+const DocumentsPage = lazy(() => import('./DocumentsPage.jsx'));
+
 const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'apis', label: 'API status' },
@@ -18,6 +22,7 @@ const NAV = [
   { id: 'pricing', label: 'Pricing' },
   { id: 'ai', label: 'AI models' },
   { id: 'personas', label: 'AI personas' },
+  { id: 'documents', label: 'Documents' },
   { id: 'site', label: 'Website' },
   { id: 'privacy', label: 'Privacy' },
   { id: 'terms', label: 'Terms' },
@@ -187,6 +192,11 @@ export default function AdminApp() {
           {view === 'pricing' && <PricingAdminPage />}
           {view === 'ai' && <AiModelsPage />}
           {view === 'personas' && <AiPersonasPage />}
+          {view === 'documents' && (
+            <Suspense fallback={<p className="adm-lede">Loading…</p>}>
+              <DocumentsPage />
+            </Suspense>
+          )}
           {view === 'site' && <SiteSettingsPage />}
           {view === 'privacy' && <PrivacyAdminPage />}
           {view === 'terms' && <TermsAdminPage />}
