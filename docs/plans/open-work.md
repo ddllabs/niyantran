@@ -287,6 +287,12 @@ Part 2 needs its specs first, in this order:
   `admin-ingest`, the Documents tab, and the schedule ON. Remaining: the owner's
   upload of *Budget at a Glance* with "split every 10 pages" and the citation
   check on pages 10/11. Then mark R8 done and make the plan Historical.
+  **Amendment A** (records-first document management, approved 2026-10-01; plan
+  `plans/2026-10-01-rag-v2-admin-records.md`): built on `task/admin-records`
+  (C0–C4, migration `20261001180000_corpus_records`), checkpoint H passed, and the
+  local end to end (C5) passed: `research/2026-10-01-admin-records-local-run.md`.
+  Next: checkpoint I (the owner reads it), then C6 on NTER with a go-ahead per step
+  (migration, then `admin-ingest`, then the frontend; then the owner's three checks).
 
 Follow-ups and findings:
 
@@ -314,8 +320,9 @@ Follow-ups and findings:
   NTER.
 - [ ] **F36.** `_shared/logging.ts` redacts by field name, and any name
   containing "token" is hidden. So `embed_tokens` and other counts appear as
-  `[redacted]` in Edge logs (seen in the I7 run). Redact known secret names
-  and secret-shaped values instead.
+  `[redacted]` in Edge logs (seen in the I7 run). Names containing "key" are
+  hidden too: `document_key`, `expected_key` and `key_holder` in `admin-ingest`'s
+  logs (C5). Redact known secret names and secret-shaped values instead.
 - [ ] **F38.** A sweeper for `corpus/staging/` objects older than 24 h, and
   for content-addressed objects no document references after a discard
   (admin-upload spec, "Follow-ups").
@@ -331,6 +338,14 @@ Follow-ups and findings:
   of widened turns and cap it.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
+- [ ] **F43.** The chat panel loses an unsent chat's attachments whenever its tab regains
+  focus. supabase-js emits a same-user `SIGNED_IN` on every visibility change, and
+  `useResearchThread` (through `subscribeLocalIdentity`) treats every auth event as an account
+  change: it resets the store and rehydrates. Reproduced in C5
+  (`research/2026-10-01-admin-records-local-run.md`, finding 2): attach a row, switch tabs and
+  back, and the chip is gone. Likely part of the owner's 2026-10-01 "dragging did not attach"
+  report. Fix as the admin panel was fixed (`dcf7034`): keep the store for the same user, and
+  reset only for a different user or a sign-out.
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.
