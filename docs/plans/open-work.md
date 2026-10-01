@@ -391,7 +391,19 @@ Follow-ups and findings:
     - saved steps keep their three lookups;
     - "thought 23.5s" shows when the row has a reasoning count;
     - the saved answer reads "Gemini - Flash".
-  - **Not yet on NTER.** The rest of F46 waits for the owner's discussion.
+  - **Pushed to NTER** with `b3b95d0` (Vercel READY).
+
+  **The thinking display (2026-10-02).** Spec `specs/2026-10-02-thinking-display.md`, approved;
+  plan `plans/2026-10-02-thinking-display.md`. Built on `task/thinking-display` (`18343c0`,
+  `1c882af`, `4491abe`, `c234e51`), and the local browser run passed.
+  - **What it does:**
+    - one indicator from Send;
+    - each stage labelled once;
+    - "Found so far";
+    - a collapsed summary;
+    - the NyAI card removed (ADR 0007 amended).
+  - **Next:** deploy `research-chat`, then push the frontend, each with a go-ahead.
+  - **Still open from F46:** loading in stages, and the agent loop's speed and cost.
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
