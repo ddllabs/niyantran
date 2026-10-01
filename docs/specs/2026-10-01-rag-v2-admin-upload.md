@@ -409,7 +409,8 @@ every migration. The same migration adds an index on `documents.file_sha256`
 - Formats other than PDF.
 - The PDF viewer (R6).
 - Automatic metadata extraction.
-- Matching an upload to a legacy or R7 corpus record (decision 3).
+- Matching an upload to a legacy or R7 corpus record (decision 3). **Amended:** linking an
+  upload to its desk record is now in scope; see "Amendment A".
 - Per-byte progress and resumable uploads within a part.
 - A daily cost budget; the page cap is the v1 guard.
 
@@ -429,6 +430,68 @@ every migration. The same migration adds an index on `documents.file_sha256`
    to be larger?
 3. **Every platform admin may upload and act on any job,** as recommended, or
    the owner only?
+
+## Amendment A: link an upload to its desk record (draft, 2026-10-01, awaiting the owner)
+
+**Why.** The first NTER go-live showed a gap.
+- The 12-page bill was ingested and searchable.
+- But dragging its row from *Bill Passage Probability Index* attached the row alone ("Record
+  only"), and the answer widened to the whole corpus.
+- The cause: a desk row reaches its document only through `document_key` (`bill:<year>:<number>`
+  on the row, `metadata->>'document_key'` on the document). The document carried none.
+- The owner's requirement: dropping a desk record into the chat must attach its text,
+  embeddings and context. An upload that no row can reach breaks that. Revision 2 had excluded
+  this linking.
+
+**Current state** (NTER, 2026-10-01):
+- Rows carry `document_key` in only two features: *Bill Passage Probability Index* and *Policy
+  Intelligence Graph*. Both hold the same 9,817 bills, with 9,415 distinct keys.
+- The other 73 features have no key on their rows.
+- 1,620 legacy documents carry a key.
+- The bill was linked by hand that day: `bill:2025:XLV` was added to its metadata.
+
+**A1. "Link to a desk record" in the upload form.**
+- After the desk is chosen, a search box finds rows of that desk through `search_desk_rows` (as
+  the admin; it already returns `document_key`). The admin picks one row.
+- Its `document_key` is sent with `register` and stored at `metadata.document_key`.
+- **Required** when the chosen desk's rows carry keys (today, the two bill features).
+- **Not offered** for other desks: the form says the document will be found by desk search and
+  the desk filter, not by dragging a row (see A4).
+- The title defaults to the row's title.
+
+**A2. The server checks the link (`admin-ingest`).**
+- `register` accepts an optional `document_key`. It must belong to a row of the chosen tier and
+  feature in `desk_rows`, otherwise 422.
+- If a live document already holds the key, for example a legacy bill, `prepare` returns it.
+  The tab then warns: "This record already has full text (title). Uploading adds a second
+  document for it." The admin must confirm.
+
+**A3. Link existing documents** (a `link` action and a "Link to record" button in the jobs
+table).
+- It sets `metadata.document_key` on a document registered through ingestion-v2 that has none,
+  with the same checks as A2.
+- This repairs uploads made without a link. It would also have replaced the manual fix of
+  2026-10-01.
+
+**A4. Other desks (follow-up, not in this amendment).**
+- Rows in the other 73 features need a stable key before a dropped row can attach a document.
+- That needs a loader change (`scripts/load-desk-rows.mjs`, `deskRows.ts` / `deskRows.js`), so
+  that every row gets a key, and a generalised client function to replace `billDocumentKey`.
+- To be recorded in open-work with its own spec.
+
+**A5. Scripts.** `scripts/ingest-register.mjs` gains `--document-key`, checked against
+`desk_rows` the same way. Acquisition (R7) derives the bill key from each corpus record, so the
+5,327 linked bills are linked from the start.
+
+**Acceptance for Amendment A:**
+- Deno tests for A2 and A3: an unknown key, a key from another desk, an existing live holder,
+  `link` on a document that already has a key. Vitest for the picker and the warning. Each test
+  shown red first.
+- **Locally:** upload the bill linked to its row; a row drag then shows "Full text", and a
+  focused answer cites only that bill's pages.
+- **On NTER:** the owner's *Budget at a Glance* run uses *Budget Utilisation & Schemes*. Its rows
+  carry no keys, so the run also checks the A1 wording for keyless desks. A bill run checks
+  "Full text" on a row drag.
 
 ## Review record
 
