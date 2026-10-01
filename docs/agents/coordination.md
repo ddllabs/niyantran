@@ -1222,3 +1222,21 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     `GlobalWorkerOptions`; stylesheet `index-5HWPu5-g.css`, with
     `.ai-shell.ai-shell-research{display:block}`.
   - No server or database change.
+- **thinking-display T4 step 1: `research-chat` deployed (2026-10-02)** (owner: "Deploy
+  research-chat to NTER"). Deployed from `main` at `d426bfe` with
+  `supabase functions deploy research-chat --use-api --project-ref vfgcppstyzjarlzyqdac`, giving
+  version 40 (was 39).
+  - **What it adds** (`18343c0`):
+    - each stage labelled once: "Reading the question", "Reading the results", "Writing the
+      answer";
+    - a finished document search carries `found`: at most 3 documents, each with a title and up
+      to 5 pages, and no text. It goes on the end frame and the saved activity row.
+  - **Also since v39:** `9679937`, a constant in `_shared/pageText.ts`, which research-chat does
+    not import.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - **Compatibility:** the live frontend (`b3b95d0`) ignores the new `found` field. It shows the
+    new labels in its ticker.
+  - No database change.
