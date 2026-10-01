@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import ActivityTicker from './ActivityTicker.jsx';
+import ActivityTicker, { tickerSteps } from './ActivityTicker.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
 import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
 import CitationBubble, { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
@@ -347,4 +347,34 @@ describe('RAG v2 optional citation fields (chunk contract, citation payload)', (
   button.props.onClick({ preventDefault() {}, stopPropagation() {} });
   expect(calls).toEqual([{ ...RICH, boxes: [BOX] }]);
  });
+});
+
+// F46: a finished turn listed "Reviewing the question." six times and none of its six searches.
+// The server saves a finished tool step without `phase` (research-chat handler.ts, the
+// activity.push after the end frame); this is that exact shape, copied from a saved row.
+it('a saved turn keeps its searches: a stored tool step without phase is a finished step', () => {
+  const saved = [
+    { type: 'activity', text: 'Reviewing the question.' },
+    { type: 'activity', text: 'Searching relevant sources.' },
+    { type: 'tool', name: 'search_documents', input: { query: 'sanction prosecution' }, step: 2, resultCount: 40, latencyMs: 767, status: 'ok' },
+    { type: 'activity', text: 'Reviewing the question.' },
+    { type: 'tool', name: 'search_desk_rows', input: { tier: 'national' }, step: 3, resultCount: 1, latencyMs: 210, status: 'ok' },
+  ];
+  const steps = tickerSteps(saved);
+  expect(steps.filter((s) => s.type === 'tool')).toHaveLength(2);
+  expect(steps.every((s) => s.type !== 'tool' || s.phase === 'end')).toBe(true);
+  // The collapsed line of the finished turn names its last real step, not a stage label.
+  const html = renderToStaticMarkup(<ActivityTicker activity={saved} timing={{ search_ms: 977, total_ms: 9000 }} />);
+  expect(html).toContain('Looked up · 1 row');
+});
+
+it('live steps: a started search shows once, and its end replaces it', () => {
+  const live = [
+    { type: 'tool', name: 'search_documents', phase: 'start', step: 1, input: { query: 'q' } },
+    { type: 'tool', name: 'search_documents', phase: 'end', step: 1, resultCount: 40 },
+    { type: 'tool', name: 'search_documents', phase: 'start', step: 2, input: { query: 'r' } },
+  ];
+  expect(tickerSteps(live).map((s) => [s.step, s.phase])).toEqual([[1, 'end'], [2, 'start']]);
+  // Tools outside the two searches, and unknown phases, are still dropped.
+  expect(tickerSteps([{ type: 'tool', name: 'delete_all', input: {} }, { type: 'tool', name: 'search_documents', phase: 'bogus', step: 1 }])).toEqual([]);
 });

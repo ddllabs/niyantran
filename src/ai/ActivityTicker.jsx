@@ -36,7 +36,24 @@ function seconds(ms) {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 }
 
-export default function ActivityTicker({ activity = [], active = false, timing = null, model = null, usage = null }) {
+const SEARCH_TOOLS = ['search_documents', 'search_desk_rows'];
+
+/**
+ * The steps to list: public stage lines and the two searches, each search once. A saved turn
+ * stores each finished search without `phase` (research-chat writes it after the end frame), so
+ * a stored step with no phase is a finished one; the live stream sends `start` and `end`.
+ */
+export function tickerSteps(activity) {
+  const kept = (Array.isArray(activity) ? activity : [])
+    .map((a) => (a && a.type === 'tool' && a.phase === undefined ? { ...a, phase: 'end' } : a))
+    .filter(a => a && (
+    (a.type === 'activity' && typeof a.text === 'string' && a.text.trim()) ||
+    (a.type === 'tool' && SEARCH_TOOLS.includes(a.name) && ['start', 'end'].includes(a.phase))
+  ));
+  return kept.filter((a) => a.type !== 'tool' || a.phase !== 'start' || !kept.some((b) => b.type === 'tool' && b.step === a.step && b.phase === 'end'));
+}
+
+export default function ActivityTicker({ activity = [], active = false, timing = null, model = null, usage = null, labelOf = (id) => id }) {
   const [open, setOpen] = useState(active);
   const [touched, setTouched] = useState(false);
 
@@ -44,13 +61,8 @@ export default function ActivityTicker({ activity = [], active = false, timing =
     if (!touched) setOpen(active);
   }, [active, touched]);
 
-  activity = (Array.isArray(activity) ? activity : []).filter(a => a && (
-    (a.type === 'activity' && typeof a.text === 'string' && a.text.trim()) ||
-    (a.type === 'tool' && ['search_documents', 'search_desk_rows'].includes(a.name) && ['start', 'end'].includes(a.phase))
-  ));
-  if (!activity.length && !active && !timing && !model?.served) return null;
-
-  const steps = activity.filter((a) => a.type !== 'tool' || a.phase !== 'start' || !activity.some((b) => b.type === 'tool' && b.step === a.step && b.phase === 'end'));
+  const steps = tickerSteps(activity);
+  if (!steps.length && !active && !timing && !model?.served) return null;
 
   return (
     <div className={`ai-ticker${active ? ' active' : ''}`}>
@@ -64,7 +76,7 @@ export default function ActivityTicker({ activity = [], active = false, timing =
         }}
       >
         <span className={`ai-ticker-dot${active ? ' on' : ''}`} aria-hidden="true" />
-        <span className="ai-ticker-line">{summary(activity, active)}</span>
+        <span className="ai-ticker-line">{summary(steps, active)}</span>
         <span className="ai-ticker-caret" aria-hidden="true">
           {open ? '▾' : '▸'}
         </span>
@@ -102,7 +114,7 @@ export default function ActivityTicker({ activity = [], active = false, timing =
           ]
             .filter(Boolean)
             .join(' · ')}
-          {model?.served && model.served !== model.requested ? ` · Answered by ${model.served}` : ''}
+          {model?.served && model.served !== model.requested ? ` · Answered by ${labelOf(model.served)}` : ''}
         </p>
       ) : null}
     </div>
