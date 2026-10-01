@@ -1267,3 +1267,16 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Served main entry:** `index-XTAx65h7.js`. It carries "Starting…", "Found so far" and
     "first word", has no NyAI card, and has no `GlobalWorkerOptions`.
   - No server or database change.
+- **Latency cuts: `research-chat` deployed and frontend pushed (2026-10-02)** (owner: "Deploy
+  research-chat to NTER and also push to origin").
+  - **The deploy:** from `main` at `8d68035`, giving version 42 (was 41). It carries `9a294a4`:
+    Google models get no cache breakpoints, because the owner chose time to first word over
+    about 60% more cost per Gemini answer.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - **The push:** `main` was pushed, carrying `9a294a4`. `sendResearchTurn` reuses the
+    caller's still-current identity, so a send makes one user-plus-profile round trip instead
+    of two.
+  - No database change.
