@@ -146,13 +146,18 @@ export function recordActions(record) {
   return {
     attach: status === 'record_only' || status === 'failed' || status === 'full_text_legacy',
     legacyWarning: status === 'full_text_legacy',
-    holder: (record?.documents ?? []).find((doc) => !doc.legacy) ?? null,
+    // A replacement waiting to swap in (link_target) is listed too, but holds no key.
+    holder: (record?.documents ?? []).find((doc) => !doc.legacy && !doc.link_target) ?? null,
   };
 }
 
-/** A document's actions in a record. Legacy text is read-only (D3); Delete is for uploads (D4). */
+/**
+ * A document's actions in a record. Legacy text is read-only (D3); Delete is for uploads (D4); a
+ * replacement waiting to swap in holds no key, so it is swapped from Documents without a record.
+ */
 export function documentActions(doc) {
   if (!doc || doc.legacy) return { replace: false, unlink: false, relink: false, delete: false };
+  if (doc.link_target) return { replace: false, unlink: false, relink: false, delete: isUpload(doc) };
   return { replace: true, unlink: true, relink: true, delete: isUpload(doc) };
 }
 
@@ -189,31 +194,12 @@ export const linkRequest = (doc, target) => ({
 });
 
 /**
- * Swaps a replacement in (D5). It expects the document it replaces to hold the key; when the
- * target record is known and no ingestion-v2 document holds it any more (the old one was unlinked
- * or deleted), it expects none. Anything else is the server's to refuse (`stale`).
+ * Swaps a replacement in (D5), expecting the document it replaces as recorded at registration.
+ * ingest_swap compares that, then unlinks the old document if it still holds the key, or links the
+ * new one directly if nothing does; anything else is the server's to refuse (`stale`, `key_held`).
  * @param {{document_id: string, replaces: string|null}} doc
- * @param {object|null} [targetRecord]  the link_target's record, when it was found
  */
-export function swapRequest(doc, targetRecord = null) {
-  let expected = doc.replaces ?? null;
-  if (targetRecord && !recordActions(targetRecord).holder) expected = null;
-  return { document_id: doc.document_id, expected_old: expected };
-}
-
-/**
- * The record holding `key` in a desk, found through the records search, or null when the search
- * does not find it (or fails). Used before a swap to learn whether the old document still holds
- * the key.
- */
-export async function findRecord(api, desk, key) {
-  try {
-    const res = await api.records({ desk_tier: desk.tier, desk_feature: desk.feature, query: key, limit: RECORDS_PAGE });
-    return (res?.records ?? []).find((r) => r.document_key === key) ?? null;
-  } catch {
-    return null;
-  }
-}
+export const swapRequest = (doc) => ({ document_id: doc.document_id, expected_old: doc.replaces ?? null });
 
 /** "Link the existing document": an already uploaded file, linked to the attach's record. */
 export const linkExistingRequest = (offer) => ({
@@ -345,12 +331,12 @@ export function confirmText({ kind, record, doc, target }) {
 }
 
 /** The admin-ingest call a confirmed action makes: `{method, request}` for `runAction`. */
-export function actionPlan({ kind, record, doc, target, targetRecord }) {
+export function actionPlan({ kind, record, doc, target }) {
   switch (kind) {
     case 'unlink': return { method: 'unlink', request: unlinkRequest(record, doc) };
     case 'relink': return { method: 'link', request: relinkRequest(record, doc, target) };
     case 'link': return { method: 'link', request: linkRequest(doc, target) };
-    case 'swap': return { method: 'swap', request: swapRequest(doc, targetRecord) };
+    case 'swap': return { method: 'swap', request: swapRequest(doc) };
     case 'delete': return { method: 'remove', request: { document_id: doc.document_id } };
     default: return null;
   }

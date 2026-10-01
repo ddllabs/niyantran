@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Banner, ConfirmBar, DocumentTags, POLL_MS } from './common.jsx';
 import { RecordPicker } from './records.jsx';
-import { RECORDS_PAGE, actionOutcome, actionPlan, anyProcessing, findRecord, runAction, unlinkedActions } from './model.js';
+import { RECORDS_PAGE, actionOutcome, actionPlan, anyProcessing, runAction, unlinkedActions } from './model.js';
 
 // "Documents without a record" (Amendment A, Objective 4): standalone uploads, unlinked
 // documents, orphaned links and replacements waiting to swap, with Link, Delete and Swap.
@@ -101,9 +101,7 @@ export function UnlinkedSection({ api, desk, reloadToken = 0, onChanged }) {
 
   async function run(state) {
     setBusyId(state.doc.document_id);
-    // A swap expects the replaced document to hold the key, or none if it no longer does (D5).
-    const targetRecord = state.kind === 'swap' ? await findRecord(api, { tier, feature }, state.doc.link_target) : null;
-    const { method, request } = actionPlan({ ...state, targetRecord });
+    const { method, request } = actionPlan(state);
     const outcome = actionOutcome(await runAction(api, method, request));
     if (!alive.current) return;
     setBusyId(null);

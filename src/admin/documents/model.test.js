@@ -26,7 +26,6 @@ import {
   documentActions,
   documentState,
   draftFor,
-  findRecord,
   keyHolderDecision,
   linkExistingRequest,
   linkRequest,
@@ -166,6 +165,12 @@ describe('recordActions', () => {
     expect(recordActions(record({ status: 'full_text', documents: [legacy(), v2()] })).holder.document_id).toBe('doc-v2');
     expect(recordActions(record({ status: 'full_text_legacy', documents: [legacy()] })).holder).toBeNull();
   });
+
+  it('never takes a replacement waiting to swap in (link_target) for the holder', () => {
+    const pending = v2({ document_id: 'doc-new', link_target: 'bill:2025:XLV' });
+    expect(recordActions(record({ status: 'failed', documents: [legacy(), pending] })).holder).toBeNull();
+    expect(recordActions(record({ status: 'failed', documents: [pending] })).holder).toBeNull();
+  });
 });
 
 describe('documentActions', () => {
@@ -176,6 +181,10 @@ describe('documentActions', () => {
   it('offers Replace, Unlink and Re-link for an ingestion-v2 document, and Delete only for an upload: one', () => {
     expect(documentActions(v2())).toEqual({ replace: true, unlink: true, relink: true, delete: true });
     expect(documentActions(v2({ source_key: 'corpus:r7-bill' }))).toEqual({ replace: true, unlink: true, relink: true, delete: false });
+  });
+
+  it('offers only Delete on a replacement waiting to swap in: it holds no key to replace, unlink or re-link', () => {
+    expect(documentActions(v2({ link_target: 'bill:2025:XLV' }))).toEqual({ replace: false, unlink: false, relink: false, delete: true });
   });
 });
 
@@ -223,11 +232,10 @@ describe('the link requests (D11)', () => {
     expect(linkRequest({ document_id: 'd1', orphaned_key: 'bill:2024:X' }, target)).toEqual({ document_id: 'd1', document_key: 'bill:2025:XLVI', expected_key: 'bill:2024:X' });
   });
 
-  it('swaps expecting the replaced document, or none when the target record has no ingestion-v2 holder any more', () => {
+  it('swaps expecting the document it replaces as recorded, even once that one was unlinked or deleted (ingest_swap compares replaces)', () => {
     const doc = { document_id: 'new', link_target: 'bill:2025:XLV', replaces: 'old' };
     expect(swapRequest(doc)).toEqual({ document_id: 'new', expected_old: 'old' });
-    expect(swapRequest(doc, record({ documents: [v2({ document_id: 'old' })] }))).toEqual({ document_id: 'new', expected_old: 'old' });
-    expect(swapRequest(doc, record({ status: 'full_text_legacy', documents: [legacy()] }))).toEqual({ document_id: 'new', expected_old: null });
+    expect(swapRequest(doc, record({ status: 'full_text_legacy', documents: [legacy()] }))).toEqual({ document_id: 'new', expected_old: 'old' });
     expect(swapRequest({ ...doc, replaces: null })).toEqual({ document_id: 'new', expected_old: null });
   });
 });
@@ -349,16 +357,7 @@ describe('confirmText and actionPlan', () => {
     expect(actionPlan({ kind: 'relink', record: rec, doc: v2(), target })).toEqual({ method: 'link', request: { document_id: 'doc-v2', document_key: 'bill:2025:XLVI', expected_key: 'bill:2025:XLV' } });
     expect(actionPlan({ kind: 'link', doc: unlinked, target })).toEqual({ method: 'link', request: { document_id: 'new', document_key: 'bill:2025:XLVI', expected_key: null } });
     expect(actionPlan({ kind: 'swap', doc: unlinked })).toEqual({ method: 'swap', request: { document_id: 'new', expected_old: 'doc-v2' } });
-    expect(actionPlan({ kind: 'swap', doc: unlinked, targetRecord: record() })).toEqual({ method: 'swap', request: { document_id: 'new', expected_old: null } });
     expect(actionPlan({ kind: 'delete', doc: v2() })).toEqual({ method: 'remove', request: { document_id: 'doc-v2' } });
-  });
-
-  it('finds a key’s record by searching the desk, and answers null when it is not found or the search fails', async () => {
-    const api = { records: vi.fn(async () => ({ ok: true, records: [record({ document_key: 'bill:2025:XLVI' }), record()], total: 2 })) };
-    await expect(findRecord(api, BILL_DESK, 'bill:2025:XLV')).resolves.toMatchObject({ document_key: 'bill:2025:XLV' });
-    expect(api.records).toHaveBeenCalledWith({ desk_tier: 'national', desk_feature: 'Bill Passage Probability Index', query: 'bill:2025:XLV', limit: 50 });
-    await expect(findRecord(api, BILL_DESK, 'bill:1999:I')).resolves.toBeNull();
-    await expect(findRecord({ records: async () => { throw new Error('down'); } }, BILL_DESK, 'k')).resolves.toBeNull();
   });
 
   it('links an already uploaded file to the attach’s record, expecting no key', () => {

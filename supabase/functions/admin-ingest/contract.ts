@@ -234,6 +234,11 @@ export interface RecordDocument {
   legacy: boolean;
   indexed: boolean;
   job: JobSummary | null;
+  /**
+   * The key a replacement waits to swap into (D5). In a record, null for a document holding the
+   * key, so the page tells the holder from a replacement listed beside it.
+   */
+  link_target: string | null;
 }
 
 /** A desk row that shares the record's key. */
@@ -273,8 +278,7 @@ export interface RecordsResult {
 export interface UnlinkedDocument extends RecordDocument {
   /** Its current key when that key matches no desk row (an orphaned link). */
   orphaned_key: string | null;
-  /** A replacement waiting to swap (D5). */
-  link_target: string | null;
+  /** For a replacement waiting to swap (D5), the document it replaces. */
   replaces: string | null;
   created_at: string;
 }
