@@ -1282,3 +1282,14 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - No database change.
   - **Vercel:** production deploy `dpl_o1LCjWANzyNSZYhEdjKrxTmHQ2Tt` (`947dc82`) is READY. It
     serves `index-gJ2dNSaY.js`, with no `GlobalWorkerOptions`.
+- **Panel loading, frontend push and bundle re-baseline (2026-10-02)** (owner: "Push main to
+  origin and re-baseline the bundle").
+  - **The re-baseline:** `a4da602` raises the main-entry baseline from 644,149 to 646,171 bytes
+    gzip, for the F46 work's intended growth.
+  - **The push:** `main` was pushed from `947dc82` to `a4da602`, carrying panel-loading A–E and
+    the records.
+  - **Vercel:** production deploy `dpl_HWUzV1H1khHjoDRaDxUkBRotYFPN` is READY.
+  - **Served:** main entry `index-DO-4PNkd.js`, with the thread placeholder, the held question
+    row and the model placeholder, and no `GlobalWorkerOptions`. The CSS has
+    `.ai-dock[hidden]{display:none!important}`.
+  - No server or database change.
