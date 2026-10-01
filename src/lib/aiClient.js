@@ -22,7 +22,14 @@ export async function sendResearchTurn({ body, signal, identity: expectedIdentit
   if (signal?.aborted) abort();
   let response;
   try {
-    identity = await verifiedLocalIdentity();
+    // The caller (researchChat run) verified the account moments ago and passes that identity.
+    // While it is still current - same Auth epoch, same session token, unexpired, a local check -
+    // it is used as it is; otherwise the account is verified again here. Either way the send
+    // rests on one fresh verification, without a second round trip (answer-streaming spec,
+    // amendment 3).
+    identity = expectedIdentity && await localIdentityIsCurrent(expectedIdentity)
+      ? expectedIdentity
+      : await verifiedLocalIdentity();
     const verifiedVersion = version;
     // The caller's identity may have been superseded by its own account's
     // refocus or token refresh (F43); only another account is refused.

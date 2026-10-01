@@ -404,3 +404,19 @@ Deno.test('session_id reaches the body, capped at 256 characters, and is absent 
   assertEquals((buildRequestBody({ ...base, session_id: 'x'.repeat(300) }).session_id as string).length, 256);
   assertEquals('session_id' in buildRequestBody(base), false);
 });
+
+// answer-streaming spec §4, measured 2026-10-02 against OpenRouter (Gemini 3.8 Flash, three rounds
+// of a growing transcript, twice): with per-block breakpoints every call wrote a fresh billed
+// explicit cache - 15% more cost ($0.0219 against $0.0191) and calls of 6.2-8.4 s against 2.7-3.3 s.
+// Google bodies therefore carry no breakpoints and rely on Gemini's free implicit caching; Anthropic,
+// where the same breakpoints read 53-68% of each later round from cache, keeps them.
+Deno.test('Google bodies carry no cache breakpoints; Anthropic bodies keep them', () => {
+  const system = { role: 'system' as const, content: 'S'.repeat(MIN_CACHEABLE_PREFIX_CHARS) };
+  const user = { role: 'user' as const, content: 'hi' };
+  const gemini = buildRequestBody({ model: 'google/gemini-3.8-flash', messages: [system, user], cache: true });
+  assertEquals((gemini.messages as { content: unknown }[]).map((m) => typeof m.content), ['string', 'string']);
+  assertEquals('cache_control' in gemini, false);
+  const claude = buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages: [system, user], cache: true });
+  assert(Array.isArray((claude.messages as { content: unknown }[])[0].content));
+  assertEquals(claude.cache_control, { type: 'ephemeral' });
+});

@@ -106,9 +106,13 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
   // need no such identity, and a tool_choice they do not support would narrow
   // require_parameters routing, so their tools-disabled body stays tools-free.
   const anthropic = req.model.startsWith('anthropic/');
+  // Measured 2026-10-02: per-block breakpoints made every Gemini call write a fresh billed
+  // explicit cache, 15% dearer and about twice as slow per call. Gemini caches implicitly for
+  // free, so Google bodies carry none (answer-streaming spec §4).
+  const google = req.model.startsWith('google/');
   const body: Record<string, unknown> = {
     model: req.model,
-    messages: req.cache ? withCacheBreakpoints(req.messages) : req.messages,
+    messages: req.cache && !google ? withCacheBreakpoints(req.messages) : req.messages,
     stream: true,
     usage: { include: true },
   };

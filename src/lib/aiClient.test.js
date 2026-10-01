@@ -57,3 +57,28 @@ it('another account while the request is in flight aborts it',async()=>{
  expect(signal.aborted).toBe(true);
  resolve(new Response('private A response'));await expect(pending).rejects.toThrow();
 });
+// answer-streaming spec, amendment 3 (owner, 2026-10-02: "Save those 0.5 seconds"): run() verified
+// the account and passed that identity here, and this function verified it again - a second
+// user + profile round trip before every send. An identity that is still current (same epoch,
+// same session token, unexpired: localIdentityIsCurrent, a local check) is used as it is.
+it('a caller identity verified moments ago and still current is used without a second network check',async()=>{
+ const { verifiedLocalIdentity } = await import('./userStore.js');
+ const { supabase } = await import('./supabaseClient.js');
+ const identity=await verifiedLocalIdentity();
+ const getUser=vi.spyOn(supabase.auth,'getUser');const rpc=vi.spyOn(supabase,'rpc');
+ await sendResearchTurn({body,identity});
+ expect(getUser).not.toHaveBeenCalled();expect(rpc).not.toHaveBeenCalled();
+ expect(fetch).toHaveBeenCalledOnce();expect(fetch.mock.calls[0][1].headers.authorization).toBe('Bearer token-owner-a');
+});
+it('a caller identity that is no longer current is verified again before the send',async()=>{
+ const { verifiedLocalIdentity } = await import('./userStore.js');
+ const { supabase } = await import('./supabaseClient.js');
+ const identity=await verifiedLocalIdentity();
+ auth.callback('TOKEN_REFRESHED',{access_token:'token-owner-a',user:{id:'owner-a'}});
+ const getUser=vi.spyOn(supabase.auth,'getUser');
+ await sendResearchTurn({body,identity});
+ expect(getUser).toHaveBeenCalledOnce();expect(fetch).toHaveBeenCalledOnce();
+ // A suspended account behind a stale caller identity is refused by that fresh check.
+ const stale=await verifiedLocalIdentity();auth.callback('SIGNED_IN',{access_token:'token-owner-a',user:{id:'owner-a'}});auth.blocked=true;
+ await expect(sendResearchTurn({body,identity:stale})).rejects.toThrow();expect(fetch).toHaveBeenCalledOnce();
+});

@@ -215,3 +215,23 @@ token, with at least 60 s of token left and a check no more than 5 minutes old.
 - the local run measures what the pre-send check actually costs;
 - a narrower option goes to the owner if it is material.
 
+## Amendment 3 (2026-10-02): owner direction "Optimize latency as much as possible. Save those 0.5 seconds"
+
+1. **One account verification per send, not two.**
+   - **The cause** (a stack trace in the browser): `researchChat.run()` verified the account and
+     passed that identity to `aiClient.sendResearchTurn`, which ignored it and verified again,
+     two sequential user-plus-profile round trips before the request left.
+   - **The change:** `sendResearchTurn` now uses the caller's identity while
+     `localIdentityIsCurrent` holds (same Auth epoch, same session token, unexpired; a local
+     check). Otherwise it verifies again as before.
+   - **What still holds:**
+     - every send still rests on one fresh verification;
+     - an Auth event in between still forces re-verification;
+     - a suspended account is still refused (tests).
+   - This replaces the withdrawn §3 approach (amendment 2).
+2. **No cache breakpoints on Google models.**
+   - **The owner chose latency:** time to first word goes from 9–25 s to about 5–6 s, for about
+     60% more cost per Gemini answer.
+   - **Anthropic** keeps its breakpoints.
+   - The measurements are in `research/2026-10-02-answer-streaming-local-run.md`.
+
