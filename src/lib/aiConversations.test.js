@@ -97,6 +97,8 @@ const MESSAGES = [
   },
 ];
 
+function refocusB() { auth.callback?.('SIGNED_IN', { access_token: `token-${auth.id}`, user: { id: auth.id } }); }
+
 describe('aiConversations (server-backed thread store)', () => {
   let client;
   beforeEach(async () => {
@@ -463,6 +465,39 @@ describe('aiConversations (server-backed thread store)', () => {
     expect(selected).toContain('reasoning_tokens:usage->reasoning_tokens');
     expect(selected).toContain('observed_reasoning_tokens:usage->observed->reasoning_tokens');
     expect(selected).not.toMatch(/(^|,)\s*usage\s*(,|$)/);
+  });
+
+  // panel-loading spec B: opening the panel verified the account three times in a row (the
+  // controller, hydrateConversations, loadMessages). An identity the caller verified moments ago,
+  // still current (same epoch, same token, unexpired), is used as it is; otherwise it is verified.
+  it('B: a current verified identity is reused through hydrate and its message load, with no further network check', async () => {
+    const { verifiedLocalIdentity } = await import('./userStore.js');
+    const identity = await verifiedLocalIdentity();
+    const getUser = vi.spyOn(supabase.auth, 'getUser');
+    const store = await hydrateConversations(identity);
+    expect(getUser).not.toHaveBeenCalled();
+    expect(store.chats.find((c) => c.id === store.activeId).loaded).toBe(true);
+    expect(store.chats.find((c) => c.id === 'c-1').messages).toHaveLength(2);
+  });
+
+  it('B: hydrate without an identity verifies once, and its message load reuses that check', async () => {
+    const getUser = vi.spyOn(supabase.auth, 'getUser');
+    await hydrateConversations();
+    expect(getUser).toHaveBeenCalledOnce();
+  });
+
+  it('B: a stale or foreign identity is not trusted', async () => {
+    const { verifiedLocalIdentity } = await import('./userStore.js');
+    const identity = await verifiedLocalIdentity();
+    refocusB();
+    const getUser = vi.spyOn(supabase.auth, 'getUser');
+    await hydrateConversations(identity);
+    expect(getUser).toHaveBeenCalledOnce();
+    const mine = await verifiedLocalIdentity();
+    switchAccount('owner-b');
+    getUser.mockClear();
+    await hydrateConversations(mine);
+    expect(getUser).toHaveBeenCalledOnce(); // owner-a's identity was not used for owner-b's session
   });
 
   it('account change at the final verification await cannot bind an old owner or issue a query', async () => {

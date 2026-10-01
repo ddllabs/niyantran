@@ -241,3 +241,10 @@ it('another account after attaching still clears the thread synchronously',async
  f.changeOwner('b');
  expect(f.controller.getSnapshot()).toMatchObject({ready:false,draft:'',store:{chats:[]}});
 });
+// panel-loading spec B: the controller verifies the account once on open and hands that identity to
+// the conversation read, instead of letting it (and its message load) verify twice more.
+it('B: opening hands the identity it just verified to the conversation read',async()=>{
+ const f=fixture();await f.controller.start();
+ expect(f.deps.verifiedLocalIdentity).toHaveBeenCalledOnce();
+ expect(f.deps.hydrateConversations).toHaveBeenCalledWith(expect.objectContaining({id:'a',token:'a'}));
+});

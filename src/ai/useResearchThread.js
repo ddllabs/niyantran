@@ -104,7 +104,8 @@ export function createResearchThread(overrides = {}) {
       if (!active || version !== generation) return;
       owner = verified;
       const t = token();
-      const [store, choices] = await Promise.all([deps.hydrateConversations(), deps.loadRegistry()]);
+      // panel-loading spec B: the read reuses this verification while it is current.
+      const [store, choices] = await Promise.all([deps.hydrateConversations(verified), deps.loadRegistry()]);
       if (!await current(t) || seq !== sequence) return;
       const hydrated = store.chats.length ? store : deps.createAiChat();
       emit({ store: hydrated, registry: choices, ready: true, loading: false });

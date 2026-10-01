@@ -86,9 +86,12 @@ function bound(snapshot) {
 async function current(snapshot) {
   return bound(snapshot) && await localIdentityIsCurrent(owner) && bound(snapshot);
 }
-async function verifiedScope(snapshot = null) {
+// panel-loading spec B: a caller may pass the identity it verified moments ago. It is used only
+// while still current (same Auth epoch, same session token, unexpired: a local check); otherwise
+// the account is verified again, as it always was.
+async function verifiedScope(snapshot = null, given = null) {
   watchIdentity();
-  const identity = await verifiedLocalIdentity();
+  const identity = given && await localIdentityIsCurrent(given) ? given : await verifiedLocalIdentity();
   if (!identity || (snapshot && !bound(snapshot))) return null;
   const verifiedGeneration = generation;
   if (!await localIdentityIsCurrent(identity) || generation !== verifiedGeneration) return null;
@@ -197,11 +200,11 @@ export function activeAiChat() {
 }
 
 /** Read the user's conversations, newest first, and load the active one's messages. */
-export async function hydrateConversations() {
+export async function hydrateConversations(verified = null) {
   const sequence = ++listSequence;
   const original = scope();
   const requestClient = client;
-  const snapshot = await verifiedScope(original);
+  const snapshot = await verifiedScope(original, verified);
   if (!snapshot || !bound(snapshot) || sequence !== listSequence || requestClient !== client) return loadAiState();
   const { data, error } = await Promise.resolve(snapshot.client.from('conversations').select('id, title, created_at, last_message_at')
     .eq('user_id', snapshot.identity.id).order('last_message_at', { ascending: false, nullsFirst: false }).limit(MAX_CHATS)).catch(error => ({ error }));
@@ -215,7 +218,8 @@ export async function hydrateConversations() {
   const draft = state.chats.find(c => c.draft);
   if (draft) chats.unshift(draft);
   put({ chats, activeId: chats.some((c) => c.id === state.activeId) ? state.activeId : chats[0]?.id || '', loaded: true });
-  if (state.activeId) await loadMessages(state.activeId);
+  // The account was verified at the top of this read; the message load reuses it while current.
+  if (state.activeId) await loadMessages(state.activeId, snapshot.identity);
   return loadAiState();
 }
 
@@ -230,12 +234,12 @@ function reasoningUsage(m) {
   return count === null ? null : { reasoning_tokens: count };
 }
 
-export async function loadMessages(conversationId) {
+export async function loadMessages(conversationId, verified = null) {
   const snapshot = scope();
   if (!conversationId || !snapshot || !state.chats.some(c => c.id === conversationId)) return loadAiState();
   const sequence = (messageSequences.get(conversationId) || 0) + 1;
   messageSequences.set(conversationId, sequence);
-  if (!await verifiedScope(snapshot) || !bound(snapshot)) return loadAiState();
+  if (!await verifiedScope(snapshot, verified) || !bound(snapshot)) return loadAiState();
   const { data, error } = await Promise.resolve(snapshot.client.from('chat_messages')
     .select('id, role, content, sources, follow_ups, activity, timing, model_requested, model_served, reasoning_effort, status, error_message, execution_expires_at, turn_key, created_at, reasoning_tokens:usage->reasoning_tokens, observed_reasoning_tokens:usage->observed->reasoning_tokens')
     .eq('conversation_id', conversationId).eq('user_id', snapshot.identity.id)
