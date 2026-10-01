@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -124,14 +124,16 @@ chain() {
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
                   "$(m 20261001100000_match_documents_feature.sql)") ;;
         # feature_filter's chain plus the page contract, applied as a non-superuser.
-        page_contract|ingestion_v2|ingest_discard)
+        page_contract|ingestion_v2|ingest_discard|corpus_records)
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
                   "$(m 20261001100000_match_documents_feature.sql)" "$(as_non_superuser 20261001120000_page_contract.sql)")
           # page_contract's chain plus the Storage stub and ingestion-v2, also
           # applied as a non-superuser; the chain ends with the migration it proves.
           [ "$1" != page_contract ] && FILES+=("$TESTS/bootstrap_storage.sql" "$(as_non_superuser 20261001140000_ingestion_v2.sql)")
           # ingestion_v2's chain plus ingest_discard (admin-upload), as a non-superuser.
-          [ "$1" = ingest_discard ] && FILES+=("$(as_non_superuser 20261001160000_ingest_discard.sql)")
+          case "$1" in ingest_discard|corpus_records) FILES+=("$(as_non_superuser 20261001160000_ingest_discard.sql)") ;; esac
+          # ingest_discard's chain plus corpus_records (admin-records), as a non-superuser.
+          [ "$1" = corpus_records ] && FILES+=("$(as_non_superuser 20261001180000_corpus_records.sql)")
           return 0 ;;
         email_unique)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(m 20260929110000_email_unique.sql)") ;;
@@ -169,6 +171,83 @@ vacuity_check() {
   return $rc
 }
 
+# corpus_records only: two checks a fixture cannot make from inside its own
+# database. Both start from the chain without the migration (base), copied.
+#  * The D2 pre-check: over seeded duplicates the migration must refuse,
+#    listing exactly the ingestion-v2 duplicates (legacy ones are allowed),
+#    and create nothing; once they are resolved it must apply.
+#  * The Down section, executed: the migration, then its header's Down block
+#    as written (as the migrating role), with its two "run ...'s create
+#    function" steps performed by extracting exactly those statements and
+#    their revoke and grant. The schema must then dump identically to base.
+corpus_records_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_corpus_records_base_test pre=niyantran_corpus_records_pre_test up=niyantran_corpus_records_up_test
+  local id1=a0000000-0000-4000-8000-000000000001 id2=a0000000-0000-4000-8000-000000000002
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $pre $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $pre template $base" >/dev/null
+  q "create database $up template $base" >/dev/null
+
+  psql_in $pre >/dev/null <<SQL
+insert into public.documents (id, source_key, title, content_sha256, ocr_text, storage_path, file_sha256, metadata) values
+  ('$id1', 'pre-1', 'v2 duplicate', 'x', '', 'files/a.pdf', 'a', '{"document_key": "bill:1999:1"}'),
+  ('$id2', 'pre-2', 'v2 duplicate', 'x', '', 'files/a.pdf', 'a', '{"document_key": "bill:1999:1"}'),
+  ('a0000000-0000-4000-8000-000000000003', 'pre-3', 'legacy duplicate', 'x', '', null, null, '{"document_key": "bill:1999:2"}'),
+  ('a0000000-0000-4000-8000-000000000004', 'pre-4', 'legacy duplicate', 'x', '', null, null, '{"document_key": "bill:1999:2"}'),
+  ('a0000000-0000-4000-8000-000000000005', 'pre-5', 'v2 beside legacy', 'x', '', 'files/b.pdf', 'b', '{"document_key": "bill:1999:3"}'),
+  ('a0000000-0000-4000-8000-000000000006', 'pre-6', 'legacy beside v2', 'x', '', null, null, '{"document_key": "bill:1999:3"}');
+SQL
+  local expected="ERROR:  corpus_records: ingestion-v2 documents share a document_key; resolve these before applying: bill:1999:1 -> $id1, $id2"
+  if psql_in $pre < "$guard" > "$WORK/pre.txt" 2>&1; then
+    echo "  PRE-CHECK FAIL - the migration applied over duplicate keys"; rc=1
+  elif ! grep -qxF "$expected" "$WORK/pre.txt"; then
+    echo "  PRE-CHECK FAIL - unexpected output:"; grep ERROR "$WORK/pre.txt" | head -2 | sed 's/^/    /'; rc=1
+  elif [ "$(q "select to_regclass('public.corpus_admin_actions') is null and to_regprocedure('public.ingest_discard(uuid)') is not null" -d $pre)" != t ]; then
+    echo "  PRE-CHECK FAIL - objects were created or replaced before the refusal"; rc=1
+  else
+    q "delete from public.documents where id = '$id2'" -d $pre >/dev/null
+    if psql_in $pre < "$guard" >/dev/null 2>&1; then
+      echo "  pre-check ok - refuses listing only ingestion-v2 duplicates, creates nothing, applies once resolved"
+    else
+      echo "  PRE-CHECK FAIL - the migration still refuses after the duplicate was resolved"; rc=1
+    fi
+  fi
+
+  local mig="$MIG/20261001180000_corpus_records.sql"
+  {
+    echo 'SET ROLE nter_migrator;'
+    sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' \
+      | grep -v -e '^--   --' -e '^--   commit;' | sed 's/^--   //'
+    awk '/^create function public\.ingest_register\(/,/^\$\$;/' "$MIG/20261001140000_ingestion_v2.sql"
+    grep -E '^(revoke|grant) .* public\.ingest_register\(jsonb\)' "$MIG/20261001140000_ingestion_v2.sql"
+    awk '/^create function public\.ingest_discard\(/,/^\$\$;/' "$MIG/20261001160000_ingest_discard.sql"
+    grep -E '^(revoke|grant) .* public\.ingest_discard\(uuid\)' "$MIG/20261001160000_ingest_discard.sql"
+    echo 'commit;'
+  } > "$WORK/down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/down.sql" > "$WORK/down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    # (pg_dump 17.6+ brackets each dump with a random \restrict token.)
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/up.dump"
+    if diff -q "$WORK/base.dump" "$WORK/up.dump" >/dev/null; then
+      echo "  down ok - after the Down section the schema dumps identically to the chain without the migration"
+    else
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/base.dump" "$WORK/up.dump" | head -8 | sed 's/^/    /'; rc=1
+    fi
+  fi
+  for db in $base $pre $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -188,6 +267,7 @@ run_fixture() {
   if psql_in "$db" < "$TESTS/$name.sql" > "$WORK/out.txt" 2>&1; then
     echo "  PASS  ($(grep -c . "$WORK/out.txt") lines of output)"
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
+    [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"
