@@ -390,6 +390,7 @@ Each test is shown red first.
 1. The six decisions are approved as recommended. The owner added the "Open stored copy"
    button and the overlay layout (decisions 6 and 7).
 2. Any signed-in user may open, and therefore download, every uploaded PDF: confirmed.
+3. The overlay keeps the 960 px minimum width (each half at least 480 px): confirmed.
 
 ## Review record
 
