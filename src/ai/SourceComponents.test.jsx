@@ -15,8 +15,44 @@ describe('SourceList', () => {
     expect(documentChips(sources)[0].first.id).toBe(1);
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
     expect(html.match(/ai-source-chip/g)).toHaveLength(2);
-    expect(html).toContain('first.pdf');
     expect(html.indexOf('Second doc')).toBeLessThan(html.indexOf('First doc'));
+  });
+
+  // source-list spec: the storage file name was a visible second line ("Windows 98"); it is now
+  // the tooltip only, and the row says which pages and bubbles belong to the document.
+  const page = (id, document_id, page_number, extra = {}) => text(id, document_id, 'A bill', { source_kind: 'pdf_page', page_number, ...extra });
+
+  it('groups each document\'s pages and citation numbers, ascending and distinct', () => {
+    const sources = [page(24, 'd1', 7), page(23, 'd1', 3), page(2, 'd2', 2), page(25, 'd1', 3)];
+    const [a, b] = documentChips(sources);
+    expect(a.pages).toEqual([3, 7]);
+    expect(a.ids).toEqual([23, 24, 25]);
+    expect(b.pages).toEqual([2]);
+    expect(b.ids).toEqual([2]);
+    expect(documentChips([text(1, 'd1', 'Doc')])[0].pages).toEqual([]);
+  });
+
+  it('shows the file name only as the tooltip', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[text(1, 'd1', 'First doc', { file_name: 'first.pdf' })]} />);
+    expect(html).toContain('title="first.pdf"');
+    expect(html).not.toContain('>first.pdf<');
+    expect(html).not.toContain('ai-source-file');
+  });
+
+  it('labels the list with its document count', () => {
+    expect(renderToStaticMarkup(<SourceList sources={[text(1, 'd1', 'A')]} />)).toContain('Sources · 1 document<');
+    expect(renderToStaticMarkup(<SourceList sources={[text(1, 'd1', 'A'), text(2, 'd2', 'B')]} />)).toContain('Sources · 2 documents<');
+    expect(renderToStaticMarkup(<SourceList lang="hi" sources={[text(1, 'd1', 'A')]} />)).toContain('स्रोत · 1 दस्तावेज़<');
+  });
+
+  it('writes the meta line: feature, pages (p., pp., +N after five), then the citation numbers', () => {
+    const one = renderToStaticMarkup(<SourceList sources={[page(2, 'd1', 2, { desk_feature: 'Bills' })]} />);
+    expect(one).toContain('Bills');
+    expect(one).toContain('p. 2<');
+    expect(one).toMatch(/class="ai-source-ids">cited<span class="ai-source-id">2</);
+    const many = renderToStaticMarkup(<SourceList sources={[1, 2, 3, 4, 5, 6, 7].map((n) => page(n, 'd1', n * 2))} />);
+    expect(many).toContain('pp. 2, 4, 6, 8, 10 +2<');
+    expect(renderToStaticMarkup(<SourceList sources={[text(1, 'd1', 'A')]} />)).not.toMatch(/p\. |pp\. /);
   });
 
   it('renders nothing without text sources', () => {

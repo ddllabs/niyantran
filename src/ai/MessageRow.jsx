@@ -25,7 +25,7 @@ function MessageRow({ m, lang, fallbackLabel, labelOf, onOpenSource }) {
         <>
           {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}
           <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={onOpenSource} />
-          {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={readable} onOpen={onOpenSource} /> : null}
+          {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={readable} onOpen={onOpenSource} lang={lang} /> : null}
           {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
           {m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
         </>
