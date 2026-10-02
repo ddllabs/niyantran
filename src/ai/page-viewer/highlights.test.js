@@ -159,3 +159,20 @@ describe('markMatches', () => {
     expect(doc.ranges).toHaveLength(0);
   });
 });
+
+describe('createHighlighter, shared by name', () => {
+  it('two highlighters on one name keep each other\'s ranges, and disposing one leaves the other\'s', () => {
+    const env = fakeEnv();
+    const first = createHighlighter('pv-match', env);
+    const second = createHighlighter('pv-match', env);
+    first.set(1, ['r1']);
+    second.set(1, ['s1']);
+    second.set(2, ['s2']);
+    expect(env.registry.get('pv-match').ranges).toEqual(['r1', 's1', 's2']);
+    first.dispose();
+    expect(env.registry.get('pv-match').ranges).toEqual(['s1', 's2']);
+    second.clear(1);
+    second.clear(2);
+    expect(env.registry.has('pv-match')).toBe(false);
+  });
+});

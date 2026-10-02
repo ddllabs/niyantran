@@ -19,15 +19,27 @@ export function layerItems(container) {
 }
 
 /**
- * A registry of ranges per page under one highlight name; `supported` is false where the browser
- * has no Highlight API, and then nothing is registered.
+ * Every live highlighter's pages, by environment and highlight name. A name is global to the
+ * document, so all highlighters on it share one registration: each contributes its own ranges.
+ */
+const owners = new WeakMap();
+
+/**
+ * Ranges per page under one highlight name; `supported` is false where the browser has no
+ * Highlight API, and then nothing is registered. Highlighters on the same name (two viewers at
+ * once) keep each other's ranges; `dispose` takes away only this one's.
  */
 export function createHighlighter(name, env = globalThis) {
   const supported = Boolean(env.CSS?.highlights) && typeof env.Highlight === 'function';
   const pages = new Map();
+  if (!owners.has(env)) owners.set(env, new Map());
+  const byName = owners.get(env);
+  if (!byName.has(name)) byName.set(name, new Set());
+  const shared = byName.get(name);
+  shared.add(pages);
   const sync = () => {
     if (!supported) return;
-    const ranges = [...pages.values()].flat();
+    const ranges = [...shared].flatMap(own => [...own.values()].flat());
     if (ranges.length) env.CSS.highlights.set(name, new env.Highlight(...ranges));
     else env.CSS.highlights.delete(name);
   };
@@ -35,7 +47,11 @@ export function createHighlighter(name, env = globalThis) {
     supported,
     set(page, ranges) { pages.set(page, ranges); sync(); },
     clear(page) { if (pages.delete(page)) sync(); },
-    dispose() { pages.clear(); if (supported) env.CSS.highlights.delete(name); },
+    dispose() {
+      pages.clear();
+      shared.delete(pages);
+      sync();
+    },
   };
 }
 
