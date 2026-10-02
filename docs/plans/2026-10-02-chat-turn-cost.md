@@ -45,4 +45,7 @@
   faster or cheaper. The model searches again.
 - **Prompt size explains little of call time** (r = 0.14, about 82 ms per 1,000 tokens). F41's 46 s
   call needs its NTER log row to explain it.
-- **Owner decision pending:** keep the widened limit, or leave `research-chat` as v44.
+- **The owner kept the widened limit** (2026-10-02). It ships with the next `research-chat` deploy;
+  the reply cap stays off.
+- **F41's slow call, read on NTER:** provider latency, not prompt size. A provider-preference trial
+  is the next step for speed.
