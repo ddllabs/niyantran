@@ -134,8 +134,10 @@ chain() {
           case "$1" in ingest_discard|corpus_records|search_document_pages) FILES+=("$(as_non_superuser 20261001160000_ingest_discard.sql)") ;; esac
           # ingest_discard's chain plus corpus_records (admin-records), as a non-superuser.
           case "$1" in corpus_records|search_document_pages) FILES+=("$(as_non_superuser 20261001180000_corpus_records.sql)") ;; esac
-          # corpus_records's chain plus search_document_pages (viewer-continuous), as a non-superuser.
-          [ "$1" = search_document_pages ] && FILES+=("$(as_non_superuser 20261002120000_search_document_pages.sql)")
+          # corpus_records's chain plus search_document_pages and its folding fix (viewer-continuous,
+          # viewer-f50), as a non-superuser. The vacuity check drops the last: the folding cases fail.
+          [ "$1" = search_document_pages ] && FILES+=("$(as_non_superuser 20261002120000_search_document_pages.sql)" \
+            "$(as_non_superuser 20261002180000_search_folding.sql)")
           return 0 ;;
         email_unique)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(m 20260929110000_email_unique.sql)") ;;
@@ -273,7 +275,8 @@ run_fixture() {
   else
     rc=1
     echo "  FAIL"
-    grep -iE 'error|assert' "$WORK/out.txt" | head -6 | sed 's/^/    /'
+    # The raised assertion first: a fixture's result columns are also named assert_true.
+    { grep -E 'ERROR|FAIL:' "$WORK/out.txt" || grep -iE 'error|assert' "$WORK/out.txt"; } | head -6 | sed 's/^/    /'
   fi
   return $rc
 }

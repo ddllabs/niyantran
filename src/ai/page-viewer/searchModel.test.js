@@ -16,6 +16,12 @@ describe('foldQuery', () => {
     expect(foldQuery('ab')).toBe('ab');
   });
 
+  it('folds as migration 43 does: every Unicode space JavaScript\'s \\s matches, and NFC (क़ precomposed becomes क + ◌़)', () => {
+    expect(foldQuery('pay\u00a0the\u2003duty\u202fnow')).toBe('pay the duty now');
+    expect(foldQuery('\u0958\u093e\u0928\u0942\u0928')).toBe('\u0915\u093c\u093e\u0928\u0942\u0928');
+    expect(layerMatches([{ str: 'pay\u00a0the duty', hasEOL: false }], foldQuery('pay the'))).toHaveLength(1);
+  });
+
   it('keeps Hindi as typed, composed', () => {
     expect(foldQuery('राष्ट्रीय  खेल')).toBe('राष्ट्रीय खेल'.normalize('NFC'));
   });

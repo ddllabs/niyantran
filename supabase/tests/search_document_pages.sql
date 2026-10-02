@@ -7,8 +7,10 @@
 -- 200-page bound, counted from the reader's page and wrapping to the document's start; short and
 -- empty queries; Hindi; and the caller's own read access deciding what is seen (an RLS policy
 -- narrowed for one test).
--- Run on corpus_records's chain plus the migration, which run.sh applies as a NON-superuser; never
--- against a hosted project. The vacuity check drops the migration. Every label is unique.
+-- Run on corpus_records's chain plus the migration and 20261002180000_search_folding (no-break and
+-- other Unicode spaces, NFC), which run.sh applies as a NON-superuser; never against a hosted
+-- project. The vacuity check drops the folding migration, so the folding cases must fail without
+-- it. Every label is unique.
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL search_path = public, extensions;
@@ -50,6 +52,9 @@ INSERT INTO document_pages (document_id, extract_hash, page_number, text, char_f
   ('d0000000-0000-4000-8000-000000000001', 'x1', 2, E'|  Amendment of section 11. | 8. In section 11 of the principal\nAct, a Penalty; a penalty; a PENALTY. |\n| --- | --- |', 11, 20),
   ('d0000000-0000-4000-8000-000000000001', 'x1', 3, E'See ![img-0.jpeg](img-0.jpeg) the [Gazette](https://example.org/g) <sup>1</sup> clause (1) and 100% of a_b, abc, a.c and पूंजीगत व्यय here', 21, 30),
   ('d0000000-0000-4000-8000-000000000001', 'x1', 4, 'nothing to see', 31, 40),
+  -- Folding parity with the client (migration 43): a no-break space, an em space, क़ stored
+  -- precomposed (U+0958, which NFC writes as U+0915 U+093C), and É.
+  ('d0000000-0000-4000-8000-000000000001', 'x1', 5, 'shall pay' || U&'\00A0' || 'the duty under clause' || U&'\2003' || 'nine of the ' || U&'\0958\093E\0928\0942\0928' || ' and the ÉCOLE rules', 41, 50),
   ('d0000000-0000-4000-8000-000000000001', 'x0', 2, 'an older extraction with a penalty', 0, 5),
   ('d0000000-0000-4000-8000-000000000002', 'x1', 1, 'another document with a penalty', 0, 5);
 CREATE FUNCTION pg_temp.pages(q text, max_pages integer DEFAULT 200) RETURNS integer[] LANGUAGE sql AS $$
@@ -88,6 +93,12 @@ SELECT pg_temp.assert_true(pg_temp.pages('of a b') = '{3}' AND pg_temp.pages('of
 SELECT pg_temp.assert_true(pg_temp.pages('पूंजीगत व्यय') = '{3}', 'Hindi matches');
 SELECT pg_temp.assert_true(pg_temp.pages('a') = '{}' AND pg_temp.pages('  ') = '{}' AND pg_temp.pages(NULL) = '{}', 'a query under 2 characters finds nothing');
 SELECT pg_temp.assert_true(pg_temp.pages('absent words') = '{}', 'no match, no rows');
+SELECT pg_temp.assert_true(pg_temp.pages('pay the duty') = '{5}', 'a no-break space in the text matches a space in the query');
+SELECT pg_temp.assert_true(pg_temp.pages('pay' || U&'\00A0' || 'the') = '{5}', 'a no-break space in the query matches too');
+SELECT pg_temp.assert_true(pg_temp.pages('clause nine') = '{5}', 'an em space folds to a space');
+SELECT pg_temp.assert_true(pg_temp.pages(U&'\0915\093C\093E\0928\0942\0928') = '{5}', 'the client''s NFC query finds text stored precomposed');
+SELECT pg_temp.assert_true(pg_temp.pages(U&'\0958\093E\0928\0942\0928') = '{5}', 'a precomposed query finds it too');
+SELECT pg_temp.assert_true(pg_temp.pages('école') = '{5}' AND pg_temp.pages('ÉCOLE') = '{5}', 'accented capitals fold to lower case');
 SELECT pg_temp.assert_true(
   (SELECT snippets FROM public.search_document_pages('d0000000-0000-4000-8000-000000000001', 'x1', 'penalty') WHERE page_number = 2)
     = array['ent of section 11. 8. In section 11 of the principal Act, a Penalty; a penalty; a PENALTY. --- ---'],
