@@ -12,7 +12,7 @@
  * Attachments stay in the browser: they are per-turn inputs, and the schema
  * has no column for them.
  */
-import { attachmentIdentity } from './aiDrop.js';
+import { partitionAttachments } from './aiDrop.js';
 import { supabase } from './supabaseClient.js';
 import { verifiedLocalIdentity, localIdentityIsCurrent, reverifiedAccount, subscribeLocalIdentity } from './userStore.js';
 
@@ -338,14 +338,8 @@ export function setChatAttachments(id, attachments) {
 export function addChatAttachments(id, incoming) {
   const chat = currentOwner() && state.chats.find((c) => c.id === id);
   if (!chat) return state;
-  const seen = new Set((chat.attachments || []).map(attachmentIdentity));
-  const extra = [];
-  for (const a of incoming || []) {
-    const key = attachmentIdentity(a);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    extra.push({ ...a, id: a.id || `a_${Math.random().toString(36).slice(2, 10)}` });
-  }
+  const extra = partitionAttachments(chat.attachments, incoming).fresh
+    .map((a) => ({ ...a, id: a.id || `a_${Math.random().toString(36).slice(2, 10)}` }));
   return setChatAttachments(chat.id, [...(chat.attachments || []), ...extra]);
 }
 

@@ -3,6 +3,7 @@ import * as threads from '../lib/aiThreads.js';
 import * as streaming from '../lib/researchChat.js';
 import * as identity from '../lib/userStore.js';
 import * as registry from '../lib/aiRegistry.js';
+import { partitionAttachments } from '../lib/aiDrop.js';
 import { defaultEffortFor, effortsFor } from './ModelPicker.jsx';
 
 export function normalizeResearchChoice(models, value = {}) {
@@ -199,7 +200,7 @@ export function createResearchThread(overrides = {}) {
     const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
     if (!context) return false;
     const op = { context }; operation = op;
-    emit({ submitting: true, error: '', cancelError: '' });
+    emit({ submitting: true, error: '', cancelError: '', attachNotice: '' });
     try {
       if (!await current(t)) return false;
       if (!replay) {
@@ -260,12 +261,12 @@ export function createResearchThread(overrides = {}) {
     closeViewer() { emit({ viewer: null }); },
     newChat() {
       if (!data.ready || data.submitting || deps.streamState('new').isPending) return false;
-      emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '' }); return true;
+      emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '', attachNotice: '' }); return true;
     },
     async selectChat(id) {
       if (!data.ready || data.submitting) return;
       const t = token();
-      emit({ store: deps.setActiveAiChat(id), viewer: null, draft: '', loading: true, error: '', cancelRequested: false, cancelError: '' });
+      emit({ store: deps.setActiveAiChat(id), viewer: null, draft: '', loading: true, error: '', cancelRequested: false, cancelError: '', attachNotice: '' });
       try { const store = await deps.loadMessages(id); if (await current(t)) emit({ store }); }
       catch { if (valid(t)) emit({ error: 'Conversation messages could not be loaded. Try Reload.' }); }
       finally { if (valid(t)) emit({ loading: false }); }
@@ -277,8 +278,12 @@ export function createResearchThread(overrides = {}) {
       try {
         const attachments = await materialize();
         if (!await current(t) || !contextChat(context)) return false;
-        deps.addChatAttachments(contextChat(context).id, attachments);
-        emit({ store: deps.loadAiState() }); return true;
+        // chat-attach-fixes: what is already attached is not added again, and is named.
+        const chat = contextChat(context);
+        const { fresh, duplicates } = partitionAttachments(chat.attachments, attachments);
+        if (fresh.length) deps.addChatAttachments(chat.id, fresh);
+        const names = [...new Set(duplicates.map(a => a.title || 'item'))];
+        emit({ store: deps.loadAiState(), attachNotice: names.length ? `Already attached: ${names.join(', ')}` : '' }); return true;
       } catch { if (valid(t)) emit({ error: 'The attachment could not be loaded.' }); return false; }
     },
     send: body => execute(body),

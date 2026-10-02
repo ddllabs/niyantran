@@ -634,6 +634,10 @@ Follow-ups and findings:
 
     The local run is in `research/2026-10-03-side-panel-local-run.md`.
   - **Next:** the push, with a go-ahead (frontend only). The owner's checks on production follow.
+- [ ] **F55.** The AI chat's drop frame showed only on its sides. A different file with the same
+  name was silently dropped. The same bill, dragged and then sent by "Ask AI", attached twice.
+  Reload was always shown. Owner-approved fixes are in spec `specs/2026-10-03-chat-attach-fixes.md`,
+  built and checked locally (2026-10-03). Next: the push, with a go-ahead.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.

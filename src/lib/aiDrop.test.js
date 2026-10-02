@@ -1,5 +1,5 @@
-import { afterEach, expect, it, vi } from 'vitest';
-import { attachmentIdentity, isModuleAttachment, materializeAiDrop } from './aiDrop.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { attachmentIdentity, filesFromDrop, isModuleAttachment, materializeAiDrop, partitionAttachments } from './aiDrop.js';
 
 const BILL = {
   bill_name: 'The Competition (Amendment) Bill, 2007',
@@ -44,4 +44,38 @@ it('a document chip is identified by its document id', () => {
   const a = { kind: 'document', title: 'The Delimitation Bill, 2026', feature: 'Bills', document_id: 'd1' };
   expect(attachmentIdentity({ ...a, id: 'x1' })).toBe(attachmentIdentity({ ...a, id: 'x2' }));
   expect(attachmentIdentity({ ...a, document_id: 'd2' })).not.toBe(attachmentIdentity(a));
+});
+
+// chat-attach-fixes (2026-10-03, measured): a bill dragged from the table carried desk '' and the
+// same bill sent by "Ask AI" carried 'national', so it attached twice; and a file's text sits
+// inside `files`, so two different files that share a name were one chip.
+describe('attachment identity', () => {
+  it('a row with a document key is that key, by any route', () => {
+    const drag = { kind: 'row', title: 'THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026', tab: '', feature: 'Bill Passage Probability Index', document_key: 'bill:2026:156' };
+    const seed = { ...drag, tab: 'national', title: 'The National Co-operative Development Corporation (Amendment) Bill, 2026' };
+    expect(attachmentIdentity(seed)).toBe(attachmentIdentity(drag));
+    expect(attachmentIdentity({ ...drag, document_key: 'bill:2026:157' })).not.toBe(attachmentIdentity(drag));
+  });
+
+  it('a row without a key is its title and module, not its desk', () => {
+    const a = { kind: 'row', title: 'Same Name', feature: 'Alliances', tab: '' };
+    expect(attachmentIdentity({ ...a, tab: 'global' })).toBe(attachmentIdentity(a));
+    expect(attachmentIdentity({ ...a, feature: 'Nuclear Watch' })).not.toBe(attachmentIdentity(a));
+  });
+
+  it('a dropped file is its name, size and content', async () => {
+    const [one] = await filesFromDrop({ dataTransfer: { files: [new File(['hello world'], 'notes.txt', { type: 'text/plain' })] } });
+    const [same] = await filesFromDrop({ dataTransfer: { files: [new File(['hello world'], 'notes.txt', { type: 'text/plain' })] } });
+    const [other] = await filesFromDrop({ dataTransfer: { files: [new File(['different content'], 'notes.txt', { type: 'text/plain' })] } });
+    expect(one.fingerprint).toMatch(/^11:[0-9a-f]{16}$/);
+    expect(attachmentIdentity(same)).toBe(attachmentIdentity(one));
+    expect(attachmentIdentity(other)).not.toBe(attachmentIdentity(one));
+  });
+
+  it('partitions incoming attachments into new ones and those already attached, within a drop too', () => {
+    const bill = { kind: 'row', title: 'A bill', document_key: 'bill:1:1' };
+    const { fresh, duplicates } = partitionAttachments([bill], [{ ...bill, tab: 'national' }, { kind: 'row', title: 'B', document_key: 'bill:1:2' }, { kind: 'row', title: 'B', document_key: 'bill:1:2' }]);
+    expect(fresh.map((a) => a.title)).toEqual(['B']);
+    expect(duplicates.map((a) => a.title)).toEqual(['A bill', 'B']);
+  });
 });

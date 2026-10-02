@@ -179,8 +179,45 @@ async function hydrateDocumentFiles(urls, title) {
  */
 export function attachmentIdentity(a) {
   if (!a || typeof a !== 'object') return '';
+  // chat-attach-fixes: a record with a corpus key is that record by any route. A bill dragged from
+  // the table carried desk '' and the same bill sent by "Ask AI" carried 'national'.
+  if (a.document_key) return ['key', a.document_key].join('\u0000');
+  // A dropped file is its name, size and content (`fingerprint`, from filesFromDrop): its text sits
+  // inside `files`, so two different files that shared a name were one chip.
+  if (a.kind === 'file' && a.fingerprint) return ['file', a.title || '', a.fingerprint].join('\u0000');
   const text = typeof a.text === 'string' ? a.text.length : 0;
-  return [a.kind || '', a.title || '', a.tab || '', a.feature || '', a.url || '', text, a.document_id || ''].join('\u0000');
+  const tab = a.kind === 'row' ? '' : a.tab || '';
+  return [a.kind || '', a.title || '', tab, a.feature || '', a.url || '', text, a.document_id || ''].join('\u0000');
+}
+
+/**
+ * Splits `incoming` into attachments not yet in `existing` (nor earlier in `incoming`) and those
+ * already attached, so a caller can add the first and name the second.
+ */
+export function partitionAttachments(existing, incoming) {
+  const seen = new Set((existing || []).map(attachmentIdentity));
+  const fresh = [];
+  const duplicates = [];
+  for (const a of incoming || []) {
+    const key = attachmentIdentity(a);
+    if (seen.has(key)) duplicates.push(a);
+    else {
+      seen.add(key);
+      fresh.push(a);
+    }
+  }
+  return { fresh, duplicates };
+}
+
+/** `<size>:<first 16 hex of the SHA-256 of the bytes>`, or '' where it cannot be computed. */
+async function fileFingerprint(file) {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return `${file.size}:${hex.slice(0, 16)}`;
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -403,6 +440,8 @@ export async function filesFromDrop(e) {
               ? 'sheet'
               : 'text');
     const rec = { kind: 'file', title: file.name, urls: [], files: [] };
+    const fingerprint = await fileFingerprint(file);
+    if (fingerprint) rec.fingerprint = fingerprint;
     try {
       if (kind === 'pdf' || kind === 'image' || kind === 'sheet') {
         rec.files.push({

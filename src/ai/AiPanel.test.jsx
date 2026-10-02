@@ -398,3 +398,15 @@ it('embedded in the side panel, the chat renders no header row of its own; stand
  expect(renderToStaticMarkup(<AiPanel lang="en" embedded/>)).toContain('class="ai-v2-head embedded"');
  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toContain('class="ai-v2-head"');
 });
+// chat-attach-fixes: Reload shows only when something calls for it; the attach note is a status line.
+it('Reload appears only when needed, and the attach note shows under the chips',()=>{
+ const ready={...fake.research,ready:true,loading:false,locked:false,viewer:null,error:'',storedRunning:false,cancelRequested:false,attachNotice:''};
+ fake.research=ready;
+ expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toMatch(/>Reload</);
+ for(const state of [{storedRunning:true},{error:'The saved result could not be loaded. Try Reload.'},{cancelRequested:true}]){
+  fake.research={...ready,...state};
+  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/>Reload</);
+ }
+ fake.research={...ready,attachNotice:'Already attached: notes.txt'};
+ expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/role="status"[^>]*>Already attached: notes\.txt</);
+});

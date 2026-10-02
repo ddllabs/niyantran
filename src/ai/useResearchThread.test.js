@@ -248,3 +248,14 @@ it('B: opening hands the identity it just verified to the conversation read',asy
  expect(f.deps.verifiedLocalIdentity).toHaveBeenCalledOnce();
  expect(f.deps.hydrateConversations).toHaveBeenCalledWith(expect.objectContaining({id:'a',token:'a'}));
 });
+// chat-attach-fixes: an attach that skips anything already attached says so, until the next attach or send.
+it('an attach that skips duplicates names them, and the next attach clears the note',async()=>{
+ const f=fixture();attachable(f);await f.controller.start();
+ await f.controller.attach(async()=>[{kind:'file',title:'notes.txt',fingerprint:'11:aa'}]);
+ expect(f.controller.getSnapshot().attachNotice).toBe('');
+ await f.controller.attach(async()=>[{kind:'file',title:'notes.txt',fingerprint:'11:aa'},{kind:'row',title:'A bill',document_key:'bill:1:1'}]);
+ expect(f.controller.getSnapshot().attachNotice).toBe('Already attached: notes.txt');
+ expect(f.deps.addChatAttachments).toHaveBeenLastCalledWith(expect.anything(),[expect.objectContaining({title:'A bill'})]);
+ await f.controller.attach(async()=>[{kind:'row',title:'C',document_key:'bill:1:3'}]);
+ expect(f.controller.getSnapshot().attachNotice).toBe('');
+});

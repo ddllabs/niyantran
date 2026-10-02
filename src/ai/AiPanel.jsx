@@ -654,6 +654,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     reportRef.current?.(citationOpen, closeCitationAndChat(() => closeViewerRef.current(), () => onCloseRef.current?.()));
   }, [citationOpen]);
 
+  // The research controls row (chat-attach-fixes): what it says, and whether Reload is offered.
+  const connectionLost = stream?.status === 'unknown';
+  const running = Boolean(research.storedRunning || (stream?.status === 'running' && !streaming));
+  const stopping = Boolean(research.cancelRequested || stream?.cancelRequested);
+  const needsReload = connectionLost || running || stopping || Boolean(err || stream?.error)
+    || messages.some((m) => m.status === 'running');
+  const showControls = needsReload || research.loading || research.recoverable || Boolean(research.cancelError || stream?.cancelError);
+
   // The header's actions: new research, history, docs and download.
   const headActions = (
     <div className="ai-v2-head-actions">
@@ -981,6 +989,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             })}
           </ul>
         ) : null}
+        {/* chat-attach-fixes: what an attach skipped as already attached, until the next attach or send. */}
+        {research.attachNotice ? <p className="ai-foot ai-attach-note" role="status">{research.attachNotice}</p> : null}
 
         <div className="ai-v2-history">
           {/* panel-loading spec C: until the thread is in, a placeholder of fixed shape holds its place. */}
@@ -1059,15 +1069,20 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           />
         ) : null}
         {scopeNotice ? <p className="ai-foot" role="status">{scopeNotice}</p> : null}
-        <div className="ai-research-controls" aria-live="polite">
-          {research.loading ? <span>Loading research…</span> : null}
-          {stream?.status === 'unknown' ? <span>Connection lost. The saved outcome is unknown.</span> : null}
-          {research.storedRunning || stream?.status === 'running' && !streaming ? <span>Research is running.</span> : null}
-          {research.cancelRequested || stream?.cancelRequested ? <span>Stopping — awaiting the saved result.</span> : null}
-          {research.cancelError || stream?.cancelError ? <span role="alert">{research.cancelError || stream.cancelError}</span> : null}
-          {research.recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
-          <button type="button" disabled={research.loading} onClick={() => research.actions.reload()}>Reload</button>
-        </div>
+        {/* chat-attach-fixes: the row shows only when it has something to say. Reload fetches the saved
+            messages, which matters only when a result is unknown, still running, being stopped or
+            failed to load, or a saved message is still running. */}
+        {showControls ? (
+          <div className="ai-research-controls" aria-live="polite">
+            {research.loading ? <span>Loading research…</span> : null}
+            {connectionLost ? <span>Connection lost. The saved outcome is unknown.</span> : null}
+            {running ? <span>Research is running.</span> : null}
+            {stopping ? <span>Stopping — awaiting the saved result.</span> : null}
+            {research.cancelError || stream?.cancelError ? <span role="alert">{research.cancelError || stream.cancelError}</span> : null}
+            {research.recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
+            {needsReload ? <button type="button" disabled={research.loading} onClick={() => research.actions.reload()}>Reload</button> : null}
+          </div>
+        ) : null}
         {err || stream?.error ? (
           <p className="ai-foot warn" role="alert">{err || stream?.error}</p>
         ) : null}

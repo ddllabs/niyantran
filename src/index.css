@@ -3621,7 +3621,18 @@ button.live-feed:hover { color: var(--fg); }
   background: var(--panel);
 }
 .ai-shell.compact { grid-template-rows: auto minmax(0, 1fr); }
-.ai-shell.drop { outline: 2px dashed #012ea1; outline-offset: -6px; background: var(--accent-soft); }
+/* chat-attach-fixes: the drop frame is an overlay above the toolbar, thread and composer, which are
+   positioned and white and painted over the outline it used to be, leaving only its sides. */
+.ai-shell.drop { background: var(--accent-soft); }
+.ai-shell.drop::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 2px dashed #012ea1;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 40;
+}
 
 /* v2 must win over legacy .ai-shell 2-row template (otherwise chrome/body overlap). */
 .ai-shell.ai-shell-v2 {

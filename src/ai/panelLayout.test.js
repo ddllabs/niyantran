@@ -299,3 +299,24 @@ describe('the tab bar at the narrowest panel', () => {
     expect(shortShown).toBe(true);
   });
 });
+
+// chat-attach-fixes: the drop outline was painted under the toolbar and the composer (positioned,
+// white), so it showed only along the thread's sides. The frame is now an overlay above them.
+describe('the drop frame', () => {
+  const rule = (sel) => { let found = null; postcss.parse(read('../index.css')).walkRules((r) => { if (!r.parent || r.parent.type !== 'atrule') if (r.selectors.map((s) => s.trim()).includes(sel)) found = r; }); return found; };
+  const decls = (r) => { const o = {}; r?.walkDecls((d) => { o[d.prop] = d.value; }); return o; };
+
+  it('is a dashed border on an overlay above the chat\'s regions, taking no pointer events', () => {
+    const d = decls(rule('.ai-shell.drop::after'));
+    expect(d.content).toBe("''");
+    expect(d.position).toBe('absolute');
+    expect(d.inset).toBe('6px');
+    expect(d.border).toMatch(/dashed/);
+    expect(d['pointer-events']).toBe('none');
+    expect(Number(d['z-index'])).toBeGreaterThan(30);
+  });
+
+  it('no longer uses an outline, which the regions covered', () => {
+    expect(decls(rule('.ai-shell.drop')).outline).toBeUndefined();
+  });
+});

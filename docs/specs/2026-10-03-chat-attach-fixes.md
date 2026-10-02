@@ -70,3 +70,26 @@ The rest of the time it costs a row of about 34 px.
 ## Exclusions
 
 No change to what an attachment sends, and no server change.
+
+## Recorded 2026-10-03 (built and checked locally)
+
+- **Built:**
+  - `attachmentIdentity` uses the document key, then a file's fingerprint, and leaves out the desk
+    for rows;
+  - `partitionAttachments` is shared by the store and the thread;
+  - `filesFromDrop` records `fingerprint` (size and SHA-256);
+  - the thread's `attachNotice` clears on attach, send, a new chat or a chat switch;
+  - the panel shows the note and computes `needsReload`, and the controls row renders only with
+    content;
+  - the drop frame is `.ai-shell.drop::after`.
+- **Tests:** 8 new tests across `aiDrop`, `useResearchThread`, `AiPanel` and `panelLayout`, each
+  failing first.
+- **Checks:** lint, Vitest (2,022) and the build pass.
+- **A local browser run at 1440 × 900:**
+  - idle, there is no controls row and no Reload;
+  - the frame is a dashed 2 px border 6 px inside, at z-index 40, visible on all four sides;
+  - `notes.txt` twice gives one chip and "Already attached: notes.txt";
+  - a different file named `notes.txt` gives a second chip and no note;
+  - a bill dragged from the table and then "Ask AI" gives one chip and "Already attached: THE
+    NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026".
+- **Noted, not changed:** two different files with the same name both show as "notes.txt".
