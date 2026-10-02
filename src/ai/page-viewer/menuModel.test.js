@@ -27,9 +27,13 @@ describe('menuFocus', () => {
 });
 
 describe('openFocus', () => {
-  it('opens on the first item with Enter, Space or ArrowDown, and on the last with ArrowUp', () => {
-    for (const key of ['Enter', ' ', 'ArrowDown']) expect(openFocus(key)).toBe('first');
+  it('opens on the first item with ArrowDown and on the last with ArrowUp', () => {
+    expect(openFocus('ArrowDown')).toBe('first');
     expect(openFocus('ArrowUp')).toBe('last');
+  });
+
+  it('leaves Enter and Space to the button\'s own click, so the key\'s release cannot choose an item', () => {
+    for (const key of ['Enter', ' ']) expect(openFocus(key)).toBeNull();
   });
 
   it('does not open on other keys', () => {

@@ -37,3 +37,48 @@ const FITS = Object.freeze([['text', 'Fit text'], ['width', 'Fit width'], ['page
 export function fitItems({ fit, manual }) {
   return FITS.map(([value, label]) => ({ value, label, checked: !manual && value === fit }));
 }
+
+/**
+ * Copies `text`; resolves true when the clipboard took it and false otherwise. Never throws: a
+ * missing clipboard, a refused permission and an insecure context all just answer false.
+ */
+export async function copyText(text, clipboard = globalThis.navigator?.clipboard) {
+  try {
+    if (typeof clipboard?.writeText !== 'function') return false;
+    await clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Which chrome a viewer shows. Zoom belongs to the PDF view only: in the page toolbar, or in the
+ * More menu when the side pane is compact; the full view's pill always has room for it. Full view
+ * opens from the side pane only, and never on phones.
+ */
+export function chromePlan({ available, view, compact, narrow, full }) {
+  const pdf = Boolean(available) && view === 'pdf';
+  return {
+    viewSwitch: Boolean(available),
+    toolbarZoom: pdf && (full || !compact),
+    moreZoom: pdf && !full && Boolean(compact),
+    expand: !full && !narrow,
+  };
+}
+
+const oneLine = value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '');
+
+/**
+ * The citation's section as the chrome shows it, on one line (extracted headings carry line breaks
+ * and runs of spaces). A heading that only repeats the document title (often the case for a bill)
+ * is dropped, so the specific part, the note, is what stays visible; a lone heading is shown as the
+ * note. `label` is the whole line, for the tooltip.
+ */
+export function sectionParts(section, title) {
+  let head = oneLine(section?.heading);
+  let note = oneLine(section?.note);
+  if (head && head.toLowerCase() === oneLine(title).toLowerCase()) head = '';
+  if (head && !note) [head, note] = ['', head];
+  return { head, note, label: head ? `${head} › ${note}` : note };
+}

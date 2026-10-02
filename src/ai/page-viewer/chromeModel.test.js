@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { COMPACT_BELOW, citedChip, fitItems, parsePageInput, toolbarLayout } from './chromeModel.js';
+import { describe, expect, it, vi } from 'vitest';
+import { COMPACT_BELOW, chromePlan, citedChip, copyText, fitItems, parsePageInput, sectionParts, toolbarLayout } from './chromeModel.js';
 
 describe('parsePageInput', () => {
   it('accepts a whole page within 1..total, trimmed', () => {
@@ -54,5 +54,70 @@ describe('fitItems', () => {
 
   it('checks none under a manual zoom, so picking a fit returns to it', () => {
     expect(fitItems({ fit: 'text', manual: true }).some(item => item.checked)).toBe(false);
+  });
+});
+
+describe('copyText', () => {
+  it('writes the text and reports success', async () => {
+    const clipboard = { writeText: vi.fn(() => Promise.resolve()) };
+    await expect(copyText('bill.pdf', clipboard)).resolves.toBe(true);
+    expect(clipboard.writeText).toHaveBeenCalledWith('bill.pdf');
+  });
+
+  it('reports failure, never throws: refused, missing, or not callable', async () => {
+    await expect(copyText('x', { writeText: () => Promise.reject(new Error('denied')) })).resolves.toBe(false);
+    await expect(copyText('x', { writeText: () => { throw new Error('sync'); } })).resolves.toBe(false);
+    await expect(copyText('x', undefined)).resolves.toBe(false);
+    await expect(copyText('x', {})).resolves.toBe(false);
+  });
+});
+
+describe('chromePlan', () => {
+  const plan = extra => chromePlan({ available: true, view: 'pdf', compact: false, narrow: false, full: false, ...extra });
+
+  it('side pane, PDF view: switch, zoom in the toolbar, and Full view', () => {
+    expect(plan()).toEqual({ viewSwitch: true, toolbarZoom: true, moreZoom: false, expand: true });
+  });
+
+  it('a compact side pane moves zoom into the More menu', () => {
+    expect(plan({ compact: true })).toEqual({ viewSwitch: true, toolbarZoom: false, moreZoom: true, expand: true });
+  });
+
+  it('the Text view has no zoom anywhere, and keeps Full view', () => {
+    expect(plan({ view: 'text' })).toEqual({ viewSwitch: true, toolbarZoom: false, moreZoom: false, expand: true });
+    expect(plan({ view: 'text', compact: true }).moreZoom).toBe(false);
+  });
+
+  it('no PDF: no switch and no zoom', () => {
+    expect(plan({ available: false, view: 'text' })).toEqual({ viewSwitch: false, toolbarZoom: false, moreZoom: false, expand: true });
+  });
+
+  it('phones have no Full view; inside the full view, zoom is in the pill and there is no Full view', () => {
+    expect(plan({ narrow: true }).expand).toBe(false);
+    expect(plan({ full: true, compact: true })).toEqual({ viewSwitch: true, toolbarZoom: true, moreZoom: false, expand: false });
+  });
+});
+
+describe('sectionParts', () => {
+  const title = 'THE NATIONAL ANTI-DOPING (AMENDMENT) BILL, 2025';
+
+  it('drops a heading that only repeats the title, so the note is what shows', () => {
+    expect(sectionParts({ heading: title, note: 'Amendment of section 10.' }, title)).toEqual({ head: '', note: 'Amendment of section 10.', label: 'Amendment of section 10.' });
+    expect(sectionParts({ heading: ' the national anti-doping  (amendment) bill, 2025 ', note: 'x' }, title).head).toBe('');
+  });
+
+  it('collapses the line breaks and runs of spaces that extracted headings carry', () => {
+    expect(sectionParts({ heading: 'Chapter\n  II', note: 'Defini-\ntions  here' }, title)).toEqual({ head: 'Chapter II', note: 'Defini- tions here', label: 'Chapter II › Defini- tions here' });
+  });
+
+  it('keeps a heading that says something else', () => {
+    expect(sectionParts({ heading: 'Chapter II', note: 'Definitions' }, title)).toEqual({ head: 'Chapter II', note: 'Definitions', label: 'Chapter II › Definitions' });
+  });
+
+  it('a heading alone, a note alone, or nothing', () => {
+    expect(sectionParts({ heading: 'Chapter II' }, title)).toEqual({ head: '', note: 'Chapter II', label: 'Chapter II' });
+    expect(sectionParts({ note: 'Definitions' }, title)).toEqual({ head: '', note: 'Definitions', label: 'Definitions' });
+    expect(sectionParts(undefined, title)).toEqual({ head: '', note: '', label: '' });
+    expect(sectionParts({ heading: title }, title)).toEqual({ head: '', note: '', label: '' });
   });
 });

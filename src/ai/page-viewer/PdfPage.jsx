@@ -50,13 +50,26 @@ export function PdfOverlay({ overlay, firstBoxRef = null }) {
   );
 }
 
-/** The pane's content size, debounced, from a ResizeObserver. */
+/** Padding on both sides of an axis, in px; 0 where computed styles are unavailable. */
+function paddingOf(element, a, b) {
+  const style = globalThis.getComputedStyle?.(element);
+  return style ? (Number.parseFloat(style[a]) || 0) + (Number.parseFloat(style[b]) || 0) : 0;
+}
+
+/**
+ * The pane's content size, debounced, from a ResizeObserver. The first read leaves out padding as
+ * ResizeObserver's contentRect does: the full view keeps the page clear of its floating pill with
+ * bottom padding, and Fit page must fit the page above it.
+ */
 function usePaneSize(ref) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const element = ref.current;
     if (!element) return undefined;
-    const read = rect => ({ width: Math.floor(rect?.width ?? element.clientWidth), height: Math.floor(rect?.height ?? element.clientHeight) });
+    const read = rect => ({
+      width: Math.floor(rect?.width ?? element.clientWidth - paddingOf(element, 'paddingLeft', 'paddingRight')),
+      height: Math.floor(rect?.height ?? element.clientHeight - paddingOf(element, 'paddingTop', 'paddingBottom')),
+    });
     setSize(read(null));
     if (typeof ResizeObserver === 'undefined') return undefined;
     let timer = null;
@@ -174,7 +187,9 @@ export default function PdfPage({
     area?.scrollTo?.({ top: 0, left: 0 });
     const box = overlay.boxes.length ? firstBoxRef.current : null;
     if (area && box?.getBoundingClientRect) {
-      area.scrollTo?.(scrollTargetFor(box.getBoundingClientRect(), area.getBoundingClientRect(), { top: 0, left: 0 }));
+      // The full view's pill floats over the area's foot; viewer.css reserves it as scroll padding.
+      const inset = Number.parseFloat(globalThis.getComputedStyle?.(area).scrollPaddingBottom);
+      area.scrollTo?.(scrollTargetFor(box.getBoundingClientRect(), area.getBoundingClientRect(), { top: 0, left: 0 }, inset));
     }
   }, [shownPage, overlay.boxes.length]);
 

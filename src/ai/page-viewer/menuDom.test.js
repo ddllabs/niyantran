@@ -29,9 +29,9 @@ function setup() {
   const trigger = node('trigger');
   const doc = node('document');
   const onClose = vi.fn();
-  let active = null;
-  const handle = createMenuDom({ menu, trigger, doc, onClose, getActive: () => active });
-  return { items, menu, trigger, doc, onClose, handle, setActive: (n) => { active = n; } };
+  doc.activeElement = null;
+  const handle = createMenuDom({ menu, trigger, doc, onClose });
+  return { items, menu, trigger, doc, onClose, handle, setActive: (n) => { doc.activeElement = n; } };
 }
 
 describe('createMenuDom', () => {
@@ -44,11 +44,11 @@ describe('createMenuDom', () => {
     expect(event.preventDefault).toHaveBeenCalled();
   });
 
-  it('Tab closes without returning focus and without stopping the Tab', () => {
+  it('Tab closes with focus back on the trigger and lets the Tab go on, so it moves past the trigger', () => {
     const { menu, onClose } = setup();
     const event = keyEvent('Tab');
     menu.dispatch('keydown', event);
-    expect(onClose).toHaveBeenCalledWith({ restoreFocus: false });
+    expect(onClose).toHaveBeenCalledWith({ restoreFocus: true });
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(event.stopPropagation).not.toHaveBeenCalled();
   });

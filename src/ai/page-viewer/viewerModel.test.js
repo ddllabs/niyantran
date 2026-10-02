@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalise, sha256Hex } from '../../lib/textNormalise.js';
 import {
   NOTICES, VIEW_KEY, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable,
-  readViewChoice, resolvePageSpan, sectionLabel, storedCopyLabel, writeViewChoice,
+  readViewChoice, resolvePageSpan, storedCopyLabel, writeViewChoice,
 } from './viewerModel.js';
 
 const DOC = { id: 'd1', title: 'Bill', storage_path: 'files/a.pdf', indexed_at: '2026-10-01', extract_hash: 'x1', page_count: 12 };
@@ -97,6 +97,11 @@ describe('pagingKey', () => {
     for (const mod of ['altKey', 'ctrlKey', 'metaKey', 'shiftKey']) expect(key('ArrowRight', { [mod]: true })).toBeNull();
     expect(key('a')).toBeNull();
   });
+
+  it('never fires inside an open menu, whose arrows move between its items (viewer-toolbar spec)', () => {
+    expect(key('ArrowRight', { inMenu: true })).toBeNull();
+    expect(key('Home', { inMenu: true })).toBeNull();
+  });
 });
 
 describe('overlayFor', () => {
@@ -153,13 +158,6 @@ describe('labels', () => {
     expect(storedCopyLabel([PARTS[0]], 3)).toBe('Open stored copy');
     expect(storedCopyLabel(PARTS, 3)).toBe('Open stored copy (part 1 of 2)');
     expect(storedCopyLabel(PARTS, 6)).toBe('Open stored copy (part 2 of 2)');
-  });
-
-  it('joins section heading and note', () => {
-    expect(sectionLabel({ heading: 'Chapter II', note: 'Definitions' })).toBe('Chapter II › Definitions');
-    expect(sectionLabel({ heading: 'Chapter II' })).toBe('Chapter II');
-    expect(sectionLabel({ note: 'Definitions' })).toBe('Definitions');
-    expect(sectionLabel(undefined)).toBe('');
   });
 
   it('has the spec notices', () => {

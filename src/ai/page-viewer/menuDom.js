@@ -8,7 +8,6 @@
 import { menuFocus } from './menuModel.js';
 
 const ITEMS = '[role^="menuitem"]:not([disabled])';
-const activeElement = () => globalThis.document?.activeElement;
 
 /**
  * Wires an open menu; returns `{dispose}`, which removes every listener it added.
@@ -17,10 +16,14 @@ const activeElement = () => globalThis.document?.activeElement;
  * Escape is a native listener on the dialog, and WorkSurface's Escape closes the whole reader; a
  * React handler would run after both, so it could not keep Escape from closing them too.
  *
- * @param {{menu: Element, trigger: Element, doc: Document | EventTarget,
- *   onClose: (options: {restoreFocus: boolean}) => void, getActive?: () => Element | null}} options
+ * Tab returns focus to the trigger and is not stopped, so the browser's own Tab then moves on from
+ * the trigger (the menu button pattern). Closing without it left focus on a removed node: the full
+ * view's focus trap then saw focus outside and sent it to the dialog's first control.
+ *
+ * @param {{menu: Element, trigger: Element, doc: Document,
+ *   onClose: (options: {restoreFocus: boolean}) => void}} options
  */
-export function createMenuDom({ menu, trigger, doc, onClose, getActive = activeElement }) {
+export function createMenuDom({ menu, trigger, doc, onClose }) {
   const onKeyDown = (event) => {
     if (event.key === 'Escape') {
       event.stopPropagation();
@@ -29,11 +32,11 @@ export function createMenuDom({ menu, trigger, doc, onClose, getActive = activeE
       return;
     }
     if (event.key === 'Tab') {
-      onClose({ restoreFocus: false });
+      onClose({ restoreFocus: true });
       return;
     }
     const items = [...menu.querySelectorAll(ITEMS)];
-    const next = menuFocus({ key: event.key, index: items.indexOf(getActive()), count: items.length });
+    const next = menuFocus({ key: event.key, index: items.indexOf(doc.activeElement), count: items.length });
     if (next === null) return;
     event.preventDefault();
     items[next].focus();

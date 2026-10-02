@@ -3,56 +3,202 @@
    .theme-dark with them; the portalled full view carries the theme class itself.
    Loaded with the lazy page-viewer chunk only. */
 
-.pv { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
 .pv .ai-reader-notice { margin: 0; }
 .pv .ai-reader-body { margin: 0; }
 
 /* In the PDF view the viewer fills its pane and the page area scrolls by itself (both ways),
-   so the header, controls and page bar stay in view and Fit page knows the height it has. */
+   so the chrome stays in view and Fit page knows the height it has. */
 .pv.pv-fill { height: 100%; }
 .pv.pv-fill .pv-pdf { flex: 1 1 0; min-height: 240px; }
 
-/* Header controls: PDF | Text, fit, − readout +, Full view, and "Open stored copy". Sized to
-   keep the main row on one line in a ~480 px pane; the stored copy wraps right when it must. */
-.pv-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
-.pv-zoom-tools { display: inline-flex; align-items: center; gap: 6px; }
-.pv-switch, .pv-zoom { display: inline-flex; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; overflow: hidden; }
-.pv-switch button, .pv-zoom button {
-  min-width: 30px; min-height: 30px; padding: 4px 8px; border: 0; background: var(--panel, white);
-  color: var(--text, #3d3a36); font: inherit; cursor: pointer;
+/* The viewer chrome (docs/specs/2026-10-02-viewer-toolbar.md). Side pane: a document row and a
+   page toolbar under WorkSurface's bar. Full view: a header and a floating page pill. Motion
+   follows the spec: presses and menus only, never paging; opacity only under reduced motion. */
+.pv {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  --pv-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --pv-cite-bg: #fbefc4;
+  --pv-cite-ink: #6b4500;
+  --pv-cite-line: rgba(180, 110, 0, .45);
+  --pv-pill-space: 72px; /* the pill (42 px) + 16 px below it + 14 px of clearance above */
+}
+.theme-dark .pv { --pv-cite-bg: #3d3313; --pv-cite-ink: #f2c55c; --pv-cite-line: rgba(242, 197, 92, .45); }
+
+/* Rows. */
+.pv-docrow, .pv-pages, .pv-head { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; }
+.pv-docrow { min-height: 28px; }
+.pv-section { display: flex; flex: 1 1 auto; min-width: 0; margin: 0; color: var(--muted, #6d675f); white-space: nowrap; }
+.pv-section > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pv-section-head { flex: 0 1000 auto; }
+.pv-section-sep { flex: none; margin: 0 4px; }
+.pv-section-note { flex: 0 1 auto; color: var(--text, #3d3a36); }
+.pv-pages { min-height: 32px; }
+.pv-pages-toolbar { padding-bottom: 6px; border-bottom: 1px solid var(--line, #e4ddd4); }
+.pv-pages-end { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.pv-head { gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line, #e4ddd4); }
+/* The Text view scrolls the whole full view; the header, with Exit, stays at the top. */
+.pv-in-full .pv-head { position: sticky; top: 0; z-index: 5; padding: 4px 4px 8px; background: var(--panel, white); }
+.pv-head-title { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-head-title strong { font-weight: 600; color: var(--text, #3d3a36); }
+.pv-head-section { color: var(--muted, #6d675f); }
+
+/* Icon buttons and links: 28 px, quiet until hovered or pressed. */
+.pv-icon {
+  position: relative; display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted, #6d675f); text-decoration: none; cursor: pointer;
+  transition: transform 100ms var(--pv-ease-out), background-color 120ms ease, color 120ms ease;
+}
+.pv-icon:active:not([aria-disabled="true"]) { transform: scale(.97); }
+.pv-icon[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+.pv-icon[aria-expanded="true"] { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); }
+
+/* The view switch. */
+.pv-switch { display: inline-flex; flex: none; border: 1px solid var(--line, #e4ddd4); border-radius: 6px; }
+.pv-switch button { position: relative; }
+.pv-switch button:first-child { border-radius: 5px 0 0 5px; }
+.pv-switch button:last-child { border-radius: 0 5px 5px 0; }
+.pv-switch button {
+  min-height: 26px; padding: 2px 8px; border: 0; background: var(--panel, white); color: var(--muted, #6d675f);
+  font: inherit; font-size: 12px; cursor: pointer;
 }
 .pv-switch button + button { border-left: 1px solid var(--line, #e4ddd4); }
 .pv-switch button[aria-pressed="true"] { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font-weight: 600; }
-.pv-zoom button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* The page box: the current page, typed over; tabular figures so the row never shifts. */
+.pv-page-field { display: inline-flex; align-items: center; gap: 4px; color: var(--muted, #6d675f); font-variant-numeric: tabular-nums; }
+.pv-page-field input {
+  box-sizing: content-box; min-width: 2ch; height: 22px; padding: 0 5px; border: 1px solid var(--line, #e4ddd4);
+  border-radius: 6px; background: var(--panel, white); color: var(--text, #3d3a36);
+  font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center;
+}
+
+/* The cited chip: a status on the cited page, a way back elsewhere; icon and words, never colour alone. */
+.pv-cite {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; height: 24px; margin-left: 4px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: 999px; background: var(--pv-cite-bg); color: var(--pv-cite-ink);
+  font: inherit; font-size: 12px; white-space: nowrap;
+}
+.pv-cite svg { width: 14px; height: 14px; }
+.pv-cite-back {
+  border-color: var(--pv-cite-line); background: transparent; cursor: pointer;
+  transition: transform 100ms var(--pv-ease-out), background-color 120ms ease;
+}
+.pv-cite-back:active { transform: scale(.97); }
+
+/* Zoom: −, the readout (the fit menu), +. */
+.pv-zoom { display: inline-flex; align-items: center; gap: 2px; }
 .pv-readout {
-  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 0 4px;
-  border-left: 1px solid var(--line, #e4ddd4); border-right: 1px solid var(--line, #e4ddd4);
-  color: var(--text, #3d3a36); font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-width: 58px; height: 28px; padding: 0 6px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--text, #3d3a36);
+  font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
 }
-.pv-fit {
-  min-height: 30px; max-width: 100px; padding: 4px 6px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
-  background: var(--panel, white); color: var(--text, #3d3a36); font: inherit; cursor: pointer;
+.pv-readout svg { color: var(--muted, #6d675f); }
+.pv-readout[aria-expanded="true"] { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pv-icon:hover:not([aria-disabled="true"]), .pv-readout:hover { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); }
+  .pv-cite-back:hover { background: var(--pv-cite-bg); }
 }
-.pv-stored, .pv-retry, .pv-expand {
+
+/* Tooltips: the label and its key, after a rest of 450 ms (menuDom.js TIP_WARM_MS); at once while
+   the chrome is warm or for keyboard focus; never on touch. Hidden from assistive technology. */
+.pv-tip {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 50%; translate: -50% 0;
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px;
+  background: var(--text, #3d3a36); color: var(--panel, white); font: 500 11px/1.3 var(--font-ui, Inter, Arial, sans-serif);
+  white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transform: scale(.97); transform-origin: top center;
+  transition: opacity 100ms ease-out, transform 100ms ease-out, visibility 0s linear 100ms;
+}
+.pv-tip kbd { padding: 0 4px; border-radius: 3px; background: color-mix(in srgb, var(--panel, white) 20%, transparent); font: inherit; font-family: var(--font-mono, ui-monospace, monospace); }
+[data-tip-side="above"] > .pv-tip { top: auto; bottom: calc(100% + 6px); transform-origin: bottom center; }
+[data-tip-align="start"] > .pv-tip { left: 0; translate: none; transform-origin: top left; }
+[data-tip-align="end"] > .pv-tip { left: auto; right: 0; translate: none; transform-origin: top right; }
+[data-tip-side="above"][data-tip-align="start"] > .pv-tip { transform-origin: bottom left; }
+[data-tip-side="above"][data-tip-align="end"] > .pv-tip { transform-origin: bottom right; }
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:hover > .pv-tip {
+    opacity: 1; visibility: visible; transform: none;
+    transition: opacity 150ms var(--pv-ease-out) 450ms, transform 150ms var(--pv-ease-out) 450ms, visibility 0s linear 450ms;
+  }
+  [data-tips-warm] [data-tip]:hover > .pv-tip { transition: none; }
+}
+[data-tip]:focus-visible > .pv-tip { opacity: 1; visibility: visible; transform: none; transition: opacity 150ms var(--pv-ease-out), transform 150ms var(--pv-ease-out); }
+[aria-expanded="true"] > .pv-tip { display: none; }
+
+/* Menus: grow from their trigger in 150 ms; close at once. */
+.pv-menu-wrap { position: relative; display: inline-flex; flex: none; }
+.pv-menu {
+  position: absolute; z-index: 30; top: calc(100% + 4px); right: 0; min-width: 180px; max-width: min(320px, 80vw);
+  padding: 4px; border: 1px solid var(--line, #e4ddd4); border-radius: 8px; background: var(--panel, white); color: var(--text, #3d3a36);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .08);
+  transform-origin: top right; transition: opacity 150ms var(--pv-ease-out), transform 150ms var(--pv-ease-out);
+}
+@starting-style { .pv-menu { opacity: 0; transform: scale(.97); } }
+.pv-menu[data-align="start"] { right: auto; left: 0; transform-origin: top left; }
+.pv-menu[data-side="above"] { top: auto; bottom: calc(100% + 4px); transform-origin: bottom right; }
+.pv-menu[data-side="above"][data-align="start"] { transform-origin: bottom left; }
+.pv-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 4px 10px 4px 6px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--text, #3d3a36); font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+}
+.pv-menu-item:focus { outline: none; background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); }
+.pv-menu-mark { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--accent, #012ea1); }
+.pv-menu-sep { height: 1px; margin: 4px 2px; background: var(--line, #e4ddd4); }
+.pv-menu-foot { margin-top: 4px; padding: 6px 8px 4px; border-top: 1px solid var(--line, #e4ddd4); color: var(--muted, #6d675f); font-size: 11px; overflow-wrap: anywhere; }
+@media (hover: hover) and (pointer: fine) {
+  .pv-menu-item:hover { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); }
+}
+
+/* Touch: 44 px hit areas without moving the layout, and 8 px between targets. */
+@media (pointer: coarse) {
+  .pv-docrow, .pv-pages, .pv-head, .pv-zoom, .pv-pages-end { gap: 8px; }
+  .pv-icon::before, .pv-readout::before, .pv-cite-back::before, .pv-switch button::before, .pv-page-field::before {
+    content: ""; position: absolute; inset: -8px;
+  }
+  .pv-cite-back::before { inset: -10px -4px; }
+  .pv-switch button::before { inset: -9px 0; }
+  .pv-page-field::before { inset: -11px -4px; }
+  .pv-readout, .pv-cite-back, .pv-page-field { position: relative; }
+  .pv-menu-item { min-height: 44px; }
+}
+
+/* The full view's page pill: frosted, floating at the foot of the page, which keeps the room to
+   scroll its last lines clear of it (--pv-pill-space). */
+.pv-stage { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.pv.pv-fill .pv-stage { flex: 1 1 0; min-height: 0; }
+.pv-stage .pv-pdf { flex: 1 1 0; min-height: 240px; padding-bottom: var(--pv-pill-space); scroll-padding-bottom: var(--pv-pill-space); }
+.pv-in-full .pv-text { padding-bottom: var(--pv-pill-space); }
+.pv-in-full:not(.pv-fill) { scroll-padding-bottom: var(--pv-pill-space); }
+.pv-pages-pill {
+  position: sticky; bottom: 12px; z-index: 4; align-self: center; width: max-content; max-width: calc(100% - 24px);
+  margin-top: calc(-1 * var(--pv-pill-space) + 14px); padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--line, #e4ddd4) 80%, transparent); border-radius: 999px;
+  background: color-mix(in srgb, var(--panel, white) 82%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .14), 0 1px 2px rgba(15, 23, 42, .08);
+}
+/* In the PDF view the page area scrolls by itself, so the pill sits at a fixed place over it. */
+.pv.pv-fill .pv-pages-pill { position: absolute; bottom: 16px; left: 50%; translate: -50% 0; margin: 0; }
+.pv-pages-pill .pv-cite { margin-left: 2px; }
+.pv-pages-pill .pv-pages-end { margin-left: 6px; padding-left: 6px; border-left: 1px solid var(--line, #e4ddd4); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .pv-pages-pill { background: var(--panel, white); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .pv-pages-pill { background: var(--panel, white); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  .pv-pages-pill { background: var(--panel, white); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--text, #3d3a36); }
+}
+
+.pv :is(button, a, select, input):focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: 2px; }
+.pv .pv-menu-item:focus-visible { outline: none; } /* the focused item is marked by its fill */
+.pv-retry {
   min-height: 30px; padding: 4px 10px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
   background: transparent; color: var(--accent, #012ea1); font: inherit; font-size: 12px; cursor: pointer;
 }
-.pv-expand { min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
-.pv-stored { margin-left: auto; }
-
-/* The page bar. */
-.pv-bar { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line, #e4ddd4); border-bottom: 1px solid var(--line, #e4ddd4); font-size: 12px; }
-.pv-section { margin: 0; color: var(--muted, #6d675f); overflow-wrap: anywhere; }
-.pv-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.pv-bar-row button {
-  min-height: 30px; padding: 4px 10px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
-  background: var(--panel, white); color: var(--accent, #012ea1); font: inherit; cursor: pointer;
-}
-.pv-bar-row button:disabled { color: var(--muted, #6d675f); opacity: .55; cursor: not-allowed; }
-.pv-bar-label { color: var(--text, #3d3a36); font-variant-numeric: tabular-nums; }
-.pv-bar-back { margin-left: auto; }
-
-.pv :is(button, a, select):focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: 2px; }
 
 /* Visually hidden, still announced. */
 .pv-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -95,11 +241,12 @@
 .pv-full:focus { outline: none; }
 .pv-full > .pv { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .pv-full > .pv.pv-fill { height: auto; overflow: hidden; }
-.pv-close-full {
-  min-width: 30px; min-height: 30px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
-  background: transparent; color: var(--text, #3d3a36); font: inherit; font-size: 16px; cursor: pointer;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .pv * { scroll-behavior: auto !important; }
+  .pv-icon, .pv-cite-back { transition: background-color 120ms ease, color 120ms ease; }
+  .pv-icon:active:not([aria-disabled="true"]), .pv-cite-back:active { transform: none; }
+  .pv-tip, [data-tip]:hover > .pv-tip, [data-tip]:focus-visible > .pv-tip { transform: none; }
+  .pv-menu { transform: none; transition: opacity 150ms var(--pv-ease-out); }
+  @starting-style { .pv-menu { transform: none; } }
 }

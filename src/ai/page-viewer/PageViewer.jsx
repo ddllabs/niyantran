@@ -16,7 +16,10 @@ import { defaultDocumentFileClient } from '../../lib/documentFile.js';
 import { loadPdfjs } from '../../lib/pdfjs.js';
 import { supabase } from '../../lib/supabaseClient.js';
 import { safeSourceUrl } from '../SourceReader.jsx';
-import PageBar from './PageBar.jsx';
+import { useCompact, useTipWarmth } from './chromeHooks.js';
+import { chromePlan, sectionParts } from './chromeModel.js';
+import { DocumentRow, FullHeader, MoreMenu, ViewSwitch } from './DocumentChrome.jsx';
+import PageControls from './PageControls.jsx';
 import { viewerState } from './pageModel.js';
 import PdfPage from './PdfPage.jsx';
 import { createPdfController, pdfFailureNotice } from './pdfController.js';
@@ -45,7 +48,6 @@ const defaultFetch = (...args) => globalThis.fetch(...args);
 const ANY_ROW = Object.freeze({});
 const NO_BLOCKS = Object.freeze([]);
 const SPAN_STATES = new Set(['ok', 'unknown_freshness']);
-const FIT_OPTIONS = Object.freeze([['text', 'Fit text'], ['width', 'Fit width'], ['page', 'Fit page']]);
 
 /** The document-level loading, failure and deletion notices. */
 export function DocumentNotice({ status, onRetry }) {
@@ -77,72 +79,6 @@ export function StateNotices({ state, pdfError = '', copyNotice = '', onRetryPdf
   }
   if (copyNotice) items.push(<p key="copy" className="ai-reader-notice warn" role="alert">{copyNotice}</p>);
   return items.length ? <>{items}</> : null;
-}
-
-/**
- * The header controls, in order: PDF | Text, the fit menu, −, the % readout, +, Full view, and
- * "Open stored copy". Fit and zoom show in the PDF view only. `onExpand` null hides Full view
- * (phones, and inside the full view); `storedLabel` null hides the stored copy.
- */
-export function ViewerControls({
-  available, view, onView, fit, manual, onFit, readout, canZoomOut, canZoomIn, onZoomStep,
-  onExpand = null, expandRef = null, storedLabel, onStoredCopy, onKeyDown,
-}) {
-  const pdf = available && view === 'pdf';
-  return (
-    <div className="pv-controls" onKeyDown={onKeyDown}>
-      {available ? (
-        <div className="pv-switch" role="group" aria-label="View">
-          <button type="button" aria-pressed={view === 'pdf'} onClick={() => onView('pdf')}>PDF</button>
-          <button type="button" aria-pressed={view === 'text'} onClick={() => onView('text')}>Text</button>
-        </div>
-      ) : null}
-      {pdf ? (
-        <div className="pv-zoom-tools">
-          <select className="pv-fit" aria-label="Fit" value={manual ? '' : fit} onChange={(e) => { if (e.target.value) onFit(e.target.value); }}>
-            {manual ? <option value="" disabled>Custom zoom</option> : null}
-            {FIT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-          <div className="pv-zoom" role="group" aria-label="Zoom">
-            <button type="button" aria-label="Zoom out" disabled={!canZoomOut} onClick={() => onZoomStep(-1)}>−</button>
-            <span className="pv-readout">{readout}</span>
-            <button type="button" aria-label="Zoom in" disabled={!canZoomIn} onClick={() => onZoomStep(1)}>+</button>
-          </div>
-        </div>
-      ) : null}
-      {onExpand ? (
-        <button type="button" ref={expandRef} className="pv-expand" aria-label="Full view" aria-haspopup="dialog" title="Full view" onClick={onExpand}>
-          ⤢
-        </button>
-      ) : null}
-      {storedLabel ? <button type="button" className="pv-stored" onClick={onStoredCopy}>{storedLabel}</button> : null}
-    </div>
-  );
-}
-
-/** The title, the public file link, and the close control (the reader, or the full view). */
-export function ViewerHeader({ title, titleId, fileName, fileUrl, onClose, closeRef = null, full = false }) {
-  return (
-    <header className="ai-reader-head">
-      <div>
-        <strong id={titleId}>{title}</strong>
-        <span className="ai-reader-file">
-          {fileName ?? ''}
-          {fileUrl ? (
-            <>
-              {' '}
-              <a href={fileUrl} target="_blank" rel="noreferrer">Open file ↗</a>
-            </>
-          ) : null}
-        </span>
-      </div>
-      {onClose ? (
-        <button type="button" ref={closeRef} className={full ? 'pv-close-full' : undefined} onClick={onClose} aria-label={full ? 'Close full view' : 'Close reader'}>
-          ×
-        </button>
-      ) : null}
-    </header>
-  );
 }
 
 /**
@@ -207,74 +143,95 @@ function useNarrow() {
 }
 
 /**
- * One copy of the viewer's body: notices, controls, page bar and the current view. It is drawn
- * inline or in the full view, never both at once, so one PDF controller renders one canvas. The
- * effective zoom (for the readout and the − / + steps) belongs to this pane's own size.
+ * One copy of the viewer's body (docs/specs/2026-10-02-viewer-toolbar.md). It is drawn inline or
+ * in the full view, never both at once, so one PDF controller renders one canvas. The effective
+ * zoom (for the readout and the − / + steps) belongs to this pane's own size.
+ *
+ * Inline, under WorkSurface's bar: the document row, then the page toolbar, then the page. In the
+ * full view, whose header PageViewer draws: the page with the page pill floating at its foot.
  */
-function ViewerBody({ shared, onExpand = null, expandRef = null }) {
+function ViewerBody({ shared, full = false, compact = false, onExpand = null, expandRef = null }) {
   const {
     docState, onRetryDoc, doc, available, view, onView, zoomState, setZoomState, storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, controller, title, citation,
-    boxesAllowed, pageRow, blocks, blocksReady, onPdfFailure, pageStatus, textSpan, onRetryPage,
+    boxesAllowed, pageRow, blocks, blocksReady, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow,
   } = shared;
   const [layout, setLayout] = useState(null);
   const effective = zoomState.zoom ?? layout?.zoom ?? null;
   const effectiveRef = useRef(effective);
   useEffect(() => { effectiveRef.current = effective; }, [effective]);
 
-  const onZoomStep = (direction) => {
-    const next = nextZoomStep(effective, direction);
-    if (next !== null) setZoomState(prev => ({ fit: prev.fit, zoom: next }));
-  };
   const onWheelZoom = useCallback(
     factor => setZoomState(prev => ({ fit: prev.fit, zoom: zoomBy(prev.zoom ?? effectiveRef.current ?? 1, factor) })),
     [setZoomState],
   );
+  const plan = chromePlan({ available, view, compact, narrow, full });
+  const zoom = plan.toolbarZoom || plan.moreZoom ? {
+    fit: zoomState.fit,
+    manual: zoomState.zoom !== null,
+    readout: zoomReadout(effective),
+    canZoomOut: effective !== null && nextZoomStep(effective, -1) !== null,
+    canZoomIn: effective !== null && nextZoomStep(effective, 1) !== null,
+    onZoomStep: (direction) => {
+      const next = nextZoomStep(effective, direction);
+      if (next !== null) setZoomState(prev => ({ fit: prev.fit, zoom: next }));
+    },
+    onFit: fit => setZoomState({ fit, zoom: null }),
+  } : null;
+
+  const pages = showPages ? (
+    <PageControls
+      variant={full ? 'pill' : 'toolbar'}
+      page={page}
+      total={total}
+      cited={cited}
+      onPage={goTo}
+      zoom={plan.toolbarZoom ? zoom : null}
+      onExpand={plan.expand ? onExpand : null}
+      expandRef={expandRef}
+      onKeyDown={onKeys}
+    />
+  ) : null;
+  const content = showPages && view === 'pdf' && controller ? (
+    <PdfPage
+      controller={controller}
+      page={page}
+      total={total}
+      title={title}
+      zoomState={zoomState}
+      blocks={blocks}
+      blocksReady={blocksReady}
+      citation={citation}
+      cited={cited}
+      boxesAllowed={boxesAllowed}
+      pageRow={pageRow}
+      onFailure={onPdfFailure}
+      onLayout={setLayout}
+      onWheelZoom={onWheelZoom}
+    />
+  ) : showPages && view === 'text' ? <TextPage status={pageStatus} pageRow={pageRow} span={textSpan} onRetry={onRetryPage} /> : null;
 
   return (
     <>
       <DocumentNotice status={docState.status} onRetry={onRetryDoc} />
-      {doc ? (
-        <ViewerControls
-          available={available}
-          view={view}
-          onView={onView}
-          fit={zoomState.fit}
-          manual={zoomState.zoom !== null}
-          onFit={fit => setZoomState({ fit, zoom: null })}
-          readout={zoomReadout(effective)}
-          canZoomOut={effective !== null && nextZoomStep(effective, -1) !== null}
-          canZoomIn={effective !== null && nextZoomStep(effective, 1) !== null}
-          onZoomStep={onZoomStep}
-          onExpand={onExpand}
-          expandRef={expandRef}
-          storedLabel={storedLabel}
-          onStoredCopy={onStoredCopy}
+      {doc && !full ? (
+        <DocumentRow
+          section={section}
+          viewSwitch={plan.viewSwitch ? <ViewSwitch view={view} onView={onView} /> : null}
+          fileUrl={fileUrl}
+          more={<MoreMenu zoom={plan.moreZoom ? zoom : null} storedLabel={storedLabel} onStoredCopy={onStoredCopy} fileName={fileName} />}
           onKeyDown={onKeys}
         />
       ) : null}
       {doc ? <StateNotices state={state} pdfError={pdfError} copyNotice={copyNotice} onRetryPdf={retryPdf} /> : null}
-      {showPages ? <PageBar page={page} total={total} cited={cited} section={citation.section} onPage={goTo} onKeyDown={onKeys} /> : null}
-
-      {showPages && view === 'pdf' && controller ? (
-        <PdfPage
-          controller={controller}
-          page={page}
-          total={total}
-          title={title}
-          zoomState={zoomState}
-          blocks={blocks}
-          blocksReady={blocksReady}
-          citation={citation}
-          cited={cited}
-          boxesAllowed={boxesAllowed}
-          pageRow={pageRow}
-          onFailure={onPdfFailure}
-          onLayout={setLayout}
-          onWheelZoom={onWheelZoom}
-        />
-      ) : null}
-      {showPages && view === 'text' ? <TextPage status={pageStatus} pageRow={pageRow} span={textSpan} onRetry={onRetryPage} /> : null}
+      {full ? (
+        showPages ? <div className="pv-stage">{content}{pages}</div> : null
+      ) : (
+        <>
+          {pages}
+          {content}
+        </>
+      )}
     </>
   );
 }
@@ -282,7 +239,6 @@ function ViewerBody({ shared, onExpand = null, expandRef = null }) {
 /**
  * @param {{
  *   citation: import('../../types/citation.js').TextCitation,
- *   onClose?: () => void,
  *   client?: typeof supabase,
  *   documentFile?: ReturnType<typeof defaultDocumentFileClient>,
  *   loadPdfjs?: typeof loadPdfjs,
@@ -296,7 +252,7 @@ function ViewerBody({ shared, onExpand = null, expandRef = null }) {
  *   point 4). Nothing is reported while the document is loading or failed to load.
  */
 export default function PageViewer({
-  citation, onClose, client = supabase, documentFile = sharedDocumentFile(), loadPdfjs: load = loadPdfjs,
+  citation, client = supabase, documentFile = sharedDocumentFile(), loadPdfjs: load = loadPdfjs,
   fetch: fetchImpl = defaultFetch, storage, onDocumentState,
 }) {
   const documentId = citation.document_id;
@@ -321,6 +277,7 @@ export default function PageViewer({
   const sectionRef = useRef(null);
   const expandRef = useRef(null);
   const closeFullRef = useRef(null);
+  const fullSectionRef = useRef(null);
   const onStateRef = useRef(onDocumentState);
   const reportedRef = useRef(null);
   const titleId = useId();
@@ -338,6 +295,9 @@ export default function PageViewer({
   const onThisPage = pageState.page === page;
   const pageRow = onThisPage ? pageState.row : null;
   const fullOpen = full && !narrow;
+  const compact = useCompact(sectionRef);
+  useTipWarmth(sectionRef, true);
+  useTipWarmth(fullSectionRef, fullOpen);
 
   // The document and its parts.
   useEffect(() => {
@@ -424,6 +384,7 @@ export default function PageViewer({
       targetTag: target?.tagName,
       editable: Boolean(target?.isContentEditable),
       hasSelection: Boolean(selection && !selection.isCollapsed),
+      inMenu: Boolean(target?.closest?.('[role="menu"]')),
       altKey: event.altKey,
       ctrlKey: event.ctrlKey,
       metaKey: event.metaKey,
@@ -461,27 +422,39 @@ export default function PageViewer({
   const textSpan = span && span.page === page ? span : null;
   const pdfShown = showPages && view === 'pdf';
 
+  const storedLabel = live && parts.length ? storedCopyLabel(parts, page) : null;
   const shared = {
     docState, onRetryDoc: () => setDocNonce(n => n + 1), doc, available, view, onView, zoomState, setZoomState,
-    storedLabel: live && parts.length ? storedCopyLabel(parts, page) : null, onStoredCopy, onKeys,
+    storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, controller, title, citation,
     boxesAllowed, pageRow, blocks: onThisPage ? pageState.blocks : NO_BLOCKS, blocksReady: onThisPage && pageState.status !== 'loading',
     onPdfFailure, pageStatus: onThisPage ? pageState.status : 'loading', textSpan, onRetryPage: () => setPageNonce(n => n + 1),
+    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow,
   };
+  const fullPlan = chromePlan({ available, view, compact: false, narrow, full: true });
 
   return (
     <>
       <section ref={sectionRef} className={`ai-reader pv${pdfShown && !fullOpen ? ' pv-fill' : ''}`} aria-label="Cited source">
-        <ViewerHeader title={title} fileName={citation.file_name} fileUrl={fileUrl} onClose={onClose} />
         {fullOpen
           ? <p className="ai-reader-notice" role="status">This document is open in full view.</p>
-          : <ViewerBody shared={shared} onExpand={narrow ? null : openFull} expandRef={expandRef} />}
+          : <ViewerBody shared={shared} compact={compact} onExpand={openFull} expandRef={expandRef} />}
       </section>
       {fullOpen ? (
         <FullView titleId={titleId} themeClass={themeClass} onClose={closeFull} initialFocusRef={closeFullRef} returnFocusRef={expandRef}>
-          <section className={`ai-reader pv pv-in-full${pdfShown ? ' pv-fill' : ''}`} aria-label="Cited source, full view">
-            <ViewerHeader title={title} titleId={titleId} fileName={citation.file_name} fileUrl={fileUrl} onClose={closeFull} closeRef={closeFullRef} full />
-            <ViewerBody shared={shared} />
+          <section ref={fullSectionRef} className={`ai-reader pv pv-in-full${pdfShown ? ' pv-fill' : ''}`} aria-label="Cited source, full view">
+            <FullHeader
+              title={title}
+              titleId={titleId}
+              section={shared.section}
+              viewSwitch={fullPlan.viewSwitch ? <ViewSwitch view={view} onView={onView} /> : null}
+              fileUrl={fileUrl}
+              more={<MoreMenu storedLabel={storedLabel} onStoredCopy={onStoredCopy} fileName={shared.fileName} />}
+              onExit={closeFull}
+              exitRef={closeFullRef}
+              onKeyDown={onKeys}
+            />
+            <ViewerBody shared={shared} full />
           </section>
         </FullView>
       ) : null}

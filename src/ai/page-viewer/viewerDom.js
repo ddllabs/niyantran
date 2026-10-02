@@ -134,10 +134,13 @@ export function themeClassOf(element) {
  * the box lies outside the visible width (a zoomed page). Rects are viewport rects (getBoundingClientRect);
  * `current` is the area's scroll position. scrollIntoView is not used: it also scrolls the
  * overflow-clipped crop, which hid the text's left edge (local run V7b, 2026-10-01).
+ * `insetBottom` is the height at the area's foot that floating chrome covers (the full view's
+ * page pill, viewer-toolbar spec): the box is centred in the area above it.
  */
-export function scrollTargetFor(box, area, current) {
+export function scrollTargetFor(box, area, current, insetBottom = 0) {
+  const inset = Number.isFinite(insetBottom) && insetBottom > 0 ? insetBottom : 0;
   const boxTop = box.top - area.top + current.top;
-  const top = Math.max(0, Math.round(boxTop + box.height / 2 - area.height / 2));
+  const top = Math.max(0, Math.round(boxTop + box.height / 2 - (area.height - inset) / 2));
   const boxLeft = box.left - area.left + current.left;
   const visible = boxLeft >= current.left && boxLeft + box.width <= current.left + area.width;
   const left = visible ? current.left : Math.max(0, Math.round(boxLeft + box.width / 2 - area.width / 2));

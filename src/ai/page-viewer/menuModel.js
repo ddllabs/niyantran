@@ -16,9 +16,13 @@ export function menuFocus({ key, index, count }) {
   return null;
 }
 
-/** Which item a key on the closed trigger opens the menu on, or null when it does not open it. */
+/**
+ * Which item an arrow key on the closed trigger opens the menu on, or null. Enter and Space are
+ * left to the button's own click: opening on their keydown moved focus into the menu before the
+ * key's release, and a Space released on the first item could choose it.
+ */
 export function openFocus(key) {
-  if (key === 'Enter' || key === ' ' || key === 'ArrowDown') return 'first';
+  if (key === 'ArrowDown') return 'first';
   if (key === 'ArrowUp') return 'last';
   return null;
 }

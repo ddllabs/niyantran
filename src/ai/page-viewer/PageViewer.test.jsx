@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import PageBar from './PageBar.jsx';
-import PageViewer, { DocumentNotice, FullViewDialog, StateNotices, ViewerControls, ViewerHeader } from './PageViewer.jsx';
+import PageViewer, { DocumentNotice, FullViewDialog, StateNotices } from './PageViewer.jsx';
 import { PdfOverlay, cropStyles } from './PdfPage.jsx';
 import { DEFAULT_ZOOM, layoutPage } from './zoomModel.js';
 import TextPage from './TextPage.jsx';
@@ -16,32 +15,18 @@ const CITATION = {
   char_from: 1010, char_to: 1020, text_hash: 'h', source_kind: 'pdf_page', page_number: 3, extract_hash: 'x1',
 };
 
-describe('PageBar', () => {
-  it('labels the page, the cited page, and its controls', () => {
-    const html = renderToStaticMarkup(<PageBar page={4} total={12} cited={3} onPage={() => {}} />);
-    expect(html).toContain('Page 4 of 12 · cited on page 3');
-    expect(html).toMatch(/<button[^>]*>[^<]*Previous/);
-    expect(html).toMatch(/<button[^>]*>Next/);
-    expect(html).toMatch(/<button[^>]*>Back to citation<\/button>/);
-    expect(html).toMatch(/aria-live="polite"[^>]*>Page 4 of 12</);
-  });
-
-  it('disables what cannot move', () => {
-    const first = renderToStaticMarkup(<PageBar page={1} total={1} cited={1} onPage={() => {}} />);
-    expect(first.match(/disabled=""/g)).toHaveLength(3);
-  });
-
-  it('shows the section heading and note when present', () => {
-    const html = renderToStaticMarkup(<PageBar page={3} total={12} cited={3} section={{ heading: 'Chapter II', note: 'Definitions' }} onPage={() => {}} />);
-    expect(html).toContain('Chapter II › Definitions');
-    expect(renderToStaticMarkup(<PageBar page={3} total={12} cited={3} onPage={() => {}} />)).not.toContain('pv-section');
-  });
-
-  it('escapes the section like any text', () => {
-    const html = renderToStaticMarkup(<PageBar page={3} total={12} cited={3} section={{ heading: '<img src=x onerror=alert(1)>' }} onPage={() => {}} />);
-    expect(html).not.toContain('<img');
-  });
-});
+// The page bar, the header controls and the inline header became the viewer chrome
+// (docs/specs/2026-10-02-viewer-toolbar.md). Their behaviour is tested where it now lives:
+// - labels, paging keys, disabled ends, the cited page and the live page announcement:
+//   chrome.test.jsx, PageControls and CitedChip;
+// - the section and its escaping, the file link, Close reader: chrome.test.jsx, DocumentRow;
+// - the full view's title as the dialog label: chrome.test.jsx, FullHeader;
+// - the PDF | Text switch only with a PDF, zoom only in the PDF view, Full view not on phones or
+//   inside the full view: chromeModel.test.js, chromePlan;
+// - the fits, the current fit and a manual zoom: chromeModel.test.js, fitItems, and
+//   chrome.test.jsx, moreItems;
+// - the zoom steps' limits: chrome.test.jsx, PageControls;
+// - the stored copy's part label: viewerModel.test.js, storedCopyLabel, shown by MoreMenu.
 
 describe('notices per state', () => {
   it('document-level states', () => {
@@ -120,89 +105,6 @@ describe('PdfOverlay', () => {
   });
 });
 
-describe('ViewerControls', () => {
-  const base = {
-    view: 'pdf', onView: () => {}, fit: 'text', manual: false, onFit: () => {}, readout: '112%',
-    canZoomOut: true, canZoomIn: true, onZoomStep: () => {}, onExpand: () => {}, onStoredCopy: () => {},
-  };
-  const disabled = label => new RegExp(`disabled=""[^>]*aria-label="${label}"|aria-label="${label}"[^>]*disabled=""`);
-
-  it('offers the PDF | Text switch only when the PDF exists, with the current view pressed', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} available storedLabel="Open stored copy" />);
-    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>PDF<\/button>/);
-    expect(html).toMatch(/<button[^>]*aria-pressed="false"[^>]*>Text<\/button>/);
-    const none = renderToStaticMarkup(<ViewerControls {...base} view="text" available={false} storedLabel={null} />);
-    expect(none).not.toContain('>PDF<');
-  });
-
-  it('groups the controls in order: view, fit, zoom out, readout, zoom in, Full view, stored copy', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} available storedLabel="Open stored copy" />);
-    const order = ['>PDF<', 'aria-label="Fit"', 'aria-label="Zoom out"', '>112%<', 'aria-label="Zoom in"', 'aria-label="Full view"', '>Open stored copy<'];
-    const at = order.map(token => html.indexOf(token));
-    expect(at.every(i => i >= 0)).toBe(true);
-    expect([...at].sort((a, b) => a - b)).toEqual(at);
-  });
-
-  it('offers Fit text, Fit width and Fit page, with the current fit selected', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} fit="page" available storedLabel={null} />);
-    expect(html).toMatch(/<select[^>]*aria-label="Fit"/);
-    expect(html).toContain('>Fit text</option>');
-    expect(html).toContain('>Fit width</option>');
-    expect(html).toMatch(/<option value="page" selected="">Fit page<\/option>/);
-  });
-
-  it('shows a manual zoom as a custom choice, so picking a fit returns to it', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} manual readout="150%" available storedLabel={null} />);
-    expect(html).toMatch(/<option value="" disabled="" selected="">Custom zoom<\/option>/);
-    expect(html).not.toMatch(/<option value="text" selected="">/);
-    expect(renderToStaticMarkup(<ViewerControls {...base} available storedLabel={null} />)).not.toContain('Custom zoom');
-  });
-
-  it('shows the effective zoom readout between − and +, disabling a step past 50% or 300%', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} readout="300%" canZoomIn={false} available storedLabel={null} />);
-    expect(html).toContain('>300%<');
-    expect(html).toMatch(disabled('Zoom in'));
-    expect(html).not.toMatch(disabled('Zoom out'));
-    const min = renderToStaticMarkup(<ViewerControls {...base} readout="50%" canZoomOut={false} available storedLabel={null} />);
-    expect(min).toMatch(disabled('Zoom out'));
-  });
-
-  it('hides fit and zoom in the Text view, but keeps Full view', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} view="text" available storedLabel={null} />);
-    expect(html).not.toContain('Zoom');
-    expect(html).not.toContain('aria-label="Fit"');
-    expect(html).toContain('aria-label="Full view"');
-  });
-
-  it('shows Full view as a dialog opener only when it can open (not on phones, not inside the full view)', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} available storedLabel={null} />);
-    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-label="Full view"|<button[^>]*aria-label="Full view"[^>]*aria-haspopup="dialog"/);
-    expect(renderToStaticMarkup(<ViewerControls {...base} onExpand={null} available storedLabel={null} />)).not.toContain('Full view');
-  });
-
-  it('shows Open stored copy with its part label only when given one', () => {
-    const html = renderToStaticMarkup(<ViewerControls {...base} available storedLabel="Open stored copy (part 2 of 3)" />);
-    expect(html).toMatch(/<button[^>]*>Open stored copy \(part 2 of 3\)<\/button>/);
-    expect(renderToStaticMarkup(<ViewerControls {...base} available storedLabel={null} />)).not.toContain('stored copy');
-  });
-});
-
-describe('ViewerHeader', () => {
-  it('inline: the title, the public file link and Close reader', () => {
-    const html = renderToStaticMarkup(<ViewerHeader title="Anti-Doping Bill" fileName="bill.pdf" fileUrl="https://example.org/b.pdf" onClose={() => {}} />);
-    expect(html).toContain('Anti-Doping Bill');
-    expect(html).toContain('aria-label="Close reader"');
-    expect(html).not.toContain('Close full view');
-  });
-
-  it('full view: the title carries the dialog label id, and the close control leaves the full view', () => {
-    const html = renderToStaticMarkup(<ViewerHeader title="Anti-Doping Bill" titleId="pv-t1" onClose={() => {}} full />);
-    expect(html).toMatch(/<strong id="pv-t1">Anti-Doping Bill<\/strong>/);
-    expect(html).toContain('aria-label="Close full view"');
-    expect(html).not.toContain('Close reader');
-  });
-});
-
 describe('FullViewDialog', () => {
   it('is a modal dialog labelled by the document title, carrying the app theme', () => {
     const html = renderToStaticMarkup(
@@ -243,10 +145,9 @@ describe('cropStyles', () => {
 });
 
 describe('PageViewer', () => {
-  it('first renders the citation title and a loading state, with no URL anywhere', () => {
+  it('first renders a loading state, with no URL anywhere (WorkSurface\'s bar carries the title)', () => {
     const never = { from: () => ({ select: () => ({ eq: () => ({ abortSignal: () => ({ maybeSingle: () => new Promise(() => {}) }) }) }) }) };
     const html = renderToStaticMarkup(<PageViewer citation={CITATION} client={never} documentFile={{ partFor: () => new Promise(() => {}), invalidate() {} }} />);
-    expect(html).toContain('Anti-Doping Bill');
     expect(html).toContain('Loading…');
     expect(html).not.toMatch(/https?:/);
   });

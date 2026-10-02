@@ -39,6 +39,12 @@ vi.mock('react', async (importOriginal) => {
       if (deps === undefined || changed(s.deps, deps)) h.pending.push({ s, fn, deps });
       h.effects.add(s);
     },
+    // The chrome reads the pane's width before paint; here it runs like any effect.
+    useLayoutEffect(fn, deps) {
+      const s = slot(() => ({ deps: undefined, cleanup: null }));
+      if (deps === undefined || changed(s.deps, deps)) h.pending.push({ s, fn, deps });
+      h.effects.add(s);
+    },
   };
 });
 

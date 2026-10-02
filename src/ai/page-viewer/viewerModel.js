@@ -82,16 +82,17 @@ const BLOCKED_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /**
  * The page a key press moves to, or null to leave the key alone. The viewer binds this only on
- * its own controls; this also refuses inputs, editable text, a live text selection and modified
- * keys, so selecting or typing never pages.
+ * its own controls; this also refuses inputs, editable text, a live text selection, modified keys,
+ * and keys inside an open menu (whose arrows move between its items), so selecting, typing or
+ * choosing never pages.
  *
  * @param {{key: string, targetTag?: string, editable?: boolean, hasSelection?: boolean,
- *   altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean}} event
+ *   inMenu?: boolean, altKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, shiftKey?: boolean}} event
  * @param {{page: number, cited: number, total: number}} at
  */
 export function pagingKey(event, { page, cited, total }) {
   if (!event || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
-  if (BLOCKED_TAGS.has(String(event.targetTag || '').toUpperCase()) || event.editable || event.hasSelection) return null;
+  if (BLOCKED_TAGS.has(String(event.targetTag || '').toUpperCase()) || event.editable || event.hasSelection || event.inMenu) return null;
   let next = null;
   if (event.key === 'ArrowLeft' || event.key === '[') next = page - 1;
   else if (event.key === 'ArrowRight' || event.key === ']') next = page + 1;
@@ -128,9 +129,4 @@ export function storedCopyLabel(parts, page) {
   const list = Array.isArray(parts) ? parts : [];
   const part = list.length > 1 ? partForPage(list, page) : null;
   return part ? `Open stored copy (part ${part.part_index + 1} of ${list.length})` : 'Open stored copy';
-}
-
-/** The citation's section as "heading › note", either alone, or ''. */
-export function sectionLabel(section) {
-  return [section?.heading, section?.note].filter(nonblank).join(' › ');
 }

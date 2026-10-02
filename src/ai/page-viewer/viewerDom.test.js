@@ -256,4 +256,9 @@ describe('scrollTargetFor', () => {
     const inside = { top: 300, left: 1300, width: 100, height: 20 };
     expect(scrollTargetFor(inside, area, { top: 0, left: 0 }).left).toBe(0);
   });
+  it('centres in the area above a bottom inset, so the full view\'s floating pill does not cover the box', () => {
+    const box = { top: 700, left: 1100, width: 120, height: 20 };
+    expect(scrollTargetFor(box, area, { top: 0, left: 0 }, 60).top).toBe(600 + 10 - 270);
+    expect(scrollTargetFor(box, area, { top: 0, left: 0 }, Number.NaN).top).toBe(600 + 10 - 300);
+  });
 });
