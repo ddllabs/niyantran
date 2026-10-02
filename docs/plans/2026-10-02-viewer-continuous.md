@@ -342,3 +342,6 @@ nothing critical.
 - An independent code review, with its findings fixed.
 - The docs are updated.
 - **Go-aheads, asked separately:** applying the migration to NTER, then pushing `main`.
+  - **Applied (2026-10-02):** migration 42 on NTER, verified live. A search on the 22-page bill
+    took 18.5 ms (`agents/coordination.md`).
+  - **Waiting:** the push.

@@ -1328,3 +1328,28 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Served:** main entry `index-B2gZKDpV.js`, and the viewer chunk `PageViewer-BEnXgWS5.js`
     with the Fit width default and only the new zoom key.
   - No server or database change.
+- **viewer-continuous: migration 42 applied to NTER (2026-10-02)** (owner: "Apply
+  search_document_pages to NTER").
+  - **The code:** `main` at `cadf50d`, unpushed. The migration was last changed in `297cb00`
+    (the start page); its file's SHA-256 begins `d9008f8c`. Every SQL fixture passed locally first,
+    applied as a non-superuser; the search fixture fails without the migration and without the
+    start-page ordering.
+  - **Before:** the last migration was `20261001180000`. There was no `search_document_pages` and
+    no `search_text`. NTER held 2,340 documents, 54,340 chunks and 34 page rows (160 kB). No
+    ingest job was active (both jobs had succeeded).
+  - **Migration 42** `20261002120000_search_document_pages`:
+    - Applied with `supabase db query --linked` in one transaction, together with its
+      `schema_migrations` row (version, name and the file as its one statement).
+    - **New objects:** the stored generated column `document_pages.search_text`, and
+      `search_document_pages(uuid, text, text, integer, integer)`.
+  - **Verified live:**
+    - one overload; security invoker, stable, `search_path=""`;
+    - EXECUTE for authenticated and service_role, not for anon, with no PUBLIC grant;
+    - `search_text` is stored and generated, filled on all 34 pages;
+    - counts unchanged: 2,340 documents and 54,340 chunks;
+    - `analyze public.document_pages` was run after the table rewrite (`n_live_tup` 34).
+  - **A live search** on the 22-page anti-doping bill found "the" on all 22 pages. From page 9 the
+    order is 9–22 then 1–8. The function's execution time was 18.5 ms (`explain analyze`), against
+    the 50 ms budget.
+  - **The frontend is unchanged:** the viewer that calls this function is not pushed. The function
+    and the column are additive, so the deployed app is unaffected.

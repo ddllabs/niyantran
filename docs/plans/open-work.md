@@ -485,9 +485,13 @@ Follow-ups and findings:
   - **Piece 2 is built and verified locally** (2026-10-02, T1–T9 and the search start page). An
     independent review found nothing critical; its four behaviour defects are fixed (plan,
     Checkpoint B), and the rest are F50.
-  - **Next:** two go-aheads, asked separately: applying `20261002120000_search_document_pages` to
-    NTER, then pushing `main`. Then check, on production, the clipboard's success path (the test
-    browser refuses clipboard access) and a real split document.
+  - **Migration 42** (`search_document_pages`) was applied to NTER on 2026-10-02 and verified live
+    (`agents/coordination.md`).
+  - **Next:** push `main`, with its own go-ahead. Then check on production:
+    - the clipboard's success path (the test browser refuses clipboard access);
+    - a real split document;
+    - search, exact marks and thumbnails on the live bills;
+    - the continuous Text view in Safari (F50).
 - [ ] **F49.** The citation viewer cropped pages to their body text by default ("Fit text"). The
   anti-doping bill's page 1 lost its "As introduced in Lok Sabha" header and its top two thirds,
   and read as a different document from the stored PDF.
