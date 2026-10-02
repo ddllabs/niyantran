@@ -385,6 +385,15 @@ Follow-ups and findings:
       - the owner decides on the widened limit;
       - a measured trial of OpenRouter provider preferences (by throughput or latency), which is
         where F41's speed lies.
+    - **Routing trial run (2026-10-02, $2.43, 25 questions, no errors):** `thru` and `lat` are
+      much faster than `v45`. First word p50 falls from 21.3 s to 8.7 s and 7.4 s; p90 from
+      40.9 s to 15.0 s and 10.9 s. Cost falls 15% and 27%. Both miss the depth pass mark on
+      briefs: 3.1 and 2.8 searches against 4.5, and 7.8 and 7.3 pages against 8.3. Citations are
+      100% valid. By the amendment's rule nothing ships. Results are in
+      `research/2026-10-02-turn-cost-benchmark.md`.
+    - **Owner discussion open (2026-10-02):** routing, and whether widened searches return to 40
+      passages. The 15-passage evidence is one pass of 10 questions. A second pass of 40 against
+      15 costs about $0.60.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`
@@ -571,6 +580,13 @@ Follow-ups and findings:
     `document_pages` under an exclusive lock and doubles its stored text. That is fine at today's
     34 live pages, but note it for the apply.
   - **The search result is not reset** when the document's extraction changes while search is open.
+- [ ] **F51.** The sources list under an answer had no styles, so it drew as default grey buttons
+  plus the storage file name (owner: "it looks like windows 98"). The owner chose the compact
+  list: spec `specs/2026-10-02-source-list.md`, plan `plans/2026-10-02-source-list.md`.
+- [ ] **F52.** Some document titles are stored malformed. For example "The Farmers (Old Age
+  Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
+  stored in the sources list and the reader. Needs a count over `documents.title` and a decision
+  on cleaning at ingestion or at display.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.

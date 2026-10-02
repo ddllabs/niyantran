@@ -136,3 +136,36 @@ Like the caps here, it would be measured before it ships.
 `student.md` is 48,816 characters, against 1.2–1.9k for the other personas. That is about 12k
 tokens on every call of a student-persona turn: more than the whole median call above. The owner
 chose to leave it as it is.
+
+## Provider routing (amendment 1), measured 2026-10-02
+
+**Method:** the same agent and model as above, on `research-chat` v45 code. Each variant sends a
+`session_id`, and the variant order rotates per question.
+- **`v45`:** OpenRouter's default routing;
+- **`thru`:** `provider.sort: 'throughput'`;
+- **`lat`:** `provider.sort: 'latency'`.
+
+The run covered 10 narrow questions and 15 briefs. Raw results are in
+`eval/agent/results/2026-10-02T15-58-08-455Z.json`, $2.43. Every run completed.
+
+| | Narrow v45 | thru | lat | Brief v45 | thru | lat |
+| --- | --- | --- | --- | --- | --- | --- |
+| Searches | 1.10 | 1.40 | 1.10 | 4.47 | 3.07 | 2.80 |
+| Documents cited | 1.10 | 1.30 | 1.20 | 2.47 | 2.13 | 2.27 |
+| Pages cited | 5.30 | 5.50 | 4.90 | 8.27 | 7.80 | 7.33 |
+| Expected document | 10/10 | 10/10 | 10/10 | 15/15 | 14/15 | 15/15 |
+| Valid citations | 10/10 | 10/10 | 10/10 | 15/15 | 15/15 | 15/15 |
+| Call time p50 / p90 | 6.7 / 27.1 s | 3.8 / 5.9 s | 4.1 / 5.1 s | 3.9 / 16.3 s | 2.3 / 8.3 s | 2.1 / 7.5 s |
+| First word p50 / p90 | 7.6 / 29.9 s | 4.0 / 13.2 s | 4.9 / 8.3 s | 23.8 / 63.3 s | 9.9 / 17.8 s | 8.5 / 13.1 s |
+| Total p50 / p90 | 12.3 / 32.5 s | 7.5 / 15.3 s | 7.5 / 10.1 s | 35.3 / 75.0 s | 15.9 / 22.1 s | 12.9 / 17.5 s |
+| Cost per answer | $0.015 | $0.018 | $0.014 | $0.053 | $0.042 | $0.036 |
+
+**Both sorted routes are much faster and, on briefs, cheaper, but they answer briefs with less
+depth.** They search less, and cite fewer documents and pages.
+- **The amendment's ship rule fails for both.** `thru` misses the depth mark on briefs and raises
+  narrow cost by 18%. `lat` misses the depth mark on narrow pages (4.9 against 5.3) and on briefs.
+- **By the rule, routing stays as it is.** The owner is discussing it: the speed gain is large,
+  the depth loss modest, and this is one pass.
+- **The 15-passage widened limit barely touches this run.** Narrow questions and briefs run
+  under "Broad context", which never widens. The only exception is a retry after an empty scoped
+  search, which the results do not count, and it ran the same way in all three variants.
