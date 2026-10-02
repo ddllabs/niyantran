@@ -12,6 +12,7 @@ import {
   SEARCH_DESK_ROWS_TOOL,
   type SearchDeskRowsArgs,
 } from '../_shared/tools/searchDeskRows.ts';
+import { digNudge } from './dig.ts';
 import { ANSWER_JSON_SCHEMA } from './prompt.ts';
 import type { Focus } from './validate.ts';
 
@@ -131,6 +132,9 @@ export interface AgentDeps {
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
   /** `topK` is set only for a widened search when widenedTopK asks for it; otherwise retrieval's default. */
   searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number): Promise<Chunk[]>;
+  /** research-coverage fix B: send the model back once when its draft stops short (dig.ts). Off by
+   * default until the measurement shows it helps (docs/specs/2026-10-02-research-coverage.md). */
+  digNudge?: boolean;
   /** Passages a widened search asks for (WIDENED_TOP_K when asked for). Off by default: unset or
    * null asks for retrieval's default, as every other search does. */
   widenedTopK?: number | null;
@@ -212,6 +216,8 @@ export interface AgentCheckpoint {
   answerModel: string | null;
   /** The no-search push-back is spent at most once per turn. */
   pressedToSearch: boolean;
+  /** research-coverage fix B: the dig nudge, likewise at most once per turn. */
+  pressedToDig: boolean;
   /** The pre-search runs once per turn; a resumed checkpoint (failover) does not repeat it. */
   presearched: boolean;
   /** Announced at most once per turn, and kept across failover so a retry that
@@ -259,6 +265,7 @@ export function createAgentCheckpoint(
     resumeAnswer: false,
     answerModel: null,
     pressedToSearch: false,
+    pressedToDig: false,
     presearched: false,
     widened: null,
   };
@@ -686,6 +693,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     }
     state.finish = ended.reason;
     if (phase === 'research') {
+      const dig = !calls.length && deps.digNudge && !a.conversational && !state.pressedToDig &&
+          budget.searches > 0 && budget.searches < BUDGET.maxSearches && budget.modelAttempts < BUDGET.maxSteps - 1
+        ? digNudge(partial, state.chunks, budget.searches, (h) => deps.handles.lookup(h))
+        : null;
       if (calls.length) {
         retract('searching');
         messages.push({
@@ -703,6 +714,11 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         retract('searching');
         if (partial) messages.push({ role: 'assistant', content: partial });
         messages.push({ role: 'user', content: SEARCH_FIRST });
+      } else if (dig) {
+        state.pressedToDig = true;
+        retract('searching');
+        if (partial) messages.push({ role: 'assistant', content: partial });
+        messages.push({ role: 'user', content: dig });
       } else if (
         state.finish === 'stop' && (a.conversational || state.steps.some((s) => s.status === 'ok')) &&
         acceptedDraft(partial, deps.handles)

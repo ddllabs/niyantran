@@ -1364,3 +1364,80 @@ Deno.test('the opt-in values: WIDENED_TOP_K is 15 and TOOL_REPLY_CHARS is 24,000
   assertEquals(WIDENED_TOP_K, 15);
   assertEquals(TOOL_REPLY_CHARS, 24_000);
 });
+
+// research-coverage fix B: when the model stops searching while its draft cites a passage that
+// points at a provision of the same bill it never retrieved, the harness sends it back once.
+const penaltyPassage = (): Chunk => ({ ...chunk('pen'), document_id: 'bill', content: '13. Whoever contravenes any provisions of section 12 shall be punishable with imprisonment which may extend to seven years.' });
+const sectionTwelve = (): Chunk => ({ ...chunk('twelve'), document_id: 'bill', content: '12. (1) No person shall melt or destroy any coin.' });
+const citing = (handle: string) => `{"answer":"Up to seven years [1].","sources":[{"id":1,"source":"${handle}"}],"follow_up_questions":[]}`;
+
+Deno.test('dig nudge: a draft citing an unfollowed section is retracted and the model is sent back once', async () => {
+  const h = createHandleAssigner('abc123');
+  const pen = h.assign('pen');
+  const twelve = h.assign('twelve');
+  const results = [[penaltyPassage()], [sectionTwelve()]];
+  const final = `{"answer":"Melting coin [2] carries up to seven years [1].","sources":[{"id":1,"source":"${pen}"},{"id":2,"source":"${twelve}"}],"follow_up_questions":[]}`;
+  const f = fake([
+    [docCall('one'), finish('tool_calls')],
+    answer(citing(pen)),
+    [docCall('two', 'section 12'), finish('tool_calls')],
+    answer(final),
+  ], { searchDocuments: () => Promise.resolve(results.shift() ?? []), digNudge: true });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 4);
+  const nudge = f.requests[2].messages.at(-1);
+  assertEquals(nudge?.role, 'user');
+  assert(String(nudge?.content).includes('section 12'));
+  assert(f.events.some((e) => 'retract' in e && e.retract === 'searching'));
+  assertEquals(result.text, final);
+  assertEquals(result.searches, 2);
+});
+
+Deno.test('dig nudge: off by default, so the same draft is the answer', async () => {
+  const pen = createHandleAssigner('abc123').assign('pen');
+  const f = fake([[docCall(), finish('tool_calls')], answer(citing(pen))], { searchDocuments: () => Promise.resolve([penaltyPassage()]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 2);
+  assertEquals(result.text, citing(pen));
+});
+
+Deno.test('dig nudge: at most once a turn, so a second draft with the same gap is the answer', async () => {
+  const pen = createHandleAssigner('abc123').assign('pen');
+  const f = fake([[docCall(), finish('tool_calls')], answer(citing(pen)), answer(citing(pen))], {
+    searchDocuments: () => Promise.resolve([penaltyPassage()]), digNudge: true,
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3);
+  assertEquals(result.text, citing(pen));
+});
+
+Deno.test('dig nudge: Not in record. after one search sends the model back; after two it does not', async () => {
+  const notFound = '{"answer":"Penalty: **Not in record.**","sources":[],"follow_up_questions":[]}';
+  const once = fake([[docCall(), finish('tool_calls')], answer(notFound), [docCall('two'), finish('tool_calls')], answer()], {
+    searchDocuments: () => Promise.resolve([chunk('a')]), digNudge: true,
+  });
+  await runAgent(once.deps, input);
+  assertEquals(once.requests.length, 4);
+  assert(String(once.requests[2].messages.at(-1)?.content).includes('Not in record.'));
+  const twice = fake([[docCall('one'), docCall('two', 'other'), finish('tool_calls')], answer(notFound)], {
+    searchDocuments: () => Promise.resolve([chunk('a')]), digNudge: true,
+  });
+  await runAgent(twice.deps, input);
+  assertEquals(twice.requests.length, 2);
+});
+
+Deno.test('dig nudge: never on a conversational turn, and never once the search budget is spent', async () => {
+  const pen = createHandleAssigner('abc123').assign('pen');
+  // One search then "Not in record." is S2; only the conversational guard keeps it from firing.
+  const notFound = '{"answer":"**Not in record.**","sources":[],"follow_up_questions":[]}';
+  const chat = fake([[docCall(), finish('tool_calls')], answer(notFound)], { searchDocuments: () => Promise.resolve([chunk('a')]), digNudge: true });
+  await runAgent(chat.deps, { ...input, conversational: true });
+  assertEquals(chat.requests.length, 2);
+  const spent = createAgentBudget();
+  spent.searches = BUDGET.maxSearches - 1;
+  const f = fake([[docCall(), finish('tool_calls')], answer(citing(pen)), answer(citing(pen))], {
+    searchDocuments: () => Promise.resolve([penaltyPassage()]), digNudge: true, budget: spent,
+  });
+  await runAgent(f.deps, input);
+  assert(!f.requests.some((r) => String(r.messages.at(-1)?.content).includes('section 12')));
+});

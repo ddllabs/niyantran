@@ -141,3 +141,22 @@ If neither fix passes, the risk is recorded as measured, with its size, and noth
 
 1. **The thresholds stand:** a 10-point coverage gain, and 1 s on narrow total time.
 2. **The owner spot-checks the five questions.**
+
+## Amendment 1 (2026-10-02, during T3): S1 reads the cited passages
+
+**S1 looks only at the passages the draft cites, not everything the turn retrieved.** A turn
+retrieves up to 40 passages per search, many from other documents, so their cross-references
+would fire on almost every turn. A provision counts as followed when any retrieved passage of the
+same document begins it.
+
+**These are not references the model must follow:**
+- provisions of another law named later in the same clause ("section 21 of the Indian Penal
+  Code", "section 4 of the principal Act", "section 11 and clause (e) of section 12AA of the
+  Essential Commodities Act");
+- a summary's source note "(Section 8)";
+- a Schedule heading's "(See sections 2 and 3)";
+- "a new section 35AD" that an amendment inserts into another Act.
+
+**Measured worst case:** each gold passage of the 195-question retrieval eval, cited alone with
+nothing else retrieved. S1 fired on 26 of 195 (13%), and on 3 of the 15 narrow questions the
+benchmark uses. Real turns retrieve more, so the rate should be lower. Pass mark 3 bounds it.

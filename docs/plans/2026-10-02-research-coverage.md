@@ -54,3 +54,21 @@
 ### Checkpoint
 - Lint, both suites and the build pass.
 - **Go-aheads:** the `research-chat` deploy, if a fix ships, and the push.
+
+**T1, recorded 2026-10-02** (`75da871`, `5da1c85`).
+- **The set:** 15 questions on 15 bills, 65 points and 60 passages, pinned by chunk ID and hash.
+  Each point is found by an anchor phrase, which also matches same-named copies; two real copies
+  qualify.
+- **The check script** passes against the replica. The scorer and hash-check tests fail on
+  mutation.
+- **The spot-check sheet** is `research/2026-10-02-coverage-spot-check.md`, with the owner.
+
+**T3, recorded 2026-10-02.**
+- **`research-chat/dig.ts`:** S1 and S2, and the nudge message.
+- **`AgentDeps.digNudge`** is off by default. The nudge fires once a turn, in research, never on
+  a conversational turn, and only with search budget left.
+- **Tests:** 9 signal tests and 5 agent tests. The agent tests failed first. Removing the
+  conversational or once-a-turn guard, the other-law filter, or the provision check each fails a
+  test.
+- **S1's worst-case firing rate** is 13% (spec amendment 1).
+- **Checks:** Deno (855) and lint pass.
