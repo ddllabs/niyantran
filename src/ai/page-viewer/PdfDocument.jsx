@@ -165,7 +165,9 @@ export default function PdfDocument({
     matchAll.dispose();
     matchFocus.dispose();
   }, [highlighter, matchAll, matchFocus]);
-  const revealedRef = useRef(0);
+  // The last move revealed. A view opening while search is open counts the current move as
+  // revealed: it opens on the reader's page, not on a match found before it opened.
+  const revealedRef = useRef(search?.seq ?? 0);
   const areaRef = useRef(null);
   const docRef = useRef(null);
   const pane = usePaneSize(areaRef);
@@ -267,10 +269,11 @@ export default function PdfDocument({
   // A move to a search match. The drawn page holding it scrolls it to the centre of the view (above
   // the full view's pill), or shows its top when its text layer lacks the match; a page not yet
   // drawn is scrolled to first, and reveals the match once drawn. Pages' effects run before this
-  // one, so a page that already revealed the move is not scrolled over.
+  // one, so a page that already revealed the move is not scrolled over. Each move is revealed once.
   const onReveal = useCallback((seq, page, range) => {
     const area = areaRef.current;
-    if (!area) return;
+    // Once per move: a page leaving the window and drawn again must not scroll back to it.
+    if (!area || seq === revealedRef.current) return;
     revealedRef.current = seq;
     if (range) {
       const rect = range.getBoundingClientRect();

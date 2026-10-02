@@ -76,7 +76,9 @@ function TextDocument({
   const markRef = useRef(null);
   const openedRef = useRef(false);
   const centredRef = useRef(false);
-  const revealedRef = useRef(0);
+  // The last search move revealed; one made before this view opened counts as revealed, so the
+  // view opens on the reader's page (as the PDF view does).
+  const revealedRef = useRef(search?.seq ?? 0);
   const currentRef = useRef(openAt);
   const mountRequestRef = useRef(scrollRequest);
   const callbacks = useRef({ onNeed, onPage });
@@ -166,9 +168,10 @@ function TextDocument({
   // A move to a search match: a read page centres it; a page not yet read is scrolled to, which
   // reads it, and centres the match once read. Pages' effects run before this one.
   const onReveal = useCallback((seq, page, range) => {
-    revealedRef.current = seq;
     const area = areaRef.current;
-    if (!area) return;
+    // Once per move: a page read or drawn again must not scroll back to it.
+    if (!area || seq === revealedRef.current) return;
+    revealedRef.current = seq;
     if (range) centreIn(area, range.getBoundingClientRect(), insetBottom);
     else {
       const section = sectionsRef.current.get(page);

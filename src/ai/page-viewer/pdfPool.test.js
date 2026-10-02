@@ -186,6 +186,35 @@ describe('createPdfPool', () => {
     expect(log.tasks.filter(t => t.destroy.mock.calls.length)).toHaveLength(1);
   });
 
+  // The race: a job takes an open idle part, and before it marks the part busy, another job that
+  // must open a fourth part makes room by closing the least recently used idle part - that one.
+  // Every interleaving of the two, a microtask at a time, must leave the part in use open.
+  for (const ticks of [0, 1, 2, 3, 4, 5, 6]) {
+    it(`a part chosen for a job is never closed to make room before the job uses it (${ticks} ticks apart)`, async () => {
+      const { pool, log, documentFile } = setup();
+      for (const page of [1, 6, 11]) {
+        request(pool, page);
+        await flush();
+        log.renders.at(-1).finish();
+        await flush();
+      }
+      let release;
+      const held = new Promise((resolve) => { release = resolve; });
+      const real = documentFile.partFor.getMockImplementation();
+      documentFile.partFor.mockImplementationOnce(async (...args) => { await held; return real(...args); });
+      request(pool, 16);
+      await flush();
+      release();
+      for (let i = 0; i < ticks; i += 1) await Promise.resolve();
+      request(pool, 2);
+      await flush();
+      // Page 2 is drawn from part 0's latest opening, which is still open. (Part 0 may have been
+      // closed and opened again when room was made before page 2 was asked for; that is fine.)
+      expect(log.renders.find(r => r.page === 2 && r.part === 0)).toBeTruthy();
+      expect(log.tasks.filter(t => t.partIndex === 0).at(-1).destroy).not.toHaveBeenCalled();
+    });
+  }
+
   it('a part that cannot be read fails its jobs with an error that carries no URL, and is closed', async () => {
     const { pool, log } = setup({ failRange: true });
     const { calls } = request(pool, 1);

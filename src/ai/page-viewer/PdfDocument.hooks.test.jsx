@@ -90,3 +90,49 @@ describe('PdfDocument before it has opened', () => {
     expect(onPage).not.toHaveBeenCalled();
   });
 });
+
+describe('PdfDocument revealing a search match', () => {
+  /** The rendered page slots' props, and the scroll area the view holds by ref. */
+  function mount(extra) {
+    pane.current = { width: 400, height: 600 };
+    let out;
+    const run = (p) => {
+      for (let pass = 0; pass < 20; pass += 1) {
+        h.dirty = false;
+        h.i = 0;
+        h.pending = [];
+        out = PdfDocument(p);
+        for (const { s, fn, deps } of h.pending) {
+          if (typeof s.cleanup === 'function') s.cleanup();
+          s.cleanup = fn() ?? null;
+          s.deps = deps;
+        }
+        if (!h.dirty) return out;
+      }
+      throw new Error('the view kept re-rendering');
+    };
+    out = run(props(extra));
+    const area = { scrollTop: 0, scrollLeft: 0, clientHeight: 600, clientWidth: 400, getBoundingClientRect: () => ({ top: 0, left: 0 }) };
+    out.props.ref.current = area;
+    const slot = page => out.props.children.props.children.find(el => el.props.page === page).props;
+    return { area, slot, rerender: next => { out = run(props(next)); } };
+  }
+  const range = top => ({ getBoundingClientRect: () => ({ top, height: 10, left: 10, right: 20, width: 10 }) });
+
+  it('a move is revealed once; a page drawn again later, or a view opened on an earlier move, does not scroll back to it', () => {
+    const search = { query: 'act', page: 4, index: 0, seq: 5 };
+    const { area, slot, rerender } = mount({ search });
+    slot(4).onReveal(5, 4, range(900));
+    expect(area.scrollTop).toBe(0); // the move made before this view opened
+
+    const next = { query: 'act', page: 4, index: 1, seq: 6 };
+    rerender({ search: next });
+    slot(4).onReveal(6, 4, range(900));
+    const revealed = area.scrollTop;
+    expect(revealed).not.toBe(0);
+
+    area.scrollTop = 50_000; // the reader scrolls away; the page leaves the window and returns
+    slot(4).onReveal(6, 4, range(900));
+    expect(area.scrollTop).toBe(50_000);
+  });
+});

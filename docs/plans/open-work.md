@@ -482,8 +482,12 @@ Follow-ups and findings:
     - a review's four required fixes are applied;
     - 1,826 tests pass;
     - the main bundle is +0, the viewer chunk +5.7 KB.
-  - **Next:** push `main`, with the owner's go-ahead. Then check, on production, the clipboard's
-    success path (the test browser refuses clipboard access) and a real split document.
+  - **Piece 2 is built and verified locally** (2026-10-02, T1–T9 and the search start page). An
+    independent review found nothing critical; its four behaviour defects are fixed (plan,
+    Checkpoint B), and the rest are F50.
+  - **Next:** two go-aheads, asked separately: applying `20261002120000_search_document_pages` to
+    NTER, then pushing `main`. Then check, on production, the clipboard's success path (the test
+    browser refuses clipboard access) and a real split document.
 - [ ] **F49.** The citation viewer cropped pages to their body text by default ("Fit text"). The
   anti-doping bill's page 1 lost its "As introduced in Lok Sabha" header and its top two thirds,
   and read as a different document from the stored PDF.
@@ -493,6 +497,24 @@ Follow-ups and findings:
     - Fit text never crops the page's height or any block;
     - the zoom is saved only when the reader chooses it, under a new key.
   - **Status:** built and checked locally. Next: push `main`, with a go-ahead.
+- [ ] **F50.** Follow-ups from the viewer-continuous review (2026-10-02). None blocks the push.
+  - **Query folding.** The client folds with NFC and JS whitespace (NBSP, U+2000–U+200A); the database
+    does neither, and `lower()` follows the database collation. Text with NBSP, or precomposed
+    Devanagari nukta letters, can find 0 pages in the database yet match on the page. Fold both
+    sides alike, and add fixture cases for NBSP and É.
+  - **The part pool.** A failed thumbnail job closes the part it shares with page renders, which can
+    show the PDF error banner. `pdfPage.cleanup()` is never called, so a long single-part document
+    keeps the operator lists of every page visited (memory cost not measured).
+  - **Safari.** The continuous Text view relies on `overflow-anchor`, which WebKit lacks, so batches
+    arriving above the view may shift the reader. Check in Safari. WebP thumbnails are stored as
+    PNG there (they work, but take more space).
+  - **Highlight names are global** (`pv-cite`, `pv-match`), each with its own registry. Two viewers
+    mounted at once would clear each other's marks. Use a shared, counted registry.
+  - **The rail tabs lack Home and End.**
+  - **On apply to NTER,** `search_text` is a stored generated column, so adding it rewrites
+    `document_pages` under an exclusive lock and doubles its stored text. That is fine at today's
+    34 live pages, but note it for the apply.
+  - **The search result is not reset** when the document's extraction changes while search is open.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.

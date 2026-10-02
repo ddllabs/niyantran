@@ -20,6 +20,12 @@ describe('SearchBar', () => {
     expect(html).toMatch(/aria-label="Close search" aria-keyshortcuts="Escape"/);
   });
 
+  it('announces only a settled count, not "Searching…" on every keystroke', () => {
+    const html = renderToStaticMarkup(<SearchBar query="acc" label="Searching…" total={0} onQuery={noop} onStep={noop} onClose={noop} />);
+    expect(html).toMatch(/aria-hidden="true">Searching…</);
+    expect(html).toMatch(/role="status"><\/span>/);
+  });
+
   it('cannot step without matches', () => {
     const html = renderToStaticMarkup(<SearchBar query="zz" label="No matches" total={0} onQuery={noop} onStep={noop} onClose={noop} />);
     expect(html.match(/aria-disabled="true"/g)).toHaveLength(2);

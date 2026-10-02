@@ -70,10 +70,12 @@ vi.mock('./storedCopy.js', async (importOriginal) => ({
 }));
 
 const docResult = { current: null };
+/** Every page the one-page loader was asked for. */
+const pageLoads = [];
 vi.mock('./viewerData.js', async (importOriginal) => ({
   ...(await importOriginal()),
   loadDocument: vi.fn(async () => docResult.current),
-  createPageLoader: () => ({ peek: () => undefined, load: () => new Promise(() => {}), dispose() {} }),
+  createPageLoader: () => ({ peek: () => undefined, load: (page) => { pageLoads.push(page); return new Promise(() => {}); }, dispose() {} }),
 }));
 
 const { default: PageViewer } = await import('./PageViewer.jsx');
@@ -139,6 +141,7 @@ beforeEach(() => {
   h.effects = new Set();
   controllers.length = 0;
   storedCopyCalls.length = 0;
+  pageLoads.length = 0;
   docResult.current = { status: 'ok', doc: LIVE, parts: PARTS };
 });
 
@@ -244,5 +247,23 @@ describe('PageViewer saves the zoom only when the reader chooses it', () => {
     sharedOf(out).setZoomState({ fit: 'page', zoom: null });
     render({ ...base, storage, citation: CITATION });
     expect(JSON.parse(storage.data.get('niyantranCitationZoomV2'))).toEqual({ fit: 'page', zoom: null });
+  });
+});
+
+// Review of viewer-continuous: the continuous Text view reads its pages in batches, so a page
+// reached by scrolling must not also go through the one-page loader (a row, its blocks and both
+// neighbours per page, aborting the cited page's read).
+describe('PageViewer in the continuous Text view', () => {
+  const memory = entries => ({ getItem: k => entries[k] ?? null, setItem: vi.fn() });
+
+  it('reads no page through the one-page loader as the reader scrolls', async () => {
+    const storage = memory({ niyantranCitationView: 'text', niyantranTextLayout: 'continuous' });
+    const out = await settle({ ...base, storage, citation: CITATION });
+    const shared = sharedOf(out);
+    expect(shared.textDocument).not.toBeNull();
+    shared.textDocument.onPage(15);
+    render({ ...base, storage, citation: CITATION });
+    expect(pageLoads.filter(page => page !== CITATION.page_number)).toEqual([]);
+    expect(pageLoads.filter(page => page === CITATION.page_number)).toHaveLength(1);
   });
 });

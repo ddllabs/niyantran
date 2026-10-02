@@ -7,6 +7,7 @@
 import { useEffect, useRef } from 'react';
 import { IconButton } from './IconButton.jsx';
 import { ChevronDown, ChevronUp, X } from './icons.js';
+import { SEARCHING } from './searchModel.js';
 
 /**
  * @param {{query: string, label: string, total: number, onQuery: (query: string) => void,
@@ -51,7 +52,9 @@ export default function SearchBar({ query, label, total, onQuery, onStep, onClos
             onStep(event.shiftKey ? -1 : 1);
           }}
         />
-        <span className="pv-search-count" role="status">{label}</span>
+        {/* Shown as it changes; announced only once settled, never "Searching…" per keystroke. */}
+        <span className="pv-search-count" aria-hidden="true">{label}</span>
+        <span className="pv-sr" role="status">{label === SEARCHING ? '' : label}</span>
         <IconButton icon={ChevronUp} label="Previous match" shortcut="⇧↵" keys="Shift+Enter" unavailable={!total} onClick={() => onStep(-1)} />
         <IconButton icon={ChevronDown} label="Next match" shortcut="↵" keys="Enter" unavailable={!total} onClick={() => onStep(1)} />
         <IconButton icon={X} label="Close search" shortcut="Esc" keys="Escape" tipAlign="end" onClick={onClose} />

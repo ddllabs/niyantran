@@ -94,9 +94,12 @@ export function recognisedOnly({ match, query, layer }) {
   return Boolean(match && layer && layer.query === query && layer.count !== null && layer.count <= match.index);
 }
 
+/** The counter while a typed query waits for its answer. */
+export const SEARCHING = 'Searching…';
+
 /** The counter: "3 of 9", or the empty, waiting and failed states. */
 export function matchLabel({ status, total, current, capped = false }) {
-  if (status === 'loading') return 'Searching…';
+  if (status === 'loading') return SEARCHING;
   if (status === 'error') return "Couldn't search";
   if (status !== 'ok') return '';
   if (!total) return 'No matches';

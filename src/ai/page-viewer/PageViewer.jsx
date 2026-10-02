@@ -468,10 +468,11 @@ export default function PageViewer({
     return () => { alive = false; };
   }, [spills, cited]);
 
-  // The Text view's current page: its text row; paging away aborts the stale fetch.
+  // The one-page Text view's current page: its text row; paging away aborts the stale fetch. The
+  // continuous layout reads its pages in batches instead.
   useEffect(() => {
     const loader = loaderRef.current;
-    if (!loader || !showPages || view !== 'text') return undefined;
+    if (!loader || !showPages || view !== 'text' || textContinuous) return undefined;
     let alive = true;
     const cached = loader.peek(page);
     setPageState(cached !== undefined
@@ -483,7 +484,7 @@ export default function PageViewer({
       }
     });
     return () => { alive = false; };
-  }, [doc, showPages, view, page, pageNonce]);
+  }, [doc, showPages, view, textContinuous, page, pageNonce]);
 
   // The cited passage on each page it touches, for the Text view in both layouts: checked against
   // the citation's hash, across a page break when it runs onto the next page (read above).

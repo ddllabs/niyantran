@@ -93,29 +93,37 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
     }
   }
 
-  /** The open part holding `job`'s page, opening it if need be; never for a cancelled job. */
+  /**
+   * The open part holding `job`'s page, opening it if need be; never for a cancelled job. The part
+   * is claimed (busy, most recently used) the moment it is chosen: another job making room in
+   * the meantime must not close it.
+   */
   async function partFor(job) {
     const { page } = job;
-    for (const part of open.values()) if (covers(part.info, page)) return part;
+    const claim = (part) => {
+      part.busy += 1;
+      part.lastUsed = ++clock;
+      return part;
+    };
+    for (const part of open.values()) if (covers(part.info, page)) return claim(part);
     const info = await documentFile.partFor(documentId, page, { parts });
     if (destroyed || job.cancelled) throw coded('cancelled');
     await ensurePdfjs();
     if (destroyed || job.cancelled) throw coded('cancelled');
     const existing = open.get(info.partIndex);
-    if (existing) return existing;
+    if (existing) return claim(existing);
     makeRoom();
     const part = openPart(info);
     open.set(info.partIndex, part);
-    return part;
+    return claim(part);
   }
 
   async function run(job) {
     try {
       const part = await partFor(job);
-      if (job.cancelled) return;
+      // Released in finally, even when the job was cancelled while its part was being found.
       job.part = part;
-      part.busy += 1;
-      part.lastUsed = ++clock;
+      if (job.cancelled) return;
       const race = promise => Promise.race([promise, part.failure]);
       const doc = await race(part.task.promise);
       if (job.cancelled) return;

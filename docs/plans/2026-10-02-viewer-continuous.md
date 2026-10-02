@@ -312,6 +312,31 @@
 - **Left in place:** `localSpan` in `pageModel.js` has no caller outside its tests after this change.
   It can be removed separately.
 
+**Checkpoint B review, 2026-10-02.** This was an independent review of `baa7b9b..d0f0e91`. It found
+nothing critical.
+- **The 200-page search cap** was fixed separately, as the owner decided (`297cb00`).
+- **Fixed, each with a test shown to fail first:**
+  - **A search match was revealed again** when its page came back into the render window, and a
+    view opened during a search jumped to the last match instead of the reader's page. Each move is
+    now revealed once, and a view opening during a search counts the current move as revealed.
+    This applies to both the PDF view and the continuous Text view.
+    (`PdfDocument.hooks.test.jsx`; in the browser, the full view opened on page 8 with the match on
+    page 3.)
+  - **The continuous Text view also read every page it reached through the one-page loader:** a row,
+    its blocks and both neighbours, which also aborted the cited page's read. It no longer does
+    (`PageViewer.hooks.test.jsx`).
+  - **The pool could close a part between choosing it and using it.** Another job making room
+    closed it as idle, which failed the page. A part is now claimed when chosen. A test runs every
+    interleaving a microtask at a time, and the committed pool fails it at 4 ticks.
+  - **The search counter announced "Searching…" on every keystroke.** Only settled counts are
+    announced now.
+- **Not fixed, recorded in open work (F50):** query folding differences between the client and the
+  database; a failed thumbnail closing a shared part; `pdfPage.cleanup()`; Safari's lack of
+  scroll anchoring in the continuous Text view; global highlight names; Home and End on the rail
+  tabs; the stored column's table rewrite on apply; the search result not reset on a new
+  extraction.
+- **Checks:** lint, Vitest (1,949) and the build pass. The viewer chunk is 31.61 kB gzip.
+
 ### Checkpoint B (complete)
 - The budgets in the spec are measured and recorded.
 - An independent code review, with its findings fixed.
