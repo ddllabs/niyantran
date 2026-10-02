@@ -1353,3 +1353,22 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     the 50 ms budget.
   - **The frontend is unchanged:** the viewer that calls this function is not pushed. The function
     and the column are additive, so the deployed app is unaffected.
+- **viewer-continuous: `main` pushed (2026-10-02)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `60b49f4` to `7565408` (16 commits, 55 files). It carries:
+    - the viewer-continuous spec and plan, T1–T9 and the search start page;
+    - the review fixes (`cadf50d`);
+    - the migration 42 record.
+
+    A scan of the outgoing diff found no env files, keys or AI attribution.
+  - **Vercel:** production deploy `dpl_GvdNsfQHM8wQwxbLV2SBMt2Zu9FN` (`7565408`) is READY, aliased to
+    `niyantran-six.vercel.app`.
+  - **Served:** the main entry `index-DdZYujCd.js` holds none of the viewer's code. The lazy viewer
+    chunk `PageViewer-C0e8PkwG.js` (93.7 kB) carries `search_document_pages` with `p_from_page`,
+    the "Approximate location" fallback, the Thumbnails rail, "Text layout" and the match
+    highlights.
+  - **No server change.** The database change was migration 42 (above).
+  - **Owner checks on production** (agents do not sign in there):
+    - search, exact marks and thumbnails on the live bills;
+    - Copy file name;
+    - a real split document;
+    - the continuous Text view in Safari (F50).

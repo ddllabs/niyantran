@@ -487,7 +487,9 @@ Follow-ups and findings:
     Checkpoint B), and the rest are F50.
   - **Migration 42** (`search_document_pages`) was applied to NTER on 2026-10-02 and verified live
     (`agents/coordination.md`).
-  - **Next:** push `main`, with its own go-ahead. Then check on production:
+  - **Pushed** on 2026-10-02 (`7565408`); production deploy `dpl_GvdNsfQHM8wQwxbLV2SBMt2Zu9FN` is
+    READY.
+  - **Next:** the owner checks on production:
     - the clipboard's success path (the test browser refuses clipboard access);
     - a real split document;
     - search, exact marks and thumbnails on the live bills;
