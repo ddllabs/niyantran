@@ -1511,3 +1511,23 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - No server or database change.
   - **Owner check on production:** the sources under a signed-in answer show as the compact list,
     and a row opens the reader.
+- **chat-turn-cost: widened searches back to 40 passages, `research-chat` deployed (2026-10-02)**
+  (owner: "Switch back to 40 and deploy research-chat to NTER").
+  - **The deploy:** from `main` at `2f0c71d`, unpushed, with
+    `supabase functions deploy research-chat --use-api --project-ref vfgcppstyzjarlzyqdac`. It is
+    version 46 (was 45), ACTIVE, with `verify_jwt` off.
+  - **What it carries:**
+    - a widened search asks for retrieval's default 40 passages again (`2f0c71d`). A second pass
+      found 15 no deeper and slower (`docs/research/2026-10-02-turn-cost-benchmark.md`).
+      `WIDENED_TOP_K` stays as an opt-in option;
+    - `StreamRequest.providerSort` (`f34f20b`), which the handler never sets, so request bodies are
+      unchanged.
+
+    Nothing else in `research-chat/` or `_shared/` changed since v45 (`3252743`).
+  - **Checks:** the Deno suite (839) and lint passed on this commit. The three changed default
+    tests failed first.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - No database change, and no frontend change.

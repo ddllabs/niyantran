@@ -56,3 +56,11 @@
     body is unchanged. The `_shared` tests fail first.
   - The benchmark variants `v45`, `thru` and `lat`, with results added to the turn-cost write-up.
   - The ship rule from the amendment applies; wiring into the handler only if a variant passes.
+
+**Widened limit reverted, recorded 2026-10-02.**
+- **The second pass** (`research/2026-10-02-turn-cost-benchmark.md`) found 15 passages no deeper
+  than 40 over 25 question-runs, and 1.6 s slower at p50.
+- **The owner switched widened searches back to 40** (`2f0c71d`): `widenedTopK` is now opt-in,
+  like the reply cap.
+- **Deployed** as `research-chat` v46.
+- **Routing (T4):** the trial is recorded, nothing is wired, and the decision is the owner's.
