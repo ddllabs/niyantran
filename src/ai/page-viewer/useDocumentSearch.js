@@ -40,6 +40,12 @@ export function useDocumentSearch({ client, documentId, extractHash, page }) {
     },
   }), [client, documentId, extractHash]);
   useEffect(() => () => runner.cancel(), [runner]);
+  // Another document or extraction: the last result's pages and counts belong to the old text.
+  useEffect(() => {
+    setResult(IDLE);
+    setCurrent(-1);
+    setLayerCounts(new Map());
+  }, [runner]);
 
   // The field takes focus when search opens, and again on ⌘/Ctrl+F while it is open.
   useEffect(() => {

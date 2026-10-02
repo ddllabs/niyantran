@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import PageControls from './PageControls.jsx';
-import PageRail, { RailTabs, Thumb, railLayout, thumbLabel } from './PageRail.jsx';
+import PageRail, { RailTabs, Thumb, railLayout, tabForKey, thumbLabel } from './PageRail.jsx';
 import { THUMB_WIDTH } from './thumbnailCache.js';
 
 const noop = () => {};
@@ -70,5 +70,15 @@ describe('PageControls rail toggle', () => {
     const html = renderToStaticMarkup(<PageControls variant="toolbar" page={4} total={22} cited={4} onPage={noop} zoom={null} onSearch={noop} onRail={noop} railOpen />);
     expect([...html.matchAll(/aria-label="([^"]+)"/g)].map(m => m[1]).slice(0, 3)).toEqual(['Pages', 'Thumbnails', 'Search in document']);
     expect(html).toMatch(/aria-label="Thumbnails"[^>]*aria-expanded="true"/);
+  });
+});
+
+describe('tabForKey', () => {
+  it('Left and Right switch tabs; Home and End go to the first and the last; other keys do nothing', () => {
+    expect(tabForKey('ArrowRight', 'pages')).toBe('results');
+    expect(tabForKey('ArrowLeft', 'results')).toBe('pages');
+    expect(tabForKey('Home', 'results')).toBe('pages');
+    expect(tabForKey('End', 'pages')).toBe('results');
+    expect(tabForKey('Enter', 'pages')).toBeNull();
   });
 });

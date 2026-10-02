@@ -148,13 +148,21 @@ function ThumbList({ aspects, current, cited, counts, onPick, thumbs, active }) 
   );
 }
 
-/** Pages | Results, as tabs; Left and Right move between them. */
+/** The tab a key moves to from `tab`: Left and Right switch, Home and End go to either end; else null. */
+export function tabForKey(key, tab) {
+  if (key === 'Home') return 'pages';
+  if (key === 'End') return 'results';
+  if (key === 'ArrowLeft' || key === 'ArrowRight') return tab === 'pages' ? 'results' : 'pages';
+  return null;
+}
+
+/** Pages | Results, as tabs; Left, Right, Home and End move between them. */
 export function RailTabs({ id, tab, onTab, resultCount = null }) {
   const tabs = [['pages', 'Pages'], ['results', 'Results']];
   const onKeyDown = (event) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const next = tabForKey(event.key, tab);
+    if (!next) return;
     event.preventDefault();
-    const next = tab === 'pages' ? 'results' : 'pages';
     onTab(next);
     event.currentTarget.querySelector(`#${CSS.escape(`${id}-${next}`)}`)?.focus();
   };
