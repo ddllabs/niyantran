@@ -488,7 +488,8 @@ Follow-ups and findings:
       - T4, measured: zero shift at the end of a turn.
 
       The local run is in `research/2026-10-02-chat-panel-fixes-local-run.md`.
-    - **Next:** deploying `research-chat`, then the push, each with a go-ahead.
+    - **`research-chat` v45 deployed** on 2026-10-02, with T1's frame and the widened limit.
+    - **Next:** the push, with a go-ahead.
     - **Noted in the run, not fixed:**
       - at 375 px the app header overflows by a few pixels;
       - the history list opened in a narrow dock extends past the left edge.

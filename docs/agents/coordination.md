@@ -1436,3 +1436,20 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - the continuous Text view in Safari;
     - a signed-in brief and a follow-up;
     - the earlier viewer checks (search, marks, thumbnails, Copy file name, a split document).
+- **chat-turn-cost and chat-panel-fixes: `research-chat` deployed (2026-10-02)** (owner: "Deploy
+  research-chat to NTER").
+  - **The deploy:** from `main` at `3252743`, unpushed, with
+    `supabase functions deploy research-chat --use-api --project-ref vfgcppstyzjarlzyqdac`. It is
+    version 45 (was 44), ACTIVE, with `verify_jwt` off.
+  - **What it carries:**
+    - a widened search asks for 15 passages (`0de8178`, `13c050e`), which the owner chose to keep
+      after the measurement (`docs/research/2026-10-02-turn-cost-benchmark.md`);
+    - the reply cap is present but off by default (`d76a49c`);
+    - the `timing` frame carries the turn's reasoning count (`ea0e07c`). The deployed frontend
+      ignores the new field until the push.
+  - **Checks:** the Deno suite (837) passed on this commit.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - No database change. The frontend is unchanged until the push.
