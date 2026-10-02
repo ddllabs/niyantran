@@ -289,6 +289,27 @@ Deno.test('a model that is not an enabled row is refused before any provider cal
   assertEquals(provider.seen.length, 0, 'nothing was sent to a provider');
 });
 
+// chat-panel-fixes (F47): the live summary says "thought" only with the model's own reasoning
+// count, which reached the reader only with the saved row; the timing frame now carries it.
+Deno.test('the timing frame carries the turn\'s reasoning token count', async () => {
+  // Every call reports its reasoning, so the saved total is known (the saved row's word reads it).
+  const reasoned = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.0001, reasoning_tokens: 256 };
+  const provider = scripted([
+    [finish('stop', reasoned)],
+    [finish('stop', reasoned)],
+    [text(envelope('Hello — what would you like to check?')), finish('stop', reasoned)],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const timing = got.find((f) => 'timing' in f) as { timing: unknown; usage?: { reasoning_tokens: number } };
+  assertEquals(timing.usage, { reasoning_tokens: (rec.messages[0].usage as { reasoning_tokens: number }).reasoning_tokens });
+  assertEquals(timing.usage, { reasoning_tokens: 768 });
+  const plain = fakeDeps(scripted([...DECLINES, [text(envelope('Hi.')), finish()]]));
+  const none = (await frames(await handleResearchChat(post({ ...BODY, turn_key: 'no-reasoning' }), plain.deps)))
+    .find((f) => 'timing' in f) as { usage?: { reasoning_tokens: number } };
+  assertEquals(none.usage, { reasoning_tokens: 0 });
+});
+
 Deno.test('a plain answer streams as chunks, persists, and reports sources, timing and done in order', async () => {
   const provider = scripted([...DECLINES, [text(envelope('Hello — what would you like to check?')), finish()]]);
   const { deps, rec } = fakeDeps(provider);

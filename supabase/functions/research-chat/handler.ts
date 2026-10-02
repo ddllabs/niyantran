@@ -500,7 +500,9 @@ function sendTerminal(
     sender.send({ sources: row.sources });
     if (row.follow_ups.length) sender.send({ followUpQuestions: row.follow_ups });
   }
-  if (row.timing) sender.send({ timing: row.timing });
+  // The reasoning count goes with the timing, so the live summary's "thought" or "waited" matches
+  // the saved row's (chat-panel-fixes, F47).
+  if (row.timing) sender.send({ timing: row.timing, usage: { reasoning_tokens: Number(row.usage?.reasoning_tokens) || 0 } });
   if (row.status === 'truncated') {
     sender.send({ truncated: { reason: 'length', continuations: Number(row.usage?.continuations) || 0 } });
   }

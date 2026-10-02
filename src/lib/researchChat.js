@@ -116,7 +116,7 @@ export function createTextCoalescer(commit, schedule) {
 
 function blankState() {
   return { isStreaming: false, isPending: false, status: 'idle', streamingText: '', activity: [], sources: [],
-    followUps: [], model: null, timing: null, truncated: null, notice: null, error: '', errorCode: '',
+    followUps: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '',
     conversationId: '', messageId: '', executionExpiresAt: null, retryable: false, retryCount: 0,
     cancelRequested: false, cancelPending: false, cancelError: '', stopQueued: false };
 }
@@ -479,7 +479,7 @@ async function run(entry, opts) {
     entry.generation = version;
     await publish(entry, { isStreaming: true, isPending: true, status: 'connecting', error: '', errorCode: '',
       retryable: false, retryCount: entry.retryCount, streamingText: '', sources: [], followUps: [], truncated: null,
-      activity: [], timing: null, messageId: '', cancelPending: false }, attempt);
+      activity: [], timing: null, usage: null, messageId: '', cancelPending: false }, attempt);
     if (!bound(entry, attempt) || controller.signal.aborted) throw new Error('Your research session changed.');
     entry.dispatched = true;
     const responsePromise = Promise.resolve((opts.send ?? sendResearchTurn)({ body: copy(entry.request), signal: controller.signal, identity }))
@@ -524,7 +524,8 @@ async function run(entry, opts) {
       else if (Array.isArray(frame.followUpQuestions)) await publish(entry, { followUps: frame.followUpQuestions }, attempt);
       else if (frame.truncated?.reason === 'length') await publish(entry, { truncated: frame.truncated }, attempt);
       else if (frame.notice) await publish(entry, { notice: frame.notice }, attempt);
-      else if (frame.timing) await publish(entry, { timing: frame.timing }, attempt);
+      // The reasoning count rides with the timing, so the live summary's word matches the saved row's.
+      else if (frame.timing) await publish(entry, { timing: frame.timing, usage: frame.usage ?? null }, attempt);
       else if (frame.saveFailed) { saveFailed = true; await publish(entry, { error: 'The answer could not be saved. Reload the conversation.', errorCode: 'save_failed' }, attempt); }
       else if (typeof frame.error === 'string') {
         terminalError = ['error', 'cancelled', 'interrupted'].includes(frame.code) ? frame.code : '';

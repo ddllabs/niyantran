@@ -16,7 +16,11 @@ export type ChatFrame =
   | { followUpQuestions: string[] }
   | { truncated: { reason: 'length'; continuations: number } }
   | { notice: { kind: 'window'; dropped: number } }
-  | { timing: { search_ms: number; reasoning_ms: number; writing_ms: number; total_ms: number; first_model_ms?: number; first_answer_ms?: number; rounds?: number } }
+  | {
+    timing: { search_ms: number; reasoning_ms: number; writing_ms: number; total_ms: number; first_model_ms?: number; first_answer_ms?: number; rounds?: number };
+    /** The turn's reasoning count, so the live summary can say "thought" as the saved row does. */
+    usage?: { reasoning_tokens: number };
+  }
   | { duplicate: true }
   | { saveFailed: { stage: string; detail: string } }
   | { error: string; status?: number; code?: string; retryable?: boolean }

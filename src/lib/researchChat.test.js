@@ -167,6 +167,27 @@ describe('sendTurn', () => {
     clearStream('conv-10');
   });
 
+  // chat-panel-fixes (F47): the reasoning count arrives with the timing, so the live summary can say
+  // "thought" as the saved row does, rather than "waited" until the row replaces it.
+  it('the timing frame\'s reasoning count is kept with the timing', async () => {
+    const q = frameQueue();
+    const send = () =>
+      Promise.resolve(
+        sse([
+          { conversation: { id: 'conv-11', title: 'Bills' } },
+          { chunk: 'Answer [1].' },
+          { sources: [{ id: 1, kind: 'row', row_key: 'k', title: 'A bill' }] },
+          { timing: { search_ms: 5, reasoning_ms: 9000, writing_ms: 2, total_ms: 9007 }, usage: { reasoning_tokens: 512 } },
+          { done: { message_id: 'msg-11' } },
+        ]),
+      );
+    await sendTurn(body, { send, schedule: q.schedule });
+    q.run();
+    const s = streamState('conv-11');
+    expect(s.usage).toEqual({ reasoning_tokens: 512 });
+    clearStream('conv-11');
+  });
+
   it('a patch frame rewrites the streamed answer from its offset', async () => {
     const q = frameQueue();
     const send = () =>
