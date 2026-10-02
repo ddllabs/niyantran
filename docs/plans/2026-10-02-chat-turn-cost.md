@@ -49,3 +49,10 @@
   the reply cap stays off.
 - **F41's slow call, read on NTER:** provider latency, not prompt size. A provider-preference trial
   is the next step for speed.
+
+### T4. Provider routing (amendment 1)
+- **Acceptance:**
+  - `providerSort` sets `provider.sort` in the body, alongside `require_parameters`. Unset, the
+    body is unchanged. The `_shared` tests fail first.
+  - The benchmark variants `v45`, `thru` and `lat`, with results added to the turn-cost write-up.
+  - The ship rule from the amendment applies; wiring into the handler only if a variant passes.

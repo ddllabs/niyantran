@@ -118,12 +118,17 @@ const BATCH = 'Sweep the subject part by part: issue every query the sweep needs
 if (!baseSystem.includes(SWEEP)) throw new Error('the sweep sentence moved; update the batch variant');
 
 // ─── One run ─────────────────────────────────────────────────────────────────
-const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly']);
+const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly', 'v45', 'thru', 'lat']);
+// chat-turn-cost amendment 1: OpenRouter provider routing. `v45` is the deployed code (widened limit
+// on, reply cap off, default routing); `thru` and `lat` add provider.sort. Every one sends a
+// session_id, as the handler does, so sticky routing is part of what is measured.
+const ROUTING: Record<string, 'throughput' | 'latency'> = { thru: 'throughput', lat: 'latency' };
+const DEPLOYED = new Set(['v45', 'thru', 'lat']);
 // The prompt limits (chat-turn-cost): on only for `capped`; every earlier variant predates them.
 // `wideonly`: the widened-search limit alone (the reply cap off), as shipped once the reply cap
 // missed the depth pass mark on narrow questions.
 // The reply cap is off by default since that decision, so `capped` asks for it explicitly.
-const limitsOf = (variant: string) => (variant === 'capped' ? { toolReplyChars: TOOL_REPLY_CHARS } : variant === 'wideonly' ? { toolReplyChars: null } : { widenedTopK: null, toolReplyChars: null });
+const limitsOf = (variant: string) => (variant === 'capped' ? { toolReplyChars: TOOL_REPLY_CHARS } : variant === 'wideonly' || DEPLOYED.has(variant) ? { toolReplyChars: null } : { widenedTopK: null, toolReplyChars: null });
 async function runOne(q: Q, variant: string, history: Message[] = []) {
   const t0 = performance.now();
   let calls = 0, firstAnswer = 0, retracts = 0;
@@ -153,7 +158,12 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
   let searches = 0;
   try {
     const result = await runAgent({
-      request: { model: MODEL, reasoning: { effort: EFFORT } },
+      request: {
+        model: MODEL,
+        reasoning: { effort: EFFORT },
+        ...(DEPLOYED.has(variant) ? { session_id: crypto.randomUUID() } : {}),
+        ...(ROUTING[variant] ? { providerSort: ROUTING[variant] } : {}),
+      },
       model: async function* (req: StreamRequest): AsyncGenerator<ModelEvent> {
         calls++;
         // v43 had no note on the pre-search reply: take it off to reproduce that variant.
@@ -213,7 +223,7 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
 
 const rows = [];
 let setupCost = 0;
-for (const q of questions) {
+for (const [qi, q] of questions.entries()) {
   // A follow-up's history: its first question and that question's answer, from one baseline run
   // shared by every variant.
   let history: Message[] = [];
@@ -222,7 +232,9 @@ for (const q of questions) {
     setupCost += first.cost_usd;
     history = [{ role: 'user', content: q.first }, { role: 'assistant', content: first.answer || 'Not in record.' }];
   }
-  for (const v of VARIANTS) {
+  // The order rotates per question, so no variant always runs second, on a prompt the provider has
+  // just cached for another.
+  for (const v of VARIANTS.map((_, k) => VARIANTS[(k + qi) % VARIANTS.length])) {
     const r = await runOne(q, v, history);
     rows.push(r);
     console.log(`${q.id.padEnd(16)} ${v.padEnd(10)} calls=${r.calls} searches=${r.searches} first=${(r.first_answer_ms / 1000).toFixed(1)}s total=${(r.total_ms / 1000).toFixed(1)}s $${r.cost_usd} docs=${r.docs} pages=${r.pages} valid=${r.valid_citations} gold=${r.cites_gold}${r.error ? ' ERR ' + r.error : ''}`);

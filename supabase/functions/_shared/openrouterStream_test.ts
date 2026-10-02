@@ -420,3 +420,11 @@ Deno.test('Google bodies carry no cache breakpoints; Anthropic bodies keep them'
   assert(Array.isArray((claude.messages as { content: unknown }[])[0].content));
   assertEquals(claude.cache_control, { type: 'ephemeral' });
 });
+
+// chat-turn-cost amendment 1: OpenRouter provider routing, measured before it is wired in.
+Deno.test('providerSort sets provider.sort, alongside require_parameters; unset, the body has no sort', () => {
+  const base = { model: 'google/gemini-3.8-flash', messages: [{ role: 'user' as const, content: 'q' }] };
+  assertEquals(buildRequestBody({ ...base, providerSort: 'throughput' }).provider, { sort: 'throughput' });
+  assertEquals(buildRequestBody({ ...base, providerSort: 'latency', response_format: { type: 'json_object' } }).provider, { require_parameters: true, sort: 'latency' });
+  assertEquals(buildRequestBody(base).provider, undefined);
+});

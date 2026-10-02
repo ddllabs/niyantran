@@ -50,6 +50,9 @@ export interface StreamRequest {
   /** OpenRouter's sticky-routing key: a conversation stays on the provider that holds its
    * prompt cache (answer-streaming spec §4). At most 256 characters. */
   session_id?: string;
+  /** OpenRouter's provider ordering (chat-turn-cost amendment 1): prefer the provider with the
+   * best recent throughput or latency for the model. Unset leaves OpenRouter's default routing. */
+  providerSort?: 'throughput' | 'latency';
   signal?: AbortSignal;
   onAttemptMetadata?: (metadata: AttemptMetadata) => void;
 }
@@ -130,6 +133,7 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
     body.response_format = req.response_format;
     body.provider = { require_parameters: true };
   }
+  if (req.providerSort) body.provider = { ...(body.provider as Record<string, unknown> | undefined), sort: req.providerSort };
   if (req.reasoning) body.reasoning = { effort: req.reasoning.effort };
   if (req.session_id) body.session_id = req.session_id.slice(0, 256);
   if (req.max_tokens) body.max_tokens = req.max_tokens;

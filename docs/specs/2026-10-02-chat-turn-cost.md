@@ -90,3 +90,24 @@ tests, docs.
 - Retrieval quality (reranking is P6).
 - The persona files.
 - Prompt-cache changes (the Gemini breakpoint decision stays parked).
+
+## Amendment 1: provider routing (2026-10-02, owner: "Let's fix the rest")
+
+**Why.** The measurement (`research/2026-10-02-turn-cost-benchmark.md`) showed that prompt size
+explains little of call time (r = 0.14). F41's slow turn read on NTER points to provider latency:
+- one call generated about 21 tokens a second;
+- the next took 18.6 s to write 29 tokens.
+
+**Change, measured before it ships.**
+- `StreamRequest` gains `providerSort` (`'throughput'` or `'latency'`). The body then carries
+  OpenRouter's `provider.sort`, merged with the existing `require_parameters`.
+- The benchmark compares:
+  - `v45`: OpenRouter's default routing, as deployed;
+  - `thru`: `sort: 'throughput'`;
+  - `lat`: `sort: 'latency'`;
+
+  on 10 narrow questions and 15 briefs. That is about $2.50.
+
+**Ships only if** a variant lowers p50 and p90 call time and first-word time, without missing the
+depth pass mark or raising cost by more than 10%. Otherwise the routing is left as it is, and F41
+is closed as provider latency outside our control.
