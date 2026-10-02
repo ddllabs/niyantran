@@ -1589,3 +1589,25 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - Expand on Desk and Record, and a citation in AI opening the split;
     - Collapse and the handle;
     - on a phone, the stacked panel and AI full-screen with the tab bar.
+- **side-panel amendment 2: `main` pushed (2026-10-03)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `57e3d8c` to `1f0ab07` (2 commits, 11 files). It
+    carries:
+    - AI's actions in the tab bar, with the history list anchored inside the panel and a short "AI"
+      label in a narrow bar;
+    - the docked panel's soft shadow;
+    - a row click or page load always opening the panel (a row click on AI stays on AI, and the
+      collapse is no longer remembered);
+    - a 400 px minimum width;
+    - the side-panel push record.
+
+    A scan of the outgoing diff, run before the push, found no env files, no `docs/security`, no
+    keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_G57bDQ88Xoa4KJG1xLeCdLnELq4v` (`1f0ab07`) is READY.
+  - **Served:** `index-DPP51xv-.css` carries `clamp(400px, …)`, the bar's `container-type`, the anchored
+    history list and the docked shadow; the main entry `/assets/index-xH0V005e.js`.
+  - No server, Edge Function or database change.
+  - **Owner checks on production:**
+    - AI's icons in the tab bar, and the history list;
+    - the panel's shadow;
+    - clicking a bill while collapsed opens Record;
+    - a reload opens the panel.
