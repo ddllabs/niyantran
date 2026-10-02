@@ -187,10 +187,10 @@ describe('the side panel has one width on every tab', () => {
     return found;
   };
 
-  it('every two-column workspace rule sizes the panel from the one chosen width, clamped to 340 px and 60%', () => {
+  it('every two-column workspace rule sizes the panel from the one chosen width, clamped to 400 px and 60%', () => {
     const twoColumn = desktopRules().filter((r) => r.value.trim() !== '1fr' && !r.sel.includes('panel-collapsed'));
     expect(twoColumn.length).toBeGreaterThan(0);
-    for (const r of twoColumn) expect(r.value.replace(/\s+/g, ' ')).toBe('minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%)');
+    for (const r of twoColumn) expect(r.value.replace(/\s+/g, ' ')).toBe('minmax(0, 1fr) clamp(400px, var(--panel-chosen, 36%), 60%)');
   });
 
   it('collapsed, the panel is a 32 px handle', () => {
@@ -250,5 +250,52 @@ describe('the side panel when stacked (900 px and below)', () => {
     expect(decl('.workspace.panel-collapsed', 'grid-template-rows')).toBe('minmax(0, 1fr) auto');
     expect(decl('.side-panel-handle', 'flex-direction')).toBe('row');
     expect(decl('.side-panel-handle button', 'writing-mode')).toBe('horizontal-tb');
+  });
+});
+
+// side-panel amendment 2 (owner, 2026-10-03): the docked panel has the old AI dock's soft shadow on
+// every tab (the expanded panel keeps its stronger one), and the tab bar anchors AI's history list.
+describe('the docked side panel', () => {
+  const rules = (inMedia) => {
+    const found = [];
+    postcss.parse(read('../index.css')).walkRules((rule) => {
+      const media = rule.parent?.type === 'atrule' ? rule.parent.params : null;
+      if (inMedia ? !(media && /max-width:\s*900px/.test(media)) : media) return;
+      for (const sel of rule.selectors) found.push({ sel: sel.trim(), rule });
+    });
+    return found;
+  };
+  const decl = (inMedia, sel, prop) => rules(inMedia).filter((r) => r.sel === sel).map((r) => { let v; r.rule.walkDecls(prop, (d) => { v = d.value; }); return v; }).filter(Boolean).pop();
+
+  it('casts the old dock\'s soft shadow on every tab, and none when stacked', () => {
+    expect(decl(false, '.side-panel', 'box-shadow')).toBe('-8px 0 28px rgba(15, 23, 42, 0.06)');
+    expect(decl(true, '.side-panel', 'box-shadow')).toBe('none');
+  });
+
+  it('positions the tab bar, so AI\'s history list opens below it', () => {
+    expect(decl(false, '.side-panel-bar', 'position')).toBe('relative');
+  });
+});
+
+// Amendment 2, measured at 340 px: in the tab bar the history list (300 px, anchored to its button)
+// ran past the panel's left edge and was clipped, and "AI research" was cut off.
+describe('the tab bar at the narrowest panel', () => {
+  const root = () => postcss.parse(read('../index.css'));
+  const find = (sel, prop) => { let v; root().walkRules((r) => { if (r.parent?.type === 'atrule') return; if (r.selectors.map((s) => s.trim()).includes(sel)) r.walkDecls(prop, (d) => { v = d.value; }); }); return v; };
+
+  it('anchors the history list to the bar and keeps it within the panel', () => {
+    expect(find('.side-panel-tab-actions .ai-v2-history-wrap', 'position')).toBe('static');
+    expect(find('.side-panel-tab-actions .ai-v2-history-pop', 'width')).toBe('min(300px, calc(100% - 16px))');
+    expect(find('.side-panel-tab-actions .ai-v2-history-pop', 'right')).toBe('8px');
+  });
+
+  it('shortens tab labels when the bar is narrow, by a container query on the bar', () => {
+    expect(find('.side-panel-bar', 'container-type')).toBe('inline-size');
+    let shortShown = false;
+    root().walkAtRules('container', (at) => {
+      if (!/max-width:\s*480px/.test(at.params)) return;
+      at.walkRules((r) => { if (r.selector.includes('.tab-short')) r.walkDecls('display', (d) => { if (d.value === 'inline') shortShown = true; }); });
+    });
+    expect(shortShown).toBe(true);
   });
 });

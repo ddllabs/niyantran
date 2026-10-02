@@ -168,3 +168,22 @@
   shown by DOM node identity across switches.
 - **The local stack is torn down.**
 - **Waiting:** the push.
+
+**Amendment 2, recorded 2026-10-03** (`task/side-panel-fixes`).
+- **Model:** a row click opens the panel on Record unless AI is in use. A load or a module change
+  opens it. The collapse memory is removed.
+- **AI's actions** are portalled into a tab-bar slot (`actionsSlot`). The history list anchors to
+  the bar. A narrow bar shows "AI".
+- **The docked shadow** is restored. The minimum width is 400 px.
+- **Tests:** model, SidePanel, AiPanel and CSS, each failing first.
+- **Checked in the browser:**
+  - **1440 px:** the slot shows 4 actions on AI and hides on Desk; the shadow is present; a row
+    click while collapsed opens Record; a row click on AI stays on AI; a module change reopens a
+    collapsed panel.
+  - **At 340 px (before the change):** "AI research" was clipped and the history list ran past
+    the panel's left edge.
+  - **At 400 px:** with three tabs nothing is clipped, and the history list is inside the panel.
+  - **375 px:** one bar row reading "Desk Record AI", then the icons and Collapse. The history
+    list is at x 67–367, and nothing crosses the edges.
+  - **The dimming behind the history list** measured 0.42 once frames ran. A first reading of 1
+    was a paused fade in the hidden pane.

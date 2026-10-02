@@ -348,7 +348,7 @@ export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverag
   return () => { alive = false; clearInterval(id); };
 }
 
-export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot }) {
+export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot, actionsSlot }) {
   const hi = lang === 'hi';
   const research = useResearchThread(true);
   const state = research.store;
@@ -654,6 +654,165 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     reportRef.current?.(citationOpen, closeCitationAndChat(() => closeViewerRef.current(), () => onCloseRef.current?.()));
   }, [citationOpen]);
 
+  // The header's actions: new research, history, docs and download.
+  const headActions = (
+    <div className="ai-v2-head-actions">
+      <button
+        type="button"
+        className="ai-v2-icon-btn"
+        disabled={busy}
+        aria-label={hi ? 'नया अनुसंधान' : 'New research'}
+        title={hi ? 'नया अनुसंधान' : 'New research'}
+        onClick={() => {
+          research.actions.newChat();
+          setHistoryOpen(false);
+          setDocsOpen(false);
+          setModelOpen(false);
+          setFocusOpen(false);
+        }}
+      >
+        <Ico name="plus" size={15} />
+      </button>
+      <div className="ai-v2-history-wrap" ref={historyRef}>
+        <button
+          type="button"
+          className={`ai-v2-icon-btn${historyOpen ? ' on' : ''}`}
+          aria-expanded={historyOpen}
+          aria-label={hi ? 'चैट इतिहास' : 'Chat history'}
+          title={hi ? 'चैट इतिहास' : 'Chat history'}
+          onClick={() => {
+            setHistoryOpen((v) => !v);
+            setDocsOpen(false);
+            setModelOpen(false);
+            setFocusOpen(false);
+          }}
+        >
+          <Ico name="history" size={15} />
+        </button>
+        {historyOpen ? (
+          <>
+            <button
+              type="button"
+              className="ai-v2-history-scrim"
+              aria-label={hi ? 'बंद करें' : 'Close history'}
+              onClick={() => setHistoryOpen(false)}
+            />
+            <div className="ai-v2-history-pop" role="dialog" aria-label={hi ? 'चैट इतिहास' : 'Chat history'}>
+              <div className="ai-v2-history-pop-head">
+                <b>{hi ? 'इतिहास' : 'History'}</b>
+                <span className="ai-v2-history-count">
+                  {(state.chats || []).length}{' '}
+                  {(state.chats || []).length === 1 ? (hi ? 'चैट' : 'chat') : hi ? 'चैट' : 'chats'}
+                </span>
+              </div>
+              <ul className="ai-v2-history-list">
+                {(state.chats || []).length ? (
+                  (state.chats || []).map((c) => {
+                    const n = (c.messages || []).length;
+                    const when = c.updatedAt || c.createdAt;
+                    const stamp = when
+                      ? new Date(when).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '';
+                    if (c.id === pendingDelete) {
+                      return (
+                        <li key={c.id} className="ai-v2-history-confirm">
+                          <p>
+                            {hi
+                              ? `“${c.title || 'नया अनुसंधान'}” और इसके ${n} संदेश हमेशा के लिए हटाएँ?`
+                              : `Delete “${c.title || 'New research'}” and its ${n} ${n === 1 ? 'message' : 'messages'}? This cannot be undone.`}
+                          </p>
+                          <div>
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                research.actions.deleteChat(c.id);
+                                setPendingDelete('');
+                              }}
+                            >
+                              {hi ? 'हटाएँ' : 'Delete'}
+                            </button>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setPendingDelete(''); }}>
+                              {hi ? 'रहने दें' : 'Cancel'}
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    }
+                    return (
+                      <li key={c.id} className={c.id === chat?.id ? 'on' : ''}>
+                        <button
+                          type="button"
+                          className="ai-v2-history-item"
+                          onClick={() => {
+                            research.actions.selectChat(c.id);
+                            setHistoryOpen(false);
+                          }}
+                        >
+                          <em>{c.title || (hi ? 'नया अनुसंधान' : 'New research')}</em>
+                          <small>
+                            {stamp}
+                            {n ? ` · ${n} ${hi ? 'संदेश' : n === 1 ? 'message' : 'messages'}` : ''}
+                          </small>
+                        </button>
+                        {(state.chats || []).length > 1 ? (
+                          <button
+                            type="button"
+                            className="ai-v2-history-del"
+                            aria-label={hi ? 'हटाएँ' : 'Delete'}
+                            title={hi ? 'हटाएँ' : 'Delete'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPendingDelete(c.id);
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </li>
+                    );
+                  })
+                ) : (
+                  <li className="ai-v2-history-empty">{hi ? 'अभी कोई चैट नहीं' : 'No chats yet'}</li>
+                )}
+              </ul>
+            </div>
+          </>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className={`ai-v2-icon-btn${docsOpen ? ' on' : ''}`}
+        aria-expanded={docsOpen}
+        aria-label={hi ? 'दस्तावेज़' : 'Docs'}
+        title={hi ? 'दस्तावेज़' : 'How AI research works'}
+        onClick={() => setDocsOpen((v) => !v)}
+      >
+        <Ico name="info" size={15} />
+      </button>
+      <button
+        type="button"
+        className="ai-v2-icon-btn"
+        aria-label={hi ? 'निर्यात' : 'Download'}
+        title={hi ? 'डाउनलोड अभी बंद है' : 'Downloads disabled for now'}
+        disabled
+      >
+        <Ico name="export" size={15} />
+      </button>
+      {onClose && !embedded ? (
+        <button type="button" className="ai-v2-close" onClick={onClose} aria-label={hi ? 'बंद करें' : 'Close'}>
+          ×
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
     {/* Hosted by the side panel (viewerSlot given, null until its pane exists) the viewer goes into
@@ -669,6 +828,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       onDrop={onDrop}
     >
       <div className="ai-panel-background">
+      {/* In the side panel (actionsSlot given) the actions sit in the panel's tab bar, which names
+          the tab, and the chat has no header row of its own (side-panel amendment 2). */}
+      {embedded && actionsSlot !== undefined ? (actionsSlot ? createPortal(headActions, actionsSlot) : null) : (
       <header className={`ai-v2-head${embedded ? ' embedded' : ''}`}>
         {/* In the side panel its tab names it and the panel closes it (side-panel spec, point 4). */}
         {embedded ? null : (
@@ -677,162 +839,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             <b>{hi ? 'एआई अनुसंधान' : 'AI Research'}</b>
           </div>
         )}
-        <div className="ai-v2-head-actions">
-          <button
-            type="button"
-            className="ai-v2-icon-btn"
-            disabled={busy}
-            aria-label={hi ? 'नया अनुसंधान' : 'New research'}
-            title={hi ? 'नया अनुसंधान' : 'New research'}
-            onClick={() => {
-              research.actions.newChat();
-              setHistoryOpen(false);
-              setDocsOpen(false);
-              setModelOpen(false);
-              setFocusOpen(false);
-            }}
-          >
-            <Ico name="plus" size={15} />
-          </button>
-          <div className="ai-v2-history-wrap" ref={historyRef}>
-            <button
-              type="button"
-              className={`ai-v2-icon-btn${historyOpen ? ' on' : ''}`}
-              aria-expanded={historyOpen}
-              aria-label={hi ? 'चैट इतिहास' : 'Chat history'}
-              title={hi ? 'चैट इतिहास' : 'Chat history'}
-              onClick={() => {
-                setHistoryOpen((v) => !v);
-                setDocsOpen(false);
-                setModelOpen(false);
-                setFocusOpen(false);
-              }}
-            >
-              <Ico name="history" size={15} />
-            </button>
-            {historyOpen ? (
-              <>
-                <button
-                  type="button"
-                  className="ai-v2-history-scrim"
-                  aria-label={hi ? 'बंद करें' : 'Close history'}
-                  onClick={() => setHistoryOpen(false)}
-                />
-                <div className="ai-v2-history-pop" role="dialog" aria-label={hi ? 'चैट इतिहास' : 'Chat history'}>
-                  <div className="ai-v2-history-pop-head">
-                    <b>{hi ? 'इतिहास' : 'History'}</b>
-                    <span className="ai-v2-history-count">
-                      {(state.chats || []).length}{' '}
-                      {(state.chats || []).length === 1 ? (hi ? 'चैट' : 'chat') : hi ? 'चैट' : 'chats'}
-                    </span>
-                  </div>
-                  <ul className="ai-v2-history-list">
-                    {(state.chats || []).length ? (
-                      (state.chats || []).map((c) => {
-                        const n = (c.messages || []).length;
-                        const when = c.updatedAt || c.createdAt;
-                        const stamp = when
-                          ? new Date(when).toLocaleString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '';
-                        if (c.id === pendingDelete) {
-                          return (
-                            <li key={c.id} className="ai-v2-history-confirm">
-                              <p>
-                                {hi
-                                  ? `“${c.title || 'नया अनुसंधान'}” और इसके ${n} संदेश हमेशा के लिए हटाएँ?`
-                                  : `Delete “${c.title || 'New research'}” and its ${n} ${n === 1 ? 'message' : 'messages'}? This cannot be undone.`}
-                              </p>
-                              <div>
-                                <button
-                                  type="button"
-                                  className="danger"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    research.actions.deleteChat(c.id);
-                                    setPendingDelete('');
-                                  }}
-                                >
-                                  {hi ? 'हटाएँ' : 'Delete'}
-                                </button>
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setPendingDelete(''); }}>
-                                  {hi ? 'रहने दें' : 'Cancel'}
-                                </button>
-                              </div>
-                            </li>
-                          );
-                        }
-                        return (
-                          <li key={c.id} className={c.id === chat?.id ? 'on' : ''}>
-                            <button
-                              type="button"
-                              className="ai-v2-history-item"
-                              onClick={() => {
-                                research.actions.selectChat(c.id);
-                                setHistoryOpen(false);
-                              }}
-                            >
-                              <em>{c.title || (hi ? 'नया अनुसंधान' : 'New research')}</em>
-                              <small>
-                                {stamp}
-                                {n ? ` · ${n} ${hi ? 'संदेश' : n === 1 ? 'message' : 'messages'}` : ''}
-                              </small>
-                            </button>
-                            {(state.chats || []).length > 1 ? (
-                              <button
-                                type="button"
-                                className="ai-v2-history-del"
-                                aria-label={hi ? 'हटाएँ' : 'Delete'}
-                                title={hi ? 'हटाएँ' : 'Delete'}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingDelete(c.id);
-                                }}
-                              >
-                                ×
-                              </button>
-                            ) : null}
-                          </li>
-                        );
-                      })
-                    ) : (
-                      <li className="ai-v2-history-empty">{hi ? 'अभी कोई चैट नहीं' : 'No chats yet'}</li>
-                    )}
-                  </ul>
-                </div>
-              </>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className={`ai-v2-icon-btn${docsOpen ? ' on' : ''}`}
-            aria-expanded={docsOpen}
-            aria-label={hi ? 'दस्तावेज़' : 'Docs'}
-            title={hi ? 'दस्तावेज़' : 'How AI research works'}
-            onClick={() => setDocsOpen((v) => !v)}
-          >
-            <Ico name="info" size={15} />
-          </button>
-          <button
-            type="button"
-            className="ai-v2-icon-btn"
-            aria-label={hi ? 'निर्यात' : 'Download'}
-            title={hi ? 'डाउनलोड अभी बंद है' : 'Downloads disabled for now'}
-            disabled
-          >
-            <Ico name="export" size={15} />
-          </button>
-          {onClose && !embedded ? (
-            <button type="button" className="ai-v2-close" onClick={onClose} aria-label={hi ? 'बंद करें' : 'Close'}>
-              ×
-            </button>
-          ) : null}
-        </div>
+        {headActions}
       </header>
+      )}
 
       <div className="ai-v2-chrome">
         <div className={`ai-v2-docs${docsOpen ? '' : ' hide'}`} role="note" hidden={!docsOpen}>

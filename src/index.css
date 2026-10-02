@@ -1017,8 +1017,8 @@ button, input, textarea { font-family: inherit; }
 .workspace {
   display: grid;
   /* side-panel (owner decision 1): one width on every tab, 36% until dragged (--panel-chosen,
-     set by SidePanel), held between 340 px and 60% by the browser on any resize. */
-  grid-template-columns: minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%);
+     set by SidePanel), held between 400 px and 60% by the browser on any resize. */
+  grid-template-columns: minmax(0, 1fr) clamp(400px, var(--panel-chosen, 36%), 60%);
   min-height: 0;
   position: relative;
   z-index: 0;
@@ -1039,6 +1039,8 @@ button, input, textarea { font-family: inherit; }
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: var(--panel);
+  /* Amendment 2: the old AI dock's soft shadow, now on every tab; expanded keeps its stronger one. */
+  box-shadow: -8px 0 28px rgba(15, 23, 42, 0.06);
 }
 .side-panel[hidden] { display: none !important; }
 /* The left edge resizes the panel (spec point 2): a 6 px grip that shows an accent line. */
@@ -1064,6 +1066,10 @@ button, input, textarea { font-family: inherit; }
 .side-panel-edge:active::after { background: var(--accent); }
 .side-panel-edge:focus-visible { outline: none; }
 .side-panel-bar {
+  /* AI's history list (in the tab-actions slot) opens below the bar, anchored here. */
+  position: relative;
+  /* Its width picks the tab labels' form (the @container rule below). */
+  container-type: inline-size;
   display: flex;
   align-items: stretch;
   gap: 4px;
@@ -1072,6 +1078,19 @@ button, input, textarea { font-family: inherit; }
   border-bottom: 1px solid var(--line);
 }
 .side-panel-tabs { display: flex; flex: 1; min-width: 0; }
+.side-panel-tab-actions { display: flex; align-items: center; }
+.side-panel-tab-actions[hidden] { display: none; }
+.side-panel-tab-actions .ai-v2-head-actions { gap: 2px; }
+/* The history list anchors to the bar, inside the panel, which clips anything outside it: anchored
+   to its button it was 300 px wide and ran past a 340 px panel's left edge. */
+.side-panel-tab-actions .ai-v2-history-wrap { position: static; }
+.side-panel-tab-actions .ai-v2-history-pop { right: 8px; width: min(300px, calc(100% - 16px)); }
+/* A narrow bar shows the tabs' short forms ("AI"); the full names stay their accessible labels. */
+.side-panel-tabs .tab-short { display: none; }
+@container (max-width: 480px) {
+  .side-panel-tabs .tab-long { display: none; }
+  .side-panel-tabs .tab-short { display: inline; }
+}
 .side-panel-tabs [role="tab"] {
   flex: 1;
   min-width: 0;
@@ -2833,7 +2852,7 @@ button.live-feed:hover { color: var(--fg); }
   overflow: hidden;
 }
 .workspace.ai-open {
-  grid-template-columns: minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%) !important;
+  grid-template-columns: minmax(0, 1fr) clamp(400px, var(--panel-chosen, 36%), 60%) !important;
   overflow: hidden;
   min-height: 0;
   height: 100%;
@@ -7068,6 +7087,7 @@ tr.close-soon { color: #6d675f; }
     border-left: 0;
     border-top: 1px solid var(--line);
     min-height: 220px;
+    box-shadow: none;
   }
   /* Stacked under the desk: no side edge to drag, and nothing to expand over. */
   .side-panel-edge { display: none; }

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} /> }));
+vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
 import SidePanel from './SidePanel.jsx';
 
@@ -84,5 +84,18 @@ describe('the side panel', () => {
     expect(html).toMatch(/<div class="cov is-open"[ >]/);
     expect(html).toContain('<div class="cov-viewer"></div>');
     expect(html).toMatch(/class="side-panel-expand on"[^>]*disabled=""/);
+  });
+
+  // Amendment 2: AI's actions sit in the tab bar, in a slot shown only while AI is active.
+  it('the tab bar holds a slot for AI\'s actions, shown only on AI, and AI is handed it', () => {
+    expect(render({ active: 'ai', mounted: ['desk', 'ai'] })).toMatch(/<div class="side-panel-tab-actions"><\/div>/);
+    expect(render({ active: 'desk', mounted: ['desk', 'ai'] })).toMatch(/<div class="side-panel-tab-actions" hidden="">/);
+    expect(render({ active: 'ai', mounted: ['ai'] })).toContain('data-actions-slot="null"'); // the node arrives after mount
+  });
+
+  it('each tab keeps its full name as its accessible label, with a short form for a narrow bar', () => {
+    const html = render({ active: 'ai', mounted: ['ai'] });
+    expect(html).toMatch(/id="side-panel-tab-ai"[^>]*aria-label="AI research"/);
+    expect(html).toContain('<span class="tab-long">AI research</span><span class="tab-short" aria-hidden="true">AI</span>');
   });
 });

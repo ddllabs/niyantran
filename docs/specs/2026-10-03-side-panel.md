@@ -168,3 +168,27 @@ it.
 **Why:** AI's history popover, its dimming and its stacking are anchored on its own header element
 (chat-panel-fixes T2). Moving the actions into the panel's header would re-break them for no
 gain. A tab strip with a per-tab toolbar is the common side-bar pattern.
+
+## Amendment 2 (owner review on production, 2026-10-03)
+
+**The owner asked:** "Why is this in a separate row?", for AI's actions; for a shadow on the docked
+panel "just like we have it when the AI search is expanded"; and that "clicking on any of these
+bills ... must always open the panel ... and the default load of the page should always open it".
+The owner chose "Stay on AI" for a row click while on AI, and "Yes, all three".
+
+1. **AI's actions move into the tab bar.** AI's new research, history, docs and download are
+   portalled into a slot in the bar, shown only while AI is the active tab. The chat keeps no header
+   row of its own in the panel; standalone it keeps its header.
+   - The history list anchors to the bar and stays within the panel:
+     `width: min(300px, calc(100% - 16px))`.
+   - **A narrow bar** (a container query at 480 px) shows "AI" for the AI tab. The full name stays
+     the tab's accessible label.
+2. **The docked panel has the old AI dock's soft shadow** (`-8px 0 28px`, 6%) on every tab. The
+   expanded panel keeps its stronger one, and a stacked panel has none.
+3. **A row click always opens the panel.** It opens on Record, even when collapsed, except while
+   AI is in use: then it stays on AI and Record becomes available.
+   - **A page load or a module change always opens it.** The collapse is no longer remembered;
+     it lasts until a row click or a new page. This replaces owner decision 2's "remembered per
+     browser".
+4. **The minimum docked width is 400 px,** up from 340. With AI's actions in the bar, 340 px
+   clipped the tab labels. 400 px is the old Record panel's minimum.

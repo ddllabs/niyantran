@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PANEL_MAX_PCT, PANEL_MIN_PX, PANEL_WIDTH_STORAGE_KEY, COLLAPSED_STORAGE_KEY,
+  PANEL_MAX_PCT, PANEL_MIN_PX, PANEL_WIDTH_STORAGE_KEY,
   availableTabs, clampPanelWidth, defaultPanelWidth, dragPanelWidth, initialPanel, panelBounds, panelReducer,
-  readStoredCollapsed, readStoredPanelWidth, resolvePanelWidth, stepPanelWidth,
+  readStoredPanelWidth, resolvePanelWidth, stepPanelWidth,
 } from './sidePanelModel.js';
 
 const memory = (init = {}) => {
@@ -51,10 +51,22 @@ describe('the active tab', () => {
     expect(panelReducer(ai, { type: 'select', row }, { hasRail: true, selected: row }).active).toBe('ai');
   });
 
-  it('selecting a row while collapsed does not pop the panel open', () => {
+  // Amendment 2 (owner, 2026-10-03): "clicking on any of these bills ... must always open the panel".
+  it('selecting a row while collapsed opens the panel on Record', () => {
     const collapsed = panelReducer(initialPanel(rail), { type: 'collapse' }, rail);
     const s = panelReducer(collapsed, { type: 'select', row }, { hasRail: true, selected: row });
-    expect(s).toMatchObject({ open: false, collapsed: true, active: 'record' });
+    expect(s).toMatchObject({ open: true, collapsed: false, active: 'record' });
+  });
+
+  it('selecting a row with AI collapsed opens the panel on Record (AI is not in use)', () => {
+    const ai = panelReducer(initialPanel(rail), { type: 'ai-open' }, rail);
+    const collapsed = panelReducer(ai, { type: 'collapse' }, rail);
+    expect(panelReducer(collapsed, { type: 'select', row }, { hasRail: true, selected: row })).toMatchObject({ open: true, active: 'record' });
+  });
+
+  it('a module change reopens a collapsed panel (a new page opens it)', () => {
+    const collapsed = panelReducer(initialPanel(rail), { type: 'collapse' }, rail);
+    expect(panelReducer(collapsed, { type: 'context' }, rail)).toMatchObject({ open: true, collapsed: false, active: 'desk' });
   });
 
   it('a tab click switches only to an available tab', () => {
@@ -100,17 +112,17 @@ describe('the active tab', () => {
     expect(s.mounted).toEqual(expect.arrayContaining(['desk', 'ai', 'record']));
   });
 
-  it('the collapsed choice is remembered and read back safely', () => {
-    expect(readStoredCollapsed(memory({ [COLLAPSED_STORAGE_KEY]: '1' }))).toBe(true);
-    expect(readStoredCollapsed(memory())).toBe(false);
-    expect(readStoredCollapsed({ getItem() { throw new Error('blocked'); } })).toBe(false);
-    expect(initialPanel({ ...rail, collapsed: true })).toMatchObject({ open: false, collapsed: true, active: 'desk' });
+  it('a page load always opens the panel where there is a rail (a collapse is not remembered)', () => {
+    expect(initialPanel(rail)).toMatchObject({ open: true, collapsed: false, active: 'desk' });
+    expect(initialPanel({ hasRail: true, selected: row })).toMatchObject({ open: true, active: 'record' });
   });
 });
 
-// side-panel spec point 2 and owner decision 1: one docked width, 36% by default, 340 px to 60%.
+// side-panel spec point 2 and owner decision 1: one docked width, 36% by default, 400 px to 60%
+// (amendment 2: 340 px left no room for the tab bar with AI's actions in it).
 describe('the docked width', () => {
-  it('defaults to 36% of the workspace within 340 px and 60%', () => {
+  it('defaults to 36% of the workspace within 400 px and 60%', () => {
+    expect(PANEL_MIN_PX).toBe(400);
     expect(defaultPanelWidth(1400)).toBe(504);
     expect(defaultPanelWidth(800)).toBe(PANEL_MIN_PX);
     expect(panelBounds(1400)).toEqual({ min: PANEL_MIN_PX, max: Math.round(1400 * PANEL_MAX_PCT / 100) });

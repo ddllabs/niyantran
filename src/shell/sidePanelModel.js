@@ -7,8 +7,6 @@ import { keyStep, readStoredNumber, size, within } from './resizeModel.js';
 
 /* ─── Tabs ─────────────────────────────────────────────────────────────────────────────────── */
 
-export const COLLAPSED_STORAGE_KEY = 'niyantranSidePanelCollapsed';
-
 /**
  * Desk and Record exist where the rail showed before (`hasRail`); Record only while a row is
  * selected. AI exists everywhere.
@@ -21,10 +19,13 @@ export function availableTabs({ hasRail, selected }) {
 const mount = (mounted, tab) => (tab && !mounted.includes(tab) ? [...mounted, tab] : mounted);
 const railTab = (selected) => (selected ? 'record' : 'desk');
 
-/** Opens on Desk (or Record) where there is a rail, and hidden where there is not, until AI opens. */
-export function initialPanel({ hasRail, selected, collapsed = false }) {
+/**
+ * Opens on Desk (or Record) where there is a rail, and hidden where there is not, until AI opens.
+ * A page load always opens it (amendment 2): a collapse lasts until a row click or a new page.
+ */
+export function initialPanel({ hasRail, selected }) {
   const active = hasRail ? railTab(selected) : null;
-  return { active, open: Boolean(hasRail) && !collapsed, collapsed: Boolean(collapsed), mounted: active ? [active] : [] };
+  return { active, open: Boolean(hasRail), collapsed: false, mounted: active ? [active] : [] };
 }
 
 /**
@@ -36,9 +37,10 @@ export function panelReducer(state, action, ctx) {
   const tabs = availableTabs(ctx);
   switch (action.type) {
     case 'select': {
-      // On AI the chat is not interrupted; Record simply becomes available.
-      if (!ctx.hasRail || state.active === 'ai') return state;
-      return { ...state, active: 'record', mounted: mount(state.mounted, 'record') };
+      // A row click always opens the panel on Record (amendment 2), except while AI is in use:
+      // the chat is not interrupted, and Record simply becomes available.
+      if (!ctx.hasRail || (state.active === 'ai' && state.open)) return state;
+      return { ...state, active: 'record', open: true, collapsed: false, mounted: mount(state.mounted, 'record') };
     }
     case 'clear':
       return state.active === 'record' ? { ...state, active: 'desk', mounted: mount(state.mounted, 'desk') } : state;
@@ -59,39 +61,31 @@ export function panelReducer(state, action, ctx) {
       return { ...state, active, mounted: mount(state.mounted, active) };
     }
     case 'context': {
-      // A desk or module change. Off a rail desk only AI can stay; onto one, the panel shows
-      // Desk (or Record) unless AI is in use or the reader collapsed it.
+      // A desk or module change, like a page load, opens the panel (amendment 2). Off a rail desk
+      // only AI can stay; onto one, the panel shows Desk (or Record) unless AI is in use.
       if (!ctx.hasRail) {
         const onAi = state.active === 'ai' && state.open;
         return { ...state, active: onAi ? 'ai' : null, open: onAi };
       }
       if (state.active === 'ai' && state.open) return state;
       const active = railTab(ctx.selected);
-      return { ...state, active, open: !state.collapsed, mounted: mount(state.mounted, active) };
+      return { ...state, active, open: true, collapsed: false, mounted: mount(state.mounted, active) };
     }
     default:
       return state;
   }
 }
 
-/** The collapsed choice; false for nothing, junk or a storage that throws. */
-export function readStoredCollapsed(storage) {
-  try {
-    return storage.getItem(COLLAPSED_STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-/* ─── Docked width (owner decision 1: 36% by default, 340 px to 60%) ─────────────────────────── */
+/* ─── Docked width (owner decision 1: 36% by default, 400 px to 60%) ─────────────────────────── */
 
 export const PANEL_WIDTH_STORAGE_KEY = 'niyantranSidePanelWidth';
 export const PANEL_DEFAULT_PCT = 36;
-export const PANEL_MIN_PX = 340;
+/** Amendment 2: 340 px left no room for the tab bar with AI's actions; 400 is the old Record minimum. */
+export const PANEL_MIN_PX = 400;
 export const PANEL_MAX_PCT = 60;
 export const PANEL_KEY_STEP_PX = 16;
 
-/** 340 px (or the workspace, if narrower) to 60% of the workspace; never max < min. */
+/** 400 px (or the workspace, if narrower) to 60% of the workspace; never max < min. */
 export function panelBounds(workspaceWidth) {
   const ws = size(workspaceWidth);
   const min = Math.min(ws, PANEL_MIN_PX);

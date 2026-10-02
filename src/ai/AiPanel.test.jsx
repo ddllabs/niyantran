@@ -389,3 +389,12 @@ it('C: no message is drawn until the panel is ready', () => {
  expect(html).toContain('ai-thread-skeleton');
  expect(html).not.toContain('Early question');
 });
+// side-panel amendment 2: in the side panel AI's actions move into the panel's tab bar (portalled
+// into actionsSlot), so the chat has no header row of its own; standalone it keeps its header.
+it('embedded in the side panel, the chat renders no header row of its own; standalone it does',()=>{
+ const ready={...fake.research,ready:true,loading:false,locked:false,viewer:null};
+ fake.research=ready;
+ expect(renderToStaticMarkup(<AiPanel lang="en" embedded actionsSlot={null}/>)).not.toContain('ai-v2-head');
+ expect(renderToStaticMarkup(<AiPanel lang="en" embedded/>)).toContain('class="ai-v2-head embedded"');
+ expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toContain('class="ai-v2-head"');
+});

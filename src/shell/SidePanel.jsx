@@ -3,8 +3,7 @@ import AiPanel from '../ai/AiPanel.jsx';
 import PanelOverlay from './PanelOverlay.jsx';
 import RailContent, { railClasses } from './RailContent.jsx';
 import {
-  COLLAPSED_STORAGE_KEY, PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelReducer, readStoredCollapsed,
-  readStoredPanelWidth, stepPanelWidth,
+  PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelReducer, readStoredPanelWidth, stepPanelWidth,
 } from './sidePanelModel.js';
 import { writeStored } from './resizeModel.js';
 
@@ -24,7 +23,10 @@ const LABELS = {
   record: ['Record', 'रिकॉर्ड'],
   ai: ['AI research', 'एआई अनुसंधान'],
 };
+/** The form a narrow bar shows (a container query on the bar picks it); the full name stays the label. */
+const SHORT = { ai: ['AI', 'एआई'] };
 const label = (tab, hi) => LABELS[tab][hi ? 1 : 0];
+const shortLabel = (tab, hi) => (SHORT[tab] || LABELS[tab])[hi ? 1 : 0];
 const tabId = (tab) => `side-panel-tab-${tab}`;
 const panelId = (tab) => `side-panel-${tab}`;
 
@@ -40,7 +42,7 @@ export function useSidePanel({ hasRail, selected, featureName }) {
   const [state, dispatch] = useReducer(
     (s, a) => panelReducer(s, a, a.ctx),
     null,
-    () => initialPanel({ ...ctx, collapsed: hasRail && readStoredCollapsed(storage()) }),
+    () => initialPanel(ctx),
   );
   const [seen, setSeen] = useState({ selected, hasRail, featureName });
   if (seen.selected !== selected || seen.hasRail !== hasRail || seen.featureName !== featureName) {
@@ -49,14 +51,6 @@ export function useSidePanel({ hasRail, selected, featureName }) {
     else if (selected) dispatch({ type: 'select', ctx });
     else dispatch({ type: 'clear', ctx });
   }
-
-  // The reader's collapse is remembered per browser; it applies to desks with a rail.
-  const collapsedRef = useRef(state.collapsed);
-  useEffect(() => {
-    if (collapsedRef.current === state.collapsed) return;
-    collapsedRef.current = state.collapsed;
-    writeStored(storage(), COLLAPSED_STORAGE_KEY, state.collapsed ? '1' : null);
-  }, [state.collapsed]);
 
   // Every "Ask AI" entry point fires niy-ai-open (lib/aiDrop.js). It selects the AI tab and hands
   // the chat its seed: the row, attachments, a prompt or dropped files.
@@ -104,7 +98,7 @@ export function useSidePanel({ hasRail, selected, featureName }) {
   }, [aiActive, userExpanded]);
 
   // The docked width (spec point 2): the reader's choice in px, or null for the default. The shell
-  // hands it to the grid as --panel-chosen; CSS clamps it to 340 px and 60% on every resize.
+  // hands it to the grid as --panel-chosen; CSS clamps it to 400 px and 60% on every resize.
   const [width, setWidthState] = useState(() => readStoredPanelWidth(storage(), 0));
   const setWidth = useCallback((px) => {
     setWidthState(px);
@@ -122,6 +116,7 @@ export function useSidePanel({ hasRail, selected, featureName }) {
 export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName }) {
   const { state, act, seed, consumeSeed, width, setWidth, expanded, userExpanded, setUserExpanded, setCitation, citation, citationExpanded } = panel;
   const [viewerSlot, setViewerSlot] = useState(null);
+  const [actionsSlot, setActionsSlot] = useState(null);
   const onCitation = useCallback((open, closeAll) => setCitation({ open, closeAll }), [setCitation]);
   // A click outside the expanded panel: with a citation open it closes the citation and the chat
   // (revision 5); otherwise it only restores the panel.
@@ -230,11 +225,15 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
                 tabIndex={state.active === t ? 0 : -1}
                 className={state.active === t ? 'on' : ''}
                 onClick={() => act({ type: 'tab', tab: t })}
+                aria-label={label(t, hi)}
               >
-                {label(t, hi)}
+                <span className="tab-long">{label(t, hi)}</span>
+                <span className="tab-short" aria-hidden="true">{shortLabel(t, hi)}</span>
               </button>
             ))}
           </div>
+          {/* The active tab's own actions (amendment 2): AI portals its toolbar here. */}
+          <div className="side-panel-tab-actions" ref={setActionsSlot} hidden={state.active !== 'ai'} />
           <div className="side-panel-actions">
             <button
               type="button"
@@ -287,6 +286,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
               onClose={closeAi}
               onCitation={onCitation}
               viewerSlot={viewerSlot}
+              actionsSlot={actionsSlot}
             />
           </div>
         ) : null}
