@@ -204,10 +204,18 @@
   - The matches marked in the Text view come with T9.
 - **Not shown on the harness:** the "recognised text" note. The harness's page text is pdf.js's own,
   so the counts always agree. The rule is unit-tested (`recognisedOnly`).
-- **For the owner (Checkpoint B):** the database returns at most 200 pages, from the document's start.
-  On a long document with a common word, matches near the reader's page past those 200 are not
-  listed, and the search then starts at the first listed match. Lifting this needs a start page in
-  `search_document_pages`, a change to the migration that is not yet applied.
+- **The 200-page cap, decided (owner, 2026-10-02: "go ahead with the start page fix for search").**
+  `search_document_pages` takes `p_from_page` (default 1) and keeps the 200 pages the reader reaches
+  first: from that page on, then wrapping to the document's start. The client sends the reader's
+  page and lists the pages in page order.
+  - The migration was changed in place. It has never been applied outside disposable local
+    databases: `coordination.md` records no apply, and the apply waits for its own go-ahead.
+  - The fixture checks the order from page 10 (pages 10–205, then 1–4), that pages 5–9 are left
+    out, and that a missing, negative or past-the-end page counts as page 1. It fails when the
+    ordering line is removed.
+  - Checks: lint, Vitest (1,939), the build, Deno (828) and every SQL fixture pass.
+  - On the harness, "the" on the 1,000-page document reads "1 of 4938+" on page 503.
+  - Not re-timed: the change adds one sort key over the matching pages.
 
 ### T8. Thumbnails
 - **Acceptance:**

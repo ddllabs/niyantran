@@ -7,19 +7,22 @@
 -- It exists for speed: folding the text in the search itself cost 286 ms on a generated
 -- 1,000-page document, against a 50 ms budget, because every page was rewritten on every query.
 --
--- search_document_pages(document, extraction, query): for each page of that extraction holding
--- the query, at most 200 pages in page order, the page number, how many times the query occurs,
+-- search_document_pages(document, extraction, query, max pages, from page): for each page of that
+-- extraction holding the query, at most 200 pages, the page number, how many times the query occurs,
 -- and up to three snippets of about 60 characters either side of a match (the client trims a cut
 -- word; matches within a snippet's trailing 60 characters share it). The query is folded the same
 -- way and matched literally and case-insensitively (strpos on lower-cased text, so no character in
--- it is special); under 2 characters it finds nothing.
+-- it is special); under 2 characters it finds nothing. The pages come in reading order from the
+-- reader's page (p_from_page, default 1), wrapping to the document's start, so the 200 kept are
+-- the ones the reader reaches first; a long document's common word never loses the matches near
+-- the reader to the bound.
 --
 -- SECURITY INVOKER: the caller's existing read grant and policy on document_pages decide what it
 -- can see. STABLE, an empty search_path, a bounded result. EXECUTE for authenticated and
 -- service_role only.
 --
 -- Down:
---   drop function public.search_document_pages(uuid, text, text, integer);
+--   drop function public.search_document_pages(uuid, text, text, integer, integer);
 --   alter table public.document_pages drop column search_text;
 
 alter table public.document_pages
@@ -37,7 +40,8 @@ create function public.search_document_pages(
   p_document_id  uuid,
   p_extract_hash text,
   p_query        text,
-  p_max_pages    integer default 200
+  p_max_pages    integer default 200,
+  p_from_page    integer default 1
 )
 returns table (page_number integer, hits integer, snippets text[])
 language sql
@@ -72,9 +76,10 @@ as $$
      and dp.extract_hash = p_extract_hash
      and n.len >= 2
      and s1.at is not null
-   order by dp.page_number
+   -- From the reader's page on, then the pages before it.
+   order by dp.page_number < greatest(coalesce(p_from_page, 1), 1), dp.page_number
    limit least(greatest(coalesce(p_max_pages, 200), 1), 200);
 $$;
 
-revoke all on function public.search_document_pages(uuid, text, text, integer) from public, anon;
-grant execute on function public.search_document_pages(uuid, text, text, integer) to authenticated, service_role;
+revoke all on function public.search_document_pages(uuid, text, text, integer, integer) from public, anon;
+grant execute on function public.search_document_pages(uuid, text, text, integer, integer) to authenticated, service_role;

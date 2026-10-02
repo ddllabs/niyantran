@@ -172,23 +172,26 @@ export async function loadPageSizes(client, documentId, extractHash, signal, { t
 
 /**
  * The pages of one extraction holding `query` (search_document_pages, security invoker): each as
- * `{page, hits, snippets}`, in page order, at most 200. A query the database would not search
- * (under 2 characters once folded) simply finds nothing there.
+ * `{page, hits, snippets}`, at most 200, listed in page order. The database keeps the 200 the reader
+ * reaches first from `fromPage` (wrapping to the start), so matches near the reader are never cut
+ * off on a long document. A query the database would not search (under 2 characters once folded)
+ * simply finds nothing there.
  * @returns {Promise<{status: 'ok', pages: {page: number, hits: number, snippets: string[]}[]}
  *   | {status: 'aborted'} | {status: 'error'}>}
  */
-export async function searchPages(client, { documentId, extractHash, query, signal }) {
+export async function searchPages(client, { documentId, extractHash, query, fromPage = 1, signal }) {
   if (!nonblank(extractHash)) return { status: 'ok', pages: [] };
   try {
     const { data, error } = await withSignal(
-      client.rpc('search_document_pages', { p_document_id: documentId, p_extract_hash: extractHash, p_query: query }),
+      client.rpc('search_document_pages', { p_document_id: documentId, p_extract_hash: extractHash, p_query: query, p_from_page: fromPage }),
       signal,
     );
     if (signal?.aborted) return { status: 'aborted' };
     if (error || !Array.isArray(data)) return { status: 'error' };
     const pages = data
       .filter(r => r && Number.isSafeInteger(r.page_number) && r.page_number > 0 && Number.isSafeInteger(r.hits) && r.hits > 0)
-      .map(r => ({ page: r.page_number, hits: r.hits, snippets: Array.isArray(r.snippets) ? r.snippets.filter(nonblank) : [] }));
+      .map(r => ({ page: r.page_number, hits: r.hits, snippets: Array.isArray(r.snippets) ? r.snippets.filter(nonblank) : [] }))
+      .sort((a, b) => a.page - b.page);
     return { status: 'ok', pages };
   } catch {
     return signal?.aborted ? { status: 'aborted' } : { status: 'error' };

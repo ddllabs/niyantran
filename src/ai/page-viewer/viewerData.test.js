@@ -264,9 +264,18 @@ describe('searchPages', () => {
       ],
       error: null,
     }));
-    const out = await searchPages(client, { documentId: 'd1', extractHash: 'x1', query: 'accused', signal });
-    expect(client.calls[0]).toMatchObject({ fn: 'search_document_pages', args: { p_document_id: 'd1', p_extract_hash: 'x1', p_query: 'accused' }, signal });
+    const out = await searchPages(client, { documentId: 'd1', extractHash: 'x1', query: 'accused', fromPage: 4, signal });
+    expect(client.calls[0]).toMatchObject({ fn: 'search_document_pages', args: { p_document_id: 'd1', p_extract_hash: 'x1', p_query: 'accused', p_from_page: 4 }, signal });
     expect(out).toEqual({ status: 'ok', pages: [{ page: 4, hits: 2, snippets: ['the accused was', 'an accused person'] }, { page: 7, hits: 1, snippets: [] }] });
+  });
+
+  it('lists the pages in page order, though the database returns them from the reader\'s page on', async () => {
+    const client = rpcClient(() => ({
+      data: [{ page_number: 9, hits: 1, snippets: [] }, { page_number: 12, hits: 2, snippets: [] }, { page_number: 2, hits: 1, snippets: [] }],
+      error: null,
+    }));
+    const out = await searchPages(client, { documentId: 'd1', extractHash: 'x1', query: 'act', fromPage: 9 });
+    expect(out.pages.map(p => p.page)).toEqual([2, 9, 12]);
   });
 
   it('answers error on a failed or thrown call, and aborted once the signal is aborted', async () => {

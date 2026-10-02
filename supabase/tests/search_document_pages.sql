@@ -4,8 +4,9 @@
 -- service_role but not anon or PUBLIC; case-insensitive literal matching over the stored OCR
 -- Markdown with its syntax, images, link targets and tags taken out and spacing folded; counts and
 -- at most three snippets in the page's own case; the extraction and document filters; the
--- 200-page bound; short and empty queries; Hindi; and the caller's own read access deciding what
--- is seen (an RLS policy narrowed for one test).
+-- 200-page bound, counted from the reader's page and wrapping to the document's start; short and
+-- empty queries; Hindi; and the caller's own read access deciding what is seen (an RLS policy
+-- narrowed for one test).
 -- Run on corpus_records's chain plus the migration, which run.sh applies as a NON-superuser; never
 -- against a hosted project. The vacuity check drops the migration. Every label is unique.
 \set ON_ERROR_STOP on
@@ -26,18 +27,18 @@ END; $$;
 -- ===== 1. Shape and privileges =====
 SELECT pg_temp.assert_true((SELECT count(*) FROM pg_proc WHERE proname = 'search_document_pages' AND pronamespace = 'public'::regnamespace) = 1,
                            'one overload of search_document_pages');
-SELECT pg_temp.assert_true((SELECT NOT prosecdef AND provolatile = 's' FROM pg_proc WHERE oid = 'public.search_document_pages(uuid, text, text, integer)'::regprocedure),
+SELECT pg_temp.assert_true((SELECT NOT prosecdef AND provolatile = 's' FROM pg_proc WHERE oid = 'public.search_document_pages(uuid, text, text, integer, integer)'::regprocedure),
                            'SECURITY INVOKER and STABLE');
-SELECT pg_temp.assert_true((SELECT proconfig = array['search_path=""'] FROM pg_proc WHERE oid = 'public.search_document_pages(uuid, text, text, integer)'::regprocedure),
+SELECT pg_temp.assert_true((SELECT proconfig = array['search_path=""'] FROM pg_proc WHERE oid = 'public.search_document_pages(uuid, text, text, integer, integer)'::regprocedure),
                            'an empty search_path');
 SELECT pg_temp.assert_true((SELECT attgenerated = 's' AND format_type(atttypid, atttypmod) = 'text' FROM pg_attribute
                             WHERE attrelid = 'public.document_pages'::regclass AND attname = 'search_text' AND NOT attisdropped),
                            'document_pages.search_text is a stored generated text column');
-SELECT pg_temp.assert_true(has_function_privilege('authenticated', 'public.search_document_pages(uuid, text, text, integer)', 'EXECUTE')
-                           AND has_function_privilege('service_role', 'public.search_document_pages(uuid, text, text, integer)', 'EXECUTE'),
+SELECT pg_temp.assert_true(has_function_privilege('authenticated', 'public.search_document_pages(uuid, text, text, integer, integer)', 'EXECUTE')
+                           AND has_function_privilege('service_role', 'public.search_document_pages(uuid, text, text, integer, integer)', 'EXECUTE'),
                            'authenticated and service_role may execute');
-SELECT pg_temp.assert_true(NOT has_function_privilege('anon', 'public.search_document_pages(uuid, text, text, integer)', 'EXECUTE')
-                           AND NOT EXISTS (SELECT FROM pg_proc, aclexplode(proacl) a WHERE oid = 'public.search_document_pages(uuid, text, text, integer)'::regprocedure AND a.grantee = 0),
+SELECT pg_temp.assert_true(NOT has_function_privilege('anon', 'public.search_document_pages(uuid, text, text, integer, integer)', 'EXECUTE')
+                           AND NOT EXISTS (SELECT FROM pg_proc, aclexplode(proacl) a WHERE oid = 'public.search_document_pages(uuid, text, text, integer, integer)'::regprocedure AND a.grantee = 0),
                            'neither anon nor PUBLIC may execute');
 
 -- ===== 2. Data: one document with two extractions, and another document =====
@@ -99,6 +100,12 @@ INSERT INTO document_pages (document_id, extract_hash, page_number, text, char_f
          'word ' || repeat('filler text that runs on for a while before the next ', 2) || 'word ' || repeat('more filler that keeps the matches far apart from each other ', 2) || 'word ' || repeat('yet more filler to keep the matches apart in this page ', 2) || 'word',
          n * 10, n * 10 + 9
     FROM generate_series(1, 205) n;
+-- The pages in the order returned, from a start page.
+CREATE FUNCTION pg_temp.from_page(start integer) RETURNS integer[] LANGUAGE sql AS $$
+  SELECT array_agg(t.page_number ORDER BY t.ord)
+    FROM public.search_document_pages('d0000000-0000-4000-8000-000000000002', 'x2', 'word', 200, start) WITH ORDINALITY AS t(page_number, hits, snippets, ord);
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.from_page(integer) TO authenticated;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.assert_true((SELECT cardinality(snippets) FROM public.search_document_pages('d0000000-0000-4000-8000-000000000002', 'x2', 'word') WHERE page_number = 1) = 3
                            AND (SELECT hits FROM public.search_document_pages('d0000000-0000-4000-8000-000000000002', 'x2', 'word') WHERE page_number = 1) = 4,
@@ -108,6 +115,15 @@ SELECT pg_temp.assert_true((SELECT count(*) FROM public.search_document_pages('d
                            'at most 200 pages, whatever is asked');
 SELECT pg_temp.assert_true((SELECT array_agg(page_number ORDER BY page_number) FROM public.search_document_pages('d0000000-0000-4000-8000-000000000002', 'x2', 'word', 3)) = '{1,2,3}',
                            'a smaller limit is kept, in page order');
+-- From the reader's page: the 200 pages from page 10 on, then wrapping to the document's start.
+SELECT pg_temp.assert_true((SELECT p[1] = 10 AND p[196] = 205 AND p[197:200] = '{1,2,3,4}' AND cardinality(p) = 200 FROM pg_temp.from_page(10) p),
+                           'from the reader''s page: its pages first, in reading order, then the document''s start');
+SELECT pg_temp.assert_true((SELECT NOT (p && '{5,6,7,8,9}') FROM pg_temp.from_page(10) p),
+                           'the pages just before the reader''s page are the ones left out');
+SELECT pg_temp.assert_true(pg_temp.from_page(1) = (SELECT array_agg(n) FROM generate_series(1, 200) n)
+                           AND pg_temp.from_page(NULL) = pg_temp.from_page(1) AND pg_temp.from_page(-4) = pg_temp.from_page(1),
+                           'from page 1, or no page, is the document''s first 200');
+SELECT pg_temp.assert_true(pg_temp.from_page(900) = pg_temp.from_page(1), 'a page past the end wraps to the start');
 RESET ROLE;
 
 -- ===== 5. The caller's own read access decides what is seen (SECURITY INVOKER) =====

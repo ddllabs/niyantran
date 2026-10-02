@@ -14,7 +14,8 @@ const IDLE = Object.freeze({ query: '', status: 'idle', pages: [] });
 
 /**
  * @param {{client: object, documentId: string, extractHash: string | null, page: number}} options
- *   `page` is the reader's page: a new result starts at the first match on or after it.
+ *   `page` is the reader's page: the database keeps the 200 pages reached first from it, and a new
+ *   result starts at the first match on or after it.
  */
 export function useDocumentSearch({ client, documentId, extractHash, page }) {
   const [open, setOpen] = useState(false);
@@ -31,7 +32,7 @@ export function useDocumentSearch({ client, documentId, extractHash, page }) {
   useEffect(() => { pageRef.current = page; }, [page]);
 
   const runner = useMemo(() => createSearchRunner({
-    search: ({ query, signal }) => searchPages(client, { documentId, extractHash, query, signal }),
+    search: ({ query, signal }) => searchPages(client, { documentId, extractHash, query, fromPage: pageRef.current, signal }),
     onResult: (next) => {
       setResult(next);
       setCurrent(startMatch(matchList(next.pages), pageRef.current));
