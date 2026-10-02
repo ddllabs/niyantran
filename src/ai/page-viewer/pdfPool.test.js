@@ -22,19 +22,20 @@ const cancelledError = () => Object.assign(new Error('Rendering cancelled'), { n
 
 /** A fake pdf.js whose renders stay pending until the test settles them. */
 function fakePdfjs({ failRange = false } = {}) {
-  const log = { tasks: [], renders: [], textLayers: [] };
+  const log = { tasks: [], renders: [], textLayers: [], cleanups: [] };
   class PDFDataRangeTransport {
     constructor(length) { this.length = length; }
     onDataRange() {}
   }
   const page = (task, n) => ({
+    cleanup: vi.fn(() => log.cleanups.push({ part: task.partIndex, page: n })),
     getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale, scale }),
     streamTextContent: () => ({ stream: n }),
     render(params) {
       let resolve;
       let reject;
       const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-      const entry = { part: task.partIndex, page: n, params, finish: () => resolve(), cancel: vi.fn(() => reject(cancelledError())) };
+      const entry = { part: task.partIndex, page: n, params, finish: () => resolve(), fail: error => reject(error), cancel: vi.fn(() => reject(cancelledError())) };
       log.renders.push(entry);
       return { promise, cancel: entry.cancel };
     },
@@ -214,6 +215,31 @@ describe('createPdfPool', () => {
       expect(log.tasks.filter(t => t.partIndex === 0).at(-1).destroy).not.toHaveBeenCalled();
     });
   }
+
+  it('a page that fails alone (here a thumbnail) fails only its own job: its part stays open and pages on it draw on', async () => {
+    const { pool, log } = setup();
+    const pageJob = request(pool, 1);
+    const thumbJob = request(pool, 2, { kind: 'thumb' });
+    await flush();
+    log.renders.find(r => r.page === 2).fail(new Error('bad page stream'));
+    await flush();
+    expect(thumbJob.calls.error).toHaveLength(1);
+    expect(log.tasks[0].destroy).not.toHaveBeenCalled();
+    log.renders.find(r => r.page === 1).finish();
+    await flush();
+    expect(pageJob.calls.done).toHaveLength(1);
+    expect(pageJob.calls.error).toEqual([]);
+  });
+
+  it('releases each page\'s resources after it is drawn', async () => {
+    const { pool, log } = setup();
+    request(pool, 3);
+    await flush();
+    expect(log.cleanups).toEqual([]);
+    log.renders[0].finish();
+    await flush();
+    expect(log.cleanups).toEqual([{ part: 0, page: 3 }]);
+  });
 
   it('a part that cannot be read fails its jobs with an error that carries no URL, and is closed', async () => {
     const { pool, log } = setup({ failRange: true });

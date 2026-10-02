@@ -78,7 +78,12 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
       fetch,
       signal: part.abort.signal,
     });
-    const range = createPartTransport({ pdfjs, length: info.byteSize, read: reader.read, isClosed: () => part.closed, onFailure: failNow });
+    // A failed read fails the part itself: every job on it, and the part is closed for a fresh retry.
+    const onFailure = (error) => {
+      part.failed = true;
+      failNow(error);
+    };
+    const range = createPartTransport({ pdfjs, length: info.byteSize, read: reader.read, isClosed: () => part.closed, onFailure });
     part.task = pdfjs.getDocument({ range, length: info.byteSize, disableAutoFetch: true, disableStream: true, isEvalSupported: false, enableXfa: false });
     Promise.resolve(part.task.promise).catch(() => {});
     return part;
@@ -119,6 +124,9 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
   }
 
   async function run(job) {
+    // Set once the part's document is open: a failure after that belongs to this page alone.
+    let docOpen = false;
+    let pdfPage = null;
     try {
       const part = await partFor(job);
       // Released in finally, even when the job was cancelled while its part was being found.
@@ -126,8 +134,9 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
       if (job.cancelled) return;
       const race = promise => Promise.race([promise, part.failure]);
       const doc = await race(part.task.promise);
+      docOpen = true;
       if (job.cancelled) return;
-      const pdfPage = await race(doc.getPage(job.page - part.info.pageOffset));
+      pdfPage = await race(doc.getPage(job.page - part.info.pageOffset));
       if (job.cancelled) return;
 
       const base = pdfPage.getViewport({ scale: 1 });
@@ -157,9 +166,14 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
       job.onDone?.({ status: 'done', viewport: { width: base.width, height: base.height }, scale, cssWidth: size.cssWidth, cssHeight: size.cssHeight });
     } catch (error) {
       if (job.cancelled || destroyed || CANCELLED_NAMES.has(error?.name)) return;
-      if (job.part) closePart(job.part);
+      // Only a part that failed itself (its reads, or its document) is closed; a page or thumbnail
+      // that fails alone must not fail the other pages drawing from the same part.
+      if (job.part && (job.part.failed || !docOpen)) closePart(job.part);
       job.onError?.(error);
     } finally {
+      // pdf.js keeps a drawn page's resources until told otherwise; a long single-part document
+      // would otherwise hold every page the reader passed. It waits for any render still running.
+      try { pdfPage?.cleanup?.(); } catch { /* the part is gone */ }
       if (job.part) job.part.busy -= 1;
       running.delete(job);
       pump();
