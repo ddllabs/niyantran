@@ -1320,3 +1320,11 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Not deployed:** `research-chat` still runs v43. Amendment 1's server change waits for the
     benchmark rerun, once OpenRouter credits are restored, and for its own go-ahead.
   - No database change.
+- **viewer-whole-page: `main` pushed (2026-10-02)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `8dfeddb` to `60b49f4`, carrying `4f714f8` (Fit width
+    by default, Fit text without vertical crop, the zoom saved only on the reader's choice under
+    `niyantranCitationZoomV2`), its spec and the records, including `b11ae33`.
+  - **Vercel:** production deploy `dpl_9BYRARuEyeAf3ytSChsFtBkXvJ5x` (`60b49f4`) is READY.
+  - **Served:** main entry `index-B2gZKDpV.js`, and the viewer chunk `PageViewer-BEnXgWS5.js`
+    with the Fit width default and only the new zoom key.
+  - No server or database change.
