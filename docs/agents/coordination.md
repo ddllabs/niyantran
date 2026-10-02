@@ -1372,3 +1372,22 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - Copy file name;
     - a real split document;
     - the continuous Text view in Safari (F50).
+- **answer-speed amendment 1: `research-chat` deployed (2026-10-02)** (owner: "Deploy
+  research-chat to NTER").
+  - **The deploy:** from `main` at `88f269b` with
+    `supabase functions deploy research-chat --use-api --project-ref vfgcppstyzjarlzyqdac`. It is
+    version 44 (was 43), ACTIVE, with `verify_jwt` off (the handler checks the user).
+  - **What changed:** it carries amendment 1 (`1a46546`, `895936a`):
+    - the pre-search reply opens with a note asking for a search per part it does not cover;
+    - follow-ups (a turn with stored history) are not pre-searched.
+  - **Evidence:** benchmark pass 4
+    (`docs/research/2026-10-02-answer-speed-depth-benchmark-pass4.md`):
+    - briefs meet the depth pass mark;
+    - follow-ups run as the baseline does;
+    - the Deno suite (828) passed on this commit.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - The frontend is unchanged. No database change.
+  - **Owner check:** a signed-in brief and a follow-up on production, where agents do not sign in.

@@ -457,8 +457,8 @@ Follow-ups and findings:
       document 24/24. The first word comes 3 s sooner at p50.
     - **Follow-ups run as the baseline by construction.** v43's verbatim pre-search missed the
       expected document once.
-  - **Next:** deploy `research-chat` with amendment 1, with a go-ahead ("Deploy research-chat to
-    NTER").
+  - **Deployed** on 2026-10-02 as `research-chat` v44 (`agents/coordination.md`).
+  - **Next:** the owner checks, signed in on production, a four-part brief and a follow-up.
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
