@@ -580,6 +580,17 @@ Earlier items, updated:
   Locks, row caps and export limits run only in the browser. The spec must
   settle which data is premium, how premium desks are served (an API behind
   `my_entitlement`, or RLS), server-side exports and API row caps.
+  - **Parked by the owner (2026-10-02)** until payments are integrated: "when the payment plan
+    is actually integrated, we might have to make changes again."
+  - **Decisions recorded for then:**
+    - core desks stay persona-based and user-editable;
+    - the AI assistant respects the same desk locks when it reads desk rows;
+    - the desk packs stay public for now.
+  - **The access map** (every path to desk data, the client-only rules, and the smallest real
+    enforcement) is kept locally in `docs/security/2026-10-02-plan-gating-map.md`, which is not
+    published.
+  - **Noted there:** the trial row cap (25) is below the free cap (40), and prices are defined in
+    both the client and the server.
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
   end to end.
 - [ ] **P2.** Organisation seats, organisation billing, Razorpay
