@@ -1,6 +1,7 @@
 # Spec: one side panel for Desk, Record and AI research (`side-panel`)
 
-> **Status: Living.** Draft for the owner's approval. On 2026-10-03 the owner said these
+> **Status: Living.** Approved by the owner on 2026-10-03, with the open questions answered
+> (below). On 2026-10-03 the owner said these
 > three "are supposed to be a part of the same shared component with different tabs ... it's not
 > production-grade". The owner chose:
 > - tabs "Desk | Record | AI";
@@ -55,7 +56,7 @@ current content: the desk snapshot, `NationalRecord` and the other record views,
 2. **One width.** The panel's left edge is a separator, dragged with pointer capture and moved
    with the arrow keys, Home and End. Double-click resets it. The width is remembered per browser
    and is the same on every tab, so nothing jumps.
-   - The default is 36% of the workspace, within 340 px and 60%.
+   - The default is 36% of the workspace (owner decision 1), within 340 px and 60%.
    - This replaces the three grid rules.
    - The maths moves out of `citationOverlayModel.js` into a shared model with tests.
 3. **One expand mode.** Every tab gets an Expand control that widens the panel into the
@@ -69,9 +70,14 @@ current content: the desk snapshot, `NationalRecord` and the other record views,
    - The tablist sits on the left.
    - The active tab's own actions follow: AI's new research, history, docs and download; Record's
      Full reasoning, Download PDF and All bills.
-   - Expand and Close sit on the right. Close appears only where the panel is optional today: the
-     AI tab on desks without a rail, as × does now. On desks with a rail, see open question 2.
-5. **Phones.** Below 900 px the panel stacks under the desk, as both do now. At 640 px and below
+   - Expand and Collapse sit on the right (point 5).
+5. **Collapse (owner decision 2).** On every desk the header has Collapse.
+   - Collapsed, the panel leaves a slim handle on the workspace's right edge showing the tab
+     names. Activating the handle, or any "Ask AI" entry point, reopens the panel on the chosen
+     tab.
+   - The collapsed state is remembered per browser.
+   - On desks without a rail, AI's Close works as × does today.
+6. **Phones.** Below 900 px the panel stacks under the desk, as both do now. At 640 px and below
    the AI tab takes the workspace, as chat-panel-fixes T3 did. The tab bar stays visible, so Desk
    and Record are reachable.
 
@@ -134,8 +140,17 @@ current content: the desk snapshot, `NationalRecord` and the other record views,
 - No redesign of any tab's content, and no new panel features beyond tabs, width and expand.
 - The desk-guide sidebar, the persona chooser and the Live TV modal are not part of the panel.
 
-## Open questions for the owner
+## Owner decisions (2026-10-03)
 
-1. **The default docked width:** 36% of the workspace (today 33–38%). Acceptable?
-2. **Close on desks that have a rail today:** today the rail cannot be closed. Should the panel
-   gain a Close or Collapse there, giving the desk the full width, or stay always visible as now?
+1. **The default docked width is 36%.**
+2. **Collapse is added on every desk.** The handle reopens the panel, and the choice is
+   remembered.
+
+## Testing note
+
+**Vitest runs in Node, without a DOM, and adding jsdom is a new dependency.** So the unit tests
+assert the structure, and the browser run proves the behaviour:
+- **Unit tests:** every mounted tab panel is rendered, hidden but never removed, and the mounted
+  set only grows.
+- **The browser run:** the AI panel's DOM node is the same object (`===`) before and after tab
+  switches, and an answer still streaming survives them.
