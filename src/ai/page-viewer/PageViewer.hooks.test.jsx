@@ -3,7 +3,7 @@
 // change, and re-renders while state changes. Child components are not rendered; their props are.
 //
 // Revision 5, point 4 (F45): the viewer hands the part layout it read from document_files to the PDF
-// controller and to "Open stored copy", and reports the document state up through onDocumentState
+// part pool (viewer-continuous; the single-part controller before it) and to "Open stored copy", and reports the document state up through onDocumentState
 // so WorkSurface can disable "Ask about this document".
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +34,11 @@ vi.mock('react', async (importOriginal) => {
       if (changed(s.deps, deps)) { s.fn = fn; s.deps = deps; }
       return s.fn;
     },
+    useMemo(make, deps) {
+      const s = slot(() => ({}));
+      if (changed(s.deps, deps)) { s.value = make(); s.deps = deps; }
+      return s.value;
+    },
     useEffect(fn, deps) {
       const s = slot(() => ({ deps: undefined, cleanup: null }));
       if (deps === undefined || changed(s.deps, deps)) h.pending.push({ s, fn, deps });
@@ -49,12 +54,12 @@ vi.mock('react', async (importOriginal) => {
 });
 
 const controllers = [];
-vi.mock('./pdfController.js', async (importOriginal) => ({
+vi.mock('./pdfPool.js', async (importOriginal) => ({
   ...(await importOriginal()),
-  createPdfController: vi.fn((options) => {
-    const controller = { options, destroy: vi.fn() };
-    controllers.push(controller);
-    return controller;
+  createPdfPool: vi.fn((options) => {
+    const pool = { options, destroy: vi.fn(), request: vi.fn(() => ({ cancel() {}, setPriority() {} })) };
+    controllers.push(pool);
+    return pool;
   }),
 }));
 
@@ -138,7 +143,7 @@ beforeEach(() => {
 });
 
 describe('PageViewer passes the part layout (F45)', () => {
-  it('creates the PDF controller with the document_files rows it read', async () => {
+  it('creates the PDF part pool with the document_files rows it read', async () => {
     await settle({ ...base, citation: CITATION });
     expect(controllers).toHaveLength(1);
     expect(controllers[0].options.documentId).toBe('d1');

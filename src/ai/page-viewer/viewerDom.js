@@ -105,7 +105,7 @@ export function createWheelHandler({ isOverPage, onZoom }) {
     const factor = wheelZoomFactor(event);
     if (factor === null || !isOverPage(event.target)) return;
     event.preventDefault();
-    onZoom(factor);
+    onZoom(factor, event);
   };
 }
 

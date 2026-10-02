@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  CSS_PX_PER_PT, DEFAULT_ZOOM, ZOOM_KEY, ZOOM_STEPS, boxRect, layoutPage, textColumn, nextZoomStep, readZoomState,
+  DEFAULT_ZOOM, ZOOM_KEY, ZOOM_STEPS, textColumn, nextZoomStep, readZoomState,
   wheelZoomFactor, writeZoomState, zoomBy, zoomReadout,
 } from './zoomModel.js';
 
-/** An A4 page in PDF points. */
-const A4 = { width: 595, height: 842 };
 const body = (x0, y0, x1, y1, type = 'text') => ({ type, x0, y0, x1, y1 });
 const close = (actual, expected) => expect(actual).toBeCloseTo(expected, 6);
 
@@ -44,114 +42,6 @@ describe('textColumn', () => {
   it('widens to keep every cited box on the page inside it', () => {
     const box = textColumn([body(0.3, 0.2, 0.6, 0.4)], [{ page: 3, x0: 0.1, y0: 0.2, x1: 0.2, y1: 0.3 }]);
     close(box.x0, 0.08);
-  });
-});
-
-describe('layoutPage', () => {
-  const blocks = [body(0.25, 0.1, 0.75, 0.9)];
-  const pane = { width: 480, height: 600 };
-
-  const TEXT = { fit: 'text', zoom: null };
-
-  it('Fit text: the text column fills the pane width, and the whole page height is shown', () => {
-    const layout = layoutPage({ state: TEXT, page: A4, pane, blocks });
-    // column 0.23..0.77 wide (0.54 of 595 pt) → 480 px.
-    close(layout.scale, 480 / (0.54 * 595));
-    expect(layout.fit).toBe('text');
-    close(layout.crop.x0, 0.23);
-    expect(layout.crop.y0).toBe(0);
-    expect(layout.crop.y1).toBe(1);
-    close(layout.pageCss.width, 595 * layout.scale);
-    close(layout.cropCss.width, 480);
-    close(layout.cropCss.height, 842 * layout.scale);
-    close(layout.offset.left, -0.23 * layout.pageCss.width);
-    close(layout.offset.top, 0);
-  });
-
-  it('Fit text keeps a header high above the body on the page (the anti-doping bill\'s page 1)', () => {
-    const page1 = [body(0.568, 0.063, 0.793, 0.078, 'header'), body(0.199, 0.64, 0.796, 0.885)];
-    const layout = layoutPage({ state: TEXT, page: A4, pane, blocks: page1 });
-    expect(layout.crop.y0).toBe(0);
-    expect(layout.crop.y1).toBe(1);
-  });
-
-  it('Fit text falls back to Fit width when the page has no blocks', () => {
-    const layout = layoutPage({ state: TEXT, page: A4, pane, blocks: [] });
-    expect(layout.fit).toBe('width');
-    close(layout.scale, 480 / 595);
-    expect(layout.crop).toEqual({ x0: 0, y0: 0, x1: 1, y1: 1 });
-    close(layout.offset.left, 0);
-    close(layout.offset.top, 0);
-  });
-
-  it('Fit width: the page width is the pane width, uncropped', () => {
-    const layout = layoutPage({ state: { fit: 'width', zoom: null }, page: A4, pane, blocks });
-    close(layout.scale, 480 / 595);
-    close(layout.cropCss.width, 480);
-    expect(layout.crop).toEqual({ x0: 0, y0: 0, x1: 1, y1: 1 });
-  });
-
-  it('Fit page: the whole page fits the pane width and the available height', () => {
-    const tall = layoutPage({ state: { fit: 'page', zoom: null }, page: A4, pane, blocks });
-    close(tall.scale, 600 / 842);
-    expect(tall.pageCss.height).toBeLessThanOrEqual(600 + 1e-9);
-    expect(tall.pageCss.width).toBeLessThanOrEqual(480);
-    const wide = layoutPage({ state: { fit: 'page', zoom: null }, page: A4, pane: { width: 300, height: 2000 }, blocks });
-    close(wide.scale, 300 / 595);
-    const unknownHeight = layoutPage({ state: { fit: 'page', zoom: null }, page: A4, pane: { width: 300, height: 0 }, blocks });
-    close(unknownHeight.scale, 300 / 595);
-  });
-
-  it('manual zoom: 100% is the natural size at 96 CSS px per inch, and keeps the fit\'s crop', () => {
-    const natural = layoutPage({ state: { fit: 'width', zoom: 1 }, page: A4, pane, blocks });
-    close(natural.scale, 96 / 72);
-    close(natural.pageCss.width, 595 * 96 / 72);
-    expect(natural.percent).toBe(100);
-    expect(natural.fit).toBeNull();
-    expect(natural.crop).toEqual({ x0: 0, y0: 0, x1: 1, y1: 1 });
-    const textZoom = layoutPage({ state: { fit: 'text', zoom: 2 }, page: A4, pane, blocks });
-    close(textZoom.scale, 2 * CSS_PX_PER_PT);
-    close(textZoom.crop.x0, 0.23);
-    // Wider than the pane: the crop is wider than 480 px and scrolls inside the viewer.
-    expect(textZoom.cropCss.width).toBeGreaterThan(480);
-  });
-
-  it('caps a fit at 300% so a page with one tiny block is not blown up', () => {
-    const layout = layoutPage({ state: TEXT, page: A4, pane: { width: 1600, height: 900 }, blocks: [body(0.5, 0.5, 0.52, 0.51)] });
-    close(layout.scale, 3 * CSS_PX_PER_PT);
-    expect(layout.percent).toBe(300);
-  });
-
-  it('has the readout percent of the effective scale', () => {
-    const layout = layoutPage({ state: { fit: 'width', zoom: null }, page: A4, pane, blocks });
-    expect(layout.percent).toBe(Math.round((480 / 595) / CSS_PX_PER_PT * 100));
-  });
-
-  it('is null until the pane and page have a size', () => {
-    expect(layoutPage({ state: DEFAULT_ZOOM, page: A4, pane: { width: 0, height: 0 }, blocks })).toBeNull();
-    expect(layoutPage({ state: DEFAULT_ZOOM, page: null, pane, blocks })).toBeNull();
-  });
-});
-
-describe('boxRect: highlight boxes inside the crop', () => {
-  const blocks = [body(0.25, 0.1, 0.75, 0.9)];
-  const layout = layoutPage({ state: { fit: 'text', zoom: null }, page: A4, pane: { width: 480, height: 600 }, blocks });
-
-  it('a box at the content edge maps to the crop edge', () => {
-    const edge = boxRect({ x0: layout.crop.x0, y0: layout.crop.y0, x1: layout.crop.x1, y1: layout.crop.y1 }, layout);
-    close(edge.left, 0);
-    close(edge.top, 0);
-    close(edge.left + edge.width, layout.cropCss.width);
-    close(edge.top + edge.height, layout.cropCss.height);
-  });
-
-  it('scales with the zoom, so a box keeps its place on the passage', () => {
-    const zoomed = layoutPage({ state: { fit: 'text', zoom: 2 }, page: A4, pane: { width: 480, height: 600 }, blocks });
-    const box = { x0: 0.3, y0: 0.5, x1: 0.6, y1: 0.55 };
-    const a = boxRect(box, layout);
-    const b = boxRect(box, zoomed);
-    close(a.left, (0.3 - layout.crop.x0) * layout.pageCss.width);
-    close(b.width / a.width, zoomed.scale / layout.scale);
   });
 });
 

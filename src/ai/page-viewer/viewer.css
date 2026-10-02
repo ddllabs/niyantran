@@ -203,18 +203,22 @@
 /* Visually hidden, still announced. */
 .pv-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-/* The PDF view. The page area is measured for the fit; a page wider (or taller) than it scrolls
-   inside it, never the document. The stable gutter keeps a scrollbar from changing the width it
-   was measured at. */
-.pv-pdf { position: relative; width: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-/* The clip: the content box (Fit text) or the whole page. The page inside keeps its full size
-   and is shifted, so the text layer and the boxes stay in page coordinates. */
-.pv-crop {
-  position: relative; margin: 0 auto; min-height: 120px; overflow: hidden; overflow: clip; background: white;
-  box-shadow: 0 0 0 1px var(--line, #e4ddd4), var(--shadow, 0 1px 2px rgba(19, 19, 19, .06));
+/* The PDF view (docs/specs/2026-10-02-viewer-continuous.md): one scrolling column of pages. Every
+   page's slot is laid out from the stored page sizes (layoutModel.js) and placed absolutely, so
+   the scrollbar is right from the start and nothing moves as pages arrive. Only pages near the
+   view exist; each draws its canvas and text layer into its slot. The stable gutter keeps a
+   scrollbar from changing the width the pages were laid out at. */
+.pv-pdf {
+  position: relative; width: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
+  background: var(--accent-soft, #e8eef8);
 }
-.pv-page { position: absolute; left: 0; top: 0; }
-.pv-canvas { display: block; }
+.pv-doc { position: relative; margin: 0 auto; }
+.pv-slot {
+  position: absolute; overflow: hidden; background: white;
+  box-shadow: 0 0 0 1px var(--line, #e4ddd4), 0 1px 3px rgba(19, 19, 19, .08);
+}
+.pv-canvas { position: absolute; inset: 0; display: block; }
+.pv-slot .textLayer { z-index: 2; }
 .pv-page-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted, #6d675f); font-size: 12px; }
 
 /* The cited blocks: translucent amber with a 2px outline, never in the way of the text layer. */
@@ -224,8 +228,10 @@
   background: rgba(250, 204, 21, .28); outline: 2px solid rgba(217, 119, 6, .9); border-radius: 2px;
   mix-blend-mode: multiply;
 }
-.pv-page .textLayer { z-index: 2; }
-.pv-hint { margin: 0; padding: 8px 12px; border-radius: 6px; background: var(--warn-bg, #f3e6d0); color: var(--text, #3d3a36); font-size: 12px; }
+.pv-hint {
+  position: absolute; top: 8px; left: 8px; right: 8px; z-index: 3; margin: 0; padding: 8px 12px; border-radius: 6px;
+  background: var(--warn-bg, #f3e6d0); color: var(--text, #3d3a36); font-size: 12px;
+}
 
 /* The Text view. */
 .pv-text { padding-top: 4px; }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createDocumentFileClient } from '../../lib/documentFile.js';
 import { PDF_LOADER_FAILED } from './pdfController.js';
 import { MAX_OPEN_PARTS, MAX_RENDERS, createPdfPool } from './pdfPool.js';
 
@@ -150,6 +151,14 @@ describe('createPdfPool', () => {
     expect(log.renders.map(r => r.page)).toEqual([1, 2]);
   });
 
+  it('a job cancelled while its part is being located opens no part', async () => {
+    const { pool, log } = setup();
+    const job = request(pool, 1);
+    job.handle.cancel();
+    await flush();
+    expect(log.tasks).toHaveLength(0);
+  });
+
   it('reuses an open part for its pages', async () => {
     const { pool, log } = setup();
     request(pool, 1);
@@ -208,5 +217,43 @@ describe('createPdfPool', () => {
     await flush();
     expect(late.calls).toEqual({ done: [], error: [] });
     expect(log.renders).toHaveLength(2);
+  });
+});
+
+// Carried over from the single-page controller (F45): the part layout reaches every partFor, a
+// refused signature is renewed for its own part, and pages of one part ask document-file once.
+describe('createPdfPool part layout and signatures', () => {
+  const LAYOUT = PARTS.map(p => ({ part_index: p.partIndex, page_offset: p.pageOffset, page_count: p.pageCount, byte_size: p.byteSize }));
+
+  it('passes the layout on every partFor, opening a part and renewing its signature, and renews its own part', async () => {
+    const { pdfjs } = fakePdfjs({ failRange: true });
+    const documentFile = fakeDocumentFile();
+    const fetch = vi.fn(async () => ({ status: 403, arrayBuffer: async () => new ArrayBuffer(0) }));
+    const pool = createPdfPool({ documentId: 'd1', documentFile, parts: LAYOUT, loadPdfjs: async () => pdfjs, fetch });
+    request(pool, 7);
+    await flush(12);
+    expect(documentFile.partFor.mock.calls.length).toBeGreaterThanOrEqual(2);
+    for (const call of documentFile.partFor.mock.calls) expect(call[2]).toEqual({ parts: LAYOUT });
+    expect(documentFile.invalidate).toHaveBeenCalledWith('d1', 1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('pages of one part ask document-file once, through the real client', async () => {
+    const { pdfjs } = fakePdfjs();
+    const bodies = [];
+    const held = [];
+    const ask = body => new Promise((resolve) => {
+      bodies.push(body);
+      held.push(() => resolve({ ok: true, signed_path: `object/sign/corpus/files/${'1'.repeat(64)}.pdf?token=t`, ...LAYOUT[1], expires_in: 300 }));
+    });
+    const documentFile = createDocumentFileClient({ request: ask, baseUrl: 'http://127.0.0.1:54321' });
+    const pool = createPdfPool({ documentId: 'd1', documentFile, parts: LAYOUT, loadPdfjs: async () => pdfjs, fetch: vi.fn() });
+    for (const page of [6, 7, 8]) request(pool, page);
+    await flush();
+    expect(bodies).toEqual([{ document_id: 'd1', page: 6 }]);
+    held.forEach(go => go());
+    await flush(12);
+    pool.destroy();
+    expect(bodies).toHaveLength(1);
   });
 });

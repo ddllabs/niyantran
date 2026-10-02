@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_COLUMNS, DOCUMENT_COLUMNS, PAGE_COLUMNS, PART_COLUMNS, createPageLoader, loadDocument } from './viewerData.js';
+import { BLOCK_COLUMNS, DOCUMENT_COLUMNS, PAGE_COLUMNS, PAGE_SIZE_ROWS, PART_COLUMNS, createPageLoader, loadDocument, loadPageSizes } from './viewerData.js';
 
 /**
  * A fake Supabase client. Every query is recorded as {table, columns, filters, order, signal};
@@ -17,6 +17,7 @@ function fakeClient(answer) {
         select(columns) { query.columns = columns; return builder; },
         eq(column, value) { query.filters[column] = value; return builder; },
         order(column, options) { query.order = [column, options]; return builder; },
+        range(from, to) { query.range = [from, to]; return builder; },
         abortSignal(signal) { query.signal = signal; return builder; },
         maybeSingle() { query.single = true; return run(); },
         then(resolve, reject) { return run().then(resolve, reject); },
@@ -192,5 +193,43 @@ describe('createPageLoader', () => {
     expect(held.every(h => h.q.signal.aborted)).toBe(true);
     held.forEach(h => h.resolve(pages(h.q)));
     expect(await pending).toEqual({ status: 'aborted' });
+  });
+});
+
+// viewer-continuous spec, section 1: every page's stored size, read once, so the continuous view
+// lays out every page before drawing any.
+describe('loadPageSizes', () => {
+  const rows = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => ({ page_number: from + i + 1, width_px: 720, height_px: 1018 }));
+
+  it('reads the page sizes of the extraction in page order', async () => {
+    const client = fakeClient(() => ({ data: rows(0, 11), error: null }));
+    const out = await loadPageSizes(client, 'd1', 'x1');
+    expect(out).toEqual({ status: 'ok', rows: rows(0, 11) });
+    expect(client.queries[0]).toMatchObject({
+      table: 'document_pages', columns: 'page_number, width_px, height_px', filters: { document_id: 'd1', extract_hash: 'x1' },
+      order: ['page_number', { ascending: true }], range: [0, PAGE_SIZE_ROWS - 1],
+    });
+  });
+
+  it('reads a long document in ranges until a short one', async () => {
+    const client = fakeClient(q => ({ data: rows(q.range[0], Math.min(q.range[1], 2499)), error: null }));
+    const out = await loadPageSizes(client, 'd1', 'x1');
+    expect(out.rows).toHaveLength(2500);
+    expect(client.queries.map(q => q.range)).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+  });
+
+  it('stops at the document\'s page count even if a server ignored the range and kept answering', async () => {
+    const client = fakeClient(() => ({ data: rows(0, 999), error: null }));
+    const out = await loadPageSizes(client, 'd1', 'x1', undefined, { total: 1000 });
+    expect(out.rows).toHaveLength(1000);
+    expect(client.queries).toHaveLength(1);
+  });
+
+  it('is an error when a read fails or throws, and empty without an extraction', async () => {
+    expect(await loadPageSizes(fakeClient(() => ({ data: null, error: { message: 'x' } })), 'd1', 'x1')).toEqual({ status: 'error' });
+    expect(await loadPageSizes({ from() { throw new Error('offline'); } }, 'd1', 'x1')).toEqual({ status: 'error' });
+    const client = fakeClient(() => ({ data: [], error: null }));
+    expect(await loadPageSizes(client, 'd1', '')).toEqual({ status: 'ok', rows: [] });
+    expect(client.queries).toHaveLength(0);
   });
 });

@@ -93,12 +93,14 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
     }
   }
 
-  async function partFor(page) {
+  /** The open part holding `job`'s page, opening it if need be; never for a cancelled job. */
+  async function partFor(job) {
+    const { page } = job;
     for (const part of open.values()) if (covers(part.info, page)) return part;
     const info = await documentFile.partFor(documentId, page, { parts });
-    if (destroyed) throw coded('cancelled');
+    if (destroyed || job.cancelled) throw coded('cancelled');
     await ensurePdfjs();
-    if (destroyed) throw coded('cancelled');
+    if (destroyed || job.cancelled) throw coded('cancelled');
     const existing = open.get(info.partIndex);
     if (existing) return existing;
     makeRoom();
@@ -109,7 +111,7 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
 
   async function run(job) {
     try {
-      const part = await partFor(job.page);
+      const part = await partFor(job);
       if (job.cancelled) return;
       job.part = part;
       part.busy += 1;

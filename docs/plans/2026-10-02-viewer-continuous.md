@@ -96,6 +96,32 @@
 - **Checked:** opening at the citation, scrolling, parts opening and closing, the long-task log,
   and the canvas count.
 
+**Checkpoint A, recorded 2026-10-02.**
+- **T1–T5 are committed.** Lint, both suites (1,859 tests) and the build pass. The main bundle is
+  −4 B; the viewer chunk is 20,895 B gzip (+2.1 KB of piece 2's 14 KB budget).
+- **On the harness:**
+  - **The 1,000-page document** (100 parts) opens on page 503 having fetched only its own part. The
+    citation is centred (314 px against a view centre of 314).
+  - **A scripted scroll** through 30 pages across three parts gave no long tasks over 50 ms, at most
+    4 canvases at once, and each part fetched as it was reached.
+  - **The toolbar:** Next scrolls the next page to the top; a typed page 10 draws only pages 9–11;
+    Back to the citation recentres it; zoom keeps the page in view (56% to 67%); Fit page fits the
+    page to the view's height.
+  - **The full view:** the citation centred above the pill (299 against 306); the last page ends
+    14 px clear of the pill.
+  - **The 3-part budget:** opens on page 14 from part 2; switching to the Text view and back keeps
+    the reader's page.
+  - **The console** is clean.
+- **Defects found and fixed during the check:**
+  - the first window was drawn from the document's top before the open scroll, fetching part 0;
+  - a job cancelled while its part was located could still open it;
+  - the page-size read could run forever against a server that ignored ranges;
+  - returning to the PDF view re-opened on the citation instead of the reader's page.
+
+  Each has a test or a guard.
+- **Not measured on the harness:** the browser pane pauses pdf.js's drawing while hidden. Timings
+  were taken with the pane painting.
+
 ### T6. Exact marks
 - **Acceptance:**
   - the cited passage is marked with `pv-cite` on each page it touches;

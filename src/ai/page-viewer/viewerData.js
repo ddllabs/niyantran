@@ -12,6 +12,9 @@ export const DOCUMENT_COLUMNS = 'id, title, file_url, storage_path, extract_hash
 export const PART_COLUMNS = 'part_index, page_offset, page_count, byte_size';
 export const PAGE_COLUMNS = 'page_number, text, char_from, char_to, width_px, height_px';
 export const BLOCK_COLUMNS = 'page_number, type, x0, y0, x1, y1';
+export const SIZE_COLUMNS = 'page_number, width_px, height_px';
+/** PostgREST's row cap: a longer document is read in ranges of this many pages. */
+export const PAGE_SIZE_ROWS = 1000;
 
 const nonblank = value => typeof value === 'string' && value.trim() !== '';
 const withSignal = (query, signal) => (signal && typeof query.abortSignal === 'function' ? query.abortSignal(signal) : query);
@@ -138,4 +141,30 @@ export function createPageLoader({ client, documentId, extractHash, total, cache
       for (const entry of inflight.values()) entry.controller.abort();
     },
   };
+}
+
+/**
+ * Every page's stored size for one extraction, in page order (viewer-continuous spec, section 1),
+ * read in ranges of PAGE_SIZE_ROWS under PostgREST's row cap. It stops at a short range, and in any
+ * case at `total` pages (the document's page count): a server that ignored the range must not
+ * keep it reading.
+ * @returns {Promise<{status: 'ok', rows: {page_number: number, width_px: number|null, height_px: number|null}[]}
+ *   | {status: 'error'}>}
+ */
+export async function loadPageSizes(client, documentId, extractHash, signal, { total = Infinity } = {}) {
+  if (!nonblank(extractHash)) return { status: 'ok', rows: [] };
+  const rows = [];
+  try {
+    for (let from = 0; from < total; from += PAGE_SIZE_ROWS) {
+      const { data, error } = await withSignal(client.from('document_pages').select(SIZE_COLUMNS)
+        .eq('document_id', documentId).eq('extract_hash', extractHash)
+        .order('page_number', { ascending: true }).range(from, from + PAGE_SIZE_ROWS - 1), signal);
+      if (error || !Array.isArray(data)) return { status: 'error' };
+      rows.push(...data);
+      if (data.length < PAGE_SIZE_ROWS) return { status: 'ok', rows };
+    }
+    return { status: 'ok', rows: rows.slice(0, total) };
+  } catch {
+    return { status: 'error' };
+  }
 }

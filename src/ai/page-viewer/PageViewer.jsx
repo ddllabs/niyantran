@@ -10,7 +10,7 @@
  * the single sanitising point). Every notice is a fixed sentence; no error text and no signed
  * URL is ever rendered or logged.
  */
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { defaultDocumentFileClient } from '../../lib/documentFile.js';
 import { loadPdfjs } from '../../lib/pdfjs.js';
@@ -20,18 +20,20 @@ import { useCompact, useTipWarmth } from './chromeHooks.js';
 import { chromePlan, sectionParts } from './chromeModel.js';
 import { DocumentRow, FullHeader, MoreMenu, ViewSwitch } from './DocumentChrome.jsx';
 import PageControls from './PageControls.jsx';
-import { viewerState } from './pageModel.js';
-import PdfPage from './PdfPage.jsx';
-import { createPdfController, pdfFailureNotice } from './pdfController.js';
+import { naturalWidths, pageAspects } from './layoutModel.js';
+import { pageBoxes, viewerState } from './pageModel.js';
+import PdfDocument, { PILL_SPACE_PX, PdfOverlay } from './PdfDocument.jsx';
+import { pdfFailureNotice } from './pdfController.js';
+import { createPdfPool } from './pdfPool.js';
 import { openStoredCopy } from './storedCopy.js';
 import TextPage from './TextPage.jsx';
-import { createPageLoader, loadDocument } from './viewerData.js';
+import { createPageLoader, loadDocument, loadPageSizes } from './viewerData.js';
 import { VIEWER_ATTRIBUTE, attachFullView, narrowQuery, isNarrow, themeClassOf } from './viewerDom.js';
 import {
-  NOTICES, chooseView, pageTotal, pagingKey, pdfAvailable, readViewChoice, resolvePageSpan, storedCopyLabel,
+  NOTICES, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable, readViewChoice, resolvePageSpan, storedCopyLabel,
   writeViewChoice,
 } from './viewerModel.js';
-import { nextZoomStep, readZoomState, writeZoomState, zoomBy, zoomReadout } from './zoomModel.js';
+import { nextZoomStep, readZoomState, textColumn, writeZoomState, zoomBy, zoomReadout } from './zoomModel.js';
 
 import '../research.css';
 import '../reader.css';
@@ -48,6 +50,10 @@ const defaultFetch = (...args) => globalThis.fetch(...args);
 const ANY_ROW = Object.freeze({});
 const NO_BLOCKS = Object.freeze([]);
 const SPAN_STATES = new Set(['ok', 'unknown_freshness']);
+/** A4 portrait: the shape of a page whose stored size is missing, until it is drawn. */
+const A4_ASPECT = 842 / 595;
+/** A drawn page's shape replaces its slot's only when they differ by more than this share. */
+const ASPECT_TOLERANCE = 0.01;
 
 /** The document-level loading, failure and deletion notices. */
 export function DocumentNotice({ status, onRetry }) {
@@ -153,11 +159,11 @@ function useNarrow() {
 function ViewerBody({ shared, full = false, compact = false, onExpand = null, expandRef = null }) {
   const {
     docState, onRetryDoc, doc, available, view, onView, zoomState, setZoomState, storedLabel, onStoredCopy, onKeys,
-    state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, controller, title, citation,
-    boxesAllowed, pageRow, blocks, blocksReady, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow,
+    state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
+    pageRow, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow, pdfDocument,
   } = shared;
-  const [layout, setLayout] = useState(null);
-  const effective = zoomState.zoom ?? layout?.zoom ?? null;
+  const [liveZoom, setLiveZoom] = useState(null);
+  const effective = zoomState.zoom ?? liveZoom;
   const effectiveRef = useRef(effective);
   useEffect(() => { effectiveRef.current = effective; }, [effective]);
 
@@ -192,24 +198,23 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
       onKeyDown={onKeys}
     />
   ) : null;
-  const content = showPages && view === 'pdf' && controller ? (
-    <PdfPage
-      controller={controller}
-      page={page}
-      total={total}
-      title={title}
-      zoomState={zoomState}
-      blocks={blocks}
-      blocksReady={blocksReady}
-      citation={citation}
-      cited={cited}
-      boxesAllowed={boxesAllowed}
-      pageRow={pageRow}
-      onFailure={onPdfFailure}
-      onLayout={setLayout}
-      onWheelZoom={onWheelZoom}
-    />
-  ) : showPages && view === 'text' ? <TextPage status={pageStatus} pageRow={pageRow} span={textSpan} onRetry={onRetryPage} /> : null;
+  let content = null;
+  if (showPages && view === 'pdf') {
+    content = pdfDocument ? (
+      <PdfDocument
+        {...pdfDocument}
+        title={title}
+        total={total}
+        zoomState={zoomState}
+        insetBottom={full ? PILL_SPACE_PX : 0}
+        onZoom={setLiveZoom}
+        onWheelZoom={onWheelZoom}
+        onFailure={onPdfFailure}
+      />
+    ) : <p className="ai-reader-notice">Loading…</p>;
+  } else if (showPages && view === 'text') {
+    content = <TextPage status={pageStatus} pageRow={pageRow} span={textSpan} onRetry={onRetryPage} />;
+  }
 
   return (
     <>
@@ -275,7 +280,13 @@ export default function PageViewer({
   }, []);
   const [pdfError, setPdfError] = useState('');
   const [pdfNonce, setPdfNonce] = useState(0);
-  const [controller, setController] = useState(null);
+  const [pool, setPool] = useState(null);
+  const [sizes, setSizes] = useState({ status: 'loading', rows: [] });
+  const [citedState, setCitedState] = useState({ status: 'loading', row: null, blocks: NO_BLOCKS });
+  const [citedNonce, setCitedNonce] = useState(0);
+  const [citedBase, setCitedBase] = useState(null);
+  const [measured, setMeasured] = useState(() => new Map());
+  const [scrollRequest, setScrollRequest] = useState(null);
   const [copyNotice, setCopyNotice] = useState('');
   const [full, setFull] = useState(false);
   const [themeClass, setThemeClass] = useState('');
@@ -327,10 +338,35 @@ export default function PageViewer({
     };
   }, [client, documentId, doc, total]);
 
-  // The current page's text row and block boxes; paging away aborts the stale fetch.
+  // Every page's stored size, read once, so the continuous view lays out every page first.
+  useEffect(() => {
+    if (!doc || !showPages) return undefined;
+    const abort = new AbortController();
+    setSizes({ status: 'loading', rows: [] });
+    loadPageSizes(client, documentId, doc.extract_hash, abort.signal, { total }).then((result) => {
+      if (!abort.signal.aborted) setSizes({ status: result.status, rows: result.status === 'ok' ? result.rows : [] });
+    });
+    return () => abort.abort();
+  }, [client, documentId, doc, showPages, total]);
+
+  // The cited page's row and blocks, read once: its text column (Fit text), its boxes (the
+  // overlay) and its text (the exact mark). A read that paging in the Text view aborted is retried.
   useEffect(() => {
     const loader = loaderRef.current;
     if (!loader || !showPages) return undefined;
+    let alive = true;
+    loader.load(cited).then((result) => {
+      if (!alive) return;
+      if (result.status === 'aborted') setCitedNonce(n => n + 1);
+      else setCitedState({ status: result.status, row: result.row ?? null, blocks: result.blocks ?? NO_BLOCKS });
+    });
+    return () => { alive = false; };
+  }, [doc, showPages, cited, citedNonce]);
+
+  // The Text view's current page: its text row; paging away aborts the stale fetch.
+  useEffect(() => {
+    const loader = loaderRef.current;
+    if (!loader || !showPages || view !== 'text') return undefined;
     let alive = true;
     const cached = loader.peek(page);
     setPageState(cached !== undefined
@@ -342,7 +378,7 @@ export default function PageViewer({
       }
     });
     return () => { alive = false; };
-  }, [doc, showPages, page, pageNonce]);
+  }, [doc, showPages, view, page, pageNonce]);
 
   // The cited span on the cited page's text.
   useEffect(() => {
@@ -365,16 +401,16 @@ export default function PageViewer({
     onStateRef.current?.(state);
   }, [state]);
 
-  // The PDF controller lives while the PDF view is available; Retry replaces it. It gets the part
-  // layout, so the file client signs once per part however fast the reader pages (F45).
+  // The part pool lives while the PDF view is available; Retry replaces it. It gets the part
+  // layout, so the file client signs once per part however fast the reader scrolls (F45).
   const layout = available ? parts : null;
   useEffect(() => {
     if (!layout) return undefined;
-    const created = createPdfController({ documentId, documentFile, parts: layout, loadPdfjs: load, fetch: fetchImpl });
-    setController(created);
+    const created = createPdfPool({ documentId, documentFile, parts: layout, loadPdfjs: load, fetch: fetchImpl });
+    setPool(created);
     return () => {
       created.destroy();
-      setController(previous => (previous === created ? null : previous));
+      setPool(previous => (previous === created ? null : previous));
     };
   }, [layout, documentId, documentFile, load, fetchImpl, pdfNonce]);
 
@@ -383,7 +419,23 @@ export default function PageViewer({
     if (zoomChosen.current) writeZoomState(zoomState, storage);
   }, [zoomState, storage]);
 
-  const goTo = useCallback(next => setPage(Math.min(Math.max(1, next), total)), [total]);
+  // The toolbar's paging: the page, and in the PDF view a scroll to it.
+  const goTo = useCallback((next) => {
+    const target = Math.min(Math.max(1, next), total);
+    setPage(target);
+    setScrollRequest(prev => ({ page: target, seq: (prev?.seq ?? 0) + 1 }));
+  }, [total]);
+  // A drawn page: the cited page's natural size (Fit text, the overlay), and any page's true shape
+  // where its stored size was missing or wrong.
+  const onMeasured = useCallback((drawn, result) => {
+    if (drawn === cited) setCitedBase(prev => (prev && prev.width === result.viewport.width && prev.height === result.viewport.height ? prev : result.viewport));
+    const aspect = result.viewport.height / result.viewport.width;
+    setMeasured((prev) => {
+      const known = prev.get(drawn);
+      if (known !== undefined && Math.abs(known - aspect) <= ASPECT_TOLERANCE * known) return prev;
+      return new Map(prev).set(drawn, aspect);
+    });
+  }, [cited]);
 
   const onKeys = (event) => {
     const target = event.target;
@@ -431,14 +483,38 @@ export default function PageViewer({
   const textSpan = span && span.page === page ? span : null;
   const pdfShown = showPages && view === 'pdf';
 
+  // The continuous view's inputs, once the page sizes and the cited page are known.
+  const citedRow = citedState.row;
+  const citedBoxes = useMemo(() => (boxesAllowed ? pageBoxes(citation, cited) : []), [boxesAllowed, citation, cited]);
+  const aspects = useMemo(() => {
+    const fallback = citedRow?.width_px > 0 && citedRow?.height_px > 0 ? citedRow.height_px / citedRow.width_px : A4_ASPECT;
+    const list = pageAspects(sizes.rows, total, fallback);
+    for (const [drawn, aspect] of measured) if (drawn <= list.length) list[drawn - 1] = aspect;
+    return list;
+  }, [sizes.rows, total, citedRow, measured]);
+  const citedPt = citedBase?.width ?? null;
+  const naturalPts = useMemo(() => naturalWidths(sizes.rows, total, { cited, citedPt }), [sizes.rows, total, cited, citedPt]);
+  const citedColumn = useMemo(
+    () => (zoomState.fit === 'text' ? textColumn(citedState.blocks, citedBoxes) : null),
+    [zoomState.fit, citedState.blocks, citedBoxes],
+  );
+  const citedBox = citedBoxes.length
+    ? { y0: Math.min(...citedBoxes.map(b => b.y0)), y1: Math.max(...citedBoxes.map(b => b.y1)) }
+    : null;
+  const citedOverlay = <PdfOverlay overlay={overlayFor({ citation, page: cited, cited, boxesAllowed, pageRow: citedRow, viewport: citedBase })} />;
+  const pdfReady = Boolean(pool) && sizes.status !== 'loading' && citedState.status !== 'loading';
+  const pdfDocument = pdfReady ? {
+    pool, aspects, naturalPts, cited, citedColumn, citedPt: citedPt ?? naturalPts[cited - 1], citedBox, citedOverlay,
+    scrollRequest, onPage: setPage, onMeasured, openAt: page,
+  } : null;
+
   const storedLabel = live && parts.length ? storedCopyLabel(parts, page) : null;
   const shared = {
     docState, onRetryDoc: () => setDocNonce(n => n + 1), doc, available, view, onView, zoomState, setZoomState,
     storedLabel, onStoredCopy, onKeys,
-    state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, controller, title, citation,
-    boxesAllowed, pageRow, blocks: onThisPage ? pageState.blocks : NO_BLOCKS, blocksReady: onThisPage && pageState.status !== 'loading',
-    onPdfFailure, pageStatus: onThisPage ? pageState.status : 'loading', textSpan, onRetryPage: () => setPageNonce(n => n + 1),
-    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow,
+    state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
+    pageRow, onPdfFailure, pageStatus: onThisPage ? pageState.status : 'loading', textSpan, onRetryPage: () => setPageNonce(n => n + 1),
+    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow, pdfDocument,
   };
   const fullPlan = chromePlan({ available, view, compact: false, narrow, full: true });
 

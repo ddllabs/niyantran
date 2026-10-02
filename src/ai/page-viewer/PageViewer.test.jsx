@@ -1,8 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import PageViewer, { DocumentNotice, FullViewDialog, StateNotices } from './PageViewer.jsx';
-import { PdfOverlay, cropStyles } from './PdfPage.jsx';
-import { layoutPage } from './zoomModel.js';
+import { PdfOverlay } from './PdfDocument.jsx';
 import TextPage from './TextPage.jsx';
 import { NOTICES } from './viewerModel.js';
 import { PDF_NOTICES } from './pdfController.js';
@@ -120,27 +119,6 @@ describe('FullViewDialog', () => {
   it('marks its root as part of the citation viewer, so a click on the backdrop is not "outside"', () => {
     const html = renderToStaticMarkup(<FullViewDialog titleId="pv-t1"><strong id="pv-t1">Bill</strong></FullViewDialog>);
     expect(html).toMatch(/^<div class="pv-full-root" data-citation-viewer="full-view"><div class="pv-full" role="dialog"/);
-  });
-});
-
-describe('cropStyles', () => {
-  const blocks = [{ type: 'text', x0: 0.25, y0: 0.1, x1: 0.75, y1: 0.9 }];
-  const layout = layoutPage({ state: { fit: 'text', zoom: null }, page: { width: 595, height: 842 }, pane: { width: 480, height: 600 }, blocks });
-
-  it('Fit text: clips to the text column and shifts the whole page so the text layer and boxes keep page coordinates', () => {
-    const styles = cropStyles(layout);
-    expect(styles.crop.width).toBe('480px');
-    expect(parseFloat(styles.page.left)).toBeCloseTo(-0.23 * layout.pageCss.width, 2);
-    expect(parseFloat(styles.page.width)).toBeCloseTo(595 * layout.scale, 2);
-  });
-
-  it('a box at the column edge lands on the crop edge', () => {
-    const styles = cropStyles(layout);
-    // A box's left is a percentage of the page; the page is shifted by styles.page.left.
-    const boxLeftPx = parseFloat(styles.page.left) + layout.crop.x0 * parseFloat(styles.page.width);
-    const boxRightPx = parseFloat(styles.page.left) + layout.crop.x1 * parseFloat(styles.page.width);
-    expect(boxLeftPx).toBeCloseTo(0, 1);
-    expect(boxRightPx).toBeCloseTo(parseFloat(styles.crop.width), 1);
   });
 });
 

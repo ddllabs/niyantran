@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_LIVE_PAGES, PAGE_GAP, currentPage, pageAspects, renderWindow, scrollTopFor, slotLayout,
+  MAX_LIVE_PAGES, PAGE_GAP, anchorAt, currentPage, naturalWidths, scrollForAnchor, pageAspects, pageWidth, renderWindow, scrollTopFor, slotLayout,
 } from './layoutModel.js';
+import { CSS_PX_PER_PT } from './zoomModel.js';
 
 /** Three pages: two A4 portraits and one landscape. */
 const aspects = [842 / 595, 842 / 595, 595 / 842];
@@ -105,5 +106,71 @@ describe('scrollTopFor', () => {
   it('clamps an out-of-range page', () => {
     expect(scrollTopFor(layout, { page: 9, viewport: 50 })).toBe(224);
     expect(scrollTopFor(layout, { page: 0, viewport: 50 })).toBe(0);
+  });
+});
+
+describe('naturalWidths: each page\'s width in PDF points before pdf.js has opened it', () => {
+  const rows = [{ page_number: 1, width_px: 720 }, { page_number: 2, width_px: 1018 }, { page_number: 3, width_px: null }];
+
+  it('scales the stored pixel widths by the cited page\'s measured width once it is known', () => {
+    expect(naturalWidths(rows, 3, { cited: 1, citedPt: 595 })).toEqual([595, 595 * 1018 / 720, 595]);
+  });
+
+  it('before the cited page is measured, assumes an A4 width for it', () => {
+    expect(naturalWidths(rows, 3, { cited: 2, citedPt: null })).toEqual([595 * 720 / 1018, 595, 595]);
+  });
+
+  it('without stored widths, every page is the cited page\'s width', () => {
+    expect(naturalWidths([], 2, { cited: 1, citedPt: 612 })).toEqual([612, 612]);
+  });
+});
+
+describe('pageWidth: one page\'s CSS width under the zoom state', () => {
+  const pane = { width: 480, height: 600 };
+  const a4 = { aspect: 842 / 595, naturalPt: 595 };
+
+  it('Fit width fills the pane', () => {
+    expect(pageWidth({ fit: 'width', zoom: null }, pane, a4)).toBe(480);
+  });
+
+  it('Fit page fits the pane\'s height too, and falls back to the width when the height is unknown', () => {
+    expect(pageWidth({ fit: 'page', zoom: null }, pane, a4)).toBeCloseTo(600 / (842 / 595), 6);
+    expect(pageWidth({ fit: 'page', zoom: null }, { width: 480, height: 0 }, a4)).toBe(480);
+  });
+
+  it('Fit text scales so the cited page\'s text column fills the pane, and other pages by their natural width', () => {
+    const column = { x0: 0.2, x1: 0.8 };
+    expect(pageWidth({ fit: 'text', zoom: null }, pane, a4, { column, citedPt: 595 })).toBeCloseTo(800, 6);
+    expect(pageWidth({ fit: 'text', zoom: null }, pane, { aspect: 0.7, naturalPt: 842 }, { column, citedPt: 595 })).toBeCloseTo(800 * 842 / 595, 6);
+    expect(pageWidth({ fit: 'text', zoom: null }, pane, a4, { column: null, citedPt: 595 })).toBe(480);
+  });
+
+  it('a manual zoom is that share of the natural size at 96 px per inch', () => {
+    expect(pageWidth({ fit: 'width', zoom: 1.5 }, pane, a4)).toBeCloseTo(1.5 * CSS_PX_PER_PT * 595, 6);
+  });
+
+  it('never exceeds 300% of the natural size', () => {
+    const column = { x0: 0.5, x1: 0.52 };
+    expect(pageWidth({ fit: 'text', zoom: null }, { width: 1600, height: 900 }, a4, { column, citedPt: 595 })).toBeCloseTo(3 * CSS_PX_PER_PT * 595, 6);
+  });
+});
+
+describe('zoom anchors: the point under the pointer stays put when the layout changes', () => {
+  const before = slotLayout({ aspects: [1, 1, 1], widthOf: () => 100 });
+  const after = slotLayout({ aspects: [1, 1, 1], widthOf: () => 200 });
+
+  it('finds the page and the fraction of it at a point of the view', () => {
+    // Scrolled to 150, a pointer 40 px down the view is at y 190: page 2 (112-212), 78% down.
+    expect(anchorAt(before, 150, 40)).toEqual({ index: 1, fraction: 0.78 });
+  });
+
+  it('scrolls so the same point of the same page is under the pointer again', () => {
+    // After: page 2 spans 212-412; 78% down is 368; under a pointer 40 px down the view → 328.
+    expect(scrollForAnchor(after, { index: 1, fraction: 0.78 }, 40)).toBeCloseTo(328, 6);
+  });
+
+  it('keeps a point in a gap with the page above, and never scrolls above the top', () => {
+    expect(anchorAt(before, 0, 105)).toEqual({ index: 0, fraction: 1 });
+    expect(scrollForAnchor(after, { index: 0, fraction: 0 }, 300)).toBe(0);
   });
 });

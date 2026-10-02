@@ -33,7 +33,6 @@ export const ZOOM_KEY = 'niyantranCitationZoomV2';
 
 /** Padding beside the text column, as a fraction of the page on each side. */
 const PADDING = 0.02;
-const FULL = Object.freeze({ x0: 0, y0: 0, x1: 1, y1: 1 });
 const STEP_EPSILON = 0.005;
 
 const isFraction = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
@@ -55,72 +54,6 @@ export function textColumn(blocks, extra = []) {
     y0: 0,
     x1: clamp(Math.max(...boxes.map(b => b.x1)) + PADDING, 0, 1),
     y1: 1,
-  };
-}
-
-/**
- * How the page is drawn in a pane.
- *
- * @param {{
- *   state: {fit: string, zoom: number | null},
- *   page: {width: number, height: number} | null,   pdf.js viewport size at scale 1
- *   pane: {width: number, height: number},          CSS px; height 0 when unknown
- *   blocks?: object[], boxes?: object[],              the page's blocks; the citation's boxes on it
- * }} input
- * @returns {null | {
- *   fit: 'text' | 'width' | 'page' | null,  the fit in effect (null for a manual zoom)
- *   scale: number, zoom: number, percent: number,
- *   crop: {x0, y0, x1, y1},
- *   pageCss: {width, height}, cropCss: {width, height}, offset: {left, top},
- * }} The whole page is rendered at `scale` (`pageCss`), placed at `offset` inside a clip of
- *   `cropCss`, so the text layer and highlight boxes keep page coordinates.
- */
-export function layoutPage({ state, page, pane, blocks = [], boxes = [] }) {
-  if (!page || !isPositive(page.width) || !isPositive(page.height) || !isPositive(pane?.width)) return null;
-  const fit = FITS.includes(state?.fit) ? state.fit : DEFAULT_ZOOM.fit;
-  const manual = typeof state?.zoom === 'number' && Number.isFinite(state.zoom) ? clamp(state.zoom, MIN_ZOOM, MAX_ZOOM) : null;
-  const text = fit === 'text' ? textColumn(blocks, boxes) : null;
-  const crop = text ?? FULL;
-  const maxScale = MAX_ZOOM * CSS_PX_PER_PT;
-
-  let scale;
-  let effective;
-  if (manual !== null) {
-    scale = manual * CSS_PX_PER_PT;
-    effective = null;
-  } else if (text) {
-    scale = Math.min(pane.width / ((crop.x1 - crop.x0) * page.width), maxScale);
-    effective = 'text';
-  } else if (fit === 'page' && isPositive(pane.height)) {
-    scale = Math.min(pane.width / page.width, pane.height / page.height, maxScale);
-    effective = 'page';
-  } else {
-    scale = Math.min(pane.width / page.width, maxScale);
-    effective = fit === 'page' ? 'page' : 'width';
-  }
-
-  const pageCss = { width: page.width * scale, height: page.height * scale };
-  const zoom = scale / CSS_PX_PER_PT;
-  return {
-    fit: effective,
-    scale,
-    zoom,
-    percent: Math.round(zoom * 100),
-    crop,
-    pageCss,
-    cropCss: { width: (crop.x1 - crop.x0) * pageCss.width, height: (crop.y1 - crop.y0) * pageCss.height },
-    offset: { left: -crop.x0 * pageCss.width, top: -crop.y0 * pageCss.height },
-  };
-}
-
-/** A page-fraction box in CSS px relative to the crop's top-left corner. */
-export function boxRect(box, layout) {
-  const { pageCss, offset } = layout;
-  return {
-    left: offset.left + box.x0 * pageCss.width,
-    top: offset.top + box.y0 * pageCss.height,
-    width: (box.x1 - box.x0) * pageCss.width,
-    height: (box.y1 - box.y0) * pageCss.height,
   };
 }
 
