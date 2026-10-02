@@ -39,6 +39,27 @@ Current baseline (2026-09-29, evening):
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
+- **2026-10-03, F55 `chat-attach-fixes`, closed by the owner:** the AI chat's drop frame, duplicate
+  attachments and Reload.
+  - **The drop frame** is an overlay on all four sides.
+  - **Attachments are identified by document key or file content.** The same bill by any route is
+    one chip, and two different files that share a name are two. Skipped duplicates are named
+    ("Already attached: …").
+  - **Reload and its row** appear only when needed.
+  - **Spec:** `specs/2026-10-03-chat-attach-fixes.md`. On production at `e651613` (Vercel READY).
+- **2026-10-03, F54 `side-panel`, closed by the owner:** Desk, Record and AI research are one
+  `SidePanel`, replacing the rail and the AI dock that took turns in the same slot.
+  - **What it has:**
+    - one tablist;
+    - one draggable, remembered width (36% by default, 400 px to 60%);
+    - one expand mode for every tab (the citation overlay generalised);
+    - Collapse with a handle;
+    - AI's actions in the tab bar;
+    - the docked shadow.
+  - **A row click or page load always opens the panel.** On AI, a row click stays on AI.
+  - **Spec:** `specs/2026-10-03-side-panel.md`, with amendments 1 and 2; local run
+    `research/2026-10-03-side-panel-local-run.md`. On production at `57e3d8c` and `1f0ab07` (Vercel
+    READY).
 - **2026-10-03, F53 `research-coverage`, closed by the owner:** questions that sound simple but
   need digging. Measured; neither fix ships.
   - **The test set:** `eval/agent/coverage.v1.jsonl`, 15 bill questions with 75 points, revised
@@ -617,28 +638,6 @@ Follow-ups and findings:
     Communal Violence(Prevention,Control and Rehabilitation of Victims) Bill,2005") each hold one
     passage of an unrelated 2004 Appropriation Act. Read in the local replica, a copy of the
     legacy corpus; nothing was changed.
-- [ ] **F54.** Desk snapshot, Record and AI research are three separately built panels that take
-  turns in the same slot (owner, 2026-10-03: "not production-grade").
-  - **The defects:** the rail's "AI research" tab is a button; the shell unmounts the rail when the
-    dock opens; the width jumps between 33, 35 and 38%; resizing and the overlay exist only for AI
-    citations.
-  - **The fix:** spec `specs/2026-10-03-side-panel.md`, approved: a 36% default width, and
-    Collapse on every desk. Plan `plans/2026-10-03-side-panel.md`.
-  - **Built (2026-10-03, `task/side-panel`, merged locally):**
-    - one `SidePanel` with Desk, Record and AI tabs;
-    - one draggable, remembered width;
-    - one expand mode for every tab (the citation overlay generalised);
-    - Collapse with a handle;
-    - the stacked phone layout;
-    - the dead rail CSS removed.
-
-    The local run is in `research/2026-10-03-side-panel-local-run.md`.
-  - **Next:** the push, with a go-ahead (frontend only). The owner's checks on production follow.
-- [ ] **F55.** The AI chat's drop frame showed only on its sides. A different file with the same
-  name was silently dropped. The same bill, dragged and then sent by "Ask AI", attached twice.
-  Reload was always shown. Owner-approved fixes are in spec `specs/2026-10-03-chat-attach-fixes.md`,
-  built and checked locally, and pushed (2026-10-03, `e651613`, Vercel READY). Next: the owner's
-  check on production.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
