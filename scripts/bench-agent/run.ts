@@ -23,7 +23,7 @@
  * Writes eval/agent/results/<timestamp>.json and prints a summary. Costs real money: about $0.02
  * per question per variant on Gemini 3.8 Flash.
  */
-import { createAgentBudget, PRESEARCH_NOTE, runAgent, TOOL_REPLY_CHARS, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
+import { createAgentBudget, PRESEARCH_NOTE, runAgent, TOOL_REPLY_CHARS, WIDENED_TOP_K, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
 import type { Message } from '../../supabase/functions/_shared/openrouterStream.ts';
 import { buildSystemPrompt, buildUserTurn } from '../../supabase/functions/research-chat/prompt.ts';
 import { deskCatalogBlock } from '../../supabase/functions/_shared/deskCatalog.ts';
@@ -127,8 +127,10 @@ const DEPLOYED = new Set(['v45', 'thru', 'lat']);
 // The prompt limits (chat-turn-cost): on only for `capped`; every earlier variant predates them.
 // `wideonly`: the widened-search limit alone (the reply cap off), as shipped once the reply cap
 // missed the depth pass mark on narrow questions.
-// The reply cap is off by default since that decision, so `capped` asks for it explicitly.
-const limitsOf = (variant: string) => (variant === 'capped' ? { toolReplyChars: TOOL_REPLY_CHARS } : variant === 'wideonly' || DEPLOYED.has(variant) ? { toolReplyChars: null } : { widenedTopK: null, toolReplyChars: null });
+// Both limits are off by default since their decisions (the widened limit on 2026-10-02, after a
+// second pass), so `capped` and `wideonly` ask for theirs explicitly. `v45`, `thru` and `lat` ran
+// while the widened limit was deployed and keep it, so their results stay comparable.
+const limitsOf = (variant: string) => (variant === 'capped' ? { widenedTopK: WIDENED_TOP_K, toolReplyChars: TOOL_REPLY_CHARS } : variant === 'wideonly' || DEPLOYED.has(variant) ? { widenedTopK: WIDENED_TOP_K, toolReplyChars: null } : { widenedTopK: null, toolReplyChars: null });
 async function runOne(q: Q, variant: string, history: Message[] = []) {
   const t0 = performance.now();
   let calls = 0, firstAnswer = 0, retracts = 0;

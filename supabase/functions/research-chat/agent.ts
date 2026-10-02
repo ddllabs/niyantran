@@ -129,9 +129,10 @@ export type AgentEvent =
 export interface AgentDeps {
   request: Omit<StreamRequest, 'messages' | 'tools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
-  /** `topK` is set for a widened search only (WIDENED_TOP_K); otherwise retrieval's default. */
+  /** `topK` is set only for a widened search when widenedTopK asks for it; otherwise retrieval's default. */
   searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number): Promise<Chunk[]>;
-  /** Passages a widened search asks for; null asks for retrieval's default (as v44). */
+  /** Passages a widened search asks for (WIDENED_TOP_K when asked for). Off by default: unset or
+   * null asks for retrieval's default, as every other search does. */
   widenedTopK?: number | null;
   /** The character budget of one search_documents reply (TOOL_REPLY_CHARS when asked for). Off by
    * default: it missed the depth pass mark on narrow questions (research/2026-10-02-turn-cost-
@@ -295,9 +296,9 @@ export function renderChunk(handle: string, c: Chunk): string {
 }
 
 /**
- * chat-turn-cost (F41): every round re-sends every earlier tool reply, so a reply's size is paid on
- * each later call. A widened search is corpus-wide after the scoped one found nothing, so its
- * passages are the least likely to be on target: it asks for fewer.
+ * chat-turn-cost (F41): the passages a widened search asks for when a caller sets widenedTopK. Off
+ * by default (owner, 2026-10-02): a second pass found 15 no deeper than 40 and slower
+ * (research/2026-10-02-turn-cost-benchmark.md), so a widened search asks for retrieval's default.
  */
 export const WIDENED_TOP_K = 15;
 /** A search_documents reply's character budget (about 6k tokens) for callers that ask for one; the
@@ -516,8 +517,8 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       const scoped: DocumentSearchArgs = module
         ? { query: asked.query, desk_tier: module.tier, desk_feature: module.feature }
         : asked;
-      // A widened search asks for fewer passages (WIDENED_TOP_K); every other search the default.
-      const wideK = deps.widenedTopK === undefined ? WIDENED_TOP_K : (deps.widenedTopK ?? undefined);
+      // A widened search asks for widenedTopK passages when a caller sets it; otherwise the default.
+      const wideK = deps.widenedTopK ?? undefined;
       let found = await searchAttempt(call, scoped, scope, !scope && confines ? wideK : undefined) as Chunk[] | null;
       // A focus that confines, over an attachment the corpus has never indexed,
       // cannot scope to nothing - so it searches everything, which is what the

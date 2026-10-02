@@ -1286,18 +1286,29 @@ function topKLog(result: (ids?: string[]) => Chunk[]) {
   return { calls, searchDocuments };
 }
 
-Deno.test('a widened retry asks for WIDENED_TOP_K passages; the scoped search asks for the default', async () => {
+// The widened limit is off by default (owner, 2026-10-02): a second pass found 15 passages no
+// deeper than 40 and slower (research/2026-10-02-turn-cost-benchmark.md). It stays an option.
+Deno.test('by default a widened retry asks for the default passage count, like the scoped search', async () => {
   const log = topKLog((ids) => (ids ? [] : [chunk('a')]));
   const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
+  await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
+  assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }, { ids: undefined, topK: undefined }]);
+});
+
+Deno.test('asked for, the widened limit applies to the widened retry only', async () => {
+  const log = topKLog((ids) => (ids ? [] : [chunk('a')]));
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments, widenedTopK: WIDENED_TOP_K });
   await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
   assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }, { ids: undefined, topK: WIDENED_TOP_K }]);
 });
 
-Deno.test('a confining focus with nothing to confine to searches widened from the start, with WIDENED_TOP_K', async () => {
-  const log = topKLog(() => [chunk('a')]);
-  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
-  await runAgent(f.deps, { ...input, focus: 'attached', scopeSent: false });
-  assertEquals(log.calls, [{ ids: undefined, topK: WIDENED_TOP_K }]);
+Deno.test('a confining focus with nothing to confine to searches widened from the start, with the limit when asked', async () => {
+  const off = topKLog(() => [chunk('a')]);
+  await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: off.searchDocuments }).deps, { ...input, focus: 'attached', scopeSent: false });
+  assertEquals(off.calls, [{ ids: undefined, topK: undefined }]);
+  const on = topKLog(() => [chunk('a')]);
+  await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: on.searchDocuments, widenedTopK: WIDENED_TOP_K }).deps, { ...input, focus: 'attached', scopeSent: false });
+  assertEquals(on.calls, [{ ids: undefined, topK: WIDENED_TOP_K }]);
 });
 
 Deno.test('a broad search, and any search with the limit off, asks for the default', async () => {
@@ -1349,7 +1360,7 @@ Deno.test('by default a search reply keeps every passage, however long', async (
   assertEquals((await runAgent(f.deps, input)).chunks.map((c) => c.id), ['a', 'b']);
 });
 
-Deno.test('the defaults: WIDENED_TOP_K is 15 and TOOL_REPLY_CHARS is 24,000', () => {
+Deno.test('the opt-in values: WIDENED_TOP_K is 15 and TOOL_REPLY_CHARS is 24,000', () => {
   assertEquals(WIDENED_TOP_K, 15);
   assertEquals(TOOL_REPLY_CHARS, 24_000);
 });
