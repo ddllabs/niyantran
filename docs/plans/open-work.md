@@ -608,6 +608,16 @@ Follow-ups and findings:
   spot-checks the test set); plan `plans/2026-10-02-research-coverage.md`. It covers a coverage
   test set and score, a prompt coverage check, and a signal-triggered nudge, each shipped only if
   it passes.
+  - **Stage 1 measured (2026-10-03, `research/2026-10-02-research-coverage.md`):**
+    - **The nudge passes pass mark 1, at the threshold.** Full coverage is +3 questions per pass,
+      and coverage is 94.2% against 88.0%.
+    - **The prompt check does not help,** and the two together do worse than the nudge alone.
+    - **The nudge costs about 13 s to first word and 79% more** where it fires, on about half of
+      these questions.
+    - **Cost:** $6.71, over the estimate. The total for F53 is about $7.50 against the $3–4
+      approved.
+    - **Stage 2** (regression and speed on narrow questions and briefs, about $2) awaits the
+      owner's go-ahead.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
