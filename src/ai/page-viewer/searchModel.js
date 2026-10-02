@@ -18,10 +18,21 @@ const SNIPPET_REACH = 60;
 /** Spacing and the Markdown marks the database folds into one space (`[\s#*_|`]`). */
 const FOLDED = /[\s#*_|`]/u;
 
+/**
+ * Lower case as the database's `lower()` gives it (en_US.UTF-8, one character at a time): unlike
+ * JavaScript's `toLowerCase()`, dotted İ becomes a plain i (not i + U+0307) and Σ is σ even at a
+ * word's end. Every other letter keeps one code unit for one, so offsets into the original hold.
+ */
+export function lowerAsDatabase(text) {
+  let out = '';
+  for (const char of text) out += char === '\u0130' ? 'i' : char.toLowerCase();
+  return out;
+}
+
 /** The query as the database folds it: Markdown marks and spacing as one space, trimmed, lower case. */
 export function foldQuery(raw) {
-  const folded = String(raw ?? '').normalize('NFC').replace(/[\s#*_|`]+/gu, ' ').trim().slice(0, MAX_QUERY).toLowerCase();
-  return [...folded].length >= MIN_QUERY ? folded : '';
+  const folded = String(raw ?? '').normalize('NFC').replace(/[\s#*_|`]+/gu, ' ').trim().slice(0, MAX_QUERY);
+  return [...folded].length >= MIN_QUERY ? lowerAsDatabase(folded) : '';
 }
 
 /**
@@ -47,7 +58,7 @@ export function layerMatches(items, query) {
     for (const char of str) {
       if (FOLDED.test(char)) space(item, offset);
       else {
-        for (const lower of char.toLowerCase()) {
+        for (const lower of lowerAsDatabase(char)) {
           text += lower;
           at.push([item, offset, offset + char.length]);
         }
@@ -108,7 +119,7 @@ export function matchLabel({ status, total, current, capped = false }) {
 
 /** Whether the database cut a snippet before its start and after its end (it cuts mid-word). */
 export function snippetEdges(snippet, query) {
-  const first = snippet.toLowerCase().indexOf(query);
+  const first = lowerAsDatabase(snippet).indexOf(query);
   if (first === -1) return { cutStart: false, cutEnd: false };
   return { cutStart: first >= SNIPPET_REACH, cutEnd: snippet.length - (first + query.length) >= SNIPPET_REACH };
 }
@@ -119,7 +130,7 @@ export function snippetEdges(snippet, query) {
  */
 export function snippetParts(snippet, query, { cutStart, cutEnd }) {
   let text = snippet;
-  const lower = () => text.toLowerCase();
+  const lower = () => lowerAsDatabase(text);
   let lead = '';
   let tail = '';
   if (cutStart) {

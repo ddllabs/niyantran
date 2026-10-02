@@ -22,6 +22,12 @@ describe('foldQuery', () => {
     expect(layerMatches([{ str: 'pay\u00a0the duty', hasEOL: false }], foldQuery('pay the'))).toHaveLength(1);
   });
 
+  it('lower-cases as the database does (en_US.UTF-8): dotted İ to i, and Σ to σ even at a word\'s end', () => {
+    expect(foldQuery('İSTANBUL ΟΔΟΣ')).toBe('istanbul οδοσ');
+    expect(layerMatches([{ str: 'İstanbul and ΟΔΟΣ', hasEOL: false }], foldQuery('istanbul'))).toEqual([{ startItem: 0, startOffset: 0, endItem: 0, endOffset: 8 }]);
+    expect(layerMatches([{ str: 'İstanbul and ΟΔΟΣ', hasEOL: false }], foldQuery('οδοσ'))).toEqual([{ startItem: 0, startOffset: 13, endItem: 0, endOffset: 17 }]);
+  });
+
   it('keeps Hindi as typed, composed', () => {
     expect(foldQuery('राष्ट्रीय  खेल')).toBe('राष्ट्रीय खेल'.normalize('NFC'));
   });
@@ -129,6 +135,13 @@ describe('snippetParts', () => {
       { text: ' person and the ', match: false },
       { text: 'accused', match: true },
       { text: '…', match: false },
+    ]);
+  });
+
+  it('splits out a match after a dotted İ without shifting it', () => {
+    expect(snippetParts('İzmir accused', 'accused', { cutStart: false, cutEnd: false })).toEqual([
+      { text: 'İzmir ', match: false },
+      { text: 'accused', match: true },
     ]);
   });
 

@@ -54,7 +54,7 @@ INSERT INTO document_pages (document_id, extract_hash, page_number, text, char_f
   ('d0000000-0000-4000-8000-000000000001', 'x1', 4, 'nothing to see', 31, 40),
   -- Folding parity with the client (migration 43): a no-break space, an em space, क़ stored
   -- precomposed (U+0958, which NFC writes as U+0915 U+093C), and É.
-  ('d0000000-0000-4000-8000-000000000001', 'x1', 5, 'shall pay' || U&'\00A0' || 'the duty under clause' || U&'\2003' || 'nine of the ' || U&'\0958\093E\0928\0942\0928' || ' and the ÉCOLE rules', 41, 50),
+  ('d0000000-0000-4000-8000-000000000001', 'x1', 5, 'shall pay' || U&'\00A0' || 'the duty under clause' || U&'\2003' || 'nine of the ' || U&'\0958\093E\0928\0942\0928' || ' and the ÉCOLE rules for ' || U&'\0130' || 'STANBUL ' || U&'\039F\0394\039F\03A3', 41, 50),
   ('d0000000-0000-4000-8000-000000000001', 'x0', 2, 'an older extraction with a penalty', 0, 5),
   ('d0000000-0000-4000-8000-000000000002', 'x1', 1, 'another document with a penalty', 0, 5);
 CREATE FUNCTION pg_temp.pages(q text, max_pages integer DEFAULT 200) RETURNS integer[] LANGUAGE sql AS $$
@@ -99,6 +99,11 @@ SELECT pg_temp.assert_true(pg_temp.pages('clause nine') = '{5}', 'an em space fo
 SELECT pg_temp.assert_true(pg_temp.pages(U&'\0915\093C\093E\0928\0942\0928') = '{5}', 'the client''s NFC query finds text stored precomposed');
 SELECT pg_temp.assert_true(pg_temp.pages(U&'\0958\093E\0928\0942\0928') = '{5}', 'a precomposed query finds it too');
 SELECT pg_temp.assert_true(pg_temp.pages('école') = '{5}' AND pg_temp.pages('ÉCOLE') = '{5}', 'accented capitals fold to lower case');
+-- What the client's lowerAsDatabase mirrors (src/ai/page-viewer/searchModel.js): dotted İ lowers to a
+-- plain i, and Σ to σ even at a word's end (no final sigma).
+SELECT pg_temp.assert_true(pg_temp.pages('istanbul') = '{5}', 'dotted capital I lowers to a plain i');
+SELECT pg_temp.assert_true(pg_temp.pages(U&'\03BF\03B4\03BF\03C3') = '{5}' AND pg_temp.pages(U&'\03BF\03B4\03BF\03C2') = '{}',
+                           'a final capital sigma lowers to σ, not ς');
 SELECT pg_temp.assert_true(
   (SELECT snippets FROM public.search_document_pages('d0000000-0000-4000-8000-000000000001', 'x1', 'penalty') WHERE page_number = 2)
     = array['ent of section 11. 8. In section 11 of the principal Act, a Penalty; a penalty; a PENALTY. --- ---'],
