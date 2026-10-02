@@ -47,3 +47,33 @@ describe('the research panel fills its shell', () => {
     expect(cascade(sheets, SHELL, 'display')).toBe('block');
   });
 });
+
+// chat-panel-fixes (F47): the panel's regions (head, chrome, body, foot) sit inside
+// .ai-panel-background (AiPanel.jsx), so a rule written `.ai-shell-v2 > .ai-v2-body` matches nothing:
+// the history-open dimming, and the regions' stacking, never applied.
+describe('rules on the panel\'s regions match its structure', () => {
+  const REGION = /\.ai-v2-(head|chrome|body|foot)\b/;
+  const regionRules = () => {
+    const found = [];
+    for (const file of ['../index.css', './research.css']) {
+      postcss.parse(read(file)).walkRules((rule) => {
+        for (const sel of rule.selectors) if (sel.includes('ai-shell-v2') && REGION.test(sel)) found.push({ file, sel: sel.trim(), rule });
+      });
+    }
+    return found;
+  };
+
+  it('every .ai-shell-v2 rule on a region reaches it through .ai-panel-background', () => {
+    const wrong = regionRules().filter(({ sel }) => /ai-shell-v2[\w.-]*\s*>\s*\.ai-v2-/.test(sel));
+    expect(wrong.map((r) => r.sel)).toEqual([]);
+  });
+
+  it('while history is open, the panel behind it is dimmed and takes no pointer events', () => {
+    const dim = regionRules().find(({ sel }) => sel.includes('.history-open') && sel.includes('.ai-panel-background > .ai-v2-body'));
+    expect(dim).toBeTruthy();
+    const decls = {};
+    dim.rule.walkDecls((d) => { decls[d.prop] = d.value; });
+    expect(decls['pointer-events']).toBe('none');
+    expect(Number(decls.opacity)).toBeLessThan(1);
+  });
+});

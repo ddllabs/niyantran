@@ -3523,34 +3523,36 @@ button.live-feed:hover { color: var(--fg); }
   background: #fff;
   overflow: hidden;
 }
-.ai-shell.ai-shell-v2 > .ai-v2-head {
+/* The regions sit inside .ai-panel-background (AiPanel.jsx), so these rules reach them through it;
+   written as direct children of the shell they matched nothing (chat-panel-fixes, F47). */
+.ai-shell.ai-shell-v2 > .ai-panel-background > .ai-v2-head {
   position: relative;
   z-index: 8;
   overflow: visible;
   min-height: 0;
 }
-.ai-shell.ai-shell-v2.history-open > .ai-v2-head {
+.ai-shell.ai-shell-v2.history-open > .ai-panel-background > .ai-v2-head {
   z-index: 30;
 }
-.ai-shell.ai-shell-v2.history-open > .ai-v2-chrome,
-.ai-shell.ai-shell-v2.history-open > .ai-v2-body,
-.ai-shell.ai-shell-v2.history-open > .ai-v2-foot {
+.ai-shell.ai-shell-v2.history-open > .ai-panel-background > .ai-v2-chrome,
+.ai-shell.ai-shell-v2.history-open > .ai-panel-background > .ai-v2-body,
+.ai-shell.ai-shell-v2.history-open > .ai-panel-background > .ai-v2-foot {
   pointer-events: none;
   user-select: none;
   opacity: 0.42;
   transition: opacity 0.15s ease;
 }
-.ai-shell.ai-shell-v2 > .ai-v2-chrome {
+.ai-shell.ai-shell-v2 > .ai-panel-background > .ai-v2-chrome {
   position: relative;
   z-index: 2;
   min-height: 0;
 }
-.ai-shell.ai-shell-v2 > .ai-v2-body {
+.ai-shell.ai-shell-v2 > .ai-panel-background > .ai-v2-body {
   position: relative;
   z-index: 1;
   min-height: 0;
 }
-.ai-shell.ai-shell-v2 > .ai-v2-foot {
+.ai-shell.ai-shell-v2 > .ai-panel-background > .ai-v2-foot {
   position: relative;
   z-index: 2;
   min-height: 0;
