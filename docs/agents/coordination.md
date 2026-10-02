@@ -1305,3 +1305,18 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **The push:** `main` was pushed, carrying the benchmark harness and results, the
     write-up and the records.
   - The frontend is unchanged. No database change.
+- **viewer-toolbar piece 1: `main` pushed (2026-10-02)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `7e9fb83` to `8dfeddb`. It carries:
+    - the viewer-toolbar spec, plan, foundation and chrome (`b8bb499`, `bef4614`, `368abb8`,
+      `8dfeddb`), with `lucide-react` 1.49.0;
+    - answer-speed amendment 1 and its partial benchmark (`895936a`, `1a46546`, `3568191`).
+  - **Vercel:** production deploy `dpl_FozfEShQH8tXBZzYZbiGSEJZhRuz` (`8dfeddb`) is READY,
+    aliased to `niyantran-six.vercel.app`.
+  - **Served:**
+    - main entry `index-D1BA2uLj.js`, with no `lucide` code in it;
+    - the lazy viewer chunk `PageViewer-StQgOZ9s.js` (18.8 KB gzip), with the new chrome
+      ("Back to p.", "Copy file name", "Exit full view");
+    - its CSS, with the page pill's styles.
+  - **Not deployed:** `research-chat` still runs v43. Amendment 1's server change waits for the
+    benchmark rerun, once OpenRouter credits are restored, and for its own go-ahead.
+  - No database change.
