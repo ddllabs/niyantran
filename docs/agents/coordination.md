@@ -1473,3 +1473,24 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - on a phone, the chat dock fills the screen below the header, and history dims the panel;
     - the live "thought"/"waited" word matches the saved answer;
     - the Safari Text view, the signed-in brief and follow-up, and the live-bill viewer checks.
+- **chat-panel-fixes T5 and the provider-routing option: `main` pushed (2026-10-02)**
+  (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `da32cb3` to `c2c3069` (4 commits, 11 files). It carries:
+    - chat-panel-fixes T5: on phones the header fits, the history list stays on screen, and the
+      account menu is no longer clipped below 900 px, where the bar drops its duplicate Log out;
+    - chat-turn-cost amendment 1's `providerSort` option and benchmark variants. The option is not
+      wired into the handler, and `research-chat` is unchanged on NTER (v45);
+    - the records of the chat-panel-fixes push and of T5's local run.
+
+    A scan of the outgoing diff, run just after the push, found no env files, no `docs/security`,
+    no keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_6PMZDcZ2j7Mpn1PDx8HxiJrSckts` (`c2c3069`) is READY.
+  - **Served:** `index-BbGAuz4-.css` carries `.top-actions>.logout-btn{display:none}`,
+    `.profile-pop{position:fixed;top:54px;right:10px}`, `.ai-v2-history-wrap{position:static}`
+    and `.ai-v2-history-pop{right:16px}`. The main entry is `index-B2iS__5J.js`.
+  - No server or database change.
+  - **Owner checks on production:**
+    - on a phone, the avatar shows in full, the account menu opens with Log out, and the history
+      list stays on screen;
+    - the earlier checks still stand: the phone dock and dimming, the live timing word, the Safari
+      Text view, the signed-in brief and follow-up, and the live-bill viewer.
