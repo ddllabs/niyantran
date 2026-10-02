@@ -85,6 +85,13 @@ export function useDocumentSearch({ client, documentId, extractHash, page }) {
   }, []);
 
   const shown = open && result.query ? result : null;
+  // One object per move, so the views can skip re-rendering when nothing about the search changed.
+  const targetPage = match?.page ?? null;
+  const targetIndex = match?.index ?? -1;
+  const target = useMemo(
+    () => (shown ? { query: shown.query, page: targetPage, index: targetIndex, seq } : null),
+    [shown, targetPage, targetIndex, seq],
+  );
   // Typed but not yet answered: the counter waits, and the last answer's marks stay until then.
   const folded = foldQuery(text);
   const pending = open && folded !== '' && folded !== result.query;
@@ -97,7 +104,7 @@ export function useDocumentSearch({ client, documentId, extractHash, page }) {
     seq,
     label: matchLabel({ status: pending ? 'loading' : open ? result.status : 'idle', total: list.length, current, capped: result.pages.length >= MAX_RESULT_PAGES }),
     total: list.length,
-    target: shown ? { query: result.query, page: match?.page ?? null, index: match?.index ?? -1, seq } : null,
+    target,
     recognisedOnly: Boolean(shown) && recognisedOnly({ match, query: result.query, layer: match ? layerCounts.get(match.page) : undefined }),
     inputRef,
     toggleRef,

@@ -269,6 +269,41 @@
   - tests.
 - **Files:** `TextPage.jsx` → `TextDocument.jsx`, `viewerData.js`, `DocumentChrome.jsx`, tests.
 
+**T9, recorded 2026-10-02.**
+- **Continuous** (`TextDocument.jsx`) is the default.
+  - Every page sits under its heading in one region that scrolls by itself, like the PDF view.
+  - Pages are read in batches of 10 (`loadPageTexts`, `usePageTexts`) by an IntersectionObserver
+    one screen ahead.
+  - A page far from the view is neither laid out nor painted (`content-visibility: auto`).
+  - The current page is the one under the view's centre, as in the PDF view. Paging scrolls.
+  - It centres within its own region only, never the page around it.
+- **One page** is `TextPage` as before.
+- **The choice:** "Text layout" in More, a labelled group of two radio items, shown in the Text view
+  only and saved only on choice (`niyantranTextLayout`). `Menu.jsx` gained labelled item groups.
+- **The cited passage, in both layouts:** `resolveCitedPieces` checks the hash across a page break, so
+  a passage that runs onto the next page is marked on both. The one-page view used to say it
+  "could not be located". This replaces `resolvePageSpan`.
+- **Search matches:** marked on the rendered text with the same Highlight API names
+  (`useTextMatches`, `textItems`). The current match is centred.
+- **Performance.** On the 1,000-page document the first build re-rendered every page section on
+  each page change (57–62 ms long tasks while scrolling). The view is now memoised, ignores its
+  opening page after opening, and gets one search target object per move. A scripted scroll
+  through 30 pages then gave no long tasks (development build).
+- **Checks.** Lint, both suites (1,938 tests) and the build pass. The viewer chunk is 31.53 kB gzip:
+  +2.7 kB for T9, +10.6 kB of piece 2's 14 kB. The main bundle is unchanged.
+- **On the harness:**
+  - **The passage across pages 4 and 5:** marked on both pages in each layout, the continuous view
+    centring it (469 against 470) with nothing outside it scrolled.
+  - **Paging:** Next twice put page 6's heading at the top, and the page box followed the scroll.
+  - **Search:** "accused" stepped to "3 of 4", centred (494 against 494).
+  - **One page:** chosen from More, kept as `page`, each page showing its piece.
+  - **The 1,000-page document:** opens on page 503 with the citation centred and no long task.
+  - **The full view:** opens on the reader's page, with the header pinned and the pill clear.
+- **Not changed:** the one-page layout still centres its mark by scrolling the pane around it, as
+  before T9.
+- **Left in place:** `localSpan` in `pageModel.js` has no caller outside its tests after this change.
+  It can be removed separately.
+
 ### Checkpoint B (complete)
 - The budgets in the spec are measured and recorded.
 - An independent code review, with its findings fixed.

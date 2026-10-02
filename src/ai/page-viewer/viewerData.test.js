@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_COLUMNS, DOCUMENT_COLUMNS, PAGE_COLUMNS, PAGE_SIZE_ROWS, PART_COLUMNS, createPageLoader, loadDocument, loadPageSizes, searchPages } from './viewerData.js';
+import { BLOCK_COLUMNS, DOCUMENT_COLUMNS, PAGE_COLUMNS, PAGE_SIZE_ROWS, PART_COLUMNS, TEXT_COLUMNS, createPageLoader, loadDocument, loadPageSizes, loadPageTexts, searchPages } from './viewerData.js';
 
 /**
  * A fake Supabase client. Every query is recorded as {table, columns, filters, order, signal};
@@ -18,6 +18,8 @@ function fakeClient(answer) {
         eq(column, value) { query.filters[column] = value; return builder; },
         order(column, options) { query.order = [column, options]; return builder; },
         range(from, to) { query.range = [from, to]; return builder; },
+        gte(column, value) { query.filters[`${column}>=`] = value; return builder; },
+        lte(column, value) { query.filters[`${column}<=`] = value; return builder; },
         abortSignal(signal) { query.signal = signal; return builder; },
         maybeSingle() { query.single = true; return run(); },
         then(resolve, reject) { return run().then(resolve, reject); },
@@ -279,5 +281,28 @@ describe('searchPages', () => {
     const client = rpcClient(() => ({ data: [], error: null }));
     expect(await searchPages(client, { documentId: 'd1', extractHash: null, query: 'ab' })).toEqual({ status: 'ok', pages: [] });
     expect(client.calls).toHaveLength(0);
+  });
+});
+
+describe('loadPageTexts', () => {
+  it('reads one range of pages of the extraction, in page order, with their text and offsets', async () => {
+    const rows = [{ page_number: 11, text: 'a', char_from: 0, char_to: 1 }, { page_number: 12, text: 'b', char_from: 3, char_to: 4 }];
+    const client = fakeClient(() => ({ data: rows, error: null }));
+    const signal = new AbortController().signal;
+    expect(await loadPageTexts(client, { documentId: 'd1', extractHash: 'x1', from: 11, to: 20, signal })).toEqual({ status: 'ok', rows });
+    expect(client.queries[0]).toMatchObject({
+      table: 'document_pages', columns: TEXT_COLUMNS, order: ['page_number', { ascending: true }], signal,
+      filters: { document_id: 'd1', extract_hash: 'x1', 'page_number>=': 11, 'page_number<=': 20 },
+    });
+  });
+
+  it('is an error on a failed read, aborted once aborted, and asks nothing without an extraction', async () => {
+    expect(await loadPageTexts(fakeClient(() => ({ data: null, error: { message: 'x' } })), { documentId: 'd1', extractHash: 'x1', from: 1, to: 10 })).toEqual({ status: 'error' });
+    const abort = new AbortController();
+    abort.abort();
+    expect(await loadPageTexts(fakeClient(() => { throw new Error('aborted'); }), { documentId: 'd1', extractHash: 'x1', from: 1, to: 10, signal: abort.signal })).toEqual({ status: 'aborted' });
+    const none = fakeClient(() => ({ data: [], error: null }));
+    expect(await loadPageTexts(none, { documentId: 'd1', extractHash: '', from: 1, to: 10 })).toEqual({ status: 'ok', rows: [] });
+    expect(none.queries).toHaveLength(0);
   });
 });

@@ -61,3 +61,20 @@ describe('PageControls search', () => {
     expect(renderToStaticMarkup(<PageControls variant="pill" page={4} total={22} cited={4} onPage={noop} zoom={null} />)).not.toContain('Search in document');
   });
 });
+
+describe('the Text layout menu items', async () => {
+  const { moreItems } = await import('./DocumentChrome.jsx');
+  const { MenuPopup } = await import('./Menu.jsx');
+
+  it('More offers the Text layout as a labelled group of two radio items, the current one checked', () => {
+    const items = moreItems({ textLayout: { value: 'continuous', onLayout: noop }, fileName: '', copyState: 'idle' });
+    const html = renderToStaticMarkup(<MenuPopup id="m" label="More" items={items} onChoose={noop} />);
+    expect(html).toMatch(/role="group" aria-label="Text layout"/);
+    expect(html).toMatch(/role="menuitemradio" aria-checked="true"[^>]*>.*Continuous/s);
+    expect(html).toMatch(/role="menuitemradio" aria-checked="false"[^>]*>.*One page/s);
+  });
+
+  it('has no Text layout outside the Text view', () => {
+    expect(moreItems({ textLayout: null, fileName: 'a.pdf', copyState: 'idle' }).some(i => i.group)).toBe(false);
+  });
+});

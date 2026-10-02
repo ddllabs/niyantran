@@ -169,7 +169,7 @@
 .pv-stage { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .pv.pv-fill .pv-stage { flex: 1 1 0; min-height: 0; }
 .pv-stage .pv-pdf { flex: 1 1 0; min-height: 240px; padding-bottom: var(--pv-pill-space); scroll-padding-bottom: var(--pv-pill-space); }
-.pv-in-full .pv-text { padding-bottom: var(--pv-pill-space); }
+.pv-in-full .pv-stage > .pv-text { padding-bottom: var(--pv-pill-space); }
 .pv-in-full:not(.pv-fill) { scroll-padding-bottom: var(--pv-pill-space); }
 .pv-pages-pill {
   position: sticky; bottom: 12px; z-index: 4; align-self: center; width: max-content; max-width: calc(100% - 24px);
@@ -346,3 +346,21 @@
   position: absolute; top: 4px; right: 4px; min-width: 16px; padding: 0 4px; border-radius: 999px;
   background: rgb(234, 88, 12); color: white; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center;
 }
+
+/* The continuous Text view (TextDocument.jsx): every page under its heading in one region that
+   scrolls by itself, like the PDF view's; a page not yet read holds a page's worth of room. */
+.pv-textdoc { position: relative; min-width: 0; overflow: auto; overscroll-behavior: contain; overflow-anchor: auto; }
+.pv.pv-fill .pv-textdoc { flex: 1 1 0; min-height: 240px; }
+.pv-stage .pv-textdoc { flex: 1 1 0; min-height: 240px; padding-bottom: var(--pv-pill-space); scroll-padding-bottom: var(--pv-pill-space); }
+.pv-textdoc:focus { outline: none; }
+.pv-textdoc:focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: -2px; }
+/* A page far from the view is neither laid out nor painted; it keeps its last size (a page's worth
+   before it is first drawn), so the scroll range stays steady. */
+.pv-textpage { padding: 0 2px 16px; content-visibility: auto; contain-intrinsic-size: auto 520px; }
+.pv-textpage + .pv-textpage { padding-top: 12px; border-top: 1px solid var(--line, #e4ddd4); }
+.pv-textpage-head {
+  position: sticky; top: 0; z-index: 1; margin: 0 0 6px; padding: 4px 0; background: var(--panel, white);
+  color: var(--muted, #6d675f); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+}
+.pv-textpage-wait { height: 480px; }
+.pv-menu-heading { padding: 6px 10px 2px; color: var(--muted, #6d675f); font-size: 11px; font-weight: 600; }

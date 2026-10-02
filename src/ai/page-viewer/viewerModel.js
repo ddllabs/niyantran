@@ -3,8 +3,9 @@
  * "The flow" steps 4-7 and "Open stored copy"). The components in this folder only render what
  * these return, so every rule here is testable in node without a DOM.
  */
-import { resolveSpan } from '../sourceReader.js';
-import { aspectOk, boxStyle, localSpan, pageBoxes, partForPage } from './pageModel.js';
+import { normalise, sha256Hex } from '../../lib/textNormalise.js';
+import { aspectOk, boxStyle, pageBoxes, partForPage } from './pageModel.js';
+import { citedPieces } from './passageMatch.js';
 
 /** The fixed notices of the spec's state table, plus the viewer's own failure texts. */
 export const NOTICES = Object.freeze({
@@ -114,14 +115,29 @@ export function overlayFor({ citation, page, cited, boxesAllowed, pageRow, viewp
 }
 
 /**
- * The cited span on the page's own text: `exact` with page-local offsets, or `changed`.
- * The span is never clamped, and `moved` is not used for pages (spec, "Text view").
+ * The cited passage on each page it touches, for the Text view: `exact` with page-local
+ * pieces when the pieces cover the whole passage on consecutive pages and, joined across each page
+ * break, match the citation's hash; else `changed` (a page it runs onto is not read yet, or the
+ * text differs). A page break is whitespace to the hash, as normalise folds it.
  */
-export async function resolvePageSpan(citation, pageRow) {
-  const span = localSpan(citation, pageRow);
-  if (!span) return { status: 'changed' };
-  const found = await resolveSpan(pageRow.text, { ...citation, char_from: span.from, char_to: span.to });
-  return found.status === 'exact' && found.to > found.from ? { status: 'exact', from: found.from, to: found.to } : { status: 'changed' };
+export async function resolveCitedPieces(citation, rows) {
+  const changed = { status: 'changed' };
+  const pieces = citedPieces(citation, rows);
+  if (!pieces.length) return changed;
+  const byPage = new Map(rows.map(r => [r.page_number, r]));
+  const first = byPage.get(pieces[0].page);
+  const last = byPage.get(pieces.at(-1).page);
+  if (first.char_from + pieces[0].from !== citation.char_from || last.char_from + pieces.at(-1).to !== citation.char_to) return changed;
+  if (pieces.some((piece, i) => i > 0 && piece.page !== pieces[i - 1].page + 1)) return changed;
+  let text = '';
+  let previousEnd = null;
+  for (const piece of pieces) {
+    const row = byPage.get(piece.page);
+    if (previousEnd !== null) text += '\n'.repeat(Math.max(1, row.char_from - previousEnd));
+    text += row.text.slice(piece.from, piece.to);
+    previousEnd = row.char_to;
+  }
+  return (await sha256Hex(normalise(text))) === citation.text_hash ? { status: 'exact', pieces } : changed;
 }
 
 /** "Open stored copy", naming the part only when the document is split. */

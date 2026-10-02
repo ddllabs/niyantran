@@ -30,13 +30,16 @@ import PdfDocument, { PILL_SPACE_PX, PdfOverlay } from './PdfDocument.jsx';
 import { pdfFailureNotice } from './pdfController.js';
 import { createPdfPool } from './pdfPool.js';
 import { openStoredCopy } from './storedCopy.js';
+import TextDocument from './TextDocument.jsx';
+import { readTextLayout, writeTextLayout } from './textModel.js';
 import TextPage from './TextPage.jsx';
 import { createThumbnailCache, thumbnailKey } from './thumbnailCache.js';
 import { useDocumentSearch } from './useDocumentSearch.js';
+import { usePageTexts } from './usePageTexts.js';
 import { createPageLoader, loadDocument, loadPageSizes } from './viewerData.js';
 import { VIEWER_ATTRIBUTE, attachFullView, narrowQuery, isNarrow, themeClassOf } from './viewerDom.js';
 import {
-  NOTICES, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable, readViewChoice, resolvePageSpan, storedCopyLabel,
+  NOTICES, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable, readViewChoice, resolveCitedPieces, storedCopyLabel,
   writeViewChoice,
 } from './viewerModel.js';
 import { nextZoomStep, readZoomState, textColumn, writeZoomState, zoomBy, zoomReadout } from './zoomModel.js';
@@ -62,6 +65,8 @@ function sharedThumbnailCache() {
 const ANY_ROW = Object.freeze({});
 const NO_BLOCKS = Object.freeze([]);
 const NO_PARTS = Object.freeze([]);
+/** The cited passage's pieces before they are known, or where no span is shown. */
+const NO_PIECES = Object.freeze({ status: 'none', pieces: null });
 const SPAN_STATES = new Set(['ok', 'unknown_freshness']);
 /** A4 portrait: the shape of a page whose stored size is missing, until it is drawn. */
 const A4_ASPECT = 842 / 595;
@@ -174,6 +179,7 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
     docState, onRetryDoc, doc, available, view, onView, zoomState, setZoomState, storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
     pageRow, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow, pdfDocument, search, rail,
+    textDocument, textLayout,
   } = shared;
   // The rail: a drawer over the pages in the side pane, a column in the full view; PDF view only.
   const railShown = Boolean(rail && pdfDocument && showPages && view === 'pdf');
@@ -246,8 +252,29 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
         </div>
       );
     }
+  } else if (showPages && view === 'text' && textDocument) {
+    content = (
+      <TextDocument
+        {...textDocument}
+        title={title}
+        total={total}
+        search={search.target}
+        onSearchCount={search.onLayerCount}
+        insetBottom={full ? PILL_SPACE_PX : 0}
+      />
+    );
   } else if (showPages && view === 'text') {
-    content = <TextPage status={pageStatus} pageRow={pageRow} span={textSpan} onRetry={onRetryPage} />;
+    content = (
+      <TextPage
+        status={pageStatus}
+        pageRow={pageRow}
+        span={textSpan}
+        onRetry={onRetryPage}
+        page={page}
+        search={search.target}
+        onSearchCount={search.onLayerCount}
+      />
+    );
   }
 
   return (
@@ -258,7 +285,7 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
           section={section}
           viewSwitch={plan.viewSwitch ? <ViewSwitch view={view} onView={onView} /> : null}
           fileUrl={fileUrl}
-          more={<MoreMenu zoom={plan.moreZoom ? zoom : null} storedLabel={storedLabel} onStoredCopy={onStoredCopy} fileName={fileName} />}
+          more={<MoreMenu zoom={plan.moreZoom ? zoom : null} textLayout={textLayout} storedLabel={storedLabel} onStoredCopy={onStoredCopy} fileName={fileName} />}
           onKeyDown={onKeys}
         />
       ) : null}
@@ -323,7 +350,6 @@ export default function PageViewer({
   const [page, setPage] = useState(cited);
   const [pageState, setPageState] = useState({ page: null, status: 'loading', row: null, blocks: NO_BLOCKS });
   const [pageNonce, setPageNonce] = useState(0);
-  const [span, setSpan] = useState(null);
   const [stored] = useState(() => readViewChoice(storage));
   const [choice, setChoice] = useState(null);
   const [zoomState, setZoom] = useState(() => readZoomState(storage));
@@ -342,6 +368,8 @@ export default function PageViewer({
   const [citedNonce, setCitedNonce] = useState(0);
   const [nextRow, setNextRow] = useState(null);
   const [railTab, setRailTab] = useState('pages');
+  const [textLayoutValue, setTextLayout] = useState(() => readTextLayout(storage));
+  const [textPieces, setTextPieces] = useState(NO_PIECES);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [columnOpen, setColumnOpen] = useState(true);
   const railToggleRef = useRef(null);
@@ -380,6 +408,9 @@ export default function PageViewer({
   useTipWarmth(fullSectionRef, fullOpen);
   const docSearch = useDocumentSearch({ client, documentId, extractHash: doc?.extract_hash ?? null, page });
   const search = { ...docSearch, available: showPages && Boolean(doc?.extract_hash) };
+  // The continuous Text view reads the page text in batches as it scrolls.
+  const textContinuous = showPages && view === 'text' && textLayoutValue === 'continuous';
+  const pageTexts = usePageTexts({ client, documentId, extractHash: doc?.extract_hash ?? null, total, enabled: textContinuous });
 
   // The document and its parts.
   useEffect(() => {
@@ -454,16 +485,25 @@ export default function PageViewer({
     return () => { alive = false; };
   }, [doc, showPages, view, page, pageNonce]);
 
-  // The cited span on the cited page's text.
+  // The cited passage on each page it touches, for the Text view in both layouts: checked against
+  // the citation's hash, across a page break when it runs onto the next page (read above).
+  const citedTextRow = citedState.row;
   useEffect(() => {
-    if (page !== cited || !spanAllowed || !pageRow) {
-      setSpan(null);
+    if (!spanAllowed || !citedTextRow) {
+      setTextPieces(NO_PIECES);
       return undefined;
     }
+    const runsOn = Number.isSafeInteger(citation.char_to) && citation.char_to > citedTextRow.char_to && cited < total;
+    if (runsOn && !nextRow) return undefined;
     let alive = true;
-    resolvePageSpan(citation, pageRow).then((result) => { if (alive) setSpan({ page, ...result }); });
+    resolveCitedPieces(citation, runsOn ? [citedTextRow, nextRow] : [citedTextRow]).then((result) => {
+      if (!alive) return;
+      setTextPieces(result.status === 'exact'
+        ? { status: 'exact', pieces: new Map(result.pieces.map(p => [p.page, { from: p.from, to: p.to }])) }
+        : { status: 'changed', pieces: null });
+    });
     return () => { alive = false; };
-  }, [citation, cited, page, pageRow, spanAllowed]);
+  }, [spanAllowed, citedTextRow, nextRow, citation, cited, total]);
 
   // The document state goes up once per change (the host's Ask button). The last reported value is
   // kept in a ref, so StrictMode's effect replay does not report twice; it starts at null, so a
@@ -514,7 +554,7 @@ export default function PageViewer({
   // In the Text view a move to a match turns to its page; the PDF view scrolls to the match itself.
   const matchPage = search.match?.page ?? null;
   useEffect(() => {
-    if (view !== 'pdf' && matchPage !== null) setPage(matchPage);
+    if (view !== 'pdf' && !textContinuous && matchPage !== null) setPage(matchPage);
   }, [search.seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per move
 
   // ⌘/Ctrl+F while focus is inside the viewer opens search, or returns to its field; elsewhere the
@@ -568,8 +608,11 @@ export default function PageViewer({
 
   const title = doc?.title ?? citation.title;
   const fileUrl = safeSourceUrl(doc?.file_url) || safeSourceUrl(citation.file_url);
-  const textSpan = span && span.page === page ? span : null;
+  const textPiece = textPieces.pieces?.get(page) ?? null;
+  const textSpan = textPiece ? { status: 'exact', ...textPiece } : textPieces.status === 'changed' && page === cited ? { status: 'changed' } : null;
   const pdfShown = showPages && view === 'pdf';
+  // The PDF view and the continuous Text view scroll in their own region, which fills the pane.
+  const fills = pdfShown || textContinuous;
 
   // The continuous view's inputs, once the page sizes and the cited page are known.
   const citedRow = citedState.row;
@@ -646,6 +689,25 @@ export default function PageViewer({
     },
   };
 
+  const { need: needText } = pageTexts;
+  const retryText = useCallback(at => needText([at]), [needText]);
+  const onTextLayout = (value) => {
+    setTextLayout(value);
+    writeTextLayout(value, storage);
+  };
+  const textLayout = showPages && view === 'text' ? { value: textLayoutValue, onLayout: onTextLayout } : null;
+  const textDocument = textContinuous ? {
+    texts: pageTexts.texts,
+    onNeed: pageTexts.need,
+    onRetry: retryText,
+    openAt: page,
+    cited,
+    pieces: textPieces.pieces,
+    spanChanged: textPieces.status === 'changed',
+    scrollRequest,
+    onPage: setPage,
+  } : null;
+
   const storedLabel = live && parts.length ? storedCopyLabel(parts, page) : null;
   const shared = {
     docState, onRetryDoc: () => setDocNonce(n => n + 1), doc, available, view, onView, zoomState, setZoomState,
@@ -653,26 +715,27 @@ export default function PageViewer({
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
     pageRow, onPdfFailure, pageStatus: onThisPage ? pageState.status : 'loading', textSpan, onRetryPage: () => setPageNonce(n => n + 1),
     fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow, pdfDocument, search, rail,
+    textDocument, textLayout,
   };
   const fullPlan = chromePlan({ available, view, compact: false, narrow, full: true });
 
   return (
     <>
-      <section ref={sectionRef} className={`ai-reader pv${pdfShown && !fullOpen ? ' pv-fill' : ''}`} aria-label="Cited source" onKeyDown={onFindKey}>
+      <section ref={sectionRef} className={`ai-reader pv${fills && !fullOpen ? ' pv-fill' : ''}`} aria-label="Cited source" onKeyDown={onFindKey}>
         {fullOpen
           ? <p className="ai-reader-notice" role="status">This document is open in full view.</p>
           : <ViewerBody shared={shared} compact={compact} onExpand={openFull} expandRef={expandRef} />}
       </section>
       {fullOpen ? (
         <FullView titleId={titleId} themeClass={themeClass} onClose={closeFull} initialFocusRef={closeFullRef} returnFocusRef={expandRef}>
-          <section ref={fullSectionRef} className={`ai-reader pv pv-in-full${pdfShown ? ' pv-fill' : ''}`} aria-label="Cited source, full view" onKeyDown={onFindKey}>
+          <section ref={fullSectionRef} className={`ai-reader pv pv-in-full${fills ? ' pv-fill' : ''}`} aria-label="Cited source, full view" onKeyDown={onFindKey}>
             <FullHeader
               title={title}
               titleId={titleId}
               section={shared.section}
               viewSwitch={fullPlan.viewSwitch ? <ViewSwitch view={view} onView={onView} /> : null}
               fileUrl={fileUrl}
-              more={<MoreMenu storedLabel={storedLabel} onStoredCopy={onStoredCopy} fileName={shared.fileName} />}
+              more={<MoreMenu textLayout={textLayout} storedLabel={storedLabel} onStoredCopy={onStoredCopy} fileName={shared.fileName} />}
               onExit={closeFull}
               exitRef={closeFullRef}
               onKeyDown={onKeys}

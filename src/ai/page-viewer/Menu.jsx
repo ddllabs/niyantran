@@ -11,8 +11,10 @@ import { openFocus } from './menuModel.js';
 
 /**
  * @typedef {{id: string, separator: true}
+ *   | {id: string, group: string, items: MenuItem[]}
  *   | {id: string, label: string, onSelect: () => void, icon?: import('react').ComponentType<object>,
  *      checked?: boolean, keepOpen?: boolean, describedBy?: string}} MenuItem
+ *   A `group` is a labelled set of items, such as a choice of radio items, under its heading.
  *   `checked` makes the item a `menuitemradio`; `keepOpen` keeps the menu open after it is chosen;
  *   `describedBy` names the text it acts on (assistive technology skips a menu's non-item text).
  */
@@ -24,28 +26,37 @@ import { openFocus } from './menuModel.js';
  *   ref?: import('react').Ref<HTMLDivElement>}} props
  */
 export function MenuPopup({ id, label, items, side = 'below', align = 'end', footer = null, onChoose, ref }) {
+  const render = (item) => {
+    if (item.separator) return <div key={item.id} role="separator" className="pv-menu-sep" />;
+    if (item.group) {
+      return (
+        <div key={item.id} role="group" aria-label={item.group} className="pv-menu-group">
+          <div className="pv-menu-heading" aria-hidden="true">{item.group}</div>
+          {item.items.map(render)}
+        </div>
+      );
+    }
+    const radio = typeof item.checked === 'boolean';
+    const Mark = radio ? (item.checked ? Check : null) : item.icon;
+    return (
+      <button
+        key={item.id}
+        type="button"
+        tabIndex={-1}
+        className="pv-menu-item"
+        role={radio ? 'menuitemradio' : 'menuitem'}
+        aria-describedby={item.describedBy}
+        aria-checked={radio ? item.checked : undefined}
+        onClick={() => onChoose(item)}
+      >
+        <span className="pv-menu-mark">{Mark ? <Mark {...ICON_PROPS} /> : null}</span>
+        <span>{item.label}</span>
+      </button>
+    );
+  };
   return (
     <div id={id} ref={ref} className="pv-menu" role="menu" aria-label={label} data-side={side} data-align={align}>
-      {items.map((item) => {
-        if (item.separator) return <div key={item.id} role="separator" className="pv-menu-sep" />;
-        const radio = typeof item.checked === 'boolean';
-        const Mark = radio ? (item.checked ? Check : null) : item.icon;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            tabIndex={-1}
-            className="pv-menu-item"
-            role={radio ? 'menuitemradio' : 'menuitem'}
-            aria-describedby={item.describedBy}
-            aria-checked={radio ? item.checked : undefined}
-            onClick={() => onChoose(item)}
-          >
-            <span className="pv-menu-mark">{Mark ? <Mark {...ICON_PROPS} /> : null}</span>
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
+      {items.map(render)}
       {footer ? <div className="pv-menu-foot">{footer}</div> : null}
     </div>
   );

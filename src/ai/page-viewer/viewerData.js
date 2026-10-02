@@ -13,6 +13,7 @@ export const PART_COLUMNS = 'part_index, page_offset, page_count, byte_size';
 export const PAGE_COLUMNS = 'page_number, text, char_from, char_to, width_px, height_px';
 export const BLOCK_COLUMNS = 'page_number, type, x0, y0, x1, y1';
 export const SIZE_COLUMNS = 'page_number, width_px, height_px';
+export const TEXT_COLUMNS = 'page_number, text, char_from, char_to';
 /** PostgREST's row cap: a longer document is read in ranges of this many pages. */
 export const PAGE_SIZE_ROWS = 1000;
 
@@ -189,6 +190,27 @@ export async function searchPages(client, { documentId, extractHash, query, sign
       .filter(r => r && Number.isSafeInteger(r.page_number) && r.page_number > 0 && Number.isSafeInteger(r.hits) && r.hits > 0)
       .map(r => ({ page: r.page_number, hits: r.hits, snippets: Array.isArray(r.snippets) ? r.snippets.filter(nonblank) : [] }));
     return { status: 'ok', pages };
+  } catch {
+    return signal?.aborted ? { status: 'aborted' } : { status: 'error' };
+  }
+}
+
+/**
+ * One range of pages' stored text (`from` to `to`, inclusive), for the continuous Text view, which
+ * reads in batches as they near the view. Pages without a row are simply absent.
+ * @returns {Promise<{status: 'ok', rows: {page_number: number, text: string, char_from: number, char_to: number}[]}
+ *   | {status: 'aborted'} | {status: 'error'}>}
+ */
+export async function loadPageTexts(client, { documentId, extractHash, from, to, signal }) {
+  if (!nonblank(extractHash)) return { status: 'ok', rows: [] };
+  try {
+    const { data, error } = await withSignal(client.from('document_pages').select(TEXT_COLUMNS)
+      .eq('document_id', documentId).eq('extract_hash', extractHash)
+      .gte('page_number', from).lte('page_number', to)
+      .order('page_number', { ascending: true }), signal);
+    if (signal?.aborted) return { status: 'aborted' };
+    if (error || !Array.isArray(data)) return { status: 'error' };
+    return { status: 'ok', rows: data };
   } catch {
     return signal?.aborted ? { status: 'aborted' } : { status: 'error' };
   }

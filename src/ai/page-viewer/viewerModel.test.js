@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalise, sha256Hex } from '../../lib/textNormalise.js';
 import {
   NOTICES, VIEW_KEY, chooseView, overlayFor, pageTotal, pagingKey, pdfAvailable,
-  readViewChoice, resolvePageSpan, storedCopyLabel, writeViewChoice,
+  readViewChoice, resolveCitedPieces, storedCopyLabel, writeViewChoice,
 } from './viewerModel.js';
 
 const DOC = { id: 'd1', title: 'Bill', storage_path: 'files/a.pdf', indexed_at: '2026-10-01', extract_hash: 'x1', page_count: 12 };
@@ -134,22 +134,36 @@ describe('overlayFor', () => {
   });
 });
 
-describe('resolvePageSpan', () => {
-  const pageText = 'Clause 4. The Agency shall test athletes.';
-  const pageRow = { page_number: 3, text: pageText, char_from: 1000, char_to: 1000 + pageText.length };
+describe('resolveCitedPieces', () => {
+  const page3 = 'Clause 4. The Agency shall test';
+  const page4 = 'athletes in competition. Clause 5.';
+  const rows = [
+    { page_number: 3, text: page3, char_from: 1000, char_to: 1000 + page3.length },
+    { page_number: 4, text: page4, char_from: 1000 + page3.length + 2, char_to: 1000 + page3.length + 2 + page4.length },
+  ];
 
-  it('marks the exact passage in page-local offsets', async () => {
-    const passage = 'The Agency shall test';
-    const from = 1000 + pageText.indexOf(passage);
-    const citation = { char_from: from, char_to: from + passage.length, text_hash: await sha256Hex(normalise(passage)) };
-    expect(await resolvePageSpan(citation, pageRow)).toEqual({ status: 'exact', from: from - 1000, to: from - 1000 + passage.length });
+  it('marks a passage across a page break on each page, when the joined pieces match the hash', async () => {
+    const from = 1000 + page3.indexOf('The Agency');
+    const to = rows[1].char_from + 'athletes in competition.'.length;
+    const citation = { char_from: from, char_to: to, text_hash: await sha256Hex(normalise('The Agency shall test athletes in competition.')) };
+    expect(await resolveCitedPieces(citation, rows)).toEqual({
+      status: 'exact',
+      pieces: [{ page: 3, from: page3.indexOf('The Agency'), to: page3.length }, { page: 4, from: 0, to: 'athletes in competition.'.length }],
+    });
   });
 
-  it('is changed when the hash does not match or the span falls outside the page', async () => {
-    const hash = await sha256Hex(normalise('The Agency'));
-    expect(await resolvePageSpan({ char_from: 1010, char_to: 1020, text_hash: 'nope' }, pageRow)).toEqual({ status: 'changed' });
-    expect(await resolvePageSpan({ char_from: 990, char_to: 1020, text_hash: hash }, pageRow)).toEqual({ status: 'changed' });
-    expect(await resolvePageSpan({ char_from: 1010, char_to: 1020, text_hash: hash }, null)).toEqual({ status: 'changed' });
+  it('marks a passage on one page in page-local offsets', async () => {
+    const from = 1000 + page3.indexOf('The Agency');
+    const citation = { char_from: from, char_to: from + 10, text_hash: await sha256Hex(normalise('The Agency')) };
+    expect(await resolveCitedPieces(citation, rows.slice(0, 1))).toEqual({ status: 'exact', pieces: [{ page: 3, from: from - 1000, to: from - 1000 + 10 }] });
+  });
+
+  it('is changed on a wrong hash, or while a page the passage runs onto is not read', async () => {
+    const from = 1000 + page3.indexOf('The Agency');
+    const to = rows[1].char_from + 8;
+    const hash = await sha256Hex(normalise('The Agency shall test athletes'));
+    expect(await resolveCitedPieces({ char_from: from, char_to: to, text_hash: 'nope' }, rows)).toEqual({ status: 'changed' });
+    expect(await resolveCitedPieces({ char_from: from, char_to: to, text_hash: hash }, rows.slice(0, 1))).toEqual({ status: 'changed' });
   });
 });
 

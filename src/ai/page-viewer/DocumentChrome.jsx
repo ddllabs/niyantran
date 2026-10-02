@@ -23,13 +23,26 @@ export function ViewSwitch({ view, onView }) {
   );
 }
 
-/** The More menu's items, in order: zoom (compact layout only), the stored copy, the file name. */
-export function moreItems({ zoom, storedLabel, onStoredCopy, fileName, fileId, copyState, onCopy }) {
+/**
+ * The More menu's items, in order: zoom (compact layout only), the Text layout (Text view only),
+ * the stored copy, the file name.
+ */
+export function moreItems({ zoom, textLayout = null, storedLabel, onStoredCopy, fileName, fileId, copyState, onCopy }) {
   const items = [];
   if (zoom) {
     if (zoom.canZoomIn) items.push({ id: 'zoom-in', label: 'Zoom in', icon: Plus, onSelect: () => zoom.onZoomStep(1) });
     if (zoom.canZoomOut) items.push({ id: 'zoom-out', label: 'Zoom out', icon: Minus, onSelect: () => zoom.onZoomStep(-1) });
     for (const fit of fitItems(zoom)) items.push({ id: `fit-${fit.value}`, label: fit.label, checked: fit.checked, onSelect: () => zoom.onFit(fit.value) });
+  }
+  if (textLayout) {
+    if (items.length) items.push({ id: 'sep-layout', separator: true });
+    items.push({
+      id: 'text-layout',
+      group: 'Text layout',
+      items: [['continuous', 'Continuous'], ['page', 'One page']].map(([value, label]) => ({
+        id: `layout-${value}`, label, checked: textLayout.value === value, onSelect: () => textLayout.onLayout(value),
+      })),
+    });
   }
   const files = [];
   if (storedLabel) files.push({ id: 'stored', label: storedLabel, icon: Database, onSelect: onStoredCopy });
@@ -44,7 +57,7 @@ export function moreItems({ zoom, storedLabel, onStoredCopy, fileName, fileId, c
  * ⋯, with the stored copy, Copy file name and the file name itself; in the compact layout, zoom
  * too. Nothing is drawn when the menu would be empty.
  */
-export function MoreMenu({ zoom = null, storedLabel = null, onStoredCopy, fileName = '', side = 'below' }) {
+export function MoreMenu({ zoom = null, textLayout = null, storedLabel = null, onStoredCopy, fileName = '', side = 'below' }) {
   const [copyState, setCopyState] = useState('idle');
   // Each copy and each close takes a new number, so a copy that settles after the menu closed
   // cannot show its result on the next open.
@@ -58,7 +71,7 @@ export function MoreMenu({ zoom = null, storedLabel = null, onStoredCopy, fileNa
     copyRun.current += 1;
     setCopyState('idle');
   };
-  const items = moreItems({ zoom, storedLabel, onStoredCopy, fileName, fileId, copyState, onCopy });
+  const items = moreItems({ zoom, textLayout, storedLabel, onStoredCopy, fileName, fileId, copyState, onCopy });
   if (!items.length) return null;
   const footer = fileName ? (
     <>
