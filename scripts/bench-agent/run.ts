@@ -217,6 +217,8 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
   // Quality: the envelope parses; every cited handle was assigned this turn; the gold document is cited.
   let parsed = false, validCitations = false, citesGold = false, answerChars = 0, cited = 0, docs = 0, pages = 0, answer = '';
   let cov: ReturnType<typeof scoreCoverage> | null = null;
+  // The passages the answer cites, kept so a revised coverage set can be rescored without a rerun.
+  let citedChunkIds: string[] = [];
   try {
     const env = JSON.parse(text);
     parsed = typeof env.answer === 'string' && env.answer.trim().length > 0;
@@ -229,7 +231,8 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
     citesGold = hits.some((x) => q.gold.includes(x.doc));
     docs = new Set(hits.map((x) => x.doc)).size;
     pages = new Set(hits.map((x) => x.page)).size;
-    if (q.cov) cov = scoreCoverage(q.cov, [...used].map((h) => handles.lookup(h) ?? ''));
+    citedChunkIds = [...used].map((h) => handles.lookup(h)).filter((k): k is string => !!k);
+    if (q.cov) cov = scoreCoverage(q.cov, citedChunkIds);
   } catch { /* unparsed */ }
   if (q.cov && !cov) cov = scoreCoverage(q.cov, []);
   const sum = (k: keyof typeof usage[number]) => usage.reduce((n, u) => n + u[k], 0);
@@ -238,7 +241,7 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
     first_answer_ms: Math.round(firstAnswer), total_ms: Math.round(total), call_ms: callMs,
     call_prompt_tokens: usage.map((u) => u.prompt),
     prompt_tokens: sum('prompt'), completion_tokens: sum('completion'), cached_tokens: sum('cached'), cost_usd: Number(sum('cost').toFixed(5)),
-    parsed, valid_citations: validCitations, cites_gold: citesGold, cited, docs, pages, answer_chars: answerChars, nudged,
+    parsed, valid_citations: validCitations, cites_gold: citesGold, cited, docs, pages, answer_chars: answerChars, nudged, cited_chunk_ids: citedChunkIds,
     ...(cov ? { cov_points: cov.points, cov_covered: cov.covered, cov_full: cov.full, cov_missing: cov.missing } : {}),
   };
 }

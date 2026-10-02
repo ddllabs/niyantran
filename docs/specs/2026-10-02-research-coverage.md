@@ -176,3 +176,15 @@ sets, come to about $11, not the $3–4 stated above. The measurement is therefo
 1. **Coverage:** all four variants, two passes, about $3.60, within the approved estimate.
 2. **Regression:** the narrow and brief sets, one pass, only for a variant that passes stage 1,
    plus `v46`. About $1 per variant.
+
+## Amendment 3 (2026-10-02): the reviewed set
+
+**The independent review is applied** (`research/2026-10-02-coverage-set-review.md`):
+- the set has 75 points, 4 to 6 per question (this replaces "2 to 5");
+- a point may list several anchor phrases;
+- only operative clauses count. A bill's text stops at its first closing heading: the Statement of
+  Objects and Reasons, the Memorandum regarding Delegated Legislation, the Financial Memorandum or
+  the Annexure.
+
+**Results record the passages each answer cites.** A later change to the set is rescored, not
+rerun.

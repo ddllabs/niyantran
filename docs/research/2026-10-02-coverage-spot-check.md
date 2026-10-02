@@ -1,9 +1,9 @@
 # Coverage test set: owner spot-check
 
-> **Status: Living.** Five of the 15 questions in `eval/agent/coverage.v1.jsonl`, for the
-> owner's spot-check (research-coverage T2). Each point shows the passages that hold it, as
-> stored in the corpus, with its anchor phrase in bold. An answer covers a point when it cites one
-> of those passages.
+> **Status: Historical (dated 2026-10-02), superseded.** The owner delegated the spot-check. An
+> independent review of all 15 questions replaced it and revised the set:
+> `2026-10-02-coverage-set-review.md`. The five questions below are as first written, before the
+> review.
 
 **What to check, per point:**
 

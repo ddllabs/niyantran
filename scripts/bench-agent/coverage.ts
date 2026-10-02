@@ -3,19 +3,20 @@
  * score. LOCAL ONLY, read only.
  *
  * Each question in eval/agent/coverage.v1.jsonl lists the points a full answer needs. Each point
- * names the passages that hold it: every passage of the bill (or a same-named copy) containing the
- * point's anchor phrase, pinned by chunk id and chunk_hash. A point is covered when the answer
- * cites one of its passages.
+ * names the passages that hold it: every operative passage of the bill (or a same-named copy)
+ * containing one of the point's anchor phrases, pinned by chunk id and chunk_hash. Text from the
+ * Statement of Objects and Reasons onward does not count. A point is covered when the answer cites
+ * one of its passages. coverage_build.py builds the set from the local replica.
  *
  *   deno run -A --config supabase/functions/deno.json scripts/bench-agent/coverage.ts
  *
- * checks every pinned passage against the local replica (it exists, its hash matches, it contains
- * the anchor), checks that no question has all its points in one passage, and prints the five
+ * checks every pinned passage against the local replica (it exists, its hash matches, it holds one
+ * of the point's anchors), checks that no question has all its points in one passage, and prints the five
  * questions drawn for the owner's spot-check.
  */
 
 export interface CoveragePassage { document_id: string; chunk_id: string; chunk_index: number; chunk_hash: string }
-export interface CoveragePoint { id: string; fact: string; anchor: string; passages: CoveragePassage[] }
+export interface CoveragePoint { id: string; fact: string; anchors: string[]; passages: CoveragePassage[] }
 export interface CoverageQuestion {
   id: string;
   question: string;
@@ -41,7 +42,7 @@ export function scoreCoverage(q: CoverageQuestion, citedChunkIds: Iterable<strin
   return { points: q.points.length, covered: covered.length, missing: q.points.map((p) => p.id).filter((id) => !covered.includes(id)), full: covered.length === q.points.length };
 }
 
-const normalise = (s: string) => s.replaceAll('’', "'").replaceAll('“', '"').replaceAll('”', '"').replace(/\s+/g, ' ').trim().toLowerCase();
+const normalise = (s: string) => s.replaceAll('’', "'").replaceAll('‘', "'").replaceAll('“', '"').replaceAll('”', '"').replace(/\s+/g, ' ').trim().toLowerCase();
 
 /** Problems with the set: a missing or changed passage, an anchor not in its passage, a question
  * whose points all sit in one passage. Empty when the set is sound. */
@@ -55,7 +56,7 @@ export function checkSet(set: CoverageQuestion[], replica: Map<string, { chunk_h
         const row = replica.get(x.chunk_id);
         if (!row) problems.push(`${q.id} ${p.id}: passage ${x.chunk_id} is missing`);
         else if (row.chunk_hash !== x.chunk_hash) problems.push(`${q.id} ${p.id}: passage ${x.chunk_id} changed`);
-        else if (!normalise(row.content).includes(normalise(p.anchor))) problems.push(`${q.id} ${p.id}: anchor not in passage ${x.chunk_id}`);
+        else if (!p.anchors.some((a) => normalise(row.content).includes(normalise(a)))) problems.push(`${q.id} ${p.id}: no anchor in passage ${x.chunk_id}`);
       }
     }
   }
