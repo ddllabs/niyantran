@@ -11,7 +11,7 @@
 const IMAGE = /!\[[^\]]*\]\([^)]*\)/g;
 const LINK = /\[([^\]]*)\]\([^)]*\)/g;
 const TAG = /<[^>]+>/g;
-const INVISIBLE = /[​-‍﻿]/g;
+const INVISIBLE = /[\u200b-\u200d\ufeff]/g;
 const HYPHEN_AT_LINE_END = /(\p{L})-[ \t]*\r?\n\s*(\p{L})/gu;
 /** A word: letters, digits and combining marks (Devanagari vowel signs and viramas). */
 const WORD = /[\p{L}\p{N}\p{M}]+/gu;
