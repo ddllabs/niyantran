@@ -1,7 +1,8 @@
 # Spec: questions that sound simple but need digging (`research-coverage`)
 
-> **Status: Living.** Draft for the owner's approval. The owner asked "How do we close that open
-> risk?" on 2026-10-02 and chose "Go ahead with the spec".
+> **Status: Living.** Owner-approved on 2026-10-02: "Approved, thresholds are fine, I'll
+> spot-check". The owner had asked "How do we close that open risk?" and then "Go ahead with the
+> spec".
 
 ## Current state
 
@@ -136,7 +137,7 @@ If neither fix passes, the risk is recorded as measured, with its size, and noth
 - **No change to the passage count, the search budget, or provider routing.**
 - **No change to NTER, or deploy, without a go-ahead.**
 
-## Open questions for the owner
+## Owner decisions (2026-10-02)
 
-1. **The 10-point coverage gain and the 1 s narrow-time limit:** are those the right thresholds?
-2. **Who spot-checks the five questions:** the owner, or someone the owner names?
+1. **The thresholds stand:** a 10-point coverage gain, and 1 s on narrow total time.
+2. **The owner spot-checks the five questions.**

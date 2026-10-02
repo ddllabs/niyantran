@@ -599,9 +599,10 @@ Follow-ups and findings:
   on cleaning at ingestion or at display.
 - [ ] **F53.** Questions that sound simple but need digging: the agent decides when it has
   enough, and nothing yet measures whether an answer covers everything the record holds on its
-  question. Spec `specs/2026-10-02-research-coverage.md` is a draft awaiting the owner's
-  approval: a coverage test set and score, a prompt coverage check, and a signal-triggered
-  nudge, each shipped only if it passes.
+  question. Spec `specs/2026-10-02-research-coverage.md` is approved (2026-10-02; the owner
+  spot-checks the test set); plan `plans/2026-10-02-research-coverage.md`. It covers a coverage
+  test set and score, a prompt coverage check, and a signal-triggered nudge, each shipped only if
+  it passes.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
