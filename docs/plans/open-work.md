@@ -461,6 +461,12 @@ Follow-ups and findings:
     shell, because its rows sit inside `.ai-panel-background`.
   - **Live timing word:** it reads "waited" until the saved row replaces it, even when the saved
     row then says "thought". The live stream carries no reasoning count.
+- [ ] **F48.** The citation viewer's header is about 190 px of text buttons in the side pane. It
+  becomes a compact, icon-based chrome: two rows in the side pane, and a header plus a floating
+  page pill in the full view.
+  - **Spec:** `specs/2026-10-02-viewer-toolbar.md` (owner-approved).
+  - **Plan:** `plans/2026-10-02-viewer-toolbar.md`.
+  - **Piece 2,** a page thumbnail rail and search in the document, follows with its own spec.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
