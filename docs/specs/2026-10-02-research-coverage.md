@@ -160,3 +160,19 @@ same document begins it.
 **Measured worst case:** each gold passage of the 195-question retrieval eval, cited alone with
 nothing else retrieved. S1 fired on 26 of 195 (13%), and on 3 of the 15 narrow questions the
 benchmark uses. Real turns retrieve more, so the rate should be lower. Pass mark 3 bounds it.
+
+## Amendment 2 (2026-10-02): the spot-check is delegated, and the measurement is staged
+
+**The spot-check.** The owner asked for the tests to be run "on my behalf". The spot-check is
+done by an independent review agent with fresh context, not the set's author. It checks all 15
+questions, not five, against the bills' full text: is each fact accurate, held by the listed
+passages, and part of a complete answer, and is each question fair.
+
+Scores are computed from the passages each answer cites, so a point the review drops is removed
+from the score without a rerun. A reworded question would need its runs repeated.
+
+**The cost estimate was wrong.** Four variants, each run twice over the coverage, narrow and brief
+sets, come to about $11, not the $3–4 stated above. The measurement is therefore staged:
+1. **Coverage:** all four variants, two passes, about $3.60, within the approved estimate.
+2. **Regression:** the narrow and brief sets, one pass, only for a variant that passes stage 1,
+   plus `v46`. About $1 per variant.
