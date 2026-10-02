@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_COLUMNS, DOCUMENT_COLUMNS, PAGE_COLUMNS, PAGE_SIZE_ROWS, PART_COLUMNS, createPageLoader, loadDocument, loadPageSizes } from './viewerData.js';
+import { BLOCK_COLUMNS, DOCUMENT_COLUMNS, PAGE_COLUMNS, PAGE_SIZE_ROWS, PART_COLUMNS, createPageLoader, loadDocument, loadPageSizes, searchPages } from './viewerData.js';
 
 /**
  * A fake Supabase client. Every query is recorded as {table, columns, filters, order, signal};
@@ -231,5 +231,53 @@ describe('loadPageSizes', () => {
     const client = fakeClient(() => ({ data: [], error: null }));
     expect(await loadPageSizes(client, 'd1', '')).toEqual({ status: 'ok', rows: [] });
     expect(client.queries).toHaveLength(0);
+  });
+});
+
+describe('searchPages', () => {
+  function rpcClient(answer) {
+    const calls = [];
+    return {
+      calls,
+      rpc(fn, args) {
+        const call = { fn, args, signal: null };
+        calls.push(call);
+        const builder = {
+          abortSignal(signal) { call.signal = signal; return builder; },
+          then(resolve, reject) { return Promise.resolve(answer(call)).then(resolve, reject); },
+        };
+        return builder;
+      },
+    };
+  }
+
+  it('calls search_document_pages for the extraction, with the signal, and keeps well-formed pages', async () => {
+    const signal = new AbortController().signal;
+    const client = rpcClient(() => ({
+      data: [
+        { page_number: 4, hits: 2, snippets: ['the accused was', 'an accused person'] },
+        { page_number: 'x', hits: 1, snippets: [] },
+        { page_number: 9, hits: 0, snippets: [] },
+        { page_number: 7, hits: 1, snippets: null },
+      ],
+      error: null,
+    }));
+    const out = await searchPages(client, { documentId: 'd1', extractHash: 'x1', query: 'accused', signal });
+    expect(client.calls[0]).toMatchObject({ fn: 'search_document_pages', args: { p_document_id: 'd1', p_extract_hash: 'x1', p_query: 'accused' }, signal });
+    expect(out).toEqual({ status: 'ok', pages: [{ page: 4, hits: 2, snippets: ['the accused was', 'an accused person'] }, { page: 7, hits: 1, snippets: [] }] });
+  });
+
+  it('answers error on a failed or thrown call, and aborted once the signal is aborted', async () => {
+    expect(await searchPages(rpcClient(() => ({ data: null, error: { message: 'boom' } })), { documentId: 'd1', extractHash: 'x1', query: 'ab' })).toEqual({ status: 'error' });
+    expect(await searchPages(rpcClient(() => { throw new Error('offline'); }), { documentId: 'd1', extractHash: 'x1', query: 'ab' })).toEqual({ status: 'error' });
+    const abort = new AbortController();
+    abort.abort();
+    expect(await searchPages(rpcClient(() => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); }), { documentId: 'd1', extractHash: 'x1', query: 'ab', signal: abort.signal })).toEqual({ status: 'aborted' });
+  });
+
+  it('asks nothing without an extraction', async () => {
+    const client = rpcClient(() => ({ data: [], error: null }));
+    expect(await searchPages(client, { documentId: 'd1', extractHash: null, query: 'ab' })).toEqual({ status: 'ok', pages: [] });
+    expect(client.calls).toHaveLength(0);
   });
 });

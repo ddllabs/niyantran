@@ -9,6 +9,7 @@ import { copyText, fitItems } from './chromeModel.js';
 import { IconButton, IconLink } from './IconButton.jsx';
 import { Check, Copy, Database, Ellipsis, ExternalLink, Minimize2, Minus, Plus } from './icons.js';
 import Menu from './Menu.jsx';
+import { SearchToggle } from './PageControls.jsx';
 
 const COPY_LABELS = Object.freeze({ idle: 'Copy file name', ok: 'File name copied', fail: "Couldn't copy the file name" });
 
@@ -97,14 +98,20 @@ export function DocumentRow({ section, viewSwitch, fileUrl, more, onKeyDown }) {
   );
 }
 
-/** The full view's header: the title and section, the view switch, the file, More, and Exit. */
-export function FullHeader({ title, titleId, section, viewSwitch, fileUrl, more, onExit, exitRef = null, onKeyDown }) {
+/**
+ * The full view's header: the title and section, search, the view switch, the file, More, and
+ * Exit. `onSearch` null hides search (a document without pages).
+ */
+export function FullHeader({
+  title, titleId, section, viewSwitch, fileUrl, more, onExit, exitRef = null, onKeyDown, onSearch = null, searchOpen = false, searchRef = null,
+}) {
   return (
     <header className="pv-head" onKeyDown={onKeyDown}>
       <p className="pv-head-title" title={section.label ? `${title} › ${section.label}` : title}>
         <strong id={titleId}>{title}</strong>
         {section.label ? <span className="pv-head-section"> › {section.label}</span> : null}
       </p>
+      {onSearch ? <SearchToggle open={searchOpen} onSearch={onSearch} searchRef={searchRef} /> : null}
       {viewSwitch}
       {fileUrl ? <IconLink icon={ExternalLink} label="Open original file" href={fileUrl} /> : null}
       {more}

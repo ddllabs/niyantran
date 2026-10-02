@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { citedChip, fitItems, parsePageInput } from './chromeModel.js';
 import { IconButton } from './IconButton.jsx';
-import { ChevronDown, ChevronLeft, ChevronRight, ICON_PROPS, Maximize2, Minus, Plus, Quote, Undo2 } from './icons.js';
+import { ChevronDown, ChevronLeft, ChevronRight, ICON_PROPS, Maximize2, Minus, Plus, Quote, Search, Undo2 } from './icons.js';
 import Menu from './Menu.jsx';
 
 /**
@@ -130,16 +130,37 @@ export function ZoomControls({ zoom, tipSide }) {
   );
 }
 
+/** Opens search (⌘F or Ctrl+F inside the viewer does the same); says whether it is open. */
+export function SearchToggle({ open, onSearch, tipSide = 'below', searchRef = null }) {
+  return (
+    <IconButton
+      icon={Search}
+      label="Search in document"
+      shortcut="⌘F"
+      keys="Control+F Meta+F"
+      tipSide={tipSide}
+      tipAlign="start"
+      ref={searchRef}
+      aria-expanded={open}
+      onClick={onSearch}
+    />
+  );
+}
+
 /**
  * The page controls, as the side pane's toolbar or the full view's pill. `zoom` is null in the
  * Text view and when the toolbar is compact (zoom then lives in the More menu). `onExpand` null
- * hides Full view (phones, and the pill inside the full view).
+ * hides Full view (phones, and the pill inside the full view). `onSearch` null hides the search
+ * control (the full view's lives in its header).
  *
  * @param {{variant: 'toolbar' | 'pill', page: number, total: number, cited: number,
  *   onPage: (page: number) => void, zoom: object | null, onExpand?: (() => void) | null,
- *   expandRef?: import('react').Ref<HTMLButtonElement>, onKeyDown?: (event: KeyboardEvent) => void}} props
+ *   expandRef?: import('react').Ref<HTMLButtonElement>, onKeyDown?: (event: KeyboardEvent) => void,
+ *   onSearch?: (() => void) | null, searchOpen?: boolean, searchRef?: import('react').Ref<HTMLButtonElement>}} props
  */
-export default function PageControls({ variant, page, total, cited, onPage, zoom, onExpand = null, expandRef = null, onKeyDown }) {
+export default function PageControls({
+  variant, page, total, cited, onPage, zoom, onExpand = null, expandRef = null, onKeyDown, onSearch = null, searchOpen = false, searchRef = null,
+}) {
   const tipSide = variant === 'pill' ? 'above' : 'below';
   // "Back to p. N" unmounts once the reader is back on the cited page, by its click or the Home
   // key; a removed button fires no blur, so focus would fall to the page body, where the paging
@@ -154,6 +175,7 @@ export default function PageControls({ variant, page, total, cited, onPage, zoom
   }, [onCited]);
   return (
     <div className={`pv-pages pv-pages-${variant}`} role="group" aria-label="Pages" onKeyDown={onKeyDown}>
+      {onSearch ? <SearchToggle open={searchOpen} onSearch={onSearch} tipSide={tipSide} searchRef={searchRef} /> : null}
       <IconButton icon={ChevronLeft} label="Previous page" shortcut="←" keys="ArrowLeft [" tipSide={tipSide} tipAlign="start" unavailable={page <= 1} onClick={() => onPage(page - 1)} />
       <PageField page={page} total={total} onPage={onPage} fieldRef={fieldRef} />
       <IconButton icon={ChevronRight} label="Next page" shortcut="→" keys="ArrowRight ]" tipSide={tipSide} unavailable={page >= total} onClick={() => onPage(page + 1)} />

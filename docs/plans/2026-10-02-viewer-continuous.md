@@ -166,6 +166,49 @@
   - tests, red first.
 - **Files:** `searchModel.js`, `SearchBar.jsx`, `viewerData.js`, chrome components, tests.
 
+**T7, recorded 2026-10-02.**
+- **The client.** `searchPages` calls `search_document_pages` with the view's signal. `searchModel.js`
+  covers:
+  - the query, folded as the database folds it;
+  - the matches on a drawn text layer, with line ends as spaces and no overlaps;
+  - stepping and the counter;
+  - snippet edges;
+  - the runner: 250 ms, cancelling a superseded search.
+
+  `useDocumentSearch.js` holds the state.
+- **The view.**
+  - A drawn page marks its matches (`pv-match`) and the current one (`pv-match-current`) after each
+    draw, and reports its own count.
+  - The page holding the current match centres it, above the pill in the full view. A page not yet
+    drawn is scrolled to first and centres the match once drawn.
+  - The page area is now focusable (a named region), so ⌘/Ctrl+F reaches the viewer after a click
+    on a page.
+- **Checks.** Lint, both suites (1,908 tests) and the build pass. The viewer chunk is 25.95 kB gzip:
+  +3.0 kB for T7, +5.1 kB for piece 2 so far. The main bundle is unchanged.
+- **On the harness**, with a fake `search_document_pages` that follows the migration:
+  - ⌘F after a click on a page opens the row and focuses the field.
+  - "accused" reads "1 of 4". Enter, Shift+Enter and the wrap all work, each match centred exactly
+    (494 against 494).
+  - "central government" starts at the first match on or after the reader's page ("3 of 23", on
+    page 4) and steps across pages.
+  - **The full view:** Ctrl+F opens the row under the header, and the match is centred above the
+    pill (413 against 413). The first Escape closes search, with focus on its control; the second
+    closes the full view.
+  - **The 1,000-page document:** "84 of 166" opens on page 503, and a jump 23 pages away draws that
+    page and centres the match, with 4 canvases.
+  - **The Text view** follows the matches page by page.
+  - Escape clears both match highlights and keeps the citation's mark.
+  - **The console:** nothing new after a reload.
+- **Left to later tasks:**
+  - The Results list (`SearchResults.jsx`, tested) goes into T8's drawer, on its Results tab.
+  - The matches marked in the Text view come with T9.
+- **Not shown on the harness:** the "recognised text" note. The harness's page text is pdf.js's own,
+  so the counts always agree. The rule is unit-tested (`recognisedOnly`).
+- **For the owner (Checkpoint B):** the database returns at most 200 pages, from the document's start.
+  On a long document with a common word, matches near the reader's page past those 200 are not
+  listed, and the search then starts at the first listed match. Lifting this needs a start page in
+  `search_document_pages`, a change to the migration that is not yet applied.
+
 ### T8. Thumbnails
 - **Acceptance:**
   - the drawer (side pane) and column (full view);

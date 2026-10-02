@@ -168,3 +168,28 @@ export async function loadPageSizes(client, documentId, extractHash, signal, { t
     return { status: 'error' };
   }
 }
+
+/**
+ * The pages of one extraction holding `query` (search_document_pages, security invoker): each as
+ * `{page, hits, snippets}`, in page order, at most 200. A query the database would not search
+ * (under 2 characters once folded) simply finds nothing there.
+ * @returns {Promise<{status: 'ok', pages: {page: number, hits: number, snippets: string[]}[]}
+ *   | {status: 'aborted'} | {status: 'error'}>}
+ */
+export async function searchPages(client, { documentId, extractHash, query, signal }) {
+  if (!nonblank(extractHash)) return { status: 'ok', pages: [] };
+  try {
+    const { data, error } = await withSignal(
+      client.rpc('search_document_pages', { p_document_id: documentId, p_extract_hash: extractHash, p_query: query }),
+      signal,
+    );
+    if (signal?.aborted) return { status: 'aborted' };
+    if (error || !Array.isArray(data)) return { status: 'error' };
+    const pages = data
+      .filter(r => r && Number.isSafeInteger(r.page_number) && r.page_number > 0 && Number.isSafeInteger(r.hits) && r.hits > 0)
+      .map(r => ({ page: r.page_number, hits: r.hits, snippets: Array.isArray(r.snippets) ? r.snippets.filter(nonblank) : [] }));
+    return { status: 'ok', pages };
+  } catch {
+    return signal?.aborted ? { status: 'aborted' } : { status: 'error' };
+  }
+}

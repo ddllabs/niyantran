@@ -225,6 +225,10 @@
    glyphs are transparent over the canvas, so the highlight paints the words' boxes in amber. */
 ::highlight(pv-cite) { background-color: rgba(250, 204, 21, .42); }
 
+/* Search matches on the text layer (searchModel.js): every match yellow, the current one orange. */
+::highlight(pv-match) { background-color: rgba(253, 224, 71, .55); }
+::highlight(pv-match-current) { background-color: rgba(249, 115, 22, .5); }
+
 /* The fallback, where no exact mark could be made (no text layer, no match, no Highlight API): the
    citation's layout blocks, dashed and labelled so they never pass for the cited words. */
 .pv-boxes { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
@@ -264,3 +268,33 @@
   .pv-menu { transform: none; transition: opacity 150ms var(--pv-ease-out); }
   @starting-style { .pv-menu { transform: none; } }
 }
+
+/* The search row: under the page toolbar in the side pane, under the header in the full view. */
+.pv-searchrow { display: grid; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line, #e4ddd4); }
+.pv-in-full .pv-searchrow { padding: 6px 4px; }
+.pv-search { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; }
+.pv-search-field + .pv-search-count { margin-left: 4px; }
+.pv-search-field {
+  flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 8px; border: 1px solid var(--line, #e4ddd4); border-radius: 6px;
+  background: var(--panel, white); color: var(--text, #3d3a36); font: inherit; font-size: 12px;
+}
+.pv-search-field::-webkit-search-cancel-button { display: none; }
+.pv-search-count { flex: none; min-width: 7ch; color: var(--muted, #6d675f); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pv-search-note { margin: 0; color: var(--muted, #6d675f); font-size: 12px; }
+
+/* The Results list (SearchResults.jsx): each page, its count, and its snippets with the matches marked. */
+.pv-results { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.pv-result {
+  display: grid; gap: 2px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text, #3d3a36); font: inherit; text-align: left; cursor: pointer;
+}
+.pv-result:hover, .pv-result[aria-current="true"] { background: var(--accent-soft, #e8eef8); }
+.pv-result-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.pv-result-count { color: var(--muted, #6d675f); font-weight: 400; font-variant-numeric: tabular-nums; }
+.pv-result-snippet { color: var(--muted, #6d675f); overflow-wrap: anywhere; }
+.pv-result-snippet mark { padding: 0 1px; border-radius: 2px; background: rgba(253, 224, 71, .55); color: var(--text, #3d3a36); }
+.pv-results-empty { margin: 0; padding: 6px 8px; color: var(--muted, #6d675f); font-size: 12px; }
+
+/* The page area takes focus (keyboard scrolling, ⌘/Ctrl+F after a click); its ring only from the keyboard. */
+.pv-pdf:focus { outline: none; }
+.pv-pdf:focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: -2px; }

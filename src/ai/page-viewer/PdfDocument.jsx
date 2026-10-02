@@ -10,10 +10,10 @@
  * cancels its render and frees its canvas. Failures go to `onFailure` as the raw error, for
  * classification; nothing here renders or logs error text, which can carry a signed URL.
  */
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { usePaneSize } from './chromeHooks.js';
-import { createHighlighter, markPage } from './highlights.js';
+import { createHighlighter, markMatches, markPage } from './highlights.js';
 import { anchorAt, currentPage, pageWidth, renderWindow, scrollForAnchor, scrollTopFor, slotLayout } from './layoutModel.js';
 import { createWheelHandler } from './viewerDom.js';
 import { NOTICES } from './viewerModel.js';
@@ -49,6 +49,7 @@ export function PdfOverlay({ overlay }) {
  */
 const PdfSlot = memo(function PdfSlot({
   pool, page, total, title, top, left, width, height, priority, dpr, overlay, markText, highlighter, onMark, onRendered, onFailure,
+  searchQuery, searchIndex, revealSeq, matchAll, matchFocus, onSearchCount, onReveal,
 }) {
   const canvasRef = useRef(null);
   const textRef = useRef(null);
@@ -98,6 +99,23 @@ const PdfSlot = memo(function PdfSlot({
     return () => highlighter.clear(page);
   }, [draws, markText, highlighter, page, onMark]);
 
+  // The search's matches, after each draw and whenever the query or the current match changes; the
+  // page holding the current match is scrolled to it once per move.
+  const revealedRef = useRef(0);
+  useEffect(() => {
+    if (!draws || !searchQuery || !textRef.current) return undefined;
+    const marked = markMatches({ container: textRef.current, query: searchQuery, page, current: searchIndex, all: matchAll, focus: matchFocus });
+    onSearchCount?.(page, searchQuery, marked ? marked.count : null);
+    if (revealSeq && revealSeq !== revealedRef.current) {
+      revealedRef.current = revealSeq;
+      onReveal?.(revealSeq, page, marked?.current ?? null);
+    }
+    return () => {
+      matchAll.clear(page);
+      matchFocus.clear(page);
+    };
+  }, [draws, searchQuery, searchIndex, revealSeq, matchAll, matchFocus, page, onSearchCount, onReveal]);
+
   useEffect(() => { handleRef.current?.setPriority(priority); }, [priority]);
 
   return (
@@ -122,6 +140,10 @@ const PdfSlot = memo(function PdfSlot({
  *   overlays: Map<number, import('react').ReactNode>,  drawn over those pages (the fallback boxes)
  *   marks: Map<number, string>,  each page's piece of the cited passage, to mark exactly
  *   onMark: (page: number, text: string, result: 'exact' | 'missing' | 'unsupported') => void,
+ *   search: {query: string, page: number | null, index: number, seq: number} | null,  the folded
+ *     query to mark, and the current match (its page, its index there, and the move's number)
+ *   onSearchCount: (page: number, query: string, count: number | null) => void,  a drawn page's own
+ *     matches (null without the Highlight API)
  *   scrollRequest: {page: number, seq: number} | null,
  *   insetBottom?: number,   the full view's pill (PILL_SPACE_PX), which viewer.css reserves as padding
  *   onPage: (page: number) => void, onZoom: (zoom: number) => void,
@@ -131,11 +153,19 @@ const PdfSlot = memo(function PdfSlot({
  */
 export default function PdfDocument({
   pool, total, title, aspects, naturalPts, zoomState, cited, citedColumn, citedPt, citedBox, overlays, marks, onMark, scrollRequest,
-  openAt = cited, insetBottom = 0, onPage, onZoom, onWheelZoom, onMeasured, onFailure,
+  openAt = cited, insetBottom = 0, onPage, onZoom, onWheelZoom, onMeasured, onFailure, search = null, onSearchCount,
 }) {
-  // One registry for the cited passage's ranges, painted by viewer.css's ::highlight(pv-cite).
+  // The registries for the cited passage's ranges and the search's, painted by viewer.css's
+  // ::highlight(pv-cite), ::highlight(pv-match) and ::highlight(pv-match-current).
   const highlighter = useMemo(() => createHighlighter('pv-cite'), []);
-  useEffect(() => () => highlighter.dispose(), [highlighter]);
+  const matchAll = useMemo(() => createHighlighter('pv-match'), []);
+  const matchFocus = useMemo(() => createHighlighter('pv-match-current'), []);
+  useEffect(() => () => {
+    highlighter.dispose();
+    matchAll.dispose();
+    matchFocus.dispose();
+  }, [highlighter, matchAll, matchFocus]);
+  const revealedRef = useRef(0);
   const areaRef = useRef(null);
   const docRef = useRef(null);
   const pane = usePaneSize(areaRef);
@@ -234,6 +264,31 @@ export default function PdfDocument({
     syncView(area);
   }, [scrollRequest]); // eslint-disable-line react-hooks/exhaustive-deps -- once per request
 
+  // A move to a search match. The drawn page holding it scrolls it to the centre of the view (above
+  // the full view's pill), or shows its top when its text layer lacks the match; a page not yet
+  // drawn is scrolled to first, and reveals the match once drawn. Pages' effects run before this
+  // one, so a page that already revealed the move is not scrolled over.
+  const onReveal = useCallback((seq, page, range) => {
+    const area = areaRef.current;
+    if (!area) return;
+    revealedRef.current = seq;
+    if (range) {
+      const rect = range.getBoundingClientRect();
+      const box = area.getBoundingClientRect();
+      area.scrollTop += rect.top + rect.height / 2 - (box.top + (area.clientHeight - insetBottom) / 2);
+      if (rect.left < box.left || rect.right > box.left + area.clientWidth) area.scrollLeft += rect.left + rect.width / 2 - (box.left + area.clientWidth / 2);
+    } else {
+      area.scrollTop = scrollTopFor(layoutRef.current.layout, { page, box: null, viewport: area.clientHeight, insetBottom });
+    }
+    syncView(area);
+  }, [insetBottom]);
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!area || !search?.page || !search.seq || revealedRef.current === search.seq || !layout.count) return;
+    area.scrollTop = scrollTopFor(layout, { page: search.page, box: null, viewport: area.clientHeight, insetBottom });
+    syncView(area);
+  }, [search?.seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per move
+
   // Until it has opened on the citation, the view is where it is about to be scrolled to, so the
   // first pages drawn are the cited ones, not the document's first.
   const viewport = view.height || pane.height;
@@ -248,7 +303,9 @@ export default function PdfDocument({
   const pages = pane.width > 0 ? renderWindow(layout, top, viewport) : [];
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
   return (
-    <div className="pv-pdf" ref={areaRef}>
+    // Focusable, so the reader can scroll it from the keyboard and ⌘/Ctrl+F reaches the viewer
+    // after a click on a page.
+    <div className="pv-pdf" ref={areaRef} tabIndex={0} role="region" aria-label={`Pages of ${title}`}>
       <div className="pv-doc" ref={docRef} style={{ width: contentWidth, height: layout.total }}>
         {pages.map((page, rank) => {
           const i = page - 1;
@@ -271,6 +328,13 @@ export default function PdfDocument({
               onMark={onMark}
               onRendered={onMeasured}
               onFailure={onFailure}
+              searchQuery={search?.query ?? null}
+              searchIndex={search?.page === page ? search.index : -1}
+              revealSeq={search?.page === page ? search.seq : 0}
+              matchAll={matchAll}
+              matchFocus={matchFocus}
+              onSearchCount={onSearchCount}
+              onReveal={onReveal}
             />
           );
         })}

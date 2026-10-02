@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHighlighter, layerItems, markPage, needsFallback } from './highlights.js';
+import { createHighlighter, layerItems, markMatches, markPage, needsFallback } from './highlights.js';
 
 /** A fake pdf.js text layer: one span per text item, a <br> after an item that ends a line. */
 function textLayer(items) {
@@ -119,5 +119,43 @@ describe('needsFallback', () => {
 
   it('ignores a result made for an earlier passage', () => {
     expect(needsFallback({ marks, results: new Map([[4, { text: 'an earlier passage', result: 'missing' }]]), page: 4 })).toBe(false);
+  });
+});
+
+describe('markMatches', () => {
+  const layer = () => textLayer([
+    { str: 'The accused was found in', eol: true },
+    { str: 'possession; the accused', eol: true },
+    { str: 'person was not.', eol: false },
+  ]);
+
+  it('marks every match on the page, the current one under its own name, and answers the count', () => {
+    const doc = fakeDocument();
+    const env = fakeEnv();
+    const all = createHighlighter('pv-match', env);
+    const focus = createHighlighter('pv-match-current', env);
+    const marked = markMatches({ container: layer(), query: 'accused', page: 4, current: 1, doc, all, focus });
+    expect(marked.count).toBe(2);
+    expect(marked.current).toBe(env.registry.get('pv-match-current').ranges[0]);
+    expect(env.registry.get('pv-match').ranges.map(r => r.start)).toEqual([['The accused was found in', 4]]);
+    expect(env.registry.get('pv-match-current').ranges.map(r => [r.start, r.end])).toEqual([[['possession; the accused', 16], ['possession; the accused', 23]]]);
+  });
+
+  it('marks across a line end, and leaves the current name empty when the current match is not on this layer', () => {
+    const doc = fakeDocument();
+    const env = fakeEnv();
+    const all = createHighlighter('pv-match', env);
+    const focus = createHighlighter('pv-match-current', env);
+    expect(markMatches({ container: layer(), query: 'accused person', page: 4, current: 3, doc, all, focus })).toEqual({ count: 1, current: null });
+    expect(env.registry.get('pv-match').ranges.map(r => [r.start, r.end])).toEqual([[['possession; the accused', 16], ['person was not.', 6]]]);
+    expect(env.registry.has('pv-match-current')).toBe(false);
+  });
+
+  it('answers null (unknown, not none) and marks nothing without the Highlight API', () => {
+    const doc = fakeDocument();
+    const all = createHighlighter('pv-match', {});
+    const focus = createHighlighter('pv-match-current', {});
+    expect(markMatches({ container: layer(), query: 'accused', page: 4, current: 0, doc, all, focus })).toBeNull();
+    expect(doc.ranges).toHaveLength(0);
   });
 });

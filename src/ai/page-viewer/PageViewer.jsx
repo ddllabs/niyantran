@@ -20,6 +20,7 @@ import { useCompact, useTipWarmth } from './chromeHooks.js';
 import { chromePlan, sectionParts } from './chromeModel.js';
 import { DocumentRow, FullHeader, MoreMenu, ViewSwitch } from './DocumentChrome.jsx';
 import PageControls from './PageControls.jsx';
+import SearchBar from './SearchBar.jsx';
 import { naturalWidths, pageAspects } from './layoutModel.js';
 import { needsFallback } from './highlights.js';
 import { citedPieces } from './passageMatch.js';
@@ -29,6 +30,7 @@ import { pdfFailureNotice } from './pdfController.js';
 import { createPdfPool } from './pdfPool.js';
 import { openStoredCopy } from './storedCopy.js';
 import TextPage from './TextPage.jsx';
+import { useDocumentSearch } from './useDocumentSearch.js';
 import { createPageLoader, loadDocument, loadPageSizes } from './viewerData.js';
 import { VIEWER_ATTRIBUTE, attachFullView, narrowQuery, isNarrow, themeClassOf } from './viewerDom.js';
 import {
@@ -162,7 +164,7 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
   const {
     docState, onRetryDoc, doc, available, view, onView, zoomState, setZoomState, storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
-    pageRow, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow, pdfDocument,
+    pageRow, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow, pdfDocument, search,
   } = shared;
   const [liveZoom, setLiveZoom] = useState(null);
   const effective = zoomState.zoom ?? liveZoom;
@@ -198,8 +200,13 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
       onExpand={plan.expand ? onExpand : null}
       expandRef={expandRef}
       onKeyDown={onKeys}
+      onSearch={full || !search.available ? null : search.openSearch}
+      searchOpen={search.open}
+      searchRef={search.toggleRef}
     />
   ) : null;
+  // The side pane's third row; the full view draws its own under its header.
+  const searchRow = !full && search.available && search.open ? <DocumentSearch search={search} view={view} onView={onView} /> : null;
   let content = null;
   if (showPages && view === 'pdf') {
     content = pdfDocument ? (
@@ -212,6 +219,8 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
         onZoom={setLiveZoom}
         onWheelZoom={onWheelZoom}
         onFailure={onPdfFailure}
+        search={search.target}
+        onSearchCount={search.onLayerCount}
       />
     ) : <p className="ai-reader-notice">Loading…</p>;
   } else if (showPages && view === 'text') {
@@ -236,10 +245,27 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
       ) : (
         <>
           {pages}
+          {searchRow}
           {content}
         </>
       )}
     </>
+  );
+}
+
+/** The search row, wired to the viewer's search state; its note switches to the Text view. */
+function DocumentSearch({ search, view, onView }) {
+  return (
+    <SearchBar
+      query={search.text}
+      label={search.label}
+      total={search.total}
+      onQuery={search.onQuery}
+      onStep={search.step}
+      onClose={search.close}
+      onTextView={search.recognisedOnly && view === 'pdf' ? () => onView('text') : null}
+      inputRef={search.inputRef}
+    />
   );
 }
 
@@ -320,6 +346,8 @@ export default function PageViewer({
   const compact = useCompact(sectionRef);
   useTipWarmth(sectionRef, true);
   useTipWarmth(fullSectionRef, fullOpen);
+  const docSearch = useDocumentSearch({ client, documentId, extractHash: doc?.extract_hash ?? null, page });
+  const search = { ...docSearch, available: showPages && Boolean(doc?.extract_hash) };
 
   // The document and its parts.
   useEffect(() => {
@@ -451,6 +479,20 @@ export default function PageViewer({
     });
   }, [cited]);
 
+  // In the Text view a move to a match turns to its page; the PDF view scrolls to the match itself.
+  const matchPage = search.match?.page ?? null;
+  useEffect(() => {
+    if (view !== 'pdf' && matchPage !== null) setPage(matchPage);
+  }, [search.seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per move
+
+  // ⌘/Ctrl+F while focus is inside the viewer opens search, or returns to its field; elsewhere the
+  // browser's own find is left alone.
+  const onFindKey = (event) => {
+    if (!search.available || event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'f') return;
+    event.preventDefault();
+    search.openSearch();
+  };
+
   const onKeys = (event) => {
     const target = event.target;
     const selection = typeof window !== 'undefined' ? window.getSelection?.() : null;
@@ -547,20 +589,20 @@ export default function PageViewer({
     storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
     pageRow, onPdfFailure, pageStatus: onThisPage ? pageState.status : 'loading', textSpan, onRetryPage: () => setPageNonce(n => n + 1),
-    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow, pdfDocument,
+    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow, pdfDocument, search,
   };
   const fullPlan = chromePlan({ available, view, compact: false, narrow, full: true });
 
   return (
     <>
-      <section ref={sectionRef} className={`ai-reader pv${pdfShown && !fullOpen ? ' pv-fill' : ''}`} aria-label="Cited source">
+      <section ref={sectionRef} className={`ai-reader pv${pdfShown && !fullOpen ? ' pv-fill' : ''}`} aria-label="Cited source" onKeyDown={onFindKey}>
         {fullOpen
           ? <p className="ai-reader-notice" role="status">This document is open in full view.</p>
           : <ViewerBody shared={shared} compact={compact} onExpand={openFull} expandRef={expandRef} />}
       </section>
       {fullOpen ? (
         <FullView titleId={titleId} themeClass={themeClass} onClose={closeFull} initialFocusRef={closeFullRef} returnFocusRef={expandRef}>
-          <section ref={fullSectionRef} className={`ai-reader pv pv-in-full${pdfShown ? ' pv-fill' : ''}`} aria-label="Cited source, full view">
+          <section ref={fullSectionRef} className={`ai-reader pv pv-in-full${pdfShown ? ' pv-fill' : ''}`} aria-label="Cited source, full view" onKeyDown={onFindKey}>
             <FullHeader
               title={title}
               titleId={titleId}
@@ -571,7 +613,11 @@ export default function PageViewer({
               onExit={closeFull}
               exitRef={closeFullRef}
               onKeyDown={onKeys}
+              onSearch={search.available ? search.openSearch : null}
+              searchOpen={search.open}
+              searchRef={search.toggleRef}
             />
+            {search.available && search.open ? <DocumentSearch search={search} view={view} onView={onView} /> : null}
             <ViewerBody shared={shared} full />
           </section>
         </FullView>

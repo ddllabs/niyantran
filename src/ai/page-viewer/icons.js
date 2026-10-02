@@ -5,8 +5,8 @@
  * own set (src/shell/Icons.jsx, 1.7), so the viewer sits quietly beside the shell.
  */
 export {
-  Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Database, Ellipsis, ExternalLink, Maximize2, Minimize2,
-  Minus, Plus, Quote, Undo2, X,
+  Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, Database, Ellipsis, ExternalLink, Maximize2,
+  Minimize2, Minus, Plus, Quote, Search, Undo2, X,
 } from 'lucide-react';
 
 /** The props every chrome icon is drawn with. Decorative: the control carries the label. */

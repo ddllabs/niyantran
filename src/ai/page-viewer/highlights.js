@@ -5,6 +5,7 @@
  * lines and spans. Small functions over injected elements, tested with fakes.
  */
 import { layerWords, locatePassage, passageWords } from './passageMatch.js';
+import { layerMatches } from './searchModel.js';
 
 /**
  * The text layer's items in render order: each text span's text, whether a line ends after it (pdf.js
@@ -72,4 +73,27 @@ export function needsFallback({ marks, results, page }) {
   if (!text) return true;
   const last = results.get(page);
   return last?.text === text && last.result !== 'exact';
+}
+
+/**
+ * Marks every match of the folded `query` on the page's drawn text layer under `all`, and the
+ * page's `current` match (its index on the page; -1 for none) under `focus`, painted by viewer.css
+ * as yellow and orange. Answers `{count, current}`: how many matches the layer holds, so the
+ * viewer can tell a page whose matches are only in its recognised text, and the current match's
+ * range, to scroll to; null without the Highlight API (not known).
+ */
+export function markMatches({ container, query, page, current, doc = globalThis.document, all, focus }) {
+  if (!all.supported || !focus.supported) return null;
+  const items = layerItems(container);
+  const ranges = layerMatches(items, query).map(({ startItem, startOffset, endItem, endOffset }) => {
+    const range = doc.createRange();
+    range.setStart(items[startItem].node, startOffset);
+    range.setEnd(items[endItem].node, endOffset);
+    return range;
+  });
+  const focused = current >= 0 && current < ranges.length ? ranges[current] : null;
+  all.set(page, ranges.filter(range => range !== focused));
+  if (focused) focus.set(page, [focused]);
+  else focus.clear(page);
+  return { count: ranges.length, current: focused };
 }
