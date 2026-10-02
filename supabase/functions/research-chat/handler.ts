@@ -842,8 +842,11 @@ async function runTurnBody(
     scopedDocumentIds,
     focus: request.focus,
     conversational,
-    // answer-speed spec §1: search with the question before the first model call (not small talk).
-    ...(deps.presearch && !conversational ? { presearch: request.message } : {}),
+    // answer-speed spec §1: search with the question before the first model call. Not small talk,
+    // and not a follow-up (amendment 1): "What about penalties?" names nothing to search for, so the
+    // model writes its own query with the conversation in view. Judged on the stored history, not
+    // the trimmed window.
+    ...(deps.presearch && !conversational && !history.length ? { presearch: request.message } : {}),
     // scopeSent: the reader named a document, by key or by id. Whether it
     // resolved is what `scopedDocumentIds` says; this says whether leaving the
     // attachments is "unresolved" or "unkeyed".

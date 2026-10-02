@@ -2208,6 +2208,24 @@ Deno.test('answer speed: the question is searched before the first model call', 
   assertEquals(rec.messages[0].content, 'It reached committee.');
 });
 
+// Amendment 1: a follow-up ("What about penalties?") may name nothing, so the model writes its
+// own query with the conversation in view. Judged on the stored history, not the trimmed window.
+Deno.test('answer speed: a follow-up in a conversation with earlier messages is not pre-searched', async () => {
+  const queries: string[] = [];
+  const provider = scripted([[text(envelope('Nothing more.')), finish()]]);
+  const { deps } = fakeDeps({ stream: provider.stream }, {
+    presearch: true,
+    searchDocuments: (args: { query: string }) => { queries.push(args.query); return Promise.resolve([chunk('c-1')]); },
+  });
+  deps.db.recentMessages = () => Promise.resolve([
+    { role: 'user', content: 'Brief me on the Repealing and Amending Bill' },
+    { role: 'assistant', content: 'It repeals obsolete Acts.' },
+  ]);
+  await frames(await handleResearchChat(post({ ...BODY, message: 'What about penalties?' }), deps));
+  assertEquals(queries, [], 'the model was not handed a pre-search');
+  assertEquals((provider.seen[0].messages as { role: string }[]).some((m) => m.role === 'tool'), false);
+});
+
 Deno.test('answer speed: small talk is not pre-searched', async () => {
   const provider = scripted([[text(envelope('Hello — what would you like to check?')), finish()]]);
   let searched = 0;

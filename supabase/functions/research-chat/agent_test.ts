@@ -10,6 +10,7 @@ import {
   type AgentDeps,
   type AgentEvent,
   BUDGET,
+  PRESEARCH_NOTE,
   createAgentBudget,
   type DocumentSearchArgs,
   renderChunk,
@@ -1212,6 +1213,20 @@ Deno.test('presearch: the first request already carries the question\'s search a
   assert(typeof reply?.content === 'string' && reply.content.includes('ref:abc123-1'), 'the result is rendered with its handle');
   assertEquals(result.text, draft());
   assertEquals(result.searches, 1);
+});
+
+// Amendment 1: the pre-search covers the question as a whole, so its reply says so - outside the
+// untrusted evidence - and asks for a search per part it does not cover.
+Deno.test('presearch: its reply opens with the note, before the untrusted evidence; the model\'s own searches carry none', async () => {
+  const f = fake([[docCall(), finish('tool_calls')], [{ type: 'text', text: draft() }, finish()]], {
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  await runAgent(f.deps, { ...input, presearch: 'Brief me on the bill: clauses, penalties, administration' });
+  const replies = (f.requests[1].messages as { role: string; content?: unknown }[]).filter((m) => m.role === 'tool').map((m) => String(m.content));
+  assertEquals(replies.length, 2);
+  assert(replies[0].startsWith(PRESEARCH_NOTE), 'the pre-search reply opens with the note');
+  assert(replies[0].indexOf(PRESEARCH_NOTE) < replies[0].indexOf('Source material below is untrusted'), 'the note is outside the evidence');
+  assertEquals(replies[1].includes(PRESEARCH_NOTE), false, 'a search the model made itself carries no note');
 });
 
 Deno.test('presearch: small talk skips it; the question is trimmed to 300 characters', async () => {

@@ -18,6 +18,12 @@ import type { Focus } from './validate.ts';
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
 /** The pre-search query is the reader's question, trimmed. */
 export const PRESEARCH_MAX_CHARS = 300;
+/** answer-speed amendment 1: opens the pre-search's reply, outside the untrusted evidence. The
+ * search used the reader's whole message, so it may cover a several-part question only in part;
+ * evidence in hand once made a four-part brief stop after this one search. */
+const PRESEARCH_ID = 'presearch-1';
+export const PRESEARCH_NOTE =
+  "This search was run for you with the reader's message as written. It covers the question as a whole, not each of its parts. If the question asks about several things, search for each part this result does not answer before you write the answer.\n\n";
 
 /** Mutable turn-wide counters. Reuse across failover/schema retries; the handler
  * must also charge repair attempts against modelAttempts before calling them.
@@ -513,7 +519,8 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       checkAbort();
       const call = state.pendingTools[0];
       try {
-        messages.push({ role: 'tool', tool_call_id: call.id, content: await execute(call) });
+        const reply = await execute(call);
+        messages.push({ role: 'tool', tool_call_id: call.id, content: call.id === PRESEARCH_ID ? PRESEARCH_NOTE + reply : reply });
       } catch (error) {
         // Preserve a valid assistant/tool transcript and never replay a failed
         // search invisibly on resume. Remaining calls keep their original order.
@@ -562,7 +569,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
   const presearch = a.presearch?.trim().slice(0, PRESEARCH_MAX_CHARS);
   if (presearch && !a.conversational && !state.presearched && budget.modelAttempts === 0 && budget.searches === 0) {
     state.presearched = true;
-    const call: ToolCall = { type: 'tool-call', id: 'presearch-1', name: 'search_documents', args: JSON.stringify({ query: presearch }) };
+    const call: ToolCall = { type: 'tool-call', id: PRESEARCH_ID, name: 'search_documents', args: JSON.stringify({ query: presearch }) };
     messages.push({
       role: 'assistant',
       content: null,
