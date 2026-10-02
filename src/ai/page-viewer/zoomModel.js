@@ -10,8 +10,13 @@
  * - block and citation boxes are fractions of the page (0..1, top-left origin).
  *
  * The zoom state is `{fit, zoom}`: `fit` is 'text', 'width' or 'page'; `zoom` is null while the
- * fit decides the scale, or a manual zoom. A manual zoom keeps its fit's crop, so stepping in
- * from Fit text still hides the blank margins.
+ * fit decides the scale, or a manual zoom. A manual zoom keeps its fit's crop.
+ *
+ * The page is always whole (docs/specs/2026-10-02-viewer-whole-page.md): Fit width is the default,
+ * and Fit text only scales to the text column. It never crops the page's height, and its column
+ * counts every block, headers and footers too, so only blank side margins can fall outside the
+ * pane, where they scroll. Cropping to the body once hid a bill's "As introduced in Lok Sabha"
+ * and the top two thirds of its first page.
  */
 
 export const CSS_PX_PER_PT = 96 / 72;
@@ -19,14 +24,15 @@ export const ZOOM_STEPS = Object.freeze([0.5, 0.67, 0.8, 1, 1.25, 1.5, 2, 2.5, 3
 export const MIN_ZOOM = ZOOM_STEPS[0];
 export const MAX_ZOOM = ZOOM_STEPS[ZOOM_STEPS.length - 1];
 export const FITS = Object.freeze(['text', 'width', 'page']);
-export const DEFAULT_ZOOM = Object.freeze({ fit: 'text', zoom: null });
-/** localStorage key for the chosen fit or zoom. */
-export const ZOOM_KEY = 'niyantranCitationZoom';
+export const DEFAULT_ZOOM = Object.freeze({ fit: 'width', zoom: null });
+/**
+ * localStorage key for the chosen fit or zoom. V2: every viewer used to save Fit text on mount,
+ * chosen or not, so the old key is left behind and everyone starts once from Fit width.
+ */
+export const ZOOM_KEY = 'niyantranCitationZoomV2';
 
-/** Padding around the body text, as a fraction of the page on each side. */
+/** Padding beside the text column, as a fraction of the page on each side. */
 const PADDING = 0.02;
-/** Blocks that are not body text: running heads and feet. Margin notes (`aside_text`) stay. */
-const NOT_BODY = new Set(['header', 'footer']);
 const FULL = Object.freeze({ x0: 0, y0: 0, x1: 1, y1: 1 });
 const STEP_EPSILON = 0.005;
 
@@ -36,21 +42,19 @@ const clamp = (value, lo, hi) => Math.min(Math.max(value, lo), hi);
 const isPositive = value => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
 /**
- * The page's text area: the union of its body blocks (and of `extra` boxes, the citation's own,
- * so a highlight is never cropped away), padded by 2% and clamped to the page. Null when no
- * block has a usable box.
+ * The page's text column: from the leftmost to the rightmost edge of all its blocks, headers,
+ * footers and margin notes included, and of `extra` boxes (the citation's own, so a highlight is
+ * never outside it), padded by 2% and clamped to the page, over the page's full height. Null when
+ * no block has a usable box.
  */
-export function contentBox(blocks, extra = []) {
-  const boxes = [
-    ...(Array.isArray(blocks) ? blocks : []).filter(b => b && !NOT_BODY.has(b.type)),
-    ...(Array.isArray(extra) ? extra : []),
-  ].filter(isBox);
+export function textColumn(blocks, extra = []) {
+  const boxes = [...(Array.isArray(blocks) ? blocks : []), ...(Array.isArray(extra) ? extra : [])].filter(isBox);
   if (!boxes.length) return null;
   return {
     x0: clamp(Math.min(...boxes.map(b => b.x0)) - PADDING, 0, 1),
-    y0: clamp(Math.min(...boxes.map(b => b.y0)) - PADDING, 0, 1),
+    y0: 0,
     x1: clamp(Math.max(...boxes.map(b => b.x1)) + PADDING, 0, 1),
-    y1: clamp(Math.max(...boxes.map(b => b.y1)) + PADDING, 0, 1),
+    y1: 1,
   };
 }
 
@@ -75,7 +79,7 @@ export function layoutPage({ state, page, pane, blocks = [], boxes = [] }) {
   if (!page || !isPositive(page.width) || !isPositive(page.height) || !isPositive(pane?.width)) return null;
   const fit = FITS.includes(state?.fit) ? state.fit : DEFAULT_ZOOM.fit;
   const manual = typeof state?.zoom === 'number' && Number.isFinite(state.zoom) ? clamp(state.zoom, MIN_ZOOM, MAX_ZOOM) : null;
-  const text = fit === 'text' ? contentBox(blocks, boxes) : null;
+  const text = fit === 'text' ? textColumn(blocks, boxes) : null;
   const crop = text ?? FULL;
   const maxScale = MAX_ZOOM * CSS_PX_PER_PT;
 
@@ -161,7 +165,7 @@ const defaultStorage = () => {
   }
 };
 
-/** The remembered fit or zoom, or Fit text. Never throws: storage can be blocked or absent. */
+/** The remembered fit or zoom, or Fit width. Never throws: storage can be blocked or absent. */
 export function readZoomState(storage = defaultStorage()) {
   try {
     const parsed = JSON.parse(storage?.getItem(ZOOM_KEY) ?? 'null');

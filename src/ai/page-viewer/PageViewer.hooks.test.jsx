@@ -218,3 +218,26 @@ describe('PageViewer onDocumentState', () => {
     await expect(settle({ ...base, citation: CITATION })).resolves.toBeTruthy();
   });
 });
+
+// viewer-whole-page spec: the zoom is saved only when the reader chooses it. Every viewer used to
+// save its starting zoom on mount, which made the old default look like everyone's choice.
+describe('PageViewer saves the zoom only when the reader chooses it', () => {
+  const memory = () => {
+    const data = new Map();
+    return { getItem: k => data.get(k) ?? null, setItem: vi.fn((k, v) => data.set(k, String(v))), data };
+  };
+
+  it('writes nothing on mount', async () => {
+    const storage = memory();
+    await settle({ ...base, storage, citation: CITATION });
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('writes the fit the reader picks', async () => {
+    const storage = memory();
+    const out = await settle({ ...base, storage, citation: CITATION });
+    sharedOf(out).setZoomState({ fit: 'page', zoom: null });
+    render({ ...base, storage, citation: CITATION });
+    expect(JSON.parse(storage.data.get('niyantranCitationZoomV2'))).toEqual({ fit: 'page', zoom: null });
+  });
+});

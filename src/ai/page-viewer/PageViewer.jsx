@@ -265,7 +265,14 @@ export default function PageViewer({
   const [span, setSpan] = useState(null);
   const [stored] = useState(() => readViewChoice(storage));
   const [choice, setChoice] = useState(null);
-  const [zoomState, setZoomState] = useState(() => readZoomState(storage));
+  const [zoomState, setZoom] = useState(() => readZoomState(storage));
+  // Saved only once the reader chooses a fit or zoom (viewer-whole-page spec): saving on mount made
+  // the starting zoom look like everyone's choice.
+  const zoomChosen = useRef(false);
+  const setZoomState = useCallback((update) => {
+    zoomChosen.current = true;
+    setZoom(update);
+  }, []);
   const [pdfError, setPdfError] = useState('');
   const [pdfNonce, setPdfNonce] = useState(0);
   const [controller, setController] = useState(null);
@@ -372,7 +379,9 @@ export default function PageViewer({
   }, [layout, documentId, documentFile, load, fetchImpl, pdfNonce]);
 
   // The chosen fit or zoom is remembered in this browser.
-  useEffect(() => { writeZoomState(zoomState, storage); }, [zoomState, storage]);
+  useEffect(() => {
+    if (zoomChosen.current) writeZoomState(zoomState, storage);
+  }, [zoomState, storage]);
 
   const goTo = useCallback(next => setPage(Math.min(Math.max(1, next), total)), [total]);
 

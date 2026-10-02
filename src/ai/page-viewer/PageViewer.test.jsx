@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import PageViewer, { DocumentNotice, FullViewDialog, StateNotices } from './PageViewer.jsx';
 import { PdfOverlay, cropStyles } from './PdfPage.jsx';
-import { DEFAULT_ZOOM, layoutPage } from './zoomModel.js';
+import { layoutPage } from './zoomModel.js';
 import TextPage from './TextPage.jsx';
 import { NOTICES } from './viewerModel.js';
 import { PDF_NOTICES } from './pdfController.js';
@@ -125,16 +125,16 @@ describe('FullViewDialog', () => {
 
 describe('cropStyles', () => {
   const blocks = [{ type: 'text', x0: 0.25, y0: 0.1, x1: 0.75, y1: 0.9 }];
-  const layout = layoutPage({ state: DEFAULT_ZOOM, page: { width: 595, height: 842 }, pane: { width: 480, height: 600 }, blocks });
+  const layout = layoutPage({ state: { fit: 'text', zoom: null }, page: { width: 595, height: 842 }, pane: { width: 480, height: 600 }, blocks });
 
-  it('clips to the content box and shifts the whole page so the text layer and boxes keep page coordinates', () => {
+  it('Fit text: clips to the text column and shifts the whole page so the text layer and boxes keep page coordinates', () => {
     const styles = cropStyles(layout);
     expect(styles.crop.width).toBe('480px');
     expect(parseFloat(styles.page.left)).toBeCloseTo(-0.23 * layout.pageCss.width, 2);
     expect(parseFloat(styles.page.width)).toBeCloseTo(595 * layout.scale, 2);
   });
 
-  it('a box at the content edge lands on the crop edge', () => {
+  it('a box at the column edge lands on the crop edge', () => {
     const styles = cropStyles(layout);
     // A box's left is a percentage of the page; the page is shifted by styles.page.left.
     const boxLeftPx = parseFloat(styles.page.left) + layout.crop.x0 * parseFloat(styles.page.width);
