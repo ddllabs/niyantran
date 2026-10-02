@@ -78,3 +78,23 @@
   `PromptInput.coverageCheck` is set. The handler never sets it, so production prompts and their
   cache are unchanged.
 - **The prompt test** failed first.
+
+**T5 harness, recorded 2026-10-02** (before the spot-check).
+- **`run.ts`:**
+  - variants `v46`, `check`, `nudge` and `both`, on the deployed default code, each sending a
+    `session_id`;
+  - a `coverage` kind fed from the set, with the coverage score and full coverage per answer;
+  - a count of nudged answers.
+- **A one-question smoke run** passed and was deleted.
+- **A headroom probe** ran with no decision taken on it: `v46` only, all 15 coverage questions,
+  one pass, $0.44 (`eval/agent/results/2026-10-02T17-43-04-191Z.json`).
+  - Coverage is 87.7%, and 10 of 15 questions are fully covered. Every citation was valid and
+    every answer cited the expected bill.
+  - **The eight missed points** are provisions later in the bill than the first search reached:
+    - consequence clauses (State Emblem 7(2), Technology Bank 13);
+    - procedure (Cultural Heritage 7 and 8; Domestic Violence 9, 16 and 18);
+    - an extension (Population Policy 5).
+  - **The pass mark is reachable by full coverage** (+3 questions, 13 of 15). A 10-point gain
+    would need near-perfect answers (97.7%).
+  - **One miss lies outside S1's reach.** Technology Bank clause 13 refers back to clause 10, but
+    no cited passage refers forward to 13. Only fix A addresses it.

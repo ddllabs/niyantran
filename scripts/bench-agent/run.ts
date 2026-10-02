@@ -11,6 +11,8 @@
  *     --variants baseline,presearch,presearch2 --narrow 10 --broad 15 --followups 10 \
  *     --model google/gemini-3.8-flash   [--kinds broad,followup]
  *
+ *   research-coverage (F53): --variants v46,check,nudge,both --kinds coverage,narrow,broad [--coverage 15]
+ *
  *   chat-turn-cost (F41): --variants v44,capped --kinds narrow,broad,widened [--widened 10]
  *   `v44` runs the live code with both prompt limits off; `capped` with WIDENED_TOP_K and
  *   TOOL_REPLY_CHARS on. A `widened` question is a narrow one under "Attached only" with no
@@ -23,6 +25,7 @@
  * Writes eval/agent/results/<timestamp>.json and prints a summary. Costs real money: about $0.02
  * per question per variant on Gemini 3.8 Flash.
  */
+import { type CoverageQuestion, loadCoverageSet, scoreCoverage } from './coverage.ts';
 import { createAgentBudget, PRESEARCH_NOTE, runAgent, TOOL_REPLY_CHARS, WIDENED_TOP_K, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
 import type { Message } from '../../supabase/functions/_shared/openrouterStream.ts';
 import { buildSystemPrompt, buildUserTurn } from '../../supabase/functions/research-chat/prompt.ts';
@@ -40,6 +43,7 @@ const NARROW = Number(args.narrow ?? 10);
 const BROAD = Number(args.broad ?? 15);
 const FOLLOWUPS = Number(args.followups ?? 10);
 const WIDENED = Number(args.widened ?? 10);
+const COVERAGE = Number(args.coverage ?? 15);
 const KINDS = (args.kinds ?? 'narrow,broad,followup').split(',');
 const MODEL = args.model ?? 'google/gemini-3.8-flash';
 const EFFORT = args.effort ?? 'low';
@@ -76,8 +80,8 @@ const retrievalDeps = {
 };
 
 // ─── Questions ───────────────────────────────────────────────────────────────
-type Kind = 'narrow' | 'broad' | 'followup' | 'widened';
-interface Q { id: string; kind: Kind; question: string; gold: string[]; first?: string }
+type Kind = 'narrow' | 'broad' | 'followup' | 'widened' | 'coverage';
+interface Q { id: string; kind: Kind; question: string; gold: string[]; first?: string; cov?: CoverageQuestion }
 interface Eval { id: string; question: string; desk_feature: string; gold_document_ids: string[] }
 const all: Eval[] = Deno.readTextFileSync(`${root}eval/retrieval/questions.v1.jsonl`).split('\n').filter(Boolean).map((l) => JSON.parse(l));
 // Deterministic spreads. Narrow: every thirteenth question, any desk. Broad briefs and follow-ups
@@ -107,18 +111,27 @@ const followups: Q[] = followSrc.map((q, i) => ({
   id: `${q.id}-follow`, kind: 'followup', gold: q.gold_document_ids, first: q.question, question: FOLLOW[i % FOLLOW.length],
 }));
 const widened: Q[] = narrow.slice(0, WIDENED).map((q) => ({ ...q, id: `${q.id}-wide`, kind: 'widened' }));
-const questions = [...narrow, ...broad, ...followups, ...widened].filter((q) => KINDS.includes(q.kind));
+// research-coverage: questions that sound simple but need several parts of a bill (eval/agent/coverage.v1.jsonl).
+const coverage: Q[] = loadCoverageSet().slice(0, COVERAGE)
+  .map((c) => ({ id: c.id, kind: 'coverage', question: c.question, gold: [c.document_id, ...c.alternate_document_ids], cov: c }));
+const questions = [...narrow, ...broad, ...followups, ...widened, ...coverage].filter((q) => KINDS.includes(q.kind));
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────
 const personas = JSON.parse(Deno.readTextFileSync(`${root}supabase/functions/_shared/personas.json`));
 const MODULES = ['Bill Passage Probability Index', 'Budget Utilisation & Schemes', 'Regulatory Body Watch (RBI SEBI TRAI CCI)', 'Industry Updates (Ministry Data)', 'Parliamentary Question Database'];
-const baseSystem = buildSystemPrompt({ persona: personas['policy.md'], today: '2026-10-02', catalogue: deskCatalogBlock('national'), focus: 'broad', documentModules: MODULES });
+const promptInput = { persona: personas['policy.md'], today: '2026-10-02', catalogue: deskCatalogBlock('national'), focus: 'broad', documentModules: MODULES };
+const baseSystem = buildSystemPrompt(promptInput);
+// research-coverage fix A: the same prompt with the coverage check.
+const checkSystem = buildSystemPrompt({ ...promptInput, coverageCheck: true });
 const SWEEP = 'Sweep the subject part by part, one query per part, reading the passages before choosing the next query.';
 const BATCH = 'Sweep the subject part by part: issue every query the sweep needs at once, as parallel search calls in one turn, rather than one query per turn.';
 if (!baseSystem.includes(SWEEP)) throw new Error('the sweep sentence moved; update the batch variant');
 
 // ─── One run ─────────────────────────────────────────────────────────────────
-const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly', 'v45', 'thru', 'lat']);
+// research-coverage: `v46` is the deployed code (40 passages everywhere, default routing); `check`
+// adds the prompt's coverage check (fix A), `nudge` the dig nudge (fix B), `both` the two.
+const V46 = new Set(['v46', 'check', 'nudge', 'both']);
+const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly', 'v45', 'thru', 'lat', ...V46]);
 // chat-turn-cost amendment 1: OpenRouter provider routing. `v45` is the deployed code (widened limit
 // on, reply cap off, default routing); `thru` and `lat` add provider.sort. Every one sends a
 // session_id, as the handler does, so sticky routing is part of what is measured.
@@ -133,13 +146,13 @@ const DEPLOYED = new Set(['v45', 'thru', 'lat']);
 const limitsOf = (variant: string) => (variant === 'capped' ? { widenedTopK: WIDENED_TOP_K, toolReplyChars: TOOL_REPLY_CHARS } : variant === 'wideonly' || DEPLOYED.has(variant) ? { widenedTopK: WIDENED_TOP_K, toolReplyChars: null } : { widenedTopK: null, toolReplyChars: null });
 async function runOne(q: Q, variant: string, history: Message[] = []) {
   const t0 = performance.now();
-  let calls = 0, firstAnswer = 0, retracts = 0;
+  let calls = 0, firstAnswer = 0, retracts = 0, nudged = false;
   const callMs: number[] = [];
   const usage: { prompt: number; completion: number; cached: number; cost: number }[] = [];
   const handles = createHandleAssigner();
   const chunkOf = new Map<string, { doc: string; page: string }>();
   const input: AgentInput = {
-    system: variant === 'batch' ? baseSystem.replace(SWEEP, BATCH) : baseSystem,
+    system: variant === 'batch' ? baseSystem.replace(SWEEP, BATCH) : variant === 'check' || variant === 'both' ? checkSystem : baseSystem,
     window: history,
     userTurn: buildUserTurn(q.question),
     scopedDocumentIds: [],
@@ -163,11 +176,13 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
       request: {
         model: MODEL,
         reasoning: { effort: EFFORT },
-        ...(DEPLOYED.has(variant) ? { session_id: crypto.randomUUID() } : {}),
+        ...(DEPLOYED.has(variant) || V46.has(variant) ? { session_id: crypto.randomUUID() } : {}),
         ...(ROUTING[variant] ? { providerSort: ROUTING[variant] } : {}),
       },
       model: async function* (req: StreamRequest): AsyncGenerator<ModelEvent> {
         calls++;
+        const last = req.messages.at(-1);
+        if (last?.role === 'user' && typeof last.content === 'string' && last.content.startsWith('Before you answer:')) nudged = true;
         // v43 had no note on the pre-search reply: take it off to reproduce that variant.
         if (variant === 'presearch') {
           req = { ...req, messages: req.messages.map((m) => m.role === 'tool' && typeof m.content === 'string' && m.content.startsWith(PRESEARCH_NOTE) ? { ...m, content: m.content.slice(PRESEARCH_NOTE.length) } : m) };
@@ -182,6 +197,7 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
         callMs.push(Math.round(performance.now() - c0));
       },
       ...limitsOf(variant),
+      digNudge: variant === 'nudge' || variant === 'both',
       searchDocuments: async (a, ids, topK) => {
         const chunks = await search(retrievalDeps, { query: a.query, deskTier: a.desk_tier, deskFeature: a.desk_feature, documentIds: ids, topK });
         for (const c of chunks) chunkOf.set(c.id, { doc: c.document_id, page: `${c.document_id}:${c.page_number ?? `c${c.chunk_index}`}` });
@@ -200,6 +216,7 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
   const total = performance.now() - t0;
   // Quality: the envelope parses; every cited handle was assigned this turn; the gold document is cited.
   let parsed = false, validCitations = false, citesGold = false, answerChars = 0, cited = 0, docs = 0, pages = 0, answer = '';
+  let cov: ReturnType<typeof scoreCoverage> | null = null;
   try {
     const env = JSON.parse(text);
     parsed = typeof env.answer === 'string' && env.answer.trim().length > 0;
@@ -212,14 +229,17 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
     citesGold = hits.some((x) => q.gold.includes(x.doc));
     docs = new Set(hits.map((x) => x.doc)).size;
     pages = new Set(hits.map((x) => x.page)).size;
+    if (q.cov) cov = scoreCoverage(q.cov, [...used].map((h) => handles.lookup(h) ?? ''));
   } catch { /* unparsed */ }
+  if (q.cov && !cov) cov = scoreCoverage(q.cov, []);
   const sum = (k: keyof typeof usage[number]) => usage.reduce((n, u) => n + u[k], 0);
   return {
     id: q.id, kind: q.kind, variant, calls, searches, retracts, error, answer,
     first_answer_ms: Math.round(firstAnswer), total_ms: Math.round(total), call_ms: callMs,
     call_prompt_tokens: usage.map((u) => u.prompt),
     prompt_tokens: sum('prompt'), completion_tokens: sum('completion'), cached_tokens: sum('cached'), cost_usd: Number(sum('cost').toFixed(5)),
-    parsed, valid_citations: validCitations, cites_gold: citesGold, cited, docs, pages, answer_chars: answerChars,
+    parsed, valid_citations: validCitations, cites_gold: citesGold, cited, docs, pages, answer_chars: answerChars, nudged,
+    ...(cov ? { cov_points: cov.points, cov_covered: cov.covered, cov_full: cov.full, cov_missing: cov.missing } : {}),
   };
 }
 
@@ -239,7 +259,7 @@ for (const [qi, q] of questions.entries()) {
   for (const v of VARIANTS.map((_, k) => VARIANTS[(k + qi) % VARIANTS.length])) {
     const r = await runOne(q, v, history);
     rows.push(r);
-    console.log(`${q.id.padEnd(16)} ${v.padEnd(10)} calls=${r.calls} searches=${r.searches} first=${(r.first_answer_ms / 1000).toFixed(1)}s total=${(r.total_ms / 1000).toFixed(1)}s $${r.cost_usd} docs=${r.docs} pages=${r.pages} valid=${r.valid_citations} gold=${r.cites_gold}${r.error ? ' ERR ' + r.error : ''}`);
+    console.log(`${q.id.padEnd(16)} ${v.padEnd(10)} calls=${r.calls} searches=${r.searches} first=${(r.first_answer_ms / 1000).toFixed(1)}s total=${(r.total_ms / 1000).toFixed(1)}s $${r.cost_usd} docs=${r.docs} pages=${r.pages} valid=${r.valid_citations} gold=${r.cites_gold}${r.nudged ? ' nudged' : ''}${'cov_points' in r ? ` cov=${r.cov_covered}/${r.cov_points}` : ''}${r.error ? ' ERR ' + r.error : ''}`);
   }
 }
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -247,7 +267,7 @@ const out = `${root}eval/agent/results/${stamp}.json`;
 Deno.writeTextFileSync(out, JSON.stringify({ model: MODEL, effort: EFFORT, variants: VARIANTS, n: questions.length, setup_cost_usd: Number(setupCost.toFixed(5)), rows }, null, 1));
 const med = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.ceil(p * s.length) - 1)] : 0; };
-for (const kind of ['narrow', 'broad', 'followup', 'widened'] as Kind[]) {
+for (const kind of ['narrow', 'broad', 'followup', 'widened', 'coverage'] as Kind[]) {
   console.log(`\n${kind}\nvariant     calls  searches  docs  pages  first_word(p50)  total(p50)  cost(avg)  valid  gold  errors`);
   for (const v of VARIANTS) {
     const r = rows.filter((x) => x.variant === v && x.kind === kind);
@@ -255,7 +275,12 @@ for (const kind of ['narrow', 'broad', 'followup', 'widened'] as Kind[]) {
     const ok = r.filter((x) => !x.error);
     const avg = (f: (x: typeof r[number]) => number) => ok.reduce((n, x) => n + f(x), 0) / Math.max(1, ok.length);
     const perCall = ok.flatMap((x) => x.call_prompt_tokens);
-    console.log(`${''.padEnd(11)} prompt tokens per call: p50 ${pct(perCall, 0.5)}  p90 ${pct(perCall, 0.9)}  max ${Math.max(0, ...perCall)}  (n=${perCall.length})`);
+    console.log(`${''.padEnd(11)} prompt tokens per call: p50 ${pct(perCall, 0.5)}  p90 ${pct(perCall, 0.9)}  max ${Math.max(0, ...perCall)}  (n=${perCall.length})  nudged ${ok.filter((x) => x.nudged).length}/${ok.length}`);
+    if (kind === 'coverage') {
+      const covRows = ok.filter((x) => 'cov_points' in x) as (typeof ok[number] & { cov_points: number; cov_covered: number; cov_full: boolean })[];
+      const share = covRows.reduce((n, x) => n + x.cov_covered / x.cov_points, 0) / Math.max(1, covRows.length);
+      console.log(`${''.padEnd(11)} coverage ${(100 * share).toFixed(1)}%  full ${covRows.filter((x) => x.cov_full).length}/${covRows.length}`);
+    }
     console.log(`${v.padEnd(11)} ${avg((x) => x.calls).toFixed(2).padStart(5)} ${avg((x) => x.searches).toFixed(2).padStart(9)} ${avg((x) => x.docs).toFixed(2).padStart(5)} ${avg((x) => x.pages).toFixed(2).padStart(6)} ${(med(ok.filter((x) => x.first_answer_ms).map((x) => x.first_answer_ms)) / 1000).toFixed(1).padStart(15)}s ${(med(ok.map((x) => x.total_ms)) / 1000).toFixed(1).padStart(10)}s $${avg((x) => x.cost_usd).toFixed(4)}  ${ok.filter((x) => x.valid_citations).length}/${r.length}  ${ok.filter((x) => x.cites_gold).length}/${r.length}  ${r.length - ok.length}`);
   }
 }
