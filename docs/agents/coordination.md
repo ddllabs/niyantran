@@ -1453,3 +1453,23 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
       `access-control-allow-origin: https://niyantran-six.vercel.app`;
     - the preflight gives 204.
   - No database change. The frontend is unchanged until the push.
+- **chat-panel-fixes, chat-turn-cost records and search lowercasing: `main` pushed (2026-10-02)**
+  (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `55d7595` to `da32cb3` (17 commits, 28 files). It carries:
+    - the search lowercasing parity and the `localSpan` removal;
+    - chat-panel-fixes T1–T3: the client half of the timing word, the dimming, the phone dock;
+    - the turn-cost benchmark and its records;
+    - the F6 parking;
+    - the records of `research-chat` v45.
+
+    A scan of the outgoing diff found no env files, no `docs/security`, no keys or local test
+    credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_3MuhU9UEETkXdJh6U66rgjibWZyg` (`da32cb3`) is READY.
+  - **Served:** `index-W9LQUcsB.css` carries the history-open dimming
+    (`.history-open>.ai-panel-background>.ai-v2-body`) and the phone rule (`.workspace.ai-open`
+    rows `0 minmax(0,1fr)`, the desk `visibility:hidden`). The main entry is `index-ytI_2PxM.js`.
+  - No server or database change in this push. `research-chat` v45 went live separately (above).
+  - **Owner checks on production:**
+    - on a phone, the chat dock fills the screen below the header, and history dims the panel;
+    - the live "thought"/"waited" word matches the saved answer;
+    - the Safari Text view, the signed-in brief and follow-up, and the live-bill viewer checks.
