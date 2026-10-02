@@ -323,3 +323,27 @@ layer.
    separate go-ahead, asked for when the fixture passes.
 5. **The browser floor:** the exact mark uses the Highlight API. Older browsers get the dashed
    approximate rectangles.
+
+## Implementation notes
+
+**T1, the matcher (`588c9ac`).** Every live chunk was marked exactly: 121 of 121, with 0 matches in
+237 wrong-page trials (`docs/research/2026-10-02-passage-match-eval.md`). Anchors are collected
+across the whole slack, because a margin note that OCR folded into the body misled the first
+anchor found.
+
+**T2, search.** The migration also adds `document_pages.search_text`, a stored generated column:
+the page text folded as a reader sees it, kept by PostgreSQL, written by nothing.
+- **Why:** folding inside the search cost 286 ms on a generated 1,000-page document, against the
+  50 ms budget.
+- **Matching:** literal and case-insensitive, with `strpos` and `replace` on lower-cased text, so
+  no character in a query is special.
+- **Snippets:** cut at the match positions.
+- **Timings,** on the local test database at about 2,500 characters a page:
+  - 1,000 pages: 24 ms with 142 matching pages, 25 ms with 200, and 15 ms with no match;
+  - **production:** the column is computed once for the 34 live pages when the migration runs.
+- **Defects caught during the build:**
+  - `regexp_instr` past the end of the text;
+  - `greatest()` ignoring a NULL, which cut a snippet from the page's start;
+  - the planner repeating `lower()` five times on each matching page.
+
+  The fixture now pins the first two by their effect.

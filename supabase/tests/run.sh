@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -124,16 +124,18 @@ chain() {
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
                   "$(m 20261001100000_match_documents_feature.sql)") ;;
         # feature_filter's chain plus the page contract, applied as a non-superuser.
-        page_contract|ingestion_v2|ingest_discard|corpus_records)
+        page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages)
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
                   "$(m 20261001100000_match_documents_feature.sql)" "$(as_non_superuser 20261001120000_page_contract.sql)")
           # page_contract's chain plus the Storage stub and ingestion-v2, also
           # applied as a non-superuser; the chain ends with the migration it proves.
           [ "$1" != page_contract ] && FILES+=("$TESTS/bootstrap_storage.sql" "$(as_non_superuser 20261001140000_ingestion_v2.sql)")
           # ingestion_v2's chain plus ingest_discard (admin-upload), as a non-superuser.
-          case "$1" in ingest_discard|corpus_records) FILES+=("$(as_non_superuser 20261001160000_ingest_discard.sql)") ;; esac
+          case "$1" in ingest_discard|corpus_records|search_document_pages) FILES+=("$(as_non_superuser 20261001160000_ingest_discard.sql)") ;; esac
           # ingest_discard's chain plus corpus_records (admin-records), as a non-superuser.
-          [ "$1" = corpus_records ] && FILES+=("$(as_non_superuser 20261001180000_corpus_records.sql)")
+          case "$1" in corpus_records|search_document_pages) FILES+=("$(as_non_superuser 20261001180000_corpus_records.sql)") ;; esac
+          # corpus_records's chain plus search_document_pages (viewer-continuous), as a non-superuser.
+          [ "$1" = search_document_pages ] && FILES+=("$(as_non_superuser 20261002120000_search_document_pages.sql)")
           return 0 ;;
         email_unique)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(m 20260929110000_email_unique.sql)") ;;
