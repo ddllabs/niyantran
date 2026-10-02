@@ -370,6 +370,13 @@ Follow-ups and findings:
 - [ ] **F41.** A widened chat turn is slow: on 2026-10-01 a bill question waited 65 s, of which
   Gemini Flash took 46 s on a 25,850-token prompt. Search took 0.6 s. Measure the prompt size
   of widened turns and cap it.
+  - **In progress (2026-10-02).** Spec `specs/2026-10-02-chat-turn-cost.md` (approved: "measure,
+    then cap"); plan `plans/2026-10-02-chat-turn-cost.md`. It also covers F46's agent-loop cost.
+    - **Built:** a widened search asks for 15 passages, and a search reply stops at 24,000
+      characters (`0de8178`, `13c050e`).
+    - **The benchmark** has a widened kind and per-call prompt tokens (`a76d093`).
+    - **Next:** the measurement (v44 against capped); then deploying `research-chat`, with a
+      go-ahead.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`
@@ -459,7 +466,12 @@ Follow-ups and findings:
       expected document once.
   - **Deployed** on 2026-10-02 as `research-chat` v44 (`agents/coordination.md`).
   - **Next:** the owner checks, signed in on production, a four-part brief and a follow-up.
-- [ ] **F47.** Found during the F46 fixes and left out of their scope:
+- [ ] **F47.** Found during the F46 fixes and left out of their scope.
+  - **In progress (2026-10-02):** spec `specs/2026-10-02-chat-panel-fixes.md` (approved: the dimming
+    is restored), plan `plans/2026-10-02-chat-panel-fixes.md`.
+    - **Done:** T1, the live timing word (`ea0e07c`, a `research-chat` change); T2, the region
+      rules and dimming (`4e030e8`).
+    - **Next:** the phone width and the end-of-turn shift, in a local browser run.
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
   - **Dead dimming:** the history-open dimming selectors (`index.css`,
