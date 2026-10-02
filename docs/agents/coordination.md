@@ -1531,3 +1531,17 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
       `access-control-allow-origin: https://niyantran-six.vercel.app`;
     - the preflight gives 204.
   - No database change, and no frontend change.
+- **The widened-limit revert and its records: `main` pushed (2026-10-02)** (owner: "Push main to
+  origin").
+  - **The push:** `main` was pushed from `5b49049` to `e85c20d` (4 commits, 9 files). It carries:
+    - the 40-passage default for widened searches (`2f0c71d`), already live as `research-chat`
+      v46;
+    - the second-pass results and their raw file;
+    - the source-list push record and the v46 deploy record.
+
+    A scan of the outgoing diff, run before the push, found no env files, no `docs/security`, no
+    keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_E6gd2SrLjLH47uGLJeYNHzoCnTy7` (`e85c20d`) is READY. No
+    frontend file changed, and the served bundle is unchanged (`index-CWkWLUFK.js`,
+    `index-ClDtYTJ9.css`).
+  - No database change.
