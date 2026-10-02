@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import FeedLoader from './FeedLoader.jsx';
 import { feedOverview } from '../lib/analytics.js';
 import { resolveDataState, isTerminalState } from '../lib/dataState.js';
@@ -17,10 +17,6 @@ import { isGlobalResourcesTable } from '../lib/globalResources.js';
 import { isGeonomicsTable } from '../lib/geonomics.js';
 import { isNationalTable } from '../lib/national.js';
 import NationalRecord from '../desks/NationalRecord.jsx';
-
-function recordLabel(row) {
-  return String(row?.conflict_name || row?.title || row?.bill_name || row?.name || '').trim();
-}
 
 function isLocalDesk(feed) {
   if (String(feed?.tier || '').toLowerCase() === 'local') return true;
@@ -68,10 +64,18 @@ function sanitizeRailOverview(overview, { carbon = false } = {}) {
   return { ...overview, title, kpis, note };
 }
 
-export default function RightRail({ feed, selected, onSelect, lang, loading, vizFilter }) {
-  const [tab, setTab] = useState('analytics');
+/** The side panel's container classes for a feed's Desk and Record tabs (index.css styles them). */
+export function railClasses(feed) {
+  return `right-rail${isLocalDesk(feed) ? ' right-rail-local' : ''}${isCarbonDesk(feed) ? ' right-rail-carbon' : ''}`;
+}
+
+/**
+ * The side panel's Desk and Record tabs (docs/specs/2026-10-03-side-panel.md). `view` 'desk' shows
+ * the module's snapshot; 'record' shows the selected row. Both carry the module's banners.
+ */
+export default function RailContent({ view, feed, selected: selectedRow, onSelect, loading, vizFilter }) {
+  const selected = view === 'record' ? selectedRow : null;
   const bodyRef = useRef(null);
-  const hi = lang === 'hi';
   const localDesk = isLocalDesk(feed);
   const carbonDesk = isCarbonDesk(feed);
   const dataState = resolveDataState(feed, { loading });
@@ -97,44 +101,15 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
     isGeonomicsTable(feed?.feature) ||
     isNationalTable(feed?.feature);
   const dossier = alliances || sanctions || aid || nuclear;
-  const analyticsTitle = selected
-    ? dossier
-      ? 'Event analytics'
-      : 'Record'
-    : dossier
-      ? 'Event analytics'
-      : overview.title;
   const showFallbackBanner =
     !localDesk && !carbonDesk && feed?.fallback && dataState.id !== 'live' && !status && dataState.detail;
 
+  // A new record or module starts at the top.
   useEffect(() => {
-    setTab('analytics');
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [selected, feed?.feature]);
 
   return (
-    <aside className={`right-rail${localDesk ? ' right-rail-local' : ''}${carbonDesk ? ' right-rail-carbon' : ''}`} key={feed?.feature || 'empty'}>
-      <div className="rail-tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'analytics'}
-          className={tab === 'analytics' ? 'on' : ''}
-          onClick={() => setTab('analytics')}
-          title={selected ? recordLabel(selected) : overview.title}
-        >
-          {analyticsTitle}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={false}
-          disabled={terminal}
-          onClick={() => openAiResearch({ attachFeed: true, row: selected || undefined })}
-        >
-          {hi ? 'एआई अनुसंधान' : 'AI research'}
-        </button>
-      </div>
       <div ref={bodyRef} className={`rail-body${loading ? ' is-loading' : ''}${selected ? ' rd-body' : ''}`}>
           {loading && <FeedLoader label={`Updating ${feed?.feature || 'module'}…`} />}
           {!feed && !loading && (
@@ -257,6 +232,5 @@ export default function RightRail({ feed, selected, onSelect, lang, loading, viz
             </>
           )}
         </div>
-    </aside>
   );
 }

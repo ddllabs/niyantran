@@ -1028,6 +1028,94 @@ button, input, textarea { font-family: inherit; }
 .main-col, .right-rail, .desk, .home-desk, .rail-body, .ai-panel, .ai-dock { min-height: 0; }
 .main-col { overflow: hidden; background: var(--panel); }
 
+/* side-panel (docs/specs/2026-10-03-side-panel.md): one panel for Desk, Record and AI research. The
+   tab bar is its own row; each tab panel fills the rest and is hidden, not removed, when inactive. */
+.side-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+}
+.side-panel[hidden] { display: none !important; }
+.side-panel-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 6px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.side-panel-tabs { display: flex; flex: 1; min-width: 0; }
+.side-panel-tabs [role="tab"] {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.side-panel-tabs [role="tab"]:hover { color: var(--fg); }
+.side-panel-tabs [role="tab"].on { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.side-panel-tabs [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.side-panel-actions { display: flex; align-items: center; gap: 2px; }
+.side-panel-actions button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+.side-panel-actions button:hover { background: var(--accent-soft); color: var(--accent); }
+.side-panel-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.side-panel-body { position: relative; min-height: 0; overflow: hidden; }
+.side-panel-body > [role="tabpanel"] { height: 100%; min-height: 0; }
+.side-panel-body > [role="tabpanel"][hidden] { display: none; }
+/* The Desk and Record panels keep the rail's content styles; the tab strip row is gone. */
+.side-panel .right-rail { grid-template-rows: minmax(0, 1fr); border-left: 0; }
+.side-panel .ai-dock { border-left: 0; box-shadow: none; }
+/* Collapsed (owner decision 2): a slim handle names the tabs; the desk takes the rest. */
+.side-panel.is-collapsed { grid-template-rows: minmax(0, 1fr); }
+.side-panel-handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+.side-panel-handle button {
+  writing-mode: vertical-rl;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.side-panel-handle button:hover { background: var(--accent-soft); color: var(--accent); }
+.side-panel-handle button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.workspace.panel-collapsed { grid-template-columns: minmax(0, 1fr) 32px; }
+
 .right-rail {
   display: grid;
   grid-template-rows: 36px 1fr;
@@ -2753,7 +2841,7 @@ button.live-feed:hover { color: var(--fg); }
   max-height: 100%;
 }
 .workspace.ai-open > .main-col,
-.workspace.ai-open > .ai-dock {
+.workspace.ai-open > .side-panel {
   min-height: 0;
   max-height: 100%;
 }
@@ -6981,8 +7069,7 @@ tr.close-soon { color: #6d675f; }
   .workspace.ai-open.pig-holistic {
     grid-template-rows: minmax(0, 1fr) minmax(220px, 40%);
   }
-  .right-rail,
-  .ai-dock {
+  .side-panel {
     border-left: 0;
     border-top: 1px solid var(--line);
     min-height: 220px;
@@ -7016,7 +7103,7 @@ tr.close-soon { color: #6d675f; }
     visibility: hidden;
     overflow: hidden;
   }
-  .workspace.ai-open > .ai-dock { border-top: 0; }
+  .workspace.ai-open > .side-panel { border-top: 0; }
   /* F47: the history list anchored to its button, so at 375 px it opened 47 px off the left edge.
      It anchors to the panel head (position: relative) instead, inside the head's padding. */
   .ai-v2-history-wrap { position: static; }

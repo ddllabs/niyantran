@@ -4,7 +4,7 @@ import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
-import RightRail from './RightRail.jsx';
+import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import UpgradeModal from './UpgradeModal.jsx';
 import { Icon } from './Icons.jsx';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
@@ -31,7 +31,6 @@ import {
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
-import AiDock from '../ai/AiDock.jsx';
 import { takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
@@ -52,7 +51,6 @@ export default function TerminalShell({ onLogout }) {
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
   const [vizFilter, setVizFilter] = useState(null);
-  const [aiOpen, setAiOpen] = useState(false);
   const [liveTvOpen, setLiveTvOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
@@ -359,8 +357,8 @@ export default function TerminalShell({ onLogout }) {
   }
 
   const billRecordOpen = (isImpactRecordFeature(featureName) || isGithubCsvRow(selected)) && selected;
-  const showRail =
-    !aiOpen &&
+  // Desks whose side panel has Desk and Record tabs; the others show it only for AI research.
+  const hasRail =
     tab !== 'home' &&
     !guideMode &&
     !isConflictsFeature(featureName) &&
@@ -368,6 +366,7 @@ export default function TerminalShell({ onLogout }) {
     !isEnergyFeature(featureName) &&
     !isGeoResourceDossier(featureName) &&
     !isNationalFullscreen(featureName);
+  const panel = useSidePanel({ hasRail, selected, featureName });
   const trialLeft = trialDaysLeft(user);
   const planLabel = planMeta?.name || String(ent.plan || 'explorer').toUpperCase();
   const statusLabel =
@@ -562,7 +561,7 @@ export default function TerminalShell({ onLogout }) {
         tabs={deskTabs}
         lockedIds={lockedIds}
       />
-      <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${aiOpen ? ' ai-open' : ''}`}>
+      <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`}>
         <main className="main-col">
           {tab === 'home' ? (
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
@@ -589,10 +588,18 @@ export default function TerminalShell({ onLogout }) {
             />
           )}
         </main>
-        {showRail && (
-          <RightRail feed={feed} selected={selected} onSelect={onSelect} lang={lang} loading={loading} vizFilter={vizFilter} />
-        )}
-        <AiDock feed={feed} selected={selected} tab={tab} featureName={featureName} lang={lang} onOpenChange={setAiOpen} />
+        <SidePanel
+          panel={panel}
+          hasRail={hasRail}
+          feed={feed}
+          selected={selected}
+          onSelect={onSelect}
+          lang={lang}
+          loading={loading}
+          vizFilter={vizFilter}
+          tab={tab}
+          featureName={featureName}
+        />
       </div>
       {tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />}
       {personaOpen ? (

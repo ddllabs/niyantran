@@ -337,7 +337,7 @@ export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverag
   return () => { alive = false; clearInterval(id); };
 }
 
-export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true }) {
+export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false }) {
   const hi = lang === 'hi';
   const research = useResearchThread(true);
   const state = research.store;
@@ -650,11 +650,14 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       onDrop={onDrop}
     >
       <div className="ai-panel-background">
-      <header className="ai-v2-head">
-        <div className="ai-v2-title">
-          <Ico name="sparkles" size={18} />
-          <b>{hi ? 'एआई अनुसंधान' : 'AI Research'}</b>
-        </div>
+      <header className={`ai-v2-head${embedded ? ' embedded' : ''}`}>
+        {/* In the side panel its tab names it and the panel closes it (side-panel spec, point 4). */}
+        {embedded ? null : (
+          <div className="ai-v2-title">
+            <Ico name="sparkles" size={18} />
+            <b>{hi ? 'एआई अनुसंधान' : 'AI Research'}</b>
+          </div>
+        )}
         <div className="ai-v2-head-actions">
           <button
             type="button"
@@ -804,7 +807,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           >
             <Ico name="export" size={15} />
           </button>
-          {onClose ? (
+          {onClose && !embedded ? (
             <button type="button" className="ai-v2-close" onClick={onClose} aria-label={hi ? 'बंद करें' : 'Close'}>
               ×
             </button>

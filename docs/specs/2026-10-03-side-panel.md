@@ -154,3 +154,17 @@ assert the structure, and the browser run proves the behaviour:
   set only grows.
 - **The browser run:** the AI panel's DOM node is the same object (`===`) before and after tab
   switches, and an answer still streaming survives them.
+
+## Amendment 1 (2026-10-03, during T2): each tab keeps its own toolbar
+
+**The panel's header is the tab bar, plus Expand and Collapse.** Each tab's own actions stay in a
+toolbar at the top of its body:
+- AI's new research, history, docs and download;
+- Record's Full reasoning, Download PDF and All bills.
+
+AI's toolbar drops its "AI Research" title and its ×, since the tab names it and the panel closes
+it.
+
+**Why:** AI's history popover, its dimming and its stacking are anchored on its own header element
+(chat-panel-fixes T2). Moving the actions into the panel's header would re-break them for no
+gain. A tab strip with a per-tab toolbar is the common side-bar pattern.

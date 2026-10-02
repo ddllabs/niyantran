@@ -75,3 +75,29 @@
 - **`shell/resizeModel.js`** holds the clamp, key steps and storage that `citationOverlayModel.js`
   now imports. The overlay's 79 tests pass unchanged.
 - **Tests:** 19 new. The suite failed first, with the module missing.
+
+**T2, recorded 2026-10-03.**
+- **`shell/SidePanel.jsx`:**
+  - `useSidePanel` holds the state in the shell, so the layout classes come from the same render;
+  - one tablist, with the arrow keys, Home and End;
+  - mounted tabs are hidden, never removed;
+  - "Ask AI" opens the AI tab with its seed, as `AiDock` did;
+  - Esc on AI goes back to Desk or Record;
+  - Collapse leaves a handle; Close appears on desks without a rail.
+- **`RightRail.jsx` is now `RailContent.jsx`,** with a Desk or Record `view` and no tab strip.
+  **`AiDock.jsx` is removed;** its keep-mounted rule is now the model's.
+- **`AiPanel` takes `embedded`** (spec amendment 1).
+- **`TerminalShell`** mounts the panel in place of the rail-or-dock swap.
+- **Minimal CSS:** the panel, its bar, handle and body. The two `> .ai-dock` rules and the
+  stacked phone rule now target `.side-panel`.
+- **Tests:** 5 SidePanel tests. Rendering only the active tab, or breaking `aria-selected`, each
+  fails one.
+- **Checks:** lint, Vitest (1,992) and the build pass.
+- **A smoke run in the browser at 1440 × 900:**
+  - a row opens Record;
+  - the AI shell is the same DOM node across Desk, Record and AI, and across collapse and reopen;
+  - Esc on AI returns to Record;
+  - collapsed, the panel is a 32 px handle;
+  - home shows AI only, and closing it gives the desk the full width.
+
+  The width still changes between tabs (504 and 547 px), which is T3's job.
