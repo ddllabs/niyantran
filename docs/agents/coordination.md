@@ -1631,3 +1631,9 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - the same file twice gives one chip and the note;
     - a bill dragged and then "Ask AI" gives one chip;
     - no Reload row when idle.
+- **F54 and F55 closed: `main` pushed (2026-10-03)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `e651613` to `322c76a` (2 commits, docs only). It carries
+    the chat-attach-fixes push record and the closing of F54 and F55. A scan of the outgoing diff,
+    run before the push, found no secrets and no AI attribution.
+  - **Vercel:** production deploy `dpl_BZBMioj7w92bSNxdNYcADRz7ES8R` (`322c76a`) is READY. The
+    served bundle is unchanged (`index-Dt4tL-0u.css`).
