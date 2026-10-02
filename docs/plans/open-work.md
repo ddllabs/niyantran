@@ -392,8 +392,12 @@ Follow-ups and findings:
       100% valid. By the amendment's rule nothing ships. Results are in
       `research/2026-10-02-turn-cost-benchmark.md`.
     - **Owner discussion open (2026-10-02):** routing, and whether widened searches return to 40
-      passages. The 15-passage evidence is one pass of 10 questions. A second pass of 40 against
-      15 costs about $0.60.
+      passages.
+    - **Second pass of 40 against 15 (2026-10-02, $0.56):** the first pass's advantage for 15 did
+      not repeat. Pooled over 25 question-runs the two are level on depth: documents 1.32
+      against 1.44, pages 4.84 against 4.68, the expected document 25/25 against 24/25. 15 is
+      1.6 s slower at p50, and costs the same. Recommendation: return widened searches to 40.
+      The owner decides; it needs a `research-chat` deploy.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`

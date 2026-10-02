@@ -169,3 +169,39 @@ depth.** They search less, and cite fewer documents and pages.
 - **The 15-passage widened limit barely touches this run.** Narrow questions and briefs run
   under "Broad context", which never widens. The only exception is a retry after an empty scoped
   search, which the results do not count, and it ran the same way in all three variants.
+
+## The widened limit, second pass: 40 against 15 passages (2026-10-02)
+
+The owner asked whether 40 passages would serve a widened search better than 15. This pass reran
+the comparison on 15 widened questions: the first pass's 10, to measure run-to-run noise, plus 5
+new ones.
+- **`v44`:** 40 passages;
+- **`wideonly`:** 15 passages.
+
+The reply cap was off in both. The variant order rotated per question. Raw results are in
+`eval/agent/results/2026-10-02T16-28-19-961Z.json`, $0.56, and every run completed.
+
+| | Pass 1, 40 | Pass 1, 15 | Pass 2, 40 | Pass 2, 15 | **Pooled, 40** | **Pooled, 15** |
+| --- | --- | --- | --- | --- | --- | --- |
+| n | 10 | 10 | 15 | 15 | 25 | 25 |
+| Searches | 1.50 | 2.80 | 1.80 | 2.33 | 1.68 | 2.52 |
+| Documents cited | 1.10 | 1.70 | 1.47 | 1.27 | 1.32 | 1.44 |
+| Pages cited | 5.00 | 5.70 | 4.73 | 4.00 | 4.84 | 4.68 |
+| Expected document | 10/10 | 10/10 | 15/15 | 14/15 | 25/25 | 24/25 |
+| Valid citations | 10/10 | 10/10 | 15/15 | 15/15 | 25/25 | 25/25 |
+| Total p50 / p90 | 9.5 / 15.6 s | 11.0 / 39.3 s | 9.6 / 28.5 s | 11.5 / 23.9 s | 9.6 / 28.5 s | 11.2 / 35.4 s |
+| Cost per answer | $0.0174 | $0.0228 | $0.0213 | $0.0165 | $0.0197 | $0.0190 |
+
+**The first pass's advantage for 15 does not repeat.** On the same 10 questions, pass 2 gives
+1.40 documents with each limit, and 5.70 pages with 40 against 5.10 with 15. A question's
+documents and pages vary as much between runs as between the limits; for example q-0027 gives
+1/5 against 3/10 in pass 1 and 1/6 against 1/9 in pass 2.
+
+**Pooled over 25 question-runs, the limits are level on depth.** 15 cites slightly more
+documents, slightly fewer pages, and misses the expected document once. 15 is slower: it searches
+about one more time, adding 1.6 s at p50 and 7 s at p90. Cost is the same.
+
+**Conclusion:** 15 passages buys no measurable depth, costs time, and can miss a passage ranked
+16th to 40th. Returning widened searches to 40, the default every other search uses, is the
+simpler choice, and the evidence supports it. The owner decides; the change needs a
+`research-chat` deploy.
