@@ -455,6 +455,9 @@ in-panel view has the same limit; its full-file dialog has zoom but drops the hi
      - turn transitions off while dragging;
      - appear on desktop only. Phones keep the full-screen viewer.
 2. **Readable pages.**
+   - **Superseded on 2026-10-02 by `2026-10-02-viewer-whole-page.md`:** the default is now "Fit
+     width", and "Fit text" scales to the text column without ever cropping the page's height or
+     its headers and footers. The text below records the original decision.
    - **The default is "Fit text".** The page is scaled so that the union of its body-block boxes
      fills the pane width. Header and footer blocks are left out; margin notes are kept; there is
      a small padding. The blank margins are cropped visually, and the text layer and highlight

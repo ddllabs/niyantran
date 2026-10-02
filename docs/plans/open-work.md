@@ -466,7 +466,14 @@ Follow-ups and findings:
   page pill in the full view.
   - **Spec:** `specs/2026-10-02-viewer-toolbar.md` (owner-approved).
   - **Plan:** `plans/2026-10-02-viewer-toolbar.md`.
-  - **Piece 2,** a page thumbnail rail and search in the document, follows with its own spec.
+  - **Piece 2 is re-scoped by the owner (2026-10-02)** into a standard PDF viewer, with its own
+    spec:
+    - continuous scrolling in the side pane and the full view, opening at the cited page;
+    - thumbnails on the left;
+    - search in the document;
+    - the citation marked by its exact text on the PDF's text layer. Block rectangles stay only as
+      a visibly different fallback for pages without a text layer.
+    - The PDF loader must hold a few stored parts open at once.
   - **Piece 1 is built and verified locally** (2026-10-02):
     - side pane chrome 83 px, against about 190 px before;
     - a review's four required fixes are applied;
@@ -474,6 +481,15 @@ Follow-ups and findings:
     - the main bundle is +0, the viewer chunk +5.7 KB.
   - **Next:** push `main`, with the owner's go-ahead. Then check, on production, the clipboard's
     success path (the test browser refuses clipboard access) and a real split document.
+- [ ] **F49.** The citation viewer cropped pages to their body text by default ("Fit text"). The
+  anti-doping bill's page 1 lost its "As introduced in Lok Sabha" header and its top two thirds,
+  and read as a different document from the stored PDF.
+  - **Spec:** `specs/2026-10-02-viewer-whole-page.md` (owner-approved).
+  - **The fix:**
+    - Fit width is the default;
+    - Fit text never crops the page's height or any block;
+    - the zoom is saved only when the reader chooses it, under a new key.
+  - **Status:** built and checked locally. Next: push `main`, with a go-ahead.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
