@@ -144,3 +144,19 @@
     chat is the same node, and Expand is locked;
   - Close citation restores AI docked;
   - a click outside with a citation open closes it and AI, back to Desk.
+
+**T5, recorded 2026-10-03.**
+- **The inventory:** every container class is still rendered (`.right-rail` on the Desk and Record
+  panels; `.ai-dock` on AI; `ai-open` and `bill-record` on the workspace) except `.rail-tabs`.
+- **Its 5 rules are deleted,** two of them inside selector lists.
+- **`.right-rail` and `.ai-dock` lose their own left border,** shadow and the 36 px tab-strip row
+  at the source. The `.side-panel` overrides that compensated are removed, and the panel draws
+  the border.
+- **Stacked (900 px and below):** Expand is hidden, and the collapsed panel is a slim bar of tab
+  names under the desk.
+  - **The browser run caught a specificity loss:** `.side-panel-expand` lost to
+    `.side-panel-actions button`. It is fixed, and the test now names the selector that wins.
+- **The onboarding tour and the marketing demo** name none of these classes (the demo has its own
+  `mkt-ai-dock`).
+- **Tests:** 4 CSS tests, each failing first.
+- **Checks:** lint, Vitest and the build pass.

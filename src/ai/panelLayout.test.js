@@ -197,3 +197,58 @@ describe('the side panel has one width on every tab', () => {
     expect(desktopRules().find((r) => r.sel === '.workspace.panel-collapsed')?.value).toBe('minmax(0, 1fr) 32px');
   });
 });
+
+// side-panel T5: the rail and the dock are tabs of the side panel now. Their old chrome is gone, so
+// no stylesheet may style it, and only the panel draws the panel's left border.
+describe('the side panel owns the right of the workspace', () => {
+  const sheets = () => ['../index.css', './research.css', '../shell/panel-overlay.css'].map((p) => ({ p, root: postcss.parse(read(p)) }));
+
+  it('no rule names the rail\'s removed tab strip (.rail-tabs)', () => {
+    const found = [];
+    for (const { p, root } of sheets()) root.walkRules((r) => { if (r.selectors.some((s) => /\.rail-tabs(?![\w-])/.test(s))) found.push(`${p}: ${r.selector}`); });
+    expect(found).toEqual([]);
+  });
+
+  it('the tab panels inside it draw no left border of their own; the panel draws one', () => {
+    const borders = {};
+    for (const { root } of sheets()) {
+      root.walkRules((r) => {
+        if (r.parent?.type === 'atrule') return;
+        for (const sel of r.selectors.map((s) => s.trim())) {
+          if (!['.right-rail', '.ai-dock', '.side-panel'].includes(sel)) continue;
+          r.walkDecls(/^border-left/, (d) => { borders[sel] = d.value; });
+        }
+      });
+    }
+    expect(borders['.side-panel']).toMatch(/1px solid/);
+    expect(borders['.right-rail']).toBeUndefined();
+    expect(borders['.ai-dock']).toBeUndefined();
+  });
+});
+
+// side-panel spec point 6: below 900 px the panel stacks under the desk. Expand has nothing to do
+// there, and the collapsed handle becomes a slim bar under the desk instead of a side strip.
+describe('the side panel when stacked (900 px and below)', () => {
+  const stacked = () => {
+    const found = [];
+    postcss.parse(read('../index.css')).walkAtRules('media', (at) => {
+      if (!/max-width:\s*900px/.test(at.params)) return;
+      at.walkRules((rule) => { for (const sel of rule.selectors) found.push({ sel: sel.trim(), rule }); });
+    });
+    return found;
+  };
+  const decl = (sel, prop) => stacked().filter((r) => r.sel === sel).map((r) => { let v; r.rule.walkDecls(prop, (d) => { v = d.value; }); return v; }).filter(Boolean).pop();
+
+  it('hides Expand, with a selector that outranks the action buttons\' display rule', () => {
+    // .side-panel-actions button (one class, one element) sets display: grid; a bare
+    // .side-panel-expand would lose to it (measured in the browser, 2026-10-03).
+    expect(decl('.side-panel-actions .side-panel-expand', 'display')).toBe('none');
+    expect(decl('.side-panel-expand', 'display')).toBeUndefined();
+  });
+
+  it('collapsed, the panel row shrinks to the handle, laid out across', () => {
+    expect(decl('.workspace.panel-collapsed', 'grid-template-rows')).toBe('minmax(0, 1fr) auto');
+    expect(decl('.side-panel-handle', 'flex-direction')).toBe('row');
+    expect(decl('.side-panel-handle button', 'writing-mode')).toBe('horizontal-tb');
+  });
+});

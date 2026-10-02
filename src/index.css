@@ -1114,9 +1114,6 @@ button, input, textarea { font-family: inherit; }
 .side-panel-actions button:disabled { opacity: 0.4; cursor: default; }
 .side-panel-body > [role="tabpanel"] { height: 100%; min-height: 0; }
 .side-panel-body > [role="tabpanel"][hidden] { display: none; }
-/* The Desk and Record panels keep the rail's content styles; the tab strip row is gone. */
-.side-panel .right-rail { grid-template-rows: minmax(0, 1fr); border-left: 0; }
-.side-panel .ai-dock { border-left: 0; box-shadow: none; }
 /* Collapsed (owner decision 2): a slim handle names the tabs; the desk takes the rest. */
 .side-panel-handle {
   display: flex;
@@ -1142,31 +1139,16 @@ button, input, textarea { font-family: inherit; }
 .side-panel-handle button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .workspace.panel-collapsed { grid-template-columns: minmax(0, 1fr) 32px; }
 
+/* The side panel's Desk and Record tab panels (RailContent); the panel draws the border. */
 .right-rail {
   display: grid;
-  grid-template-rows: 36px 1fr;
-  border-left: 1px solid var(--line);
+  grid-template-rows: minmax(0, 1fr);
   background: var(--panel);
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
 }
 
-.rail-tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; }
-.rail-tabs button {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-}
-.rail-tabs button.on {
-  color: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
 
 .rail-body, .ai-panel { overflow: auto; padding: 12px 14px 20px; }
 .rail-body {
@@ -1567,7 +1549,6 @@ button, input, textarea { font-family: inherit; }
 .right-rail .rd-prov-v,
 .right-rail .col-chart-val,
 .right-rail .col-chart-lab,
-.right-rail .rail-tabs button,
 .right-rail .rail-empty,
 .right-rail .banner {
   font-family: var(--font-ui);
@@ -2574,12 +2555,6 @@ button.live-feed:hover { color: var(--fg); }
   min-width: 140px;
   max-width: min(240px, 36vw);
 }
-.right-rail-carbon .rail-tabs button {
-  letter-spacing: 0.02em;
-  text-transform: none;
-  font-weight: 600;
-  font-size: 12px;
-}
 .right-rail-carbon .kpi-card h3 {
   text-transform: none;
   letter-spacing: 0.01em;
@@ -2853,11 +2828,9 @@ button.live-feed:hover { color: var(--fg); }
   box-sizing: border-box;
   background: #fff;
   color: var(--fg);
-  border-left: 1px solid #e8ecf1;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-  box-shadow: -8px 0 28px rgba(15, 23, 42, 0.06);
 }
 .workspace.ai-open {
   grid-template-columns: minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%) !important;
@@ -7096,8 +7069,14 @@ tr.close-soon { color: #6d675f; }
     border-top: 1px solid var(--line);
     min-height: 220px;
   }
-  /* Stacked under the desk: no side edge to drag. */
+  /* Stacked under the desk: no side edge to drag, and nothing to expand over. */
   .side-panel-edge { display: none; }
+  .side-panel-actions .side-panel-expand { display: none; } /* beats .side-panel-actions button */
+  /* Collapsed, the panel is a slim bar of tab names under the desk. */
+  .workspace.panel-collapsed { grid-template-rows: minmax(0, 1fr) auto; }
+  .side-panel.is-collapsed { min-height: 0; }
+  .side-panel-handle { flex-direction: row; justify-content: center; padding: 4px 8px; }
+  .side-panel-handle button { writing-mode: horizontal-tb; padding: 6px 10px; }
   .main-col { overflow: auto; }
   .home-grid { grid-template-columns: 1fr; }
   .row-detail-field { grid-template-columns: 1fr; gap: 4px; }
