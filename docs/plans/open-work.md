@@ -597,6 +597,11 @@ Follow-ups and findings:
   Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
   stored in the sources list and the reader. Needs a count over `documents.title` and a decision
   on cleaning at ingestion or at display.
+  - **Also found (2026-10-02, research-coverage T1):** some records carry another document's
+    title. `4618230e` ("The Airlines (Penalty for Delays) Bill,2005") and `a76358ab` ("The
+    Communal Violence(Prevention,Control and Rehabilitation of Victims) Bill,2005") each hold one
+    passage of an unrelated 2004 Appropriation Act. Read in the local replica, a copy of the
+    legacy corpus; nothing was changed.
 - [ ] **F53.** Questions that sound simple but need digging: the agent decides when it has
   enough, and nothing yet measures whether an answer covers everything the record holds on its
   question. Spec `specs/2026-10-02-research-coverage.md` is approved (2026-10-02; the owner
