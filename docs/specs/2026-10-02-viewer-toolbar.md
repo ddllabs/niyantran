@@ -289,3 +289,94 @@ viewer loads.
 - the PDF rendering, zoom model, data loading and stored-copy logic;
 - `WorkSurface`'s "Ask about this document" bar;
 - any server code.
+
+## Implementation notes (2026-10-02)
+
+What the build settled that this spec left open or got wrong, recorded so the spec matches the
+code.
+
+**Files.** `ViewerChrome.jsx` became two files under the 200-line guideline, and two hooks moved
+to `chromeHooks.js`:
+- `PageControls.jsx`: the page box, the cited chip, zoom, and the toolbar and pill;
+- `DocumentChrome.jsx`: the view switch, More, the side pane's document row and the full view's
+  header.
+
+The decisions about which chrome shows where (switch, zoom in the toolbar or in More, Full view)
+are one pure function, `chromePlan`, in `chromeModel.js`.
+
+**The section line.** The citation's section heading is often the bill's own title, which
+`WorkSurface`'s bar already shows. `sectionParts` drops a heading that repeats the title, and the
+note keeps its place when space runs out (the heading shrinks first). The old `sectionLabel` is
+removed.
+
+**Menus close at once.** The spec's 100 ms closing fade is dropped: the menu unmounts on close.
+Exits faster than entrances, and fast where the system responds.
+
+**Paging keys inside a menu.** ← and → inside an open menu no longer turn the page (`pagingKey`
+refuses events from inside `role="menu"`).
+
+**The pill's place:**
+- **PDF view:** the page area scrolls by itself, so the pill is placed absolutely, 16 px above its
+  foot.
+- **Text view:** the whole full view scrolls, so the pill is sticky.
+- **Room:** `--pv-pill-space` is 72 px, which leaves 14 px between the end of a page and the pill.
+- **The citation:** it is centred in the area above the pill. `scrollTargetFor` takes a bottom
+  inset read from the area's `scroll-padding-bottom` (a small change to `PdfPage.jsx` and
+  `viewerDom.js`, added to the write scope).
+
+**The full view's header** is sticky, so Exit stays reachable while the Text view scrolls.
+
+**Browser check.** It ran on a local harness, not the local stack.
+- **Why:** the C5 stack had been stopped without keeping its data, and OpenRouter was out of
+  credits, so no real answer could open a citation.
+- **What the harness is:** the real `WorkSurface`, `PageViewer` and app CSS, with real PDFs from
+  `ingest/pilot`. The 25-page budget is split into 10-page parts, as the admin upload does. Only
+  the Supabase client and the document-file client are fakes, over the extracted page text.
+- **Results:**
+  - side pane chrome 83 px at 480 px (the target is at most 84 px; about 190 px before);
+  - one toolbar row at 366 px and at a 375 px phone, with zoom in More;
+  - 44 px hit areas and 8 px gaps on touch;
+  - tab order, paging keys, Home and the page box;
+  - Escape: a menu first, then the full view, with focus returned each time;
+  - the pill 14 px clear of the page's end in PDF view, and clear of the last line in Text view;
+  - light and dark;
+  - the split document's "Open stored copy (part 2 of 3)";
+  - a clean console.
+- **Not verified there:** the clipboard's success path. The test browser refuses clipboard access,
+  so only the failure path, "Couldn't copy the file name", was seen.
+
+**Code review** (an independent reviewer, read-only). It found no critical issues and four
+required fixes. All four are fixed and checked in the browser.
+1. **Tab out of an open menu.** It now returns focus to the trigger without stopping the Tab, so
+   the browser moves on from there. Before, focus fell to a removed node, and the full view's trap
+   sent it to the dialog's first control.
+2. **Focus kept at the edges.**
+   - "Back to p. N" unmounts on arrival, by click or the Home key, so the page box takes focus.
+   - Previous, Next and the zoom steps at their limits use `aria-disabled` (`IconButton`'s
+     `unavailable`), not `disabled`, so the press that reached a limit keeps its focus.
+3. **Fit page in the full view.** The pill's room is now bottom padding on the page area, which
+   Fit page leaves out (`usePaneSize`'s first read now excludes padding, as `contentRect` does).
+   The page fits above the pill with 14 px to spare and no scrolling.
+4. **Paging keys from every control.** ←, → and Home page from the document row and the
+   full-view header too, as before.
+
+**Optional findings taken:**
+- a copy that settles after the menu closes no longer shows on the next open;
+- Copy file name is `aria-describedby` the file name;
+- Enter and Space open a menu through the button's own click, so a Space released on the first
+  item cannot choose it;
+- the compact flag is read before paint and kept alone (`useCompact`), so there is no flip from
+  full to compact and no re-render on height changes;
+- section text is collapsed to one line, with the separator spaced by margin;
+- every touch target has 8 px gaps and a 44 px hit area;
+- the PDF | Text switch no longer clips its focus ring;
+- Exit full view declares `aria-keyshortcuts="Escape"`.
+
+**Removed:** the unused `onClose` path on `PageViewer`, which `WorkSurface` never passed.
+
+**Not taken:** Safari has no `prefers-reduced-transparency`, so the pill stays frosted there.
+
+**Sizes:**
+- **Main entry:** +0 B gzip.
+- **The viewer chunk's JavaScript:** 13,111 → 18,833 B gzip (+5.7 KB, within the 6 KB budget).
+- **Its CSS:** 24,263 → 25,828 B gzip.

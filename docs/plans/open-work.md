@@ -467,6 +467,13 @@ Follow-ups and findings:
   - **Spec:** `specs/2026-10-02-viewer-toolbar.md` (owner-approved).
   - **Plan:** `plans/2026-10-02-viewer-toolbar.md`.
   - **Piece 2,** a page thumbnail rail and search in the document, follows with its own spec.
+  - **Piece 1 is built and verified locally** (2026-10-02):
+    - side pane chrome 83 px, against about 190 px before;
+    - a review's four required fixes are applied;
+    - 1,826 tests pass;
+    - the main bundle is +0, the viewer chunk +5.7 KB.
+  - **Next:** push `main`, with the owner's go-ahead. Then check, on production, the clipboard's
+    success path (the test browser refuses clipboard access) and a real split document.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
