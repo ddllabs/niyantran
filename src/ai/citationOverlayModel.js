@@ -2,8 +2,12 @@
  * The citation overlay's pure rules (docs/specs/2026-10-01-rag-v2-citations-pdf.md, decision 7 and
  * Design > Layout, and revision 4 point 1). CitationOverlay.jsx applies them; citation-overlay.css
  * states the default width in CSS, `min(100vw, max(50vw, 960px))`, as the fallback for the
- * --cov-width that CitationOverlay sets from these rules.
+ * --cov-width that CitationOverlay sets from these rules. The clamp, key steps and storage are the
+ * side panel's too (shell/resizeModel.js).
  */
+import { SHIFT_FACTOR, keyStep, readStoredNumber, size, within, writeStored } from '../shell/resizeModel.js';
+
+export { SHIFT_FACTOR, writeStored };
 
 /** The app's breakpoint at which the dock stacks under the desk (index.css, `max-width: 900px`). */
 export const NARROW_QUERY = '(max-width: 900px)';
@@ -12,7 +16,6 @@ export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 /** The owner-confirmed minimum: each half at least 480 px where the screen allows. */
 export const OVERLAY_MIN_PX = 960;
 
-const size = value => (Number.isFinite(value) && value > 0 ? value : 0);
 
 /** max(50vw, 960px), capped at the viewport width. */
 export function overlayWidth(viewportWidth) {
@@ -43,10 +46,6 @@ export const SPLIT_MAX = 75;
 export const SPLIT_DEFAULT = 50;
 export const WIDTH_KEY_STEP_PX = 16;
 export const SPLIT_KEY_STEP_PCT = 2;
-/** Shift multiplies a key step. */
-export const SHIFT_FACTOR = 4;
-
-const within = (value, min, max) => Math.min(max, Math.max(min, value));
 
 /** 960 px (or the viewport, if narrower) to the viewport less 120 px; never max < min. */
 export function widthBounds(viewportWidth) {
@@ -87,16 +86,6 @@ export function dragSplit(startSplit, startX, x, overlayPx) {
   return clampSplit(width ? startSplit + ((startX - x) / width) * 100 : startSplit);
 }
 
-/** A key's new value, or null for a key the handle does not take. Arrows move the handle. */
-function keyStep(value, key, shift, step, min, max) {
-  const delta = step * (shift ? SHIFT_FACTOR : 1);
-  if (key === 'ArrowLeft') return value + delta;
-  if (key === 'ArrowRight') return value - delta;
-  if (key === 'Home') return min;
-  if (key === 'End') return max;
-  return null;
-}
-
 export function stepWidth(width, key, { shift = false, viewportWidth } = {}) {
   const { min, max } = widthBounds(viewportWidth);
   const next = keyStep(width, key, shift, WIDTH_KEY_STEP_PX, min, max);
@@ -106,17 +95,6 @@ export function stepWidth(width, key, { shift = false, viewportWidth } = {}) {
 export function stepSplit(split, key, { shift = false } = {}) {
   const next = keyStep(split, key, shift, SPLIT_KEY_STEP_PCT, SPLIT_MIN, SPLIT_MAX);
   return next === null ? null : clampSplit(next);
-}
-
-/** A stored positive number, or null for nothing, junk, no storage or a storage that throws. */
-function readStoredNumber(storage, key) {
-  try {
-    const raw = storage.getItem(key); // a missing storage throws here too
-    const value = raw ? Number(raw) : Number.NaN;
-    return Number.isFinite(value) && value > 0 ? value : null;
-  } catch {
-    return null;
-  }
 }
 
 /** The stored width, re-clamped to the viewport when it is known. */
@@ -129,16 +107,6 @@ export function readStoredWidth(storage, viewportWidth) {
 export function readStoredSplit(storage) {
   const value = readStoredNumber(storage, SPLIT_STORAGE_KEY);
   return value === null ? null : clampSplit(value);
-}
-
-/** Stores a value, or removes the key for null (a reset). Never throws. */
-export function writeStored(storage, key, value) {
-  try {
-    if (value == null) storage.removeItem(key);
-    else storage.setItem(key, String(value));
-  } catch {
-    // No storage, or blocked or full: the choice simply is not remembered.
-  }
 }
 
 /**

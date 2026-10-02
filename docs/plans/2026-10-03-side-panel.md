@@ -60,3 +60,18 @@
 ### Checkpoint
 - Lint, Vitest and the build pass.
 - **Go-ahead:** the push.
+
+**T1, recorded 2026-10-03.**
+- **`shell/sidePanelModel.js`:**
+  - the tabs (Desk and Record where the rail was, Record only with a selection, AI everywhere);
+  - the active tab across select, clear, `ai-open`, a tab click, collapse, reopen, close-AI and a
+    desk change;
+  - a mounted set that only grows;
+  - the collapsed memory;
+  - the docked width: 36% by default, 340 px to 60%, with drag, keys, Home and End, and storage.
+- **Two behaviours set here:**
+  - selecting a row while on AI keeps AI, and Record just becomes available;
+  - selecting a row while collapsed does not reopen the panel.
+- **`shell/resizeModel.js`** holds the clamp, key steps and storage that `citationOverlayModel.js`
+  now imports. The overlay's 79 tests pass unchanged.
+- **Tests:** 19 new. The suite failed first, with the module missing.
