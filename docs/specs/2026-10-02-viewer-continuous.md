@@ -1,13 +1,16 @@
 # Spec: a standard PDF viewer for citations (`viewer-continuous`), piece 2
 
-> **Status: Draft — for the owner's review.** It re-scopes piece 2 of the citation viewer
-> (open-work F48) as the owner asked on 2026-10-02: "the PDF viewer that we are building will
-> practically be looking similar to this in terms of features, because users already know how a
-> PDF viewer works with the thumbnails on the left", and "the citations being shown on the PDF
-> pages should be the exact citations and not some random boxes".
+> **Status: Normative — approved by the owner on 2026-10-02:** "go ahead with all your
+> recommendations for the text view … For the rest of the changes, go ahead". It re-scopes
+> piece 2 of the citation viewer (open-work F48), as the owner asked:
+> - "the PDF viewer that we are building will practically be looking similar to this in terms of
+>   features, because users already know how a PDF viewer works with the thumbnails on the left";
+> - "the citations being shown on the PDF pages should be the exact citations and not some random
+>   boxes".
 >
 > It builds on `2026-10-02-viewer-toolbar.md` (the chrome, live) and
-> `2026-10-02-viewer-whole-page.md` (whole pages, live). The open decisions are at the end.
+> `2026-10-02-viewer-whole-page.md` (whole pages, live). The owner's decisions are recorded at the
+> end.
 
 ## Current state
 
@@ -200,10 +203,22 @@ Under reduced motion it only fades.
 
 ### 6. The Text view
 
-The Text view scrolls continuously as well:
-- the stored page texts in order, read in batches as they near the view, under page headings;
-- the cited span marked;
-- search matches marked.
+**Documents with pages** (the new OCR pipeline) offer two layouts of the stored page text:
+- **Continuous**, the default: the pages in order under page headings, read in batches as they
+  near the view;
+- **One page:** a page at a time, as today.
+
+In both, the cited span and the search matches are marked.
+
+**The choice:**
+- it sits in the More menu as "Text layout", with Continuous and One page as radio items, while
+  the Text view shows;
+- it is saved in this browser only when the reader chooses it.
+
+**The PDF view always scrolls continuously.**
+
+**The earlier documents** (no pages; `SourceReader`) are unchanged. They already show the whole
+text in one continuous scroll.
 
 ## Budgets
 
@@ -236,6 +251,7 @@ database.
   position;
 - **the render window:** which pages draw, their order, cancellation, and the 8-canvas cap;
 - **the pool:** 3 parts least recently used, 2 renders, priorities, and thumbnails behind pages;
+- **the Text view's layout choice:** Continuous by default, and saved only on choice;
 - **the passage matcher:**
   - normalisation of Markdown, quotes, dashes, hyphenation and case;
   - anchors and the 80% rule;
@@ -295,16 +311,15 @@ layer.
 - changes to ingestion, retrieval or the answer format;
 - the plain text reader for the earlier documents.
 
-## Open decisions for the owner
+## The owner's decisions (2026-10-02)
 
-1. **The Text view scrolls continuously too (recommended),** or stays one page at a time.
-2. **Fit text in a scrolling document (recommended):** its scale comes from the cited page's text
-   column, and every page is drawn whole at that scale. The alternative is to drop Fit text in the
-   scrolling view and keep Fit width and Fit page only.
-3. **The matcher evaluation needs the two documents' public source PDFs** from sansad.in (about
-   0.2–0.5 MB each). The stored copies are not read with production credentials. May I download
-   them?
-4. **The migration:** `search_document_pages` is a new database function, applied to NTER only with
-   your go-ahead after the local fixture passes.
-5. **Browser floor for the exact mark:** the Highlight API is in current Chrome, Edge, Safari 17.2+
-   and Firefox 140+. Older browsers get the dashed approximate rectangles. Is that acceptable?
+1. **The Text view:** both layouts for documents with pages, Continuous by default (section 6).
+   The earlier documents keep their continuous reader.
+2. **Fit text in a scrolling document:** its scale comes from the cited page's text column, and
+   every page is drawn whole at that scale.
+3. **Downloads:** the two live documents' public source PDFs may be downloaded from sansad.in for
+   the matcher evaluation.
+4. **The migration:** `search_document_pages` is tested locally first. Applying it to NTER is a
+   separate go-ahead, asked for when the fixture passes.
+5. **The browser floor:** the exact mark uses the Highlight API. Older browsers get the dashed
+   approximate rectangles.

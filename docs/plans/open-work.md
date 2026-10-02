@@ -474,8 +474,9 @@ Follow-ups and findings:
     - the citation marked by its exact text on the PDF's text layer. Block rectangles stay only as
       a visibly different fallback for pages without a text layer.
     - The PDF loader must hold a few stored parts open at once.
-    - **Spec draft:** `specs/2026-10-02-viewer-continuous.md`, awaiting the owner's review and five
-      decisions.
+    - **Spec:** `specs/2026-10-02-viewer-continuous.md` (owner-approved; the Text view gets both
+      layouts for documents with pages).
+    - **Plan:** `plans/2026-10-02-viewer-continuous.md`, T1–T9.
   - **Piece 1 is built and verified locally** (2026-10-02):
     - side pane chrome 83 px, against about 190 px before;
     - a review's four required fixes are applied;
