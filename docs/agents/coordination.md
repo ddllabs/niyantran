@@ -1494,3 +1494,20 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
       list stays on screen;
     - the earlier checks still stand: the phone dock and dimming, the live timing word, the Safari
       Text view, the signed-in brief and follow-up, and the live-bill viewer.
+- **source-list (F51) and the routing results: `main` pushed (2026-10-02)** (owner: "Push main to
+  origin").
+  - **The push:** `main` was pushed from `c2c3069` to `5b49049` (5 commits, 12 files). It carries:
+    - the sources list redesign (`2d95bf6`, `2b1bdde`): a compact styled list, with the pages and
+      citation numbers per document and the file name only as the tooltip;
+    - the provider-routing trial results and their raw file;
+    - the T5 push record, the source-list spec, plan and local run, and F51 and F52.
+
+    A scan of the outgoing diff, run before the push, found no env files, no `docs/security`, no
+    keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_4K7HfQarfcR3BnY81ByxmRfNGXDv` (`5b49049`) is READY.
+  - **Served:** `index-ClDtYTJ9.css` carries `.ai-sources{list-style:none;…}`,
+    `.ai-source-chip{…border:0…}` and its `:focus-visible` ring. The main entry
+    `index-CWkWLUFK.js` has the "Sources · N documents" label.
+  - No server or database change.
+  - **Owner check on production:** the sources under a signed-in answer show as the compact list,
+    and a row opens the reader.
