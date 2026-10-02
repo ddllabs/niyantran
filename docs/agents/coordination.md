@@ -1562,3 +1562,30 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     frontend file changed, and the served bundle is unchanged (`index-CWkWLUFK.js`,
     `index-ClDtYTJ9.css`).
   - No database change.
+- **side-panel (F54): `main` pushed (2026-10-03)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `cf54c58` to `57e3d8c` (10 commits, 22 files). It
+    carries:
+    - one `SidePanel` with Desk, Record and AI research tabs, in place of the rail-or-dock swap;
+    - one draggable, remembered width (36% by default, 340 px to 60%);
+    - one expand mode for every tab (the citation overlay generalised into
+      `shell/PanelOverlay.jsx`);
+    - Collapse with a handle, and the stacked phone layout;
+    - the dead rail CSS removed;
+    - the spec, plan and local run, the F53 close and the research-coverage push record.
+
+    A scan of the outgoing diff, run before the push, found no env files, no `docs/security`, no
+    keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_F6aKcVYT1MmNm2zJmj1ygDXd2MR4` (`57e3d8c`) is READY.
+  - **Served:**
+    - `index-B96K0Kgn.css` carries the `.side-panel` rules, `.cov.is-solo` and the shared width
+      rule `minmax(0,1fr) clamp(340px,var(--panel-chosen, 36%),60%)` (and its `!important` AI
+      form), and no `.rail-tabs`;
+    - the main entry `index-BOfMaHTi.js` carries the tab IDs, "Resize the panel" and "Resize the
+      expanded panel".
+  - No server, Edge Function or database change.
+  - **Owner checks on production:**
+    - the Desk, Record and AI tabs, and a row opening Record;
+    - dragging the panel's left edge, and the width holding across tabs and a reload;
+    - Expand on Desk and Record, and a citation in AI opening the split;
+    - Collapse and the handle;
+    - on a phone, the stacked panel and AI full-screen with the tab bar.
