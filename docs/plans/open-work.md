@@ -439,8 +439,20 @@ Follow-ups and findings:
     - cost 13–38% lower;
     - citations valid 40/40, gold citations 38/40 against 34/40.
   - **Batching** was measured and is not recommended.
-  - **Next:** deploy `research-chat`, with a go-ahead. A fast routing model (step 4) needs a
-    design first.
+  - **Deployed** as research-chat v43.
+  - **A fast routing model** (step 4) was dropped by the owner: with the pre-search it would add a
+    call to most turns.
+  - **Amendment 1** (`1a46546`), so speed never costs depth:
+    - the pre-search reply asks for a search per part it does not cover;
+    - follow-ups are not pre-searched.
+  - **Benchmark pass 3** (`research/2026-10-02-answer-speed-depth-benchmark.md`) is partial: the
+    OpenRouter account ran out of credits.
+    - Narrow questions keep the gain.
+    - Briefs search more than before and cite at least as much, but take about 13 s longer to the
+      first word.
+  - **Next:**
+    - once credits are restored, finish the 6 remaining briefs and the 10 follow-ups;
+    - then deploy `research-chat`, with a go-ahead.
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.

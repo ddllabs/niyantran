@@ -8,12 +8,18 @@
  * outside the sandbox:
  *
  *   deno run -A --config supabase/functions/deno.json scripts/bench-agent/run.ts \
- *     --variants baseline,presearch,batch --n 20 --model google/gemini-3.8-flash
+ *     --variants baseline,presearch,presearch2 --narrow 10 --broad 15 --followups 10 \
+ *     --model google/gemini-3.8-flash   [--kinds broad,followup]
+ *
+ * Variants (amendment 1): `baseline` has no pre-search; `presearch` is v43 (every turn that is
+ * not small talk, without the note); `presearch2` adds the note and skips follow-ups. `batch`
+ * is the measured-only sweep-in-one-round prompt.
  *
  * Writes eval/agent/results/<timestamp>.json and prints a summary. Costs real money: about $0.02
  * per question per variant on Gemini 3.8 Flash.
  */
-import { createAgentBudget, runAgent, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
+import { createAgentBudget, PRESEARCH_NOTE, runAgent, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
+import type { Message } from '../../supabase/functions/_shared/openrouterStream.ts';
 import { buildSystemPrompt, buildUserTurn } from '../../supabase/functions/research-chat/prompt.ts';
 import { deskCatalogBlock } from '../../supabase/functions/_shared/deskCatalog.ts';
 import { createHandleAssigner, handlesIn } from '../../supabase/functions/_shared/handles.ts';
@@ -24,8 +30,11 @@ import { search } from '../../supabase/functions/_shared/retrieval.ts';
 import { fromFileUrl } from 'jsr:@std/path@1';
 const root = fromFileUrl(new URL('../../', import.meta.url));
 const args = Object.fromEntries(Deno.args.map((a, i, all) => (a.startsWith('--') ? [a.slice(2), all[i + 1]] : null)).filter(Boolean) as [string, string][]);
-const VARIANTS = (args.variants ?? 'baseline,presearch').split(',');
-const N = Number(args.n ?? 20);
+const VARIANTS = (args.variants ?? 'baseline,presearch,presearch2').split(',');
+const NARROW = Number(args.narrow ?? 10);
+const BROAD = Number(args.broad ?? 15);
+const FOLLOWUPS = Number(args.followups ?? 10);
+const KINDS = (args.kinds ?? 'narrow,broad,followup').split(',');
 const MODEL = args.model ?? 'google/gemini-3.8-flash';
 const EFFORT = args.effort ?? 'low';
 const env = Deno.readTextFileSync(`${root}.env.local`);
@@ -61,19 +70,37 @@ const retrievalDeps = {
 };
 
 // ─── Questions ───────────────────────────────────────────────────────────────
-interface Q { id: string; question: string; gold: string[]; broad?: boolean }
-const all = Deno.readTextFileSync(`${root}eval/retrieval/questions.v1.jsonl`).split('\n').filter(Boolean).map((l) => JSON.parse(l));
-// A deterministic spread: every ninth question, then broad briefs (a quarter of N, up to five) on
-// the documents of the first of them.
-const BROAD = Math.min(5, Math.floor(N / 4));
-const picked: Q[] = all.filter((_: unknown, i: number) => i % 9 === 0).slice(0, N - BROAD)
-  .map((q: { id: string; question: string; gold_document_ids: string[] }) => ({ id: q.id, question: q.question, gold: q.gold_document_ids }));
-const titles = BROAD ? JSON.parse(await replicaSql(`select coalesce(json_object_agg(id, title), '{}') from public.documents where id in (${picked.slice(0, BROAD).map((q) => lit(q.gold[0])).join(',')});`)) : {};
-const broad: Q[] = picked.slice(0, BROAD).map((q) => ({
-  id: `${q.id}-brief`, gold: q.gold, broad: true,
-  question: `Brief me on ${titles[q.gold[0]] ?? 'this bill'}: what it does, its key clauses, penalties and who administers it.`,
+type Kind = 'narrow' | 'broad' | 'followup';
+interface Q { id: string; kind: Kind; question: string; gold: string[]; first?: string }
+interface Eval { id: string; question: string; desk_feature: string; gold_document_ids: string[] }
+const all: Eval[] = Deno.readTextFileSync(`${root}eval/retrieval/questions.v1.jsonl`).split('\n').filter(Boolean).map((l) => JSON.parse(l));
+// Deterministic spreads. Narrow: every thirteenth question, any desk. Broad briefs and follow-ups
+// are on bills (clauses, penalties and administration are what a bill has), on distinct documents.
+const narrow: Q[] = all.filter((_, i) => i % 13 === 0).slice(0, NARROW)
+  .map((q) => ({ id: q.id, kind: 'narrow', question: q.question, gold: q.gold_document_ids }));
+const bills: Eval[] = [];
+for (const q of all.filter((q) => q.desk_feature === 'Bill Passage Probability Index')) {
+  if (!bills.some((b) => b.gold_document_ids[0] === q.gold_document_ids[0])) bills.push(q);
+}
+const broadSrc = bills.filter((_, i) => i % 2 === 0).slice(0, BROAD);
+const followSrc = bills.filter((_, i) => i % 2 === 1).slice(0, FOLLOWUPS);
+const titles: Record<string, string> = broadSrc.length
+  ? JSON.parse(await replicaSql(`select coalesce(json_object_agg(id, title), '{}') from public.documents where id in (${broadSrc.map((q) => lit(q.gold_document_ids[0])).join(',')});`))
+  : {};
+const broad: Q[] = broadSrc.map((q) => ({
+  id: `${q.id}-brief`, kind: 'broad', gold: q.gold_document_ids,
+  question: `Brief me on ${titles[q.gold_document_ids[0]] ?? 'this bill'}: what it does, its key clauses, penalties and who administers it.`,
 }));
-const questions = [...picked, ...broad].slice(0, N);
+// A follow-up names no document: it only makes sense with the first question in view.
+const FOLLOW = [
+  'What penalties does it set, and who enforces them?',
+  'Who administers it, and what powers does that authority get?',
+  'When does it come into force, and which earlier law does it change?',
+];
+const followups: Q[] = followSrc.map((q, i) => ({
+  id: `${q.id}-follow`, kind: 'followup', gold: q.gold_document_ids, first: q.question, question: FOLLOW[i % FOLLOW.length],
+}));
+const questions = [...narrow, ...broad, ...followups].filter((q) => KINDS.includes(q.kind));
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────
 const personas = JSON.parse(Deno.readTextFileSync(`${root}supabase/functions/_shared/personas.json`));
@@ -84,22 +111,23 @@ const BATCH = 'Sweep the subject part by part: issue every query the sweep needs
 if (!baseSystem.includes(SWEEP)) throw new Error('the sweep sentence moved; update the batch variant');
 
 // ─── One run ─────────────────────────────────────────────────────────────────
-async function runOne(q: Q, variant: string) {
+async function runOne(q: Q, variant: string, history: Message[] = []) {
   const t0 = performance.now();
   let calls = 0, firstAnswer = 0, retracts = 0;
   const callMs: number[] = [];
   const usage: { prompt: number; completion: number; cached: number; cost: number }[] = [];
   const handles = createHandleAssigner();
-  const chunkDoc = new Map<string, string>();
+  const chunkOf = new Map<string, { doc: string; page: string }>();
   const input: AgentInput = {
     system: variant === 'batch' ? baseSystem.replace(SWEEP, BATCH) : baseSystem,
-    window: [],
+    window: history,
     userTurn: buildUserTurn(q.question),
     scopedDocumentIds: [],
     focus: 'broad',
     scopeSent: false,
     conversational: false,
-    ...(variant === 'baseline' ? {} : { presearch: q.question }),
+    // Mirrors the handler: v43 pre-searched every turn; amendment 1 skips a follow-up.
+    ...(variant === 'baseline' || (variant === 'presearch2' && history.length) ? {} : { presearch: q.question }),
   };
   const onEvent = (e: AgentEvent) => {
     if (('text' in e || 'draftText' in e) && !firstAnswer) firstAnswer = performance.now() - t0;
@@ -113,6 +141,10 @@ async function runOne(q: Q, variant: string) {
       request: { model: MODEL, reasoning: { effort: EFFORT } },
       model: async function* (req: StreamRequest): AsyncGenerator<ModelEvent> {
         calls++;
+        // v43 had no note on the pre-search reply: take it off to reproduce that variant.
+        if (variant === 'presearch') {
+          req = { ...req, messages: req.messages.map((m) => m.role === 'tool' && typeof m.content === 'string' && m.content.startsWith(PRESEARCH_NOTE) ? { ...m, content: m.content.slice(PRESEARCH_NOTE.length) } : m) };
+        }
         const c0 = performance.now();
         for await (const ev of streamChat({ fetch, apiKey: key }, req)) {
           if (ev.type === 'finish' && ev.usage) {
@@ -124,7 +156,7 @@ async function runOne(q: Q, variant: string) {
       },
       searchDocuments: async (a, ids) => {
         const chunks = await search(retrievalDeps, { query: a.query, deskTier: a.desk_tier, deskFeature: a.desk_feature, documentIds: ids });
-        for (const c of chunks) chunkDoc.set(c.id, c.document_id);
+        for (const c of chunks) chunkOf.set(c.id, { doc: c.document_id, page: `${c.document_id}:${c.page_number ?? `c${c.chunk_index}`}` });
         return chunks;
       },
       searchDeskRows: () => Promise.resolve({ rows: [], total: 0, snapshot_at: null }),
@@ -139,42 +171,58 @@ async function runOne(q: Q, variant: string) {
   }
   const total = performance.now() - t0;
   // Quality: the envelope parses; every cited handle was assigned this turn; the gold document is cited.
-  let parsed = false, validCitations = false, citesGold = false, answerChars = 0, cited = 0;
+  let parsed = false, validCitations = false, citesGold = false, answerChars = 0, cited = 0, docs = 0, pages = 0, answer = '';
   try {
     const env = JSON.parse(text);
     parsed = typeof env.answer === 'string' && env.answer.trim().length > 0;
     answerChars = env.answer?.length ?? 0;
+    answer = env.answer ?? '';
     const used = new Set([...handlesIn(JSON.stringify(env.sources ?? [])), ...handlesIn(env.answer ?? '')]);
     cited = used.size;
     validCitations = [...used].every((h) => handles.lookup(h) !== undefined);
-    citesGold = [...used].some((h) => q.gold.includes(chunkDoc.get(handles.lookup(h) ?? '') ?? ''));
+    const hits = [...used].map((h) => chunkOf.get(handles.lookup(h) ?? '')).filter((x) => x !== undefined);
+    citesGold = hits.some((x) => q.gold.includes(x.doc));
+    docs = new Set(hits.map((x) => x.doc)).size;
+    pages = new Set(hits.map((x) => x.page)).size;
   } catch { /* unparsed */ }
   const sum = (k: keyof typeof usage[number]) => usage.reduce((n, u) => n + u[k], 0);
   return {
-    id: q.id, broad: !!q.broad, variant, calls, searches, retracts, error,
+    id: q.id, kind: q.kind, variant, calls, searches, retracts, error, answer,
     first_answer_ms: Math.round(firstAnswer), total_ms: Math.round(total), call_ms: callMs,
     prompt_tokens: sum('prompt'), completion_tokens: sum('completion'), cached_tokens: sum('cached'), cost_usd: Number(sum('cost').toFixed(5)),
-    parsed, valid_citations: validCitations, cites_gold: citesGold, cited, answer_chars: answerChars,
+    parsed, valid_citations: validCitations, cites_gold: citesGold, cited, docs, pages, answer_chars: answerChars,
   };
 }
 
 const rows = [];
+let setupCost = 0;
 for (const q of questions) {
+  // A follow-up's history: its first question and that question's answer, from one baseline run
+  // shared by every variant.
+  let history: Message[] = [];
+  if (q.first) {
+    const first = await runOne({ ...q, kind: 'narrow', question: q.first }, 'baseline');
+    setupCost += first.cost_usd;
+    history = [{ role: 'user', content: q.first }, { role: 'assistant', content: first.answer || 'Not in record.' }];
+  }
   for (const v of VARIANTS) {
-    const r = await runOne(q, v);
+    const r = await runOne(q, v, history);
     rows.push(r);
-    console.log(`${q.id.padEnd(16)} ${v.padEnd(10)} calls=${r.calls} searches=${r.searches} first=${(r.first_answer_ms / 1000).toFixed(1)}s total=${(r.total_ms / 1000).toFixed(1)}s $${r.cost_usd} valid=${r.valid_citations} gold=${r.cites_gold}${r.error ? ' ERR ' + r.error : ''}`);
+    console.log(`${q.id.padEnd(16)} ${v.padEnd(10)} calls=${r.calls} searches=${r.searches} first=${(r.first_answer_ms / 1000).toFixed(1)}s total=${(r.total_ms / 1000).toFixed(1)}s $${r.cost_usd} docs=${r.docs} pages=${r.pages} valid=${r.valid_citations} gold=${r.cites_gold}${r.error ? ' ERR ' + r.error : ''}`);
   }
 }
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const out = `${root}eval/agent/results/${stamp}.json`;
-Deno.writeTextFileSync(out, JSON.stringify({ model: MODEL, effort: EFFORT, variants: VARIANTS, n: questions.length, rows }, null, 1));
+Deno.writeTextFileSync(out, JSON.stringify({ model: MODEL, effort: EFFORT, variants: VARIANTS, n: questions.length, setup_cost_usd: Number(setupCost.toFixed(5)), rows }, null, 1));
 const med = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
-console.log('\nvariant     calls(avg) searches(avg) first_word(p50) total(p50) cost(avg)  valid  gold  errors');
-for (const v of VARIANTS) {
-  const r = rows.filter((x) => x.variant === v);
-  const ok = r.filter((x) => !x.error);
-  const avg = (f: (x: typeof r[number]) => number) => ok.reduce((n, x) => n + f(x), 0) / Math.max(1, ok.length);
-  console.log(`${v.padEnd(11)} ${avg((x) => x.calls).toFixed(2).padStart(10)} ${avg((x) => x.searches).toFixed(2).padStart(13)} ${(med(ok.filter((x) => x.first_answer_ms).map((x) => x.first_answer_ms)) / 1000).toFixed(1).padStart(14)}s ${(med(ok.map((x) => x.total_ms)) / 1000).toFixed(1).padStart(9)}s $${avg((x) => x.cost_usd).toFixed(4)}  ${ok.filter((x) => x.valid_citations).length}/${r.length}  ${ok.filter((x) => x.cites_gold).length}/${r.length}  ${r.length - ok.length}`);
+for (const kind of ['narrow', 'broad', 'followup'] as Kind[]) {
+  console.log(`\n${kind}\nvariant     calls  searches  docs  pages  first_word(p50)  total(p50)  cost(avg)  valid  gold  errors`);
+  for (const v of VARIANTS) {
+    const r = rows.filter((x) => x.variant === v && x.kind === kind);
+    if (!r.length) continue;
+    const ok = r.filter((x) => !x.error);
+    const avg = (f: (x: typeof r[number]) => number) => ok.reduce((n, x) => n + f(x), 0) / Math.max(1, ok.length);
+    console.log(`${v.padEnd(11)} ${avg((x) => x.calls).toFixed(2).padStart(5)} ${avg((x) => x.searches).toFixed(2).padStart(9)} ${avg((x) => x.docs).toFixed(2).padStart(5)} ${avg((x) => x.pages).toFixed(2).padStart(6)} ${(med(ok.filter((x) => x.first_answer_ms).map((x) => x.first_answer_ms)) / 1000).toFixed(1).padStart(15)}s ${(med(ok.map((x) => x.total_ms)) / 1000).toFixed(1).padStart(10)}s $${avg((x) => x.cost_usd).toFixed(4)}  ${ok.filter((x) => x.valid_citations).length}/${r.length}  ${ok.filter((x) => x.cites_gold).length}/${r.length}  ${r.length - ok.length}`);
+  }
 }
-console.log(`\nwritten ${out.replace(root, '')}`);
+console.log(`\nsetup (follow-up first answers) $${setupCost.toFixed(4)}\nwritten ${out.replace(root, '')}`);
