@@ -6990,6 +6990,23 @@ tr.close-soon { color: #6d675f; }
 }
 
 @media (max-width: 640px) {
+  /* chat-panel-fixes (F47): on a phone the open AI dock takes the whole workspace. At 40% it got
+     268 px of a 375 x 812 screen, which its head, controls and composer fill, leaving the thread
+     18 px. The desk stays mounted and keeps its scroll, collapsed until the dock closes. */
+  .workspace.ai-open,
+  .workspace.ai-open.home,
+  .workspace.ai-open.conflicts-holistic,
+  .workspace.ai-open.choke-holistic,
+  .workspace.ai-open.geo-holistic,
+  .workspace.ai-open.transit-map,
+  .workspace.ai-open.pig-holistic {
+    grid-template-rows: 0 minmax(0, 1fr);
+  }
+  .workspace.ai-open > .main-col {
+    visibility: hidden;
+    overflow: hidden;
+  }
+  .workspace.ai-open > .ai-dock { border-top: 0; }
   .brand span { letter-spacing: 0.12em; font-size: 12px; }
   .logout-btn { padding: 0 8px; }
   .tv-btn {

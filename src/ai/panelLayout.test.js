@@ -77,3 +77,31 @@ describe('rules on the panel\'s regions match its structure', () => {
     expect(Number(decls.opacity)).toBeLessThan(1);
   });
 });
+
+// chat-panel-fixes (F47): at 375 × 812 the open dock got 40% of the workspace (268 px), and the
+// panel's fixed parts (head, controls, composer) take about that much, so the thread was 18 px tall.
+// On a phone the open dock takes the whole workspace; the desk stays mounted, collapsed, until it closes.
+describe('on a phone, the open AI dock takes the workspace', () => {
+  const phoneRules = () => {
+    const found = [];
+    postcss.parse(read('../index.css')).walkAtRules('media', (at) => {
+      if (!/max-width:\s*640px/.test(at.params)) return;
+      at.walkRules((rule) => { for (const sel of rule.selectors) found.push({ sel: sel.trim(), rule }); });
+    });
+    return found;
+  };
+  const decl = (rule, prop) => { let v; rule.walkDecls(prop, (d) => { v = d.value; }); return v; };
+
+  it('the workspace gives the dock every row of its height', () => {
+    const ws = phoneRules().find(({ sel }) => sel === '.workspace.ai-open');
+    expect(ws).toBeTruthy();
+    expect(decl(ws.rule, 'grid-template-rows')).toMatch(/^0(px)?\s+minmax\(0,\s*1fr\)/);
+  });
+
+  it('the desk is collapsed, not removed, while the dock is open', () => {
+    const main = phoneRules().find(({ sel }) => sel === '.workspace.ai-open > .main-col');
+    expect(main).toBeTruthy();
+    expect(decl(main.rule, 'visibility')).toBe('hidden');
+    expect(decl(main.rule, 'display')).toBeUndefined();
+  });
+});
