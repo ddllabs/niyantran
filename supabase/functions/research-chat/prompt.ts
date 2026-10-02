@@ -84,6 +84,11 @@ const OUTPUT = `Output contract — reply with exactly one JSON object and nothi
 export const BEFORE_YOU_ANSWER =
   `Before you answer, check: every factual claim is in the retrieved record or marked **Not in record.**; every citation number resolves to a handle you were given; no handle, id or field name appears in the prose; counts come from TOTAL, never estimated; the JSON object is the whole reply.`;
 
+/** research-coverage fix A (docs/specs/2026-10-02-research-coverage.md): a check that the answer
+ * covers what the question needs. Off by default until the measurement shows it helps. */
+export const COVERAGE_CHECK =
+  `Coverage, before you write the answer: list to yourself what a complete answer to this question needs. For a penalty, both the punishment and the conduct it punishes; for a scheme, who qualifies, what they get, who pays and who decides; for an amendment, each provision it changes. Confirm each part has a retrieved passage behind it. When a passage you will cite refers to another section, clause or Schedule of the same document ("contravenes section 12", "as specified in the Schedule") and you have not retrieved that provision, search for it first, unless the question plainly does not need it. A part with no passage after a search aimed at it is **Not in record.**; a part you never searched for is not.`;
+
 export const SYSTEM_PROMPT_STATIC = [
   ROLE,
   GROUNDING,
@@ -142,6 +147,8 @@ export interface PromptInput {
   /** Desk modules that actually have indexed source documents, from the live
    * corpus. Empty or absent renders nothing. */
   documentModules?: string[];
+  /** research-coverage fix A: add COVERAGE_CHECK. Off unless set; the handler does not set it. */
+  coverageCheck?: boolean;
 }
 
 /**
@@ -213,7 +220,7 @@ export function buildSystemPrompt(a: PromptInput): string {
     .filter(Boolean)
     .join('\n\n');
   const personaBlock = persona ? `${PERSONA_PREAMBLE}\n\n${persona}` : '';
-  return [SYSTEM_PROMPT_STATIC, personaBlock, dynamic]
+  return [SYSTEM_PROMPT_STATIC, a.coverageCheck ? COVERAGE_CHECK : '', personaBlock, dynamic]
     .filter(Boolean).join('\n\n');
 }
 

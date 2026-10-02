@@ -72,3 +72,9 @@
   test.
 - **S1's worst-case firing rate** is 13% (spec amendment 1).
 - **Checks:** Deno (855) and lint pass.
+
+**T4, recorded 2026-10-02.**
+- **`COVERAGE_CHECK`** goes after the fixed research guidance and before the persona, only when
+  `PromptInput.coverageCheck` is set. The handler never sets it, so production prompts and their
+  cache are unchanged.
+- **The prompt test** failed first.

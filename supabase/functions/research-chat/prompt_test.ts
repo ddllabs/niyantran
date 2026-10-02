@@ -5,6 +5,7 @@ import {
   BEFORE_YOU_ANSWER,
   buildSystemPrompt,
   buildUserTurn,
+  COVERAGE_CHECK,
   coverageLine,
   FOCUS_LINES,
   SYSTEM_PROMPT_STATIC,
@@ -396,4 +397,17 @@ Deno.test('the desk focus line says document searches are limited to the open mo
   assertStringIncludes(line, 'search_desk_rows');
   assertStringIncludes(line, 'every search_documents call is limited to its documents');
   assertStringIncludes(line, 'When the module has indexed documents');
+});
+
+// research-coverage fix A: a coverage check before answering, off by default until measured.
+Deno.test('the coverage check is in the prompt only when asked for, after the research guidance and before the persona', () => {
+  const base = { persona: 'Persona text.', today: 'x', catalogue: 'c', focus: 'broad' };
+  const off = buildSystemPrompt(base);
+  assert(!off.includes(COVERAGE_CHECK));
+  assertEquals(buildSystemPrompt({ ...base, coverageCheck: false }), off);
+  const on = buildSystemPrompt({ ...base, coverageCheck: true });
+  assert(on.includes(COVERAGE_CHECK));
+  assert(on.indexOf(COVERAGE_CHECK) > on.indexOf('Decomposition examples:'));
+  assert(on.indexOf(COVERAGE_CHECK) < on.indexOf('Persona text.'));
+  for (const phrase of ['section, clause or Schedule', 'Not in record.', 'before you write the answer']) assert(COVERAGE_CHECK.toLowerCase().includes(phrase.toLowerCase()), phrase);
 });
