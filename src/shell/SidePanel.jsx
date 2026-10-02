@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import AiPanel from '../ai/AiPanel.jsx';
 import RailContent, { railClasses } from './RailContent.jsx';
-import { COLLAPSED_STORAGE_KEY, availableTabs, initialPanel, panelReducer, readStoredCollapsed } from './sidePanelModel.js';
+import {
+  COLLAPSED_STORAGE_KEY, PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelReducer, readStoredCollapsed,
+  readStoredPanelWidth, stepPanelWidth,
+} from './sidePanelModel.js';
 import { writeStored } from './resizeModel.js';
 
 /**
@@ -85,14 +88,24 @@ export function useSidePanel({ hasRail, selected, featureName }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [aiActive]);
 
+  // The docked width (spec point 2): the reader's choice in px, or null for the default. The shell
+  // hands it to the grid as --panel-chosen; CSS clamps it to 340 px and 60% on every resize.
+  const [width, setWidthState] = useState(() => readStoredPanelWidth(storage(), 0));
+  const setWidth = useCallback((px) => {
+    setWidthState(px);
+    writeStored(storage(), PANEL_WIDTH_STORAGE_KEY, px);
+  }, []);
+
   const act = useCallback((action) => dispatch({ ...action, ctx: ctxRef.current }), []);
   const consumeSeed = useCallback(() => setSeed(null), []);
-  return { state, act, seed, consumeSeed, aiOpen: aiActive, collapsed: hasRail && state.collapsed };
+  return { state, act, seed, consumeSeed, aiOpen: aiActive, collapsed: hasRail && state.collapsed, width, setWidth };
 }
 
 export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName }) {
-  const { state, act, seed, consumeSeed } = panel;
+  const { state, act, seed, consumeSeed, width, setWidth } = panel;
   const hi = lang === 'hi';
+  const asideRef = useRef(null);
+  const drag = useRef(null);
   const tabs = availableTabs({ hasRail, selected });
   const tabRefs = useRef({});
   const closeAi = useCallback(() => act({ type: 'close-ai' }), [act]);
@@ -114,12 +127,59 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
   const shown = (t) => state.open && state.active === t;
   const collapsed = hasRail && state.collapsed;
 
+  // The left edge resizes the panel on every tab (spec point 2). A drag writes the grid's variable
+  // directly, so the desk is not re-rendered on every move; the width is kept when it ends.
+  const workspace = () => asideRef.current?.parentElement ?? null;
+  const measure = (el) => Math.round(el?.getBoundingClientRect().width || 0);
+  const edge = {
+    onPointerDown(e) {
+      if (e.button) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      drag.current = { start: measure(asideRef.current), x: e.clientX, ws: measure(workspace()), px: null };
+    },
+    onPointerMove(e) {
+      const d = drag.current;
+      if (!d) return;
+      d.px = dragPanelWidth(d.start, d.x, e.clientX, d.ws);
+      workspace()?.style.setProperty('--panel-chosen', `${d.px}px`);
+    },
+    onPointerUp() {
+      const d = drag.current;
+      drag.current = null;
+      if (d?.px != null) setWidth(d.px);
+    },
+    onKeyDown(e) {
+      const next = stepPanelWidth(measure(asideRef.current), e.key, { shift: e.shiftKey, workspaceWidth: measure(workspace()) });
+      if (next === null) return;
+      e.preventDefault();
+      setWidth(next);
+    },
+    onDoubleClick() {
+      setWidth(null);
+    },
+  };
+  edge.onPointerCancel = edge.onPointerUp;
+
   return (
     <aside
+      ref={asideRef}
       className={`side-panel${state.active === 'ai' ? ' is-ai' : ''}${collapsed ? ' is-collapsed' : ''}`}
       aria-label={hi ? 'साइड पैनल' : 'Side panel'}
       hidden={!state.open && !collapsed}
     >
+      {state.open && !collapsed ? (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={hi ? 'पैनल का आकार बदलें' : 'Resize the panel'}
+          aria-valuetext={width ? `${width} px` : hi ? 'डिफ़ॉल्ट चौड़ाई' : 'Default width'}
+          tabIndex={0}
+          className="side-panel-edge"
+          title={hi ? 'खींचें; डबल-क्लिक से रीसेट' : 'Drag to resize; double-click to reset'}
+          {...edge}
+        />
+      ) : null}
       {collapsed ? (
         <div className="side-panel-handle" role="toolbar" aria-orientation="vertical" aria-label={hi ? 'पैनल खोलें' : 'Open the panel'}>
           {tabs.map((t) => (

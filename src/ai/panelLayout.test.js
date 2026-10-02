@@ -171,3 +171,29 @@ describe('the sources list under an answer is styled', () => {
     expect(decl('.ai-source-chip:focus-visible', 'outline')).toMatch(/var\(--ai-blue/);
   });
 });
+
+// side-panel spec point 2 (owner decision 1): one docked width for Desk, Record and AI. The grid
+// had a rule per tab (33%, 35% and 38%), so the panel jumped on every switch.
+describe('the side panel has one width on every tab', () => {
+  const desktopRules = () => {
+    const found = [];
+    postcss.parse(read('../index.css')).walkRules((rule) => {
+      if (rule.parent?.type === 'atrule' && /max-width:\s*(900|640)px/.test(rule.parent.params)) return; // stacked layouts
+      for (const sel of rule.selectors) {
+        if (!/^\.workspace(\.[\w-]+)*$/.test(sel.trim())) continue;
+        rule.walkDecls('grid-template-columns', (d) => found.push({ sel: sel.trim(), value: d.value, media: rule.parent?.params ?? null }));
+      }
+    });
+    return found;
+  };
+
+  it('every two-column workspace rule sizes the panel from the one chosen width, clamped to 340 px and 60%', () => {
+    const twoColumn = desktopRules().filter((r) => r.value.trim() !== '1fr' && !r.sel.includes('panel-collapsed'));
+    expect(twoColumn.length).toBeGreaterThan(0);
+    for (const r of twoColumn) expect(r.value.replace(/\s+/g, ' ')).toBe('minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%)');
+  });
+
+  it('collapsed, the panel is a 32 px handle', () => {
+    expect(desktopRules().find((r) => r.sel === '.workspace.panel-collapsed')?.value).toBe('minmax(0, 1fr) 32px');
+  });
+});

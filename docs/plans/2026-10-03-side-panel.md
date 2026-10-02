@@ -101,3 +101,18 @@
   - home shows AI only, and closing it gives the desk the full width.
 
   The width still changes between tabs (504 and 547 px), which is T3's job.
+
+**T3, recorded 2026-10-03.**
+- **One grid rule:** `minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%)` replaces the
+  33, 35 and 38% rules and the two 1180 px variants. The AI rule keeps `!important` over the
+  full-width desks.
+- **SidePanel's left edge** is a focusable separator. A drag writes `--panel-chosen` directly, with
+  no re-render per move, and keeps the width on release. The arrow keys step 16 px (×4 with
+  Shift), Home and End go to the bounds, and a double-click resets. The width is remembered per
+  browser and hidden when stacked below 900 px.
+- **Tests:** 2 CSS tests and 1 SidePanel test, each failing first.
+- **Checked in the browser at 1440 × 900:**
+  - 518 px (36%) on Desk, Record and AI alike;
+  - a 120 px drag gives 638 px on all three, and is stored;
+  - → gives 622 px; End gives 864 px (60%); a double-click resets to 518 px and clears storage;
+  - a stored 700 px survives a reload.

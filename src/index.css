@@ -1016,13 +1016,12 @@ button, input, textarea { font-family: inherit; }
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 33%);
+  /* side-panel (owner decision 1): one width on every tab, 36% until dragged (--panel-chosen,
+     set by SidePanel), held between 340 px and 60% by the browser on any resize. */
+  grid-template-columns: minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%);
   min-height: 0;
   position: relative;
   z-index: 0;
-}
-.workspace.bill-record {
-  grid-template-columns: minmax(0, 1fr) minmax(400px, 35%);
 }
 
 .main-col, .right-rail, .desk, .home-desk, .rail-body, .ai-panel, .ai-dock { min-height: 0; }
@@ -1042,6 +1041,28 @@ button, input, textarea { font-family: inherit; }
   background: var(--panel);
 }
 .side-panel[hidden] { display: none !important; }
+/* The left edge resizes the panel (spec point 2): a 6 px grip that shows an accent line. */
+.side-panel { position: relative; }
+.side-panel-edge {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  z-index: 40;
+  cursor: col-resize;
+  touch-action: none;
+}
+.side-panel-edge::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: transparent;
+  transition: background 120ms;
+}
+.side-panel-edge:hover::after,
+.side-panel-edge:focus-visible::after,
+.side-panel-edge:active::after { background: var(--accent); }
+.side-panel-edge:focus-visible { outline: none; }
 .side-panel-bar {
   display: flex;
   align-items: stretch;
@@ -2834,7 +2855,7 @@ button.live-feed:hover { color: var(--fg); }
   box-shadow: -8px 0 28px rgba(15, 23, 42, 0.06);
 }
 .workspace.ai-open {
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 38%) !important;
+  grid-template-columns: minmax(0, 1fr) clamp(340px, var(--panel-chosen, 36%), 60%) !important;
   overflow: hidden;
   min-height: 0;
   height: 100%;
@@ -7005,10 +7026,6 @@ tr.close-soon { color: #6d675f; }
 .brec-foot { font: 400 10.5px/1.55 inherit; color: #9aa1a8; margin-top: 14px; padding-top: 11px; border-top: 1px solid rgba(0,0,0,.07); }
 .brec-report section { margin: 0 0 14px; padding: 12px; background: rgba(0,0,0,.02); border: 1px solid rgba(0,0,0,.07); border-radius: 10px; }
 .brec-report h5 { font: 700 10px/1 inherit; letter-spacing: .11em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
-@media (max-width: 1180px) {
-  .workspace { grid-template-columns: minmax(0, 1fr) minmax(340px, 36%); }
-  .workspace.bill-record { grid-template-columns: minmax(0, 1fr) minmax(340px, 38%); }
-}
 
 @media (max-width: 900px) {
   .terminal {
@@ -7074,6 +7091,8 @@ tr.close-soon { color: #6d675f; }
     border-top: 1px solid var(--line);
     min-height: 220px;
   }
+  /* Stacked under the desk: no side edge to drag. */
+  .side-panel-edge { display: none; }
   .main-col { overflow: auto; }
   .home-grid { grid-template-columns: 1fr; }
   .row-detail-field { grid-template-columns: 1fr; gap: 4px; }

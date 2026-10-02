@@ -50,4 +50,12 @@ describe('the side panel', () => {
     expect(html).toContain('data-ai-panel="hidden"');
     expect(html).not.toMatch(/<aside[^>]*hidden=""/);
   });
+
+  // side-panel spec point 2: the panel's left edge resizes it, by pointer or keyboard, on every tab.
+  it('has one resize edge, a focusable vertical separator, on every tab and not while collapsed', () => {
+    for (const active of ['desk', 'ai']) {
+      expect(render({ active, mounted: ['desk', 'ai'] })).toMatch(/<div[^>]*role="separator"[^>]*aria-orientation="vertical"[^>]*aria-label="Resize the panel"[^>]*tabindex="0"[^>]*class="side-panel-edge"/);
+    }
+    expect(render({ open: false, collapsed: true, mounted: ['desk'] })).not.toContain('role="separator"');
+  });
 });

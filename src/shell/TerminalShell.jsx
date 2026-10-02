@@ -561,7 +561,7 @@ export default function TerminalShell({ onLogout }) {
         tabs={deskTabs}
         lockedIds={lockedIds}
       />
-      <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`}>
+      <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
         <main className="main-col">
           {tab === 'home' ? (
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
