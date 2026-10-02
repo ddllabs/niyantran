@@ -105,3 +105,43 @@ describe('on a phone, the open AI dock takes the workspace', () => {
     expect(decl(main.rule, 'display')).toBeUndefined();
   });
 });
+
+// F47 leftovers. Measured at 375 × 812: the history list sat at x = -47, anchored to its button's
+// right edge (x 255) and 300 px wide; the header's search box was 16 px wider than the header (a
+// 100% width plus its padding and border); and the header's actions needed 280 px against the
+// 227 px left beside the brand, so the bar scrolled the account button out of view.
+describe('on a phone, the header and the history list stay on screen', () => {
+  const mediaRules = (width) => {
+    const found = [];
+    postcss.parse(read('../index.css')).walkAtRules('media', (at) => {
+      if (!new RegExp(`max-width:\\s*${width}px`).test(at.params)) return;
+      at.walkRules((rule) => { for (const sel of rule.selectors) found.push({ sel: sel.trim(), rule }); });
+    });
+    return found;
+  };
+  const decl = (rule, prop) => { let v; rule.walkDecls(prop, (d) => { v = d.value; }); return v; };
+  const find = (rules, sel, prop) => rules.filter((r) => r.sel === sel).map((r) => decl(r.rule, prop)).filter(Boolean).pop();
+
+  it('the history list anchors to the panel head, not to its button', () => {
+    expect(find(mediaRules(640), '.ai-v2-history-wrap', 'position')).toBe('static');
+    expect(find(mediaRules(640), '.ai-v2-history-pop', 'right')).toBe('16px');
+  });
+
+  it('the search box counts its padding and border inside its width', () => {
+    expect(find(mediaRules(900), '.cmd', 'box-sizing')).toBe('border-box');
+  });
+
+  it('the bar drops its duplicate logout button, which the account menu keeps', () => {
+    expect(find(mediaRules(900), '.top-actions > .logout-btn', 'display')).toBe('none');
+    expect(read('../shell/TerminalShell.jsx')).toMatch(/className="profile-pop-actions"[\s\S]*?className="logout-btn"/);
+    expect(find(mediaRules(640), '.top-actions', 'gap')).toBe('4px');
+  });
+
+  // Below 900 px the bar scrolls sideways (overflow-x: auto), which also clips the account menu,
+  // absolutely positioned inside it, to the bar's 32 px. The menu is fixed there, so the bar
+  // cannot clip it and Log out stays reachable.
+  it('the account menu is not clipped by the scrolling bar', () => {
+    expect(find(mediaRules(900), '.top-actions', 'overflow-x')).toBe('auto');
+    expect(find(mediaRules(900), '.profile-pop', 'position')).toBe('fixed');
+  });
+});

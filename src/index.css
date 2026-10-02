@@ -6948,7 +6948,17 @@ tr.close-soon { color: #6d675f; }
     grid-column: 1 / -1;
     max-width: none;
     justify-self: stretch;
+    box-sizing: border-box;
   }
+  /* F47: the bar scrolls sideways, which also clipped the account menu to its 32 px. Fixed, the
+     menu escapes that clip and opens 10 px under the avatar's row. The menu has its own Log out, so
+     the bar drops its copy and the avatar ends the bar, under the menu's pointer. */
+  .profile-pop {
+    position: fixed;
+    top: 54px;
+    right: 10px;
+  }
+  .top-actions > .logout-btn { display: none; }
   .workspace,
   .workspace.bill-record,
   .workspace.ai-open {
@@ -7007,8 +7017,15 @@ tr.close-soon { color: #6d675f; }
     overflow: hidden;
   }
   .workspace.ai-open > .ai-dock { border-top: 0; }
+  /* F47: the history list anchored to its button, so at 375 px it opened 47 px off the left edge.
+     It anchors to the panel head (position: relative) instead, inside the head's padding. */
+  .ai-v2-history-wrap { position: static; }
+  .ai-v2-history-pop { right: 16px; }
   .brand span { letter-spacing: 0.12em; font-size: 12px; }
   .logout-btn { padding: 0 8px; }
+  /* F47: the actions need 280 px and get 227 beside the brand at 375 px. Without the bar's Log out
+     (dropped below 900 px) and with tighter gaps they take 212. */
+  .top-actions { gap: 4px; }
   .tv-btn {
     font-size: 0;
     letter-spacing: 0;
