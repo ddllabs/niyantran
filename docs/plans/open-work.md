@@ -39,6 +39,21 @@ Current baseline (2026-09-29, evening):
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
+- **2026-10-03, F53 `research-coverage`, closed by the owner:** questions that sound simple but
+  need digging. Measured; neither fix ships.
+  - **The test set:** `eval/agent/coverage.v1.jsonl`, 15 bill questions with 75 points, revised
+    after an independent review (`research/2026-10-02-coverage-set-review.md`).
+  - **The measured risk:** today's agent covers 88% of the points and answers 57% of the questions
+    in full. Its misses are provisions later in the bill than its first search reached.
+  - **The fixes:**
+    - The prompt coverage check did not help.
+    - The dig nudge passed the coverage mark at the threshold but failed on ordinary questions:
+      +9 s and +122% cost on narrow questions, firing on 6 of 10.
+    - Both stay in the code as options, off by default. NTER is unchanged.
+  - **Not scheduled:** a narrower nudge, or a reader-side "Dig deeper" action, if a real answer
+    shows this failure.
+  - **Spec:** `specs/2026-10-02-research-coverage.md`; results in
+    `research/2026-10-02-research-coverage.md` (`cf54c58`). About $10.40 spent.
 - **2026-10-02, R6 `citations-pdf`:** a page-wise viewer for ingestion-v2 citations.
   - **What it does:**
     - the original PDF, with box highlights;
@@ -602,27 +617,6 @@ Follow-ups and findings:
     Communal Violence(Prevention,Control and Rehabilitation of Victims) Bill,2005") each hold one
     passage of an unrelated 2004 Appropriation Act. Read in the local replica, a copy of the
     legacy corpus; nothing was changed.
-- [ ] **F53.** Questions that sound simple but need digging: the agent decides when it has
-  enough, and nothing yet measures whether an answer covers everything the record holds on its
-  question. Spec `specs/2026-10-02-research-coverage.md` is approved (2026-10-02; the owner
-  spot-checks the test set); plan `plans/2026-10-02-research-coverage.md`. It covers a coverage
-  test set and score, a prompt coverage check, and a signal-triggered nudge, each shipped only if
-  it passes.
-  - **Stage 1 measured (2026-10-03, `research/2026-10-02-research-coverage.md`):**
-    - **The nudge passes pass mark 1, at the threshold.** Full coverage is +3 questions per pass,
-      and coverage is 94.2% against 88.0%.
-    - **The prompt check does not help,** and the two together do worse than the nudge alone.
-    - **The nudge costs about 13 s to first word and 79% more** where it fires, on about half of
-      these questions.
-    - **Cost:** $6.71, over the estimate. The total for F53 is about $7.50 against the $3–4
-      approved.
-    - **Stage 2 (2026-10-03, $2.91, owner go-ahead):** the nudge fails pass marks 2–4. On narrow
-      questions it fired on 6 of 10, added 9.1 s at p50, cost 122% more and cited fewer
-      documents.
-    - **Outcome:** neither fix ships; both stay as options, off by default. The risk is measured:
-      88% coverage, with 57% of answers complete, on questions built to need digging. A narrower
-      S1 is noted in the write-up and not scheduled.
-    - **Total spent:** about $10.40.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
