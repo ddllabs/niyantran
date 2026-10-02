@@ -1340,6 +1340,15 @@ Deno.test('a search reply always keeps its first passage, however long; with the
   assertEquals((await runAgent(all.deps, input)).chunks.map((c) => c.id), ['a', 'b']);
 });
 
+// The reply cap missed the depth pass mark on narrow questions (research/2026-10-02-turn-cost-
+// benchmark.md), so it is off unless asked for; the widened-search limit stays on.
+Deno.test('by default a search reply keeps every passage, however long', async () => {
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve([longChunk('a', 15_000), longChunk('b', 15_000)]),
+  });
+  assertEquals((await runAgent(f.deps, input)).chunks.map((c) => c.id), ['a', 'b']);
+});
+
 Deno.test('the defaults: WIDENED_TOP_K is 15 and TOOL_REPLY_CHARS is 24,000', () => {
   assertEquals(WIDENED_TOP_K, 15);
   assertEquals(TOOL_REPLY_CHARS, 24_000);

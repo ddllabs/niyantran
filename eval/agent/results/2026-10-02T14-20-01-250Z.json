@@ -1,0 +1,920 @@
+{
+ "model": "google/gemini-3.8-flash",
+ "effort": "low",
+ "variants": [
+  "v44",
+  "capped"
+ ],
+ "n": 15,
+ "setup_cost_usd": 0,
+ "rows": [
+  {
+   "id": "q-0001",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 3,
+   "searches": 3,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe **Computer Training Centres (Regulation) Bill, 2004** is a private member's legislative proposal introduced by **Shri Iqbal Ahmed Saradgi, M.P.** to regulate the functioning of computer training institutes in India [1], [2]. It mandates compulsory registration for all computer centres to curb issues such as lack of proper infrastructure, arbitrary curriculum, exorbitant fee structures, and sudden closures without course completion [1].\n\n### PENALTIES UNDER THE BILL\nUnder **Clause 10** of the Bill, any person who violates its provisions faces mandatory minimum statutory penalties [2]:\n- **Minimum Term of Imprisonment:** Not less than **three years** [2].\n- **Minimum Fine:** Not less than **₹1 lakh** (one lakh rupees) [2].\n\n### OWNERSHIP & LEGAL STATUS\n- **Proposer:** Private Member Bill introduced by Shri Iqbal Ahmed Saradgi, M.P. (Statement of Objects and Reasons dated **August 18, 2004**) [1], [2].\n- **Appropriate Government:** Defined as the **Central Government or the State Government**, as the case may be [1].\n- **Status:** Legislative proposal (as introduced text); **not enacted into law** [2].\n\n### DESIGN & REGULATORY MECHANISM\n- **Mandatory Registration:** Clause 3 prohibits running any computer centre without prior registration with the appropriate Government [3].\n- **Compliance Timeline:** Existing and newly established centres must apply for registration within **one month** of commencement (Clause 4) [3].\n- **Oversight Powers:** Clause 7 empowers the appropriate Government to prescribe syllabus standards and fee limits for each course [4].\n- **Complaints & Cancellation:** Complaints regarding operations must be investigated and decided within **one month**; verified violations lead to immediate cancellation of registration (Clauses 8–9) [4].",
+   "first_answer_ms": 17705,
+   "total_ms": 22541,
+   "call_ms": [
+    2991,
+    2943,
+    13824
+   ],
+   "call_prompt_tokens": [
+    13161,
+    13194,
+    21428
+   ],
+   "prompt_tokens": 47783,
+   "completion_tokens": 711,
+   "cached_tokens": 12096,
+   "cost_usd": 0.03034,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 4,
+   "docs": 1,
+   "pages": 4,
+   "answer_chars": 1801
+  },
+  {
+   "id": "q-0001",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 3,
+   "searches": 3,
+   "retracts": 0,
+   "error": "",
+   "answer": "### 1. WHAT IT IS\nThe **Computer Training Centres (Regulation) Bill, 2004** is a Private Member's Bill introduced in the Lok Sabha by Shri Iqbal Ahmed Saradgi to regulate private computer training institutions, mandate their prior registration, fix course syllabi and fee structures, and penalise non-compliance [1] [2] [3].\n\n### 2. OWNERSHIP & LEGAL STATUS\n* **Sponsor / Ownership:** Private Member's Bill introduced by Shri Iqbal Ahmed Saradgi, M.P. [1].\n* **Appropriate Authority:** Appropriate Government (Central Government or State Government, as the case may be) [1].\n* **Instrument Type & Stage:** As-introduced Private Member's Bill (dated 18 August 2004) [2].\n\n### 3. PENAL PROVISIONS (MINIMUM TERM AND FINE)\nUnder **Clause 10** of the Bill, any person who violates its provisions is subject to the following statutory penalties [4]:\n\n| Penalty Type | Minimum Statutory Requirement |\n| :--- | :--- |\n| **Imprisonment** | **Not less than three years** [4] |\n| **Fine** | **Not less than ₹1,00,000 (one lakh rupees)** [4] |\n\n### 4. DESIGN & OBJECTIVES\n* **Mandatory Registration:** Prohibits running any computer training centre without prior registration with the appropriate Government (Clause 3) [5].\n* **Curriculum and Fee Control:** Directs the appropriate Government to prescribe the syllabus and fees for each course imparted by a computer centre (Clause 7) [3].\n* **Enforcement:** Mandates investigation of complaints within one month and provides for immediate cancellation of registration if allegations are substantiated (Clauses 8 and 9) [3].",
+   "first_answer_ms": 15724,
+   "total_ms": 19543,
+   "call_ms": [
+    2654,
+    7335,
+    6632
+   ],
+   "call_prompt_tokens": [
+    9929,
+    15380,
+    20530
+   ],
+   "prompt_tokens": 45839,
+   "completion_tokens": 664,
+   "cached_tokens": 20123,
+   "cost_usd": 0.02329,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 5,
+   "docs": 1,
+   "pages": 5,
+   "answer_chars": 1562
+  },
+  {
+   "id": "q-0014",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nUnder the **Copyright (Second Amendment) Bill, 1992**, the proposed framework introduced specific statutory exemptions to copyright infringement permitting the adaptation and copying of computer programmes by lawful possessors, explicitly covering debugging requirements and the creation of backup copies [3].\n\n### OWNERSHIP & LEGAL STATUS\n* **Ministry / Ownership:** Ministry of Human Resource Development (introduced in Lok Sabha by Arjun Singh, Minister of Human Resource Development) [33].\n* **Instrument:** Legislative Bill amending the Copyright Act, 1957 [5].\n* **Status in Record:** Introduced in the Lok Sabha on **6 July 1992** [33].\n\n### DESIGN\nTo address adaptations for debugging and maintenance, the Bill proposed amending **Section 52(1)** and **Section 57** of the Copyright Act, 1957 through the following provisions:\n\n1. **Insertion of Section 52(1)(aa):**\n   The Bill proposed inserting a new clause `(aa)` under sub-section (1) of Section 52 to exempt from copyright infringement [8]:\n   > *\"(aa) the making of copies of adaptation of a computer programme by the lawful possessor of a copy of such computer programme, from such copy—*\n   > *(i) in order to utilise the computer programme for the purpose for which it was supplied; or*\n   > *(ii) to make back-up copies purely as a temporary protection against loss, destruction or damage in order only to utilise the computer programme for the purpose for which it was supplied;\"* [8]\n   \n   *Notes on Clauses* for Clause 17 specifically clarify that this insertion was formulated to cover the legitimate requirement of the lawful owner of a copy of a computer programme to make adaptations for **\"debugging\"** and to make backup copies [3].\n\n2. **Exclusion from General Fair Dealing:**\n   Clause 17(2) amended Section 52(1)(a) by inserting *\", not being computer programme,\"* after \"artistic work\", thereby excluding computer software from the generic private-use exception, as general reproduction was deemed unnecessary for bona fide users once specific debugging/backup rights were codified [3], [8].\n\n3. **Limitation on Author's Moral Rights (Section 57):**\n   Consistent with the adaptation right under Section 52(1)(aa), the Bill proposed a proviso to Section 57(1) stipulating that an author shall not have any right to restrain or claim damages in respect of any adaptation of a computer programme to which clause `(aa)` of sub-section (1) of Section 52 applies, insulating debugging modifications from claims of distortion or mutilation prejudicial to the author's honour or reputation [2], [17].\n\n### TRADE-OFFS\n* **Case For:** Provided legal certainty to legitimate purchasers and licensees to fix bugs, adapt software to their operating systems/hardware, and preserve backups without fear of infringement or moral-rights litigation [2], [3].\n* **Case Against / Restraints:** Narrowed generic fair-dealing rights by specifically excluding computer programmes from the broader \"private use\" exception under Section 52(1)(a) to curb piracy and unauthorized copying [3], [8].\n\n### IMPLEMENTATION WATCH\n* Check the subsequent enactment provisions under the Copyright (Amendment) Act, 1994 and further refinements made in the Copyright (Amendment) Bill, 1999 concerning decompilation, testing, and interoperability [14].",
+   "first_answer_ms": 4910,
+   "total_ms": 14021,
+   "call_ms": [
+    13101
+   ],
+   "call_prompt_tokens": [
+    13472
+   ],
+   "prompt_tokens": 13472,
+   "completion_tokens": 1116,
+   "cached_tokens": 0,
+   "cost_usd": 0.01429,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 7,
+   "docs": 2,
+   "pages": 7,
+   "answer_chars": 3312
+  },
+  {
+   "id": "q-0014",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nUnder the **Copyright (Second Amendment) Bill, 1992**, the adaptation of software for debugging purposes was enabled by exempting lawful possessors from copyright infringement when creating copies or adaptations required to run the programme or make temporary back-ups [3][8]. It also insulated such users from moral rights claims by the author [2][17].\n\n### OWNERSHIP & LEGAL STATUS\n* **Instrument:** The Copyright (Second Amendment) Bill, 1992 (Bill further to amend the Copyright Act, 1957) [5].\n* **Stage:** Introduced in Parliament in **1992** (presented alongside the complementary Copyright Cess Bill, 1992) [1][5].\n\n### DESIGN & STATUTORY PROVISIONS\nThe mechanism permitting adaptation for debugging was structured across two core amendments:\n\n1. **Insertion of Section 52(1)(aa) (Fair Dealing / Non-Infringement Exception):**\n   * **Clause 17(3)** of the Bill proposed inserting clause `(aa)` into sub-section (1) of section 52 of the Copyright Act, 1957 [8].\n   * It declared that the following acts would not constitute copyright infringement:\n     * *\"(aa) the making of copies of adaptation of a computer programme by the lawful possessor of a copy of such computer programme, from such copy—*\n       *(i) in order to utilise the computer programme for the purpose for which it was supplied; or*\n       *(ii) to make back-up copies purely as a temporary protection against loss, destruction or damage in order only to utilise the computer programme for the purpose for which it was supplied;\"* [8].\n   * As clarified in the Notes on Clauses, this new clause was introduced specifically to cover the legitimate requirement of the lawful owner/possessor to make adaptations for **\"debugging\"** and to make back-up copies [3].\n\n2. **Proviso to Author's Special Rights (Section 57):**\n   * To prevent an author's moral rights from barring necessary technical modifications, **Clause 20** of the Bill proposed adding a proviso to section 57 of the principal Act [2][17]:\n     * *\"Provided that the author shall not have any right to restrain or claim damages in respect of any adaptation of a computer programme to which clause (aa) of sub-section (1) of section 52 applies.\"* [17].\n\n### TRADE-OFFS\n* **Permissibility for Legitimate Users:** The Bill recognised that bonafide users and lawful possessors must have the technical freedom to adapt software to achieve interoperability, fix errors (\"debugging\"), and preserve functionality without facing civil liability or moral-rights claims from the original author [2][3][17].\n* **Protection Against Infringement:** While creating this debugging carve-out, the Bill simultaneously excluded computer programmes from the broader, general \"private study/research\" reproduction exceptions in section 52(1)(a) to prevent widespread unlicensed duplication [3][8].\n\n### IMPLEMENTATION WATCH\n* **Distinction between Possessor Rights and Infringement:** The proposed section 52(1)(aa) strictly limited debugging adaptations to a *\"lawful possessor of a copy\"* using it solely for the purpose for which it was supplied [8].\n* **Strict Penal Sanctions:** Tracking the distinction between debugging and piracy was reinforced by proposed **Section 63C**, which made the knowing use of an infringing copy of a computer programme punishable with minimum imprisonment of one month up to three years and fines between ₹50,000 and ₹2 lakh [13][21].",
+   "first_answer_ms": 3259,
+   "total_ms": 13479,
+   "call_ms": [
+    12496
+   ],
+   "call_prompt_tokens": [
+    10177
+   ],
+   "prompt_tokens": 10177,
+   "completion_tokens": 1177,
+   "cached_tokens": 0,
+   "cost_usd": 0.01205,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 8,
+   "docs": 2,
+   "pages": 8,
+   "answer_chars": 3403
+  },
+  {
+   "id": "q-0027",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe **Special Educational Facilities for Children of Manual Scavengers Bill, 2001** (Bill No. LXX of 2001) is a private member's legislative proposal introduced in the Rajya Sabha by Shri S. S. Ahluwalia to guarantee free educational facilities, hostel accommodations, uniforms, books, stationery, and scholarships to children born of scavenger parents [1, 4, 9].\n\n### IDENTIFICATION OF ELIGIBLE BENEFICIARIES\nUnder **Clause 3** (\"Survey to be conducted by the appropriate Government\") of the Bill, the responsibility assigned to the appropriate government regarding beneficiary identification entails [3, 4]:\n\n* **Conducting Surveys:** It is the duty of the appropriate Government to conduct a survey across the area under its jurisdiction to find out the children of scavengers [3].\n* **Preparation of Beneficiary Lists:** The appropriate Government must prepare a list, in such manner as may be prescribed by rules, of such children who are to be imparted education by the government [3].\n* **Periodic Revision:** The appropriate Government is mandated to cause this list to be revised at such intervals as may be prescribed [3, 4].\n\n### STATUTORY CONTEXT & MACHINERY\n* **Appropriate Government Defined:** Section 2(a) defines \"appropriate Government\" as the Government of that State in the case of a State, and the Central Government in other cases [1].\n* **Attendance Authorities:** Under Clause 7, the appropriate Government may appoint Attendance Authorities (and assisting personnel) to enforce school attendance and examine cases where economic or domestic circumstances hinder attendance (Clause 8) [5, 6].",
+   "first_answer_ms": 4587,
+   "total_ms": 9987,
+   "call_ms": [
+    8967
+   ],
+   "call_prompt_tokens": [
+    14085
+   ],
+   "prompt_tokens": 14085,
+   "completion_tokens": 638,
+   "cached_tokens": 0,
+   "cost_usd": 0.01296,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 6,
+   "docs": 1,
+   "pages": 6,
+   "answer_chars": 1631
+  },
+  {
+   "id": "q-0027",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nUnder **Clause 3** of **The Special Educational Facilities for Children of Manual Scavengers Bill, 2001** (Bill No. LXX of 2001, introduced in the Rajya Sabha by Shri S. S. Ahluwalia), the appropriate government is mandated to conduct a survey within the area under its jurisdiction to identify children of manual scavengers who require education [1], [2].\n\n### IDENTIFICATION RESPONSIBILITIES ASSIGNED\nSpecifically, **Clause 3** establishes the statutory duty of the appropriate government to:\n1. **Conduct Jurisdictional Surveys:** Carry out a survey across the area under its jurisdiction to discover and identify the children of scavengers [2].\n2. **Prepare Beneficiary Lists:** Prepare a list, in such manner as may be prescribed by rules, of such children who are to be imparted education by that government [2].\n3. **Mandatory Periodic Revisions:** Cause this prepared beneficiary list to be revised at prescribed intervals [2].\n\n### STATUTORY CONTEXT & ROLES\n* **Appropriate Government Defined:** Defined under **Clause 2(a)** as the State Government in the case of a State, and the Central Government in other cases [1].\n* **Scavenger Defined:** Under **Clause 2(e)**, a scavenger is defined as a person who had been engaged or employed for manually carrying human excreta prior to the commencement of the *Employment of Manual Scavengers and Construction of Dry Latrines (Prohibition) Act, 1993* [2].\n* **Enforcement Machinery:** To support educational tracking, **Clause 7** empowers the appropriate government to appoint **Attendance Authorities** (and assisting personnel) to oversee attendance and permit part-time schooling in hardship cases under **Clause 8** [3].",
+   "first_answer_ms": 3312,
+   "total_ms": 8043,
+   "call_ms": [
+    7121
+   ],
+   "call_prompt_tokens": [
+    10305
+   ],
+   "prompt_tokens": 10305,
+   "completion_tokens": 550,
+   "cached_tokens": 0,
+   "cost_usd": 0.00979,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 3,
+   "docs": 1,
+   "pages": 3,
+   "answer_chars": 1695
+  },
+  {
+   "id": "q-0040",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe **Right to Work Bill, 2002** is a Private Member's Bill introduced in the Lok Sabha by Shri G. M. Banatwalla to provide every eligible citizen the legal right to work or an unemployment allowance (at not less than ₹200 per week) until appropriate work is provided [1, 2, 3]. To finance the payment of allowances, the Bill establishes a dedicated **Right to Work Fund** [1, 2].\n\n### MANDATED REVENUE SOURCES CREDITED TO THE FUND\nUnder **Clause 9(3)** of the Bill, five specific revenue streams are mandated to be credited to the Right to Work Fund [1, 4]:\n\n| Source | Statutory Provision | Description |\n| :--- | :--- | :--- |\n| **Government Grants** | Section 9(3)(a) read with Section 9(2) | All grants made by the Central Government from time to time as required for the purposes of the Act [1, 4]. |\n| **Voluntary Donations** | Section 9(3)(b) read with Section 11 | All voluntary donations made to the Fund (which qualify for rebate or deduction from income-tax payable by the donee under the Income Tax Act, 1961) [2, 4]. |\n| **Insurance Policy Contributions** | Section 9(3)(c) read with Section 10 | All contributions in respect of the Right to Work Insurance Policy promoted by the Government to cover grant of allowances [1, 4]. |\n| **Beneficiary Contributions** | Section 9(3)(d) read with Section 12 | All sums collected under Section 12 from citizens who secure work or jobs (whether provided by Government or on their own) after receiving work or allowance, payable at a prescribed rate for a prescribed period [4, 5]. |\n| **Investment Returns** | Section 9(3)(e) | Any interest, dividend, or other return on investments made out of any part of the Fund [4]. |",
+   "first_answer_ms": 3525,
+   "total_ms": 7607,
+   "call_ms": [
+    6690
+   ],
+   "call_prompt_tokens": [
+    13507
+   ],
+   "prompt_tokens": 13507,
+   "completion_tokens": 689,
+   "cached_tokens": 0,
+   "cost_usd": 0.01271,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 5,
+   "docs": 1,
+   "pages": 5,
+   "answer_chars": 1692
+  },
+  {
+   "id": "q-0040",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe **Right to Work Bill, 2002** was introduced in the Lok Sabha by Shri G. M. Banatwalla, M.P., to establish an enforceable right to work or an unemployment allowance for registered unemployed citizens, supported by a statutory financing vehicle known as the **Right to Work Fund** [1][2][4].\n\n### MANDATED REVENUE SOURCES FOR THE FUND\nUnder **Clause 9(3)** of the Bill, the following five sources of revenue are mandated to be credited to the **Right to Work Fund** [1][3]:\n\n| Provision | Statutory Source of Inflow |\n| :--- | :--- |\n| **Clause 9(3)(a)** | All grants made by the Central Government under sub-clause 9(2) [1] |\n| **Clause 9(3)(b)** | All voluntary donations made to the Fund [1] |\n| **Clause 9(3)(c)** | All contributions in respect of the Right to Work Insurance Policy under clause 10 [1][3] |\n| **Clause 9(3)(d)** | All sums collected under Clause 12 (mandatory contributions from citizens who received work or allowance, payable for a prescribed period immediately upon securing employment) [1][3][5] |\n| **Clause 9(3)(e)** | Any interest, dividend, or other return on any investment made out of any part of the Fund [3] |\n\n### ANCILLARY INCENTIVES & MECHANISMS\n* **Tax Deductions on Donations:** Under Clause 11, voluntary donations made to the Fund qualify for rebates or deductions from income tax payable by the donor under the Income Tax Act, 1961 [2][3].\n* **Insurance Mechanism:** Under Clause 10, the Central Government is tasked with endeavouring to introduce a Right to Work Insurance Policy to cover the whole or part of allowances payable under the legislation [3].\n* **Beneficiary Clawback Contribution:** Under Clause 12, every citizen who receives work or allowance under the Act is statutorily required to contribute to the Fund at a prescribed rate for a prescribed duration immediately after securing work, whether provided by the government or found independently [5].",
+   "first_answer_ms": 3152,
+   "total_ms": 8104,
+   "call_ms": [
+    7163
+   ],
+   "call_prompt_tokens": [
+    10121
+   ],
+   "prompt_tokens": 10121,
+   "completion_tokens": 757,
+   "cached_tokens": 0,
+   "cost_usd": 0.01043,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 5,
+   "docs": 1,
+   "pages": 5,
+   "answer_chars": 1924
+  },
+  {
+   "id": "q-0053",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "Under the **Merchant Shipping (Amendment) Bill, 2004** (enacted as the Merchant Shipping (Amendment) Act, 2007, inserting Part IXB into the Merchant Shipping Act, 1958), the qualifications and requirements for an entity to be designated/authorised as a **recognised security organisation** are set out in proposed **Section 344K(f)** [1][2]:\n\n### Statutory Definition and Qualifications\n* **Form of Entity:** It must be an **\"organisation, company, firm or body of individuals\"** [1][2].\n* **Subject-Matter Competence & Qualifications:**\n  * Must possess **\"expertise in matters relating to security\"** [1][2].\n  * Must possess **\"knowledge of ship, and port operations\"** [1][2].\n* **Government Authorisation:** It must be **authorised by the Central Government by notification in the Official Gazette** [1][2].\n* **Mandated Scope of Functions:** The authorisation designates the entity **\"to carry out assessment or verification or approval or certification required by this Part or by the International Ship and Port Facility Code\"** (ISPS Code) [2].\n\n### Operational Role\nUnder the proviso to **Section 344M(2)**, the Central Government is empowered to authorise any recognised security organisation to carry out any of the security measures under that section on its behalf, subject to such conditions as may be prescribed [25].",
+   "first_answer_ms": 4100,
+   "total_ms": 6984,
+   "call_ms": [
+    6052
+   ],
+   "call_prompt_tokens": [
+    14773
+   ],
+   "prompt_tokens": 14773,
+   "completion_tokens": 508,
+   "cached_tokens": 0,
+   "cost_usd": 0.01298,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 3,
+   "docs": 1,
+   "pages": 3,
+   "answer_chars": 1333
+  },
+  {
+   "id": "q-0053",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### **WHAT IT IS**\nUnder the **Merchant Shipping (Amendment) Bill, 2004** (enacted as the Merchant Shipping (Amendment) Act, 2007 to incorporate the International Ship and Port Facility Security [ISPS] Code into the Merchant Shipping Act, 1958) [1, 2], a **\"recognised security organisation\"** is defined under inserted Section **344K(f)** [1, 3]. \n\n### **QUALIFYING CRITERIA**\nTo qualify for designation and authorisation by the Central Government, an entity must satisfy the following statutory criteria [1, 2]:\n\n* **Form of Entity:** Must be any organisation, company, firm, or body of individuals [1, 2].\n* **Required Competence & Expertise:**\n  1. Must possess **expertise in matters relating to security** [1, 2].\n  2. Must possess **knowledge of ship and port operations** [1, 2].\n* **Designation & Authorisation Procedure:** Must be authorized by the Central Government by **notification in the Official Gazette** [1, 2].\n* **Statutory Mandate:** The authorization qualifies the entity to carry out assessment, verification, approval, or certification required under **Part IXB** of the Act or under the **International Ship and Port Facility Security (ISPS) Code** [2].",
+   "first_answer_ms": 3036,
+   "total_ms": 29464,
+   "call_ms": [
+    28536
+   ],
+   "call_prompt_tokens": [
+    10021
+   ],
+   "prompt_tokens": 10021,
+   "completion_tokens": 499,
+   "cached_tokens": 0,
+   "cost_usd": 0.00939,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 3,
+   "docs": 1,
+   "pages": 3,
+   "answer_chars": 1178
+  },
+  {
+   "id": "q-0066",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe **National Rural Employment Guarantee Bill, 2004** guarantees at least **100 days** of wage employment in a financial year to every rural household whose adult members volunteer for unskilled manual work [1]. Under the statutory framework governing wage calculations when remuneration is tied directly to physical output (piece rate), State Governments are required to anchor their schedule of rates to a standard workday benchmark so that an average labourer earns the statutory daily wage rate [29].\n\n### OWNERSHIP & LEGAL STATUS\n* **Ministry / Jurisdiction:** Ministry of Rural Development; implemented at the state level via State Governments, District Programme Coordinators, and Gram Panchayats [1, 36].\n* **Instrument Type:** Statutory central legislation (introduced in Parliament in 2004, enacted as Act No. 42 of 2005) [4, 32].\n* **Statutory Provision:** Schedule I, Paragraph 8 (read with Section 4(3) and Schedule I, Paragraph 7) [29, 40].\n\n### DESIGN\n| Dimension | Statutory Rule |\n| :--- | :--- |\n| **Standard Workday Duration** | **7 hours** [29, 38] |\n| **Wage Schedule Requirement** | When wages are linked directly to quantity of work, the schedule of rates fixed by the State Government (in consultation with the State Council) must be calibrated such that a person working for **7 hours** would normally earn a wage equal to the statutory daily wage rate [29, 38]. |\n| **Wage Floor Guarantee** | Under no circumstances may labourers be paid less than the statutory wage rate, which cannot be fixed below **₹60 per day** [17, 29]. |\n\n### TRADE-OFFS\n* **Pro-Worker Protection:** Anchoring output norms to a **7-hour** standard workday prevents implementing agencies from artificially depressing effective earnings through unrealistically inflated productivity quotas [29, 38].\n* **Administrative & Measurement Friction:** Rigid piece-rate schedules demand precise, periodic task measurements across diverse soil conditions, weather, and terrain, which creates potential delays or wage disputes if local conditions require higher exertion within the 7-hour period [29, 39].\n\n### IMPLEMENTATION WATCH\n* **Schedule of Rates (SoR) Revisions:** Annual fixation and notification of task rates by State Governments in consultation with State Employment Guarantee Councils [29].\n* **Disbursement Timelines:** Ensuring weekly or fortnightly payment disbursements for measured piece-rate work as mandated by the statute [6].",
+   "first_answer_ms": 6914,
+   "total_ms": 13135,
+   "call_ms": [
+    12224
+   ],
+   "call_prompt_tokens": [
+    13002
+   ],
+   "prompt_tokens": 13002,
+   "completion_tokens": 963,
+   "cached_tokens": 0,
+   "cost_usd": 0.01336,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 10,
+   "docs": 3,
+   "pages": 10,
+   "answer_chars": 2451
+  },
+  {
+   "id": "q-0066",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 7,
+   "searches": 7,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nUnder the **National Rural Employment Guarantee Bill, 2004**, the standard workday duration that state governments must consider when fixing piece-rate wage schedules for unskilled manual workers is **seven hours** [1], [2]. Specifically, where wages are linked directly to output or quantity of work, the schedule of rates must be structured so that a person working for seven hours would normally earn an amount equal to the statutory daily wage rate [1], [2].\n\n### OWNERSHIP & LEGAL STATUS\n* **Instrument**: The National Rural Employment Guarantee Bill, 2004 [3].\n* **Governing Provision**: **Schedule I**, paragraph 8 (read with paragraph 7 and Section 4(3)) [1], [4].\n* **Rule-Making Authority**: State Governments, in consultation with the State Employment Guarantee Council [1].\n* **Baseline Daily Floor**: Under Section 6, the wage rate notified by the Central Government could not be less than **₹60 per day** (or, pending such notification, the state's agricultural minimum wage under the Minimum Wages Act, 1948) [5].\n\n### DESIGN\n| Parameter | Bill Specification |\n|---|---|\n| **Standard Workday Baseline** | **7 hours** of work [1], [2] |\n| **Earning Requirement** | Must normally yield an earning equal to the applicable daily wage rate [1], [2] |\n| **Absolute Minimum Floor** | Labourers cannot under any circumstances receive less than the notified wage rate (Schedule I, paragraph 6) [1] |\n| **Frequency of Revision** | Fixed and revised annually by the State Government in consultation with the State Council (Schedule I, paragraph 7) [1] |\n\n### TRADE-OFFS\n* **Strongest Case in the Record**: Establishes a protected statutory productivity threshold pegged to a manageable 7-hour workday, ensuring that piece-rate work does not depress earnings below the guaranteed statutory minimum [1], [5].\n* **Implementation Strain in the Record**: Requires annual empirical calibration across diverse physical terrains and soil types by the State Council, alongside the strict prohibition on paying less than the floor wage rate regardless of output [1].\n\n### IMPLEMENTATION WATCH\n* **Measurement & Muster Rolls**: Inspection of muster rolls and worksite output measurements maintained by the Programme Officer and Gram Panchayat [6].\n* **Contractor & Mechanisation Checks**: Strict adherence to manual labour over machinery and total prohibition of contractors under Schedule I paragraphs 11 and 12 [2].",
+   "first_answer_ms": 30449,
+   "total_ms": 35311,
+   "call_ms": [
+    2847,
+    2215,
+    6220,
+    2619,
+    3018,
+    3626,
+    7120
+   ],
+   "call_prompt_tokens": [
+    9577,
+    16683,
+    24947,
+    29768,
+    38297,
+    46813,
+    51866
+   ],
+   "prompt_tokens": 217951,
+   "completion_tokens": 958,
+   "cached_tokens": 158140,
+   "cost_usd": 0.06031,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 6,
+   "docs": 1,
+   "pages": 6,
+   "answer_chars": 2425
+  },
+  {
+   "id": "q-0079",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nUnder the **Institutes of Technology (Amendment) Bill, 2001** (which converted the University of Roorkee into the Indian Institute of Technology, Roorkee) [12, 13], specific transitional provisions govern academic governance during the shift from university status to an IIT framework [1, 2].\n\n### INTERIM ARRANGEMENTS FOR THE ACADEMIC COUNCIL\nUnder **Clause 6** of the Bill (inserting clause `(f)` into Section 38 of the principal Act) [2, 6]:\n- **Continuation of Functions:** The Academic Council of the University of Roorkee functioning immediately before the commencement of the Act continues to function until a new Senate is constituted for IIT Roorkee [2].\n- **Cessation of Office:** Upon the formal constitution of the new Senate under the Act, all members of the University of Roorkee Academic Council holding office immediately before such constitution cease to hold office [1, 2].\n\n### STATUTORY & GOVERNANCE CONTEXT\n| Component | Statutory Provision under the Bill |\n| :--- | :--- |\n| **Interim Academic Authority** | Roorkee University Academic Council continues operation until the IIT Senate is constituted [2]. |\n| **Interim Executive Authority** | Roorkee University Syndicate continues operation until the new Board of Governors is constituted [2, 6]. |\n| **Interim Academic Regulations** | Until first Statutes and Ordinances are framed for IIT Roorkee, the Statutes and Ordinances of **IIT Bombay** (as in force prior to commencement) apply with necessary adaptations and modifications [1]. |",
+   "first_answer_ms": 3479,
+   "total_ms": 7780,
+   "call_ms": [
+    6803
+   ],
+   "call_prompt_tokens": [
+    13776
+   ],
+   "prompt_tokens": 13776,
+   "completion_tokens": 586,
+   "cached_tokens": 0,
+   "cost_usd": 0.01253,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 5,
+   "docs": 1,
+   "pages": 5,
+   "answer_chars": 1527
+  },
+  {
+   "id": "q-0079",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### **WHAT IT IS**\nThe Institute of Technology (Amendment) Bill, 2001 incorporates the conversion of the University of Roorkee into the Indian Institute of Technology, Roorkee, integrating it into the IIT system under the Institutes of Technology Act, 1961 [1] [2]. To ensure continuity during the institutional transition, the Bill outlines specific transitional provisions governing university authorities prior to the formal constitution of their statutory counterparts [1] [3].\n\n### **OWNERSHIP & LEGAL STATUS**\n* **Ministry:** Ministry of Human Resource Development (Department of Secondary and Higher Education) [4].\n* **Instrument:** Central amending legislation (replacing the Institutes of Technology (Amendment) Ordinance, 2001 promulgated on 21 September 2001; repealing the Roorkee University Act, 1947) [5] [6].\n* **Introduced Date:** Introduced in November 2001 (Statement of Objects and Reasons dated 22 November 2001) [4].\n\n### **DESIGN: INTERIM ARRANGEMENTS FOR THE ACADEMIC COUNCIL**\nUnder Clause 6 of the Bill (inserting clause (f) into Section 38 of the principal Act):\n* **Continuity of Functions:** The Academic Council of the University of Roorkee functioning immediately before the commencement of the Act continues to function as such until a new Senate is constituted for IIT Roorkee [1] [3].\n* **Cessation of Office:** Upon the constitution of the new Senate for IIT Roorkee under the Act, the members of the Academic Council holding office prior to that constitution immediately cease to hold office [1] [3].\n\n### **RELATED TRANSITIONAL PROVISIONS**\n* **Syndicate to Board:** Under clause (e) of Section 38, the Syndicate of the University of Roorkee continues to function until a new Board is constituted, at which point its members cease to hold office [3].\n* **Statutes and Ordinances:** Under clause (g) of Section 38, until the first Statutes and Ordinances are framed for IIT Roorkee, the Statutes and Ordinances of IIT Bombay in force immediately prior to commencement apply with necessary modifications and adaptations [1].\n* **Executive Leadership:** The Vice-Chancellor of the University of Roorkee is deemed appointed as Director for a period of three months or until a Director is formally appointed, whichever is earlier [7].\n\n### **TRADE-OFFS**\n* **Institutional Continuity:** Prevents administrative and academic disruption by preserving existing governance bodies until statutory IIT authorities can be formally constituted [1] [3].\n* **Transitional Overlap:** Retains pre-existing state university leadership structures temporarily under an IIT statutory framework until new bodies take over [1] [3].\n\n### **IMPLEMENTATION WATCH**\n* **Senate Notification:** Track the formal constitution of the IIT Roorkee Senate, which triggers the automatic dissolution of the Academic Council [1].\n* **Statute Adoption:** Monitor the gazetting of IIT Roorkee's first permanent Statutes and Ordinances to replace the interim application of IIT Bombay's rules [1].",
+   "first_answer_ms": 3429,
+   "total_ms": 9642,
+   "call_ms": [
+    8730
+   ],
+   "call_prompt_tokens": [
+    10044
+   ],
+   "prompt_tokens": 10044,
+   "completion_tokens": 1001,
+   "cached_tokens": 0,
+   "cost_usd": 0.01129,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 7,
+   "docs": 1,
+   "pages": 7,
+   "answer_chars": 2994
+  },
+  {
+   "id": "q-0092",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### 1. WHAT IT IS\nTo facilitate the establishment of an efficient and robust Integrated Emergency Communication & Response System (IECRS) in India, the Telecom Regulatory Authority of India (TRAI) issued a consultation paper titled **‘Universal Single Number Based Integrated Emergency Communication & Response System’** [1].\n\n### 2. OWNERSHIP & LEGAL STATUS\n- **Authority / Ministry:** Telecom Regulatory Authority of India (TRAI), under the Ministry of Communications, in coordination with the Ministry of Home Affairs (MHA), National Disaster Management Authority (NDMA), and State Governments [1].\n- **Instrument Stage & Date:** TRAI suo-motu issued the consultation paper on **15 March 2013** [1].\n- **Subsequent Actions:** Following consultations, stakeholder meetings, and internal analysis, TRAI finalised and sent its recommendations on *\"Single Number based Integrated Emergency Communication & Response System (IECRS)\"* to the Department of Telecommunications (DoT) on **7 April 2015** [1], [2].\n\n### 3. DESIGN\n- **Objective:** Establish an integrated, universal single emergency number mechanism across India to replace fragmented emergency response numbers and streamline response delivery [1].\n- **Stakeholder Consultations:** Involved direct inter-agency engagement with MHA, NDMA, State Governments, and telecom sector participants [1].\n- **Financial Outlay:** **Not in record.**\n\n### 4. TRADE-OFFS\n- **Arguments in Favor:** Eliminates confusion across multiple emergency numbers (e.g., police, fire, ambulance) and provides a unified routing architecture during crisis situations [1].\n- **Arguments Against / Implementation Challenges:** **Not in record.**\n\n### 5. IMPLEMENTATION WATCH\n- **Next Actions / Tracking:** Implementation orders and allocation of the dedicated universal emergency code (such as short codes within the National Numbering Plan) by the Department of Telecommunications (DoT) and operational rollout across State emergency response centres [1], [2].",
+   "first_answer_ms": 4495,
+   "total_ms": 9144,
+   "call_ms": [
+    7750
+   ],
+   "call_prompt_tokens": [
+    16215
+   ],
+   "prompt_tokens": 16215,
+   "completion_tokens": 596,
+   "cached_tokens": 0,
+   "cost_usd": 0.0144,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 2,
+   "docs": 1,
+   "pages": 2,
+   "answer_chars": 1989
+  },
+  {
+   "id": "q-0092",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "The Telecom Regulatory Authority of India (TRAI) suo-motu issued its consultation paper titled **‘Universal Single Number Based Integrated Emergency Communication & Response System’** on **15 March 2013** to seek stakeholder comments [1].\n\n### Context & Progression\n- **Objective:** To facilitate the establishment of an efficient and robust Integrated Emergency Communication & Response System (IECRS) across India [1].\n- **Consultation:** Following the release of the consultation paper, TRAI held discussions with representatives of the Ministry of Home Affairs, the National Disaster Management Authority (NDMA), and state governments [1].\n- **Outcome:** Drawing on stakeholder inputs and internal analysis, TRAI finalised and sent its recommendations on **\"Single Number based Integrated Emergency Communication & Response System (IECRS)\"** to the Department of Telecommunications on **7 April 2015** [1] [2].",
+   "first_answer_ms": 3244,
+   "total_ms": 5321,
+   "call_ms": [
+    4147
+   ],
+   "call_prompt_tokens": [
+    11620
+   ],
+   "prompt_tokens": 11620,
+   "completion_tokens": 355,
+   "cached_tokens": 0,
+   "cost_usd": 0.01005,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 2,
+   "docs": 1,
+   "pages": 2,
+   "answer_chars": 914
+  },
+  {
+   "id": "q-0105",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### Proposed Special Channels for UPC Generation\n\nAccording to TRAI's Direction dated **22 February 2013**, Unitech Wireless (Tamilnadu) Private Limited informed TRAI via letter dated **19 February 2013** that it was willing to extend port-out facilities to all consumers in the Mumbai service area [1]. \n\nTo facilitate port-outs, Unitech Wireless requested a special porting mechanism to accept subscriber requests for the generation of a Unique Porting Code (UPC) through the following channels [1]:\n\n* **Call centre** [1]\n* **Company owned company operated (COCO) stores** [1]\n* **Authorised direct franchisees** [1]\n\nUnitech Wireless proposed that following due verification of subscriber details across these touchpoints, the UPC would be generated manually for the requested mobile number to enable porting to other operators [1].",
+   "first_answer_ms": 4809,
+   "total_ms": 6853,
+   "call_ms": [
+    5716
+   ],
+   "call_prompt_tokens": [
+    15491
+   ],
+   "prompt_tokens": 15491,
+   "completion_tokens": 337,
+   "cached_tokens": 0,
+   "cost_usd": 0.01288,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 1,
+   "docs": 1,
+   "pages": 1,
+   "answer_chars": 836
+  },
+  {
+   "id": "q-0105",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nFollowing the sudden discontinuance and closure of its mobile services across 15 service areas pursuant to the Supreme Court order dated 15 February 2013, **M/s Unitech Wireless (Tamilnadu) Private Limited** informed the Telecom Regulatory Authority of India (TRAI) that it was willing to extend port-out facilities to subscribers wanting to migrate to other service providers [1], [3]. Because subscribers could not use regular SMS-based Mobile Number Portability (MNP) mechanisms to generate a Unique Porting Code (UPC) after service shutdown [3], Unitech proposed a special manual porting mechanism [1].\n\n### PROPOSED SPECIAL CHANNELS\nIn its letter dated **19 February 2013** to TRAI, Unitech Wireless proposed accepting requests for the generation of Unique Porting Codes through three specific touchpoints [1]:\n\n1. **Call centres** [1]\n2. **Company owned company operated (COCO) stores** [1]\n3. **Authorised direct franchisees** [1]\n\nUnder this proposal, Unitech Wireless planned to manually generate the UPC for the requested mobile number following due verification of subscriber details to enable porting to other operators [1].",
+   "first_answer_ms": 3253,
+   "total_ms": 5927,
+   "call_ms": [
+    5037
+   ],
+   "call_prompt_tokens": [
+    11142
+   ],
+   "prompt_tokens": 11142,
+   "completion_tokens": 442,
+   "cached_tokens": 0,
+   "cost_usd": 0.01001,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 3,
+   "docs": 1,
+   "pages": 3,
+   "answer_chars": 1151
+  },
+  {
+   "id": "q-0118",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nIn proceedings transferred to the Competition Commission of India (CCI) following the repeal of the Monopolies and Restrictive Trade Practices Act, 1969 (MRTP Act), Lifecell International Pvt. Ltd. (LIPL)—a private umbilical cord blood stem cell banking provider—faced allegations of engaging in unfair and restrictive trade practices regarding its marketing representations and standard client agreements [2][25].\n\n### ALLEGED PROVISIONS VIOLATED\nAccording to the investigation records and observations noted upon transfer under Section 66 of the Competition Act, 2002 [2][25]:\n\n* **Unsubstantiated Marketing Claims — Section 36A(1)(i), (ii), (iv), and (vi):**\n  * LIPL marketed its service under claims that \"Lifecell\" is \"No. 1 Stem Cell Technology\" and that it is the \"first and only accredited Cord Blood Stem Cell Bank in India\" [2].\n  * Because these representations were alleged to be unsubstantiated, the trade practice was alleged to constitute an **unfair trade practice** in contravention of **Section 36A(1)(i), (ii), (iv), and (vi)** of the MRTP Act [2].\n\n* **Limited Liability Clause in Customer Agreements — Section 2(o) / Section 36A:**\n  * LIPL incorporated a limited liability provision (specifically Clause 12 of its original Client Agreement) capping company liability in the event of any loss of specimen [1][2].\n  * This clause was observed to impose unjustified costs on customers through the manipulation of conditions governing the provision of service, amounting to an alleged **restrictive trade practice** under **Section 2(o)** of the MRTP Act [2].\n  * In earlier proceedings/orders, the MRTP Commission had also treated Clause 12 limiting liability for loss of specimen as amounting to an **unfair trade practice** under **Section 36A** of the MRTP Act [1][9].\n\n### FINDINGS ON RECORD\nUpon final review by the CCI on **10.06.2010**, the allegations were dismissed [2][5]:\n* There was no evidence showing the \"No. 1 Stem Cell Technology\" representation was false or substandard [5].\n* LIPL had amended the impugned contractual clause, and such limited liability provisions were found to be standard commercial terms across private and public stem cell banking companies, negating the restrictive trade practice claim [4][5].",
+   "first_answer_ms": 4627,
+   "total_ms": 9936,
+   "call_ms": [
+    8610
+   ],
+   "call_prompt_tokens": [
+    15344
+   ],
+   "prompt_tokens": 15344,
+   "completion_tokens": 802,
+   "cached_tokens": 0,
+   "cost_usd": 0.01452,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 6,
+   "docs": 1,
+   "pages": 6,
+   "answer_chars": 2269
+  },
+  {
+   "id": "q-0118",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nIn regulatory proceedings originating before the erstwhile Monopolies and Restrictive Trade Practices Commission (MRTPC) and subsequently transferred to the Competition Commission of India (CCI), LifeCell International Private Limited (LIPL) faced allegations concerning unsubstantiated marketing representations and contractual liability exclusions in its stem cell banking client agreements [1][2].\n\n### OWNERSHIP & LEGAL STATUS\n* **Regulatory Body**: Erstwhile Monopolies and Restrictive Trade Practices Commission (MRTPC), investigated through the Director General (Investigation & Registration) [DG (IR)] [1], and later dealt with by the Competition Commission of India under Section 66 of the Competition Act, 2002 [2].\n* **Statute**: Monopolies and Restrictive Trade Practices Act, 1969 (MRTP Act) [1][2].\n* **Status in Record**: Transferred matter; CCI observed that LIPL had substantiated its claims with facts and figures and modified its client agreement, finding no contravention [5][10].\n\n### PROVISIONS ALLEGEDLY VIOLATED\n\n| Allegation / Practice | MRTP Act Provision Allegedly Violated | Characterisation | Record Reference |\n| :--- | :--- | :--- | :--- |\n| **Unsubstantiated Marketing Claims**<br>Claiming that its \"Lifecell\" is \"No. 1 Stem Cell Technology\" and that it is the \"first and only accredited Cord Blood Stem Cell Bank in India\" without substantiation | **Section 36A(1)(i), (ii), (iv), and (vi)** | Unfair Trade Practice (UTP) | [2] |\n| **Limited Liability Clause in Customer Agreements**<br>Incorporating Clause 12 in the Client Agreement limiting company liability in the event of possible loss of specimen, thereby allegedly imposing unjustified cost by manipulating conditions of service | **Section 36A** *(preliminary MRTPC order)* / **Section 2(o)** *(investigation transfer finding)* | Unfair Trade Practice / Restrictive Trade Practice (RTP) | [1][2] |\n\n### DESIGN & RECORD DETAILS\n* **Marketing Claims**: The MRTPC initiated preliminary investigation under Section 11(1) on 13.03.2009 via DG (IR) regarding claims in LIPL's brochure that it was \"No. 1 Stem Cell Technology\" and the \"first and only accredited Cord Blood Stemcell Bank in India\" with Cryo-Cell International collaboration [1][9]. In the transfer observations, this unsubstantiated claim was flagged under **Section 36A(1)(i), (ii), (iv), and (vi)** of the MRTP Act [2].\n* **Limited Liability Clauses**: The MRTPC initially noted that Clause 12 of the Client Agreement (limiting liability upon specimen loss) amounted to an unfair trade practice under **Section 36A** [1][9]. However, the formal transfer observation recorded that introducing the limited liability clause imposed unjustified costs on consumers by manipulating conditions of service, amounting to a restrictive trade practice under **Section 2(o)** of the MRTP Act [2].\n\n### IMPLEMENTATION WATCH\n* **Contractual Modifications**: LIPL replaced the disputed Clause 12 with a new Clause 11 effective 08.04.2009 to clarify its liability position, arguing standard industry adoption [1][4].\n* **CCI Finding**: The CCI noted that LIPL provided evidentiary support (operational since 2004, testing over 16,000 samples, storage capacity over 1,00,000 samples adhering to US FDA standards), held there was no evidence of false representation, and dismissed the restrictive trade practice allegations [5][10].",
+   "first_answer_ms": 3937,
+   "total_ms": 11773,
+   "call_ms": [
+    10682
+   ],
+   "call_prompt_tokens": [
+    10985
+   ],
+   "prompt_tokens": 10985,
+   "completion_tokens": 1122,
+   "cached_tokens": 0,
+   "cost_usd": 0.01245,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 6,
+   "docs": 1,
+   "pages": 6,
+   "answer_chars": 3382
+  },
+  {
+   "id": "q-0131",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe Telecom Regulatory Authority of India (TRAI) issued a press release extending the public consultation timeline for the draft amendment regulation titled **\"Standards of Quality of Service (Digital Addressable Cable TV Systems) (Amendment) Regulations, 2014\"**, which proposes updates to the principal Quality of Service regulations dated 14 May 2012 [1].\n\n### OWNERSHIP & LEGAL STATUS\n* **Authority:** Telecom Regulatory Authority of India (TRAI) [1].\n* **Instrument:** Subordinate legislation / draft amendment regulation (Press Release No. 59/2014) [1].\n* **Date of Extension Notice:** **05 September 2014** [1].\n\n### DESIGN & DEADLINE DETAILS\n* **Original Deadline:** **08 September 2014** [1].\n* **Revised Deadline:** **12 September 2014** [1].\n* **Scope:** TRAI noted that the extension was granted upon requests received from stakeholders [1].\n\n### IMPLEMENTATION WATCH\n* **Finality of Window:** TRAI explicitly stipulated that no request for any further extension of time beyond 12 September 2014 would be entertained [1].",
+   "first_answer_ms": 4219,
+   "total_ms": 6596,
+   "call_ms": [
+    5033
+   ],
+   "call_prompt_tokens": [
+    14823
+   ],
+   "prompt_tokens": 14823,
+   "completion_tokens": 420,
+   "cached_tokens": 0,
+   "cost_usd": 0.01269,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 1,
+   "docs": 1,
+   "pages": 1,
+   "answer_chars": 1048
+  },
+  {
+   "id": "q-0131",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe Telecom Regulatory Authority of India (TRAI) issued a press release extending the public consultation period on its draft amendment regulations titled the **\"Standards of Quality of Service (Digital Addressable Cable TV Systems) (Amendment) Regulations, 2014\"** [1]. The revised deadline set by TRAI for the receipt of written comments from stakeholders was **12 September 2014** (extended from the initial deadline of **8 September 2014**) [1].\n\n### OWNERSHIP & LEGAL STATUS\n* **Authority:** Telecom Regulatory Authority of India (TRAI) [1].\n* **Instrument:** Subordinate regulatory amendment consultation / Information note to the press (**Press Release No. 59/2014**) [1].\n* **Status & Date:** Issued on **5 September 2014**, revising the stakeholder feedback cutoff on the draft amendment to the principal regulations dated 14 May 2012 [1].\n\n### DESIGN\n* **Initial Submission Deadline:** 8 September 2014 [1].\n* **Revised Final Deadline:** 12 September 2014 [1].\n* **Conditions:** TRAI decided that no request for any further extension of time for submission of comments would be entertained [1].\n\n### TRADE-OFFS\n* **Administrative Flexibility:** Granted additional time upon requests from industry stakeholders to review QoS standards [1].\n* **Procedural Finality:** Imposed an explicit bar on further extensions to prevent regulatory delay [1].\n\n### IMPLEMENTATION WATCH\n* **Subsequent QoS Frameworks:** Subsequent overhauls to QoS and consumer protection for digital addressable systems were issued via new draft regulations and consultation papers across 2016 [2].",
+   "first_answer_ms": 2930,
+   "total_ms": 6738,
+   "call_ms": [
+    6085
+   ],
+   "call_prompt_tokens": [
+    11301
+   ],
+   "prompt_tokens": 11301,
+   "completion_tokens": 556,
+   "cached_tokens": 0,
+   "cost_usd": 0.01056,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 2,
+   "docs": 2,
+   "pages": 2,
+   "answer_chars": 1591
+  },
+  {
+   "id": "q-0144",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 2,
+   "searches": 2,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe **Scholarships for Higher Education for Young Achievers Scheme (SHREYAS)** is a Central Sector Umbrella Scheme designed to provide educational and financial assistance to eligible students, including Scheduled Castes (SCs), Other Backward Classes (OBCs), and other target groups [1, 2].\n\n### FUNDING RELEASED (BIHAR: FY 2021-22 TO FY 2023-24)\nAccording to the official Ministry records laid before Parliament, the funds released under SHREYAS for the State of Bihar over the three-year period are:\n\n* **Total Funds Released (2021-22 to 2023-24):** **₹21.36 crore** [2].\n\n### DESIGN & OWNERSHIP\n* **Ministry:** Implemented under the aegis of the Ministry of Social Justice and Empowerment [1, 2].\n* **Legal/Operational Status:** Central Sector Scheme [1].\n* **Components:** Comprises multiple sub-schemes, including Top Class Scholarship (TCS), Free Coaching Scheme (FCS), National Overseas Scholarship (NOS), and National Fellowship schemes [1].",
+   "first_answer_ms": 41975,
+   "total_ms": 43492,
+   "call_ms": [
+    3142,
+    37985
+   ],
+   "call_prompt_tokens": [
+    14453,
+    27038
+   ],
+   "prompt_tokens": 41491,
+   "completion_tokens": 370,
+   "cached_tokens": 0,
+   "cost_usd": 0.03251,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 2,
+   "docs": 1,
+   "pages": 2,
+   "answer_chars": 964
+  },
+  {
+   "id": "q-0144",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 6,
+   "searches": 6,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nSHREYAS (Scheme for Higher Education Youth in Apprenticeship and Skills / Scholarships for Higher Education for Young Achievers Scheme) is a central umbrella initiative aimed at enhancing the employability of Indian youth and providing educational financial assistance/fellowships.\n\n### OWNERSHIP & LEGAL STATUS\n- **Ministry:** Implemented through central ministries (including the Ministry of Education and Ministry of Social Justice and Empowerment, depending on the specific component/sub-scheme).\n- **Legal Status:** Central executive scheme.\n\n### FUNDING DETAILS FOR BIHAR (FY 2021-22 TO FY 2023-24)\n- **State-wise Funding Released:** **Not in record.**\n\n*(Note: While legislative enactments, reorganisation acts, and certain skill development parliamentary replies are indexed in the terminal record, state-wise fund release figures under SHREYAS for Bihar between 2021-22 and 2023-24 are not available in the indexed source documents or desk rows.)*",
+   "first_answer_ms": 59573,
+   "total_ms": 61756,
+   "call_ms": [
+    22883,
+    2479,
+    22701,
+    2745,
+    2464,
+    5029
+   ],
+   "call_prompt_tokens": [
+    10992,
+    17161,
+    17195,
+    17229,
+    22107,
+    22140
+   ],
+   "prompt_tokens": 106824,
+   "completion_tokens": 463,
+   "cached_tokens": 68323,
+   "cost_usd": 0.03574,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": false,
+   "cited": 0,
+   "docs": 0,
+   "pages": 0,
+   "answer_chars": 971
+  },
+  {
+   "id": "q-0157",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 2,
+   "searches": 2,
+   "retracts": 0,
+   "error": "",
+   "answer": "In official tables and parliamentary annexures concerning the Scheduled Castes and the Scheduled Tribes (Prevention of Atrocities) Act, 1989—such as those presented by the Ministry of Social Justice and Empowerment—the specific notation used is an asterisk (**`*`**) [1].\n\n### Official Legend Definition\nIn the official table footnotes, the notation is explicitly defined as:\n- **`*`**: *\"The material for the annual report for the SC/ST (PoA) Act, 1989 has not been sent by the States/UTs.\"* [1]\n\n*(Note: Where a State or UT does not seek assistance under the scheme, the separate notation **`NIL`** is recorded)* [1].",
+   "first_answer_ms": 7464,
+   "total_ms": 9285,
+   "call_ms": [
+    2768,
+    4634
+   ],
+   "call_prompt_tokens": [
+    15177,
+    24035
+   ],
+   "prompt_tokens": 39212,
+   "completion_tokens": 346,
+   "cached_tokens": 12132,
+   "cost_usd": 0.02252,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 1,
+   "docs": 1,
+   "pages": 1,
+   "answer_chars": 619
+  },
+  {
+   "id": "q-0157",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "In official tables concerning the Scheduled Castes and the Scheduled Tribes (Prevention of Atrocities) Act, 1989—such as those presented in parliamentary replies and ministry annexures—an asterisk (**\\***) denotes that the material or data for the annual report has not been submitted by a State or Union Territory [1].\n\n### Official Table Notations\n| Notation | Definition in Official Record |\n| :--- | :--- |\n| **\\*** | The material for the annual report for the SC/ST (PoA) Act, 1989 has not been sent by the States/UTs [1]. |\n| **NIL** | State/UT does not seek Central Assistance under the scheme [1]. |",
+   "first_answer_ms": 5631,
+   "total_ms": 8182,
+   "call_ms": [
+    7508
+   ],
+   "call_prompt_tokens": [
+    11618
+   ],
+   "prompt_tokens": 11618,
+   "completion_tokens": 305,
+   "cached_tokens": 0,
+   "cost_usd": 0.00986,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 1,
+   "docs": 1,
+   "pages": 1,
+   "answer_chars": 607
+  },
+  {
+   "id": "q-0170",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\n**Garima Greh** (Shelter Homes for Transgender Persons) is an institutional shelter initiative run under the sub-scheme *Central Sector Scheme for Comprehensive Rehabilitation for Welfare of Transgender Persons*, which forms part of the umbrella **SMILE** (Support for Marginalized Individuals for Livelihood and Enterprise) scheme [1, 4]. The homes provide safe residential spaces, basic amenities, capacity building, and mental health support aimed at mainstreaming transgender persons into respectable livelihoods [1].\n\n### OWNERSHIP & LEGAL STATUS\n* **Ministry / Department**: Department of Social Justice and Empowerment (DoSJE), Ministry of Social Justice and Empowerment [1, 2].\n* **Statutory Framework**: Implemented under executive scheme guidelines framed in alignment with the administrative mandate for the Transgender Persons (Protection of Rights) Act, 2019 [1, 27].\n* **Operational Status**: As of August 2025, **18 Garima Grehs** are supported across 15 States/UTs, housing a total of **429 residents** [3, 9]. Approvals for **3 new Garima Grehs** (in Jharkhand, Manipur, and Madhya Pradesh) were sanctioned for FY 2025–26 [2, 9].\n\n### DESIGN\nGarima Grehs operate as residential transition centers providing rehabilitation, care, and protection [1]:\n\n| Domain | Facilities & Support Services Extended | Operational Mechanism |\n| :--- | :--- | :--- |\n| **Living Amenities** | Safe shelter, food, clothing, medical care, yoga, meditation, and recreational facilities [1]. | Provided directly on-premise to all admitted residents [1]. |\n| **Mental Health Support** | Dedicated Counsellor attached to each Garima Greh for psychosocial support [1]. | Complemented nationally by Tele MANAS (MoHFW 24x7 helpline: **14416**) [1]. |\n| **Livelihood & Skills** | Life skill training, capacity building, and skill development [1]. | Aims to mainstream residents into respectable livelihoods upon departure [1]. |\n| **Rights Protection** | Institutional protection against atrocities and safeguarding of transgender rights [1]. | Supported by DoSJE and community-based partner organisations [1, 18]. |\n\n### FUNDING ALLOCATION & UTILISATION\n* **Total Funding Utilised**: So far, **₹8.25 crore** has been released and utilised specifically by Garima Grehs under the SMILE scheme [1].\n* **Broader Scheme Outlay**: Scheme funds are released through Grant-in-Aid channels to partner Non-Governmental Organisations / Civil Society Organisations administering individual shelter projects [9, 18].\n\n### IMPLEMENTATION WATCH\n* **Geographical Coverage Gaps**: While 18 Garima Grehs are active, proposals forwarded by NGOs/CSOs to **14 States/UTs** remain pending awaiting state recommendations, and **8 States/UTs** have submitted no proposals at all [9].\n* **Capacity Expansion**: Commissioning timelines for the **3 newly approved Garima Grehs** sanctioned in FY 2025–26 (Jharkhand, Manipur, Madhya Pradesh) require tracking to assess absorption of unmet residential demand [2, 9].",
+   "first_answer_ms": 3882,
+   "total_ms": 11125,
+   "call_ms": [
+    10002
+   ],
+   "call_prompt_tokens": [
+    14565
+   ],
+   "prompt_tokens": 14565,
+   "completion_tokens": 1032,
+   "cached_tokens": 0,
+   "cost_usd": 0.01479,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 7,
+   "docs": 4,
+   "pages": 7,
+   "answer_chars": 2991
+  },
+  {
+   "id": "q-0170",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### 1. WHAT IT IS\n**Garima Grehs** are shelter homes supported under the SMILE scheme (**Support for Marginalized Individuals for Livelihood and Enterprise**) to provide safe residential shelter, basic necessities, capacity-building, and rehabilitation to transgender persons [1, 3, 4]. They are designed to safeguard the rights of transgender persons, protect them from atrocities, and facilitate their mainstreaming into respectable livelihoods [1, 3].\n\n### 2. OWNERSHIP & LEGAL STATUS\n* **Ministry / Department:** Ministry of Social Justice and Empowerment (DoSJE) [1, 3, 4, 8].\n* **Scheme Structure:** Central Sector Scheme component titled *Central Sector Scheme for Comprehensive Rehabilitation for Welfare of Transgender Persons* under the overarching SMILE umbrella scheme [4].\n* **Current Status & Operational Scale:** \n  * As of parliamentary reporting, **18 Garima Grehs** are supported across 15 States/UTs, housing **429 persons** [3, 6, 9].\n  * Approval for **3 new Garima Grehs** (in Jharkhand, Manipur, and Madhya Pradesh) was sanctioned for the financial year 2025–26 [2, 9].\n\n### 3. DESIGN: FACILITIES, SUPPORT SERVICES & FUNDING\n\n| Domain | Provisions & Details | Reference |\n| :--- | :--- | :--- |\n| **Core Amenities** | Safe residential shelter, food, clothing, medical care, yoga, meditation, and recreational facilities [3]. | [3] |\n| **Mental Health & Support Services** | Dedicated in-house counsellor at each Garima Greh for psychosocial support and mental health counselling [1]. Convergence with the Ministry of Health & Family Welfare’s **Tele MANAS** 24x7 helpline (`14416`) for continuous tele-mental health support [1]. | [1] |\n| **Livelihood & Capacity-Building** | Skill development, life skill training, and capacity-building to ensure residents transition to gainful and respectable livelihoods upon leaving the shelter [1, 3]. Nationally, 725 transgender persons received skill development training under the sub-scheme starting in 2024–25 [6]. | [1, 3, 6] |\n| **Rights & Protection** | Institutional mechanism to safeguard transgender persons' rights and shield residents from atrocities [1, 3]. | [1, 3] |\n| **Total Funding** | **₹8.25 crore** released and utilised by Garima Grehs under the SMILE Scheme [1, 3]. | [1, 3] |\n\n### 4. TRADE-OFFS\n* **Strengths (From the Record):** Offers holistic rehabilitation integrating physical shelter with nutrition, mental healthcare, and vocational upskilling, directly enabling beneficiaries to exit vulnerability without recurring institutional dependence [1, 3].\n* **Constraints (From the Record):** Uneven geographic rollout across the country. As of August 2025, proposals forwarded from NGOs/CSOs to 14 States/UTs were awaiting state recommendations, while **8 States/UTs** had submitted no proposals at all for setting up Garima Grehs [3, 9].\n\n### 5. IMPLEMENTATION WATCH\n* **State Clearances:** Clearance and formal recommendations from the 14 pending States/UTs for NGO/CSO-sponsored shelter homes [3, 9].\n* **New Centre Rollouts:** Operationalisation of the 3 newly sanctioned homes in Jharkhand, Manipur, and Madhya Pradesh [2, 9].\n* **Post-Shelter Livelihoods:** Tracking actual post-training placement rates and livelihood absorption of discharged residents [1, 3].",
+   "first_answer_ms": 3430,
+   "total_ms": 10725,
+   "call_ms": [
+    9428
+   ],
+   "call_prompt_tokens": [
+    11128
+   ],
+   "prompt_tokens": 11128,
+   "completion_tokens": 1062,
+   "cached_tokens": 0,
+   "cost_usd": 0.01233,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 7,
+   "docs": 2,
+   "pages": 7,
+   "answer_chars": 3256
+  },
+  {
+   "id": "q-0183",
+   "kind": "narrow",
+   "variant": "v44",
+   "calls": 1,
+   "searches": 1,
+   "retracts": 0,
+   "error": "",
+   "answer": "### Signatory of the Office Order\n\nThe office order concerning the designation of the Office of Economic Adviser (OEA) as the **Nodal Point** for Multilateral Agreements/Organizations was signed by:\n\n* **Official:** **Ms. Reema Jain** [1]\n* **Designation:** **Joint Director (TFP & Admin)** [1]\n\n### Document Details\n\n* **File Number:** F. No. OEA-12023/15/2022-TFP [1]\n* **Date:** 16 May 2024 [1]\n* **Issuing Body:** Office of Economic Adviser (OEA), Department for Promotion of Industry and Internal Trade (DPIIT), Ministry of Commerce & Industry [1]\n* **Subject/Purpose:** Designating OEA as the Nodal Point for Multilateral Agreements and Organizations (including BRICS, G20, SCO, BIMSTEC, IPEF, IORA, etc.), to be handled by the Trade & Fiscal Policy (TFP) Division [1].",
+   "first_answer_ms": 3564,
+   "total_ms": 6740,
+   "call_ms": [
+    5523
+   ],
+   "call_prompt_tokens": [
+    14694
+   ],
+   "prompt_tokens": 14694,
+   "completion_tokens": 353,
+   "cached_tokens": 0,
+   "cost_usd": 0.01234,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 1,
+   "docs": 1,
+   "pages": 1,
+   "answer_chars": 775
+  },
+  {
+   "id": "q-0183",
+   "kind": "narrow",
+   "variant": "capped",
+   "calls": 3,
+   "searches": 3,
+   "retracts": 0,
+   "error": "",
+   "answer": "### WHAT IT IS\nThe Office Order designates the Office of Economic Adviser (OEA) under the Department for Promotion of Industry and Internal Trade (DPIIT) as the Nodal Point for Multilateral Agreements and Organizations (including BRICS, G20, SCO, BIMSTEC, IPEF, IORA, etc.), assigning the handling of this work to its Trade & Fiscal Policy Division (TFP) [1].\n\n### SIGN-OFF AND DESIGNATION\nThe order was signed off by **Ms. Reema Jain**, **Joint Director (TFP & Admin)**, Office of Economic Adviser, DPIIT [1].\n\n### CHANNEL OF SUBMISSION\nThe instrument outlines the following submission hierarchy for nodal work under the Trade & Fiscal Policy Division [1]:\n\n| Level | Name of Officer | Designation |\n|---|---|---|\n| 1 | **Shri Praveen Mahto** | Principal Economic Adviser |\n| 2 | **Shri Agrim Kaushal** | Economic Adviser |\n| 3 | **Ms. Reema Jain** | Joint Director |\n| 4 | **Ms. Grishma Goyal / Ms. Niharika Khatana** | Assistant Director |\n\n### OWNERSHIP & INSTRUMENT DETAILS\n- **Issuing Office**: Trade & Fiscal Policy Division, Office of Economic Adviser, DPIIT, Ministry of Commerce & Industry [1].\n- **File Reference**: F. No. OEA-12023/15/2022-TFP [1].\n- **Date of Issuance**: 16 May 2024 [1].\n- **Legal Status**: Executive Office Order, issued with the approval of the competent authority [1].",
+   "first_answer_ms": 11423,
+   "total_ms": 14813,
+   "call_ms": [
+    2277,
+    2512,
+    6781
+   ],
+   "call_prompt_tokens": [
+    10993,
+    17886,
+    26054
+   ],
+   "prompt_tokens": 54933,
+   "completion_tokens": 550,
+   "cached_tokens": 8052,
+   "cost_usd": 0.03783,
+   "parsed": true,
+   "valid_citations": true,
+   "cites_gold": true,
+   "cited": 1,
+   "docs": 1,
+   "pages": 1,
+   "answer_chars": 1302
+  }
+ ]
+}

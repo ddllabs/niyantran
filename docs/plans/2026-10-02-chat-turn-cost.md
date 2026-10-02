@@ -35,3 +35,14 @@
 ### Checkpoint
 - Deno tests, lint and the build pass.
 - **Go-ahead:** deploying `research-chat`.
+
+**T3, recorded 2026-10-02** (`research/2026-10-02-turn-cost-benchmark.md`, $2.83).
+- **The reply cap** missed the depth pass mark on narrow questions in two passes (pooled over 24:
+  fewer documents and pages, the expected document 23/24 against 24/24). It is now off by
+  default. The test for that failed first, and the benchmark's `capped` asks for the cap
+  explicitly.
+- **The widened limit** passes and deepens widened answers, but does not make them smaller,
+  faster or cheaper. The model searches again.
+- **Prompt size explains little of call time** (r = 0.14, about 82 ms per 1,000 tokens). F41's 46 s
+  call needs its NTER log row to explain it.
+- **Owner decision pending:** keep the widened limit, or leave `research-chat` as v44.

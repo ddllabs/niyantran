@@ -23,7 +23,7 @@
  * Writes eval/agent/results/<timestamp>.json and prints a summary. Costs real money: about $0.02
  * per question per variant on Gemini 3.8 Flash.
  */
-import { createAgentBudget, PRESEARCH_NOTE, runAgent, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
+import { createAgentBudget, PRESEARCH_NOTE, runAgent, TOOL_REPLY_CHARS, type AgentEvent, type AgentInput } from '../../supabase/functions/research-chat/agent.ts';
 import type { Message } from '../../supabase/functions/_shared/openrouterStream.ts';
 import { buildSystemPrompt, buildUserTurn } from '../../supabase/functions/research-chat/prompt.ts';
 import { deskCatalogBlock } from '../../supabase/functions/_shared/deskCatalog.ts';
@@ -118,9 +118,12 @@ const BATCH = 'Sweep the subject part by part: issue every query the sweep needs
 if (!baseSystem.includes(SWEEP)) throw new Error('the sweep sentence moved; update the batch variant');
 
 // ─── One run ─────────────────────────────────────────────────────────────────
-const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped']);
+const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly']);
 // The prompt limits (chat-turn-cost): on only for `capped`; every earlier variant predates them.
-const limitsOf = (variant: string) => (variant === 'capped' ? {} : { widenedTopK: null, toolReplyChars: null });
+// `wideonly`: the widened-search limit alone (the reply cap off), as shipped once the reply cap
+// missed the depth pass mark on narrow questions.
+// The reply cap is off by default since that decision, so `capped` asks for it explicitly.
+const limitsOf = (variant: string) => (variant === 'capped' ? { toolReplyChars: TOOL_REPLY_CHARS } : variant === 'wideonly' ? { toolReplyChars: null } : { widenedTopK: null, toolReplyChars: null });
 async function runOne(q: Q, variant: string, history: Message[] = []) {
   const t0 = performance.now();
   let calls = 0, firstAnswer = 0, retracts = 0;

@@ -133,7 +133,9 @@ export interface AgentDeps {
   searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number): Promise<Chunk[]>;
   /** Passages a widened search asks for; null asks for retrieval's default (as v44). */
   widenedTopK?: number | null;
-  /** The character budget of one search_documents reply; null keeps every passage (as v44). */
+  /** The character budget of one search_documents reply (TOOL_REPLY_CHARS when asked for). Off by
+   * default: it missed the depth pass mark on narrow questions (research/2026-10-02-turn-cost-
+   * benchmark.md). Unset or null keeps every passage. */
   toolReplyChars?: number | null;
   searchDeskRows(args: SearchDeskRowsArgs): Promise<DeskRowsResult>;
   handles: HandleAssigner;
@@ -298,7 +300,8 @@ export function renderChunk(handle: string, c: Chunk): string {
  * passages are the least likely to be on target: it asks for fewer.
  */
 export const WIDENED_TOP_K = 15;
-/** One search_documents reply's character budget (about 6k tokens); the first passage always stays. */
+/** A search_documents reply's character budget (about 6k tokens) for callers that ask for one; the
+ * first passage always stays. Not applied by default (see AgentDeps.toolReplyChars). */
 export const TOOL_REPLY_CHARS = 24_000;
 /** A handle's longest form, `ref:` + six + `-` + four digits: a passage is measured with it before
  * its handle exists, so a dropped passage is never assigned one. */
@@ -536,7 +539,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       }
       if (!found) return EXHAUSTED;
       // The reply's budget: passages past it are neither shown, handled nor counted as found.
-      const kept = withinReply(found, deps.toolReplyChars === undefined ? TOOL_REPLY_CHARS : deps.toolReplyChars, UNTRUSTED);
+      const kept = withinReply(found, deps.toolReplyChars ?? null, UNTRUSTED);
       state.chunks = accumulate(state.chunks, kept);
       return kept.length
         ? UNTRUSTED +
