@@ -1419,3 +1419,20 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     double-spaced phrase matches. 19.6 ms (`explain analyze`).
   - The frontend is unchanged. Migration 43 changes only what the database matches; the deployed
     viewer already folded this way.
+- **viewer-f50: `main` pushed (2026-10-02)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `7565408` to `55d7595` (9 commits, 22 files). It carries:
+    - viewer-f50 T1–T5;
+    - answer-speed benchmark pass 4;
+    - the records of `research-chat` v44 and migration 43.
+
+    A scan of the outgoing diff found no env files, keys or AI attribution.
+  - **Vercel:** production deploy `dpl_CaCMMxNPeJoxYPzUjYUdGvW3Y93z` (`55d7595`) is READY.
+  - **Served:** the main entry `index-H0PABj5L.js`, with no viewer code, and the lazy viewer chunk
+    `PageViewer-DkOpSlSA.js` (94.9 kB), carrying the manual anchoring (`overflow-anchor` check)
+    with the rest of the viewer.
+  - No server change in this push. `research-chat` v44 and migration 43 went live separately
+    (above).
+  - **Owner checks on production:**
+    - the continuous Text view in Safari;
+    - a signed-in brief and a follow-up;
+    - the earlier viewer checks (search, marks, thumbnails, Copy file name, a split document).

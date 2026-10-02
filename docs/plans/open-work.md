@@ -515,8 +515,9 @@ Follow-ups and findings:
     stored-column note, which was settled at migration 42's apply.
   - **Migration 43** (`20261002180000_search_folding`) was applied to NTER on 2026-10-02 and verified
     live (`agents/coordination.md`).
-  - **Next:** the push, with its go-ahead. Then the owner checks the continuous Text view in
-    Safari.
+  - **Pushed** on 2026-10-02 (`55d7595`); production deploy `dpl_CaCMMxNPeJoxYPzUjYUdGvW3Y93z` is
+    READY.
+  - **Next:** the owner checks the continuous Text view in Safari. Then move F50 to Done.
   - **Query folding.** The client folds with NFC and JS whitespace (NBSP, U+2000–U+200A); the database
     does neither, and `lower()` follows the database collation. Text with NBSP, or precomposed
     Devanagari nukta letters, can find 0 pages in the database yet match on the page. Fold both
