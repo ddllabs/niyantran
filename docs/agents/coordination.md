@@ -1545,3 +1545,20 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     frontend file changed, and the served bundle is unchanged (`index-CWkWLUFK.js`,
     `index-ClDtYTJ9.css`).
   - No database change.
+- **research-coverage (F53): `main` pushed (2026-10-03)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `e85c20d` to `cf54c58` (12 commits, 24 files). It carries:
+    - the research-coverage spec, plan and amendments 1–3;
+    - the coverage test set (`eval/agent/coverage.v1.jsonl`), its builder, checker, scorers and
+      tests;
+    - the independent review and the measurement write-up, with raw results;
+    - two off-by-default options in `research-chat`: the dig nudge (`dig.ts`,
+      `AgentDeps.digNudge`) and the prompt coverage check (`PromptInput.coverageCheck`). The
+      handler sets neither. `research-chat` is not redeployed and stays v46 on NTER;
+    - F52's note on two mis-titled records.
+
+    A scan of the outgoing diff, run before the push, found no env files, no `docs/security`, no
+    keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_EED5F6X4vMqfZHn68nUZS6AB9y6Z` (`cf54c58`) is READY. No
+    frontend file changed, and the served bundle is unchanged (`index-CWkWLUFK.js`,
+    `index-ClDtYTJ9.css`).
+  - No database change.
