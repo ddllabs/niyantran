@@ -375,8 +375,16 @@ Follow-ups and findings:
     - **Built:** a widened search asks for 15 passages, and a search reply stops at 24,000
       characters (`0de8178`, `13c050e`).
     - **The benchmark** has a widened kind and per-call prompt tokens (`a76d093`).
-    - **Next:** the measurement (v44 against capped); then deploying `research-chat`, with a
-      go-ahead.
+    - **Measured** (`research/2026-10-02-turn-cost-benchmark.md`, $2.83):
+      - the reply cap missed the narrow depth mark and is off;
+      - the widened limit deepens widened answers but does not speed them up;
+      - prompt size explains little of call time (r = 0.14).
+    - **The slow turn's NTER log** (owner-approved read): the provider was slow, not the prompt.
+      One call ran at 21 tokens a second; the next took 18.6 s to write 29 tokens.
+    - **Next:**
+      - the owner decides on the widened limit;
+      - a measured trial of OpenRouter provider preferences (by throughput or latency), which is
+        where F41's speed lies.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`

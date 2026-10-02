@@ -106,12 +106,30 @@ no prompt cap removes.
 2. **The widened limit** passes the depth mark and makes widened answers deeper, but not faster or
    cheaper. Keeping it is the owner's call: depth is the standing priority, but F41 asked for
    speed.
-3. **F41's slowness is not prompt size.** The next step is the slow call itself on NTER. Its
-   `model_call_logs` row (completion tokens, the served route, latency) would show whether the
-   output was long or the provider slow. That is a production read, so it needs the owner's
-   go-ahead.
+3. **F41's slowness is not prompt size.** The NTER log (below) shows provider latency: about 21
+   tokens a second on one call, and 18.6 s before 29 tokens on the next.
 
 **Total spent on this measurement:** $2.83.
+
+## F41's slow call, read on NTER (owner-approved read-only query, 2026-10-02)
+
+One query read the turn's `model_call_logs` rows: timing, token, route and status columns only, no
+content or user fields. The turn is 2026-10-01 06:44 UTC.
+
+| Call | Route | Latency | Prompt (cached) | Output tokens | Reasoning |
+| --- | --- | --- | --- | --- | --- |
+| Embedding | OpenAI | 0.6 s | 12 | — | — |
+| `chat_answer` | Google AI Studio | **46.1 s** | 25,850 (17,367) | 986 | 0 |
+| `chat_answer` | Google (Vertex) | **18.6 s** | 17,432 (17,252) | 29 | 0 |
+
+**The provider was slow, not the prompt:**
+- 986 output tokens in 46 s is about 21 tokens a second;
+- the second call took 18.6 s to write 29 tokens, almost all of it before the first token;
+- two thirds of each prompt was already cached.
+
+The fix is in the route rather than the prompt. A candidate: OpenRouter's provider preferences
+(sorting providers by throughput or latency, or a time limit on the first token with fallback).
+Like the caps here, it would be measured before it ships.
 
 ## The student persona (reported, not changed)
 
