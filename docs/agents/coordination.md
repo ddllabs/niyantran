@@ -1611,3 +1611,23 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - the panel's shadow;
     - clicking a bill while collapsed opens Record;
     - a reload opens the panel.
+- **chat-attach-fixes (F55): `main` pushed (2026-10-03)** (owner: "Push main to origin").
+  - **The push:** `main` was pushed from `1f0ab07` to `e651613` (3 commits, 12 files). It carries:
+    - the drop frame as an overlay on all four sides;
+    - attachment identity by document key or file content, with a note naming skipped duplicates;
+    - Reload and its row shown only when needed;
+    - the spec and the amendment 2 push record.
+
+    A scan of the outgoing diff, run before the push, found no env files, no `docs/security`, no
+    keys or local test credentials, and no AI attribution.
+  - **Vercel:** production deploy `dpl_54KP5zUkoZHQSZ2mQPLSUpQbPf3d` (`e651613`) is READY.
+  - **Served:**
+    - `index-Dt4tL-0u.css` carries `.ai-shell.drop:after{…border:2px dashed #012ea1…z-index:40}`;
+    - the main entry `index-B2VoSP-E.js` carries the "Already attached: " note and
+      `ai-attach-note`.
+  - No server, Edge Function or database change.
+  - **Owner checks on production:**
+    - the drop frame on all four sides;
+    - the same file twice gives one chip and the note;
+    - a bill dragged and then "Ask AI" gives one chip;
+    - no Reload row when idle.
