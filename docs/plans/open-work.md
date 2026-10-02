@@ -617,6 +617,14 @@ Follow-ups and findings:
     Communal Violence(Prevention,Control and Rehabilitation of Victims) Bill,2005") each hold one
     passage of an unrelated 2004 Appropriation Act. Read in the local replica, a copy of the
     legacy corpus; nothing was changed.
+- [ ] **F54.** Desk snapshot, Record and AI research are three separately built panels that take
+  turns in the same slot (owner, 2026-10-03: "not production-grade").
+  - **The defects:** the rail's "AI research" tab is a button; the shell unmounts the rail when the
+    dock opens; the width jumps between 33, 35 and 38%; resizing and the overlay exist only for AI
+    citations.
+  - **The fix:** spec `specs/2026-10-03-side-panel.md`, a draft. One `SidePanel` with Desk, Record
+    and AI tabs, one draggable width and one expand mode shared by all tabs (both owner choices).
+    Two open questions remain.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
