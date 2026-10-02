@@ -145,6 +145,13 @@ stay 100%; the expected-document rate is not lower. Narrow questions keep the ga
 earlier first word). Where `presearch2` misses the mark for a question type, the pre-search is
 turned off for that type.
 
+**Result (2026-10-02, pass 4, `research/2026-10-02-answer-speed-depth-benchmark-pass4.md`):**
+- **Briefs meet the pass mark:** pooled over 24, more searches, at least as many documents and
+  pages, and the expected document 24/24.
+- **Follow-ups are not pre-searched,** so they run as the baseline does. The literal miss on pages
+  cited is run-to-run noise between two samples of one configuration.
+- **Narrow questions keep the gain** (pass 3).
+
 **Acceptance tests, shown red first:**
 - agent: the pre-search reply begins with the note, and the note sits before the untrusted marker;
   a search the model makes itself carries no note;

@@ -450,9 +450,15 @@ Follow-ups and findings:
     - Narrow questions keep the gain.
     - Briefs search more than before and cite at least as much, but take about 13 s longer to the
       first word.
-  - **Next:**
-    - once credits are restored, finish the 6 remaining briefs and the 10 follow-ups;
-    - then deploy `research-chat`, with a go-ahead.
+  - **Benchmark pass 4** (`research/2026-10-02-answer-speed-depth-benchmark-pass4.md`) is complete:
+    all 15 briefs and the 10 follow-ups, $3.68, every call succeeded.
+    - **Briefs meet the pass mark.** Pooled over 24, amendment 1 against the baseline: 4.71 against
+      3.79 searches, 2.38 against 2.33 documents, 8.50 against 8.25 pages, and the expected
+      document 24/24. The first word comes 3 s sooner at p50.
+    - **Follow-ups run as the baseline by construction.** v43's verbatim pre-search missed the
+      expected document once.
+  - **Next:** deploy `research-chat` with amendment 1, with a go-ahead ("Deploy research-chat to
+    NTER").
 - [ ] **F47.** Found during the F46 fixes and left out of their scope:
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
