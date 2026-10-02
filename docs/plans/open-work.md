@@ -513,9 +513,10 @@ Follow-ups and findings:
   - **Built and verified locally** (spec `specs/2026-10-02-viewer-f50.md`, plan
     `plans/2026-10-02-viewer-f50.md`, `4a0871d`..T5). Every item below is fixed except the
     stored-column note, which was settled at migration 42's apply.
-  - **Next:** two go-aheads, asked separately: applying migration 43
-    (`20261002180000_search_folding`) to NTER, then the push. After the push, an owner check of
-    the continuous Text view in Safari.
+  - **Migration 43** (`20261002180000_search_folding`) was applied to NTER on 2026-10-02 and verified
+    live (`agents/coordination.md`).
+  - **Next:** the push, with its go-ahead. Then the owner checks the continuous Text view in
+    Safari.
   - **Query folding.** The client folds with NFC and JS whitespace (NBSP, U+2000–U+200A); the database
     does neither, and `lower()` follows the database collation. Text with NBSP, or precomposed
     Devanagari nukta letters, can find 0 pages in the database yet match on the page. Fold both

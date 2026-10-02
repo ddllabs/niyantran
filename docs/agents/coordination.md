@@ -1391,3 +1391,31 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - the preflight gives 204.
   - The frontend is unchanged. No database change.
   - **Owner check:** a signed-in brief and a follow-up on production, where agents do not sign in.
+- **viewer-f50: migration 43 applied to NTER (2026-10-02)** (owner: "Apply search_folding to
+  NTER").
+  - **The code:** `main` at `70a90f1`, unpushed. Migration last changed in `4a0871d`. Every SQL
+    fixture passed locally first; the search fixture fails without 43 (vacuity).
+  - **Before:**
+    - the last migration was `20261002120000`;
+    - `search_text` was not normalised;
+    - 2,340 documents, 54,340 chunks, 34 page rows;
+    - no active ingest job;
+    - database ctype `en_US.UTF-8`, the locale the fixture ran under.
+  - **Migration 43** `20261002180000_search_folding`:
+    - Applied with `supabase db query --linked` in one transaction, together with its
+      `schema_migrations` row.
+    - The apply file was built with Python: zsh's `echo` interprets `\u` escapes, and the first
+      attempt failed before anything ran.
+  - **Verified live:**
+    - the column expression is `NORMALIZE(text, NFC)` with the full space class;
+    - the function's needle is normalised, with the same class;
+    - one overload; security invoker, stable, `search_path=""`;
+    - authenticated may execute it; anon and PUBLIC may not;
+    - `search_text` is filled on 34 of 34 pages;
+    - counts unchanged;
+    - `analyze public.document_pages` was run (`n_live_tup` 34);
+    - a no-break space and an em space fold to a space.
+  - **Live search** on the 22-page bill: "the" gives the same pages and counts as after 42, and a
+    double-spaced phrase matches. 19.6 ms (`explain analyze`).
+  - The frontend is unchanged. Migration 43 changes only what the database matches; the deployed
+    viewer already folded this way.
