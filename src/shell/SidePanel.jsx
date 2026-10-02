@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import AiPanel from '../ai/AiPanel.jsx';
+import PanelOverlay from './PanelOverlay.jsx';
 import RailContent, { railClasses } from './RailContent.jsx';
 import {
   COLLAPSED_STORAGE_KEY, PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelReducer, readStoredCollapsed,
@@ -79,14 +80,28 @@ export function useSidePanel({ hasRail, selected, featureName }) {
   }, []);
 
   const aiActive = state.open && state.active === 'ai';
+
+  // The expand mode (spec point 3): the reader's Expand, on any tab, or a citation open in AI.
+  const [userExpanded, setUserExpanded] = useState(false);
+  const [citation, setCitation] = useState({ open: false, closeAll: null });
+  const citationExpanded = aiActive && citation.open;
+  const expanded = state.open && !(hasRail && state.collapsed) && (userExpanded || citationExpanded);
+
+  const keyState = useRef({});
+  keyState.current = { aiActive, userExpanded, citationExpanded };
   useEffect(() => {
-    if (!aiActive) return undefined;
+    if (!aiActive && !userExpanded) return undefined;
     function onKey(e) {
-      if (e.key === 'Escape') dispatch({ type: 'close-ai', ctx: ctxRef.current });
+      if (e.key !== 'Escape') return;
+      const k = keyState.current;
+      // A citation's Esc is the viewer's own (WorkSurface). Otherwise Esc first restores an
+      // expanded panel, and then, on AI, closes it as the dock's Esc did.
+      if (k.userExpanded && !k.citationExpanded) setUserExpanded(false);
+      else if (k.aiActive) dispatch({ type: 'close-ai', ctx: ctxRef.current });
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [aiActive]);
+  }, [aiActive, userExpanded]);
 
   // The docked width (spec point 2): the reader's choice in px, or null for the default. The shell
   // hands it to the grid as --panel-chosen; CSS clamps it to 340 px and 60% on every resize.
@@ -98,11 +113,22 @@ export function useSidePanel({ hasRail, selected, featureName }) {
 
   const act = useCallback((action) => dispatch({ ...action, ctx: ctxRef.current }), []);
   const consumeSeed = useCallback(() => setSeed(null), []);
-  return { state, act, seed, consumeSeed, aiOpen: aiActive, collapsed: hasRail && state.collapsed, width, setWidth };
+  return {
+    state, act, seed, consumeSeed, aiOpen: aiActive, collapsed: hasRail && state.collapsed, width, setWidth,
+    expanded, userExpanded, setUserExpanded, citation, setCitation, citationExpanded,
+  };
 }
 
 export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName }) {
-  const { state, act, seed, consumeSeed, width, setWidth } = panel;
+  const { state, act, seed, consumeSeed, width, setWidth, expanded, userExpanded, setUserExpanded, setCitation, citation, citationExpanded } = panel;
+  const [viewerSlot, setViewerSlot] = useState(null);
+  const onCitation = useCallback((open, closeAll) => setCitation({ open, closeAll }), [setCitation]);
+  // A click outside the expanded panel: with a citation open it closes the citation and the chat
+  // (revision 5); otherwise it only restores the panel.
+  const onOutside = useCallback(() => {
+    if (citationExpanded) citation.closeAll?.();
+    else setUserExpanded(false);
+  }, [citationExpanded, citation, setUserExpanded]);
   const hi = lang === 'hi';
   const asideRef = useRef(null);
   const drag = useRef(null);
@@ -168,7 +194,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
       aria-label={hi ? 'साइड पैनल' : 'Side panel'}
       hidden={!state.open && !collapsed}
     >
-      {state.open && !collapsed ? (
+      {state.open && !collapsed && !expanded ? (
         <div
           role="separator"
           aria-orientation="vertical"
@@ -180,6 +206,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
           {...edge}
         />
       ) : null}
+      <PanelOverlay open={expanded} split={citationExpanded} viewerRef={setViewerSlot} onOutside={onOutside}>
       {collapsed ? (
         <div className="side-panel-handle" role="toolbar" aria-orientation="vertical" aria-label={hi ? 'पैनल खोलें' : 'Open the panel'}>
           {tabs.map((t) => (
@@ -209,6 +236,17 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
             ))}
           </div>
           <div className="side-panel-actions">
+            <button
+              type="button"
+              className={`side-panel-expand${expanded ? ' on' : ''}`}
+              onClick={() => setUserExpanded(!userExpanded)}
+              disabled={citationExpanded}
+              aria-pressed={expanded}
+              aria-label={expanded ? (hi ? 'पैनल सामान्य करें' : 'Restore the panel') : hi ? 'पैनल बड़ा करें' : 'Expand the panel'}
+              title={expanded ? (hi ? 'सामान्य करें' : 'Restore') : hi ? 'बड़ा करें' : 'Expand'}
+            >
+              <span aria-hidden="true">{expanded ? '⇲' : '⇱'}</span>
+            </button>
             {hasRail ? (
               <button type="button" className="side-panel-collapse" onClick={() => act({ type: 'collapse' })} aria-label={hi ? 'पैनल छोटा करें' : 'Collapse the panel'} title={hi ? 'छोटा करें' : 'Collapse'}>
                 <span aria-hidden="true">⇥</span>
@@ -247,10 +285,13 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
               open={shown('ai')}
               onSeedConsumed={consumeSeed}
               onClose={closeAi}
+              onCitation={onCitation}
+              viewerSlot={viewerSlot}
             />
           </div>
         ) : null}
       </div>
+      </PanelOverlay>
     </aside>
   );
 }

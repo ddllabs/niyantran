@@ -269,18 +269,23 @@ it('coverage: an answer that lands after the attachments changed is dropped, and
 });
 // R6 decision 7 (docs/specs/2026-10-01-rag-v2-citations-pdf.md): the citation overlay hosts the
 // viewer beside the chat instead of the work surface over it.
-it('the overlay hosts the viewer: closed, the chat alone; open, the chat left and the viewer right, outside the chat',()=>{
+// Since side-panel T4 the side panel's expand mode hosts the viewer: the chat portals it into the
+// pane the panel hands it (viewerSlot). Standalone (no viewerSlot) it follows the chat, outside it.
+it('the viewer sits outside the chat: standalone it follows it; hosted, it waits for the panel\'s pane',()=>{
  const ready={...fake.research,ready:true,loading:false,locked:false};
  fake.research={...ready,viewer:null};
  const shut=renderToStaticMarkup(<AiPanel lang="en"/>);
- expect(shut).toMatch(/^<div class="cov"><div class="cov-chat"><div class="ai-shell /);
- expect(shut).not.toContain('cov-viewer');
+ expect(shut).toMatch(/^<div class="ai-shell /);
+ expect(shut).not.toContain('ai-work-surface');
  fake.research={...ready,viewer:{kind:'list',source:null}};
  const open=renderToStaticMarkup(<AiPanel lang="en"/>);
- expect(open).toMatch(/^<div class="cov is-open"><div class="cov-chat"><div class="ai-shell /);
- expect(open).toMatch(/<div class="cov-viewer"><div class="ai-work-surface"/);
- // The surface is no longer inside the chat's grid.
- expect(open.slice(0,open.indexOf('<div class="cov-viewer">'))).not.toContain('ai-work-surface');
+ expect(open).toMatch(/^<div class="ai-shell /);
+ expect(open).toContain('<div class="ai-work-surface"');
+ // The surface is not inside the chat's own markup.
+ const chatEnd=open.lastIndexOf('<div class="ai-work-surface"');
+ expect(open.slice(0,chatEnd)).not.toContain('ai-work-surface');
+ // Hosted, before the panel's pane exists, it renders nowhere rather than inline.
+ expect(renderToStaticMarkup(<AiPanel lang="en" viewerSlot={null}/>)).not.toContain('ai-work-surface');
 });
 it('WorkSurface still receives the same props from the new host',async()=>{
  const seen=[];
@@ -299,24 +304,15 @@ it('WorkSurface still receives the same props from the new host',async()=>{
  expect(props.locked).toBe(true);
  for (const k of ['onOpen','onClose','onAskAboutDocument']) expect(typeof props[k]).toBe('function');
 });
-// Revision 5 point 1: a click outside the open overlay closes both the citation and the chat.
-it('the overlay gets an onOutside that closes the citation and then the chat',async()=>{
- const seen=[];
- vi.resetModules();
- vi.doMock('./CitationOverlay.jsx',()=>({default:(props)=>{seen.push(props);return null;}}));
- const {default:Panel}=await import('./AiPanel.jsx');
+// Revision 5 point 1: a click outside the open citation closes both the citation and the chat. Since
+// side-panel T4 the panel's expand mode listens for the click and calls what the chat reports.
+it('a click outside the open citation closes the citation and then the chat',async()=>{
+ const {closeCitationAndChat}=await import('./AiPanel.jsx');
  const calls=[];
- fake.research={...fake.research,ready:true,loading:false,locked:false,viewer:{kind:'list',source:null},actions:{openSource(){},closeViewer(){calls.push('closeViewer');}}};
- renderToStaticMarkup(<Panel lang="en" onClose={()=>calls.push('onClose')}/>);
- renderToStaticMarkup(<Panel lang="en"/>);
- vi.doUnmock('./CitationOverlay.jsx');
- expect(seen).toHaveLength(2);
- expect(seen[0].open).toBe(true);
- expect(typeof seen[0].onOutside).toBe('function');
- seen[0].onOutside();
+ closeCitationAndChat(()=>calls.push('closeViewer'),()=>calls.push('onClose'))();
  expect(calls).toEqual(['closeViewer','onClose']);
  // With no chat to close (no onClose), only the citation closes.
- calls.length=0;seen[1].onOutside();
+ calls.length=0;closeCitationAndChat(()=>calls.push('closeViewer'),undefined)();
  expect(calls).toEqual(['closeViewer']);
 });
 // The attachedKeys separator was a literal NUL byte, which made grep treat the file as binary.

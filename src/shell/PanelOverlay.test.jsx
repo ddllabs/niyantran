@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import CitationOverlay from './CitationOverlay.jsx';
+import CitationOverlay from './PanelOverlay.jsx';
 
 const CHAT = <div className="chat-probe">chat</div>;
 const VIEWER = <div className="viewer-probe">viewer</div>;
-const css = readFileSync(new URL('./citation-overlay.css', import.meta.url), 'utf8');
+const css = readFileSync(new URL('./panel-overlay.css', import.meta.url), 'utf8');
 
 /** The rules inside the first `@media <query> {` block, matched by brace depth. */
 function mediaBlock(query) {
@@ -49,6 +49,32 @@ describe('CitationOverlay markup', () => {
     // root div > first child div > the chat, in both states; the handles and the viewer pane only follow it.
     expect(closed).toBe('<div><div><div>chat</div></div></div>');
     expect(open.startsWith('<div><div><div>chat</div></div>')).toBe(true);
+  });
+});
+
+// side-panel spec point 3: the overlay is the side panel's expand mode for every tab. Without a
+// citation it is one column; with one, the chat portals the viewer into the pane it is handed.
+describe('PanelOverlay as the panel\'s expand mode', () => {
+  it('expanded with no viewer: one column, no viewer pane and no divider, the edge still resizes it', () => {
+    const html = renderToStaticMarkup(<CitationOverlay open narrow={false} viewportWidth={1440}>{CHAT}</CitationOverlay>);
+    expect(html).toMatch(/^<div class="cov is-open is-solo"/);
+    expect(html).not.toContain('cov-viewer');
+    expect(html).not.toContain('cov-divider');
+    expect(html).toContain('class="cov-edge"');
+  });
+
+  it('split with no viewer node: an empty viewer pane, handed to viewerRef, and the divider', () => {
+    let pane = null;
+    const html = renderToStaticMarkup(<CitationOverlay open split viewerRef={(el) => { pane = el; }} narrow={false} viewportWidth={1440}>{CHAT}</CitationOverlay>);
+    expect(html).toMatch(/^<div class="cov is-open"[ >]/);
+    expect(html).toContain('<div class="cov-viewer"></div>');
+    expect(html).toContain('class="cov-divider"');
+    expect(pane).toBeNull(); // refs attach in the DOM, not in static markup
+  });
+
+  it('closed, a split request shows nothing extra: the panel sits in its slot', () => {
+    expect(renderToStaticMarkup(<CitationOverlay open={false} split>{CHAT}</CitationOverlay>))
+      .toBe('<div class="cov"><div class="cov-chat"><div class="chat-probe">chat</div></div></div>');
   });
 });
 
@@ -157,7 +183,7 @@ describe('CitationOverlay resize handles', () => {
   });
 });
 
-describe('citation-overlay.css', () => {
+describe('panel-overlay.css', () => {
   it('states the width rule: max(50vw, 960px), capped at the viewport, anchored right', () => {
     expect(css).toContain('min(100vw, max(50vw, 960px))');
     expect(css).toMatch(/position:\s*fixed/);

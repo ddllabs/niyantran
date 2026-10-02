@@ -4,8 +4,11 @@ vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
 import SidePanel from './SidePanel.jsx';
 
-const panel = (state) => ({ state: { open: true, collapsed: false, mounted: ['desk'], active: 'desk', ...state }, act: () => {}, seed: null, consumeSeed: () => {} });
-const render = (state, props = {}) => renderToStaticMarkup(<SidePanel panel={panel(state)} hasRail feed={{ feature: 'Bills' }} selected={null} lang="en" {...props} />);
+const panel = (state, extra = {}) => ({
+  state: { open: true, collapsed: false, mounted: ['desk'], active: 'desk', ...state }, act: () => {}, seed: null, consumeSeed: () => {},
+  expanded: false, userExpanded: false, setUserExpanded: () => {}, citation: { open: false }, setCitation: () => {}, citationExpanded: false, ...extra,
+});
+const render = (state, props = {}, extra = {}) => renderToStaticMarkup(<SidePanel panel={panel(state, extra)} hasRail feed={{ feature: 'Bills' }} selected={null} lang="en" {...props} />);
 
 // side-panel spec point 1: one real tablist for Desk, Record and AI research.
 describe('the side panel', () => {
@@ -57,5 +60,29 @@ describe('the side panel', () => {
       expect(render({ active, mounted: ['desk', 'ai'] })).toMatch(/<div[^>]*role="separator"[^>]*aria-orientation="vertical"[^>]*aria-label="Resize the panel"[^>]*tabindex="0"[^>]*class="side-panel-edge"/);
     }
     expect(render({ open: false, collapsed: true, mounted: ['desk'] })).not.toContain('role="separator"');
+  });
+
+  // side-panel spec point 3: one expand mode, on every tab, using the overlay's design.
+  it('every tab offers Expand; docked, the panel is the overlay\'s plain wrapper', () => {
+    for (const active of ['desk', 'ai']) {
+      const html = render({ active, mounted: ['desk', 'ai'] });
+      expect(html).toMatch(/class="side-panel-expand"[^>]*aria-pressed="false"[^>]*aria-label="Expand the panel"/);
+      expect(html).toContain('<div class="cov"><div class="cov-chat">');
+    }
+  });
+
+  it('expanded without a citation: one column, Restore pressed, and no docked edge', () => {
+    const html = render({ active: 'desk' }, {}, { expanded: true, userExpanded: true });
+    expect(html).toMatch(/<div class="cov is-open is-solo"/);
+    expect(html).toMatch(/class="side-panel-expand on"[^>]*aria-pressed="true"[^>]*aria-label="Restore the panel"/);
+    expect(html).not.toContain('class="side-panel-edge"');
+    expect(html).not.toContain('cov-viewer');
+  });
+
+  it('a citation open in AI expands it with the viewer pane beside the panel, and Expand is locked meanwhile', () => {
+    const html = render({ active: 'ai', mounted: ['ai'] }, {}, { expanded: true, citationExpanded: true, citation: { open: true } });
+    expect(html).toMatch(/<div class="cov is-open"[ >]/);
+    expect(html).toContain('<div class="cov-viewer"></div>');
+    expect(html).toMatch(/class="side-panel-expand on"[^>]*disabled=""/);
   });
 });

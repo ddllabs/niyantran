@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, isModuleAttachment, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
@@ -12,9 +13,19 @@ import ModelPicker from './ModelPicker.jsx';
 import MessageRow from './MessageRow.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
-import CitationOverlay from './CitationOverlay.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 import { createStickToBottom } from './stickToBottom.js';
+
+/**
+ * R6 revision 5, point 1: a click outside the open citation closes the citation and then the chat
+ * (the panel's close; a host without one keeps the chat). "← Back" and ✕ close the citation only.
+ */
+export function closeCitationAndChat(closeViewer, onClose) {
+  return () => {
+    closeViewer();
+    onClose?.();
+  };
+}
 
 export const FOCUS_OPTS = [
   { id: 'attached', en: 'Attached only', hi: 'केवल संलग्न', hint: 'Pins and files in this chat' },
@@ -337,7 +348,7 @@ export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverag
   return () => { alive = false; clearInterval(id); };
 }
 
-export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false }) {
+export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot }) {
   const hi = lang === 'hi';
   const research = useResearchThread(true);
   const state = research.store;
@@ -624,22 +635,30 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     hi ? DOCS_WORK_HI : DOCS_WORK_EN,
   ];
 
-  // R6 decision 7: the viewer opens in the citation overlay, beside the chat rather than over it.
-  // The chat keeps its place in the tree whether the overlay is open or not (CitationOverlay), so
-  // this component and its research hook are never remounted by opening a citation.
+  // R6 decision 7: the viewer opens beside the chat rather than over it. Since side-panel T4 the
+  // side panel expands for it (shell/PanelOverlay.jsx) and hands this chat the viewer pane, into
+  // which the viewer is portalled: the chat itself never moves, so it is never remounted.
   const evidence = viewer ? (
     <WorkSurface viewer={viewer} sources={research.sources} onOpen={openSource} onClose={closeViewer} onAskAboutDocument={onAskAboutDocument} locked={busy} />
   ) : null;
 
-  // R6 revision 5, point 1: a click outside the open overlay closes the citation and then the chat
-  // (the dock's close; a host without one keeps the chat). "← Back" and ✕ close the citation only.
-  const closeAll = () => {
-    closeViewer();
-    onClose?.();
-  };
+  // The panel learns of a citation before paint, so it expands in the same frame the viewer opens.
+  const citationOpen = Boolean(viewer);
+  const reportRef = useRef(onCitation);
+  reportRef.current = onCitation;
+  const closeViewerRef = useRef(closeViewer);
+  closeViewerRef.current = closeViewer;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useLayoutEffect(() => {
+    reportRef.current?.(citationOpen, closeCitationAndChat(() => closeViewerRef.current(), () => onCloseRef.current?.()));
+  }, [citationOpen]);
 
   return (
-    <CitationOverlay open={Boolean(viewer)} viewer={evidence} onOutside={closeAll}>
+    <>
+    {/* Hosted by the side panel (viewerSlot given, null until its pane exists) the viewer goes into
+        the panel's viewer pane; standalone it simply follows the chat. */}
+    {evidence && viewerSlot ? createPortal(evidence, viewerSlot) : null}
     <div
       className={`ai-shell ai-shell-v2 ai-shell-research${compact ? ' compact' : ''}${dragOver ? ' drop' : ''}${historyOpen ? ' history-open' : ''}`}
       onDragOver={(e) => {
@@ -1118,6 +1137,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       </div>
       </div>
     </div>
-    </CitationOverlay>
+    {evidence && viewerSlot === undefined ? evidence : null}
+    </>
   );
 }

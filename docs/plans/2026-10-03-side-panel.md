@@ -116,3 +116,31 @@
   - a 120 px drag gives 638 px on all three, and is stored;
   - → gives 622 px; End gives 864 px (60%); a double-click resets to 518 px and clears storage;
   - a stored 700 px survives a reload.
+
+**T4, recorded 2026-10-03.**
+- **The citation overlay becomes the panel's expand mode:** `ai/CitationOverlay.jsx` is now
+  `shell/PanelOverlay.jsx`, with `panel-overlay.css`. It keeps the fixed in-place design, the
+  slide, the outer width edge, storage and click-outside. It adds a one-column `is-solo` mode and a
+  `split` viewer pane handed out by `viewerRef`.
+- **SidePanel wraps its whole content in it,** the tab bar included:
+  - Expand works on every tab and persists across tab switches;
+  - a citation open in AI expands the panel with the split and locks Expand meanwhile;
+  - Esc first restores, then closes AI as before;
+  - a click outside restores the panel, or, with a citation open, closes the citation and the
+    chat (revision 5).
+- **AiPanel no longer wraps itself.** It reports a citation in a layout effect, so the panel
+  expands in the same frame, and portals its viewer into the panel's pane. Standalone, with no
+  `viewerSlot`, the viewer follows the chat. The chat never moves.
+- **Tests:**
+  - the overlay's 24 tests moved with it, plus 3 new;
+  - 3 new SidePanel tests, which fail when expansion or the split is switched off;
+  - AiPanel's overlay-mock test now tests `closeCitationAndChat` directly.
+- **Checked in the browser,** with the pane about 1,471 px wide:
+  - docked at 529 px (36%);
+  - Expand on Desk gives a fixed 961 px panel with the workspace grid unchanged, and it stays
+    expanded on AI;
+  - a click outside and Esc restore it;
+  - a citation gives a 961 px split with the viewer's 480 px pane (WorkSurface portalled), the
+    chat is the same node, and Expand is locked;
+  - Close citation restores AI docked;
+  - a click outside with a citation open closes it and AI, back to Desk.

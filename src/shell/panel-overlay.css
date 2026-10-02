@@ -1,4 +1,4 @@
-/* The citation overlay (CitationOverlay.jsx; docs/specs/2026-10-01-rag-v2-citations-pdf.md,
+/* The side panel's expand mode, first the citation overlay (PanelOverlay.jsx; docs/specs/2026-10-01-rag-v2-citations-pdf.md,
    decision 7). Closed, .cov is a transparent wrapper filling the dock. Open, it is fixed to the
    viewport's right edge, max(50vw, 960px) wide and capped at the viewport, from the top of the
    desk area to the bottom, split into two equal halves: the chat, then the viewer. The dock keeps
@@ -40,6 +40,8 @@
 /* Slides out from the dock: it starts (and, closing, ends) with its left edge on the dock's. */
 .cov.is-opening,
 .cov.is-closing { transform: translateX(var(--cov-shift, 0px)); }
+/* Expanded without a citation (side-panel spec point 3): one column, the whole panel. */
+.cov.is-solo { grid-template-columns: minmax(0, 1fr); }
 .cov.is-open,
 .cov.is-closing { transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1); }
 .cov.is-opening { transition: none; }

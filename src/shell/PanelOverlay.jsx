@@ -1,4 +1,11 @@
 /**
+ * The side panel's expand mode (docs/specs/2026-10-03-side-panel.md, point 3). It began as the
+ * citation overlay and keeps that design for every tab: SidePanel wraps its whole content in it,
+ * and it opens when the reader expands the panel or when the AI tab opens a citation. Without a
+ * citation it is one column (`is-solo`); with one (`split`) it is the chat and an empty viewer
+ * pane, handed to `viewerRef`, into which the chat portals its viewer. A `viewer` node may also be
+ * given directly.
+ *
  * The citation overlay (docs/specs/2026-10-01-rag-v2-citations-pdf.md, decision 7 and Design >
  * Layout). Closed, it is a plain wrapper and the chat sits in the dock as before. Open, the same
  * element turns `position: fixed`, right-anchored and max(50vw, 960px) wide, with the chat on the
@@ -29,12 +36,12 @@
  * the CSS as --cov-width and --cov-split; the maths is in citationOverlayModel.js.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import './citation-overlay.css';
+import './panel-overlay.css';
 import {
   NARROW_QUERY, REDUCED_MOTION_QUERY, SPLIT_MAX, SPLIT_MIN, SPLIT_STORAGE_KEY, WIDTH_STORAGE_KEY, attachOutsideClose,
   dragSplit, dragWidth, nextPhase, outsideCloseActive, overlayShift, readStoredSplit, readStoredWidth, resolveSplit,
   resolveWidth, stepSplit, stepWidth, widthBounds, writeStored,
-} from './citationOverlayModel.js';
+} from '../ai/citationOverlayModel.js';
 
 /** The fallback in case transitionend never arrives (a hidden tab, an interrupted transition). */
 const SETTLE_MS = 450;
@@ -180,10 +187,11 @@ function useOutsideClose(node, active, onOutside, doc) {
   }, [node, active, doc]);
 }
 
-export default function CitationOverlay({
-  open, viewer, children, onOutside, narrow: narrowOverride, reducedMotion: reducedOverride, viewportWidth, storage,
-  outsideDocument,
+export default function PanelOverlay({
+  open, viewer, split = false, viewerRef, children, onOutside, narrow: narrowOverride, reducedMotion: reducedOverride,
+  viewportWidth, storage, outsideDocument,
 }) {
+  const twoPanes = Boolean(viewer) || Boolean(split);
   const narrow = useMediaQuery(NARROW_QUERY, narrowOverride);
   const reduced = useMediaQuery(REDUCED_MOTION_QUERY, reducedOverride);
   const vw = useViewportWidth(viewportWidth);
@@ -196,7 +204,7 @@ export default function CitationOverlay({
   const node = useRef(null);
   useOutsideClose(node, outsideCloseActive({ open: shown, narrow, onOutside }), onOutside, outsideDocument);
   const handles = phase === 'open' && !narrow;
-  const { width, split, resizing, handle } = useOverlaySize(vw, storage, handles);
+  const { width, split: share, resizing, handle } = useOverlaySize(vw, storage, handles);
   useDockGeometry(node, width);
 
   // FLIP: `opening` places the overlay at its start position without a transition; reading the
@@ -221,8 +229,8 @@ export default function CitationOverlay({
   const out = phase !== 'closed';
   // An unknown viewport (no window) leaves the width and the halves to the CSS fallbacks.
   const sized = out && !narrow && width > 0;
-  const className = `cov${out ? ` is-${phase}` : ''}${out && narrow ? ' is-narrow' : ''}${handles && resizing ? ' is-resizing' : ''}`;
-  const style = sized ? { '--cov-width': `${width}px`, '--cov-split': `${split}%` } : undefined;
+  const className = `cov${out ? ` is-${phase}` : ''}${out && !twoPanes ? ' is-solo' : ''}${out && narrow ? ' is-narrow' : ''}${handles && resizing ? ' is-resizing' : ''}`;
+  const style = sized ? { '--cov-width': `${width}px`, '--cov-split': `${share}%` } : undefined;
   const bounds = widthBounds(vw);
   const separator = (kind, label, min, max, now) => (
     <div
@@ -241,10 +249,10 @@ export default function CitationOverlay({
   // viewer only follow it (the divider before the viewer, matching the tab order to the layout).
   return (
     <div ref={node} className={className} style={style} onTransitionEnd={onTransitionEnd}>
-      <div className="cov-chat" inert={out && narrow ? true : undefined}>{children}</div>
-      {handles ? separator('edge', 'Resize the citation panel', bounds.min, bounds.max, width) : null}
-      {handles ? separator('divider', 'Resize the chat and the source viewer', SPLIT_MIN, SPLIT_MAX, Math.round(split)) : null}
-      {out ? <div className="cov-viewer">{viewer}</div> : null}
+      <div className="cov-chat" inert={out && narrow && twoPanes ? true : undefined}>{children}</div>
+      {handles ? separator('edge', 'Resize the expanded panel', bounds.min, bounds.max, width) : null}
+      {handles && twoPanes ? separator('divider', 'Resize the chat and the source viewer', SPLIT_MIN, SPLIT_MAX, Math.round(share)) : null}
+      {out && twoPanes ? <div className="cov-viewer" ref={viewerRef}>{viewer || null}</div> : null}
     </div>
   );
 }
