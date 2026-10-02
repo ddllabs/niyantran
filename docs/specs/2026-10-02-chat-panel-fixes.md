@@ -1,6 +1,7 @@
 # Spec: research chat panel fixes (`chat-panel-fixes`): F47, and F46's end-of-turn shift
 
-> **Status: Living.** A draft for the owner's review. It covers open-work F47's three findings,
+> **Status: Living.** Approved by the owner on 2026-10-02: the history-open dimming is restored, not
+> removed. It covers open-work F47's three findings,
 > and the part of review item D4 (`research/2026-10-02-chat-experience-review.md`) that the panel
 > loading work did not cover.
 

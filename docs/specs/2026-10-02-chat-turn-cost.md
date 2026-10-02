@@ -1,6 +1,8 @@
 # Spec: the research turn's prompt size (`chat-turn-cost`): F41, and F46's agent-loop cost
 
-> **Status: Living.** A draft for the owner's review. It covers open-work F41 and the cost and speed
+> **Status: Living.** Approved by the owner on 2026-10-02:
+> - "Measure, then cap", with earlier rounds never summarised away;
+> - the student persona stays as it is; its cost is only reported. It covers open-work F41 and the cost and speed
 > item still open from F46 (`research/2026-10-02-chat-experience-review.md`, D1).
 > - Deploying `research-chat` waits for its own go-ahead.
 > - Paid benchmark runs are named in the plan with their estimated cost.

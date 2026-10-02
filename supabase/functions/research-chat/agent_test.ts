@@ -16,6 +16,8 @@ import {
   renderChunk,
   rowSourceKey,
   runAgent,
+  TOOL_REPLY_CHARS,
+  WIDENED_TOP_K,
 } from './agent.ts';
 import { FOCUS_VALUES } from './validate.ts';
 
@@ -1271,4 +1273,74 @@ Deno.test('presearch: a turn aborted during the pre-search makes no model call',
   f.deps.request = { ...f.deps.request, signal: controller.signal };
   await assertRejects(() => runAgent(f.deps, { ...input, presearch: 'q' }));
   assertEquals(f.requests.length, 0);
+});
+
+// chat-turn-cost (F41): a widened search is corpus-wide and off-target by construction, so it asks
+// for fewer passages; and a search reply stops at a character budget, so prompts stay bounded.
+function topKLog(result: (ids?: string[]) => Chunk[]) {
+  const calls: { ids?: string[]; topK?: number }[] = [];
+  const searchDocuments = (_args: DocumentSearchArgs, ids?: string[], topK?: number) => {
+    calls.push({ ids: ids && [...ids], topK });
+    return Promise.resolve(result(ids));
+  };
+  return { calls, searchDocuments };
+}
+
+Deno.test('a widened retry asks for WIDENED_TOP_K passages; the scoped search asks for the default', async () => {
+  const log = topKLog((ids) => (ids ? [] : [chunk('a')]));
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
+  await runAgent(f.deps, { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
+  assertEquals(log.calls, [{ ids: ['private-doc'], topK: undefined }, { ids: undefined, topK: WIDENED_TOP_K }]);
+});
+
+Deno.test('a confining focus with nothing to confine to searches widened from the start, with WIDENED_TOP_K', async () => {
+  const log = topKLog(() => [chunk('a')]);
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: log.searchDocuments });
+  await runAgent(f.deps, { ...input, focus: 'attached', scopeSent: false });
+  assertEquals(log.calls, [{ ids: undefined, topK: WIDENED_TOP_K }]);
+});
+
+Deno.test('a broad search, and any search with the limit off, asks for the default', async () => {
+  const broad = topKLog(() => [chunk('a')]);
+  await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: broad.searchDocuments }).deps, input);
+  assertEquals(broad.calls, [{ ids: undefined, topK: undefined }]);
+  const off = topKLog((ids) => (ids ? [] : [chunk('a')]));
+  await runAgent(fake([[docCall(), finish('tool_calls')], ready(), answer()], { searchDocuments: off.searchDocuments, widenedTopK: null }).deps,
+    { ...input, scopedDocumentIds: ['private-doc'], focus: 'attached' });
+  assertEquals(off.calls.map((c) => c.topK), [undefined, undefined]);
+});
+
+const longChunk = (id: string, chars: number): Chunk => ({ ...chunk(id), content: id.repeat(chars) });
+
+Deno.test('a search reply stops before the passage that would cross TOOL_REPLY_CHARS; only kept passages get handles', async () => {
+  const found = [longChunk('a', 300), longChunk('b', 300), longChunk('c', 300)];
+  const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve(found),
+    toolReplyChars: 800,
+  });
+  const result = await runAgent(f.deps, input);
+  const reply = f.requests[1].messages.find((m) => m.role === 'tool')!.content as string;
+  assert(reply.includes('a'.repeat(300)) && reply.includes('b'.repeat(300)));
+  assert(!reply.includes('c'.repeat(300)));
+  assert(reply.length <= 800);
+  assertEquals(result.chunks.map((c) => c.id), ['a', 'b']);
+  assertEquals(f.deps.handles.size(), 2);
+});
+
+Deno.test('a search reply always keeps its first passage, however long; with the cap off it keeps all', async () => {
+  const one = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve([longChunk('a', 900), longChunk('b', 10)]),
+    toolReplyChars: 500,
+  });
+  assertEquals((await runAgent(one.deps, input)).chunks.map((c) => c.id), ['a']);
+  const all = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+    searchDocuments: () => Promise.resolve([longChunk('a', 900), longChunk('b', 900)]),
+    toolReplyChars: null,
+  });
+  assertEquals((await runAgent(all.deps, input)).chunks.map((c) => c.id), ['a', 'b']);
+});
+
+Deno.test('the defaults: WIDENED_TOP_K is 15 and TOOL_REPLY_CHARS is 24,000', () => {
+  assertEquals(WIDENED_TOP_K, 15);
+  assertEquals(TOOL_REPLY_CHARS, 24_000);
 });
