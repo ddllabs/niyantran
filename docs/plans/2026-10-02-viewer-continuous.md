@@ -131,6 +131,28 @@
   - the browser check on both documents.
 - **Files:** `highlights.js` (new), `PdfDocument.jsx`, `viewer.css`.
 
+**T6, recorded 2026-10-02.**
+- **How it works.** Each page's piece of the passage comes from `citedPieces` over the cited row and,
+  when the citation runs past it, the next page's row. A drawn page marks its piece after every draw
+  and whenever the piece changes, and clears it when it leaves the window. Each result is kept with
+  the text it was made for, so a result for an earlier passage is never taken for the current one.
+- **The fallback.** The dashed boxes labelled "Approximate location" show only when there is no
+  stored text to mark with, or the page reports no match or no Highlight API (`needsFallback`).
+- **Checks.** Lint, both suites (1,872 tests) and the build pass. The viewer chunk is 22.93 kB gzip,
+  +2.0 kB for T6, mostly the matcher now in the bundle. The label test was shown to fail without
+  the label.
+- **On the harness:**
+  - **The bill:** one exact range on page 4, from "such intent if" to "foreign powers". The passage's
+    cut-off words at either end are dropped. No boxes.
+  - **A passage across pages 4 and 5:** one exact range on each page.
+  - **The 1,000-page document:** marked on page 503, in the dark theme.
+  - **Without the Highlight API:** one dashed, labelled box.
+  - **The console:** no errors after a reload.
+- **Noted.** The harness's page text is pdf.js's, which includes the margin line numbers. A range
+  that starts or ends at a line number therefore covers it, as the stored passage does. The OCR
+  page text in the app is expected to leave margin numbers out; check this on the live bill at
+  Checkpoint B.
+
 ### T7. Search
 - **Acceptance:**
   - the client: debounce at 250 ms, from 2 characters, cancellation;

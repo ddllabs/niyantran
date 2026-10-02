@@ -221,12 +221,20 @@
 .pv-slot .textLayer { z-index: 2; }
 .pv-page-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted, #6d675f); font-size: 12px; }
 
-/* The cited blocks: translucent amber with a 2px outline, never in the way of the text layer. */
+/* The exact mark: the cited passage's own words on the text layer (highlights.js). The text layer's
+   glyphs are transparent over the canvas, so the highlight paints the words' boxes in amber. */
+::highlight(pv-cite) { background-color: rgba(250, 204, 21, .42); }
+
+/* The fallback, where no exact mark could be made (no text layer, no match, no Highlight API): the
+   citation's layout blocks, dashed and labelled so they never pass for the cited words. */
 .pv-boxes { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .pv-box {
   position: absolute; pointer-events: none; box-sizing: border-box;
-  background: rgba(250, 204, 21, .28); outline: 2px solid rgba(217, 119, 6, .9); border-radius: 2px;
-  mix-blend-mode: multiply;
+  outline: 2px dashed rgba(217, 119, 6, .9); outline-offset: 2px; border-radius: 2px; background: rgba(250, 204, 21, .08);
+}
+.pv-box-label {
+  position: absolute; left: -2px; bottom: calc(100% + 4px); padding: 1px 6px; border-radius: 4px;
+  background: var(--pv-cite-bg); color: var(--pv-cite-ink); font: 500 11px/1.4 var(--font-ui, Inter, Arial, sans-serif); white-space: nowrap;
 }
 .pv-hint {
   position: absolute; top: 8px; left: 8px; right: 8px; z-index: 3; margin: 0; padding: 8px 12px; border-radius: 6px;

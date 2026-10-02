@@ -97,6 +97,12 @@ describe('PdfOverlay', () => {
     expect(html).not.toContain(NOTICES.hint);
   });
 
+  it('labels the boxes once as an approximate location, so they never pass for the cited words', () => {
+    const box = { left: '10%', top: '20%', width: '40%', height: '10%' };
+    const html = renderToStaticMarkup(<PdfOverlay overlay={{ boxes: [box, box], hint: false }} />);
+    expect(html.match(/Approximate location/g)).toHaveLength(1);
+  });
+
   it('shows the hint instead of boxes', () => {
     const html = renderToStaticMarkup(<PdfOverlay overlay={{ boxes: [], hint: true }} />);
     expect(html).toContain(NOTICES.hint);

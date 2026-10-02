@@ -13,6 +13,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { usePaneSize } from './chromeHooks.js';
+import { createHighlighter, markPage } from './highlights.js';
 import { anchorAt, currentPage, pageWidth, renderWindow, scrollForAnchor, scrollTopFor, slotLayout } from './layoutModel.js';
 import { createWheelHandler } from './viewerDom.js';
 import { NOTICES } from './viewerModel.js';
@@ -23,13 +24,21 @@ const REDRAW_DEBOUNCE_MS = 120;
 /** The full view's pill and its margins: viewer.css reserves the same as --pv-pill-space. */
 export const PILL_SPACE_PX = 72;
 
-/** The boxes, each a `pointer-events: none` overlay, or the hint when the location is unknown. */
+/**
+ * The citation's layout boxes, each a `pointer-events: none` overlay, or the hint when the location
+ * is unknown. They are only the fallback for the exact mark (no text layer, no match, no Highlight
+ * API), so they are dashed and labelled: a rough box must never pass for the cited words.
+ */
 export function PdfOverlay({ overlay }) {
   if (overlay.hint) return <p className="pv-hint" role="status">{NOTICES.hint}</p>;
   if (!overlay.boxes.length) return null;
   return (
     <div className="pv-boxes" aria-hidden="true">
-      {overlay.boxes.map((style, i) => <div key={i} className="pv-box" style={style} />)}
+      {overlay.boxes.map((style, i) => (
+        <div key={i} className="pv-box" style={style}>
+          {i === 0 ? <span className="pv-box-label">Approximate location</span> : null}
+        </div>
+      ))}
     </div>
   );
 }
@@ -38,13 +47,17 @@ export function PdfOverlay({ overlay }) {
  * One page: its canvas and text layer, drawn by the pool at `width` CSS px. The first draw is
  * immediate; a later size change waits for a quiet moment, while the old drawing stretches to fit.
  */
-const PdfSlot = memo(function PdfSlot({ pool, page, total, title, top, left, width, height, priority, dpr, overlay, onRendered, onFailure }) {
+const PdfSlot = memo(function PdfSlot({
+  pool, page, total, title, top, left, width, height, priority, dpr, overlay, markText, highlighter, onMark, onRendered, onFailure,
+}) {
   const canvasRef = useRef(null);
   const textRef = useRef(null);
   const handleRef = useRef(null);
   const drawnRef = useRef(false);
   const callbacks = useRef({ onRendered, onFailure });
   const [ready, setReady] = useState(false);
+  // Counts finished draws: each one replaces the text layer's spans, so the mark is rebuilt.
+  const [draws, setDraws] = useState(0);
   useEffect(() => { callbacks.current = { onRendered, onFailure }; });
 
   useEffect(() => {
@@ -61,6 +74,7 @@ const PdfSlot = memo(function PdfSlot({ pool, page, total, title, top, left, wid
           const canvas = canvasRef.current;
           if (canvas) Object.assign(canvas.style, { width: '100%', height: '100%' });
           setReady(true);
+          setDraws(n => n + 1);
           callbacks.current.onRendered?.(page, result);
         },
         onError: error => callbacks.current.onFailure?.(error),
@@ -75,6 +89,14 @@ const PdfSlot = memo(function PdfSlot({ pool, page, total, title, top, left, wid
     };
     // The priority is updated in place below; a new one must not redraw the page.
   }, [pool, page, width, dpr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The exact mark, after each draw and whenever this page's piece of the passage changes; a page
+  // that leaves the window takes its mark with it.
+  useEffect(() => {
+    if (!draws || !markText || !textRef.current) return undefined;
+    onMark?.(page, markText, markPage({ container: textRef.current, passageText: markText, page, highlighter }));
+    return () => highlighter.clear(page);
+  }, [draws, markText, highlighter, page, onMark]);
 
   useEffect(() => { handleRef.current?.setPriority(priority); }, [priority]);
 
@@ -97,7 +119,9 @@ const PdfSlot = memo(function PdfSlot({ pool, page, total, title, top, left, wid
  *   citedBox: {y0: number, y1: number} | null,  where the citation sits on its page
  *   openAt: number,  the page to open on: the citation when it is the cited page (the first open),
  *     else that page's top (switching back from the Text view keeps the reader's page)
- *   citedOverlay: import('react').ReactNode,     drawn over the cited page
+ *   overlays: Map<number, import('react').ReactNode>,  drawn over those pages (the fallback boxes)
+ *   marks: Map<number, string>,  each page's piece of the cited passage, to mark exactly
+ *   onMark: (page: number, text: string, result: 'exact' | 'missing' | 'unsupported') => void,
  *   scrollRequest: {page: number, seq: number} | null,
  *   insetBottom?: number,   the full view's pill (PILL_SPACE_PX), which viewer.css reserves as padding
  *   onPage: (page: number) => void, onZoom: (zoom: number) => void,
@@ -106,9 +130,12 @@ const PdfSlot = memo(function PdfSlot({ pool, page, total, title, top, left, wid
  * }} props
  */
 export default function PdfDocument({
-  pool, total, title, aspects, naturalPts, zoomState, cited, citedColumn, citedPt, citedBox, citedOverlay, scrollRequest, openAt = cited,
-  insetBottom = 0, onPage, onZoom, onWheelZoom, onMeasured, onFailure,
+  pool, total, title, aspects, naturalPts, zoomState, cited, citedColumn, citedPt, citedBox, overlays, marks, onMark, scrollRequest,
+  openAt = cited, insetBottom = 0, onPage, onZoom, onWheelZoom, onMeasured, onFailure,
 }) {
+  // One registry for the cited passage's ranges, painted by viewer.css's ::highlight(pv-cite).
+  const highlighter = useMemo(() => createHighlighter('pv-cite'), []);
+  useEffect(() => () => highlighter.dispose(), [highlighter]);
   const areaRef = useRef(null);
   const docRef = useRef(null);
   const pane = usePaneSize(areaRef);
@@ -238,7 +265,10 @@ export default function PdfDocument({
               height={layout.heights[i]}
               priority={rank}
               dpr={dpr}
-              overlay={page === cited ? citedOverlay : null}
+              overlay={overlays?.get(page) ?? null}
+              markText={marks?.get(page) ?? null}
+              highlighter={highlighter}
+              onMark={onMark}
               onRendered={onMeasured}
               onFailure={onFailure}
             />

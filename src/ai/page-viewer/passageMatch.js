@@ -146,3 +146,20 @@ export function locatePassage(passage, layer) {
   }
   return best && best.coverage >= MIN_COVERAGE ? best : null;
 }
+
+const isOffset = value => Number.isSafeInteger(value) && value >= 0;
+
+/**
+ * The citation's span (`char_from`..`char_to` in the document's text) cut at page boundaries:
+ * `{page, from, to}` in each page row's own text offsets, for every given row it reaches, in page
+ * order. A citation inside one page is one piece; one running onto the next page is two.
+ */
+export function citedPieces(citation, rows) {
+  const from = citation?.char_from;
+  const to = citation?.char_to;
+  if (!isOffset(from) || !isOffset(to) || to <= from) return [];
+  return (Array.isArray(rows) ? rows : [])
+    .filter(r => r && isOffset(r.char_from) && isOffset(r.char_to) && r.char_to > from && r.char_from < to)
+    .sort((a, b) => a.page_number - b.page_number)
+    .map(r => ({ page: r.page_number, from: Math.max(from, r.char_from) - r.char_from, to: Math.min(to, r.char_to) - r.char_from }));
+}

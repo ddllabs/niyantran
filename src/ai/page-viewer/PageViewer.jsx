@@ -21,6 +21,8 @@ import { chromePlan, sectionParts } from './chromeModel.js';
 import { DocumentRow, FullHeader, MoreMenu, ViewSwitch } from './DocumentChrome.jsx';
 import PageControls from './PageControls.jsx';
 import { naturalWidths, pageAspects } from './layoutModel.js';
+import { needsFallback } from './highlights.js';
+import { citedPieces } from './passageMatch.js';
 import { pageBoxes, viewerState } from './pageModel.js';
 import PdfDocument, { PILL_SPACE_PX, PdfOverlay } from './PdfDocument.jsx';
 import { pdfFailureNotice } from './pdfController.js';
@@ -284,6 +286,8 @@ export default function PageViewer({
   const [sizes, setSizes] = useState({ status: 'loading', rows: [] });
   const [citedState, setCitedState] = useState({ status: 'loading', row: null, blocks: NO_BLOCKS });
   const [citedNonce, setCitedNonce] = useState(0);
+  const [nextRow, setNextRow] = useState(null);
+  const [markResults, setMarkResults] = useState(() => new Map());
   const [citedBase, setCitedBase] = useState(null);
   const [measured, setMeasured] = useState(() => new Map());
   const [scrollRequest, setScrollRequest] = useState(null);
@@ -362,6 +366,16 @@ export default function PageViewer({
     });
     return () => { alive = false; };
   }, [doc, showPages, cited, citedNonce]);
+
+  // A citation that runs past its page: the next page's row too, for its piece of the exact mark.
+  const spills = citedState.row && Number.isSafeInteger(citation.char_to) && citation.char_to > citedState.row.char_to && cited < total;
+  useEffect(() => {
+    const loader = loaderRef.current;
+    if (!loader || !spills) return undefined;
+    let alive = true;
+    loader.load(cited + 1).then((result) => { if (alive && result.status === 'ok') setNextRow(result.row ?? null); });
+    return () => { alive = false; };
+  }, [spills, cited]);
 
   // The Text view's current page: its text row; paging away aborts the stale fetch.
   useEffect(() => {
@@ -501,10 +515,29 @@ export default function PageViewer({
   const citedBox = citedBoxes.length
     ? { y0: Math.min(...citedBoxes.map(b => b.y0)), y1: Math.max(...citedBoxes.map(b => b.y1)) }
     : null;
-  const citedOverlay = <PdfOverlay overlay={overlayFor({ citation, page: cited, cited, boxesAllowed, pageRow: citedRow, viewport: citedBase })} />;
+  // The exact mark: each page's piece of the cited passage, from the stored page text, when the
+  // stored text is the cited extraction's (as for the Text view's span).
+  const marks = useMemo(() => {
+    if (!spanAllowed || !citedRow) return null;
+    const rows = nextRow ? [citedRow, nextRow] : [citedRow];
+    return new Map(citedPieces(citation, rows).map(piece => [piece.page, rows.find(r => r.page_number === piece.page).text.slice(piece.from, piece.to)]));
+  }, [spanAllowed, citedRow, nextRow, citation]);
+  // Each page's last mark, with the text it was made for, so a result for an earlier passage is not
+  // taken for the current one.
+  const onMark = useCallback((marked, text, result) => {
+    setMarkResults((prev) => {
+      const last = prev.get(marked);
+      return last?.text === text && last.result === result ? prev : new Map(prev).set(marked, { text, result });
+    });
+  }, []);
+  // The layout boxes only where the exact mark cannot be made on the cited page.
+  const citedFallback = needsFallback({ marks, results: markResults, page: cited });
+  const overlays = useMemo(() => new Map(citedFallback
+    ? [[cited, <PdfOverlay key="cited" overlay={overlayFor({ citation, page: cited, cited, boxesAllowed, pageRow: citedRow, viewport: citedBase })} />]]
+    : []), [citedFallback, citation, cited, boxesAllowed, citedRow, citedBase]);
   const pdfReady = Boolean(pool) && sizes.status !== 'loading' && citedState.status !== 'loading';
   const pdfDocument = pdfReady ? {
-    pool, aspects, naturalPts, cited, citedColumn, citedPt: citedPt ?? naturalPts[cited - 1], citedBox, citedOverlay,
+    pool, aspects, naturalPts, cited, citedColumn, citedPt: citedPt ?? naturalPts[cited - 1], citedBox, overlays, marks, onMark,
     scrollRequest, onPage: setPage, onMeasured, openAt: page,
   } : null;
 
