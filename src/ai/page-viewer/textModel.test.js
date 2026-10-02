@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { TEXT_BATCH, TEXT_LAYOUT_KEY, batchPages, pageBatch, pagesToRead, readTextLayout, textItems, writeTextLayout } from './textModel.js';
+import {
+  TEXT_BATCH, TEXT_LAYOUT_KEY, anchoredTop, batchPages, pageAt, pageBatch, pagesToRead, readTextLayout, textAnchor, textItems,
+  writeTextLayout,
+} from './textModel.js';
 
 describe('batches', () => {
   it(`reads the Text view in batches of ${TEXT_BATCH} pages, the last cut at the document's end`, () => {
@@ -49,5 +52,29 @@ describe('textItems', () => {
     const items = textItems(container);
     expect(items.map(i => i.str)).toEqual(['In section ', '11', ' of', '\n\n', 'the Act']);
     expect(items.every(i => i.hasEOL === false && i.node.nodeType === 3)).toBe(true);
+  });
+});
+
+describe('keeping the reader\'s place', () => {
+  // Five pages; page n starts at tops[n - 1].
+  const layout = tops => ({ total: tops.length, topOf: page => tops[page - 1] });
+
+  it('the page under a line is the last whose top is at or above it', () => {
+    const { total, topOf } = layout([0, 520, 1040, 1560, 2080]);
+    expect(pageAt({ total, topOf, y: 0 })).toBe(1);
+    expect(pageAt({ total, topOf, y: 1039 })).toBe(2);
+    expect(pageAt({ total, topOf, y: 1040 })).toBe(3);
+    expect(pageAt({ total, topOf, y: 99_999 })).toBe(5);
+  });
+
+  it('the anchor is the page at the top of the view and how far into it the reader is', () => {
+    expect(textAnchor({ ...layout([0, 520, 1040, 1560, 2080]), scrollTop: 1200 })).toEqual({ page: 3, offset: 160 });
+  });
+
+  it('when pages above grow from their place holders, the anchor gives the scroll that keeps the reader on the same line', () => {
+    const before = layout([0, 520, 1040, 1560, 2080]);
+    const anchor = textAnchor({ ...before, scrollTop: 1200 });
+    const after = layout([0, 1900, 3100, 3620, 4140]); // pages 1 and 2 were read and are longer
+    expect(anchoredTop({ topOf: after.topOf, anchor })).toBe(3260);
   });
 });

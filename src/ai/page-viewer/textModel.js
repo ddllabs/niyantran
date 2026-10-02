@@ -73,3 +73,34 @@ export function textItems(container) {
   walk(container);
   return items;
 }
+
+/** The page under the line `y` of the region: the last page whose top is at or above it. */
+export function pageAt({ total, topOf, y }) {
+  let low = 1;
+  let high = total;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (topOf(mid) <= y) low = mid;
+    else high = mid - 1;
+  }
+  return low;
+}
+
+/** The reader's place: the page at the top of the view, and how far into it the view starts. */
+export function textAnchor({ total, topOf, scrollTop }) {
+  const page = pageAt({ total, topOf, y: scrollTop });
+  return { page, offset: scrollTop - topOf(page) };
+}
+
+/** The scroll that puts the reader back at `anchor` once the pages above have changed height. */
+export function anchoredTop({ topOf, anchor }) {
+  return topOf(anchor.page) + anchor.offset;
+}
+
+/**
+ * Whether the view must keep the reader's place itself: browsers without scroll anchoring
+ * (`overflow-anchor`, absent in Safari) let text arriving above the view push the reader down.
+ */
+export function needsManualAnchoring(css = globalThis.CSS) {
+  return typeof css?.supports === 'function' && !css.supports('overflow-anchor', 'auto');
+}

@@ -8,6 +8,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createHighlighter } from './highlights.js';
 import { TextBody } from './TextPage.jsx';
+import { anchoredTop, needsManualAnchoring, pageAt, textAnchor } from './textModel.js';
 import { useTextMatches } from './useTextMatches.js';
 import { NOTICES } from './viewerModel.js';
 
@@ -90,6 +91,26 @@ function TextDocument({
     focus.dispose();
   }, [all, focus]);
 
+  // Where the browser has no scroll anchoring (Safari), the view keeps the reader's place itself:
+  // the page at the top of the view and the offset into it, recorded after every scroll and put
+  // back before paint when text arrives above the reader.
+  const manualAnchor = useMemo(() => needsManualAnchoring(), []);
+  const anchorRef = useRef(null);
+  const topOf = useCallback(page => sectionsRef.current.get(page)?.offsetTop ?? Infinity, []);
+  const remember = useCallback(() => {
+    const area = areaRef.current;
+    if (manualAnchor && area) anchorRef.current = textAnchor({ total, topOf, scrollTop: area.scrollTop });
+  }, [manualAnchor, total, topOf]);
+  const rememberRef = useRef(remember);
+  useEffect(() => { rememberRef.current = remember; }, [remember]);
+  useLayoutEffect(() => {
+    const area = areaRef.current;
+    const anchor = anchorRef.current;
+    if (!manualAnchor || !area || !anchor || !openedRef.current) return;
+    const top = anchoredTop({ topOf, anchor });
+    if (Number.isFinite(top) && Math.abs(area.scrollTop - top) >= 1) area.scrollTop = top;
+  }, [texts, pieces, manualAnchor, topOf]);
+
   const register = useCallback((page, node) => {
     if (node) sectionsRef.current.set(page, node);
     else sectionsRef.current.delete(page);
@@ -114,6 +135,7 @@ function TextDocument({
     if (!area || !section) return;
     area.scrollTop = section.offsetTop;
     openedRef.current = true;
+    remember();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on opening
   const citedRead = texts.get(cited)?.status === 'ok';
   useEffect(() => {
@@ -121,7 +143,8 @@ function TextDocument({
     centredRef.current = true;
     const area = areaRef.current;
     if (area && markRef.current) centreIn(area, markRef.current.getBoundingClientRect(), insetBottom);
-  }, [citedRead, pieces, openAt, cited, insetBottom]);
+    remember();
+  }, [citedRead, pieces, openAt, cited, insetBottom, remember]);
 
   // The current page: the page under the centre of the view (above the pill), as in the PDF view,
   // read once per frame.
@@ -132,26 +155,22 @@ function TextDocument({
     const read = () => {
       frame = 0;
       if (!openedRef.current) return;
-      const top = area.scrollTop + (area.clientHeight - insetBottom) / 2;
-      let low = 1;
-      let high = total;
-      while (low < high) {
-        const mid = Math.ceil((low + high) / 2);
-        if ((sectionsRef.current.get(mid)?.offsetTop ?? Infinity) <= top) low = mid;
-        else high = mid - 1;
-      }
-      if (low !== currentRef.current) {
-        currentRef.current = low;
-        callbacks.current.onPage?.(low);
+      const current = pageAt({ total, topOf, y: area.scrollTop + (area.clientHeight - insetBottom) / 2 });
+      if (current !== currentRef.current) {
+        currentRef.current = current;
+        callbacks.current.onPage?.(current);
       }
     };
-    const onScroll = () => { if (!frame) frame = requestAnimationFrame(read); };
+    const onScroll = () => {
+      rememberRef.current();
+      if (!frame) frame = requestAnimationFrame(read);
+    };
     area.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       cancelAnimationFrame(frame);
       area.removeEventListener('scroll', onScroll);
     };
-  }, [total, insetBottom]);
+  }, [total, insetBottom, topOf]);
 
   // Paging from the toolbar: the page's heading at the top; the cited page, its passage centred.
   // A request made before this view opened is the one it opened on, so it is not replayed.
@@ -163,6 +182,7 @@ function TextDocument({
     currentRef.current = scrollRequest.page;
     if (scrollRequest.page === cited && markRef.current) centreIn(area, markRef.current.getBoundingClientRect(), insetBottom);
     else area.scrollTop = section.offsetTop;
+    remember();
   }, [scrollRequest]); // eslint-disable-line react-hooks/exhaustive-deps -- once per request
 
   // A move to a search match: a read page centres it; a page not yet read is scrolled to, which
@@ -177,12 +197,14 @@ function TextDocument({
       const section = sectionsRef.current.get(page);
       if (section) area.scrollTop = section.offsetTop;
     }
-  }, [insetBottom]);
+    remember();
+  }, [insetBottom, remember]);
   useEffect(() => {
     const area = areaRef.current;
     if (!area || !search?.page || !search.seq || revealedRef.current === search.seq) return;
     const section = sectionsRef.current.get(search.page);
     if (section) area.scrollTop = section.offsetTop;
+    remember();
   }, [search?.seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per move
 
   const pages = [];
