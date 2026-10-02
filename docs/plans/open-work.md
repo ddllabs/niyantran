@@ -622,9 +622,18 @@ Follow-ups and findings:
   - **The defects:** the rail's "AI research" tab is a button; the shell unmounts the rail when the
     dock opens; the width jumps between 33, 35 and 38%; resizing and the overlay exist only for AI
     citations.
-  - **The fix:** spec `specs/2026-10-03-side-panel.md`, a draft. One `SidePanel` with Desk, Record
-    and AI tabs, one draggable width and one expand mode shared by all tabs (both owner choices).
-    Two open questions remain.
+  - **The fix:** spec `specs/2026-10-03-side-panel.md`, approved: a 36% default width, and
+    Collapse on every desk. Plan `plans/2026-10-03-side-panel.md`.
+  - **Built (2026-10-03, `task/side-panel`, merged locally):**
+    - one `SidePanel` with Desk, Record and AI tabs;
+    - one draggable, remembered width;
+    - one expand mode for every tab (the citation overlay generalised);
+    - Collapse with a handle;
+    - the stacked phone layout;
+    - the dead rail CSS removed.
+
+    The local run is in `research/2026-10-03-side-panel-local-run.md`.
+  - **Next:** the push, with a go-ahead (frontend only). The owner's checks on production follow.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.

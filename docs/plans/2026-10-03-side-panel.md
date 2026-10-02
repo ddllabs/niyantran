@@ -160,3 +160,11 @@
   `mkt-ai-dock`).
 - **Tests:** 4 CSS tests, each failing first.
 - **Checks:** lint, Vitest and the build pass.
+
+**T6, recorded 2026-10-03** (`research/2026-10-03-side-panel-local-run.md`).
+- **Checked:** tabs and state, one width, one expand mode, and the stacked layouts at 1440, 768
+  and 375 px.
+- **Not exercised:** a live streaming answer, since `research-chat` was not served. AI's state is
+  shown by DOM node identity across switches.
+- **The local stack is torn down.**
+- **Waiting:** the push.
