@@ -11,9 +11,11 @@ import {
   featureScopeOf,
   type HandlerDeps,
   handleResearchChat,
+  type RetrievalContext,
   type UserDb,
   windowMessages,
 } from './handler.ts';
+import { WIDENED_TOP_K } from './agent.ts';
 import type { ClaimedTurn, TurnState, TurnStore } from './persistence.ts';
 import type { ModelCallRow, TurnTraceRow } from './telemetry.ts';
 
@@ -1758,6 +1760,22 @@ Deno.test('focus attached with no document named says nothing named one', async 
   assert(!content.includes('holds no indexed source document'), 'the corpus was never asked, so it is not to blame');
   assertEquals((rec.messages[0].usage as Record<string, unknown>).widened, 'unkeyed');
   assert(sent.some((f) => (f as { reasoning?: string }).reasoning?.startsWith('Nothing attached names')));
+});
+
+// chat-turn-cost (F41): the widened search's smaller passage count reaches retrieval.
+Deno.test('a widened search hands WIDENED_TOP_K to retrieval; a broad one leaves the default', async () => {
+  const contexts: (RetrievalContext | undefined)[] = [];
+  const searchDocuments = (_a: unknown, _ids?: string[], context?: RetrievalContext) => {
+    contexts.push(context);
+    return Promise.resolve([chunk('c1')]);
+  };
+  const module = { kind: 'file', title: 'Bill Passage Probability Index', text: 'six sample rows' };
+  const widened = fakeDeps(documentTurn(1), { searchDocuments });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'attached', turn_key: 'topk-wide', attachments: [module] }), widened.deps));
+  assertEquals(contexts.at(-1)?.topK, WIDENED_TOP_K);
+  const broad = fakeDeps(documentTurn(1), { searchDocuments });
+  await frames(await handleResearchChat(post({ ...BODY, focus: 'broad', turn_key: 'topk-broad' }), broad.deps));
+  assertEquals(contexts.at(-1)?.topK, undefined);
 });
 
 Deno.test('a focus that never promised confinement claims no widening', async () => {

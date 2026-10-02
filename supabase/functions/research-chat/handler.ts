@@ -145,6 +145,8 @@ export type ScopedSearchArgs = DocumentSearchArgs & { desk_feature?: string };
 
 export interface RetrievalContext {
   signal: AbortSignal;
+  /** Passages to ask for; set on a widened search only (agent WIDENED_TOP_K), else retrieval's default. */
+  topK?: number;
   beginEmbeddingAttempt(model: string): ReturnType<AttemptRecorder['beginEmbeddingAttempt']>;
 }
 
@@ -874,9 +876,10 @@ async function runTurnBody(
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
           model: attempts.wrap(deps.stream, 'chat_answer'),
-          searchDocuments: (args, ids) =>
+          searchDocuments: (args, ids, topK) =>
             deps.searchDocuments(args, ids, {
               signal,
+              ...(topK === undefined ? {} : { topK }),
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),
           searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),
