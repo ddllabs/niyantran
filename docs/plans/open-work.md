@@ -490,9 +490,12 @@ Follow-ups and findings:
       The local run is in `research/2026-10-02-chat-panel-fixes-local-run.md`.
     - **`research-chat` v45 deployed** on 2026-10-02, with T1's frame and the widened limit.
     - **Next:** the push, with a go-ahead.
-    - **Noted in the run, not fixed:**
-      - at 375 px the app header overflows by a few pixels;
-      - the history list opened in a narrow dock extends past the left edge.
+    - **Noted in the run, then fixed by T5** (`01d1714`, `research/2026-10-02-phone-header-local-run.md`):
+      - at 375 px the header fits, with no Log out duplicated in the bar below 900 px;
+      - the history list stays on screen (x 57–359);
+      - the account menu, clipped below 900 px by the scrolling bar, now opens and works.
+    - **Open, an owner design choice:** at 320 px the avatar is still cut, because the actions
+      need 212 px and get 172. Closing it costs the wordmark, a button or touch-target size.
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
   - **Dead dimming:** the history-open dimming selectors (`index.css`,

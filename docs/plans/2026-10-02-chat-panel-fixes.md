@@ -56,3 +56,19 @@ reserved.
 - **The local run** is recorded and its stack torn down.
 - **Waiting:** deploying `research-chat`, which carries T1's frame and turn-cost's widened limit;
   then the push.
+
+### T5. Phone header and history list (F47 leftovers)
+- **Acceptance:** at 375 × 812 no header element crosses the screen's edges and the account
+  button is fully visible. The history list stays on screen. CSS tests fail first, and the browser
+  run measures before and after.
+- **Files:** `src/index.css`, `src/ai/panelLayout.test.js`.
+
+**T5, recorded 2026-10-02** (`01d1714`, `research/2026-10-02-phone-header-local-run.md`).
+- **The search box** counts its padding and border below 900 px.
+- **The bar** drops its duplicate Log out below 900 px; the account menu keeps its own. On phones
+  the gaps drop to 4 px, so the actions take 212 px of 227.
+- **The account menu** is fixed below 900 px. The bar's sideways scrolling had clipped it to
+  32 px, which this run found.
+- **The history list** anchors to the panel head on phones: x 57–359, against −47 to 255.
+- **Checks:** lint, Vitest (1,963) and the build pass. At 320 px the avatar is still cut, which
+  is recorded in F47 as an owner choice.
