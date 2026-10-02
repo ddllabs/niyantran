@@ -419,6 +419,10 @@ Follow-ups and findings:
     - the NyAI card removed (ADR 0007 amended).
   - **Next:** deploy `research-chat`, then push the frontend, each with a go-ahead.
   - **Still open from F46:** loading in stages, and the agent loop's speed and cost.
+    - **Update (2026-10-02):** loading in stages was closed by panel loading. The end-of-turn
+      shift (D4) measured zero in the chat-panel-fixes run. The agent loop's cost is measured in
+      `research/2026-10-02-turn-cost-benchmark.md`: a cap on prompt size costs depth, and the slow
+      calls are provider latency (F41).
 
   **Answer streaming (2026-10-02).** Spec `specs/2026-10-02-answer-streaming.md`, approved, with
   amendments 1 and 2. Built on `task/answer-streaming` (`4150197`, `6e0e9e7`). The local run
@@ -477,9 +481,17 @@ Follow-ups and findings:
 - [ ] **F47.** Found during the F46 fixes and left out of their scope.
   - **In progress (2026-10-02):** spec `specs/2026-10-02-chat-panel-fixes.md` (approved: the dimming
     is restored), plan `plans/2026-10-02-chat-panel-fixes.md`.
-    - **Done:** T1, the live timing word (`ea0e07c`, a `research-chat` change); T2, the region
-      rules and dimming (`4e030e8`).
-    - **Next:** the phone width and the end-of-turn shift, in a local browser run.
+    - **Done:**
+      - T1, the live timing word (`ea0e07c`, a `research-chat` change);
+      - T2, the region rules and dimming (`4e030e8`);
+      - T3, the phone dock (`fabae3a`): the thread goes from 18 px to 318 px at 375 × 812;
+      - T4, measured: zero shift at the end of a turn.
+
+      The local run is in `research/2026-10-02-chat-panel-fixes-local-run.md`.
+    - **Next:** deploying `research-chat`, then the push, each with a go-ahead.
+    - **Noted in the run, not fixed:**
+      - at 375 px the app header overflows by a few pixels;
+      - the history list opened in a narrow dock extends past the left edge.
   - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
     71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
   - **Dead dimming:** the history-open dimming selectors (`index.css`,
