@@ -1293,3 +1293,15 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     row and the model placeholder, and no `GlobalWorkerOptions`. The CSS has
     `.ai-dock[hidden]{display:none!important}`.
   - No server or database change.
+- **answer-speed: `research-chat` deployed and `main` pushed (2026-10-02)** (owner: "Deploy
+  research-chat to NTER and push main to origin").
+  - **The deploy:** from `main` at `bea7b8e`, giving version 43 (was 42). It carries `3efcca9`:
+    the question is searched before the first model call (not small talk), with
+    `presearch: true` in the production wiring.
+  - **Probes:**
+    - an unauthenticated POST gives 401 `missing bearer token`, with
+      `access-control-allow-origin: https://niyantran-six.vercel.app`;
+    - the preflight gives 204.
+  - **The push:** `main` was pushed, carrying the benchmark harness and results, the
+    write-up and the records.
+  - The frontend is unchanged. No database change.
