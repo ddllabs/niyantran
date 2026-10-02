@@ -98,3 +98,10 @@
     would need near-perfect answers (97.7%).
   - **One miss lies outside S1's reach.** Technology Bank clause 13 refers back to clause 10, but
     no cited passage refers forward to 13. Only fix A addresses it.
+
+**T5 and T6, recorded 2026-10-03** (`research/2026-10-02-research-coverage.md`).
+- **Stage 1:** the nudge passed pass mark 1 at the threshold; the prompt check did not.
+- **Stage 2:** the nudge failed pass marks 2–4 (narrow: +9.1 s, fired 6/10, +122% cost).
+- **Neither fix ships.** Both stay as options, off by default.
+- **Measured risk:** 88% coverage, with 57% of answers complete.
+- **Total spend:** about $10.40.

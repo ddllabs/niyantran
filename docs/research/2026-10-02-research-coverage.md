@@ -1,7 +1,7 @@
 # research-coverage: measurement (F53)
 
 > **Status: Historical (dated 2026-10-03).** This is the measurement required by
-> `docs/specs/2026-10-02-research-coverage.md`. Stage 1 is done; stage 2 awaits the owner.
+> `docs/specs/2026-10-02-research-coverage.md`. Both stages are done, and neither fix ships.
 >
 > **Setup:** local only. The real agent, prompt and Gemini 3.8 Flash at Low ran against the NTER
 > corpus replica, with the reviewed coverage set (`research/2026-10-02-coverage-set-review.md`:
@@ -60,13 +60,52 @@ calls than the estimate allowed for.
 - a smoke run, $0.02;
 - stage 1, $6.71.
 
-## Stage 2 (not run): regression and speed for `nudge`
+## Stage 2: narrow questions and briefs, `v46` against `nudge`
 
-`v46` and `nudge` on the 10 narrow questions and 15 briefs, one pass, at about $2.
+**Run** with the owner's go-ahead after the overrun. One pass, 10 narrow questions and 15 briefs.
+Raw results are in `eval/agent/results/2026-10-02T20-16-31-002Z.json`, $2.91 (about $2
+estimated). Every run completed. Scored by `scripts/bench-agent/coverage_stage2.py`.
 
-It decides pass marks 2–4:
-- no depth loss;
-- narrow total time p50 within 1 s, with the nudge firing on at most 20% of narrow questions;
-- cost within 10%.
+| | Narrow `v46` | Narrow `nudge` | Brief `v46` | Brief `nudge` |
+| --- | --- | --- | --- | --- |
+| Searches | 1.10 | 2.00 | 5.27 | 5.93 |
+| Documents / pages cited | 1.20 / 5.00 | 1.10 / 4.50 | 2.20 / 9.40 | 2.13 / 10.60 |
+| Valid citations, expected document | 10/10, 10/10 | 10/10, 10/10 | 15/15, 15/15 | 15/15, 15/15 |
+| Nudge fired | – | 6/10 | – | 9/15 |
+| First word p50 | 3.6 s | 14.7 s | 21.4 s | 38.0 s |
+| Total p50 | 9.7 s | 18.9 s | 30.7 s | 47.7 s |
+| Cost per answer | $0.0145 | $0.0321 | $0.0650 | $0.0978 |
 
-It waits for the owner's go-ahead because of the overrun.
+**The nudge fails pass marks 2, 3 and 4.**
+- **Narrow questions:** it cites fewer documents and pages, and adds 9.1 s at p50 against a 1 s
+  limit. It fires on 6 of 10 against a 20% limit, and costs 122% more against a 10% limit.
+- **Briefs:** documents dip from 2.20 to 2.13 (pages rise). It adds 17 s at p50 and costs 50% more.
+
+**Why it fires so often.** S2 explains at most 1 of the 6 narrow nudges, and none on briefs,
+which always search more than once. So S1 did the firing.
+
+The 13% estimate in amendment 1 was per passage cited alone. A real answer cites 5 to 10
+passages, and one cross-reference among them fires S1. At 13% a passage, five cited passages fire
+about half the time, which is what was measured. This should have been worked out before the run.
+
+## Decision (T6)
+
+**Neither fix ships.**
+- **The prompt check (fix A)** failed pass mark 1.
+- **The nudge (fix B)** passed pass mark 1 at the threshold but failed pass marks 2–4: it slows
+  and costs ordinary questions far more than it gains.
+
+Both stay in the code as options, off by default, as the reply cap and the widened limit do:
+`PromptInput.coverageCheck` and `AgentDeps.digNudge`. Nothing changes on NTER.
+
+**The risk, as measured:** on 15 questions built to need several parts of a bill, today's agent
+covers 88% of the points and answers 57% of them in full (17 of 30). The points it misses are
+provisions later in the bill than its first search reached: consequence clauses, procedure, and
+extensions.
+
+**Not pursued, for a later decision:** a narrower S1 that fires only when the cited sentence the
+answer relies on names a provision, rather than any sentence in any cited passage. It would need
+its own measurement.
+
+**Total spent on F53:** about $10.40, against the $3–4 first approved. The owner approved
+continuing after stage 1's overrun.

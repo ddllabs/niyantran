@@ -616,8 +616,13 @@ Follow-ups and findings:
       these questions.
     - **Cost:** $6.71, over the estimate. The total for F53 is about $7.50 against the $3–4
       approved.
-    - **Stage 2** (regression and speed on narrow questions and briefs, about $2) awaits the
-      owner's go-ahead.
+    - **Stage 2 (2026-10-03, $2.91, owner go-ahead):** the nudge fails pass marks 2–4. On narrow
+      questions it fired on 6 of 10, added 9.1 s at p50, cost 122% more and cited fewer
+      documents.
+    - **Outcome:** neither fix ships; both stay as options, off by default. The risk is measured:
+      88% coverage, with 57% of answers complete, on questions built to need digging. A narrower
+      S1 is noted in the write-up and not scheduled.
+    - **Total spent:** about $10.40.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
