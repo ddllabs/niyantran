@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aspectOk, boxStyle, localSpan, pageBoxes, partForPage, viewerState } from './pageModel.js';
+import { aspectOk, boxStyle, pageBoxes, partForPage, viewerState } from './pageModel.js';
 
 // A 3-part split: pages 1-10, 11-25, 26-30 (page_offset is 0-based, pages are 1-based).
 const PARTS = [
@@ -33,38 +33,6 @@ describe('partForPage', () => {
     const single = [{ part_index: 0, page_offset: 0, page_count: 3, byte_size: 10 }];
     expect(partForPage(single, 3)).toBe(single[0]);
     expect(partForPage(single, 4)).toBeNull();
-  });
-});
-
-describe('localSpan', () => {
-  const PAGE = { page_number: 4, char_from: 1000, char_to: 1500 };
-
-  it('subtracts the page start from a span inside the page', () => {
-    expect(localSpan({ char_from: 1100, char_to: 1200 }, PAGE)).toEqual({ from: 100, to: 200 });
-  });
-
-  it('accepts a span that is exactly the whole page', () => {
-    expect(localSpan({ char_from: 1000, char_to: 1500 }, PAGE)).toEqual({ from: 0, to: 500 });
-  });
-
-  it('is null, not clamped, when the span starts before the page', () => {
-    expect(localSpan({ char_from: 999, char_to: 1200 }, PAGE)).toBeNull();
-  });
-
-  it('is null, not clamped, when the span ends after the page', () => {
-    expect(localSpan({ char_from: 1400, char_to: 1501 }, PAGE)).toBeNull();
-  });
-
-  it('is null for a span on another page entirely', () => {
-    expect(localSpan({ char_from: 10, char_to: 50 }, PAGE)).toBeNull();
-  });
-
-  it('is null when the page row or offsets are missing or malformed', () => {
-    expect(localSpan({ char_from: 1100, char_to: 1200 }, null)).toBeNull();
-    expect(localSpan({ char_from: 1100 }, PAGE)).toBeNull();
-    expect(localSpan({ char_from: '1100', char_to: 1200 }, PAGE)).toBeNull();
-    expect(localSpan({ char_from: 1200, char_to: 1100 }, PAGE)).toBeNull();
-    expect(localSpan({ char_from: 1100, char_to: 1200 }, { char_from: 1000 })).toBeNull();
   });
 });
 

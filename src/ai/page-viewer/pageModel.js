@@ -24,21 +24,6 @@ export function partForPage(parts, page) {
 }
 
 /**
- * The citation's span in page-local offsets, or null when any part of it lies outside the page.
- * It is never clamped: a span that does not fit the page means the passage cannot be shown
- * there, which the Text view reports as `changed`.
- */
-export function localSpan(citation, pageRow) {
-  const from = citation?.char_from;
-  const to = citation?.char_to;
-  const start = pageRow?.char_from;
-  const end = pageRow?.char_to;
-  if (![from, to, start, end].every(isInt) || from > to) return null;
-  if (from < start || to > end) return null;
-  return { from: from - start, to: to - start };
-}
-
-/**
  * One row of the spec's state table. The first matching case wins:
  *
  * 1. `gone`              — the document no longer exists (`doc` null).
