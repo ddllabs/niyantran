@@ -583,6 +583,9 @@ Follow-ups and findings:
 - [ ] **F51.** The sources list under an answer had no styles, so it drew as default grey buttons
   plus the storage file name (owner: "it looks like windows 98"). The owner chose the compact
   list: spec `specs/2026-10-02-source-list.md`, plan `plans/2026-10-02-source-list.md`.
+  - **Built and verified locally (2026-10-02):** `2d95bf6` (content) and `2b1bdde` (styles). The
+    local run is in `research/2026-10-02-source-list-local-run.md`.
+  - **Next:** the push, with a go-ahead.
 - [ ] **F52.** Some document titles are stored malformed. For example "The Farmers (Old Age
   Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
   stored in the sources list and the reader. Needs a count over `documents.title` and a decision

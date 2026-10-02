@@ -17,3 +17,11 @@
 ### Checkpoint
 - Lint, Vitest and the build pass.
 - **Go-ahead:** the push.
+
+**T1 and T2, recorded 2026-10-02** (`2d95bf6`, `2b1bdde`; `research/2026-10-02-source-list-local-run.md`).
+- **Rows:** each row shows the feature, pages and citation numbers. The file name is only the
+  tooltip. The list sits under a "Sources · N documents" label.
+- **Styles:** the list is styled with the panel's tokens. It was checked at 1440 × 900 and
+  375 × 812, and clicking a row opens the reader.
+- **Checks:** lint, Vitest (1,969) and the build pass. The six new tests all failed first.
+- **Waiting:** the push.
