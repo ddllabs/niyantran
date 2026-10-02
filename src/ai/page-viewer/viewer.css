@@ -289,7 +289,7 @@
   color: var(--text, #3d3a36); font: inherit; text-align: left; cursor: pointer;
 }
 .pv-result:hover, .pv-result[aria-current="true"] { background: var(--accent-soft, #e8eef8); }
-.pv-result-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.pv-result-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; white-space: nowrap; }
 .pv-result-count { color: var(--muted, #6d675f); font-weight: 400; font-variant-numeric: tabular-nums; }
 .pv-result-snippet { color: var(--muted, #6d675f); overflow-wrap: anywhere; }
 .pv-result-snippet mark { padding: 0 1px; border-radius: 2px; background: rgba(253, 224, 71, .55); color: var(--text, #3d3a36); }
@@ -298,3 +298,51 @@
 /* The page area takes focus (keyboard scrolling, ⌘/Ctrl+F after a click); its ring only from the keyboard. */
 .pv-pdf:focus { outline: none; }
 .pv-pdf:focus-visible { outline: 2px solid var(--accent, #012ea1); outline-offset: -2px; }
+
+/* The page rail (PageRail.jsx). The side pane's pages sit in a body the drawer slides over; the
+   full view's stage sits beside the column. The drawer moves in from the left in 200 ms and can
+   be reversed mid-way; under reduced motion it only fades. */
+.pv-body { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pv.pv-fill .pv-body { flex: 1 1 0; min-height: 240px; }
+.pv-body > .pv-pdf { flex: 1 1 0; }
+.pv-split { display: flex; min-width: 0; min-height: 0; }
+.pv.pv-fill .pv-split { flex: 1 1 0; }
+.pv-split > .pv-stage { flex: 1 1 0; min-width: 0; }
+.pv-rail { display: flex; flex-direction: column; min-height: 0; background: var(--panel, white); font-size: 12px; }
+.pv-rail-drawer {
+  position: absolute; z-index: 6; top: 0; bottom: 0; left: 0; width: 132px;
+  border-right: 1px solid var(--line, #e4ddd4); box-shadow: 2px 0 8px rgba(19, 19, 19, .08);
+  transform: translateX(-100%); visibility: hidden;
+  transition: transform 200ms var(--pv-ease-out), visibility 0s linear 200ms;
+}
+.pv-rail-drawer[data-open] { transform: none; visibility: visible; transition: transform 200ms var(--pv-ease-out); }
+.pv-rail-column { flex: none; width: 160px; border-right: 1px solid var(--line, #e4ddd4); }
+@media (prefers-reduced-motion: reduce) {
+  .pv-rail-drawer { transform: none; opacity: 0; transition: opacity 150ms linear, visibility 0s linear 150ms; }
+  .pv-rail-drawer[data-open] { opacity: 1; transition: opacity 150ms linear; }
+}
+.pv-rail-tabs { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--line, #e4ddd4); }
+.pv-rail-tabs [role="tab"] {
+  flex: 1 1 0; min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted, #6d675f); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
+}
+.pv-rail-tabs [role="tab"][aria-selected="true"] { background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font-weight: 600; }
+.pv-rail-count { font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.pv-rail-panel { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }
+.pv-rail-results { flex: 1 1 0; min-height: 0; padding: 4px; overflow-y: auto; overscroll-behavior: contain; }
+.pv-thumbs { flex: 1 1 0; min-height: 0; padding: 8px 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.pv-thumbs-track { position: relative; width: 120px; margin: 0 auto; }
+.pv-thumb {
+  position: absolute; left: 0; display: grid; padding: 0; border: 0; background: transparent;
+  color: var(--muted, #6d675f); font: inherit; cursor: pointer;
+}
+.pv-thumb-image { position: relative; display: block; overflow: hidden; border-radius: 2px; background: white; box-shadow: 0 0 0 1px var(--line, #e4ddd4); }
+.pv-thumb-image img { display: block; width: 100%; height: 100%; }
+.pv-thumb[aria-current="page"] .pv-thumb-image { box-shadow: 0 0 0 2px var(--accent, #012ea1); }
+.pv-thumb-label { display: flex; align-items: center; justify-content: center; gap: 4px; height: 18px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.pv-thumb[aria-current="page"] .pv-thumb-label { color: var(--accent, #012ea1); font-weight: 600; }
+.pv-thumb-cited { width: 6px; height: 6px; border-radius: 50%; background: var(--pv-cite-ink); }
+.pv-thumb-hits {
+  position: absolute; top: 4px; right: 4px; min-width: 16px; padding: 0 4px; border-radius: 999px;
+  background: rgb(234, 88, 12); color: white; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center;
+}

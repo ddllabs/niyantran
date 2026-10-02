@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { citedChip, fitItems, parsePageInput } from './chromeModel.js';
 import { IconButton } from './IconButton.jsx';
-import { ChevronDown, ChevronLeft, ChevronRight, ICON_PROPS, Maximize2, Minus, Plus, Quote, Search, Undo2 } from './icons.js';
+import { ChevronDown, ChevronLeft, ChevronRight, ICON_PROPS, Maximize2, Minus, PanelLeft, Plus, Quote, Search, Undo2 } from './icons.js';
 import Menu from './Menu.jsx';
 
 /**
@@ -156,10 +156,13 @@ export function SearchToggle({ open, onSearch, tipSide = 'below', searchRef = nu
  * @param {{variant: 'toolbar' | 'pill', page: number, total: number, cited: number,
  *   onPage: (page: number) => void, zoom: object | null, onExpand?: (() => void) | null,
  *   expandRef?: import('react').Ref<HTMLButtonElement>, onKeyDown?: (event: KeyboardEvent) => void,
- *   onSearch?: (() => void) | null, searchOpen?: boolean, searchRef?: import('react').Ref<HTMLButtonElement>}} props
+ *   onSearch?: (() => void) | null, searchOpen?: boolean, searchRef?: import('react').Ref<HTMLButtonElement>,
+ *   onRail?: (() => void) | null, railOpen?: boolean, railRef?: import('react').Ref<HTMLButtonElement>}} props
+ *   `onRail` null hides the thumbnails control (no PDF view).
  */
 export default function PageControls({
   variant, page, total, cited, onPage, zoom, onExpand = null, expandRef = null, onKeyDown, onSearch = null, searchOpen = false, searchRef = null,
+  onRail = null, railOpen = false, railRef = null,
 }) {
   const tipSide = variant === 'pill' ? 'above' : 'below';
   // "Back to p. N" unmounts once the reader is back on the cited page, by its click or the Home
@@ -175,6 +178,9 @@ export default function PageControls({
   }, [onCited]);
   return (
     <div className={`pv-pages pv-pages-${variant}`} role="group" aria-label="Pages" onKeyDown={onKeyDown}>
+      {onRail ? (
+        <IconButton icon={PanelLeft} label="Thumbnails" tipSide={tipSide} tipAlign="start" ref={railRef} aria-expanded={railOpen} onClick={onRail} />
+      ) : null}
       {onSearch ? <SearchToggle open={searchOpen} onSearch={onSearch} tipSide={tipSide} searchRef={searchRef} /> : null}
       <IconButton icon={ChevronLeft} label="Previous page" shortcut="←" keys="ArrowLeft [" tipSide={tipSide} tipAlign="start" unavailable={page <= 1} onClick={() => onPage(page - 1)} />
       <PageField page={page} total={total} onPage={onPage} fieldRef={fieldRef} />

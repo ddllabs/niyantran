@@ -294,7 +294,9 @@ export default function PdfDocument({
   const viewport = view.height || pane.height;
   const top = openedRef.current ? view.top : scrollTopFor(layout, { page: openAt, box: openAt === cited ? citedBox : null, viewport, insetBottom });
   const current = currentPage(layout, top, viewport);
-  useEffect(() => { onPage?.(current); }, [current]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Only once opened: before its pane is measured the layout has no size, and the page it would
+  // report could move the reader's page, which is where it is about to open.
+  useEffect(() => { if (openedRef.current) onPage?.(current); }, [current]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const zoom = layout.count ? widths[current - 1] / (naturalPts[current - 1] * CSS_PX_PER_PT) : null;
   useEffect(() => { if (zoom) onZoom?.(zoom); }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps

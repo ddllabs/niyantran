@@ -20,6 +20,7 @@ import { useCompact, useTipWarmth } from './chromeHooks.js';
 import { chromePlan, sectionParts } from './chromeModel.js';
 import { DocumentRow, FullHeader, MoreMenu, ViewSwitch } from './DocumentChrome.jsx';
 import PageControls from './PageControls.jsx';
+import PageRail from './PageRail.jsx';
 import SearchBar from './SearchBar.jsx';
 import { naturalWidths, pageAspects } from './layoutModel.js';
 import { needsFallback } from './highlights.js';
@@ -30,6 +31,7 @@ import { pdfFailureNotice } from './pdfController.js';
 import { createPdfPool } from './pdfPool.js';
 import { openStoredCopy } from './storedCopy.js';
 import TextPage from './TextPage.jsx';
+import { createThumbnailCache, thumbnailKey } from './thumbnailCache.js';
 import { useDocumentSearch } from './useDocumentSearch.js';
 import { createPageLoader, loadDocument, loadPageSizes } from './viewerData.js';
 import { VIEWER_ATTRIBUTE, attachFullView, narrowQuery, isNarrow, themeClassOf } from './viewerDom.js';
@@ -50,9 +52,16 @@ function sharedDocumentFile() {
   return sharedClient;
 }
 const defaultFetch = (...args) => globalThis.fetch(...args);
+/** One thumbnail cache for the app, so a reopened document shows its thumbnails at once. */
+let sharedThumbs = null;
+function sharedThumbnailCache() {
+  if (!sharedThumbs) sharedThumbs = createThumbnailCache();
+  return sharedThumbs;
+}
 /** Stands in for a loaded page row when only the document-level state is wanted. */
 const ANY_ROW = Object.freeze({});
 const NO_BLOCKS = Object.freeze([]);
+const NO_PARTS = Object.freeze([]);
 const SPAN_STATES = new Set(['ok', 'unknown_freshness']);
 /** A4 portrait: the shape of a page whose stored size is missing, until it is drawn. */
 const A4_ASPECT = 842 / 595;
@@ -164,8 +173,11 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
   const {
     docState, onRetryDoc, doc, available, view, onView, zoomState, setZoomState, storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
-    pageRow, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow, pdfDocument, search,
+    pageRow, onPdfFailure, pageStatus, textSpan, onRetryPage, fileUrl, fileName, section, narrow, pdfDocument, search, rail,
   } = shared;
+  // The rail: a drawer over the pages in the side pane, a column in the full view; PDF view only.
+  const railShown = Boolean(rail && pdfDocument && showPages && view === 'pdf');
+  const railOpen = full ? rail?.columnOpen : rail?.drawerOpen;
   const [liveZoom, setLiveZoom] = useState(null);
   const effective = zoomState.zoom ?? liveZoom;
   const effectiveRef = useRef(effective);
@@ -203,6 +215,9 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
       onSearch={full || !search.available ? null : search.openSearch}
       searchOpen={search.open}
       searchRef={search.toggleRef}
+      onRail={railShown ? (full ? rail.toggleColumn : rail.toggleDrawer) : null}
+      railOpen={Boolean(railOpen)}
+      railRef={rail?.toggleRef}
     />
   ) : null;
   // The side pane's third row; the full view draws its own under its header.
@@ -223,6 +238,14 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
         onSearchCount={search.onLayerCount}
       />
     ) : <p className="ai-reader-notice">Loading…</p>;
+    if (railShown && !full) {
+      content = (
+        <div className="pv-body">
+          <PageRail variant="drawer" open={rail.drawerOpen} onClose={rail.closeDrawer} {...rail.props} />
+          {content}
+        </div>
+      );
+    }
   } else if (showPages && view === 'text') {
     content = <TextPage status={pageStatus} pageRow={pageRow} span={textSpan} onRetry={onRetryPage} />;
   }
@@ -241,7 +264,12 @@ function ViewerBody({ shared, full = false, compact = false, onExpand = null, ex
       ) : null}
       {doc ? <StateNotices state={state} pdfError={pdfError} copyNotice={copyNotice} onRetryPdf={retryPdf} /> : null}
       {full ? (
-        showPages ? <div className="pv-stage">{content}{pages}</div> : null
+        showPages ? (
+          <div className="pv-split">
+            {railShown ? <PageRail variant="column" open={rail.columnOpen} onClose={rail.toggleColumn} {...rail.props} /> : null}
+            <div className="pv-stage">{content}{pages}</div>
+          </div>
+        ) : null
       ) : (
         <>
           {pages}
@@ -313,6 +341,10 @@ export default function PageViewer({
   const [citedState, setCitedState] = useState({ status: 'loading', row: null, blocks: NO_BLOCKS });
   const [citedNonce, setCitedNonce] = useState(0);
   const [nextRow, setNextRow] = useState(null);
+  const [railTab, setRailTab] = useState('pages');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [columnOpen, setColumnOpen] = useState(true);
+  const railToggleRef = useRef(null);
   const [markResults, setMarkResults] = useState(() => new Map());
   const [citedBase, setCitedBase] = useState(null);
   const [measured, setMeasured] = useState(() => new Map());
@@ -331,7 +363,7 @@ export default function PageViewer({
   const titleId = useId();
 
   const doc = docState.status === 'ok' ? docState.doc : null;
-  const parts = docState.status === 'ok' ? docState.parts : [];
+  const parts = docState.status === 'ok' ? docState.parts : NO_PARTS;
   const total = pageTotal(doc, parts, cited);
   const state = docState.status === 'gone' ? 'gone' : doc ? viewerState({ doc, citation, pageRow: ANY_ROW }) : null;
   const available = pdfAvailable({ doc, parts, state });
@@ -583,13 +615,44 @@ export default function PageViewer({
     scrollRequest, onPage: setPage, onMeasured, openAt: page,
   } : null;
 
+  // The rail's inputs: thumbnails from the pool, the search's counts and Results.
+  const thumbs = useMemo(
+    () => (pool ? { pool, cache: sharedThumbnailCache(), keyOf: at => thumbnailKey(documentId, parts, at) } : null),
+    [pool, documentId, parts],
+  );
+  const found = search.open && search.result.query && search.result.status === 'ok' ? search.result : null;
+  const counts = useMemo(() => new Map((found?.pages ?? []).map(p => [p.page, p.hits])), [found]);
+  const rail = {
+    drawerOpen,
+    columnOpen,
+    toggleRef: railToggleRef,
+    toggleDrawer: () => setDrawerOpen(open => !open),
+    closeDrawer: () => {
+      setDrawerOpen(false);
+      railToggleRef.current?.focus();
+    },
+    toggleColumn: () => setColumnOpen(open => !open),
+    props: {
+      tab: railTab,
+      onTab: setRailTab,
+      aspects,
+      total,
+      current: page,
+      cited,
+      counts,
+      onPick: goTo,
+      thumbs,
+      results: found ? { query: found.query, pages: found.pages, onPick: search.pick, current: search.match?.page ?? null } : null,
+    },
+  };
+
   const storedLabel = live && parts.length ? storedCopyLabel(parts, page) : null;
   const shared = {
     docState, onRetryDoc: () => setDocNonce(n => n + 1), doc, available, view, onView, zoomState, setZoomState,
     storedLabel, onStoredCopy, onKeys,
     state, pdfError, copyNotice, retryPdf, showPages, page, total, cited, goTo, title,
     pageRow, onPdfFailure, pageStatus: onThisPage ? pageState.status : 'loading', textSpan, onRetryPage: () => setPageNonce(n => n + 1),
-    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow, pdfDocument, search,
+    fileUrl, fileName: citation.file_name ?? '', section: sectionParts(citation.section, title), narrow, pdfDocument, search, rail,
   };
   const fullPlan = chromePlan({ available, view, compact: false, narrow, full: true });
 

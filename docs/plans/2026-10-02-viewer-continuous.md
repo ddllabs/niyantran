@@ -221,6 +221,45 @@
   - tests.
 - **Files:** `PageRail.jsx`, `thumbnailCache.js`, `viewer.css`, tests.
 
+**T8, recorded 2026-10-02.**
+- **The rail** (`PageRail.jsx`) has Pages and Results tabs (Left and Right switch them).
+  - **The side pane:** a 132 px drawer over the pages. It is inert while closed; Escape closes it
+    and returns focus to its control.
+  - **The full view:** a 160 px column beside the stage, open by default. The pill stays centred
+    on the stage.
+  - The toggle, "Thumbnails", sits first in the page toolbar and in the pill.
+  - The rail shows in the PDF view only. Its images are the PDF's, and the Text view keeps the
+    search row.
+- **Thumbnails.**
+  - They are virtualised: at most 40 mounted, laid out from the page shapes.
+  - Each is drawn by the pool as a thumbnail job (after every page), 120 px wide at twice that
+    resolution. It is kept as WebP in one app-wide cache of 300, keyed by document, stored file
+    and page.
+  - They are requested only while the rail is open.
+  - The list follows the current page without animation. Up and Down move the page, with focus
+    following.
+  - Markers: a ring on the current page, an amber dot on the cited page, and a match badge while
+    searching, all also in the accessible name ("Page 4, cited, 10 matches").
+  - The drawer slides in 200 ms; under reduced motion it only fades.
+- **A defect found and fixed (from T5).** Before its pane was measured, a new page view reported pages
+  from a layout with no size. On opening the full view this moved the reader's page (4 became 7),
+  and the view opened there. A page is now reported only once the view has opened. A hooks test
+  (`PdfDocument.hooks.test.jsx`) failed before the fix and passes after it.
+- **Checks.** Lint, both suites (1,924 tests) and the build pass. The viewer chunk is 28.82 kB gzip:
+  +2.9 kB for T8, +7.9 kB of piece 2's 14 kB so far. The main bundle is unchanged. The `inert`
+  guard was shown to fail when removed.
+- **On the harness:**
+  - **The drawer:** 8 thumbnails drawn for the 12-page bill. A click on page 5 went there. Three
+    Downs reached page 8, the thumbnail in view and focused. Escape closed the drawer, with focus
+    on its control.
+  - **Results:** 5 pages for "offence" ("Page 4, cited, 10 matches" among the badges). A click on
+    page 4 went to "5 of 20", centred.
+  - **The full view's column:** opens on page 4 after the fix.
+  - **The dark theme:** checked.
+- **Noted for Checkpoint B.** The view opens centred on the citation's stored box. Now that the
+  passage is marked exactly, it could centre on the mark once the cited page is drawn. That costs
+  a small jump after opening, so it is left for the owner to decide.
+
 ### T9. The Text view's two layouts
 - **Acceptance:**
   - Continuous by default, with One page as before;
