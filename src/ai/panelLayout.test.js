@@ -145,3 +145,29 @@ describe('on a phone, the header and the history list stay on screen', () => {
     expect(find(mediaRules(900), '.profile-pop', 'position')).toBe('fixed');
   });
 });
+
+// source-list spec (F51): the sources list had no rules at all, so the browser drew default grey
+// buttons in a bulleted list ("it looks like windows 98").
+describe('the sources list under an answer is styled', () => {
+  const rulesFor = (sel) => {
+    const found = [];
+    postcss.parse(read('./research.css')).walkRules((rule) => {
+      if (rule.selectors.some((s) => s.trim() === sel)) found.push(rule);
+    });
+    return found;
+  };
+  const decl = (sel, prop) => rulesFor(sel).flatMap((r) => { const v = []; r.walkDecls(prop, (d) => v.push(d.value)); return v; }).pop();
+
+  it('the list drops its bullets and indent and draws one bordered group', () => {
+    expect(decl('.ai-sources', 'list-style')).toBe('none');
+    expect(decl('.ai-sources', 'padding')).toBe('0');
+    expect(decl('.ai-sources', 'border')).toMatch(/var\(--ai-line/);
+  });
+
+  it('a row is a flat, full-width button with a visible keyboard focus', () => {
+    expect(decl('.ai-source-chip', 'background')).toBe('transparent');
+    expect(decl('.ai-source-chip', 'border')).toBe('0');
+    expect(decl('.ai-source-chip', 'width')).toBe('100%');
+    expect(decl('.ai-source-chip:focus-visible', 'outline')).toMatch(/var\(--ai-blue/);
+  });
+});
