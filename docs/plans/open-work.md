@@ -597,6 +597,11 @@ Follow-ups and findings:
   Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
   stored in the sources list and the reader. Needs a count over `documents.title` and a decision
   on cleaning at ingestion or at display.
+- [ ] **F53.** Questions that sound simple but need digging: the agent decides when it has
+  enough, and nothing yet measures whether an answer covers everything the record holds on its
+  question. Spec `specs/2026-10-02-research-coverage.md` is a draft awaiting the owner's
+  approval: a coverage test set and score, a prompt coverage check, and a signal-triggered
+  nudge, each shipped only if it passes.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
