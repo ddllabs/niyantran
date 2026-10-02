@@ -11,6 +11,11 @@
  *     --variants baseline,presearch,presearch2 --narrow 10 --broad 15 --followups 10 \
  *     --model google/gemini-3.8-flash   [--kinds broad,followup]
  *
+ *   chat-turn-cost (F41): --variants v44,capped --kinds narrow,broad,widened [--widened 10]
+ *   `v44` runs the live code with both prompt limits off; `capped` with WIDENED_TOP_K and
+ *   TOOL_REPLY_CHARS on. A `widened` question is a narrow one under "Attached only" with no
+ *   document named, so every search is widened (unkeyed), as in F41's slow turn.
+ *
  * Variants (amendment 1): `baseline` has no pre-search; `presearch` is v43 (every turn that is
  * not small talk, without the note); `presearch2` adds the note and skips follow-ups. `batch`
  * is the measured-only sweep-in-one-round prompt.
@@ -34,6 +39,7 @@ const VARIANTS = (args.variants ?? 'baseline,presearch,presearch2').split(',');
 const NARROW = Number(args.narrow ?? 10);
 const BROAD = Number(args.broad ?? 15);
 const FOLLOWUPS = Number(args.followups ?? 10);
+const WIDENED = Number(args.widened ?? 10);
 const KINDS = (args.kinds ?? 'narrow,broad,followup').split(',');
 const MODEL = args.model ?? 'google/gemini-3.8-flash';
 const EFFORT = args.effort ?? 'low';
@@ -70,7 +76,7 @@ const retrievalDeps = {
 };
 
 // ─── Questions ───────────────────────────────────────────────────────────────
-type Kind = 'narrow' | 'broad' | 'followup';
+type Kind = 'narrow' | 'broad' | 'followup' | 'widened';
 interface Q { id: string; kind: Kind; question: string; gold: string[]; first?: string }
 interface Eval { id: string; question: string; desk_feature: string; gold_document_ids: string[] }
 const all: Eval[] = Deno.readTextFileSync(`${root}eval/retrieval/questions.v1.jsonl`).split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -100,7 +106,8 @@ const FOLLOW = [
 const followups: Q[] = followSrc.map((q, i) => ({
   id: `${q.id}-follow`, kind: 'followup', gold: q.gold_document_ids, first: q.question, question: FOLLOW[i % FOLLOW.length],
 }));
-const questions = [...narrow, ...broad, ...followups].filter((q) => KINDS.includes(q.kind));
+const widened: Q[] = narrow.slice(0, WIDENED).map((q) => ({ ...q, id: `${q.id}-wide`, kind: 'widened' }));
+const questions = [...narrow, ...broad, ...followups, ...widened].filter((q) => KINDS.includes(q.kind));
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────
 const personas = JSON.parse(Deno.readTextFileSync(`${root}supabase/functions/_shared/personas.json`));
@@ -111,6 +118,9 @@ const BATCH = 'Sweep the subject part by part: issue every query the sweep needs
 if (!baseSystem.includes(SWEEP)) throw new Error('the sweep sentence moved; update the batch variant');
 
 // ─── One run ─────────────────────────────────────────────────────────────────
+const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped']);
+// The prompt limits (chat-turn-cost): on only for `capped`; every earlier variant predates them.
+const limitsOf = (variant: string) => (variant === 'capped' ? {} : { widenedTopK: null, toolReplyChars: null });
 async function runOne(q: Q, variant: string, history: Message[] = []) {
   const t0 = performance.now();
   let calls = 0, firstAnswer = 0, retracts = 0;
@@ -123,11 +133,13 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
     window: history,
     userTurn: buildUserTurn(q.question),
     scopedDocumentIds: [],
-    focus: 'broad',
+    // A widened question: "Attached only" with nothing named, so every search is widened (unkeyed).
+    focus: q.kind === 'widened' ? 'attached' : 'broad',
     scopeSent: false,
     conversational: false,
-    // Mirrors the handler: v43 pre-searched every turn; amendment 1 skips a follow-up.
-    ...(variant === 'baseline' || (variant === 'presearch2' && history.length) ? {} : { presearch: q.question }),
+    // Mirrors the handler: v43 pre-searched every turn; amendment 1 (presearch2, and v44 and capped,
+    // which are that code) skips a follow-up.
+    ...(variant === 'baseline' || (AMENDMENT_1.has(variant) && history.length) ? {} : { presearch: q.question }),
   };
   const onEvent = (e: AgentEvent) => {
     if (('text' in e || 'draftText' in e) && !firstAnswer) firstAnswer = performance.now() - t0;
@@ -154,8 +166,9 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
         }
         callMs.push(Math.round(performance.now() - c0));
       },
-      searchDocuments: async (a, ids) => {
-        const chunks = await search(retrievalDeps, { query: a.query, deskTier: a.desk_tier, deskFeature: a.desk_feature, documentIds: ids });
+      ...limitsOf(variant),
+      searchDocuments: async (a, ids, topK) => {
+        const chunks = await search(retrievalDeps, { query: a.query, deskTier: a.desk_tier, deskFeature: a.desk_feature, documentIds: ids, topK });
         for (const c of chunks) chunkOf.set(c.id, { doc: c.document_id, page: `${c.document_id}:${c.page_number ?? `c${c.chunk_index}`}` });
         return chunks;
       },
@@ -189,6 +202,7 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
   return {
     id: q.id, kind: q.kind, variant, calls, searches, retracts, error, answer,
     first_answer_ms: Math.round(firstAnswer), total_ms: Math.round(total), call_ms: callMs,
+    call_prompt_tokens: usage.map((u) => u.prompt),
     prompt_tokens: sum('prompt'), completion_tokens: sum('completion'), cached_tokens: sum('cached'), cost_usd: Number(sum('cost').toFixed(5)),
     parsed, valid_citations: validCitations, cites_gold: citesGold, cited, docs, pages, answer_chars: answerChars,
   };
@@ -215,13 +229,16 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const out = `${root}eval/agent/results/${stamp}.json`;
 Deno.writeTextFileSync(out, JSON.stringify({ model: MODEL, effort: EFFORT, variants: VARIANTS, n: questions.length, setup_cost_usd: Number(setupCost.toFixed(5)), rows }, null, 1));
 const med = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
-for (const kind of ['narrow', 'broad', 'followup'] as Kind[]) {
+const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.ceil(p * s.length) - 1)] : 0; };
+for (const kind of ['narrow', 'broad', 'followup', 'widened'] as Kind[]) {
   console.log(`\n${kind}\nvariant     calls  searches  docs  pages  first_word(p50)  total(p50)  cost(avg)  valid  gold  errors`);
   for (const v of VARIANTS) {
     const r = rows.filter((x) => x.variant === v && x.kind === kind);
     if (!r.length) continue;
     const ok = r.filter((x) => !x.error);
     const avg = (f: (x: typeof r[number]) => number) => ok.reduce((n, x) => n + f(x), 0) / Math.max(1, ok.length);
+    const perCall = ok.flatMap((x) => x.call_prompt_tokens);
+    console.log(`${''.padEnd(11)} prompt tokens per call: p50 ${pct(perCall, 0.5)}  p90 ${pct(perCall, 0.9)}  max ${Math.max(0, ...perCall)}  (n=${perCall.length})`);
     console.log(`${v.padEnd(11)} ${avg((x) => x.calls).toFixed(2).padStart(5)} ${avg((x) => x.searches).toFixed(2).padStart(9)} ${avg((x) => x.docs).toFixed(2).padStart(5)} ${avg((x) => x.pages).toFixed(2).padStart(6)} ${(med(ok.filter((x) => x.first_answer_ms).map((x) => x.first_answer_ms)) / 1000).toFixed(1).padStart(15)}s ${(med(ok.map((x) => x.total_ms)) / 1000).toFixed(1).padStart(10)}s $${avg((x) => x.cost_usd).toFixed(4)}  ${ok.filter((x) => x.valid_citations).length}/${r.length}  ${ok.filter((x) => x.cites_gold).length}/${r.length}  ${r.length - ok.length}`);
   }
 }
