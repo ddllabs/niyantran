@@ -30,6 +30,8 @@
 .ai-shell.ai-shell-research .ai-msg-user {
   justify-self: end;
   max-width: 90%;
+}
+.ai-shell.ai-shell-research .ai-user-bubble {
   padding: 10px 14px;
   border-radius: 14px 14px 4px 14px;
   background: var(--ai-blue-soft);

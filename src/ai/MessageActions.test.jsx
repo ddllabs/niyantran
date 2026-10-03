@@ -20,7 +20,7 @@ it('uses the message time and does not fabricate missing timestamps', () => {
   expect(html).toContain('dateTime="2026-10-03T');
   expect(html).toContain('Copy');
   expect(renderToStaticMarkup(<MessageActions m={{ role: 'user', content: 'Q' }} />)).not.toContain('<time');
-  expect(renderToStaticMarkup(<MessageActions m={{ role: 'user', content: 'Q' }} />)).not.toContain('Copy');
+  expect(renderToStaticMarkup(<MessageActions m={{ role: 'user', content: 'Q' }} />)).toContain('Copy message');
 });
 
 it('keeps copy icon-only with a named button and tooltip',()=>{
@@ -28,4 +28,8 @@ it('keeps copy icon-only with a named button and tooltip',()=>{
   expect(html).toContain('aria-label="Copy answer"');
   expect(html).toContain('title="Copy answer"');
   expect(html).not.toMatch(/>Copy<|>Copy<\//);
+});
+
+it('copies user text without adding attachment/source metadata',()=>{
+  expect(answerForCopy({role:'user',content:'Question?',sources:[{id:1,title:'Attached bill'}]})).toBe('Question?');
 });

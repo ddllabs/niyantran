@@ -65,3 +65,9 @@ spacing: top padding 16→8px, token-row bottom margin 14→8px, stage bottom
 padding 18→10px and query top margin 5→3px. Preserve horizontal dimensions,
 typography, content and behavior. AI badge uses existing accent/soft-accent
 theme tokens, superseding the lavender choice.
+
+Sixth owner amendment, 2026-10-04: user messages also have icon-only Copy.
+Their timestamp/Copy row is a sibling below the blue question bubble, aligned
+right. Copying a user message copies only its literal text; it never appends
+attached sources. Preserve answer-copy references, localized names, success
+feedback, clipboard-failure reporting, timestamp data and question alignment.

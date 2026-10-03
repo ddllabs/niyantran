@@ -4,6 +4,7 @@ import { safeSourceUrl } from './SourceReader.jsx';
 
 /** Keep reference numbers meaningful when the answer leaves the workbench. */
 export function answerForCopy(m, hi = false) {
+  if (m.role === 'user') return String(m.content || '');
   const sources = (m.sources || []).filter(s => Number.isSafeInteger(s?.id) && s.id > 0 && typeof s.title === 'string');
   const lines = sources.map(s => {
     const url = safeSourceUrl(s.file_url);
@@ -30,10 +31,12 @@ export default function MessageActions({ m, lang }) {
     const timer = setTimeout(() => setResult(''), 2000);
     return () => clearTimeout(timer);
   }, [result]);
-  const copyLabel = result === 'copied' ? (hi ? 'उत्तर कॉपी किया गया' : 'Answer copied') : (hi ? 'उत्तर कॉपी करें' : 'Copy answer');
+  const isUser = m.role === 'user';
+  const copiedLabel = isUser ? (hi ? 'संदेश कॉपी किया गया' : 'Message copied') : (hi ? 'उत्तर कॉपी किया गया' : 'Answer copied');
+  const copyLabel = result === 'copied' ? copiedLabel : isUser ? (hi ? 'संदेश कॉपी करें' : 'Copy message') : (hi ? 'उत्तर कॉपी करें' : 'Copy answer');
   const date = typeof m.at === 'number' && m.at > 0 ? new Date(m.at) : null;
   const validDate = date && Number.isFinite(date.getTime());
-  const canCopy = m.role === 'assistant' && m.content && m.status !== 'running';
+  const canCopy = m.content && (isUser || (m.role === 'assistant' && m.status !== 'running'));
   if (!validDate && !canCopy) return null;
   return (
     <div className="ai-message-actions">
@@ -48,7 +51,7 @@ export default function MessageActions({ m, lang }) {
       {validDate ? <time dateTime={date.toISOString()} title={date.toLocaleString(hi ? 'hi-IN' : undefined)}>
         {date.toLocaleTimeString(hi ? 'hi-IN' : undefined, { hour: 'numeric', minute: '2-digit' })}
       </time> : null}
-      <span role="status" className={result === 'copied' ? 'ai-copy-announcement' : undefined}>{result === 'failed' ? (hi ? 'कॉपी नहीं हुआ। पाठ चुनकर कॉपी करें।' : 'Could not copy. Select the text to copy it.') : result === 'copied' ? (hi ? 'उत्तर कॉपी किया गया।' : 'Answer copied.') : ''}</span>
+      <span role="status" className={result === 'copied' ? 'ai-copy-announcement' : undefined}>{result === 'failed' ? (hi ? 'कॉपी नहीं हुआ। पाठ चुनकर कॉपी करें।' : 'Could not copy. Select the text to copy it.') : result === 'copied' ? copiedLabel : ''}</span>
     </div>
   );
 }

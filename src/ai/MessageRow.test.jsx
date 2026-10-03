@@ -23,3 +23,10 @@ it('E: the row renders what the inline markup did', () => {
   expect(html).toContain('Gemini - Flash · Answered');
   expect(renderToStaticMarkup(<MessageRow {...base} m={{ id: 'u1', role: 'user', content: 'Question?' }} />)).not.toContain('<span>You</span>');
 });
+
+it('keeps user actions outside the colored message bubble',()=>{
+  const html=renderToStaticMarkup(<MessageRow {...base} m={{id:'u1',role:'user',content:'Question?',at:1791000000000}} />);
+  expect(html).toContain('class="ai-user-bubble">Question?</div><div class="ai-message-actions"');
+  expect(html).toContain('aria-label="Copy message"');
+  expect(html).toContain('<time');
+});

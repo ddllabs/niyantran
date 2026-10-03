@@ -153,3 +153,22 @@ padding 12px and query width/font/line-height 313px/13px/19.5px unchanged at
 and large-chunk warnings remain. `git diff --check` clean. Unit suite not
 rerun for CSS-only changes; last full run remains 2,085 passing tests.
 No behavior/server/dependency changes or publication.
+
+## User message actions amendment
+
+Sequential scope: MessageRow/MessageActions, scoped CSS, their focused tests
+and F65 docs. Add named user Copy, isolate its plain-text payload and move
+blue styling to a content child with the action row as sibling. Red/green for
+payload and sibling structure; full tests/lint/build and offline browser copy,
+geometry and narrow-width verification. No backend or deployment.
+
+User-actions evidence: new payload/structure guards failed before implementation;
+8 focused tests green after. Full `npm test` passed 2,087 tests in 129 files.
+Lint/build exit 0; existing mixed-import and large-chunk warnings unchanged.
+`git diff --check` clean. Offline browser confirmed Copy message → Message copied,
+action/bubble sibling structure, actions below the bubble, transparent parent,
+accent-soft bubble and right-aligned row. No panel overflow at 375px. User plain
+text payload verified by unit guard; actual system clipboard content not verified
+(the browser clipboard API read returned empty). Screenshot
+`/private/tmp/f65-user-actions.jpg`. Diff review retained assistant source payload,
+copy failure reporting and existing timestamps. No backend/publication.

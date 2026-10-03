@@ -29,7 +29,7 @@ function MessageRow({ m, lang, labelOf, onOpenSource, selectedSource }) {
           {m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
         </>
       ) : (
-        m.content
+        m.role === 'user' ? <div className="ai-user-bubble">{m.content}</div> : m.content
       )}
       <MessageActions m={m} lang={lang} />
     </div>
