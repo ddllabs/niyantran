@@ -70,3 +70,31 @@ Feel check: active work is visible, completed answers are quiet, interruption
 and keyboard toggles remain immediate. F66 recovery and backend telemetry
 publication are deliberately outside this increment. No push/deployment.
 
+
+## Owner annotation amendment, 2026-10-04
+
+Sequential write scope: ticker/flow, scoped CSS, their focused tests and F65
+docs/tracker. Remove tinted summary surface, then remove Technical details and
+unused diagnostic aggregation, showing exact model ID/requested effort at top.
+Update superseded tests while preserving failed/missing/zero action guards.
+Verify red/green, full Vitest, lint/build and offline browser; commit locally.
+F67 backend telemetry is a read-only finding; no deployment or backend change.
+
+Amendment verification:
+- Red: focused ResearchFlow/ActivityTicker guards failed for the remaining
+  Technical details and missing visible model ID; 47 focused tests green after.
+- `npm test`: 129 files, 2,083 passed. `npm run lint`: exit 0, no warnings.
+  `npm run build`: exit 0, unchanged deskBrief mixed-import and large-chunk
+  warnings. `git diff --check`: clean.
+- Fresh offline real-component fixture: computed summary background transparent,
+  exact model ID and Thinking: Low visible; zero technical disclosures. No chat
+  overflow at 375/1095px. No warning/error console entries. Screenshot
+  `/private/tmp/f65-summary-amendment.jpg`. No provider calls or saved user
+  conversation inspected. Removed obsolete diagnostic table tests in favor of
+  guards for the amended UI; token/action safety guards remain.
+- Read-only finding: research-chat `sendTerminal` uses
+  `Number(row.usage?.reasoning_tokens) || 0`, collapsing missing into zero. The
+  real annotated turn's actual provider usage is unverified. F67 tracks the
+  backend correction; it was not changed or deployed here.
+- Same local task branch, no publication. Normal localhost server retained.
+

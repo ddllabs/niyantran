@@ -11,24 +11,6 @@ export const measured = (value, hi) => Number.isFinite(value) && value >= 0
 const EFFORTS = { off:['No reasoning','बंद'], minimal:['Minimal','न्यूनतम'], low:['Low','कम'], medium:['Medium','मध्यम'], high:['High','उच्च'], xhigh:['Extra high','बहुत उच्च'] };
 export const effortLabel = (effort, hi) => Object.hasOwn(EFFORTS,effort) ? EFFORTS[effort][hi ? 1 : 0] : (hi?'उपलब्ध नहीं':'Not available');
 
-export function measurementRows(timing, steps = [], hi = false) {
-  const documents = steps.filter(s=>s.type === 'tool' && s.phase === 'end' && s.name === 'search_documents');
-  const sum = key => documents.length && documents.every(s=>Number.isFinite(s[key]) && s[key]>=0)
-    ? documents.reduce((n,s)=>n+s[key],0) : undefined;
-  const rows = [
-    ['Search actions','खोज कार्रवाइयाँ',timing?.search_ms],
-    ['Query embedding','प्रश्न एम्बेडिंग',sum('embeddingMs')],
-    ['Database retrieval','डेटाबेस रिट्रीवल',sum('retrievalMs')],
-    ['Reasoning duration','तर्क अवधि',undefined],
-    ['Answer generation','उत्तर लेखन',timing?.writing_ms],
-    ['Other processing','अन्य प्रोसेसिंग',timing?.reasoning_ms],
-    ['Total','कुल',timing?.total_ms],
-    ['First answer latency','पहले उत्तर की प्रतीक्षा',timing?.first_answer_ms > 0 ? timing.first_answer_ms : undefined],
-  ];
-  return rows.map(([en,local,value])=>[hi?local:en,measured(value,hi)]);
-}
-
-
 function Stage({ step, current, active, hi }) {
   const tool = step.type === 'tool';
   const state = actionState(step, active);
@@ -58,12 +40,11 @@ function Stage({ step, current, active, hi }) {
   </li>;
 }
 
-/** Public actions only. Diagnostics stay behind a second, native disclosure. */
+/** Public actions only. No diagnostic tables interrupt the reading flow. */
 export default function ResearchFlow({
-  steps = [], active = false, timing, model, effort, usage, lang = 'en', labelOf = id => id,
+  steps = [], active = false, usage, lang = 'en',
 }) {
   const hi = lang === 'hi';
-  const modelId = model?.served || model?.requested;
   const tokens = usage?.reasoning_tokens;
   const hasTokens = Number.isSafeInteger(tokens) && tokens >= 0;
   const displayed = steps.length ? steps : active
@@ -77,34 +58,6 @@ export default function ResearchFlow({
         step={step} active={active} hi={hi}
         current={active && index === displayed.length - 1 && (step.type === 'activity' || step.phase !== 'end')} />)}
     </ol> : null}
-    <details className="ai-flow-technical">
-      <summary>{hi ? 'तकनीकी विवरण' : 'Technical details'}</summary>
-      <dl className="ai-activity-measurements">
-        <dt>{hi ? 'मॉडल' : 'Model'}</dt><dd>{modelId ? <>{labelOf(modelId)}<small>{modelId}</small></> : (hi ? 'उपलब्ध नहीं' : 'Not available')}</dd>
-        {model?.requested && model?.served && model.requested !== model.served ? <>
-          <dt>{hi ? 'अनुरोधित मॉडल' : 'Requested model'}</dt><dd>{model.requested}</dd>
-        </> : null}
-        <dt>{hi ? 'अनुरोधित सोच स्तर' : 'Requested thinking effort'}</dt><dd>{effortLabel(effort, hi)}</dd>
-      </dl>
-      {steps.filter(step => step.type === 'tool').map(step => <section className="ai-flow-action-detail" key={step.step}>
-        <p>{step.name === 'search_documents' ? (hi ? 'दस्तावेज़ खोज' : 'Document search') : (hi ? 'डेस्क खोज' : 'Desk lookup')} · {actionState(step, active, hi)}</p>
-        <dl className="ai-activity-measurements">
-          {Number.isSafeInteger(step.requestedTopK) && step.requestedTopK > 0 ? <>
-            <dt>{hi ? 'अनुरोधित टॉप-K' : 'Requested top-K'}</dt><dd>{step.requestedTopK}</dd>
-          </> : null}
-          <dt>{hi ? 'बीता समय' : 'Elapsed'}</dt><dd>{measured(step.latencyMs, hi)}</dd>
-          {step.name === 'search_documents' ? <>
-            <dt>{hi ? 'एम्बेडिंग' : 'Embedding'}</dt><dd>{measured(step.embeddingMs, hi)}</dd>
-            <dt>{hi ? 'डेटाबेस रिट्रीवल' : 'Database retrieval'}</dt><dd>{measured(step.retrievalMs, hi)}</dd>
-          </> : null}
-        </dl>
-      </section>)}
-      <dl className="ai-activity-measurements ai-activity-timing">
-        {measurementRows(timing, steps, hi).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-      </dl>
-      <p className="ai-activity-note">{hi
-        ? 'एम्बेडिंग और डेटाबेस समय खोज समय के हिस्से हैं। पहले उत्तर की प्रतीक्षा अन्य चरणों से ओवरलैप करती है। तर्क अवधि मापी नहीं जाती।'
-        : 'Embedding and database times are included in search time. First answer latency overlaps other phases. Database time measures the RPC round trip. Reasoning duration is not measured.'}</p>
-    </details>
+
   </div>;
 }

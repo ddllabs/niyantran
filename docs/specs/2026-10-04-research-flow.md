@@ -34,3 +34,16 @@ states; full Vitest, lint/build; real-component offline browser at narrow,
 tablet and desktop, dark/light, keyboard expansion, source action, live stage
 motion/completed static state. Source-review reduced motion if OS emulation is
 unavailable. No production queries/model calls, push or deployment.
+
+Owner amendment, 2026-10-04: the activity summary has no tinted background or
+card shape. Model emphasis, muted effort/metrics, leading icon and trailing
+caret provide hierarchy on the chat surface. Reasoning telemetry correction
+is separate from this reversible visual amendment.
+
+Second owner amendment, 2026-10-04: remove Technical details entirely. Exact
+served/requested-fallback model ID is visible beneath its human-readable label
+when different; requested thinking effort sits beside the label. Preserve actual
+query, result count and per-search duration in the timeline. Remove diagnostic
+definition lists and their unused aggregation helper. The reasoning count is
+usage metadata, not exposed private thinking text. This supersedes the original
+secondary-disclosure requirement above; telemetry accuracy is open-work F67.

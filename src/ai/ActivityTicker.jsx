@@ -138,14 +138,15 @@ export default function ActivityTicker({
       >
         <Sparkles className={`ai-ticker-glyph${active ? ' working' : ''}`} size={16} aria-hidden="true" />
         <span className="ai-ticker-line" role="status" aria-live="polite">
-          {modelId ? <span className="ai-ticker-model"><strong>{labelOf(modelId)}</strong>{effort ? <span className="ai-ticker-effort">{effortLabel(effort, hi)}</span> : null}</span> : null}
+          {modelId ? <span className="ai-ticker-model"><strong>{labelOf(modelId)}</strong>{effort ? <span className="ai-ticker-effort">{hi ? 'सोच: ' : 'Thinking: '}{effortLabel(effort, hi)}</span> : null}</span> : null}
+          {modelId && labelOf(modelId) !== modelId ? <span className="ai-ticker-model-id">{modelId}</span> : null}
           <span className="ai-ticker-summary">{summary}</span>
         </span>
         {active && startedAt > 0 ? <span className="ai-ticker-clock">{clock(now - startedAt)}</span> : null}
         <ChevronDown className="ai-ticker-caret" size={16} aria-hidden="true" />
       </button>
 
-      {open ? <ResearchFlow steps={steps} active={active} timing={timing} model={model} effort={effort} usage={usage} lang={lang} labelOf={labelOf} /> : null}
+      {open ? <ResearchFlow steps={steps} active={active} usage={usage} lang={lang} /> : null}
 
       {open && found.length ? (
         <p className="ai-ticker-found">

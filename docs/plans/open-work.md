@@ -25,6 +25,12 @@
   [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
   implemented in `f47ccb4`; 2,083 tests, lint/build and offline browser passed.
   Pending owner review/landing; no publication authorized.
+- [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
+  coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
+  versus measured zero and identify observed partial counts explicitly; add
+  stream/persisted parity guards before changing this. Read-only finding from
+  the owner's F65 annotation; the displayed turn's actual provider usage has
+  not been inspected. No backend change or deployment in the styling amendment.
 - [ ] **F66. Connection recovery state.** Owner screenshots show Failed to
   fetch, an unknown saved outcome, excess empty space and a remaining Stop
   button. Root cause unverified; investigate separately without using live

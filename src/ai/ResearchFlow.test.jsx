@@ -3,14 +3,14 @@ import { expect, it } from 'vitest';
 import ResearchFlow from './ResearchFlow.jsx';
 
 const search = {type:'tool',name:'search_documents',phase:'end',status:'ok',step:1,input:{query:'Section 6 penalties'},resultCount:40,latencyMs:794,requestedTopK:40};
-it('shows a connected query/result flow with diagnostics in a secondary disclosure',()=>{
+it('shows a connected query/result flow without a technical disclosure',()=>{
   const html=renderToStaticMarkup(<ResearchFlow steps={[search]} model={{requested:'model/a',served:'model/a'}} effort="low" timing={{total_ms:9000}} />);
   expect(html).toContain('ai-research-flow');
   expect(html).toContain('Section 6 penalties');
   expect(html).toContain('40 passages');
   expect(html).toContain('794 ms');
-  expect(html).toContain('<summary>Technical details</summary>');
-  expect(html.indexOf('Requested top-K')).toBeGreaterThan(html.indexOf('<summary>Technical details'));
+  expect(html).not.toContain('Technical details');
+  expect(html).not.toContain('<dl');
 });
 it('only animates an active stage, and failed actions never claim returned passages',()=>{
   const live=renderToStaticMarkup(<ResearchFlow active steps={[{...search,phase:'start'}]} />);

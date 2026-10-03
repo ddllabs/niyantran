@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import ActivityTicker, { tickerSteps } from './ActivityTicker.jsx';
-import { measurementRows } from './ResearchFlow.jsx';
+import ResearchFlow from './ResearchFlow.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
 import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
 import CitationBubble, { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
@@ -55,15 +55,12 @@ describe('ActivityTicker', () => {
     expect(html).not.toContain('ai-ticker-steps');
   });
 
-  it('when done it collapses to its summary; the details report the buckets and a model swap', () => {
+  it('when done it collapses to its summary; the served model is shown', () => {
     const timing = { search_ms: 320, reasoning_ms: 1200, writing_ms: 800, total_ms: 2320 };
     const model = { requested: 'google/gemini-3.5-flash-lite', served: 'deepseek/deepseek-v4-flash' };
     const html = renderToStaticMarkup(<ActivityTicker activity={activity} timing={timing} usage={{ reasoning_tokens: 256 }} model={model} />);
     expect(html).not.toContain('ai-ticker active');
     expect(html).toContain('1 search · 2 s');
-    const rows = measurementRows(timing);
-    expect(rows).toContainEqual(['Search actions','320 ms']);
-    expect(rows).toContainEqual(['Other processing','1200 ms']);
     // The actual served model is visible in the summary.
     expect(html).toContain('deepseek/deepseek-v4-flash · 1 search · 2 s');
   });
@@ -175,8 +172,9 @@ describe('WorkSurface', () => {
 // `answer` step, and "thought 9.9s" with reasoning_tokens 0.
 it('never calls residual elapsed time measured thinking', () => {
   const timing = { search_ms: 0, reasoning_ms: 9874, writing_ms: 2061, total_ms: 11935 };
-  expect(measurementRows(timing)).toContainEqual(['Other processing','9874 ms']);
-  expect(measurementRows(timing)).toContainEqual(['Reasoning duration','Not available']);
+  const html=renderToStaticMarkup(<ResearchFlow timing={timing} />);
+  expect(html).not.toContain('9874');
+  expect(html).not.toContain('Reasoning duration');
 });
 
 it('legacy hidden reasoning and unknown events never become public activity or tools',()=>{
@@ -184,7 +182,6 @@ it('legacy hidden reasoning and unknown events never become public activity or t
  expect(html).toContain('Writing the answer.');expect(html).not.toContain('PRIVATE');expect(html).not.toContain('Looking up');
 });
 it('only timing can render a completed summary without making unsupported failover claims',()=>{
- expect(measurementRows({writing_ms:800})).toContainEqual(['Answer generation','800 ms']);
  expect(renderToStaticMarkup(<ActivityTicker timing={{writing_ms:800}} model={{requested:'a',served:'b'}} />)).toContain('b · Answered');
 });
 it('efforts are known, unique, and unavailable models offer no choices',()=>{
