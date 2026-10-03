@@ -94,3 +94,10 @@ coverage and remove controls together. Never invent a shortened official title.
 Source documents remain full-width, more prominent rows beneath the answer,
 with pages and inline citation numbers; no separate cited-passages disclosure.
 Preserve all data, opening/removal behavior, locked states and surrounding UI.
+
+Tenth owner amendment, 2026-10-04: attachments and composer share one dynamic
+full-width bordered surface, with zero gap between them. Attachment titles wrap
+to show their full text; preserve coverage/remove controls and the additional
+attachments disclosure. Empty composers retain their existing appearance.
+Attachment notices remain inside the shared surface. Supersedes the ninth
+amendment's content-width/truncated chip choice. No data or behavior changes.

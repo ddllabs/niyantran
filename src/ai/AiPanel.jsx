@@ -1073,6 +1073,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <p className="ai-foot warn" role="alert">{err || stream?.error}</p>
         ) : null}
         {state.persistenceError ? <p className="ai-foot warn" role="alert">{state.persistenceError}</p> : null}
+        <div className="ai-composer-stack">
         <AttachmentTray attachments={attachments} indexedKeys={indexedKeys} locked={busy} onRemove={removePin} lang={lang} />
         {research.attachNotice ? <p className="ai-foot ai-attach-note" role="status">{research.attachNotice}</p> : null}
         <form className="ai-v2-composer" onSubmit={send}>
@@ -1135,6 +1136,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           </div>
         </form>
+        </div>
       </div>
       </div>
     </div>

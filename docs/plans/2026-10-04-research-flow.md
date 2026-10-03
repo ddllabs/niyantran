@@ -228,3 +228,25 @@ no horizontal overflow at 375px (chip/tray both 351px). Wide chip is 380px in a
 and keyboard paths reviewed as static in CSS; reduced-motion preference was
 not emulated in the browser. Screenshot `/private/tmp/f65-neutral-documents.jpg`.
 Full provider/PDF loading was intentionally not exercised in the offline fixture.
+
+## Joined attachment/composer surface
+
+Sequential scope: AiPanel.jsx layout wrapper, chat-presentation.css, F65 docs.
+Group tray/attachment notice/composer under one width constraint. When a tray
+exists, draw a shared border and join the title rows to the composer with no
+gap. Wrap full titles, keep badges and remove target readable on narrow widths.
+Verify existing panel/component tests, lint/build, offline browser geometry at
+wide and 375px widths, full title visibility, additional attachments, removal
+and the empty tray state. No new animation, provider or publication changes.
+
+Joined surface evidence: existing 73 focused tests passed with `npm test --
+--run src/ai/AiPanel.test.jsx src/ai/AgentComponents.test.jsx
+src/ai/ChatPresentation.test.jsx`; lint/build/diff check passed. Existing
+deskBrief mixed-import and large-chunk build warnings remain. Browser geometry
+confirmed zero tray/form gap and matching widths: 425.80px wide; 349px at a
+375px viewport with no page overflow. Full title wraps without clipping;
+coverage and remove control remain visible. Additional attachments expand.
+No-attachment fixture retains the 1px composer border and 14px radius.
+Removal was not end-to-end verified: this offline fixture has no removal action;
+production handlers/coverage behavior are unchanged. No live conversation writes.
+Screenshot `/private/tmp/f65-joined-composer.jpg`.

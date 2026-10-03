@@ -161,3 +161,11 @@
 .ai-shell.ai-shell-research .ai-v2-model-cost { color: var(--ai-muted); font-size: 9px; letter-spacing: 1px; }
 .ai-shell.ai-shell-research .ai-v2-model-opt.on { background: var(--ai-blue-soft); color: var(--ai-blue); }
 .ai-shell.ai-shell-research .ai-v2-effort.on { background: var(--ai-blue-soft); color: var(--ai-blue); border-color: var(--ai-blue); }
+
+/* Attached context and input form one responsive surface. */
+.ai-shell.ai-shell-research .ai-composer-stack:has(.ai-attachment-tray) { border: 1px solid var(--ai-line); border-radius: 14px; background: var(--ai-surface); box-shadow: var(--shadow); }
+.ai-shell.ai-shell-research .ai-composer-stack .ai-attachment-tray { padding: 6px 10px; border-bottom: 1px solid var(--ai-line); }
+.ai-shell.ai-shell-research .ai-composer-stack .ai-v2-files li { flex: 1 1 100%; width: 100%; border: 0; padding: 3px 0; background: transparent; }
+.ai-shell.ai-shell-research .ai-composer-stack .ai-v2-files span { max-width: none; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.45; }
+.ai-shell.ai-shell-research .ai-composer-stack:has(.ai-attachment-tray) .ai-v2-composer { border: 0; border-radius: 0 0 14px 14px; box-shadow: none; margin: 0; }
+.ai-shell.ai-shell-research .ai-composer-stack .ai-attach-note { margin: 0; padding: 6px 10px; }
