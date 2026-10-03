@@ -71,16 +71,20 @@ export function CitationPlaceholder() {
   );
 }
 
-export default function CitationBubble({ n, source: raw, onOpen }) {
+export default function CitationBubble({ n, source: raw, onOpen, selectedSource }) {
   if (!isReadableCitation(raw) || n !== raw.id) return null;
   const source = sanitizeCitation(raw);
+  const selected = selectedSource?.kind === source.kind && selectedSource.id === source.id && (source.kind === 'text'
+    ? selectedSource.document_id === source.document_id && selectedSource.chunk_id === source.chunk_id
+    : selectedSource.row_key === source.row_key && selectedSource.feature === source.feature && selectedSource.tier === source.tier);
   const label = source.kind === 'row'
     ? `${source.title || source.row_key} — ${source.feature}`
     : `${source.title}${source.desk_feature ? ` — ${source.desk_feature}` : ''}`;
   return (
     <button
       type="button"
-      className={`cite-bubble${source.kind === 'row' ? ' row' : ''}`}
+      className={`cite-bubble${source.kind === 'row' ? ' row' : ''}${selected ? ' selected' : ''}`}
+      aria-pressed={selected}
       title={label}
       aria-label={`Source ${n}: ${label}`}
       onClick={(e) => {

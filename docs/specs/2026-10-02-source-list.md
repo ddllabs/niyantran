@@ -3,6 +3,12 @@
 > **Status: Living.** Owner-approved design, 2026-10-02: the compact list. The owner's words
 > were "this section really needs redesigning, it looks like windows 98".
 
+> **Amendment, 2026-10-04 (F63, owner-approved chat polish):** the document
+> row's metadata shows citation count; numbers are available under a separate
+> Cited passages disclosure. The document row remains one button opening its
+> first citation. Neither numbers nor disclosure are nested interactive controls.
+> This supersedes the always-visible numbered labels below.
+
 ## Current state
 
 `src/ai/SourceList.jsx` renders one `<button class="ai-source-chip">` per cited document under

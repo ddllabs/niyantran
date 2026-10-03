@@ -5,6 +5,16 @@ function methods(){return {activeAiChat:()=>null,addChatAttachments(){},appendAi
 vi.mock('../lib/aiThreads.js',()=>({...methods(),hydrateConversations(){},reconcileTurn(){}}));
 vi.mock('./useResearchThread.js',()=>({default:()=>fake.research}));
 import AiPanel from './AiPanel.jsx';
+it('places attachments by the composer and uses one submit position while running',()=>{
+ const chat={id:'c',attachments:[{id:'a',kind:'file',title:'Evidence.txt'}]};
+ fake.research={...fake.research,ready:true,loading:false,locked:true,canStop:true,submitting:true,store:{chats:[chat],activeId:'c'},messages:[{id:'u',role:'user',content:'Question'}]};
+ const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(html.indexOf('ai-attachment-tray')).toBeGreaterThan(html.indexOf('ai-v2-foot'));
+ expect(html).not.toContain('>Attach files</button>');
+ expect(html).not.toContain('Drag a row from the table');
+ expect(html.match(/class="ai-v2-send/g)).toHaveLength(1);
+ expect(html).toContain('aria-label="Stop"');
+});
 it('shows attachment processing and save failure recovery, and disables locked removal',()=>{
  const chat={id:'c',attachments:[{id:'a',kind:'file',title:'Evidence.txt'}]};
  fake.research={...fake.research,ready:true,loading:false,locked:true,attaching:true,store:{chats:[chat],activeId:'c',persistenceError:'Changes could not be saved. Try Reload.'}};

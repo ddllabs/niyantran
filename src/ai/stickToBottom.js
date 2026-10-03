@@ -9,6 +9,7 @@ export function createStickToBottom(getEl, slack = SLACK_PX) {
   let stuck = true;
   let lastTop = 0;
   return {
+    isFollowing() { return stuck; },
     /** A new thread: start at the bottom again. */
     reset() {
       stuck = true;

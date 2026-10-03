@@ -124,10 +124,10 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
         {pending && !picked
           ? <span className="ai-v2-model-name pending" aria-label="Loading models" />
           : <span className="ai-v2-model-name">{picked?.label || (models.length === 0 ? 'No approved models' : 'Model')}</span>}
-        {picked && chosen && chosen !== 'off' ? (
+        {picked && chosen ? (
           <span className="ai-v2-model-eff">{EFFORT_LABELS[chosen] || chosen}</span>
         ) : null}
-        <span className="ai-v2-model-cost" aria-hidden="true">{picked ? costHint(picked) : ''}</span>
+        <span className="ai-model-chevron" aria-hidden="true">⌄</span>
       </button>
 
       {open ? (

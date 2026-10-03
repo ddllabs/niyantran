@@ -40,7 +40,7 @@ function Emphasis({ text, keyPrefix }) {
  * behind it is dropped, because a bracket with no bubble behind it is never
  * correct output.
  */
-function Inline({ text, sources, streaming, onOpenSource, keyPrefix = 'i' }) {
+function Inline({ text, sources, streaming, onOpenSource, selectedSource, keyPrefix = 'i' }) {
   if (!sources && !streaming) return Emphasis({ text, keyPrefix });
   const byId = new Map((Array.isArray(sources) ? sources : []).filter(isReadableCitation).map((s) => [s.id, s]));
   const nodes = [];
@@ -50,7 +50,7 @@ function Inline({ text, sources, streaming, onOpenSource, keyPrefix = 'i' }) {
       return;
     }
     const source = byId.get(part.citation);
-    if (source) nodes.push(<CitationBubble key={`${keyPrefix}-c${n}`} n={part.citation} source={source} onOpen={onOpenSource} />);
+    if (source) nodes.push(<CitationBubble key={`${keyPrefix}-c${n}`} n={part.citation} source={source} onOpen={onOpenSource} selectedSource={selectedSource} />);
     else if (streaming) nodes.push(<CitationPlaceholder key={`${keyPrefix}-p${n}`} />);
   });
   return nodes;
@@ -203,8 +203,8 @@ function ListItems({ items, keyPrefix, cite }) {
   });
 }
 
-export default function AiMarkdown({ text, sources, streaming, onOpenSource }) {
-  const cite = { sources, streaming, onOpenSource };
+export default function AiMarkdown({ text, sources, streaming, onOpenSource, selectedSource }) {
+  const cite = { sources, streaming, onOpenSource, selectedSource };
   const lines = String(text || '')
     .replace(/\r\n/g, '\n')
     .split('\n');

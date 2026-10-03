@@ -46,12 +46,12 @@ describe('ActivityTicker', () => {
     { type: 'tool', name: 'search_desk_rows', phase: 'end', step: 1, input: { tier: 'national', feature: 'Bill Passage Probability Index' }, resultCount: 20, latencyMs: 320 },
   ];
 
-  it('while active it is expanded and shows the latest step', () => {
+  it('while active it is compact and shows the latest step', () => {
     const html = renderToStaticMarkup(<ActivityTicker activity={activity} active />);
     expect(html).toContain('ai-ticker active');
     expect(html).toContain('Looked up Bill Passage Probability Index · 20 rows');
-    expect(html).toContain('Searching relevant sources.');
-    expect(html).toContain('320ms');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain('ai-ticker-steps');
   });
 
   it('when done it collapses to its summary; the details report the buckets and a model swap', () => {
@@ -62,7 +62,7 @@ describe('ActivityTicker', () => {
     expect(html).toContain('1 search · 2 s');
     const line = timingLine({ timing, usage: { reasoning_tokens: 256 } });
     expect(line).toContain('searched 320ms');
-    expect(line).toContain('thought 1.2s');
+    expect(line).toContain('other processing 1.2s');
     // A swap is said on the summary line itself, not hidden in the details.
     expect(html).toContain('1 search · 2 s · Answered by deepseek/deepseek-v4-flash');
   });
@@ -172,18 +172,18 @@ describe('WorkSurface', () => {
 // R4: the ticker must not claim work the turn did not do. A real production
 // turn displayed "Searching relevant sources." with search_ms 0 and a single
 // `answer` step, and "thought 9.9s" with reasoning_tokens 0.
-it('reports thinking only when the model produced reasoning tokens', () => {
+it('never calls residual elapsed time measured thinking', () => {
   const timing = { search_ms: 0, reasoning_ms: 9874, writing_ms: 2061, total_ms: 11935 };
   const thought = timingLine({ timing, usage: { reasoning_tokens: 512 } });
-  expect(thought).toContain('thought 9.9s');
+  expect(thought).toContain('other processing 9.9s');
   expect(thought).not.toContain('waited');
 
   const waited = timingLine({ timing, usage: { reasoning_tokens: 0 } });
-  expect(waited).toContain('waited 9.9s');
+  expect(waited).toContain('other processing 9.9s');
   expect(waited).not.toContain('thought');
 
   // No usage at all is the same claim-nothing case.
-  expect(timingLine({ timing })).toContain('waited 9.9s');
+  expect(timingLine({ timing })).toContain('other processing 9.9s');
 });
 
 it('legacy hidden reasoning and unknown events never become public activity or tools',()=>{

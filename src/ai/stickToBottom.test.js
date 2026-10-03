@@ -6,6 +6,14 @@ import { createStickToBottom } from './stickToBottom.js';
 const box = (over = {}) => ({ scrollTop: 0, scrollHeight: 2208, clientHeight: 333, ...over });
 
 describe('createStickToBottom', () => {
+  it('exposes reader position for Jump to latest', () => {
+    const el = box({ scrollTop: 100 });
+    const stick = createStickToBottom(() => el);
+    stick.onScroll();
+    expect(stick.isFollowing()).toBe(false);
+    stick.follow({ force: true });
+    expect(stick.isFollowing()).toBe(true);
+  });
   it('a newly opened thread lands on its newest message', () => {
     const el = box();
     const stick = createStickToBottom(() => el);

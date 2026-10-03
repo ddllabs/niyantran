@@ -50,8 +50,8 @@ const Chevron = () => (
 );
 
 /**
- * The documents cited by an assistant message, as one compact list (source-list spec). A row
- * opens the reader at that document's first citation. The storage file name is only the tooltip.
+ * The cited documents as one compact list (source-list spec, F63 amendment). A row opens
+ * its first citation; numbered labels sit in a separate disclosure. File name is tooltip only.
  *
  * @param {{ sources: import('../types/citation.js').CitationSource[], onOpen?: (c: import('../types/citation.js').TextCitation) => void, lang?: string }} props
  */
@@ -75,14 +75,17 @@ export default function SourceList({ sources, onOpen, lang }) {
                   <span className="ai-source-meta">
                     {c.desk_feature ? <span>{c.desk_feature}</span> : null}
                     {pages ? <span>{pages}</span> : null}
-                    <span className="ai-source-ids">
-                      {hi ? 'उद्धरण' : 'cited'}
-                      {c.ids.map((id) => <span key={id} className="ai-source-id">{id}</span>)}
-                    </span>
+                    <span>{hi ? `${c.ids.length} उद्धरण` : `${c.ids.length} citation${c.ids.length === 1 ? '' : 's'}`}</span>
                   </span>
                 </span>
                 <Chevron />
               </button>
+              <details className="ai-source-details">
+                <summary>{hi ? 'उद्धृत अंश' : 'Cited passages'}</summary>
+                <span className="ai-source-ids">
+                  {c.ids.map(id => <span key={id} className="ai-source-id">{id}</span>)}
+                </span>
+              </details>
             </li>
           );
         })}

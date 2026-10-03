@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
-import { filesFromDrop, isModuleAttachment, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
+import { filesFromDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
 import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
 import useResearchThread from './useResearchThread.js';
 import './research.css';
+import './chat-presentation.css';
+import AttachmentTray from './AttachmentTray.jsx';
+import ChatSubmit from './ChatSubmit.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker from './ModelPicker.jsx';
@@ -439,9 +442,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // .ai-v2-body is the element that scrolls (index.css, .ai-v2-history); the thread opens on its
   // newest message and follows it while the reader is at the bottom (F46).
   const [stick] = useState(() => createStickToBottom(() => scroller.current));
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
   const seenCount = useRef(0);
   useLayoutEffect(() => {
     stick.reset();
+    setAwayFromBottom(false);
     seenCount.current = 0;
   }, [stick, chat?.id]);
   const messageCount = messages.length;
@@ -471,6 +476,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     const sent = messageCount > seenCount.current && lastRole === 'user';
     seenCount.current = messageCount;
     stick.follow({ force: sent });
+    setAwayFromBottom(!stick.isFollowing());
   }, [stick, messageCount, lastRole, busy, stream?.streamingText]);
   useEffect(() => {
     const el = scroller.current;
@@ -525,6 +531,23 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     });
     return undefined;
   }, [seed, feed, featureName, tab, selected, onSeedConsumed, research.ready, research.identityVersion, research.actions]);
+
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const resize = () => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(120, el.scrollHeight)}px`;
+    };
+    resize();
+    let width = el.clientWidth;
+    if (typeof ResizeObserver !== 'function') return;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth !== width) { width = el.clientWidth; resize(); }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [draft, open]);
 
   async function onDrop(e) {
     e.preventDefault();
@@ -868,10 +891,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
 
         <div className="ai-v2-toolbar" aria-label={hi ? 'चैट विकल्प' : 'Chat options'}>
-          <button type="button" className="ai-v2-attach-btn" disabled={busy} onClick={() => fileRef.current?.click()}>
-            <Ico name="clip" size={14} />
-            {hi ? 'फ़ाइलें जोड़ें' : 'Attach files'}
-          </button>
           <input
             ref={fileRef}
             type="file"
@@ -950,61 +969,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
       </div>
 
-      <div ref={scroller} className="ai-v2-body" inert={historyOpen || undefined} onScroll={() => stick.onScroll()}>
-        <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
+      <div ref={scroller} className="ai-v2-body" inert={historyOpen || undefined} onScroll={() => { stick.onScroll(); setAwayFromBottom(!stick.isFollowing()); }}>
+        {emptyThread || dragOver ? <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
           <Ico name="doc-plus" size={28} />
           <p>{hi ? 'तालिका से पंक्ति खींचें — या फ़ाइलें यहाँ छोड़ें' : 'Drag a row from the table — or drop files here'}</p>
-        </div>
-
-        {attachments.length > 0 ? (
-          <ul className="ai-v2-files">
-            {attachments.map((a) => {
-              const cover = coverageOf(a, indexedKeys);
-              const module = isModuleAttachment(a);
-              return (
-                <li key={a.id} className={module ? 'module' : undefined}>
-                  <Ico name={module ? 'table' : 'doc'} size={15} />
-                  <span title={a.title}>{a.title}</span>
-                  {/* A corpus document attached from the reader: a pointer that
-                      confines searches to it, not text pasted into the chat. */}
-                  {a.kind === 'document' ? (
-                    <em className="ai-v2-file-cover document"
-                      title={hi
-                        ? 'संलग्न दस्तावेज़: फोकस “केवल संलग्न” या “चयन” होने पर खोज इसी तक सीमित रहती है'
-                        : 'An attached document: under Attached or Selection focus, searches are limited to it'}>
-                      {hi ? 'दस्तावेज़' : 'Document'}
-                    </em>
-                  ) : null}
-                  {/* A module's name reads like a bill's in this row, and it
-                      names no document, so it cannot hold a search to one. */}
-                  {module ? (
-                    <em className="ai-v2-file-cover module"
-                      title={hi
-                        ? 'पूरा मॉड्यूल: मॉडल को कुछ नमूना पंक्तियाँ मिलती हैं, किसी विधेयक का पाठ नहीं। एक विधेयक पर पूछने के लिए उसकी पंक्ति यहाँ खींचें।'
-                        : 'A whole module: the model gets a few sample rows, not any bill\'s text. To ask about one bill, drag its row here.'}>
-                      {hi ? 'मॉड्यूल' : 'Module'}
-                    </em>
-                  ) : null}
-                  {/* What kind of answer this record can give, before the
-                      question rather than after it. */}
-                  {cover ? (
-                    <em className={`ai-v2-file-cover${cover === 'full' ? ' full' : ''}`}
-                      title={cover === 'full'
-                        ? hi ? 'इस रिकॉर्ड का पूरा पाठ अनुक्रमित है' : 'The full text of this record is indexed and can be quoted'
-                        : hi ? 'केवल तालिका पंक्ति — इस रिकॉर्ड का पाठ अनुक्रमित नहीं है' : 'Only the desk row is on file; this record has no indexed text to read'}>
-                      {cover === 'full' ? (hi ? 'पूर्ण पाठ' : 'Full text') : (hi ? 'केवल रिकॉर्ड' : 'Record only')}
-                    </em>
-                  ) : null}
-                  <button type="button" aria-label={`Remove ${a.title}`} disabled={busy} onClick={() => removePin(a.id)}>
-                    ×
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-        {/* chat-attach-fixes: what an attach skipped as already attached, until the next attach or send. */}
-        {research.attachNotice ? <p className="ai-foot ai-attach-note" role="status">{research.attachNotice}</p> : null}
+        </div> : null}
 
         <div className="ai-v2-history">
           {/* panel-loading spec C: until the thread is in, a placeholder of fixed shape holds its place. */}
@@ -1014,7 +983,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ) : null}
           {research.ready ? messages.map((m) => (
-            <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} />
+            <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} selectedSource={viewer?.source} />
           )) : null}
 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
@@ -1036,7 +1005,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 lang={lang}
               />
               {stream?.streamingText ? (
-                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} />
+                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} selectedSource={viewer?.source} />
               ) : null}
             </div>
           ) : null}
@@ -1061,6 +1030,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       </div>
 
       <div className="ai-v2-foot" inert={historyOpen || undefined}>
+        {awayFromBottom ? <button type="button" className="ai-jump-latest" onClick={() => { stick.follow({ force: true }); setAwayFromBottom(false); }}>↓ {hi ? 'नवीनतम पर जाएँ' : 'Jump to latest'}</button> : null}
         {/* Starters on an empty thread, the answer's follow-ups after that.
             In the foot, not the body: the body is the scroller, and a row at
             the end of it is only reachable by scrolling to the end of the
@@ -1069,6 +1039,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         {research.ready ? (
           <SuggestionPills
             questions={emptyThread ? suggestions : followUps}
+            lang={lang}
             disabled={busy}
             held={busy || streaming}
             label={
@@ -1102,10 +1073,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           <p className="ai-foot warn" role="alert">{err || stream?.error}</p>
         ) : null}
         {state.persistenceError ? <p className="ai-foot warn" role="alert">{state.persistenceError}</p> : null}
+        <AttachmentTray attachments={attachments} indexedKeys={indexedKeys} locked={busy} onRemove={removePin} lang={lang} />
+        {research.attachNotice ? <p className="ai-foot ai-attach-note" role="status">{research.attachNotice}</p> : null}
         <form className="ai-v2-composer" onSubmit={send}>
           <textarea
             ref={box}
-            rows={2}
+            rows={1}
             value={draft}
             disabled={busy}
             aria-label={hi ? 'आपका प्रश्न' : 'Your question'}
@@ -1156,21 +1129,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
 
             <div className="ai-v2-comp-act">
-              {research.canStop ? (
-                <button
-                  type="button"
-                  className="ai-v2-send stop"
-                  aria-label={hi ? 'रोकें' : 'Stop'}
-                  title={hi ? 'रोकें' : 'Stop'}
-                  disabled={research.cancelPending || stream?.cancelPending}
-                  onClick={() => research.actions.stop()}
-                >
-                  ■
-                </button>
-              ) : null}
-              <button className="ai-v2-send" type="submit" disabled={busy || streaming || !draft.trim()} aria-label={hi ? 'भेजें' : 'Send'} hidden={streaming}>
-                <Ico name="send" size={16} />
-              </button>
+              <ChatSubmit canStop={research.canStop} stopping={stopping}
+                cancelPending={research.cancelPending || stream?.cancelPending}
+                disabled={busy || streaming || !draft.trim()} onStop={() => research.actions.stop()} lang={lang} />
             </div>
           </div>
         </form>

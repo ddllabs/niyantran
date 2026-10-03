@@ -7,15 +7,16 @@ import { memo } from 'react';
 import ActivityTicker from './ActivityTicker.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import SourceList from './SourceList.jsx';
+import MessageActions from './MessageActions.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 
 /** Props equal for rendering: the same message object, label source, handler and language. */
 export function sameRow(a, b) {
   return a.m === b.m && a.lang === b.lang && a.fallbackLabel === b.fallbackLabel
-    && a.labelOf === b.labelOf && a.onOpenSource === b.onOpenSource;
+    && a.labelOf === b.labelOf && a.onOpenSource === b.onOpenSource && a.selectedSource === b.selectedSource;
 }
 
-function MessageRow({ m, lang, fallbackLabel, labelOf, onOpenSource }) {
+function MessageRow({ m, lang, fallbackLabel, labelOf, onOpenSource, selectedSource }) {
   const hi = lang === 'hi';
   const readable = (m.sources || []).filter(isReadableCitation);
   return (
@@ -24,7 +25,7 @@ function MessageRow({ m, lang, fallbackLabel, labelOf, onOpenSource }) {
       {m.role === 'assistant' ? (
         <>
           {(m.activity?.length || m.timing || m.model_served) ? <ActivityTicker activity={m.activity} timing={m.timing} usage={m.usage} model={{ requested: m.model_requested, served: m.model_served }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}
-          <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={onOpenSource} />
+          <AiMarkdown text={m.content} sources={m.sources || []} onOpenSource={onOpenSource} selectedSource={selectedSource} />
           {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={readable} onOpen={onOpenSource} lang={lang} /> : null}
           {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
           {m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
@@ -32,6 +33,7 @@ function MessageRow({ m, lang, fallbackLabel, labelOf, onOpenSource }) {
       ) : (
         m.content
       )}
+      <MessageActions m={m} lang={lang} />
     </div>
   );
 }

@@ -1,9 +1,9 @@
 /**
  * What the assistant is doing, while it does it (docs/specs/2026-10-02-thinking-display.md).
- * One indicator from Send: it opens on "Starting…" with an elapsed clock, lists each stage once
+ * One indicator from Send: it starts compact on "Starting…" with an elapsed clock, lists each stage once
  * and each search by what it did, and says what the searches found. When the turn ends it
- * collapses to one line ("5 searches · 3 sources · 53 s") unless the reader has touched it; the
- * details keep the steps, the finds and the measured buckets. It replaced the NyAI card (ADR 0007
+ * shows one compact line ("5 searches · 3 citations · 53 s"); the
+ * disclosure keeps the steps, the finds and timing buckets. Residual time is not measured reasoning. It replaced the NyAI card (ADR 0007
  * §2, amended 2026-10-02) and keeps that card's polite status region and Hindi.
  */
 import { useEffect, useState } from 'react';
@@ -82,8 +82,8 @@ export function finishedSummary({ steps = [], sourceCount = 0, timing = null, hi
   const searches = steps.filter((s) => s.type === 'tool' && s.phase === 'end').length;
   const secs = Number(timing?.total_ms) > 0 ? Math.max(1, Math.round(timing.total_ms / 1000)) : 0;
   const parts = hi
-    ? [searches && `${searches} खोज`, sourceCount && `${sourceCount} स्रोत`, secs && `${secs} से.`]
-    : [searches && plural(searches, 'search', 'searches'), sourceCount && plural(sourceCount, 'source', 'sources'), secs && `${secs} s`];
+    ? [searches && `${searches} खोज`, sourceCount && `${sourceCount} उद्धरण`, secs && `${secs} से.`]
+    : [searches && plural(searches, 'search', 'searches'), sourceCount && plural(sourceCount, 'citation', 'citations'), secs && `${secs} s`];
   const line = parts.filter(Boolean).join(' · ');
   return line || (hi ? 'उत्तर दिया' : 'Answered');
 }
@@ -94,15 +94,13 @@ function seconds(ms) {
 }
 
 /** The measured buckets. */
-export function timingLine({ timing = null, usage = null }) {
+export function timingLine({ timing = null }) {
   return [
     // answer-streaming spec §2: how long the reader waited for the answer's first word.
     timing?.first_answer_ms ? `first word ${seconds(timing.first_answer_ms)}` : '',
     timing?.search_ms ? `searched ${seconds(timing.search_ms)}` : '',
-    // reasoning_ms is residual time - total minus search minus writing - not thinking. Calling it
-    // "thought" claims reasoning the model may not have done: a real turn reported "thought 9.9s"
-    // with reasoning_tokens of 0. Only the model's own count can say.
-    timing?.reasoning_ms ? `${Number(usage?.reasoning_tokens) > 0 ? 'thought' : 'waited'} ${seconds(timing.reasoning_ms)}` : '',
+    // Residual elapsed time includes waiting and orchestration, not measured model reasoning.
+    timing?.reasoning_ms ? `other processing ${seconds(timing.reasoning_ms)}` : '',
     timing?.writing_ms ? `wrote ${seconds(timing.writing_ms)}` : '',
   ].filter(Boolean).join(' · ');
 }
@@ -124,17 +122,12 @@ function useNow(running) {
 }
 
 export default function ActivityTicker({
-  activity = [], active = false, startedAt = 0, timing = null, model = null, usage = null,
+  activity = [], active = false, startedAt = 0, timing = null, model = null,
   sourceCount = 0, labelOf = (id) => id, lang = 'en',
 }) {
   const hi = lang === 'hi';
-  const [open, setOpen] = useState(active);
-  const [touched, setTouched] = useState(false);
+  const [open, setOpen] = useState(false);
   const now = useNow(active && startedAt > 0);
-
-  useEffect(() => {
-    if (!touched) setOpen(active);
-  }, [active, touched]);
 
   const steps = tickerSteps(activity);
   if (!steps.length && !active && !timing && !model?.served) return null;
@@ -144,7 +137,7 @@ export default function ActivityTicker({
   const head = active
     ? (last ? stepLabel(last) : (hi ? 'शुरू हो रहा है…' : 'Starting…'))
     : [finishedSummary({ steps, sourceCount, timing, hi }), swapLabel({ model, labelOf })].filter(Boolean).join(' · ');
-  const details = active ? '' : timingLine({ timing, usage });
+  const details = active ? '' : timingLine({ timing });
 
   return (
     <div className={`ai-ticker${active ? ' active' : ''}`}>
@@ -153,7 +146,6 @@ export default function ActivityTicker({
         className="ai-ticker-head"
         aria-expanded={open}
         onClick={() => {
-          setTouched(true);
           setOpen((v) => !v);
         }}
       >

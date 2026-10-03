@@ -14,10 +14,17 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F63 is next) and goes in the
+- A new finding gets the next free `F` number (F64 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F63. AI Research chat presentation.** Owner-approved chat-only layout,
+  composer attachments, model/effort visibility, Send/Stop feedback, Copy/time,
+  compact citations/sources/suggestions and activity. Work mode and Terminal
+  shell retained. Local branch `task/f63-chat-polish`;
+  [spec](../specs/2026-10-04-chat-polish.md),
+  [plan](2026-10-04-chat-polish.md). No publication authorized.
 
 - [ ] **F61. Broader tab keyboard audit.** Review the remaining Live TV and
   Nuclear analytics tab patterns for consistent roles and keyboard behavior.

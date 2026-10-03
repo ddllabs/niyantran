@@ -7,6 +7,13 @@
 > - a collapsed summary when the turn finishes;
 > - the robot card is dropped.
 >
+> **Amendment, 2026-10-04 (F63, owner-approved chat polish):** the live ticker
+> starts collapsed and details remain available on demand. The finished count
+> is labeled citations (Hindi: उद्धरण), not distinct sources/documents. The
+> residual `reasoning_ms` bucket is labeled Other processing, regardless of
+> token usage; it does not measure thinking duration. These rules supersede
+> the initial open state and timing wording below.
+>
 > The model's own reasoning text (option B) is out of scope. Evidence:
 > `docs/research/2026-10-02-chat-experience-review.md` (C1–C5). Tracked as open-work F46.
 

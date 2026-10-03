@@ -17,20 +17,34 @@
  */
 import './research.css';
 
-export default function SuggestionPills({ questions, onPick, disabled = false, label, held = false }) {
+export default function SuggestionPills({ questions, onPick, disabled = false, label, held = false, lang }) {
   const list = (Array.isArray(questions) ? questions : []).filter((q) => typeof q === 'string' && q.trim());
   if (!list.length) return null;
   // held (panel-loading spec C): kept in the layout but hidden and inert while a turn runs, so the
   // row's arrival or departure never shifts the thread.
   return (
     <ul className={`ai-suggest ai-v2-suggest${held ? ' is-held' : ''}`} role="list" aria-label={label} aria-hidden={held ? 'true' : undefined}>
-      {list.map((q) => (
+      {list.slice(0, 2).map((q) => (
         <li key={q} role="listitem">
           <button type="button" disabled={disabled || held} tabIndex={held ? -1 : undefined} onClick={() => onPick?.(q)}>
             {q}
           </button>
         </li>
       ))}
+      {list.length > 2 ? <li role="listitem" className="ai-suggest-more">
+        <details onKeyDownCapture={event => {
+          if (event.key !== 'Escape') return;
+          event.preventDefault(); event.stopPropagation();
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector('summary')?.focus();
+        }}>
+          <summary tabIndex={held ? -1 : undefined}>{lang === 'hi' ? 'और प्रश्न' : 'More questions'} · {list.length - 2}</summary>
+          <div>{list.slice(2).map(q => <button key={q} type="button" disabled={disabled || held} tabIndex={held ? -1 : undefined} onClick={event => {
+            event.currentTarget.closest('details').open = false;
+            onPick?.(q);
+          }}>{q}</button>)}</div>
+        </details>
+      </li> : null}
     </ul>
   );
 }

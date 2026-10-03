@@ -35,9 +35,7 @@ describe('thinking display', () => {
       { document_id: 'B', title: 'Old Act', pages: [] },
     ]);
     const html = renderToStaticMarkup(<ActivityTicker active activity={steps} />);
-    expect(html).toContain('Found so far');
-    expect(html).toContain('Espionage Bill (p. 4, 7, 9)');
-    expect(html).toContain('Old Act');
+    expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain('Not finished');
   });
 
@@ -46,12 +44,13 @@ describe('thinking display', () => {
       { type: 'tool', name: 'search_documents', phase: 'end', step: 1, resultCount: 40 },
       { type: 'tool', name: 'search_desk_rows', phase: 'end', step: 2, resultCount: 8 },
     ];
-    expect(finishedSummary({ steps, sourceCount: 3, timing: { total_ms: 53_400 } })).toBe('2 searches · 3 sources · 53 s');
-    expect(finishedSummary({ steps: [steps[0]], sourceCount: 1, timing: { total_ms: 900 } })).toBe('1 search · 1 source · 1 s');
+    expect(finishedSummary({ steps, sourceCount: 3, timing: { total_ms: 53_400 } })).toBe('2 searches · 3 citations · 53 s');
+    expect(finishedSummary({ steps: [steps[0]], sourceCount: 1, timing: { total_ms: 900 } })).toBe('1 search · 1 citation · 1 s');
     expect(finishedSummary({ steps: [], sourceCount: 0, timing: null })).toBe('Answered');
     expect(finishedSummary({ steps, sourceCount: 0, timing: { total_ms: 3000 }, hi: true })).toBe('2 खोज · 3 से.');
+    expect(finishedSummary({ sourceCount: 2, hi: true })).toBe('2 उद्धरण');
     const html = renderToStaticMarkup(<ActivityTicker activity={steps} sourceCount={3} timing={{ total_ms: 53_400 }} />);
-    expect(html).toContain('2 searches · 3 sources · 53 s');
+    expect(html).toContain('2 searches · 3 citations · 53 s');
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain('ai-ticker-steps');
   });
@@ -60,8 +59,7 @@ describe('thinking display', () => {
 // answer-streaming spec §2: the details say how long the first word of the answer took.
 it('the timing details lead with the first word, when the server measured one', () => {
   const timing = { search_ms: 900, reasoning_ms: 12_000, writing_ms: 4_000, total_ms: 17_000, first_answer_ms: 3_100, rounds: 2 };
-  expect(timingLine({ timing })).toBe('first word 3.1s · searched 900ms · waited 12.0s · wrote 4.0s');
+  expect(timingLine({ timing, usage: { reasoning_tokens: 100 } })).toBe('first word 3.1s · searched 900ms · other processing 12.0s · wrote 4.0s');
   expect(timingLine({ timing: { ...timing, first_answer_ms: 0 } })).not.toContain('first word');
   expect(timingLine({ timing: { search_ms: 900 } })).toBe('searched 900ms');
 });
-
