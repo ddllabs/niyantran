@@ -11,6 +11,20 @@ import { describe, expect, it } from 'vitest';
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const SHELL = ['ai-shell', 'ai-shell-v2', 'ai-shell-research'];
 
+it('gives the tablet AI thread room beyond its fixed controls and composer',()=>{
+ let value;
+ postcss.parse(read('../index.css')).walkAtRules('media',at=>{
+  if(!/max-width:\s*900px/.test(at.params)) return;
+  at.walkRules(rule=>{
+   if(rule.selectors.includes('.workspace.ai-open')) rule.walkDecls('grid-template-rows',d=>{value=d.value;});
+  });
+ });
+ expect(value).toBe('minmax(0, 1fr) minmax(0, 65%)');
+ // At the measured 834px workspace, 65% leaves over 270px after the 268px
+ // tab bar, toolbar and composer. Runtime verification checks the actual layout.
+ expect(834*.65-268).toBeGreaterThan(200);
+});
+
 /** The winning value of `prop` for an element with exactly these classes (class-only selectors). */
 function cascade(sheets, classes, prop) {
   let best = null;

@@ -2,6 +2,14 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {expect,it} from 'vitest';
 import AiMarkdown from './AiMarkdown.jsx';
 const source={id:1,kind:'text',chunk_id:'c',document_id:'d',title:'Evidence',char_from:0,char_to:5,text_hash:'h',source_kind:'document'};
+it('renders safe break tokens in table cells without enabling HTML or changing code literals',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text={'| Fact | Evidence |\n|---|---|\n| First<br>Second<BR />Third | **One<br/>Two** [1] `<br>` <img src=x onerror=alert(1)> |'} sources={[source]}/>);
+ expect(html).toContain('<td>First<br/>Second<br/>Third</td>');
+ expect(html).toContain('<strong>One<br/>Two</strong>');
+ expect(html).toContain('<code>&lt;br&gt;</code>');
+ expect(html).not.toContain('<img');
+ expect(html).toContain('cite-bubble');
+});
 it('resolved research markers become source buttons in paragraphs, headings and lists',()=>{
  const html=renderToStaticMarkup(<AiMarkdown text={'# Finding [1]\n\nEvidence **supports** this [1].\n\n- Item [1]'} sources={[source]}/>);
  expect(html.match(/cite-bubble/g)).toHaveLength(3);expect(html).toContain('<strong>supports</strong>');expect(html).not.toContain('[1]');

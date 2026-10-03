@@ -15,6 +15,7 @@ import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 import { createStickToBottom } from './stickToBottom.js';
+import usePanelPopovers from './usePanelPopovers.js';
 
 /**
  * R6 revision 5, point 1: a click outside the open citation closes the citation and then the chat
@@ -399,6 +400,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const modelRef = useRef(null);
   const focusRef = useRef(null);
   const historyRef = useRef(null);
+  usePanelPopovers({ focusOpen, focusRef, focus, setFocusOpen, historyOpen, historyRef, pendingDelete, setHistoryOpen,
+    modelOpen, modelRef, setModelOpen });
 
   const chat = useMemo(
     () => state.chats.find((c) => c.id === state.activeId) || state.chats[0] || null,
@@ -658,9 +661,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const connectionLost = stream?.status === 'unknown';
   const running = Boolean(research.storedRunning || (stream?.status === 'running' && !streaming));
   const stopping = Boolean(research.cancelRequested || stream?.cancelRequested);
-  const needsReload = connectionLost || running || stopping || Boolean(err || stream?.error)
+  const needsReload = connectionLost || running || stopping || Boolean(err || stream?.error || state.persistenceError)
     || messages.some((m) => m.status === 'running');
-  const showControls = needsReload || research.loading || research.recoverable || Boolean(research.cancelError || stream?.cancelError);
+  const showControls = needsReload || research.loading || research.attaching || research.recoverable || Boolean(research.cancelError || stream?.cancelError);
 
   // The header's actions: new research, history, docs and download.
   const headActions = (
@@ -705,7 +708,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               aria-label={hi ? 'बंद करें' : 'Close history'}
               onClick={() => setHistoryOpen(false)}
             />
-            <div className="ai-v2-history-pop" role="dialog" aria-label={hi ? 'चैट इतिहास' : 'Chat history'}>
+            <div className="ai-v2-history-pop" role="dialog" aria-modal="false" tabIndex={-1} aria-label={hi ? 'चैट इतिहास' : 'Chat history'}>
               <div className="ai-v2-history-pop-head">
                 <b>{hi ? 'इतिहास' : 'History'}</b>
                 <span className="ai-v2-history-count">
@@ -728,7 +731,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                       : '';
                     if (c.id === pendingDelete) {
                       return (
-                        <li key={c.id} className="ai-v2-history-confirm">
+                        <li key={c.id} data-chat-id={c.id} className="ai-v2-history-confirm">
                           <p>
                             {hi
                               ? `“${c.title || 'नया अनुसंधान'}” और इसके ${n} संदेश हमेशा के लिए हटाएँ?`
@@ -738,6 +741,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                             <button
                               type="button"
                               className="danger"
+                              disabled={busy}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 research.actions.deleteChat(c.id);
@@ -754,10 +758,11 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                       );
                     }
                     return (
-                      <li key={c.id} className={c.id === chat?.id ? 'on' : ''}>
+                      <li key={c.id} data-chat-id={c.id} className={c.id === chat?.id ? 'on' : ''}>
                         <button
                           type="button"
                           className="ai-v2-history-item"
+                          disabled={busy}
                           onClick={() => {
                             research.actions.selectChat(c.id);
                             setHistoryOpen(false);
@@ -773,6 +778,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                           <button
                             type="button"
                             className="ai-v2-history-del"
+                            disabled={busy}
                             aria-label={hi ? 'हटाएँ' : 'Delete'}
                             title={hi ? 'हटाएँ' : 'Delete'}
                             onClick={(e) => {
@@ -851,7 +857,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
       </header>
       )}
 
-      <div className="ai-v2-chrome">
+      <div className="ai-v2-chrome" inert={historyOpen || undefined}>
         <div className={`ai-v2-docs${docsOpen ? '' : ' hide'}`} role="note" hidden={!docsOpen}>
           <b>{hi ? 'एआई अनुसंधान कैसे काम करता है' : 'How AI research works'}</b>
           <ul>
@@ -879,6 +885,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               type="button"
               className={`ai-v2-tool-btn${focusOpen ? ' open' : ''}`}
               aria-expanded={focusOpen}
+              aria-haspopup="menu"
+              onKeyDown={event => {
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                  event.preventDefault(); setFocusOpen(true); setModelOpen(false);
+                }
+              }}
               onClick={() => {
                 setFocusOpen((v) => !v);
                 setModelOpen(false);
@@ -889,18 +901,20 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               <Ico name="chevron" size={12} />
             </button>
             {focusOpen ? (
-              <div className="ai-v2-pop" role="listbox" aria-label={hi ? 'फोकस' : 'Focus'}>
+              <div className="ai-v2-pop" role="menu" aria-label={hi ? 'फोकस' : 'Focus'}>
                 {FOCUS_OPTS.map((o) => (
                   <button
                     key={o.id}
                     type="button"
-                    role="option"
-                    aria-selected={o.id === focus}
+                    role="menuitemradio"
+                    aria-checked={o.id === focus}
+                    tabIndex={-1}
                     className={`ai-v2-pop-opt${o.id === focus ? ' on' : ''}`}
                     onClick={() => {
                       setFocus(o.id);
                       setFocusOpen(false);
                       setScopeNotice('');
+                      focusRef.current?.querySelector('button')?.focus();
                     }}
                   >
                     <span>{hi ? o.hi : o.en}</span>
@@ -936,7 +950,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         </div>
       </div>
 
-      <div ref={scroller} className="ai-v2-body" onScroll={() => stick.onScroll()}>
+      <div ref={scroller} className="ai-v2-body" inert={historyOpen || undefined} onScroll={() => stick.onScroll()}>
         <div className={`ai-v2-drop${dragOver ? ' on' : ''}${attachments.length ? ' has-files' : ''}`}>
           <Ico name="doc-plus" size={28} />
           <p>{hi ? 'तालिका से पंक्ति खींचें — या फ़ाइलें यहाँ छोड़ें' : 'Drag a row from the table — or drop files here'}</p>
@@ -981,7 +995,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                       {cover === 'full' ? (hi ? 'पूर्ण पाठ' : 'Full text') : (hi ? 'केवल रिकॉर्ड' : 'Record only')}
                     </em>
                   ) : null}
-                  <button type="button" aria-label="Remove" onClick={() => removePin(a.id)}>
+                  <button type="button" aria-label={`Remove ${a.title}`} disabled={busy} onClick={() => removePin(a.id)}>
                     ×
                   </button>
                 </li>
@@ -1046,7 +1060,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
 
       </div>
 
-      <div className="ai-v2-foot">
+      <div className="ai-v2-foot" inert={historyOpen || undefined}>
         {/* Starters on an empty thread, the answer's follow-ups after that.
             In the foot, not the body: the body is the scroller, and a row at
             the end of it is only reachable by scrolling to the end of the
@@ -1074,6 +1088,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             failed to load, or a saved message is still running. */}
         {showControls ? (
           <div className="ai-research-controls" aria-live="polite">
+            {research.attaching ? <span role="status">{hi ? 'संलग्नक तैयार हो रहे हैं…' : 'Processing attachments…'}</span> : null}
             {research.loading ? <span>Loading research…</span> : null}
             {connectionLost ? <span>Connection lost. The saved outcome is unknown.</span> : null}
             {running ? <span>Research is running.</span> : null}
@@ -1086,6 +1101,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
         {err || stream?.error ? (
           <p className="ai-foot warn" role="alert">{err || stream?.error}</p>
         ) : null}
+        {state.persistenceError ? <p className="ai-foot warn" role="alert">{state.persistenceError}</p> : null}
         <form className="ai-v2-composer" onSubmit={send}>
           <textarea
             ref={box}

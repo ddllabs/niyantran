@@ -3323,6 +3323,9 @@ button.live-feed:hover { color: var(--fg); }
   border-radius: 6px;
 }
 .ai-v2-files button:hover { background: #f3f4f6; color: #111827; }
+.ai-v2-files button:disabled { opacity: 0.45; cursor: not-allowed; }
+.feed-table tbody tr:focus-visible,
+.alw-table tbody tr:focus-visible { outline: 2px solid var(--ai-blue, #012ea1); outline-offset: -2px; }
 
 .ai-v2-history {
   display: grid;
@@ -7092,7 +7095,12 @@ tr.close-soon { color: #6d675f; }
   .workspace.ai-open.geo-holistic,
   .workspace.ai-open.transit-map,
   .workspace.ai-open.pig-holistic {
-    grid-template-rows: minmax(0, 1fr) minmax(220px, 40%);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 65%);
+  }
+  /* The AI controls and composer occupy about 268px. At 40% the tablet
+     thread had only 67px; give its reading region the larger stacked row. */
+  .workspace.ai-open {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 65%);
   }
   .side-panel {
     border-left: 0;

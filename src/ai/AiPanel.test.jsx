@@ -5,6 +5,16 @@ function methods(){return {activeAiChat:()=>null,addChatAttachments(){},appendAi
 vi.mock('../lib/aiThreads.js',()=>({...methods(),hydrateConversations(){},reconcileTurn(){}}));
 vi.mock('./useResearchThread.js',()=>({default:()=>fake.research}));
 import AiPanel from './AiPanel.jsx';
+it('shows attachment processing and save failure recovery, and disables locked removal',()=>{
+ const chat={id:'c',attachments:[{id:'a',kind:'file',title:'Evidence.txt'}]};
+ fake.research={...fake.research,ready:true,loading:false,locked:true,attaching:true,store:{chats:[chat],activeId:'c',persistenceError:'Changes could not be saved. Try Reload.'}};
+ const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(html).toContain('Processing attachments…');
+ expect(html).toMatch(/aria-label="Remove Evidence.txt"[^>]*disabled=""/);
+ expect(html).toMatch(/role="alert">Changes could not be saved/);
+ expect(html).toMatch(/<button[^>]*>Reload<\/button>/);
+ expect(html).not.toContain('aria-label="Stop"');
+});
 beforeEach(()=>{fake.ensure.mockClear();fake.research={store:{chats:[],activeId:'',loaded:false},ready:false,loading:true,locked:true,registry:{models:[],roles:[]},choice:{modelId:'',effort:'off'},draft:'',error:'',viewer:null,messages:[],sources:[],actions:{},identityVersion:0};});
 it('research panel does not create an empty draft during render before verified hydration',()=>{
  const html=renderToStaticMarkup(<AiPanel lang="en"/>);expect(fake.ensure).not.toHaveBeenCalled();expect(html).toContain('Loading research');

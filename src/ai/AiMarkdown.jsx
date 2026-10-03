@@ -1,6 +1,10 @@
 import { splitCitationMarkers } from '../lib/citationMarkers.js';
 import CitationBubble, { CitationPlaceholder, isReadableCitation } from './CitationBubble.jsx';
 
+function breaks(text, keyPrefix) {
+  return text.split(/<br\s*\/?>/i).flatMap((part, i) => i ? [<br key={`${keyPrefix}-br${i}`} />, part] : [part]);
+}
+
 function Emphasis({ text, keyPrefix }) {
   const nodes = [];
   const re = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g;
@@ -8,10 +12,10 @@ function Emphasis({ text, keyPrefix }) {
   let i = 0;
   let m = re.exec(text);
   while (m) {
-    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m.index > last) nodes.push(...breaks(text.slice(last, m.index), `${keyPrefix}-plain${i}`));
     const key = `${keyPrefix}-${i}`;
-    if (m[1]) nodes.push(<strong key={key}>{m[1]}</strong>);
-    else if (m[2]) nodes.push(<em key={key}>{m[2]}</em>);
+    if (m[1]) nodes.push(<strong key={key}>{breaks(m[1], key)}</strong>);
+    else if (m[2]) nodes.push(<em key={key}>{breaks(m[2], key)}</em>);
     else if (m[3]) nodes.push(<code key={key}>{m[3]}</code>);
     else if (m[4]) {
       nodes.push(
@@ -24,7 +28,7 @@ function Emphasis({ text, keyPrefix }) {
     last = m.index + m[0].length;
     m = re.exec(text);
   }
-  if (last < text.length) nodes.push(text.slice(last));
+  if (last < text.length) nodes.push(...breaks(text.slice(last), `${keyPrefix}-tail`));
   return nodes;
 }
 
