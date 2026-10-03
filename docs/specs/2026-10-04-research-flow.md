@@ -59,3 +59,9 @@ preserve text, color, alignment and timestamp. Copy is icon-only with localized
 accessible name/tooltip, a checkmark for two seconds after success, and a polite
 screen-reader announcement. Failures remain visible. The AI sparkle sits in a
 28px rounded, theme-aware muted lavender badge; answer text remains unboxed.
+
+Fifth owner amendment, 2026-10-04: tighten only the research flow's vertical
+spacing: top padding 16→8px, token-row bottom margin 14→8px, stage bottom
+padding 18→10px and query top margin 5→3px. Preserve horizontal dimensions,
+typography, content and behavior. AI badge uses existing accent/soft-accent
+theme tokens, superseding the lavender choice.

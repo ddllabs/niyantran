@@ -136,3 +136,20 @@ and original timestamp without You. Theme-aware lavender badge observed.
 Screenshot `/private/tmp/f65-message-icons.jpg`; no live provider calls.
 Review: reference-copy content unchanged, timer cleanup on unmount, no extra
 identity row or answer background. Existing active-only motion retained.
+
+## Vertical spacing / platform accent amendment
+
+Scope: scoped chat CSS and F65 docs. Change only four vertical gaps plus badge
+color tokens. No new tests for this reversible styling change. Verify before/
+after dimensions in real-component offline browser, narrow layout and lint/build.
+Baseline at 1095px: flow 235.13px high, 367px wide, 12px left padding; query
+313px wide with 13px font/19.5px line height.
+
+Spacing evidence: after flow height 187.13px (48px shorter), width 367px, left
+padding 12px and query width/font/line-height 313px/13px/19.5px unchanged at
+1095px. At 375px no horizontal overflow. Badge computed platform blue
+`rgb(1,46,161)` on accent-soft `rgb(232,238,248)`. Screenshot
+`/private/tmp/f65-tight-spacing.jpg`. Lint/build exit 0; existing mixed-import
+and large-chunk warnings remain. `git diff --check` clean. Unit suite not
+rerun for CSS-only changes; last full run remains 2,085 passing tests.
+No behavior/server/dependency changes or publication.
