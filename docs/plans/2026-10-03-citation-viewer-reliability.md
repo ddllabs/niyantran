@@ -1,6 +1,6 @@
 # F57 citation viewer reliability
 
-> **Status: Living.** Local execution started 2026-10-03.
+> **Status: Historical (2026-10-03).** Verified local implementation `6df6d7c`; supervisor integrated locally. No push or deployment.
 
 Spec: [citation viewer reliability](../specs/2026-10-03-citation-viewer-reliability.md).
 Checkout: /private/tmp/niyantran-f57; branch task/f57-citation-viewer, based on local main f0058b1. Origin fetched; main is one documentation commit ahead. The original F56 checkout and 22 pending documentation paths remain untouched.
@@ -35,3 +35,5 @@ Browser: localhost fixture with real pdf.js and CSS Highlight ranges; no remote 
 - Final fresh browser console: no errors/warnings. An earlier fixture HMR duplicate-root warning was corrected and did not occur in the fresh run. Screenshot saved outside the repository in the task visualization folder (citation-viewer-fixed.jpg); synthetic local data only.
 - Limitations: no live infrastructure writes, no push/deploy, no Safari run, and no representative heavy-PDF timing trace. The fixture's diagnostic polling adds overhead; it is not a performance benchmark. Heavy-document stutter profiling is tracked as F58; existing Safari follow-up stays F50. Server/shared-lib/admin/Supabase/SQL suites were not separately run because those scopes are unchanged.
 
+
+Final integration: implementation commit `6df6d7c`; closure documentation follows it. Clean verification checkout fast-forwarded to local main. Original task/f56-documentation-reconciliation checkout retains its 22 pending documentation paths unchanged.
