@@ -176,7 +176,7 @@ export function turnTraceRows(a: {
     chunk_ids: s.chunkIds.length ? s.chunkIds : null,
     row_keys: s.rowKeys.length ? s.rowKeys : null,
     model_call_log_id: null,
-    aborted: false,
+    aborted: s.status === 'cancelled',
     error_message: s.status === 'error' ? 'tool step failed' : null,
   }));
   if (a.answer) {

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import ActivityTicker, { tickerSteps, timingLine } from './ActivityTicker.jsx';
+import ActivityTicker, { tickerSteps, measurementRows } from './ActivityTicker.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
 import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
 import CitationBubble, { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
@@ -60,11 +60,11 @@ describe('ActivityTicker', () => {
     const html = renderToStaticMarkup(<ActivityTicker activity={activity} timing={timing} usage={{ reasoning_tokens: 256 }} model={model} />);
     expect(html).not.toContain('ai-ticker active');
     expect(html).toContain('1 search · 2 s');
-    const line = timingLine({ timing, usage: { reasoning_tokens: 256 } });
-    expect(line).toContain('searched 320ms');
-    expect(line).toContain('other processing 1.2s');
-    // A swap is said on the summary line itself, not hidden in the details.
-    expect(html).toContain('1 search · 2 s · Answered by deepseek/deepseek-v4-flash');
+    const rows = measurementRows(timing);
+    expect(rows).toContainEqual(['Search actions','320 ms']);
+    expect(rows).toContainEqual(['Other processing','1200 ms']);
+    // The actual served model is visible in the summary.
+    expect(html).toContain('deepseek/deepseek-v4-flash · 1 search · 2 s');
   });
 
   it('a search for a phrase names the phrase; nothing at all renders nothing', () => {
@@ -174,16 +174,8 @@ describe('WorkSurface', () => {
 // `answer` step, and "thought 9.9s" with reasoning_tokens 0.
 it('never calls residual elapsed time measured thinking', () => {
   const timing = { search_ms: 0, reasoning_ms: 9874, writing_ms: 2061, total_ms: 11935 };
-  const thought = timingLine({ timing, usage: { reasoning_tokens: 512 } });
-  expect(thought).toContain('other processing 9.9s');
-  expect(thought).not.toContain('waited');
-
-  const waited = timingLine({ timing, usage: { reasoning_tokens: 0 } });
-  expect(waited).toContain('other processing 9.9s');
-  expect(waited).not.toContain('thought');
-
-  // No usage at all is the same claim-nothing case.
-  expect(timingLine({ timing })).toContain('other processing 9.9s');
+  expect(measurementRows(timing)).toContainEqual(['Other processing','9874 ms']);
+  expect(measurementRows(timing)).toContainEqual(['Reasoning duration','Not available']);
 });
 
 it('legacy hidden reasoning and unknown events never become public activity or tools',()=>{
@@ -191,9 +183,8 @@ it('legacy hidden reasoning and unknown events never become public activity or t
  expect(html).toContain('Writing the answer.');expect(html).not.toContain('PRIVATE');expect(html).not.toContain('Looking up');
 });
 it('only timing can render a completed summary without making unsupported failover claims',()=>{
- const line=timingLine({timing:{writing_ms:800}});
- expect(line).toContain('800ms');expect(line).not.toContain('unavailable');
- expect(renderToStaticMarkup(<ActivityTicker timing={{writing_ms:800}} model={{requested:'a',served:'b'}} />)).toContain('Answered by b');
+ expect(measurementRows({writing_ms:800})).toContainEqual(['Answer generation','800 ms']);
+ expect(renderToStaticMarkup(<ActivityTicker timing={{writing_ms:800}} model={{requested:'a',served:'b'}} />)).toContain('b · Answered');
 });
 it('efforts are known, unique, and unavailable models offer no choices',()=>{
  expect(effortsFor([{model_id:'m',efforts:['low','bogus','low','off',null]}],'m')).toEqual(['off','low']);
@@ -269,7 +260,7 @@ it('row evidence opts out of generated briefs while ordinary desk records retain
 });
 
 it('served model is retained even when durable timing is absent',()=>{
- expect(renderToStaticMarkup(<ActivityTicker model={{requested:'first',served:'served-model'}}/>)).toContain('Answered by served-model');
+ expect(renderToStaticMarkup(<ActivityTicker model={{requested:'first',served:'served-model'}}/>)).toContain('served-model · Answered');
 });
 
 describe('RAG v2 optional citation fields (chunk contract, citation payload)', () => {

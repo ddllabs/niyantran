@@ -147,6 +147,7 @@ export interface RetrievalContext {
   signal: AbortSignal;
   /** Passages to ask for; set on a widened search only (agent WIDENED_TOP_K), else retrieval's default. */
   topK?: number;
+  onTiming?: (phase: 'embeddingMs' | 'retrievalMs', ms: number) => void;
   beginEmbeddingAttempt(model: string): ReturnType<AttemptRecorder['beginEmbeddingAttempt']>;
 }
 
@@ -803,22 +804,26 @@ async function runTurnBody(
             error_message: null,
           }]);
         }
-        sender.send({ tool: { name: f.name, phase: 'start', input: f.input, step: f.step } });
+        sender.send({ tool: { name: f.name, phase: 'start', input: f.input, step: f.step, ...(f.requestedTopK === undefined ? {} : { requestedTopK: f.requestedTopK }) } });
       } else {
         attempts.addTraces(
           turnTraceRows({ userId: caller.userId, conversationId: conversation.id, messageId, steps: [f] }),
         );
         searchMs += f.latencyMs;
         const found = f.found ? { found: f.found } : {};
-        sender.send({ tool: { name: f.name, phase: 'end', step: f.step, resultCount: f.resultCount, ...found } });
+        const measurements = { latencyMs: f.latencyMs, status: f.status,
+          ...(f.requestedTopK === undefined ? {} : { requestedTopK: f.requestedTopK }),
+          ...(f.embeddingMs === undefined ? {} : { embeddingMs: f.embeddingMs }),
+          ...(f.retrievalMs === undefined ? {} : { retrievalMs: f.retrievalMs }),
+        };
+        sender.send({ tool: { name: f.name, phase: 'end', step: f.step, resultCount: f.resultCount, ...measurements, ...found } });
         activity.push({
           type: 'tool',
           name: f.name,
           input: f.input,
           step: f.step,
           resultCount: f.resultCount,
-          latencyMs: f.latencyMs,
-          status: f.status,
+          ...measurements,
           ...found,
         });
       }
@@ -878,9 +883,10 @@ async function runTurnBody(
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
           model: attempts.wrap(deps.stream, 'chat_answer'),
-          searchDocuments: (args, ids, topK) =>
+          searchDocuments: (args, ids, topK, onTiming) =>
             deps.searchDocuments(args, ids, {
               signal,
+              onTiming,
               ...(topK === undefined ? {} : { topK }),
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),

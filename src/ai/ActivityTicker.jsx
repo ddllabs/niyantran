@@ -41,13 +41,16 @@ function plural(n, one, many) {
 export function stepLabel(step) {
   if (step.type === 'activity') return step.text;
   const input = inputOf(step);
-  const n = Number.isFinite(step.resultCount) && step.resultCount >= 0 ? step.resultCount : 0;
+  if (step.phase === 'end' && ['error', 'cancelled'].includes(step.status)) {
+    return `${step.status === 'cancelled' ? 'Cancelled' : 'Failed'} ${step.name === 'search_documents' ? 'document search' : 'desk lookup'}${input.query ? ` “${input.query}”` : ''}`;
+  }
+  const n = Number.isFinite(step.resultCount) && step.resultCount >= 0 ? step.resultCount : null;
   if (step.name === 'search_documents') {
     if (step.phase !== 'end') return input.query ? `Searching “${input.query}”…` : 'Searching documents…';
-    return `${input.query ? `Searched “${input.query}”` : 'Searched documents'} · ${plural(n, 'passage', 'passages')}`;
+    return `${input.query ? `Searched “${input.query}”` : 'Searched documents'}${n === null ? '' : ` · ${plural(n, 'passage', 'passages')}`}`;
   }
   const where = input.feature || input.tier || 'the desk';
-  return step.phase === 'end' ? `Looked up ${where} · ${plural(n, 'row', 'rows')}` : `Looking up ${where}…`;
+  return step.phase === 'end' ? `Looked up ${where}${n === null ? '' : ` · ${plural(n, 'row', 'rows')}`}` : `Looking up ${where}…`;
 }
 
 /** Each document the finished searches found, once, with its pages merged and sorted. */
@@ -88,26 +91,59 @@ export function finishedSummary({ steps = [], sourceCount = 0, timing = null, hi
   return line || (hi ? 'उत्तर दिया' : 'Answered');
 }
 
-function seconds(ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return '';
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+export function actionState(step, active = false, hi = false) {
+  const state = step.phase !== 'end' ? (active ? 'Searching' : 'Incomplete')
+    : step.status === 'cancelled' ? 'Cancelled' : step.status === 'error' ? 'Failed' : 'Completed';
+  return hi ? ({Searching:'खोज जारी',Incomplete:'अधूरा',Cancelled:'रद्द',Failed:'विफल',Completed:'पूर्ण'})[state] : state;
 }
 
-/** The measured buckets. */
-export function timingLine({ timing = null }) {
-  return [
-    // answer-streaming spec §2: how long the reader waited for the answer's first word.
-    timing?.first_answer_ms ? `first word ${seconds(timing.first_answer_ms)}` : '',
-    timing?.search_ms ? `searched ${seconds(timing.search_ms)}` : '',
-    // Residual elapsed time includes waiting and orchestration, not measured model reasoning.
-    timing?.reasoning_ms ? `other processing ${seconds(timing.reasoning_ms)}` : '',
-    timing?.writing_ms ? `wrote ${seconds(timing.writing_ms)}` : '',
-  ].filter(Boolean).join(' · ');
+const measured = (value, hi) => Number.isFinite(value) && value >= 0
+  ? `${Math.round(value)} ${hi ? 'मि.से.' : 'ms'}` : (hi ? 'उपलब्ध नहीं' : 'Not available');
+const EFFORTS = { off:['No reasoning','बंद'], minimal:['Minimal','न्यूनतम'], low:['Low','कम'], medium:['Medium','मध्यम'], high:['High','उच्च'], xhigh:['Extra high','बहुत उच्च'] };
+const effortLabel = (effort, hi) => Object.hasOwn(EFFORTS,effort) ? EFFORTS[effort][hi ? 1 : 0] : (hi?'उपलब्ध नहीं':'Not available');
+
+export function measurementRows(timing, steps = [], hi = false) {
+  const documents = steps.filter(s=>s.type === 'tool' && s.phase === 'end' && s.name === 'search_documents');
+  const sum = key => documents.length && documents.every(s=>Number.isFinite(s[key]) && s[key]>=0)
+    ? documents.reduce((n,s)=>n+s[key],0) : undefined;
+  const rows = [
+    ['Search actions','खोज कार्रवाइयाँ',timing?.search_ms],
+    ['Query embedding','प्रश्न एम्बेडिंग',sum('embeddingMs')],
+    ['Database retrieval','डेटाबेस रिट्रीवल',sum('retrievalMs')],
+    ['Reasoning duration','तर्क अवधि',undefined],
+    ['Answer generation','उत्तर लेखन',timing?.writing_ms],
+    ['Other processing','अन्य प्रोसेसिंग',timing?.reasoning_ms],
+    ['Total','कुल',timing?.total_ms],
+    ['First answer latency','पहले उत्तर की प्रतीक्षा',timing?.first_answer_ms > 0 ? timing.first_answer_ms : undefined],
+  ];
+  return rows.map(([en,local,value])=>[hi?local:en,measured(value,hi)]);
 }
 
-/** The model that answered, when it was not the one asked: said on the summary line itself. */
-export function swapLabel({ model = null, labelOf = (id) => id }) {
-  return model?.served && model.served !== model.requested ? `Answered by ${labelOf(model.served)}` : '';
+export function ActivityDetails({ steps = [], active = false, timing, model, effort, lang = 'en', labelOf = id=>id }) {
+  const hi = lang === 'hi';
+  const served = model?.served || model?.requested;
+  return <div className="ai-activity-details">
+    <dl className="ai-activity-measurements">
+      <dt>{hi?'मॉडल':'Model'}</dt><dd>{served ? <>{labelOf(served)}<small>{served}</small></> : (hi?'उपलब्ध नहीं':'Not available')}</dd>
+      {model?.requested && model?.served && model.requested !== model.served ? <><dt>{hi?'अनुरोधित मॉडल':'Requested model'}</dt><dd>{model.requested}</dd></> : null}
+      <dt>{hi?'अनुरोधित सोच स्तर':'Requested thinking effort'}</dt><dd>{effortLabel(effort,hi)}</dd>
+    </dl>
+    {steps.length ? <ol className="ai-ticker-steps">
+      {steps.map((s,i)=><li key={`${s.type}-${s.step ?? i}`} className={`ai-ticker-step ${s.type}`}>
+        {s.type === 'tool' ? <>
+          <div className="ai-action-heading"><strong>{actionState(s,active,hi)}</strong><span>{s.name === 'search_documents' ? (hi?'दस्तावेज़ खोज':'Document search') : (hi?'डेस्क खोज':'Desk lookup')}</span></div>
+          <span>{s.phase !== 'end' && !active ? (inputOf(s).query || inputOf(s).feature || '') : stepLabel(s)}</span>
+          <dl className="ai-activity-measurements">
+            {Number.isSafeInteger(s.requestedTopK) && s.requestedTopK > 0 ? <><dt>{hi?'अनुरोधित टॉप-K':'Requested top-K'}</dt><dd>{s.requestedTopK}</dd></> : null}
+            <dt>{hi?'बीता समय':'Elapsed'}</dt><dd>{measured(s.latencyMs,hi)}</dd>
+            {s.name === 'search_documents' ? <><dt>{hi?'एम्बेडिंग':'Embedding'}</dt><dd>{measured(s.embeddingMs,hi)}</dd><dt>{hi?'डेटाबेस रिट्रीवल':'Database retrieval'}</dt><dd>{measured(s.retrievalMs,hi)}</dd></> : null}
+          </dl>
+        </> : <span>{s.text}</span>}
+      </li>)}
+    </ol> : null}
+    <dl className="ai-activity-measurements ai-activity-timing">{measurementRows(timing,steps,hi).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <p className="ai-activity-note">{hi?'एम्बेडिंग और डेटाबेस समय खोज समय के हिस्से हैं। पहले उत्तर की प्रतीक्षा अन्य चरणों से ओवरलैप करती है। तर्क अवधि मापी नहीं जाती।':'Embedding and database times are included in search time. First answer latency overlaps other phases. Database time measures the RPC round trip. Reasoning duration is not measured.'}</p>
+  </div>;
 }
 
 function useNow(running) {
@@ -123,7 +159,7 @@ function useNow(running) {
 
 export default function ActivityTicker({
   activity = [], active = false, startedAt = 0, timing = null, model = null,
-  sourceCount = 0, labelOf = (id) => id, lang = 'en',
+  sourceCount = 0, effort = null, labelOf = (id) => id, lang = 'en',
 }) {
   const hi = lang === 'hi';
   const [open, setOpen] = useState(false);
@@ -134,10 +170,11 @@ export default function ActivityTicker({
 
   const found = foundSoFar(steps);
   const last = steps[steps.length - 1];
-  const head = active
+  const summary = active
     ? (last ? stepLabel(last) : (hi ? 'शुरू हो रहा है…' : 'Starting…'))
-    : [finishedSummary({ steps, sourceCount, timing, hi }), swapLabel({ model, labelOf })].filter(Boolean).join(' · ');
-  const details = active ? '' : timingLine({ timing });
+    : finishedSummary({ steps, sourceCount, timing, hi });
+  const modelId = model?.served || model?.requested;
+  const head = [modelId && labelOf(modelId), effort && effortLabel(effort,hi), summary].filter(Boolean).join(' · ');
 
   return (
     <div className={`ai-ticker${active ? ' active' : ''}`}>
@@ -157,16 +194,7 @@ export default function ActivityTicker({
         </span>
       </button>
 
-      {open && steps.length ? (
-        <ol className="ai-ticker-steps">
-          {steps.map((s, i) => (
-            <li key={`${s.type}-${s.step ?? i}`} className={`ai-ticker-step ${s.type}`}>
-              <span>{stepLabel(s)}</span>
-              {s.type === 'tool' && s.latencyMs ? <small>{seconds(s.latencyMs)}</small> : null}
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      {open ? <ActivityDetails steps={steps} active={active} timing={timing} model={model} effort={effort} lang={lang} labelOf={labelOf} /> : null}
 
       {open && found.length ? (
         <p className="ai-ticker-found">
@@ -175,7 +203,6 @@ export default function ActivityTicker({
         </p>
       ) : null}
 
-      {open && details ? <p className="ai-ticker-timing">{details}</p> : null}
     </div>
   );
 }

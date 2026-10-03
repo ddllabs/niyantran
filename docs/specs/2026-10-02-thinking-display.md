@@ -118,3 +118,10 @@ Searches show their terms and result counts live. They do not say what was found
 
 **Frontend and server together.** The client tolerates frames without `found` (the old server)
 and the server's new field (an older client ignores unknown keys), so either side can ship first.
+# F64 amendment (2026-10-04)
+
+> **Status: Normative.** The owner-approved
+> [activity-details spec](2026-10-04-activity-details.md) supersedes model
+> headings, timing prose and search-state rendering. Model/requested effort now
+> belong in the accordion; action and timing measurements appear as structured
+> rows. Backend measurement additions are local until separately deployed.

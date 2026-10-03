@@ -17,9 +17,25 @@ function deps(over: Partial<RetrievalDeps> & { rows?: unknown[]; calls?: Record<
       return Promise.resolve({ data: over.rows ?? [], error: null });
     }),
     onTrace: over.onTrace,
+    onTiming: over.onTiming,
     now: over.now,
   };
 }
+
+Deno.test('retrieval measures embedding and database RPC boundaries including zero', async () => {
+  let t = 100;
+  const measurements: unknown[] = [];
+  await search(deps({ now:()=>t, onTiming:(phase,ms)=>measurements.push([phase,ms]),
+    embed:()=>{t+=5;return Promise.resolve({vector:vec(),model:'openai/text-embedding-3-small'});},
+    rpc:()=>Promise.resolve({data:[],error:null}),
+  }),{query:'q'});
+  assertEquals(measurements,[['embeddingMs',5],['retrievalMs',0]]);
+  measurements.length=0;
+  await assertRejects(()=>search(deps({now:()=>t,onTiming:(phase,ms)=>measurements.push([phase,ms]),
+    embed:()=>{t+=3;return Promise.reject(new Error('failed'));},
+  }),{query:'q'}));
+  assertEquals(measurements,[['embeddingMs',3]]);
+});
 
 Deno.test('a 1535-wide query vector and a foreign model are refused before the RPC', async () => {
   const calls: Record<string, unknown>[] = [];

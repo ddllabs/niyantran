@@ -187,4 +187,10 @@ Deno.test('the answer trace links to the call that wrote the answer, not to a fa
   // ever written, because turnTraceRows hard-coded it while the search had the
   // number in hand.
   assertEquals(tool.top_similarity, 0.71);
+  const cancelled = turnTraceRows({userId:'u',conversationId:'c',messageId:'m',steps:[{
+    step:2,name:'search_documents',toolCallId:'t2',scoped:false,input:{query:'q'},
+    resultCount:0,topSimilarity:null,latencyMs:10,chunkIds:[],rowKeys:[],status:'cancelled',
+  }]});
+  assertEquals(cancelled[0].aborted,true);
+  assertEquals(cancelled[0].error_message,null);
 });

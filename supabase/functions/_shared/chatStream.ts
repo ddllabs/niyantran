@@ -8,7 +8,7 @@ export type ToolPhase = 'start' | 'end';
 export type ChatFrame =
   | { conversation: { id: string; title: string } }
   | { reasoning: string }
-  | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
+  | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; latencyMs?: number; status?: 'ok' | 'error' | 'cancelled'; requestedTopK?: number; embeddingMs?: number; retrievalMs?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
   | { chunk: string }
   | { patch: { from: number; text: string } }
   | { model: { requested: string; served: string; reason: string } }
@@ -18,7 +18,7 @@ export type ChatFrame =
   | { notice: { kind: 'window'; dropped: number } }
   | {
     timing: { search_ms: number; reasoning_ms: number; writing_ms: number; total_ms: number; first_model_ms?: number; first_answer_ms?: number; rounds?: number };
-    /** The turn's reasoning count, so the live summary can say "thought" as the saved row does. */
+    /** Token usage is not a measurement of reasoning duration. */
     usage?: { reasoning_tokens: number };
   }
   | { duplicate: true }

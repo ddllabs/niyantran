@@ -374,7 +374,10 @@ Deno.test('a retrieved passage becomes a numbered citation the answer can carry'
       yield e.type === 'text' && handle ? { ...e, text: e.text.replace('ref:PLACEHOLDER-1', handle) } : e;
     }
   };
-  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: () => Promise.resolve([chunk('c-1')]) });
+  const { deps, rec } = fakeDeps({ stream }, { searchDocuments: (_args,_ids,context) => {
+    context?.onTiming?.('embeddingMs',7); context?.onTiming?.('retrievalMs',0);
+    return Promise.resolve([chunk('c-1')]);
+  } });
   const got = await frames(await handleResearchChat(post(BODY), deps));
   const sources = (got.find((f) => 'sources' in f) as { sources: unknown[] }).sources;
   assertEquals(sources.length, 1);
@@ -383,6 +386,14 @@ Deno.test('a retrieved passage becomes a numbered citation the answer can carry'
   assertEquals(rec.messages[0].content, 'It reached committee [1].');
   const toolFrames = got.filter((f) => 'tool' in f);
   assertEquals(toolFrames.length, 2, 'one start and one end');
+  const end = toolFrames.find(f=>'tool' in f && f.tool.phase === 'end');
+  assert(end && 'tool' in end);
+  const saved = rec.messages[0].activity.find((a)=>typeof a === 'object' && a !== null && 'type' in a && a.type === 'tool') as Record<string,unknown>;
+  assertEquals(end.tool.latencyMs, saved.latencyMs);
+  assertEquals(end.tool.status, 'ok');
+  assertEquals(end.tool.requestedTopK, 40);
+  assertEquals(end.tool.embeddingMs, 7);
+  assertEquals(end.tool.retrievalMs, 0);
   assert(rec.traces.some((t) => t.step_type === 'search_documents' && t.result_count === 1));
   // The answer phase is offered the tools with tool_choice 'none'; it is still
   // the call the answer trace names.

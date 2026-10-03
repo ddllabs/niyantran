@@ -14,10 +14,16 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F64 is next) and goes in the
+- A new finding gets the next free `F` number (F65 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F64. Activity details.** Consolidate model/effort in the accordion and
+  show action states, top-K and measured retrieval timing. Owner approved;
+  [spec](../specs/2026-10-04-activity-details.md),
+  [plan](2026-10-04-activity-details.md). Local only; backend telemetry needs a
+  separately authorized deployment. Reasoning duration remains unavailable.
 
 - [ ] **F63. AI Research chat presentation.** Owner-approved chat-only layout,
   composer attachments, model/effort visibility, Send/Stop feedback, Copy/time,

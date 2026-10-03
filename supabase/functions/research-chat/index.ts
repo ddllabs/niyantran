@@ -370,6 +370,7 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       caller();
       if (!context) throw new Error('Retrieval context required');
       return await search({
+        onTiming: context.onTiming,
         embed: (q) => embedQuery(q, context, r, r.env('OPENROUTER_API_KEY') ?? ''),
         rpc: (fn, a) => bounded((signal) => caller().rpc(fn, a).abortSignal(signal), r.timeoutMs, context.signal),
       }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK });

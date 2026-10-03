@@ -120,3 +120,14 @@
   .ai-shell.ai-shell-research .ai-v2-send, .ai-shell.ai-shell-research .ai-v2-send svg { transition: none; }
   .ai-shell.ai-shell-research .ai-v2-send:active:not(:disabled), .ai-shell.ai-shell-research .cite-bubble:active { transform: none; }
 }
+.ai-shell.ai-shell-research .ai-activity-details { padding: 8px 0 12px; }
+.ai-shell.ai-shell-research .ai-activity-measurements { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 1.4fr); gap: 6px 16px; margin: 8px 0; font-size: 12px; line-height: 1.5; }
+.ai-shell.ai-shell-research .ai-activity-measurements dt { color: var(--ai-muted); }
+.ai-shell.ai-shell-research .ai-activity-measurements dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ai-shell.ai-shell-research .ai-activity-measurements dd small { display: block; color: var(--ai-muted); }
+.ai-shell.ai-shell-research .ai-activity-timing > div { display: contents; }
+.ai-shell.ai-shell-research .ai-action-heading { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-shell.ai-shell-research .ai-action-heading strong { font-weight: 500; color: var(--ai-text); }
+.ai-shell.ai-shell-research .ai-activity-details .ai-ticker-steps { padding: 4px 0 4px 20px; }
+.ai-shell.ai-shell-research .ai-activity-details .ai-ticker-step { display: list-item; padding: 6px 0; }
+.ai-shell.ai-shell-research .ai-activity-note { margin: 12px 0 0; font-size: 11px; line-height: 1.5; color: var(--ai-muted); }

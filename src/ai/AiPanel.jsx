@@ -989,7 +989,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           {/* The turn in flight: the ticker, then the answer as it is written. */}
           {showFlight && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
-              <span>{stream?.model?.served ? labelOf(stream.model.served) : registry.models.find((x) => x.model_id === modelChoice.modelId)?.label || picked.label}</span>
               {/* One indicator from Send (thinking-display spec §1): the ticker opens at once on
                   "Starting…" and runs until the turn ends; the NyAI card it replaced covered only
                   the client's identity re-check before a differently sized ticker took over. */}
@@ -997,9 +996,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 activity={stream?.activity || []}
                 active={Boolean(research.submitting || streaming || stream?.isPending)}
                 startedAt={turnStartedAt}
-                model={stream?.model}
+                model={stream?.model || { requested: modelChoice.modelId }}
                 timing={stream?.timing}
-                usage={stream?.usage}
+                effort={modelChoice.effort}
                 labelOf={labelOf}
                 sourceCount={(stream?.sources || []).filter(isReadableCitation).length}
                 lang={lang}

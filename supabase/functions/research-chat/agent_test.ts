@@ -88,6 +88,31 @@ function fake(script: ModelEvent[][], over: Partial<AgentDeps> = {}) {
   return { deps, requests, events };
 }
 
+Deno.test('search actions retain top-K, measured subphases and explicit cancellation/failure', async () => {
+  const success = fake([], {searchDocuments:(_args,_ids,_topK,onTiming)=>{
+    onTiming?.('embeddingMs',7); onTiming?.('retrievalMs',0); return Promise.resolve([chunk('a')]);
+  }});
+  await assertRejects(()=>runAgent(success.deps,{...input,presearch:'q'}));
+  const done = success.events.find(e=>'tool' in e && e.tool.phase === 'end');
+  assert(done && 'tool' in done && done.tool.phase === 'end');
+  assertEquals(done.tool.requestedTopK,40);
+  assertEquals(done.tool.embeddingMs,7);
+  assertEquals(done.tool.retrievalMs,0);
+  assertEquals(done.tool.status,'ok');
+  for (const cancelled of [false,true]) {
+    const controller = new AbortController();
+    const failed = fake([], {request:{model:'test',signal:controller.signal},searchDocuments:()=>{
+      if(cancelled) controller.abort();
+      return Promise.reject(new Error('internal error must not be public'));
+    }});
+    await assertRejects(()=>runAgent(failed.deps,{...input,presearch:'q'}));
+    const end = failed.events.find(e=>'tool' in e && e.tool.phase === 'end');
+    assert(end && 'tool' in end && end.tool.phase === 'end');
+    assertEquals(end.tool.status,cancelled?'cancelled':'error');
+    assertEquals(end.tool.resultCount,0);
+  }
+});
+
 Deno.test('greeting makes no search and preserves provider configuration and transcript order', async () => {
   const f = fake([ready(), answer()]);
   // Small talk asks nothing, so retrieving nothing is right and the no-search

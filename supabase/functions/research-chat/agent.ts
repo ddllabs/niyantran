@@ -3,7 +3,7 @@
 // provider. Every deps.model invocation must represent exactly one attempt.
 import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
-import { accumulate, type Chunk } from '../_shared/retrieval.ts';
+import { accumulate, DEFAULT_TOP_K, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
 import {
   type DeskRow,
@@ -47,7 +47,7 @@ export interface DocumentSearchArgs {
   desk_feature?: string;
 }
 export type ToolFrame =
-  | { name: string; phase: 'start'; input: DocumentSearchArgs | SearchDeskRowsArgs; step: number }
+  | { name: string; phase: 'start'; input: DocumentSearchArgs | SearchDeskRowsArgs; step: number; requestedTopK?: number }
   | (TraceStep & { phase: 'end' });
 export interface TraceStep {
   step: number;
@@ -67,7 +67,10 @@ export interface TraceStep {
    */
   topSimilarity: number | null;
   latencyMs: number;
-  status: 'ok' | 'error';
+  status: 'ok' | 'error' | 'cancelled';
+  requestedTopK?: number;
+  embeddingMs?: number;
+  retrievalMs?: number;
   /** A document search's finds, for the reader to watch (thinking-display spec §3). */
   found?: Found[];
 }
@@ -131,7 +134,7 @@ export interface AgentDeps {
   request: Omit<StreamRequest, 'messages' | 'tools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
   /** `topK` is set only for a widened search when widenedTopK asks for it; otherwise retrieval's default. */
-  searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number): Promise<Chunk[]>;
+  searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number, onTiming?: (phase: RetrievalPhase, ms: number) => void): Promise<Chunk[]>;
   /** research-coverage fix B: send the model back once when its draft stops short (dig.ts). Off by
    * default until the measurement shows it helps (docs/specs/2026-10-02-research-coverage.md). */
   digNudge?: boolean;
@@ -457,14 +460,15 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       topSimilarity: null,
       latencyMs: 0,
       status: 'error',
+      ...(name === 'search_documents' ? { requestedTopK: topK ?? DEFAULT_TOP_K } : {}),
     };
     state.steps.push(trace);
-    deps.onEvent({ tool: { name, phase: 'start', input: args, step: trace.step } });
+    deps.onEvent({ tool: { name, phase: 'start', input: args, step: trace.step, ...(trace.requestedTopK === undefined ? {} : { requestedTopK: trace.requestedTopK }) } });
     try {
       // Retrieval deps have no signal parameter. The handler may bind the same
       // signal in their closures; we also check it before and after each await.
       const result = name === 'search_documents'
-        ? await deps.searchDocuments(args as DocumentSearchArgs, scope, topK)
+        ? await deps.searchDocuments(args as DocumentSearchArgs, scope, topK, (phase, ms) => { trace[phase] = (trace[phase] ?? 0) + ms; })
         : await deps.searchDeskRows(args as SearchDeskRowsArgs);
       checkAbort();
       if (Array.isArray(result)) {
@@ -480,6 +484,9 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       }
       trace.status = 'ok';
       return result;
+    } catch (error) {
+      if (deps.request.signal?.aborted) trace.status = 'cancelled';
+      throw error;
     } finally {
       trace.latencyMs = Math.max(0, now() - started);
       deps.onEvent({ tool: { ...structuredClone(trace), phase: 'end' } });

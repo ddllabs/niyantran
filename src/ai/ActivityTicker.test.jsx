@@ -1,9 +1,29 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel, timingLine } from './ActivityTicker.jsx';
+import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel, ActivityDetails, actionState, measurementRows } from './ActivityTicker.jsx';
 
 // thinking-display spec (docs/specs/2026-10-02-thinking-display.md), owner-approved 2026-10-02.
 describe('thinking display', () => {
+  it('consolidates model and requested effort in the activity summary', () => {
+    const html = renderToStaticMarkup(<ActivityTicker model={{requested:'model/a',served:'model/b'}} effort="low" labelOf={id=>id==='model/b'?'Model B':id} timing={{total_ms:1000}} />);
+    expect(html).toContain('Model B · Low');
+  });
+  it('distinguishes failed, cancelled and incomplete actions from successful zero results', () => {
+    expect(actionState({phase:'start'}, true)).toBe('Searching');
+    expect(actionState({phase:'start'}, false)).toBe('Incomplete');
+    expect(actionState({phase:'end',status:'error'})).toBe('Failed');
+    expect(actionState({phase:'end',status:'cancelled'})).toBe('Cancelled');
+    expect(actionState({phase:'end',status:'ok'})).toBe('Completed');
+    expect(stepLabel({name:'search_documents',phase:'end',status:'error',input:{query:'q'},resultCount:0})).not.toContain('0 passages');
+  });
+  it('keeps missing measurements unavailable and measured zero, without inventing reasoning duration', () => {
+    const rows=measurementRows({search_ms:0,reasoning_ms:6000,writing_ms:2300,total_ms:9000,first_answer_ms:5600},[]);
+    expect(rows).toContainEqual(['Search actions','0 ms']);
+    expect(rows).toContainEqual(['Reasoning duration','Not available']);
+    expect(rows).toContainEqual(['Database retrieval','Not available']);
+    expect(rows).toContainEqual(['Other processing','6000 ms']);
+    expect(rows).toContainEqual(['First answer latency','5600 ms']);
+  });
   it('§1: from Send it is one open status line, "Starting…", with an elapsed clock', () => {
     const html = renderToStaticMarkup(<ActivityTicker active startedAt={Date.now() - 75_000} />);
     expect(html).toContain('Starting…');
@@ -56,10 +76,11 @@ describe('thinking display', () => {
   });
 });
 
-// answer-streaming spec §2: the details say how long the first word of the answer took.
-it('the timing details lead with the first word, when the server measured one', () => {
-  const timing = { search_ms: 900, reasoning_ms: 12_000, writing_ms: 4_000, total_ms: 17_000, first_answer_ms: 3_100, rounds: 2 };
-  expect(timingLine({ timing, usage: { reasoning_tokens: 100 } })).toBe('first word 3.1s · searched 900ms · other processing 12.0s · wrote 4.0s');
-  expect(timingLine({ timing: { ...timing, first_answer_ms: 0 } })).not.toContain('first word');
-  expect(timingLine({ timing: { search_ms: 900 } })).toBe('searched 900ms');
+it('expanded details preserve exact model, requested fallback and first-answer latency', () => {
+  const timing = { search_ms:900, reasoning_ms:12000, writing_ms:4000, total_ms:17000, first_answer_ms:3100 };
+  const html=renderToStaticMarkup(<ActivityDetails timing={timing} model={{requested:'model/a',served:'model/b'}} effort="low" />);
+  expect(html).toContain('model/b'); expect(html).toContain('Requested model'); expect(html).toContain('model/a');
+  expect(html).toContain('First answer latency'); expect(html).toContain('3100 ms');
+  expect(html).toContain('Reasoning duration'); expect(html).toContain('Not available');
+  expect(stepLabel({name:'search_documents',phase:'end'})).not.toContain('0 passages');
 });

@@ -42,10 +42,13 @@ export interface RetrievalTrace {
   noChunks: boolean;
 }
 
+export type RetrievalPhase = 'embeddingMs' | 'retrievalMs';
+
 export interface RetrievalDeps {
   embed(query: string): Promise<{ vector: number[]; model: string }>;
   rpc(fn: 'match_documents', args: Record<string, unknown>): Promise<{ data: unknown[] | null; error: { message: string } | null }>;
   onTrace?(trace: RetrievalTrace): void;
+  onTiming?(phase: RetrievalPhase, ms: number): void;
   now?: () => number;
 }
 
@@ -113,10 +116,15 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
   const started = now();
   const query = input.query.trim();
   if (!query) throw new Error('search: empty query');
-  const { vector, model } = await deps.embed(query);
+  const measure = async <T>(phase: RetrievalPhase, operation: () => Promise<T>): Promise<T> => {
+    const start = now();
+    try { return await operation(); }
+    finally { deps.onTiming?.(phase, Math.max(0, Math.round(now() - start))); }
+  };
+  const { vector, model } = await measure('embeddingMs', () => deps.embed(query));
   if (!servedModelMatches(model)) throw new Error(`search: query embedded by ${model}, expected the corpus model`);
   if (vector.length !== EMBED_DIMS) throw new Error(`search: query embedding width ${vector.length}, expected ${EMBED_DIMS}`);
-  const { data, error } = await deps.rpc('match_documents', {
+  const { data, error } = await measure('retrievalMs', () => deps.rpc('match_documents', {
     query_embedding: vector,
     match_count: input.topK ?? DEFAULT_TOP_K,
     p_document_ids: input.documentIds ?? null,
@@ -126,7 +134,7 @@ export async function search(deps: RetrievalDeps, input: SearchInput): Promise<C
     // does not know. Omitting it keeps this function deployable either side
     // of that migration.
     ...(input.deskFeature ? { p_desk_feature: input.deskFeature } : {}),
-  });
+  }));
   if (error) throw new Error(`match_documents: ${error.message}`);
   const chunks: Chunk[] = [];
   for (const row of data ?? []) chunks.push(await rowToChunk(row));
