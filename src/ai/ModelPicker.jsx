@@ -56,10 +56,10 @@ export function groupByVendor(models) {
   return [...groups.entries()].map(([vendor, items]) => ({ vendor, items }));
 }
 
-/** A one-to-three dot cost hint from the model's tier. */
+/** A one-to-three diamond cost hint from the model's tier. */
 export function costHint(model) {
   const tier = Number(model?.tier) || 1;
-  return '•'.repeat(Math.min(3, Math.max(1, tier)));
+  return '◆'.repeat(Math.min(3, Math.max(1, tier)));
 }
 
 /**
@@ -127,7 +127,7 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
         {picked && chosen ? (
           <span className="ai-v2-model-eff">{EFFORT_LABELS[chosen] || chosen}</span>
         ) : null}
-        <span className="ai-model-chevron" aria-hidden="true">⌄</span>
+        {picked ? <span className="ai-v2-model-cost" title={`Relative cost tier ${costHint(picked).length} of 3`} aria-hidden="true">{costHint(picked)}</span> : null}
       </button>
 
       {open ? (

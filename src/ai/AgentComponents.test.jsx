@@ -75,8 +75,8 @@ describe('ActivityTicker', () => {
 describe('ModelPicker', () => {
   it('groups by vendor, hints at cost, and limits reasoning to what the model accepts', () => {
     expect(groupByVendor(MODELS).map((g) => g.vendor)).toEqual(['google', 'deepseek', 'anthropic']);
-    expect(costHint(MODELS[0])).toBe('•');
-    expect(costHint(MODELS[2])).toBe('•••');
+    expect(costHint(MODELS[0])).toBe('◆');
+    expect(costHint(MODELS[2])).toBe('◆◆◆');
     expect(effortsFor(MODELS, 'deepseek/deepseek-v4-flash')).toEqual(['off', 'high', 'xhigh']);
     // No 'off': this model mandates reasoning, and the list is no longer
     // prepended with a rung the model would refuse.
@@ -367,4 +367,11 @@ it('live steps: a started search shows once, and its end replaces it', () => {
   expect(tickerSteps(live).map((s) => [s.step, s.phase])).toEqual([[1, 'end'], [2, 'start']]);
   // Tools outside the two searches, and unknown phases, are still dropped.
   expect(tickerSteps([{ type: 'tool', name: 'delete_all', input: {} }, { type: 'tool', name: 'search_documents', phase: 'bogus', step: 1 }])).toEqual([]);
+});
+
+it('shows the selected cost tier in the trigger without a trailing chevron',()=>{
+ const html=renderToStaticMarkup(<ModelPicker models={[{model_id:'m',label:'Flash',tier:2,efforts:['low']}]} value={{modelId:'m',effort:'low'}} />);
+ expect(html).toContain('title="Relative cost tier 2 of 3"');
+ expect(html).toContain('◆◆');
+ expect(html).not.toContain('ai-model-chevron');
 });

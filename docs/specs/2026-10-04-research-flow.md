@@ -76,3 +76,10 @@ Seventh owner amendment, 2026-10-04: a further vertical-only tightening uses
 flow padding 4px 12px 2px, usage bottom margin 4px, stage bottom padding 6px
 and query top margin 2px. Text size, line height and horizontal geometry stay
 unchanged. This supersedes the fifth amendment's vertical gap values.
+
+Eighth owner amendment, 2026-10-04: composer model selector uses a compact
+soft-accent pill, retaining model name/effort and showing one-to-three cost
+diamonds from the existing tier hint. Tooltip explains relative cost tier.
+Remove the trigger chevron; preserve menu keyboard/disclosure behavior and
+selected model/effort accessible states. Restore selected-row theme styling.
+No pricing/provider changes, attachment/source redesign or deployment.

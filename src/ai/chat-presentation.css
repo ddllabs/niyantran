@@ -10,7 +10,7 @@
   color: var(--ai-text);
 }
 .ai-shell.ai-shell-research :is(.ai-v2-chrome, .ai-v2-toolbar, .ai-v2-foot, .ai-v2-composer,
-  .ai-v2-pop, .ai-v2-model-menu, .ai-v2-model-btn, .ai-v2-files li, .ai-sources,
+  .ai-v2-pop, .ai-v2-model-menu, .ai-v2-files li, .ai-sources,
   .ai-v2-tool-btn, .ai-v2-work, .ai-v2-history-pop, .ai-v2-history-item) {
   background: var(--ai-surface);
   color: var(--ai-text);
@@ -106,11 +106,10 @@
 .ai-shell.ai-shell-research .ai-v2-composer textarea { box-sizing: border-box; color: var(--ai-text); font-size: 15px; font-weight: 400; line-height: 1.5; }
 .ai-shell.ai-shell-research .ai-v2-composer textarea::placeholder { color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-v2-comp-tools > div { min-width: 0; }
-.ai-shell.ai-shell-research .ai-v2-model-btn { gap: 5px; border: 0; padding: 0 4px; height: 32px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+.ai-shell.ai-shell-research .ai-v2-model-btn { gap: 6px; border: 0; padding: 0 10px; height: 32px; border-radius: 999px; background: var(--ai-blue-soft); color: var(--ai-text); font-size: 12px; font-weight: 500; }
 .ai-shell.ai-shell-research .ai-v2-model-name { min-width: 3rem; max-width: 12rem; }
 .ai-shell.ai-shell-research .ai-v2-model-eff { flex: 0 0 auto; background: transparent; color: var(--ai-muted); padding: 0; font-size: 11px; font-weight: 400; }
 .ai-shell.ai-shell-research .ai-v2-model-eff::before { content: '·'; margin-right: 5px; }
-.ai-shell.ai-shell-research .ai-model-chevron { color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-v2-send { position: relative; width: 36px; height: 36px; background: var(--ai-blue); color: var(--ai-surface); transform: none; transition: opacity 140ms; }
 .ai-shell.ai-shell-research .ai-v2-send:disabled { transform: none; }
 .ai-shell.ai-shell-research .ai-v2-send.stop { background: var(--ai-text); }
@@ -150,3 +149,7 @@
 .ai-shell.ai-shell-research .ai-message-actions button { width: 28px; justify-content: center; }
 .ai-shell.ai-shell-research .ai-copy-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ai-shell.ai-shell-research .ai-ticker-glyph { width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 8px; background: var(--ai-blue-soft); color: var(--ai-blue); }
+
+.ai-shell.ai-shell-research .ai-v2-model-cost { color: var(--ai-muted); font-size: 9px; letter-spacing: 1px; }
+.ai-shell.ai-shell-research .ai-v2-model-opt.on { background: var(--ai-blue-soft); color: var(--ai-blue); }
+.ai-shell.ai-shell-research .ai-v2-effort.on { background: var(--ai-blue-soft); color: var(--ai-blue); border-color: var(--ai-blue); }

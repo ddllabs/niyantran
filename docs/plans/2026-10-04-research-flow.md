@@ -185,3 +185,23 @@ still 313px/13px/19.5px. At 375px no horizontal overflow. Screenshot
 `/private/tmp/f65-tight-flow-final.jpg`. Lint/build exit 0 with existing build
 warnings; diff check clean. No unit rerun for CSS-only adjustment; last full
 suite remains 2,087 passing tests. No changes to behavior or animation.
+
+## Composer model pill amendment
+
+Sequential scope: ModelPicker, scoped CSS, AgentComponents tests and F65 docs.
+Red/green for diamonds and chevron removal. Use existing tier hint without
+changing pricing semantics; selected model/effort styles remain theme-aware.
+Verify full tests/lint/build and browser picker, keyboard, narrow-width and
+selection state. Attachment/source comparison remains read-only.
+
+Model pill evidence: new trigger guard and diamond expectations failed before
+implementation; 36 focused tests passed after. Full `npm test`: 129 files,
+2,088 passed. Final lint/build exit 0; existing mixed-import/large-chunk warnings
+remain. Diff check clean. Real-component offline browser confirmed rounded
+soft-accent pill, tier tooltip and no trigger chevron; keyboard Enter opens and
+Escape closes. Selected model and Low effort both have soft-accent highlights
+and aria-pressed true. Picking the tier-two fixture model changed the trigger
+to two diamonds; dark-mode surface followed theme tokens. No overflow at 375px.
+Runtime review caught a generic surface selector overriding the trigger's tint;
+removing the trigger from that selector fixed the computed background.
+Screenshot `/private/tmp/f65-model-picker.jpg`. No pricing/API/provider changes.
