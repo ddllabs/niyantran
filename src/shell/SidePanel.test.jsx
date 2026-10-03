@@ -99,3 +99,8 @@ describe('the side panel', () => {
     expect(html).toContain('<span class="tab-long">AI research</span><span class="tab-short" aria-hidden="true">AI</span>');
   });
 });
+
+it('dock separator exposes a numeric range and current width', () => {
+  const html = render({});
+  expect(html).toMatch(/role="separator"[^>]*aria-valuemin="[0-9]+"[^>]*aria-valuemax="[0-9]+"[^>]*aria-valuenow="[0-9]+"/);
+});

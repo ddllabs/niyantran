@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useEffect, useMemo, useState } from 'react';
 import { DELIM_SIZES } from '../data/nationalCurated.js';
 import { allocateSeats, applyVizFilter } from '../lib/nationalKpi.js';
@@ -160,7 +161,7 @@ export default function DelimitationDesk({ selected, onSelect, onFeed, vizFilter
               <tr
                 key={r.name}
                 className={selected?.name === r.name ? 'on' : ''}
-                onClick={() => onSelect?.(selected?.name === r.name ? null : r)}
+                {...rowSelectionProps(() => onSelect?.(selected?.name === r.name ? null : r))}
                 {...rowDragProps(r, { title: r.name, feature: 'Delimitation' })}
               >
                 <td className="delim-state">{r.name}</td>

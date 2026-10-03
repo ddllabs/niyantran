@@ -7,9 +7,7 @@ import { entryFingerprintFnv, peekDeskBrief } from '../lib/deskBrief.js';
  * (or when a brief was previously saved).
  */
 export function useEntryBrief({ feed, selected, loading }) {
-  const [brief, setBrief] = useState(null);
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState({ key: '', brief: null, err: '', busy: false });
   const feature = feed?.feature || '';
   const tier = feed?.tier || '';
   const rowKey =
@@ -22,46 +20,37 @@ export function useEntryBrief({ feed, selected, loading }) {
     '';
   const fp = selected && feature ? entryFingerprintFnv(selected, feature, tier) : '';
 
+  const key = JSON.stringify([feature, tier, rowKey, fp]);
+  const enabled = Boolean(!loading && feature && selected && selected.status !== 'source_status');
+
   useEffect(() => {
-    if (loading || !feature || !selected || selected.status === 'source_status') {
-      setBrief(null);
-      setErr('');
-      setBusy(false);
+    if (!enabled) {
+      setResult({ key: '', brief: null, err: '', busy: false });
       return undefined;
     }
     const ac = new AbortController();
     let alive = true;
-    const row = selected;
-    setBusy(true);
-    setErr('');
-    peekDeskBrief({
-      feature,
-      tier,
-      row,
-      signal: ac.signal,
-      scope: 'entry',
-    })
-      .then((b) => {
-        if (!alive) return;
-        setBrief(b || null);
-        setErr('');
+    setResult({ key, brief: null, err: '', busy: true });
+    peekDeskBrief({ feature, tier, row: selected, signal: ac.signal, scope: 'entry' })
+      .then((brief) => {
+        if (alive) setResult({ key, brief: brief || null, err: '', busy: false });
       })
       .catch((e) => {
-        if (!alive || e?.name === 'AbortError') return;
-        setErr(e.message || String(e));
-        setBrief((prev) => prev || null);
-      })
-      .finally(() => {
-        if (alive) setBusy(false);
+        if (alive && e?.name !== 'AbortError') {
+          setResult({ key, brief: null, err: 'Organised summary unavailable for this entry.', busy: false });
+        }
       });
     return () => {
       alive = false;
       ac.abort();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on rowKey and the row fingerprint, so a re-created row object does not refetch.
-  }, [feature, tier, rowKey, fp, loading]);
+    // The identity includes the fingerprint; a re-created equivalent row does not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, enabled]);
 
-  return { brief, err, busy };
+  // Effects run after render: fence the visible result now, before the new lookup starts.
+  if (!enabled || result.key !== key) return { brief: null, err: '', busy: enabled };
+  return { brief: result.brief, err: result.err, busy: result.busy };
 }
 
 /** Plain lines from a brief, suitable for existing copy blocks. */

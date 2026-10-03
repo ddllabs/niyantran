@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useEffect, useMemo, useState } from 'react';
 import {
   deskCopy,
@@ -230,7 +231,7 @@ export default function AssetRegister({ feed, selected, onSelect, featureName, v
             </thead>
             <tbody>
               {view.map((p) => (
-                <tr key={p.id} className={p.id === current?.id ? 'alw-row-selected' : ''} onClick={() => onSelect?.(p.row || p)} {...rowDragProps(p.row || p, { title: p.name, feature: feed?.feature })}>
+                <tr key={p.id} className={p.id === current?.id ? 'alw-row-selected' : ''} {...rowSelectionProps(() => onSelect?.(p.row || p))} {...rowDragProps(p.row || p, { title: p.name, feature: feed?.feature })}>
                   {copy.columns.map((c, i) => (
                     <td key={c} className={i === copy.columns.length - 1 ? 'alw-obligation' : i === 1 ? 'alw-kind' : ''} title={String(cell(p, i) || '')}>
                       {i === 0 && kind === 'nuclear' ? (

@@ -162,11 +162,8 @@ function LinkageGraph({ model, kind, rebuild, onFit, showAll, onShowAll }) {
             {nodes.length} nodes · {links.length} links
           </em>
         </span>
-        <button type="button" onClick={onFit} title="Re-centre the layout">
-          Fit
-        </button>
-        <button type="button" onClick={onFit} title="Re-run the layout">
-          ↻ Rebuild
+        <button type="button" onClick={onFit} title="Re-run the linkage layout">
+          Rebuild layout
         </button>
       </div>
       <svg ref={svgRef} className="brec-gsvg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Linkage graph for ${model.name}`}>
@@ -581,7 +578,7 @@ export default function BillRecordPane({ row, onClear, onAskAi, liveCount, desk,
                   How the impact travels
                 </button>
               </div>
-              <p className="brec-hint">Hover, drag or select any node in the graph to read how this {noun} reaches it.</p>
+              <p className="brec-hint">The graph shows this {noun}’s links. Use the impact options to read where it lands and how its impact travels.</p>
             </>
           ) : null}
           {impact === 'lands' ? <p className="brec-impact">{whereItLands(model)}</p> : null}

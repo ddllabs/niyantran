@@ -3,7 +3,7 @@ import AiPanel from '../ai/AiPanel.jsx';
 import PanelOverlay from './PanelOverlay.jsx';
 import RailContent, { railClasses } from './RailContent.jsx';
 import {
-  PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelReducer, readStoredPanelWidth, stepPanelWidth,
+  PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelBounds, panelReducer, readStoredPanelWidth, resolvePanelWidth, stepPanelWidth,
 } from './sidePanelModel.js';
 import { writeStored } from './resizeModel.js';
 
@@ -127,6 +127,18 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
   const hi = lang === 'hi';
   const asideRef = useRef(null);
   const drag = useRef(null);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
+  useEffect(() => {
+    const workspace = asideRef.current?.parentElement;
+    const update = () => setWorkspaceWidth(Math.round(workspace?.getBoundingClientRect().width || 0));
+    update();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    if (workspace) observer?.observe(workspace);
+    window.addEventListener('resize', update);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', update); };
+  }, []);
+  const bounds = panelBounds(workspaceWidth);
+  const currentWidth = resolvePanelWidth(width ?? null, workspaceWidth);
   const tabs = availableTabs({ hasRail, selected });
   const tabRefs = useRef({});
   const closeAi = useCallback(() => act({ type: 'close-ai' }), [act]);
@@ -164,6 +176,8 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
       if (!d) return;
       d.px = dragPanelWidth(d.start, d.x, e.clientX, d.ws);
       workspace()?.style.setProperty('--panel-chosen', `${d.px}px`);
+      e.currentTarget.setAttribute('aria-valuenow', String(d.px));
+      e.currentTarget.setAttribute('aria-valuetext', `${d.px} px`);
     },
     onPointerUp() {
       const d = drag.current;
@@ -194,6 +208,9 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
           role="separator"
           aria-orientation="vertical"
           aria-label={hi ? 'पैनल का आकार बदलें' : 'Resize the panel'}
+          aria-valuemin={bounds.min}
+          aria-valuemax={bounds.max}
+          aria-valuenow={currentWidth}
           aria-valuetext={width ? `${width} px` : hi ? 'डिफ़ॉल्ट चौड़ाई' : 'Default width'}
           tabIndex={0}
           className="side-panel-edge"

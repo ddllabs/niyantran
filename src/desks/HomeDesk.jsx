@@ -332,6 +332,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                     type="button"
                     className="nh-topic"
                     aria-hidden={copy === 1 || undefined}
+                    tabIndex={copy === 1 ? -1 : undefined}
                     onClick={() => onOpen({ tab: it.tab, feature: it.feature })}
                   >
                     <span className={`nh-topic-cat cat-${it.key}`}>{it.cat}</span>

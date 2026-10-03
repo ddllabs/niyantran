@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { FLAGSHIP_PROGRAMMES } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
@@ -42,7 +43,7 @@ export default function ProjectsDesk({ selected, onSelect, vizFilter, onClearViz
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.programme} className={selected?.programme === r.programme ? 'on' : ''} onClick={() => onSelect?.(r)} {...rowDragProps(r, { title: r.programme, feature: 'Centre-sanctioned Projects Monitor' })}>
+              <tr key={r.programme} className={selected?.programme === r.programme ? 'on' : ''} {...rowSelectionProps(() => onSelect?.(r))} {...rowDragProps(r, { title: r.programme, feature: 'Centre-sanctioned Projects Monitor' })}>
                 <td>{r.programme}</td>
                 <td>{r.domain}</td>
                 <td>{r.verifiable_status}</td>

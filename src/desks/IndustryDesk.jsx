@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { INDUSTRY_V1 } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
@@ -45,7 +46,7 @@ export default function IndustryDesk({ feed, statusRow, selected, onSelect, vizF
               <tr
                 key={r.id}
                 className={selected?.id === r.id ? 'on' : ''}
-                onClick={() => onSelect?.(selected?.id === r.id ? null : r)}
+                {...rowSelectionProps(() => onSelect?.(selected?.id === r.id ? null : r))}
                 {...rowDragProps(r, { title: r.label, feature: 'Industry Updates' })}
               >
                 <td>{r.label}</td>

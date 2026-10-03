@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useEffect, useState } from 'react';
 import { STATEMENT_LEADERS } from '../data/nationalCurated.js';
 import { Sparkline, VizFilterChip } from '../shell/AnalyticsViz.jsx';
@@ -247,7 +248,7 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
               shown.map((r, n) => (
                 <tr
                   key={r.source_url || n}
-                  onClick={() => onSelect?.({ ...r, person, topic: '—' })}
+                  {...rowSelectionProps(() => onSelect?.({ ...r, person, topic: '—' }))}
                   {...rowDragProps(r, { title: r.title, feature: 'Statement & Quote Tracker with Contradiction Detection' })}
                 >
                   <td>{person}</td>

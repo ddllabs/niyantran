@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { fetchFeature } from '../lib/featureFeed.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
@@ -633,6 +634,7 @@ export default function DeskView({
                   {cols.map((c) => (
                     <th
                       key={c.key}
+                      aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                       className={
                         /^(house|sector|current_stage|date_introduced)$/i.test(c.key) ? 'col-meta' : undefined
                       }
@@ -689,7 +691,7 @@ export default function DeskView({
                         <tr
                           key={rowId}
                           className={rowClass}
-                          onClick={() => onSelect(on ? null : row)}
+                          {...rowSelectionProps(() => onSelect(on ? null : row))}
                           {...rowDragProps(row, {
                             feature: featureName,
                             title: cellOf(row, cols[0] || { key: 'title' }) || row.title || row.name || 'Row',

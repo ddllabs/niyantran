@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useMemo, useState } from 'react';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
@@ -136,7 +137,7 @@ export default function FundFlowDesk({ feed, selected, onSelect, vizFilter, onCl
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onClick={() => onSelect?.(r)}
+                  {...rowSelectionProps(() => onSelect?.(r))}
                   {...rowDragProps(r, {
                     title: r.category || r.title,
                     feature: 'Centre-State Fund Flow Tracker',

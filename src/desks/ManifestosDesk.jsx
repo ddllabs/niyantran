@@ -1,3 +1,4 @@
+import { rowSelectionProps } from '../shell/rowSelection.js';
 import { useEffect, useMemo, useState } from 'react';
 import { MANIFESTO_LIBRARY, UNION_PROMISES } from '../data/nationalCurated.js';
 import { applyVizFilter } from '../lib/nationalKpi.js';
@@ -112,7 +113,7 @@ export default function ManifestosDesk({ selected, onSelect, onFeed, vizFilter, 
               <tr
                 key={r.promise || i}
                 className={selected?.promise === r.promise ? 'on' : ''}
-                onClick={() => onSelect?.(selected?.promise === r.promise ? null : r)}
+                {...rowSelectionProps(() => onSelect?.(selected?.promise === r.promise ? null : r))}
                 {...rowDragProps(r, { title: r.promise || r.title, feature: 'Manifestos' })}
               >
                 <td>{r.party}</td>
