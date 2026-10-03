@@ -22,3 +22,10 @@ it('uses the message time and does not fabricate missing timestamps', () => {
   expect(renderToStaticMarkup(<MessageActions m={{ role: 'user', content: 'Q' }} />)).not.toContain('<time');
   expect(renderToStaticMarkup(<MessageActions m={{ role: 'user', content: 'Q' }} />)).not.toContain('Copy');
 });
+
+it('keeps copy icon-only with a named button and tooltip',()=>{
+  const html=renderToStaticMarkup(<MessageActions m={{role:'assistant',content:'Answer'}} />);
+  expect(html).toContain('aria-label="Copy answer"');
+  expect(html).toContain('title="Copy answer"');
+  expect(html).not.toMatch(/>Copy<|>Copy<\//);
+});

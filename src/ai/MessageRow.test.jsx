@@ -21,5 +21,5 @@ it('E: the row renders what the inline markup did', () => {
   expect(html).toContain('class="ai-msg ai-msg-assistant"');
   expect(html).not.toContain('<span>Gemini - Flash</span>');
   expect(html).toContain('Gemini - Flash · Answered');
-  expect(renderToStaticMarkup(<MessageRow {...base} m={{ id: 'u1', role: 'user', content: 'Question?' }} />)).toContain('<span>You</span>Question?');
+  expect(renderToStaticMarkup(<MessageRow {...base} m={{ id: 'u1', role: 'user', content: 'Question?' }} />)).not.toContain('<span>You</span>');
 });

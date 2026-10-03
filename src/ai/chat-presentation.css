@@ -144,3 +144,7 @@
 }
 
 .ai-shell.ai-shell-research .ai-ticker-model-id { font-size: 11px; color: var(--ai-muted); overflow-wrap: anywhere; }
+
+.ai-shell.ai-shell-research .ai-message-actions button { width: 28px; justify-content: center; }
+.ai-shell.ai-shell-research .ai-copy-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ai-shell.ai-shell-research .ai-ticker-glyph { width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 8px; background: color-mix(in srgb, #8b5cf6 12%, var(--ai-surface)); color: color-mix(in srgb, #8b5cf6 75%, var(--ai-text)); }

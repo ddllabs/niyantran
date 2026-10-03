@@ -53,3 +53,9 @@ the model label and thinking effort. Exact ID remains its tooltip, instead of
 a separate line. Follow-up questions are one horizontally scrollable pill row,
 with every question directly actionable; remove the More questions disclosure.
 Picking a pill still fills/focuses the draft, never sends automatically.
+
+Fourth owner amendment, 2026-10-04: remove visible You/आप from user bubbles;
+preserve text, color, alignment and timestamp. Copy is icon-only with localized
+accessible name/tooltip, a checkmark for two seconds after success, and a polite
+screen-reader announcement. Failures remain visible. The AI sparkle sits in a
+28px rounded, theme-aware muted lavender badge; answer text remains unboxed.

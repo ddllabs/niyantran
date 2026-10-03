@@ -17,11 +17,9 @@ export function sameRow(a, b) {
 }
 
 function MessageRow({ m, lang, labelOf, onOpenSource, selectedSource }) {
-  const hi = lang === 'hi';
   const readable = (m.sources || []).filter(isReadableCitation);
   return (
     <div className={`ai-msg ai-msg-${m.role}${m.error ? ' err' : ''}`}>
-      {m.role === 'user' ? <span>{hi ? 'आप' : 'You'}</span> : null}
       {m.role === 'assistant' ? (
         <>
           {(m.activity?.length || m.timing || m.model_served || m.model || m.model_requested) ? <ActivityTicker activity={m.activity} timing={m.timing} effort={m.reasoning_effort} usage={m.usage} model={{ requested: m.model_requested || m.model, served: m.model_served || m.model }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}

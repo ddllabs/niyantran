@@ -116,3 +116,23 @@ buttons, no disclosure and no panel overflow. Third question filled/focused
 the draft, retaining one user message (no send). Exact-ID tooltip/version
 verified by markup guard. Screenshot `/private/tmp/f65-inline-pills.jpg`.
 No backend changes, provider calls, push or deployment.
+
+## Message identity/action amendment
+
+Sequential scope: MessageRow/MessageActions, ticker icon wrapper, scoped CSS,
+focused tests and F65 docs. Red/green for removed visible labels and named
+icon-only Copy. Preserve copy reference payload/error reporting; clean up the
+success-reset timer on unmount. Full tests/lint/build, offline browser success,
+reset and failure checks. No backend or publication.
+
+Message amendment evidence: both new label guards failed before implementation;
+6 focused tests passed after. Final `npm test`: 129 files, 2,085 passed. Lint
+passed without warnings; build passed with the existing mixed-import and large
+chunk warnings; `git diff --check` clean. Real-component offline browser confirmed
+empty Copy button text, accessible Copy answer/Answer copied names, check icon
+after successful copy and reset to Copy after two seconds. Simulated clipboard
+rejection kept the visible failure message. User bubble contained the question
+and original timestamp without You. Theme-aware lavender badge observed.
+Screenshot `/private/tmp/f65-message-icons.jpg`; no live provider calls.
+Review: reference-copy content unchanged, timer cleanup on unmount, no extra
+identity row or answer background. Existing active-only motion retained.

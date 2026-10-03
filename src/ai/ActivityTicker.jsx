@@ -141,7 +141,7 @@ export default function ActivityTicker({
           setOpen((v) => !v);
         }}
       >
-        <Sparkles className={`ai-ticker-glyph${active ? ' working' : ''}`} size={16} aria-hidden="true" />
+        <span className={`ai-ticker-glyph${active ? ' working' : ''}`} aria-hidden="true"><Sparkles size={16} /></span>
         <span className="ai-ticker-line" role="status" aria-live="polite">
           {modelId ? <span className="ai-ticker-model"><strong>{labelOf(modelId)}</strong>{labelOf(modelId) !== modelId ? <span className="ai-ticker-model-id" title={modelId}>{compactModelId(modelId)}</span> : null}{effort ? <span className="ai-ticker-effort">{hi ? 'सोच: ' : 'Thinking: '}{effortLabel(effort, hi)}</span> : null}</span> : null}
           <span className="ai-ticker-summary">{summary}</span>
