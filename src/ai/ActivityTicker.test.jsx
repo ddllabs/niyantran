@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel } from './ActivityTicker.jsx';
+import ActivityTicker, { clock, compactModelId, finishedSummary, foundSoFar, stepLabel } from './ActivityTicker.jsx';
 import ResearchFlow, { actionState, measured } from './ResearchFlow.jsx';
 
 // thinking-display spec (docs/specs/2026-10-02-thinking-display.md), owner-approved 2026-10-02.
@@ -85,4 +85,11 @@ it('the reading flow does not turn residual time into reasoning duration', () =>
   expect(html).not.toContain('Reasoning duration');
   expect(html).not.toContain('12000');
   expect(stepLabel({name:'search_documents',phase:'end'})).not.toContain('0 passages');
+});
+
+it('compacts model versions while keeping the exact ID as a tooltip',()=>{
+  expect(compactModelId('google/gemini-3.8-flash')).toBe('3.8');
+  expect(compactModelId('deepseek/deepseek-v4-flash')).toBe('deepseek-v4-flash');
+  const html=renderToStaticMarkup(<ActivityTicker model={{served:'google/gemini-3.8-flash'}} labelOf={()=>'Gemini Flash'} />);
+  expect(html).toContain('title="google/gemini-3.8-flash">3.8');
 });

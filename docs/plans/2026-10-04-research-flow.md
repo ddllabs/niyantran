@@ -98,3 +98,21 @@ Amendment verification:
   backend correction; it was not changed or deployed here.
 - Same local task branch, no publication. Normal localhost server retained.
 
+
+## Inline model and suggestion-pill amendment
+
+Sequential scope: ActivityTicker, SuggestionPills, scoped CSS, focused tests and
+F65 docs. Replace the third header line with inline version/ID tooltip. Restore
+all suggestions as horizontally scrolling pills, retaining draft-only picking,
+held/disabled behavior and labelled-list semantics. Verify red/green, full tests,
+lint/build, browser narrow/desktop and third-pill draft selection. No backend.
+
+Pill amendment evidence: the new no-disclosure/all-three-buttons guard failed
+before implementation; focused suites passed 15 tests after. Final `npm test`
+passed 2,084 tests in 129 files; lint passed without warnings; build passed with
+existing mixed-import/large-chunk warnings. `git diff --check` clean. Offline
+real-component browser at 375/1095px: flex pill row, 999px radius, all three
+buttons, no disclosure and no panel overflow. Third question filled/focused
+the draft, retaining one user message (no send). Exact-ID tooltip/version
+verified by markup guard. Screenshot `/private/tmp/f65-inline-pills.jpg`.
+No backend changes, provider calls, push or deployment.

@@ -47,3 +47,9 @@ query, result count and per-search duration in the timeline. Remove diagnostic
 definition lists and their unused aggregation helper. The reasoning count is
 usage metadata, not exposed private thinking text. This supersedes the original
 secondary-disclosure requirement above; telemetry accuracy is open-work F67.
+
+Third owner amendment, 2026-10-04: compact model version sits inline beside
+the model label and thinking effort. Exact ID remains its tooltip, instead of
+a separate line. Follow-up questions are one horizontally scrollable pill row,
+with every question directly actionable; remove the More questions disclosure.
+Picking a pill still fills/focuses the draft, never sends automatically.

@@ -17,8 +17,9 @@ it('keeps citation numbers inline in the single source action', () => {
   expect((html.match(/<button/g)||[])).toHaveLength(1);
   expect(html).toContain('class="ai-source-id">1');
 });
-it('reveals suggestions beyond two rather than truncating every question', () => {
+it('keeps every suggestion directly available without a More questions disclosure', () => {
   const html = renderToStaticMarkup(<SuggestionPills questions={['First?', 'Second?', 'Third?']} label="Follow-ups" />);
-  expect(html).toContain('<summary>More questions');
+  expect(html).not.toContain('<details');
+  expect((html.match(/<button/g)||[])).toHaveLength(3);
   expect(html).toContain('Third?');
 });

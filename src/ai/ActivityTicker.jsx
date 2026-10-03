@@ -11,6 +11,11 @@ import { ChevronDown, Sparkles } from 'lucide-react';
 import ResearchFlow, { effortLabel } from './ResearchFlow.jsx';
 import './research.css';
 
+export function compactModelId(id) {
+  const name = id.split('/').pop();
+  return name.match(/(?:^|-)(\d+(?:\.\d+)+)(?:-|$)/)?.[1] || name;
+}
+
 const SEARCH_TOOLS = ['search_documents', 'search_desk_rows'];
 
 /**
@@ -138,8 +143,7 @@ export default function ActivityTicker({
       >
         <Sparkles className={`ai-ticker-glyph${active ? ' working' : ''}`} size={16} aria-hidden="true" />
         <span className="ai-ticker-line" role="status" aria-live="polite">
-          {modelId ? <span className="ai-ticker-model"><strong>{labelOf(modelId)}</strong>{effort ? <span className="ai-ticker-effort">{hi ? 'सोच: ' : 'Thinking: '}{effortLabel(effort, hi)}</span> : null}</span> : null}
-          {modelId && labelOf(modelId) !== modelId ? <span className="ai-ticker-model-id">{modelId}</span> : null}
+          {modelId ? <span className="ai-ticker-model"><strong>{labelOf(modelId)}</strong>{labelOf(modelId) !== modelId ? <span className="ai-ticker-model-id" title={modelId}>{compactModelId(modelId)}</span> : null}{effort ? <span className="ai-ticker-effort">{hi ? 'सोच: ' : 'Thinking: '}{effortLabel(effort, hi)}</span> : null}</span> : null}
           <span className="ai-ticker-summary">{summary}</span>
         </span>
         {active && startedAt > 0 ? <span className="ai-ticker-clock">{clock(now - startedAt)}</span> : null}

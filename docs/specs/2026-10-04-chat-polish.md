@@ -3,6 +3,12 @@
 > **Status: Normative.** Product scope approved in the owner's chat discussion,
 > 2026-10-04. Local implementation; publication requires separate authorization.
 
+> **Owner amendments (F65, 2026-10-04):**
+> [Research flow](2026-10-04-research-flow.md) supersedes source/activity and
+> suggestion styling below: inline source numbers, unboxed model/version/effort
+> summary, no Technical details, and all follow-ups directly accessible as
+> horizontally scrolling pills with no More questions disclosure.
+
 ## Current state and objective
 
 The existing hovering SidePanel owns Desk, Record, AI Research and citation
