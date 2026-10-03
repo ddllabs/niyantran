@@ -3,6 +3,19 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `scripts/ingest-national-desk.mjs`, `scripts/load-desk-rows.mjs`, `supabase/functions/ingest-documents/`, `_shared/chunking.ts`, and database migrations 0003, 0004, 0009 and 0014. *(Corrected 2026-09-28: this line also cited a migration `20260922144105`, which does not exist in `supabase/migrations/`.)*
 
+## Current PDF pipeline (2026-10-03)
+
+The sections below describe legacy OCR/text-package ingestion and desk-row loading.
+The deployed PDF path additionally uses `admin-ingest`, `ingest-worker` and private
+`corpus` storage. Files are content-addressed; jobs use skip-locked claims, leases
+and fencing. The worker calls pinned Mistral OCR directly under ADR 0002, persists
+page/block/image coordinates, embeds via OpenRouter and activates completed extraction.
+See [ingestion-v2](../specs/2026-10-01-rag-v2-ingestion-v2.md),
+[page contract](../specs/2026-09-30-rag-v2-chunk-contract.md) and
+[open-work](../plans/open-work.md) for pilot scope and owner acceptance.
+Legacy documents retain their text-only reader; PDF storage and coordinates are
+not retroactively inferred for them.
+
 ---
 
 ## 1. Executive Summary & Topology
@@ -206,7 +219,7 @@ sequenceDiagram
 #### Why Content Hashing Matters
 1. **Zero Duplicate Vectors:** Re-running ingestion over an existing document costs $0.00 in embedding fees.
 2. **Resumable Batches:** If an edge function times out at 150 seconds, a subsequent run reads the committed hashes and only embeds the uncommitted remainder.
-3. **Citation Durability:** Because citations link to `(document_id, chunk_hash)`, re-pagination or editorial tweaks do not break historical conversation citations.
+3. **Citation Durability:** Citations carry `chunk_id` and `text_hash` for passage verification. Hash reconciliation preserves unchanged chunk UUIDs; changed or removed passages must not be presented as verified solely because a document still exists.
 
 ---
 
@@ -280,37 +293,15 @@ flowchart LR
 ```
 
 ### 3.1 Desk Row Identity & The Pin-Key Sandwich (`deskRowKey`)
-Row identity must be deterministic across regeneration runs to allow upserting without duplicate row creation. It is structured as a **Desk Row Sandwich**:
+Row identity is shared by the loader, browser and Edge port. `rowPinKey()`
+(`src/lib/sourceUrls.js`) takes the first truthy value among `id`, `record_id`,
+`bill_number`, `source_url`, `bill_name`, `title`, `name` and `subject`, then
+trims, lowercases and truncates it to 160 characters. This is not a SHA-256 digest.
 
-```
-====================================================================================================
-                     THE DESK ROW PIN-KEY SANDWICH ARCHITECTURE
-====================================================================================================
-
-+--------------------------------------------------------------------------------------------------+
-| TOP LAYER: NAMESPACE IDENTITY HEADER                                                             |
-|  - tier (e.g. "national", "state", "law", "economics")                                           |
-|  - feature (e.g. "Bill Passage Probability Index", "Acts", "Ordinances")                         |
-+--------------------------------------------------------------------------------------------------+
-| MIDDLE LAYER (THE FILLING): STABLE CANONICAL TUPLE                                               |
-|  - Canonical field extraction: sorted list of business identity keys                             |
-|  - e.g. [house: "Lok Sabha", bill_no: "16", year: "2026", ministry: "Finance"]                   |
-|  - JSON canonical serialization (alphabetical key sorting, normalized whitespace)                |
-+--------------------------------------------------------------------------------------------------+
-| BOTTOM LAYER: SANITIZED PIN-KEY DIGEST & PRIVACY BOUNDARY                                        |
-|  - SHA-256 digest slice (deterministic 12-char hex string: rowPinKey)                            |
-|  - Final Composite Primary Key: tier:feature:pinKey                                              |
-|  - R1 Sanitization boundary: strips internal autoincrement ids, db keys, and raw table schemas  |
-+--------------------------------------------------------------------------------------------------+
-```
-
-```javascript
-// src/lib/deskRows.js
-export function deskRowKey(tier, feature, row) {
-  const pinKey = rowPinKey(row);
-  return `${tier}:${feature}:${pinKey}`;
-}
-```
+`deskRowKey(row)` (`src/lib/deskRows.js`) first flattens the row, then uses that
+pin key or `h:` plus FNV-1a-64 over normalized record text. `tier` and `feature`
+are separate namespace columns in the table key; they are not concatenated by
+`deskRowKey`. `document_key` is a separate record-to-document linkage contract.
 
 ### 3.2 The R1 Grounding Boundary (Privacy & Nonce Safety)
 In production, LLMs frequently imitated internal identifiers into user-facing answers (e.g. emitting `[open-fronts:russia-ukraine-war:0]`). 

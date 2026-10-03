@@ -100,7 +100,6 @@ proxying" no longer applies: this ADR now governs only the Vercel routing.
     active accounts only).
 
   Anything else gets 404. `docs/flow.md` §11 is the maintained route list.
-- **Still to remove:** `config.includeFiles` in `api/router.js` and the
-  `includeFiles` in `vercel.json` still bundle `node_modules/sql.js/dist/**`
-  for the SQLite desk-brief cache tier. Removing that tier is C3 in
-  `docs/plans/open-work.md`.
+- **Resolved 2026-09-29 (C3, `31c3915`):** the SQLite desk-brief tier and
+  `sql.js` bundle includes were removed. Brief caches are memory and ephemeral
+  JSON files; neither is durable domain storage.

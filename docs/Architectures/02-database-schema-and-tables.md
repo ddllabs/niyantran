@@ -1,9 +1,32 @@
 # Database Architecture: Schema, Tables, Indexes, and RLS Security Matrix
 
 > **Status: Living.** Documented on 2026-09-22.
-> Reflects the verified PostgreSQL schema on Supabase project `NTER` (`vfgcppstyzjarlzyqdac`, region `ap-south-1`), incorporating all 35 migrations in `supabase/migrations/` (`20260921000001` through `20260929120100_match_documents_halfvec`; the last three make `user_profiles.email_normalised` unique and move vector search to a half-precision index), plus `backend/sql/auth_schema.sql`.
+> Current inventory: 43 migrations through `20261002180000_search_folding`, plus
+> `backend/sql/auth_schema.sql`; 33 public tables observed on NTER on 2026-10-03.
 > Corrected 2026-09-28: the seven tables added that day (Group E), the RLS matrix for them, and the `user_profiles`, `conversations`, `chat_messages`, `ai_models`, `ai_roles` and `model_call_logs` entries, which described columns that do not exist.
 > Corrected 2026-09-29: migration `20260929100000_plan_entitlements` added the `user_profiles` plan columns and the `plan_grants` table (#17).
+
+## Page, storage and ingestion additions (October 1–2)
+
+The earlier ER diagram covers the legacy/core entities. Seven additional tables
+bring the current inventory to 33:
+
+| Table | Purpose |
+|---|---|
+| `document_pages` | Extraction-versioned page text and generated search text |
+| `document_page_blocks` | Stable page blocks and normalized coordinates |
+| `document_page_images` | Image metadata and page coordinates |
+| `document_files` | Stored PDF parts, offsets and sizes |
+| `document_ocr_pages` | Worker extraction checkpoints |
+| `ingest_jobs` | Leased, fenced ingestion state and progress |
+| `corpus_admin_actions` | Audited link, swap and delete operations |
+
+RLS is enabled on all seven. Page/part reads follow indexed-document visibility;
+queue, raw OCR and audit writes are server-controlled. The exact policies/grants
+are in `20261001120000_page_contract`, `20261001140000_ingestion_v2` and
+`20261001180000_corpus_records`; do not infer browser write access from service
+client operations. Page search is defined by `20261002120000_search_document_pages`
+and amended by `20261002180000_search_folding`.
 
 ---
 
@@ -141,7 +164,7 @@ erDiagram
         uuid id PK
         text tier "national | state | law | economics | etc"
         text feature "Sansad (Bills) | Cabinet Decisions | etc"
-        text row_key "tier:feature:pinKey"
+        text row_key "scalar identity or h:FNV-1a fallback"
         text document_key "bill:2006:16"
         jsonb row "Full structured row fields"
         text record_text "Sanitized text representation"
@@ -423,7 +446,7 @@ USING hnsw ((embedding::extensions.halfvec(1536)) extensions.halfvec_cosine_ops)
 -- USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 ```
 - **Operational Footprint:** 380 MB index for 54,219 chunks.
-- **Memory Pressure:** On Supabase Nano tier (`shared_buffers = 224 MB`), the vector index exceeds available memory. *(Corrected 2026-09-29: the 380 MB and Nano figures are from 2026-09-22. The owner moved NTER to a 2 GB instance on 2026-09-28; `docs/plans/open-work.md` records `shared_buffers` at 512 MB and the index at 404 MB. A half-precision index is open-work F22.)*
+- **Memory Pressure:** On Supabase Nano tier (`shared_buffers = 224 MB`), the vector index exceeds available memory. *(Corrected 2026-09-29: the 380 MB and Nano figures are from 2026-09-22. The owner moved NTER to a 2 GB instance on 2026-09-28; `docs/plans/open-work.md` records `shared_buffers` at 512 MB and the index at 404 MB. F22 subsequently replaced it with a half-precision index.)*
 - **Mitigation:** Unscoped searches query the HNSW graph directly. Scoped searches (attaching a document) completely **bypass HNSW**, using B-tree pre-filtering over `document_chunks_document_order` and scoring exact cosine distance in memory (<20 ms).
 
 ### 3.2 Full-Text Search: Trigram GIN (`desk_rows_record_text_trgm_gin`)
@@ -443,7 +466,7 @@ The RPC `search_desk_rows` returns both a paginated row set and the `total` matc
 
 ## 4. Row-Level Security (RLS) Policy Matrix
 
-Row-Level Security is strictly enabled across all 26 public tables: 20 created in `supabase/migrations/` and 6 (`organisations`, `organisation_members`, `user_roles`, `organisation_invites`, `privacy_policy_consents`, `user_profiles`) created in `backend/sql/auth_schema.sql`. The `anon` role holds no table privileges except `SELECT (key, value, updated_at)` on `app_flags`, which serves the public intro-video read *(corrected 2026-09-28: the count was 18 and the `anon` statement had no exception before the migrations of that day; corrected 2026-09-29: 25 and 19 became 26 and 20 with `plan_grants`)*. The matrix below covers the AI-backend tables, `user_profiles` and the Group E and F tables; the five organisation and consent tables are governed by the policies in `auth_schema.sql`. *(Corrected 2026-09-24: the count was 17, which predates `research_turns`, and the matrix omitted `chat_cancellations`, `chat_turn_traces` and `ai_roles`.)*
+Row-Level Security is enabled across all 33 public tables (observed 2026-10-03), including 6 (`organisations`, `organisation_members`, `user_roles`, `organisation_invites`, `privacy_policy_consents`, `user_profiles`) created in `backend/sql/auth_schema.sql`. The `anon` role holds no table privileges except `SELECT (key, value, updated_at)` on `app_flags`, which serves the public intro-video read *(corrected 2026-09-28: the count was 18 and the `anon` statement had no exception before the migrations of that day; corrected 2026-09-29: 25 and 19 became 26 and 20 with `plan_grants`)*. The matrix below covers the AI-backend tables, `user_profiles` and the Group E and F tables; the five organisation and consent tables are governed by the policies in `auth_schema.sql`. *(Corrected 2026-09-24: the count was 17, which predates `research_turns`, and the matrix omitted `chat_cancellations`, `chat_turn_traces` and `ai_roles`.)*
 
 | Table Name | Public Read (`anon`) | Authenticated Read (`user`) | Authenticated Write (`user`) | Service Role (`service_role`) |
 | :--- | :---: | :---: | :---: | :---: |

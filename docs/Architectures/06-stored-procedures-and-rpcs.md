@@ -3,7 +3,25 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/migrations/` (migrations `20260921000001` through `20260922121946`), PostgreSQL 15, and `pgvector` 0.7.0.
 > Corrected 2026-09-28: the functions added by the migrations of that day (`20260928100000` through `20260928150000`) and the replaced `handle_new_user()` are listed in §1 and §9.1. On 2026-09-28 the repository had 31 migrations.
-> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. The repository now has 35 migrations: `20260929110000_email_unique` adds a unique index, and `20260929120000`/`20260929120100` (F22) move the unscoped branch of `match_documents` onto a half-precision HNSW index, leaving its signature, grants and scoped branch unchanged. NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
+> Corrected 2026-09-29: the plan-entitlement functions of `20260929100000_plan_entitlements` are listed in §9.2, and `handle_new_user()` was replaced again. At that September 29 checkpoint the repository had 35 migrations: `20260929110000_email_unique` adds a unique index, and `20260929120000`/`20260929120100` (F22) move the unscoped branch of `match_documents` onto a half-precision HNSW index, leaving its signature, grants and scoped branch unchanged. NTER runs Postgres 17.6 (observed 2026-09-28, `agents/coordination.md`) and `pgvector` 0.8.2 (open-work F22), not the PostgreSQL 15 and 0.7.0 named above.
+
+## Current retrieval and ingestion RPC additions (2026-10-03)
+
+`match_documents` now takes optional `p_desk_feature` as its fifth argument
+and returns block IDs, image IDs and section metadata. Explicit document IDs
+outrank feature confinement and retain exact per-document quotas. Without IDs,
+a feature containing at most 15,000 embedded chunks uses an exact scan; larger
+features use the HNSW helper with call-local `ef_search=400`. Unscoped retrieval
+retains the broad halfvec HNSW path. These measured settings are not universal
+latency or recall guarantees; see the feature-filter measurements and F35.
+
+The page contract extends `chunk_commit`. `document_modules` exposes indexed
+module scope; `search_document_pages` supplies folded page-text search. The
+service-controlled ingestion RPCs cover register/claim/advance/activate,
+retry/cancel/discard, and corpus link/unlink/swap/delete. Admin record listing
+uses `admin_desk_records` and `admin_unlinked_documents`. Exact signatures,
+revokes and grants live in migrations `20261001100000` through `20261002180000`;
+the older catalog below is not an exhaustive inventory of those additions.
 
 ---
 
@@ -82,7 +100,7 @@ Every database RPC invocation operates as a **Security & Transaction Sandwich**:
 
 ## 3. Deep-Dive: Vector Retrieval RPC (`match_documents`)
 
-Located in migration `20260922104646_match_documents_prefilter_and_quota.sql`, `match_documents` provides high-speed vector cosine retrieval across 54,219 embedded chunks.
+Originally introduced in `20260922104646_match_documents_prefilter_and_quota.sql` and now defined by `20261001120000_page_contract.sql`, `match_documents` provides high-speed vector cosine retrieval across indexed embedded chunks; the dated corpus count is in open-work.
 
 ### 3.1 Function Signature & Argument Clamps
 ```sql
@@ -90,7 +108,8 @@ CREATE OR REPLACE FUNCTION public.match_documents(
   query_embedding extensions.vector(1536),
   match_count     int    DEFAULT 40,
   p_document_ids  uuid[] DEFAULT NULL,
-  p_desk_tier     text   DEFAULT NULL
+  p_desk_tier     text   DEFAULT NULL,
+  p_desk_feature  text   DEFAULT NULL
 ) RETURNS TABLE (
   id            uuid,
   document_id   uuid,
@@ -105,7 +124,10 @@ CREATE OR REPLACE FUNCTION public.match_documents(
   file_name     text,
   file_url      text,
   desk_tier     text,
-  desk_feature  text
+  desk_feature  text,
+  block_ids     uuid[],
+  image_ids     uuid[],
+  section       jsonb
 )
 LANGUAGE plpgsql STABLE SECURITY INVOKER
 SET search_path = public, extensions;

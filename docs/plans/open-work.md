@@ -14,25 +14,39 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F36 is next) and goes in the
+- A new finding gets the next free `F` number (F57 is next) and goes in the
   right section.
 
-Current baseline (2026-09-29, evening):
-- `main` is the only long-lived branch, locally and on GitHub; production
-  (`niyantran-six.vercel.app`) follows it.
-- Supabase NTER: 36 migrations; 2 GB compute (`shared_buffers` 512 MB); six
-  Edge Functions CLI-deployed from `b60c0dc` (`health` v10, `admin-models`
-  v10, `refresh-model-pricing` v11, `ingest-documents` v14, `desk-brief` v5,
-  `research-chat` v35). `ALLOWED_ORIGINS` includes the preview pattern.
-- The corpus: 2,338 documents, 54,219 chunks and 34,184 desk rows. The
-  search index is half precision, 204 MB.
-- Tests:
-  - 74 Vitest files (1,009 tests), 452 Deno tests, 16 SQL fixtures;
-  - `npm run lint`: 0 errors, 0 warnings;
-  - `scripts/verify-local-storage-paths.mjs`: 12 of 12 checks on a local
-    stack.
+Current baseline (read-only observations, 2026-10-03):
+- `main` is the only long-lived branch; production follows origin/main.
+  The review began at local `f0058b1`, one documentation commit ahead of
+  origin/main `322c76a`. No production action is implied by a local commit.
+- Supabase NTER: ACTIVE_HEALTHY, PostgreSQL 17.6, 43 applied migrations
+  through `20261002180000_search_folding`; 33 public tables, all with RLS enabled.
+- Nine ACTIVE Edge Functions: `health` v12, `admin-models` v12,
+  `refresh-model-pricing` v13, `ingest-documents` v18, `research-chat` v46,
+  `desk-brief` v7, `ingest-worker` v1, `admin-ingest` v2, `document-file` v1.
+- Corpus: 2,340 indexed documents, 54,340 chunks and 34,184 desk rows.
+  The stored-PDF/page pipeline covers two documents: 34 pages, 561 blocks,
+  no page images. This is separate from legacy text-only corpus coverage.
+- The worker cron is active every 30 seconds. Pricing refresh is every
+  twelve hours; analytics retention is daily and rate-window purge every 15 minutes.
+- Verification evidence: local `npm run lint` and router import passed during
+  the review. GitHub CI for `322c76a` passed lint, build, router import,
+  Vitest, Deno and disposable SQL fixtures. No local build or test-suite run
+  was performed in the read-only review. CI is advisory.
+- GitHub authenticated as `ddllabs`; repository read access and Supabase
+  SELECTs/function metadata were verified. Vercel READY states below are
+  dated operations records, not an independent October 3 Vercel probe.
 
-  CI is advisory.
+## Documentation reconciliation
+
+- [ ] **F56.** Correct current documentation against code, approved ADR amendments
+  and dated deployment evidence. Spec `specs/2026-10-03-documentation-reconciliation.md`;
+  plan `plans/2026-10-03-documentation-reconciliation.md`. Documentation only;
+  payments, entitlement and ingestion execution are excluded. Built and verified
+  on `task/f56-documentation-reconciliation`; pending local integration. Evidence
+  is in the plan.
 
 ## 1. Done
 
@@ -253,7 +267,7 @@ Each needs one answer, then an agent can finish it.
     six foreign keys have no index. The fix is one migration of
     `(select auth.uid())` rewrites and indexes, which needs approval.
   - By design, recorded under accepted risks:
-    - RLS with no policy on six server-only tables;
+    - RLS with no policy on server-only tables (nine in the October 3 advisor check);
     - eight `SECURITY DEFINER` RPCs callable by signed-in users (they are
       the API);
     - 23 unused indexes (low traffic);
@@ -308,7 +322,7 @@ Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
 
   Live eval "no worse".
 
-Part 2 needs its specs first, in this order:
+Part 2: deployed ingestion and the remaining pilot/acquisition work:
 
 - [ ] **R4. `ingestion-v2`** (spec `specs/2026-10-01-rag-v2-ingestion-v2.md`,
   approved; plan `plans/2026-10-01-rag-v2-ingestion-v2.md`):
@@ -323,12 +337,13 @@ Part 2 needs its specs first, in this order:
 
   Built on `task/rag-v2-ingestion-v2` (I0–I5, checkpoint D, 2026-10-01). The
   local end-to-end run (I7) passed:
-  `research/2026-10-01-ingestion-v2-local-run.md`, $0.197. Next: checkpoint
-  E (the owner reads that report), then I8 on NTER, with a go-ahead per step.
+  `research/2026-10-01-ingestion-v2-local-run.md`, $0.197. The later NTER
+  deployment below supersedes the earlier checkpoint E/I8 deployment steps.
   `MISTRAL_API_KEY` is already set on NTER (the owner, 2026-10-01).
   **Live on NTER, 2026-10-01** (`agents/coordination.md`): migration 39, the worker
   secret, both functions deployed, and the first document (the 12-page bill) ingested
-  for $0.048. The schedule is off. Remaining: the owner's signed-in citation check, then
+  for $0.048. R8 subsequently switched the schedule on; it was active in the
+  October 3 read-only check. Remaining: the owner's signed-in citation check, then
   mark R4 done.
 - [ ] **R5.** A pilot of about 10 PDFs from the candidates in the research
   doc §6, which proves pages, boxes, images, cost and re-run cost.
@@ -469,7 +484,8 @@ Follow-ups and findings:
     - "Found so far";
     - a collapsed summary;
     - the NyAI card removed (ADR 0007 amended).
-  - **Next:** deploy `research-chat`, then push the frontend, each with a go-ahead.
+  - **Shipped:** the thinking-display deployment and frontend push are recorded in
+    `agents/coordination.md` on 2026-10-02.
   - **Still open from F46:** loading in stages, and the agent loop's speed and cost.
     - **Update (2026-10-02):** loading in stages was closed by panel loading. The end-of-turn
       shift (D4) measured zero in the chat-panel-fixes run. The agent loop's cost is measured in
@@ -481,15 +497,12 @@ Follow-ups and findings:
   passed: `research/2026-10-02-answer-streaming-local-run.md`.
   - **Result:** answers arrive in 13–37 pieces instead of one block. `timing` records
     `first_model_ms`, `first_answer_ms` and `rounds`. `session_id` is sent.
-  - **Owner decisions pending:**
-    1. **Gemini cache breakpoints.** Dropping them takes time to first word from 9–25 s to 5–6 s,
-       for about 60% more cost per answer. The patch is parked.
-    2. **The duplicate pre-send identity check.** Removing it saves about 0.45 s; the change
-       sits in a sensitive scope.
-  - **Next:** deploy `research-chat` and push the frontend, each with a go-ahead. Either order
-    works.
-  - **Done since (2026-10-02):** all of the above is on NTER (research-chat v42; the frontend
-    pushes at `0aa8077` and `947dc82`).
+  - **Owner-approved latency cuts shipped:** Google requests omit explicit cache
+    breakpoints; the duplicate client pre-send identity check was removed while
+    server authorization remains. The measured tradeoffs and authorization are in
+    coordination's October 2 operations record.
+  - **Shipped implementation (2026-10-02):** research-chat v42 and frontend
+    pushes `0aa8077` and `947dc82`; later function deployments retain these changes.
 
   **Panel loading, A–E (2026-10-02).** Spec `specs/2026-10-02-panel-loading.md`, approved. Built
   on `task/panel-loading`, and the local browser run passed.
@@ -541,7 +554,7 @@ Follow-ups and findings:
 
       The local run is in `research/2026-10-02-chat-panel-fixes-local-run.md`.
     - **`research-chat` v45 deployed** on 2026-10-02, with T1's frame and the widened limit.
-    - **Next:** the push, with a go-ahead.
+    - **Shipped:** T1–T3 at `da32cb3`; T5 at `c2c3069` (operations record, 2026-10-02).
     - **Noted in the run, then fixed by T5** (`01d1714`, `research/2026-10-02-phone-header-local-run.md`):
       - at 375 px the header fits, with no Log out duplicated in the bar below 900 px;
       - the history list stays on screen (x 57–359);
@@ -596,7 +609,8 @@ Follow-ups and findings:
     - Fit width is the default;
     - Fit text never crops the page's height or any block;
     - the zoom is saved only when the reader chooses it, under a new key.
-  - **Status:** built and checked locally. Next: push `main`, with a go-ahead.
+  - **Shipped:** `4f714f8` reached production in `60b49f4` (Vercel READY, operations
+    record 2026-10-02). Owner acceptance is not inferred from deployment.
 - [ ] **F50.** Follow-ups from the viewer-continuous review (2026-10-02). None blocks the push.
   - **Built and verified locally** (spec `specs/2026-10-02-viewer-f50.md`, plan
     `plans/2026-10-02-viewer-f50.md`, `4a0871d`..T5). Every item below is fixed except the
@@ -606,6 +620,7 @@ Follow-ups and findings:
   - **Pushed** on 2026-10-02 (`55d7595`); production deploy `dpl_CaCMMxNPeJoxYPzUjYUdGvW3Y93z` is
     READY.
   - **Next:** the owner checks the continuous Text view in Safari. Then move F50 to Done.
+  - **Original findings below (fixed or settled as noted above):**
   - **Query folding.** The client folds with NFC and JS whitespace (NBSP, U+2000–U+200A); the database
     does neither, and `lower()` follows the database collation. Text with NBSP, or precomposed
     Devanagari nukta letters, can find 0 pages in the database yet match on the page. Fold both
@@ -628,7 +643,8 @@ Follow-ups and findings:
   list: spec `specs/2026-10-02-source-list.md`, plan `plans/2026-10-02-source-list.md`.
   - **Built and verified locally (2026-10-02):** `2d95bf6` (content) and `2b1bdde` (styles). The
     local run is in `research/2026-10-02-source-list-local-run.md`.
-  - **Next:** the push, with a go-ahead.
+  - **Shipped:** production at `5b49049` (Vercel READY, operations record 2026-10-02).
+    Owner acceptance is not inferred from deployment.
 - [ ] **F52.** Some document titles are stored malformed. For example "The Farmers (Old Age
   Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
   stored in the sources list and the reader. Needs a count over `documents.title` and a decision

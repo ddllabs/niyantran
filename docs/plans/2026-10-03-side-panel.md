@@ -1,6 +1,6 @@
 # Plan: one side panel for Desk, Record and AI research (`side-panel`)
 
-> **Status: Living.** Implements `docs/specs/2026-10-03-side-panel.md` (F54).
+> **Status: Historical (2026-10-03).** Owner-closed; implementation and evaluation record. Implements `docs/specs/2026-10-03-side-panel.md` (F54).
 > - The tasks run in order and test-first, each committed once verified, on `task/side-panel`.
 > - The branch merges to `main` after the browser run. The push waits for its own go-ahead.
 

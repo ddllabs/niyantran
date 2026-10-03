@@ -13,10 +13,10 @@ accepted risks and a Done log with commit hashes.
 | # | Document | What it gives you |
 |---|---|---|
 | 1 | `../AGENTS.md` | The binding rules: authority, git, verification, safety |
-| 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day ("Operations — 2026-09-29" is the latest) |
+| 2 | `agents/coordination.md` | Roles, the work lifecycle, "Branches and deployments", and the production record by day (dated deployment and verification records) |
 | 3 | `plans/open-work.md` | What is open, what is blocked and on whom, the current baseline, and what landed |
 | 4 | `agents/rollback-runbook.md` | How Edge Functions and migrations are deployed, verified and rolled back |
-| 5 | `plans/2026-09-29-corpus-ingestion.md` | Parked: the old L1/L2 runbook, kept for its measurements until the new ingestion pipeline is designed |
+| 5 | `plans/2026-09-29-corpus-ingestion.md` | Historical: the old L1/L2 measurements; current R4–R8 work is in open-work |
 | 6 | `agents/onboarding.md` | Only when dispatching subagents: the onboarding text and dispatch template |
 | 7 | `Architectures/README.md`, `decisions/` | How the system is built and why; read the part you are changing |
 
@@ -38,8 +38,8 @@ These are the facts new sessions most often get wrong.
   `agents/rollback-runbook.md`, and each production change is recorded in
   an "Operations" entry in `agents/coordination.md`.
 - **Vercel follows git.** A push to `main` deploys production
-  (`niyantran-six.vercel.app`); any other pushed branch gets a preview. Edge
-  Functions refuse preview origins until owner action O5 is done.
+  (`niyantran-six.vercel.app`); any other pushed branch gets a preview. The preview
+  origin pattern was enabled under O5; previews share the live NTER database.
 - **Local secrets.** `.env.local` beside `package.json` holds
   `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for the dev server and the
   maintenance scripts. Never commit or print it. A production build needs no
@@ -65,29 +65,20 @@ These are the facts new sessions most often get wrong.
   development. Destructive operations still name their exact target and are
   confirmed first.
 
-## Where things stand (2026-09-29, evening)
+## Where things stand (2026-10-03)
 
-- `main` is the only long-lived branch; CI passes on it and production
-  follows it. The upstream merge landed on 2026-09-26 and upstream is
-  retired.
-- Supabase NTER: 36 migrations; six Edge Functions deployed with the
-  standard CLI from `b60c0dc`, so the dashboard shows the real files; 2 GB
-  compute. `ALLOWED_ORIGINS` admits Vercel previews. Counts and the
-  half-precision search index are in the open-work baseline.
-- The evening cleanup of 2026-09-29 closed F1, F13, F17, F29, C3, A1, O3,
-  O4 and O5 (see open-work "Done" and coordination "Operations — 2026-09-29
-  (evening)"). SQLite is gone from the serverless routes, and a network
-  blip no longer signs a user out.
-- What remains is sorted in `plans/open-work.md`:
-  - two decisions for the owner: P12 (dependencies and the advisor
-    migration) and F30 (the remaining hand-written marketing figures);
-  - four later phases: Ingestion pipeline (parked for a new design),
-    Payments, Launch (including the owner's dashboard and smoke-test steps)
-    and Waiting on owner assets;
-  - accepted risks.
-- **Local sessions:** the Supabase CLI, Docker and Node network calls fail
-  inside the Claude Code sandbox and work outside it. The CLI on the
-  owner's laptop is logged in and linked to NTER.
+- The upstream merge landed on September 26; origin is the only remote.
+- The [open-work baseline](plans/open-work.md) holds the dated infrastructure
+  snapshot and verification evidence, avoiding duplicate version and test counts.
+- Ingestion v2, admin upload/record management and the page viewer are deployed.
+  R4/R8 still have owner acceptance checks; R5 is the representative PDF pilot.
+  The two paged PDFs do not imply the legacy corpus has been converted.
+- F53's completeness experiments concluded without shipping either intervention.
+  F54's shared SidePanel and F55's attachment fixes are owner-closed.
+- Payments, launch prerequisites, corpus expansion and accepted risks remain in
+  open-work. Read that tracker before choosing work or operating infrastructure.
+- Network and CLI availability depend on the execution environment. Verify access
+  rather than assuming a local session, cloud container or connector has it.
 
 ## A new session's first steps
 
@@ -121,7 +112,7 @@ the sections above.
 
 | # | Document | What it gives you | Read when |
 |---|---|---|---|
-| 1 | `niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` | The binding decisions: Supabase is the record, OpenRouter only, Supabase Google sign-in, Vercel relink | First, 5 min |
+| 1 | `niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md` | The binding decisions: Supabase is the record, native Google sign-in, Vercel relink; provider policy is amended in ADR 0002 | First, 5 min |
 | 2 | `niyantran-conflict-audit-and-plan/02-merge-audit-reconciliation.md` | The team audit and the DDL Labs audit, checked line by line against the repo: what is agreed, what is wrong in each, what was missed | Before touching git |
 | 3 | `niyantran-conflict-audit-and-plan/03-upstream-integration-plan.md` | **The work.** Phases 0–6, a resolution for every conflicted file, gates, the Vercel env inventory, the smoke list | The integrator, fully |
 | 4 | `plans/open-work.md` | Everything still open, in one list (replaced the backlog on 2026-09-29) | After the integration |
@@ -136,7 +127,7 @@ the sections above.
 | `Architectures/02-database-schema-and-tables.md` | Tables, ER diagram, RLS matrix |
 | `Architectures/03-rag-and-sql-retrieval.md` | `match_documents`, `search_desk_rows`, citations |
 | `Architectures/04-prompt-sandwich-and-agent-engine.md` | Agent loop, prompt blocks, SSE, turn persistence |
-| `Architectures/05-supabase-edge-functions.md` | The six deployed functions (including `desk-brief`) and the shared library |
+| `Architectures/05-supabase-edge-functions.md` | The nine functions, ingestion worker, stored-PDF access and shared library |
 | `Architectures/06-stored-procedures-and-rpcs.md` | RPC catalogue and grants |
 | `decisions/0001`–`0004` | Edge Functions for AI, OpenRouter plus embeddings, the corpus/conversation model, chunk identity |
 

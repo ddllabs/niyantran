@@ -5,12 +5,12 @@
 
 ## Registry of Decisions
 
-The summaries describe each decision together with its amendments as of 2026-09-29. The ADR file is the authority.
+The summaries describe each decision together with its amendments as of 2026-10-03. The ADR file is the authority.
 
 | ADR | Title | Status | Date | Core Decision |
 |---|---|---|---|---|
 | [ADR 0001](decisions/0001-supabase-edge-functions-for-the-ai-backend.md) | Supabase Edge Functions for the AI Backend | Normative | 2026-09-20 | Server-side AI code (chat, retrieval, ingestion, model gateway, telemetry) runs as Supabase Edge Functions (Deno) beside PostgreSQL. The legacy Vercel AI path, which the ADR kept during the cutover, and its `VITE_AI_BACKEND` flag were retired on 2026-09-28 (14b2344). |
-| [ADR 0002](decisions/0002-openrouter-gateway-and-embedding-baseline.md) | OpenRouter Single Model Gateway; Embedding Baseline | Normative | 2026-09-20 | OpenRouter is the only outbound model endpoint. Chat models come from a database allowlist (`public.ai_models`). The embedding model is pinned to `openai/text-embedding-3-small` at 1536 dimensions. |
+| [ADR 0002](decisions/0002-openrouter-gateway-and-embedding-baseline.md) | OpenRouter Single Model Gateway; Embedding Baseline | Normative | 2026-09-20 | OpenRouter serves chat and embeddings; the September 30 amendment permits direct capabilities unavailable there, first pinned Mistral OCR in the ingestion worker. Chat models come from a database allowlist (`public.ai_models`). The embedding model is pinned to `openai/text-embedding-3-small` at 1536 dimensions. |
 | [ADR 0003](decisions/0003-global-corpus-user-scoped-conversations.md) | Global Corpus, User-Scoped Conversations | Normative | 2026-09-20 | The document corpus has no owner: every signed-in user can read it and only the service role writes it. Conversations, messages and traces belong to one user under RLS. |
 | [ADR 0004](decisions/0004-chunk-identity-and-reconciliation.md) | Chunk Identity and Reconciliation | Normative | 2026-09-20 | A chunk's id is a random uuid that never changes. A separate `chunk_hash` (SHA-256 over chunker version, unit key and normalised text) is unique per document. `chunk_commit` reconciles by that hash, so unchanged chunks keep their id and embedding, and only missed rows are embedded. |
 | [ADR 0005](niyantran-conflict-audit-and-plan/01-decisions-adr-0005.md) | One Codebase: ddllabs/niyantran on Supabase, Upstream Integrated Once | Normative | 2026-09-24 | `ddllabs/niyantran` `main` is the only codebase. Upstream is integrated once by a reviewed merge. Supabase is the system of record for identity, profiles, conversations, corpus and telemetry. Stored beside the integration audit. The [pointer file](decisions/0005-one-codebase-supabase-system-of-record.md) explains the shared number. |
@@ -26,5 +26,5 @@ The summaries describe each decision together with its amendments as of 2026-09-
 ## Key Decision Guidelines for Contributors
 
 1. **Backend First:** All client interactions adapt to backend contracts. Do not construct competing local data models or auth mechanisms.
-2. **Universal OpenRouter Access:** No direct AI provider SDKs or endpoints may be added to browser or server without amending ADR 0002 and the backend-first ADR 0005 (`decisions/0005-backend-first-reconciliation-and-universal-openrouter-gateway.md`).
+2. **Provider routing:** Chat and embeddings use OpenRouter. Apply ADR 0002’s approved September 30 capability exception for direct integrations unavailable there, with Supabase-held secrets and cost logging; Mistral OCR is the first approved case. Do not add browser provider keys.
 3. **PostgreSQL System of Record:** Ephemeral SQLite or local file stores are restricted to offline caches only.
