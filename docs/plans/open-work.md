@@ -20,10 +20,10 @@
 ## UI follow-ups
 
 - [ ] **F65. Research flow UI.** Owner-approved reference adaptation: monoline
-  activity, compact badges, secondary technical details and inline source
-  citations. [Spec](../specs/2026-10-04-research-flow.md),
+  activity, inline model metadata, compact badges, source citation numbers,
+  suggestion/model pills and icon-only message actions. [Spec](../specs/2026-10-04-research-flow.md),
   [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
-  implemented in `f47ccb4`, amended through `b4aa3b7`; 2,087 tests, lint/build and offline browser passed.
+  implemented in `f47ccb4`, amended through `26cbc72`; 2,088 tests, lint/build and offline browser passed.
   Pending owner review/landing; no publication authorized.
 - [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
