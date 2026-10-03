@@ -1,0 +1,15 @@
+:root { font-family: system-ui, sans-serif; color: #252525; background: #f4f4f2; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.fixture-header { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 18px; background: white; border-bottom: 1px solid #ccc; }
+.fixture-header h1 { font-size: 17px; margin: 0; }
+.fixture-header label { display: flex; align-items: center; gap: 8px; }
+.fixture-header button { padding: 7px 10px; cursor: pointer; }
+.fixture-layout { display: flex; justify-content: flex-end; gap: 18px; padding: 18px; height: calc(100vh - 75px); }
+.fixture-observations { flex: 1 1 320px; min-width: 250px; overflow: auto; font-size: 13px; }
+.fixture-observations blockquote { margin: 12px 0; padding: 12px; background: #fbefc4; white-space: pre-line; }
+#viewer-dom-status { background: white; padding: 12px; font-size: 11px; overflow: auto; }
+#fixture-viewer { flex: 0 0 auto; max-width: calc(100vw - 320px); min-width: 400px; height: 100%; padding: 12px; background: white; border: 1px solid #ccc; }
+#fixture-viewer > .pv { height: 100%; }
+#fixture-viewer .pv-pdf { flex: 1 1 0; min-height: 240px; }
+@media (max-width: 760px) { .fixture-layout { display: block; height: auto; } #fixture-viewer { width: 100% !important; min-width: 0; max-width: none; height: 80vh; } .fixture-observations { max-height: 300px; margin-bottom: 18px; } }

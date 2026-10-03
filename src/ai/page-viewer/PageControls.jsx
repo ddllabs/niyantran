@@ -3,7 +3,7 @@
  * cited chip and zoom. One component draws both the side pane's page toolbar and the full view's
  * floating pill, so no control is written twice.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { citedChip, fitItems, parsePageInput } from './chromeModel.js';
 import { IconButton } from './IconButton.jsx';
 import { ChevronDown, ChevronLeft, ChevronRight, ICON_PROPS, Maximize2, Minus, PanelLeft, Plus, Quote, Search, Undo2 } from './icons.js';
@@ -74,29 +74,21 @@ export function PageField({ page, total, onPage, fieldRef = null }) {
 }
 
 /**
- * "Cited p. 4" on the cited page; elsewhere, the button back to it (the Home key). Reaching the
- * cited page removes the button; `onFocusChange` lets the toolbar keep the focus it held.
+ * Return to the cited passage even when the reader is elsewhere on the same page.
  */
 export function CitedChip({ page, cited, onPage, onFocusChange }) {
   const chip = citedChip({ page, cited });
-  if (chip.kind === 'status') {
-    return (
-      <span className="pv-cite">
-        <Quote {...ICON_PROPS} />
-        {chip.label}
-      </span>
-    );
-  }
   return (
     <button
       type="button"
       className="pv-cite pv-cite-back"
       aria-keyshortcuts="Home"
-      onClick={() => onPage(chip.target)}
+      aria-label={`Back to cited passage on page ${cited}`}
+      onClick={() => onPage(cited)}
       onFocus={() => onFocusChange?.(true)}
       onBlur={() => onFocusChange?.(false)}
     >
-      <Undo2 {...ICON_PROPS} />
+      {chip.kind === 'status' ? <Quote {...ICON_PROPS} /> : <Undo2 {...ICON_PROPS} />}
       {chip.label}
     </button>
   );
@@ -165,17 +157,6 @@ export default function PageControls({
   onRail = null, railOpen = false, railRef = null,
 }) {
   const tipSide = variant === 'pill' ? 'above' : 'below';
-  // "Back to p. N" unmounts once the reader is back on the cited page, by its click or the Home
-  // key; a removed button fires no blur, so focus would fall to the page body, where the paging
-  // keys and the full view's Escape no longer reach. The page box, which shows the page, takes it.
-  const fieldRef = useRef(null);
-  const backFocused = useRef(false);
-  const onCited = page === cited;
-  useLayoutEffect(() => {
-    if (!onCited || !backFocused.current) return;
-    backFocused.current = false;
-    fieldRef.current?.focus({ preventScroll: true });
-  }, [onCited]);
   return (
     <div className={`pv-pages pv-pages-${variant}`} role="group" aria-label="Pages" onKeyDown={onKeyDown}>
       {onRail ? (
@@ -183,9 +164,9 @@ export default function PageControls({
       ) : null}
       {onSearch ? <SearchToggle open={searchOpen} onSearch={onSearch} tipSide={tipSide} searchRef={searchRef} /> : null}
       <IconButton icon={ChevronLeft} label="Previous page" shortcut="←" keys="ArrowLeft [" tipSide={tipSide} tipAlign="start" unavailable={page <= 1} onClick={() => onPage(page - 1)} />
-      <PageField page={page} total={total} onPage={onPage} fieldRef={fieldRef} />
+      <PageField page={page} total={total} onPage={onPage} />
       <IconButton icon={ChevronRight} label="Next page" shortcut="→" keys="ArrowRight ]" tipSide={tipSide} unavailable={page >= total} onClick={() => onPage(page + 1)} />
-      <CitedChip page={page} cited={cited} onPage={onPage} onFocusChange={(focused) => { backFocused.current = focused; }} />
+      <CitedChip page={page} cited={cited} onPage={onPage} />
       {zoom || onExpand ? (
         <div className="pv-pages-end">
           {zoom ? <ZoomControls zoom={zoom} tipSide={tipSide} /> : null}

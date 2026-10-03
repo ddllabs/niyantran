@@ -64,7 +64,9 @@ describe('WorkSurface branching', () => {
     expect(first).toContain('Ask about this document');
 
     await settle();
-    const loaded = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: PDF_PAGE }} />);
+    const viewer = { kind: 'text', source: PDF_PAGE };
+    const loaded = renderToStaticMarkup(<WorkSurface viewer={viewer} />);
+    expect(handedProps.at(-1).revealRequest).toBe(viewer);
     const probe = /data-citation="([^"]*)"/.exec(loaded);
     expect(probe).not.toBeNull();
     const handed = JSON.parse(probe[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));

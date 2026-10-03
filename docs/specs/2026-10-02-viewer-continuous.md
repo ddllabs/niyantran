@@ -92,7 +92,9 @@ The PDF's text layer has the same words without the Markdown, in its own order.
   through byte ranges, as today.
 - **A render queue:**
   - at most 2 renders at a time;
-  - the page nearest the centre goes first, then the rest by distance;
+  - the page nearest the centre is scheduled first, then the rest by distance;
+  - mounted page elements remain in document order so changing scheduling priority never
+    moves ancestors of live citation or search ranges;
   - a page that leaves the window is cancelled.
 - **One pool serves the pages and the thumbnails.** Thumbnails always queue behind pages.
 - **Failures:** they keep today's classification and fixed notices. No error text or signed URL

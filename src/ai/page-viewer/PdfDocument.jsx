@@ -49,7 +49,7 @@ export function PdfOverlay({ overlay }) {
  */
 const PdfSlot = memo(function PdfSlot({
   pool, page, total, title, top, left, width, height, priority, dpr, overlay, markText, highlighter, onMark, onRendered, onFailure,
-  searchQuery, searchIndex, revealSeq, matchAll, matchFocus, onSearchCount, onReveal,
+  searchQuery, searchIndex, revealSeq, matchAll, matchFocus, onSearchCount, onReveal, onCitationReady,
 }) {
   const canvasRef = useRef(null);
   const textRef = useRef(null);
@@ -62,6 +62,8 @@ const PdfSlot = memo(function PdfSlot({
   useEffect(() => { callbacks.current = { onRendered, onFailure }; });
 
   useEffect(() => {
+    // A range from the previous scale cannot locate a passage while its redraw is pending.
+    highlighter.clear(page);
     const draw = () => {
       handleRef.current = pool.request({
         page,
@@ -89,7 +91,7 @@ const PdfSlot = memo(function PdfSlot({
       handleRef.current = null;
     };
     // The priority is updated in place below; a new one must not redraw the page.
-  }, [pool, page, width, dpr]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pool, page, width, dpr, highlighter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The exact mark, after each draw and whenever this page's piece of the passage changes; a page
   // that leaves the window takes its mark with it.
@@ -98,6 +100,11 @@ const PdfSlot = memo(function PdfSlot({
     onMark?.(page, markText, markPage({ container: textRef.current, passageText: markText, page, highlighter }));
     return () => highlighter.clear(page);
   }, [draws, markText, highlighter, page, onMark]);
+
+  // Reveal only after the exact citation range has been rebuilt for this drawing.
+  useEffect(() => {
+    if (draws && markText) onCitationReady?.(page, highlighter.get(page));
+  }, [draws, markText, page, highlighter, onCitationReady]);
 
   // The search's matches, after each draw and whenever the query or the current match changes; the
   // page holding the current match is scrolled to it once per move.
@@ -168,6 +175,8 @@ export default function PdfDocument({
   // The last move revealed. A view opening while search is open counts the current move as
   // revealed: it opens on the reader's page, not on a match found before it opened.
   const revealedRef = useRef(search?.seq ?? 0);
+  const mountRequestRef = useRef(scrollRequest);
+  const pendingCitation = useRef(openAt === cited ? cited : null);
   const areaRef = useRef(null);
   const docRef = useRef(null);
   const pane = usePaneSize(areaRef);
@@ -256,14 +265,30 @@ export default function PdfDocument({
     syncView(area);
   }, [layout, contentWidth, pane.width]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const onCitationReady = useCallback((page, range) => {
+    const area = areaRef.current;
+    if (!area || pendingCitation.current !== page) return;
+    if (!range) { pendingCitation.current = null; return; }
+    const rect = range.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    pendingCitation.current = null;
+    const box = area.getBoundingClientRect();
+    area.scrollTop += rect.top + rect.height / 2 - (box.top + (area.clientHeight - insetBottom) / 2);
+    if (rect.left < box.left || rect.right > box.left + area.clientWidth) area.scrollLeft += rect.left + rect.width / 2 - (box.left + area.clientWidth / 2);
+    syncView(area);
+  }, [insetBottom]);
+
   // A page asked for from the toolbar: its top at the top of the view; the cited page (Back to
   // p. N, Home), with the citation centred, as on opening.
   useEffect(() => {
     const area = areaRef.current;
-    if (!area || !scrollRequest || !layout.count) return;
+    if (!area || !scrollRequest || scrollRequest === mountRequestRef.current || !layout.count) return;
+    pendingCitation.current = scrollRequest.page === cited ? cited : null;
     const box = scrollRequest.page === cited ? citedBox : null;
     area.scrollTop = scrollTopFor(layout, { page: scrollRequest.page, box, viewport: area.clientHeight, insetBottom });
     syncView(area);
+    const range = highlighter.get(cited);
+    if (scrollRequest.page === cited && range) onCitationReady(cited, range);
   }, [scrollRequest]); // eslint-disable-line react-hooks/exhaustive-deps -- once per request
 
   // A move to a search match. The drawn page holding it scrolls it to the centre of the view (above
@@ -274,6 +299,7 @@ export default function PdfDocument({
     const area = areaRef.current;
     // Once per move: a page leaving the window and drawn again must not scroll back to it.
     if (!area || seq === revealedRef.current) return;
+    pendingCitation.current = null;
     revealedRef.current = seq;
     if (range) {
       const rect = range.getBoundingClientRect();
@@ -288,6 +314,7 @@ export default function PdfDocument({
   useEffect(() => {
     const area = areaRef.current;
     if (!area || !search?.page || !search.seq || revealedRef.current === search.seq || !layout.count) return;
+    pendingCitation.current = null;
     area.scrollTop = scrollTopFor(layout, { page: search.page, box: null, viewport: area.clientHeight, insetBottom });
     syncView(area);
   }, [search?.seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per move
@@ -306,13 +333,15 @@ export default function PdfDocument({
 
   // Nothing is drawn before the pane is measured: every page would have no size, and all would be in view.
   const pages = pane.width > 0 ? renderWindow(layout, top, viewport) : [];
+  // Scheduling order must not become DOM order: moving an ancestor collapses live DOM ranges.
+  const priorities = new Map(pages.map((page, rank) => [page, rank]));
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
   return (
     // Focusable, so the reader can scroll it from the keyboard and ⌘/Ctrl+F reaches the viewer
     // after a click on a page.
     <div className="pv-pdf" ref={areaRef} tabIndex={0} role="region" aria-label={`Pages of ${title}`}>
       <div className="pv-doc" ref={docRef} style={{ width: contentWidth, height: layout.total }}>
-        {pages.map((page, rank) => {
+        {[...pages].sort((a, b) => a - b).map(page => {
           const i = page - 1;
           return (
             <PdfSlot
@@ -325,7 +354,7 @@ export default function PdfDocument({
               left={(contentWidth - layout.widths[i]) / 2}
               width={layout.widths[i]}
               height={layout.heights[i]}
-              priority={rank}
+              priority={priorities.get(page)}
               dpr={dpr}
               overlay={overlays?.get(page) ?? null}
               markText={marks?.get(page) ?? null}
@@ -340,6 +369,7 @@ export default function PdfDocument({
               matchFocus={matchFocus}
               onSearchCount={onSearchCount}
               onReveal={onReveal}
+              onCitationReady={onCitationReady}
             />
           );
         })}

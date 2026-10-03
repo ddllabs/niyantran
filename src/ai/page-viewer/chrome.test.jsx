@@ -19,7 +19,7 @@ function unnamedIconControls(html) {
 describe('PageControls', () => {
   it('the side pane toolbar: previous, page box, next, cited chip, zoom, full view, in that order', () => {
     const html = renderToStaticMarkup(<PageControls variant="toolbar" page={4} total={22} cited={4} onPage={noop} zoom={ZOOM} onExpand={noop} />);
-    expect(labels(html)).toEqual(['Pages', 'Previous page', 'Page, 1 to 22', 'Next page', 'Zoom', 'Zoom out', 'Zoom 62%, choose a fit', 'Zoom in', 'Full view']);
+    expect(labels(html)).toEqual(['Pages', 'Previous page', 'Page, 1 to 22', 'Next page', 'Back to cited passage on page 4', 'Zoom', 'Zoom out', 'Zoom 62%, choose a fit', 'Zoom in', 'Full view']);
     expect(html).toContain('Cited p. 4');
     expect(html).toMatch(/aria-live="polite"[^>]*>Page 4 of 22</);
     expect(unnamedIconControls(html)).toEqual([]);
@@ -65,16 +65,17 @@ describe('PageControls', () => {
 });
 
 describe('CitedChip', () => {
-  it('is a plain status on the cited page, with no disabled control', () => {
+  it('is actionable on the cited page, with no disabled control', () => {
     const html = renderToStaticMarkup(<CitedChip page={4} cited={4} onPage={noop} />);
-    expect(html).toMatch(/^<span class="pv-cite"><svg/);
+    expect(html).toMatch(/^<button/);
+    expect(html).toContain('Back to cited passage on page 4');
     expect(html).toContain('Cited p. 4');
-    expect(html).not.toContain('<button');
+    expect(html).toContain('<button');
   });
 
   it('elsewhere is the button back to the cited page, on Home', () => {
     const html = renderToStaticMarkup(<CitedChip page={9} cited={4} onPage={noop} />);
-    expect(html).toMatch(/^<button type="button" class="pv-cite pv-cite-back" aria-keyshortcuts="Home"><svg/);
+    expect(html).toMatch(/^<button type="button" class="pv-cite pv-cite-back" aria-keyshortcuts="Home" aria-label="Back to cited passage on page 4"><svg/);
     expect(html).toContain('Back to p. 4');
   });
 });

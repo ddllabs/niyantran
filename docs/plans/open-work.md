@@ -53,6 +53,8 @@ Current baseline (read-only observations, 2026-10-03):
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
+- **2026-10-03, F57 citation viewer reliability, verified locally by supervisor:** `6df6d7c`. Stable PDF slot order preserves highlights; repeated citation events and cited-page controls reveal the exact passage, including after redraw. 2,029 Vitest tests, lint, build, independent review and local browser checks pass. [Plan and evidence](2026-10-03-citation-viewer-reliability.md). No push or deployment; timing follow-up is F58.
+
 - **2026-10-03, F55 `chat-attach-fixes`, closed by the owner:** the AI chat's drop frame, duplicate
   attachments and Reload.
   - **The drop frame** is an overlay on all four sides.
@@ -691,6 +693,8 @@ Earlier items, updated:
   refresh pipeline.
 - [ ] **P14.** Bill-key collisions (two documents on one `bill:<year>:<number>`
   key). Accept, or keep one document per key.
+
+- [ ] **F58. Heavy-document viewer stutter profiling.** After the F57 DOM-order fix, measure representative large PDFs before further optimization. The 18-page offline fixture verifies behavior, not production-scale timing. No production writes are needed; Safari coverage remains F50.
 
 ## 4. Payments
 

@@ -66,8 +66,9 @@ spec).
   - Previous ‹;
   - a page box showing the current page, which takes a typed page, next to "/ 22";
   - Next ›.
-- **The cited chip.** It reads "Cited p. 4" as a status on the cited page. Elsewhere it becomes the
-  button "Back to p. 4" (the Home key).
+- **The cited chip.** It reads "Cited p. 4" on the cited page and "Back to p. 4" elsewhere.
+  Both are buttons that return to the exact cited passage (the Home key), including after
+  scrolling elsewhere on that same page.
 - **Zoom**, on the right: −, a "62% ▾" readout that opens the fit menu (Fit text, Fit width, Fit
   page, with a check on the current fit), and +.
 - **Full view ⤢.**
@@ -218,7 +219,7 @@ changes at once, as today.
   - accepts "7" within 1..total;
   - rejects "", "0", "23" of 22, "3.5", "abc" and "  " (null);
   - trims surrounding spaces.
-- **`citedChip`:** a status on the cited page, and a "Back to p. N" action elsewhere.
+- **`citedChip`:** the current-page label and the "Back to p. N" label elsewhere; both are passage-return actions.
 - **`menuFocus`:**
   - ↓ and ↑ wrap;
   - Home and End jump;
@@ -351,7 +352,7 @@ required fixes. All four are fixed and checked in the browser.
    the browser moves on from there. Before, focus fell to a removed node, and the full view's trap
    sent it to the dialog's first control.
 2. **Focus kept at the edges.**
-   - "Back to p. N" unmounts on arrival, by click or the Home key, so the page box takes focus.
+   - The cited control remains mounted on arrival, by click or Home, and retains focus.
    - Previous, Next and the zoom steps at their limits use `aria-disabled` (`IconButton`'s
      `unavailable`), not `disabled`, so the press that reached a limit keeps its focus.
 3. **Fit page in the full view.** The pill's room is now bottom padding on the page area, which
