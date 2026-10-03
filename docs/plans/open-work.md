@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F67 is next) and goes in the
+- A new finding gets the next free `F` number (F68 is next) and goes in the
   right section.
 
 ## UI follow-ups
@@ -23,7 +23,7 @@
   activity, compact badges, secondary technical details and inline source
   citations. [Spec](../specs/2026-10-04-research-flow.md),
   [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
-  implemented in `f47ccb4`; 2,083 tests, lint/build and offline browser passed.
+  implemented in `f47ccb4`, amended in `e97006b`; 2,083 tests, lint/build and offline browser passed.
   Pending owner review/landing; no publication authorized.
 - [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
