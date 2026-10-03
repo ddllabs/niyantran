@@ -999,6 +999,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 model={stream?.model || { requested: modelChoice.modelId }}
                 timing={stream?.timing}
                 effort={modelChoice.effort}
+                usage={stream?.usage}
                 labelOf={labelOf}
                 sourceCount={(stream?.sources || []).filter(isReadableCitation).length}
                 lang={lang}

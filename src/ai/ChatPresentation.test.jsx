@@ -10,10 +10,11 @@ it('selects the opened passage rather than every repeated reference number', () 
   expect(render(source)).toContain('aria-pressed="true"');
   expect(render({ ...source, chunk_id: 'other' })).toContain('aria-pressed="false"');
 });
-it('keeps the source document action separate from optional citation details', () => {
+it('keeps citation numbers inline in the single source action', () => {
   const html = renderToStaticMarkup(<SourceList sources={[source, { ...source, id: 2 }]} />);
-  expect(html).toContain('2 citations');
-  expect(html).toContain('<summary>Cited passages</summary>');
+  expect(html).not.toContain('Cited passages');
+  expect(html).not.toContain('<details');
+  expect((html.match(/<button/g)||[])).toHaveLength(1);
   expect(html).toContain('class="ai-source-id">1');
 });
 it('reveals suggestions beyond two rather than truncating every question', () => {

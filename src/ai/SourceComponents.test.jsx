@@ -49,7 +49,7 @@ describe('SourceList', () => {
     const one = renderToStaticMarkup(<SourceList sources={[page(2, 'd1', 2, { desk_feature: 'Bills' })]} />);
     expect(one).toContain('Bills');
     expect(one).toContain('p. 2<');
-    expect(one).toContain('1 citation');
+    expect(one).toContain('cited');
     expect(one).toContain('class="ai-source-id">2</span>');
     const many = renderToStaticMarkup(<SourceList sources={[1, 2, 3, 4, 5, 6, 7].map((n) => page(n, 'd1', n * 2))} />);
     expect(many).toContain('pp. 2, 4, 6, 8, 10 +2<');

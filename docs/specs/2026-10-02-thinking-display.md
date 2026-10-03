@@ -14,6 +14,14 @@
 > token usage; it does not measure thinking duration. These rules supersede
 > the initial open state and timing wording below.
 >
+> **Amendment, 2026-10-04 (F65):**
+> [Research flow](2026-10-04-research-flow.md) governs the current presentation:
+> highlighted model/effort summary, open monoline recorded stages and query/result
+> badges, with technical measurements behind a secondary native disclosure.
+> Measured reasoning-token counts may appear; private reasoning prose is not
+> exposed or reconstructed. The collapsed default and honest timing labels above
+> remain in force.
+>
 > The model's own reasoning text (option B) is out of scope. Evidence:
 > `docs/research/2026-10-02-chat-experience-review.md` (C1–C5). Tracked as open-work F46.
 

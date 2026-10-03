@@ -14,10 +14,20 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F65 is next) and goes in the
+- A new finding gets the next free `F` number (F67 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F65. Research flow UI.** Owner-approved reference adaptation: monoline
+  activity, compact badges, secondary technical details and inline source
+  citations. [Spec](../specs/2026-10-04-research-flow.md),
+  [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
+  no publication authorized.
+- [ ] **F66. Connection recovery state.** Owner screenshots show Failed to
+  fetch, an unknown saved outcome, excess empty space and a remaining Stop
+  button. Root cause unverified; investigate separately without using live
+  conversations as test fixtures. Outside F65 visual scope.
 
 - [ ] **F64. Activity details.** Consolidate model/effort in the accordion and
   show action states, top-K and measured retrieval timing. Owner approved;

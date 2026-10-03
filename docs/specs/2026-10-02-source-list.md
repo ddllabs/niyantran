@@ -3,11 +3,12 @@
 > **Status: Living.** Owner-approved design, 2026-10-02: the compact list. The owner's words
 > were "this section really needs redesigning, it looks like windows 98".
 
-> **Amendment, 2026-10-04 (F63, owner-approved chat polish):** the document
-> row's metadata shows citation count; numbers are available under a separate
-> Cited passages disclosure. The document row remains one button opening its
-> first citation. Neither numbers nor disclosure are nested interactive controls.
-> This supersedes the always-visible numbered labels below.
+> **Amendment, 2026-10-04 (F65, owner-approved research flow):**
+> [F65](2026-10-04-research-flow.md) supersedes the F63 source disclosure:
+> citation numbers are inline with document metadata again. There is no separate
+> Cited passages row. The document remains one button opening its first citation.
+> The list uses a soft theme-aware surface and separators without an enclosing
+> border. Earlier current-state notes below describe the pre-F51 implementation.
 
 ## Current state
 

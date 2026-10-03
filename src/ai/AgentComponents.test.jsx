@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import ActivityTicker, { tickerSteps, measurementRows } from './ActivityTicker.jsx';
+import ActivityTicker, { tickerSteps } from './ActivityTicker.jsx';
+import { measurementRows } from './ResearchFlow.jsx';
 import ModelPicker, { costHint, effortsFor, groupByVendor } from './ModelPicker.jsx';
 import WorkSurface, { AskAboutDocument } from './WorkSurface.jsx';
 import CitationBubble, { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';

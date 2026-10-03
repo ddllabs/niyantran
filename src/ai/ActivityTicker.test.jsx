@@ -1,12 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel, ActivityDetails, actionState, measurementRows } from './ActivityTicker.jsx';
+import ActivityTicker, { clock, finishedSummary, foundSoFar, stepLabel } from './ActivityTicker.jsx';
+import ResearchFlow, { actionState, measurementRows } from './ResearchFlow.jsx';
 
 // thinking-display spec (docs/specs/2026-10-02-thinking-display.md), owner-approved 2026-10-02.
 describe('thinking display', () => {
   it('consolidates model and requested effort in the activity summary', () => {
     const html = renderToStaticMarkup(<ActivityTicker model={{requested:'model/a',served:'model/b'}} effort="low" labelOf={id=>id==='model/b'?'Model B':id} timing={{total_ms:1000}} />);
     expect(html).toContain('Model B · Low');
+  });
+  it('shows requested model metadata on legacy turns without timings or served model', () => {
+    const html=renderToStaticMarkup(<ActivityTicker model={{requested:'model/a'}} effort="low" labelOf={()=>'Model A'} />);
+    expect(html).toContain('Model A · Low');
   });
   it('distinguishes failed, cancelled and incomplete actions from successful zero results', () => {
     expect(actionState({phase:'start'}, true)).toBe('Searching');
@@ -24,7 +29,7 @@ describe('thinking display', () => {
     expect(rows).toContainEqual(['Other processing','6000 ms']);
     expect(rows).toContainEqual(['First answer latency','5600 ms']);
   });
-  it('§1: from Send it is one open status line, "Starting…", with an elapsed clock', () => {
+  it('§1: from Send it is one compact status line, "Starting…", with an elapsed clock', () => {
     const html = renderToStaticMarkup(<ActivityTicker active startedAt={Date.now() - 75_000} />);
     expect(html).toContain('Starting…');
     expect(html).toMatch(/role="status"[^>]*aria-live="polite"|aria-live="polite"[^>]*role="status"/);
@@ -59,7 +64,7 @@ describe('thinking display', () => {
     expect(html).not.toContain('Not finished');
   });
 
-  it('§4: finished, it collapses to "N searches · N sources · N s", omitting zeros', () => {
+  it('§4: finished, it collapses to "N searches · N citations · N s", omitting zeros', () => {
     const steps = [
       { type: 'tool', name: 'search_documents', phase: 'end', step: 1, resultCount: 40 },
       { type: 'tool', name: 'search_desk_rows', phase: 'end', step: 2, resultCount: 8 },
@@ -78,7 +83,7 @@ describe('thinking display', () => {
 
 it('expanded details preserve exact model, requested fallback and first-answer latency', () => {
   const timing = { search_ms:900, reasoning_ms:12000, writing_ms:4000, total_ms:17000, first_answer_ms:3100 };
-  const html=renderToStaticMarkup(<ActivityDetails timing={timing} model={{requested:'model/a',served:'model/b'}} effort="low" />);
+  const html=renderToStaticMarkup(<ResearchFlow timing={timing} model={{requested:'model/a',served:'model/b'}} effort="low" />);
   expect(html).toContain('model/b'); expect(html).toContain('Requested model'); expect(html).toContain('model/a');
   expect(html).toContain('First answer latency'); expect(html).toContain('3100 ms');
   expect(html).toContain('Reasoning duration'); expect(html).toContain('Not available');

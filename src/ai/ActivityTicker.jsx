@@ -7,6 +7,8 @@
  * §2, amended 2026-10-02) and keeps that card's polite status region and Hindi.
  */
 import { useEffect, useState } from 'react';
+import { ChevronDown, Sparkles } from 'lucide-react';
+import ResearchFlow, { effortLabel } from './ResearchFlow.jsx';
 import './research.css';
 
 const SEARCH_TOOLS = ['search_documents', 'search_desk_rows'];
@@ -91,61 +93,6 @@ export function finishedSummary({ steps = [], sourceCount = 0, timing = null, hi
   return line || (hi ? 'उत्तर दिया' : 'Answered');
 }
 
-export function actionState(step, active = false, hi = false) {
-  const state = step.phase !== 'end' ? (active ? 'Searching' : 'Incomplete')
-    : step.status === 'cancelled' ? 'Cancelled' : step.status === 'error' ? 'Failed' : 'Completed';
-  return hi ? ({Searching:'खोज जारी',Incomplete:'अधूरा',Cancelled:'रद्द',Failed:'विफल',Completed:'पूर्ण'})[state] : state;
-}
-
-const measured = (value, hi) => Number.isFinite(value) && value >= 0
-  ? `${Math.round(value)} ${hi ? 'मि.से.' : 'ms'}` : (hi ? 'उपलब्ध नहीं' : 'Not available');
-const EFFORTS = { off:['No reasoning','बंद'], minimal:['Minimal','न्यूनतम'], low:['Low','कम'], medium:['Medium','मध्यम'], high:['High','उच्च'], xhigh:['Extra high','बहुत उच्च'] };
-const effortLabel = (effort, hi) => Object.hasOwn(EFFORTS,effort) ? EFFORTS[effort][hi ? 1 : 0] : (hi?'उपलब्ध नहीं':'Not available');
-
-export function measurementRows(timing, steps = [], hi = false) {
-  const documents = steps.filter(s=>s.type === 'tool' && s.phase === 'end' && s.name === 'search_documents');
-  const sum = key => documents.length && documents.every(s=>Number.isFinite(s[key]) && s[key]>=0)
-    ? documents.reduce((n,s)=>n+s[key],0) : undefined;
-  const rows = [
-    ['Search actions','खोज कार्रवाइयाँ',timing?.search_ms],
-    ['Query embedding','प्रश्न एम्बेडिंग',sum('embeddingMs')],
-    ['Database retrieval','डेटाबेस रिट्रीवल',sum('retrievalMs')],
-    ['Reasoning duration','तर्क अवधि',undefined],
-    ['Answer generation','उत्तर लेखन',timing?.writing_ms],
-    ['Other processing','अन्य प्रोसेसिंग',timing?.reasoning_ms],
-    ['Total','कुल',timing?.total_ms],
-    ['First answer latency','पहले उत्तर की प्रतीक्षा',timing?.first_answer_ms > 0 ? timing.first_answer_ms : undefined],
-  ];
-  return rows.map(([en,local,value])=>[hi?local:en,measured(value,hi)]);
-}
-
-export function ActivityDetails({ steps = [], active = false, timing, model, effort, lang = 'en', labelOf = id=>id }) {
-  const hi = lang === 'hi';
-  const served = model?.served || model?.requested;
-  return <div className="ai-activity-details">
-    <dl className="ai-activity-measurements">
-      <dt>{hi?'मॉडल':'Model'}</dt><dd>{served ? <>{labelOf(served)}<small>{served}</small></> : (hi?'उपलब्ध नहीं':'Not available')}</dd>
-      {model?.requested && model?.served && model.requested !== model.served ? <><dt>{hi?'अनुरोधित मॉडल':'Requested model'}</dt><dd>{model.requested}</dd></> : null}
-      <dt>{hi?'अनुरोधित सोच स्तर':'Requested thinking effort'}</dt><dd>{effortLabel(effort,hi)}</dd>
-    </dl>
-    {steps.length ? <ol className="ai-ticker-steps">
-      {steps.map((s,i)=><li key={`${s.type}-${s.step ?? i}`} className={`ai-ticker-step ${s.type}`}>
-        {s.type === 'tool' ? <>
-          <div className="ai-action-heading"><strong>{actionState(s,active,hi)}</strong><span>{s.name === 'search_documents' ? (hi?'दस्तावेज़ खोज':'Document search') : (hi?'डेस्क खोज':'Desk lookup')}</span></div>
-          <span>{s.phase !== 'end' && !active ? (inputOf(s).query || inputOf(s).feature || '') : stepLabel(s)}</span>
-          <dl className="ai-activity-measurements">
-            {Number.isSafeInteger(s.requestedTopK) && s.requestedTopK > 0 ? <><dt>{hi?'अनुरोधित टॉप-K':'Requested top-K'}</dt><dd>{s.requestedTopK}</dd></> : null}
-            <dt>{hi?'बीता समय':'Elapsed'}</dt><dd>{measured(s.latencyMs,hi)}</dd>
-            {s.name === 'search_documents' ? <><dt>{hi?'एम्बेडिंग':'Embedding'}</dt><dd>{measured(s.embeddingMs,hi)}</dd><dt>{hi?'डेटाबेस रिट्रीवल':'Database retrieval'}</dt><dd>{measured(s.retrievalMs,hi)}</dd></> : null}
-          </dl>
-        </> : <span>{s.text}</span>}
-      </li>)}
-    </ol> : null}
-    <dl className="ai-activity-measurements ai-activity-timing">{measurementRows(timing,steps,hi).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-    <p className="ai-activity-note">{hi?'एम्बेडिंग और डेटाबेस समय खोज समय के हिस्से हैं। पहले उत्तर की प्रतीक्षा अन्य चरणों से ओवरलैप करती है। तर्क अवधि मापी नहीं जाती।':'Embedding and database times are included in search time. First answer latency overlaps other phases. Database time measures the RPC round trip. Reasoning duration is not measured.'}</p>
-  </div>;
-}
-
 function useNow(running) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -159,14 +106,15 @@ function useNow(running) {
 
 export default function ActivityTicker({
   activity = [], active = false, startedAt = 0, timing = null, model = null,
-  sourceCount = 0, effort = null, labelOf = (id) => id, lang = 'en',
+  sourceCount = 0, effort = null, usage = null, labelOf = (id) => id, lang = 'en',
 }) {
   const hi = lang === 'hi';
   const [open, setOpen] = useState(false);
+  const [pointerToggle, setPointerToggle] = useState(false);
   const now = useNow(active && startedAt > 0);
 
   const steps = tickerSteps(activity);
-  if (!steps.length && !active && !timing && !model?.served) return null;
+  if (!steps.length && !active && !timing && !model?.served && !model?.requested) return null;
 
   const found = foundSoFar(steps);
   const last = steps[steps.length - 1];
@@ -177,24 +125,27 @@ export default function ActivityTicker({
   const head = [modelId && labelOf(modelId), effort && effortLabel(effort,hi), summary].filter(Boolean).join(' · ');
 
   return (
-    <div className={`ai-ticker${active ? ' active' : ''}`}>
+    <div className={`ai-ticker${active ? ' active' : ''}`} data-motion={pointerToggle ? 'pointer' : 'instant'}>
       <button
         type="button"
         className="ai-ticker-head"
         aria-expanded={open}
-        onClick={() => {
+        aria-label={head}
+        onClick={(event) => {
+          setPointerToggle(event.detail > 0);
           setOpen((v) => !v);
         }}
       >
-        <span className={`ai-ticker-dot${active ? ' on' : ''}`} aria-hidden="true" />
-        <span className="ai-ticker-line" role="status" aria-live="polite">{head}</span>
-        {active && startedAt > 0 ? <span className="ai-ticker-clock">{clock(now - startedAt)}</span> : null}
-        <span className="ai-ticker-caret" aria-hidden="true">
-          {open ? '▾' : '▸'}
+        <Sparkles className={`ai-ticker-glyph${active ? ' working' : ''}`} size={16} aria-hidden="true" />
+        <span className="ai-ticker-line" role="status" aria-live="polite">
+          {modelId ? <span className="ai-ticker-model"><strong>{labelOf(modelId)}</strong>{effort ? <span className="ai-ticker-effort">{effortLabel(effort, hi)}</span> : null}</span> : null}
+          <span className="ai-ticker-summary">{summary}</span>
         </span>
+        {active && startedAt > 0 ? <span className="ai-ticker-clock">{clock(now - startedAt)}</span> : null}
+        <ChevronDown className="ai-ticker-caret" size={16} aria-hidden="true" />
       </button>
 
-      {open ? <ActivityDetails steps={steps} active={active} timing={timing} model={model} effort={effort} lang={lang} labelOf={labelOf} /> : null}
+      {open ? <ResearchFlow steps={steps} active={active} timing={timing} model={model} effort={effort} usage={usage} lang={lang} labelOf={labelOf} /> : null}
 
       {open && found.length ? (
         <p className="ai-ticker-found">
