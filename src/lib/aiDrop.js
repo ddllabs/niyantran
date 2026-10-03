@@ -210,9 +210,9 @@ export function partitionAttachments(existing, incoming) {
 }
 
 /** `<size>:<first 16 hex of the SHA-256 of the bytes>`, or '' where it cannot be computed. */
-async function fileFingerprint(file) {
+async function fileFingerprint(file, bytes) {
   try {
-    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
     const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
     return `${file.size}:${hex.slice(0, 16)}`;
   } catch {
@@ -411,17 +411,13 @@ export function catalogHint(tabId) {
     .join(', ');
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const s = String(reader.result || '');
-      const i = s.indexOf(',');
-      resolve(i >= 0 ? s.slice(i + 1) : s);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+function bytesToBase64(bytes) {
+  const view = new Uint8Array(bytes);
+  let binary = '';
+  for (let i = 0; i < view.length; i += 0x8000) {
+    binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
 }
 
 export async function filesFromDrop(e) {
@@ -440,9 +436,11 @@ export async function filesFromDrop(e) {
               ? 'sheet'
               : 'text');
     const rec = { kind: 'file', title: file.name, urls: [], files: [] };
-    const fingerprint = await fileFingerprint(file);
-    if (fingerprint) rec.fingerprint = fingerprint;
     try {
+      // Share one read between content identity and the turn's payload.
+      const bytes = await file.arrayBuffer();
+      const fingerprint = await fileFingerprint(file, bytes);
+      if (fingerprint) rec.fingerprint = fingerprint;
       if (kind === 'pdf' || kind === 'image' || kind === 'sheet') {
         rec.files.push({
           name: file.name,
@@ -454,14 +452,14 @@ export async function filesFromDrop(e) {
               : kind === 'sheet'
                 ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 : 'image/png'),
-          base64: await fileToBase64(file),
+          base64: bytesToBase64(bytes),
         });
       } else {
         rec.files.push({
           name: file.name,
           kind: kind || 'text',
           mime: file.type,
-          text: (await file.text()).slice(0, 180000),
+          text: new TextDecoder().decode(bytes).slice(0, 180000),
         });
       }
     } catch {

@@ -259,3 +259,52 @@ it('an attach that skips duplicates names them, and the next attach clears the n
  await f.controller.attach(async()=>[{kind:'row',title:'C',document_key:'bill:1:3'}]);
  expect(f.controller.getSnapshot().attachNotice).toBe('');
 });
+
+
+// F60: attachment work is visible and serialized independently of research execution.
+it('locks while materializing attachments without offering a spurious Stop', async () => {
+ const f=fixture();attachable(f);await f.controller.start();const gate=deferred();
+ const attaching=f.controller.attach(()=>gate.promise);
+ expect(f.controller.getSnapshot()).toMatchObject({attaching:true,locked:true,canStop:false});
+ const second=vi.fn(async()=>[]);
+ expect(await f.controller.attach(second)).toBe(false);expect(second).not.toHaveBeenCalled();
+ expect(await f.controller.send({message:'Wait'})).toBe(false);
+ expect(f.controller.newChat()).toBe(false);
+ gate.resolve([{kind:'row',title:'Ready'}]);await attaching;
+ expect(f.controller.getSnapshot()).toMatchObject({attaching:false,locked:false});
+ expect(f.controller.getSnapshot().chat.attachments.map(a=>a.title)).toEqual(['Ready']);
+});
+it('names duplicates and overflow while admitting only remaining attachment slots', async () => {
+ const f=fixture();attachable(f);await f.controller.start();
+ const existing=Array.from({length:11},(_,i)=>({kind:'row',title:`Existing ${i}`,document_key:`bill:1:${i}`}));
+ await f.controller.attach(async()=>existing);
+ await f.controller.attach(async()=>[existing[0],{kind:'row',title:'Admitted',document_key:'bill:2:1'},{kind:'row',title:'Omitted.pdf',document_key:'bill:2:2'}]);
+ expect(f.controller.getSnapshot().chat.attachments).toHaveLength(12);
+ expect(f.controller.getSnapshot().attachNotice).toBe('Already attached: Existing 0. Attachment limit (12): not added: Omitted.pdf');
+ await f.controller.attach(async()=>[{kind:'row',title:'Another',document_key:'bill:2:3'}]);
+ expect(f.controller.getSnapshot().attachNotice).toBe('Attachment limit (12): not added: Another');
+});
+it('releases attachment processing after failure with fixed copy', async () => {
+ const f=fixture();await f.controller.start();
+ await f.controller.attach(async()=>{throw new Error('private file detail');});
+ expect(f.controller.getSnapshot()).toMatchObject({attaching:false,locked:false,error:'The attachment could not be loaded.'});
+});
+it('account changes erase attachment notices and ignore late attachment work', async () => {
+ const f=fixture();attachable(f);await f.controller.start();
+ const row={kind:'row',title:'A private item',document_key:'bill:1:1'};
+ await f.controller.attach(async()=>[row]);await f.controller.attach(async()=>[row]);
+ const gate=deferred();const pending=f.controller.attach(()=>gate.promise);
+ f.changeOwner('b');
+ expect(f.controller.getSnapshot()).toMatchObject({attaching:false,attachNotice:''});
+ await vi.waitFor(()=>expect(f.controller.getSnapshot().ready).toBe(true));
+ gate.resolve([row]);expect(await pending).toBe(false);
+ expect(f.controller.getSnapshot()).toMatchObject({attaching:false,attachNotice:''});
+ expect(f.controller.getSnapshot().chat.attachments).toEqual([]);
+});
+it('Reload after a failed history write refreshes the authoritative conversation list, even after the last deletion', async () => {
+ const f=fixture();await f.controller.start();
+ f.setState({activeId:'',loaded:true,chats:[],persistenceError:'Conversation changes could not be saved.'});
+ await f.controller.reload();
+ expect(f.deps.hydrateConversations).toHaveBeenCalledTimes(2);
+ expect(f.controller.getSnapshot().chat.draft).toBe(true);
+});

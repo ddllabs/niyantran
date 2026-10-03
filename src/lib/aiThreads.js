@@ -4,6 +4,7 @@
  * legacy AI path used was retired on 2026-09-28 (plan task D4).
  */
 export {
+  MAX_ATTACHMENTS,
   loadAiState,
   subscribeAiChats,
   activeAiChat,

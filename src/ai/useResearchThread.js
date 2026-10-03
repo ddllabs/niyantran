@@ -45,14 +45,14 @@ export function createResearchThread(overrides = {}) {
   const deps = { ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
     : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
-  const emptyStore = () => ({ chats: [], activeId: '', loaded: false });
+  const emptyStore = () => ({ chats: [], activeId: '', loaded: false, persistenceError: '' });
   let data = { ready: false, loading: true, error: '', draft: '', viewer: null, store: emptyStore(),
     // No effort yet, rather than 'off': the model list has not loaded, so this
     // is the absence of a choice and must normalise to the default once it can.
     // 'off' here would be indistinguishable from a reader who picked it.
     // A saved choice (F14) is kept as given and normalised once models load.
     registry: { models: [], roles: [] }, choice: readSavedChoice(storage) || { modelId: '', effort: '' }, submitting: false,
-    cancelRequested: false, cancelPending: false, cancelError: '', identityVersion: 0 };
+    cancelRequested: false, cancelPending: false, cancelError: '', attaching: false, attachNotice: '', identityVersion: 0 };
   let view = data;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
   let rechecking = null, recheckSequence = 0;
@@ -86,7 +86,7 @@ export function createResearchThread(overrides = {}) {
     const savedSources = [...(chat?.messages || [])].reverse().find(m => m.role === 'assistant' && m.sources?.length)?.sources || [];
     view = { ...data, chat, stream, messages, live, storedRunning,
       canStop: data.ready && Boolean(data.submitting || stream?.isPending || stream?.isStreaming || storedRunning),
-      locked: !data.ready || data.loading || data.submitting || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
+      locked: !data.ready || data.loading || data.submitting || data.attaching || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
       sources: stream?.sources?.length ? stream.sources : savedSources,
       recoverable: Boolean(request && stream?.retryable && !stream?.isStreaming && !data.submitting),
       choice: normalizeResearchChoice(data.registry.models, data.choice) };
@@ -117,7 +117,7 @@ export function createResearchThread(overrides = {}) {
   function invalidate(id, event) {
     generation++; sequence++; owner = null; operation = null;
     emit({ ready: false, loading: Boolean(id), error: id ? '' : 'Sign in to use AI research.', store: emptyStore(),
-      draft: '', viewer: null, submitting: false, cancelRequested: false, cancelPending: false, cancelError: '',
+      draft: '', viewer: null, submitting: false, attaching: false, attachNotice: '', cancelRequested: false, cancelPending: false, cancelError: '',
       identityVersion: data.identityVersion + 1 });
     // Never invoke another Auth method inside its synchronous event callback.
     if (id) queueMicrotask(() => { if (active) void hydrate(); });
@@ -196,7 +196,7 @@ export function createResearchThread(overrides = {}) {
     }
   }
   async function execute(body, replay = false) {
-    if (!data.ready || data.submitting || (!replay && view.locked)) return false;
+    if (!data.ready || data.submitting || data.attaching || (!replay && view.locked)) return false;
     const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
     if (!context) return false;
     const op = { context }; operation = op;
@@ -260,11 +260,11 @@ export function createResearchThread(overrides = {}) {
     openSource(source) { if (data.ready) emit({ viewer: { kind: source?.kind || 'list', source: source || null } }); },
     closeViewer() { emit({ viewer: null }); },
     newChat() {
-      if (!data.ready || data.submitting || deps.streamState('new').isPending) return false;
+      if (!data.ready || data.submitting || data.attaching || deps.streamState('new').isPending) return false;
       emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '', attachNotice: '' }); return true;
     },
     async selectChat(id) {
-      if (!data.ready || data.submitting) return;
+      if (!data.ready || data.submitting || data.attaching) return;
       const t = token();
       emit({ store: deps.setActiveAiChat(id), viewer: null, draft: '', loading: true, error: '', cancelRequested: false, cancelError: '', attachNotice: '' });
       try { const store = await deps.loadMessages(id); if (await current(t)) emit({ store }); }
@@ -275,16 +275,24 @@ export function createResearchThread(overrides = {}) {
     async attach(materialize) {
       if (!data.ready || view.locked) return false;
       const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
+      if (!context) return false;
+      emit({ attaching: true, attachNotice: '', error: '' });
       try {
         const attachments = await materialize();
         if (!await current(t) || !contextChat(context)) return false;
         // chat-attach-fixes: what is already attached is not added again, and is named.
         const chat = contextChat(context);
         const { fresh, duplicates } = partitionAttachments(chat.attachments, attachments);
-        if (fresh.length) deps.addChatAttachments(chat.id, fresh);
-        const names = [...new Set(duplicates.map(a => a.title || 'item'))];
-        emit({ store: deps.loadAiState(), attachNotice: names.length ? `Already attached: ${names.join(', ')}` : '' }); return true;
+        const remaining = Math.max(0, threads.MAX_ATTACHMENTS - (chat.attachments || []).length);
+        const admitted = fresh.slice(0, remaining), overflow = fresh.slice(remaining);
+        if (admitted.length) deps.addChatAttachments(chat.id, admitted);
+        const names = list => [...new Set(list.map(a => a.title || 'item'))].join(', ');
+        const notices = [];
+        if (duplicates.length) notices.push(`Already attached: ${names(duplicates)}`);
+        if (overflow.length) notices.push(`Attachment limit (${threads.MAX_ATTACHMENTS}): not added: ${names(overflow)}`);
+        emit({ store: deps.loadAiState(), attachNotice: notices.join('. ') }); return true;
       } catch { if (valid(t)) emit({ error: 'The attachment could not be loaded.' }); return false; }
+      finally { if (valid(t)) emit({ attaching: false }); }
     },
     send: body => execute(body),
     recover: () => view.recoverable ? execute(null, true) : Promise.resolve(false),
@@ -302,6 +310,7 @@ export function createResearchThread(overrides = {}) {
     },
     async reload() {
       if (!data.ready) return hydrate();
+      if (data.store.persistenceError) return hydrate();
       const t = token(), id = view.chat?.id;
       if (!id) { emit(); return; }
       emit({ loading: true, error: '' });

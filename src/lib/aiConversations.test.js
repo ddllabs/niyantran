@@ -43,10 +43,11 @@ if (typeof globalThis.localStorage === 'undefined') {
 }
 
 /** A thenable query builder over in-memory tables, recording the writes. */
-function fakeClient(tables) {
+function fakeClient(tables, writeResult = null) {
   const writes = [];
   function builder(table) {
     const filters = [];
+    let writing = false;
     const q = {
       select: () => q,
       order: () => q,
@@ -60,14 +61,17 @@ function fakeClient(tables) {
         return q;
       },
       update(row) {
+        writing = true;
         writes.push({ table, op: 'update', row, filters });
         return q;
       },
       delete() {
+        writing = true;
         writes.push({ table, op: 'delete', filters });
         return q;
       },
-      then(resolve) {
+      then(resolve, reject) {
+        if (writing && writeResult) return Promise.resolve().then(writeResult).then(resolve, reject);
         const rows = (tables[table] || []).filter((r) => filters.every(([c, v]) => (c === 'user_id' ? (r.user_id || auth.id) : r[c]) === v));
         return Promise.resolve({ data: rows, error: null }).then(resolve);
       },
@@ -168,6 +172,44 @@ describe('aiConversations (server-backed thread store)', () => {
     expect(loadAiState().activeId).toBe('c-2');
     await vi.waitFor(() => expect(client.writes.some(w => w.op === 'delete')).toBe(true));
     expect(client.writes.some((w) => w.op === 'delete' && w.table === 'conversations')).toBe(true);
+  });
+
+  it.each(['rename', 'delete'])('reports a refused %s with safe copy and restores saved history on hydration', async (action) => {
+    useClient(fakeClient({ conversations: CONVERSATIONS, chat_messages: MESSAGES }, () => ({ error: { message: 'private database detail' } })));
+    await hydrateConversations();
+    if (action === 'rename') renameAiChat('c-1', 'Optimistic title');
+    else deleteAiChat('c-1');
+    await vi.waitFor(() => expect(loadAiState().persistenceError).toBe('Conversation changes could not be saved. Reload to restore saved history.'));
+    expect(loadAiState().persistenceError).not.toContain('private');
+    await hydrateConversations();
+    expect(loadAiState().persistenceError).toBe('');
+    expect(loadAiState().chats.find(c => c.id === 'c-1').title).toBe('Bills');
+  });
+
+  it('a rejected conversation write reports failure; a failed read does not clear it', async () => {
+    const db = fakeClient({ conversations: CONVERSATIONS }, () => { throw new Error('private transport detail'); });
+    useClient(db);
+    await hydrateConversations();
+    renameAiChat('c-1', 'Optimistic');
+    await vi.waitFor(() => expect(loadAiState().persistenceError).toMatch(/could not be saved/));
+    expect(activeAiChat().title).toBe('Optimistic');
+    db.from = () => ({ select(){return this;}, eq(){return this;}, order(){return this;}, limit(){return Promise.resolve({ error: { message: 'offline' } });} });
+    await expect(hydrateConversations()).rejects.toThrow();
+    expect(loadAiState().persistenceError).toMatch(/could not be saved/);
+  });
+
+  it('a late failed write cannot publish its warning into another account', async () => {
+    const result = deferred();
+    const db = fakeClient({ conversations: CONVERSATIONS }, () => result.promise);
+    useClient(db); await hydrateConversations();
+    renameAiChat('c-1', 'A title');
+    await vi.waitFor(() => expect(db.writes).toHaveLength(1));
+    switchAccount('owner-b'); await hydrateConversations();
+    result.resolve({ error: { message: 'A private detail' } });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(loadAiState().persistenceError).toBe('');
+    switchAccount(null);
+    expect(loadAiState().persistenceError).toBe('');
   });
 
   // R3: dedupe has to hold across separate drops, not only within one. Both

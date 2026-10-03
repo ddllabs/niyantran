@@ -19,23 +19,24 @@ import { verifiedLocalIdentity, localIdentityIsCurrent, reverifiedAccount, subsc
 const EVENT = 'niy-ai-chats';
 const PINS_KEY = 'niyantranAiPins';
 const MAX_CHATS = 40;
-const MAX_ATTACH = 12;
+export const MAX_ATTACHMENTS = 12;
 
 let client = supabase;
-let state = { chats: [], activeId: '', loaded: false };
+let state = { chats: [], activeId: '', loaded: false, persistenceError: '' };
 let owner = null;
 let generation = 0;
 let watching = false;
 let reverifying = null;
 let listSequence = 0;
 let draftSequence = 0;
+let persistenceRevision = 0;
 const messageSequences = new Map();
 
 function clearIdentity() {
   owner = null;
   reverifying = null;
   generation++;
-  state = { chats: [], activeId: '', loaded: false };
+  state = { chats: [], activeId: '', loaded: false, persistenceError: '' };
   messageSequences.clear();
   emit();
 }
@@ -106,8 +107,16 @@ async function verifiedScope(snapshot = null, given = null) {
 // captured B4 identity before using the SDK, whose current account can change.
 async function persist(snapshot, write) {
   try {
-    if (await verifiedScope(snapshot) && await current(snapshot) && bound(snapshot)) await write(snapshot.client, snapshot.identity.id);
-  } catch { /* optimistic cache is reconciled by the next authoritative read */ }
+    if (!await verifiedScope(snapshot) || !await current(snapshot) || !bound(snapshot)) return;
+    const result = await write(snapshot.client, snapshot.identity.id);
+    if (result?.error) throw result.error;
+  } catch {
+    // Never display provider details or publish an old account's late failure.
+    if (bound(snapshot) && await current(snapshot)) {
+      persistenceRevision++;
+      put({ persistenceError: 'Conversation changes could not be saved. Reload to restore saved history.' });
+    }
+  }
 }
 
 
@@ -151,7 +160,7 @@ function toChat(row, pins) {
     createdAt: Date.parse(row.created_at || '') || Date.now(),
     updatedAt: Date.parse(row.last_message_at || row.created_at || '') || Date.now(),
     messages: [],
-    attachments: Array.isArray(pins[row.id]) ? pins[row.id].slice(0, MAX_ATTACH) : [],
+    attachments: Array.isArray(pins[row.id]) ? pins[row.id].slice(0, MAX_ATTACHMENTS) : [],
     loaded: false,
   };
 }
@@ -202,6 +211,7 @@ export function activeAiChat() {
 /** Read the user's conversations, newest first, and load the active one's messages. */
 export async function hydrateConversations(verified = null) {
   const sequence = ++listSequence;
+  const revision = persistenceRevision;
   const original = scope();
   const requestClient = client;
   const snapshot = await verifiedScope(original, verified);
@@ -220,6 +230,7 @@ export async function hydrateConversations(verified = null) {
   put({ chats, activeId: chats.some((c) => c.id === state.activeId) ? state.activeId : chats[0]?.id || '', loaded: true });
   // The account was verified at the top of this read; the message load reuses it while current.
   if (state.activeId) await loadMessages(state.activeId, snapshot.identity);
+  if (bound(snapshot) && sequence === listSequence && revision === persistenceRevision) put({ persistenceError: '' });
   return loadAiState();
 }
 
@@ -328,7 +339,7 @@ export function setChatRole(id, roleId) {
 
 export function setChatAttachments(id, attachments) {
   if (!currentOwner() || !state.chats.some(c => c.id === id)) return state;
-  const list = (attachments || []).slice(0, MAX_ATTACH);
+  const list = (attachments || []).slice(0, MAX_ATTACHMENTS);
   const pins = readPins();
   pins[id || 'draft'] = list;
   writePins(pins);
