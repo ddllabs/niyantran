@@ -14,15 +14,18 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F60 is next) and goes in the
-  right section. F61 is next after the authorized frontend defect task.
+- A new finding gets the next free `F` number (F63 is next) and goes in the
+  right section.
 
-## Active execution
+## UI follow-ups
 
-- [ ] **F60. Frontend defect fixes.** Owner authorized fixes from the UI review
-  before the next enhancement brief. Isolated local UI branch; no publication.
-  [Spec](../specs/2026-10-04-ui-defect-fixes.md),
-  [plan and evidence](2026-10-04-ui-defect-fixes.md).
+- [ ] **F61. Broader tab keyboard audit.** Review the remaining Live TV and
+  Nuclear analytics tab patterns for consistent roles and keyboard behavior.
+  Outside the concrete F60 repair scope; coordinate with the next UI brief.
+- [ ] **F62. File admission policy.** File attachment materialization still reads
+  whole files before admission. F60 reuses those bytes and shows processing/overflow;
+  choose a file-size/total-byte policy before supporting large user uploads. No
+  arbitrary new size cap was introduced in the defect fixes.
 
 Current baseline (read-only observations, 2026-10-03):
 - `main` is the only long-lived branch; production follows origin/main.
@@ -49,6 +52,14 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- **2026-10-04, F60 frontend defects, verified locally on UI branch:**
+  `8cfe0a4`, `7e51a0c`, `9c9fb27`, `9b5ecfb`. AI reading space, popover
+  keyboard/focus, attachment/save feedback, stale briefs, desk selection and
+  marketing/admin accessibility repaired. 2,068 Vitest and 854 Deno tests,
+  lint/build, independent review and offline browser checks passed.
+  `task/f60-ui-defect-fixes` retained; no push/deployment or owner acceptance
+  inferred. [Plan, exact evidence and limits](2026-10-04-ui-defect-fixes.md).
 
 - **2026-10-03, F58 heavy PDF local profiling:** `d971245`. Offline harness and repeated measurements on 25-page Budget and 740-page Economic Survey; steady warm scrolling, three live canvases, no sampled visible-page loading. No production optimization justified. [Results and limits](../research/2026-10-03-heavy-pdf-profile.md); remaining first-traversal attribution is F59. Locally integrated only.
 

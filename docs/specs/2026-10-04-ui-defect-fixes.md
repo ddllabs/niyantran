@@ -1,6 +1,6 @@
 # F60 — Frontend defect fixes
 
-> **Status: Living.** Owner authorized on 2026-10-03; execution continues 2026-10-04.
+> **Status: Historical (2026-10-04).** Owner-authorized scope implemented and verified locally; owner acceptance and publication remain separate.
 
 ## Current state and problem
 
