@@ -22,7 +22,9 @@
 - [ ] **F64. Activity details.** Consolidate model/effort in the accordion and
   show action states, top-K and measured retrieval timing. Owner approved;
   [spec](../specs/2026-10-04-activity-details.md),
-  [plan](2026-10-04-activity-details.md). Local only; backend telemetry needs a
+  [plan](2026-10-04-activity-details.md). Implemented locally in `8d0ba3d`;
+  2,079 frontend tests and 856 Edge Function tests, lint/build and offline browser
+  verification passed. Awaiting owner review/landing. Backend telemetry needs a
   separately authorized deployment. Reasoning duration remains unavailable.
 
 - [ ] **F63. AI Research chat presentation.** Owner-approved chat-only layout,

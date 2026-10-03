@@ -23,7 +23,7 @@ Sequential supervisor implementation; no delegation required.
 
 ## Evidence
 
-Implemented locally; awaiting owner review/landing and separate publication
+Implemented locally in `8d0ba3d`; awaiting owner review/landing and separate publication
 authorization. Existing development server at `http://127.0.0.1:5173/` serves
 this branch. No production or database changes performed.
 
