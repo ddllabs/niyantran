@@ -34,7 +34,7 @@ Server stage accuracy/true phase instrumentation are excluded; no fake progress.
 
 ## Verification record
 
-Implementation complete locally; awaiting owner review and landing. No push or
+Implementation complete locally in `3be5117`; awaiting owner review and landing. No push or
 deployment performed.
 
 - New copy, selected-citation, disclosure, activity-label and follow-scroll

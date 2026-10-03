@@ -24,7 +24,9 @@
   compact citations/sources/suggestions and activity. Work mode and Terminal
   shell retained. Local branch `task/f63-chat-polish`;
   [spec](../specs/2026-10-04-chat-polish.md),
-  [plan](2026-10-04-chat-polish.md). No publication authorized.
+  [plan](2026-10-04-chat-polish.md). Implemented locally in `3be5117`;
+  2,076 tests, lint/build and offline responsive review passed. Awaiting owner
+  review and landing; no publication authorized.
 
 - [ ] **F61. Broader tab keyboard audit.** Review the remaining Live TV and
   Nuclear analytics tab patterns for consistent roles and keyboard behavior.
