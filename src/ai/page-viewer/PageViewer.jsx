@@ -340,7 +340,7 @@ function DocumentSearch({ search, view, onView }) {
  *   point 4). Nothing is reported while the document is loading or failed to load.
  */
 export default function PageViewer({
-  citation, client = supabase, documentFile = sharedDocumentFile(), loadPdfjs: load = loadPdfjs,
+  citation, revealRequest = null, client = supabase, documentFile = sharedDocumentFile(), loadPdfjs: load = loadPdfjs,
   fetch: fetchImpl = defaultFetch, storage, onDocumentState,
 }) {
   const documentId = citation.document_id;
@@ -540,6 +540,13 @@ export default function PageViewer({
     setPage(target);
     setScrollRequest(prev => ({ page: target, seq: (prev?.seq ?? 0) + 1 }));
   }, [total]);
+  const previousReveal = useRef(revealRequest);
+  useEffect(() => {
+    if (previousReveal.current === revealRequest) return;
+    previousReveal.current = revealRequest;
+    if (revealRequest) goTo(cited);
+  }, [revealRequest, cited, goTo]);
+
   // A drawn page: the cited page's natural size (Fit text, the overlay), and any page's true shape
   // where its stored size was missing or wrong.
   const onMeasured = useCallback((drawn, result) => {

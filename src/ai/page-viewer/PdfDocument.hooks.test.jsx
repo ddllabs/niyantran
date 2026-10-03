@@ -54,13 +54,13 @@ function render(props) {
     h.dirty = false;
     h.i = 0;
     h.pending = [];
-    PdfDocument(props);
+    const out = PdfDocument(props);
     for (const { s, fn, deps } of h.pending) {
       if (typeof s.cleanup === 'function') s.cleanup();
       s.cleanup = fn() ?? null;
       s.deps = deps;
     }
-    if (!h.dirty) return;
+    if (!h.dirty) return out;
   }
   throw new Error('the view kept re-rendering');
 }
@@ -134,5 +134,59 @@ describe('PdfDocument revealing a search match', () => {
     area.scrollTop = 50_000; // the reader scrolls away; the page leaves the window and returns
     slot(4).onReveal(6, 4, range(900));
     expect(area.scrollTop).toBe(50_000);
+  });
+
+  it('reveals the exact citation once, then does not replay it after redraw', () => {
+    const { area, slot } = mount({});
+    slot(4).onCitationReady(4, range(900));
+    expect(area.scrollTop).toBe(641); // range centre 905 minus usable view centre 264
+    area.scrollTop = 4000;
+    slot(4).onCitationReady(4, range(900));
+    expect(area.scrollTop).toBe(4000);
+  });
+
+  it('a missing exact mark consumes the fallback rather than replaying on a later draw', () => {
+    const { area, slot } = mount({});
+    slot(4).onCitationReady(4, null);
+    area.scrollTop = 4000;
+    slot(4).onCitationReady(4, range(900));
+    expect(area.scrollTop).toBe(4000);
+  });
+
+  it('a newer page request cancels an undrawn citation return', () => {
+    const { area, slot, rerender } = mount({});
+    const ready = slot(4).onCitationReady;
+    rerender({ scrollRequest: { page: 6, seq: 1 } });
+    const top = area.scrollTop;
+    ready(4, range(900));
+    expect(area.scrollTop).toBe(top);
+  });
+
+  it('uses an existing exact range for each repeated return and cancels it on search', () => {
+    const { area, slot, rerender } = mount({});
+    slot(4).highlighter.set(4, [range(900)]);
+    rerender({ scrollRequest: { page: 4, seq: 1 } });
+    const top = area.scrollTop;
+    // Existing range's centre is used, rather than ending at the stored box's centre.
+    expect(top).toBeGreaterThan(2000);
+    rerender({ scrollRequest: { page: 4, seq: 2 } });
+    expect(area.scrollTop).toBe(top);
+    rerender({ search: { query: 'act', page: 4, index: 0, seq: 1 } });
+    area.scrollTop = 100;
+    slot(4).onCitationReady(4, range(900));
+    expect(area.scrollTop).toBe(100);
+  });
+
+});
+
+
+describe('PDF page order', () => {
+  it('keeps document order while drawing the nearest page first', () => {
+    pane.current = { width: 400, height: 600 };
+    const out = render(props());
+    const slots = out.props.children.props.children;
+    const pages = slots.map(slot => slot.props.page);
+    expect(pages).toEqual([...pages].sort((a, b) => a - b));
+    expect(slots.find(slot => slot.props.priority === 0).props.page).toBe(4);
   });
 });

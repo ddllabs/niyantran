@@ -45,6 +45,7 @@ export function createHighlighter(name, env = globalThis) {
   };
   return {
     supported,
+    get(page) { return pages.get(page)?.[0] ?? null; },
     set(page, ranges) { pages.set(page, ranges); sync(); },
     clear(page) { if (pages.delete(page)) sync(); },
     dispose() {

@@ -676,6 +676,9 @@ Earlier items, updated:
 - [ ] **P14.** Bill-key collisions (two documents on one `bill:<year>:<number>`
   key). Accept, or keep one document per key.
 
+- [ ] **F57. Citation viewer reliability.** [Spec](../specs/2026-10-03-citation-viewer-reliability.md), [plan](2026-10-03-citation-viewer-reliability.md). Local verified implementation; supervisor landing pending.
+- [ ] **F58. Heavy-document viewer stutter profiling.** After the F57 DOM-order fix, measure representative large PDFs before further optimization. The 18-page offline fixture verifies behavior, not production-scale timing. No production writes are needed; Safari coverage remains F50.
+
 ## 4. Payments
 
 - [ ] **F6.** Plan gating on the server, before real payments. Desk data is

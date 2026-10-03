@@ -267,3 +267,33 @@ describe('PageViewer in the continuous Text view', () => {
     expect(pageLoads.filter(page => page === CITATION.page_number)).toHaveLength(1);
   });
 });
+
+
+describe('reopening the same citation', () => {
+  it('issues a fresh return without recreating the pool or losing zoom', async () => {
+    const props = { ...base, citation: CITATION, revealRequest: {} };
+    let out = await settle(props);
+    sharedOf(out).setZoomState({ fit: 'width', zoom: 1.5 });
+    sharedOf(out).goTo(15);
+    out = render(props);
+    expect(sharedOf(out).page).toBe(15);
+    out = render({ ...props, revealRequest: {} });
+    expect(sharedOf(out).page).toBe(12);
+    expect(sharedOf(out).zoomState.zoom).toBe(1.5);
+    expect(controllers).toHaveLength(1);
+    out = render({ ...props, revealRequest: {} });
+    expect(sharedOf(out).page).toBe(12);
+    expect(controllers).toHaveLength(1);
+  });
+});
+
+
+it('repeated citation opens on the cited page still issue distinct scroll requests', async () => {
+  const storage = { getItem: key => ({ niyantranCitationView: 'text', niyantranTextLayout: 'continuous' })[key] ?? null };
+  const props = { ...base, citation: CITATION, storage, revealRequest: {} };
+  await settle(props);
+  let out = render({ ...props, revealRequest: {} });
+  const first = sharedOf(out).textDocument.scrollRequest;
+  out = render({ ...props, revealRequest: {} });
+  expect(sharedOf(out).textDocument.scrollRequest).toEqual({ page: 12, seq: first.seq + 1 });
+});

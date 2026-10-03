@@ -116,7 +116,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
       <div className="ai-work-body">
         {reader === 'page' ? (
           <Suspense fallback={<p className="ai-reader-notice pv-lazy">Loading the page viewer…</p>}>
-            <PageViewer key={citationKey} citation={source} client={client} onDocumentState={onDocumentState} />
+            <PageViewer key={citationKey} citation={source} revealRequest={viewer} client={client} onDocumentState={onDocumentState} />
           </Suspense>
         ) : null}
         {reader === 'text' ? <SourceReader key={citationKey} citation={source} client={client} onDocumentState={onDocumentState} /> : null}
