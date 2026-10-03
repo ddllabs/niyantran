@@ -1,6 +1,6 @@
 # Plan: documentation reconciliation (F56)
 
-> **Status: Living.** 2026-10-03. Implements [the spec](../specs/2026-10-03-documentation-reconciliation.md).
+> **Status: Historical (2026-10-03).** 2026-10-03. Implements [the spec](../specs/2026-10-03-documentation-reconciliation.md).
 
 1. Confirm checkout and refreshed origin; compare current source, migrations and
    dated operations with review observations. No production mutations.
@@ -38,3 +38,9 @@ scope is the paths above plus this plan and its spec. No push or deployment.
   open until integrated with a commit hash. No push, merge or deployment.
 - Preserved dated historical bodies and ignored private security notes. Payment,
   entitlement, application, data and infrastructure behavior are untouched.
+
+## Supervisor integration evidence (2026-10-03)
+
+Independent review of all 22 paths found and corrected the shipped latency-cut status and provider-specific synthesis wire contract. `git diff --check` and Markdown status/fence/relative-link checks passed. Source inspection confirmed the 40-message history read, Anthropic-only synthesis tool retention, removed SQLite module, fifth retrieval argument, 43 migrations and FNV-1a row fallback. This is documentation-only evidence; no new application test execution is claimed.
+
+Implementation commit: `b79e335`. Integrated current main (`3b40cba`) without conflicts; F57 Done and F58 pending preserved. F57 deployment success is now distinguished from the earlier read-only baseline. No new push or production action was performed for F56.

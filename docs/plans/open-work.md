@@ -14,13 +14,15 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F57 is next) and goes in the
+- A new finding gets the next free `F` number (F59 is next) and goes in the
   right section.
 
 Current baseline (read-only observations, 2026-10-03):
 - `main` is the only long-lived branch; production follows origin/main.
   The review began at local `f0058b1`, one documentation commit ahead of
-  origin/main `322c76a`. No production action is implied by a local commit.
+  origin/main `322c76a`. Subsequently F57 was pushed at `3b40cba` and its
+  Vercel deployment succeeded; the infrastructure observations below remain the
+  dated read-only review snapshot. No fresh Supabase probe is implied.
 - Supabase NTER: ACTIVE_HEALTHY, PostgreSQL 17.6, 43 applied migrations
   through `20261002180000_search_folding`; 33 public tables, all with RLS enabled.
 - Nine ACTIVE Edge Functions: `health` v12, `admin-models` v12,
@@ -39,21 +41,14 @@ Current baseline (read-only observations, 2026-10-03):
   SELECTs/function metadata were verified. Vercel READY states below are
   dated operations records, not an independent October 3 Vercel probe.
 
-## Documentation reconciliation
-
-- [ ] **F56.** Correct current documentation against code, approved ADR amendments
-  and dated deployment evidence. Spec `specs/2026-10-03-documentation-reconciliation.md`;
-  plan `plans/2026-10-03-documentation-reconciliation.md`. Documentation only;
-  payments, entitlement and ingestion execution are excluded. Built and verified
-  on `task/f56-documentation-reconciliation`; pending local integration. Evidence
-  is in the plan.
-
 ## 1. Done
+
+- **2026-10-03, F56 documentation reconciliation:** `b79e335`. Architecture, ADR amendments, entrypoints and shipped-work statuses reconciled against source and dated operations. Independent review and Markdown checks passed; documentation-only, locally integrated. [Plan and evidence](2026-10-03-documentation-reconciliation.md).
 
 Newest first. Detail is in `git log`, the linked documents and the
 "Operations" entries in `agents/coordination.md`.
 
-- **2026-10-03, F57 citation viewer reliability, verified locally by supervisor:** `6df6d7c`. Stable PDF slot order preserves highlights; repeated citation events and cited-page controls reveal the exact passage, including after redraw. 2,029 Vitest tests, lint, build, independent review and local browser checks pass. [Plan and evidence](2026-10-03-citation-viewer-reliability.md). No push or deployment; timing follow-up is F58.
+- **2026-10-03, F57 citation viewer reliability, verified locally by supervisor:** `6df6d7c`. Stable PDF slot order preserves highlights; repeated citation events and cited-page controls reveal the exact passage, including after redraw. 2,029 Vitest tests, lint, build, independent review and local browser checks pass. [Plan and evidence](2026-10-03-citation-viewer-reliability.md). Pushed to origin/main at `3b40cba`; GitHub Vercel status confirmed deployment success. Timing follow-up is F58.
 
 - **2026-10-03, F55 `chat-attach-fixes`, closed by the owner:** the AI chat's drop frame, duplicate
   attachments and Reload.
