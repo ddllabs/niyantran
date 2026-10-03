@@ -21,7 +21,8 @@
 
 - [ ] **F65. Research flow UI.** Owner-approved reference adaptation: monoline
   activity, inline model metadata, compact badges, source citation numbers,
-  suggestion/model pills and icon-only message actions. [Spec](../specs/2026-10-04-research-flow.md),
+  suggestion pills, neutral shimmer model border, compact attachment chips,
+  prominent source rows and icon-only message actions. [Spec](../specs/2026-10-04-research-flow.md),
   [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
   implemented in `f47ccb4`, amended through `26cbc72`; 2,088 tests, lint/build and offline browser passed.
   Pending owner review/landing; no publication authorized.

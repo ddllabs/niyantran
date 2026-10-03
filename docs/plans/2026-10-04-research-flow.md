@@ -205,3 +205,26 @@ to two diamonds; dark-mode surface followed theme tokens. No overflow at 375px.
 Runtime review caught a generic surface selector overriding the trigger's tint;
 removing the trigger from that selector fixed the computed background.
 Screenshot `/private/tmp/f65-model-picker.jpg`. No pricing/API/provider changes.
+
+## Neutral model border and document hierarchy
+
+Sequential CSS-only scope: src/ai/chat-presentation.css and F65 spec/plan/tracker.
+1. Neutral gradient-border model trigger, bounded opacity hover feedback.
+2. Content-width attachment chips; preserve actual titles and coverage.
+3. Stronger source title/icon hierarchy and soft neutral rows.
+Verify lint/build, existing component tests, real-component offline browser at
+wide/narrow widths, menu keyboard behavior, coverage, source opening, dark theme
+and reduced-motion CSS. No backend, data or publication changes.
+
+Evidence: CSS-only diff; 53 existing focused component tests passed with
+`npm test -- --run src/ai/AgentComponents.test.jsx src/ai/SourceComponents.test.jsx
+src/ai/ChatPresentation.test.jsx`. `npm run lint`, `npm run build` and
+`git diff --check` passed; build retains deskBrief mixed-import and large-chunk
+warnings. Offline browser confirmed neutral gradient interior both closed and
+open, Enter/Escape behavior, preserved coverage and More attachments, source
+row opening its first citation in Work mode, no console errors/warnings, and
+no horizontal overflow at 375px (chip/tray both 351px). Wide chip is 380px in a
+428px tray; source remains full-width. Dark theme follows tokens. Reduced-motion
+and keyboard paths reviewed as static in CSS; reduced-motion preference was
+not emulated in the browser. Screenshot `/private/tmp/f65-neutral-documents.jpg`.
+Full provider/PDF loading was intentionally not exercised in the offline fixture.

@@ -83,3 +83,14 @@ diamonds from the existing tier hint. Tooltip explains relative cost tier.
 Remove the trigger chevron; preserve menu keyboard/disclosure behavior and
 selected model/effort accessible states. Restore selected-row theme styling.
 No pricing/provider changes, attachment/source redesign or deployment.
+
+Ninth owner amendment, 2026-10-04: replace the composer's filled model pill
+with a neutral interior and thin gradient shimmer border. Preserve cost diamonds,
+effort, selected menu states and chevron removal. Feedback is a brief,
+interruptible opacity transition on fine-pointer hover only; keyboard and
+reduced-motion interactions are static. Attachments become content-width chips
+above the composer, with bounded/truncated titles and full-title tooltips,
+coverage and remove controls together. Never invent a shortened official title.
+Source documents remain full-width, more prominent rows beneath the answer,
+with pages and inline citation numbers; no separate cited-passages disclosure.
+Preserve all data, opening/removal behavior, locked states and surrounding UI.

@@ -10,7 +10,7 @@
   color: var(--ai-text);
 }
 .ai-shell.ai-shell-research :is(.ai-v2-chrome, .ai-v2-toolbar, .ai-v2-foot, .ai-v2-composer,
-  .ai-v2-pop, .ai-v2-model-menu, .ai-v2-files li, .ai-sources,
+  .ai-v2-pop, .ai-v2-model-menu,
   .ai-v2-tool-btn, .ai-v2-work, .ai-v2-history-pop, .ai-v2-history-item) {
   background: var(--ai-surface);
   color: var(--ai-text);
@@ -85,17 +85,18 @@
 .ai-shell.ai-shell-research .cite-bubble.selected { background: var(--ai-blue); color: var(--ai-surface); border-color: var(--ai-blue); }
 .ai-shell.ai-shell-research .cite-bubble:active { transform: scale(.94); }
 .ai-shell.ai-shell-research .ai-sources-block { margin-top: 16px; }
-.ai-shell.ai-shell-research .ai-source-title { color: var(--ai-text); font-size: 13px; font-weight: 500; }
+.ai-shell.ai-shell-research .ai-source-title { color: var(--ai-text); font-size: 14px; font-weight: 600; }
 .ai-shell.ai-shell-research .ai-sources-label { font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; }
-.ai-shell.ai-shell-research .ai-sources { border: 0; background: color-mix(in srgb, var(--ai-blue) 4%, var(--ai-surface)); }
-.ai-shell.ai-shell-research .ai-source-chip { padding: 12px; }
+.ai-shell.ai-shell-research .ai-sources { border: 0; border-radius: 12px; background: var(--bg); overflow: hidden; }
+.ai-shell.ai-shell-research .ai-source-chip { padding: 12px 14px; align-items: center; gap: 12px; }
+.ai-shell.ai-shell-research .ai-source-icon { width: 20px; height: 20px; margin: 0; }
 .ai-shell.ai-shell-research .ai-source-id { border: 0; }
 .ai-shell.ai-shell-research .ai-source-meta { gap: 5px 8px; }
 .ai-shell.ai-shell-research .ai-v2-foot { padding: 12px 16px 16px; border-color: var(--ai-line); gap: 8px; }
 .ai-shell.ai-shell-research .ai-v2-foot > :not(.ai-jump-latest) { width: 100%; max-width: 72ch; margin-inline: auto; box-sizing: border-box; }
-.ai-shell.ai-shell-research .ai-attachment-tray .ai-v2-files { gap: 4px; }
-.ai-shell.ai-shell-research .ai-v2-files li { padding: 6px 8px; border: 0; border-radius: 8px; background: var(--bg); gap: 6px; }
-.ai-shell.ai-shell-research .ai-v2-files span { color: var(--ai-text); font-size: 12px; font-weight: 500; }
+.ai-shell.ai-shell-research .ai-attachment-tray .ai-v2-files { display: flex; flex-wrap: wrap; gap: 4px; }
+.ai-shell.ai-shell-research .ai-v2-files li { flex: 0 1 auto; width: fit-content; max-width: 100%; box-sizing: border-box; padding: 3px 6px 3px 8px; border: 1px solid var(--ai-line); border-radius: 9px; background: var(--bg); gap: 6px; }
+.ai-shell.ai-shell-research .ai-v2-files span { max-width: 28ch; color: var(--ai-text); font-size: 12px; font-weight: 500; }
 .ai-shell.ai-shell-research .ai-v2-files button { display: grid; place-items: center; width: 28px; height: 28px; color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-attachment-tray > details { margin-top: 4px; }
 .ai-shell.ai-shell-research .ai-attachment-tray summary { cursor: pointer; color: var(--ai-muted); font-size: 12px; padding: 4px 0; }
@@ -106,7 +107,10 @@
 .ai-shell.ai-shell-research .ai-v2-composer textarea { box-sizing: border-box; color: var(--ai-text); font-size: 15px; font-weight: 400; line-height: 1.5; }
 .ai-shell.ai-shell-research .ai-v2-composer textarea::placeholder { color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-v2-comp-tools > div { min-width: 0; }
-.ai-shell.ai-shell-research .ai-v2-model-btn { gap: 6px; border: 0; padding: 0 10px; height: 32px; border-radius: 999px; background: var(--ai-blue-soft); color: var(--ai-text); font-size: 12px; font-weight: 500; }
+.ai-shell.ai-shell-research .ai-v2-model-btn { position: relative; isolation: isolate; gap: 6px; border: 1px solid transparent; padding: 0 10px; height: 32px; border-radius: 999px; background: linear-gradient(var(--ai-surface), var(--ai-surface)) padding-box, linear-gradient(115deg, var(--ai-line), color-mix(in srgb, var(--ai-blue) 50%, var(--ai-line)), var(--ai-line), color-mix(in srgb, var(--ai-blue) 30%, var(--ai-line))) border-box; color: var(--ai-text); font-size: 12px; font-weight: 500; }
+/* Border-only sheen: no continuous motion or filled selected surface. */
+.ai-shell.ai-shell-research .ai-v2-model-btn::before { content: ""; position: absolute; inset: -1px; border: 1px solid var(--ai-blue); border-radius: inherit; pointer-events: none; opacity: 0; }
+.ai-shell.ai-shell-research .ai-v2-model-btn.open::before { opacity: .45; }
 .ai-shell.ai-shell-research .ai-v2-model-name { min-width: 3rem; max-width: 12rem; }
 .ai-shell.ai-shell-research .ai-v2-model-eff { flex: 0 0 auto; background: transparent; color: var(--ai-muted); padding: 0; font-size: 11px; font-weight: 400; }
 .ai-shell.ai-shell-research .ai-v2-model-eff::before { content: '·'; margin-right: 5px; }
@@ -125,7 +129,10 @@
 .ai-shell.ai-shell-research .ai-msg.err { border-left: 2px solid var(--warn); padding-left: 12px; }
 .ai-shell.ai-shell-research :is(button, summary):focus-visible { outline: 2px solid var(--ai-blue); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) {
-  .ai-shell.ai-shell-research :is(.ai-v2-model-btn, .ai-source-chip, .ai-v2-pop-opt, .ai-v2-model-opt, .ai-v2-history-item):hover { background: var(--ai-blue-soft); }
+  .ai-shell.ai-shell-research .ai-v2-model-btn::before { transition: opacity 160ms ease; }
+  .ai-shell.ai-shell-research .ai-v2-model-btn:hover::before { opacity: .65; }
+  .ai-shell.ai-shell-research .ai-v2-model-btn:focus-visible::before { transition: none; }
+  .ai-shell.ai-shell-research :is(.ai-source-chip, .ai-v2-pop-opt, .ai-v2-model-opt, .ai-v2-history-item):hover { background: var(--ai-blue-soft); }
   .ai-shell.ai-shell-research .cite-bubble:not(.placeholder):hover { outline: 1px solid var(--ai-blue); outline-offset: 1px; }
   .ai-shell.ai-shell-research .ai-message-actions button:hover { color: var(--ai-blue); }
 }
@@ -135,6 +142,7 @@
   .ai-shell.ai-shell-research .ai-v2-model-name { max-width: 9rem; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .ai-shell.ai-shell-research .ai-v2-model-btn::before { transition: none; }
   .ai-shell.ai-shell-research .ai-v2-send, .ai-shell.ai-shell-research .ai-v2-send svg { transition: none; }
   .ai-shell.ai-shell-research .ai-v2-send:active:not(:disabled), .ai-shell.ai-shell-research .cite-bubble:active { transform: none; }
 }
