@@ -172,3 +172,16 @@ text payload verified by unit guard; actual system clipboard content not verifie
 (the browser clipboard API read returned empty). Screenshot
 `/private/tmp/f65-user-actions.jpg`. Diff review retained assistant source payload,
 copy failure reporting and existing timestamps. No backend/publication.
+
+## Further vertical-only tightening
+
+Scope: scoped CSS and F65 docs. Reduce four vertical gaps only. No unit test
+for reversible CSS spacing. Lint/build and offline browser geometry/layout
+check; no backend, new motion or publication.
+
+Further spacing evidence: fixture flow at 1095px now 160.13px high (27px
+shorter than the fifth amendment), width 367px; query width/font/line-height
+still 313px/13px/19.5px. At 375px no horizontal overflow. Screenshot
+`/private/tmp/f65-tight-flow-final.jpg`. Lint/build exit 0 with existing build
+warnings; diff check clean. No unit rerun for CSS-only adjustment; last full
+suite remains 2,087 passing tests. No changes to behavior or animation.

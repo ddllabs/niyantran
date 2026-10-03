@@ -71,3 +71,8 @@ Their timestamp/Copy row is a sibling below the blue question bubble, aligned
 right. Copying a user message copies only its literal text; it never appends
 attached sources. Preserve answer-copy references, localized names, success
 feedback, clipboard-failure reporting, timestamp data and question alignment.
+
+Seventh owner amendment, 2026-10-04: a further vertical-only tightening uses
+flow padding 4px 12px 2px, usage bottom margin 4px, stage bottom padding 6px
+and query top margin 2px. Text size, line height and horizontal geometry stay
+unchanged. This supersedes the fifth amendment's vertical gap values.
