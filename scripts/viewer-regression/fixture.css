@@ -9,6 +9,9 @@ body { margin: 0; }
 .fixture-observations { flex: 1 1 320px; min-width: 250px; overflow: auto; font-size: 13px; }
 .fixture-observations blockquote { margin: 12px 0; padding: 12px; background: #fbefc4; white-space: pre-line; }
 #viewer-dom-status { background: white; padding: 12px; font-size: 11px; overflow: auto; }
+.profile-controls button { padding: 7px; margin: 4px 0; }
+.profile-controls output { display: block; margin: 8px 0; }
+#profile-report { background: white; padding: 12px; font-size: 11px; overflow: auto; }
 #fixture-viewer { flex: 0 0 auto; max-width: calc(100vw - 320px); min-width: 400px; height: 100%; padding: 12px; background: white; border: 1px solid #ccc; }
 #fixture-viewer > .pv { height: 100%; }
 #fixture-viewer .pv-pdf { flex: 1 1 0; min-height: 240px; }

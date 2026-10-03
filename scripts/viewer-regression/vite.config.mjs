@@ -1,11 +1,41 @@
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { PAGE_LINES } from './fixture-data.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
+async function loadProfile(path) {
+  if (!isAbsolute(path)) throw new Error('VIEWER_PROFILE_PDF must be an absolute local file path');
+  const pdf = await readFile(path);
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({ data: new Uint8Array(pdf), useSystemFonts: true });
+  const document = await task.promise;
+  const rows = [];
+  let offset = 0;
+  try {
+    for (let number = 1; number <= document.numPages; number++) {
+      const page = await document.getPage(number);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      const text = content.items.map(item => (item.str ?? '') + (item.hasEOL ? '\n' : '')).join('');
+      rows.push({ page_number: number, text, char_from: offset, char_to: offset + text.length,
+        width_px: viewport.width, height_px: viewport.height });
+      offset += text.length + 1;
+      page.cleanup();
+    }
+  } finally { await task.destroy(); }
+  const cited = rows.slice(0, 15).find(row => /[\p{L}\p{N}]/u.test(row.text)) ?? rows[0];
+  const from = cited.text.search(/[\p{L}\p{N}]/u);
+  const passage = from < 0 ? '' : cited.text.slice(from, from + 250).trimEnd();
+  return { pdf, meta: { profile: true, byteSize: pdf.length, pageCount: rows.length, pageRows: rows,
+    extractHash: createHash('sha256').update(pdf).digest('hex'), citedPage: cited.page_number, passage,
+    // Do not send the local filename or path to the browser or metrics.
+    title: 'Local real PDF profile' } };
+}
 async function createPdf() {
   const doc = await PDFDocument.create();
   doc.setCreationDate(new Date('2026-01-01T00:00:00Z'));
@@ -30,11 +60,14 @@ export default defineConfig({
         if (source.endsWith('/supabaseClient.js')) return resolve(root, 'offline-client.mjs');
       },
       async configureServer(server) {
-        const pdf = await createPdf();
+        const { pdf, meta } = process.env.VIEWER_PROFILE_PDF
+          ? await loadProfile(process.env.VIEWER_PROFILE_PDF)
+          : { pdf: await createPdf(), meta: {} };
         server.middlewares.use((req, res, next) => {
           if (req.url === '/fixture-meta.json') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ byteSize: pdf.length }));
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(JSON.stringify({ ...meta, byteSize: pdf.length }));
             return;
           }
           if (req.url !== '/fixture.pdf') return next();
