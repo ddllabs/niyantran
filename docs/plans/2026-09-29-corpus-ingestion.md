@@ -1,7 +1,8 @@
 # Plan: ingest the large corpus (L1, L2)
 
-> **Status: Parked (2026-09-29).** The owner will design a new ingestion
-> pipeline; until then, do not run the commands below. The measurements
+> **Status: Historical (2026-09-29).** Superseded by the ingestion-v2 and
+> admin-upload plans; current pilot and acquisition work is tracked as R4–R8
+> in `open-work.md`. Do not execute this historical runbook. The measurements
 > (corpus slices, index sizes, the `shared_buffers` gate) stay valid input
 > for that design. Tracked in `plans/open-work.md`, "Ingestion pipeline (next)".
 >

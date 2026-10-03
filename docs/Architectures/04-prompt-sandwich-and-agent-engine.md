@@ -9,7 +9,7 @@
 
 The Niyantran Terminal research agent is an autonomous, multi-turn reasoning and tool-calling engine running on Supabase Edge Functions (Deno). It does not answer blindly from parametric LLM weights; it executes a strict **evidence-first loop** divided into two clean phases:
 1. **Phase 1: Research Sandbox (Tool Calling Enabled):** The model assesses the query, evaluates available context, and issues targeted search queries to source documents (`search_documents`) and structured desk databases (`search_desk_rows`).
-2. **Phase 2: Answer Synthesis (Tools Disabled, Strict JSON Schema):** The model is stripped of tool definitions, provided with all retrieved evidence labeled with cryptographic handles, and forced to output a strictly typed JSON object containing markdown prose with `[n]` citation markers.
+2. **Phase 2: Answer Synthesis (Tools Disabled, Strict JSON Schema):** The agent requests `tool_choice: 'none'`; Anthropic wire requests retain tool definitions for cache stability, while other providers omit tools and tool choice to preserve routing. The model is provided with all retrieved evidence labeled with cryptographic handles, and forced to output a strictly typed JSON object containing markdown prose with `[n]` citation markers.
 
 ```mermaid
 sequenceDiagram
@@ -141,7 +141,7 @@ The entire prompt context is assembled using a multi-layered **Prompt Sandwich**
 +--------------------------------------------------------------------------------------------------+
 | [PHASE 2 SYNTHESIS TRANSITION]                                                                   |
 |  - Transition Delimiter: role: 'user', content: ANSWER_NOW                                       |
-|  - Stripped Tool Declarations: tools array omitted from API request                              |
+|  - Anthropic retains tools with tool_choice: none; other providers omit both                              |
 +--------------------------------------------------------------------------------------------------+
 | LAYER 7: BOTTOM GRAMMAR ENFORCER (Provider Structured Output Schema)                             |
 |  - response_format: ANSWER_JSON_SCHEMA (strict: true)                                            |
@@ -300,7 +300,7 @@ Selected record ref:a7e10c-1 — Bill Passage Probability Index (national desk).
 
 ## 4. Conversation History Windowing & Pruning
 
-Conversation history is not naively truncated by a fixed number of turns (e.g. "last 5 messages"). Instead, it is governed by an exact character budget: **`WINDOW_CHARS = 60,000`** (~15,000 tokens), executed by `windowMessages()` in `research-chat/handler.ts`.
+The database read first selects the most recent 40 messages (`research-chat/index.ts`). Within that bounded history, `windowMessages()` applies an additional character budget: **`WINDOW_CHARS = 60,000`** (~15,000 tokens), executed by `windowMessages()` in `research-chat/handler.ts`.
 
 ### 4.1 Windowing Algorithm (`handler.ts:153-168`)
 ```typescript
@@ -472,7 +472,7 @@ Desk rows for national / Bill Passage Probability Index (TOTAL: 42, showing 2):
 
 ## 6. Synthesis Phase & Strict Output Contracts
 
-Once research concludes, the agent loop injects `ANSWER_NOW` and removes all tools:
+Once research concludes, the agent loop injects `ANSWER_NOW` and disables tool calling. The streaming adapter retains definitions only for Anthropic cache identity; other provider wire bodies omit them:
 ```text
 Research is complete. Write the final answer as one new JSON object using only the user context and retrieved evidence. Earlier assistant drafts are not evidence. Do not call tools. Mark missing evidence as Not in record.
 ```
@@ -513,10 +513,10 @@ The provider is constrained via JSON Schema mode (`strict: true`):
 }
 ```
 
-### 6.2 Sub-Second Streaming via `createAnswerDecoder`
+### 6.2 Incremental Streaming via `createAnswerDecoder`
 Because the model produces a raw JSON envelope, a standard JSON parser would force the client to wait until all tokens completed. 
 
-`answerStream.ts` implements an incremental finite-state machine parser (`seek-object` $\to$ `parse` $\to$ `in-answer` $\to$ `closed`). It tracks the `"answer": "` key at the root of the JSON object. As string deltas stream in from the LLM, the decoder unescapes characters (`\n`, `\"`, `\uXXXX`) and emits them directly to the client as SSE `chunk` events. The reader experiences sub-second time-to-first-token while maintaining 100% strict JSON schema output.
+`answerStream.ts` implements an incremental finite-state machine parser (`seek-object` $\to$ `parse` $\to$ `in-answer` $\to$ `closed`). It tracks the `"answer": "` key at the root of the JSON object. As string deltas stream in from the LLM, the decoder unescapes characters (`\n`, `\"`, `\uXXXX`) and emits them directly to the client as SSE `chunk` events. This emits answer text incrementally; it does not guarantee sub-second time to the first word. Provider reasoning and retrieval happen before prose. The deployed path also supports tool-phase answer text; timing fields distinguish first model output from first answer text (see the answer-streaming spec and benchmarks).
 
 ---
 

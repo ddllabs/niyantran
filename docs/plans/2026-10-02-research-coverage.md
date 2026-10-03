@@ -1,6 +1,6 @@
 # Plan: questions that sound simple but need digging (`research-coverage`)
 
-> **Status: Living.** Implements `docs/specs/2026-10-02-research-coverage.md` (F53).
+> **Status: Historical (2026-10-03).** Owner-closed; implementation and evaluation record. Implements `docs/specs/2026-10-02-research-coverage.md` (F53).
 > - The tasks run in order. The code tasks are test-first, and each task is committed once
 >   verified.
 > - The measurement waits for the owner's spot-check (T2).

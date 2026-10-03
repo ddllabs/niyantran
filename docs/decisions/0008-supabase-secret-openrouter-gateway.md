@@ -111,3 +111,12 @@ statements above are no longer accurate and are kept only as the record:
 - **Section 4, "Default Production Target":** `VITE_AI_BACKEND` is no longer
   read or defined. There is only one AI backend, so there is no flag to
   default. The test counts in that section record a run on 2026-09-27.
+
+## Amendment (2026-10-03): existing OCR capability exception
+
+The approved September 30 amendment to ADR 0002 qualifies earlier universal
+provider wording: chat and embeddings remain on OpenRouter, while the ingestion
+worker calls pinned Mistral OCR for the unavailable page/box/image capability.
+`MISTRAL_API_KEY` is also held only in Supabase Secrets. The original “only
+provider API key” wording described the September 27 state, not the current
+credential inventory. This does not restore any Node or browser provider path.

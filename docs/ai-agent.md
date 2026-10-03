@@ -13,8 +13,8 @@ Every coding agent working on this codebase must adhere to these eight non-negot
    downgrade, or displace backend implementations to accommodate client-side deviations.
 
 2. **Do Not Introduce SQLite as Durable Production Storage:**
-   Supabase PostgreSQL is the sole durable system of record. SQLite (`nter.db`, `db.mjs`), browser
-   `localStorage`, and temporary server files (`tmp/`) are strictly ephemeral local scratchpads or caching
+   Supabase PostgreSQL is the sole durable system of record. Browser
+   `localStorage` and temporary server files (`tmp/`) are strictly ephemeral local scratchpads or caching
    layers. Never build production persistence on SQLite or local files.
 
 3. **Do Not Introduce Custom Google Authentication:**
@@ -30,15 +30,15 @@ Every coding agent working on this codebase must adhere to these eight non-negot
 
 4. **Do Not Introduce Direct Gemini or Other Provider Calls:**
    Direct outbound calls from either the client or the server to `generativelanguage.googleapis.com`,
-   GoogleGenerativeAI SDK, or any other direct LLM provider are prohibited in active production paths.
+   GoogleGenerativeAI SDK, or other direct chat/embedding providers are prohibited. ADR 0002’s September 30 amendment permits direct capabilities unavailable through OpenRouter; the ingestion worker’s pinned Mistral OCR is approved, with its key in Supabase Secrets.
 
 5. **Universal OpenRouter Access & Supabase Secret Invariant:**
-   OpenRouter (`https://openrouter.ai`) is the single universal model gateway across the entire platform.
+   OpenRouter (`https://openrouter.ai`) is the chat and embedding gateway. Apply ADR 0002’s approved capability exception to direct OCR; do not treat it as permission for direct chat calls.
    **Mandatory Invariant:** Never ask for, add, expose, or copy `OPENROUTER_API_KEY` into the browser,
    repository `.env`, Vercel client configuration, or frontend code. The key exists **only in Supabase Secrets**
    (`Deno.env.get('OPENROUTER_API_KEY')`).
    All production AI operations are executed via Supabase Edge Functions: `research-chat` and `desk-brief`
-   (which verify the signed-in caller) and `ingest-documents` (secret-key callers only, for embeddings).
+   (which verify the signed-in caller) and ingestion (`ingest-documents` for legacy text packages; `ingest-worker` for queued PDF OCR and indexing). `admin-ingest` checks platform-admin authority; `document-file` verifies signed-in document access before signing private storage URLs.
    There is no `embed` function; embeddings go through the shared module `supabase/functions/_shared/embed.ts`.
    *(Corrected 2026-09-29: this listed `embed.ts` as a function and omitted `ingest-documents`.)*
    The Node/Vite development server does not require a local `OPENROUTER_API_KEY`.

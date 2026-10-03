@@ -14,17 +14,22 @@ The server-side backend of Niyantran Terminal runs as a distributed suite of ser
 | Function Name | Entry Point | Invocation Trigger | Auth Boundary | Primary Responsibility | Critical Operational Invariants |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`research-chat`** | `research-chat/index.ts` | Browser Client (HTTP POST) | `requireUser` (Supabase User JWT) | Multi-turn research agent loop, OpenRouter streaming, tool execution, citation repair, telemetry. | `NETWORK_TIMEOUT_MS = 4_000`<br/>`WINDOW_CHARS = 60_000`<br/>`BUDGET.maxSteps = 12` |
-| **`ingest-documents`** | `ingest-documents/index.ts` | Ingestion Scripts / CLI (HTTP POST) | `authorised` (Bearer matching `SUPABASE_SECRET_KEYS`) | PDF/OCR parsing, structural chunking, embeddings via OpenRouter (`openai/text-embedding-3-small`), 100-chunk slice commits. | `COMMIT_BATCH = 100`<br/>PostgREST 1000-row hash pagination<br/>Zero DB OOM crash guarantee |
+| **`ingest-documents`** | `ingest-documents/index.ts` | Ingestion Scripts / CLI (HTTP POST) | `authorised` (Bearer matching `SUPABASE_SECRET_KEYS`) | PDF/OCR parsing, structural chunking, embeddings via OpenRouter (`openai/text-embedding-3-small`), 100-chunk slice commits. | `COMMIT_BATCH = 100`<br/>PostgREST 1000-row hash pagination<br/>Bounded commit batches |
 | **`refresh-model-pricing`** | `refresh-model-pricing/index.ts` | `pg_cron` via `pg_net` (HTTP POST) | `x-refresh-secret` or Secret Key | Ingests OpenRouter catalog, updates token pricing, normalizes reasoning efforts, syncs allowlist. | `MIN_CATALOGUE_ROWS = 100`<br/>Atomic `model_pricing_reconcile`<br/>Auto-disables orphaned models |
 | **`admin-models`** | `admin-models/index.ts` | Admin Panel (HTTP GET / PUT) | `requireUser` + `is_platform_admin` | Manages active LLM allowlist (`ai_models`) and user role mappings (`ai_roles`). | Restricts columns via `pickRow`<br/>Calls `admin_models_upsert`<br/>`invalidateRegistry()` |
 | **`health`** | `health/index.ts` | Deployment Gate / Ping (HTTP GET) | `requireUser` (Supabase User JWT) | End-to-end verification probe checking DB reachability, RLS identity, and vector extension. | Asserts `auth.uid() === token.userId`<br/>Reports `pricing_rows` & `models_enabled` |
 | **`desk-brief`** | `desk-brief/index.ts` | Browser desk rail, or the Vercel router forwarding the caller's bearer (HTTP POST) | `requireUser` (Supabase User JWT) | Organises one selected desk row into a JSON brief through OpenRouter; one `model_call_logs` row per attempt. | `MAX_BODY_BYTES = 131_072`<br/>`PROVIDER_TIMEOUT_MS = 50_000`<br/>503 when no model is enabled |
+| **`ingest-worker`** | `ingest-worker/index.ts` | Cron/admin trigger | Worker secret | Leased PDF OCR jobs, direct Mistral extraction, OpenRouter embeddings, activation. | Bounded worker slices and fenced progress |
+| **`admin-ingest`** | `admin-ingest/index.ts` | Admin UI | Signed-in platform-admin check | Upload staging, job controls, record links, swap/delete and audit. | Private corpus storage |
+| **`document-file`** | `document-file/index.ts` | Signed-in reader | Caller RLS reads before service signing | Short-lived private PDF-part URLs for visible indexed documents. | No arbitrary-path signing |
 
-**Deployed versions on 2026-09-28** (`docs/agents/coordination.md`, "Operations — 2026-09-28"): `health` v7, `admin-models` v7, `refresh-model-pricing` v8, `ingest-documents` v10, `desk-brief` v2 and `research-chat` v32. `research-chat` v32 was deployed through a one-file entry that imports `createResearchHandler` from a pinned commit and calls `Deno.serve` itself, so the dashboard does not show the repository files. The emergency deploy form, its checks and the rollback steps are in [`../agents/rollback-runbook.md`](../agents/rollback-runbook.md). There is no `embed` function: embedding is the shared module `_shared/embed.ts`.
+**Deployment state:** the October 3 read-only snapshot in
+[open-work](../plans/open-work.md) lists nine ACTIVE functions and exact versions.
+The temporary pinned-entry deployments were superseded by the September 29 CLI
+redeploy (A1, `b60c0dc`); that task is done. Embeddings remain a shared module,
+not a separate deployed function.
 
-Since 2026-09-29 all six functions run `main` at `d1567d1` (F8, F9, F12): `health` v8, `admin-models` v8, `refresh-model-pricing` v9, `ingest-documents` v12, `desk-brief` v3 and `research-chat` v33. Each was deployed through a pinned-commit entry (`agents/rollback-runbook.md` §3), so the dashboard shows the entry rather than the real files; a standard CLI redeploy is open-work A1.
-
-**CORS (F8, 2026-09-29).** `_shared/cors.ts` allows an origin when it exactly equals an entry of the comma-separated `ALLOWED_ORIGINS` secret (without the secret, only `http://localhost:5173`), or when it matches the one kind of pattern allowed: an https origin with a single `*` inside the host, such as `https://niyantran-*-ddl-labs.vercel.app`. The `*` stands for letters, digits and hyphens within one DNS label, never a dot, port or path, and the whole origin must match; any other use of `*` matches nothing. This lets Vercel previews, which each have their own hostname, call `research-chat`, `desk-brief` and `admin-models` once the secret carries the pattern (open-work O5). Before F8, a probe on 2026-09-29 showed every preview refused: production and `http://localhost:5173` got an `access-control-allow-origin` header, while the `git-main` preview URL, a deployment URL and `localhost:5301` got none.
+**CORS (F8, 2026-09-29).** `_shared/cors.ts` allows an origin when it exactly equals an entry of the comma-separated `ALLOWED_ORIGINS` secret (without the secret, only `http://localhost:5173`), or when it matches the one kind of pattern allowed: an https origin with a single `*` inside the host, such as `https://niyantran-*-ddl-labs.vercel.app`. The `*` stands for letters, digits and hyphens within one DNS label, never a dot, port or path, and the whole origin must match; any other use of `*` matches nothing. This lets Vercel previews, which each have their own hostname, call `research-chat`, `desk-brief` and `admin-models` with the enabled preview pattern (O5 completed September 29). Before F8, a probe on 2026-09-29 showed every preview refused: production and `http://localhost:5173` got an `access-control-allow-origin` header, while the `git-main` preview URL, a deployment URL and `localhost:5301` got none.
 
 ---
 
@@ -159,10 +164,10 @@ flowchart TD
     end
     
     subgraph SynthesisPhase["Phase 2: Structured Output Synthesis"]
-        ExecAgent --> StripTools["Strip tools, inject ANSWER_NOW"]
+        ExecAgent --> StripTools["Disable tool calling, inject ANSWER_NOW"]
         StripTools --> StreamJSON["Model streams ANSWER_JSON_SCHEMA"]
         StreamJSON --> DecodeTokens["createAnswerDecoder: parse 'answer' string"]
-        DecodeTokens --> EmitChunks["Emit event: chunk (sub-second TTS)"]
+        DecodeTokens --> EmitChunks["Emit event: chunk (incremental answer text)"]
     end
     
     subgraph RepairPhase["Phase 3: Citation Auto-Repair"]

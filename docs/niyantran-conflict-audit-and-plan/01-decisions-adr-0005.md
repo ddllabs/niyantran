@@ -67,3 +67,12 @@ are kept as written; these statements in them are no longer true.
 Still true: SQLite remains in one place, the `entry_briefs` cache tier of
 `server/deskBrief.mjs` (through `server/db.mjs`). Removing it is C3 in
 `docs/plans/open-work.md`.
+
+## Current-state amendment (2026-10-03)
+
+C3 (`31c3915`, September 29) removed the remaining SQLite brief cache and
+`server/db.mjs`; the September 28 “Still true” paragraph is now historical.
+The owner’s September 30 amendment to ADR 0002 permits direct capabilities
+unavailable through OpenRouter, first pinned Mistral OCR in the ingestion
+worker. Chat and embeddings continue through OpenRouter; provider secrets
+remain confined to Supabase. These updates do not reopen upstream integration.

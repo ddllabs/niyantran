@@ -36,7 +36,7 @@ to backend contracts and does not establish a competing backend architecture.
   | nter.news articles | `/api/news/ingest`, `/api/home/latest` | `public.nter_news_articles`, written through `upsert_nter_article()` |
   | Plan entitlements | `/api/billing/verify`, `PATCH /api/users/:id`, RPCs | the plan columns on `public.user_profiles` (`plan`, `plan_status`, `plan_period_end`, `plan_source`, `trial_started_at`) and the grant log `public.plan_grants` (migration `20260929100000`). Written only by `grant_paid_plan()` (from `/api/billing/verify`), `grant_manual_plan()` (from `PATCH /api/users/:id` with `{ plan, planEnd }`), the `start_trial()` RPC and the signup trial in `handle_new_user()`; read through `my_entitlement()` |
 
-  Caches, safe to lose, under `writablePath()`: `desk-briefs/*.json` and the SQLite `entry_briefs` table (`server/db.mjs`, imported only by `server/deskBrief.mjs`; removal is open-work C3, blocked on owner action O4), `home-snapshots/`, and the Budget STAT-1 cache (`stat1.json`, `stat1.xlsx`, `server/budgetStat1.mjs`). Committed `public/data/` files are read-only seeds. The spec for the move is `docs/specs/2026-09-28-serverless-state-to-supabase.md`; open work is tracked only in `docs/plans/open-work.md` (corrected 2026-09-29: this pointed to `plans/2026-09-28-remaining-work.md`, now Historical).
+  Caches, safe to lose, under `writablePath()`: `desk-briefs/*.json`, `home-snapshots/`, and the Budget STAT-1 cache (`stat1.json`, `stat1.xlsx`, `server/budgetStat1.mjs`). Committed `public/data/` files are read-only seeds. The spec for the move is `docs/specs/2026-09-28-serverless-state-to-supabase.md`; open work is tracked only in `docs/plans/open-work.md` (corrected 2026-09-29: this pointed to `plans/2026-09-28-remaining-work.md`, now Historical).
 - **Read-only and client-side stores:**
   - `public/data/*.json`: Static read-only snapshot bundles and seed feeds.
   - Client `localStorage`: client working copy for UI state and offline preferences; synced through `/api/user-prefs` after sign-in (`userPrefsSync.js`; watchlist and tours only), which stores them in `public.user_preferences`.
@@ -44,10 +44,10 @@ to backend contracts and does not establish a competing backend architecture.
 
 ### Universal AI Gateway (Supabase Edge Secret Boundary)
 
-- **Single Outbound Gateway:** **OpenRouter (`https://openrouter.ai`)** is the single LLM gateway for the platform.
+- **Chat and Embedding Gateway:** **OpenRouter (`https://openrouter.ai`)** serves chat and embeddings. ADR 0002 permits direct integrations only for capabilities it does not expose; the ingestion worker uses pinned Mistral OCR with a Supabase-held secret.
 - **Supabase Secret Boundary:** The provider credential `OPENROUTER_API_KEY` is held **exclusively in Supabase Secrets**. It is never stored in `.env`, `.env.local`, Vercel environment variables, browser bundles, client requests, or local state.
-- **Secure Edge Architecture:** All production AI operations are executed through authenticated Supabase Edge Functions (`research-chat`, `desk-brief`, and `ingest-documents` for embeddings). There is no `embed` function; embedding is the shared module `supabase/functions/_shared/embed.ts`.
-- **No Direct Provider Bypasses:** No direct calls to `generativelanguage.googleapis.com`, `GoogleGenerativeAI`, `api.deepseek.com`, or other provider endpoints exist in production paths. Model names such as `google/gemini-...` and `openai/...` are canonical OpenRouter model identifiers routed via OpenRouter.
+- **Secure Edge Architecture:** All production AI operations are executed through authenticated Supabase Edge Functions (`research-chat`, `desk-brief`, `ingest-documents` for legacy embeddings, and `ingest-worker` for queued PDF OCR/indexing). There is no `embed` function; embedding is the shared module `supabase/functions/_shared/embed.ts`.
+- **No Direct Provider Bypasses:** No direct calls to `generativelanguage.googleapis.com`, `GoogleGenerativeAI`, or `api.deepseek.com` exist in chat or embedding production paths. The approved direct Mistral OCR integration is the exception described above. Model names such as `google/gemini-...` and `openai/...` are canonical OpenRouter model identifiers routed via OpenRouter.
 - **Credential Safety & Error Invariant:** If the Edge service is unreachable, interfaces report that the service is temporarily unavailable without exposing infrastructure keys or instructing users to configure local secrets.
 
 

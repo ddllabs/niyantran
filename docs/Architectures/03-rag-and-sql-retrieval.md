@@ -3,6 +3,18 @@
 > **Status: Living.** Documented on 2026-09-22.
 > Reflects the verified implementation in `supabase/functions/research-chat/agent.ts`, `_shared/retrieval.ts`, `_shared/tools/`, and migrations `20260922082308` (desk rows) and `20260922104646` (scoped document retrieval).
 
+## Current scope and answer path (2026-10-03)
+
+The legacy diagrams below show the two-engine foundation. Current document
+retrieval also accepts desk-feature scope: explicit IDs win, small features use
+exact distance, large features use tuned HNSW, and unscoped queries use broad
+HNSW. See [the RPC contract](06-stored-procedures-and-rpcs.md). A first-turn
+question is pre-searched before the model loop; follow-ups preserve the baseline
+loop. The depth amendment asks for additional searches for uncovered parts.
+This does not establish answer completeness: F53 measured 88% point coverage
+and 57% fully covered question-runs in its bill evaluation; neither tested
+completeness intervention shipped. See open-work for the experiment record.
+
 ---
 
 ## 1. Executive Philosophy: The Dual Engine Model

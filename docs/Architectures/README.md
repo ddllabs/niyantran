@@ -1,6 +1,7 @@
 # Niyantran Terminal — Master Architecture & Technical Documentation
 
-> **Status: Living.** Last updated on 2026-09-22; corrected 2026-09-24 (React 19, pricing refresh every 12 hours, embeddings via OpenRouter, relative links, table count) and 2026-09-28 (six Edge Functions including `desk-brief`, 25 public tables, repair model read from `AI_REPAIR_MODEL`, test counts) and 2026-09-29 (26 public tables with `plan_grants`, the plan-entitlement functions, Postgres 17, the half-precision search index (204 MB, F22), test counts, the role of `backend/sql/auth_schema.sql`).
+> **Status: Living.** Reconciled 2026-10-03 against the current checkout.
+> Dated infrastructure versions and counts are maintained in [open-work](../plans/open-work.md).
 > Comprehensive architectural blueprints, data dictionaries, wire protocols, and security matrices for Niyantran Terminal (NTER).
 
 ---
@@ -25,12 +26,15 @@ graph TB
         AM["admin-models<br/>(Allowlist & Role API)"]
         HE["health<br/>(Verification Probe)"]
         DB["desk-brief<br/>(One-Row Brief)"]
+        IW["ingest-worker (Queued PDF OCR & Indexing)"]
+        AI["admin-ingest (Admin Upload & Records)"]
+        DF["document-file (Private PDF Signing)"]
         Shared["_shared/ Library<br/>(Auth, CORS, Handles, Stream)"]
     end
 
     subgraph DatabaseTier["Persistence Tier (PostgreSQL 17 + Extensions)"]
-        DocCorpus[("Document Corpus<br/>documents & document_chunks<br/>(54,219 Chunks, 204 MB halfvec HNSW)")]
-        DeskData[("Desk Datasets<br/>desk_rows (34,184 Rows)<br/>(GIN Trigram & JSONB)")]
+        DocCorpus[("Document Corpus<br/>documents & document_chunks<br/>(halfvec HNSW; dated counts in open-work)")]
+        DeskData[("Desk Datasets<br/>desk_rows (structured records)<br/>(GIN Trigram & JSONB)")]
         ChatState[("Chat & Turn State<br/>conversations, chat_messages,<br/>research_turns (Mutex)")]
         Telemetry[("Telemetry & Admin<br/>model_pricing, ai_models,<br/>chat_turn_traces, call_logs")]
         RPCs["Versioned RPCs<br/>(match_documents, search_desk_rows,<br/>chunk_commit, lookup/claim/finalize)"]
@@ -39,9 +43,15 @@ graph TB
     subgraph ExternalTier["External Intelligence Providers"]
         OR["OpenRouter API<br/>(Primary LLMs: DeepSeek, Claude, GPT)"]
         OAI["OpenRouter Embeddings API<br/>(openai/text-embedding-3-small)"]
+        OCR["Mistral OCR (Approved Direct Capability)"]
         Gemini["OpenRouter<br/>(citation repair model from AI_REPAIR_MODEL)"]
     end
 
+    IW --> OCR
+    IW --> OAI
+    AI --> Shared
+    DF --> Shared
+    IW --> Shared
     UI <-->|HTTP POST / SSE Stream| RC
     Reader <-->|Verify ref: Spans| DocCorpus
     ID <-->|1536-dim Vectors| OAI
@@ -73,10 +83,10 @@ The architecture is documented across six specialized volumes. Each volume cover
 | Document | Title | Core Subsystems Covered | Primary Audience |
 | :--- | :--- | :--- | :--- |
 | [**`01-ingestion-pipeline.md`**](./01-ingestion-pipeline.md) | **Dual Ingestion & Structural Chunking** | OCR sidecar processing, PDF extraction, atomic table preservation (`colspan`/`rowspan`), deterministic chunk hashing (ADR 0004), 100-chunk slice commits (preventing Postgres OOM), PostgREST 1000-row pagination loop, desk row pin-key generation. | Data Engineers, Pipeline Developers |
-| [**`02-database-schema-and-tables.md`**](./02-database-schema-and-tables.md) | **Database Schema & Entity Topology** | Mermaid ER diagram of the AI-backend tables and data dictionary (26 public tables in total: 20 from `supabase/migrations/`, 6 from `backend/sql/auth_schema.sql`), full data dictionary, indexing topology (half-precision HNSW cosine index, 204 MB since F22 on 2026-09-29, `pg_trgm` GIN, JSONB GIN, index-only window scans), RLS permissions matrix across roles. | Database Administrators, Backend Engineers |
+| [**`02-database-schema-and-tables.md`**](./02-database-schema-and-tables.md) | **Database Schema & Entity Topology** | Mermaid ER diagram of the AI-backend tables and data dictionary (33 public tables observed on 2026-10-03, including page, storage, queue and corpus-audit tables), full data dictionary, indexing topology (half-precision HNSW cosine index, 204 MB since F22 on 2026-09-29, `pg_trgm` GIN, JSONB GIN, index-only window scans), RLS permissions matrix across roles. | Database Administrators, Backend Engineers |
 | [**`03-rag-and-sql-retrieval.md`**](./03-rag-and-sql-retrieval.md) | **Dual Retrieval Architecture: RAG & SQL** | Dual routing philosophy, post-mortem of D1 HNSW post-filtering bug (which dropped 98% of candidates) and B-tree pre-filter resolution (`20260922104646`), fair quota partitions, dynamic parameterized SQL, zero-spill window scans, cryptographic citation ladder (`ref:xxxxxx-n`). | Search Engineers, AI Architects |
 | [**`04-prompt-sandwich-and-agent-engine.md`**](./04-prompt-sandwich-and-agent-engine.md) | **Prompt Sandwich & Agent Engine** | Master Prompt Sandwich visual blueprint, 60,000-character rolling window algorithm (`windowMessages`), verbatim system prompt blocks (`ROLE`, `GROUNDING`, `TOOLS`, `DESK_GROUNDING_RULES`), tool wire payloads, strict JSON schema streaming decoder, citation auto-repair pass (`repair.ts`), `research_turns` concurrency mutex. | Prompt Engineers, Full-Stack AI Engineers |
-| [**`05-supabase-edge-functions.md`**](./05-supabase-edge-functions.md) | **Edge Functions & Shared Runtime** | Catalog of all 6 deployed functions (`research-chat`, `ingest-documents`, `refresh-model-pricing`, `admin-models`, `health`, `desk-brief`), Deno runtime configuration, bounded execution wrapper (`NETWORK_TIMEOUT_MS = 4_000`), key rotation architecture (`SUPABASE_SECRET_KEYS`), OOM crash prevention, shared library catalog (`_shared/`). | Platform Engineers, Cloud DevOps |
+| [**`05-supabase-edge-functions.md`**](./05-supabase-edge-functions.md) | **Edge Functions & Shared Runtime** | Catalog of all nine functions (including `ingest-worker`, `admin-ingest` and `document-file`), Deno runtime configuration, bounded execution wrapper (`NETWORK_TIMEOUT_MS = 4_000`), key rotation architecture (`SUPABASE_SECRET_KEYS`), OOM crash prevention, shared library catalog (`_shared/`). | Platform Engineers, Cloud DevOps |
 | [**`06-stored-procedures-and-rpcs.md`**](./06-stored-procedures-and-rpcs.md) | **Stored Procedures, RPCs & Security** | Catalog of the AI-backend stored procedures, the service-role functions added on 2026-09-28 and the plan-entitlement functions added on 2026-09-29, RPC Invocation Sandwich blueprint, B-tree vector pre-filtering, dynamic SQL assembly without `OR IS NULL`, 1536-dim vector assertion, `research_turns` lifecycle, pricing reconciliation, `search_path = ''` hardening audit, execution grant matrix. | Database Engineers, Security Auditors |
 
 ---
@@ -99,8 +109,8 @@ Across every layer of Niyantran Terminal, complex multi-step operations are orga
 +--------------------------------------------------------------------------------------------------+
 | 3. THE DESK ROW PIN-KEY SANDWICH (Tabular Identity)                                              |
 |    Top: Namespace Identity Header (tier: feature)                                                |
-|    Filling: Stable Canonical Business Tuple (sorted column key-value pairs)                      |
-|    Bottom: Sanitized Pin-Key Digest & Privacy Boundary (12-char SHA-256 hex digest)               |
+|    Filling: First available row identity; normalized record-text hash fallback                      |
+|    Bottom: Scalar pin key or FNV-1a fallback; tier/feature form the namespace               |
 +--------------------------------------------------------------------------------------------------+
 | 4. THE RETRIEVAL EXECUTION SANDWICH (Vector Search)                                              |
 |    Top: Query Vector & Pre-Filter Boundary (B-tree index scan on c.document_id)                  |
@@ -150,7 +160,10 @@ npm test
 
 ### 4.3 Production Build Verification
 ```bash
-# Production build (the repository has no separate lint or type-check)
+# Lint fails on errors or warnings; no standalone type-check exists
+npm run lint
+
+# Production build
 npm run build
 ```
 
@@ -160,7 +173,7 @@ npm run build
 npm run test:sql
 ```
 
-`.github/workflows/ci.yml` runs the build, both test suites and the SQL fixtures on every push. It is advisory: nothing is blocked on it.
+`.github/workflows/ci.yml` runs lint, the build, both test suites and the SQL fixtures on every push. It is advisory: nothing is blocked on it.
 
 `backend/sql/auth_schema.sql` is not the source of truth for the live schema: no migration creates it, and parts of it have drifted before. It is kept because `supabase/tests/run.sh` uses it, with `bootstrap_auth.sql`, to bootstrap the disposable fixture databases (section 23 deliberately duplicates migration 0012, which is where the vacuity check cuts it). Its header says the same. Read `information_schema.columns` on the live project before trusting a column in it (open-work F19).
 

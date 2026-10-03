@@ -88,3 +88,12 @@ files are kept only as the record:
   Function.
 - The Edge Functions that call OpenRouter are `research-chat`, `desk-brief`,
   `ingest-documents` and `refresh-model-pricing`.
+
+## Amendment (2026-10-03): synchronize the existing provider exception
+
+ADR 0002 was amended by the owner on September 30: OpenRouter remains required
+for chat and embeddings; direct integrations are allowed only for capabilities
+it does not expose. The approved ingestion worker calls pinned Mistral OCR with
+`MISTRAL_API_KEY` held in Supabase Secrets and records cost. Earlier exclusive
+provider wording in this ADR is subject to that amendment. Node routes do not
+hold AI provider keys. C3 (`31c3915`) removed the SQLite brief cache on September 29.
