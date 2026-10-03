@@ -1,0 +1,291 @@
+{
+  "status": "Historical (2026-10-03)",
+  "conditions": "Codex in-app browser on macOS, 1280x720, Fit width, loopback; see paired Markdown for caveats",
+  "budget": [
+    {
+      "byteSize": 2744811,
+      "pageCount": 25,
+      "extractHash": "c64dde0951fa592b3b3948a4686a610bf902b77f7ada1a8eb3c9a9b2c53b5789",
+      "browserViewerReadyMs": 1104.4,
+      "mode": "scripted-first-15-pages",
+      "elapsedMs": 12003.7,
+      "frameCount": 669,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.4,
+        "p99": 33.3,
+        "max": 650.7
+      },
+      "framesOver50Ms": 3,
+      "longTaskSupported": true,
+      "longTaskCount": 1,
+      "longTaskDurationsMs": [
+        105
+      ],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 1206,
+      "loadingSamplesIncludingOverscan": 6,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 49,
+      "finalScrollTop": 11546,
+      "targetScrollTop": 11545.89,
+      "targetPage": 15,
+      "finalPage": "15",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    },
+    {
+      "byteSize": 2744811,
+      "pageCount": 25,
+      "extractHash": "c64dde0951fa592b3b3948a4686a610bf902b77f7ada1a8eb3c9a9b2c53b5789",
+      "browserViewerReadyMs": 1104.4,
+      "mode": "scripted-first-15-pages",
+      "elapsedMs": 12001.4,
+      "frameCount": 720,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.4,
+        "p99": 17.6,
+        "max": 17.7
+      },
+      "framesOver50Ms": 0,
+      "longTaskSupported": true,
+      "longTaskCount": 0,
+      "longTaskDurationsMs": [],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 1206,
+      "loadingSamplesIncludingOverscan": 4,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 49,
+      "finalScrollTop": 11546,
+      "targetScrollTop": 11545.89,
+      "targetPage": 15,
+      "finalPage": "15",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    },
+    {
+      "byteSize": 2744811,
+      "pageCount": 25,
+      "extractHash": "c64dde0951fa592b3b3948a4686a610bf902b77f7ada1a8eb3c9a9b2c53b5789",
+      "browserViewerReadyMs": 1104.4,
+      "mode": "scripted-first-15-pages",
+      "elapsedMs": 12000.9,
+      "frameCount": 720,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.3,
+        "p99": 17.6,
+        "max": 17.8
+      },
+      "framesOver50Ms": 0,
+      "longTaskSupported": true,
+      "longTaskCount": 0,
+      "longTaskDurationsMs": [],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 1206,
+      "loadingSamplesIncludingOverscan": 4,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 49,
+      "finalScrollTop": 11546,
+      "targetScrollTop": 11545.89,
+      "targetPage": 15,
+      "finalPage": "15",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    }
+  ],
+  "surveyFirst": [
+    {
+      "byteSize": 24855069,
+      "pageCount": 740,
+      "extractHash": "02650dded98f481c54c2b76690a4286c19e2bcaf0cb8c8df2d2b19ecebbec9d7",
+      "browserViewerReadyMs": 1709.8,
+      "mode": "scripted-first-15-pages",
+      "elapsedMs": 12002,
+      "frameCount": 711,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.6,
+        "p99": 17.7,
+        "max": 132.7
+      },
+      "framesOver50Ms": 1,
+      "longTaskSupported": true,
+      "longTaskCount": 2,
+      "longTaskDurationsMs": [
+        55,
+        111
+      ],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 2585,
+      "loadingSamplesIncludingOverscan": 4,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 49,
+      "finalScrollTop": 11171,
+      "targetScrollTop": 11170.9,
+      "targetPage": 15,
+      "finalPage": "15",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 2
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    }
+  ],
+  "middle": [
+    {
+      "byteSize": 24855069,
+      "pageCount": 740,
+      "extractHash": "02650dded98f481c54c2b76690a4286c19e2bcaf0cb8c8df2d2b19ecebbec9d7",
+      "browserViewerReadyMs": 1471,
+      "mode": "scripted-15-pages",
+      "startPage": 200,
+      "elapsedMs": 12001.9,
+      "frameCount": 720,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.3,
+        "p99": 17.6,
+        "max": 17.7
+      },
+      "framesOver50Ms": 0,
+      "longTaskSupported": true,
+      "longTaskCount": 0,
+      "longTaskDurationsMs": [],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 502,
+      "loadingSamplesIncludingOverscan": 2,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 49,
+      "finalScrollTop": 169391,
+      "targetScrollTop": 169391.11,
+      "targetPage": 214,
+      "finalPage": "214",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 2
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    },
+    {
+      "byteSize": 24855069,
+      "pageCount": 740,
+      "extractHash": "02650dded98f481c54c2b76690a4286c19e2bcaf0cb8c8df2d2b19ecebbec9d7",
+      "browserViewerReadyMs": 1471,
+      "mode": "scripted-15-pages",
+      "startPage": 200,
+      "elapsedMs": 12006,
+      "frameCount": 720,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.4,
+        "p99": 17.7,
+        "max": 19.7
+      },
+      "framesOver50Ms": 0,
+      "longTaskSupported": true,
+      "longTaskCount": 0,
+      "longTaskDurationsMs": [],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 502,
+      "loadingSamplesIncludingOverscan": 1,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 50,
+      "finalScrollTop": 169391,
+      "targetScrollTop": 169391.11,
+      "targetPage": 214,
+      "finalPage": "214",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 2
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    },
+    {
+      "byteSize": 24855069,
+      "pageCount": 740,
+      "extractHash": "02650dded98f481c54c2b76690a4286c19e2bcaf0cb8c8df2d2b19ecebbec9d7",
+      "browserViewerReadyMs": 1471,
+      "mode": "scripted-15-pages",
+      "startPage": 200,
+      "elapsedMs": 12003.6,
+      "frameCount": 720,
+      "frameGapMs": {
+        "p50": 16.7,
+        "p95": 17.4,
+        "p99": 17.6,
+        "max": 17.7
+      },
+      "framesOver50Ms": 0,
+      "longTaskSupported": true,
+      "longTaskCount": 0,
+      "longTaskDurationsMs": [],
+      "maxLiveCanvases": 3,
+      "maxTextSpans": 502,
+      "loadingSamplesIncludingOverscan": 0,
+      "visibleLoadingSamples": 0,
+      "maxVisiblePages": 2,
+      "samples": 50,
+      "finalScrollTop": 169391,
+      "targetScrollTop": 169391.11,
+      "targetPage": 214,
+      "finalPage": "214",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 2
+      },
+      "pane": {
+        "width": 574,
+        "height": 504
+      },
+      "hidden": false
+    }
+  ]
+}

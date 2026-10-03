@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F59 is next) and goes in the
+- A new finding gets the next free `F` number (F60 is next) and goes in the
   right section.
 
 Current baseline (read-only observations, 2026-10-03):
@@ -42,6 +42,8 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- **2026-10-03, F58 heavy PDF local profiling:** `d971245`. Offline harness and repeated measurements on 25-page Budget and 740-page Economic Survey; steady warm scrolling, three live canvases, no sampled visible-page loading. No production optimization justified. [Results and limits](../research/2026-10-03-heavy-pdf-profile.md); remaining first-traversal attribution is F59. Locally integrated only.
 
 - **2026-10-03, F56 documentation reconciliation:** `b79e335`. Architecture, ADR amendments, entrypoints and shipped-work statuses reconciled against source and dated operations. Independent review and Markdown checks passed; documentation-only, locally integrated. [Plan and evidence](2026-10-03-documentation-reconciliation.md).
 
@@ -689,7 +691,8 @@ Earlier items, updated:
 - [ ] **P14.** Bill-key collisions (two documents on one `bill:<year>:<number>`
   key). Accept, or keep one document per key.
 
-- [ ] **F58. Heavy-document viewer stutter profiling.** After the F57 DOM-order fix, measure representative large PDFs before further optimization. The 18-page offline fixture verifies behavior, not production-scale timing. No production writes are needed; Safari coverage remains F50.
+
+- [ ] **F59. First-traversal and remaining heavy-viewer stutter attribution.** F58 observed isolated 105/55/111ms long tasks and a 650.7ms frame gap whose cause was not established. If the real issue remains reproducible, collect a CPU/render trace, profile full view with thumbnails and signed-storage network timing under fixed conditions before optimizing. Warm loopback scrolling was steady; this is not production performance acceptance. [F58 evidence](../research/2026-10-03-heavy-pdf-profile.md). Safari acceptance remains F50.
 
 ## 4. Payments
 
