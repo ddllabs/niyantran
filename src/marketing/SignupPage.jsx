@@ -52,6 +52,18 @@ export default function SignupPage({ onSuccess, onLogin }) {
     }
   }, [cooldown]);
 
+  function chooseRadio(e, options, index, select) {
+    let next;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (index + 1) % options.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (index - 1 + options.length) % options.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = options.length - 1;
+    else return;
+    e.preventDefault();
+    select(options[next].id);
+    e.currentTarget.parentElement.querySelectorAll('[role="radio"]')[next]?.focus();
+  }
+
   async function handleResend() {
     if (!verificationSentEmail || cooldown > 0) return;
     setResending(true);
@@ -224,7 +236,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
           <div className="tag">ACTIVATION LINK DISPATCHED</div>
 
           <div style={{ marginTop: '20px', textAlign: 'left' }}>
-            <label style={{ display: 'block', fontSize: '11px', letterSpacing: '0.08em', color: '#94a3b8', marginBottom: '8px', fontWeight: '700', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', letterSpacing: '0.08em', color: '#5c564e', marginBottom: '8px', fontWeight: '700', textTransform: 'uppercase' }}>
               Verify your Gmail
             </label>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -234,11 +246,11 @@ export default function SignupPage({ onSuccess, onLogin }) {
                 value={verificationSentEmail}
                 style={{
                   flex: 1,
-                  background: 'rgba(15, 23, 42, 0.8)',
+                  background: '#f8f5f0',
                   border: '1px solid rgba(56, 189, 248, 0.4)',
                   borderRadius: '6px',
                   padding: '12px 14px',
-                  color: '#f8fafc',
+                  color: '#131313',
                   fontSize: '14px',
                   fontWeight: '500',
                   outline: 'none',
@@ -267,8 +279,8 @@ export default function SignupPage({ onSuccess, onLogin }) {
             </div>
           </div>
 
-          <div style={{ margin: '20px 0', padding: '14px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '8px', color: '#cbd5e1', fontSize: '13px', lineHeight: '1.6', textAlign: 'left' }}>
-            <strong style={{ color: '#38bdf8', display: 'block', marginBottom: '4px' }}>Check your inbox:</strong>
+          <div style={{ margin: '20px 0', padding: '14px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '8px', color: '#3d3a36', fontSize: '13px', lineHeight: '1.6', textAlign: 'left' }}>
+            <strong style={{ color: '#012ea1', display: 'block', marginBottom: '4px' }}>Check your inbox:</strong>
             A verification link was sent. Click the direct link in the email to activate your account, then sign in.
           </div>
 
@@ -286,20 +298,20 @@ export default function SignupPage({ onSuccess, onLogin }) {
               type="button"
               onClick={handleResend}
               disabled={cooldown > 0 || resending}
-              style={{ background: 'none', border: 'none', color: cooldown > 0 ? '#64748b' : '#38bdf8', cursor: cooldown > 0 ? 'default' : 'pointer', padding: 0, textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: cooldown > 0 ? '#64748b' : '#012ea1', cursor: cooldown > 0 ? 'default' : 'pointer', padding: 0, textDecoration: 'underline' }}
             >
               {resending ? 'Resending…' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend verification email'}
             </button>
             <button
               type="button"
               onClick={() => setVerificationSentEmail('')}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: '#5c564e', cursor: 'pointer', padding: 0 }}
             >
               Use different email
             </button>
           </div>
           {resendStatus && (
-            <div style={{ marginTop: '10px', fontSize: '12px', color: resendStatus.includes('success') ? '#4ade80' : '#f87171' }}>
+            <div style={{ marginTop: '10px', fontSize: '12px', color: resendStatus.includes('success') ? '#176b55' : '#b42318' }}>
               {resendStatus}
             </div>
           )}
@@ -321,12 +333,14 @@ export default function SignupPage({ onSuccess, onLogin }) {
                 {`Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Pick a plan to continue — Explorer is free; Professional / Enterprise start a ${TRIAL_DAYS}-day trial with no card.`}
               </p>
               <div className="mkt-signup-plan-grid" role="radiogroup" aria-label="Plan">
-                {plans.map((p) => (
+                {plans.map((p, index) => (
                   <button
                     key={p.id}
                     type="button"
                     role="radio"
                     aria-checked={planId === p.id}
+                    tabIndex={planId === p.id ? 0 : -1}
+                    onKeyDown={(e) => chooseRadio(e, plans, index, setPlanId)}
                     className={`mkt-signup-plan${planId === p.id ? ' on' : ''}`}
                     onClick={() => setPlanId(p.id)}
                   >
@@ -356,12 +370,14 @@ export default function SignupPage({ onSuccess, onLogin }) {
                 <h2 className="mkt-signup-label">Who are you working as?</h2>
                 <p className="mkt-signup-lead">Sets your free-tier core desks and start desk.</p>
                 <div className="mkt-signup-persona-grid" role="radiogroup" aria-label="Working as">
-                  {PERSONAS.map((p) => (
+                  {PERSONAS.map((p, index) => (
                     <button
                       key={p.id}
                       type="button"
                       role="radio"
                       aria-checked={personaId === p.id}
+                      tabIndex={personaId === p.id || (!personaId && index === 0) ? 0 : -1}
+                      onKeyDown={(e) => chooseRadio(e, PERSONAS, index, setPersonaId)}
                       className={`mkt-signup-persona tone-${p.tone}${personaId === p.id ? ' on' : ''}`}
                       style={{ '--persona-img': `url(${p.img})` }}
                       onClick={() => setPersonaId(p.id)}

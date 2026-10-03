@@ -92,10 +92,10 @@ export default function ForgotPasswordPage({ onLogin }) {
         <h1>TERMINAL</h1>
         <div className="tag">RECOVERY ACCESS</div>
 
-        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#f8fafc', margin: '14px 0 6px 0' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#131313', margin: '14px 0 6px 0' }}>
           Forgot your password?
         </h2>
-        <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5', margin: '0 0 18px 0' }}>
+        <p style={{ fontSize: '13px', color: '#5c564e', lineHeight: '1.5', margin: '0 0 18px 0' }}>
           Enter the email address associated with your account and we&apos;ll send you a secure password reset link.
         </p>
 
@@ -106,7 +106,7 @@ export default function ForgotPasswordPage({ onLogin }) {
               background: 'rgba(56, 189, 248, 0.1)',
               border: '1px solid rgba(56, 189, 248, 0.3)',
               borderRadius: '8px',
-              color: '#38bdf8',
+              color: '#012ea1',
               fontSize: '13px',
               lineHeight: '1.5',
               marginBottom: '18px',
@@ -115,8 +115,8 @@ export default function ForgotPasswordPage({ onLogin }) {
             role="status"
           >
             <strong>✓ Reset request received</strong>
-            <div style={{ marginTop: '4px', color: '#cbd5e1' }}>{successNotice}</div>
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#94a3b8' }}>
+            <div style={{ marginTop: '4px', color: '#3d3a36' }}>{successNotice}</div>
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#5c564e' }}>
               Check your inbox and spam folder.
             </div>
             {email.toLowerCase().includes('gmail.com') && (
@@ -189,7 +189,7 @@ export default function ForgotPasswordPage({ onLogin }) {
             style={{
               background: 'none',
               border: 'none',
-              color: '#38bdf8',
+              color: '#012ea1',
               fontSize: '13px',
               cursor: 'pointer',
               textDecoration: 'underline',

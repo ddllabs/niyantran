@@ -32,12 +32,26 @@ export function AiPersonasPage() {
         <code>src/data/personas/*.md</code> and redeploy research-chat. Never shown to the user.
       </p>
       <div className="adm-persona-types" role="tablist">
-        {USER_TYPES.map((t) => (
+        {USER_TYPES.map((t, index) => (
           <button
             key={t.id}
             type="button"
             role="tab"
+            id={`adm-persona-tab-${t.id}`}
             aria-selected={typeId === t.id}
+            aria-controls="adm-persona-panel"
+            tabIndex={typeId === t.id ? 0 : -1}
+            onKeyDown={(e) => {
+              let next;
+              if (e.key === 'ArrowRight') next = (index + 1) % USER_TYPES.length;
+              else if (e.key === 'ArrowLeft') next = (index - 1 + USER_TYPES.length) % USER_TYPES.length;
+              else if (e.key === 'Home') next = 0;
+              else if (e.key === 'End') next = USER_TYPES.length - 1;
+              else return;
+              e.preventDefault();
+              setTypeId(USER_TYPES[next].id);
+              e.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next]?.focus();
+            }}
             className={typeId === t.id ? 'on' : ''}
             onClick={() => setTypeId(t.id)}
           >
@@ -45,7 +59,7 @@ export function AiPersonasPage() {
           </button>
         ))}
       </div>
-      <div className="adm-persona-work">
+      <div className="adm-persona-work" role="tabpanel" id="adm-persona-panel" aria-labelledby={`adm-persona-tab-${typeId}`}>
         <div className="adm-card">
           <label className="adm-field">
             <span>

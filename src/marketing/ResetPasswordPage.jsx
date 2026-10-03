@@ -174,7 +174,7 @@ export default function ResetPasswordPage({ onLogin }) {
         <div className="tag">CREDENTIAL RESET</div>
 
         {validatingSession ? (
-          <div style={{ padding: '30px 0', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '30px 0', textAlign: 'center', color: '#5c564e' }}>
             <p>Validating secure recovery session…</p>
           </div>
         ) : !sessionActive && !success ? (
@@ -185,7 +185,7 @@ export default function ResetPasswordPage({ onLogin }) {
                 background: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
                 borderRadius: '8px',
-                color: '#f87171',
+                color: '#b42318',
                 fontSize: '13px',
                 lineHeight: '1.5',
                 marginBottom: '16px',
@@ -193,7 +193,7 @@ export default function ResetPasswordPage({ onLogin }) {
               role="alert"
             >
               <strong>Invalid or Expired Link</strong>
-              <p style={{ margin: '6px 0 0 0', color: '#cbd5e1' }}>
+              <p style={{ margin: '6px 0 0 0', color: '#3d3a36' }}>
                 This password recovery link has either expired, already been used, or is invalid.
               </p>
             </div>
@@ -214,7 +214,7 @@ export default function ResetPasswordPage({ onLogin }) {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#38bdf8',
+                  color: '#012ea1',
                   fontSize: '13px',
                   cursor: 'pointer',
                   textDecoration: 'underline',
@@ -232,7 +232,7 @@ export default function ResetPasswordPage({ onLogin }) {
                 background: 'rgba(34, 197, 94, 0.12)',
                 border: '1px solid rgba(34, 197, 94, 0.4)',
                 borderRadius: '8px',
-                color: '#4ade80',
+                color: '#176b55',
                 fontSize: '13px',
                 lineHeight: '1.5',
                 marginBottom: '18px',
@@ -240,7 +240,7 @@ export default function ResetPasswordPage({ onLogin }) {
               role="status"
             >
               <strong>✓ Password Updated Successfully!</strong>
-              <p style={{ margin: '6px 0 0 0', color: '#cbd5e1' }}>
+              <p style={{ margin: '6px 0 0 0', color: '#3d3a36' }}>
                 Your account password has been updated. You can now sign in with your new password.
               </p>
             </div>
@@ -255,10 +255,10 @@ export default function ResetPasswordPage({ onLogin }) {
           </div>
         ) : (
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#f8fafc', margin: '14px 0 6px 0' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#131313', margin: '14px 0 6px 0' }}>
               Reset your password
             </h2>
-            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+            <p style={{ fontSize: '13px', color: '#5c564e', lineHeight: '1.5', margin: '0 0 16px 0' }}>
               Enter and confirm your new secure password.
             </p>
 
@@ -284,7 +284,7 @@ export default function ResetPasswordPage({ onLogin }) {
                       right: '10px',
                       background: 'none',
                       border: 'none',
-                      color: '#94a3b8',
+                      color: '#5c564e',
                       cursor: 'pointer',
                       fontSize: '12px',
                     }}
@@ -314,7 +314,7 @@ export default function ResetPasswordPage({ onLogin }) {
                       right: '10px',
                       background: 'none',
                       border: 'none',
-                      color: '#94a3b8',
+                      color: '#5c564e',
                       cursor: 'pointer',
                       fontSize: '12px',
                     }}
@@ -328,25 +328,25 @@ export default function ResetPasswordPage({ onLogin }) {
               <div
                 style={{
                   fontSize: '11px',
-                  color: '#94a3b8',
-                  background: '#0f172a',
+                  color: '#5c564e',
+                  background: '#f8f5f0',
                   padding: '10px 12px',
                   borderRadius: '6px',
                   margin: '12px 0',
                   lineHeight: '1.6',
                 }}
               >
-                <div style={{ color: hasMinLength ? '#4ade80' : '#94a3b8' }}>
+                <div style={{ color: hasMinLength ? '#176b55' : '#5c564e' }}>
                   {hasMinLength ? '✓' : '○'} At least 8 characters
                 </div>
-                <div style={{ color: hasUpper && hasLower ? '#4ade80' : '#94a3b8' }}>
+                <div style={{ color: hasUpper && hasLower ? '#176b55' : '#5c564e' }}>
                   {hasUpper && hasLower ? '✓' : '○'} Upper and lowercase letters
                 </div>
-                <div style={{ color: hasNumber || hasSymbol ? '#4ade80' : '#94a3b8' }}>
+                <div style={{ color: hasNumber || hasSymbol ? '#176b55' : '#5c564e' }}>
                   {hasNumber || hasSymbol ? '✓' : '○'} At least one number or special character
                 </div>
                 {confirmPassword && (
-                  <div style={{ color: isMatch ? '#4ade80' : '#f87171' }}>
+                  <div style={{ color: isMatch ? '#176b55' : '#b42318' }}>
                     {isMatch ? '✓ Passwords match' : '✕ Passwords do not match'}
                   </div>
                 )}

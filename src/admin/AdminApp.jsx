@@ -45,6 +45,17 @@ export default function AdminApp() {
   const [view, setView] = useState(viewFromHash);
   const [users, setUsers] = useState([]);
   const [navOpen, setNavOpen] = useState(false);
+  const [mobileNav, setMobileNav] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 980px)').matches);
+  const menuButton = useRef(null);
+  const sideNav = useRef(null);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 980px)');
+    const sync = () => setMobileNav(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
 
   useEffect(() => {
     const session = createAdminSession(supabase, (state) => {
@@ -108,8 +119,9 @@ export default function AdminApp() {
   useEffect(() => {
     if (!navOpen) return undefined;
     function onKey(e) {
-      if (e.key === 'Escape') setNavOpen(false);
+      if (e.key === 'Escape') { setNavOpen(false); menuButton.current?.focus(); }
     }
+    sideNav.current?.querySelector('button')?.focus();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [navOpen]);
@@ -119,6 +131,7 @@ export default function AdminApp() {
     if (location.hash !== hash) location.hash = hash;
     else setView(id);
     setNavOpen(false);
+    if (mobileNav) menuButton.current?.focus();
   }
 
   function refreshUsers() {
@@ -140,8 +153,8 @@ export default function AdminApp() {
         <span className="blob red" />
       </div>
       <span className="adm-scan" aria-hidden="true" />
-      <button type="button" className="adm-scrim" aria-label="Close menu" onClick={() => setNavOpen(false)} />
-      <aside className="adm-side">
+      <button type="button" className="adm-scrim" aria-label="Close menu" onClick={() => { setNavOpen(false); menuButton.current?.focus(); }} />
+      <aside className="adm-side" id="adm-side-nav" ref={sideNav} inert={mobileNav && !navOpen} aria-hidden={mobileNav && !navOpen ? true : undefined}>
         <div className="adm-brand">
           <img src="/brand/logo.png?v=2" alt="" />
           <div>
@@ -168,7 +181,7 @@ export default function AdminApp() {
       </aside>
       <div className="adm-main">
         <header className="adm-top">
-          <button type="button" className="adm-menu-btn" aria-label="Open menu" aria-expanded={navOpen} onClick={() => setNavOpen((v) => !v)}>
+          <button type="button" className="adm-menu-btn" ref={menuButton} aria-controls="adm-side-nav" aria-label="Open menu" aria-expanded={navOpen} onClick={() => setNavOpen((v) => !v)}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>

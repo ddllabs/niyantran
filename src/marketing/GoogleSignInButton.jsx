@@ -63,6 +63,7 @@ export default function GoogleSignInButton({
       <button
         type="button"
         className={`mkt-google-shell on${disabled || busy ? ' is-disabled' : ''}`}
+        aria-label={busy ? 'Connecting to Google…' : facadeLabel}
         onClick={handleGoogleClick}
         disabled={disabled || busy}
         style={{ width: '100%', cursor: disabled || busy ? 'not-allowed' : 'pointer' }}

@@ -106,6 +106,7 @@ export default function SegmentCarousel({ onLogin }) {
   const [segments, setSegments] = useState(FALLBACK_SEGMENTS);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
   const autoPlayRef = useRef(null);
 
   // Fetch authoritative segments & live counts from backend
@@ -130,16 +131,16 @@ export default function SegmentCarousel({ onLogin }) {
     };
   }, []);
 
-  // Autoplay progression (every 6 seconds unless hovered)
+  // Autoplay progression (every 6 seconds unless hovered or focused)
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || focusWithin) return;
     autoPlayRef.current = setInterval(() => {
       setActiveIndex((curr) => (curr + 1) % segments.length);
     }, 6000);
     return () => {
       if (autoPlayRef.current) clearInterval(autoPlayRef.current);
     };
-  }, [isPaused, segments.length]);
+  }, [isPaused, focusWithin, segments.length]);
 
   const activeSegment = useMemo(() => {
     return segments[activeIndex] || segments[0];
@@ -186,10 +187,13 @@ export default function SegmentCarousel({ onLogin }) {
 
   return (
     <section
+      id="coverage"
       className="mkt-carousel-section"
       aria-label="Analytical Desks Carousel"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setFocusWithin(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocusWithin(false); }}
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
