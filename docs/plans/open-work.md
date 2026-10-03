@@ -24,7 +24,8 @@
   suggestion pills, neutral shimmer model border, compact attachment chips,
   prominent source rows and icon-only message actions. [Spec](../specs/2026-10-04-research-flow.md),
   [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
-  implemented in `f47ccb4`, amended through `26cbc72`; 2,088 tests, lint/build and offline browser passed.
+  implemented in `f47ccb4`, amended through `93f11d1`; full baseline 2,088 tests; latest CSS amendment
+  passed 53 focused tests, lint/build and offline browser verification.
   Pending owner review/landing; no publication authorized.
 - [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
