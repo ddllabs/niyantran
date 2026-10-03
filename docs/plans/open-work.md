@@ -15,7 +15,14 @@
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
 - A new finding gets the next free `F` number (F60 is next) and goes in the
-  right section.
+  right section. F61 is next after the authorized frontend defect task.
+
+## Active execution
+
+- [ ] **F60. Frontend defect fixes.** Owner authorized fixes from the UI review
+  before the next enhancement brief. Isolated local UI branch; no publication.
+  [Spec](../specs/2026-10-04-ui-defect-fixes.md),
+  [plan and evidence](2026-10-04-ui-defect-fixes.md).
 
 Current baseline (read-only observations, 2026-10-03):
 - `main` is the only long-lived branch; production follows origin/main.
