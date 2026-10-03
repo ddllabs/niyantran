@@ -23,7 +23,8 @@
   activity, compact badges, secondary technical details and inline source
   citations. [Spec](../specs/2026-10-04-research-flow.md),
   [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
-  no publication authorized.
+  implemented in `f47ccb4`; 2,083 tests, lint/build and offline browser passed.
+  Pending owner review/landing; no publication authorized.
 - [ ] **F66. Connection recovery state.** Owner screenshots show Failed to
   fetch, an unknown saved outcome, excess empty space and a remaining Stop
   button. Root cause unverified; investigate separately without using live

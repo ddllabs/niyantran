@@ -21,7 +21,7 @@
 
 ## Evidence
 
-Implemented locally on 2026-10-04, pending owner review and landing.
+Implemented locally in `f47ccb4` on 2026-10-04, pending owner review and landing.
 
 - Red: `npm test -- src/ai/ChatPresentation.test.jsx src/ai/ResearchFlow.test.jsx`
   failed for the extra Cited passages disclosure and missing new flow module.
