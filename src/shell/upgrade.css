@@ -338,3 +338,8 @@
     grid-template-columns: 1fr;
   }
 }
+
+.plan-no-copy input, .plan-no-copy textarea, .plan-no-copy [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}

@@ -38,6 +38,7 @@ import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
+import { isEditableCopy } from './copyPolicy.js';
 
 export default function TerminalShell({ onLogout }) {
   const start = parseDeskHash();
@@ -123,7 +124,7 @@ export default function TerminalShell({ onLogout }) {
     }
     document.body.classList.add('plan-no-copy');
     function onCopy(e) {
-      if (canCopy(sessionUser())) return;
+      if (isEditableCopy(e) || canCopy(sessionUser())) return;
       e.preventDefault();
       openUpgrade('copy');
     };
