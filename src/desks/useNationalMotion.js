@@ -14,6 +14,7 @@ export function useNationalMotion(paused) {
     const backdrop = root.querySelector('.backdrop .bg');
     const enabled = () => !paused && !reduced.matches && !document.hidden;
     const reset = () => {
+      cancelAnimationFrame(frame); frame = 0;
       cards.forEach(card => { card.style.transform = ''; card.classList.remove('tilting'); });
       layers.forEach(layer => { layer.style.transform = ''; });
       if (backdrop) { backdrop.style.transform = ''; backdrop.style.opacity = ''; }
@@ -29,6 +30,8 @@ export function useNationalMotion(paused) {
       if (!enabled() || !fine.matches) return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (!enabled() || !fine.matches) return;
         const x = event.clientX / window.innerWidth - .5;
         const y = event.clientY / window.innerHeight - .5;
         layers.forEach(layer => { layer.style.transform = `translate(${x * 18 * Number(layer.dataset.d)}px,${y * 10 * Number(layer.dataset.d)}px)`; });

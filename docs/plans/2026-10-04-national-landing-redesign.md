@@ -81,3 +81,5 @@ Motion contract follows the reference durations: 900ms entrances, 500ms spring c
 ## Continuation checkpoint
 
 T7–T9 saved locally in `6aefc5a`; independent source review reported no remaining blockers after corrections. [Executed evidence and limits](2026-10-05-national-fidelity-verification.md). Owner UI acceptance and signed-in/zoom/reduced-motion runtime gates remain in F81. The active goal remains open through those gates. Local preview is retained for review; no push or deployment.
+
+T10 continuation: verify visibility/reduced-motion transitions and pending pointer frames with deterministic event tests in `src/desks/useNationalMotion.test.js`; correct defects only in `src/desks/useNationalMotion.js`. Motion must remain disabled even if a pointer frame was queued before a visibility or preference change. Run the focused test, full Vitest suite, lint and build. Record this as synthetic controller evidence, not native browser-media acceptance.
