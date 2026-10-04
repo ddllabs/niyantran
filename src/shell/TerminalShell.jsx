@@ -31,13 +31,14 @@ import {
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
-import { takePendingDeskRow } from '../ai/openRowSource.js';
+import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
+import CommandSearch from './CommandSearch.jsx';
 import { isEditableCopy } from './copyPolicy.js';
 
 export default function TerminalShell({ onLogout }) {
@@ -46,7 +47,6 @@ export default function TerminalShell({ onLogout }) {
   const [featureName, setFeatureName] = useState(start.feature);
   const [lang, setLang] = useState('en');
   const [theme, setTheme] = useState('light');
-  const [q, setQ] = useState('');
   const [feed, setFeed] = useState(null);
   const [selected, setSelected] = useState(null);
   const [reload, setReload] = useState(0);
@@ -297,21 +297,9 @@ export default function TerminalShell({ onLogout }) {
     };
   }, [typeId, openUpgrade]);
 
-  const allowedTiers = useMemo(() => {
-    const s = new Set(deskTabs.filter((t) => canAccessDesk(user, t.id)).map((t) => t.tier));
-    if (s.has('state')) s.add('local');
-    return s;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- canAccessDesk reads the entitlement store outside React; userTick is its change signal.
-  }, [deskTabs, user, userTick]);
-
-  const hits = useMemo(() => {
-    const n = q.trim().toLowerCase();
-    if (n.length < 2) return [];
-    return catalogModules()
-      .filter((m) => allowedTiers.has(m.htmlTier))
-      .filter((m) => `${m.htmlFeature} ${m.bucket} ${m.htmlTier}`.toLowerCase().includes(n))
-      .slice(0, 12);
-  }, [q, allowedTiers]);
+  const searchTabs = useMemo(() => deskTabs.filter(t => canAccessDesk(user, t.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- entitlement store updates are signalled by userTick.
+    [deskTabs, user, userTick]);
 
   function onDesk(id) {
     if (!canAccessDesk(sessionUser(), id)) {
@@ -323,7 +311,6 @@ export default function TerminalShell({ onLogout }) {
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    setQ('');
     writeDeskHash(r.tab, r.feature);
   }
 
@@ -345,16 +332,8 @@ export default function TerminalShell({ onLogout }) {
     const r = resolveDeskRoute(nextTab, feature);
     setTab(r.tab);
     setFeatureName(r.feature);
-    setQ('');
     setSelected(null);
     writeDeskHash(r.tab, r.feature);
-  }
-
-  function openHit(mod) {
-    let dest = deskTabs.find((t) => t.tier === mod.htmlTier);
-    if (!dest && mod.htmlTier === 'local') dest = deskTabs.find((t) => t.id === 'state');
-    if (!dest) return;
-    onOpen({ tab: dest.id, feature: mod.htmlFeature });
   }
 
   const billRecordOpen = (isImpactRecordFeature(featureName) || isGithubCsvRow(selected)) && selected;
@@ -396,32 +375,15 @@ export default function TerminalShell({ onLogout }) {
           <img src="/brand/logo.png?v=2" alt="" />
           <span>TERMINAL</span>
         </div>
-        <div className="cmd">
-          <Icon name="search" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={hi ? 'खोजें' : 'Search desks, modules, records'}
-            aria-label="Command search"
-          />
-          <button type="button" className="icon-btn ghost" disabled title="Voice search not configured">
-            <Icon name="mic" />
-          </button>
-          {hits.length > 0 && (
-            <ul className="cmd-hits">
-              {hits.map((m) => (
-                <li key={`${m.htmlTier}-${m.htmlFeature}`}>
-                  <button type="button" onClick={() => openHit(m)}>
-                    <strong>{m.htmlFeature}</strong>
-                    <span>
-                      {m.htmlTier} · {m.bucket}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <CommandSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={searchTabs}
+          identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
+          onOpen={hit => {
+            onOpen({ tab: hit.tab, feature: hit.feature });
+            if (hit.kind === 'record') {
+              openInDesk({ ...hit, kind: 'row', tier: hit.tab });
+              setReload(value => value + 1);
+            }
+          }} />
         <div className="top-actions">
           <button type="button" className="icon-btn" onClick={() => setLang(hi ? 'en' : 'hi')}>
             {hi ? 'HI' : 'EN'}

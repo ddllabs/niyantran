@@ -1,0 +1,7 @@
+.cmd input { min-width: 0; }
+.cmd-group-label { margin: 6px 10px 3px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.cmd-result.active { background: var(--accent-soft); border-radius: 8px; }
+.cmd-result strong { overflow-wrap: anywhere; font-size: 12px; }
+.cmd-result span { margin-top: 2px; }
+.cmd-search-status { margin: 8px 10px 4px; color: var(--muted); font-size: 11px; }
+.cmd-hits .cmd-retry { width: auto; margin: 2px 10px 6px; color: var(--accent); font-size: 11px; }
