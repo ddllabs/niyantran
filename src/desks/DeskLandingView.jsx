@@ -6,12 +6,12 @@ import { Icon, TAB_ICON } from '../shell/Icons.jsx';
 import { BarList } from '../shell/AnalyticsViz.jsx';
 import { TABS } from './catalog.js';
 import './deskLanding.css';
+import NationalLandingView from './NationalLandingView.jsx';
 
 /**
  * Flagship module mappings per desk for loading live structured counters and chart.
  */
 const DESK_FLAGSHIPS = {
-  national: { tier: 'national', feature: 'Bill Passage Probability Index', chartCol: 'status', chartTitle: 'Bill Distribution by Legislative Stage' },
   global: { tier: 'geopolitics', feature: 'Open Fronts', chartCol: 'theatre', chartTitle: 'Fronts by Geopolitical Theatre' },
   economics: { tier: 'finance', feature: 'NSE/BSE Delayed Market Feed', chartCol: 'sector', chartTitle: 'Market Watch Distribution by Sector' },
   state: { tier: 'state', feature: 'Booth-level Results Database', chartCol: 'party', chartTitle: 'Electoral Returns by Alliance' },
@@ -34,7 +34,11 @@ function getCategoryValue(row, preferredCol) {
   return 'General';
 }
 
-export default function DeskLandingView({ tab, label, buckets = [], onFeature, lang = 'en' }) {
+export default function DeskLandingView(props) {
+  return props.tab === 'national' ? <NationalLandingView {...props} /> : <StandardDeskLandingView {...props} />;
+}
+
+function StandardDeskLandingView({ tab, label, buckets = [], onFeature, lang = 'en' }) {
   const [data, setData] = useState({ rows: [], loading: true, error: null, sourceNote: '' });
 
   const tabMeta = useMemo(() => TABS.find((t) => t.id === tab) || { tier: tab }, [tab]);
