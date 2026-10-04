@@ -14,12 +14,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F76 is next) and goes in the
+- A new finding gets the next free `F` number (F77 is next) and goes in the
   right section.
 
 ## UI follow-ups
 
-- [ ] **F74. Activate Whisper dictation.** F73 was pushed to origin/main at f977de9 on owner instruction. F75 switches transcription to OpenRouter using the existing server-side OPENROUTER_API_KEY. Publication of F75 and transcribe-audio deployment require exact owner authorization. Then verify real English/Hindi dictation, permission refusal and grouped record search on production. No live provider call or production configuration was performed during F73.
+- [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
 
 
 
@@ -79,6 +79,8 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F74. Publish and activate OpenRouter dictation.** F75 published at f346ab8; Vercel production READY, transcribe-audio v1 ACTIVE, existing OpenRouter secret present. Live auth/CORS and synthetic English/Hindi provider probes pass. Browser acceptance is F76. [Release evidence](2026-10-04-dictation-activation.md).
 
 - [x] **F75. OpenRouter Whisper dictation.** `d352997`: uses openai/whisper-large-v3-turbo and existing server-side OPENROUTER_API_KEY. 2,100 Vitest / 862 Deno tests, lint/build and function compilation pass; provider/credential guards proved red first. Live activation remains F74. [Evidence](2026-10-04-openrouter-dictation.md).
 
