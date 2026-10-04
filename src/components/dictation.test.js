@@ -31,3 +31,12 @@ it('reports denied permission and keeps the microphone released on failure',asyn
  const s=createDictation({media:{getUserMedia:async()=>{throw new DOMException('denied','NotAllowedError');}},Recorder:class{},onState,onError,onTranscript:vi.fn()});
  await s.start();expect(onError).toHaveBeenCalledWith(expect.stringContaining('Allow access'));expect(onState).toHaveBeenLastCalledWith('error');
 });
+
+it('cancel discards recording and releases its visual monitor without calling transcription',async()=>{
+ const transcribe=vi.fn(); const dispose=vi.fn(); const onAudio=vi.fn(()=>dispose);const onState=vi.fn();
+ class Recorder {static isTypeSupported(){return true;} start(){this.state='recording';} stop(){this.state='inactive';this.onstop?.();}}
+ const track={stop:vi.fn()};const stream={getTracks:()=>[track]};
+ const session=createDictation({media:{getUserMedia:async()=>stream},Recorder,transcribe,onState,onTranscript:vi.fn(),onAudio});
+ await session.start();expect(onAudio).toHaveBeenCalledWith(stream);session.cancel();
+ expect(dispose).toHaveBeenCalledTimes(1);expect(transcribe).not.toHaveBeenCalled();expect(onState).toHaveBeenLastCalledWith('idle');
+});

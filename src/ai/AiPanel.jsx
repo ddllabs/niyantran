@@ -362,6 +362,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const busy = research.locked;
   const err = research.error;
   const [dragOver, setDragOver] = useState(false);
+  const [dictationActive, setDictationActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   // The model whose reasoning rungs are expanded in the picker, '' for none.
   // Held here rather than in ModelPicker so that stays a function of its props.
@@ -647,7 +648,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   async function send(e) {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || busy || streaming) return;
+    if (!text || busy || streaming || dictationActive) return;
     setScopeNotice('');
     await sendResearch(text);
   }
@@ -1131,12 +1132,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
 
             <div className="ai-v2-comp-act">
-              <DictationButton disabled={busy || streaming} lang={lang}
+              <DictationButton disabled={busy || streaming} lang={lang} onActiveChange={setDictationActive}
                 contextKey={`${research.identityVersion}:${state.activeId || ''}`}
                 onTranscript={text => { setDraft(`${draft.trim()} ${text}`.trim()); box.current?.focus(); }} />
               <ChatSubmit canStop={research.canStop} stopping={stopping}
                 cancelPending={research.cancelPending || stream?.cancelPending}
-                disabled={busy || streaming || !draft.trim()} onStop={() => research.actions.stop()} lang={lang} />
+                disabled={busy || streaming || dictationActive || !draft.trim()} onStop={() => research.actions.stop()} lang={lang} />
             </div>
           </div>
         </form>

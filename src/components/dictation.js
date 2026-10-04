@@ -26,17 +26,17 @@ export async function transcribeAudio(blob, signal) {
 
 /** Owns every track, timer and request; cancel invalidates even non-cancellable late results. */
 export function createDictation({ media = globalThis.navigator?.mediaDevices, Recorder = globalThis.MediaRecorder,
-  transcribe = transcribeAudio, onState, onTranscript, onError = () => {} }) {
+  transcribe = transcribeAudio, onState, onTranscript, onError = () => {}, onAudio = () => {} }) {
   let generation = 0;
-  let recorder, stream, timer, request, requestTimer;
+  let recorder, stream, timer, request, requestTimer, visualStop;
   let state = 'idle';
-  function release() { clearTimeout(timer); stream?.getTracks().forEach(track => track.stop()); stream = null; }
+  function release() { visualStop?.(); visualStop = null; clearTimeout(timer); stream?.getTracks().forEach(track => track.stop()); stream = null; }
   function update(next) { state = next; onState(next); }
   function cancel() {
     generation++;
     request?.abort(); clearTimeout(requestTimer);
     if (recorder?.state === 'recording') recorder.stop();
-    release(); state = 'idle';
+    release(); update('idle');
   }
   function fail(error) {
     cancel(); update('error');
@@ -76,7 +76,7 @@ export function createDictation({ media = globalThis.navigator?.mediaDevices, Re
         } catch (error) { if (run === generation) fail(error); }
         finally { clearTimeout(requestTimer); }
       };
-      recorder.start(1000); update('recording');
+      recorder.start(1000); update('recording'); visualStop = onAudio(stream);
       timer = setTimeout(stop, MAX_RECORD_MS);
     } catch (error) { if (run === generation) fail(error); }
   }
