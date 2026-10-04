@@ -57,10 +57,10 @@ export async function handleTranscription(req: Request, deps: TranscriptionDeps)
     const body = new FormData();
     const extension = file.type.includes('mp4') ? 'mp4' : file.type.includes('webm') ? 'webm' : file.type.includes('ogg') ? 'ogg' : file.type.includes('mpeg') ? 'mp3' : 'wav';
     body.append('file', file, `dictation.${extension}`);
-    body.append('model', 'whisper-1'); body.append('response_format', 'json');
+    body.append('model', 'openai/whisper-large-v3-turbo'); body.append('response_format', 'json');
     let response: Response;
     try {
-      response = await deps.fetch('https://api.openai.com/v1/audio/transcriptions', {
+      response = await deps.fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
         method: 'POST', headers: { Authorization: `Bearer ${deps.apiKey}` }, body,
         signal: AbortSignal.any([req.signal, AbortSignal.timeout(40000)]),
       });

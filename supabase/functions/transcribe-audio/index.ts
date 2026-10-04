@@ -3,7 +3,7 @@ import { userClient } from '../_shared/supabase.ts';
 import { handleTranscription } from './handler.ts';
 
 if (import.meta.main) Deno.serve(req => handleTranscription(req, {
-  apiKey: Deno.env.get('OPENAI_API_KEY') || '',
+  apiKey: Deno.env.get('OPENROUTER_API_KEY') || '',
   origins: allowedOrigins(),
   fetch,
   active: async (token, userId) => {

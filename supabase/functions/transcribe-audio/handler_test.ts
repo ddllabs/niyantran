@@ -8,17 +8,17 @@ function deps(overrides = {}) {
   return { verify: async () => ({ id: 'u' }), active: async () => true, apiKey: 'test-provider-key',
     fetch: async (_url: unknown, init: RequestInit) => {
       const form = init.body as FormData;
-      assertEquals(form.get('model'), 'whisper-1');
+      assertEquals(form.get('model'), 'openai/whisper-large-v3-turbo');
       assertEquals(form.get('response_format'), 'json');
       return new Response(JSON.stringify({ text: 'Hello world' }));
     }, origins: ['http://localhost:5173'], ...overrides };
 }
-Deno.test('transcription verifies identity and forwards only admitted audio to fixed Whisper endpoint', async () => {
+Deno.test('transcription verifies identity and forwards only admitted audio to fixed OpenRouter Whisper endpoint', async () => {
   let url = '';
   const real = deps();
   const res = await handleTranscription(request(), deps({ fetch: (target: string, init: RequestInit) => { url = target; return real.fetch(target, init); } }));
   assertEquals(res.status, 200); assertEquals(await res.json(), { text: 'Hello world' });
-  assertEquals(url, 'https://api.openai.com/v1/audio/transcriptions');
+  assertEquals(url, 'https://openrouter.ai/api/v1/audio/transcriptions');
 });
 Deno.test('missing bearer and suspended accounts cannot call the provider', async () => {
   const req = request(); req.headers.delete('authorization');
@@ -35,7 +35,7 @@ Deno.test('missing configuration and provider failures are safe, actionable resp
   const res = await handleTranscription(request(), deps({ fetch: async () => new Response('secret-error', { status: 500 }) }));
   assertEquals(res.status, 502); assertStringIncludes(await res.text(), 'Transcription failed');
 });
-Deno.test('rejections never invoke OpenAI, and untrusted provider errors never leak', async () => {
+Deno.test('rejections never invoke the provider, and untrusted provider errors never leak', async () => {
   let calls = 0;
   const forbiddenFetch = async () => { calls++; throw new Error('provider-secret'); };
   const req = request(); req.headers.delete('authorization');
@@ -46,4 +46,10 @@ Deno.test('rejections never invoke OpenAI, and untrusted provider errors never l
   assertEquals(calls, 0);
   const response = await handleTranscription(request(), deps({ fetch: forbiddenFetch }));
   assertEquals(response.status, 502); assertEquals((await response.text()).includes('provider-secret'), false);
+});
+
+Deno.test('function entry uses existing server-side OpenRouter credential', async () => {
+  const source = await Deno.readTextFile(new URL('./index.ts', import.meta.url));
+  assertStringIncludes(source, "Deno.env.get('OPENROUTER_API_KEY')");
+  assertEquals(source.includes('OPENAI_API_KEY'), false);
 });
