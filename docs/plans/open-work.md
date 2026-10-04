@@ -14,10 +14,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F77 is next) and goes in the
+- A new finding gets the next free `F` number (F79 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F78. Publish F77 microphone waveform UI.** Local implementation bd37d43 verified and integrated; owner push authorization pending. No backend deployment required. [Evidence](2026-10-04-dictation-waveform.md).
 
 - [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
 
@@ -79,6 +81,8 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F77. Live microphone waveform UI.** `bd37d43`: real microphone energy history and elapsed time; cancel/stop/transcription states replace existing toolbar without height growth, reduced-motion meter, sending blocked during dictation. 2,103 tests/lint/build and responsive browser checks pass. [Evidence](2026-10-04-dictation-waveform.md).
 
 - [x] **F74. Publish and activate OpenRouter dictation.** F75 published at f346ab8; Vercel production READY, transcribe-audio v1 ACTIVE, existing OpenRouter secret present. Live auth/CORS and synthetic English/Hindi provider probes pass. Browser acceptance is F76. [Release evidence](2026-10-04-dictation-activation.md).
 
