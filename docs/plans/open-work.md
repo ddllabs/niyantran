@@ -14,19 +14,20 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F68 is next) and goes in the
+- A new finding gets the next free `F` number (F70 is next) and goes in the
   right section.
 
 ## UI follow-ups
 
-- [ ] **F65. Research flow UI.** Owner-approved reference adaptation: monoline
-  activity, inline model metadata, compact badges, source citation numbers,
-  suggestion pills, neutral shimmer model border, joined attachment/composer surface,
-  prominent source rows and icon-only message actions. [Spec](../specs/2026-10-04-research-flow.md),
-  [plan](2026-10-04-research-flow.md). Local branch `task/f65-research-flow`;
-  implemented in `f47ccb4`, amended through `3c0a02e`; full baseline 2,088 tests; latest CSS amendment
-  passed 73 focused tests, lint/build and offline browser verification.
-  Pending owner review/landing; no publication authorized.
+- [ ] **F68. Preserved worktree reconciliation.** Main consolidation found 15
+  worktrees with uncommitted files and one locked worktree. Keep these intact;
+  review their diffs against current main before deciding whether to integrate
+  or archive them. No blind merging or deletion. [Consolidation record](2026-10-04-main-consolidation.md).
+- [ ] **F69. Deploy F64 retrieval telemetry.** Source integrated in main;
+  research-chat function deployment remains separately owner-authorized.
+  Existing turns cannot acquire missing measurements retroactively.
+
+
 - [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
   versus measured zero and identify observed partial counts explicitly; add
@@ -38,22 +39,7 @@
   button. Root cause unverified; investigate separately without using live
   conversations as test fixtures. Outside F65 visual scope.
 
-- [ ] **F64. Activity details.** Consolidate model/effort in the accordion and
-  show action states, top-K and measured retrieval timing. Owner approved;
-  [spec](../specs/2026-10-04-activity-details.md),
-  [plan](2026-10-04-activity-details.md). Implemented locally in `8d0ba3d`;
-  2,079 frontend tests and 856 Edge Function tests, lint/build and offline browser
-  verification passed. Awaiting owner review/landing. Backend telemetry needs a
-  separately authorized deployment. Reasoning duration remains unavailable.
 
-- [ ] **F63. AI Research chat presentation.** Owner-approved chat-only layout,
-  composer attachments, model/effort visibility, Send/Stop feedback, Copy/time,
-  compact citations/sources/suggestions and activity. Work mode and Terminal
-  shell retained. Local branch `task/f63-chat-polish`;
-  [spec](../specs/2026-10-04-chat-polish.md),
-  [plan](2026-10-04-chat-polish.md). Implemented locally in `3be5117`;
-  2,076 tests, lint/build and offline responsive review passed. Awaiting owner
-  review and landing; no publication authorized.
 
 - [ ] **F61. Broader tab keyboard audit.** Review the remaining Live TV and
   Nuclear analytics tab patterns for consistent roles and keyboard behavior.
@@ -88,6 +74,14 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F63–F65. Chat presentation, activity metadata and research flow.**
+  Owner authorized integration/publication on 2026-10-04. Combined code through
+  `0638dbd` (24 commits beyond prior main), including F63 `3be5117`, F64
+  `8d0ba3d`, F65 `f47ccb4` and amendments through `3c0a02e`. Full checks:
+  2,089 frontend tests, 856 Edge Function tests, lint/build and router import
+  passed. Frontend publication via main; F64 backend deployment tracked as F69.
+  [Consolidation record](2026-10-04-main-consolidation.md).
 
 - **2026-10-04, F60 frontend defects, verified locally on UI branch:**
   `8cfe0a4`, `7e51a0c`, `9c9fb27`, `9b5ecfb`. AI reading space, popover

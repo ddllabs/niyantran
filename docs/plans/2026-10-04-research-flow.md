@@ -1,6 +1,6 @@
 # F65 implementation plan
 
-> **Status: Living.** Local `task/f65-research-flow`, based on `91728a6`.
+> **Status: Historical (2026-10-04).** Local `task/f65-research-flow`, based on `91728a6`.
 > [Spec](../specs/2026-10-04-research-flow.md). Supervisor works sequentially.
 
 1. Restore source inline numbers and one action in `SourceList.jsx`; update
@@ -250,3 +250,11 @@ No-attachment fixture retains the 1px composer border and 14px radius.
 Removal was not end-to-end verified: this offline fixture has no removal action;
 production handlers/coverage behavior are unchanged. No live conversation writes.
 Screenshot `/private/tmp/f65-joined-composer.jpg`.
+
+## Integration
+
+Owner authorized main integration/publication on 2026-10-04. Combined code
+through `0638dbd` passed 2,088 frontend and 856 Edge Function tests plus
+lint/build/router import. Earlier local-only statements describe verification
+at the time. See [main consolidation](2026-10-04-main-consolidation.md).
+Supabase function deployment remains a separate action (open-work F69).

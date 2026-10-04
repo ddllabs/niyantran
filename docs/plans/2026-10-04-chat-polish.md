@@ -1,6 +1,6 @@
 # F63 implementation plan
 
-> **Status: Living.** Local branch `task/f63-chat-polish`, based on `f974ece`.
+> **Status: Historical (2026-10-04).** Local branch `task/f63-chat-polish`, based on `f974ece`.
 > Spec: [chat presentation](../specs/2026-10-04-chat-polish.md).
 > Open item: F63 in `open-work.md`. Supervisor implements sequentially.
 
@@ -71,3 +71,11 @@ activity, model picker, citations, sources, suggestions, follow-scroll helper,
 new attachment tray, message actions, submit control and scoped stylesheet,
 with focused tests. Documentation includes this plan, the F63 spec/tracker and
 explicit amendments to the earlier source-list and thinking-display specs.
+
+## Integration
+
+Owner authorized main integration/publication on 2026-10-04. Combined code
+through `0638dbd` passed 2,088 frontend and 856 Edge Function tests plus
+lint/build/router import. Earlier local-only statements describe verification
+at the time. See [main consolidation](2026-10-04-main-consolidation.md).
+Supabase function deployment remains a separate action (open-work F69).

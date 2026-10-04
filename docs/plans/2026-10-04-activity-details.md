@@ -1,6 +1,6 @@
 # F64 implementation plan
 
-> **Status: Living.** Branch `task/f64-activity-details`, based on `1cb50aa`.
+> **Status: Historical (2026-10-04).** Branch `task/f64-activity-details`, based on `1cb50aa`.
 > Spec: [activity details](../specs/2026-10-04-activity-details.md).
 
 Sequential supervisor implementation; no delegation required.
@@ -60,3 +60,11 @@ Changed scopes: `src/ai/ActivityTicker.jsx`, message/panel wiring and tests,
 scoped chat stylesheet; `_shared/retrieval.ts`, stream frame type and tests;
 research-chat agent, handler, dependency wiring, cancellation telemetry and
 tests; F64 spec/plan/tracker and an amendment to the thinking-display spec.
+
+## Integration
+
+Owner authorized main integration/publication on 2026-10-04. Combined code
+through `0638dbd` passed 2,088 frontend and 856 Edge Function tests plus
+lint/build/router import. Earlier local-only statements describe verification
+at the time. See [main consolidation](2026-10-04-main-consolidation.md).
+Supabase function deployment remains a separate action (open-work F69).
