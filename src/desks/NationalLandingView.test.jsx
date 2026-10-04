@@ -12,10 +12,11 @@ describe('National landing presentation', () => {
     expect(html).not.toContain('Verified Records');
     expect(html).not.toContain('Delimitation');
   });
-  it('removes nonmatching modules from the rendered navigation', () => {
+  it('dims nonmatches in place while removing them from accessible navigation', () => {
     const html = renderToStaticMarkup(<NationalLandingContent buckets={buckets} summaries={{}} onFeature={() => {}} retry={() => {}} query="affidavit" />);
-    expect((html.match(/class="nl-open"/g) || []).length).toBe(1);
+    expect((html.match(/class="nl-open"/g) || []).length).toBe(12);
+    expect((html.match(/inert=""/g) || []).length).toBe(11);
     expect(html).toContain('Candidate Affidavit');
-    expect(html).not.toContain('class="nl-open" data-feature="Bill Passage');
+    expect(html).toContain('aria-hidden="true"');
   });
 });
