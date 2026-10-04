@@ -22,3 +22,11 @@ collapse, completed-trace reopening and a subsequent start/finish cycle.
 The first fixture attempt timed out because its file URL asset paths were
 absolute; corrected relative paths passed. No production query was sent.
 No backend, token usage, styles or provider changes. Not published.
+
+## Publication, 2026-10-04
+
+Owner authorized “push”. Six verified F70–F72 commits pushed to origin/main
+through `660977e4f0821c8ab37636b364f840a590c5aed3`. Vercel deployment
+`dpl_4cNfzsfQCGoR7DJy6TG43o8qGJjR` reached READY for that exact SHA, with
+production alias niyantran-six.vercel.app and no alias error. Earlier local-only
+statements above describe the pre-publication state. No Supabase deployment.

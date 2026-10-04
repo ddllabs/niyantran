@@ -31,3 +31,11 @@ Theme check: actual theme-dark class gives light foreground on deep blue-gray
 pills; hover uses existing accent-soft. The first dark fixture attempt used an
 unrecognized data-theme attribute; corrected class verified the real theme.
 Review found no changed behavior, selector leakage or reduced control sizes.
+
+## Publication, 2026-10-04
+
+Owner authorized “push”. Six verified F70–F72 commits pushed to origin/main
+through `660977e4f0821c8ab37636b364f840a590c5aed3`. Vercel deployment
+`dpl_4cNfzsfQCGoR7DJy6TG43o8qGJjR` reached READY for that exact SHA, with
+production alias niyantran-six.vercel.app and no alias error. Earlier local-only
+statements above describe the pre-publication state. No Supabase deployment.

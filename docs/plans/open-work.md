@@ -81,19 +81,18 @@ Current baseline (read-only observations, 2026-10-03):
 - [x] **F72. Compact chat footer.** `a5bc525`: tighter attachment/composer
   spacing, subtle blue follow-up pills; 28.19px saved in browser fixture with
   control sizes preserved. 61 focused checks, lint/build and light/dark browser
-  checks passed. Integrated locally; publication pending.
+  checks passed. Published in `660977e`; Vercel READY (2026-10-04).
   [Plan](2026-10-04-compact-chat-footer.md).
 
 - [x] **F71. Chat reading space and durations.** `3455988`: shared 50% dock
   default, wrapping tables and known Searching/Processing/Writing durations
   instead of user-facing reasoning tokens. 2,090 frontend tests, lint/build
-  and isolated browser geometry checks passed. Integrated locally; publication
-  pending. [Plan](2026-10-04-chat-reading-space.md).
+  and isolated browser geometry checks passed. Published in `660977e`; Vercel READY (2026-10-04). [Plan](2026-10-04-chat-reading-space.md).
 
 - [x] **F70. Live activity disclosure.** `899b47a`: opens while generating,
   closes on completion and preserves manual toggles within each phase.
   2,089 frontend tests, lint/build and isolated browser lifecycle check passed.
-  Integrated locally; publication pending. [Plan](2026-10-04-live-activity-disclosure.md).
+  Published in `660977e`; Vercel READY (2026-10-04). [Plan](2026-10-04-live-activity-disclosure.md).
 
 - [x] **F63–F65. Chat presentation, activity metadata and research flow.**
   Owner authorized integration/publication on 2026-10-04. Combined code through

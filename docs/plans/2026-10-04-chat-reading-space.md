@@ -32,3 +32,11 @@ because CUA was unavailable earlier. Screenshot: /private/tmp/f71-chat-reading-s
 Review: CSS and resize arithmetic agree at 50%; remembered widths remain
 explicit preferences; no timing values are fabricated or labeled reasoning.
 No dependency, provider, authentication, data or deployment change.
+
+## Publication, 2026-10-04
+
+Owner authorized “push”. Six verified F70–F72 commits pushed to origin/main
+through `660977e4f0821c8ab37636b364f840a590c5aed3`. Vercel deployment
+`dpl_4cNfzsfQCGoR7DJy6TG43o8qGJjR` reached READY for that exact SHA, with
+production alias niyantran-six.vercel.app and no alias error. Earlier local-only
+statements above describe the pre-publication state. No Supabase deployment.
