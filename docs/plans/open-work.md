@@ -19,8 +19,6 @@
 
 ## UI follow-ups
 
-- [ ] **F72. Compact chat footer.** Reduce vertical spacing and tint follow-up
-  pills. [Plan](2026-10-04-compact-chat-footer.md).
 
 
 
@@ -79,6 +77,12 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F72. Compact chat footer.** `a5bc525`: tighter attachment/composer
+  spacing, subtle blue follow-up pills; 28.19px saved in browser fixture with
+  control sizes preserved. 61 focused checks, lint/build and light/dark browser
+  checks passed. Integrated locally; publication pending.
+  [Plan](2026-10-04-compact-chat-footer.md).
 
 - [x] **F71. Chat reading space and durations.** `3455988`: shared 50% dock
   default, wrapping tables and known Searching/Processing/Writing durations
