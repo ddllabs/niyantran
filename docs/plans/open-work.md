@@ -19,8 +19,6 @@
 
 ## UI follow-ups
 
-- [ ] **F70. Live activity disclosure.** Open while generating, close on
-  completion; preserve manual toggles. [Plan](2026-10-04-live-activity-disclosure.md).
 
 - [ ] **F68. Preserved worktree reconciliation.** Main consolidation found 15
   worktrees with uncommitted files and one locked worktree. Keep these intact;
@@ -77,6 +75,11 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F70. Live activity disclosure.** `899b47a`: opens while generating,
+  closes on completion and preserves manual toggles within each phase.
+  2,089 frontend tests, lint/build and isolated browser lifecycle check passed.
+  Integrated locally; publication pending. [Plan](2026-10-04-live-activity-disclosure.md).
 
 - [x] **F63–F65. Chat presentation, activity metadata and research flow.**
   Owner authorized integration/publication on 2026-10-04. Combined code through
