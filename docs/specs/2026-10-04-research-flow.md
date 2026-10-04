@@ -110,3 +110,9 @@ durations. Processing includes waiting and is not measured model reasoning.
 Omit unavailable/invalid fields; preserve measured zero. Wide tables wrap text
 and retain horizontal scrolling for comparisons beyond the available width.
 [Reading-space spec](2026-10-04-chat-reading-space.md).
+
+Twelfth owner amendment, 2026-10-04 (F72): compact the footer's vertical
+padding, section gaps, attachment-strip padding and composer spacing. Keep
+full attachment names, joined geometry and existing control sizes. Follow-up
+pills use subtle theme-blue fill/border with foreground text and a stronger
+hover tint. [Compact-footer spec](2026-10-04-compact-chat-footer.md).

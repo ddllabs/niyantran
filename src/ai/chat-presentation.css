@@ -94,7 +94,7 @@
 .ai-shell.ai-shell-research .ai-source-icon { width: 20px; height: 20px; margin: 0; }
 .ai-shell.ai-shell-research .ai-source-id { border: 0; }
 .ai-shell.ai-shell-research .ai-source-meta { gap: 5px 8px; }
-.ai-shell.ai-shell-research .ai-v2-foot { padding: 12px 16px 16px; border-color: var(--ai-line); gap: 8px; }
+.ai-shell.ai-shell-research .ai-v2-foot { padding: 8px 16px 12px; border-color: var(--ai-line); gap: 6px; }
 .ai-shell.ai-shell-research .ai-v2-foot > :not(.ai-jump-latest) { width: 100%; max-width: 72ch; margin-inline: auto; box-sizing: border-box; }
 .ai-shell.ai-shell-research .ai-attachment-tray .ai-v2-files { display: flex; flex-wrap: wrap; gap: 4px; }
 .ai-shell.ai-shell-research .ai-v2-files li { flex: 0 1 auto; width: fit-content; max-width: 100%; box-sizing: border-box; padding: 3px 6px 3px 8px; border: 1px solid var(--ai-line); border-radius: 9px; background: var(--bg); gap: 6px; }
@@ -103,9 +103,9 @@
 .ai-shell.ai-shell-research .ai-attachment-tray > details { margin-top: 4px; }
 .ai-shell.ai-shell-research .ai-attachment-tray summary { cursor: pointer; color: var(--ai-muted); font-size: 12px; padding: 4px 0; }
 .ai-shell.ai-shell-research .ai-attachment-tray details .ai-v2-files { margin-top: 4px; max-height: 160px; overflow: auto; }
-.ai-shell.ai-shell-research .ai-v2-suggest { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; padding: 3px; scrollbar-width: thin; }
-.ai-shell.ai-shell-research .ai-v2-suggest button { flex: none; width: auto; max-width: none; white-space: nowrap; padding: 7px 12px; font-size: 12px; border-radius: 999px; background: transparent; color: var(--ai-muted); }
-.ai-shell.ai-shell-research .ai-v2-composer { border-radius: 14px; padding: 8px 10px; box-shadow: var(--shadow); }
+.ai-shell.ai-shell-research .ai-v2-suggest { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; padding: 2px; scrollbar-width: thin; }
+.ai-shell.ai-shell-research .ai-v2-suggest button { flex: none; width: auto; max-width: none; white-space: nowrap; padding: 6px 12px; min-height: 32px; font-size: 12px; border-radius: 999px; border-color: color-mix(in srgb, var(--ai-blue) 18%, var(--ai-line)); background: color-mix(in srgb, var(--ai-blue-soft) 55%, var(--ai-surface)); color: var(--ai-text); }
+.ai-shell.ai-shell-research .ai-v2-composer { border-radius: 14px; padding: 6px 10px; gap: 4px; box-shadow: var(--shadow); }
 .ai-shell.ai-shell-research .ai-v2-composer textarea { box-sizing: border-box; color: var(--ai-text); font-size: 15px; font-weight: 400; line-height: 1.5; }
 .ai-shell.ai-shell-research .ai-v2-composer textarea::placeholder { color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-v2-comp-tools > div { min-width: 0; }
@@ -137,6 +137,7 @@
   .ai-shell.ai-shell-research :is(.ai-source-chip, .ai-v2-pop-opt, .ai-v2-model-opt, .ai-v2-history-item):hover { background: var(--ai-blue-soft); }
   .ai-shell.ai-shell-research .cite-bubble:not(.placeholder):hover { outline: 1px solid var(--ai-blue); outline-offset: 1px; }
   .ai-shell.ai-shell-research .ai-message-actions button:hover { color: var(--ai-blue); }
+  .ai-shell.ai-shell-research .ai-v2-suggest button:hover:not(:disabled) { background: var(--ai-blue-soft); border-color: color-mix(in srgb, var(--ai-blue) 35%, var(--ai-line)); color: var(--ai-text); }
 }
 @media (max-width: 480px) {
   .ai-shell.ai-shell-research :is(.ai-v2-body, .ai-v2-foot) { padding: 12px; }
@@ -166,8 +167,8 @@
 
 /* Attached context and input form one responsive surface. */
 .ai-shell.ai-shell-research .ai-composer-stack:has(.ai-attachment-tray) { border: 1px solid var(--ai-line); border-radius: 14px; background: var(--ai-surface); box-shadow: var(--shadow); }
-.ai-shell.ai-shell-research .ai-composer-stack .ai-attachment-tray { padding: 6px 10px; border-bottom: 1px solid var(--ai-line); }
-.ai-shell.ai-shell-research .ai-composer-stack .ai-v2-files li { flex: 1 1 100%; width: 100%; border: 0; padding: 3px 0; background: transparent; }
+.ai-shell.ai-shell-research .ai-composer-stack .ai-attachment-tray { padding: 3px 10px; border-bottom: 1px solid var(--ai-line); }
+.ai-shell.ai-shell-research .ai-composer-stack .ai-v2-files li { flex: 1 1 100%; width: 100%; border: 0; padding: 1px 0; background: transparent; }
 .ai-shell.ai-shell-research .ai-composer-stack .ai-v2-files span { max-width: none; white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.45; }
 .ai-shell.ai-shell-research .ai-composer-stack:has(.ai-attachment-tray) .ai-v2-composer { border: 0; border-radius: 0 0 14px 14px; box-shadow: none; margin: 0; }
 .ai-shell.ai-shell-research .ai-composer-stack .ai-attach-note { margin: 0; padding: 6px 10px; }

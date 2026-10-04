@@ -14,10 +14,13 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F72 is next) and goes in the
+- A new finding gets the next free `F` number (F73 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F72. Compact chat footer.** Reduce vertical spacing and tint follow-up
+  pills. [Plan](2026-10-04-compact-chat-footer.md).
 
 
 
