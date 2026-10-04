@@ -1,6 +1,6 @@
 # Earth replacement integration
 
-> **Status: Living.** Isolated implementation on task/earth-replacement; no main merge, push or deployment.
+> **Status: Historical (2026-10-04).** Verified isolated implementation on task/earth-replacement; no main merge, push or deployment.
 
 ## Ordered tasks and scopes
 1. F68: Archive the 16 audited obsolete worktrees and all branches into .git/local-archives/2026-10-04-earth-preparation/. Verify SHA-256 of every archived regular file and git bundle; remove only after verification. Preserve ignored non-build files locally, exclude generated caches/builds/dependencies. The stale lock names PID 78328; process lookup found no process. Done before branch creation.
@@ -23,3 +23,6 @@ Remote git ls-remote --heads origin returned only main at f5c06171800e8baa389d51
 
 ## Recovery
 Local-only archive: .git/local-archives/2026-10-04-earth-preparation/. branches.bundle contains all pre-cleanup refs. manifest.json maps the 16 old paths/branches to numbered tar.gz files with per-file SHA-256. Archives preserve regular files (including untracked and ignored non-build files) and symlinks; dependency/build/cache directories were excluded. Restore into a separate recovery directory, never over the current checkout. Git bundle can supply the old branch history. No credentials or recovery archives are committed or published.
+
+## Branch outcome
+Implementation and cleanup evidence committed at 071cd13 on task/earth-replacement. Main and origin/main remain f5c0617. F68 is completed; F79 tracks owner review and any later integration/publication decision. No merge, push or deployment occurred. Final working tree is clean after the evidence commit. Local preview uses http://127.0.0.1:5174/; screenshot saved outside the repository for review.

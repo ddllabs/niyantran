@@ -26,8 +26,7 @@
 
 
 - [ ] **F80. Existing mobile marketing trivia overflow.** Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
-- [ ] **F79. Homepage spherical Earth replacement.** Authorized integration on task/earth-replacement after F68 recovery archival cleanup. [Spec](../specs/2026-10-04-earth-replacement.md), [plan](2026-10-04-earth-replacement.md). No main merge or publication authorized.
-- [ ] **F68. Preserved worktree reconciliation.** Owner authorized recovery archival and removal of all 16 old worktrees on 2026-10-04. File hashes and full Git bundle verified; only main remained before new globe branch. Record completion with the task commit. [Evidence](2026-10-04-earth-replacement.md).
+- [ ] **F79. Homepage spherical Earth replacement.** Implemented and verified on task/earth-replacement at 071cd13; awaiting owner review and any later merge/publication authorization. F68 recovery archival cleanup is complete. [Spec](../specs/2026-10-04-earth-replacement.md), [plan](2026-10-04-earth-replacement.md). No main merge or publication authorized.
 - [ ] **F69. Deploy F64 retrieval telemetry.** Source integrated in main;
   research-chat function deployment remains separately owner-authorized.
   Existing turns cannot acquire missing measurements retroactively.
@@ -79,6 +78,9 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- **2026-10-04, F68 recovery cleanup — 071cd13:** Archived and hash-verified all 16 old worktrees plus their branch history, then removed them with owner authorization. Only main remained before creating task/earth-replacement. Remote has only main. Recovery archives remain local under .git/local-archives/2026-10-04-earth-preparation/. [Evidence](2026-10-04-earth-replacement.md).
+
 
 - [x] **F78. Publish F77 microphone waveform UI.** Owner instruction “pushed”; main pushed to 9b159f0. Vercel production dpl_BnzKVUC38fHqSxftdX2RuAjWSB9G READY with niyantran-six.vercel.app alias. No backend redeployment required. Actual microphone acceptance remains F76.
 
