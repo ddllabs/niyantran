@@ -59,7 +59,8 @@ describe('thinking display', () => {
       { document_id: 'B', title: 'Old Act', pages: [] },
     ]);
     const html = renderToStaticMarkup(<ActivityTicker active activity={steps} />);
-    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('ai-research-flow');
     expect(html).not.toContain('Not finished');
   });
 

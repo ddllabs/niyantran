@@ -47,11 +47,12 @@ describe('ActivityTicker', () => {
     { type: 'tool', name: 'search_desk_rows', phase: 'end', step: 1, input: { tier: 'national', feature: 'Bill Passage Probability Index' }, resultCount: 20, latencyMs: 320 },
   ];
 
-  it('while active it is compact and shows the latest step', () => {
+  it('while active it opens the flow and shows the latest step', () => {
     const html = renderToStaticMarkup(<ActivityTicker activity={activity} active />);
     expect(html).toContain('ai-ticker active');
     expect(html).toContain('Looked up Bill Passage Probability Index · 20 rows');
-    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('ai-research-flow');
     expect(html).not.toContain('ai-ticker-steps');
   });
 

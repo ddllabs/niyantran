@@ -1,6 +1,6 @@
 /**
  * What the assistant is doing, while it does it (docs/specs/2026-10-02-thinking-display.md).
- * One indicator from Send: it starts compact on "Starting…" with an elapsed clock, lists each stage once
+ * One indicator from Send: it starts expanded on "Starting…" with an elapsed clock, lists each stage once
  * and each search by what it did, and says what the searches found. When the turn ends it
  * shows one compact line ("5 searches · 3 citations · 53 s"); the
  * disclosure keeps the steps, the finds and timing buckets. Residual time is not measured reasoning. It replaced the NyAI card (ADR 0007
@@ -114,9 +114,15 @@ export default function ActivityTicker({
   sourceCount = 0, effort = null, usage = null, labelOf = (id) => id, lang = 'en',
 }) {
   const hi = lang === 'hi';
-  const [open, setOpen] = useState(false);
+  const [disclosure, setDisclosure] = useState(() => ({ active, open: active }));
   const [pointerToggle, setPointerToggle] = useState(false);
   const now = useNow(active && startedAt > 0);
+  // Reset only at lifecycle boundaries; live events must not undo manual toggles.
+  if (disclosure.active !== active) {
+    setDisclosure({ active, open: active });
+    setPointerToggle(false);
+  }
+  const open = disclosure.active === active ? disclosure.open : active;
 
   const steps = tickerSteps(activity);
   if (!steps.length && !active && !timing && !model?.served && !model?.requested) return null;
@@ -138,7 +144,7 @@ export default function ActivityTicker({
         aria-label={head}
         onClick={(event) => {
           setPointerToggle(event.detail > 0);
-          setOpen((v) => !v);
+          setDisclosure({ active, open: !open });
         }}
       >
         <span className={`ai-ticker-glyph${active ? ' working' : ''}`} aria-hidden="true"><Sparkles size={16} /></span>

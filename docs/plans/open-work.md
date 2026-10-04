@@ -14,10 +14,13 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F70 is next) and goes in the
+- A new finding gets the next free `F` number (F71 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F70. Live activity disclosure.** Open while generating, close on
+  completion; preserve manual toggles. [Plan](2026-10-04-live-activity-disclosure.md).
 
 - [ ] **F68. Preserved worktree reconciliation.** Main consolidation found 15
   worktrees with uncommitted files and one locked worktree. Keep these intact;
