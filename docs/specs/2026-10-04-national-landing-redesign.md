@@ -8,7 +8,7 @@ National has 12 modules backed by a mixture of stored registers, source feeds an
 
 ## Expected outcome
 
-A National-only landing using the mockup's Parliament hero, five illustrated groups, compact module rows, restrained motion, discovery filters and bill-sector chart. It exposes the current catalog and honest data availability, and leads into unchanged production module workspaces. Global and State retain their current landing and navigation behavior.
+A National-only landing using the mockup's Parliament hero, five illustrated groups, compact module rows, reference-faithful motion, discovery filters and bill-sector chart. It exposes the current catalog and honest data availability, and leads into unchanged production module workspaces. Global and State retain their current landing content; shared desk navigation maps to the existing routes.
 
 ## Data contract
 
@@ -24,14 +24,14 @@ A summary represents one canonical module and one backing resource identity. Pro
 
 ## UI and interaction requirements
 
-- Preserve existing topbar, desk navigation, account/session behavior, search, microphone, theme and language controls. No replacement National/Global/Law switch from the HTML.
+- Replace the desk selector with shared vertical navigation mapped to the existing persona-visible desk tabs and existing onDesk callback, including locked destinations. Retain the other topbar controls and module bucket navigation. No new routes, access checks or sibling landing redesigns. Owner confirmed this scope on 2026-10-05.
 - Exactly five existing catalog groups and 12 existing National routes. Aliases are presentation only; `onFeature` receives the canonical ID. No unsupported mockup modules or new roadmap promises.
 - Hero copy avoids “all”, “verified”, “exhaustive” or “live” claims beyond observed coverage. Counters distinguish stored, curated and feed-backed resources; an empty tender register is not a planned module.
 - Sector chart derives from actual bill `sector` values, shows exact counts and count scope, includes Other/missing if applicable, and has loading/error/empty states. Source snapshot appears alongside it. No fake ministry taxonomy or probabilities.
 - Module disclosures work with keyboard and touch, announce expanded state and avoid nested interactive controls. Search and source-mode filtering cannot leave invisible/dimmed interactive content in the tab order. Search empty state and clear/reset action are present.
 - Shortcuts open existing bill, question and candidate modules. Omit the mockup Ask AI button unless an existing shell integration can be verified without inventing attachment context.
 - National styles are namespaced. Provide light/dark styles, Hindi text accommodation, 200% zoom, 360 px phone layout and desktop layout without horizontal page overflow. Reuse current tokens; no new UI dependency required.
-- Motion decorates navigation: short entrance/track transitions, no perpetual numeric animation; reduced motion disables tilt/parallax/drift, hidden/offscreen scenes pause, and animations do not block content. Decorative SVG is hidden from assistive technology.
+- Motion decorates navigation: the reference entrance/track transitions, no perpetual numeric animation; reduced motion disables tilt/parallax/drift, hidden/offscreen scenes pause, and animations do not block content. Decorative SVG is hidden from assistive technology.
 
 ## Observable acceptance evidence
 
@@ -48,6 +48,8 @@ Permitted implementation areas are named in the [plan](../plans/2026-10-04-natio
 
 This spec supersedes the National counter/chart claims in §4 of `2026-09-27-cr12-cr13-desk-landing.md` for this redesign. Other desks and the older document's other capabilities are unaffected. The mockup has arrived for National; visual acceptance remains pending.
 
-## Implementation clarification (2026-10-05)
+## Owner-approved fidelity amendment (2026-10-05)
 
-Artwork is static SVG. Only the initial hero copy has a 240 ms entrance, enabled under `prefers-reduced-motion: no-preference`. There are no perpetual loops, tilt, parallax, cloud drift or count animations, so offscreen/hidden-tab pause machinery is unnecessary. Filtering does not animate or delay module text. Unknown source dates remain explicit rather than using retrieval time as a source snapshot.
+The simplified static adaptation was rejected. Restore the reference Parliament SVG and five tile SVGs, backdrop composition, glass surfaces, 26px cards, staged entrances, card tilt/lift, tile zoom and internal loops, module highlights and floating field chips, segmented source controls, log-scaled module tracks and lower-band reveal. Source labels and counts remain evidence-backed; omit the reference's unsupported modules and fabricated numbers. Search dims nonmatches in place and makes them inert and hidden to assistive technology. Keyboard and touch receive explicit coverage disclosure. Reduced motion removes motion, and decorative loops pause offscreen or while the document is hidden. Exact measured numbers remain static. Unknown source dates remain explicit.
+
+Finish National and shared navigation first. Global/State redesign follows owner review. Vertical tabs use the existing desk catalog rather than an unidentified second mockup. Publication is outside this local goal.

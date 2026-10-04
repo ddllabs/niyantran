@@ -26,7 +26,7 @@ Each task has one exclusive owner. Supervisor owns integration and docs. Existin
 - Endpoint proposal: `GET /api/national-landing?feature=<canonical-id>` with explicit allowlist of National's current catalog. Handler returns the spec summary envelope, not feed rows. Shared resource keys prevent duplicate bill retrieval; graph presentation schema remains graph-specific.
 - Projection takes raw envelope plus prepared feed, keeping source mode/freshness evidence separate from scrubbed display labels. Error and unknown are explicit; no regex can silently transform missing provenance into live status.
 - Hook exposes summaries by canonical ID, progress/resource counts, bill sector aggregates and retry; components never parse provider/storage metadata.
-- Artwork accepts static scene/layout and enabled-motion flags; it knows nothing about feeds, auth or routing. No mockup content inside SVG carries product data.
+- Artwork accepts a scene only; it knows nothing about feeds, auth or routing. The parent motion controller and scoped CSS manage pause/reduced-motion states. No mockup content inside SVG carries product data.
 - Existing `onFeature` contract is unchanged. National dispatcher retains the shared component for all other desk IDs.
 
 ## Checkpoints
@@ -63,4 +63,21 @@ Server endpoint tests live under `src/lib/nationalLandingApi.test.js` because Vi
 
 ## Local implementation checkpoint (2026-10-05)
 
-T1–T5 implemented sequentially by the supervisor; no task agents dispatched. T6 local checks completed as recorded in [verification](2026-10-05-national-landing-verification.md). Independent review and signed-in shell/owner acceptance remain pending before integration. No publication performed. Static artwork needs no hidden-tab animation controller; directory rows do not animate on filtering. The obsolete National flagship entry was removed from the shared landing configuration as part of replacing that view.
+This checkpoint describes the first, subsequently rejected static adaptation. T1–T5 implemented sequentially by the supervisor; no task agents dispatched. T6 local checks completed as recorded in [verification](2026-10-05-national-landing-verification.md). Independent review and signed-in shell/owner acceptance remain pending before integration. No publication performed. Static artwork needs no hidden-tab animation controller; directory rows do not animate on filtering. The obsolete National flagship entry was removed from the shared landing configuration as part of replacing that view.
+
+## Fidelity and shared navigation continuation (2026-10-05)
+
+Owner answered all scope questions: map the rail to current desk tabs/routes, replace the selector and retain the other topbar controls; finish National first and defer Global/State redesign. Active goal is reference-faithful National plus shared navigation, verified locally and shown for review. Continue sequentially; no agents dispatched or publication authorized.
+
+| Task | Exact write scope | Dependency | Evidence |
+| --- | --- | --- | --- |
+| T7 original artwork and motion | `src/desks/NationalLandingArtwork.jsx`, `src/desks/nationalLandingArtwork.css`, `src/desks/useNationalMotion.js` | Existing data interface fixed | Original Parliament/five tiles, unique SVG IDs, tilt/parallax/reveal, reduced-motion and hidden/offscreen pause |
+| T8 faithful composition | `src/desks/NationalLandingView.jsx`, `src/desks/nationalLanding.css`, `src/desks/NationalLandingView.test.jsx`, `src/lib/deskLanding.test.jsx` | T7 | Existing 12 routes, real totals, inert nonmatches, disclosure, controls and responsive reference comparison |
+| T9 shared desk rail | `src/shell/DeskRail.jsx`, `src/shell/deskRail.css`, `src/shell/DeskNav.jsx`, `src/shell/TerminalShell.jsx`, `src/shell/DeskRail.test.jsx` | Fixed existing onDesk/tabs/lockedIds interfaces | Active route, persona list and lock markers preserved; topbar/bucket controls retained; responsive shell |
+| T10 verification and local review | Task spec/plan, tracker, new dated verification report | T7–T9 | Focused/full checks as required, browser comparison, coherent local commits and UI review evidence |
+
+Motion contract follows the reference durations: 900ms entrances, 500ms spring card reset/80ms pointer tilt, 1200ms tile zoom/tracks, 350ms field popup, 400ms segmented thumb, 800ms lower reveal; tile loops 1.2–9s and clouds 110s. All decorative motion is disabled with reduced motion, pauses when hidden/offscreen and does not change data or delay navigation. CSS is National-scoped; assets contain no product counts. Summary endpoints and shaping remain unchanged.
+
+## Continuation checkpoint
+
+T7–T9 saved locally in `6aefc5a`; independent source review reported no remaining blockers after corrections. [Executed evidence and limits](2026-10-05-national-fidelity-verification.md). Owner UI acceptance and signed-in/zoom/reduced-motion runtime gates remain in F81. The active goal remains open through those gates. Local preview is retained for review; no push or deployment.
