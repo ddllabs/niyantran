@@ -80,7 +80,8 @@ Current baseline (read-only observations, 2026-10-03):
   `0638dbd` (24 commits beyond prior main), including F63 `3be5117`, F64
   `8d0ba3d`, F65 `f47ccb4` and amendments through `3c0a02e`. Full checks:
   2,089 frontend tests, 856 Edge Function tests, lint/build and router import
-  passed. Frontend publication via main; F64 backend deployment tracked as F69.
+  passed. Landed and pushed on main at `75b521d`; exact Vercel deployment READY.
+  F64 backend deployment tracked as F69.
   [Consolidation record](2026-10-04-main-consolidation.md).
 
 - **2026-10-04, F60 frontend defects, verified locally on UI branch:**

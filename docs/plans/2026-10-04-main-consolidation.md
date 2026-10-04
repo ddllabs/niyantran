@@ -1,6 +1,6 @@
 # Main consolidation, 2026-10-04
 
-> **Status: Living.** Owner authorized consolidation, push and safe cleanup with
+> **Status: Historical (2026-10-04).** Owner authorized consolidation, push and safe cleanup with
 > “go” after the proposed integration of F63–F65 into main.
 
 ## Scope and acceptance
@@ -51,9 +51,21 @@ history is recoverable from a verified local Git bundle under
 `.git/local-archives/2026-10-04-consolidation/`; ignored non-build files from
 removed worktrees were archived there with content-hash checks. Fifteen dirty
 worktrees and one locked worktree remain intact. No force-removal of worktrees.
-The F63/F64/F65 branch refs will be removed after integration.
+The F63/F64/F65 branch refs were removed after integration: 25 local branches
+removed in total. Seventeen remain: main and the branches attached to the
+15 dirty and one locked worktrees.
 
 Final correction verification: full npm test passes 129 files / 2,089 tests;
 lint and build pass again with the same baseline warnings. Edge Function
 sources are unchanged since the 856-test passing run. No credential-pattern
 matches or env/security/generated paths in the outgoing diff.
+
+## Publication outcome
+
+Main fast-forwarded from `f974ece` to `75b521d` and was pushed to origin.
+The primary checkout was clean and matched origin/main. Vercel deployment
+`dpl_7DTVuMeuzACX28VRoLnaapijN76j` reached READY for exact commit
+`75b521d84bd44ce7c41179b84978fda23bc5f4d6`, with production alias
+`niyantran-six.vercel.app` and no alias error. This is deployment API evidence;
+an additional production browser smoke check was unavailable in this session.
+Supabase's deployed function remains unchanged; F69 tracks that separate action.
