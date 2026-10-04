@@ -4,6 +4,7 @@
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
 import { serveFeatureFeed } from '../server/featureFeed.mjs';
+import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
 import {
   refreshHomeSnapshots,
   serveHomeLatest,
@@ -91,6 +92,16 @@ export default async function handler(req, res) {
   const method = String(req.method || 'GET').toUpperCase();
 
   try {
+    if (path === '/api/national-landing') {
+      if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
+      try {
+        const body = await serveNationalLanding(q(req), serveFeatureFeed);
+        res.status(body.ok ? 200 : 502).json(body);
+      } catch (err) {
+        res.status(err.message === 'Unknown National module' ? 400 : 502).json({ ok: false, error: 'National summary unavailable' });
+      }
+      return;
+    }
     if (path === '/api/feature-feed') {
       if (method !== 'GET' && method !== 'HEAD') {
         res.status(405).json({ ok: false, error: 'GET /api/feature-feed only' });

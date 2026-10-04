@@ -3,6 +3,7 @@
  * Live rows, last-known-good archive, or one labelled status row — never fabricated records.
  */
 import fs from 'node:fs';
+import { serveNationalLanding } from './nationalLandingSummary.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { flattenAlliance } from '../src/lib/alliances.js';
@@ -3550,9 +3551,31 @@ function applyBackupFallback(body, searchParams) {
   });
 }
 
+async function loadLandingFeed(params) {
+  return applyBackupFallback(await serveFeatureFeed(params), params);
+}
+
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
+  if (url.pathname === '/api/national-landing') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.method !== 'GET') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ ok: false, error: 'GET only' }));
+      return;
+    }
+    try {
+      const body = await serveNationalLanding(url.searchParams, loadLandingFeed);
+      res.statusCode = body.ok ? 200 : 502;
+      res.end(JSON.stringify(body));
+    } catch (err) {
+      res.statusCode = err.message === 'Unknown National module' ? 400 : 502;
+      res.end(JSON.stringify({ ok: false, error: 'National summary unavailable' }));
+    }
+    return;
+  }
   if (url.pathname === '/api/csv-table') {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.statusCode = 405;
