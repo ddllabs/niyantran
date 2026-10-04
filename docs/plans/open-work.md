@@ -14,12 +14,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F75 is next) and goes in the
+- A new finding gets the next free `F` number (F76 is next) and goes in the
   right section.
 
 ## UI follow-ups
 
-- [ ] **F74. Publish F73 and activate OpenAI Whisper.** F73 is locally integrated and verified. Publication requires owner authorization for main push and transcribe-audio deployment. Verify/configure OPENAI_API_KEY directly in Supabase secrets; existing OpenRouter credentials do not authenticate with OpenAI. Then verify real English/Hindi dictation, permission refusal and grouped record search on production. No live provider call or production configuration was performed during F73.
+- [ ] **F74. Activate Whisper dictation.** F73 was pushed to origin/main at f977de9 on owner instruction. F75 switches transcription to OpenRouter using the existing server-side OPENROUTER_API_KEY. Publication of F75 and transcribe-audio deployment require exact owner authorization. Then verify real English/Hindi dictation, permission refusal and grouped record search on production. No live provider call or production configuration was performed during F73.
 
 
 
@@ -79,6 +79,8 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F75. OpenRouter Whisper dictation.** `d352997`: uses openai/whisper-large-v3-turbo and existing server-side OPENROUTER_API_KEY. 2,100 Vitest / 862 Deno tests, lint/build and function compilation pass; provider/credential guards proved red first. Live activation remains F74. [Evidence](2026-10-04-openrouter-dictation.md).
 
 - [x] **F73. Editable copy, grouped command search and Whisper dictation.** Local commits `75bddf3`, `a60e2cf`, `2ac4850`: native input/editor copy skips Upgrade; accessible Desks/Modules/Records groups with 300ms-debounced cancellable snapshot lookup; shared microphone controls append editable text in command search and chat; authenticated active-account endpoint calls OpenAI whisper-1 directly. 2,100 Vitest and 861 Deno tests pass, lint/build pass (existing mixed-import/large-chunk warnings), local Chrome fixture passes at 320–1440px with mocked audio/provider. Production activation is F74. [Plan and evidence](2026-10-04-command-search-dictation.md).
 
