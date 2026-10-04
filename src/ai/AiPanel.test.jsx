@@ -430,3 +430,11 @@ it('Reload appears only when needed, and the attach note shows under the chips',
  fake.research={...ready,attachNotice:'Already attached: notes.txt'};
  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/role="status"[^>]*>Already attached: notes\.txt</);
 });
+it('shares dictation beside Send and disables it while the chat is locked', () => {
+ fake.research={...fake.research,ready:true,loading:false,locked:false};
+ const idle=renderToStaticMarkup(<AiPanel lang="en"/>);
+ expect(idle).toMatch(/class="dictation-button" aria-label="Dictate text"/);
+ expect(idle.indexOf('dictation-control')).toBeGreaterThan(idle.indexOf('ai-v2-comp-act'));
+ fake.research={...fake.research,locked:true};
+ expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/class="dictation-button" disabled="" aria-label="Dictate text"/);
+});

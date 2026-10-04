@@ -445,3 +445,7 @@ verify_jwt = false
 # caller's token (RLS) and uses the secret key only to sign one corpus part for 300 seconds.
 [functions.document-file]
 verify_jwt = false
+
+# Dictation verifies the caller through Auth and checks the active profile before OpenAI.
+[functions.transcribe-audio]
+verify_jwt = false

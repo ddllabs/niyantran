@@ -1,3 +1,4 @@
+import DictationButton from '../components/DictationButton.jsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
@@ -1130,6 +1131,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
 
             <div className="ai-v2-comp-act">
+              <DictationButton disabled={busy || streaming} lang={lang}
+                contextKey={`${research.identityVersion}:${state.activeId || ''}`}
+                onTranscript={text => { setDraft(`${draft.trim()} ${text}`.trim()); box.current?.focus(); }} />
               <ChatSubmit canStop={research.canStop} stopping={stopping}
                 cancelPending={research.cancelPending || stream?.cancelPending}
                 disabled={busy || streaming || !draft.trim()} onStop={() => research.actions.stop()} lang={lang} />
