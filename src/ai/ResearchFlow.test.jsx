@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import ResearchFlow from './ResearchFlow.jsx';
+import ResearchFlow, { effortLabel } from './ResearchFlow.jsx';
 
 const search = {type:'tool',name:'search_documents',phase:'end',status:'ok',step:1,input:{query:'Section 6 penalties'},resultCount:40,latencyMs:794,requestedTopK:40};
 it('shows a connected query/result flow without a technical disclosure',()=>{
@@ -27,4 +27,9 @@ it('shows measured reasoning tokens including zero, never inventing a count or p
   expect(render({reasoning_tokens:0})).toContain('0 reasoning tokens');
   expect(render(null)).not.toContain('reasoning tokens');
   expect(render({reasoning_tokens:-1})).not.toContain('reasoning tokens');
+});
+
+it('labels the supported max effort rather than claiming it is unavailable', () => {
+  expect(effortLabel('max', false)).toBe('Max');
+  expect(effortLabel('max', true)).toBe('अधिकतम');
 });

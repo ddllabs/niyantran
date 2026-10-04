@@ -8,7 +8,7 @@ export function actionState(step, active = false, hi = false) {
 
 export const measured = (value, hi) => Number.isFinite(value) && value >= 0
   ? `${Math.round(value)} ${hi ? 'मि.से.' : 'ms'}` : (hi ? 'उपलब्ध नहीं' : 'Not available');
-const EFFORTS = { off:['No reasoning','बंद'], minimal:['Minimal','न्यूनतम'], low:['Low','कम'], medium:['Medium','मध्यम'], high:['High','उच्च'], xhigh:['Extra high','बहुत उच्च'] };
+const EFFORTS = { off:['No reasoning','बंद'], minimal:['Minimal','न्यूनतम'], low:['Low','कम'], medium:['Medium','मध्यम'], high:['High','उच्च'], xhigh:['Extra high','बहुत उच्च'], max:['Max','अधिकतम'] };
 export const effortLabel = (effort, hi) => Object.hasOwn(EFFORTS,effort) ? EFFORTS[effort][hi ? 1 : 0] : (hi?'उपलब्ध नहीं':'Not available');
 
 function Stage({ step, current, active, hi }) {
