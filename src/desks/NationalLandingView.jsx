@@ -31,6 +31,7 @@ function ModuleRow({ module, summary, onFeature, retry, matches, filtered, maxCo
   const [dismissed, setDismissed] = useState(false);
   const name = module.htmlFeature;
   const state = summary?.availability || 'loading';
+  const sourceLabel = name === NATIONAL_FEATURES[2] && summary?.sourceMode === 'stored' ? 'Stored · Sampled questions' : MODES[summary?.sourceMode];
   const width = summary?.count == null ? 0 : Math.log1p(summary.count) / Math.log1p(maxCount) * 100;
   return <div className={`mod ${modeClass(summary?.sourceMode)}${matches ? filtered ? ' hit' : '' : ' dim'}${open ? ' open' : ''}${dismissed ? ' dismissed' : ''}`} onPointerEnter={() => setDismissed(false)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setOpen(false); setDismissed(false); } }} onKeyDown={event => { if (event.key === 'Escape') { event.currentTarget.querySelector('.nl-open').focus(); setOpen(false); setDismissed(true); } }} inert={!matches} aria-hidden={!matches ? true : undefined}>
     <i className="st" aria-hidden="true"/>
@@ -38,7 +39,7 @@ function ModuleRow({ module, summary, onFeature, retry, matches, filtered, maxCo
       <span className="name">{displayName(name)}</span><span className="cnt">{fmt(summary?.count)}<small>records</small></span>
     </button>
     <div className={`track${summary?.count == null ? ' unknown' : ''}`} aria-hidden="true"><i style={{ width: `${width}%`, '--w': `${width}%` }}/></div>
-    <div className="note">{state === 'loading' ? 'Loading source summary…' : state === 'error' ? 'Summary unavailable' : MODES[summary.sourceMode]}<button type="button" className="nl-coverage" aria-label={`Coverage and fields: ${displayName(name)}`} aria-expanded={open} onClick={() => { setDismissed(false); setOpen(value => !value); }}>ⓘ</button></div>
+    <div className="note">{state === 'loading' ? 'Loading source summary…' : state === 'error' ? 'Summary unavailable' : sourceLabel}<button type="button" className="nl-coverage" aria-label={`Coverage and fields: ${displayName(name)}`} aria-expanded={open} onClick={() => { setDismissed(false); setOpen(value => !value); }}>ⓘ</button></div>
     <div className="cols">
       {summary?.columns?.map(column => <span key={column.key || column.label}>{column.label}</span>)}
       {!summary?.columns?.length && <p>Field summary unavailable.</p>}
