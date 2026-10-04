@@ -19,7 +19,6 @@
 
 ## UI follow-ups
 
-- [ ] **F78. Publish F77 microphone waveform UI.** Local implementation bd37d43 verified and integrated; owner push authorization pending. No backend deployment required. [Evidence](2026-10-04-dictation-waveform.md).
 
 - [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
 
@@ -81,6 +80,8 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F78. Publish F77 microphone waveform UI.** Owner instruction “pushed”; main pushed to 9b159f0. Vercel production dpl_BnzKVUC38fHqSxftdX2RuAjWSB9G READY with niyantran-six.vercel.app alias. No backend redeployment required. Actual microphone acceptance remains F76.
 
 - [x] **F77. Live microphone waveform UI.** `bd37d43`: real microphone energy history and elapsed time; cancel/stop/transcription states replace existing toolbar without height growth, reduced-motion meter, sending blocked during dictation. 2,103 tests/lint/build and responsive browser checks pass. [Evidence](2026-10-04-dictation-waveform.md).
 

@@ -19,3 +19,6 @@ Code bd37d43; reviewed actual engine/component/CSS integration and resource owne
 - `npm run lint`: zero errors/warnings. `npm run build`: passed with existing mixed-import/large-chunk warnings. `git diff --check`: passed. No standalone typecheck exists. Backend/Deno tests not rerun: no backend/shared-library edits.
 - Actual-component Chrome fixture: real browser oscillator/MediaStream/Web Audio energy sampling responds to silence and sound; rendering/cancel/elapsed/transcription/error/late-response/context switch states pass with mocked microphone/provider. No auto-send; draft preserved; original composer height retained; strip stays in viewport at 320,375,768,1440px. Reduced-motion bar verified. No page errors. Initial context-switch assertion ran before React effect cleanup; waiting for the effect passed.
 - Screenshots inspected at /private/tmp/f77-recording.png. Actual user microphone and Safari remain unverified; existing F76 tracks that check. Local implementation only; F78 publication requires owner instruction. Existing backend unchanged.
+
+## Publication (F78)
+Owner instruction “pushed”: main pushed from 74e542a to 9b159f0. Vercel production dpl_BnzKVUC38fHqSxftdX2RuAjWSB9G READY, with niyantran-six.vercel.app alias, verified via deployment connector. No backend redeployment. F76 remains actual signed-in microphone acceptance.
