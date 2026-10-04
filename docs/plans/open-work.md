@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F79 is next) and goes in the
+- A new finding gets the next free `F` number (F81 is next) and goes in the
   right section.
 
 ## UI follow-ups
@@ -25,10 +25,9 @@
 
 
 
-- [ ] **F68. Preserved worktree reconciliation.** Main consolidation found 15
-  worktrees with uncommitted files and one locked worktree. Keep these intact;
-  review their diffs against current main before deciding whether to integrate
-  or archive them. No blind merging or deletion. [Consolidation record](2026-10-04-main-consolidation.md).
+- [ ] **F80. Existing mobile marketing trivia overflow.** Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
+- [ ] **F79. Homepage spherical Earth replacement.** Authorized integration on task/earth-replacement after F68 recovery archival cleanup. [Spec](../specs/2026-10-04-earth-replacement.md), [plan](2026-10-04-earth-replacement.md). No main merge or publication authorized.
+- [ ] **F68. Preserved worktree reconciliation.** Owner authorized recovery archival and removal of all 16 old worktrees on 2026-10-04. File hashes and full Git bundle verified; only main remained before new globe branch. Record completion with the task commit. [Evidence](2026-10-04-earth-replacement.md).
 - [ ] **F69. Deploy F64 retrieval telemetry.** Source integrated in main;
   research-chat function deployment remains separately owner-authorized.
   Existing turns cannot acquire missing measurements retroactively.

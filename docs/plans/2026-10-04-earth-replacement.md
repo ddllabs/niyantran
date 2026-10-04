@@ -1,0 +1,25 @@
+# Earth replacement integration
+
+> **Status: Living.** Isolated implementation on task/earth-replacement; no main merge, push or deployment.
+
+## Ordered tasks and scopes
+1. F68: Archive the 16 audited obsolete worktrees and all branches into .git/local-archives/2026-10-04-earth-preparation/. Verify SHA-256 of every archived regular file and git bundle; remove only after verification. Preserve ignored non-build files locally, exclude generated caches/builds/dependencies. The stale lock names PID 78328; process lookup found no process. Done before branch creation.
+2. F79: Implement the approved spec in src/marketing/NterEarth.jsx, HomePage.jsx, marketing.css and public/brand/earth/{nter-earth.js,earth-poster.png}. Keep supplied runtime bytes intact and no dependency changes. Rebuild only homepage baked background as CSS brand geometry.
+3. Verify wrapper error/loading state and renderer lifecycle in src/marketing/NterEarth.test.jsx plus browser homepage checks. Run full npm suite, lint/build and diff checks. Review source changes; record limitations.
+4. Commit verified changes only on task/earth-replacement, update open-work and evidence. Leave main and origin/main at f5c0617. No delegation.
+
+## Cleanup evidence
+Remote git ls-remote --heads origin returned only main at f5c06171800e8baa389d513f91f18b15d56e5542. All 16 file archives were reopened and regular-file hashes matched; branches.bundle verified. Fifteen dirty worktrees had committed bases already in main; some old working files differ from main and are archived, not integrated. The one clean locked branch had one patch-equivalent commit (git cherry reports minus). Cleanup leaves one primary worktree and local main before creating this task branch. Recovery manifest and full bundle live only in .git, not committed.
+
+## Integration and review evidence
+- Adapted wrapper in JSX. React 19 assigns existing custom-element properties; the supplied duration getter has no setter. Browser testing reproduced a render-blocking TypeError. Omit the duration prop and use the runtime's tested 48-second default. A focused regression test fails when that prop is restored, then passes after correction.
+- Loading is shared between mounts; registration, failure and 15-second timeout are bounded. Failure keeps the supplied poster visible. StrictMode/unmount guards prevent late React state updates. A separate pause/resume button uses aria-pressed and keyboard activation; geography remains decorative and pointer-transparent.
+- Homepage's bg.png has a faint baked sphere. Only this hero now uses CSS geometry. Existing PNG assets and their uses on other pages remain unchanged. Both copied Earth assets have SHA-256 equal to the supplied files; no runtime changes or dependencies introduced. Natural Earth public-domain geographic source is credited in the spec.
+- Eight focused tests passed. Homepage guard failed against the original main HomePage; read-only-duration guard failed with the defective prop restored. All 134 test files / 2,111 tests passed with npm test. npm run lint passed without warnings/errors. npm run build passed with the existing deskBrief mixed-import and large chunk warnings. git diff --check passed.
+- Actual in-app browser: homepage globe rendered and visibly rotated; the element has no CSS transform rotation. Tested 320, 768, 1024 and 1440px. Copy and CTA layout preserved; existing mobile persona visibility rules retained. Pause and keyboard Enter toggle produce Resume globe / aria-pressed=true / paused attribute. Pricing -> Home remount rendered with exactly one script. A fresh final page has no console errors.
+- Supplied runtime lifecycle exercised through its actual bundled code in a VM: elapsed time advances, pause/resume avoids jumps, reduced-motion/hidden/offscreen states stop frame scheduling, disconnect removes listeners and reconnect succeeds. These are executed runtime tests, not claims of physical-device/Safari performance. Load failure and timeout are loader tests, not browser network-failure simulations.
+- Narrow page scrollWidth remains viewport+15px (335 at 320px, 783 at 768px); a minimal actual browser fixture using main's unchanged stylesheet reproduced the 335px trivia block. Hero itself spans the viewport and clips oversized transparent canvas correctly. F80 records this existing out-of-scope defect.
+- No auth, admin, billing, provider, API, data or deployment changes. The shared marketing hero is role-independent; signed-in dashboard HomeDesk has no globe and is unchanged. No authenticated admin acceptance run is claimed.
+
+## Recovery
+Local-only archive: .git/local-archives/2026-10-04-earth-preparation/. branches.bundle contains all pre-cleanup refs. manifest.json maps the 16 old paths/branches to numbered tar.gz files with per-file SHA-256. Archives preserve regular files (including untracked and ignored non-build files) and symlinks; dependency/build/cache directories were excluded. Restore into a separate recovery directory, never over the current checkout. Git bundle can supply the old branch history. No credentials or recovery archives are committed or published.
