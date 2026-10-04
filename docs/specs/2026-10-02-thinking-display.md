@@ -23,6 +23,13 @@
 > exposed or reconstructed. The collapsed default and honest timing labels above
 > remain in force.
 >
+> **Amendment, 2026-10-04 (F70/F71):** live stages start expanded, then
+> collapse when generation finishes. Manual disclosure remains available.
+> User-facing token counts are replaced with known Searching, Processing and
+> Writing durations; Processing is residual elapsed time, including waiting.
+> This supersedes the collapsed live default and optional token display above.
+> [Reading-space spec](2026-10-04-chat-reading-space.md) records this change.
+
 > The model's own reasoning text (option B) is out of scope. Evidence:
 > `docs/research/2026-10-02-chat-experience-review.md` (C1–C5). Tracked as open-work F46.
 

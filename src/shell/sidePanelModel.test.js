@@ -118,12 +118,12 @@ describe('the active tab', () => {
   });
 });
 
-// side-panel spec point 2 and owner decision 1: one docked width, 36% by default, 400 px to 60%
+// side-panel spec point 2 and owner decision 1: one docked width, 50% by default, 400 px to 60%
 // (amendment 2: 340 px left no room for the tab bar with AI's actions in it).
 describe('the docked width', () => {
-  it('defaults to 36% of the workspace within 400 px and 60%', () => {
+  it('defaults to 50% of the workspace within 400 px and 60%', () => {
     expect(PANEL_MIN_PX).toBe(400);
-    expect(defaultPanelWidth(1400)).toBe(504);
+    expect(defaultPanelWidth(1400)).toBe(700);
     expect(defaultPanelWidth(800)).toBe(PANEL_MIN_PX);
     expect(panelBounds(1400)).toEqual({ min: PANEL_MIN_PX, max: Math.round(1400 * PANEL_MAX_PCT / 100) });
   });
@@ -135,8 +135,8 @@ describe('the docked width', () => {
   it('clamps a chosen width, and a non-number gives the default', () => {
     expect(clampPanelWidth(100, 1400)).toBe(PANEL_MIN_PX);
     expect(clampPanelWidth(5000, 1400)).toBe(840);
-    expect(clampPanelWidth(Number.NaN, 1400)).toBe(504);
-    expect(resolvePanelWidth(null, 1400)).toBe(504);
+    expect(clampPanelWidth(Number.NaN, 1400)).toBe(700);
+    expect(resolvePanelWidth(null, 1400)).toBe(700);
     expect(resolvePanelWidth(600.4, 1400)).toBe(600);
   });
 

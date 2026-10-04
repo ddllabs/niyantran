@@ -49,7 +49,8 @@
 .ai-shell.ai-shell-research .ai-md :is(h4, h5, h6) { font-size: 16px; }
 .ai-shell.ai-shell-research .ai-md :is(ul, ol) { gap: 8px; padding-left: 1.4em; }
 .ai-shell.ai-shell-research .ai-md-table table { font-size: 14px; line-height: 1.55; }
-.ai-shell.ai-shell-research .ai-md-table :is(th, td) { padding: 8px 10px; }
+.ai-shell.ai-shell-research .ai-md-table :is(th, td) { padding: 8px 10px; white-space: normal; overflow-wrap: anywhere; }
+.ai-shell.ai-shell-research .ai-md-table td { min-width: 7rem; }
 .ai-shell.ai-shell-research .ai-message-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; font-size: 11px; color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-message-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; min-height: 28px; }
 .ai-shell.ai-shell-research .ai-message-actions button:disabled { cursor: wait; }
@@ -67,7 +68,8 @@
 .ai-shell.ai-shell-research .ai-ticker-head[aria-expanded="true"] .ai-ticker-caret { transform: rotate(180deg); }
 .ai-shell.ai-shell-research .ai-ticker[data-motion="pointer"] .ai-ticker-caret { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 .ai-shell.ai-shell-research .ai-research-flow { padding: 4px 12px 2px; }
-.ai-shell.ai-shell-research .ai-flow-usage { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 11px; color: var(--ai-muted); font-variant-numeric: tabular-nums; }
+.ai-shell.ai-shell-research .ai-flow-timing { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px; font-size: 11px; color: var(--ai-muted); font-variant-numeric: tabular-nums; }
+.ai-shell.ai-shell-research .ai-flow-timing strong { font-weight: 500; }
 .ai-shell.ai-shell-research .ai-flow-stages { list-style: none; margin: 0; padding: 0; }
 .ai-shell.ai-shell-research .ai-flow-step { position: relative; padding: 0 0 6px 30px; }
 .ai-shell.ai-shell-research .ai-flow-step:not(:last-child)::before { content: ''; position: absolute; left: 9px; top: 24px; bottom: 5px; width: 1px; background: var(--ai-line); }

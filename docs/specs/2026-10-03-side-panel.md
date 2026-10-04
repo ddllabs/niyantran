@@ -56,7 +56,7 @@ current content: the desk snapshot, `NationalRecord` and the other record views,
 2. **One width.** The panel's left edge is a separator, dragged with pointer capture and moved
    with the arrow keys, Home and End. Double-click resets it. The width is remembered per browser
    and is the same on every tab, so nothing jumps.
-   - The default is 36% of the workspace (owner decision 1), within 340 px and 60%.
+   - The default is 50% of the workspace (F71 amendment, 2026-10-04), within 400 px and 60%.
    - This replaces the three grid rules.
    - The maths moves out of `citationOverlayModel.js` into a shared model with tests.
 3. **One expand mode.** Every tab gets an Expand control that widens the panel into the
@@ -192,3 +192,9 @@ The owner chose "Stay on AI" for a row click while on AI, and "Yes, all three".
      browser".
 4. **The minimum docked width is 400 px,** up from 340. With AI's actions in the bar, 340 px
    clipped the tab labels. 400 px is the old Record panel's minimum.
+
+## Owner amendment, 2026-10-04 (F71)
+
+Default the shared dock to 50% so the chat and desk have equal desktop width.
+This supersedes the original 36% decision. Keep explicit remembered widths,
+the 400px minimum, 60% maximum, mobile stacking and manual expansion.

@@ -111,7 +111,7 @@ function useNow(running) {
 
 export default function ActivityTicker({
   activity = [], active = false, startedAt = 0, timing = null, model = null,
-  sourceCount = 0, effort = null, usage = null, labelOf = (id) => id, lang = 'en',
+  sourceCount = 0, effort = null, labelOf = (id) => id, lang = 'en',
 }) {
   const hi = lang === 'hi';
   const [disclosure, setDisclosure] = useState(() => ({ active, open: active }));
@@ -156,7 +156,7 @@ export default function ActivityTicker({
         <ChevronDown className="ai-ticker-caret" size={16} aria-hidden="true" />
       </button>
 
-      {open ? <ResearchFlow steps={steps} active={active} usage={usage} lang={lang} /> : null}
+      {open ? <ResearchFlow steps={steps} active={active} timing={timing} lang={lang} /> : null}
 
       {open && found.length ? (
         <p className="ai-ticker-found">

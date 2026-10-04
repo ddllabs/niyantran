@@ -42,16 +42,22 @@ function Stage({ step, current, active, hi }) {
 
 /** Public actions only. No diagnostic tables interrupt the reading flow. */
 export default function ResearchFlow({
-  steps = [], active = false, usage, lang = 'en',
+  steps = [], active = false, timing, lang = 'en',
 }) {
   const hi = lang === 'hi';
-  const tokens = usage?.reasoning_tokens;
-  const hasTokens = Number.isSafeInteger(tokens) && tokens >= 0;
+  const durations = [
+    ['search_ms', hi ? 'खोज' : 'Searching'],
+    ['reasoning_ms', hi ? 'प्रसंस्करण' : 'Processing'],
+    ['writing_ms', hi ? 'लेखन' : 'Writing'],
+  ].filter(([key]) => Number.isFinite(timing?.[key]) && timing[key] >= 0);
   const displayed = steps.length ? steps : active
     ? [{type:'activity',text:hi ? 'शुरू हो रहा है…' : 'Starting…'}] : [];
   return <div className="ai-research-flow">
-    {hasTokens ? <p className="ai-flow-usage"><Sparkles size={14} aria-hidden="true" />
-      {tokens} {hi ? 'तर्क टोकन' : 'reasoning tokens'}
+    {durations.length ? <p className="ai-flow-timing">
+      {durations.map(([key, label]) => <span key={key}
+        title={key === 'reasoning_ms' ? (hi ? 'खोज और लेखन के बाहर का समय, जिसमें प्रतीक्षा शामिल है।' : 'Time outside searching and writing, including waiting; not measured model reasoning.') : undefined}>
+        {label} <strong>{timing[key] < 1000 ? measured(timing[key], hi) : `${(timing[key] / 1000).toFixed(1)} ${hi ? 'से.' : 's'}`}</strong>
+      </span>)}
     </p> : null}
     {displayed.length ? <ol className="ai-flow-stages">
       {displayed.map((step, index) => <Stage key={`${step.type}-${step.step ?? index}`}

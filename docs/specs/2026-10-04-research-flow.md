@@ -101,3 +101,12 @@ to show their full text; preserve coverage/remove controls and the additional
 attachments disclosure. Empty composers retain their existing appearance.
 Attachment notices remain inside the shared surface. Supersedes the ninth
 amendment's content-width/truncated chip choice. No data or behavior changes.
+
+Eleventh owner amendment, 2026-10-04 (F70/F71): open live stages automatically
+while the response is generated and collapse on completion; manual chevron
+toggles persist within a phase. Remove reasoning-token counts from normal chat
+presentation. Expanded flow shows known Searching, Processing and Writing
+durations. Processing includes waiting and is not measured model reasoning.
+Omit unavailable/invalid fields; preserve measured zero. Wide tables wrap text
+and retain horizontal scrolling for comparisons beyond the available width.
+[Reading-space spec](2026-10-04-chat-reading-space.md).

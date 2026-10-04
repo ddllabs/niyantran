@@ -1016,9 +1016,9 @@ button, input, textarea { font-family: inherit; }
 
 .workspace {
   display: grid;
-  /* side-panel (owner decision 1): one width on every tab, 36% until dragged (--panel-chosen,
+  /* side-panel (owner decision 1): one width on every tab, 50% until dragged (--panel-chosen,
      set by SidePanel), held between 400 px and 60% by the browser on any resize. */
-  grid-template-columns: minmax(0, 1fr) clamp(400px, var(--panel-chosen, 36%), 60%);
+  grid-template-columns: minmax(0, 1fr) clamp(400px, var(--panel-chosen, 50%), 60%);
   min-height: 0;
   position: relative;
   z-index: 0;
@@ -2852,7 +2852,7 @@ button.live-feed:hover { color: var(--fg); }
   overflow: hidden;
 }
 .workspace.ai-open {
-  grid-template-columns: minmax(0, 1fr) clamp(400px, var(--panel-chosen, 36%), 60%) !important;
+  grid-template-columns: minmax(0, 1fr) clamp(400px, var(--panel-chosen, 50%), 60%) !important;
   overflow: hidden;
   min-height: 0;
   height: 100%;

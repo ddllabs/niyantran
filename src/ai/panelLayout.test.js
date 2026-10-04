@@ -204,7 +204,7 @@ describe('the side panel has one width on every tab', () => {
   it('every two-column workspace rule sizes the panel from the one chosen width, clamped to 400 px and 60%', () => {
     const twoColumn = desktopRules().filter((r) => r.value.trim() !== '1fr' && !r.sel.includes('panel-collapsed'));
     expect(twoColumn.length).toBeGreaterThan(0);
-    for (const r of twoColumn) expect(r.value.replace(/\s+/g, ' ')).toBe('minmax(0, 1fr) clamp(400px, var(--panel-chosen, 36%), 60%)');
+    for (const r of twoColumn) expect(r.value.replace(/\s+/g, ' ')).toBe('minmax(0, 1fr) clamp(400px, var(--panel-chosen, 50%), 60%)');
   });
 
   it('collapsed, the panel is a 32 px handle', () => {

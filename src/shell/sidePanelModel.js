@@ -76,10 +76,10 @@ export function panelReducer(state, action, ctx) {
   }
 }
 
-/* ─── Docked width (owner decision 1: 36% by default, 400 px to 60%) ─────────────────────────── */
+/* ─── Docked width (owner decision 1: 50% by default, 400 px to 60%) ─────────────────────────── */
 
 export const PANEL_WIDTH_STORAGE_KEY = 'niyantranSidePanelWidth';
-export const PANEL_DEFAULT_PCT = 36;
+export const PANEL_DEFAULT_PCT = 50;
 /** Amendment 2: 340 px left no room for the tab bar with AI's actions; 400 is the old Record minimum. */
 export const PANEL_MIN_PX = 400;
 export const PANEL_MAX_PCT = 60;
