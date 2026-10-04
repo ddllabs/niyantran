@@ -90,3 +90,5 @@ T11 coverage clarity after owner functionality question: in `src/desks/NationalL
 
 
 T11 checkpoint: sample label, disclosure/filter checks and preview route correction verified; all2,124 tests, lint and build pass. Native Chrome200% zoom passed at577px with no page overflow and was restored. Browser media/hidden-tab/coarse-pointer gates and owner review remain open. [Evidence and limitations](2026-10-05-national-coverage-zoom-verification.md).
+
+Signed-in continuation: keyboard disclosure/focus, pause/resume, search inertness and actual offscreen animation pausing executed successfully; retained actual app for owner review. [Runtime evidence](2026-10-05-national-runtime-review.md). Native media/hidden-tab/coarse-pointer gates remain unverified; no product change or publication.
