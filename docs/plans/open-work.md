@@ -19,8 +19,6 @@
 
 ## UI follow-ups
 
-- [ ] **F71. Chat reading space and durations.** Shared equal-width default,
-  wrapping tables and public timing split. [Plan](2026-10-04-chat-reading-space.md).
 
 
 - [ ] **F68. Preserved worktree reconciliation.** Main consolidation found 15
@@ -78,6 +76,12 @@ Current baseline (read-only observations, 2026-10-03):
   dated operations records, not an independent October 3 Vercel probe.
 
 ## 1. Done
+
+- [x] **F71. Chat reading space and durations.** `3455988`: shared 50% dock
+  default, wrapping tables and known Searching/Processing/Writing durations
+  instead of user-facing reasoning tokens. 2,090 frontend tests, lint/build
+  and isolated browser geometry checks passed. Integrated locally; publication
+  pending. [Plan](2026-10-04-chat-reading-space.md).
 
 - [x] **F70. Live activity disclosure.** `899b47a`: opens while generating,
   closes on completion and preserves manual toggles within each phase.
