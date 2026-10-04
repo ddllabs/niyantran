@@ -67,7 +67,7 @@ describe('Desk Landing Architecture & Views', () => {
     );
 
     expect(html).toContain('Global Intelligence');
-    expect(html).toContain('Fronts by Geopolitical Theatre');
+    expect(html).toContain('Where the desk looks');
     expect(html).toContain('Open Fronts');
     expect(html).toContain('Sanctions');
   });

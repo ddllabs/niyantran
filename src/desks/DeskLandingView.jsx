@@ -7,12 +7,12 @@ import { BarList } from '../shell/AnalyticsViz.jsx';
 import { TABS } from './catalog.js';
 import './deskLanding.css';
 import NationalLandingView from './NationalLandingView.jsx';
+import GlobalLandingView from './GlobalLandingView.jsx';
 
 /**
  * Flagship module mappings per desk for loading live structured counters and chart.
  */
 const DESK_FLAGSHIPS = {
-  global: { tier: 'geopolitics', feature: 'Open Fronts', chartCol: 'theatre', chartTitle: 'Fronts by Geopolitical Theatre' },
   economics: { tier: 'finance', feature: 'NSE/BSE Delayed Market Feed', chartCol: 'sector', chartTitle: 'Market Watch Distribution by Sector' },
   state: { tier: 'state', feature: 'Booth-level Results Database', chartCol: 'party', chartTitle: 'Electoral Returns by Alliance' },
   law: { tier: 'judiciary', feature: 'Supreme Court Order & Judgment Feed', chartCol: 'bench', chartTitle: 'Orders on Record by Judicial Bench' },
@@ -35,7 +35,9 @@ function getCategoryValue(row, preferredCol) {
 }
 
 export default function DeskLandingView(props) {
-  return props.tab === 'national' ? <NationalLandingView {...props} /> : <StandardDeskLandingView {...props} />;
+  if (props.tab === 'national') return <NationalLandingView {...props} />;
+  if (props.tab === 'global') return <GlobalLandingView {...props} />;
+  return <StandardDeskLandingView {...props} />;
 }
 
 function StandardDeskLandingView({ tab, label, buckets = [], onFeature, lang = 'en' }) {

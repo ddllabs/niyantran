@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs';
 import { serveNationalLanding } from './nationalLandingSummary.mjs';
+import { serveGlobalLanding } from './globalLandingSummary.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { flattenAlliance } from '../src/lib/alliances.js';
@@ -3558,7 +3559,8 @@ async function loadLandingFeed(params) {
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/national-landing') {
+  if (url.pathname === '/api/national-landing' || url.pathname === '/api/global-landing') {
+    const global = url.pathname === '/api/global-landing';
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     if (req.method !== 'GET') {
@@ -3567,12 +3569,12 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const body = await serveNationalLanding(url.searchParams, loadLandingFeed);
+      const body = await (global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadLandingFeed);
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
-      res.statusCode = err.message === 'Unknown National module' ? 400 : 502;
-      res.end(JSON.stringify({ ok: false, error: 'National summary unavailable' }));
+      res.statusCode = err.message === `Unknown ${global ? 'Global' : 'National'} module` ? 400 : 502;
+      res.end(JSON.stringify({ ok: false, error: `${global ? 'Global' : 'National'} summary unavailable` }));
     }
     return;
   }
