@@ -14,10 +14,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F79 is next) and goes in the
+- A new finding gets the next free `F` number (F82 is next; F79/F80 are reserved on `task/earth-replacement`) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F81. National landing redesign.** Owner approved local implementation on 2026-10-04. Implemented on `task/national-landing-redesign`: 12 canonical modules, five groups, prepared-feed summaries, honest coverage labels and bill-sector chart. Local command and component-browser checks pass; signed-in shell navigation/Back/locks, actual 200% browser zoom and owner visual acceptance remain pending. No push, deployment or main integration authorized. [Audit](../research/2026-10-04-national-landing-audit.md), [spec](../specs/2026-10-04-national-landing-redesign.md), [plan](2026-10-04-national-landing-redesign.md), [verification](2026-10-05-national-landing-verification.md).
 
 
 - [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
@@ -846,8 +848,7 @@ Earlier items, updated:
   serves a hand-written transcript labelled "ASR Verified Record"; `:609` is
   an invented archive entry; channels without a schedule get placeholder
   programmes. It needs the new Live TV sources, UI and sample codebase.
-- [ ] **O9.** The desk-landing visual mockup that
-  `specs/2026-09-27-cr12-cr13-desk-landing.md` is waiting for.
+- [ ] **O9.** Desk-landing visual inputs: National mockup received on 2026-10-04 and tracked by F81. The supplied HTML also includes Global/Law references; State and other desk visual scope remain unapproved. The National plan replaces the older spec's waiting-for-mockup assumption for National only.
 - [ ] **O1.** `NTER_TERMINAL_API_KEY` on Vercel, and nter.news pointed at
   production. Until then every nter.news push is refused.
 - [ ] **P1.** Database-backed home feeds (`plans/2026-09-23-home-feeds-plan.md`).
