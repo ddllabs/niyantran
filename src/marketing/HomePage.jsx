@@ -4,6 +4,7 @@ import { PERSONAS } from '../lib/personas.js';
 import BillAiDropDemo from './BillAiDropDemo.jsx';
 import SegmentCarousel from './SegmentCarousel.jsx';
 import NterLatestRail from './NterLatestRail.jsx';
+import NterEarth from './NterEarth.jsx';
 
 /** Provisional CR hook line — replace when client finalises. */
 const HOOK = 'See what a record touches — before you argue about it.';
@@ -200,6 +201,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(0);
   const [heroPersona, setHeroPersona] = useState(null);
+  const [earthPaused, setEarthPaused] = useState(false);
   const [activePersona, setActivePersona] = useState(0);
   const [introVideo, setIntroVideo] = useState(() => emptyIntroVideo());
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -256,7 +258,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
     <>
       <section className="mkt-hero" ref={heroRef} onMouseMove={onHeroMove}>
         <div className="mkt-hero-scene" aria-hidden="true">
-          <img className="mkt-hero-bg" src="/brand/bg.png?v=1" alt="" />
+          <span className="mkt-hero-backdrop" />
           <span className="mkt-pr-scan" />
           <span className="mkt-pr-gridlines mkt-hero-gridlines" />
           <span className="mkt-pr-sh navy" />
@@ -312,8 +314,11 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
           </div>
           <div className="mkt-orb-wrap" aria-hidden="false">
             <div className="mkt-orb-layer">
-              <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" decoding="async" />
+              <NterEarth paused={earthPaused} />
             </div>
+            <button type="button" className="mkt-earth-control" aria-pressed={earthPaused} onClick={() => setEarthPaused((paused) => !paused)}>
+              {earthPaused ? 'Resume globe' : 'Pause globe'}
+            </button>
             {PERSONAS.map((p, i) => (
               <button
                 type="button"

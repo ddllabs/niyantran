@@ -250,6 +250,29 @@ html.mkt-doc:has(.mkt-auth) #root {
   object-position: left top;
   display: block;
 }
+/* Homepage-only geometry: the old background also contained a baked globe. */
+.mkt-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #080d14;
+}
+.mkt-hero-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--mkt-canvas);
+  clip-path: polygon(0 0, 34% 0, 41% 20%, 47% 42%, 48% 60%, 44% 78%, 30% 100%, 0 100%);
+}
+.mkt-hero .mkt-hero-scene > .mkt-pr-sh {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: none;
+}
+.mkt-hero .mkt-pr-sh.navy { clip-path: polygon(34% 0, 74% 0, 48% 52%, 41% 20%); }
+.mkt-hero .mkt-pr-sh.sand { clip-path: polygon(82% 0, 100% 0, 100% 100%, 93% 100%); }
+.mkt-hero .mkt-pr-sh.purple { clip-path: polygon(100% 24%, 100% 72%, 86% 62%); }
+.mkt-hero .mkt-pr-sh.red { clip-path: polygon(100% 70%, 100% 100%, 90% 100%); }
 .mkt-hero-inner {
   position: relative;
   z-index: 1;
@@ -768,6 +791,36 @@ html.mkt-doc:has(.mkt-auth) #root {
   translate: calc(var(--px) * 0.25) calc(var(--py) * 0.2);
   transition: translate 0.22s ease-out;
 }
+.mkt-earth {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: min(880px, 155%);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.mkt-earth nter-earth,
+.mkt-earth img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.mkt-earth-control {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border: 1px solid rgba(159, 183, 219, 0.35);
+  border-radius: 6px;
+  background: #080d14;
+  color: #c9d5e7;
+  font-size: 11px;
+  cursor: pointer;
+  z-index: 3;
+}
+.mkt-earth-control:focus-visible { outline: 2px solid #5b86e5; outline-offset: 3px; }
 .mkt-hero-orbits {
   position: absolute;
   left: 50%;
@@ -4523,6 +4576,15 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-globe {
     width: min(420px, 80vw);
   }
+  .mkt-hero-backdrop::before { display: none; }
+  .mkt-hero-backdrop { background: var(--mkt-canvas); }
+  .mkt-orb-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -12px -100vw -24px;
+    background: #080d14;
+    z-index: -1;
+  }
   .mkt-hero h1 {
     font-size: 36px;
     max-width: none;
@@ -4638,6 +4700,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-orb-wrap {
     height: 280px;
   }
+  .mkt-earth { width: min(560px, 150%); }
   .mkt-walk-video {
     min-height: 300px;
   }
