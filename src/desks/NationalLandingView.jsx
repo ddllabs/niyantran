@@ -36,7 +36,7 @@ export function ModuleRow({ module, summary, onFeature, retry, matches, filtered
   return <div className={`mod ${modeClass(summary?.sourceMode)}${matches ? filtered ? ' hit' : '' : ' dim'}${open ? ' open' : ''}${dismissed ? ' dismissed' : ''}`} onPointerEnter={() => setDismissed(false)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setOpen(false); setDismissed(false); } }} onKeyDown={event => { if (event.key === 'Escape') { event.currentTarget.querySelector('.nl-open').focus(); setOpen(false); setDismissed(true); } }} inert={!matches} aria-hidden={!matches ? true : undefined}>
     <i className="st" aria-hidden="true"/>
     <button type="button" className="nl-open" data-feature={name} onClick={() => onFeature(name)}>
-      <span className="name">{title}</span><span className="cnt">{fmt(summary?.count)}<small>records</small></span>
+      <span className="name">{title}</span><span className="cnt">{fmt(summary?.count)}<small>{summary?.unit || 'records'}</small></span>
     </button>
     <div className={`track${summary?.count == null ? ' unknown' : ''}`} aria-hidden="true"><i style={{ width: `${width}%`, '--w': `${width}%` }}/></div>
     <div className="note">{state === 'loading' ? 'Loading source summary…' : state === 'error' ? 'Summary unavailable' : sourceLabel}<button type="button" className="nl-coverage" aria-label={`Coverage and fields: ${title}`} aria-expanded={open} onClick={() => { setDismissed(false); setOpen(value => !value); }}>ⓘ</button></div>

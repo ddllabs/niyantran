@@ -8,6 +8,7 @@ import { TABS } from './catalog.js';
 import './deskLanding.css';
 import NationalLandingView from './NationalLandingView.jsx';
 import GlobalLandingView from './GlobalLandingView.jsx';
+import LawLandingView from './LawLandingView.jsx';
 
 /**
  * Flagship module mappings per desk for loading live structured counters and chart.
@@ -37,6 +38,7 @@ function getCategoryValue(row, preferredCol) {
 export default function DeskLandingView(props) {
   if (props.tab === 'national') return <NationalLandingView {...props} />;
   if (props.tab === 'global') return <GlobalLandingView {...props} />;
+  if (props.tab === 'law') return <LawLandingView {...props} />;
   return <StandardDeskLandingView {...props} />;
 }
 

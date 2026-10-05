@@ -14,10 +14,14 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F83 is next; F79/F80 are reserved on `task/earth-replacement`) and goes in the
+- A new finding gets the next free `F` number (F85 is next; F79/F80 are reserved on `task/earth-replacement`) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F83. Law landing redesign.** Owner corrected State scope to Law on2026-10-05. Local implementation on task/law-landing-redesign based on shared9eb4637. Reproduce reference Law artwork/motion; all12 canonical routes, source-aware prepared summaries and shared Supreme Court dedup. State excluded. Local implementation and all12 routes/Back, filters, disclosures, responsive320/768/1440, dark/light, Hindi label and pause/offscreen motion verified.2152 Vitest/862 Deno tests, lint/build/router import pass; native reduced-motion/hidden-tab/touch and owner visual approval remain pending. [Evidence](2026-10-05-law-landing-verification.md). [Spec](../specs/2026-10-05-law-landing-redesign.md), [plan](2026-10-05-law-landing-redesign.md). No publication authorized.
+- [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
+
 
 - [ ] **F82. Global landing redesign.** Owner authorized local implementation on 2026-10-05. Branch `task/global-landing-redesign` based on National `49aef80`; reference Global artwork/motion with all16 existing routes and five current groups. Read-only feed audit found illustrative commodity prices; these are excluded from measured totals. Preserve source coverage, dates, upcoming-launch identity and source-coordinate map. Local implementation and verification complete: all16 module callbacks/Back, search/inert filters, keyboard disclosures, pause/offscreen controls, 360/768/1440 widths, light/dark and Hindi desk label checked in the signed-in app. 2,137 Vitest and862 Deno tests, lint, build and router import pass. Native reduced-motion/hidden-tab/touch execution and owner visual acceptance remain pending; no publication. [Evidence](2026-10-05-global-landing-verification.md). Reference continuation corrected gradient/opacity, radar/ship timing and globe starting orientation; four new lifecycle guards pass, including defect-injection proof. Full Vitest now 2,141 tests. [Continuation](2026-10-05-global-fidelity-continuation.md). [Spec](../specs/2026-10-05-global-landing-redesign.md), [plan](2026-10-05-global-landing-redesign.md).
 

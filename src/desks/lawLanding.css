@@ -1,0 +1,13 @@
+.law-landing .law-gavel{transform-origin:150px 40px;animation:law-tap 2.8s var(--ease) infinite}
+.law-landing .law-hand{transform-origin:183px 52px;animation:law-spin 24s linear infinite}.law-landing .law-minute{animation-duration:2s}
+.law-landing .law-file{animation:law-float 5s ease-in-out infinite}
+@keyframes law-tap{0%,55%,100%{transform:rotate(0)}65%{transform:rotate(18deg)}72%{transform:rotate(14deg)}}
+@keyframes law-spin{to{transform:rotate(360deg)}}
+@keyframes law-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.law-landing .law-tiers{display:grid;gap:16px;margin:24px 0}
+.law-landing .law-tier{display:grid;grid-template-columns:160px minmax(0,1fr) 82px;gap:12px;align-items:center;font-size:13px}
+.law-landing .law-tier>span:last-child{text-align:right;font-weight:700}.law-landing .law-tier small{display:block;font-size:10px;font-weight:400;color:var(--muted)}
+.law-landing .law-track{height:8px;background:var(--hair);border-radius:8px;overflow:hidden}.law-landing .law-track i{display:block;height:100%;background:linear-gradient(90deg,#1d3fb8,#4c2bb3);border-radius:8px;animation:law-grow 1s var(--ease) both}
+@keyframes law-grow{from{width:0}to{width:var(--w)}}
+@media(max-width:600px){.law-landing .law-tier{grid-template-columns:110px minmax(0,1fr) 64px;gap:8px;font-size:12px}}
+@media(prefers-reduced-motion:reduce){.law-landing .tile *,.law-landing .law-track i{animation:none!important}}
