@@ -16,3 +16,6 @@ The supplied script embeds Natural Earth public-domain 1:110m land silhouettes; 
 
 ## Acceptance and commands
 Run npm test -- src/marketing/NterEarth.test.jsx, npm test, npm run lint, npm run build, and git diff --check. Verify actual homepage at 320, 768, 1024 and 1440px: artwork rendering, no old PNG/background globe, readable unchanged copy, usable persona buttons, no new horizontal overflow from the hero. Verify live globe advances while unpaused, pause/resume, offscreen and reduced-motion states, route-away disconnect/reconnect, and poster fallback. Record browser evidence separately from supplied QA. No standalone type-check or physical-device performance claim.
+
+## Release authorization (2026-10-05)
+Owner requested merging the remaining Earth branch after the desk release and consolidating local/remote branches to main. This supersedes the original no-merge/no-push boundary. Verify the combined main and Earth code; retain the desk changes and tracked F80 mobile trivia overflow. Publish main, confirm its Vercel deployment, then remove only the merged Earth branch locally and remotely. Rollback: revert the Earth release merge and push; no data or database rollback is needed.

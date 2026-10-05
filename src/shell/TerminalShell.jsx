@@ -4,6 +4,7 @@ import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
+import DeskRail from './DeskRail.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import UpgradeModal from './UpgradeModal.jsx';
 import { Icon } from './Icons.jsx';
@@ -368,7 +369,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal theme-${theme}`}>
+    <div className={`terminal with-desk-rail theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
@@ -515,6 +516,7 @@ export default function TerminalShell({ onLogout }) {
           </button>
         </div>
       </header>
+      <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />
       <DeskNav
         tab={tab}
         featureName={featureName}

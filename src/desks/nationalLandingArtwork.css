@@ -1,0 +1,6 @@
+.national-landing[data-motion="off"] *,
+.national-landing [data-offscreen="true"],
+.national-landing [data-offscreen="true"] * { animation-play-state: paused !important; }
+.national-landing[data-motion="off"] .card { opacity:1; transform:none; }
+.theme-dark .national-landing .bgsvg { opacity:.22; }
+.theme-dark .national-landing .tile { opacity:.85; }

@@ -14,10 +14,16 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F81 is next) and goes in the
+- A new finding gets the next free `F` number (F86 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+
+- [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
+
+
+
 
 
 - [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
@@ -26,7 +32,6 @@
 
 
 - [ ] **F80. Existing mobile marketing trivia overflow.** Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
-- [ ] **F79. Homepage spherical Earth replacement.** Implemented and verified on task/earth-replacement at 071cd13; awaiting owner review and any later merge/publication authorization. F68 recovery archival cleanup is complete. [Spec](../specs/2026-10-04-earth-replacement.md), [plan](2026-10-04-earth-replacement.md). No main merge or publication authorized.
 - [ ] **F69. Deploy F64 retrieval telemetry.** Source integrated in main;
   research-chat function deployment remains separately owner-authorized.
   Existing turns cannot acquire missing measurements retroactively.
@@ -79,8 +84,14 @@ Current baseline (read-only observations, 2026-10-03):
 
 ## 1. Done
 
+- [x] **F79. Homepage spherical Earth replacement.** Implementation `071cd13`, original isolated evidence `43c7690`. Owner authorized remaining branch integration/publication and local/remote cleanup on 2026-10-05. Combined desk/Earth code passed 2,160 Vitest tests, 862 Deno tests, lint/build/router import and homepage Chrome pause/resume smoke. See the release amendment in [plan](2026-10-04-earth-replacement.md). Existing F80 trivia overflow remains separate.
+
 - **2026-10-04, F68 recovery cleanup — 071cd13:** Archived and hash-verified all 16 old worktrees plus their branch history, then removed them with owner authorization. Only main remained before creating task/earth-replacement. Remote has only main. Recovery archives remain local under .git/local-archives/2026-10-04-earth-preparation/. [Evidence](2026-10-04-earth-replacement.md).
 
+- [x] **F81. National landing redesign.** Completed in the verified stacked release: implementation/fidelity and signed-in route evidence through `49aef80`, final polish/environment verification `1ad22d0`. Twelve canonical routes, real summaries, sampled-question disclosure, bills by sector and shared navigation. Owner authorized main integration and push on 2026-10-05. [Final evidence](2026-10-05-desk-landing-release-verification.md).
+- [x] **F82. Global landing redesign.** Implemented and verified through `9eb4637`; final release checks `1ad22d0`. Sixteen routes, reference artwork/motion, real source-coordinate map and coverage-aware totals; illustrative commodity prices excluded. [Final evidence](2026-10-05-desk-landing-release-verification.md).
+- [x] **F83. Law landing redesign.** Implemented `b3a781f`; final release checks `1ad22d0`. Twelve routes, reference artwork, source summaries and shared Supreme Court dedup. Reporting-feed limitations disclosed; F84 remains separate. Owner corrected State scope to Law. [Final evidence](2026-10-05-desk-landing-release-verification.md).
+- [x] **F85. Cross-desk final polish audit.** Fixed singular module counts and tour guidance in `1ad22d0`. Reference row grid deliberately retained. Native reduced motion across three desks, coarse-pointer disclosures and actual hidden-tab lifecycle executed. Full 2,152 Vitest/862 Deno tests, lint/build/router import and whitespace checks pass. [Evidence](2026-10-05-desk-landing-release-verification.md).
 
 - [x] **F78. Publish F77 microphone waveform UI.** Owner instruction “pushed”; main pushed to 9b159f0. Vercel production dpl_BnzKVUC38fHqSxftdX2RuAjWSB9G READY with niyantran-six.vercel.app alias. No backend redeployment required. Actual microphone acceptance remains F76.
 
@@ -847,8 +858,7 @@ Earlier items, updated:
   serves a hand-written transcript labelled "ASR Verified Record"; `:609` is
   an invented archive entry; channels without a schedule get placeholder
   programmes. It needs the new Live TV sources, UI and sample codebase.
-- [ ] **O9.** The desk-landing visual mockup that
-  `specs/2026-09-27-cr12-cr13-desk-landing.md` is waiting for.
+- [ ] **O9.** Desk-landing visual inputs: National mockup received on 2026-10-04 and tracked by F81. The supplied HTML also includes Global/Law references; State and other desk visual scope remain unapproved. The National plan replaces the older spec's waiting-for-mockup assumption for National. Global implementation was authorized on2026-10-05 and is tracked in F82.
 - [ ] **O1.** `NTER_TERMINAL_API_KEY` on Vercel, and nter.news pointed at
   production. Until then every nter.news push is refused.
 - [ ] **P1.** Database-backed home feeds (`plans/2026-09-23-home-feeds-plan.md`).

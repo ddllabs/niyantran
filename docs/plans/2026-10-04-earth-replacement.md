@@ -26,3 +26,13 @@ Local-only archive: .git/local-archives/2026-10-04-earth-preparation/. branches.
 
 ## Branch outcome
 Implementation and cleanup evidence committed at 071cd13 on task/earth-replacement. Main and origin/main remain f5c0617. F68 is completed; F79 tracks owner review and any later integration/publication decision. No merge, push or deployment occurred. Final working tree is clean after the evidence commit. Local preview uses http://127.0.0.1:5174/; screenshot saved outside the repository for review.
+
+## Release integration plan (2026-10-05)
+Owner authorized the remaining branch merge and cleanup. Sequentially: fetch/inventory; review Earth code and merge current main into its task branch; reconcile tracker documentation without dropping either milestone history; run Earth focused tests, full Vitest, lint/build and homepage smoke; commit integration evidence; merge verified branch into main, push and verify exact production SHA; delete the merged Earth branch on both sides. Write scope is existing Earth records and tracker unless a globe defect requires a focused correction. No dataset, provider, billing or auth change.
+
+## Combined release verification (2026-10-05)
+Merged current main into the task branch; the only conflict was tracker documentation. Preserved F68 archival evidence, desk milestones F81–F85 and open F80/F84; no code conflicts. Review confirmed renderer retains 48-second rotation and 23.44-degree presentation tilt, same-origin script, bounded loader/poster fallback and listener/frame cleanup, with no dependencies or secrets added.
+
+Executed: eight focused Earth tests; full npm test, 149 files / 2,160 tests passed; Deno suite 862 passed; npm run lint passed with no warnings/errors; npm run build passed (5.47s), retaining existing mixed deskBrief import/large chunk warnings; router import passed; git diff main --check passed. No standalone type-check or SQL change. Native Chrome actual local homepage visibly renders the spherical globe; pause toggles aria-pressed=true / Resume globe and resume restores false / Pause globe. Prior isolated responsive, remount and lifecycle evidence above remains applicable. No fresh signed-in admin or physical-device acceptance is claimed.
+
+Release consists only of the nine reviewed Earth code/asset/documentation paths relative to desk main. F79 is closed with implementation commit evidence; publication authorization supersedes the earlier historical branch boundaries. Branch deletion occurs only after it is merged and main pushed; recovery archives remain untouched.
