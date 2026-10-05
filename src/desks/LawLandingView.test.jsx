@@ -14,7 +14,7 @@ describe('Law landing presentation', () => {
   it('makes nonmatching modules inert', () => {
     const html = render({ query: 'insolvency' });
     expect((html.match(/inert=""/g) || []).length).toBe(11);
-    expect(html).toContain('1 matching modules');
+    expect(html).toContain('1 matching module');
   });
   it('exposes reporting units and deduplicates shared source totals', () => {
     const summary = { count: 220, availability: 'ready', sourceMode: 'stored', resourceKey: 'judiciary-sc-orders' };

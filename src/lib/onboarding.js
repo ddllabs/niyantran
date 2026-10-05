@@ -83,8 +83,8 @@ export const HOME_TOUR_STEPS = [
     body: 'Hot topics, markets and latest rows land here. Open any card to jump into a desk.',
   },
   {
-    title: 'Desk strip',
-    body: 'National, Law, Global and the rest live on the top strip. Each desk opens modules from its dropdowns.',
+    title: 'Choose a desk',
+    body: 'Use the desk navigation to switch between National, Global, Law and the other desks. Open a module from its card or the dropdown menus.',
   },
   {
     title: 'Ask AI',
@@ -95,11 +95,11 @@ export const HOME_TOUR_STEPS = [
 export const DESK_TOUR_STEPS = [
   {
     title: 'Pick a module',
-    body: 'Use the dropdown pills on this desk to open one feed at a time.',
+    body: 'Open a module from its card or the dropdown menus. On landing pages, search modules, filter by source type and open ⓘ to check coverage.',
   },
   {
     title: 'Work the table',
-    body: 'Search, filter and select a row. The right rail shows evidence for the selection.',
+    body: 'Search, filter and select a row. The side panel shows evidence for the selection.',
   },
   {
     title: 'Keep provenance',

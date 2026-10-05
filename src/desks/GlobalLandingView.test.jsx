@@ -18,7 +18,7 @@ describe('Global landing presentation', () => {
   it('dims search nonmatches and makes them inert', () => {
     const html = render({ query: 'nuclear' });
     expect((html.match(/inert=""/g) || []).length).toBe(15);
-    expect(html).toContain('1 matching modules');
+    expect(html).toContain('1 matching module');
   });
   it('does not turn illustrative or failed summaries into measured totals', () => {
     const html = render({ summaries: {
