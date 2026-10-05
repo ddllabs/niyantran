@@ -14,10 +14,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F85 is next; F79/F80 are reserved on `task/earth-replacement`) and goes in the
+- A new finding gets the next free `F` number (F86 is next; F79/F80 are reserved on `task/earth-replacement`) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F85. Cross-desk final polish audit.** Milestone review on 2026-10-05 observed singular counts rendered as "1 modules" in National and Law. Law's uneven card heights leave substantial empty space beside the shorter Judicial Analytics card at the default 948px viewport; review this against the reference before changing its grid. The existing first-run tour still describes dropdown pills rather than the new landing cards and rail; reconcile its guidance. These are local polish findings, not broken module routes. No code changed in this audit. Native environment checks and owner acceptance remain tracked under F81–F83.
 
 - [ ] **F83. Law landing redesign.** Owner corrected State scope to Law on2026-10-05. Local implementation on task/law-landing-redesign based on shared9eb4637. Reproduce reference Law artwork/motion; all12 canonical routes, source-aware prepared summaries and shared Supreme Court dedup. State excluded. Local implementation and all12 routes/Back, filters, disclosures, responsive320/768/1440, dark/light, Hindi label and pause/offscreen motion verified.2152 Vitest/862 Deno tests, lint/build/router import pass; native reduced-motion/hidden-tab/touch and owner visual approval remain pending. [Evidence](2026-10-05-law-landing-verification.md). [Spec](../specs/2026-10-05-law-landing-redesign.md), [plan](2026-10-05-law-landing-redesign.md). No publication authorized.
 - [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
