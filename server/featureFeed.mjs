@@ -3,6 +3,9 @@
  * Live rows, last-known-good archive, or one labelled status row — never fabricated records.
  */
 import fs from 'node:fs';
+import { serveNationalLanding } from './nationalLandingSummary.mjs';
+import { serveLawLanding } from './lawLandingSummary.mjs';
+import { serveGlobalLanding } from './globalLandingSummary.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { flattenAlliance } from '../src/lib/alliances.js';
@@ -3550,9 +3553,33 @@ function applyBackupFallback(body, searchParams) {
   });
 }
 
+async function loadLandingFeed(params) {
+  return applyBackupFallback(await serveFeatureFeed(params), params);
+}
+
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
+  if (url.pathname === '/api/national-landing' || url.pathname === '/api/global-landing' || url.pathname === '/api/law-landing') {
+    const global = url.pathname === '/api/global-landing';
+    const law = url.pathname === '/api/law-landing';
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.method !== 'GET') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ ok: false, error: 'GET only' }));
+      return;
+    }
+    try {
+      const body = await (law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, loadLandingFeed);
+      res.statusCode = body.ok ? 200 : 502;
+      res.end(JSON.stringify(body));
+    } catch (err) {
+      res.statusCode = err.message === `Unknown ${law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502;
+      res.end(JSON.stringify({ ok: false, error: `${law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` }));
+    }
+    return;
+  }
   if (url.pathname === '/api/csv-table') {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.statusCode = 405;

@@ -4,6 +4,9 @@
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
 import { serveFeatureFeed } from '../server/featureFeed.mjs';
+import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
+import { serveLawLanding } from '../server/lawLandingSummary.mjs';
+import { serveGlobalLanding } from '../server/globalLandingSummary.mjs';
 import {
   refreshHomeSnapshots,
   serveHomeLatest,
@@ -91,6 +94,18 @@ export default async function handler(req, res) {
   const method = String(req.method || 'GET').toUpperCase();
 
   try {
+    if (path === '/api/national-landing' || path === '/api/global-landing' || path === '/api/law-landing') {
+      const global = path === '/api/global-landing';
+      const law = path === '/api/law-landing';
+      if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
+      try {
+        const body = await (law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), serveFeatureFeed);
+        res.status(body.ok ? 200 : 502).json(body);
+      } catch (err) {
+        res.status(err.message === `Unknown ${law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });
+      }
+      return;
+    }
     if (path === '/api/feature-feed') {
       if (method !== 'GET' && method !== 'HEAD') {
         res.status(405).json({ ok: false, error: 'GET /api/feature-feed only' });

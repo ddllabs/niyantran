@@ -29,29 +29,21 @@ describe('Desk Landing Architecture & Views', () => {
       />
     );
 
-    // Header & identity
-    expect(html).toContain('desk-landing-view');
+    expect(html).toContain('national-landing');
     expect(html).toContain('National Intelligence');
-    expect(html).toContain('Desk Intelligence &amp; Registers');
-
-    // Live counters strip
-    expect(html).toContain('desk-counters-grid');
-    expect(html).toContain('Verified Records');
-    expect(html).toContain('Distinct Sectors/Stages');
-    expect(html).toContain('Primary Sources');
-    expect(html).toContain('Active Modules');
-    expect(html).toContain('3'); // 3 sample modules
-
-    // Module capability cards
-    expect(html).toContain('Parliamentary Register');
+    expect(html).toContain('The Republic,');
+    expect(html).toContain('Records across registers');
+    expect(html).toContain('Modules to explore');
     expect(html).toContain('Bill Passage Probability Index');
     expect(html).toContain('Parliamentary Question Database');
-    expect(html).toContain('Executive &amp; Tenders');
-    expect(html).toContain('Launch Module →');
+    expect(html).toContain('Bills by sector');
+    expect(html).not.toContain('Verified Records');
+  });
 
-    // Chart container
-    expect(html).toContain('desk-chart-section');
-    expect(html).toContain('Bill Distribution by Legislative Stage');
+  it('retains the existing State landing', () => {
+    const html = renderToStaticMarkup(<DeskLandingView tab="state" label="State" buckets={[]} onFeature={() => {}} />);
+    expect(html).toContain('Electoral Returns by Alliance');
+    expect(html).not.toContain('national-landing');
   });
 
   it('renders desk landing correctly for Geopolitics / Global desk', () => {
@@ -75,7 +67,7 @@ describe('Desk Landing Architecture & Views', () => {
     );
 
     expect(html).toContain('Global Intelligence');
-    expect(html).toContain('Fronts by Geopolitical Theatre');
+    expect(html).toContain('Where the desk looks');
     expect(html).toContain('Open Fronts');
     expect(html).toContain('Sanctions');
   });

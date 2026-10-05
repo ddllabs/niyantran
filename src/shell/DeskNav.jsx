@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { TABS, bucketContaining, bucketsFor, modulesForTier } from '../desks/catalog.js';
 import { featureMenuLabel } from '../lib/national.js';
 import { Icon, TAB_ICON } from './Icons.jsx';
-import DeskSidebar from './DeskSidebar.jsx';
 
 function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -35,21 +34,17 @@ function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
   );
 }
 
-export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tabs, lockedIds }) {
+export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tabs }) {
   const [open, setOpen] = useState(null);
-  const [sideOpen, setSideOpen] = useState(false);
   const btnRefs = useRef({});
   const closeTimer = useRef(null);
   const hi = lang === 'hi';
   const homeTabs = tabs || TABS;
-  const locked = lockedIds instanceof Set ? lockedIds : new Set(lockedIds || []);
   const active = homeTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
   const buckets = tab === 'home' ? [] : bucketsFor(modulesForTier(active.tier), active.tier);
   const currentBucket = bucketContaining(buckets, featureName);
-  const onDeskPage = tab !== 'home';
 
   useEffect(() => {
-    setSideOpen(false);
     setOpen(null);
   }, [tab]);
 
@@ -86,42 +81,8 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
   }
 
   return (
-    <nav className={`desktabs${tab === 'home' ? ' home-nav' : ''}`}>
-      {tab === 'home' && (
-        <button type="button" className="on" onClick={() => onDesk('home')}>
-          <Icon name="home" size={15} />
-          {hi ? 'मुखपृष्ठ' : 'Home'}
-        </button>
-      )}
-
-      {tab === 'home' &&
-        homeTabs.filter((t) => t.id !== 'home').map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={locked.has(t.id) ? 'desk-locked' : ''}
-            onClick={() => onDesk(t.id)}
-          >
-            <Icon name={TAB_ICON[t.id] || 'globe'} size={15} />
-            {labelOf(t)}
-            {locked.has(t.id) ? <span className="desk-up-tag">Upgrade</span> : null}
-          </button>
-        ))}
-
-      {onDeskPage && (
-        <button
-          type="button"
-          className={`desk-menu-btn${sideOpen ? ' open' : ''}`}
-          aria-expanded={sideOpen}
-          aria-controls="desk-side-title"
-          onClick={() => setSideOpen((v) => !v)}
-        >
-          <Icon name="menu" size={16} />
-          {hi ? 'डेस्क' : 'Desks'}
-        </button>
-      )}
-
-      {onDeskPage && (
+    <nav aria-label={hi ? 'डेस्क के मॉड्यूल' : 'Desk modules'} className={`desktabs${tab === 'home' ? ' home-nav' : ''}`}>
+      {tab !== 'home' && (
         <button
           type="button"
           className="desk-current"
@@ -136,6 +97,7 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
         </button>
       )}
 
+      {tab === 'home' && <span className="desk-current">{hi ? 'अपना डेस्क चुनें' : 'Choose a desk to begin'}</span>}
       {buckets.map((b) => {
         const isOn = currentBucket?.label === b.label;
         const isOpen = open === b.label;
@@ -177,16 +139,6 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
         );
       })}
 
-      {sideOpen && (
-        <DeskSidebar
-          tab={tab}
-          lang={lang}
-          onDesk={onDesk}
-          onClose={() => setSideOpen(false)}
-          tabs={homeTabs}
-          lockedIds={locked}
-        />
-      )}
     </nav>
   );
 }
