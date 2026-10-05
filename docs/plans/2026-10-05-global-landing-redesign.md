@@ -13,3 +13,7 @@ Spec: [Global](../specs/2026-10-05-global-landing-redesign.md). Tracker F82 in [
 Known exclusions: existing illustrative workspace data remains outside this landing task; surface its limitation rather than silently treating it as measured. National native media/touch checks remain recorded separately.
 
 Implementation and local verification completed. See [executed evidence](2026-10-05-global-landing-verification.md). Owner visual acceptance and native reduced-motion/hidden-tab/touch checks remain open in F82; no publication.
+
+6. Fidelity continuation after owner “Continue”: correct reference gradients, SVG fill opacity, radar phases/fade envelope, ship bob/rotation and animated globe starting longitude in `src/desks/GlobalLandingArtwork.jsx` and `src/desks/globalLanding.css`. Preserve a static .6-radian orientation only for an initially reduced-motion render. Add `src/desks/GlobalLandingArtwork.test.jsx` for static frame, restriction transitions and cleanup. Verify native browser motion controls where automation permits; focused Global/National motion regressions, lint and build, then local commit. No data/API changes or publication.
+
+Continuation evidence: [reference corrections and lifecycle checks](2026-10-05-global-fidelity-continuation.md). Native selector automation remained unsuccessful; the gate remains open.
