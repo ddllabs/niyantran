@@ -32,11 +32,11 @@
 
 .national-landing .page{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:22px 32px 40px;display:flex;flex-direction:column;gap:22px}
 .national-landing .view{display:contents}
-.national-landing .hero{position:relative;min-height:522px;display:grid;grid-template-columns:minmax(380px,560px) 1fr;grid-template-rows:1fr auto;gap:20px 32px;padding:34px 8px 0}
+.national-landing .hero{position:relative;min-height:400px;display:grid;grid-template-columns:minmax(380px,560px) 1fr;grid-template-rows:1fr auto;gap:16px 32px;padding:22px 8px 0}
 .national-landing .hero .copy{align-self:start}
 .national-landing .hero .kicker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.01em}
 .national-landing .hero .kicker .pill{padding:4px 10px;border-radius:999px;background:var(--glass-strong);backdrop-filter:blur(12px);border:1px solid var(--hair-soft);color:var(--brand-ink);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-.national-landing .hero h1{margin:14px 0 8px;font-size:64px;line-height:1.02;letter-spacing:-.035em;font-weight:700;color:var(--ink);text-wrap:balance}
+.national-landing .hero h1{margin:14px 0 8px;font-size:52px;line-height:1.02;letter-spacing:-.035em;font-weight:700;color:var(--ink);text-wrap:balance}
 .national-landing .hero h1 .w{display:inline-block;animation:nl-word .9s var(--ease) both}
 .national-landing .hero h1 .w:nth-child(2){animation-delay:.08s}.national-landing .hero h1 .w:nth-child(3){animation-delay:.16s}.national-landing .hero h1 .w:nth-child(4){animation-delay:.24s}.national-landing .hero h1 .w:nth-child(5){animation-delay:.32s}.national-landing .hero h1 .w:nth-child(6){animation-delay:.4s}.national-landing .hero h1 .w:nth-child(7){animation-delay:.48s}
 @keyframes nl-word{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
@@ -49,10 +49,10 @@
 .national-landing .hero .stats{grid-column:1 / -1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 210px;gap:0;padding:6px 0;border-radius:var(--r-xl);
   background:var(--glass);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);border:1px solid rgba(255,255,255,.7);box-shadow:var(--shadow-card);
   animation:nl-rise .9s var(--ease) .55s both}
-.national-landing .stat{padding:16px 22px 14px;border-right:1px solid var(--hair-soft);display:flex;flex-direction:column;justify-content:space-between;min-height:104px;transition:background .3s}
+.national-landing .stat{padding:12px 18px 10px;border-right:1px solid var(--hair-soft);display:flex;flex-direction:column;justify-content:space-between;min-height:92px;transition:background .3s}
 .national-landing .stat:last-child{border-right:0}
 .national-landing .stat .l{font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
-.national-landing .stat .v{font-size:38px;font-weight:700;letter-spacing:-.035em;line-height:1;margin-top:10px;color:var(--ink);font-variant-numeric:tabular-nums}
+.national-landing .stat .v{font-size:32px;font-weight:700;letter-spacing:-.035em;line-height:1;margin-top:10px;color:var(--ink);font-variant-numeric:tabular-nums}
 .national-landing .stat .v small{font-size:14px;font-weight:500;color:var(--muted);letter-spacing:0;margin-left:4px}
 .national-landing .stat .s{font-size:12px;color:var(--faint);margin-top:6px}
 .national-landing .stat.live .v{color:var(--live-ink)}.national-landing .stat.wire .v{color:var(--wire-ink)}.national-landing .stat.plan .v{color:var(--plan-ink)}
@@ -180,7 +180,9 @@
 @media (max-width:1180px){
   .national-landing .hero{grid-template-columns:1fr}
   .national-landing .hero .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .national-landing .stat.donut{grid-column:span 2;border-top:1px solid var(--hair-soft)}
+  .national-landing .stat.donut{grid-column:span 2;border-top:1px solid var(--hair-soft);min-height:58px;padding:6px 18px}
+  .national-landing .stat.donut svg{width:44px;height:44px}
+  .national-landing .stat.donut .lg{flex-direction:row;flex-wrap:wrap;gap:8px 14px}
   .national-landing .stat:nth-child(2){border-right:0}
   .national-landing .band{grid-template-columns:1fr}
   .national-landing .backdrop .bgsvg{opacity:.55}

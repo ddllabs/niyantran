@@ -12,9 +12,11 @@ import {
 } from '../lib/userStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
+import NterEarth from './NterEarth.jsx';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
+  const [earthPaused, setEarthPaused] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [userId, setUserId] = useState('');
@@ -123,18 +125,20 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
   }
 
   return (
-    <div className="mkt-login mkt-login-globe" ref={root} onMouseMove={onMove}>
+    <div className="mkt-login mkt-login-globe mkt-login-earth" ref={root} onMouseMove={onMove}>
       <div className="mkt-login-art" aria-hidden="true">
-        <img className="mkt-login-bg" src="/brand/bg.png?v=1" alt="" />
         <span className="mkt-pr-gridlines mkt-login-grid" />
         <div className="mkt-login-orb">
           <span className="mkt-halo" />
-          <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" />
+          <NterEarth paused={earthPaused} />
         </div>
         <span className="sh navy" />
         <span className="sh sand" />
         <span className="sh red" />
       </div>
+      <button type="button" className="mkt-earth-control mkt-login-earth-control" aria-pressed={earthPaused} onClick={() => setEarthPaused((paused) => !paused)}>
+        {earthPaused ? 'Resume globe' : 'Pause globe'}
+      </button>
       <main className="mkt-login-card">
         <p className="live">
           <i /> SYS/READY

@@ -5256,3 +5256,48 @@ html.mkt-doc:has(.mkt-auth) #root {
     transition: none !important;
   }
 }
+
+/* F86: login-only Earth composition; other auth pages retain their layouts. */
+.mkt-login-earth .mkt-login-card { box-sizing: border-box; }
+.mkt-login-earth .mkt-login-orb {
+  z-index: 1;
+  top: 50%;
+  width: min(600px, 48vw);
+  height: auto;
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+}
+.mkt-login-earth .mkt-earth {
+  inset: 0;
+  width: 100%;
+  transform: none;
+}
+.mkt-login-earth-control {
+  left: auto;
+  right: 24px;
+  bottom: 16px;
+  transform: none;
+}
+@media (min-width: 1000px) {
+  .mkt-login-earth {
+    justify-items: start;
+    padding-inline: clamp(48px, 10vw, 180px);
+  }
+}
+@media (max-width: 999px) {
+  .mkt-login-earth .mkt-login-orb {
+    right: -8%;
+    top: 28%;
+    width: min(460px, 72vw);
+    opacity: .4;
+  }
+}
+@media (max-width: 560px) {
+  .mkt-login-earth .mkt-login-orb {
+    right: -20%;
+    top: 12%;
+    width: 280px;
+    opacity: .24;
+  }
+  .mkt-login-earth-control { right: 12px; bottom: 6px; }
+}

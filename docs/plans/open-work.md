@@ -14,10 +14,12 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F86 is next) and goes in the
+- A new finding gets the next free `F` number (F87 is next) and goes in the
   right section.
 
 ## UI follow-ups
+
+- [ ] **F86. Login globe and compact desk headers.** Implemented and locally verified on 2026-10-07; owner review/integration pending on task/login-globe-compact-desks. 2,160 tests, lint/build pass. [Plan](2026-10-07-login-globe-compact-desks.md).
 
 
 - [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
