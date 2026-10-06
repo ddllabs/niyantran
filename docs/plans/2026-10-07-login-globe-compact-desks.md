@@ -1,6 +1,6 @@
 # F86 implementation plan
 
-> **Status: Living.** Sequential local work on task/login-globe-compact-desks.
+> **Status: Historical (2026-10-07).** Implemented on task/login-globe-compact-desks and merged into main in 6d4b66e.
 
 Spec: ../specs/2026-10-07-login-globe-compact-desks.md.
 
@@ -21,3 +21,7 @@ No delegated scopes; existing component interface unchanged.
 - Existing local desk preview harness uses real summaries and production components; National, Global and Law inspected at desktop/intermediate widths. National at 320/768, desktop 1440; no document overflow at measured 320/768/948/1440. Hero minimum is 400px, but naturally expands for source labels/statistics; mobile deliberately natural height. All reference artwork retained. No signed-in app route test after server restart because session required sign-in; no authentication performed or data written.
 - Reviewed scope: login artwork/state only; no credential, OAuth or session logic changed; no dataset/artwork replacement, no dependencies. Shared NterEarth runtime and its reduced-motion/fallback lifecycle unchanged and existing runtime tests pass. Native OS reduced-motion setting not toggled this task.
 - Owner review pending. Retain task branch; no merge, push or production deployment.
+
+## Integration
+
+Owner authorized merge and push on 2026-10-07. Fast-forward merge of 6d4b66e after fetch confirmed main/origin/main starting history identical. Prior owner-review-pending notes above describe the pre-integration state.

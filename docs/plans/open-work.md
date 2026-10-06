@@ -19,7 +19,6 @@
 
 ## UI follow-ups
 
-- [ ] **F86. Login globe and compact desk headers.** Implemented and locally verified on 2026-10-07; owner review/integration pending on task/login-globe-compact-desks. 2,160 tests, lint/build pass. [Plan](2026-10-07-login-globe-compact-desks.md).
 
 
 - [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
@@ -94,6 +93,7 @@ Current baseline (read-only observations, 2026-10-03):
 - [x] **F82. Global landing redesign.** Implemented and verified through `9eb4637`; final release checks `1ad22d0`. Sixteen routes, reference artwork/motion, real source-coordinate map and coverage-aware totals; illustrative commodity prices excluded. [Final evidence](2026-10-05-desk-landing-release-verification.md).
 - [x] **F83. Law landing redesign.** Implemented `b3a781f`; final release checks `1ad22d0`. Twelve routes, reference artwork, source summaries and shared Supreme Court dedup. Reporting-feed limitations disclosed; F84 remains separate. Owner corrected State scope to Law. [Final evidence](2026-10-05-desk-landing-release-verification.md).
 - [x] **F85. Cross-desk final polish audit.** Fixed singular module counts and tour guidance in `1ad22d0`. Reference row grid deliberately retained. Native reduced motion across three desks, coarse-pointer disclosures and actual hidden-tab lifecycle executed. Full 2,152 Vitest/862 Deno tests, lint/build/router import and whitespace checks pass. [Evidence](2026-10-05-desk-landing-release-verification.md).
+- [x] **F86. Login globe and compact desk headers.** Landed in `6d4b66e`; owner authorized merge/push on 2026-10-07. Reused homepage Earth on login; compacted three desk headers. 2,160 tests, lint/build passed; browser evidence and limitations in [plan](2026-10-07-login-globe-compact-desks.md).
 
 - [x] **F78. Publish F77 microphone waveform UI.** Owner instruction “pushed”; main pushed to 9b159f0. Vercel production dpl_BnzKVUC38fHqSxftdX2RuAjWSB9G READY with niyantran-six.vercel.app alias. No backend redeployment required. Actual microphone acceptance remains F76.
 
