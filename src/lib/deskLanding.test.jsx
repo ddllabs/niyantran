@@ -19,7 +19,7 @@ describe('Desk Landing Architecture & Views', () => {
     },
   ];
 
-  it('renders desk landing view with live counters and module capability cards', () => {
+  it('dispatches National to the full v6 presentation with source-aware summaries', () => {
     const html = renderToStaticMarkup(
       <DeskLandingView
         tab="national"
@@ -29,11 +29,11 @@ describe('Desk Landing Architecture & Views', () => {
       />
     );
 
-    expect(html).toContain('national-landing');
-    expect(html).toContain('National Intelligence');
-    expect(html).toContain('The Republic,');
-    expect(html).toContain('Records across registers');
-    expect(html).toContain('Modules to explore');
+    expect(html).toContain('desk-v6');
+    expect(html).toContain('National');
+    expect(html).toContain('A nation&#x27;s decisions.');
+    expect(html).toContain('Records on file');
+    expect(html).toContain('17 modules');
     expect(html).toContain('Bill Passage Probability Index');
     expect(html).toContain('Parliamentary Question Database');
     expect(html).toContain('Bills by sector');

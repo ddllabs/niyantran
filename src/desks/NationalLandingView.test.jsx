@@ -1,32 +1,35 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NationalLandingContent } from './NationalLandingView.jsx';
-import { modulesForTier, bucketsFor } from './catalog.js';
 import { NATIONAL_FEATURES } from '../lib/nationalLandingSummary.js';
-const buckets = bucketsFor(modulesForTier('national'), 'national');
-describe('National landing presentation', () => {
-  it('labels the known stored question sample without presenting it as complete coverage', () => {
-    const feature = NATIONAL_FEATURES[2];
-    const summaries = { [feature]: { feature, resourceKey: feature, count: 8000, availability: 'ready', sourceMode: 'stored', columns: [], sources: [], sectors: [] } };
-    const html = renderToStaticMarkup(<NationalLandingContent buckets={buckets} summaries={summaries} onFeature={() => {}} retry={() => {}} />);
-    expect(html).toContain('Stored · Sampled questions');
-    expect(html).toContain('8,000');
-    const unavailable = renderToStaticMarkup(<NationalLandingContent buckets={buckets} summaries={{ [feature]: { ...summaries[feature], count: null, availability: 'error' } }} onFeature={() => {}} retry={() => {}} />);
-    expect(unavailable).not.toContain('Stored · Sampled questions');
-  });
-  it('offers exactly the existing modules without inventing counts or freshness', () => {
-    const html = renderToStaticMarkup(<NationalLandingContent buckets={buckets} summaries={{}} onFeature={() => {}} retry={() => {}} />);
-    expect((html.match(/class="nl-open"/g) || []).length).toBe(12);
-    expect(html).toContain('Bills by sector');
+
+describe('National v6 adapter', () => {
+  it('exposes all17 canonical modules without invented totals or dates', () => {
+    const html = renderToStaticMarkup(<NationalLandingContent summaries={{}} onFeature={() => {}} retry={() => {}}/>);
+    expect(html).toContain('17 modules');
     expect(html).toContain('Loading summaries');
-    expect(html).not.toContain('Verified Records');
-    expect(html).not.toContain('Delimitation');
+    expect(html).toContain('Policy Pipeline Tracker');
+    expect(html).toContain('national');
+    expect(html).not.toContain('9,819');
+    expect(html).not.toContain('8,000');
+    expect(html).not.toContain('1952–present');
   });
-  it('dims nonmatches in place while removing them from accessible navigation', () => {
-    const html = renderToStaticMarkup(<NationalLandingContent buckets={buckets} summaries={{}} onFeature={() => {}} retry={() => {}} query="affidavit" />);
-    expect((html.match(/class="nl-open"/g) || []).length).toBe(12);
-    expect((html.match(/inert=""/g) || []).length).toBe(11);
-    expect(html).toContain('Candidate Affidavit');
-    expect(html).toContain('aria-hidden="true"');
+  it('labels the stored question sample and counts shared bills only once', () => {
+    const feature = NATIONAL_FEATURES[2];
+    const summaries = {
+      [NATIONAL_FEATURES[0]]: { feature: NATIONAL_FEATURES[0],resourceKey:NATIONAL_FEATURES[0],count:9,availability:'ready',sourceMode:'stored',sectors:[] },
+      [NATIONAL_FEATURES[1]]: { feature: NATIONAL_FEATURES[1],resourceKey:NATIONAL_FEATURES[0],count:9,availability:'ready',sourceMode:'stored',sectors:[] },
+      [feature]: { feature,resourceKey:feature,count:8,availability:'ready',sourceMode:'stored',sectors:[] },
+    };
+    const html = renderToStaticMarkup(<NationalLandingContent summaries={summaries} onFeature={() => {}}/>);
+    expect(html).toContain('Stored · Sampled questions');
+    expect(html).toContain('data-v6-count="17"');
+    expect(html).not.toContain('data-v6-count="26"');
+  });
+  it('shows Hindi desk identity and keeps unavailable totals unknown', () => {
+    const html = renderToStaticMarkup(<NationalLandingContent lang="hi" summaries={{ [NATIONAL_FEATURES[0]]: { count:null,availability:'error',sourceMode:'unknown' } }} onFeature={() => {}}/>);
+    expect(html).toContain('राष्ट्रीय');
+    expect(html).toContain('Summary unavailable');
+    expect(html).not.toContain('data-v6-count="0"');
   });
 });

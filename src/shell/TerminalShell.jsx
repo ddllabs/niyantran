@@ -5,6 +5,7 @@ import DeskView from '../desks/DeskView.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
 import DeskRail from './DeskRail.jsx';
+import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import UpgradeModal from './UpgradeModal.jsx';
 import { Icon } from './Icons.jsx';
@@ -147,6 +148,7 @@ export default function TerminalShell({ onLogout }) {
   const onLoading = useCallback((v) => setLoading(Boolean(v)), []);
   const onClearViz = useCallback(() => setVizFilter(null), []);
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
+  const v6Landing = guideMode && tab === 'national';
   const deskBuckets = useMemo(
     () => (tab === 'home' ? [] : bucketsFor(modulesForTier(active.tier), active.tier)),
     [tab, active.tier],
@@ -369,13 +371,14 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-desk-rail theme-${theme}`}>
+    <div className={`terminal ${v6Landing ? 'with-v6-directory' : 'with-desk-rail'} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
           <img src="/brand/logo.png?v=2" alt="" />
           <span>TERMINAL</span>
         </div>
+        {v6Landing && <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
         <CommandSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={searchTabs}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
           onOpen={hit => {
@@ -516,8 +519,9 @@ export default function TerminalShell({ onLogout }) {
           </button>
         </div>
       </header>
-      <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />
-      <DeskNav
+      {v6Landing && <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
+      {!v6Landing && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />}
+      {!v6Landing && <DeskNav
         tab={tab}
         featureName={featureName}
         lang={lang}
@@ -525,7 +529,7 @@ export default function TerminalShell({ onLogout }) {
         onFeature={onFeature}
         tabs={deskTabs}
         lockedIds={lockedIds}
-      />
+      />}
       <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
         <main className="main-col">
           {tab === 'home' ? (

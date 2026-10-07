@@ -204,6 +204,7 @@ export function moduleAvailability(module, summary) {
   if (!summary) return 'Loading summary';
   if (summary.availability === 'error') return 'Summary unavailable';
   if (summary.availability === 'unavailable') return 'Measured data unavailable';
+  if (module.feature === 'Parliamentary Question Database' && summary.sourceMode === 'stored') return 'Stored · Sampled questions';
   if (!module.configured && summary.sourceMode === 'unknown' && !summary.count) return 'Not connected';
   const modes = { stored: 'Stored register', 'feed-backed': 'Feed-backed', curated: 'Curated records', unknown: 'Source scope unavailable' };
   return `${modes[summary.sourceMode] || modes.unknown}${summary.availability === 'empty' ? ' · empty' : ''}`;
