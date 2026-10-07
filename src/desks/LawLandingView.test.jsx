@@ -4,22 +4,40 @@ import { LawLandingContent } from './LawLandingView.jsx';
 import { modulesForTier, bucketsFor } from './catalog.js';
 const buckets = bucketsFor(modulesForTier('judiciary'), 'judiciary');
 const render = props => renderToStaticMarkup(<LawLandingContent buckets={buckets} summaries={{}} onFeature={() => {}} retry={() => {}} {...props}/>);
-describe('Law landing presentation', () => {
-  it('retains all12 canonical routes and the reference composition without mock numbers', () => {
+describe('Law v6 adapter', () => {
+  it('uses four reference photo sectors without mock counts or the old rail', () => {
     const html = render({});
-    expect((html.match(/class="nl-open"/g) || []).length).toBe(12);
-    expect(html).toContain('Every order,'); expect(html).toContain('Coverage by tier of the system');
-    expect(html).toContain('Loading summaries'); expect(html).not.toContain('Verified Records');
+    expect(html).toContain('data-desk="law"');
+    expect(html).toContain('Every record matters.');
+    expect(html).toContain('See the bigger picture.');
+    expect((html.match(/class="sector-card"/g) || []).length).toBe(4);
+    for (const image of ['supreme-front-web', 'judicial-books', 'elections', 'insolvency']) expect(html).toContain(`data-image="${image}"`);
+    expect(html).toContain('12 modules');
+    expect(html).toContain('Loading summaries');
+    expect(html).not.toContain('Verified Records');
+    expect(html).not.toContain('class="nl-open"');
   });
-  it('makes nonmatching modules inert', () => {
-    const html = render({ query: 'insolvency' });
-    expect((html.match(/inert=""/g) || []).length).toBe(11);
-    expect(html).toContain('1 matching module');
+  it('deduplicates shared Supreme Court entries while counting reports as reports', () => {
+    const summary = { count: 220, availability: 'ready', sourceMode: 'stored', resourceKey: 'judiciary-sc-orders', unit: 'entries' };
+    const html = render({ summaries: {
+      'Supreme Court Order & Judgment Feed': summary,
+      'Order Archive by Topic (Cross-Court)': summary,
+      'ICC Proceedings': { count: 10, availability: 'ready', sourceMode: 'feed-backed', unit: 'reports', resourceKey: 'ICC Proceedings' },
+      'District Court Case Tracker': { count: 0, availability: 'empty', sourceMode: 'feed-backed', unit: 'reports', resourceKey: 'District Court Case Tracker' },
+      'UP High Court (Allahabad) Order Feed': { count: null, availability: 'error', sourceMode: 'unknown' },
+    } });
+    expect(html).toContain('data-v6-count="230"');
+    expect(html).toContain('4/12 measured counts');
+    expect(html).toContain('shared orders counted once');
+    expect(html).toContain('Entries and reports; overlapping coverage');
+    expect(html).toContain('Supreme Court orders by topic');
+    expect(html).toContain('Allahabad High Court reporting');
+    expect(html).toContain('Summary unavailable');
+    expect(html).not.toContain('data-v6-count="450"');
   });
-  it('exposes reporting units and deduplicates shared source totals', () => {
-    const summary = { count: 220, availability: 'ready', sourceMode: 'stored', resourceKey: 'judiciary-sc-orders' };
-    const html = render({ summaries: { 'Supreme Court Order & Judgment Feed': summary, 'Order Archive by Topic (Cross-Court)': summary, 'ICC Proceedings': { count: 10, availability: 'ready', sourceMode: 'feed-backed', unit: 'reports', resourceKey: 'ICC Proceedings' } } });
-    expect(html).toContain('230'); expect(html).toContain('2/11 resources measured'); expect(html).toContain('<small>reports</small>');
-    expect(html).not.toContain('class="v">450</b>');
+  it('shows Hindi identity while pending source counts remain unknown', () => {
+    const html = render({ lang: 'hi' });
+    expect(html).toContain('विधि');
+    expect(html).not.toContain('data-v6-count="0"');
   });
 });

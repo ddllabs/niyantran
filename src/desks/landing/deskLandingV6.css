@@ -66,7 +66,7 @@
 .desk-v6 .segmented button{padding:6px 11px;font-size:9px;border-radius:5px;color:#748397;transition:background .2s}
 .desk-v6 .segmented button[aria-pressed=true]{background:white;color:#344760;box-shadow:0 1px 4px #293d6110}
 .desk-v6 .segmented i{width:4px;height:4px;background:#5f917b;border-radius:50%}
-.desk-v6 .sector-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.desk-v6 .sector-grid{display:grid;grid-template-columns:repeat(var(--sector-columns,5),minmax(0,1fr));gap:14px}
 .desk-v6 .sector-card{text-align:left;display:block;padding:0;min-width:0;width:100%;height:211px;overflow:hidden;border:1px solid #e0e5ed;border-radius:12px;background:white;box-shadow:0 3px 10px #1a335704;transition:transform .35s var(--ease),box-shadow .35s,border-color .3s;animation:v6-rise .7s var(--ease) both;animation-delay:calc(var(--i)*70ms + .15s)}
 .desk-v6 .sector-card:hover{transform:translateY(-5px);box-shadow:0 12px 28px #2b466f15;border-color:#a4b9e8}
 .desk-v6 .sector-card[aria-pressed=true]{border-color:#789aea;box-shadow:0 0 0 2px #4675e50e}
@@ -557,3 +557,8 @@
 .theme-dark .desk-v6[data-desk=global] .hero-photo{background:radial-gradient(ellipse at 71% 45%,#243954 0%,#19283e 28%,#111b2c 64%)}
 .theme-dark .desk-v6[data-desk=global] .hero-photo:after{opacity:1;background:linear-gradient(90deg,#111b2c 20%,#111b2cf2 32%,#111b2c99 42%,#111b2c2b 52%,transparent 62%),linear-gradient(0deg,#111b2c 0%,#111b2ce8 4%,#111b2c99 10%,#111b2c40 17%,transparent 31%)}
 .theme-dark .desk-v6[data-desk=global] .hero-photo img{opacity:.85}
+
+/* Keep Law's reference photo readable behind the dark-theme heading. */
+.theme-dark .desk-v6[data-desk=law] .hero-photo{background:linear-gradient(90deg,#141c2c,#202d40)}
+.theme-dark .desk-v6[data-desk=law] .hero-photo:after{background:linear-gradient(90deg,#141c2c 0%,#141c2cf2 10%,#141c2ca8 32%,transparent 65%),linear-gradient(0deg,#141c2c 0%,transparent 40%);opacity:1}
+.theme-dark .desk-v6[data-desk=law] .hero-photo img{opacity:.72}

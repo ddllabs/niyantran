@@ -14,6 +14,12 @@ describe('v6 desk presentation', () => {
     expect(html).not.toContain('8,000');
     expect(html).toContain('government-scene');
   });
+  it('sizes the desktop grid to the visible sectors, capped at five', () => {
+    const presentation = { ...NATIONAL_PRESENTATION, groups: NATIONAL_PRESENTATION.groups.slice(0, 4) };
+    const html = renderToStaticMarkup(<DeskLandingFrame presentation={presentation} onFeature={() => {}}/>);
+    expect(html).toContain('--sector-columns:4');
+    expect(renderToStaticMarkup(<DeskLandingFrame presentation={NATIONAL_PRESENTATION} onFeature={() => {}}/>)).toContain('--sector-columns:5');
+  });
   it('exposes each exact canonical terminal destination as a hyperlink', () => {
     for (const module of NATIONAL_PRESENTATION.groups.flatMap(group => group.modules)) {
       const html = renderToStaticMarkup(<ModuleDetail module={module} tab="national" onOpen={() => {}} />);
@@ -21,6 +27,12 @@ describe('v6 desk presentation', () => {
       expect(html).toContain(`href="${target}"`);
       expect(parseDeskHash(target.slice(1))).toEqual({ tab: 'national', feature: module.feature });
     }
+  });
+  it('names the shared Supreme Court source without exposing an internal resource key', () => {
+    const module = {tier:'judiciary',feature:'Order Archive by Topic (Cross-Court)',title:'Supreme Court orders by topic'};
+    const html = renderToStaticMarkup(<ModuleDetail tab="law" module={module} summary={{count:220,resourceKey:'judiciary-sc-orders'}} onOpen={()=>{}}/>);
+    expect(html).toContain('shared Supreme Court order register');
+    expect(html).not.toContain('judiciary-sc-orders');
   });
   it('filters by established coverage rather than configuration', () => {
     const presentation = { groups: [{ id: 'a', modules: [{ feature: 'missing', configured: true }] }, { id: 'b', modules: [{ feature: 'stored' }] }] };
