@@ -8,6 +8,8 @@ import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
 import { serveLawLanding } from '../server/lawLandingSummary.mjs';
 import { serveEconomicsLanding } from '../server/economicsLandingSummary.mjs';
 import { serveCarbonLanding } from '../server/carbonLandingSummary.mjs';
+import { serveSportsLanding } from '../server/sportsLandingSummary.mjs';
+import { serveEntertainmentLanding } from '../server/entertainmentLandingSummary.mjs';
 import { serveGlobalLanding } from '../server/globalLandingSummary.mjs';
 import {
   refreshHomeSnapshots,
@@ -96,17 +98,19 @@ export default async function handler(req, res) {
   const method = String(req.method || 'GET').toUpperCase();
 
   try {
-    if (path === '/api/national-landing' || path === '/api/global-landing' || path === '/api/law-landing' || path === '/api/economics-landing' || path === '/api/carbon-landing') {
+    if (path === '/api/national-landing' || path === '/api/global-landing' || path === '/api/law-landing' || path === '/api/economics-landing' || path === '/api/carbon-landing' || path === '/api/sports-landing' || path === '/api/entertainment-landing') {
       const global = path === '/api/global-landing';
       const law = path === '/api/law-landing';
       const economics = path === '/api/economics-landing';
       const carbon = path === '/api/carbon-landing';
+      const sports = path === '/api/sports-landing';
+      const entertainment = path === '/api/entertainment-landing';
       if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
       try {
-        const body = await (carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), serveFeatureFeed);
+        const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), serveFeatureFeed);
         res.status(body.ok ? 200 : 502).json(body);
       } catch (err) {
-        res.status(err.message === `Unknown ${carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });
+        res.status(err.message === `Unknown ${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });
       }
       return;
     }

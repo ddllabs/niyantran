@@ -7,6 +7,8 @@ import { serveNationalLanding } from './nationalLandingSummary.mjs';
 import { serveLawLanding } from './lawLandingSummary.mjs';
 import { serveEconomicsLanding } from './economicsLandingSummary.mjs';
 import { serveCarbonLanding } from './carbonLandingSummary.mjs';
+import { serveSportsLanding } from './sportsLandingSummary.mjs';
+import { serveEntertainmentLanding } from './entertainmentLandingSummary.mjs';
 import { serveGlobalLanding } from './globalLandingSummary.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -3562,11 +3564,13 @@ async function loadLandingFeed(params) {
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/national-landing' || url.pathname === '/api/global-landing' || url.pathname === '/api/law-landing' || url.pathname === '/api/economics-landing' || url.pathname === '/api/carbon-landing') {
+  if (url.pathname === '/api/national-landing' || url.pathname === '/api/global-landing' || url.pathname === '/api/law-landing' || url.pathname === '/api/economics-landing' || url.pathname === '/api/carbon-landing' || url.pathname === '/api/sports-landing' || url.pathname === '/api/entertainment-landing') {
     const global = url.pathname === '/api/global-landing';
     const law = url.pathname === '/api/law-landing';
     const economics = url.pathname === '/api/economics-landing';
     const carbon = url.pathname === '/api/carbon-landing';
+    const sports = url.pathname === '/api/sports-landing';
+    const entertainment = url.pathname === '/api/entertainment-landing';
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     if (req.method !== 'GET') {
@@ -3575,12 +3579,12 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const body = await (carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon) ? serveFeatureFeed : loadLandingFeed);
+      const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeed : loadLandingFeed);
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
-      res.statusCode = err.message === `Unknown ${carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502;
-      res.end(JSON.stringify({ ok: false, error: `${carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` }));
+      res.statusCode = err.message === `Unknown ${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502;
+      res.end(JSON.stringify({ ok: false, error: `${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` }));
     }
     return;
   }
