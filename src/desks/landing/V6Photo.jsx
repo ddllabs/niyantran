@@ -1,6 +1,6 @@
 import { DESK_IMAGES } from './deskImages.js';
 const filename = name => /\.(png|jpe?g|svg|webp)$/.test(name) ? name : `${name}.jpg`;
-const positions = { voters: '50% 8%', 'supreme-front-web': '50% 28%', 'press-cameras': '50% 28%', 'parliament-new': '50% 25%', 'steel-web': '50% 68%' };
+const positions = { voters: '50% 8%', 'supreme-front-web': '50% 28%', 'press-cameras': '50% 28%', 'parliament-new': '50% 25%', 'steel-web': '50% 68%', 'indian-courtroom': '52% 62%' };
 function Photo({ name, className = '', position }) {
   return <img className={className} src={DESK_IMAGES[filename(name)]} alt="" style={{ objectPosition: position || positions[name] || '50% 50%' }} loading="lazy" decoding="async" />;
 }

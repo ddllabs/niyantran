@@ -6,6 +6,10 @@ import { NATIONAL_PRESENTATION } from './deskPresentation.js';
 
 const bill = NATIONAL_PRESENTATION.groups[0].modules[0];
 describe('v6 desk presentation', () => {
+  it('exposes a polite atomic sector-selection announcement', () => {
+    const html = renderToStaticMarkup(<DeskLandingFrame presentation={NATIONAL_PRESENTATION} onFeature={() => {}} />);
+    expect(html).toContain('aria-live="polite" aria-atomic="true"');
+  });
   it('shows canonical module discovery without inventing a record snapshot', () => {
     const html = renderToStaticMarkup(<DeskLandingFrame presentation={NATIONAL_PRESENTATION} summaries={{}} onFeature={() => {}} />);
     expect(html).toContain('Loading summary');
