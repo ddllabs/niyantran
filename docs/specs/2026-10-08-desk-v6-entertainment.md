@@ -30,4 +30,4 @@ Browser execution:all eight popup titles and distinct canonical hrefs inspected 
 
 Signed-in eight-workspace first-click/Back acceptance remains unverified because account access gates are unchanged (F90 separate). Native200%zoom,touch,OSreduced-motion,hidden-tab lifecycle and browser-induced provider retry unverified; timeout/abort/error fixtures passed. Owner preview review pending. Preview:http://127.0.0.1:5174/tmp/desk-v6-preview.html?desk=entertainment. No push/deploy/main merge.
 
-Source-summary checkpoint committed locally as 7f0f9c4; presentation checkpoint follows on task/desk-v6-integration.
+Source-summary checkpoint committed locally as 7f0f9c4; presentation checkpoint18f66bb on task/desk-v6-integration.
