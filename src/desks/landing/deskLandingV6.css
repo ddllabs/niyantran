@@ -552,3 +552,8 @@
 .theme-dark .desk-v6 .module-copy b,.theme-dark .desk-v6 .detail-inner h2,.theme-dark .desk-v6 .detail-inner h3,.theme-dark .desk-v6 .detail-count b,.theme-dark .desk-v6 .breakdown-row b{color:var(--ink)}
 .theme-dark .desk-v6 .segmented button[aria-pressed=true]{background:#364866;color:white}
 @media(max-width:560px){.desk-v6 .status{font-size:7px}.desk-v6 .card-bottom{flex-wrap:wrap}}
+
+/* Global's masked globe needs a dark canvas behind the dark-theme text. */
+.theme-dark .desk-v6[data-desk=global] .hero-photo{background:radial-gradient(ellipse at 71% 45%,#243954 0%,#19283e 28%,#111b2c 64%)}
+.theme-dark .desk-v6[data-desk=global] .hero-photo:after{opacity:1;background:linear-gradient(90deg,#111b2c 20%,#111b2cf2 32%,#111b2c99 42%,#111b2c2b 52%,transparent 62%),linear-gradient(0deg,#111b2c 0%,#111b2ce8 4%,#111b2c99 10%,#111b2c40 17%,transparent 31%)}
+.theme-dark .desk-v6[data-desk=global] .hero-photo img{opacity:.85}

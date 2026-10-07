@@ -3,6 +3,19 @@ import { loadGlobalSummaries } from './useGlobalLanding.js';
 import { GLOBAL_FEATURES } from '../lib/globalLandingSummary.js';
 
 describe('progressive Global summaries', () => {
+  it('retains validated failed-source coverage and rejects false counts or mismatched identities', async () => {
+    const feature = 'Satellite Infrastructure';
+    const body = { ok: false, version: 1, feature, resourceKey: feature, count: null, availability: 'error', limitations: 'Upcoming launch source unavailable', sources: [{ name: 'Provider', url: 'https://example.org/' }] };
+    const run = async payload => {
+      const shown = [];
+      await loadGlobalSummaries({ features: [feature], onSummary: value => shown.push(value), fetcher: async () => ({ ok: false, json: async () => payload }) });
+      return shown[0];
+    };
+    expect(await run(body)).toMatchObject(body);
+    expect((await run({ ...body, ok: true, count: 12, availability: 'ready' })).limitations).toBeUndefined();
+    expect((await run({ ...body, feature: 'Infra' })).limitations).toBeUndefined();
+    expect((await run({ ...body, count: 12 })).limitations).toBeUndefined();
+  });
   it('bounds requests and allows unavailable illustrative coverage without inventing zero', async () => {
     let active = 0, peak = 0; const shown = [];
     await loadGlobalSummaries({ features: GLOBAL_FEATURES, onSummary: value => shown.push(value), fetcher: async url => {

@@ -67,8 +67,10 @@ describe('Desk Landing Architecture & Views', () => {
     );
 
     expect(html).toContain('Global Intelligence');
-    expect(html).toContain('Where the desk looks');
+    expect(html).toContain('desk-v6');
+    expect(html).toContain('The world, through five lenses.');
+    expect(html).toContain('16 modules');
     expect(html).toContain('Open Fronts');
-    expect(html).toContain('Sanctions');
+    expect(html).toContain('Geopolitics News Wire');
   });
 });

@@ -7,7 +7,7 @@ const LIMITS = [
   'Stored defence procurement programmes; not comprehensive defence intelligence.',
   'Stored alliance dossiers; membership exceptions and source dates vary.',
   'Stored sanctions programmes, not a current entity-designation list. Live lists are separate workspace overlays.',
-  'Stored aid appeal dossiers; live funding flows are separate workspace overlays.',
+  'Stored aid appeal dossiers; appeal periods and data-through dates differ by row, so no single source date is implied. Live funding flows are separate workspace overlays.',
   'Stored infrastructure projects; live project retrieval is a separate workspace overlay.',
   'Stored facility records with source-supplied coordinate precision; not a live reactor or arsenal count.',
   'Upcoming launches from The Space Devs; not a complete satellite or constellation inventory.',
@@ -38,7 +38,15 @@ export function projectGlobalSummary(raw, retrievedAt = new Date().toISOString()
   const years = [...new Set(rows.map(row => Number(row.year)).filter(year => Number.isInteger(year) && year >= 1900 && year <= 2200))].sort();
   const period = years.length ? years.length === 1 ? String(years[0]) : `${years[0]}–${years.at(-1)}` : null;
   const populated = key => rows.some(row => present(row[key]));
-  const fields = feature === 'Satellite Infrastructure' ? [{ key: 'title', label: 'Launch' }, { key: 'provider', label: 'Provider' }, { key: 'country', label: 'Country' }, { key: 'pad', label: 'Launchpad' }, { key: 'status', label: 'Status' }, { key: 'net', label: 'Scheduled launch' }] : feedColumns(feature, rows);
+  const specificFields = {
+    Energy: [{ key: 'name', label: 'Mineral' }, { key: 'use', label: 'Use' }, { key: 'topProducers', label: 'Top producers' }, { key: 'chinaShare', label: 'China share' }, { key: 'status', label: 'Supply status' }, { key: 'intensity', label: 'Relative supply risk' }, { key: 'latest', label: 'Latest context' }, { key: 'note', label: 'Source note' }],
+    'Global Aid': [{ key: 'title', label: 'Appeal' }, { key: 'agency', label: 'Agency' }, { key: 'region', label: 'Region' }, { key: 'requirement', label: 'Requirement' }, { key: 'funded', label: 'Funded' }, { key: 'people_target', label: 'People targeted' }, { key: 'people_need', label: 'People in need' }, { key: 'period', label: 'Appeal period' }, { key: 'dataThrough', label: 'Data through' }, { key: 'appeal_status', label: 'Appeal status' }],
+  };
+  let fields = specificFields[feature] || (feature === 'Satellite Infrastructure' ? [{ key: 'title', label: 'Launch' }, { key: 'provider', label: 'Provider' }, { key: 'country', label: 'Country' }, { key: 'pad', label: 'Launchpad' }, { key: 'status', label: 'Status' }, { key: 'net', label: 'Scheduled launch' }] : feedColumns(feature, rows));
+  if (feature === 'Infra') fields = [...fields, { key: 'expected', label: 'Expected completion' }, { key: 'detail', label: 'Project context' }];
+  if (feature === 'Nuclear Watch') fields = fields.map(field => field.key === 'latest' ? { ...field, label: 'Notes' } : field);
+  if (feature === 'Maritime Choke-Points') fields = [...fields, { key: 'width', label: 'Width' }, { key: 'operators', label: 'Operators' }, { key: 'risk', label: 'Risk context' }, { key: 'note', label: 'Notes' }];
+  fields = [...new Map(fields.map(field => [field.key, field])).values()];
   const columns = available ? fields.filter(c => populated(c.key) || (c.fallback && populated(c.fallback))).slice(0, 16).map(({ key, label }) => ({ key, label })) : [];
   const locations = ['Nuclear Watch', 'Maritime Choke-Points'].includes(feature) && available ? rows.flatMap(row => {
     if (!present(row.lat) || !present(row.lon)) return [];
