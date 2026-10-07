@@ -148,7 +148,7 @@ export default function TerminalShell({ onLogout }) {
   const onLoading = useCallback((v) => setLoading(Boolean(v)), []);
   const onClearViz = useCallback(() => setVizFilter(null), []);
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
-  const v6Landing = guideMode && ['national', 'global', 'law', 'economics'].includes(tab);
+  const v6Landing = guideMode && ['national', 'global', 'law', 'economics', 'carbon'].includes(tab);
   const deskBuckets = useMemo(
     () => (tab === 'home' ? [] : bucketsFor(modulesForTier(active.tier), active.tier)),
     [tab, active.tier],

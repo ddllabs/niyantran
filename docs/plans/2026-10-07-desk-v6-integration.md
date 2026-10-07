@@ -131,3 +131,7 @@ Not yet executed: signed-in shell Open in Terminal/Back, account locks and comma
 ## Law execution checkpoint — 2026-10-08
 
 T8 implemented locally after owner Global visual acceptance; exact evidence is in [Law spec](../specs/2026-10-08-desk-v6-law.md). Four sectors/12popups use real summaries and canonical Law routes. Shared Supreme Court220 entries deduplicate; nine reporting modules disclose their coverage. Source audit found no popup-schema defect. Reference desktop grid count and dark Law hero contrast repaired. Full2195Vitest/lint/build passed; independent final review clear. Owner Law visual review, signed-in handoff and native-device acceptance remain pending; no Global/Law push or main merge. Next page slice is Economics/Carbon after Law review; State/Local deferred.
+
+## Carbon local checkpoint —2026-10-08
+
+Owner instructed continuation after Economics destination audit. [Carbon spec/evidence](../specs/2026-10-08-desk-v6-carbon.md) and [slice plan](2026-10-08-desk-v6-carbon.md):four exact-photo sectors/seven canonical popups,source-specific counts/periods/fields,mixed registry disclosure,measured jurisdiction count chart. Full2,259Vitest/862Deno,lint/build/router/assets pass; independent review clear. All seven preview hrefs distinct/correct; current Carbon account lock means signed-in terminal execution remains unverified. Native-device checks and owner review pending. No publication; Sports follows Carbon review.
