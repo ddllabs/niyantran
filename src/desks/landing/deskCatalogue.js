@@ -35,5 +35,8 @@ const searchable = DESK_CATALOGUE.map(entry => [entry, [entry.desk, entry.group,
 /** Catalogue discovery does not fetch records or imply live provider coverage. */
 export function searchDeskCatalogue(query) {
   const terms = String(query ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-  return searchable.filter(([, text]) => terms.every(term => text.includes(term))).map(([entry]) => entry);
+  const score = entry => entry.aliases.some(alias => alias.toLowerCase() === terms.join(' ')) ? 0
+    : entry.aliases.some(alias => terms.every(term => alias.toLowerCase().includes(term))) ? 1 : 2;
+  return searchable.filter(([, text]) => terms.every(term => text.includes(term))).map(([entry]) => entry)
+    .sort((a, b) => score(a) - score(b));
 }

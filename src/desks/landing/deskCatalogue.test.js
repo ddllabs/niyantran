@@ -57,6 +57,10 @@ describe('desk discovery catalogue identity', () => {
     expect(searchDeskCatalogue('  ')).toEqual(DESK_CATALOGUE);
     expect(searchDeskCatalogue(null)).toEqual(DESK_CATALOGUE);
   });
+  it('ranks a named module above contextual mentions in a shared group description', () => {
+    expect(searchDeskCatalogue('icj')[0].feature).toBe('ICJ Proceedings');
+    expect(searchDeskCatalogue('Cabinet Decisions')[0].feature).toBe('Cabinet Decisions');
+  });
   it('retains only explicitly configured column presets without presenting fake populated fields', () => {
     expect(DESK_CATALOGUE.find(entry => entry.feature === 'Global Intelligence').fields).toContain('VENDOR / ORIGIN');
     expect(DESK_CATALOGUE.find(entry => entry.feature === 'Election Forecast Aggregator').fields).toEqual([]);

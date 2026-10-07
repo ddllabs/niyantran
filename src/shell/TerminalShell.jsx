@@ -40,7 +40,7 @@ import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
-import CommandSearch from './CommandSearch.jsx';
+import DeskCatalogueSearch from './DeskCatalogueSearch.jsx';
 import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
 import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
 import { isEditableCopy } from './copyPolicy.js';
@@ -378,7 +378,7 @@ export default function TerminalShell({ onLogout }) {
           <span>TERMINAL</span>
         </div>
         {v6Landing && <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
-        <CommandSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={searchTabs}
+        <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
           onOpen={hit => {
             onOpen({ tab: hit.tab, feature: hit.feature });
