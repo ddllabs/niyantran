@@ -10,6 +10,8 @@ import NationalLandingView from './NationalLandingView.jsx';
 import GlobalLandingView from './GlobalLandingView.jsx';
 import LawLandingView from './LawLandingView.jsx';
 import CarbonLandingView from './CarbonLandingView.jsx';
+import SportsLandingView from './SportsLandingView.jsx';
+import EntertainmentLandingView from './EntertainmentLandingView.jsx';
 import EconomicsLandingView from './EconomicsLandingView.jsx';
 
 /**
@@ -41,6 +43,8 @@ export default function DeskLandingView(props) {
   if (props.tab === 'national') return <NationalLandingView {...props} />;
   if (props.tab === 'global') return <GlobalLandingView {...props} />;
   if (props.tab === 'law') return <LawLandingView {...props} />;
+  if (props.tab === 'sports') return <SportsLandingView {...props} />;
+  if (props.tab === 'entertainment') return <EntertainmentLandingView {...props} />;
   if (props.tab === 'carbon') return <CarbonLandingView {...props} />;
   if (props.tab === 'economics') return <EconomicsLandingView {...props} />;
   return <StandardDeskLandingView {...props} />;

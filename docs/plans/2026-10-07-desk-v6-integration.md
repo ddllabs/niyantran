@@ -135,3 +135,7 @@ T8 implemented locally after owner Global visual acceptance; exact evidence is i
 ## Carbon local checkpoint —2026-10-08
 
 Owner instructed continuation after Economics destination audit. [Carbon spec/evidence](../specs/2026-10-08-desk-v6-carbon.md) and [slice plan](2026-10-08-desk-v6-carbon.md):four exact-photo sectors/seven canonical popups,source-specific counts/periods/fields,mixed registry disclosure,measured jurisdiction count chart. Full2,259Vitest/862Deno,lint/build/router/assets pass; independent review clear. All seven preview hrefs distinct/correct; current Carbon account lock means signed-in terminal execution remains unverified. Native-device checks and owner review pending. No publication; Sports follows Carbon review.
+
+## Sports/Entertainment local checkpoint —2026-10-08
+
+T12 implemented locally: four exact-reference photo groups/eight canonical modules per page. Sports7measured counts plus unavailable governance; Entertainment8measured counts with US music labeling and identity/follower/gross limits. Both charts count rows only; all16popuphrefs distinct/correct. Independent69focused tests/review clear; full2,317Vitest/862Deno,lint/build/router/assets pass. Detailed source/browser evidence and signed-in/native/owner-review limits in 2026-10-08-desk-v6-sports and -entertainment specs. State/Local deferred,F90 access handoff remains open; integrated acceptance/release not complete. No push/deploy/main merge.
