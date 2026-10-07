@@ -1,0 +1,11 @@
+.workspace.restricted-workspace { display: block; }
+.restricted-desk-route { max-width: 680px; margin: 60px auto; padding: 32px; color: var(--fg); }
+.restricted-desk-route > svg { color: var(--accent); }
+.restricted-desk-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.restricted-desk-route h1 { font-size: clamp(26px, 4vw, 36px); margin: 12px 0; }
+.restricted-desk-route h2 { font-size: 18px; overflow-wrap: anywhere; }
+.restricted-desk-route > p { line-height: 1.6; }
+.restricted-desk-route > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.restricted-desk-route button { padding: 10px 15px; border: 1px solid var(--line); background: var(--panel); color: inherit; border-radius: 8px; cursor: pointer; }
+.restricted-desk-route button:last-child { background: var(--accent); color: white; }
+@media (max-width: 560px) { .restricted-desk-route { margin: 20px auto; padding: 20px; } }

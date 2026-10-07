@@ -41,6 +41,8 @@ import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
 import CommandSearch from './CommandSearch.jsx';
+import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
+import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
 import { isEditableCopy } from './copyPolicy.js';
 
 export default function TerminalShell({ onLogout }) {
@@ -74,6 +76,7 @@ export default function TerminalShell({ onLogout }) {
 
   const active = deskTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
   const hi = lang === 'hi';
+  const restricted = !canAccessDesk(user, tab);
 
   const openUpgrade = useCallback((reason = 'desk', deskLabel = '') => {
     setUpgrade({ reason, deskLabel });
@@ -265,9 +268,6 @@ export default function TerminalShell({ onLogout }) {
     let r = parseDeskHash();
     if (land && canAccessDesk(user, land) && emptyHash) {
       r = resolveDeskRoute(land, intendedFeat || '');
-    } else if (!canAccessDesk(user, r.tab)) {
-      const fallback = userTypeOf(typeId).startTab || 'home';
-      r = resolveDeskRoute(canAccessDesk(user, fallback) ? fallback : 'home', '');
     }
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -278,12 +278,9 @@ export default function TerminalShell({ onLogout }) {
 
   useEffect(() => {
     function onPop() {
-      let r = parseDeskHash();
+      const r = parseDeskHash();
       if (!canAccessDesk(sessionUser(), r.tab)) {
         openUpgrade('desk', TABS.find((t) => t.id === r.tab)?.label || r.tab);
-        const fallback = userTypeOf(typeId).startTab || 'home';
-        r = resolveDeskRoute(canAccessDesk(sessionUser(), fallback) ? fallback : 'home', '');
-        writeDeskHash(r.tab, r.feature, { replace: true });
       } else if (isTrial(sessionUser()) && r.tab !== 'home') {
         openUpgrade('trial');
       }
@@ -307,42 +304,41 @@ export default function TerminalShell({ onLogout }) {
   function onDesk(id) {
     if (!canAccessDesk(sessionUser(), id)) {
       openUpgrade('desk', TABS.find((t) => t.id === id)?.label || id);
-      return;
     }
     if (isTrial(sessionUser()) && id !== 'home') openUpgrade('trial');
     const r = resolveDeskRoute(id, '');
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    writeDeskHash(r.tab, r.feature);
+    rememberDeskNavigation(() => writeDeskHash(r.tab, r.feature));
   }
 
   function onFeature(name) {
-    if (isTrial(sessionUser())) openUpgrade('trial');
+    if (!canAccessDesk(sessionUser(), tab)) openUpgrade('desk', active.label);
+    else if (isTrial(sessionUser())) openUpgrade('trial');
     const r = resolveDeskRoute(tab, name);
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    writeDeskHash(r.tab, r.feature);
+    rememberDeskNavigation(() => writeDeskHash(r.tab, r.feature));
   }
 
   function onOpen({ tab: nextTab, feature }) {
     if (!canAccessDesk(sessionUser(), nextTab)) {
       openUpgrade('desk', TABS.find((t) => t.id === nextTab)?.label || nextTab);
-      return;
     }
     if (isTrial(sessionUser()) && nextTab !== 'home') openUpgrade('trial');
     const r = resolveDeskRoute(nextTab, feature);
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    writeDeskHash(r.tab, r.feature);
+    rememberDeskNavigation(() => writeDeskHash(r.tab, r.feature));
   }
 
   const billRecordOpen = (isImpactRecordFeature(featureName) || isGithubCsvRow(selected)) && selected;
   // Desks whose side panel has Desk and Record tabs; the others show it only for AI research.
   const hasRail =
-    tab !== 'home' &&
+    !restricted && tab !== 'home' &&
     !guideMode &&
     !isConflictsFeature(featureName) &&
     !isChokepointsFeature(featureName) &&
@@ -350,6 +346,9 @@ export default function TerminalShell({ onLogout }) {
     !isGeoResourceDossier(featureName) &&
     !isNationalFullscreen(featureName);
   const panel = useSidePanel({ hasRail, selected, featureName });
+  useEffect(() => {
+    if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
+  }, [restricted]);
   const trialLeft = trialDaysLeft(user);
   const planLabel = planMeta?.name || String(ent.plan || 'explorer').toUpperCase();
   const statusLabel =
@@ -412,11 +411,7 @@ export default function TerminalShell({ onLogout }) {
             <LiveTvModal
               open={liveTvOpen}
               onClose={() => setLiveTvOpen(false)}
-              onNavigateDesk={(deskTab, feature) => {
-                setTab(deskTab);
-                if (feature) setFeatureName(feature);
-                writeDeskHash(deskTab, feature || '', { replace: true });
-              }}
+              onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
             />
           </div>
           <button
@@ -530,9 +525,13 @@ export default function TerminalShell({ onLogout }) {
         tabs={deskTabs}
         lockedIds={lockedIds}
       />}
-      <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
+      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
         <main className="main-col">
-          {tab === 'home' ? (
+          {restricted ? (
+            <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
+              onAccess={() => openUpgrade('desk', active.label)}
+              onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
+          ) : tab === 'home' ? (
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
           ) : guideMode ? (
             <DeskLandingView
@@ -557,7 +556,7 @@ export default function TerminalShell({ onLogout }) {
             />
           )}
         </main>
-        <SidePanel
+        {!restricted && <SidePanel
           panel={panel}
           hasRail={hasRail}
           feed={feed}
@@ -568,9 +567,9 @@ export default function TerminalShell({ onLogout }) {
           vizFilter={vizFilter}
           tab={tab}
           featureName={featureName}
-        />
+        />}
       </div>
-      {tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />}
+      {!restricted && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}
