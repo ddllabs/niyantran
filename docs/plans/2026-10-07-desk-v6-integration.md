@@ -103,4 +103,25 @@ National is the approval checkpoint for shared UI before page fan-out. Each late
 3. Catalogue completeness is not source expansion. Planned/map-only modules can appear with honest unavailable coverage; new working sources require later explicit scope.
 4. Actual production data is currently mixed database/API/embedded/curated/feed provenance. The implementation cannot claim everything is database-backed. Prefer established canonical feeds and disclose fallback identity; stop if a requested database-only metric has no verified path.
 5. Reference stage values are inaccurate relative to local bill data; “General” is unclassified. Law reports are not judicial outcomes; source relevance work remains F84. These are fixed truthfulness constraints, not reasons to substitute the design.
-6. No product code, assets, deployment or database changes made in this planning phase. Old work/verification records are retained. Reference cleanup occurs only after integrated replacement acceptance and explicit exact-target cleanup authorization.
+6. The initial planning audit made no product code, asset, deployment or database changes. The local foundation/National implementation below follows that audit. Old work/verification records are retained. Reference cleanup occurs only after integrated replacement acceptance and explicit exact-target cleanup authorization.
+
+## Foundation/National execution evidence — 2026-10-07
+
+Local branch `task/desk-v6-integration`; main/origin main remain at `3e85c8f`. No push, deployment, database changes or source refresh. Integrated commits: `3fd891e` plan, `9033e9c` spec, `46491e7` exact assets/presentation, `9f77ba4` legacy controls extraction, `5999c99` National coverage projection, `89abfa8` unavailable metadata fix, `fc6e3e4` shared UI and National shell/page integration.
+
+Three isolated workers supplied asset, frame and data scopes. Supervisor inspected/integrated their uncommitted diffs and owned shell/adapter changes. Independent source review found missing Global/Law directory thumbnail keys and unavailable summaries dropping coverage metadata; both were fixed. The latter regression test failed before the loader fix and passed afterwards. Mutating shared resource identity failed the dedup guard; treating configuration as source coverage failed the frame guard; asset byte mutation failed hash verification. These guards were restored after execution.
+
+Executed checks:
+
+- `npm test` — final serial run:152 files,2182 tests passed in44.19s. Earlier UI run exposed stale legacy National dispatcher assertions, updated for approved v6. A subsequent overlapping run timed out in an unrelated `nterNewsRail` setup hook; the final serial run passed without changing that test or its timeout.
+- `deno test -A --config supabase/functions/deno.json supabase/functions` —862 passed,0 failed after the data slice. No Edge Function code changed subsequently.
+- `npm run lint` — passed with no warnings. `npm run build` — passed; existing static/dynamic `deskBrief` import and chunks over500kB warnings remain.
+- `node -e "import('./api/router.js').then(() => console.log('router import ok'))"` — passed after National data/API allowlist checks.
+- `node scripts/verify-desk-v6-assets.mjs` —41 byte-identical assets,40 named images, credits and9 visual configurations verified against reference commit `50e3004fb53a1abc670b06fe8333f214e0e85eb0`.
+- `git diff --check` — passed. No standalone type-check exists.
+
+Local public summary execution returned9,819 bills and stage counts summing to9,819. The National screen showed19,531 combined known records with shared bills counted once,8,000 sampled questions,782 supplied MP profiles,17 mapped modules. Counts are from application prepared sources, not reference snapshots; they are not asserted to be a live whole-database inventory. Existing curated navigation75-entry catalogue remains unchanged, while National presentation/summary handling covers all17 canonical modules.
+
+Browser execution used actual components and local summary endpoints in ignored `tmp/desk-v6-preview.html` because the local app shell was logged out. No account/session bypass was used. Desktop hero242px/card201px/image107px;1700px hero295px;768px stacked hero524px;375px hero453px;360px hero489px. No horizontal page overflow at those measured widths. Image crops/composites, Electoral selection, sampled-question coverage dialog, Escape/focus return, real bill-sector/stage data dialog, dark readability and Hindi desk labels were checked. Mobile directory width343px in375px viewport; all8 desk thumbnails loaded. Pause toggled to Resume with pressed state. Screenshot: `/private/tmp/niyantran-national-v6-desktop.jpg` (transient evidence, not a tracked asset).
+
+Not yet executed: signed-in shell Open in Terminal/Back, account locks and command-search/STT regression through the real shell; native200% zoom, touch and OS reduced-motion/hidden-tab lifecycle. Hover timing/zoom are source-inspected, not pointer-executed. Full Hindi copy has no supplied reference and is not claimed. National remains the owner comparison checkpoint; this evidence does not accept Global/Law or the overall F88 goal.

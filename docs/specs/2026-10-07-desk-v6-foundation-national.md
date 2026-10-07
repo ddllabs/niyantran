@@ -29,6 +29,8 @@ Dialogs support keyboard, Escape, outside click, focus return and viewport scrol
 ## Write scopes and agent rules
 Asset agent owns only new `public/images/desks-v6/**`, `src/desks/landing/deskImages.js`, `scripts/verify-desk-v6-assets.mjs` and its explicit manifest. Data agent owns only `src/lib/nationalLandingSummary.js`, its test, `server/nationalLandingSummary.mjs`, `src/lib/nationalLandingApi.test.js` and `src/desks/useNationalLanding.test.js` (hook code remains supervisor-owned until separate dispatch). Supervisor owns docs, presentation mapping, shared components/CSS/motion, shell integration and legacy extraction. After those land, National page adapter gets its own dispatch. No commits, pushes or further delegation by task agents.
 
+Supervisor integration additionally covers `src/desks/useNationalLanding.js` and its regression test to preserve valid unavailable-summary coverage metadata, `src/lib/deskLanding.test.jsx` to update the dispatcher assertions for the approved National layout, and the National adapter/tests. These do not authorize other src/lib behavior changes or additional endpoint/provider work.
+
 ## Commands and verification
 Baseline/focused: `npm test -- src/desks/NationalLandingView.test.jsx src/desks/useNationalLanding.test.js src/lib/nationalLandingSummary.test.js src/lib/nationalLandingApi.test.js`. Per slice: applicable focused tests, `npm run lint`, `npm run build`, `git diff --check`. Final National: `npm test`; `deno test -A --config supabase/functions/deno.json supabase/functions`; `node -e "import('./api/router.js').then(() => console.log('router import ok'))"`; asset hash verification script. No standalone type-check.
 
