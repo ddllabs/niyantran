@@ -19,7 +19,7 @@
 
 ## UI follow-ups
 
-- [ ] **F88. Desk reference v6 application integration.** Owner requested planning and supervised page-by-page delivery with authentic reference imagery/interactions and real data. [Proposed capability map and plan](2026-10-07-desk-v6-integration.md) saved on local `task/desk-v6-integration` from synchronized main. Read-only source/browser inventory complete; 145 reference modules map to existing feature entries, versus75 curated navigation entries. Shared foundation and National precede parallel page scopes. Pending map review and Local-versus-State navigation decision; no product implementation or publication yet. Detailed tasks T0–T14 and gates are in the plan; their progress is tracked here.
+- [ ] **F88. Desk reference v6 application integration.** Owner approved local continuation on 2026-10-07; State/Local deferred until client clarification. [Plan](2026-10-07-desk-v6-integration.md); [foundation/National spec](../specs/2026-10-07-desk-v6-foundation-national.md). Integration branch `task/desk-v6-integration` from synchronized main. Read-only inventory complete:145 reference modules map to existing feature entries versus75 curated navigation entries. T0 specified; T1–T6 foundation/National starting, then Global/Law and other non-geography pages. No publication authorized. Detailed tasks T0–T14/gates are in the plan; progress tracked here.
 
 
 

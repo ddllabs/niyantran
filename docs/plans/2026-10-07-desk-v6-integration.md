@@ -1,6 +1,6 @@
 # Desk v6 integration: proposed capability map and delivery plan
 
-> **Status: Living.** 2026-10-07. Planning is authorized; capability boundaries and implementation checkpoints are proposed for owner review. No application implementation or publication has begun.
+> **Status: Living.** 2026-10-07. Owner approved continuation and the page sequence. State/Local are deferred until client clarification; the other pages proceed locally. Publication remains separately authorized.
 
 Tracker: F88 in [open work](open-work.md). Repository workflow: [coordination](../agents/coordination.md). Supervisor planning branch: `task/desk-v6-integration`, based on synchronized `main` at `3e85c8f`.
 
@@ -42,7 +42,7 @@ The previous claim of 81 curated navigation entries was corrected by executed ca
 | entertainment | Feed-aware catalogue and chart identity | desk-foundation; extra-desk summary contract |
 | desk-release | Cross-page verification, final review, authorized publication and cleanup | all accepted page slices |
 
-Build order: foundation with a small National path → complete National and owner comparison → Global/Law → State/Local → Economics/Carbon → Sports/Entertainment → release. Each capability receives a scoped spec and exact task dispatch after the map is reviewed. This is not an implementation-ready monolithic spec.
+Build order: foundation with a small National path → complete National and owner comparison → Global/Law → Economics/Carbon → Sports/Entertainment → State/Local after client clarification → release. Foundation/National spec: [approved local scope](../specs/2026-10-07-desk-v6-foundation-national.md). Each remaining capability receives a scoped spec and exact dispatch before implementation.
 
 ## Fixed interfaces before page delegation
 
@@ -98,7 +98,7 @@ National is the approval checkpoint for shared UI before page fan-out. Each late
 
 ## Decisions and limits
 
-1. Pending owner response: restore separate Local desk versus preserve State folding. Any restored Local must retain existing access policy rather than granting a new pack silently.
+1. Owner deferred State/Local until client clarification on 2026-10-07. Current State folding/access remains unchanged meanwhile. This does not block the other pages.
 2. Proposed terminal handoff: navigate within the app using existing callbacks. New-tab production handoff is a static-reference artifact.
 3. Catalogue completeness is not source expansion. Planned/map-only modules can appear with honest unavailable coverage; new working sources require later explicit scope.
 4. Actual production data is currently mixed database/API/embedded/curated/feed provenance. The implementation cannot claim everything is database-backed. Prefer established canonical feeds and disclose fallback identity; stop if a requested database-only metric has no verified path.
