@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { projectNationalSummary, aggregateNationalSummaries, NATIONAL_FEATURES } from './nationalLandingSummary.js';
 import featureMap from '../data/html-feature-map.json';
+import { allocateSeats } from './nationalKpi.js';
+import { UNION_PROMISES, FLAGSHIP_PROGRAMMES } from '../data/nationalCurated.js';
 import { prepareDeskFeed } from './prepareDeskFeed.js';
 const bill = NATIONAL_FEATURES[0];
 const feed = (feature, rows, extra = {}) => ({ ok: true, tier: 'national', feature, rows, source: { adapter: 'embedded', links: [] }, ...extra });
@@ -53,7 +55,7 @@ describe('National v6 data coverage', () => {
     expect(projectNationalSummary(feed(bill, [], { ok: false })).stages).toEqual([]);
     expect(projectNationalSummary(feed(NATIONAL_FEATURES[2], [{ current_stage: 'Pending' }])).stages).toEqual([]);
   });
-  it.each(added.slice(1))('labels reporting coverage truthfully for %s', feature => {
+  it.each(added.slice(3))('labels reporting coverage truthfully for %s', feature => {
     const s = projectNationalSummary(feed(feature, [{ title: 'Actual report', date: '2026-10-01', source_url: 'https://example.org/report' }], { source: { adapter: 'news-search', links: ['https://example.org/report'] } }));
     expect(s.count).toBe(1);
     expect(s.sourceMode).toBe('feed-backed');
@@ -62,6 +64,25 @@ describe('National v6 data coverage', () => {
     expect(s.limitations).toMatch(/reporting|news/i);
     expect(s.limitations).toMatch(/not/i);
     expect(s).not.toHaveProperty('rows');
+  });
+  it('describes the actual illustrative simulator and curated promises destinations', () => {
+    const simulator = projectNationalSummary(feed(added[1], allocateSeats(753), { kind: 'simulator', source: { adapter:'internal', links:['https://news.google.com/rss/search?q=delimitation'] } }));
+    expect(simulator.count).toBe(allocateSeats(753).length);
+    expect(simulator.sourceMode).toBe('simulated');
+    expect(simulator.unit).toBe('projection outputs');
+    expect(simulator.sources).toEqual([]);
+    expect(simulator.limitations).toMatch(/illustrative/i);
+    expect(simulator.limitations).not.toMatch(/not a working/i);
+    const manifesto = projectNationalSummary(feed(added[2], UNION_PROMISES.map(([promise, domain, verifiable_status])=>({title:promise,promise,domain,verifiable_status,cycle:'2024'}))));
+    expect(manifesto.count).toBe(UNION_PROMISES.length);
+    expect(manifesto.sourceMode).toBe('curated');
+    expect(manifesto.unit).toBe('promises');
+    expect(manifesto.limitations).toMatch(/curated.*2024/i);
+    expect(manifesto.limitations).not.toMatch(/news reports/i);
+  });
+  it('exposes the populated programme fields shown by the projects workspace', () => {
+    const rows = FLAGSHIP_PROGRAMMES.map(([programme, domain, verifiable_status, activity])=>({programme,domain,verifiable_status,activity,title:programme}));
+    expect(projectNationalSummary(feed(NATIONAL_FEATURES[9],rows)).columns.map(c=>c.key)).toEqual(['programme','domain','verifiable_status','activity']);
   });
   it('distinguishes planned/discovery-only empty envelopes from genuine successful zero results', () => {
     const planned = projectNationalSummary(feed(added[3], [], { source: { adapter: 'planned', links: [] } }));

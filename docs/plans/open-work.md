@@ -14,12 +14,13 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F89 is next) and goes in the
+- A new finding gets the next free `F` number (F90 is next) and goes in the
   right section.
 
 ## UI follow-ups
 
-- [ ] **F88. Desk reference v6 application integration.** Owner approved local continuation on 2026-10-07; State/Local deferred until client clarification. [Plan](2026-10-07-desk-v6-integration.md); [foundation/National spec](../specs/2026-10-07-desk-v6-foundation-national.md). Integration branch `task/desk-v6-integration` from synchronized main. Inventory complete:145 reference modules map to existing feature entries versus75 curated navigation entries. T0 specified; T1 National presentation mapping, T2 exact assets, T3 shared frame, T4 National-only shell integration and T5/T6 National data/page implemented locally. Curated navigation catalogue remains unchanged; full mapping expansion is a later scoped task. National owner comparison is next, with signed-in shell handoff, native zoom/touch/reduced-motion checks still pending. Full Vitest2182 and Deno862 tests passed; detailed execution evidence is in the plan. T7/T8 Global/Law follow the National checkpoint, then the other non-geography pages. No publication authorized. Detailed tasks T0–T14/gates are in the plan; progress tracked here.
+- [ ] **F88. Desk reference v6 application integration.** Owner approved local continuation on 2026-10-07; State/Local deferred until client clarification. [Plan](2026-10-07-desk-v6-integration.md); [foundation/National spec](../specs/2026-10-07-desk-v6-foundation-national.md). Integration branch `task/desk-v6-integration` from synchronized main. Inventory complete:145 reference modules map to existing feature entries versus75 curated navigation entries. T0 specified; T1 National presentation mapping, T2 exact assets, T3 shared frame, T4 National-only shell integration and T5/T6 National data/page implemented locally. Curated navigation catalogue remains unchanged; full mapping expansion is a later scoped task. National owner comparison is next, with signed-in shell handoff, native zoom/touch/reduced-motion checks still pending. Full Vitest2182 and Deno862 tests passed; detailed execution evidence is in the plan. T7/T8 Global/Law follow the National checkpoint, then the other non-geography pages. No publication authorized. Detailed tasks T0–T14/gates are in the plan; progress tracked here. National [popup/destination audit](../specs/2026-10-07-national-v6-link-audit.md):17 exact module and9 directory callbacks verified, popup metadata/502/hyperlink fixes verified; homepage reproduced as logged-out app gate. Signed-in workspace/Back acceptance still pending. Full tests2183 and Deno862 pass after fixes.
+- [ ] **F89. National external source-link reliability.** V6 popup audit executed18 unique public targets:15 responded200; eprocure link returned500, GDELT returned429, and `https://ipm.mospi.gov.in/` has an expired TLS certificate. Do not bypass TLS or guess replacement sources. [Exact targets/evidence](../specs/2026-10-07-national-v6-link-audit.md). Existing source/feed integrations unchanged; refresh/replacement requires a scoped source task.
 
 
 
@@ -84,6 +85,7 @@ Current baseline (read-only observations, 2026-10-03):
 - GitHub authenticated as `ddllabs`; repository read access and Supabase
   SELECTs/function metadata were verified. Vercel READY states below are
   dated operations records, not an independent October 3 Vercel probe.
+
 
 ## 1. Done
 

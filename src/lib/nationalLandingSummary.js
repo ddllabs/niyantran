@@ -29,10 +29,10 @@ const LIMITS = [
   'Curated allocations, not measured budget utilisation.',
   'World Bank India series; not comprehensive ministry coverage.',
   'Available policy notices or stored records; a complete draft-to-gazette timeline and consultation milestones are not established.',
-  'Available reporting about delimitation; not a working impact simulator or verified boundary projections.',
-  'Available news reports about manifestos and promises; not a verified promise fulfilment register.',
-  'Available news reporting; an automatically generated digest and comprehensive daily coverage are not established.',
-  'Available news reporting; quote attribution and contradiction detection are not verified.',
+  'Illustrative seat-allocation simulation using NCP 2011–36 population projections and the largest remainder method; the terminal opens the default 753-seat scenario. These are model outputs, not an official delimitation order or verified boundary changes.',
+  'Curated 2024 Union promises; status describes verifiability, not whether a promise was fulfilled or broken. Per-promise evidence is not attached; verify using the manifesto library.',
+  'Top-of-day, PIB and economy reporting retrieved independently by the terminal; live counts can change between requests. A generated digest and comprehensive daily coverage are not established.',
+  'News reporting mentioning the default selected leader, retrieved independently by the terminal; choosing another person changes coverage. Quote attribution and contradiction verdicts are not verified.',
 ];
 const graphFields = [{ key: 'sector', label: 'Sector' }, { key: 'house', label: 'House' }, { key: 'current_stage', label: 'Stage' }];
 const populated = (rows, key) => rows.some(r => r[key] != null && String(r[key]).trim() !== '');
@@ -48,13 +48,15 @@ export function projectNationalSummary(raw, retrievedAt = new Date().toISOString
   const unavailable = raw.ok === false || (!rows.length && (adapter === 'planned' || raw.rows?.some(r => r.status === 'source_status')));
   const addedFeature = NATIONAL_FEATURES.indexOf(feature) >= 12;
   const reporting = addedFeature && (adapter === 'news-search' || Boolean(raw.gdelt || raw.source?.gdelt) || rows.some(r => populated([r], 'reporting_search')));
-  const sourceMode = [NATIONAL_FEATURES[9], NATIONAL_FEATURES[10]].includes(feature) ? 'curated'
+  const sourceMode = feature === NATIONAL_FEATURES[13] && adapter === 'internal' ? 'simulated'
+    : [NATIONAL_FEATURES[9], NATIONAL_FEATURES[10], NATIONAL_FEATURES[14]].includes(feature) ? 'curated'
     : adapter === 'embedded' ? 'stored' : ['live', 'api', ...(addedFeature ? ['news-search'] : [])].includes(adapter) && !raw.fallback ? 'feed-backed' : 'unknown';
   const rowDates = [...new Set(rows.map(r => r.as_of).filter(Boolean))];
   const asOfValue = raw.meta?.as_of || (rowDates.length === 1 ? rowDates[0] : null);
   const asOf = asOfValue && Number.isFinite(Date.parse(asOfValue)) ? asOfValue : null;
   const reportFields = [{ key: 'title', label: 'Headline' }, { key: 'date', label: 'Published' }, { key: 'summary', label: 'Summary' }, { key: 'source_url', label: 'Source' }];
-  const columns = reporting ? reportFields.filter(c => populated(rows, c.key)) : feature === GRAPH_FEATURE ? graphFields.filter(c => populated(rows, c.key))
+  const programmeFields = [{key:'programme',label:'Programme'},{key:'domain',label:'Domain'},{key:'verifiable_status',label:'Verifiable status'},{key:'activity',label:'Activity'}];
+  const columns = feature === NATIONAL_FEATURES[9] ? programmeFields.filter(c => populated(rows,c.key)) : reporting ? reportFields.filter(c => populated(rows, c.key)) : feature === GRAPH_FEATURE ? graphFields.filter(c => populated(rows, c.key))
     : feedColumns(feature, rows).filter(c => populated(rows, c.key) || (c.fallback && populated(rows, c.fallback))).map(({ key, label }) => ({ key, label }));
   const sectors = new Map();
   const stages = new Map();
@@ -69,11 +71,11 @@ export function projectNationalSummary(raw, retrievedAt = new Date().toISOString
   if (ranked.length > 7) sectorSummary.push({ label: 'Other sectors', count: ranked.slice(7).reduce((n, [, count]) => n + count, 0) });
   return {
     ok: !unavailable, feature, resourceKey: nationalResourceKey(feature), version: 1,
-    count: unavailable ? null : rows.length, countBasis: 'prepared-feed', unit: reporting ? 'reports' : 'records',
+    count: unavailable ? null : rows.length, countBasis: 'prepared-feed', unit: sourceMode === 'simulated' ? 'projection outputs' : feature === NATIONAL_FEATURES[14] ? 'promises' : reporting ? 'reports' : 'records',
     availability: unavailable ? 'error' : rows.length ? 'ready' : 'empty', sourceMode,
     asOf, retrievedAt, columns: unavailable ? [] : columns,
     graphColumns: graphFields.filter(c => populated(rows, c.key)),
-    sources: [...new Set((raw.source?.links || []).map(safeLink).filter(Boolean))].slice(0, 4).map(url => ({ name: new URL(url).hostname.replace(/^www\./, ''), url })),
+    sources: [...new Set((sourceMode === 'simulated' ? [] : raw.source?.links || []).map(safeLink).filter(Boolean))].slice(0, 4).map(url => ({ name: new URL(url).hostname.replace(/^www\./, ''), url })),
     limitations: LIMITS[NATIONAL_FEATURES.indexOf(feature)], sectors: unavailable ? [] : sectorSummary,
     stages: unavailable ? [] : [...stages].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([label, count]) => ({ label, count })),
   };

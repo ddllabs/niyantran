@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import DeskLandingFrame, { ModuleDetail, DataBreakdown, groupsWithSources } from './DeskLandingFrame.jsx';
+import { deskHash, parseDeskHash } from '../../lib/deskRoute.js';
 import { NATIONAL_PRESENTATION } from './deskPresentation.js';
 
 const bill = NATIONAL_PRESENTATION.groups[0].modules[0];
@@ -12,6 +13,14 @@ describe('v6 desk presentation', () => {
     expect(html).not.toContain('9,819');
     expect(html).not.toContain('8,000');
     expect(html).toContain('government-scene');
+  });
+  it('exposes each exact canonical terminal destination as a hyperlink', () => {
+    for (const module of NATIONAL_PRESENTATION.groups.flatMap(group => group.modules)) {
+      const html = renderToStaticMarkup(<ModuleDetail module={module} tab="national" onOpen={() => {}} />);
+      const target = "/" + deskHash('national', module.feature);
+      expect(html).toContain(`href="${target}"`);
+      expect(parseDeskHash(target.slice(1))).toEqual({ tab: 'national', feature: module.feature });
+    }
   });
   it('filters by established coverage rather than configuration', () => {
     const presentation = { groups: [{ id: 'a', modules: [{ feature: 'missing', configured: true }] }, { id: 'b', modules: [{ feature: 'stored' }] }] };

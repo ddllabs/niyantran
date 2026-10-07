@@ -14,11 +14,10 @@ export async function loadNationalSummaries({ features, signal, onSummary, fetch
       let summary;
       try {
         const response = await fetcher(`/api/national-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
-        if (!response.ok) throw new Error('Summary unavailable');
         summary = await response.json();
         const counted = summary.ok === true && Number.isInteger(summary.count) && summary.count >= 0;
         const coverageUnavailable = summary.ok === false && summary.count === null && summary.availability === 'error';
-        if (summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !coverageUnavailable)) throw new Error('Invalid summary');
+        if ((!response.ok && !coverageUnavailable) || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !coverageUnavailable)) throw new Error('Invalid summary');
       } catch {
         summary = unavailable(feature);
       } finally {

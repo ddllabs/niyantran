@@ -5,15 +5,17 @@ describe('progressive National summaries', () => {
   it('preserves validated unavailable coverage while rejecting mismatched or inconsistent envelopes', async () => {
     const feature = NATIONAL_FEATURES[12];
     const envelope = { ok:false, version:1, feature, resourceKey:feature, count:null, availability:'error', sourceMode:'unknown', columns:[], sources:[{ name:'Source', url:'https://example.org/' }], limitations:'A complete draft-to-gazette timeline is not established.' };
-    const run = async payload => {
+    const run = async (payload, ok = true) => {
       const shown=[];
-      await loadNationalSummaries({features:[feature],onSummary:s=>shown.push(s),fetcher:async()=>({ok:true,json:async()=>payload})});
+      await loadNationalSummaries({features:[feature],onSummary:s=>shown.push(s),fetcher:async()=>({ok,json:async()=>payload})});
       return shown[0];
     };
     const summary = await run(envelope);
     expect(summary.limitations).toBe(envelope.limitations);
     expect(summary.sources).toEqual(envelope.sources);
     expect(summary.count).toBe(null);
+    expect((await run(envelope, false)).limitations).toBe(envelope.limitations);
+    expect((await run({...envelope, ok:true, count:20}, false)).limitations).toBeUndefined();
     expect((await run({...envelope,feature:NATIONAL_FEATURES[0]})).limitations).toBeUndefined();
     expect((await run({...envelope,count:20})).limitations).toBeUndefined();
   });
