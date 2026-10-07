@@ -57,4 +57,12 @@ describe('v6 desk presentation', () => {
     expect(html).not.toContain('4120');
     expect(html).not.toContain('Sponsoring ministr');
   });
+  it('uses an optional measured chart without mixing economic values or desk totals', () => {
+    const html = renderToStaticMarkup(<DeskLandingFrame presentation={{...NATIONAL_PRESENTATION,id:'economics'}} summaries={{}} onFeature={() => {}} dataHighlight={{title:'Quotes by exchange', count:2, items:[{label:'NSE',count:2}], unit:'quotes', description:'Counts of reported exchange labels; prices are not summed.'}}/>);
+    expect(html).toContain('aria-label="Quotes by exchange"');
+    expect(html).toContain('NSE: 2 quotes');
+    expect(html).toContain('data-v6-count="2"');
+    expect(html).not.toContain('bills on record');
+  });
+
 });

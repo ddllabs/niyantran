@@ -44,6 +44,8 @@ The previous claim of 81 curated navigation entries was corrected by executed ca
 
 Build order: foundation with a small National path → complete National and owner comparison → Global/Law → Economics/Carbon → Sports/Entertainment → State/Local after client clarification → release. Foundation/National spec: [approved local scope](../specs/2026-10-07-desk-v6-foundation-national.md). Each remaining capability receives a scoped spec and exact dispatch before implementation.
 
+Economics planning requested on 2026-10-08: [source-aware spec](../specs/2026-10-08-desk-v6-economics.md) and [ordered slice plan](2026-10-08-desk-v6-economics.md). Eleven existing finance routes in four reference groups; source summary contract precedes UI implementation. Carbon follows Economics owner review. Economics is implemented locally; final review clear,2,227 Vitest/862 Deno tests plus lint/build/router/assets pass. Exact source/browser evidence and account/native limits are in its spec; owner review is pending.
+
 ## Fixed interfaces before page delegation
 
 `DeskPresentation` contains desk ID, copy, image references/credits, sector IDs, and canonical module identities separate from display labels. Module identity is `(source tier, canonical feature)`, not a potentially duplicated display name. Every reference entry gets a mapping outcome, including unavailable/HTML-ONLY entries; missing map entries fail validation.
