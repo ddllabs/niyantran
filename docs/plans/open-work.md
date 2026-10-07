@@ -19,6 +19,8 @@
 
 ## UI follow-ups
 
+- [ ] **F87. Desk reference v6 static preview.** Owner authorized temporary branch and separate Vercel frontend preview. [Spec](../specs/2026-10-07-desk-reference-preview.md); [plan](2026-10-07-desk-reference-preview.md). Implementation integration and cleanup follow owner review.
+
 
 
 - [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
