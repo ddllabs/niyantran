@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ModuleRow, SourceControl } from './NationalLandingView.jsx';
+import { ModuleRow, SourceControl } from './LegacyLandingControls.jsx';
 import { useNationalMotion } from './useNationalMotion.js';
 import { useGlobalLanding } from './useGlobalLanding.js';
 import GlobalGlobe, { GlobalTile } from './GlobalLandingArtwork.jsx';

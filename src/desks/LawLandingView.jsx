@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ModuleRow, SourceControl } from './NationalLandingView.jsx';
+import { ModuleRow, SourceControl } from './LegacyLandingControls.jsx';
 import { useNationalMotion } from './useNationalMotion.js';
 import { useLawLanding } from './useLawLanding.js';
 import CourtBackdrop, { LawTile } from './LawLandingArtwork.jsx';
