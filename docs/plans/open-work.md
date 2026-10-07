@@ -19,7 +19,7 @@
 
 ## UI follow-ups
 
-- [ ] **F87. Desk reference v6 static preview.** Owner authorized temporary branch and separate Vercel frontend preview. [Spec](../specs/2026-10-07-desk-reference-preview.md); [plan](2026-10-07-desk-reference-preview.md). Implementation integration and cleanup follow owner review.
+- [ ] **F87. Desk reference v6 static preview.** Owner authorized temporary branch and separate Vercel frontend preview. Static content pushed at `50e3004`; isolated deployment is READY. HTTP HTML/image checks passed; browser share-link access requires explicit owner approval after auto-review rejection. [Spec](../specs/2026-10-07-desk-reference-preview.md); [plan](2026-10-07-desk-reference-preview.md). Implementation integration and cleanup follow owner review.
 
 
 
