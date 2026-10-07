@@ -12,7 +12,7 @@ describe('progressive National summaries', () => {
       if (feature === NATIONAL_FEATURES[2]) throw new Error('Offline');
       return { ok: true, json: async () => ({ ok: true, version: 1, feature, resourceKey: feature, count: 0, availability: 'empty', columns: [], graphColumns: [], sectors: [], sources: [] }) };
     } });
-    expect(peak).toBe(3); expect(requests).toBe(11); expect(shown).toHaveLength(12);
+    expect(peak).toBe(3); expect(requests).toBe(16); expect(shown).toHaveLength(17);
     expect(shown.find(s => s.feature === NATIONAL_FEATURES[2]).count).toBe(null);
     expect(shown.find(s => s.feature === NATIONAL_FEATURES[1]).resourceKey).toBe(NATIONAL_FEATURES[0]);
   });
