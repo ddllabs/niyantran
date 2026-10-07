@@ -16,7 +16,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import manifest from '../../public/data/embedded_csv/_manifest.json';
-import { TABS, catalogModules } from '../desks/catalog.js';
+import { TABS, groundingCatalogModules } from '../desks/catalog.js';
 import { fetchArchiveFeature } from './archiveFeed.js';
 import { toDeskRow } from './deskRows.js';
 import { prepareDeskFeed } from './prepareDeskFeed.js';
@@ -117,9 +117,9 @@ export async function deskRowsFor(mod, { publicDir, fallbackSnapshot }) {
   return { tab, feature: mod.htmlFeature, pack: packFileFor(mod), shown: shown.length, rows: [...byKey.values()], collisions, snapshot };
 }
 
-/** The catalogue modules, in desk order, with their tab. */
+/** The approved grounding inventory, independent of discovery navigation. */
 export function loadableModules() {
-  return catalogModules()
+  return groundingCatalogModules()
     .map((mod) => ({ mod, tab: tabForModule(mod) }))
     .filter((x) => x.tab);
 }

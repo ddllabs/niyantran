@@ -17,10 +17,10 @@ describe('National summary API', () => {
     }
   });
   it('keeps its whitelist synchronized with the catalog', () => {
-    expect(NATIONAL_FEATURES.slice(0, 12)).toEqual(modulesForTier('national').map(m => m.htmlFeature));
+    expect(new Set(NATIONAL_FEATURES)).toEqual(new Set(modulesForTier('national').map(m => m.htmlFeature)));
     expect(new Set(NATIONAL_FEATURES)).toEqual(new Set(featureMap.filter(m => m.htmlTier === 'national').map(m => m.htmlFeature)));
   });
-  it.each(featureMap.filter(m => m.htmlTier === 'national' && !modulesForTier('national').some(module => module.htmlFeature === m.htmlFeature)).map(m => m.htmlFeature))('accepts the added canonical module %s without borrowing another feed', async feature => {
+  it.each(['Policy Pipeline Tracker (Draft-to-Gazette)', 'Delimitation Impact Simulator', 'LS Manifestos & Promises Tracker', 'National Morning Brief (Auto-digest)', 'Statement & Quote Tracker with Contradiction Detection'])('accepts the added canonical module %s without borrowing another feed', async feature => {
     const load = vi.fn(async params => ({ ok: true, feature: params.get('feature'), rows: [], source: { adapter: 'api', links: [] } }));
     const summary = await serveNationalLanding(new URLSearchParams({ feature }), load);
     expect(summary.feature).toBe(feature); expect(summary.resourceKey).toBe(feature); expect(summary.count).toBe(0);

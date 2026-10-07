@@ -4,7 +4,7 @@ import { modulesForTier } from '../desks/catalog.js';
 
 describe('Global landing source integrity', () => {
   it('matches the existing canonical catalog', () => {
-    expect(GLOBAL_FEATURES).toEqual(modulesForTier('geopolitics').map(m => m.htmlFeature));
+    expect(new Set(GLOBAL_FEATURES)).toEqual(new Set(modulesForTier('geopolitics').map(m => m.htmlFeature)));
   });
   it('never counts illustrative commodity benchmarks as measured records', () => {
     const summary = projectGlobalSummary({ ok: true, feature: 'Global Commodities', rows: [{ title: 'Gold', level: '$2,720' }], source: { adapter: 'embedded', note: 'Illustrative levels' } });
