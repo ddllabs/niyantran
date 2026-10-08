@@ -39,3 +39,15 @@ describe('restricted canonical destinations', () => {
     expect(renderToStaticMarkup(<TerminalShell/>)).toContain('Live Global Stock Exchanges');
   });
 });
+
+
+describe('v6 header hierarchy', () => {
+  it('keeps directory, search and account controls together beside desk navigation', () => {
+    location.hash = '#/national';
+    const html = renderToStaticMarkup(<TerminalShell/>);
+    const header = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)[1];
+    expect(header).toContain('v6-landing-tabs');
+    expect(header).toMatch(/class="shell-header-utilities"[\s\S]*v6-directory-control[\s\S]*desk-catalogue-search[\s\S]*top-actions/);
+    expect(html.match(/class="v6-landing-tabs"/g)).toHaveLength(1);
+  });
+});

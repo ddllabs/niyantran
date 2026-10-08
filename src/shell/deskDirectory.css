@@ -37,3 +37,34 @@
 @media(max-width:850px) { .v6-directory-dialog { padding:24px; }.v6-desk-directory { gap:10px; }.v6-desk-directory img,.v6-directory-home { height:83px; }.v6-desk-directory>button>span { padding:11px; }.v6-desk-directory b { font-size:12px; }.terminal.with-v6-directory { grid-template-rows:auto 36px minmax(0,1fr); }.v6-landing-tabs { padding:0 16px; } }
 @media(max-width:560px) { .v6-directory-dialog { padding:24px 18px;max-height:89dvh; }.v6-directory-heading h2 { font-size:27px; }.v6-directory-heading p { font-size:10px;line-height:1.6;max-width:240px; }.v6-desk-directory { grid-template-columns:repeat(2,minmax(0,1fr));margin-top:20px; }.v6-desk-directory img,.v6-directory-home { height:78px; }.v6-desk-directory b { font-size:11px; }.v6-desk-directory small { font-size:8px; }.v6-desk-directory>button>span { padding:10px; }.v6-directory-open { font-size:9px;padding:7px 8px;gap:5px; } }
 @media(prefers-reduced-motion:reduce) { .v6-directory-dialog[open] { animation:none; }.v6-desk-directory>button { transition:none; } }
+
+
+/* Reference hierarchy with production utilities: navigation wraps deliberately,
+   account controls never become an implicit header row. Module shells retain
+   their existing three grid items through display:contents. */
+.shell-header-utilities { display:contents; }
+.terminal.with-v6-directory { grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top" "work"; }
+.with-v6-directory>.topbar { display:flex;flex-wrap:wrap;gap:16px;padding:0 24px;min-height:68px; }
+.with-v6-directory>.topbar>.brand { flex:none; }
+.with-v6-directory .shell-header-utilities { display:flex;align-items:center;gap:12px;margin-left:auto;min-width:0; }
+.with-v6-directory .top-actions { flex:none;grid-row:auto;grid-column:auto;overflow:visible;max-width:none; }
+.with-v6-directory .v6-landing-tabs { flex:1;grid-area:auto;border:0;padding:0;background:transparent; }
+@media(max-width:1799px) {
+  .with-v6-directory>.topbar { padding-top:12px;gap:8px 16px; }
+  .with-v6-directory .v6-landing-tabs { order:3;flex:0 0 100%;min-height:36px; }
+}
+@media(max-width:900px) {
+  .with-v6-directory>.topbar { height:auto;grid-template-rows:none;padding:10px 16px 0; }
+  .with-v6-directory .shell-header-utilities { gap:8px; }
+  .with-v6-directory .catalogue-open kbd { display:none; }
+}
+@media(max-width:700px) {
+  .with-v6-directory>.topbar { gap:8px;padding:10px 12px 0; }
+  .with-v6-directory .shell-header-utilities { display:grid;grid-template-columns:auto minmax(0,1fr);width:100%;margin:0;gap:8px; }
+  .with-v6-directory .top-actions { grid-column:1/-1;justify-self:end; }
+  .with-v6-directory .desk-catalogue-search { justify-self:end; }
+  .with-v6-directory .v6-landing-tabs { min-height:36px; }
+}
+
+/* The utility bar is no longer clipped; menus can follow their trigger again. */
+.with-v6-directory .profile-pop { position:absolute;top:calc(100% + 10px);right:0;max-height:70dvh;overflow:auto; }

@@ -377,6 +377,8 @@ export default function TerminalShell({ onLogout }) {
           <img src="/brand/logo.png?v=2" alt="" />
           <span>TERMINAL</span>
         </div>
+        {v6Landing && <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/> }
+        <div className="shell-header-utilities">
         {v6Landing && <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
         <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
@@ -513,8 +515,8 @@ export default function TerminalShell({ onLogout }) {
             Log out
           </button>
         </div>
+        </div>
       </header>
-      {v6Landing && <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
       {!v6Landing && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />}
       {!v6Landing && <DeskNav
         tab={tab}
