@@ -2,6 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { loadLawSummaries } from './useLawLanding.js';
 import { LAW_FEATURES } from '../lib/lawLandingSummary.js';
 describe('progressive Law summaries', () => {
+  it('preserves validated source-failure explanations without accepting another resource or a false count', async () => {
+    const feature = LAW_FEATURES[0];
+    const body = { ok: false, version: 1, feature, resourceKey: 'judiciary-sc-orders', sourceMode: 'unknown', count: null, availability: 'error', limitations: 'Shared Supreme Court source unavailable', sources: [{ name: 'Court', url: 'https://www.sci.gov.in/' }] };
+    const run = async payload => {
+      const shown = [];
+      await loadLawSummaries({features:[feature], onSummary:s=>shown.push(s), fetcher:async()=>({ok:false,json:async()=>payload})});
+      return shown[0];
+    };
+    expect(await run(body)).toMatchObject(body);
+    expect((await run({...body,ok:true,count:220,availability:'ready',sourceMode:'stored'})).limitations).toBeUndefined();
+    expect((await run({...body,feature:LAW_FEATURES[2]})).limitations).toBeUndefined();
+    expect((await run({...body,resourceKey:LAW_FEATURES[2]})).limitations).toBeUndefined();
+    expect((await run({...body,count:220})).limitations).toBeUndefined();
+  });
   it('bounds requests, accepts shared source identity and preserves errors as unknown', async () => {
     let active = 0, peak = 0; const shown = [];
     await loadLawSummaries({ features: LAW_FEATURES, onSummary: value => shown.push(value), fetcher: async url => {

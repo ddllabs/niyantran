@@ -7450,3 +7450,12 @@ tr.close-soon { color: #6d675f; }
 /* A module is not a record: amber, and a grid icon rather than a page. */
 .ai-v2-file-cover.module { border-color: #fde68a; background: #fffbeb; color: #b45309; }
 .ai-v2-files li.module svg { color: #b45309; }
+
+/* F91: a closed landing panel must not reserve the mobile panel row. Keep
+   the mounted panel and existing ai-open layouts so chat state survives. */
+.workspace.desk-guide-mode:not(.ai-open) {
+  grid-template-rows: minmax(0, 1fr);
+}
+.workspace.desk-guide-mode > .main-col { background: #f7f9fc; }
+.workspace.desk-guide-mode > .main-col > .desk-v6 { min-height: 100%; }
+.theme-dark .workspace.desk-guide-mode > .main-col { background: #111b2c; }

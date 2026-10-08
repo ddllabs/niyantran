@@ -12,10 +12,11 @@ export async function loadLawSummaries({ features, signal, onSummary, fetcher = 
       let summary;
       try {
         const response = await fetcher(`/api/law-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
-        if (!response.ok) throw new Error('Summary unavailable');
         summary = await response.json();
-        const validCount = summary.availability === 'unavailable' ? summary.count === null : Number.isInteger(summary.count) && summary.count >= 0;
-        if (!summary.ok || summary.version !== 1 || summary.feature !== feature || (summary.resourceKey !== feature && !(summary.sourceMode === 'stored' && ['Supreme Court Order & Judgment Feed', 'Order Archive by Topic (Cross-Court)'].includes(feature) && summary.resourceKey === 'judiciary-sc-orders')) || !validCount) throw new Error('Invalid summary');
+        const counted = summary.ok === true && (summary.availability === 'unavailable' ? summary.count === null : Number.isInteger(summary.count) && summary.count >= 0);
+        const failedCoverage = summary.ok === false && summary.count === null && summary.availability === 'error';
+        const shared = ['Supreme Court Order & Judgment Feed', 'Order Archive by Topic (Cross-Court)'].includes(feature) && summary.resourceKey === 'judiciary-sc-orders' && (summary.sourceMode === 'stored' || failedCoverage);
+        if ((!response.ok && !failedCoverage) || summary.version !== 1 || summary.feature !== feature || (summary.resourceKey !== feature && !shared) || (!counted && !failedCoverage)) throw new Error('Invalid summary');
       } catch { summary = unavailable(feature); }
       finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
       if (!signal?.aborted) onSummary(summary);

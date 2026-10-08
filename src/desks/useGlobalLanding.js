@@ -12,10 +12,10 @@ export async function loadGlobalSummaries({ features, signal, onSummary, fetcher
       let summary;
       try {
         const response = await fetcher(`/api/global-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
-        if (!response.ok) throw new Error('Summary unavailable');
         summary = await response.json();
-        const validCount = summary.availability === 'unavailable' ? summary.count === null : Number.isInteger(summary.count) && summary.count >= 0;
-        if (!summary.ok || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || !validCount) throw new Error('Invalid summary');
+        const counted = summary.ok === true && (summary.availability === 'unavailable' ? summary.count === null : Number.isInteger(summary.count) && summary.count >= 0);
+        const failedCoverage = summary.ok === false && summary.count === null && summary.availability === 'error';
+        if ((!response.ok && !failedCoverage) || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !failedCoverage)) throw new Error('Invalid summary');
       } catch { summary = unavailable(feature); }
       finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
       if (!signal?.aborted) onSummary(summary);

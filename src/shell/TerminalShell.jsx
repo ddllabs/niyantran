@@ -5,6 +5,7 @@ import DeskView from '../desks/DeskView.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
 import DeskRail from './DeskRail.jsx';
+import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import UpgradeModal from './UpgradeModal.jsx';
 import { Icon } from './Icons.jsx';
@@ -39,7 +40,9 @@ import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
 import './upgrade.css';
-import CommandSearch from './CommandSearch.jsx';
+import DeskCatalogueSearch from './DeskCatalogueSearch.jsx';
+import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
+import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
 import { isEditableCopy } from './copyPolicy.js';
 
 export default function TerminalShell({ onLogout }) {
@@ -73,6 +76,7 @@ export default function TerminalShell({ onLogout }) {
 
   const active = deskTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
   const hi = lang === 'hi';
+  const restricted = !canAccessDesk(user, tab);
 
   const openUpgrade = useCallback((reason = 'desk', deskLabel = '') => {
     setUpgrade({ reason, deskLabel });
@@ -147,6 +151,7 @@ export default function TerminalShell({ onLogout }) {
   const onLoading = useCallback((v) => setLoading(Boolean(v)), []);
   const onClearViz = useCallback(() => setVizFilter(null), []);
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
+  const v6Landing = guideMode && ['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'].includes(tab);
   const deskBuckets = useMemo(
     () => (tab === 'home' ? [] : bucketsFor(modulesForTier(active.tier), active.tier)),
     [tab, active.tier],
@@ -263,9 +268,6 @@ export default function TerminalShell({ onLogout }) {
     let r = parseDeskHash();
     if (land && canAccessDesk(user, land) && emptyHash) {
       r = resolveDeskRoute(land, intendedFeat || '');
-    } else if (!canAccessDesk(user, r.tab)) {
-      const fallback = userTypeOf(typeId).startTab || 'home';
-      r = resolveDeskRoute(canAccessDesk(user, fallback) ? fallback : 'home', '');
     }
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -276,12 +278,9 @@ export default function TerminalShell({ onLogout }) {
 
   useEffect(() => {
     function onPop() {
-      let r = parseDeskHash();
+      const r = parseDeskHash();
       if (!canAccessDesk(sessionUser(), r.tab)) {
         openUpgrade('desk', TABS.find((t) => t.id === r.tab)?.label || r.tab);
-        const fallback = userTypeOf(typeId).startTab || 'home';
-        r = resolveDeskRoute(canAccessDesk(sessionUser(), fallback) ? fallback : 'home', '');
-        writeDeskHash(r.tab, r.feature, { replace: true });
       } else if (isTrial(sessionUser()) && r.tab !== 'home') {
         openUpgrade('trial');
       }
@@ -305,42 +304,41 @@ export default function TerminalShell({ onLogout }) {
   function onDesk(id) {
     if (!canAccessDesk(sessionUser(), id)) {
       openUpgrade('desk', TABS.find((t) => t.id === id)?.label || id);
-      return;
     }
     if (isTrial(sessionUser()) && id !== 'home') openUpgrade('trial');
     const r = resolveDeskRoute(id, '');
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    writeDeskHash(r.tab, r.feature);
+    rememberDeskNavigation(() => writeDeskHash(r.tab, r.feature));
   }
 
   function onFeature(name) {
-    if (isTrial(sessionUser())) openUpgrade('trial');
+    if (!canAccessDesk(sessionUser(), tab)) openUpgrade('desk', active.label);
+    else if (isTrial(sessionUser())) openUpgrade('trial');
     const r = resolveDeskRoute(tab, name);
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    writeDeskHash(r.tab, r.feature);
+    rememberDeskNavigation(() => writeDeskHash(r.tab, r.feature));
   }
 
   function onOpen({ tab: nextTab, feature }) {
     if (!canAccessDesk(sessionUser(), nextTab)) {
       openUpgrade('desk', TABS.find((t) => t.id === nextTab)?.label || nextTab);
-      return;
     }
     if (isTrial(sessionUser()) && nextTab !== 'home') openUpgrade('trial');
     const r = resolveDeskRoute(nextTab, feature);
     setTab(r.tab);
     setFeatureName(r.feature);
     setSelected(null);
-    writeDeskHash(r.tab, r.feature);
+    rememberDeskNavigation(() => writeDeskHash(r.tab, r.feature));
   }
 
   const billRecordOpen = (isImpactRecordFeature(featureName) || isGithubCsvRow(selected)) && selected;
   // Desks whose side panel has Desk and Record tabs; the others show it only for AI research.
   const hasRail =
-    tab !== 'home' &&
+    !restricted && tab !== 'home' &&
     !guideMode &&
     !isConflictsFeature(featureName) &&
     !isChokepointsFeature(featureName) &&
@@ -348,6 +346,9 @@ export default function TerminalShell({ onLogout }) {
     !isGeoResourceDossier(featureName) &&
     !isNationalFullscreen(featureName);
   const panel = useSidePanel({ hasRail, selected, featureName });
+  useEffect(() => {
+    if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
+  }, [restricted]);
   const trialLeft = trialDaysLeft(user);
   const planLabel = planMeta?.name || String(ent.plan || 'explorer').toUpperCase();
   const statusLabel =
@@ -369,14 +370,17 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-desk-rail theme-${theme}`}>
+    <div className={`terminal ${v6Landing ? 'with-v6-directory' : 'with-desk-rail'} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
           <img src="/brand/logo.png?v=2" alt="" />
           <span>TERMINAL</span>
         </div>
-        <CommandSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={searchTabs}
+        {v6Landing && <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/> }
+        <div className="shell-header-utilities">
+        {v6Landing && <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
+        <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
           onOpen={hit => {
             onOpen({ tab: hit.tab, feature: hit.feature });
@@ -409,11 +413,7 @@ export default function TerminalShell({ onLogout }) {
             <LiveTvModal
               open={liveTvOpen}
               onClose={() => setLiveTvOpen(false)}
-              onNavigateDesk={(deskTab, feature) => {
-                setTab(deskTab);
-                if (feature) setFeatureName(feature);
-                writeDeskHash(deskTab, feature || '', { replace: true });
-              }}
+              onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
             />
           </div>
           <button
@@ -515,9 +515,10 @@ export default function TerminalShell({ onLogout }) {
             Log out
           </button>
         </div>
+        </div>
       </header>
-      <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />
-      <DeskNav
+      {!v6Landing && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />}
+      {!v6Landing && <DeskNav
         tab={tab}
         featureName={featureName}
         lang={lang}
@@ -525,10 +526,14 @@ export default function TerminalShell({ onLogout }) {
         onFeature={onFeature}
         tabs={deskTabs}
         lockedIds={lockedIds}
-      />
-      <div className={`workspace${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
+      />}
+      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
         <main className="main-col">
-          {tab === 'home' ? (
+          {restricted ? (
+            <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
+              onAccess={() => openUpgrade('desk', active.label)}
+              onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
+          ) : tab === 'home' ? (
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
           ) : guideMode ? (
             <DeskLandingView
@@ -553,7 +558,7 @@ export default function TerminalShell({ onLogout }) {
             />
           )}
         </main>
-        <SidePanel
+        {!restricted && <SidePanel
           panel={panel}
           hasRail={hasRail}
           feed={feed}
@@ -564,9 +569,9 @@ export default function TerminalShell({ onLogout }) {
           vizFilter={vizFilter}
           tab={tab}
           featureName={featureName}
-        />
+        />}
       </div>
-      {tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />}
+      {!restricted && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}

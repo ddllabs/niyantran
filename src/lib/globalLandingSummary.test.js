@@ -4,7 +4,7 @@ import { modulesForTier } from '../desks/catalog.js';
 
 describe('Global landing source integrity', () => {
   it('matches the existing canonical catalog', () => {
-    expect(GLOBAL_FEATURES).toEqual(modulesForTier('geopolitics').map(m => m.htmlFeature));
+    expect(new Set(GLOBAL_FEATURES)).toEqual(new Set(modulesForTier('geopolitics').map(m => m.htmlFeature)));
   });
   it('never counts illustrative commodity benchmarks as measured records', () => {
     const summary = projectGlobalSummary({ ok: true, feature: 'Global Commodities', rows: [{ title: 'Gold', level: '$2,720' }], source: { adapter: 'embedded', note: 'Illustrative levels' } });
@@ -12,6 +12,21 @@ describe('Global landing source integrity', () => {
     expect(summary.sourceMode).toBe('unknown');
     expect(summary.availability).toBe('unavailable');
     expect(JSON.stringify(summary)).not.toContain('$2,720');
+  });
+  it('reports actual mineral and appeal fields rather than generic shaped columns', () => {
+    const energy = projectGlobalSummary({ ok: true, feature: 'Energy', source: { adapter: 'embedded' }, rows: [{ name: 'Lithium', use: 'Batteries', topProducers: 'Australia', chinaShare: '60%', intensity: 45 }] });
+    expect(energy.columns.map(c => c.key)).toEqual(expect.arrayContaining(['name', 'use', 'topProducers', 'chinaShare', 'intensity']));
+    const aid = projectGlobalSummary({ ok: true, feature: 'Global Aid', source: { adapter: 'embedded' }, rows: [{ title: 'Appeal', people_target: 100, period: '2026', dataThrough: '2026-07-01' }] });
+    expect(aid.columns.map(c => c.key)).toEqual(expect.arrayContaining(['people_target', 'period', 'dataThrough']));
+    expect(aid.asOf).toBe(null);
+  });
+  it('describes dossier details and never labels a narrative as verification', () => {
+    const project = projectGlobalSummary({ ok: true, feature: 'Infra', source: { adapter: 'embedded' }, rows: [{ title: 'Port', expected: '2030', detail: 'Planned corridor' }] });
+    expect(project.columns.map(c => c.key)).toEqual(expect.arrayContaining(['expected', 'detail']));
+    const nuclear = projectGlobalSummary({ ok: true, feature: 'Nuclear Watch', source: { adapter: 'embedded' }, rows: [{ title: 'Site', latest: 'Reporting context' }] });
+    expect(nuclear.columns.find(c => c.key === 'latest')?.label).toBe('Notes');
+    const choke = projectGlobalSummary({ ok: true, feature: 'Maritime Choke-Points', source: { adapter: 'embedded' }, rows: [{ title: 'Strait', width: 20, operators: 'Operator', risk: 'High', note: 'Context' }] });
+    expect(choke.columns.map(c => c.key)).toEqual(expect.arrayContaining(['width', 'operators', 'risk', 'note']));
   });
   it('preserves an empty register separately from an upstream failure', () => {
     const raw = { feature: 'Open Fronts', source: { adapter: 'embedded' }, rows: [] };

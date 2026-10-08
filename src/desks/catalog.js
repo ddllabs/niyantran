@@ -1,5 +1,6 @@
 import features from '../data/html-feature-map.json';
 import registry from '../data/source-registry.json';
+import { DESK_CATALOGUE } from './landing/deskCatalogue.js';
 
 export const TABS = [
   { id: 'home', label: 'Home', labelHi: 'मुखपृष्ठ', tier: 'home' },
@@ -134,6 +135,13 @@ function featureIndex(tier, name) {
 }
 
 export function modulesForTier(tier) {
+  const approved = DESK_CATALOGUE.filter(entry => tier === 'state' ? entry.tab === 'state' : entry.tier === tier);
+  if (approved.length) return approved.map(entry => features.find(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature));
+  return groundingModulesForTier(tier);
+}
+
+/** Frozen shipped grounding inventory; navigation expansion is not ingestion. */
+export function groundingModulesForTier(tier) {
   const allow = DESK_FEATURE_SET[tier];
   if (!allow) return features.filter((f) => f.htmlTier === tier);
 
@@ -158,6 +166,10 @@ export function modulesForTier(tier) {
   return [...byName.values()].sort(
     (a, b) => featureIndex(tier, a.htmlFeature) - featureIndex(tier, b.htmlFeature),
   );
+}
+
+export function groundingCatalogModules() {
+  return TABS.filter((t) => t.id !== 'home').flatMap((t) => groundingModulesForTier(t.tier));
 }
 
 export function catalogModules() {
@@ -330,6 +342,21 @@ export function bucketLabel(name, tier) {
 }
 
 export function bucketsFor(mods, tier) {
+  const approved = DESK_CATALOGUE.filter(entry => tier === 'state' ? entry.tab === 'state' : entry.tier === tier);
+  if (approved.length) {
+    const groups = new Map();
+    for (const entry of approved) {
+      const module = mods.find(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature);
+      if (!module) continue;
+      if (!groups.has(entry.groupId)) groups.set(entry.groupId, { name: entry.group, label: entry.group, items: [] });
+      groups.get(entry.groupId).items.push(module);
+    }
+    return [...groups.values()];
+  }
+  return groundingBucketsFor(mods, tier);
+}
+
+export function groundingBucketsFor(mods, tier) {
   const featOrderByBucket = FEATURE_ORDER[tier] || {};
   const merged = new Map();
   for (const m of mods) {

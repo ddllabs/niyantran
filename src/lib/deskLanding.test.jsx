@@ -19,7 +19,7 @@ describe('Desk Landing Architecture & Views', () => {
     },
   ];
 
-  it('renders desk landing view with live counters and module capability cards', () => {
+  it('dispatches National to the full v6 presentation with source-aware summaries', () => {
     const html = renderToStaticMarkup(
       <DeskLandingView
         tab="national"
@@ -29,20 +29,22 @@ describe('Desk Landing Architecture & Views', () => {
       />
     );
 
-    expect(html).toContain('national-landing');
-    expect(html).toContain('National Intelligence');
-    expect(html).toContain('The Republic,');
-    expect(html).toContain('Records across registers');
-    expect(html).toContain('Modules to explore');
+    expect(html).toContain('desk-v6');
+    expect(html).toContain('National');
+    expect(html).toContain('A nation&#x27;s decisions.');
+    expect(html).toContain('Records on file');
+    expect(html).toContain('17 modules');
     expect(html).toContain('Bill Passage Probability Index');
     expect(html).toContain('Parliamentary Question Database');
     expect(html).toContain('Bills by sector');
     expect(html).not.toContain('Verified Records');
   });
 
-  it('retains the existing State landing', () => {
+  it('dispatches State to its source-aware v6 landing', () => {
     const html = renderToStaticMarkup(<DeskLandingView tab="state" label="State" buckets={[]} onFeature={() => {}} />);
-    expect(html).toContain('Electoral Returns by Alliance');
+    expect(html).toContain('data-desk="state"');
+    expect(html).toContain('Goa constituencies by district');
+    expect(html).toContain('41 modules');
     expect(html).not.toContain('national-landing');
   });
 
@@ -67,8 +69,10 @@ describe('Desk Landing Architecture & Views', () => {
     );
 
     expect(html).toContain('Global Intelligence');
-    expect(html).toContain('Where the desk looks');
+    expect(html).toContain('desk-v6');
+    expect(html).toContain('The world, through five lenses.');
+    expect(html).toContain('16 modules');
     expect(html).toContain('Open Fronts');
-    expect(html).toContain('Sanctions');
+    expect(html).toContain('Geopolitics News Wire');
   });
 });

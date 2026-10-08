@@ -3,6 +3,7 @@ import handler from '../../api/router.js';
 import { handleFeatureFeedRequest } from '../../server/featureFeed.mjs';
 import { serveNationalLanding } from '../../server/nationalLandingSummary.mjs';
 import { NATIONAL_FEATURES } from './nationalLandingSummary.js';
+import featureMap from '../data/html-feature-map.json';
 import { modulesForTier } from '../desks/catalog.js';
 describe('National summary API', () => {
   it('enforces GET and feature validation in both local and Vercel routers', async () => {
@@ -16,7 +17,14 @@ describe('National summary API', () => {
     }
   });
   it('keeps its whitelist synchronized with the catalog', () => {
-    expect(NATIONAL_FEATURES).toEqual(modulesForTier('national').map(m => m.htmlFeature));
+    expect(new Set(NATIONAL_FEATURES)).toEqual(new Set(modulesForTier('national').map(m => m.htmlFeature)));
+    expect(new Set(NATIONAL_FEATURES)).toEqual(new Set(featureMap.filter(m => m.htmlTier === 'national').map(m => m.htmlFeature)));
+  });
+  it.each(['Policy Pipeline Tracker (Draft-to-Gazette)', 'Delimitation Impact Simulator', 'LS Manifestos & Promises Tracker', 'National Morning Brief (Auto-digest)', 'Statement & Quote Tracker with Contradiction Detection'])('accepts the added canonical module %s without borrowing another feed', async feature => {
+    const load = vi.fn(async params => ({ ok: true, feature: params.get('feature'), rows: [], source: { adapter: 'api', links: [] } }));
+    const summary = await serveNationalLanding(new URLSearchParams({ feature }), load);
+    expect(summary.feature).toBe(feature); expect(summary.resourceKey).toBe(feature); expect(summary.count).toBe(0);
+    expect(load.mock.calls[0][0].get('tier')).toBe('national'); expect(load.mock.calls[0][0].get('feature')).toBe(feature);
   });
   it('rejects arbitrary tiers/features before requesting a feed', async () => {
     const load = vi.fn();
