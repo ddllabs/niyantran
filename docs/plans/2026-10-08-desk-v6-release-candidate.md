@@ -40,3 +40,9 @@ The merge commit provides a single rollback target: revert its first-parent merg
 ## Authorized main integration — 2026-10-08
 
 Owner replied “go” to the concrete proposal to merge/push main with the unchanged P12 risk disclosed. Origin fetched again; origin/main remained3e85c8f with0/33 divergence and clean working tree. Supervisor merged453f8ec into main with merge commit `d480b11eb92b453f0d7b08c331e180bfff3d7e57`. The merge tree is byte-identical to the verified candidate; no new application change or conflict resolution. This documentation amendment precedes the approved ordinary push and exact-commit Vercel verification. Task branches remain recoverable; no branch or old-code deletion. Rollback target is the merge commit above using first parent.
+
+## Production publication verification — 2026-10-08
+
+Main pushed at dfd4c45a506f9e78bcd20ce86be63457e6d429ae. Vercel production deployment dpl_HNLRw2cdwJbibdiRK9oJ47PUZ2Lm is READY (39-second build), aliased to https://niyantran-six.vercel.app. GitHub production deployment6941489857 records that exact commit. Browser reloaded after deployment, authorized test-account sign-in succeeded, National/Global/Law/State headings and canonical routes matched, All sections and catalogue search opened, and Bill Passage Probability Index popup opened its existing loaded register. At718×977, main fills the remaining887px below the90px header with no horizontal document overflow.
+
+Runtime error-level scan returned11 Node DEP0169 url.parse deprecation warnings, not an application exception. The separate reference-only Vercel project failed because its configured previews/desk-reference-v6 root does not exist on main; F94 records this outside-scope project setting. No Vercel settings changed. Live voice remains owner-deferred; unchanged P12 remains separately tracked. This final documentation record makes no application change.

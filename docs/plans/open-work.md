@@ -19,6 +19,8 @@
 
 ## UI follow-ups
 
+- [ ] **F94. Reference-only Vercel project follows main with a missing root.** The automatic `niyantran-desk-reference-v6` build of main at dfd4c45 failed because its configured `previews/desk-reference-v6` directory does not exist on main. The actual `niyantran` production build is READY and serves the main aliases. This separate mockup-project setting is outside the authorized application release; decide whether to restrict its Git integration to its reference branch or retire it. No Vercel settings changed.
+
 - [ ] **F93. Optional legacy landing-code cleanup.** Independent release audit identifies unused LegacyLandingControls, prior National/Global/Law artwork, Global geometry and associated legacy styles; the generic landing fallback remains for unsupported cases. These do not expose parallel old pages. Preserve until the owner approves an exact removal inventory. Not a blocker for the v6 UI release.
 
 
