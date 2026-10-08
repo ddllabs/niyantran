@@ -1,6 +1,6 @@
 # Desk v6 release candidate
 
-> **Status: Living.** Candidate audit on 2026-10-08; main publication awaits the owner's final decision. Open work remains tracked only in `open-work.md`.
+> **Status: Living.** Candidate audit on 2026-10-08; Owner authorized main publication on2026-10-08; local merge recorded below. Open work remains tracked only in `open-work.md`.
 
 ## Candidate and scope
 
@@ -27,7 +27,7 @@ Independent review accepts representative native executions for the shared shell
 
 ## Existing risk and old code
 
-Read-only `npm audit --omit=dev --json` reports zero critical and one high production dependency (`xlsx`0.18.5; prototype pollution and ReDoS advisories; no npm fix). Initial sandbox audit failed DNS; escalated registry audit completed. This unchanged risk was already recorded under P12 and still needs the owner's disposition before an unconditional production-safety claim. Do not bulk-upgrade dependencies in this UI release.
+Read-only `npm audit --omit=dev --json` reports zero critical and one high production dependency (`xlsx`0.18.5; prototype pollution and ReDoS advisories; no npm fix). Initial sandbox audit failed DNS; escalated registry audit completed. This unchanged risk was already recorded under P12. The owner approved this UI release with that disclosed risk; remediation remains separately tracked. No unconditional security-safety claim is made. Do not bulk-upgrade dependencies in this UI release.
 
 Unused prior landing helpers/artwork/geometry/styles remain in source. They do not expose parallel old landing pages. F93 tracks optional exact-inventory cleanup; no deletion is authorized here. The older implementation is recoverable from the pre-release main commit and Git history.
 
@@ -36,3 +36,7 @@ Unused prior landing helpers/artwork/geometry/styles remain in source. They do n
 After explicit owner authorization, fetch origin again and ensure main is still an ancestor with a clean working tree. Integrate the candidate using a merge commit, push main normally, and verify the exact Vercel production deployment reaches READY. Smoke the signed-in National/Global/Law/State landing, a canonical module handoff, directory/search and viewport fill. Keep task branches until production acceptance; deletion needs exact owner authorization.
 
 The merge commit provides a single rollback target: revert its first-parent merge (`git revert -m 1 <release-merge-sha>`), then publish the revert through the ordinary main deployment. No database rollback is required. Preserve the pre-release main SHA above in the final operations record. No main merge or production push has been performed as of this candidate audit.
+
+## Authorized main integration — 2026-10-08
+
+Owner replied “go” to the concrete proposal to merge/push main with the unchanged P12 risk disclosed. Origin fetched again; origin/main remained3e85c8f with0/33 divergence and clean working tree. Supervisor merged453f8ec into main with merge commit `d480b11eb92b453f0d7b08c331e180bfff3d7e57`. The merge tree is byte-identical to the verified candidate; no new application change or conflict resolution. This documentation amendment precedes the approved ordinary push and exact-commit Vercel verification. Task branches remain recoverable; no branch or old-code deletion. Rollback target is the merge commit above using first parent.
