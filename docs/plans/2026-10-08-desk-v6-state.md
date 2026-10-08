@@ -64,4 +64,4 @@ S0 source audit executed. S1 mapping/catalogue complete; S2 summary projection/l
 
 - Final `npm run lint` passed with no warnings; `npm run build` passed in10.84s with the existing mixed-import and large-chunk warnings. `deno test -A --config supabase/functions/deno.json supabase/functions` passed862 tests in9s. `git diff --check` passed. Exact logs: `/private/tmp/state-final-lint.log`, `/private/tmp/state-final-build.log`, `/private/tmp/state-final-deno.log`.
 
-The local candidate is ready for owner review, not declared accepted or published. The implementation and evidence are saved as a local checkpoint on `task/desk-v6-state`; no push, merge or deployment is authorized by this task.
+Owner accepted the State appearance ("Looks good") on2026-10-08 and authorized pushing the current branch. Implementation checkpoint: `8c7ab38` on `task/desk-v6-state`, stacked on the seven-desk integration candidate. Native/device acceptance remains pending; the broader R0–R7 goal is not declared complete. Current-branch publication is authorized; main merge and cleanup are not authorized by this request.
