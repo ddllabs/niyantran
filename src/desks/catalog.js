@@ -135,8 +135,8 @@ function featureIndex(tier, name) {
 }
 
 export function modulesForTier(tier) {
-  const approved = DESK_CATALOGUE.filter(entry => entry.tier === tier);
-  if (approved.length) return approved.map(entry => features.find(module => module.htmlTier === tier && module.htmlFeature === entry.feature));
+  const approved = DESK_CATALOGUE.filter(entry => tier === 'state' ? entry.tab === 'state' : entry.tier === tier);
+  if (approved.length) return approved.map(entry => features.find(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature));
   return groundingModulesForTier(tier);
 }
 
@@ -342,7 +342,7 @@ export function bucketLabel(name, tier) {
 }
 
 export function bucketsFor(mods, tier) {
-  const approved = DESK_CATALOGUE.filter(entry => entry.tier === tier);
+  const approved = DESK_CATALOGUE.filter(entry => tier === 'state' ? entry.tab === 'state' : entry.tier === tier);
   if (approved.length) {
     const groups = new Map();
     for (const entry of approved) {

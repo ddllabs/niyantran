@@ -9,6 +9,7 @@ import { ECONOMICS_PRESENTATION } from './economicsPresentation.js';
 import { CARBON_PRESENTATION } from './carbonPresentation.js';
 import { SPORTS_PRESENTATION } from './sportsPresentation.js';
 import { ENTERTAINMENT_PRESENTATION } from './entertainmentPresentation.js';
+import { STATE_PRESENTATION } from './statePresentation.js';
 
 const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION];
 const stateFeatures = ['Constituency Register', 'MLA Directory', 'MLA Report Card + Statement Tracker', 'Roll Demography', 'Community Bloc Matrix', 'Cabinet Decisions', 'Bureaucrat Transfer & Posting Tracker (State Cadre)', 'State Tender Aggregator (State e-Procurement)', 'Booth-level Results Database', 'Booth Political History', 'Municipal Watch', 'Panchayat Watch', 'Municipal & Panchayat Tender Aggregator', 'Local Governance Brief'];
@@ -23,22 +24,23 @@ describe('approved seven-desk navigation', () => {
     expect(buckets.map(bucket => bucket.label)).toEqual(presentation.groups.map(group => group.name));
     for (const [index, bucket] of buckets.entries()) expect(bucket.items.map(module => module.htmlFeature)).toEqual(presentation.groups[index].modules.map(module => module.feature));
   });
-  it('retains the existing curated State/local navigation without enabling deferred entries', () => {
-    expect(modulesForTier('state').map(module => module.htmlFeature)).toEqual(stateFeatures);
+  it('retains existing State/local destinations inside the expanded State navigation', () => {
+    expect(modulesForTier('state').map(module => module.htmlFeature)).toEqual(STATE_PRESENTATION.groups.flatMap(group => group.modules.map(module => module.feature)));
+    for (const feature of stateFeatures) expect(modulesForTier('state').some(module => module.htmlFeature === feature)).toBe(true);
   });
 });
 
 
 describe('desk discovery catalogue identity', () => {
-  it('contains exactly the 79 approved canonical identities and no deferred geography entries', () => {
-    expect(DESK_CATALOGUE).toHaveLength(79);
-    expect(new Set(DESK_CATALOGUE.map(entry => entry.id)).size).toBe(79);
+  it('contains exactly the 120 approved canonical identities without a separate Local page', () => {
+    expect(DESK_CATALOGUE).toHaveLength(120);
+    expect(new Set(DESK_CATALOGUE.map(entry => entry.id)).size).toBe(120);
     const counts = Object.fromEntries(presentations.map(desk => [desk.id, DESK_CATALOGUE.filter(entry => entry.tab === desk.id).length]));
     expect(counts).toEqual({ national: 17, global: 16, law: 12, economics: 11, carbon: 7, sports: 8, entertainment: 8 });
     for (const entry of DESK_CATALOGUE) {
       expect(features.some(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature)).toBe(true);
       expect(entry.id).toBe(`${entry.tier}:${entry.feature}`);
-      expect(entry.configured).toBe(true);
+      expect(entry.configured).toBe(features.find(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature)?.mapping !== 'HTML-ONLY');
       expect(entry).not.toHaveProperty('count');
       expect(entry).not.toHaveProperty('availability');
     }

@@ -7,8 +7,9 @@ import { ECONOMICS_PRESENTATION } from './economicsPresentation.js';
 import { CARBON_PRESENTATION } from './carbonPresentation.js';
 import { SPORTS_PRESENTATION } from './sportsPresentation.js';
 import { ENTERTAINMENT_PRESENTATION } from './entertainmentPresentation.js';
+import { STATE_PRESENTATION } from './statePresentation.js';
 
-const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION];
+const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION, STATE_PRESENTATION];
 const canonicalIds = new Set(features.map(module => `${module.htmlTier}:${module.htmlFeature}`));
 const seen = new Set();
 

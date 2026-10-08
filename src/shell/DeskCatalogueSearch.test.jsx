@@ -11,9 +11,9 @@ describe('catalogue discovery UI contract', () => {
     expect(html).toContain('aria-keyshortcuts="Meta+K Control+K"');
     expect(html).not.toContain('<input');
   });
-  it('offers all 79 canonical entries with desk/group labels and honest restricted metadata', () => {
+  it('offers all 120 canonical entries with desk/group labels and honest restricted metadata', () => {
     const html = renderToStaticMarkup(<CatalogueResults results={DESK_CATALOGUE} selected={0} lockedIds={['economics']} listId="results" onSelect={noop} onHighlight={noop} />);
-    expect((html.match(/role="option"/g) || [])).toHaveLength(79);
+    expect((html.match(/role="option"/g) || [])).toHaveLength(120);
     expect(html).toContain('National / Legislative &amp; Policy Intelligence');
     expect(html).toContain('Economics / Market Intelligence');
     expect(html).toContain('Access restricted');

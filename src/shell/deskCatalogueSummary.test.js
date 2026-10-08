@@ -13,6 +13,14 @@ describe('single-module catalogue summary', () => {
     expect(endpoint.pathname).toBe(`/api/${tab === 'law' ? 'law' : tab}-landing`);
     expect(endpoint.searchParams.get('feature')).toBe(entry.feature);
   });
+  it('loads the exact Local-tier booth source through the State catalogue', async () => {
+    const entry = DESK_CATALOGUE.find(item => item.feature === 'Booth-level Results Database');
+    const fetcher = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, tier: 'local', feature: entry.feature, rows: [], source: { adapter: 'embedded', kind: 'geo-pack' } }) }));
+    expect(await loadDeskCatalogueSummary(entry, { fetcher })).toMatchObject({ count: 0, availability: 'empty', tier: 'local' });
+    const url = new URL(fetcher.mock.calls[0][0], 'http://localhost');
+    expect(url.searchParams.get('tier')).toBe('local');
+    expect(url.searchParams.get('feature')).toBe(entry.feature);
+  });
   it('uses the bill resource for the policy graph while returning graph coverage', async () => {
     const entry = DESK_CATALOGUE.find(entry => entry.feature === 'Policy Intelligence Graph');
     const fetcher = vi.fn(async () => response('Bill Passage Probability Index', { graphColumns: [{ key: 'title', label: 'Bill' }] }));

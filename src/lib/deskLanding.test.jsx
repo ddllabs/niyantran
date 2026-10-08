@@ -40,9 +40,11 @@ describe('Desk Landing Architecture & Views', () => {
     expect(html).not.toContain('Verified Records');
   });
 
-  it('retains the existing State landing', () => {
+  it('dispatches State to its source-aware v6 landing', () => {
     const html = renderToStaticMarkup(<DeskLandingView tab="state" label="State" buckets={[]} onFeature={() => {}} />);
-    expect(html).toContain('Electoral Returns by Alliance');
+    expect(html).toContain('data-desk="state"');
+    expect(html).toContain('Goa constituencies by district');
+    expect(html).toContain('41 modules');
     expect(html).not.toContain('national-landing');
   });
 

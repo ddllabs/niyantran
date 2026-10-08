@@ -13,6 +13,7 @@ import CarbonLandingView from './CarbonLandingView.jsx';
 import SportsLandingView from './SportsLandingView.jsx';
 import EntertainmentLandingView from './EntertainmentLandingView.jsx';
 import EconomicsLandingView from './EconomicsLandingView.jsx';
+import StateLandingView from './StateLandingView.jsx';
 
 /**
  * Flagship module mappings per desk for loading live structured counters and chart.
@@ -40,6 +41,7 @@ function getCategoryValue(row, preferredCol) {
 }
 
 export default function DeskLandingView(props) {
+  if (props.tab === 'state') return <StateLandingView {...props} />;
   if (props.tab === 'national') return <NationalLandingView {...props} />;
   if (props.tab === 'global') return <GlobalLandingView {...props} />;
   if (props.tab === 'law') return <LawLandingView {...props} />;
