@@ -25,3 +25,7 @@ Write scope: `src/desks/landing/DeskLandingFrame.jsx`, its tests, new `deskDefau
 - Preservation audit: all 93 pre-existing dirty files outside the shared tracker remain SHA-256 identical to the pre-cleanup snapshot. Tracker corpus content is unchanged; only F93/F95 and blank separators differ. Cleanup and UI staging must exclude every corpus path.
 
 Review found no unresolved implementation blocker. Existing feed limitations, unrelated open-work items, corpus changes and existing build warnings remain outside scope. SQL fixtures were not run; no SQL/authorization changes. No push, deployment or main merge.
+
+## Local completion
+
+Cleanup commit: `69595a5`. UI commit: `9fe245e`, on `task/desk-direct-entry`. F95 moved to Done with the UI hash. Corpus remains uncommitted and excluded from both commits. No main merge, push or deployment.

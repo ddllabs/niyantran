@@ -19,7 +19,6 @@
 
 ## UI follow-ups
 
-- [ ] **F95. Direct desk-card navigation and AI dismissal.** Owner approved 35 explicit defaults and preservation of all sibling module menus. Close AI on outside clicks and return to landing, retaining chat state. [Plan](2026-10-12-desk-direct-entry.md). No push/deployment.
 
 - [ ] **F94. Reference-only Vercel project follows main with a missing root.** The automatic `niyantran-desk-reference-v6` build of main at dfd4c45 failed because its configured `previews/desk-reference-v6` directory does not exist on main. The actual `niyantran` production build is READY and serves the main aliases. This separate mockup-project setting is outside the authorized application release; decide whether to restrict its Git integration to its reference branch or retire it. No Vercel settings changed.
 
@@ -93,6 +92,9 @@ Current baseline (read-only observations, 2026-10-03):
 
 
 ## 1. Done
+
+- [x] **F95. Direct desk-card entry and AI dismissal.** Implemented locally in `9fe245e`: all 35 cards link to approved defaults, all 120 sibling modules retain sector-menu access, outside clicks and landing navigation hide AI while retaining mounted chat. 2,472 Vitest / 880 Deno, lint/build/assets and desktop/mobile/dark browser fixture checks passed. Corpus changes excluded. [Evidence](2026-10-12-desk-direct-entry.md). No push/deployment.
+
 
 - [x] **F93. Legacy landing UI cleanup.** Removed the approved 12 unused files in `69595a5`; lint, build, assets, 2,468 Vitest and 880 Deno tests passed, all 318 build outputs unchanged. [Evidence](2026-10-12-unused-landing-ui.md). Local only; corpus changes excluded.
 
