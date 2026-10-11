@@ -19,9 +19,10 @@
 
 ## UI follow-ups
 
+- [ ] **F95. Direct desk-card navigation and AI dismissal.** Owner approved 35 explicit defaults and preservation of all sibling module menus. Close AI on outside clicks and return to landing, retaining chat state. [Plan](2026-10-12-desk-direct-entry.md). No push/deployment.
+
 - [ ] **F94. Reference-only Vercel project follows main with a missing root.** The automatic `niyantran-desk-reference-v6` build of main at dfd4c45 failed because its configured `previews/desk-reference-v6` directory does not exist on main. The actual `niyantran` production build is READY and serves the main aliases. This separate mockup-project setting is outside the authorized application release; decide whether to restrict its Git integration to its reference branch or retire it. No Vercel settings changed.
 
-- [ ] **F93. Legacy landing-code cleanup verified locally; awaiting integration.** Owner approved the exact 12-file inventory on 2026-10-12. Removed unused controls, National/Global/Law artwork, Global geometry, motion hook, associated styles and two obsolete tests. All eight active landings passed isolated desktop/mobile interactions and dark rendering; lint, 2,468 Vitest tests, 880 Deno tests, assets and build passed. All 318 pre/post production files are byte-identical. Corpus files and corpus tracker text preserved. Cleanup remains uncommitted; no push/deployment. [Scope and evidence](2026-10-12-unused-landing-ui.md).
 
 
 - [ ] **F89. National external source-link reliability.** V6 popup audit executed18 unique public targets:15 responded200; eprocure link returned500, GDELT returned429, and `https://ipm.mospi.gov.in/` has an expired TLS certificate. Do not bypass TLS or guess replacement sources. [Exact targets/evidence](../specs/2026-10-07-national-v6-link-audit.md). Existing source/feed integrations unchanged; refresh/replacement requires a scoped source task.
@@ -92,6 +93,9 @@ Current baseline (read-only observations, 2026-10-03):
 
 
 ## 1. Done
+
+- [x] **F93. Legacy landing UI cleanup.** Removed the approved 12 unused files in `69595a5`; lint, build, assets, 2,468 Vitest and 880 Deno tests passed, all 318 build outputs unchanged. [Evidence](2026-10-12-unused-landing-ui.md). Local only; corpus changes excluded.
+
 
 - [x] **F88/F90/F91/F92. Desk v6 integration, canonical restricted handoffs, shared-shell alignment and explorer readability.** Owner authorized main publication on2026-10-08 after disclosure of unchanged P12 dependency risk. Verified candidate453f8ec merged into main at `d480b11`; eight desk landings including State, catalogue/search, source-backed summaries, exact images and preserved canonical module workspaces. Final2,465Vitest/862Deno,lint/build/router/assets pass; independent review and native zoom/reduced-motion/intentional coarse-pointer/hidden-tab acceptance complete. Voice remains explicitly owner-deferred under F76. [Release evidence and rollback](2026-10-08-desk-v6-release-candidate.md). Task branches retained; F93 optional old-code cleanup and P12 remain separate.
 

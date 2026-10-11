@@ -302,6 +302,7 @@ export default function TerminalShell({ onLogout }) {
     [deskTabs, user, userTick]);
 
   function onDesk(id) {
+    panel.act({ type: 'landing' });
     if (!canAccessDesk(sessionUser(), id)) {
       openUpgrade('desk', TABS.find((t) => t.id === id)?.label || id);
     }
@@ -345,7 +346,7 @@ export default function TerminalShell({ onLogout }) {
     !isEnergyFeature(featureName) &&
     !isGeoResourceDossier(featureName) &&
     !isNationalFullscreen(featureName);
-  const panel = useSidePanel({ hasRail, selected, featureName });
+  const panel = useSidePanel({ hasRail, selected, featureName, tab, landing: guideMode || tab === 'home' });
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);

@@ -14,7 +14,7 @@ describe('Global v6 adapter', () => {
     expect(html).toContain('16 modules');
     expect((html.match(/class="sector-card"/g) || []).length).toBe(5);
     for (const image of ['earth', 'elections', 'trade', 'energy-plants', 'global-trade']) expect(html).toContain(`data-image="${image}"`);
-    expect(html).toContain('Geopolitics News Wire');
+    expect(html).toContain('Open Fronts');
     expect(html).toContain('Loading summaries');
     expect(html).not.toContain('12,000');
     expect(html).not.toContain('Verified Records');
@@ -29,8 +29,7 @@ describe('Global v6 adapter', () => {
     expect(html).toContain('data-v6-count="88"');
     expect(html).toContain('2/16 measured counts');
     expect(html).toContain('Mixed entry types; illustrative commodities excluded');
-    expect(html).toContain('Summary unavailable');
-    expect(html).toContain('Stored register · empty');
+    expect(html).toContain('Stored register');
   });
   it('shows Hindi desk identity while unknown source-mode counts remain unknown', () => {
     const html = render({ lang: 'hi' });

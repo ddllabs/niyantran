@@ -26,6 +26,22 @@ describe('the active tab', () => {
   const rail = { hasRail: true, selected: null };
   const row = { id: 7 };
 
+  it('returning to a landing hides AI while preserving its mounted thread', () => {
+    const ai = panelReducer(initialPanel(rail), { type: 'ai-open' }, rail);
+    expect(panelReducer(ai, { type: 'context' }, { hasRail: false, selected: null, landing: true }))
+      .toMatchObject({ open: false, active: null, collapsed: false, mounted: ['desk', 'ai'] });
+    expect(panelReducer(ai, { type: 'landing' }, rail))
+      .toMatchObject({ open: false, active: null, collapsed: false, mounted: ['desk', 'ai'] });
+  });
+
+  it('outside dismissal hides the whole AI dock rather than switching to Desk', () => {
+    const ai = panelReducer(initialPanel(rail), { type: 'ai-open' }, rail);
+    expect(panelReducer(ai, { type: 'dismiss-ai' }, rail)).toMatchObject({ open: false, collapsed: true, active: 'ai' });
+    expect(panelReducer(ai, { type: 'dismiss-ai' }, { hasRail: false })).toMatchObject({ open: false, collapsed: false });
+    const dismissed = panelReducer(ai, { type: 'dismiss-ai' }, rail);
+    expect(panelReducer(dismissed, { type: 'close-ai' }, rail)).toBe(dismissed);
+  });
+
   it('opens on Desk where there is a rail, and stays hidden where there is not', () => {
     expect(initialPanel(rail)).toMatchObject({ active: 'desk', open: true, mounted: ['desk'] });
     expect(initialPanel({ hasRail: false, selected: null })).toMatchObject({ active: null, open: false, mounted: [] });

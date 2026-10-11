@@ -6,6 +6,7 @@ import {
   PANEL_WIDTH_STORAGE_KEY, availableTabs, dragPanelWidth, initialPanel, panelBounds, panelReducer, readStoredPanelWidth, resolvePanelWidth, stepPanelWidth,
 } from './sidePanelModel.js';
 import { writeStored } from './resizeModel.js';
+import { attachOutsideClose } from '../ai/citationOverlayModel.js';
 
 /**
  * The side panel (docs/specs/2026-10-03-side-panel.md): one component for the right of the
@@ -37,17 +38,17 @@ const storage = () => (typeof window !== 'undefined' ? window.localStorage : nul
  * selected row and the module. Row and desk changes are applied during render, so the tab and the
  * layout change in the same render as the selection.
  */
-export function useSidePanel({ hasRail, selected, featureName }) {
-  const ctx = { hasRail, selected };
+export function useSidePanel({ hasRail, selected, featureName, tab, landing = false }) {
+  const ctx = { hasRail, selected, landing };
   const [state, dispatch] = useReducer(
     (s, a) => panelReducer(s, a, a.ctx),
     null,
     () => initialPanel(ctx),
   );
-  const [seen, setSeen] = useState({ selected, hasRail, featureName });
-  if (seen.selected !== selected || seen.hasRail !== hasRail || seen.featureName !== featureName) {
-    setSeen({ selected, hasRail, featureName });
-    if (seen.hasRail !== hasRail || seen.featureName !== featureName) dispatch({ type: 'context', ctx });
+  const [seen, setSeen] = useState({ selected, hasRail, featureName, tab, landing });
+  if (seen.selected !== selected || seen.hasRail !== hasRail || seen.featureName !== featureName || seen.tab !== tab || seen.landing !== landing) {
+    setSeen({ selected, hasRail, featureName, tab, landing });
+    if (seen.hasRail !== hasRail || seen.featureName !== featureName || seen.tab !== tab || seen.landing !== landing) dispatch({ type: 'context', ctx });
     else if (selected) dispatch({ type: 'select', ctx });
     else dispatch({ type: 'clear', ctx });
   }
@@ -80,6 +81,13 @@ export function useSidePanel({ hasRail, selected, featureName }) {
   const [citation, setCitation] = useState({ open: false, closeAll: null });
   const citationExpanded = aiActive && citation.open;
   const expanded = state.open && !(hasRail && state.collapsed) && (userExpanded || citationExpanded);
+  const { open: citationOpen, closeAll: closeCitation } = citation;
+
+  useEffect(() => {
+    if (state.open) return;
+    setUserExpanded(false);
+    if (citationOpen) closeCitation?.();
+  }, [state.open, citationOpen, closeCitation]);
 
   const keyState = useRef({});
   keyState.current = { aiActive, userExpanded, citationExpanded };
@@ -126,6 +134,13 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
   }, [citationExpanded, citation, setUserExpanded]);
   const hi = lang === 'hi';
   const asideRef = useRef(null);
+  useEffect(() => {
+    if (!state.open || state.active !== 'ai') return undefined;
+    return attachOutsideClose(document, {
+      zones: () => [asideRef.current],
+      onOutside: () => act({ type: 'dismiss-ai' }),
+    });
+  }, [state.open, state.active, act]);
   const drag = useRef(null);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
   useEffect(() => {
@@ -218,7 +233,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
           {...edge}
         />
       ) : null}
-      <PanelOverlay open={expanded} split={citationExpanded} viewerRef={setViewerSlot} onOutside={onOutside}>
+      <PanelOverlay open={expanded} split={citationExpanded} viewerRef={setViewerSlot} onOutside={state.active === 'ai' ? undefined : onOutside}>
       {collapsed ? (
         <div className="side-panel-handle" role="toolbar" aria-orientation="vertical" aria-label={hi ? 'पैनल खोलें' : 'Open the panel'}>
           {tabs.map((t) => (

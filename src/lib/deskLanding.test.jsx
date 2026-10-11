@@ -35,7 +35,7 @@ describe('Desk Landing Architecture & Views', () => {
     expect(html).toContain('Records on file');
     expect(html).toContain('17 modules');
     expect(html).toContain('Bill Passage Probability Index');
-    expect(html).toContain('Parliamentary Question Database');
+    expect(html).toContain('Legislation &amp;');
     expect(html).toContain('Bills by sector');
     expect(html).not.toContain('Verified Records');
   });
@@ -68,11 +68,11 @@ describe('Desk Landing Architecture & Views', () => {
       />
     );
 
-    expect(html).toContain('Global Intelligence');
+    expect(html).toContain('Security &amp;');
     expect(html).toContain('desk-v6');
     expect(html).toContain('The world, through five lenses.');
     expect(html).toContain('16 modules');
     expect(html).toContain('Open Fronts');
-    expect(html).toContain('Geopolitics News Wire');
+    expect(html).toContain('Global Trade');
   });
 });

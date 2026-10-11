@@ -25,3 +25,7 @@ Write scope: the 12 removal targets, these two documents, and only F93's paragra
 - Existing dirty-file SHA-256 snapshot contains 94 paths. Preserve 93 paths byte-for-byte; the shared tracker changes only its F93 paragraph. Corpus source, scripts, data, tests and documentation remain untouched.
 
 Local verification complete; F93 remains open pending a verified commit/integration. No commit, merge, push or deployment performed. SQL fixtures were not run because no SQL or authorization behavior changed.
+
+## Owner-authorized commit amendment
+
+The owner subsequently requested a separate cleanup commit before UI implementation. Cleanup committed as `69595a5` on 2026-10-12, staging only the 12 deletions, two cleanup records and F93 tracker paragraph. All corpus changes were excluded and remain in the working tree. No merge, push or deployment. Subsequent UI work uses `task/desk-direct-entry`; F93 moved to Done with this commit.

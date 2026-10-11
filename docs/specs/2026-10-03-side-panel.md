@@ -1,5 +1,7 @@
 # Spec: one side panel for Desk, Record and AI research (`side-panel`)
 
+> **2026-10-12 owner amendment:** [Direct entry and AI dismissal](2026-10-12-desk-direct-entry.md) supersedes AI persistence on landing navigation and expanded-only outside dismissal. Completed outside pointer clicks hide the AI dock entirely; landing navigation hides it and clears expansion. Mounted chat state remains preserved. Desk/Record behavior remains as specified below.
+
 > **Status: Living.** Approved by the owner on 2026-10-03, with the open questions answered
 > (below). On 2026-10-03 the owner said these
 > three "are supposed to be a part of the same shared component with different tabs ... it's not

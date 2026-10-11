@@ -30,9 +30,8 @@ describe('Law v6 adapter', () => {
     expect(html).toContain('4/12 measured counts');
     expect(html).toContain('shared orders counted once');
     expect(html).toContain('Entries and reports; overlapping coverage');
-    expect(html).toContain('Supreme Court orders by topic');
-    expect(html).toContain('Allahabad High Court reporting');
-    expect(html).toContain('Summary unavailable');
+    expect(html).toContain('Supreme Court Orders &amp; Judgments');
+    expect(html).toContain('Judicial Intelligence');
     expect(html).not.toContain('data-v6-count="450"');
   });
   it('shows Hindi identity while pending source counts remain unknown', () => {

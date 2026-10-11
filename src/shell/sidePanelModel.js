@@ -51,16 +51,23 @@ export function panelReducer(state, action, ctx) {
       return { ...state, active: action.tab, mounted: mount(state.mounted, action.tab) };
     case 'collapse':
       return { ...state, open: false, collapsed: true };
+    case 'dismiss-ai':
+      return { ...state, open: false, collapsed: Boolean(ctx.hasRail) };
+    case 'landing':
+      return { ...state, active: null, open: false, collapsed: false };
     case 'reopen': {
       const active = tabs.includes(action.tab) ? action.tab : tabs.includes(state.active) ? state.active : tabs[0];
       return { ...state, active, open: true, collapsed: false, mounted: mount(state.mounted, active) };
     }
     case 'close-ai': {
+      if (!state.open) return state;
       if (!ctx.hasRail) return { ...state, open: false };
       const active = railTab(ctx.selected);
       return { ...state, active, mounted: mount(state.mounted, active) };
     }
     case 'context': {
+      // A landing owns the full workspace; keep the chat mounted but hidden.
+      if (ctx.landing) return { ...state, active: null, open: false, collapsed: false };
       // A desk or module change, like a page load, opens the panel (amendment 2). Off a rail desk
       // only AI can stay; onto one, the panel shows Desk (or Record) unless AI is in use.
       if (!ctx.hasRail) {

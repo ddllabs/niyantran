@@ -3,16 +3,17 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import DeskLandingFrame, { ModuleDetail, DataBreakdown, groupsWithSources } from './DeskLandingFrame.jsx';
 import { deskHash, parseDeskHash } from '../../lib/deskRoute.js';
 import { NATIONAL_PRESENTATION } from './deskPresentation.js';
+import { ECONOMICS_PRESENTATION } from './economicsPresentation.js';
 
 const bill = NATIONAL_PRESENTATION.groups[0].modules[0];
 describe('v6 desk presentation', () => {
-  it('exposes a polite atomic sector-selection announcement', () => {
+  it('exposes a polite atomic source-filter announcement', () => {
     const html = renderToStaticMarkup(<DeskLandingFrame presentation={NATIONAL_PRESENTATION} onFeature={() => {}} />);
     expect(html).toContain('aria-live="polite" aria-atomic="true"');
   });
   it('shows canonical module discovery without inventing a record snapshot', () => {
     const html = renderToStaticMarkup(<DeskLandingFrame presentation={NATIONAL_PRESENTATION} summaries={{}} onFeature={() => {}} />);
-    expect(html).toContain('Loading summary');
+    expect(html).toContain('Loading summaries');
     expect(html).toContain('17 modules');
     expect(html).not.toContain('9,819');
     expect(html).not.toContain('8,000');
@@ -62,7 +63,7 @@ describe('v6 desk presentation', () => {
     expect(html).not.toContain('Sponsoring ministr');
   });
   it('uses an optional measured chart without mixing economic values or desk totals', () => {
-    const html = renderToStaticMarkup(<DeskLandingFrame presentation={{...NATIONAL_PRESENTATION,id:'economics'}} summaries={{}} onFeature={() => {}} dataHighlight={{title:'Quotes by exchange', count:2, items:[{label:'NSE',count:2}], unit:'quotes', description:'Counts of reported exchange labels; prices are not summed.'}}/>);
+    const html = renderToStaticMarkup(<DeskLandingFrame presentation={ECONOMICS_PRESENTATION} summaries={{}} onFeature={() => {}} dataHighlight={{title:'Quotes by exchange', count:2, items:[{label:'NSE',count:2}], unit:'quotes', description:'Counts of reported exchange labels; prices are not summed.'}}/>);
     expect(html).toContain('aria-label="Quotes by exchange"');
     expect(html).toContain('NSE: 2 quotes');
     expect(html).toContain('data-v6-count="2"');
