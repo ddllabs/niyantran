@@ -1679,3 +1679,12 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   `niyOpenBilling` hand-off and the line "Online payments open soon".
   `/api/billing/config` answers `enabled: false, checkoutOpen: false`. An
   unsigned `create-order` returns 401.
+- **Navigation, type scale, search, hero spacing (F112) and drag-to-AI (F113):**
+  `main` pushed `1940b02..ef4754a` (owner: "push it" on 2026-10-13). The
+  outgoing scan found no env files, nothing from `docs/security`, no secrets and
+  no AI attribution. Production deploy `dpl_89StSPmjxkYuVtFLdWBq7bABvDXF`
+  (`ef4754a`) is READY. The served entry, `index-D84x6f8c.js`, contains "Search
+  desks, modules and records" and the `niy-ai-open` hand-off, and no longer
+  contains "Choose a desk to begin". `index-DDzlnMkb.css` carries the hero
+  `min-height:288px`. Rollback candidate: `dpl_R3RF6vGa6k1PkWbtu7okfrSeGLeH`
+  (`1940b02`).
