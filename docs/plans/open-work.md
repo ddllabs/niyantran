@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F110 is next) and goes in the
+- A new finding gets the next free `F` number (F112 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-12
@@ -51,10 +51,20 @@ no tests rerun, no production probe).
   `termsStore.js` keep edited content in `localStorage`, so an admin edit is
   not seen by other visitors. Make published legal content shared (part of
   F107).
-- [ ] **F109. Billing assumes GST invoicing.** The owner's entity is not
-  GST-registered; the invoice path (`issue_invoice`, GST supplier settings)
-  must not add GST before real payments. Sensitive billing scope: separate
-  task with focused verification before Razorpay goes live (O6).
+- [ ] **F109. INR billing.** Code converted on `task/inr-billing`
+  (2026-10-12): four monthly INR plans from `src/lib/publicPlans.js`, no GST
+  (plain invoices), no trials, database values free/plus/pro/max via migration
+  `20261012120000_inr_plans.sql` (fixture-tested, not applied). Remaining:
+  apply the migration to NTER with owner authorization **before** pushing this
+  code (admin grants fail until then). [Spec](../specs/2026-10-12-inr-billing.md).
+- [ ] **F110. In-app upgrade and checkout screen.** No screen lets a signed-in
+  user buy Plus/Pro/Max (the old USD/GST modal was unused and is removed).
+  Needed before Razorpay review, which asks for a test login that can pay.
+- [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
+  allowance or enforcement exists; research-chat only logs USD cost. Needs the
+  owner's credit definition, then a spec (ledger, allowances per plan, unused
+  credits carried forward, enforcement in research-chat, NYAI gating to
+  Pro/Max).
 
 - [ ] **F106. Retire the unused NterEarth runtime.** Since F103 amendment 5
   the homepage hero renders the shared photographic globe. `src/marketing/
@@ -70,7 +80,7 @@ no tests rerun, no production probe).
   plans/specs still read "local only / not merged" for work now in `main`.
   Documentation only; correct in place or mark Historical.
 
-- [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
+- [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
 
 

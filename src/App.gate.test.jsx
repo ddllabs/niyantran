@@ -14,7 +14,7 @@ vi.mock('./lib/supabaseClient.js', () => ({ supabase: { auth: { onAuthStateChang
 // The server's answer to my_entitlement() for the stored user (F2).
 const plan = vi.hoisted(() => ({ loaded: true }));
 vi.mock('./lib/entitlementStore.js', () => ({
-  serverEntitlement: (id) => (plan.loaded && id ? { userId: id, plan: 'explorer', status: 'free' } : null),
+  serverEntitlement: (id) => (plan.loaded && id ? { userId: id, plan: 'free', status: 'free' } : null),
   refreshEntitlement: vi.fn(async () => null),
 }));
 
@@ -77,15 +77,15 @@ describe('terminal sign-in gate', () => {
 describe('free access while subscription metadata loads', () => {
   it('opens the terminal without waiting for the server plan', () => {
     plan.loaded = false;
-    setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student', plan: 'enterprise', planStatus: 'active' });
+    setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student', plan: 'max', planStatus: 'active' });
     const html = renderToStaticMarkup(createElement(App));
     expect(html).toBe('TERMINAL');
   });
 });
 
 describe('entitlements for a missing user', () => {
-  it('treats null as the explorer entitlement', () => {
-    expect(entitlementOf(null)).toMatchObject({ plan: 'explorer', status: 'free', trialExpired: false });
+  it('treats null as the free entitlement', () => {
+    expect(entitlementOf(null)).toMatchObject({ plan: 'free', status: 'free' });
     expect(canExport(null)).toBe(false);
     expect(rowCapForUser(null)).toBe(null);
   });

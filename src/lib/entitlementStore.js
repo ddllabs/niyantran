@@ -24,12 +24,11 @@ function fromServer(userId, data) {
   if (!userId || !data || typeof data !== 'object') return null;
   return {
     userId,
-    plan: String(data.plan || 'explorer'),
+    plan: String(data.plan || 'free'),
     status: String(data.status || 'free'),
     periodEnd: data.period_end || null,
     lapsed: data.lapsed === true,
     source: data.source || null,
-    trialUsed: data.trial_used === true,
   };
 }
 
@@ -59,25 +58,6 @@ export function refreshEntitlement() {
     }
   })();
   return inflight;
-}
-
-/**
- * Start the account's one 14-day trial of Pro or Enterprise.
- * Resolves to { ok: true, entitlement } or { ok: false, reason }.
- */
-export async function startTrial(planId) {
-  try {
-    const { data } = await supabase.auth.getSession();
-    const userId = data?.session?.user?.id;
-    if (!userId) return { ok: false, reason: 'Sign in to start a trial.' };
-    const result = await supabase.rpc('start_trial', { p_plan: String(planId || '') });
-    if (result.error) {
-      return { ok: false, reason: String(result.error.message || 'The trial could not be started.') };
-    }
-    return { ok: true, entitlement: publish(fromServer(userId, result.data)) };
-  } catch {
-    return { ok: false, reason: 'The trial could not be started. Check the connection and try again.' };
-  }
 }
 
 export function clearEntitlement() {

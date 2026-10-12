@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiStats, classifyApis, STATUS } from '../lib/apiStatus.js';
 import { setUserActive, setUserPlan, setUserType, USER_TYPES, userTypeOf } from '../lib/userStore.js';
-import { loadPricing, savePricing } from '../lib/pricingStore.js';
 import {
   formatAgo,
   formatDuration,
@@ -359,7 +358,7 @@ export function ApisPage() {
   );
 }
 
-const PLAN_NAMES = { explorer: 'Explorer', pro: 'Professional', enterprise: 'Enterprise' };
+const PLAN_NAMES = { free: 'Free', plus: 'Plus', pro: 'Pro', max: 'Max' };
 
 function planDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
@@ -367,11 +366,10 @@ function planDate(iso) {
 
 /** The plan as /api/users reports it: effective plan, status and end. */
 function planSummary(u) {
-  const name = PLAN_NAMES[u.plan] || String(u.plan || 'explorer');
+  const name = PLAN_NAMES[u.plan] || String(u.plan || 'free');
   if (u.planLapsed && u.planEnd) return `${name} · lapsed ${planDate(u.planEnd)}`;
-  if (u.planStatus === 'trial') return u.planEnd ? `${name} · trial to ${planDate(u.planEnd)}` : `${name} · trial`;
   if (u.planStatus === 'active') return u.planEnd ? `${name} · to ${planDate(u.planEnd)}` : `${name} · open-ended`;
-  return u.trialUsed ? `${name} · trial used` : name;
+  return name;
 }
 
 export function UsersPage({ users, onChange }) {
@@ -381,7 +379,7 @@ export function UsersPage({ users, onChange }) {
   const [planDrafts, setPlanDrafts] = useState({});
 
   function draftFor(u) {
-    return planDrafts[u.id] || { plan: PLAN_NAMES[u.plan] ? u.plan : 'explorer', end: '' };
+    return planDrafts[u.id] || { plan: PLAN_NAMES[u.plan] ? u.plan : 'free', end: '' };
   }
 
   function editDraft(u, patch) {
@@ -391,7 +389,7 @@ export function UsersPage({ users, onChange }) {
   function grantPlan(u) {
     const d = draftFor(u);
     // A chosen day ends at 23:59:59 India time; no day means open-ended.
-    const end = d.plan !== 'explorer' && d.end ? `${d.end}T23:59:59+05:30` : null;
+    const end = d.plan !== 'free' && d.end ? `${d.end}T23:59:59+05:30` : null;
     return change(u.id, () => setUserPlan(u.id, d.plan, end));
   }
 
@@ -409,8 +407,8 @@ export function UsersPage({ users, onChange }) {
       <h1 className="adm-h1">Dashboard users</h1>
       <p className="adm-lede">
         Every account that has signed up. Assign a user type so each seat opens the matching desks. Set a plan to grant
-        Professional or Enterprise until a date (or open-ended), or Explorer to revoke; payments and trials set plans on
-        their own. Suspend to lock an account without deleting it, and restore to reopen it.
+        Plus, Pro or Max until a date (or open-ended), or Free to revoke; verified payments set plans on their
+        own. Suspend to lock an account without deleting it, and restore to reopen it.
       </p>
       <div className="adm-card">
         <h2>Adding people</h2>
@@ -484,7 +482,7 @@ export function UsersPage({ users, onChange }) {
                           className="adm-inline-select"
                           aria-label={`Plan end date for ${u.email} (empty for open-ended)`}
                           value={draftFor(u).end}
-                          disabled={locked || busy || draftFor(u).plan === 'explorer'}
+                          disabled={locked || busy || draftFor(u).plan === 'free'}
                           onChange={(e) => editDraft(u, { end: e.target.value })}
                         />
                         <button
@@ -521,103 +519,3 @@ export function UsersPage({ users, onChange }) {
   );
 }
 
-export function PricingAdminPage() {
-  const [plans, setPlans] = useState(() => loadPricing());
-  const [msg, setMsg] = useState('');
-
-  function patch(id, field, value) {
-    setPlans((list) => list.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
-    setMsg('');
-  }
-
-  function onSave(e) {
-    e.preventDefault();
-    savePricing(plans);
-    setMsg('Pricing published to the public page.');
-  }
-
-  return (
-    <>
-      <h1 className="adm-h1">Pricing</h1>
-      <p className="adm-lede">
-        These figures and blurbs are what the marketing pricing page renders. Save to publish immediately in this
-        browser.
-      </p>
-      <form onSubmit={onSave}>
-        <div className="adm-plans">
-          {plans.map((p) => (
-            <article key={p.id} className="adm-plan">
-              <h3 style={{ color: p.color }}>{p.name}</h3>
-              <div className="adm-form">
-                <label className="adm-field">
-                  <span>Display name</span>
-                  <input value={p.name} onChange={(e) => patch(p.id, 'name', e.target.value)} />
-                </label>
-                <label className="adm-field">
-                  <span>Audience</span>
-                  <input value={p.who} onChange={(e) => patch(p.id, 'who', e.target.value)} />
-                </label>
-                <label className="adm-field">
-                  <span>Monthly $</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={p.monthly ?? 0}
-                    onChange={(e) => patch(p.id, 'monthly', Number(e.target.value))}
-                    disabled={p.custom}
-                  />
-                </label>
-                <label className="adm-field">
-                  <span>Yearly $ / mo</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={p.yearly ?? 0}
-                    onChange={(e) => patch(p.id, 'yearly', Number(e.target.value))}
-                    disabled={p.custom}
-                  />
-                </label>
-                <label className="adm-field span2">
-                  <span>Custom quote</span>
-                  <select
-                    value={p.custom ? 'yes' : 'no'}
-                    onChange={(e) => patch(p.id, 'custom', e.target.value === 'yes')}
-                  >
-                    <option value="no">Priced</option>
-                    <option value="yes">Custom / contact sales</option>
-                  </select>
-                </label>
-                <label className="adm-field span2">
-                  <span>Tagline</span>
-                  <input value={p.tag} onChange={(e) => patch(p.id, 'tag', e.target.value)} />
-                </label>
-                <label className="adm-field span2">
-                  <span>Features (one per line)</span>
-                  <textarea
-                    value={(p.items || []).join('\n')}
-                    onChange={(e) =>
-                      patch(
-                        p.id,
-                        'items',
-                        e.target.value
-                          .split('\n')
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      )
-                    }
-                  />
-                </label>
-              </div>
-            </article>
-          ))}
-        </div>
-        <div className="adm-actions">
-          <button className="adm-btn" type="submit">
-            Publish pricing
-          </button>
-          {msg ? <span className="adm-msg">{msg}</span> : null}
-        </div>
-      </form>
-    </>
-  );
-}

@@ -148,12 +148,7 @@ export default function MarketingSite({ onAuthed }) {
         <HomePage onLogin={() => go('login')} onCoverage={onCoverage} onPricing={() => go('pricing')} />
       )}
       {page === 'pricing' && (
-        <PricingPage
-          onLogin={(planId) => {
-            if (!planId || planId === 'signup' || planId === 'gov') go('signup');
-            else go(`signup?plan=${planId}`);
-          }}
-        />
+        <PricingPage onLogin={() => go('signup')} onContact={() => go('contact')} />
       )}
       {page === 'privacy' && <PrivacyPage />}
       {page === 'terms' && <TermsPage />}

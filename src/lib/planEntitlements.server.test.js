@@ -12,9 +12,9 @@ vi.mock('./supabaseClient.js', () => ({
 }));
 
 import {
-  canAccessDesk, canExport, entitlementOf, rowCapForUser, trialDaysLeft, canCopy, applyRowCap,
+  canAccessDesk, canExport, entitlementOf, rowCapForUser, canCopy, applyRowCap,
 } from './planEntitlements.js';
-import { clearEntitlement, refreshEntitlement, serverEntitlement, startTrial } from './entitlementStore.js';
+import { clearEntitlement, refreshEntitlement, serverEntitlement } from './entitlementStore.js';
 
 function memoryStorage() {
   const values = new Map();
@@ -22,7 +22,7 @@ function memoryStorage() {
 }
 
 const DAY = 86400000;
-const tampered = { id: 'u1', email: 'a@example.test', type: 'analyst', plan: 'enterprise', planStatus: 'active', trialEndsAt: null };
+const tampered = { id: 'u1', email: 'a@example.test', type: 'analyst', plan: 'max', planStatus: 'active' };
 
 beforeEach(() => {
   auth.userId = 'u1';
@@ -40,27 +40,27 @@ function serve(data) {
 
 describe('a session user cannot grant itself a plan', () => {
   it('ignores plan fields on the session user until the server has answered', () => {
-    expect(entitlementOf(tampered)).toMatchObject({ plan: 'explorer', status: 'free' });
+    expect(entitlementOf(tampered)).toMatchObject({ plan: 'free', status: 'free' });
     expect(canExport(tampered)).toBe(true);
     expect(rowCapForUser(tampered)).toBe(null);
     expect(canAccessDesk(tampered, 'state')).toBe(true);
   });
 
   it('keeps ignoring them after the server says free', async () => {
-    serve({ plan: 'explorer', status: 'free', period_end: null, lapsed: false, trial_used: false });
+    serve({ plan: 'free', status: 'free', period_end: null, lapsed: false });
     await refreshEntitlement();
-    expect(entitlementOf(tampered)).toMatchObject({ plan: 'explorer', status: 'free', loaded: true });
+    expect(entitlementOf(tampered)).toMatchObject({ plan: 'free', status: 'free', loaded: true });
     expect(canExport(tampered)).toBe(true);
   });
 
   it("does not apply one account's entitlement to another", async () => {
-    serve({ plan: 'enterprise', status: 'active', period_end: null });
+    serve({ plan: 'max', status: 'active', period_end: null });
     await refreshEntitlement();
-    expect(entitlementOf({ id: 'u2', email: 'b@example.test' })).toMatchObject({ plan: 'explorer', status: 'free' });
+    expect(entitlementOf({ id: 'u2', email: 'b@example.test' })).toMatchObject({ plan: 'free', status: 'free' });
   });
 
   it('writes nothing about the plan to browser storage', async () => {
-    serve({ plan: 'enterprise', status: 'active', period_end: null });
+    serve({ plan: 'max', status: 'active', period_end: null });
     await refreshEntitlement();
     expect([...sessionStorage.values.keys(), ...localStorage.values.keys()]).toEqual([]);
   });
@@ -68,7 +68,7 @@ describe('a session user cannot grant itself a plan', () => {
 
 describe('subscription facts remain accurate without commercial desk locks', () => {
   it('a paid plan unlocks every desk and export, with no row cap', async () => {
-    serve({ plan: 'professional', status: 'active', period_end: new Date(Date.now() + 30 * DAY).toISOString(), lapsed: false });
+    serve({ plan: 'pro', status: 'active', period_end: new Date(Date.now() + 30 * DAY).toISOString(), lapsed: false });
     await refreshEntitlement();
     const user = { id: 'u1', email: 'a@example.test', type: 'analyst' };
     expect(entitlementOf(user)).toMatchObject({ plan: 'pro', status: 'active' });
@@ -77,61 +77,49 @@ describe('subscription facts remain accurate without commercial desk locks', () 
     expect(canAccessDesk(user, 'state')).toBe(true);
   });
 
-  it('a trial retains its accurate days without record or export caps', async () => {
-    serve({ plan: 'enterprise', status: 'trial', period_end: new Date(Date.now() + 3.5 * DAY).toISOString(), trial_used: true });
-    await refreshEntitlement();
-    const user = { id: 'u1', email: 'a@example.test' };
-    expect(entitlementOf(user)).toMatchObject({ plan: 'enterprise', status: 'trial', trialUsed: true });
-    expect(rowCapForUser(user)).toBe(null);
-    expect(canExport(user)).toBe(true);
-    expect(trialDaysLeft(user)).toBe(4);
+  it('reads Plus and Max, and maps older plan names to their successors', async () => {
+    const user = { id: 'u1' };
+    for (const [stored, plan] of [['plus', 'plus'], ['max', 'max'], ['professional', 'pro'], ['enterprise', 'max']]) {
+      serve({ plan: stored, status: 'active', period_end: null });
+      await refreshEntitlement();
+      expect(entitlementOf(user)).toMatchObject({ plan, status: 'active' });
+    }
   });
 
-  it('a trial that ends during the session reads as free', async () => {
-    serve({ plan: 'professional', status: 'trial', period_end: new Date(Date.now() - 1000).toISOString(), trial_used: true });
+  it('a month that ends during the session reads as free', async () => {
+    serve({ plan: 'pro', status: 'active', period_end: new Date(Date.now() - 1000).toISOString() });
     await refreshEntitlement();
-    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'explorer', status: 'free', trialExpired: true });
+    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'free', status: 'free' });
+  });
+
+  it('an old trial status grants nothing', async () => {
+    serve({ plan: 'pro', status: 'trial', period_end: new Date(Date.now() + 3 * DAY).toISOString() });
+    await refreshEntitlement();
+    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'free', status: 'free' });
   });
 
   it('a lapsed period from the server reads as free', async () => {
-    serve({ plan: 'explorer', status: 'free', lapsed: true, source: 'payment', granted_plan: 'professional' });
+    serve({ plan: 'free', status: 'free', lapsed: true, source: 'payment', granted_plan: 'pro' });
     await refreshEntitlement();
-    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'explorer', status: 'free' });
+    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'free', status: 'free' });
   });
 
   it('keeps the last answer when a refresh fails', async () => {
-    serve({ plan: 'professional', status: 'active', period_end: null });
+    serve({ plan: 'pro', status: 'active', period_end: null });
     await refreshEntitlement();
     auth.rpc = vi.fn(async () => ({ data: null, error: { message: 'offline' } }));
     await refreshEntitlement();
-    expect(serverEntitlement('u1')).toMatchObject({ plan: 'professional' });
+    expect(serverEntitlement('u1')).toMatchObject({ plan: 'pro' });
   });
 
   it('drops the entitlement when there is no session', async () => {
-    serve({ plan: 'professional', status: 'active', period_end: null });
+    serve({ plan: 'pro', status: 'active', period_end: null });
     await refreshEntitlement();
     auth.userId = null;
     await refreshEntitlement();
     expect(serverEntitlement('u1')).toBe(null);
   });
 });
-
-describe('startTrial', () => {
-  it('asks the server for the trial and applies its answer', async () => {
-    auth.rpc = vi.fn(async () => ({ data: { plan: 'professional', status: 'trial', period_end: new Date(Date.now() + 14 * DAY).toISOString(), trial_used: true }, error: null }));
-    const result = await startTrial('pro');
-    expect(auth.rpc).toHaveBeenCalledWith('start_trial', { p_plan: 'pro' });
-    expect(result.ok).toBe(true);
-    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'pro', status: 'trial' });
-  });
-
-  it("passes the server's refusal back and grants nothing", async () => {
-    auth.rpc = vi.fn(async () => ({ data: null, error: { message: 'This account has already used its trial' } }));
-    expect(await startTrial('enterprise')).toEqual({ ok: false, reason: 'This account has already used its trial' });
-    expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'explorer', status: 'free' });
-  });
-});
-
 
 describe('free desk capabilities', () => {
   it.each(['policy', 'journalist', 'student', 'analyst', 'lawyer', 'academic'])('allows every desk, copying and full feeds for a free %s', type => {

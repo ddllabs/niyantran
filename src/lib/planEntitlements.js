@@ -1,11 +1,7 @@
 import { TABS } from '../desks/catalog.js';
 import { serverEntitlement } from './entitlementStore.js';
-import { loadPricing } from './pricingStore.js';
+import { PUBLIC_PLANS, normalizePlanId } from './publicPlans.js';
 import { userTypeOf } from './userTypes.js';
-
-export const TRIAL_DAYS = 14;
-export const TRIAL_ROW_CAP = 25;
-export const FREE_ROW_CAP = 40;
 
 /** Persona → 5 core desks (always includes home). */
 const CORE_BY_PERSONA = {
@@ -18,8 +14,7 @@ const CORE_BY_PERSONA = {
 };
 
 export function planOf(id) {
-  const plans = loadPricing();
-  return plans.find((p) => p.id === id) || plans.find((p) => p.id === 'explorer');
+  return PUBLIC_PLANS.find((p) => p.id === id) || PUBLIC_PLANS[0];
 }
 
 export function coreDesksForPersona(typeId) {
@@ -35,16 +30,10 @@ export function coreDesksForPersona(typeId) {
   return out.slice(0, 5);
 }
 
-export function normalizePlanId(plan) {
-  const id = String(plan || 'explorer').toLowerCase();
-  if (id === 'professional') return 'pro';
-  if (id === 'government' || id === 'govt') return 'gov';
-  if (['explorer', 'pro', 'enterprise', 'gov'].includes(id)) return id;
-  return 'explorer';
-}
+export { normalizePlanId };
 
 /**
- * The live entitlement for a signed-in user: status free | trial | active.
+ * The live entitlement for a signed-in user: status free | active.
  *
  * Read only from the server (my_entitlement(), via entitlementStore.js),
  * for this user's id. Plan fields on the user record come from
@@ -54,43 +43,27 @@ export function normalizePlanId(plan) {
 export function entitlementOf(user) {
   const server = serverEntitlement(user?.id);
   const free = {
-    plan: 'explorer',
+    plan: 'free',
     status: 'free',
-    trialEndsAt: null,
     periodEnd: server?.periodEnd || null,
-    trialExpired: false,
-    trialUsed: Boolean(server?.trialUsed),
     loaded: Boolean(server),
   };
   if (!server) return free;
   const plan = normalizePlanId(server.plan);
-  const status = ['free', 'trial', 'active'].includes(server.status) ? server.status : 'free';
-  if (plan === 'explorer' || status === 'free') return free;
+  if (plan === 'free' || server.status !== 'active') return free;
   // A period that ends while the terminal is open reads as free straight away,
   // as the server will on its next read.
   const end = server.periodEnd ? Date.parse(server.periodEnd) : NaN;
-  if (Number.isFinite(end) && end <= Date.now()) {
-    return { ...free, trialExpired: status === 'trial' };
-  }
-  return {
-    ...free,
-    plan,
-    status,
-    trialEndsAt: status === 'trial' ? server.periodEnd : null,
-  };
-}
-
-export function isTrial(user) {
-  return entitlementOf(user).status === 'trial';
+  if (Number.isFinite(end) && end <= Date.now()) return free;
+  return { ...free, plan, status: 'active' };
 }
 
 export function isFree(user) {
-  return entitlementOf(user).status === 'free' || entitlementOf(user).plan === 'explorer';
+  return entitlementOf(user).plan === 'free';
 }
 
 export function isPaidActive(user) {
-  const e = entitlementOf(user);
-  return e.status === 'active' && e.plan !== 'explorer';
+  return entitlementOf(user).status === 'active';
 }
 
 /** Commercial desk access is free; the app verifies the session/profile. */
@@ -122,12 +95,4 @@ export function rowCapForUser() {
 
 export function applyRowCap(feed) {
   return feed;
-}
-
-export function trialDaysLeft(user) {
-  const e = entitlementOf(user);
-  if (e.status !== 'trial' || !e.trialEndsAt) return 0;
-  const ms = Date.parse(e.trialEndsAt) - Date.now();
-  if (!Number.isFinite(ms) || ms <= 0) return 0;
-  return Math.ceil(ms / 86400000);
 }

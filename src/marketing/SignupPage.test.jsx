@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const fake = vi.hoisted(() => ({ states: [], cursor: 0, signUp: vi.fn(), trial: vi.fn(), refresh: vi.fn() }));
+const fake = vi.hoisted(() => ({ states: [], cursor: 0, signUp: vi.fn(), refresh: vi.fn() }));
 vi.mock('react', async original => ({ ...(await original()), useState: initial => {
   const index = fake.cursor++;
   if (!(index in fake.states)) fake.states[index] = typeof initial === 'function' ? initial() : initial;
   return [fake.states[index], value => { fake.states[index] = typeof value === 'function' ? value(fake.states[index]) : value; }];
 }, useMemo: fn => fn(), useRef: () => ({ current: null }), useEffect: () => {} }));
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: { auth: { signUp: (...args) => fake.signUp(...args) } } }));
-vi.mock('../lib/entitlementStore.js', () => ({ refreshEntitlement: (...args) => fake.refresh(...args), serverEntitlement: () => null, startTrial: (...args) => fake.trial(...args) }));
+vi.mock('../lib/entitlementStore.js', () => ({ refreshEntitlement: (...args) => fake.refresh(...args), serverEntitlement: () => null }));
 vi.mock('../lib/userStore.js', () => ({ setSessionUser: vi.fn(), PENDING_PERSONA_KEY: 'persona', userTypeOf: () => ({ id: 'policy', startTab: 'national' }) }));
 vi.mock('../lib/personas.js', () => ({ PERSONAS: [{ id: 'policy', label: 'Policy', blurb: 'Policy', tone: 'blue', img: '' }], applyPersonaForUser: vi.fn() }));
 vi.mock('../lib/userPrefsSync.js', () => ({ hydrateUserPrefs: vi.fn(async () => ({ ok: true })) }));
@@ -45,10 +45,9 @@ describe('free signup', () => {
   it.each(['#/signup', '#/signup?plan=enterprise', '#/signup/pro'])('enters directly with free metadata from %s', async hash => {
     location.hash = hash;
     const success = vi.fn(); const tree = await signup(success);
-    expect(fake.signUp.mock.calls[0][0].options.data.plan).toBe('explorer');
+    expect(fake.signUp.mock.calls[0][0].options.data.plan).toBe('free');
     expect(success).toHaveBeenCalledOnce();
     expect(setSessionUser).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1', personaId: 'policy' }));
-    expect(fake.trial).not.toHaveBeenCalled();
     expect(find(tree, node => node.props?.className === 'mkt-signup-plan-step')).toBeNull();
   });
   it('does not wait for subscription metadata before entering', async () => {
@@ -62,7 +61,6 @@ describe('free signup', () => {
     expect(find(tree, node => node.type === 'h1').props.children).toBe('VERIFY GMAIL');
     expect(success).not.toHaveBeenCalled();
     expect(setSessionUser).not.toHaveBeenCalled();
-    expect(fake.trial).not.toHaveBeenCalled();
   });
   it('does not publish a session when signup fails', async () => {
     fake.signUp.mockResolvedValue({ data: {}, error: { message: 'Registration refused' } });

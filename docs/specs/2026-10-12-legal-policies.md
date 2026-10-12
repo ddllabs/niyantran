@@ -86,10 +86,10 @@ are flagged for a separate task.
   desktop widths.
 - Lawyer review recorded as pending until the owner confirms it.
 
-## Drafted text: assumptions to confirm (2026-10-12)
+## Drafted text: assumptions (confirmed by the owner, 2026-10-12)
 
-The drafts in `src/lib/legalPolicies.js` make these choices where no owner
-decision existed:
+The drafts in `src/lib/legalPolicies.js` made these choices where no owner
+decision existed; the owner confirmed all of them ("go ahead, no issues"):
 
 1. **Renewal** is described both ways: automatic renewal with RBI pre-debit
    notice if chosen at checkout, otherwise the plan ends with the paid month.
@@ -120,3 +120,35 @@ decision existed:
   no horizontal overflow; signup notice links verified.
 - Not done here: pricing page (F99, with F109), admin editor persistence
   (F108), lawyer review, full registered address.
+
+## Pricing page (F99), 2026-10-12, branch `task/pricing-inr`
+
+The public pricing page now shows Free ₹0, Plus ₹399, Pro ₹999 and Max
+₹9,999 per month from `src/lib/publicPlans.js`, with "Niyantran AI is coming
+soon" on Pro and Max, notes that no GST is charged and that credit allowances
+will be published with the credit policy, and a comparison of only what the
+product offers. The yearly toggle, USD prices, Government plan and
+unsupported claims (API access, team collaboration, dashboards, deployment
+options) are removed. Every plan button leads to signup; "Contact us" opens
+the contact page. Billing (`pricingStore.js`, `billing.js`, server charge
+table) is unchanged and still describes the old plans: F109 must align it
+before payments go live. The admin pricing editor no longer feeds this page
+(it never reached visitors; F108).
+
+Evidence: red-first `src/lib/publicPlans.test.js`; `npm test` 192 files /
+2,539 tests; Deno 881; lint exit 0; build. Browser (DOM checks, pane hidden):
+four rupee cards, Pro/Max coming-soon, nine comparison rows, no "$" or yearly
+text, no overflow at 360/768/1440; plan button goes to signup, help button to
+`/contact`; zero console errors. The hero's unmeasured figures ("UPTIME
+99.9%", "FEED 211+") remain under F30.
+
+## Measured site figures (F30 in part), 2026-10-12
+
+Read-only NTER query: 9,817 rows (9,415 distinct bill keys) in the national
+bill desk, 3,431 indexed full-text documents (100,031 chunks), 2,222 bills
+with full text. `src/lib/siteFigures.js` now feeds the homepage and pricing
+headers: bills 9,817 (matching the carousel's computed count), desk modules
+from the catalogue (120), and full-text documents 3,431. The hand-typed
+"9,819", "4,576", "211+ live API endpoints" and "99.9% uptime" are removed;
+nothing measured uptime. The homepage's hand-typed "48 ministries" KPI
+remains (the carousel computes 56); left for F30.

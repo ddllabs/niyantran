@@ -1,13 +1,16 @@
 /**
- * Razorpay billing API + GST tax invoices (CR-17).
+ * Razorpay billing API and invoices for the INR monthly plans (open-work F109).
  *
  *   GET  /api/billing/config
- *   GET  /api/billing/quote?planId=&yearly=&buyerGstin=&buyerStateCode=
- *   POST /api/billing/create-order   { planId, yearly, userId, email, name, buyerGstin?, buyerStateCode?, buyerAddress? }
- *   POST /api/billing/verify        { orderId, paymentId, signature, planId, yearly, userId, email, name, buyer* }
- *   POST /api/billing/invoice       { planId, yearly, email, name, …, provider?, paymentId?, orderId? }  // demo/record
+ *   GET  /api/billing/quote?planId=
+ *   POST /api/billing/create-order   { planId, name? }
+ *   POST /api/billing/verify        { orderId, paymentId, signature, planId, name? }
+ *   POST /api/billing/invoice       { planId, name? }  // local demo record only
  *   GET  /api/billing/invoices
- *   GET  /api/billing/invoice/:id   HTML tax invoice
+ *   GET  /api/billing/invoice/:id   HTML invoice
+ *
+ * Plans are Plus, Pro and Max at their rupee prices, one month per payment,
+ * with no GST (the seller is not GST-registered).
  *
  * A verified payment grants its paid period through grant_paid_plan() (F2,
  * docs/specs/2026-09-29-f2-entitlements.md); nothing else here grants a plan.
@@ -23,13 +26,7 @@ import { loadEnv } from './loadEnv.mjs';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 import { isServerlessHost } from './writableRoot.mjs';
-import {
-  computeGstQuote,
-  newInvoiceId,
-  renderInvoiceHtml,
-  sellerFromEnv,
-  STATE_CODES,
-} from './gstBilling.mjs';
+import { computeQuote, newInvoiceId, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
 
 loadEnv();
 
@@ -111,12 +108,7 @@ function verifySignature(orderId, paymentId, signature) {
 }
 
 function quoteFromBody(body) {
-  return computeGstQuote({
-    planId: body.planId,
-    yearly: body.yearly,
-    buyerGstin: body.buyerGstin || body.gstin,
-    buyerStateCode: body.buyerStateCode || body.stateCode,
-  });
+  return computeQuote({ planId: body.planId });
 }
 
 function num(v) {
@@ -131,20 +123,9 @@ function rowToInvoice(r) {
     email: r.user_email,
     userId: r.user_id,
     planId: r.plan_id,
-    yearly: Boolean(r.yearly),
     currency: r.currency,
-    taxable: num(r.taxable),
-    cgst: num(r.cgst),
-    sgst: num(r.sgst),
-    igst: num(r.igst),
     total: num(r.total),
-    taxSplit: r.tax_split,
-    usdList: num(r.usd_list),
-    usdToInr: num(r.usd_to_inr),
     buyerName: r.buyer_name,
-    buyerGstin: r.buyer_gstin,
-    buyerStateCode: r.buyer_state_code,
-    buyerAddress: r.buyer_address,
     paymentId: r.payment_id,
     orderId: r.order_id,
     provider: r.provider,
@@ -159,40 +140,22 @@ function bearerToken(req) {
 }
 
 /** Issues one invoice for a verified buyer. The database assigns the number. */
+// No GST is collected: the GST columns keep their zero defaults and the
+// taxable value equals the total.
 async function persistInvoice({ quote, buyer, payment }, deps) {
-  const seller = sellerFromEnv();
-  const buyerStateCode = quote.buyerStateCode || '';
   const { data, error } = await deps.adminClient().rpc('issue_invoice', {
     p: {
       id: newInvoiceId(),
       user_id: buyer.userId,
       user_email: buyer.email,
       plan_id: quote.planId,
-      yearly: Boolean(quote.yearly),
-      taxable: quote.taxable,
-      cgst: quote.cgst,
-      sgst: quote.sgst,
-      igst: quote.igst,
+      taxable: quote.total,
       total: quote.total,
-      tax_split: quote.taxSplit,
-      usd_list: quote.usdList,
-      usd_to_inr: quote.usdToInr,
       buyer_name: buyer.name || '',
-      buyer_gstin: buyer.gstin || '',
-      buyer_state_code: buyerStateCode,
-      buyer_address: buyer.address || '',
       payment_id: payment?.paymentId || '',
       order_id: payment?.orderId || '',
       provider: payment?.provider || 'razorpay',
-      payload: {
-        planLabel: quote.planLabel,
-        period: quote.period,
-        sac: quote.sac,
-        sacDesc: quote.sacDesc,
-        buyerEmail: buyer.email,
-        buyerStateName: STATE_CODES[buyerStateCode] || '',
-        sellerGstin: seller.gstin,
-      },
+      payload: { planLabel: quote.planLabel, period: quote.period, buyerEmail: buyer.email },
     },
   });
   if (error) {
@@ -208,7 +171,7 @@ async function grantPaidPlan({ userId, quote, paymentId }, deps) {
   const { data, error } = await deps.adminClient().rpc('grant_paid_plan', {
     p_user: userId,
     p_plan: quote.planId,
-    p_period: quote.yearly ? 'year' : 'month',
+    p_period: 'month',
     p_payment_id: paymentId,
   });
   if (error) {
@@ -220,22 +183,15 @@ async function grantPaidPlan({ userId, quote, paymentId }, deps) {
 }
 
 function buyerFrom(body, caller) {
-  return {
-    email: caller.email,
-    userId: caller.id,
-    name: body.name,
-    gstin: body.buyerGstin || body.gstin,
-    address: body.buyerAddress,
-  };
+  return { email: caller.email, userId: caller.id, name: body.name };
 }
 
-/** The Razorpay order must be the caller's, for this plan and period, at the quoted amount. */
+/** The Razorpay order must be the caller's, for this plan, at the plan's price. */
 function orderMatches(order, quote, caller) {
   const notes = order?.notes || {};
   return (
     String(notes.userId || '') === caller.id &&
     String(notes.planId || '') === quote.planId &&
-    String(notes.yearly ?? '') === String(Boolean(quote.yearly)) &&
     Number(order?.amount) === quote.amountPaise
   );
 }
@@ -258,30 +214,19 @@ export async function handleBillingApi(req, res, url, deps = {}) {
 
   if (url.pathname === '/api/billing/config' && req.method === 'GET') {
     const { keyId, enabled } = keys();
-    const seller = sellerFromEnv();
     json(res, {
       provider: 'razorpay',
       enabled,
       keyId: enabled ? keyId : '',
       currency: 'INR',
-      usdToInr: Number(process.env.BILLING_USD_INR || 83),
-      gstRate: 0.18,
-      sac: seller.sac,
-      sellerStateCode: seller.stateCode,
-      sellerGstinConfigured: Boolean(seller.gstin),
+      gstRegistered: false,
       demoFallback: !enabled,
-      states: Object.entries(STATE_CODES).map(([code, name]) => ({ code, name })),
     });
     return true;
   }
 
   if (url.pathname === '/api/billing/quote' && req.method === 'GET') {
-    const quote = computeGstQuote({
-      planId: url.searchParams.get('planId'),
-      yearly: url.searchParams.get('yearly') === '1' || url.searchParams.get('yearly') === 'true',
-      buyerGstin: url.searchParams.get('buyerGstin') || '',
-      buyerStateCode: url.searchParams.get('buyerStateCode') || '',
-    });
+    const quote = computeQuote({ planId: url.searchParams.get('planId') });
     if (!quote) {
       json(res, { ok: false, reason: 'Unknown plan.' }, 400);
       return true;
@@ -311,15 +256,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
           amount: quote.amountPaise,
           currency: 'INR',
           receipt,
-          notes: {
-            planId: quote.planId,
-            yearly: String(quote.yearly),
-            userId: who.id,
-            email: who.email,
-            taxable: String(quote.taxable),
-            gst: String(quote.gstAmount),
-            taxSplit: quote.taxSplit,
-          },
+          notes: { planId: quote.planId, userId: who.id, email: who.email },
         },
       });
       json(res, {
@@ -329,7 +266,6 @@ export async function handleBillingApi(req, res, url, deps = {}) {
         amount: order.amount,
         currency: order.currency || 'INR',
         planId: quote.planId,
-        yearly: quote.yearly,
         quote,
       });
     } catch (err) {
@@ -385,7 +321,7 @@ export async function handleBillingApi(req, res, url, deps = {}) {
       } catch (err) {
         if (err.status !== 409) throw err;
       }
-      json(res, { ok: true, planId: quote.planId, yearly: quote.yearly, orderId, paymentId, invoice, quote, entitlement });
+      json(res, { ok: true, planId: quote.planId, orderId, paymentId, invoice, quote, entitlement });
     } catch (err) {
       json(res, { ok: false, reason: err.message || 'Verification failed.' }, err.status || 500);
     }

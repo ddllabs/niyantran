@@ -17,8 +17,8 @@ const PEOPLE = [A, B, ADMIN];
 function row(id, owner, n) {
   return {
     id, invoice_no: `NIY/2627/0000${n}`, financial_year: '2627', seq: n, user_id: owner.id, user_email: owner.email,
-    plan_id: 'pro', yearly: false, currency: 'INR', taxable: 1000, cgst: 90, sgst: 90, igst: 0, total: 1180,
-    tax_split: 'cgst_sgst', usd_list: 12, usd_to_inr: 83, buyer_name: 'Buyer', buyer_gstin: null, buyer_state_code: '29',
+    plan_id: 'pro', yearly: false, currency: 'INR', taxable: 999, cgst: 0, sgst: 0, igst: 0, total: 999,
+    tax_split: null, usd_list: null, usd_to_inr: null, buyer_name: 'Buyer', buyer_gstin: null, buyer_state_code: null,
     buyer_address: null, payment_id: `pay_${n}`, order_id: `order_${n}`, provider: 'razorpay', payload: { planLabel: 'Pro' },
     issued_at: '2026-09-28T10:00:00Z',
   };
@@ -56,7 +56,7 @@ function adminClient() {
       if (name === 'grant_paid_plan') {
         if (grantError) return { data: null, error: grantError };
         granted.push(args);
-        return { data: { plan: 'professional', status: 'active', period_end: '2026-10-29T10:00:00Z', source: 'payment' }, error: null };
+        return { data: { plan: args.p_plan, status: 'active', period_end: '2026-10-29T10:00:00Z', source: 'payment' }, error: null };
       }
       if (name !== 'issue_invoice') throw new Error(`unexpected rpc ${name}`);
       issued.push(args.p);
@@ -117,7 +117,35 @@ describe('billing routes require a verified caller', () => {
 
   it('keeps config and quote open', async () => {
     expect((await call(request('GET', '/api/billing/config'))).status).toBe(200);
-    expect((await call(request('GET', '/api/billing/quote?planId=pro&yearly=0'))).status).toBe(200);
+    expect((await call(request('GET', '/api/billing/quote?planId=pro'))).status).toBe(200);
+  });
+});
+
+describe('INR plans, monthly, no GST (open-work F109)', () => {
+  it.each([['plus', 39900], ['pro', 99900], ['max', 999900]])('quotes %s at its rupee price with nothing added', async (planId, paise) => {
+    const { status, body } = await call(request('GET', `/api/billing/quote?planId=${planId}&yearly=1&buyerGstin=29ABCDE1234F1Z5`));
+    expect(status).toBe(200);
+    expect(body.quote).toMatchObject({ planId, currency: 'INR', period: 'monthly', amountPaise: paise, total: paise / 100 });
+    expect(body.quote).not.toHaveProperty('gstRate');
+    expect(body.quote).not.toHaveProperty('usdList');
+    expect(body.quote).not.toHaveProperty('yearly');
+  });
+
+  it.each(['free', 'explorer', 'enterprise', 'gov', 'professional'])('refuses %s as a paid plan', async (planId) => {
+    expect((await call(request('GET', `/api/billing/quote?planId=${planId}`))).status).toBe(400);
+  });
+
+  it('publishes no GST rate, exchange rate or GST state list in the config', async () => {
+    const { body } = await call(request('GET', '/api/billing/config'));
+    expect(body).toMatchObject({ currency: 'INR', gstRegistered: false });
+    for (const key of ['gstRate', 'usdToInr', 'states', 'sac']) expect(body).not.toHaveProperty(key);
+  });
+
+  it('renders a plain invoice from the company, not a tax invoice', async () => {
+    const { body } = await call(request('GET', '/api/billing/invoice/inv_a_one', { as: A }));
+    expect(body).toContain('Niyantran Strategy Consulting Private Limited');
+    expect(body).toContain('Not registered under GST');
+    expect(body).not.toMatch(/TAX INVOICE|CGST|SGST|IGST|USD/);
   });
 });
 
@@ -176,19 +204,22 @@ describe('Razorpay orders and verification', () => {
     expect(response.status).toBe(200);
     const [, init] = rz.mock.calls.find(([path]) => path === '/orders');
     expect(init.body.notes).toMatchObject({ userId: A.id, email: A.email, planId: 'pro' });
+    expect(init.body.notes).not.toHaveProperty('gst');
+    expect(init.body.notes).not.toHaveProperty('yearly');
+    expect(init.body).toMatchObject({ amount: 99900, currency: 'INR' });
   });
 
   async function verifyWith(order, body = {}) {
     const d = deps({ razorpayFetch: razorpay({ order }), verifySignature: () => true });
     return call(request('POST', '/api/billing/verify', {
       as: A,
-      body: { orderId: 'order_9', paymentId: 'pay_9', signature: 'sig', planId: 'pro', yearly: false, email: B.email, userId: B.id, ...body },
+      body: { orderId: 'order_9', paymentId: 'pay_9', signature: 'sig', planId: 'pro', email: B.email, userId: B.id, ...body },
     }), d);
   }
 
   async function goodOrder() {
-    const q = await call(request('GET', '/api/billing/quote?planId=pro&yearly=0'));
-    return { amount: q.body.quote.amountPaise, notes: { userId: A.id, planId: 'pro', yearly: 'false' } };
+    const q = await call(request('GET', '/api/billing/quote?planId=pro'));
+    return { amount: q.body.quote.amountPaise, notes: { userId: A.id, planId: 'pro' } };
   }
 
   it('issues the invoice to the verified caller when the order matches', async () => {
@@ -205,10 +236,9 @@ describe('Razorpay orders and verification', () => {
     expect(issued).toEqual([]);
   });
 
-  it('refuses an order made for another plan or period', async () => {
+  it('refuses an order made for another plan', async () => {
     const order = await goodOrder();
-    expect((await verifyWith({ ...order, notes: { ...order.notes, planId: 'enterprise' } })).status).toBe(400);
-    expect((await verifyWith({ ...order, notes: { ...order.notes, yearly: 'true' } })).status).toBe(400);
+    expect((await verifyWith({ ...order, notes: { ...order.notes, planId: 'max' } })).status).toBe(400);
     expect(issued).toEqual([]);
   });
 
@@ -224,22 +254,22 @@ describe('Razorpay orders and verification', () => {
     const response = await verifyWith(await goodOrder());
     expect(response.status).toBe(200);
     expect(granted).toEqual([{ p_user: A.id, p_plan: 'pro', p_period: 'month', p_payment_id: 'pay_9' }]);
-    expect(response.body.entitlement).toMatchObject({ plan: 'professional', status: 'active' });
+    expect(response.body.entitlement).toMatchObject({ plan: 'pro', status: 'active' });
+    expect(issued[0]).toMatchObject({ taxable: 999, total: 999 });
+    expect(issued[0]).not.toHaveProperty('cgst');
   });
 
-  it('grants a year for a yearly order', async () => {
-    const q = await call(request('GET', '/api/billing/quote?planId=pro&yearly=1'));
-    const order = { amount: q.body.quote.amountPaise, notes: { userId: A.id, planId: 'pro', yearly: 'true' } };
-    const response = await verifyWith(order, { yearly: true });
+  it('grants one month even when the body asks for a year', async () => {
+    const response = await verifyWith(await goodOrder(), { yearly: true });
     expect(response.status).toBe(200);
-    expect(granted[0]).toMatchObject({ p_period: 'year' });
+    expect(granted[0]).toMatchObject({ p_period: 'month' });
   });
 
   it('grants nothing when a check fails', async () => {
     const order = await goodOrder();
     await verifyWith({ ...order, amount: order.amount - 100 });
     await verifyWith({ ...order, notes: { ...order.notes, userId: B.id } });
-    await verifyWith({ ...order, notes: { ...order.notes, planId: 'enterprise' } });
+    await verifyWith({ ...order, notes: { ...order.notes, planId: 'max' } });
     const badSignature = deps({ razorpayFetch: razorpay({ order }), verifySignature: () => false });
     expect((await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 'x', planId: 'pro' } }), badSignature)).status).toBe(400);
     const failed = deps({ razorpayFetch: razorpay({ order, payment: { status: 'failed' } }), verifySignature: () => true });
@@ -258,7 +288,7 @@ describe('Razorpay orders and verification', () => {
 
   it('still answers ok when the invoice already exists for a granted payment (a retry)', async () => {
     const d = deps({ razorpayFetch: razorpay({ order: await goodOrder() }), verifySignature: () => true });
-    const first = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro', yearly: false } }), d);
+    const first = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro' } }), d);
     expect(first.status).toBe(200);
     const original = d.adminClient;
     d.adminClient = () => {
@@ -267,7 +297,7 @@ describe('Razorpay orders and verification', () => {
       client.rpc = vi.fn(async (name, args) => (name === 'issue_invoice' ? { data: null, error: { code: '23505' } } : rpc(name, args)));
       return client;
     };
-    const retry = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro', yearly: false } }), d);
+    const retry = await call(request('POST', '/api/billing/verify', { as: A, body: { orderId: 'order_9', paymentId: 'pay_9', signature: 's', planId: 'pro' } }), d);
     expect(retry.status).toBe(200);
     expect(retry.body).toMatchObject({ ok: true, invoice: null });
     expect(granted).toHaveLength(2);

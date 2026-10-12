@@ -5,6 +5,7 @@ import BillAiDropDemo from './BillAiDropDemo.jsx';
 import SegmentCarousel from './SegmentCarousel.jsx';
 import NterLatestRail from './NterLatestRail.jsx';
 import AuthEarth from './AuthEarth.jsx';
+import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
 
 /** Provisional CR hook line — replace when client finalises. */
 const HOOK = 'See what a record touches — before you argue about it.';
@@ -34,7 +35,7 @@ const DESKS = [
       ['The Kerala (Alteration Of Name) Bill, 2026', 'Lok Sabha'],
     ],
     kpis: [
-      ['9,819', 'blue', 'BILLS ON RECORD'],
+      [figure(SITE_FIGURES.bills), 'blue', 'BILLS ON RECORD'],
       ['2', 'ok', 'HOUSES'],
       ['48', 'warn', 'MINISTRIES'],
       ['1952', 'gold', 'SERIES START'],
@@ -284,15 +285,15 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             <div className="mkt-hero-tele">
               <span>
                 <i />
-                FEED 211+
+                MODULES {SITE_FIGURES.modules}
               </span>
               <span>
                 <i />
-                BILLS 9,819
+                BILLS {figure(SITE_FIGURES.bills)}
               </span>
               <span>
                 <i />
-                UPTIME 99.9%
+                DOCUMENTS {figure(SITE_FIGURES.documents)}
               </span>
               <span className="blink">▌</span>
             </div>
@@ -304,7 +305,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </svg>
               </button>
               <button type="button" className="mkt-cta ghost" onClick={onPricing}>
-                14-day free trial
+                See plans
               </button>
               <button type="button" className="mkt-cta ghost" onClick={onCoverage}>
                 View Data Coverage
@@ -582,7 +583,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </i>
                 <div>
                   <strong>
-                    <b>9,819</b> Bills on the tracker
+                    <b>{figure(SITE_FIGURES.bills)}</b> Bills on the tracker
                   </strong>
                   <span>Live and historical legislation</span>
                 </div>
@@ -725,8 +726,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18" size={16} />
               </i>
               <div>
-                <div className="n">211+</div>
-                <div className="l">Live API Endpoints</div>
+                <div className="n">{SITE_FIGURES.modules}</div>
+                <div className="l">Desk Modules</div>
               </div>
             </div>
             <div className="mkt-ribbon-item">
@@ -734,7 +735,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M4 21h16M4 10h16M12 3l8 7H4z" size={16} />
               </i>
               <div>
-                <div className="n">9,819</div>
+                <div className="n">{figure(SITE_FIGURES.bills)}</div>
                 <div className="l">Bills Tracked</div>
               </div>
             </div>
@@ -752,8 +753,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" size={16} />
               </i>
               <div>
-                <div className="n">99.9%</div>
-                <div className="l">Uptime &amp; Reliability</div>
+                <div className="n">{figure(SITE_FIGURES.documents)}</div>
+                <div className="l">Full-text Documents</div>
               </div>
             </div>
           </div>
