@@ -1,6 +1,5 @@
 import { deskHash } from '../../lib/deskRoute.js';
-import PanelMap from './visuals/PanelMap.jsx';
-import StageTimeline from './visuals/StageTimeline.jsx';
+import { VISUALS } from './visuals/index.js';
 import TouchGraph from './visuals/TouchGraph.jsx';
 import './recordPanel.css';
 
@@ -14,11 +13,8 @@ import './recordPanel.css';
 const safeHref = (href) => (/^https:\/\//i.test(String(href || '')) ? href : null);
 
 function Visual({ visual }) {
-  if (!visual) return null;
-  const props = { title: visual.title, right: visual.right, visual };
-  if (visual.type === 'map') return <PanelMap {...props} />;
-  if (visual.type === 'timeline') return <StageTimeline {...props} />;
-  return null;
+  const Component = visual && VISUALS[visual.type];
+  return Component ? <Component title={visual.title} right={visual.right} visual={visual} /> : null;
 }
 
 export default function RecordPanel({ model, onClose, onAsk }) {
@@ -36,7 +32,7 @@ export default function RecordPanel({ model, onClose, onAsk }) {
           <button type="button" className="rp-close" aria-label="Close record" onClick={() => onClose?.()}>×</button>
         </div>
         <div className="rp-meta">
-          {(model.meta || []).filter(Boolean).map((m, i) => <span key={m} className="rp-meta-item">{i ? <i aria-hidden="true">·</i> : null}{m}</span>)}
+          {(model.meta || []).filter(Boolean).map((m, i) => <span key={i} className="rp-meta-item">{i ? <i aria-hidden="true">·</i> : null}{m}</span>)}
           {model.badge ? <span className={`rp-badge rp-${model.badge.tone || 'grey'}`}>{model.badge.text}</span> : null}
         </div>
         {links.length ? (
@@ -62,16 +58,18 @@ export default function RecordPanel({ model, onClose, onAsk }) {
         {glance.callout ? <p className={`rp-callout rp-callout-${glance.callout.tone || 'amber'}`}><b aria-hidden="true">!</b><span>{glance.callout.text}</span></p> : null}
       </section>
 
-      <section className="rp-block">
-        <h3 className="rp-eyebrow">{about.label || '02 · About this record'}</h3>
-        {about.rows?.length ? (
-          <dl className="rp-kv">{about.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-        ) : null}
-        {about.chips?.length ? <div className="rp-chips">{about.chips.map((c) => <span key={c}>{c}</span>)}</div> : null}
-        {(about.cards || []).map((c) => (
-          <div key={c.heading} className="rp-card"><div className="rp-card-hd">{c.heading}</div><p>{c.body}</p></div>
-        ))}
-      </section>
+      {about.rows?.length || about.chips?.length || about.cards?.length ? (
+        <section className="rp-block">
+          <h3 className="rp-eyebrow">{about.label || '02 · About this record'}</h3>
+          {about.rows?.length ? (
+            <dl className="rp-kv">{about.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+          ) : null}
+          {about.chips?.length ? <div className="rp-chips">{about.chips.map((c) => <span key={c}>{c}</span>)}</div> : null}
+          {(about.cards || []).map((c) => (
+            <div key={c.heading} className="rp-card"><div className="rp-card-hd">{c.heading}</div><p>{c.body}</p></div>
+          ))}
+        </section>
+      ) : null}
 
       {touches ? (
         <section className="rp-block rp-touches">

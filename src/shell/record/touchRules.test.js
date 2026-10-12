@@ -24,6 +24,8 @@ describe('touch rules', () => {
     expect(originCountry('Foreign OEM + Mazagon Dock, India')).toBe('India');
     expect(originCountry('Naval Group + Mazagon Dock')).toBeNull();
     expect(originCountry('')).toBeNull();
+    expect(originCountry('Iranian Navy')).toBeNull();
+    expect(originCountry('Indian Navy, USAF')).toBeNull();
   });
 
   it('counts the other records sharing a value, case-insensitively, excluding the record itself', () => {

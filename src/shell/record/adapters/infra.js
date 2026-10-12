@@ -1,3 +1,4 @@
+import infraPack from '../../../data/infra-projects.json';
 import { countryPosition } from '../geoLookup.js';
 import { othersSharing } from '../touchRules.js';
 import { cap, dateLabel, plural, presentRows, sourceLinks } from './common.js';
@@ -6,7 +7,7 @@ import { cap, dateLabel, plural, presentRows, sourceLinks } from './common.js';
 function statusOf(status) {
   const s = String(status || '').toLowerCase();
   if (/partial/.test(s)) return { text: 'Partly operational', tone: 'green' };
-  if (/operational|implemented|complete/.test(s)) return { text: cap(status.replace(/\s*\(.*\)/, '')), tone: 'green' };
+  if (/operational|implemented|complete/.test(s)) return { text: cap(String(status).replace(/\s*\(.*\)/, '')), tone: 'green' };
   if (/construction|development/.test(s)) return { text: cap(status), tone: 'amber' };
   if (/negotiat/.test(s)) return { text: 'Under negotiation', tone: 'amber' };
   if (/ongoing/.test(s)) return { text: 'Ongoing', tone: 'blue' };
@@ -17,7 +18,8 @@ export default function infra(row, ctx = {}) {
   const title = row.name || row.title || 'Asset';
   const badge = statusOf(row.status);
   const where = countryPosition(row.country);
-  const asOf = dateLabel(ctx.feed?.meta?.asOf);
+  // The feed sets meta.asOf; the register's own date covers a feed that does not.
+  const asOf = dateLabel(ctx.feed?.meta?.asOf || infraPack.asOf);
   const sameCountry = othersSharing(ctx.rows, row, 'country');
   const sameSector = othersSharing(ctx.rows, row, 'sector');
 

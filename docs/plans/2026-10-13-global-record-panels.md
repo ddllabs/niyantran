@@ -18,9 +18,14 @@ contract is fixed:
 
 - each module adapter (and any new visual it needs) is a disjoint write scope;
 - the supervisor creates one worktree per task, dispatches with
-  `docs/agents/onboarding.md`, then reviews, verifies, commits and owns the shared
-  integration files (`registry.js`, `RailContent.jsx`, `TerminalShell.jsx`,
-  `sidePanelModel.js`);
+  `docs/agents/onboarding.md`, then reviews, verifies and commits;
+- **supervisor-owned files** (no task agent edits them):
+  - `registry.js`, `RecordPanel.jsx`, `modelContract.js`, `recordPanel.css`;
+  - `visuals/index.js`, `visuals/types.js`;
+  - `RailContent.jsx`, `TerminalShell.jsx`, `sidePanelModel.js`.
+
+  A task that needs a new visual adds its own component, with its own CSS file
+  imported by it, and the supervisor registers it;
 - at most 3–4 agents run at once, to keep reviews prompt.
 
 Every task is test-first, and every phase ends with a checkpoint.
@@ -194,3 +199,27 @@ npm test
 npx vitest run src/shell/record
 npm run build
 ```
+
+## Review of batch 1 (2026-10-13)
+
+An independent code-reviewer agent (model Fable) reviewed `c47bad4`. Fixes:
+
+- **Must fix before merge, all done with tests that failed first:**
+  1. Open Fronts drew 9 of 14 dossier fronts twice. Fixed with case-insensitive matching, a
+     `SAME_AS` / `PART_OF` alias table, and exclusion of the row's own or parent dossier from
+     the context markers.
+  2. The tile-wrap container query had no container (`.rp { container-type: inline-size }`).
+  3. The contract passed visuals the renderer drops. It now validates registered types (map,
+     timeline) and their shapes, and the visuals registry moved to supervisor-owned
+     `visuals/index.js`.
+  4. The contract now requires an as-of date (or "as-of not on record"); Infra falls back to the
+     register's own date.
+- **Also done before batch 2:**
+  - `originCountry` reads the last comma segment exactly, so "Indian Navy" is no origin;
+  - graph labels are shortened to 22 characters with a tooltip;
+  - dark-theme contrast for the Ask AI button and the graph;
+  - the placeholder rule narrowed so prose such as "null and void" passes;
+  - the About section is hidden when empty;
+  - the Global Intelligence footer wording.
+- **Deferred:** memoising map points (performance), and replacing the constant "Value — Not on
+  record" tile.

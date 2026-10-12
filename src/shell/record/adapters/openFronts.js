@@ -20,15 +20,46 @@ const TREND_TONE = { escalating: 'amber', easing: 'green' };
 
 const DOSSIERS = geoConflicts.conflicts || [];
 const https = (url) => /^https:\/\//i.test(String(url || ''));
+const norm = (s) => String(s || '').toLowerCase().replace(/[‐-―−-]/g, '-').replace(/\s+/g, ' ').trim();
+
+/**
+ * Register names that differ from their dossier's name (curated; the review of 2026-10-13 found
+ * exact-name matching drew nine fronts twice). PART_OF rows belong to a broader regional dossier:
+ * that dossier is never drawn as a separate marker for them, but its facts and position are not
+ * borrowed, because it describes more than the row.
+ */
+const SAME_AS = {
+  'israel-hamas war (gaza)': 'Israel–Hamas (Gaza)',
+  'sudan - civil war (saf vs rsf)': 'Sudan Civil War',
+  'myanmar - civil war': 'Myanmar Civil War',
+  'yemen - houthi conflict / red sea': 'Yemen / Red Sea',
+  'haiti - gang crisis': 'Haiti — Gang Conflict',
+  'iran-israel shadow & direct strikes': 'Israel–Iran Direct Exchange',
+  'india-pakistan loc tensions': 'India–Pakistan (LoC / Kashmir)',
+};
+const PART_OF = {
+  'mali - jihadist insurgency (jnim/isgs)': 'Sahel Insurgency (Mali/Niger/Burkina)',
+  'burkina faso - insurgency': 'Sahel Insurgency (Mali/Niger/Burkina)',
+  'niger - insurgency & instability': 'Sahel Insurgency (Mali/Niger/Burkina)',
+};
+const byName = (name) => DOSSIERS.find((d) => norm(d.name) === norm(name));
+
+/** The dossier that is this front, and the one it belongs to (either may be undefined). */
+export function dossiersFor(name) {
+  const key = norm(name);
+  const same = byName(name) || (SAME_AS[key] && byName(SAME_AS[key]));
+  const partOf = PART_OF[key] && byName(PART_OF[key]);
+  return { same, partOf };
+}
 
 export default function openFronts(row, ctx = {}) {
   const name = row.conflict_name || row.title || 'Front';
   const region = row.region || '';
   const stage = STAGE[String(row.current_stage || '').toLowerCase()] || (row.current_stage ? { text: cap(row.current_stage), tone: 'grey' } : null);
-  const dossier = DOSSIERS.find((d) => d.name === name);
+  const { same: dossier, partOf } = dossiersFor(name);
   const exact = dossier && Number.isFinite(dossier.lat) ? { lat: dossier.lat, lon: dossier.lon } : null;
   const place = exact || regionPosition(region);
-  const context = DOSSIERS.filter((d) => d !== dossier && Number.isFinite(d.lat))
+  const context = DOSSIERS.filter((d) => d !== dossier && d !== partOf && Number.isFinite(d.lat))
     .map((d) => ({ lat: d.lat, lon: d.lon, label: d.name, tone: 'amber' }));
   const asOf = dateLabel(row.as_of || row.last_verified);
   const chokepoints = chokepointsForRegion(region);

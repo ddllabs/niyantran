@@ -35,4 +35,11 @@ describe('record visuals', () => {
     expect(html).toContain('Middle East');
     expect(html).toMatch(/aria-label="[^"]*Middle East[^"]*This front[^"]*"/);
   });
+
+  it('shortens long node labels and keeps the full text as a tooltip', () => {
+    const long = 'Trincomalee/Colombo Port Strategic Stake';
+    const html = renderToStaticMarkup(<TouchGraph lanes={['A', 'B', 'C', 'D']} nodes={{ center: { l1: 'This' }, far: { l1: long } }} />);
+    expect(html).toContain(`<title>${long}</title>`);
+    expect(html).toMatch(/>Trincomalee\/Colombo P…</);
+  });
 });

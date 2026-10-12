@@ -47,6 +47,21 @@ describe('Open Fronts panel', () => {
     expect(openFronts(other, ctx(warTracker)).glance.visual.points.find((p) => p.main)).toMatchObject({ approximate: true });
   });
 
+  it('never draws a front twice: its own dossier is the main marker, not a context marker', () => {
+    for (const r of warTracker) {
+      const points = openFronts(r, ctx(warTracker)).glance.visual?.points || [];
+      const main = points.find((p) => p.main);
+      const dupes = points.filter((p) => !p.main && main && p.lat === main.lat && p.lon === main.lon);
+      expect(dupes, r.conflict_name).toEqual([]);
+    }
+    for (const name of ['Somalia — Al-Shabaab', 'Israel–Hamas War (Gaza)', 'Sudan — Civil War (SAF vs RSF)', 'Myanmar — Civil War', 'Yemen — Houthi Conflict / Red Sea', 'Haiti — Gang crisis', 'Iran–Israel shadow & direct strikes', 'India–Pakistan LoC Tensions']) {
+      const main = openFronts(warTracker.find((r) => r.conflict_name === name), ctx(warTracker)).glance.visual.points.find((p) => p.main);
+      expect(main.approximate, name).toBeFalsy();
+    }
+    const mali = openFronts(warTracker.find((r) => r.conflict_name.startsWith('Mali — Jihadist')), ctx(warTracker)).glance.visual.points;
+    expect(mali.some((p) => /Sahel/.test(p.label))).toBe(false);
+  });
+
   it('touches the chokepoints of its region and counts the other fronts there', () => {
     expect(model.touches.nodes.right).toMatchObject({ l1: 'Kerch Strait', l2: '+1 more' });
     expect(model.touches.nodes.far.l1).toBe('1 other front');
@@ -91,8 +106,9 @@ describe('Infra panel', () => {
     expect(model.glance.visual.points[0]).toMatchObject({ label: 'India', approximate: true });
   });
 
-  it('keeps a month-only as-of date at month precision', () => {
+  it('keeps a month-only as-of date at month precision, even without feed metadata', () => {
     expect(model.footer.provenance.asOf).toBe('Jul 2026');
+    expect(infra(row, ctx(infraRows)).footer.provenance.asOf).toBe('Jul 2026');
   });
 
   it('counts other assets in the same country and sector', () => {

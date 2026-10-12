@@ -5,11 +5,25 @@
 const X = [62, 196, 330, 458];
 const SLOTS = ['left', 'center', 'right', 'far'];
 
+const MAX = 22;
+const fit = (s) => (String(s).length > MAX ? `${String(s).slice(0, MAX - 1)}…` : String(s));
+
+/** A node label, shortened to fit its lane; a shortened label carries its full text as a tooltip. */
+function Line({ x, y, className, text }) {
+  const short = fit(text);
+  return (
+    <text x={x} y={y} textAnchor="middle" className={className}>
+      {short !== String(text) ? <title>{text}</title> : null}
+      {short}
+    </text>
+  );
+}
+
 function Label({ x, l1, l2, muted }) {
   return (
     <>
-      <text x={x} y="112" textAnchor="middle" className={muted ? 'rp-g-muted' : 'rp-g-l1'}>{l1}</text>
-      {l2 ? <text x={x} y="127" textAnchor="middle" className="rp-g-l2">{l2}</text> : null}
+      <Line x={x} y="112" className={muted ? 'rp-g-muted' : 'rp-g-l1'} text={l1} />
+      {l2 ? <Line x={x} y="127" className="rp-g-l2" text={l2} /> : null}
     </>
   );
 }

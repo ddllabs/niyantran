@@ -44,6 +44,7 @@ component:
 ```js
 /**
  * @typedef {'red'|'amber'|'green'|'blue'|'grey'} Tone
+ * @typedef {{ code?: string, l1: string, l2?: string }} Node   // graph node; l1/l2 shortened to 22 chars in the graph
  * @typedef {{
  *   title: string,
  *   meta: string[],                         // e.g. region · type
@@ -56,17 +57,33 @@ component:
  *   },
  *   about: { label: string, rows?: [string, string][], chips?: string[], cards?: { heading: string, body: string }[] },
  *   touches?: { label: string, lanes: [string, string, string, string],
- *               nodes: { left?: Node, center: Node, right?: Node, far?: Node },
+ *               nodes: { left?: Node, center: Node, right?: Node, far?: Node },   // a missing node draws "None on record"
  *               links: { title: string, detail: string, to?: { tab: string, feature: string } }[] },
  *   footer: { ask: string, provenance: { source: string, asOf?: string, flags?: string[] }, note?: string },
  * }} RecordPanelModel
- * Visual: { type: 'map', points: { lat, lon, label, tone, main?, approximate? }[], caption }
- *       | { type: 'timeline', steps: { label, detail?, done?, now? }[], caption? }
- *       | { type: 'board', rows: { name, value, delta?, on? }[], caption? }
- *       | { type: 'leader', code, name, office, facts: [string, string][] }
- *       | { type: 'orbit', asset, orbit, note? }
+ *
+ * Every Visual carries { type, title, right?, caption? }. Registered types (visuals/index.js and
+ * visuals/types.js; modelContract rejects any other type):
+ *   map:      points: { lat: number, lon: number, label: string, tone?: Tone, main?: boolean, approximate?: boolean }[]
+ *   timeline: steps: { label: string, detail?: string, done?: boolean, now?: boolean }[]   // at most one `now`
+ * Batch 2 registers board, leader and orbit before any adapter uses them.
  */
 ```
+
+**Contract** (`modelContract.js`; every adapter test runs it over every real row). A model must
+have:
+
+- a title;
+- 2–4 tiles with labels and values;
+- only registered, well-formed visuals;
+- https-only links;
+- an About label, and no empty About rows;
+- four touch lanes and a centre node, when touches exist;
+- an Ask AI label;
+- a provenance source **and** an as-of date, or the flag `as-of not on record`.
+
+Banned anywhere in the model: reference placeholders (`[date]`, `[as listed on the record]`, any
+`[word…]` token), and leaked `undefined`, `NaN` or a bare `null` value.
 
 - **Adapters** are pure functions: one per module, `(row, ctx) => RecordPanelModel`.
   `ctx` holds the feed rows and the lookup tables. Adapters are unit-tested on real

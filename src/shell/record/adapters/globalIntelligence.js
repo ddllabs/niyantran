@@ -82,7 +82,7 @@ export default function globalIntelligence(row, ctx = {}) {
     footer: {
       ask: 'Ask AI about this programme',
       provenance: { source: 'Defence procurement register (published announcements)', asOf, flags: provenanceFlags(row) },
-      note: `${plural(rows.length || 1, 'programme')} is a watch list, not a procurement database. The panel states the stage on record and when it was last checked.`,
+      note: `This register is a watch list${rows.length ? ` of ${plural(rows.length, 'programme')}` : ''}, not a procurement database. The panel states the stage on record and when it was last checked.`,
     },
   };
 }

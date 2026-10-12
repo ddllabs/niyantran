@@ -24,15 +24,15 @@ export const REGION_CHOKEPOINTS = {
 
 export const chokepointsForRegion = (region) => REGION_CHOKEPOINTS[String(region ?? '').trim()] || [];
 
-/** The origin country named in a vendor field ("Dassault Aviation, France"), or null when none is stated. */
+/**
+ * The origin country named in a vendor field: the last comma-separated part, when it is exactly a
+ * known country ("Dassault Aviation, France" → France). Anything else ("Naval Group + Mazagon Dock",
+ * "Indian Navy") states no origin and returns null.
+ */
 export function originCountry(vendor) {
-  const text = String(vendor ?? '');
-  let found = null;
-  let at = -1;
-  for (const country of KNOWN_COUNTRIES) {
-    const i = text.lastIndexOf(country);
-    if (i > at) { at = i; found = country; }
-  }
+  const parts = String(vendor ?? '').split(',');
+  const last = parts.length > 1 ? parts[parts.length - 1].trim().toLowerCase() : '';
+  const found = KNOWN_COUNTRIES.find((c) => c.toLowerCase() === last) || null;
   return found === 'United States' ? 'USA' : found;
 }
 
