@@ -116,6 +116,11 @@ note.
   Cleanup deletes corpus rows, so it needs an approved data-migration task
   with an exact inventory. The misattributed bills need their correct
   documents identified first.
+  - **Anti-doping duplicate removed, 2026-10-13** (owner approved): `510cd60e…`
+    and its 98 chunks were deleted after a local backup. No bill now has two
+    documents of the same version.
+    [Record](../research/2026-10-13-duplicate-document-delete.md).
+    Remaining: the TRAI repeats and the text shared across different bills.
 - [ ] **F116. Citations do not say which version or format a source is.** Two
   versions of a bill appear under identical titles. 413 bills have several
   documents (versions). Only two documents have a stored PDF, so all other
@@ -147,8 +152,9 @@ note.
     [record](../research/2026-10-13-document-role-backfill.md).
 - [ ] **F118. One source card per bill.** Versions of one bill cited in an
   answer share a card with a tag per version (owner, 2026-10-13). Built on
-  `task/source-card-per-bill` and merged locally; not pushed.
-  [Spec](../specs/2026-10-13-source-card-per-bill.md).
+  `task/source-card-per-bill`, merged `46290e8`, pushed 2026-10-13.
+  [Spec](../specs/2026-10-13-source-card-per-bill.md). Remaining: owner check
+  on production.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

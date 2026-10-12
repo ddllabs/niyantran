@@ -1717,3 +1717,7 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   marker `document_role_source = sansad_url_folder`; the checksum matches the
   saved inventory, and no chunks changed.
   [Record](../research/2026-10-13-document-role-folder-backfill.md).
+- **Duplicate document delete (F115, NTER data change):** the owner approved
+  it. `510cd60e…` and its 98 chunks (cascade) were deleted after a local
+  backup in `tmp/backups/2026-10-13-doc-510cd60e/` (checksums in the record).
+  [Record](../research/2026-10-13-duplicate-document-delete.md).
