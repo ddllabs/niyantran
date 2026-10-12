@@ -16,8 +16,11 @@ it('compares only what the product offers, and states no GST and undefined credi
   const rows = PRICING_COMPARE.map(r => r[0]);
   for (const missing of ['API Access', 'Team Collaboration', 'Custom Dashboards', 'Deployment']) expect(rows).not.toContain(missing);
   expect(PRICING_COMPARE.find(r => r[0] === 'Price per month').slice(1)).toEqual(['₹0', '₹399', '₹999', '₹9,999']);
-  expect(PRICING_NOTES.join(' ')).toMatch(/not registered under GST/i);
-  expect(PRICING_NOTES.join(' ')).toMatch(/credit/i);
+  const facts = PRICING_NOTES.map(n => `${n.title} ${n.text}`).join(' ');
+  expect(PRICING_NOTES.every(n => n.title && n.text && n.tone && n.icon)).toBe(true);
+  expect(facts).toMatch(/not registered under GST/i);
+  expect(facts).toMatch(/monthly/i);
+  expect(facts).toMatch(/credit/i);
 });
 
 it('renders rupee prices without dollars, yearly billing or the old government plan', () => {
@@ -31,8 +34,14 @@ it('renders rupee prices without dollars, yearly billing or the old government p
 
 it('shows the shared photographic globe in the pricing header, not the flat globe image', () => {
   const page = readFileSync(new URL('../marketing/PricingPage.jsx', import.meta.url), 'utf8');
-  const hero = page.slice(page.indexOf('mkt-pr-hero'), page.indexOf('mkt-pr-notes'));
+  const hero = page.slice(page.indexOf('mkt-pr-hero'), page.indexOf('mkt-pr-facts'));
   expect(hero).toContain('<AuthEarth labels={false} />');
   expect(page).not.toContain('/brand/globe.png');
   expect(page).not.toContain('mkt-pr-globe-wrap');
+});
+
+it('presents the billing facts as styled chips, not a bordered paragraph box', () => {
+  const page = readFileSync(new URL('../marketing/PricingPage.jsx', import.meta.url), 'utf8');
+  expect(page).toContain('mkt-pr-facts');
+  expect(page).not.toContain('mkt-pr-notes');
 });

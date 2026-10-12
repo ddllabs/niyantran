@@ -57,7 +57,9 @@ export const PRICING_COMPARE = [
   ['Price per month', ...PUBLIC_PLANS.map(p => rupees(p.monthly))],
 ];
 
+// Billing facts shown as chips above the plan cards.
 export const PRICING_NOTES = [
-  'Plans are billed monthly in Indian rupees. We are not registered under GST, so no GST is charged: the price shown is the price you pay.',
-  'Each plan’s AI credit allowance will be published with our credit policy before paid plans open for purchase.',
+  { title: 'Billed monthly in ₹', text: 'cancel any time', tone: 'navy', icon: 'M4 5h16v15H4zM8 3v4M16 3v4M4 10h16' },
+  { title: 'No GST added', text: 'we are not registered under GST', tone: 'sand', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM9 12l2 2 4-4' },
+  { title: 'AI credits', text: 'allowances published before paid plans open', tone: 'purple', icon: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6' },
 ];
