@@ -181,6 +181,45 @@ After those:
   and Commodities (`hasRail`), with tests.
 - **Checkpoint:** as for batch 1.
 
+### Batch 2 outcome (2026-10-13)
+
+All seven modules and both Record tabs are built on `task/global-record-panels-b2`:
+
+| Commit | Content |
+|---|---|
+| `3636c65` | T7b: value board, source-status guard, batch 2 decisions |
+| `f877b2f` | T8 Satellite Infrastructure, T14 Global Commodities |
+| `036b040` | T10–T11 Growth Indicators and Global Trade |
+| `7205e77` | T14b country centres (197 states, 119 aliases, land and box checks); own-property region lookup |
+| `0bc9b4f` | T15: four adapters registered; `deskHasRail`; Record tabs for Heads of State and Global Commodities |
+| `249d1cf` | T9 World Constitutions, T13 Heads of State |
+| `dc2c6f7` | T12 Geopolitics News Wire |
+
+- **Agents.** Seven Sonnet task agents in two waves (four, then three), each in its own worktree,
+  limited to one adapter and its test (or the country table). Every agent showed that its guards
+  fail when their defect is restored. One agent was sent back once: the World Bank tiles repeated
+  the board row for row.
+- **Supervisor edits during review:**
+  - Commodities lost a fourth repetition of "illustrative" (an About card);
+  - Constitutions keeps "The" only for The Gambia and The Bahamas ("Niger", not "The Niger");
+  - `regionPosition` now looks up own properties only.
+- **T15 choices:**
+  - Commodity bars became selectable buttons;
+  - the Heads of State desk no longer repeats the selected profile inline, because the Record tab
+    now shows it;
+  - both desks dropped the full-width `geo-holistic` layout so the side panel has room.
+- **Verification:** `npm run lint` 0; `npm test` 2,874 tests in 208 files; `npm run build` passes.
+  The main chunk is 30 kB larger, under the existing over-500 kB warning that `main` already has.
+  Browser checks on live data for all seven modules found:
+  - the panel opens with its tiles, visuals and provenance;
+  - no leaked `undefined`, `NaN` or `[…]`;
+  - no sideways scroll at 1280px or 375px (tiles wrap to two columns at 375px);
+  - readable colours in dark mode;
+  - no console errors after a clean reload.
+
+  Screenshots could not be taken because the browser pane was hidden; the checks read the DOM.
+- **Found out of scope:** recorded as F122 in open-work.
+
 ## Batch 3 tasks (parallel sub-agents after batch 2 lands)
 
 | Task | Module |
