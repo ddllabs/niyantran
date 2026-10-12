@@ -2,6 +2,8 @@
 
 > **2026-10-12 owner amendment:** [Direct entry and AI dismissal](2026-10-12-desk-direct-entry.md) supersedes AI persistence on landing navigation and expanded-only outside dismissal. Completed outside pointer clicks hide the AI dock entirely; landing navigation hides it and clears expansion. Mounted chat state remains preserved. Desk/Record behavior remains as specified below.
 
+> **2026-10-13 owner amendment (F114):** [Collapsed by default on module pages](2026-10-13-panel-collapsed-default.md) replaces amendment 2's "a page load always opens the panel". A module page now loads collapsed, a row click still opens Record, and picking up a record opens AI.
+
 > **Status: Living.** Approved by the owner on 2026-10-03, with the open questions answered
 > (below). On 2026-10-03 the owner said these
 > three "are supposed to be a part of the same shared component with different tabs ... it's not

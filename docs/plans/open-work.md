@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F114 is next) and goes in the
+- A new finding gets the next free `F` number (F115 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13
@@ -84,6 +84,12 @@ note.
   The desk hero now grows to fit the larger title (amendment 1). Shipped in
   `ef4754a` (production `dpl_89StSPmjxkYuVtFLdWBq7bABvDXF`).
   [Spec](../specs/2026-10-13-nav-type-search.md). Remaining: owner review.
+- [ ] **F114. Side panel collapsed by default on module pages.** Approved
+  2026-10-13. A module page loads with the slim bar so the table gets the
+  width; a row click opens Record; picking up a record opens AI.
+  Built on `task/panel-collapsed-default` and merged locally; not pushed.
+  [Spec](../specs/2026-10-13-panel-collapsed-default.md). Remaining: owner
+  review, push.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

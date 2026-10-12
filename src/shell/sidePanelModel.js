@@ -17,15 +17,21 @@ export function availableTabs({ hasRail, selected }) {
 }
 
 const mount = (mounted, tab) => (tab && !mounted.includes(tab) ? [...mounted, tab] : mounted);
-const railTab = (selected) => (selected ? 'record' : 'desk');
 
 /**
- * Opens on Desk (or Record) where there is a rail, and hidden where there is not, until AI opens.
- * A page load always opens it (amendment 2): a collapse lasts until a row click or a new page.
+ * Where a rail desk's panel rests (F114, owner 2026-10-13, replacing amendment 2's "a page load
+ * always opens it"): open on Record while a row is selected, otherwise collapsed to the slim bar on
+ * Desk, so the table has the width. Desk mounts when it is first opened.
  */
+function resting(state, selected) {
+  if (selected) return { ...state, active: 'record', open: true, collapsed: false, mounted: mount(state.mounted, 'record') };
+  return { ...state, active: 'desk', open: false, collapsed: true };
+}
+
+/** Collapsed (or on Record) where there is a rail, and hidden where there is not, until AI opens. */
 export function initialPanel({ hasRail, selected }) {
-  const active = hasRail ? railTab(selected) : null;
-  return { active, open: Boolean(hasRail), collapsed: false, mounted: active ? [active] : [] };
+  const blank = { active: null, open: false, collapsed: false, mounted: [] };
+  return hasRail ? resting(blank, selected) : blank;
 }
 
 /**
@@ -43,7 +49,7 @@ export function panelReducer(state, action, ctx) {
       return { ...state, active: 'record', open: true, collapsed: false, mounted: mount(state.mounted, 'record') };
     }
     case 'clear':
-      return state.active === 'record' ? { ...state, active: 'desk', mounted: mount(state.mounted, 'desk') } : state;
+      return state.active === 'record' ? resting(state, null) : state;
     case 'ai-open':
       return { ...state, active: 'ai', open: true, collapsed: false, mounted: mount(state.mounted, 'ai') };
     case 'tab':
@@ -62,21 +68,19 @@ export function panelReducer(state, action, ctx) {
     case 'close-ai': {
       if (!state.open) return state;
       if (!ctx.hasRail) return { ...state, open: false };
-      const active = railTab(ctx.selected);
-      return { ...state, active, mounted: mount(state.mounted, active) };
+      return resting(state, ctx.selected);
     }
     case 'context': {
       // A landing owns the full workspace; keep the chat mounted but hidden.
       if (ctx.landing) return { ...state, active: null, open: false, collapsed: false };
-      // A desk or module change, like a page load, opens the panel (amendment 2). Off a rail desk
-      // only AI can stay; onto one, the panel shows Desk (or Record) unless AI is in use.
+      // A desk or module change rests the panel as a page load does (F114). Off a rail desk only
+      // AI can stay; onto one, the panel collapses (or shows Record) unless AI is in use.
       if (!ctx.hasRail) {
         const onAi = state.active === 'ai' && state.open;
         return { ...state, active: onAi ? 'ai' : null, open: onAi };
       }
       if (state.active === 'ai' && state.open) return state;
-      const active = railTab(ctx.selected);
-      return { ...state, active, open: true, collapsed: false, mounted: mount(state.mounted, active) };
+      return resting(state, ctx.selected);
     }
     default:
       return state;

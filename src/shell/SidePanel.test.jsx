@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
-import SidePanel, { panelDragProps } from './SidePanel.jsx';
+import SidePanel, { dragOpensAi, panelDragProps } from './SidePanel.jsx';
 
 const panel = (state, extra = {}) => ({
   state: { open: true, collapsed: false, mounted: ['desk'], active: 'desk', ...state }, act: () => {}, seed: null, consumeSeed: () => {},
@@ -160,5 +160,28 @@ describe('dragging onto the panel', () => {
     props.onDrop(missed);
     expect(handed).toEqual([missed]);
     expect(missed.defaultPrevented).toBe(true);
+  });
+});
+
+// F114: the panel starts collapsed on module pages, so a record picked up anywhere on the page opens
+// AI at once, giving a full-size drop target instead of the slim bar.
+describe('a drag that starts on the page', () => {
+  const RECORD = { types: ['application/x-niyantran-ai', 'text/plain'] };
+  const opens = (ctx, dataTransfer = RECORD) => {
+    const acts = [];
+    dragOpensAi({ ...ctx, act: (a) => acts.push(a) })({ dataTransfer });
+    return acts;
+  };
+
+  it('opens AI on a module page with the panel collapsed or on Desk or Record', () => {
+    expect(opens({ hasRail: true, landing: false, aiActive: false })).toEqual([{ type: 'ai-open' }]);
+    expect(opens({ hasRail: true, landing: false, aiActive: false }, { types: ['Files'] })).toEqual([{ type: 'ai-open' }]);
+  });
+
+  it('does nothing when AI is already open, on a landing or desk without the panel, or for other drags', () => {
+    expect(opens({ hasRail: true, landing: false, aiActive: true })).toEqual([]);
+    expect(opens({ hasRail: false, landing: false, aiActive: false })).toEqual([]);
+    expect(opens({ hasRail: true, landing: true, aiActive: false })).toEqual([]);
+    expect(opens({ hasRail: true, landing: false, aiActive: false }, { types: ['text/plain'] })).toEqual([]);
   });
 });
