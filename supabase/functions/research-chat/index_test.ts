@@ -690,3 +690,16 @@ Deno.test('document modules come from document_modules() pairs, not a capped per
   assertEquals(await again.documentModules(), modules);
   assertEquals(f.calls.filter((c) => c.table === 'document_modules').length, 1, 'cached for the isolate');
 });
+
+Deno.test('version metadata hydration uses caller permissions, retrieved IDs and cancellation',async()=>{
+ const f=fixture(),c=embeddingContext();f.runtime.fetch=()=>Promise.resolve(new Response(JSON.stringify(vector())));
+ f.setReply((_side,table,_op,_value,filters=[])=>{
+  if(table==='match_documents')return {data:[{id:'chunk-a',document_id:'doc-a',title:'Example Bill',content:'Evidence',char_from:0,char_to:8}],error:null};
+  if(table==='documents'){assertEquals(filters.find(x=>x[0]==='in'),['in','id',['doc-a']]);return {data:[{id:'doc-a',metadata:{document_role:'as_introduced'}}],error:null};}
+  return {data:[],error:null};
+ });
+ const d=createDependencies(request(),f.runtime);await d.requireUser(request());
+ const result=await d.searchDocuments({query:'Q'},undefined,c.context);
+ assertEquals((result[0] as unknown as Record<string,unknown>).document_role,'as_introduced');
+ const read=f.calls.find(x=>x.table==='documents');assert(read);assertEquals(read.side,'caller');assertEquals(read.columns,'id,metadata');assert(read.signal);assertEquals(read.filters.find(x=>x[0]==='not'),['not','indexed_at','is',null]);
+});

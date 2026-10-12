@@ -7,6 +7,44 @@ import type { CitationSection } from './citation.types.ts';
 import { EMBED_DIMS, servedModelMatches } from './embed.ts';
 import { normalise, sha256Hex } from './textNormalise.ts';
 
+export const DOCUMENT_ROLE_LABELS = {
+  as_introduced: 'As introduced',
+  as_passed_lok_sabha: 'As passed by Lok Sabha',
+  as_passed_rajya_sabha: 'As passed by Rajya Sabha',
+  as_passed_both_houses: 'As passed by both Houses',
+  gazette_notification: 'Gazette notification',
+  errata: 'Errata',
+} as const;
+export type DocumentRole = keyof typeof DOCUMENT_ROLE_LABELS;
+export function documentRole(value: unknown): DocumentRole | undefined {
+  return typeof value === 'string' && Object.hasOwn(DOCUMENT_ROLE_LABELS, value) ? value as DocumentRole : undefined;
+}
+
+/** Metadata stays caller-authorized and bounded; no source text or filename inference. */
+export async function hydrateDocumentRoles(
+  rows: unknown[], read: (ids: string[]) => Promise<{ id: string; metadata?: unknown }[]>,
+): Promise<Record<string, unknown>[]> {
+  const records = rows.map(row => row as Record<string, unknown>);
+  const ids = [...new Set(records.map(row => String(row.document_id ?? '')))];
+  if (ids.some(id => !id)) throw new Error('retrieved document identity missing');
+  const roles = new Map<string, DocumentRole | undefined>();
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const page = ids.slice(offset, offset + 100), wanted = new Set(page);
+    for (const doc of await read(page)) {
+      if (!wanted.has(doc.id) || roles.has(doc.id)) throw new Error('document role read identity mismatch');
+      const metadata = doc.metadata && typeof doc.metadata === 'object' && !Array.isArray(doc.metadata)
+        ? doc.metadata as Record<string, unknown> : {};
+      roles.set(doc.id, documentRole(metadata.document_role));
+    }
+    if (page.some(id => !roles.has(id))) throw new Error('retrieved document metadata unavailable');
+  }
+  return records.map(row => {
+    const { document_role: _unverifiedRole, ...rest } = row;
+    const role = roles.get(String(row.document_id));
+    return { ...rest, ...(role ? { document_role: role } : {}) };
+  });
+}
+
 export interface Chunk {
   id: string;
   document_id: string;
@@ -22,6 +60,7 @@ export interface Chunk {
   file_url?: string;
   desk_tier?: string;
   desk_feature?: string;
+  document_role?: DocumentRole;
   /** sha256(normalise(content)) — what a citation carries and the reader recomputes. */
   text_hash: string;
   // Page chunks only (chunk-contract spec). Absent - never null or empty - on
@@ -99,6 +138,8 @@ export async function rowToChunk(raw: unknown): Promise<Chunk> {
   if (blockIds) chunk.block_ids = blockIds;
   if (imageIds) chunk.image_ids = imageIds;
   if (sect) chunk.section = sect;
+  const role = documentRole(r.document_role);
+  if (role) chunk.document_role = role;
   return chunk;
 }
 

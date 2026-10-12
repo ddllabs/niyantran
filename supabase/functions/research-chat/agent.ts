@@ -3,7 +3,7 @@
 // provider. Every deps.model invocation must represent exactly one attempt.
 import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
-import { accumulate, DEFAULT_TOP_K, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
+import { accumulate, DEFAULT_TOP_K, documentRole, DOCUMENT_ROLE_LABELS, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
 import {
   type DeskRow,
@@ -286,8 +286,9 @@ function sectionText(v: string | undefined): string {
 }
 
 /**
- * One retrieved passage as the model sees it. A non-page chunk keeps the line
- * it always had, `handle | title | desk_feature`. A page chunk adds the
+ * One retrieved passage as the model sees it. An unlabeled non-page chunk keeps
+ * `handle | title | desk_feature`; a recognized role adds a fixed version label.
+ * Section labels are bounded and escaped for document continuations too. A page chunk adds the
  * physical page and its section (chunk-contract spec, "The model's line"):
  * `handle | title | desk_feature | page <n> | <heading › note>`. The section
  * is document text, so it is flattened to one line and every `|` in it is
@@ -297,8 +298,12 @@ function sectionText(v: string | undefined): string {
  */
 export function renderChunk(handle: string, c: Chunk): string {
   const fields = [handle, c.title, c.desk_feature ?? ''];
+  const role = documentRole(c.document_role);
+  if (role) fields.push(`version: ${DOCUMENT_ROLE_LABELS[role]}`);
   if (c.source_kind === 'pdf_page' && typeof c.page_number === 'number') {
     fields.push(`page ${c.page_number}`);
+  }
+  if (c.source_kind === 'document' || (c.source_kind === 'pdf_page' && typeof c.page_number === 'number')) {
     const section = [sectionText(c.section?.heading), sectionText(c.section?.note)].filter(Boolean).join(' › ');
     if (section) fields.push(section);
   }

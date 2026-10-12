@@ -411,3 +411,8 @@ Deno.test('the coverage check is in the prompt only when asked for, after the re
   assert(on.indexOf(COVERAGE_CHECK) < on.indexOf('Persona text.'));
   for (const phrase of ['section, clause or Schedule', 'Not in record.', 'before you write the answer']) assert(COVERAGE_CHECK.toLowerCase().includes(phrase.toLowerCase()), phrase);
 });
+
+Deno.test('bill version guidance requires version-specific attribution rather than assuming enactment',()=>{
+ const p=buildSystemPrompt({persona:'analyst',focus:'broad',today:'2026-10-09',catalogue:''});
+ assert(p.includes('introduced provisions are not evidence of enacted law'));
+});

@@ -1,0 +1,11 @@
+# Bill version labels in RAG evidence
+
+> **Status: Normative.** Owner instructed continuation2026-10-09 after175 alternate documents were mapped. R7; local backend correction and read-only cohort screening. No function deployment, data publication or new ingestion in this phase.
+
+Current retrieval returns source content and PDF links but omits documents.metadata.document_role.175 prepared alternate versions /116 already-covered bills therefore need explicit evidence labels before release. Preserve original content/spans/citation hashes and existing unlabeled/page behavior.
+
+After the existing caller-scoped match_documents RPC, read only id/metadata for the distinct retrieved document IDs, in pages of100, with the same caller RLS, indexed filter, cancellation and network timeout. Include this read within retrieval timing. Missing, duplicate, unexpected or failed metadata reads fail the search rather than silently dropping the labels. No service-role metadata read, schema change or source filename inference. Zero matches cause no metadata query.
+
+Map only recognized document roles (four ordinary bill versions, gazette notification and errata) to fixed labels. Unknown/null metadata remains unlabeled. Preserve result order, rankings, scopes, text and citations. Render a fixed version label on every passage with a supported role; never insert raw metadata into the model header. Explicit version guidance requires distinguishing introduced/passed versions and avoiding treating introduced provisions as enacted law. Unlabeled passages remain byte-compatible.
+
+Write scope: _shared/retrieval.ts/test, research-chat/index.ts/test, agent.ts/test and prompt.ts/test only if guidance belongs there; docs spec/plan/report and R7. No other backend/frontend/auth/persistence/ingestion/data changes. Acceptance: failing retrieval/render/runtime-wiring guards; original/page regressions; complete fake-provider search-to-model mixed-version test;175 prepared proof roles correctly render without span/hash changes. Read-only live metadata/next uncovered-bill screening. Focused/full Deno, application tests, lint/build/diff checks; mutation proves label guard non-vacuous. Deployment/real natural-language owner acceptance remain subsequent steps.

@@ -10,7 +10,7 @@ import { errorResponse, HttpError } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { personaPrompt } from '../_shared/personas.ts';
 import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts';
-import { search } from '../_shared/retrieval.ts';
+import { hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
 import { type DocumentModule, type HandlerDeps, handleResearchChat, type RetrievalContext } from './handler.ts';
@@ -372,7 +372,15 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return await search({
         onTiming: context.onTiming,
         embed: (q) => embedQuery(q, context, r, r.env('OPENROUTER_API_KEY') ?? ''),
-        rpc: (fn, a) => bounded((signal) => caller().rpc(fn, a).abortSignal(signal), r.timeoutMs, context.signal),
+        rpc: async (fn, a) => {
+          const result = await bounded((signal) => caller().rpc(fn, a).abortSignal(signal), r.timeoutMs, context.signal);
+          if (result.error) return result;
+          const data = await hydrateDocumentRoles(result.data ?? [], async ids =>
+            await query<{ id: string; metadata?: unknown }[] | null>((signal) =>
+              caller().from('documents').select('id,metadata').in('id', ids).not('indexed_at', 'is', null)
+                .abortSignal(signal), context.signal) ?? []);
+          return { data, error: null };
+        },
       }, { query: args.query, deskTier: args.desk_tier, deskFeature: args.desk_feature, documentIds: ids, topK: context.topK });
     },
     searchDeskRows: async (args, context) => {
