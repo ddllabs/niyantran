@@ -5,6 +5,8 @@ import satellite from './adapters/satellite.js';
 import commodities from './adapters/commodities.js';
 import growthIndicators from './adapters/growthIndicators.js';
 import globalTrade from './adapters/globalTrade.js';
+import constitutions from './adapters/constitutions.js';
+import headsOfState from './adapters/headsOfState.js';
 
 /**
  * Which Global modules render the record panel (F121), by feature name. A module not listed here
@@ -18,6 +20,8 @@ const ADAPTERS = [
   [/^global commodities$/i, commodities],
   [/^growth indicators$/i, growthIndicators],
   [/^global trade$/i, globalTrade],
+  [/^world constitutions$/i, constitutions],
+  [/^heads of state$/i, headsOfState],
 ];
 
 export function adapterFor(feature) {
