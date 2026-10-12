@@ -1,6 +1,6 @@
 # Drag a record to AI from any panel tab (F113)
 
-> **Status: Living.** Owner approved 2026-10-13 ("go ahead with both"). Branch
+> **Status: Living.** Done and owner-confirmed on production 2026-10-13. Approved 2026-10-13 ("go ahead with both"). Branch
 > `task/panel-drag-ai` from `main` at `75d44cf`.
 
 ## Problem
@@ -29,9 +29,9 @@ nothing, so the reader had to open AI first and drag again.
   Bill Passage row: Desk → AI, Record → AI, collapsed → AI expanded; a drop on
   the chat before it was ready and a drop on the tab bar each raised
   `niy-ai-open` with the row; a plain-text drag was not accepted.
-- Not verified: a real attach in a signed-in chat (the fixture has no session;
-  agents do not sign in). The attach path after hand-off is the existing seed
-  path used by every "Ask AI" button.
+- A real attach in a signed-in chat: the fixture had no session and agents do
+  not sign in; the owner confirmed on production on 2026-10-13 that a dragged
+  bill attaches.
 - `npm run lint`, `npm test` (2,578), `npm run build`, Deno tests (881) pass.
 
 ## Scope and exclusions

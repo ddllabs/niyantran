@@ -70,12 +70,6 @@ no tests rerun, no production probe).
   type scale on desk landings, a wider "Search desks, modules and records" box.
   Built on `task/nav-type-search` and merged locally; not pushed.
   [Spec](../specs/2026-10-13-nav-type-search.md). Remaining: owner review, push.
-- [ ] **F113. Drag a record to AI from any panel tab.** Dropping a bill or row
-  on the right-hand panel works only while the AI tab is open. The panel should
-  switch to AI (expanding if collapsed) when a Niyantran record or file is
-  dragged over it. Approved 2026-10-13. Built on `task/panel-drag-ai` and
-  merged locally; not pushed. [Spec](../specs/2026-10-13-panel-drag-ai.md).
-  Remaining: owner check of a real drop in a signed-in chat, push.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -171,6 +165,14 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 
 ## 1. Done
+
+- [x] **F113. Drag a record to AI from any panel tab.** A record or file
+  dragged over the right-hand panel switches it to AI research (from Desk,
+  Record or collapsed); a drop outside the chat or before it loads is handed
+  over through `niy-ai-open`. Commit `06e1fe0`, merged `dae877b`, deployed in
+  `dpl_89StSPmjxkYuVtFLdWBq7bABvDXF` (`ef4754a`). Owner confirmed on
+  2026-10-13 that a dropped bill attaches in a signed-in chat.
+  [Spec](../specs/2026-10-13-panel-drag-ai.md).
 
 - [x] **F102 / F103. Client UI refinement and shared orbit globe.** Owner
   accepted on 2026-10-12 ("it's perfect") and authorized commit and local merge.
