@@ -60,3 +60,16 @@ it('can leave persona labels to the page around it (homepage hero)', () => {
   expect(tree.props.className).toBe('auth-earth');
   expect(render({}, 'ready').props.className).toBe('auth-earth labelled');
 });
+
+it('keeps only a small pause icon by the globe: no drag hint, no credit link', () => {
+  const texts = tree => all(tree, n => typeof n.props?.children === 'string').map(n => n.props.children);
+  let tree = render({}, 'ready');
+  expect(texts(tree)).not.toContain('Drag to explore');
+  expect(all(tree, n => n.type === 'a')).toHaveLength(0);
+  const pause = all(tree, n => n.props?.className === 'auth-earth-pause')[0];
+  expect(pause.props['aria-label']).toBe('Pause globe');
+  expect(pause.props['aria-pressed']).toBe(false);
+  pause.props.onClick(); tree = render();
+  expect(all(tree, n => n.props?.className === 'auth-earth-pause')[0].props['aria-label']).toBe('Resume globe');
+  expect(all(render({}, 'loading'), n => n.props?.className === 'auth-earth-pause')).toHaveLength(0);
+});

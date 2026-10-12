@@ -12,3 +12,6 @@ Based on NASA imagery/elevation; authored colour adjustments by Solar System Sco
 Textures are static imagery, not live cloud/weather data.
 Renderer uses Three.js (MIT); geometry, lighting and interaction written locally.
 Existing Global banner image serves as fallback and is not modified.
+
+Credited on the site in the marketing footer (MarketingSite.jsx), linking the
+source and the licence.
