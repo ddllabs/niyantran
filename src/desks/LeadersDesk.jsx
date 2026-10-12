@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { exportJson, GeoAi, GeoDossierChrome, GeoKv, GeoSources } from './GeoDossier.jsx';
 import { applyVizFilter } from '../lib/nationalKpi.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
@@ -33,15 +33,9 @@ function isoOf(id) {
     .toUpperCase();
 }
 
-function field(v, fallback = 'Not reported') {
-  const s = String(v ?? '').trim();
-  return s && s !== '—' ? s : fallback;
-}
-
 export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
   const [tab, setTab] = useState('analytics');
   const [q, setQ] = useState('');
-  const detailRef = useRef(null);
   const leaders = useMemo(() => {
     const n = q.trim().toLowerCase();
     return (feed?.rows || [])
@@ -56,11 +50,6 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
   const selectedId = selected?.id || '';
   const current = selectedId ? leaders.find((l) => l.id === selectedId) || selected : null;
 
-  useEffect(() => {
-    if (!current || !detailRef.current) return;
-    detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll only when the selected leader changes, not on every filter pass.
-  }, [current?.id]);
 
   function goAsk(prompt) {
     openAiResearch({
@@ -114,7 +103,7 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
               <span>Leader profiles · {leaders.length}</span>
             </div>
             <p className="desk-note" style={{ padding: '8px 12px 0' }}>
-              Click a card for the full profile on the right. Placeholder titles show as Not verified. This is not a ranking.
+              Click a card to open its record in the side panel. Placeholder titles show as Not verified. This is not a ranking.
             </p>
             <div className="geo-panel-b">
               <div className="geo-egrid">
@@ -159,74 +148,6 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
             </div>
           </section>
           <div>
-            {current ? (
-              <section className="geo-panel geo-leader-detail" ref={detailRef}>
-                <div className="geo-panel-h">
-                  <span>Selected profile</span>
-                  <button type="button" className="geo-btn" onClick={() => onSelect?.(null)}>
-                    Clear
-                  </button>
-                </div>
-                <div className="geo-panel-b">
-                  <div className="geo-e-h" style={{ marginBottom: 10 }}>
-                    {current.flag ? <span className="geo-e-flag">{current.flag}</span> : null}
-                    <span className="geo-mono">{current.iso || isoOf(current.id) || '?'}</span>
-                    <div>
-                      <div className="geo-e-nm" style={{ fontSize: 15 }}>
-                        {field(current.name, 'Not verified')}
-                      </div>
-                      <div className="geo-e-sub">
-                        {field(current.country)} · {field(current.office || current.role, 'Office not reported')}
-                      </div>
-                    </div>
-                  </div>
-                  <GeoKv
-                    rows={[
-                      ['Country', field(current.country)],
-                      ['Name', field(current.name, 'Not verified')],
-                      ['Office', field(current.office || current.role, 'Office not reported')],
-                      [
-                        'Status',
-                        field(current.status, /not verified/i.test(current.name || '') ? 'Not verified' : 'Tracked'),
-                      ],
-                      ['Term start', field(current.term_start || current.since)],
-                      ['Next transition', field(current.next_transition)],
-                      ['Last verified', field(current.last_verified || asOf)],
-                      ['Authority', field(current.authority, 'De jure (as listed)')],
-                      ['Party', field(current.party)],
-                      ['Ideology', field(current.ideology)],
-                      ['Age', field(current.age)],
-                      ['ISO', field(current.iso || isoOf(current.id))],
-                    ]}
-                  />
-                  {current.latest ? (
-                    <p className="geo-e-latest" style={{ marginTop: 10 }}>
-                      {current.latest}
-                    </p>
-                  ) : null}
-                  {current.source_url ? (
-                    <div className="geo-src" style={{ marginTop: 10 }}>
-                      <a href={current.source_url} target="_blank" rel="noopener noreferrer">
-                        Source ↗
-                      </a>
-                    </div>
-                  ) : null}
-                  <div style={{ marginTop: 12 }}>
-                    <button
-                      type="button"
-                      className="geo-btn pri"
-                      onClick={() => goAsk(`Brief profile context for ${current.name} (${current.country}).`)}
-                    >
-                      Ask AI about this profile
-                    </button>
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <p className="desk-note" style={{ padding: '0 0 8px' }}>
-                Select a leader card to inspect the full profile here.
-              </p>
-            )}
             <GeoAi summary={AI_SUMMARY} prompts={PROMPTS} onAsk={goAsk} />
             <section className="geo-panel">
               <div className="geo-panel-h">

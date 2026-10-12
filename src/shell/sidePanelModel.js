@@ -4,8 +4,25 @@
  * SidePanel.jsx applies them.
  */
 import { keyStep, readStoredNumber, size, within } from './resizeModel.js';
+import { isConflictsFeature } from '../lib/conflictsMonitor.js';
+import { isChokepointsFeature } from '../lib/strategicAssets.js';
+import { isEnergyFeature } from '../lib/geonomics.js';
+import { isNationalFullscreen } from '../lib/national.js';
 
 /* ─── Tabs ─────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Whether a desk's side panel has Desk and Record tabs (`hasRail`); the others show it only for AI
+ * research. Heads of State and Global Commodities gained a Record tab in F121; the Conflicts,
+ * Choke-Points and Energy dossiers and the full-screen National views keep the AI-only panel.
+ */
+export function deskHasRail({ restricted, tab, guideMode, featureName }) {
+  return !restricted && tab !== 'home' && !guideMode &&
+    !isConflictsFeature(featureName) &&
+    !isChokepointsFeature(featureName) &&
+    !isEnergyFeature(featureName) &&
+    !isNationalFullscreen(featureName);
+}
 
 /**
  * Desk and Record exist where the rail showed before (`hasRail`); Record only while a row is

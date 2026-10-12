@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PANEL_MAX_PCT, PANEL_MIN_PX, PANEL_WIDTH_STORAGE_KEY,
-  availableTabs, clampPanelWidth, defaultPanelWidth, dragPanelWidth, initialPanel, panelBounds, panelReducer,
+  availableTabs, clampPanelWidth, deskHasRail, defaultPanelWidth, dragPanelWidth, initialPanel, panelBounds, panelReducer,
   readStoredPanelWidth, resolvePanelWidth, stepPanelWidth,
 } from './sidePanelModel.js';
 
@@ -180,5 +180,22 @@ describe('the docked width', () => {
     expect(readStoredPanelWidth(memory({ [PANEL_WIDTH_STORAGE_KEY]: '9999' }), 1400)).toBe(840);
     expect(readStoredPanelWidth(memory({ [PANEL_WIDTH_STORAGE_KEY]: 'wide' }), 1400)).toBeNull();
     expect(readStoredPanelWidth({ getItem() { throw new Error('blocked'); } }, 1400)).toBeNull();
+  });
+});
+
+// F121 T15: Heads of State and Global Commodities gain Desk and Record tabs; the other dossier
+// desks (Conflicts, Choke-Points, Energy) still show the panel only for AI.
+describe('deskHasRail', () => {
+  const desk = (featureName, over = {}) => deskHasRail({ restricted: false, tab: 'global', guideMode: false, featureName, ...over });
+  it('gives the record panel to Heads of State and Global Commodities', () => {
+    expect(desk('Heads of State')).toBe(true);
+    expect(desk('Global Commodities')).toBe(true);
+    expect(desk('Open Fronts')).toBe(true);
+  });
+  it('keeps the AI-only panel for the other dossier desks, home, guides and restricted desks', () => {
+    for (const name of ['Conflicts', 'Maritime Choke-Points', 'Energy']) expect(desk(name), name).toBe(false);
+    expect(desk('Open Fronts', { tab: 'home' })).toBe(false);
+    expect(desk('Open Fronts', { guideMode: true })).toBe(false);
+    expect(desk('Open Fronts', { restricted: true })).toBe(false);
   });
 });

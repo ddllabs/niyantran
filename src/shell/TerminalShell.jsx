@@ -6,12 +6,12 @@ import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
 import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
+import { deskHasRail } from './sidePanelModel.js';
 import { Icon } from './Icons.jsx';
 import { Moon, Sun } from 'lucide-react';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isChokepointsFeature } from '../lib/strategicAssets.js';
-import { isGeoResourceDossier } from '../lib/globalResources.js';
 import { isEnergyFeature } from '../lib/geonomics.js';
 import { isNationalFullscreen, isImpactRecordFeature } from '../lib/national.js';
 import { isGithubCsvRow } from '../lib/githubCsv.js';
@@ -282,15 +282,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   const billRecordOpen = (isImpactRecordFeature(featureName) || isGithubCsvRow(selected)) && selected;
-  // Desks whose side panel has Desk and Record tabs; the others show it only for AI research.
-  const hasRail =
-    !restricted && tab !== 'home' &&
-    !guideMode &&
-    !isConflictsFeature(featureName) &&
-    !isChokepointsFeature(featureName) &&
-    !isEnergyFeature(featureName) &&
-    !isGeoResourceDossier(featureName) &&
-    !isNationalFullscreen(featureName);
+  const hasRail = deskHasRail({ restricted, tab, guideMode, featureName });
   const panel = useSidePanel({ hasRail, selected, featureName, tab, landing: guideMode || tab === 'home' });
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
@@ -461,7 +453,7 @@ export default function TerminalShell({ onLogout }) {
         tabs={deskTabs}
         lockedIds={lockedIds}
       />}
-      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isGeoResourceDossier(featureName) ? ' geo-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
+      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
         <main className="main-col">
           {restricted ? (
             <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
