@@ -584,10 +584,14 @@
    overlays (exchange labels, growth glass, government names) keep their sizes. */
 .desk-v6.desk-v6 h1{font-size:clamp(40px,3.8vw,58px);font-weight:700;letter-spacing:-2px;line-height:1.05}
 .desk-v6.desk-v6 .eyebrow{font-size:11px;font-weight:650;letter-spacing:1.6px}
+/* The hero grows with the larger title instead of clipping the button under the stats (owner,
+   2026-10-13); the minimum keeps room for the floating insight card above the photo label. */
+.desk-v6.desk-v6 .hero{height:auto;min-height:288px;padding-bottom:28px}
 .desk-v6.desk-v6 .hero-copy>p{font-size:15px;line-height:1.6;max-width:480px}
 .desk-v6.desk-v6 .hero-meta,.desk-v6.desk-v6 .crumb,.desk-v6.desk-v6 .crumb>span:first-child,.desk-v6.desk-v6 .snapshot{font-size:12px}
 .desk-v6.desk-v6 .photo-label,.desk-v6.desk-v6 .image-caption{font-size:10px}
-.desk-v6.desk-v6 .insight-top,.desk-v6.desk-v6 .insight-foot,.desk-v6.desk-v6 .insight-foot>span,.desk-v6.desk-v6 .insight-foot button{font-size:12px}
+.desk-v6.desk-v6 .insight-top{font-size:11px}
+.desk-v6.desk-v6 .insight-foot,.desk-v6.desk-v6 .insight-foot>span,.desk-v6.desk-v6 .insight-foot button{font-size:11px}
 .desk-v6.desk-v6 .stat-label{font-size:12px;font-weight:500}
 .desk-v6.desk-v6 .stat-value{font-size:30px;font-weight:700;letter-spacing:-.8px}
 .desk-v6.desk-v6 .stat-value small{font-size:13px}
@@ -617,13 +621,16 @@
 .desk-v6.desk-v6 .detail-note,.desk-v6.desk-v6 .detail-action p{font-size:12px}
 .desk-v6.desk-v6 .detail-inner h3{font-size:12px;font-weight:650;letter-spacing:.8px}
 .desk-v6.desk-v6 footer,.desk-v6.desk-v6 footer button{font-size:11px}
+@media(min-width:1700px){.desk-v6.desk-v6 .hero{min-height:320px}}
 @media(max-width:850px){
+  .desk-v6.desk-v6 .hero{min-height:320px}
   .desk-v6.desk-v6 h1{font-size:clamp(32px,6vw,42px);letter-spacing:-1.4px}
   .desk-v6.desk-v6 .hero-copy>p{font-size:14px}
   .desk-v6.desk-v6 .section-heading h2{font-size:21px}
   .desk-v6.desk-v6 .stat-value{font-size:26px}
 }
 @media(max-width:560px){
+  .desk-v6.desk-v6 .hero{min-height:0;padding-bottom:24px}
   .desk-v6.desk-v6 h1{font-size:clamp(30px,8.4vw,38px)}
   .desk-v6.desk-v6 .hero-copy>p{font-size:13px}
   .desk-v6.desk-v6 .section-heading h2{font-size:20px}
