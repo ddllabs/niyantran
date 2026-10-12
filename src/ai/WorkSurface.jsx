@@ -10,6 +10,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
 import './research.css';
 import SourceReader from './SourceReader.jsx';
+import { documentRoleLabel } from '../types/citation.js';
 
 /*
  * The page-wise viewer for `pdf_page` citations (docs/specs/2026-10-01-rag-v2-citations-pdf.md).
@@ -109,6 +110,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         <span className="ai-work-title">
           {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : 'Sources'}
         </span>
+        {source?.kind === 'text' && documentRoleLabel(source.document_role) ? <small className="ai-work-version">{documentRoleLabel(source.document_role)}</small> : null}
         {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} documentState={documentState} /> : null}
         <button type="button" className="ai-work-close" onClick={onClose} aria-label="Close citation" title="Close citation">✕</button>
       </div>
@@ -126,7 +128,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
           <ul className="ai-work-sources" aria-label="Sources">
             {validSources.map((s, index) => <li key={`${s.kind}:${s.id}:${index}`}>
               <button type="button" onClick={() => onOpen?.(s)}>
-                <span>{s.title}</span><small>{s.kind === 'row' ? `Desk record · ${s.feature}` : s.file_name || s.desk_feature || 'Document'}</small>
+                <span>{s.title}</span><small>{s.kind === 'row' ? `Desk record · ${s.feature}` : [documentRoleLabel(s.document_role), s.file_name || s.desk_feature || 'Document'].filter(Boolean).join(' · ')}</small>
               </button>
             </li>)}
           </ul>

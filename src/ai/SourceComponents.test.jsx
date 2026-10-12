@@ -32,6 +32,21 @@ describe('SourceList', () => {
     expect(documentChips([text(1, 'd1', 'Doc')])[0].pages).toEqual([]);
   });
 
+  // F116: two versions of one bill share a title; the row names the version, from a known role only.
+  it('names the version of each document, and ignores an unknown role', () => {
+    const sources = [
+      text(1, 'd1', 'THE ANTI-DOPING BILL, 2025', { document_role: 'as_introduced' }),
+      text(2, 'd2', 'THE ANTI-DOPING BILL, 2025', { document_role: 'as_passed_lok_sabha' }),
+      text(3, 'd3', 'THE ANTI-DOPING BILL, 2025', { document_role: '<b>forged</b>' }),
+    ];
+    expect(documentChips(sources).map((c) => c.version)).toEqual(['As introduced', 'As passed by Lok Sabha', '']);
+    const html = renderToStaticMarkup(<SourceList sources={sources} />);
+    expect(html).toContain('<span class="ai-source-version">As introduced</span>');
+    expect(html).toContain('<span class="ai-source-version">As passed by Lok Sabha</span>');
+    expect(html).not.toContain('forged');
+    expect(html.match(/ai-source-version/g)).toHaveLength(2);
+  });
+
   it('shows the file name only as the tooltip', () => {
     const html = renderToStaticMarkup(<SourceList sources={[text(1, 'd1', 'First doc', { file_name: 'first.pdf' })]} />);
     expect(html).toContain('title="first.pdf"');

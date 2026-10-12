@@ -273,3 +273,11 @@ Deno.test('citedPageRefs: distinct ids of the given chunks only, none for old ch
   const wide = pageChunk('w', { block_ids: Array.from({ length: 100 }, (_, i) => `w${i}`), image_ids: undefined });
   assertEquals(citedPageRefs([wide]).blockIds.length, MAX_CITATION_BOXES * 2);
 });
+
+// F116: a citation says which version of a bill it is, so two versions under one title can be told
+// apart. The role is the one retrieval verified from the document's metadata; none gives no key.
+Deno.test('a text citation carries the verified document role, and none when the chunk has none', () => {
+  const [introduced, plain] = buildSources({ 1: chunk('a', { document_role: 'as_introduced' }), 2: chunk('b') }, [1, 2]) as TextCitation[];
+  assertEquals(introduced.document_role, 'as_introduced');
+  assert(!('document_role' in plain));
+});

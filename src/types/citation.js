@@ -24,6 +24,7 @@
  * @property {CitationBox[]} [boxes]  at most 20, resolved from the chunk's block ids
  * @property {CitationImage[]} [images]  content-addressed page images
  * @property {{heading?: string, note?: string}} [section]
+ * @property {string} [document_role]  F116: the bill version, one of DOCUMENT_ROLE_LABELS' keys
  *
  * The optional RAG v2 fields above (chunk-contract spec, "Citation payload")
  * never make a citation unreadable: `sanitizeCitation` in
@@ -59,6 +60,21 @@
  */
 
 /** @typedef {TextCitation | RowCitation} CitationSource */
+
+/** F116: the server twin is DOCUMENT_ROLE_LABELS in supabase/functions/_shared/retrieval.ts. */
+export const DOCUMENT_ROLE_LABELS = {
+  as_introduced: 'As introduced',
+  as_passed_lok_sabha: 'As passed by Lok Sabha',
+  as_passed_rajya_sabha: 'As passed by Rajya Sabha',
+  as_passed_both_houses: 'As passed by both Houses',
+  gazette_notification: 'Gazette notification',
+  errata: 'Errata',
+};
+
+/** The label for a known role; '' for none or anything else. */
+export function documentRoleLabel(role) {
+  return typeof role === 'string' && Object.hasOwn(DOCUMENT_ROLE_LABELS, role) ? DOCUMENT_ROLE_LABELS[role] : '';
+}
 
 /** @param {unknown} s @returns {s is TextCitation} */
 export function isTextCitation(s) {

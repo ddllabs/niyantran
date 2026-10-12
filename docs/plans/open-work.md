@@ -121,6 +121,10 @@ note.
   documents (versions). Only two documents have a stored PDF, so all other
   citations open in Text. Show the version (`document_role`, for example "As
   introduced" or "As passed Lok Sabha") on source cards and in the reader.
+  Built on `task/citation-version-labels` (2026-10-13) and merged locally.
+  [Spec](../specs/2026-10-13-citation-version-labels.md). Remaining: an
+  authorized `research-chat` deploy (citations carry the role from then on),
+  push, and an owner check.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

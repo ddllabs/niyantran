@@ -47,6 +47,8 @@ export interface TextCitation {
   boxes?: CitationBox[];
   images?: CitationImage[];
   section?: CitationSection;
+  /** F116: the bill version retrieval verified from the document's metadata; absent when unknown. */
+  document_role?: string;
 }
 
 export interface RowCitation {
