@@ -48,7 +48,10 @@
   `pricingStore.js` and the unused `UpgradeModal.jsx` are removed.
 - `.env.example` drops the GST and exchange-rate settings.
 
-## Release prerequisites (not done; need owner authorization)
+## Release prerequisites
+
+Steps 1 and 2 done on 2026-10-12 with owner authorization: migration applied
+and verified on NTER (coordination Operations, 2026-10-12), then `main` pushed.
 
 1. Apply `20261012120000_inr_plans.sql` to NTER (one transaction, then pin the
    version), after which `analyze public.user_profiles` is not needed (no row

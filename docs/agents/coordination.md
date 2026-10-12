@@ -1637,3 +1637,25 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     run before the push, found no secrets and no AI attribution.
   - **Vercel:** production deploy `dpl_BZBMioj7w92bSNxdNYcADRz7ES8R` (`322c76a`) is READY. The
     served bundle is unchanged (`index-Dt4tL-0u.css`).
+
+### Operations — 2026-10-12 (INR plans migration, owner: "go ahead with all three")
+
+- **Migration 44** `20261012120000_inr_plans` (file SHA-256 `8c23bdc3…`, commit
+  `367214f`):
+  - **Before** (read-only): `app_plan` = explorer, professional, enterprise;
+    11 profiles, all explorer/free; no trials used, 0 `plan_grants`, 0 invoices;
+    last migration `20261002180000`.
+  - Applied through the MCP tool, then the version stamped by the tool
+    (`20261012181131`) was pinned to the file name.
+  - **Verified live:** labels free, plus, pro, max; 11 profiles free/free; column
+    default `'free'`; the consistency check now reads `plan = 'free'`; every
+    `entitlement_from` reads free; `paid_plan_of` knows plus/pro/max and refuses
+    the old names; `start_trial` raises "Trials are not offered" and
+    `authenticated` can no longer execute it; `authenticated` still reads
+    `my_entitlement`, cannot grant; `anon` cannot read; `service_role` grants;
+    `grant_paid_plan` is monthly only; `handle_new_user` has no trial path.
+  - Security advisor: no new finding; signed-in-executable SECURITY DEFINER
+    functions fell from eight to seven (`start_trial` removed).
+- **Frontend push:** `main` pushed to origin with F102, F103 (globe on auth,
+  homepage and pricing), F107 policies, the INR pricing page, measured
+  figures and INR billing; Vercel deploy recorded below once verified.

@@ -54,9 +54,9 @@ no tests rerun, no production probe).
 - [ ] **F109. INR billing.** Code converted on `task/inr-billing`
   (2026-10-12): four monthly INR plans from `src/lib/publicPlans.js`, no GST
   (plain invoices), no trials, database values free/plus/pro/max via migration
-  `20261012120000_inr_plans.sql` (fixture-tested, not applied). Remaining:
-  apply the migration to NTER with owner authorization **before** pushing this
-  code (admin grants fail until then). [Spec](../specs/2026-10-12-inr-billing.md).
+  `20261012120000_inr_plans.sql`, applied to NTER and verified on 2026-10-12
+  (owner authorized; see coordination Operations), then `main` pushed.
+  Remaining for live payments: F110, F111, O6. [Spec](../specs/2026-10-12-inr-billing.md).
 - [ ] **F110. In-app upgrade and checkout screen.** No screen lets a signed-in
   user buy Plus/Pro/Max (the old USD/GST modal was unused and is removed).
   Needed before Razorpay review, which asks for a test login that can pay.
