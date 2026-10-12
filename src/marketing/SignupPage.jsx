@@ -161,7 +161,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
   return (
     <div className="mkt-login mkt-login-globe mkt-signup" ref={root} onMouseMove={onMove}>
       <aside className="mkt-signup-context" aria-labelledby="signup-context-title">
-        <div className="mkt-signup-illustration"><AuthEarth /></div>
+        <div className="mkt-signup-illustration"><AuthEarth persona={personaId} onPersona={setPersonaId} /></div>
         <h2 id="signup-context-title">A world of records.<br />Your own perspective.</h2>
         <p>Explore legislation, global affairs, markets and the courts with the source always in view.</p>
         <div className="mkt-signup-context-desks">Eight desks · One research workspace</div>
