@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F112 is next) and goes in the
+- A new finding gets the next free `F` number (F114 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-12
@@ -65,6 +65,15 @@ no tests rerun, no production probe).
   [Spec](../specs/2026-10-12-upgrade-screen.md). Remaining: owner review, a
   Razorpay test-mode run on a preview with test keys, then open checkout after
   F111.
+- [ ] **F112. Terminal navigation, type scale and search.** Owner review
+  2026-10-13: no "Choose a desk" row on Home, larger highlighted desk tabs, one
+  type scale on desk landings, a wider "Search desks, modules and records" box.
+  Built on `task/nav-type-search` and merged locally; not pushed.
+  [Spec](../specs/2026-10-13-nav-type-search.md). Remaining: owner review, push.
+- [ ] **F113. Drag a record to AI from any panel tab.** Dropping a bill or row
+  on the right-hand panel works only while the AI tab is open. The panel should
+  switch to AI (expanding if collapsed) when a Niyantran record or file is
+  dragged over it. Approved 2026-10-13; next after F112.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

@@ -23,10 +23,10 @@
 .v6-directory-arrow { align-self:center;color:#6b80a0; }
 .v6-directory-control button:focus-visible { outline:2px solid #3767ec;outline-offset:3px; }
 .terminal.with-v6-directory { grid-template-columns:minmax(0,1fr);grid-template-rows:68px 36px minmax(0,1fr);grid-template-areas:"top" "modules" "work"; }
-.v6-landing-tabs { grid-area:modules;display:flex;align-items:center;gap:3px;padding:0 36px;border-bottom:1px solid var(--line);background:var(--bg);min-width:0;overflow-x:auto; }
-.v6-landing-tabs button { flex:none;border:0;border-radius:6px;padding:7px 10px;background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;white-space:nowrap; }
-.v6-landing-tabs button[aria-current=page] { background:#eef2fc;color:#315edd; }
-.v6-landing-tabs button:hover { background:#f1f5fc;color:#315edd; }
+/* Primary desk navigation (owner, 2026-10-13): readable size, roomy targets,
+   and an unmistakable current desk (solid pill plus accent underline). */
+.v6-landing-tabs { grid-area:modules;display:flex;align-items:center;gap:4px;padding:0 36px;border-bottom:1px solid var(--line);background:var(--bg);min-width:0;overflow-x:auto; }
+.v6-landing-tabs button { position:relative;flex:none;min-height:40px;border:0;border-radius:9px;padding:0 15px;background:transparent;color:var(--text,var(--fg));font:inherit;font-size:14px;font-weight:500;letter-spacing:-.005em;cursor:pointer;white-space:nowrap;transition:background .15s ease,color .15s ease; }
 .v6-landing-tabs button:focus-visible { outline:2px solid var(--accent);outline-offset:1px; }
 .v6-landing-tabs small { font-size:9px; }
 .with-v6-directory>.topbar { grid-area:top; }
@@ -51,7 +51,7 @@
 .with-v6-directory .v6-landing-tabs { flex:1;grid-area:auto;border:0;padding:0;background:transparent; }
 @media(max-width:1799px) {
   .with-v6-directory>.topbar { padding-top:12px;gap:8px 16px; }
-  .with-v6-directory .v6-landing-tabs { order:3;flex:0 0 100%;min-height:36px; }
+  .with-v6-directory .v6-landing-tabs { order:3;flex:0 0 100%;min-height:52px;padding-bottom:6px; }
 }
 @media(max-width:900px) {
   .with-v6-directory>.topbar { height:auto;grid-template-rows:none;padding:10px 16px 0; }
@@ -63,7 +63,7 @@
   .with-v6-directory .shell-header-utilities { display:grid;grid-template-columns:auto minmax(0,1fr);width:100%;margin:0;gap:8px; }
   .with-v6-directory .top-actions { grid-column:1/-1;justify-self:end; }
   .with-v6-directory .desk-catalogue-search { justify-self:end; }
-  .with-v6-directory .v6-landing-tabs { min-height:36px; }
+  .with-v6-directory .v6-landing-tabs { min-height:52px; }
 }
 
 /* The utility bar is no longer clipped; menus can follow their trigger again. */
@@ -72,7 +72,9 @@
 /* Internal modules retain their own row under the common desk header. */
 .terminal.with-module-navigation{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 36px minmax(0,1fr);grid-template-areas:"top" "modules" "work"}
 .with-module-navigation>.desktabs{grid-area:modules;min-width:0}
-.v6-landing-tabs button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
-.v6-landing-tabs button:hover{background:var(--bg);color:var(--fg)}
+.v6-landing-tabs button:hover{background:var(--panel);color:var(--fg)}
+.v6-landing-tabs button[aria-current=page]{background:var(--accent-soft);color:var(--accent);font-weight:650}
+.v6-landing-tabs button[aria-current=page]::after{content:"";position:absolute;left:15px;right:15px;bottom:3px;height:2px;border-radius:2px;background:var(--accent)}
+@media(prefers-reduced-motion:reduce){.v6-landing-tabs button{transition:none}}
 .v6-directory-open{background:var(--bg);color:var(--text);border-color:var(--line)}
 .v6-directory-open:hover{background:var(--panel)}

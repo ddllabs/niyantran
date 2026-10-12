@@ -7,7 +7,8 @@ const noop = () => {};
 describe('catalogue discovery UI contract', () => {
   it('presents one discovery trigger instead of competing topbar inputs', () => {
     const html = renderToStaticMarkup(<DeskCatalogueSearch tabs={[]} recordTabs={[]} lockedIds={[]} onOpen={noop} />);
-    expect(html).toContain('Find a module');
+    expect(html).toContain('Search desks, modules and records');
+    expect(html).not.toContain('Find a module');
     expect(html).toContain('aria-keyshortcuts="Meta+K Control+K"');
     expect(html).not.toContain('<input');
   });
