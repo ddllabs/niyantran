@@ -1,0 +1,15 @@
+# Resume verified corpus ingestion
+
+> **Status: Living.** Owner explicitly requested production ingestion and500-document jobs2026-10-10; R7. Sequential supervised writer, no delegation.
+
+Release scope: activate only the version-role transport/render/guidance prerequisite in research-chat, based on the currently served version46 source graph, preserving unrelated unreleased F69/research-coverage changes and existing custom authentication/verify_jwt:false. Save rollback graph, compare exact changed files, execute release-graph runtime/type tests plus repository gates, deploy and verify served hashes/auth rejection. ingest-documents version19 remains unchanged.
+
+Freeze the175 currently source/original/listing/two-PDF-proven alternate documents /12,842 complete context chunks into a new exact supervised sequential_500_v1 job, medium_v1 bounds, within20,000 chunks/10million characters.500 is a job ceiling; do not pad with held files or use500 simultaneous requests. Compute exact byte reservations, model-price checks and conservative retry budget. Preserve all previous receipts/manifests. Refresh live source status/PDF/listing hashes and idle retrieval/metrics before writes.
+
+Run the existing foreground supervisor, one document in flight. At each20-document/2,000-chunk gate, stop for independent full vector/span/context/identity/attachment/scoped-citation audit, ANALYZE all three corpus/listing tables, compare real/planner counts against baseline2,576/2,573/72,917 and write only an exact fresh acknowledgement. Resume unchanged manifest/checkpoint; halt on mapping, health, metrics, budget, partial-write or unknown-state conflict. Final full audit/count/cost reconciliation and two owner RAG samples required.
+
+The175 versions add to116 already-covered bills; no new bill coverage expected.19 source-proven documents /18 uncovered bills still need Download resolver correction and are excluded, as are51 alternate-version holds and broader unverified/nonbill/oversize sources. No metadata backfill, frontend publication, schema/compute change, cleanup, Git merge/push or unattended OS service. Foreground crash retries/checkpoints auto-resume within the existing supervisor; maintenance remains independently reviewed. Broader mapper correction remains R7.
+
+Write scope: this plan, operations/research execution records and R7; exact released served-function artifact graph; fresh job artifacts/auditor adapter. Any source change needed for release typing retains full focused/Deno/app/lint/build gates. All production writes are the owner-authorized function prerequisite,175-doc ingestion and ANALYZE maintenance only.
+
+Execution complete: all175 approved documents /12,842 chunks, final independent audit and350 citation probes, exact2,751 documents /2,748 indexed /85,759 chunks, zero orphan chunks, unchanged1,464 bill coverage. USD0.03969508 actual embedding cost; see [execution evidence](../research/2026-10-10-corpus-version-ingestion-run.md). No remaining approved entries in this manifest; broader mapping and owner sample acceptance remain R7.
