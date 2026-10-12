@@ -57,3 +57,17 @@ In scope: `src/shell/DeskNav.jsx`, `src/shell/TerminalShell.jsx`,
 
 Excluded: the marketing site, module content, the artwork images and their
 overlay labels, and the drag-to-AI panel change (F113).
+
+## Amendment 1 — 2026-10-13: hero height
+
+The owner reported the desk heroes cut off: the hero kept its fixed height
+(242–298px) while the title grew, so "Explore the desk" was clipped under the
+stats strip and the floating insight card ran into the photo label. The hero
+now grows with its content (`height:auto`, 28px bottom padding), with a
+minimum of 288px (320px from 1700px and at 850px and below; none on phones),
+and the insight card text is 11px.
+
+Evidence (local fixture, measured on all eight desks at 360, 800, 1000, 1440
+and 1800px): the button sits at least 35px inside the hero, the insight card
+no longer overlaps the photo label or the title, and phones do not scroll
+sideways.
