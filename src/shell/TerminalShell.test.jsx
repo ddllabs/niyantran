@@ -40,6 +40,14 @@ describe('account-restricted canonical destinations', () => {
 
 
 describe('v6 header hierarchy', () => {
+  it.each(['#/home', '#/national/Bill%20Passage%20Probability%20Index', '#/economics/Live%20Global%20Stock%20Exchanges'])('keeps desk navigation in the header on %s', hash => {
+    location.hash = hash;
+    const html = renderToStaticMarkup(<TerminalShell/>);
+    const header = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)[1];
+    expect(header).toContain('aria-label="Desks"');
+    expect(html).not.toContain('class="desk-rail"');
+    expect(html.match(/aria-label="Desks"/g)).toHaveLength(1);
+  });
   it('keeps directory, search and account controls together beside desk navigation', () => {
     location.hash = '#/national';
     const html = renderToStaticMarkup(<TerminalShell/>);

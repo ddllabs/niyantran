@@ -68,3 +68,11 @@
 
 /* The utility bar is no longer clipped; menus can follow their trigger again. */
 .with-v6-directory .profile-pop { position:absolute;top:calc(100% + 10px);right:0;max-height:70dvh;overflow:auto; }
+
+/* Internal modules retain their own row under the common desk header. */
+.terminal.with-module-navigation{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 36px minmax(0,1fr);grid-template-areas:"top" "modules" "work"}
+.with-module-navigation>.desktabs{grid-area:modules;min-width:0}
+.v6-landing-tabs button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
+.v6-landing-tabs button:hover{background:var(--bg);color:var(--fg)}
+.v6-directory-open{background:var(--bg);color:var(--text);border-color:var(--line)}
+.v6-directory-open:hover{background:var(--panel)}

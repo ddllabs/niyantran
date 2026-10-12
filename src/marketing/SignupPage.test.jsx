@@ -70,3 +70,13 @@ describe('free signup', () => {
     expect(success).not.toHaveBeenCalled(); expect(setSessionUser).not.toHaveBeenCalled();
   });
 });
+
+it('lets the globe persona labels drive the same persona choice', () => {
+  fake.states = []; let tree = render(vi.fn());
+  const globe = find(tree, node => node.props?.onPersona);
+  expect(globe.props.persona).toBe('');
+  globe.props.onPersona('policy');
+  tree = render(vi.fn());
+  expect(find(tree, node => node.props?.onPersona).props.persona).toBe('policy');
+  expect(find(tree, node => node.props?.role === 'radio').props['aria-checked']).toBe(true);
+});

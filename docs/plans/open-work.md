@@ -14,10 +14,60 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F94 is next) and goes in the
+- A new finding gets the next free `F` number (F107 is next) and goes in the
   right section.
 
+## Current state — 2026-10-12
+
+Read-only check by the supervisor (git commands and `git ls-remote origin`;
+no tests rerun, no production probe).
+
+- `main` = `origin/main` = `2a5be9c`. `origin` has one branch, `main`.
+  Everything through F101, the Download fix (`6acabfb`) and the corpus code
+  (`d0a8020`) is in `origin/main`.
+- `task/client-ui-spec` = `9ea8f35`: 7 commits ahead of `main`, 0 behind,
+  clean, not pushed. It holds F102 and F103, both awaiting the owner's visual
+  review. Merge, push and deployment each need a separate owner go-ahead.
+- Second worktree `~/.codex/worktrees/corpus-integration/…`: detached at
+  `d0a8020` (in `main`), clean, kept for reference.
+- Corpus, last recorded 2026-10-11 (not recounted): 3,434 documents /
+  3,431 indexed / 100,031 chunks / 2,143 covered bill keys. R7 stays open.
+- Last recorded Edge deploy of `research-chat` is v47 (2026-10-10), which
+  predates `a796383` in `main` (F104).
+
 ## UI follow-ups
+
+- [ ] **F103. Photographic auth Earth.** Owner authorized shared textured 3D globe
+  for sign-in/signup, rotation, drag, pause and responsive/fallback checks.
+  [Spec](../specs/2026-10-12-auth-earth.md); [plan](2026-10-12-auth-earth.md).
+  Implemented and locally verified in 9e6f12c on task/client-ui-spec.
+  Amendment 1 (owner, 2026-10-12): homepage-style orbit rings and satellites,
+  India start view, satellites moving while the globe is held; auth pages
+  only. Amendment 2: no black stand-in on load (globe and rings fade in
+  together) and the homepage persona labels around the globe (signup label
+  selects the persona). Both verified locally, uncommitted (2,526 tests,
+  lint, build, browser at 360–1440). Await owner visual review/local merge. No
+  corpus/backend or release changes.
+
+- [ ] **F102. Client UI refinement.** Owner-authorized four-module implementation:
+  cream desk/Home-news theme and graphics, signup composition, top desk
+  navigation/access verification, and removal of the record-level linkage graph.
+  Live graph confirmed on Vercel in the Kerala bill Record panel. Implemented and locally verified on task/client-ui-spec; commits 01634e4, d072308, b0ba405 and 35366d8. Await owner visual review/local merge; main unchanged. Backend/corpus excluded.
+  [Spec index](../specs/2026-10-12-client-ui/index.md).
+
+- [ ] **F106. Retire the unused NterEarth runtime.** Since F103 amendment 5
+  the homepage hero renders the shared photographic globe. `src/marketing/
+  NterEarth.jsx` (and its test), `public/brand/earth/nter-earth.js`,
+  `earth-poster.png` and the old `.mkt-earth*` / login-orb CSS are no longer
+  rendered. Remove only with owner approval and an exact file inventory.
+
+- [ ] **F105. Reconcile stale documentation.** Found in the 2026-10-12
+  read-only review: `agents/rollback-runbook.md` omits `ingest-worker`,
+  `admin-ingest` and `document-file` and the preview origin pattern;
+  `Architectures/01`, `03` and `06` still quote the 2,338-document / nano-tier
+  figures; `ai-agent.md` rule 8 mentions upstream rebases; several dated
+  plans/specs still read "local only / not merged" for work now in `main`.
+  Documentation only; correct in place or mark Historical.
 
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
@@ -67,7 +117,8 @@
   choose a file-size/total-byte policy before supporting large user uploads. No
   arbitrary new size cap was introduced in the defect fixes.
 
-Current baseline (read-only observations, 2026-10-03):
+Historical baseline (read-only observations, 2026-10-03; superseded by
+"Current state — 2026-10-12" above):
 - `main` is the only long-lived branch; production follows origin/main.
   The review began at local `f0058b1`, one documentation commit ahead of
   origin/main `322c76a`. Subsequently F57 was pushed at `3b40cba` and its
@@ -93,6 +144,12 @@ Current baseline (read-only observations, 2026-10-03):
 
 
 ## 1. Done
+
+- **Status reconciliation (2026-10-12):** F93, F95, F96, F97, F98, F100 and
+  F101 below say "local only / no merge / no push" as of their execution.
+  All their commits (`69595a5`, `9fe245e`, `66c7944`, `540f99d`, `12a148c`,
+  `ec89cdc`, `70267e8`, `19ffef6`) are now in `origin/main`, verified by
+  `git merge-base --is-ancestor`. Owner acceptance is not inferred from that.
 
 - [x] **F101. Polish V6 sector selector.** Implemented locally in `19ffef6`: refined typography/surface/spacing, decorative chevron and theme/focus styling; native selection retained. All eight desks/35 options, mobile/desktop and keyboard checks, 29 focused tests, lint/build passed. [Evidence](../specs/2026-10-12-sector-selector-polish.md). Corpus untouched; no merge/push/deploy.
 
@@ -846,6 +903,15 @@ Follow-ups and findings:
   - **Fix:** pin previews to the team scope, or drop them from production and point previews at
     a separate Supabase project.
   - Raised in the R6 security review (2026-10-01).
+- [ ] **F104. Deploy the retrieval section-context fix.** `a796383` (bill
+  versions and continuation sections reach the model; `_shared/retrieval.ts`,
+  `research-chat/{agent,index,prompt}.ts`) is in `main` since `d0a8020`, but
+  the last recorded `research-chat` deploy is v47 on 2026-10-10. The review
+  record says the correction is local only
+  (`research/2026-10-12-corpus-integration-review.md`). Before any deploy,
+  compare the live function bytes with `main`; then a separately authorized
+  `research-chat` deployment and live RAG/citation checks. No re-embedding
+  needed.
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.

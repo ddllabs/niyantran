@@ -7,11 +7,11 @@ const home = () => readFileSync(new URL('./HomePage.jsx', import.meta.url), 'utf
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('homepage Earth integration', () => {
-  it('uses spherical artwork without either baked globe image', () => {
-    expect(home()).toContain('<NterEarth paused={earthPaused} />');
+  it('uses the shared photographic globe, with the hero keeping its own persona labels', () => {
+    expect(home()).toContain('<AuthEarth labels={false} />');
+    expect(home()).not.toContain('<NterEarth');
     expect(home()).not.toContain('src="/brand/globe.png');
     expect(home()).not.toContain('src="/brand/bg.png');
-    expect(home()).toContain('Pause globe');
   });
 });
 

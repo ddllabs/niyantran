@@ -4,7 +4,6 @@ import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
-import DeskRail from './DeskRail.jsx';
 import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import { Icon } from './Icons.jsx';
@@ -303,14 +302,14 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal ${v6Landing ? 'with-v6-directory' : 'with-desk-rail'} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${v6Landing ? '' : ' with-module-navigation'} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
           <img src="/brand/logo.png?v=2" alt="" />
           <span>TERMINAL</span>
         </div>
-        {v6Landing && <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/> }
+        <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>
         <div className="shell-header-utilities">
         {v6Landing && <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
         <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
@@ -436,7 +435,6 @@ export default function TerminalShell({ onLogout }) {
         </div>
         </div>
       </header>
-      {!v6Landing && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk} />}
       {!v6Landing && <DeskNav
         tab={tab}
         featureName={featureName}
