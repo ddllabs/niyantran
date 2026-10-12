@@ -159,17 +159,16 @@ export default function SignupPage({ onSuccess, onLogin }) {
 
   return (
     <div className="mkt-login mkt-login-globe mkt-signup" ref={root} onMouseMove={onMove}>
-      <div className="mkt-login-art" aria-hidden="true">
-        <img className="mkt-login-bg" src="/brand/bg.png?v=1" alt="" />
-        <span className="mkt-pr-gridlines mkt-login-grid" />
-        <div className="mkt-login-orb">
-          <span className="mkt-halo" />
-          <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" />
+      <aside className="mkt-signup-context" aria-labelledby="signup-context-title">
+        <div className="mkt-signup-illustration" aria-hidden="true">
+          <img src="/brand/globe.png?v=3" alt="" />
+          <span className="mkt-signup-orbit" />
+          <span className="mkt-signup-orbit second" />
         </div>
-        <span className="sh navy" />
-        <span className="sh sand" />
-        <span className="sh red" />
-      </div>
+        <h2 id="signup-context-title">A world of records.<br />Your own perspective.</h2>
+        <p>Explore legislation, global affairs, markets and the courts with the source always in view.</p>
+        <div className="mkt-signup-context-desks">Eight desks · One research workspace</div>
+      </aside>
 
       {verificationSentEmail ? (
         <main className="mkt-login-card mkt-signup-card">

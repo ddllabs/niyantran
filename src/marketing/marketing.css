@@ -5301,3 +5301,28 @@ html.mkt-doc:has(.mkt-auth) #root {
   }
   .mkt-login-earth-control { right: 12px; bottom: 6px; }
 }
+
+/* Signup gives the existing globe a dedicated composition beside the form. */
+.mkt-signup{grid-template-columns:minmax(280px,.9fr) minmax(0,640px);gap:clamp(24px,5vw,80px);align-items:center;justify-content:center;padding:24px clamp(20px,4vw,64px);background:#f8f5f0}
+.mkt-signup-context{position:relative;max-width:440px;justify-self:center;color:var(--mkt-black);text-align:left}
+.mkt-signup-illustration{position:relative;isolation:isolate;width:100%;aspect-ratio:1;max-width:380px;margin:0 auto 24px;display:grid;place-items:center}
+.mkt-signup-illustration:before{content:'';position:absolute;inset:5%;z-index:-1;border-radius:50%;background:#ead0af66}
+.mkt-signup-illustration img{width:88%;height:88%;object-fit:contain;filter:sepia(.25);position:relative;z-index:1}
+.mkt-signup-orbit{position:absolute;inset:3%;border:1px solid #b6a58e;border-radius:50%;transform:rotate(-25deg) scaleY(.65)}
+.mkt-signup-orbit.second{inset:0;transform:rotate(35deg) scaleY(.82);border-color:#d3c4b0}
+.mkt-signup-context h2{font-size:clamp(25px,2.8vw,40px);line-height:1.12;letter-spacing:-.025em;margin:0 0 18px;text-wrap:balance}
+.mkt-signup-context p{max-width:36ch;margin:0;color:var(--mkt-text);font-size:15px;line-height:1.65}
+.mkt-signup-context-desks{margin-top:24px;padding-top:18px;border-top:1px solid var(--mkt-border);font-size:12px;color:var(--mkt-muted)}
+.mkt-signup .mkt-signup-card{box-sizing:border-box;width:100%;min-width:0;max-height:calc(100dvh - 120px);background:#fff;box-shadow:0 12px 40px #3d3a360a}
+@media(max-width:850px){
+ .mkt-signup{grid-template-columns:minmax(0,640px);align-content:start;gap:20px;overflow-y:auto;max-height:none;height:auto;min-height:calc(100dvh - 72px)}
+ .mkt-signup-context{display:grid;grid-template-columns:90px minmax(0,1fr);gap:6px 16px;align-items:center;width:100%;max-width:640px}
+ .mkt-signup-illustration{grid-row:1/4;width:90px;margin:0}
+ .mkt-signup-context h2{font-size:23px;margin:0}
+ .mkt-signup-context p{font-size:12px;line-height:1.5;margin:0;max-width:48ch}
+ .mkt-signup-context-desks{font-size:10px;border:0;margin:2px 0 0;padding:0}
+ .mkt-signup .mkt-signup-card{max-height:none;overflow:visible}
+ html.mkt-doc:has(.mkt-signup),html.mkt-doc:has(.mkt-signup) body,html.mkt-doc:has(.mkt-signup) #root{height:auto;max-height:none;overflow-y:auto}
+ .mkt-auth:has(.mkt-signup){height:auto;max-height:none;overflow:visible}
+}
+@media(max-width:420px){.mkt-signup{padding:18px 12px}.mkt-signup-context{grid-template-columns:64px minmax(0,1fr)}.mkt-signup-illustration{width:64px}.mkt-signup-context h2{font-size:20px}.mkt-signup-context p{display:none}}
