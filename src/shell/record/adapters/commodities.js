@@ -53,7 +53,7 @@ export default function commodities(row, ctx = {}) {
     title,
     meta: ['Commodity benchmark', group].filter(Boolean),
     badge: badgeOf(move),
-    links: sourceLinks(row, 'Reference page (World Bank)'),
+    links: sourceLinks(row, 'Background: World Bank commodity markets'),
     glance: {
       tiles: [
         { label: 'Level (illustrative)', value: level || 'Not on record', sub: 'pack value' },

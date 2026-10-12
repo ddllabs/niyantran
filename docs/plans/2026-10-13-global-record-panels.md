@@ -218,6 +218,26 @@ All seven modules and both Record tabs are built on `task/global-record-panels-b
   - no console errors after a clean reload.
 
   Screenshots could not be taken because the browser pane was hidden; the checks read the DOM.
+- **Independent review (Fable, 2026-10-13):** one should-fix and five nits, all addressed before the
+  merge:
+  - **Should-fix:** the new commodity row buttons had no button reset or selected state inside the
+    dossier chrome (`.gld`). Fixed in `src/index.css`.
+  - **Found while fixing it:** with the side panel open, the dossier grid kept two columns and some
+    bar tracks shrank to zero at 939px. The grid now collapses on the desk's own width (a container
+    query). Measured afterwards with the panel open:
+
+    | Viewport | Columns | Narrowest bar track |
+    |---|---|---|
+    | 375px | one | 87px |
+    | 939px | one | 151px |
+    | 1440px | one | 322px |
+
+  - **Nits:**
+    - the spec's Trade far lane now reads "Openness";
+    - the commodity link is labelled "Background: World Bank commodity markets";
+    - a stale comment in `countryCentres.js` is corrected;
+    - the contract rejects duplicate board rows (test failed first);
+    - the satellite link is logged in F122.
 - **Found out of scope:** recorded as F122 in open-work.
 
 ## Batch 3 tasks (parallel sub-agents after batch 2 lands)

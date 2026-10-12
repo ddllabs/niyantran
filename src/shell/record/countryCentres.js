@@ -5,7 +5,7 @@
  * each at an approximate representative interior point [lat, lon] (one decimal; two for the
  * micro-states, which a tenth of a degree would put in the next country). The maps caption
  * these positions "approximate", and they are picked to lie on the country's own land (an island
- * state's main island), never a marker in the sea. The ten centres that predate this table (India,
+ * state's main island), never a marker in the sea. The centres that predate this table (India,
  * France, Russia, United States, Iran, Myanmar, Sri Lanka, Mauritius) keep their original values.
  *
  * TERRITORY_CENTRES holds places the feeds name as if they were countries but which are not

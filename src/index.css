@@ -6308,6 +6308,7 @@ button.live-feed:hover { color: var(--fg); }
 /* Heads of State + Global Commodities — light HTML geo dossier (theme blue) */
 .gld-desk { overflow: auto; background: #fff; color: #111; }
 .gld {
+  container-type: inline-size; /* F121: the grid follows the desk's width, which the side panel narrows */
   --ds-accent: var(--accent, #012ea1);
   --ds-accent-soft: var(--accent-soft, #e8eef8);
   --fg: #111827;
@@ -6355,6 +6356,10 @@ button.live-feed:hover { color: var(--fg); }
 .gld .geo-e-meta dd { margin: 0; color: var(--fg-dim); }
 .gld .geo-e-latest { font-size: 10.5px; color: var(--fg-dim); line-height: 1.45; border-top: 1px solid var(--line); padding-top: 6px; }
 .gld .geo-bar { display: flex; align-items: center; gap: 9px; margin: 7px 0; font-size: 11px; }
+.gld button.geo-bar { width: 100%; margin: 3px 0; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 11px; text-align: left; cursor: pointer; } /* F121: a benchmark row opens its record */
+.gld button.geo-bar:hover { background: color-mix(in srgb, var(--ds-accent) 6%, transparent); }
+.gld button.geo-bar:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 1px; }
+.gld button.geo-bar.on { background: color-mix(in srgb, var(--ds-accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--ds-accent); }
 .gld .geo-bar-l { flex: 0 0 32%; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gld .geo-bar-t { flex: 1; height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden; }
 .gld .geo-bar-t i { display: block; height: 100%; border-radius: 3px; background: var(--ds-accent); }
@@ -6376,6 +6381,9 @@ button.live-feed:hover { color: var(--fg); }
 .gld-ai-wrap { padding: 0 16px 24px; min-height: 40vh; }
 @media (max-width: 900px) {
   .gld .geo-kpis { grid-template-columns: repeat(3, 1fr); }
+  .gld .geo-grid { grid-template-columns: 1fr; }
+}
+@container (max-width: 760px) {
   .gld .geo-grid { grid-template-columns: 1fr; }
 }
 

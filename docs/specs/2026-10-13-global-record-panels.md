@@ -137,7 +137,7 @@ A link that resolves to nothing is shown as "None on record", never invented. Th
 | Satellite Infrastructure | Provider | Launch | Launch site | Same provider (count) |
 | World Constitutions | Country | Constitution | Enacted (decade) | Same decade (count) |
 | Growth Indicators | Economy | Series | Rank on GDP growth | Same year (count) |
-| Global Trade | Economy | Exports | Rank on exports | Trade share of GDP |
+| Global Trade | Economy | Exports | Rank on exports | Openness (trade share of GDP) |
 | Geopolitics News Wire | Publisher | Story | Published | Same publisher (count) |
 | Heads of State | Country | Leader | Party | Same ideology (count) |
 | Global Commodities | Group | Benchmark | Move | Same group (count) |

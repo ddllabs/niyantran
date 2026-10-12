@@ -125,7 +125,7 @@ describe('Global Commodities adapter', () => {
     expect(model.footer.provenance.source).not.toMatch(/world bank/i);
     expect(model.footer.provenance.source).toMatch(/benchmark pack/i);
     // The row's own https link stays available as a reference, labelled as one.
-    expect(model.links).toEqual([{ label: 'Reference page (World Bank)', href: 'https://www.worldbank.org/en/research/commodity-markets' }]);
+    expect(model.links).toEqual([{ label: 'Background: World Bank commodity markets', href: 'https://www.worldbank.org/en/research/commodity-markets' }]);
     expect(commodities({ ...byName('Brent crude'), source_url: 'http://example.org' }, withMeta).links).toEqual([]);
   });
 

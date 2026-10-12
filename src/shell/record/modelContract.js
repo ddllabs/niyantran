@@ -27,8 +27,11 @@ function visualProblems(v, where) {
   }
   if (v.type === 'board') {
     if (!(v.rows || []).length) out.push(`${where} board has no rows`);
+    const seen = new Set();
     for (const r of v.rows || []) {
       if (!String(r.label || '').trim() || !String(r.value || '').trim()) out.push(`${where} has an empty board row ${r.label || '?'}`);
+      if (seen.has(r.label)) out.push(`${where} has a duplicate board row ${r.label}`);
+      seen.add(r.label);
       if (r.tone && !TONES.has(r.tone)) out.push(`bad tone ${r.tone}`);
     }
   }

@@ -42,6 +42,8 @@ describe('record panel contract', () => {
     expect(contractProblems(m).join()).toMatch(/board row/);
     m.glance.visual = { type: 'board', title: 'Latest year', rows: [{ label: 'GDP growth', value: '6.5%', tone: 'pink' }] };
     expect(contractProblems(m).join()).toMatch(/bad tone pink/);
+    m.glance.visual = { type: 'board', title: 'Latest year', rows: [{ label: 'GDP growth', value: '6.5%' }, { label: 'GDP growth', value: '6.1%' }] };
+    expect(contractProblems(m).join()).toMatch(/duplicate board row GDP growth/);
   });
 
   it('rejects reference placeholders but allows ordinary prose', () => {

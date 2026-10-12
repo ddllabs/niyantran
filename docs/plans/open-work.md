@@ -201,6 +201,9 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     though its rows come from the embedded pack (`server/featureFeed.mjs`).
   - The `.geo-holistic` workspace rules in `src/index.css` no longer apply to
     any desk since F121 T15 and can be removed.
+  - Satellite Infrastructure: a launch's "Source" link is the Launch Library
+    JSON endpoint, not a readable page (`flattenLaunch` in
+    `server/assetsApi.mjs`).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
