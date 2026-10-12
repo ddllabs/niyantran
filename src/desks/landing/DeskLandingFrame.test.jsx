@@ -3,6 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import DeskLandingFrame, { ModuleDetail, DataBreakdown, groupsWithSources } from './DeskLandingFrame.jsx';
 import { deskHash, parseDeskHash } from '../../lib/deskRoute.js';
 import { NATIONAL_PRESENTATION } from './deskPresentation.js';
+import { DESK_CATALOGUE } from './deskCatalogue.js';
+import { GLOBAL_PRESENTATION } from './globalPresentation.js';
+import { LAW_PRESENTATION } from './lawPresentation.js';
+import { CARBON_PRESENTATION } from './carbonPresentation.js';
+import { SPORTS_PRESENTATION } from './sportsPresentation.js';
+import { ENTERTAINMENT_PRESENTATION } from './entertainmentPresentation.js';
+import { STATE_PRESENTATION } from './statePresentation.js';
 import { ECONOMICS_PRESENTATION } from './economicsPresentation.js';
 
 const bill = NATIONAL_PRESENTATION.groups[0].modules[0];
@@ -70,4 +77,24 @@ describe('v6 desk presentation', () => {
     expect(html).not.toContain('bills on record');
   });
 
+});
+
+
+describe('optional module discovery', () => {
+  it('lists every canonical module under a collapsed disclosure on all eight desks', () => {
+    const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION, STATE_PRESENTATION];
+    let links = 0;
+    for (const presentation of presentations) {
+      const html = renderToStaticMarkup(<DeskLandingFrame presentation={presentation} onFeature={() => {}} />);
+      const discovery = html.match(/<details class="module-discovery">([\s\S]*?)<\/section><\/details>/)?.[1];
+      expect(discovery, presentation.id).toBeDefined();
+      expect(discovery).toContain('View all modules');
+      const expected = DESK_CATALOGUE.filter(module => module.tab === presentation.id);
+      expect((discovery.match(/class="module-link"/g) || []).length).toBe(expected.length);
+      for (const module of expected) expect(discovery).toContain(`href="/${deskHash(module.tab, module.feature).replaceAll("'", "&#x27;")}"`);
+      expect(discovery).not.toContain('Open in Terminal');
+      links += expected.length;
+    }
+    expect(links).toBe(120);
+  });
 });
