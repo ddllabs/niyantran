@@ -9,6 +9,10 @@ describe('catalogue discovery UI contract', () => {
     const html = renderToStaticMarkup(<DeskCatalogueSearch tabs={[]} recordTabs={[]} lockedIds={[]} onOpen={noop} />);
     expect(html).toContain('Search desks, modules and records');
     expect(html).not.toContain('Find a module');
+    // Owner, 2026-10-13: a short form for narrower windows, so the label is never cut off.
+    expect(html).toContain('<span class="catalogue-label-long">Search desks, modules and records</span>');
+    expect(html).toContain('<span class="catalogue-label-short" aria-hidden="true">Search the terminal</span>');
+    expect(html).toContain('aria-label="Search desks, modules and records"');
     expect(html).toContain('aria-keyshortcuts="Meta+K Control+K"');
     expect(html).not.toContain('<input');
   });

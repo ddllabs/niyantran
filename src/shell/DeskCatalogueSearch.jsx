@@ -96,8 +96,8 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
     if (event.key === 'Enter' && results[active]) { event.preventDefault(); choose(results[active]); }
   };
   return <div className="desk-catalogue-search" data-catalogue-desks={tabs?.length || 0}>
-    <button ref={trigger} type="button" className="catalogue-open" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); setOpen(true); }}>
-      <Search size={16} aria-hidden="true" /><span>{hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'}</span><kbd>⌘ K</kbd>
+    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); setOpen(true); }}>
+      <Search size={16} aria-hidden="true" /><span className="catalogue-label-long">{hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'}</span><span className="catalogue-label-short" aria-hidden="true">{hi ? 'टर्मिनल में खोजें' : 'Search the terminal'}</span><kbd>⌘ K</kbd>
     </button>
     {open && <dialog ref={dialog} className="catalogue-dialog" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); setOpen(false); }} onClick={event => {
       if (event.target !== dialog.current) return;

@@ -60,16 +60,23 @@ describe('v6 header hierarchy', () => {
 
 
 describe('meaningful header controls', () => {
-  it.each(['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'])('hides ineffective refresh and notifications on %s landing', desk => {
-    location.hash = '#/' + desk;
+  // Owner, 2026-10-13: the header is the same on every page. Landing refresh reloads the desk
+  // summaries (it remounts the landing), so it is functional there too.
+  it.each(['#/home', '#/national', '#/law', '#/economics/Live%20Global%20Stock%20Exchanges'])('shows All sections, search and refresh on %s', hash => {
+    location.hash = hash;
     const html = renderToStaticMarkup(<TerminalShell/>);
+    expect(html).toMatch(/class="shell-header-utilities"[\s\S]*v6-directory-control[\s\S]*desk-catalogue-search[\s\S]*top-actions/);
+    expect(html).toMatch(/title="Refresh (feed|desk summaries)"/);
     expect(html).not.toContain('Notifications not configured');
-    expect(html).not.toContain('Refresh feed');
     expect(html).toContain('aria-label="Switch to dark mode"');
   });
-  it.each(['#/home', '#/economics/Live%20Global%20Stock%20Exchanges'])('keeps functional refresh on %s', hash => {
+  it.each(['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'])('labels refresh as reloading the summaries on the %s landing', desk => {
+    location.hash = '#/' + desk;
+    expect(renderToStaticMarkup(<TerminalShell/>)).toContain('title="Refresh desk summaries"');
+  });
+  it.each(['#/home', '#/economics/Live%20Global%20Stock%20Exchanges'])('keeps the feed refresh on %s', hash => {
     location.hash = hash;
-    expect(renderToStaticMarkup(<TerminalShell/>)).toContain('Refresh feed');
+    expect(renderToStaticMarkup(<TerminalShell/>)).toContain('title="Refresh feed"');
   });
 });
 
