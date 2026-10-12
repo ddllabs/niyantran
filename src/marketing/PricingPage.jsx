@@ -108,9 +108,14 @@ export default function PricingPage({ onLogin, onContact }) {
       </section>
 
       <div className="mkt-wrap">
-        <div className="mkt-pr-notes">
-          {PRICING_NOTES.map((note) => <p key={note}>{note}</p>)}
-        </div>
+        <ul className="mkt-pr-facts">
+          {PRICING_NOTES.map((fact) => (
+            <li key={fact.title} className={`tone-${fact.tone}`}>
+              <i><Ico d={fact.icon} size={15} /></i>
+              <span><b>{fact.title}</b> · {fact.text}</span>
+            </li>
+          ))}
+        </ul>
 
         <div className="mkt-pr-grid" onMouseLeave={() => setFocus(null)}>
           {plans.map((p) => {
