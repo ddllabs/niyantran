@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { ArrowRight, ArrowUpRight, Database, Pause, Play } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Database, FileText, Network, Newspaper, Pause, Play, Users } from 'lucide-react';
 import { DESK_IMAGES, DESK_IMAGE_CREDITS } from './deskImages.js';
 import { deskHash } from '../../lib/deskRoute.js';
 import { formatCount, moduleAvailability, sourceDate, summarizeModules } from './deskPresentation.js';
@@ -13,6 +13,13 @@ const hasSource = summary => Boolean(summary && (summary.sources?.some(source =>
 export const groupsWithSources = (groups, summaries) => groups.filter(group => group.modules.some(module => hasSource(summaries[module.feature])));
 const safeUrl = value => { try { const url = new URL(value); return /^https?:$/.test(url.protocol) ? url.href : null; } catch { return null; } };
 const Count = ({ value }) => <span data-v6-count={Number.isInteger(value) ? value : undefined}>{formatCount(value)}</span>;
+
+const ModuleIcon = ({ module, summary }) => {
+  const Icon = module.feature.includes('Graph') ? Network : summary?.sourceMode === 'feed-backed' ? Newspaper : /Candidate|Profiles|Heads/.test(module.feature) ? Users : FileText;
+  return <Icon aria-hidden="true" />;
+};
+const moduleNote = (module, summary) => `${formatCount(summary?.count)} ${summary?.unit || 'records'} · ${moduleAvailability(module, summary)}`;
+
 
 export function ModuleDetail({ module, summary, onOpen, retry, titleId, tab = module.tier }) {
   const sources = (summary?.sources || []).filter(source => safeUrl(source.url));
@@ -28,7 +35,28 @@ function Insight({ items, count, onOpen, national, highlight }) {
   return <aside className={`hero-insight ${hover ? 'chart-active' : ''}`} aria-label="Desk data highlight"><div className="insight-top">{national ? 'THE LEGISLATIVE LANDSCAPE' : 'DESK COVERAGE'}<i /></div><div className="insight-number"><b><Count value={count} /></b><span>{highlight?.unit || (national ? 'bills on record' : 'counted records')}</span></div><div className="mini-bars" role="group" aria-label={highlight?.title || (national ? 'Bills by sector' : 'Known counts by sector')}>{items.map((item, index) => <button key={item.label} className="mini-bar" style={{ '--height': `${Math.max(5, item.count / max * 100)}%`, '--i': index }} aria-label={`${item.label}: ${formatCount(item.count)} ${highlight?.unit || 'records'}`} onPointerEnter={() => setHover(item)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(item)} onBlur={() => setHover(null)} onClick={onOpen}><i /></button>)}</div><div className="insight-foot"><span>{hover ? `${hover.label} · ${formatCount(hover.count)}` : items.length ? (highlight?.title || 'KNOWN COUNTS BY SECTOR') : 'Distribution unavailable'}</span><button onClick={onOpen}>View data <ArrowUpRight aria-hidden="true" /></button></div></aside>;
 }
 
+export function ModuleExplorer({ presentation, group, summaries, onSector, onFeature, id, lang = 'en' }) {
+  return <section className={`explorer ${group?.id === 'economy' ? 'budget-sector' : ''}`} aria-labelledby={`${id}-explorer`}>
+    <div className="explorer-heading">
+      <div><span className="eyebrow">INSIDE THIS SECTOR</span><h2 id={`${id}-explorer`}>{group?.name}</h2><p>{group?.description}</p></div>
+      <span className="explorer-badge">{group?.modules.length || 0} modules · {group?.modules.filter(module => hasSource(summaries[module.feature])).length || 0} with sources</span>
+      <div className="explorer-selector"><label htmlFor={`${id}-sector`}>{lang === 'hi' ? 'सेक्टर चुनें' : 'Select a sector'}</label>
+        <select id={`${id}-sector`} value={group?.id || ''} onChange={event => onSector(event.target.value)}>
+          {presentation.groups.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </div>
+    </div>
+    <div key={group?.id} className="module-list refresh" id={`${id}-modules`} tabIndex={0} aria-label="Modules in the selected sector">
+      {group?.modules.map((module, index) => <a className="module-item" key={module.feature} style={{ '--i': index }} href={`/${deskHash(presentation.id, module.feature)}`} aria-label={`${module.title}: ${moduleNote(module, summaries[module.feature])}`} onClick={event => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault(); onFeature(module.feature);
+      }}><span className="module-icon"><ModuleIcon module={module} summary={summaries[module.feature]} /></span><span className="module-copy"><b>{module.title}</b><span>{moduleNote(module, summaries[module.feature])}</span></span><ArrowRight aria-hidden="true" /></a>)}
+    </div>
+  </section>;
+}
+
 export default function DeskLandingFrame({ presentation, summaries = {}, onFeature, lang = 'en', toolbar, metrics, dataHighlight }) {
+  const [selected, setSelected] = useState(presentation.groups[0]?.id);
   const [filter, setFilter] = useState('all');
   const [detail, setDetail] = useState(null);
   const [announcement, setAnnouncement] = useState('');
@@ -38,6 +66,7 @@ export default function DeskLandingFrame({ presentation, summaries = {}, onFeatu
   const aggregate = summarizeModules(modules, summaries);
   const motion = useDeskLandingMotion(Object.values(summaries).map(summary => summary.count).join(','));
   const groups = filter === 'sources' ? groupsWithSources(presentation.groups, summaries) : presentation.groups;
+  const group = presentation.groups.find(item => item.id === selected) || presentation.groups[0];
   const national = presentation.id === 'national';
   const bills = national ? summaries['Bill Passage Probability Index'] : null;
   const items = dataHighlight?.items || (national ? bills?.sectors || [] : presentation.groups.map(item => ({ label: item.short, count: summarizeModules(item.modules, summaries).count })).filter(item => item.count != null));
@@ -48,22 +77,7 @@ export default function DeskLandingFrame({ presentation, summaries = {}, onFeatu
       <section className="stats" aria-label="Desk statistics">{(metrics || defaultMetrics).map(metric => <div className="stat" key={metric.label}><div className="stat-label"><Database aria-hidden="true" />{metric.label}</div><div className="stat-value"><Count value={metric.value} /></div><div className="stat-note">{metric.note}</div></div>)}</section>
       <div className="section-heading"><div><h2>{presentation.heading}</h2><span>Choose a sector. Explore its records.</span></div><div className="sector-controls"><span>{groups.length} sectors to explore</span><div className="segmented" aria-label="Sector coverage filter"><button aria-pressed={filter === 'all'} onClick={() => { setFilter('all'); setAnnouncement('Showing all sectors.'); }}>All</button><button aria-pressed={filter === 'sources'} onClick={() => { setFilter('sources'); setAnnouncement('Showing sectors with sources.'); }}><i />With sources</button></div></div></div>
       <p aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}>{announcement}</p><section ref={sectors} className="sector-grid" style={{ '--sector-columns': Math.max(1, Math.min(groups.length, 5)) }} aria-label="Research sectors">{groups.map(item => { const totals = summarizeModules(item.modules, summaries); const index = presentation.groups.indexOf(item); const modes = [...new Set(item.modules.map(module => summaries[module.feature]?.sourceMode).filter(mode => mode && mode !== 'unknown'))]; const feature = DESK_DEFAULTS[presentation.id][item.id]; const destination = item.modules.find(module => module.feature === feature); return <a className="sector-card" href={`/${deskHash(presentation.id, feature)}`} key={item.id} style={{ '--i': index }} aria-label={`Open ${item.name}: ${destination.title}`} onClick={event => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onFeature(feature); }}><div className={`card-picture picture-${item.image}`} data-image={item.image}><V6Photo name={item.image} /><span className="card-number">{String(index + 1).padStart(2, '0')}</span><span className="card-count">{item.modules.length} modules</span></div><div className="card-body"><div className="card-title-row"><h3>{item.title[0]}<br />{item.title[1]}</h3><ArrowUpRight aria-hidden="true" /></div><p className="card-desc">{item.cardDescription || item.description}</p><div className="card-bottom"><span className="card-total">{formatCount(presentation.coverageCounts ? totals.pending && !totals.knownModules ? null : totals.knownModules : totals.count)}{totals.pending && (presentation.coverageCounts ? totals.knownModules > 0 : totals.count != null) ? '+' : ''}<small>{presentation.coverageCounts ? 'measured modules' : 'records'}</small></span><span className="status">{modes.length > 1 ? 'Mixed sources' : modes[0] === 'stored' ? 'Stored register' : modes[0] === 'feed-backed' ? 'News & feeds' : modes[0] === 'curated' ? 'Curated records' : modes[0] === 'simulated' ? 'Illustrative simulation' : totals.pending ? 'Loading' : 'Coverage unavailable'}</span></div></div></a>; })}</section>
-      <details className="module-discovery">
-        <summary>{lang === 'hi' ? 'सभी मॉड्यूल देखें' : 'View all modules'} <span>{modules.length}</span></summary>
-        <section aria-label={lang === 'hi' ? 'सभी डेस्क मॉड्यूल' : 'All desk modules'}>
-          <p className="discovery-note">{lang === 'hi' ? 'इस डेस्क के सभी मॉड्यूल, स्रोत उपलब्धता के फ़िल्टर से स्वतंत्र।' : 'Every module in this desk, regardless of the source filter.'}</p>
-          {presentation.groups.map(group => <details className="module-sector" key={group.id}>
-            <summary>{group.name} <span>{group.modules.length} {lang === 'hi' ? 'मॉड्यूल' : group.modules.length === 1 ? 'module' : 'modules'}</span></summary>
-            <div className="discovery-links">{group.modules.map(module => <a className="module-link" key={module.feature} href={`/${deskHash(presentation.id, module.feature)}`} onClick={event => {
-              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-              event.preventDefault(); onFeature(module.feature);
-            }}>
-              <div><h3>{module.title}</h3><p>{moduleAvailability(module, summaries[module.feature])}</p></div>
-              <ArrowUpRight aria-hidden="true" />
-            </a>)}</div>
-          </details>)}
-        </section>
-      </details>
+      <ModuleExplorer presentation={presentation} group={group} summaries={summaries} onSector={setSelected} onFeature={onFeature} id={id} lang={lang} />
       <footer><span>Counts reflect available source summaries; coverage varies.</span><div><a href={DESK_IMAGE_CREDITS} target="_blank" rel="noopener noreferrer">Image credits</a><button onClick={motion.toggle} disabled={motion.reduced} aria-pressed={motion.paused}>{motion.paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}{motion.reduced ? 'Reduced motion' : motion.paused ? 'Resume motion' : 'Pause motion'}</button></div></footer>
     </div>{detail && <V6Dialog titleId={`${id}-dialog`} onClose={() => setDetail(null)}><DataBreakdown title={dataHighlight?.title || (national ? 'Bills by sector' : 'Coverage at a glance')} items={items} stages={bills?.stages} asOf={dataHighlight?.asOf || bills?.asOf} description={dataHighlight?.description} titleId={`${id}-dialog`} /></V6Dialog>}
   </div>;

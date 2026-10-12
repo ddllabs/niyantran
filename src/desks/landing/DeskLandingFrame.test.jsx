@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import DeskLandingFrame, { ModuleDetail, DataBreakdown, groupsWithSources } from './DeskLandingFrame.jsx';
+import DeskLandingFrame, { ModuleDetail, ModuleExplorer, DataBreakdown, groupsWithSources } from './DeskLandingFrame.jsx';
 import { deskHash, parseDeskHash } from '../../lib/deskRoute.js';
 import { NATIONAL_PRESENTATION } from './deskPresentation.js';
 import { DESK_CATALOGUE } from './deskCatalogue.js';
@@ -80,21 +80,40 @@ describe('v6 desk presentation', () => {
 });
 
 
-describe('optional module discovery', () => {
-  it('lists every canonical module under a collapsed disclosure on all eight desks', () => {
-    const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION, STATE_PRESENTATION];
-    let links = 0;
+describe('restored V6 sector explorer', () => {
+  const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION, STATE_PRESENTATION];
+  it('shows the original explorer and first sector without expanding a disclosure', () => {
     for (const presentation of presentations) {
       const html = renderToStaticMarkup(<DeskLandingFrame presentation={presentation} onFeature={() => {}} />);
-      const discovery = html.match(/<details class="module-discovery">([\s\S]*?)<\/section><\/details>/)?.[1];
-      expect(discovery, presentation.id).toBeDefined();
-      expect(discovery).toContain('View all modules');
-      const expected = DESK_CATALOGUE.filter(module => module.tab === presentation.id);
-      expect((discovery.match(/class="module-link"/g) || []).length).toBe(expected.length);
-      for (const module of expected) expect(discovery).toContain(`href="/${deskHash(module.tab, module.feature).replaceAll("'", "&#x27;")}"`);
-      expect(discovery).not.toContain('Open in Terminal');
+      expect(html, presentation.id).toContain('class="explorer');
+      expect(html).toContain('INSIDE THIS SECTOR');
+      expect(html).toContain('class="explorer-heading"');
+      expect(html).toContain('class="module-icon"');
+      expect(html).toContain('class="module-copy"');
+      expect(html).toContain('aria-label="Modules in the selected sector"');
+      expect(html).toContain('Select a sector');
+      expect((html.match(/<option /g) || []).length).toBe(presentation.groups.length);
+      expect((html.match(/class="module-item"/g) || []).length).toBe(presentation.groups[0].modules.length);
+      expect(html).not.toContain('module-discovery');
+    }
+  });
+  it('renders every exact module destination in its original sector card layout', () => {
+    let links = 0;
+    for (const presentation of presentations) for (const group of presentation.groups) {
+      const html = renderToStaticMarkup(<ModuleExplorer presentation={presentation} group={group} summaries={{}} onFeature={() => {}} onSector={() => {}} id="fixture" />);
+      const expected = DESK_CATALOGUE.filter(module => module.tab === presentation.id && group.modules.some(item => item.feature === module.feature));
+      expect((html.match(/class="module-item"/g) || []).length).toBe(expected.length);
+      for (const module of expected) expect(html).toContain(`href="/${deskHash(module.tab, module.feature).replaceAll("'", "&#x27;")}"`);
+      expect(html).not.toContain('Open in Terminal');
       links += expected.length;
     }
     expect(links).toBe(120);
+  });
+  it('retains source counts and distinguishes zero from missing summary values', () => {
+    const group = NATIONAL_PRESENTATION.groups[0];
+    const html = renderToStaticMarkup(<ModuleExplorer presentation={NATIONAL_PRESENTATION} group={group} summaries={{[group.modules[0].feature]:{count:0, unit:'records', sourceMode:'stored'}}} onSector={() => {}} onFeature={() => {}} id="fixture" />);
+    expect(html).toContain('0 records');
+    expect(html).toContain('— records');
+    expect(html).toContain('5 modules · 1 with sources');
   });
 });

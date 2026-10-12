@@ -18,11 +18,13 @@ describe('direct sector entry', () => {
   it('picture cards link to their explicit defaults without a module-picker step', () => {
     for (const presentation of [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION, STATE_PRESENTATION]) {
       const html = renderToStaticMarkup(<DeskLandingFrame presentation={presentation} onFeature={() => {}}/>);
+      const pictureGrid = html.match(/<section[^>]*class="sector-grid"[\s\S]*?<\/section>/)?.[0];
+      expect(pictureGrid).toBeDefined();
       for (const feature of Object.values(DESK_DEFAULTS[presentation.id])) {
-        expect(html).toContain(`href="/${deskHash(presentation.id, feature)}"`);
+        expect(pictureGrid).toContain(`href="/${deskHash(presentation.id, feature)}"`);
       }
-      expect(html).not.toContain('class="module-item"');
-      expect(html).not.toContain('aria-controls=');
+      expect(pictureGrid).not.toContain('class="module-item"');
+      expect(pictureGrid).not.toContain('aria-controls=');
     }
   });
   it('all 35 defaults belong to their sectors and all 120 modules retain canonical menu routes', () => {
