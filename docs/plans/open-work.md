@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F115 is next) and goes in the
+- A new finding gets the next free `F` number (F117 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13
@@ -90,6 +90,37 @@ note.
   Commit `408835e`, merged `426a879`, pushed 2026-10-13.
   [Spec](../specs/2026-10-13-panel-collapsed-default.md). Remaining: owner
   review on production.
+- [ ] **F115. Duplicate and misattributed corpus documents.** Found
+  2026-10-13 from the owner's anti-doping question. It returned three
+  citations to `bill:2025:77`: the admin-uploaded PDF (`89b71893…`, page
+  pipeline), the same "As introduced" PDF ingested again as text on 2026-10-09
+  (`510cd60e…`, 98 chunks), and the "As passed Lok Sabha" version
+  (`965211c8…`, legitimate).
+
+  Read-only corpus counts (3,434 documents, 100,031 chunks):
+  - The PDF-plus-text twin affects only this bill (only two documents have a
+    stored PDF): 1 extra document, 98 chunks.
+  - Byte-identical text in 41 groups (95 documents, 54 extra):
+    - 21 groups of TRAI uploads stored three times under file-name variants
+      (`_VF`, `_0`, `_1`): 32 extra documents, 492 extra chunks;
+    - 3 groups where one bill's synopsis and gazette files are identical:
+      3 extra documents, 55 chunks;
+    - 17 groups where one text is attached to different bills (for example
+      `bill:2003:41` and `bill:2012:106`): 19 extra documents, 161 chunks.
+      These are likely wrong-file mappings, not copies.
+  - In total about 55 surplus documents and about 806 surplus chunks (0.8%).
+  - Passage-level repeats across bills (2,035 passages) are mostly standard
+    clauses (rule-making powers, delegated-legislation memoranda, Finance Act
+    rules). They are expected, not duplicates.
+
+  Cleanup deletes corpus rows, so it needs an approved data-migration task
+  with an exact inventory. The misattributed bills need their correct
+  documents identified first.
+- [ ] **F116. Citations do not say which version or format a source is.** Two
+  versions of a bill appear under identical titles. 413 bills have several
+  documents (versions). Only two documents have a stored PDF, so all other
+  citations open in Text. Show the version (`document_role`, for example "As
+  introduced" or "As passed Lok Sabha") on source cards and in the reader.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
