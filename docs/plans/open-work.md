@@ -19,6 +19,8 @@
 
 ## UI follow-ups
 
+- [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
+
 
 - [ ] **F94. Reference-only Vercel project follows main with a missing root.** The automatic `niyantran-desk-reference-v6` build of main at dfd4c45 failed because its configured `previews/desk-reference-v6` directory does not exist on main. The actual `niyantran` production build is READY and serves the main aliases. This separate mockup-project setting is outside the authorized application release; decide whether to restrict its Git integration to its reference branch or retire it. No Vercel settings changed.
 
@@ -92,6 +94,10 @@ Current baseline (read-only observations, 2026-10-03):
 
 
 ## 1. Done
+
+- [x] **F96. Optional landing module discovery.** Implemented locally in `66c7944`: collapsed all-module disclosure, per-sector accordions and 120 direct links across eight desks; all 35 approved picture-card defaults retained. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
+- [x] **F97. Meaningful terminal header controls.** Implemented locally in `540f99d` / `12a148c`: disabled bell and unused icon removed, landing refresh hidden, Home/module refresh retained, sun/moon with next-action labels. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
+- [x] **F98. Free signed-in desk access, copy and export.** Implemented locally in `ec89cdc`: all known desks/modules, no commercial row caps, no terminal Upgrade interruption or signup plan step, entry independent of subscription metadata. Account authorization, stored billing facts and AI limits retained. This owner-approved desk contract supersedes earlier commercial-lock assumptions; no backend enforcement work activated. 2,504 Vitest / 880 Deno, lint/build/assets and isolated browser matrix passed. Corpus excluded. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md). No push/deployment/main merge.
 
 - [x] **F95. Direct desk-card entry and AI dismissal.** Implemented locally in `9fe245e`: all 35 cards link to approved defaults, all 120 sibling modules retain sector-menu access, outside clicks and landing navigation hide AI while retaining mounted chat. 2,472 Vitest / 880 Deno, lint/build/assets and desktop/mobile/dark browser fixture checks passed. Corpus changes excluded. [Evidence](2026-10-12-desk-direct-entry.md). No push/deployment.
 

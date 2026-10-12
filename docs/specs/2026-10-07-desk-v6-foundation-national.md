@@ -35,3 +35,18 @@ Supervisor integration additionally covers `src/desks/useNationalLanding.js` and
 Baseline/focused: `npm test -- src/desks/NationalLandingView.test.jsx src/desks/useNationalLanding.test.js src/lib/nationalLandingSummary.test.js src/lib/nationalLandingApi.test.js`. Per slice: applicable focused tests, `npm run lint`, `npm run build`, `git diff --check`. Final National: `npm test`; `deno test -A --config supabase/functions/deno.json supabase/functions`; `node -e "import('./api/router.js').then(() => console.log('router import ok'))"`; asset hash verification script. No standalone type-check.
 
 Prove mapping/unknown/dedup/stage guards fail under the protected defect. Browser: same-view screenshot/geometry comparison at360/768/1440/1700+, real module callbacks/Back, dialogs/filter/retry, light/dark/Hindi, motion/touch/zoom where available. Controlled local failures never use production writes. Record actual source execution separately from source inspection. Existing build warnings and blocked native checks remain explicit. National owner comparison is the next checkpoint, not an inferred full redesign acceptance.
+
+## 2026-10-12 supersession amendment
+
+Owner-approved F95 direct entry and the three terminal follow-up specs supersede
+the selection/explorer/dialog and commercial directory clauses above. Picture
+cards open the approved defaults directly. An optional collapsed all-module
+disclosure with per-sector accordions exposes direct sibling-module links; no
+Open in Terminal popup is required. The directory no longer accepts lockedIds:
+all authorized signed-in accounts receive all known desks, copy/export and
+rows without commercial caps. Authentication and AI limits remain binding.
+[Discovery](2026-10-12-desk-module-discovery.md),
+[header controls](2026-10-12-terminal-header-controls.md), and
+[free access](2026-10-12-free-desk-access.md) define the current UI contracts.
+Data availability, truthful source summaries, assets and workspace callbacks
+remain unchanged. [Local execution evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
