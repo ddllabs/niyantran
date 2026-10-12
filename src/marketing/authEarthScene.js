@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createEarthMotion } from './earthMotion.js';
 
-// Homepage hero rings (public/brand/earth/nter-earth.js) in globe radii: same
+// The former homepage hero rings (the retired nter-earth runtime, F106) in globe radii: same
 // flattening, tilt, colours, phases and laps per 48 s cycle. Opacity and dot
 // sizes are raised because the auth pages are light, not the dark hero.
 const ORBITS = [
