@@ -1,6 +1,6 @@
-// Public pricing page content (owner plans, 2026-10-12). Plans differ only in AI
-// credits (and personal storage once it exists). This is display data only:
-// billing still uses pricingStore/billing.js until open-work F109 aligns it.
+// The plans (owner, 2026-10-12): the one source of plan ids and rupee prices
+// for the pricing page, checkout and the billing server (open-work F109).
+// Plans differ only in AI credits (and personal storage once it exists).
 // `tone` reuses the existing card and table colour slots.
 
 export const PUBLIC_PLANS = [
@@ -35,6 +35,15 @@ export const PUBLIC_PLANS = [
 ];
 
 export const rupees = amount => `₹${amount.toLocaleString('en-IN')}`;
+
+// Older plan names map to their successors; anything unknown is free.
+const LEGACY_PLANS = { explorer: 'free', professional: 'pro', enterprise: 'max' };
+
+export function normalizePlanId(plan) {
+  const id = String(plan || 'free').toLowerCase();
+  const next = LEGACY_PLANS[id] || id;
+  return PUBLIC_PLANS.some(p => p.id === next) ? next : 'free';
+}
 
 export const PRICING_COMPARE = [
   ['Desks and modules', 'All 8 desks', 'All 8 desks', 'All 8 desks', 'All 8 desks'],

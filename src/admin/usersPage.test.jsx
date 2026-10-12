@@ -32,9 +32,9 @@ import { UsersPage } from './AdminPages.jsx';
 import { setUserActive, setUserPlan, setUserType } from '../lib/userStore.js';
 
 const USERS = [
-  { id: 'u-owner', name: 'Olu Owner', email: 'owner@example.test', type: 'analyst', plan: 'enterprise', planStatus: 'active', planEnd: null, active: true, role: 'owner' },
-  { id: 'u-alice', name: 'alice', email: 'alice@example.test', type: 'student', plan: 'pro', planStatus: 'trial', planEnd: '2026-10-13T10:00:00Z', trialUsed: true, active: true, role: 'user' },
-  { id: 'u-bob', name: 'bob', email: 'bob@example.test', type: 'lawyer', plan: 'explorer', planStatus: 'free', planEnd: '2026-09-01T00:00:00Z', planLapsed: true, active: false, role: 'user' },
+  { id: 'u-owner', name: 'Olu Owner', email: 'owner@example.test', type: 'analyst', plan: 'max', planStatus: 'active', planEnd: null, active: true, role: 'owner' },
+  { id: 'u-alice', name: 'alice', email: 'alice@example.test', type: 'student', plan: 'pro', planStatus: 'active', planEnd: '2026-10-13T10:00:00Z', active: true, role: 'user' },
+  { id: 'u-bob', name: 'bob', email: 'bob@example.test', type: 'lawyer', plan: 'free', planStatus: 'free', planEnd: '2026-09-01T00:00:00Z', planLapsed: true, active: false, role: 'user' },
 ];
 
 function find(node, predicate) {
@@ -149,18 +149,18 @@ describe('UsersPage actions', () => {
   it('grants the chosen plan until the end of the chosen day, India time', async () => {
     setUserPlan.mockResolvedValue({ ok: true });
     hooks.capture = true;
-    hooks.presets = ['', null, { 'u-bob': { plan: 'enterprise', end: '2026-12-31' } }];
+    hooks.presets = ['', null, { 'u-bob': { plan: 'max', end: '2026-12-31' } }];
     const onChange = vi.fn();
     const t = UsersPage({ users: USERS, onChange });
     find(rowFor(t, 'bob@example.test'), (n) => n.type === 'button' && String(n.props.className).includes('adm-plan-set')).props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
-    expect(setUserPlan).toHaveBeenCalledWith('u-bob', 'enterprise', '2026-12-31T23:59:59+05:30');
+    expect(setUserPlan).toHaveBeenCalledWith('u-bob', 'max', '2026-12-31T23:59:59+05:30');
   });
 
-  it('grants open-ended when no end date is chosen, and revokes with Explorer', async () => {
+  it('grants open-ended when no end date is chosen, and revokes with Free', async () => {
     setUserPlan.mockResolvedValue({ ok: true });
     hooks.capture = true;
-    hooks.presets = ['', null, { 'u-bob': { plan: 'pro', end: '' }, 'u-alice': { plan: 'explorer', end: '2026-12-31' } }];
+    hooks.presets = ['', null, { 'u-bob': { plan: 'pro', end: '' }, 'u-alice': { plan: 'free', end: '2026-12-31' } }];
     const onChange = vi.fn();
     const t = UsersPage({ users: USERS, onChange });
     const set = (email) => find(rowFor(t, email), (n) => n.type === 'button' && String(n.props.className).includes('adm-plan-set'));
@@ -168,13 +168,14 @@ describe('UsersPage actions', () => {
     set('alice@example.test').props.onClick();
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
     expect(setUserPlan).toHaveBeenCalledWith('u-bob', 'pro', null);
-    expect(setUserPlan).toHaveBeenCalledWith('u-alice', 'explorer', null);
+    expect(setUserPlan).toHaveBeenCalledWith('u-alice', 'free', null);
   });
 
   it('shows each plan as the server reports it', () => {
     const markup = renderToStaticMarkup(createElement(UsersPage, { users: USERS, onChange: () => {} }));
-    expect(markup).toContain('Professional · trial to 13 Oct 2026');
-    expect(markup).toContain('Explorer · lapsed 1 Sept 2026');
-    expect(markup).toContain('Enterprise · open-ended');
+    expect(markup).toContain('Pro · to 13 Oct 2026');
+    expect(markup).toContain('Free · lapsed 1 Sept 2026');
+    expect(markup).toContain('Max · open-ended');
+    expect(markup).not.toMatch(/trial|Explorer|Enterprise|Professional/);
   });
 });

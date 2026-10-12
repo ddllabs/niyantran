@@ -1,6 +1,7 @@
 import { DEFAULT_USER_TYPE, userTypeOf } from './userTypes.js';
 import { dbPersona, frontendPersona } from './personaMap.js';
 import { supabase } from './supabaseClient.js';
+import { normalizePlanId } from './publicPlans.js';
 
 const EVENT = 'niy-users';
 const SESSION_KEY = 'niyantranUser';
@@ -13,7 +14,7 @@ function normalize(user) {
   if (!user || typeof user !== 'object') return null;
   const type = userTypeOf(user.type || user.personaId).id;
   const personaId = user.personaId || user.persona_id || type;
-  const plan = String(user.plan || 'explorer').toLowerCase();
+  const plan = normalizePlanId(user.plan);
   return {
     ...user,
     email: String(user.email || '')
@@ -21,7 +22,7 @@ function normalize(user) {
       .toLowerCase(),
     type,
     personaId,
-    plan: plan === 'professional' ? 'pro' : plan,
+    plan,
     googleSub: user.googleSub || user.google_sub || null,
     authProvider: user.authProvider || (user.googleSub || user.google_sub ? 'google' : 'password'),
     active: user.active !== false,
@@ -324,8 +325,8 @@ export function setUserType(id, type) {
 }
 
 /**
- * Grant a plan (pro or enterprise) until planEnd, open-ended when null, or
- * revoke with explorer. The server records it as a manual grant (F2).
+ * Grant a plan (plus, pro or max) until planEnd, open-ended when null, or
+ * revoke with free. The server records it as a manual grant (F2).
  * Resolves to { ok, reason? }.
  */
 export function setUserPlan(id, plan, planEnd = null) {
@@ -372,7 +373,7 @@ export function userFromSupabase(supabaseUser, profile, extras = {}) {
       email,
       // The stored plan, for display only. Entitlements come from the server
       // (entitlementStore.js); nothing reads plan fields from this record.
-      plan: p.plan || 'explorer',
+      plan: normalizePlanId(p.plan),
       type,
       personaId: type,
       role: p.role || 'user',

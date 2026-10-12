@@ -130,8 +130,8 @@ export default function SignupPage({ onSuccess, onLogin }) {
             first_name: firstName,
             last_name: lastName,
             personaId,
-            // Legacy plan URLs must not start a trial during free signup.
-            plan: 'explorer',
+            // Every signup starts free; the database ignores this field.
+            plan: 'free',
           },
         },
       });

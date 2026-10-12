@@ -1,13 +1,15 @@
 /**
- * Checkout / payment helpers — Razorpay Orders + GST tax invoices (CR-17).
- * Server holds RAZORPAY_KEY_SECRET; browser only gets key id + order id.
+ * Checkout / payment helpers: Razorpay Orders for the INR monthly plans
+ * (Plus, Pro, Max; open-work F109). No GST is charged: the seller is not
+ * GST-registered. Server holds RAZORPAY_KEY_SECRET; browser only gets key id
+ * + order id.
  * Every order, verify and invoice call carries the Supabase bearer; the
  * server takes the buyer's identity from it (T5). The browser never grants a
  * plan (F2): /api/billing/verify records the paid period on the server, and
  * the browser then re-reads it. Without Razorpay keys, checkout is off.
  */
 import { supabase } from './supabaseClient.js';
-import { loadPricing } from './pricingStore.js';
+import { PUBLIC_PLANS } from './publicPlans.js';
 import { normalizePlanId, planOf } from './planEntitlements.js';
 import { refreshEntitlement } from './entitlementStore.js';
 import { sessionUser } from './userStore.js';
@@ -47,20 +49,15 @@ function loadRazorpay() {
 export async function fetchBillingConfig() {
   try {
     const res = await fetch('/api/billing/config');
-    if (!res.ok) return { enabled: false, demoFallback: true, provider: 'razorpay', gstRate: 0.18, states: [] };
+    if (!res.ok) return { enabled: false, demoFallback: true, provider: 'razorpay' };
     return await res.json();
   } catch {
-    return { enabled: false, demoFallback: true, provider: 'razorpay', gstRate: 0.18, states: [] };
+    return { enabled: false, demoFallback: true, provider: 'razorpay' };
   }
 }
 
-export async function fetchGstQuote({ planId, yearly = false, buyerGstin = '', buyerStateCode = '' } = {}) {
-  const q = new URLSearchParams({
-    planId: String(planId || ''),
-    yearly: yearly ? '1' : '0',
-    buyerGstin: buyerGstin || '',
-    buyerStateCode: buyerStateCode || '',
-  });
+export async function fetchQuote(planId) {
+  const q = new URLSearchParams({ planId: String(planId || '') });
   const res = await fetch(`/api/billing/quote?${q}`);
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body.ok) return { ok: false, reason: body.reason || 'Could not quote.' };
@@ -73,7 +70,7 @@ export function invoiceUrl(invoiceId) {
 }
 
 /**
- * Opens a GST invoice in a new tab. The route needs the bearer, which a plain
+ * Opens an invoice in a new tab. The route needs the bearer, which a plain
  * link cannot send, so the HTML is fetched and shown from a blob URL.
  */
 export async function openInvoice(invoiceId) {
@@ -93,17 +90,10 @@ export async function openInvoice(invoiceId) {
 }
 
 function buyerPayload(seat, billing = {}) {
-  return {
-    userId: seat.id || '',
-    email: seat.email || '',
-    name: billing.buyerName || seat.name || '',
-    buyerGstin: billing.buyerGstin || '',
-    buyerStateCode: billing.buyerStateCode || '',
-    buyerAddress: billing.buyerAddress || '',
-  };
+  return { email: seat.email || '', name: billing.buyerName || seat.name || '' };
 }
 
-async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, yearly, seat, meta, billing, quote }) {
+async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, seat, meta, billing, quote }) {
   const Razorpay = await loadRazorpay();
   const buyer = buyerPayload(seat, billing);
   return new Promise((resolve) => {
@@ -112,18 +102,13 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
       amount,
       currency: currency || 'INR',
       name: 'Niyantran Terminal',
-      description: `${meta?.name || plan} · ${yearly ? 'yearly' : 'monthly'} · incl. GST`,
+      description: `${meta?.name || plan} plan · one month`,
       order_id: orderId,
       prefill: {
         name: buyer.name || '',
         email: String(buyer.email || '').includes('@') ? buyer.email : '',
       },
-      notes: {
-        plan,
-        yearly: String(yearly),
-        userId: seat.id || '',
-        gst: quote ? String(quote.gstAmount) : '',
-      },
+      notes: { plan, userId: seat.id || '' },
       theme: { color: '#012ea1' },
       handler: async (response) => {
         try {
@@ -135,8 +120,7 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
               paymentId: response.razorpay_payment_id,
               signature: response.razorpay_signature,
               planId: plan,
-              yearly,
-              ...buyer,
+              name: buyer.name,
             }),
           });
           const body = await verify.json().catch(() => ({}));
@@ -149,7 +133,6 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
           await refreshEntitlement();
           trackProductEvent('plan_upgraded', {
             planId: plan,
-            yearly: Boolean(yearly),
             provider: 'razorpay',
             invoiceId: body.invoice?.id || null,
           });
@@ -180,16 +163,13 @@ async function openRazorpayCheckout({ keyId, orderId, amount, currency, plan, ye
 }
 
 /**
- * Complete a purchase for the signed-in user.
- * @param {{ planId: string, yearly?: boolean, user?: object, billing?: { buyerGstin?, buyerStateCode?, buyerAddress?, buyerName? } }} opts
+ * Buy one month of a paid plan for the signed-in user.
+ * @param {{ planId: string, user?: object, billing?: { buyerName? } }} opts
  */
-export async function completeCheckout({ planId, yearly = false, user, billing = {} } = {}) {
+export async function completeCheckout({ planId, user, billing = {} } = {}) {
   const plan = normalizePlanId(planId);
-  if (plan === 'explorer') {
-    return { ok: false, reason: 'Explorer is the free plan; there is nothing to buy.', mode: 'free' };
-  }
-  if (plan === 'gov') {
-    return { ok: false, reason: 'Government plans are issued by sales — use Contact Sales.', mode: 'sales' };
+  if (plan === 'free') {
+    return { ok: false, reason: 'Free is the free plan; there is nothing to buy.', mode: 'free' };
   }
   const seat = user || sessionUser();
   if (!seat?.email) return { ok: false, reason: 'Sign in before upgrading.' };
@@ -200,7 +180,7 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
     return {
       ok: false,
       mode: 'disabled',
-      reason: 'Online payments are not enabled yet. Start a free trial, or contact us for access.',
+      reason: 'Online payments are not enabled yet. Contact us to upgrade.',
     };
   }
   const buyer = buyerPayload(seat, billing);
@@ -208,11 +188,7 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
     const orderRes = await fetch('/api/billing/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-      body: JSON.stringify({
-        planId: plan,
-        yearly,
-        ...buyer,
-      }),
+      body: JSON.stringify({ planId: plan, name: buyer.name }),
     });
     const order = await orderRes.json().catch(() => ({}));
     if (!orderRes.ok || !order.ok) {
@@ -224,7 +200,6 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
       amount: order.amount,
       currency: order.currency,
       plan,
-      yearly,
       seat,
       meta,
       billing,
@@ -236,7 +211,7 @@ export async function completeCheckout({ planId, yearly = false, user, billing =
 }
 
 export function checkoutPlans() {
-  return loadPricing().filter((p) => p.id !== 'gov');
+  return PUBLIC_PLANS.filter((p) => p.monthly > 0);
 }
 
 export function refreshSessionFromStore() {

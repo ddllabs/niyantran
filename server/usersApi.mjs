@@ -3,7 +3,7 @@
  *
  *   GET   /api/users           internal admin: every profile, oldest first
  *   PATCH /api/users/:userId   internal admin: { active?: boolean, type?: persona }
- *                              or { plan: explorer|pro|enterprise, planEnd?: date|null }
+ *                              or { plan: free|plus|pro|max, planEnd?: date|null }
  *
  * Accounts are created only through Supabase sign-up; this route never
  * creates, deletes or sets a password for anyone. Reads and writes use the
@@ -14,12 +14,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { dbPersona, frontendPersona } from '../src/lib/personaMap.js';
+import { normalizePlanId } from '../src/lib/publicPlans.js';
 
 const PROFILE_COLUMNS = 'user_id, email, first_name, last_name, persona, role, plan, status, created_at, '
-  + 'plan_status, plan_period_end, plan_source, trial_started_at';
+  + 'plan_status, plan_period_end, plan_source';
 const PATCH_FIELDS = new Set(['active', 'type']);
 const PLAN_FIELDS = new Set(['plan', 'planEnd']);
-const GRANTABLE_PLANS = new Set(['explorer', 'pro', 'enterprise']);
+const GRANTABLE_PLANS = new Set(['free', 'plus', 'pro', 'max']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -86,7 +87,8 @@ function directoryUser(row) {
   const persona = frontendPersona(row.persona);
   // The effective plan, as my_entitlement() reads it: a period that has
   // ended is free. The stored plan stays until the next grant.
-  const status = row.plan_status || (row.plan === 'explorer' ? 'free' : 'active');
+  const plan = normalizePlanId(row.plan);
+  const status = row.plan_status || (plan === 'free' ? 'free' : 'active');
   const end = row.plan_period_end || null;
   const lapsed = status !== 'free' && Boolean(end) && Date.parse(end) <= Date.now();
   return {
@@ -95,12 +97,11 @@ function directoryUser(row) {
     email,
     type: persona,
     personaId: persona,
-    plan: lapsed ? 'explorer' : row.plan === 'professional' ? 'pro' : row.plan,
+    plan: lapsed ? 'free' : plan,
     planStatus: lapsed ? 'free' : status,
     planEnd: end,
     planSource: row.plan_source || null,
     planLapsed: lapsed,
-    trialUsed: Boolean(row.trial_started_at),
     active: row.status === 'active',
     status: row.status,
     role: row.role,
@@ -155,7 +156,7 @@ function planGrant(body) {
     if (!Number.isFinite(at) || at <= Date.now()) return null;
     periodEnd = new Date(at).toISOString();
   }
-  return { plan: body.plan, periodEnd: body.plan === 'explorer' ? null : periodEnd };
+  return { plan: body.plan, periodEnd: body.plan === 'free' ? null : periodEnd };
 }
 
 async function listUsers(res, deps) {
@@ -183,7 +184,7 @@ async function updateUser(req, res, caller, userId, deps) {
   const grant = isPlan ? planGrant(body) : null;
   const patch = isPlan ? null : profilePatch(body);
   if (isPlan && !grant) {
-    return json(res, { ok: false, error: 'Send plan (explorer, pro or enterprise) and optionally a future planEnd, nothing else' }, 400);
+    return json(res, { ok: false, error: 'Send plan (free, plus, pro or max) and optionally a future planEnd, nothing else' }, 400);
   }
   if (!isPlan && !patch) {
     return json(res, { ok: false, error: 'Send only active (boolean) and/or type (a known persona)' }, 400);

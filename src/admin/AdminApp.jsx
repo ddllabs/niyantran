@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import AdminLogin from './AdminLogin.jsx';
 import { createAdminSession } from './adminSession.js';
 import { supabase } from '../lib/supabaseClient.js';
-import { ApisPage, OverviewPage, PricingAdminPage, UsersPage } from './AdminPages.jsx';
+import { ApisPage, OverviewPage, UsersPage } from './AdminPages.jsx';
 import { AiModelsPage } from './AiModelsPage.jsx';
 import { AiPersonasPage } from './AiPersonasPage.jsx';
 import { PrivacyAdminPage, SiteSettingsPage, TermsAdminPage } from './AdminSitePages.jsx';
@@ -19,7 +19,6 @@ const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'apis', label: 'API status' },
   { id: 'users', label: 'Users' },
-  { id: 'pricing', label: 'Pricing' },
   { id: 'ai', label: 'AI models' },
   { id: 'personas', label: 'AI personas' },
   { id: 'documents', label: 'Documents' },
@@ -204,7 +203,6 @@ export default function AdminApp() {
           {view === 'overview' && <OverviewPage users={users} />}
           {view === 'apis' && <ApisPage />}
           {view === 'users' && <UsersPage users={users} onChange={refreshUsers} />}
-          {view === 'pricing' && <PricingAdminPage />}
           {view === 'ai' && <AiModelsPage />}
           {view === 'personas' && <AiPersonasPage />}
           {view === 'documents' && (

@@ -20,7 +20,7 @@ describe('userFromSupabase', () => {
     const u = userFromSupabase(USER, { persona: null }, { personaId: 'policy', plan: 'pro', planStatus: 'trial', trialEndsAt: '2026-10-05T00:00:00Z' });
     expect(u.type).toBe('policy');
     expect(u.name).toBe('person');
-    expect(u.plan).toBe('explorer');
+    expect(u.plan).toBe('free');
     // F2: the session record carries no plan status or trial end to trust.
     expect(u.planStatus).toBeUndefined();
     expect(u.trialEndsAt).toBeUndefined();
@@ -73,7 +73,7 @@ describe('admin user adapter', () => {
 
 describe('profile authority bridge', () => {
   it('does not elevate plan from signup extras', () => {
-    expect(store.userFromSupabase(USER, { user_id: 'uid-1', plan: 'explorer', status: 'active' }, { plan: 'enterprise' }).plan).toBe('explorer');
+    expect(store.userFromSupabase(USER, { user_id: 'uid-1', plan: 'free', status: 'active' }, { plan: 'max' }).plan).toBe('free');
   });
   it('does not mark a missing profile active', () => {
     expect(store.userFromSupabase(USER, null).active).toBe(false);
@@ -212,7 +212,7 @@ it('ignores forged browser export caches and does not persist real exports', asy
 });
 
 it('uses no plan or active authority from a mismatched profile', () => {
-  expect(store.userFromSupabase(USER, { user_id: 'other', role: 'admin', status: 'active', plan: 'enterprise' })).toMatchObject({ active: false, role: 'user', plan: 'explorer' });
+  expect(store.userFromSupabase(USER, { user_id: 'other', role: 'admin', status: 'active', plan: 'max' })).toMatchObject({ active: false, role: 'user', plan: 'free' });
 });
 
 it('keeps protected adapters signed out after provider logout failure', async () => {

@@ -23,7 +23,6 @@ import {
   entitlementOf,
   navTabsForUser,
   planOf,
-  trialDaysLeft,
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
@@ -283,16 +282,8 @@ export default function TerminalShell({ onLogout }) {
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
-  const trialLeft = trialDaysLeft(user);
-  const planLabel = planMeta?.name || String(ent.plan || 'explorer').toUpperCase();
-  const statusLabel =
-    ent.status === 'trial'
-        ? trialLeft
-          ? `Trial · ${trialLeft}d left`
-          : 'Trial'
-        : ent.status === 'free' || ent.plan === 'explorer'
-          ? 'Free'
-          : 'Active';
+  const planLabel = planMeta?.name || String(ent.plan || 'free').toUpperCase();
+  const statusLabel = ent.status === 'active' ? 'Active' : 'Free';
 
   function doLogout() {
     clearSessionUser();

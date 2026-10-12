@@ -3284,7 +3284,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   color: #012ea1;
   z-index: 2;
 }
-.mkt-pr-notes{max-width:760px;margin:0 auto 24px;text-align:center;font-size:13px;line-height:1.55;color:var(--mkt-text)}
+.mkt-pr-notes{position:relative;z-index:2;max-width:760px;margin:0 auto 24px;padding:10px 16px;border:1px solid var(--mkt-border);border-radius:10px;background:rgba(255,255,255,.92);text-align:center;font-size:13px;line-height:1.55;color:var(--mkt-text)}
 .mkt-pr-notes p{margin:0 0 4px}
 .mkt-pr-card.pro::before { color: var(--mkt-purple); }
 .mkt-pr-card.gov::before { color: var(--mkt-red); }

@@ -31,7 +31,7 @@ function serve(routes) {
 beforeEach(() => {
   state.token = 'access-1';
   state.setSessionUser = vi.fn();
-  ent.refresh = vi.fn(async () => ({ plan: 'professional', status: 'active' }));
+  ent.refresh = vi.fn(async () => ({ plan: 'pro', status: 'active' }));
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -50,7 +50,7 @@ describe('completeCheckout without Razorpay', () => {
 
   it('never marks the session user paid, whatever plan is asked for', async () => {
     serve({ '/api/billing/config': [200, { enabled: false }] });
-    for (const planId of ['explorer', 'pro', 'enterprise', 'gov']) {
+    for (const planId of ['free', 'plus', 'pro', 'max', 'enterprise']) {
       expect((await completeCheckout({ planId })).ok).toBe(false);
     }
     expect(state.setSessionUser).not.toHaveBeenCalled();

@@ -305,7 +305,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </svg>
               </button>
               <button type="button" className="mkt-cta ghost" onClick={onPricing}>
-                14-day free trial
+                See plans
               </button>
               <button type="button" className="mkt-cta ghost" onClick={onCoverage}>
                 View Data Coverage
