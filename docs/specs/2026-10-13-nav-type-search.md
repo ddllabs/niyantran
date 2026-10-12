@@ -71,3 +71,26 @@ Evidence (local fixture, measured on all eight desks at 360, 800, 1000, 1440
 and 1800px): the button sits at least 35px inside the hero, the insight card
 no longer overlaps the photo label or the title, and phones do not scroll
 sideways.
+
+## Amendment 2: desk icons restored (2026-10-13)
+
+The owner asked for the icons that sat beside the desk names before the
+navigation change. They came from the left desk rail (`DeskRail`, `TAB_ICON`
+in `Icons.jsx`), which `b0ba405` (F102) replaced with plain-text top tabs.
+
+- `DeskLandingTabs` now renders `<Icon name={TAB_ICON[desk.id]}>` (16px,
+  `aria-hidden`) before each name: home, globe, landmark, map, scale, chart,
+  leaf, sport and film.
+- The icons are muted at rest and full strength on the current desk or on
+  hover.
+- Below 1000px the icons are hidden, because the nine names alone fill the
+  row. At 768px the icons would have made it scroll by 202px.
+
+Evidence:
+
+- `DeskDirectory.test.jsx` failed first and now passes: nine buttons, nine
+  `aria-hidden` icons, and the icon before the National name.
+- Browser check on a local fixture, since deleted:
+  - at 1440px and 1024px all nine icons show and the row does not scroll;
+  - at 768px no icons show and the row does not scroll.
+- Lint, `npm test` (2,579) and the build pass.

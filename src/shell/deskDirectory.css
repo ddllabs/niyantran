@@ -28,6 +28,12 @@
 .v6-landing-tabs { grid-area:modules;display:flex;align-items:center;gap:4px;padding:0 36px;border-bottom:1px solid var(--line);background:var(--bg);min-width:0;overflow-x:auto; }
 .v6-landing-tabs button { position:relative;flex:none;min-height:40px;border:0;border-radius:9px;padding:0 15px;background:transparent;color:var(--text,var(--fg));font:inherit;font-size:14px;font-weight:500;letter-spacing:-.005em;cursor:pointer;white-space:nowrap;transition:background .15s ease,color .15s ease; }
 .v6-landing-tabs button:focus-visible { outline:2px solid var(--accent);outline-offset:1px; }
+/* Owner 2026-10-13: the desk icons of the former left rail sit before each tab name. */
+.v6-landing-tabs button { display:inline-flex;align-items:center;gap:7px; }
+.v6-landing-tabs button svg { flex:none;opacity:.72; }
+.v6-landing-tabs button[aria-current=page] svg,.v6-landing-tabs button:hover svg { opacity:1; }
+/* Decoration only: below 1000px the nine names alone fill the row, so the icons step aside. */
+@media(max-width:999px) { .v6-landing-tabs button svg { display:none; } }
 .v6-landing-tabs small { font-size:9px; }
 .with-v6-directory>.topbar { grid-area:top; }
 .with-v6-directory>.workspace { grid-area:work;min-width:0; }

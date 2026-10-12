@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DeskDirectoryCards } from './DeskDirectory.jsx';
+import { DeskDirectoryCards, DeskLandingTabs } from './DeskDirectory.jsx';
 import { TABS } from '../desks/catalog.js';
 
 describe('v6 desk directory', () => {
@@ -22,4 +22,13 @@ describe('v6 desk directory', () => {
     expect((html.match(/<img src=/g) || []).length).toBe(8);
     expect(html).not.toContain('<img alt=');
   });
+  // Owner, 2026-10-13: the desk icons of the former left rail (DeskRail, removed in b0ba405) return
+  // beside each top desk tab, decorative only so each tab's name stays its accessible label.
+  it('desk tabs show each desk\'s icon before its name, hidden from assistive technology', () => {
+    const html = renderToStaticMarkup(<DeskLandingTabs tabs={TABS} tab="national" onDesk={() => {}}/>);
+    expect((html.match(/<button/g) || []).length).toBe(TABS.length);
+    expect((html.match(/<svg[^>]*aria-hidden="true"/g) || []).length).toBe(TABS.length);
+    expect(html).toMatch(/aria-current="page"[^>]*><svg[^>]*>[\s\S]*?<\/svg><span>National<\/span><\/button>/);
+  });
 });
+

@@ -4,7 +4,7 @@ import { Icon, TAB_ICON } from './Icons.jsx';
 import './deskDirectory.css';
 
 export function DeskLandingTabs({ tabs, tab, onDesk, lang = 'en' }) {
-  return <nav className="v6-landing-tabs" aria-label={lang === 'hi' ? 'डेस्क' : 'Desks'}>{tabs.map(desk => <button type="button" key={desk.id} aria-current={desk.id === tab ? 'page' : undefined} title={desk.label} onClick={() => onDesk(desk.id)}>{lang === 'hi' ? desk.labelHi : desk.label}</button>)}</nav>;
+  return <nav className="v6-landing-tabs" aria-label={lang === 'hi' ? 'डेस्क' : 'Desks'}>{tabs.map(desk => <button type="button" key={desk.id} aria-current={desk.id === tab ? 'page' : undefined} title={desk.label} onClick={() => onDesk(desk.id)}><Icon name={TAB_ICON[desk.id] || 'globe'} size={16}/><span>{lang === 'hi' ? desk.labelHi : desk.label}</span></button>)}</nav>;
 }
 
 export function DeskDirectoryCards({ tabs, tab, onDesk, lang = 'en' }) {
