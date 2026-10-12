@@ -5306,10 +5306,6 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-signup{grid-template-columns:minmax(280px,.9fr) minmax(0,640px);gap:clamp(24px,5vw,80px);align-items:center;justify-content:center;padding:24px clamp(20px,4vw,64px);background:#f8f5f0}
 .mkt-signup-context{position:relative;max-width:440px;justify-self:center;color:var(--mkt-black);text-align:left}
 .mkt-signup-illustration{position:relative;isolation:isolate;width:100%;aspect-ratio:1;max-width:380px;margin:0 auto 24px;display:grid;place-items:center}
-.mkt-signup-illustration:before{content:'';position:absolute;inset:5%;z-index:-1;border-radius:50%;background:#ead0af66}
-.mkt-signup-illustration img{width:88%;height:88%;object-fit:contain;filter:sepia(.25);position:relative;z-index:1}
-.mkt-signup-orbit{position:absolute;inset:3%;border:1px solid #b6a58e;border-radius:50%;transform:rotate(-25deg) scaleY(.65)}
-.mkt-signup-orbit.second{inset:0;transform:rotate(35deg) scaleY(.82);border-color:#d3c4b0}
 .mkt-signup-context h2{font-size:clamp(25px,2.8vw,40px);line-height:1.12;letter-spacing:-.025em;margin:0 0 18px;text-wrap:balance}
 .mkt-signup-context p{max-width:36ch;margin:0;color:var(--mkt-text);font-size:15px;line-height:1.65}
 .mkt-signup-context-desks{margin-top:24px;padding-top:18px;border-top:1px solid var(--mkt-border);font-size:12px;color:var(--mkt-muted)}
@@ -5326,3 +5322,33 @@ html.mkt-doc:has(.mkt-auth) #root {
  .mkt-auth:has(.mkt-signup){height:auto;max-height:none;overflow:visible}
 }
 @media(max-width:420px){.mkt-signup{padding:18px 12px}.mkt-signup-context{grid-template-columns:64px minmax(0,1fr)}.mkt-signup-illustration{width:64px}.mkt-signup-context h2{font-size:20px}.mkt-signup-context p{display:none}}
+
+/* Photographic auth Earth: same desktop canvas, no decorative rings. */
+.auth-earth{position:relative;width:100%;color:var(--mkt-text)}
+.auth-earth-view{position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:50%}
+.auth-earth-view canvas{display:block;width:100%;height:100%}
+.auth-earth-view.ready{cursor:grab;touch-action:pan-y}
+.auth-earth-view.ready:active{cursor:grabbing}
+.auth-earth-view:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
+.auth-earth-poster{position:absolute;width:178%;height:100%;max-width:none;left:-39%;object-fit:cover;border-radius:0}
+.auth-earth-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 16px;font-size:11px;line-height:1.5}
+.auth-earth-controls button{font:inherit;color:var(--mkt-black);border:1px solid var(--mkt-border);background:var(--mkt-white);border-radius:6px;padding:6px 10px;cursor:pointer;min-height:32px}
+.auth-earth-controls a{flex-basis:100%;text-align:center;color:var(--mkt-text);font-size:10px;text-underline-offset:3px}
+.auth-earth-controls button:focus-visible,.auth-earth-controls a:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
+.mkt-login-earth-visual{position:absolute;right:3%;top:50%;transform:translateY(-50%);width:clamp(280px,calc(100vw - 890px),550px);z-index:2}
+.mkt-signup-context{max-width:600px;width:100%}
+.mkt-signup-illustration{width:100%;max-width:clamp(280px,calc(100vw - 890px),550px);aspect-ratio:auto}
+@media(max-width:999px){
+ .mkt-login-earth{display:flex;flex-direction:column;padding:20px 16px;gap:16px;overflow:auto}
+ .mkt-login-earth-visual{position:relative;right:auto;top:auto;transform:none;width:min(300px,70vw);order:0;flex-shrink:0}
+ .mkt-login-earth .mkt-login-card{order:1;max-height:none;flex-shrink:0}
+ html.mkt-doc:has(.mkt-login-earth),html.mkt-doc:has(.mkt-login-earth) body,html.mkt-doc:has(.mkt-login-earth) #root{height:auto;max-height:none;overflow-y:auto}
+ .mkt-auth:has(.mkt-login-earth){height:auto;min-height:100dvh;overflow:visible}
+}
+@media(max-width:850px){
+ .mkt-signup-context{display:block;text-align:center}
+ .mkt-signup-illustration{width:min(300px,70vw);max-width:300px;margin:0 auto 20px}
+ .mkt-signup-context p{margin-inline:auto}
+ .mkt-signup-context-desks{margin-top:16px;padding-top:12px}
+}
+@media(max-width:420px){.mkt-signup-context h2{font-size:24px}.auth-earth-controls{font-size:10px}}
