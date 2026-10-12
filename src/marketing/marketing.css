@@ -5384,6 +5384,8 @@ html.mkt-doc:has(.mkt-auth) #root {
 /* With persona labels around the globe, the icon sits bottom-centre, clear of them. */
 @media(min-width:561px){.mkt-home-earth .auth-earth-pause{right:auto;left:50%;bottom:0;transform:translateX(-50%)}}
 @media(max-width:560px){.mkt-home-earth{width:min(312px,83.7%)}}
+.mkt-signup-legal{margin:4px 0 12px;font-size:12px;line-height:1.5;color:var(--mkt-text)}
+.mkt-signup-legal a{color:var(--mkt-blue);text-underline-offset:2px}
 /* Wide screens give the globe and its labels the free space beside the form. */
 @media(min-width:1330px){
  .mkt-login-earth-visual{--w:min(calc(90vw - 480px),860px);width:var(--w);right:calc(45vw - 210px - var(--w) / 2)}

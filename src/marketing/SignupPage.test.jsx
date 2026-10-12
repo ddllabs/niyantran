@@ -80,3 +80,11 @@ it('lets the globe persona labels drive the same persona choice', () => {
   expect(find(tree, node => node.props?.onPersona).props.persona).toBe('policy');
   expect(find(tree, node => node.props?.role === 'radio').props['aria-checked']).toBe(true);
 });
+
+it('tells new users which Terms and Privacy Policy they accept, without a pre-ticked box', () => {
+  fake.states = []; const tree = render(vi.fn());
+  const notice = find(tree, node => node.props?.className === 'mkt-signup-legal');
+  const links = [notice.props.children].flat(Infinity).filter(n => n?.type === 'a').map(a => a.props.href);
+  expect(links).toEqual(['#/terms', '#/privacy']);
+  expect(find(tree, node => node.props?.type === 'checkbox' && node.props?.defaultChecked)).toBeNull();
+});
