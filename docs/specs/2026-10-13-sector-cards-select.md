@@ -21,8 +21,7 @@ changed before the switch could be seen.
   from the landing, and each opens its exact page, as before.
 - The switch is visible:
   - the chosen card has an accent ring and a filled number badge;
-  - the module explorer glows briefly, a 1.2s ring that the reduced-motion
-    and pause rules stop;
+  - (a brief explorer glow was removed in amendment 1);
   - if the explorer is outside the visible scroll area (a phone, a short
     window, or under the header), it scrolls into view, smoothly, or
     instantly when motion is off;
@@ -51,3 +50,20 @@ changed before the switch could be seen.
   - Law: the dropdown switched sectors and highlighted the matching card,
     with no glow.
 - Lint, `npm test` (2,583), the build and `verify-desk-v6-assets` pass.
+
+## Amendment 1: no explorer glow (2026-10-13)
+
+After checking production, the owner found that the 1.2s blue ring on the
+explorer read as a flash on every card click, and asked for it to go. The ring
+is removed (`.explorer-picked`, its keyframes, and the explorer remount that
+replayed it).
+
+The switch stays visible through:
+
+- the chosen card's accent ring and filled number badge;
+- the module cards' existing `v6-rise` entrance;
+- the scroll into view when the list is off screen.
+
+Browser check: after a card click the explorer has no animation and no box
+shadow, the module list animates (`v6-rise`), and the card is pressed. Lint,
+`npm test` and the build pass.

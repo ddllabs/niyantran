@@ -642,11 +642,9 @@
   .desk-v6.desk-v6 .explorer-heading h2{font-size:18px}
 }
 
-/* Owner 2026-10-13: a picture card only selects its sector. The chosen card is unmistakable and the
-   module explorer below briefly glows when it changes (the global reduced-motion rule stops the glow). */
+/* Owner 2026-10-13: a picture card only selects its sector, and the chosen card is unmistakable. (A
+   blue glow on the explorer was tried and removed the same day at the owner's request.) */
 .desk-v6 .sector-card{cursor:pointer;font:inherit;color:inherit}
 .desk-v6 .sector-card[aria-pressed=true]{border-color:var(--accent,#012ea1);box-shadow:0 0 0 2px var(--accent,#012ea1),0 10px 24px #2b466f1f}
 .desk-v6 .sector-card[aria-pressed=true] .card-number{background:var(--accent,#012ea1);color:#fff;text-shadow:none;padding:2px 7px;border-radius:999px;left:9px;top:8px}
 .desk-v6 .explorer{scroll-margin-top:16px}
-.desk-v6 .explorer-picked{animation:v6-explorer-picked 1.2s var(--ease,ease-out) both}
-@keyframes v6-explorer-picked{0%{box-shadow:0 0 0 3px var(--accent,#012ea1);border-color:var(--accent,#012ea1)}100%{box-shadow:0 0 0 0 transparent}}
