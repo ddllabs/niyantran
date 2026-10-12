@@ -19,6 +19,12 @@
 
 ## UI follow-ups
 
+- [ ] **F102. Client UI refinement.** Owner-authorized four-module implementation:
+  cream desk/Home-news theme and graphics, signup composition, top desk
+  navigation/access verification, and removal of the record-level linkage graph.
+  Live graph confirmed on Vercel in the Kerala bill Record panel. Implemented and locally verified on task/client-ui-spec; commits 01634e4, d072308, b0ba405 and 35366d8. Await owner visual review/local merge; main unchanged. Backend/corpus excluded.
+  [Spec index](../specs/2026-10-12-client-ui/index.md).
+
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
 
