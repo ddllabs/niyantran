@@ -1,6 +1,6 @@
 # Corpus integration review — 2026-10-12
 
-> **Status: Living.** Local integration preparation complete; owner integration/production acceptance remains separate.
+> **Status: Historical (2026-10-12).** Preparation review; subsequent owner-authorized integration is recorded in [main consolidation](2026-10-12-main-consolidation.md).
 
 ## Outcome and preservation
 

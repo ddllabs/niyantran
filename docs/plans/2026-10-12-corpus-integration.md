@@ -1,6 +1,6 @@
 # Corpus integration review
 
-> **Status: Living.** Owner-authorized local integration preparation, 2026-10-12.
+> **Status: Historical (2026-10-12).** Local preparation record; subsequent integration is recorded in [main consolidation](../research/2026-10-12-main-consolidation.md).
 
 ## Contract
 Review the 92-file corpus snapshot on an isolated task checkout based on origin/main 6acabfb. Preserve the shared checkout byte-for-byte, UI files, and the committed Download resolver and companion. Prepare coherent local commits only for verified work. No merge, push, deployment, ingestion, or production writes. Earlier ingestion authorizations do not authorize execution during this task.
