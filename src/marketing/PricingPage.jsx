@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { PRICING_COMPARE, PRICING_NOTES, PUBLIC_PLANS, rupees } from '../lib/publicPlans.js';
+import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
 
 function Ico({ d, size = 18 }) {
   return (
@@ -113,15 +114,15 @@ export default function PricingPage({ onLogin, onContact }) {
         <div className="mkt-pr-tele">
           <span>
             <i />
-            FEED 211+
+            MODULES {SITE_FIGURES.modules}
           </span>
           <span>
             <i />
-            BILLS 4,576
+            BILLS {figure(SITE_FIGURES.bills)}
           </span>
           <span>
             <i />
-            UPTIME 99.9%
+            DOCUMENTS {figure(SITE_FIGURES.documents)}
           </span>
           <span className="blink">▌</span>
         </div>

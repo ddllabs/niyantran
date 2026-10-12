@@ -86,10 +86,10 @@ are flagged for a separate task.
   desktop widths.
 - Lawyer review recorded as pending until the owner confirms it.
 
-## Drafted text: assumptions to confirm (2026-10-12)
+## Drafted text: assumptions (confirmed by the owner, 2026-10-12)
 
-The drafts in `src/lib/legalPolicies.js` make these choices where no owner
-decision existed:
+The drafts in `src/lib/legalPolicies.js` made these choices where no owner
+decision existed; the owner confirmed all of them ("go ahead, no issues"):
 
 1. **Renewal** is described both ways: automatic renewal with RBI pre-debit
    notice if chosen at checkout, otherwise the plan ends with the paid month.
@@ -141,3 +141,14 @@ four rupee cards, Pro/Max coming-soon, nine comparison rows, no "$" or yearly
 text, no overflow at 360/768/1440; plan button goes to signup, help button to
 `/contact`; zero console errors. The hero's unmeasured figures ("UPTIME
 99.9%", "FEED 211+") remain under F30.
+
+## Measured site figures (F30 in part), 2026-10-12
+
+Read-only NTER query: 9,817 rows (9,415 distinct bill keys) in the national
+bill desk, 3,431 indexed full-text documents (100,031 chunks), 2,222 bills
+with full text. `src/lib/siteFigures.js` now feeds the homepage and pricing
+headers: bills 9,817 (matching the carousel's computed count), desk modules
+from the catalogue (120), and full-text documents 3,431. The hand-typed
+"9,819", "4,576", "211+ live API endpoints" and "99.9% uptime" are removed;
+nothing measured uptime. The homepage's hand-typed "48 ministries" KPI
+remains (the carousel computes 56); left for F30.
