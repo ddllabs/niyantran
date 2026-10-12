@@ -10,7 +10,10 @@
  *   GET  /api/billing/invoice/:id   HTML invoice
  *
  * Plans are Plus, Pro and Max at their rupee prices, one month per payment,
- * with no GST (the seller is not GST-registered).
+ * with no GST (the seller is not GST-registered). Checkout opens only when the
+ * Razorpay keys exist and BILLING_CHECKOUT_OPEN=1 (owner, F110: closed until AI
+ * credits exist), and while a plan is active only a renewal or an upgrade can
+ * be bought.
  *
  * A verified payment grants its paid period through grant_paid_plan() (F2,
  * docs/specs/2026-09-29-f2-entitlements.md); nothing else here grants a plan.
@@ -27,6 +30,7 @@ import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { authorizeLocalUser, localClientForToken } from './usersApi.mjs';
 import { isServerlessHost } from './writableRoot.mjs';
 import { computeQuote, newInvoiceId, renderInvoiceHtml, sellerFromEnv } from './inrBilling.mjs';
+import { purchaseKind } from '../src/lib/publicPlans.js';
 
 loadEnv();
 
@@ -204,6 +208,7 @@ function resolveDeps(deps = {}) {
     verifySignature: deps.verifySignature || verifySignature,
     serverless: deps.serverless ?? isServerlessHost(),
     razorpayEnabled: deps.razorpayEnabled ?? keys().enabled,
+    checkoutOpen: deps.checkoutOpen ?? process.env.BILLING_CHECKOUT_OPEN === '1',
   };
 }
 
@@ -213,11 +218,12 @@ export async function handleBillingApi(req, res, url, deps = {}) {
   const caller = () => authorizeLocalUser(req, res, { clientForToken: d.clientForToken });
 
   if (url.pathname === '/api/billing/config' && req.method === 'GET') {
-    const { keyId, enabled } = keys();
+    const enabled = d.razorpayEnabled && d.checkoutOpen;
     json(res, {
       provider: 'razorpay',
       enabled,
-      keyId: enabled ? keyId : '',
+      checkoutOpen: d.checkoutOpen,
+      keyId: enabled ? keys().keyId : '',
       currency: 'INR',
       gstRegistered: false,
       demoFallback: !enabled,
@@ -245,8 +251,22 @@ export async function handleBillingApi(req, res, url, deps = {}) {
         json(res, { ok: false, reason: 'Unknown plan.' }, 400);
         return true;
       }
+      if (!d.checkoutOpen) {
+        json(res, { ok: false, reason: 'Online payments open soon.', checkoutOpen: false, quote }, 503);
+        return true;
+      }
       if (!d.razorpayEnabled) {
         json(res, { ok: false, reason: 'Razorpay is not configured on this server.', demoFallback: true, quote }, 503);
+        return true;
+      }
+      // Read as the caller: my_entitlement() returns only their own plan.
+      const current = await d.clientForToken(bearerToken(req)).rpc('my_entitlement');
+      if (current.error) {
+        json(res, { ok: false, reason: 'Your current plan could not be read. Try again.' }, 503);
+        return true;
+      }
+      if (purchaseKind(current.data, quote.planId) === 'blocked') {
+        json(res, { ok: false, reason: 'While a plan is active you can renew it or upgrade to a higher plan.' }, 409);
         return true;
       }
       const receipt = `niy_${quote.planId}_${Date.now()}`.slice(0, 40);

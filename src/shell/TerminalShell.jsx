@@ -29,6 +29,7 @@ import { setPageTitle } from '../lib/siteHead.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
+import PlanBilling from './PlanBilling.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
@@ -51,6 +52,8 @@ export default function TerminalShell({ onLogout }) {
   const [liveTvOpen, setLiveTvOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
+  // Plan & billing panel (F110): null when closed, else { plan } to preselect.
+  const [billing, setBilling] = useState(null);
   const [userTick, setUserTick] = useState(0);
   const profileRef = useRef(null);
   const user = sessionUser();
@@ -87,8 +90,16 @@ export default function TerminalShell({ onLogout }) {
     hydrateUserPrefs().catch(() => {});
   }, []);
 
+  // A plan chosen on the public pricing page while signed in opens the panel.
+  useEffect(() => {
+    const plan = sessionStorage.getItem('niyOpenBilling');
+    if (plan === null) return;
+    sessionStorage.removeItem('niyOpenBilling');
+    setBilling({ plan: plan || null });
+  }, []);
+
   // The plan comes from the server (F2). Re-read it when the terminal opens,
-  // and re-render whenever it changes (a trial, a payment, a lapse).
+  // and re-render whenever it changes (a payment, a lapse).
   useEffect(() => {
     const unsubscribe = subscribeEntitlement(() => setUserTick((n) => n + 1));
     refreshEntitlement();
@@ -405,6 +416,16 @@ export default function TerminalShell({ onLogout }) {
                 <div className="profile-pop-actions">
                   <button
                     type="button"
+                    className="profile-pop-upgrade"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      setBilling({ plan: null });
+                    }}
+                  >
+                    Plan &amp; billing
+                  </button>
+                  <button
+                    type="button"
                     className="profile-pop-persona"
                     onClick={() => {
                       setProfileOpen(false);
@@ -480,6 +501,9 @@ export default function TerminalShell({ onLogout }) {
         />}
       </div>
       {!restricted && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
+      {billing ? (
+        <PlanBilling ent={ent} user={user} initialPlan={billing.plan} onClose={() => setBilling(null)} />
+      ) : null}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}

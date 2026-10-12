@@ -43,7 +43,7 @@ describe('completeCheckout without Razorpay', () => {
     });
     const result = await completeCheckout({ planId: 'pro' });
     expect(result).toMatchObject({ ok: false, mode: 'disabled' });
-    expect(result.reason).toMatch(/not enabled/);
+    expect(result.reason).toMatch(/open soon/);
     expect(calls.map((c) => c.url)).toEqual(['/api/billing/config']);
     expect(state.setSessionUser).not.toHaveBeenCalled();
   });

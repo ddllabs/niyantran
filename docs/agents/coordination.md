@@ -1670,3 +1670,6 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     Limited, Kolkata; `planId=enterprise` answers 400. `/privacy`, `/terms`,
     `/refunds`, `/delivery`, `/about`, `/contact` answer 200.
   - Rollback candidate: the previous production deploy of `2a5be9c`.
+- **Pricing facts chips:** `main` pushed `b3969ff..3790883` (owner: "push
+  it"); production deploy `dpl_9CHJKCZEasuxVhCQP4hLf7DHzWWh` READY, served
+  entry `index-CGQEY3TU.js` carries `mkt-pr-facts`.

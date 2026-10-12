@@ -64,6 +64,17 @@ export async function fetchQuote(planId) {
   return body;
 }
 
+/** The signed-in user's invoices, newest first, or [] when unavailable. */
+export async function fetchInvoices() {
+  try {
+    const res = await fetch('/api/billing/invoices', { headers: await authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    return res.ok && body.ok && Array.isArray(body.invoices) ? body.invoices : [];
+  } catch {
+    return [];
+  }
+}
+
 export function invoiceUrl(invoiceId) {
   if (!invoiceId) return '';
   return `/api/billing/invoice/${encodeURIComponent(invoiceId)}`;
@@ -180,7 +191,7 @@ export async function completeCheckout({ planId, user, billing = {} } = {}) {
     return {
       ok: false,
       mode: 'disabled',
-      reason: 'Online payments are not enabled yet. Contact us to upgrade.',
+      reason: 'Online payments open soon. To upgrade now, write to niyantranai@gmail.com.',
     };
   }
   const buyer = buyerPayload(seat, billing);

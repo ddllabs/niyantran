@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES } from './publicPlans.js';
+import { PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES, purchaseKind } from './publicPlans.js';
 
 it('offers the owner plans in rupees per month', () => {
   expect(PUBLIC_PLANS.map(p => [p.name, p.monthly])).toEqual([['FREE', 0], ['PLUS', 399], ['PRO', 999], ['MAX', 9999]]);
@@ -44,4 +44,14 @@ it('presents the billing facts as styled chips, not a bordered paragraph box', (
   const page = readFileSync(new URL('../marketing/PricingPage.jsx', import.meta.url), 'utf8');
   expect(page).toContain('mkt-pr-facts');
   expect(page).not.toContain('mkt-pr-notes');
+});
+
+it('allows upgrades and renewals while a plan is active, never a lower plan (owner, F110)', () => {
+  expect(purchaseKind({ plan: 'free', status: 'free' }, 'plus')).toBe('choose');
+  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'max')).toBe('upgrade');
+  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'pro')).toBe('renew');
+  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'plus')).toBe('blocked');
+  expect(purchaseKind({ plan: 'max', status: 'free' }, 'plus')).toBe('choose');
+  expect(purchaseKind({ plan: 'pro', status: 'active' }, 'free')).toBe('blocked');
+  expect(purchaseKind(null, 'enterprise')).toBe('blocked');
 });

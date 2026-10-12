@@ -57,9 +57,14 @@ no tests rerun, no production probe).
   `20261012120000_inr_plans.sql`, applied to NTER and verified on 2026-10-12
   (owner authorized; see coordination Operations), then `main` pushed.
   Remaining for live payments: F110, F111, O6. [Spec](../specs/2026-10-12-inr-billing.md).
-- [ ] **F110. In-app upgrade and checkout screen.** No screen lets a signed-in
-  user buy Plus/Pro/Max (the old USD/GST modal was unused and is removed).
-  Needed before Razorpay review, which asks for a test login that can pay.
+- [ ] **F110. In-app upgrade and checkout screen.** Built on
+  `task/upgrade-screen` (2026-10-13): "Plan & billing" panel in the profile
+  menu (current plan, Plus/Pro/Max in rupees, renew or upgrade only, invoices,
+  renewal reminder), pricing hand-off for signed-in users, and a server switch
+  `BILLING_CHECKOUT_OPEN` that keeps checkout closed until credits (F111).
+  [Spec](../specs/2026-10-12-upgrade-screen.md). Remaining: owner review, a
+  Razorpay test-mode run on a preview with test keys, then open checkout after
+  F111.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
