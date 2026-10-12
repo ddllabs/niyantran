@@ -77,6 +77,17 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
 
   const aiActive = state.open && state.active === 'ai';
 
+  // F114: the panel rests collapsed on module pages, so a record picked up anywhere opens AI at once
+  // (the first dragenter, on the source itself) rather than waiting for the slim bar to be found.
+  const aiActiveRef = useRef(aiActive);
+  aiActiveRef.current = aiActive;
+  useEffect(() => {
+    const act = (a) => dispatch({ ...a, ctx: ctxRef.current });
+    const onDrag = (e) => dragOpensAi({ ...ctxRef.current, aiActive: aiActiveRef.current, act })(e);
+    document.addEventListener('dragenter', onDrag, true);
+    return () => document.removeEventListener('dragenter', onDrag, true);
+  }, []);
+
   // The expand mode (spec point 3): the reader's Expand, on any tab, or a citation open in AI.
   const [userExpanded, setUserExpanded] = useState(false);
   const [citation, setCitation] = useState({ open: false, closeAll: null });
@@ -119,6 +130,13 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
   return {
     state, act, seed, consumeSeed, aiOpen: aiActive, collapsed: hasRail && state.collapsed, width, setWidth,
     expanded, userExpanded, setUserExpanded, citation, setCitation, citationExpanded,
+  };
+}
+
+/** F114: a page drag opens AI on a module page (rail, not a landing) unless AI is already open. */
+export function dragOpensAi({ hasRail, landing, aiActive, act }) {
+  return (e) => {
+    if (hasRail && !landing && !aiActive && isAiDrag(e.dataTransfer)) act({ type: 'ai-open' });
   };
 }
 

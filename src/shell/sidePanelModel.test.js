@@ -29,9 +29,9 @@ describe('the active tab', () => {
   it('returning to a landing hides AI while preserving its mounted thread', () => {
     const ai = panelReducer(initialPanel(rail), { type: 'ai-open' }, rail);
     expect(panelReducer(ai, { type: 'context' }, { hasRail: false, selected: null, landing: true }))
-      .toMatchObject({ open: false, active: null, collapsed: false, mounted: ['desk', 'ai'] });
+      .toMatchObject({ open: false, active: null, collapsed: false, mounted: ['ai'] });
     expect(panelReducer(ai, { type: 'landing' }, rail))
-      .toMatchObject({ open: false, active: null, collapsed: false, mounted: ['desk', 'ai'] });
+      .toMatchObject({ open: false, active: null, collapsed: false, mounted: ['ai'] });
   });
 
   it('outside dismissal hides the whole AI dock rather than switching to Desk', () => {
@@ -42,16 +42,20 @@ describe('the active tab', () => {
     expect(panelReducer(dismissed, { type: 'close-ai' }, rail)).toBe(dismissed);
   });
 
-  it('opens on Desk where there is a rail, and stays hidden where there is not', () => {
-    expect(initialPanel(rail)).toMatchObject({ active: 'desk', open: true, mounted: ['desk'] });
+  // F114 (owner, 2026-10-13): module pages open with the slim bar, as landing pages do, so the table
+  // has the width; the panel opens when it has something specific to show.
+  it('starts collapsed on Desk where there is a rail, and stays hidden where there is not', () => {
+    expect(initialPanel(rail)).toMatchObject({ active: 'desk', open: false, collapsed: true, mounted: [] });
     expect(initialPanel({ hasRail: false, selected: null })).toMatchObject({ active: null, open: false, mounted: [] });
   });
 
-  it('selecting a row opens Record; clearing it returns to Desk', () => {
+  it('selecting a row opens Record; clearing it collapses the panel again', () => {
     const s1 = panelReducer(initialPanel(rail), { type: 'select', row }, { hasRail: true, selected: row });
-    expect(s1).toMatchObject({ active: 'record', mounted: ['desk', 'record'] });
+    expect(s1).toMatchObject({ active: 'record', open: true, collapsed: false, mounted: ['record'] });
     const s2 = panelReducer(s1, { type: 'clear' }, rail);
-    expect(s2.active).toBe('desk');
+    expect(s2).toMatchObject({ active: 'desk', open: false, collapsed: true });
+    const desk = panelReducer(initialPanel(rail), { type: 'reopen', tab: 'desk' }, rail);
+    expect(panelReducer(desk, { type: 'clear' }, rail)).toBe(desk);
   });
 
   it('an "Ask AI" entry point selects AI and opens the panel, even collapsed or on a desk without a rail', () => {
@@ -80,20 +84,23 @@ describe('the active tab', () => {
     expect(panelReducer(collapsed, { type: 'select', row }, { hasRail: true, selected: row })).toMatchObject({ open: true, active: 'record' });
   });
 
-  it('a module change reopens a collapsed panel (a new page opens it)', () => {
-    const collapsed = panelReducer(initialPanel(rail), { type: 'collapse' }, rail);
-    expect(panelReducer(collapsed, { type: 'context' }, rail)).toMatchObject({ open: true, collapsed: false, active: 'desk' });
+  it('a module change collapses an open panel unless AI is in use', () => {
+    const desk = panelReducer(initialPanel(rail), { type: 'reopen', tab: 'desk' }, rail);
+    expect(panelReducer(desk, { type: 'context' }, rail)).toMatchObject({ open: false, collapsed: true, active: 'desk' });
+    const ai = panelReducer(initialPanel(rail), { type: 'ai-open' }, rail);
+    expect(panelReducer(ai, { type: 'context' }, rail)).toBe(ai);
+    expect(panelReducer(desk, { type: 'context' }, { hasRail: true, selected: row })).toMatchObject({ open: true, active: 'record' });
   });
 
   it('a tab click switches only to an available tab', () => {
-    const s = initialPanel(rail);
+    const s = panelReducer(initialPanel(rail), { type: 'reopen', tab: 'desk' }, rail);
     expect(panelReducer(s, { type: 'tab', tab: 'record' }, rail)).toBe(s);
     expect(panelReducer(s, { type: 'tab', tab: 'ai' }, rail)).toMatchObject({ active: 'ai', mounted: ['desk', 'ai'] });
   });
 
-  it('closing AI returns to Record or Desk where there is a rail, and hides the panel where there is not', () => {
+  it('closing AI returns to Record, collapses where no row is selected, and hides the panel off a rail', () => {
     const ai = panelReducer(initialPanel(rail), { type: 'ai-open' }, rail);
-    expect(panelReducer(ai, { type: 'close-ai' }, rail)).toMatchObject({ active: 'desk', open: true });
+    expect(panelReducer(ai, { type: 'close-ai' }, rail)).toMatchObject({ active: 'desk', open: false, collapsed: true });
     expect(panelReducer(ai, { type: 'close-ai' }, { hasRail: true, selected: row })).toMatchObject({ active: 'record' });
     const bare = panelReducer(initialPanel({ hasRail: false, selected: null }), { type: 'ai-open' }, { hasRail: false, selected: null });
     expect(panelReducer(bare, { type: 'close-ai' }, { hasRail: false, selected: null })).toMatchObject({ open: false, mounted: ['ai'] });
@@ -110,7 +117,7 @@ describe('the active tab', () => {
     expect(panelReducer(ai, { type: 'context' }, { hasRail: false, selected: null })).toMatchObject({ active: 'ai', open: true });
     expect(panelReducer(initialPanel(rail), { type: 'context' }, { hasRail: false, selected: null })).toMatchObject({ active: null, open: false });
     const back = panelReducer(initialPanel({ hasRail: false, selected: null }), { type: 'context' }, rail);
-    expect(back).toMatchObject({ active: 'desk', open: true });
+    expect(back).toMatchObject({ active: 'desk', open: false, collapsed: true });
   });
 
   it('the mounted set only grows, so no tab once shown is unmounted', () => {
@@ -125,12 +132,12 @@ describe('the active tab', () => {
       for (const t of seen) expect(s.mounted).toContain(t);
       seen = new Set(s.mounted);
     }
-    expect(s.mounted).toEqual(expect.arrayContaining(['desk', 'ai', 'record']));
+    expect(s.mounted).toEqual(expect.arrayContaining(['ai', 'record']));
   });
 
-  it('a page load always opens the panel where there is a rail (a collapse is not remembered)', () => {
-    expect(initialPanel(rail)).toMatchObject({ open: true, collapsed: false, active: 'desk' });
-    expect(initialPanel({ hasRail: true, selected: row })).toMatchObject({ open: true, active: 'record' });
+  it('a page load collapses the panel where there is a rail, unless a row is already selected', () => {
+    expect(initialPanel(rail)).toMatchObject({ open: false, collapsed: true, active: 'desk' });
+    expect(initialPanel({ hasRail: true, selected: row })).toMatchObject({ open: true, collapsed: false, active: 'record', mounted: ['record'] });
   });
 });
 
