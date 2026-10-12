@@ -2,6 +2,9 @@
 /* The header's primary search: wide, tall and readable (owner, 2026-10-13). */
 .catalogue-open{display:flex;align-items:center;gap:10px;width:clamp(260px,30vw,440px);height:40px;padding:0 12px 0 14px;border:1px solid var(--line,#ded9d1);border-radius:10px;background:var(--panel,#fff);color:var(--muted,#6b665e);font:inherit;font-size:14px;white-space:nowrap;cursor:pointer;box-shadow:0 1px 2px #1313130a;text-align:left}
 .catalogue-open span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* Owner 2026-10-13: below ~1110px the box is too narrow for the full label, so a short one shows. */
+.catalogue-label-short{display:none}
+@media(max-width:1109px){.catalogue-label-long{display:none}.catalogue-label-short{display:block}}
 .catalogue-open kbd{margin-left:auto;padding:2px 6px;border:1px solid var(--line,#ded9d1);border-radius:5px;background:var(--bg,#f8f5f0);color:var(--muted,#777);font:inherit;font-size:11px}
 .catalogue-open:hover{border-color:var(--accent,#0736c7);color:var(--text,#151515)}
 .catalogue-open:focus-visible,.catalogue-dialog button:focus-visible,.catalogue-dialog input:focus-visible{outline:2px solid var(--accent,#0736c7);outline-offset:2px}

@@ -1,5 +1,12 @@
 # Terminal header controls
 
+> **2026-10-13 owner amendment (F120):** the header is the same on every page.
+> "All sections" shows on Home and module pages too. Refresh shows on landing
+> pages as well, labelled "Refresh desk summaries", where it remounts the
+> landing so its summaries are requested again. Below 1,110px the search box
+> shows the short label "Search the terminal" (the button's accessible name
+> keeps the full label). See [consistent header](2026-10-13-consistent-header.md).
+
 > **Status: Living.** Owner-approved specification, 2026-10-12.
 > Approved capability: terminal-header-controls. Implementation authorized on task/terminal-follow-up.
 

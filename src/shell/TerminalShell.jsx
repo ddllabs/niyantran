@@ -315,7 +315,7 @@ export default function TerminalShell({ onLogout }) {
         </div>
         <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>
         <div className="shell-header-utilities">
-        {v6Landing && <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>}
+        <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>
         <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
           identity={`${user?.id || user?.email || ''}:${userTick}`} lang={lang}
           onOpen={hit => {
@@ -349,14 +349,17 @@ export default function TerminalShell({ onLogout }) {
               onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
             />
           </div>
-          {!v6Landing && <button
+          {/* Owner 2026-10-13: the same header on every page. A landing's refresh remounts it, so its
+              summaries are requested again. */}
+          <button
             type="button"
             className={`icon-btn${loading ? ' spin' : ''}`}
             onClick={() => setReload((n) => n + 1)}
-            title="Refresh feed"
+            title={v6Landing ? 'Refresh desk summaries' : 'Refresh feed'}
+            aria-label={v6Landing ? 'Refresh desk summaries' : 'Refresh feed'}
           >
             <Icon name="refresh" />
-          </button>}
+          </button>
           <button
             type="button"
             className="icon-btn"
@@ -468,6 +471,7 @@ export default function TerminalShell({ onLogout }) {
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
           ) : guideMode ? (
             <DeskLandingView
+              key={`${tab}:${reload}`}
               tab={tab}
               label={hi ? active.labelHi : active.label}
               buckets={deskBuckets}

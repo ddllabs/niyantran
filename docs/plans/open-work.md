@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F120 is next) and goes in the
+- A new finding gets the next free `F` number (F121 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -157,6 +157,12 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   `task/sector-card-select`, merged `8441097`, pushed 2026-10-13.
   [Spec](../specs/2026-10-13-sector-cards-select.md). Remaining: owner check
   on production.
+- [ ] **F120. One header on every page.** Owner 2026-10-13: All sections
+  and refresh on every page (landing refresh reloads its summaries); the
+  search box shows a short label below 1,110px instead of truncating. Built on
+  `task/consistent-header` and merged locally.
+  [Spec](../specs/2026-10-13-consistent-header.md). Remaining: push, owner
+  check.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
