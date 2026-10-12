@@ -43,8 +43,8 @@ note.
 - **Blocked on the owner:**
   - F111: needs a definition of an AI credit.
   - O6: live Razorpay keys.
-  - F104 and F69: deployed as `research-chat` v48 on 2026-10-13; waiting on
-    the owner's live RAG/citation check.
+  - F104 and F69 are done: `research-chat` v48 was deployed and verified on a
+    live owner turn on 2026-10-13.
   - F106: needs approval to retire NterEarth.
 - **Corpus:** last recorded 2026-10-11, not recounted: 3,434 documents /
   3,431 indexed / 100,031 chunks / 2,143 covered bill keys. R7 stays open.
@@ -87,9 +87,9 @@ note.
 - [ ] **F114. Side panel collapsed by default on module pages.** Approved
   2026-10-13. A module page loads with the slim bar so the table gets the
   width; a row click opens Record; picking up a record opens AI.
-  Built on `task/panel-collapsed-default` and merged locally; not pushed.
+  Commit `408835e`, merged `426a879`, pushed 2026-10-13.
   [Spec](../specs/2026-10-13-panel-collapsed-default.md). Remaining: owner
-  review, push.
+  review on production.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -132,11 +132,6 @@ note.
 
 
 - [ ] **F80. Existing mobile marketing trivia overflow.** Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
-- [ ] **F69. Deploy F64 retrieval telemetry.** Deployed with F104 as
-  `research-chat` v48 on 2026-10-13. Remaining: confirm the measurements appear
-  on a live turn.
-  Existing turns cannot acquire missing measurements retroactively.
-
 
 - [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
@@ -186,6 +181,73 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 
 ## 1. Done
+
+- [x] **F69. Deploy F64 retrieval telemetry.** Deployed with F104 as
+  `research-chat` v48 on 2026-10-13. Verified on the owner's live turn (`1e584cfc…`):
+  `search_documents` recorded `requestedTopK` 40, `embeddingMs` 1,387,
+  `retrievalMs` 103 and `latencyMs` 1,494. The v47 turn before it (18:54 UTC)
+  has none of these fields.
+  Existing turns cannot acquire missing measurements retroactively.
+
+- [x] **F104. Deploy the retrieval section-context fix.** `a796383` (bill
+  versions and continuation sections reach the model; `_shared/retrieval.ts`,
+  `research-chat/{agent,index,prompt}.ts`) is in `main` since `d0a8020`, but
+  the last recorded `research-chat` deploy is v47 on 2026-10-10. The review
+  record says the correction is local only
+  (`research/2026-10-12-corpus-integration-review.md`). Before any deploy,
+  compare the live function bytes with `main`; then a separately authorized
+  `research-chat` deployment and live RAG/citation checks. No re-embedding
+  needed.
+  - **Read-only comparison attempted, 2026-10-13.** The live code could not be
+    downloaded: Supabase returned "Failed to retrieve function bundle" for v47
+    to the MCP read, to the CLI `--use-api` path, and to the legacy eszip
+    unpacker. Indirect evidence:
+    - Live is still v47, deployed 2026-10-10 00:28 IST, with the same bundle
+      hash recorded on 2026-10-10 (`a54690a5…`). It is unchanged since then.
+    - v47 was built from uncommitted files, and its record lists only
+      version-role edits to four files. The section-rendering correction was
+      made on 2026-10-12, after v47, so live lacks it.
+    - That record also says no telemetry changes were deployed. F64's
+      retrieval telemetry (`8d0ba3d`, F69) is in `main` but has no recorded
+      deploy.
+    - Deploying `main`'s `research-chat` would therefore ship F104 and F69
+      together, plus v47's version roles (already live), unless the deploy is
+      narrowed.
+  - **Deployed as v48, 2026-10-13 (owner: "go with option 1, deploy main").**
+    - The saved v47 release source turned up at
+      `~/.codex/visualizations/2026/10/08/01a11c8e-85fa-72c1-8681-1fd77f93549f/corpus-version-live-20261010/research-chat-release`.
+      Its recorded hashes match the v47 release. It is the rollback copy.
+    - Compared with `main`, ignoring trailing newlines, seven files differ:
+      - section labels on document passages (F104);
+      - retrieval timing, requested top-k and cancelled status (F69);
+      - research-coverage switches A (`coverageCheck`) and B (`digNudge`),
+        which nothing sets. Empty prompt parts are filtered, so the system
+        prompt is byte-identical.
+    - Two deploys of `50dca74` (Deno 881 passed) failed with Supabase 500
+      "Function deploy failed due to an internal error": one with `--use-api`,
+      one by the owner without Docker. The third, `--use-api --debug`,
+      succeeded.
+    - Result: v48 ACTIVE, `verify_jwt` false, bundle `4adce437…`.
+      Unauthenticated POST returns 401, the CORS preflight 204, and no
+      function errors are logged.
+    - The bundle still cannot be read back ("Failed to retrieve function
+      bundle"), so byte equality with `main` rests on the deploy source.
+    - Remaining: owner live RAG/citation check on a bill question, then a
+      read-only check that `chat_messages.activity` carries
+      `embeddingMs`/`retrievalMs`/`requestedTopK` (F69).
+  - **Verified live, 2026-10-13.** The owner asked a bill question on
+    production after v48. The turn (assistant message `1e584cfc…`, 19:57 UTC)
+    completed on `google/gemini-3.8-flash` with six citations to the National
+    Anti-Doping (Amendment) Bill, 2025.
+    - Three are `document` passages whose stored sections ("CHAPTER VII ›
+      MISCELLANEOUS" and two insertion notes) now reach the model; before
+      v48 only page passages carried sections.
+    - The model input is not stored, so that last step rests on the deployed
+      code plus these source rows.
+    - Side observation, not fixed: some stored section notes are garbled, for
+      example "Insertion of › 22.". That is a chunking data-quality question,
+      separate from F104.
+
 
 - [x] **F113. Drag a record to AI from any panel tab.** A record or file
   dragged over the right-hand panel switches it to AI research (from Desk,
@@ -966,53 +1028,6 @@ Follow-ups and findings:
   - **Fix:** pin previews to the team scope, or drop them from production and point previews at
     a separate Supabase project.
   - Raised in the R6 security review (2026-10-01).
-- [ ] **F104. Deploy the retrieval section-context fix.** `a796383` (bill
-  versions and continuation sections reach the model; `_shared/retrieval.ts`,
-  `research-chat/{agent,index,prompt}.ts`) is in `main` since `d0a8020`, but
-  the last recorded `research-chat` deploy is v47 on 2026-10-10. The review
-  record says the correction is local only
-  (`research/2026-10-12-corpus-integration-review.md`). Before any deploy,
-  compare the live function bytes with `main`; then a separately authorized
-  `research-chat` deployment and live RAG/citation checks. No re-embedding
-  needed.
-  - **Read-only comparison attempted, 2026-10-13.** The live code could not be
-    downloaded: Supabase returned "Failed to retrieve function bundle" for v47
-    to the MCP read, to the CLI `--use-api` path, and to the legacy eszip
-    unpacker. Indirect evidence:
-    - Live is still v47, deployed 2026-10-10 00:28 IST, with the same bundle
-      hash recorded on 2026-10-10 (`a54690a5…`). It is unchanged since then.
-    - v47 was built from uncommitted files, and its record lists only
-      version-role edits to four files. The section-rendering correction was
-      made on 2026-10-12, after v47, so live lacks it.
-    - That record also says no telemetry changes were deployed. F64's
-      retrieval telemetry (`8d0ba3d`, F69) is in `main` but has no recorded
-      deploy.
-    - Deploying `main`'s `research-chat` would therefore ship F104 and F69
-      together, plus v47's version roles (already live), unless the deploy is
-      narrowed.
-  - **Deployed as v48, 2026-10-13 (owner: "go with option 1, deploy main").**
-    - The saved v47 release source turned up at
-      `~/.codex/visualizations/2026/10/08/01a11c8e-85fa-72c1-8681-1fd77f93549f/corpus-version-live-20261010/research-chat-release`.
-      Its recorded hashes match the v47 release. It is the rollback copy.
-    - Compared with `main`, ignoring trailing newlines, seven files differ:
-      - section labels on document passages (F104);
-      - retrieval timing, requested top-k and cancelled status (F69);
-      - research-coverage switches A (`coverageCheck`) and B (`digNudge`),
-        which nothing sets. Empty prompt parts are filtered, so the system
-        prompt is byte-identical.
-    - Two deploys of `50dca74` (Deno 881 passed) failed with Supabase 500
-      "Function deploy failed due to an internal error": one with `--use-api`,
-      one by the owner without Docker. The third, `--use-api --debug`,
-      succeeded.
-    - Result: v48 ACTIVE, `verify_jwt` false, bundle `4adce437…`.
-      Unauthenticated POST returns 401, the CORS preflight 204, and no
-      function errors are logged.
-    - The bundle still cannot be read back ("Failed to retrieve function
-      bundle"), so byte equality with `main` rests on the deploy source.
-    - Remaining: owner live RAG/citation check on a bill question, then a
-      read-only check that `chat_messages.activity` carries
-      `embeddingMs`/`retrievalMs`/`requestedTopK` (F69).
-
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.
