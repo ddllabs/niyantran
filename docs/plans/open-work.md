@@ -176,7 +176,10 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     supervisor, sequential).
   - Batch 2: seven modules (parallel sub-agents).
   - Batch 3: the four dossiers (parallel sub-agents).
-  - Status: planned, awaiting the owner's go-ahead to start batch 1.
+  - Status: batch 1 built on `task/global-record-panels` and passed an
+    independent re-review on 2026-10-13. It awaits the owner's local test,
+    then a local merge and a push on the owner's go-ahead. Batches 2 and 3
+    follow the owner's review on production.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

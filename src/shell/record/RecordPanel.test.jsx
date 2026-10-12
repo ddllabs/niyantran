@@ -63,6 +63,14 @@ describe('RecordPanel', () => {
     expect(html).not.toContain('rp-kv');
   });
 
+  it('ignores a visual whose type names an inherited property rather than a registered visual', () => {
+    for (const type of ['toString', 'constructor']) {
+      const html = renderToStaticMarkup(<RecordPanel model={model({ glance: { ...model().glance, visual: { type, title: 'x' } } })} />);
+      expect(html).toContain('rp-tiles');
+      expect(html).not.toContain('[object');
+    }
+  });
+
   it('asks AI and closes through its handlers', () => {
     const onAsk = vi.fn();
     const onClose = vi.fn();

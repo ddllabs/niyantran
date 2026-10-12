@@ -13,7 +13,7 @@ import './recordPanel.css';
 const safeHref = (href) => (/^https:\/\//i.test(String(href || '')) ? href : null);
 
 function Visual({ visual }) {
-  const Component = visual && VISUALS[visual.type];
+  const Component = visual && Object.hasOwn(VISUALS, visual.type) ? VISUALS[visual.type] : null;
   return Component ? <Component title={visual.title} right={visual.right} visual={visual} /> : null;
 }
 

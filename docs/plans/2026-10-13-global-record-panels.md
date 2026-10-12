@@ -223,3 +223,6 @@ An independent code-reviewer agent (model Fable) reviewed `c47bad4`. Fixes:
   - the Global Intelligence footer wording.
 - **Deferred:** memoising map points (performance), and replacing the constant "Value — Not on
   record" tile.
+- **Re-review of `a3735e3`:** all four must-fixes resolved, no regressions, ready to merge. Its one
+  nit, a prototype-inclusive visual lookup that printed "[object Undefined]" for a type such as
+  `constructor`, is closed with `Object.hasOwn` and a test that failed first.
