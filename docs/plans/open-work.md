@@ -17,37 +17,50 @@
 - A new finding gets the next free `F` number (F119 is next) and goes in the
   right section.
 
-## Current state — 2026-10-13
+## Current state — 2026-10-13 (evening)
 
-Checked by the supervisor with `git fetch`, `git worktree list`, the Vercel
-deployment list and a fetch of the served bundle. No tests were rerun for this
-note.
+Checked by the supervisor with `git fetch`, the Vercel deployment list, the
+served bundle name, the Supabase function list and read-only SQL counts on
+NTER. No tests were rerun for this note.
 
 - **Branches:** one branch, `main`, locally and on `origin`. Local `main` =
-  `origin/main` = `8a5eddb` with a clean working tree. All merged task branches
-  were deleted on 2026-10-13 (owner: "clean up"), and so was the old Codex
-  worktree `~/.codex/worktrees/corpus-integration` (it pointed at `d0a8020`,
-  which is in `main`).
-- **Production:** deploy `dpl_9k7YDwqEdbkCxqUkR9nMbYfeqMwg` (`8a5eddb`) is
-  READY on niyantran-six.vercel.app. Its last code change is `ef4754a`
-  (F112, F113), served as `index-D84x6f8c.js`; the commits after it change
-  only docs.
+  `origin/main` = `79d24f6`; the working tree is clean.
+- **Website:** production deploy `dpl_GdGPGLFRpXFP6Remmh7s5iakTcUV`
+  (`79d24f6`) is READY on niyantran-six.vercel.app and serves
+  `index-Cnk1SWaU.js`. The last code change is `d4b1e29` (F117 Synopsis
+  label); later commits are docs only.
+- **Research chat:** `research-chat` v50 is ACTIVE (deployed from `c117dc2`,
+  `verify_jwt` false). Rollback: redeploy from `839d7dc` (v49) or `7f0563e`
+  (v48).
+- **Corpus** (counted 2026-10-13):
+  - 3,379 documents, 3,376 indexed, 99,225 chunks;
+  - 2,694 bill documents on 2,216 bills, of which 2,692 carry a version (the
+    two without one are Hindi errata);
+  - no identical-text documents, and no bill holds two documents of the same
+    version.
+  - Today's data changes, each backed up under `tmp/backups/` (local,
+    git-ignored):
+    - version backfills: F116 / F117 (24 + 1,153 + 456 rows);
+    - deletions: F115 (1 + 51 + 3 documents).
+  - R7 stays open.
+- **Done today:** F104, F69, F113, F115, F117 (versions for the whole bill
+  corpus).
+- **Shipped and awaiting the owner's check on production:**
+  - F112: navigation, type scale, search and hero spacing;
+  - F114: side panel collapsed by default on module pages;
+  - F116: version labels on citations;
+  - F118: one source card per bill;
+  - F110: Plan & billing panel; checkout stays closed (`BILLING_CHECKOUT_OPEN`
+    unset, no Razorpay keys).
 - **Shipped and still open:**
-  - F107: legal pages, awaiting the address and a lawyer review.
-  - F109: INR billing, with migration `20261012120000` applied to NTER.
-  - F110: Plan & billing panel, awaiting owner review; checkout stays closed
-    (`BILLING_CHECKOUT_OPEN` unset, no Razorpay keys).
-  - F112: navigation, type scale and search, awaiting owner review.
-- **Shipped and done:** F113, drag-to-AI, confirmed by the owner on
-  production.
+  - F107: legal pages, awaiting the full address and a lawyer review;
+  - F108: legal text is stored per browser;
+  - F109: INR billing, with migration `20261012120000` applied.
 - **Blocked on the owner:**
-  - F111: needs a definition of an AI credit.
-  - O6: live Razorpay keys.
-  - F104 and F69 are done: `research-chat` v48 was deployed and verified on a
-    live owner turn on 2026-10-13.
-  - F106: needs approval to retire NterEarth.
-- **Corpus:** last recorded 2026-10-11, not recounted: 3,434 documents /
-  3,431 indexed / 100,031 chunks / 2,143 covered bill keys. R7 stays open.
+  - F111: needs a definition of an AI credit;
+  - O6: live Razorpay keys;
+  - F106: needs approval to retire NterEarth;
+  - F105: stale documentation to reconcile.
 
 ## UI follow-ups
 
