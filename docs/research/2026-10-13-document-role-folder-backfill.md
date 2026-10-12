@@ -55,3 +55,27 @@
 - Bill documents with a role: 1,094 before, 2,247 after. 469 remain without
   one: 467 synopses and 2 Hindi.
 - `document_chunks` is unchanged at 100,031.
+
+## Amendment 1: synopsis role (2026-10-13)
+
+The owner approved a "Synopsis" role ("go ahead with the Synopsis label").
+
+- Code: `synopsis: 'Synopsis'` was added to `DOCUMENT_ROLE_LABELS` in
+  `supabase/functions/_shared/retrieval.ts` and `src/types/citation.js`. The
+  grounding prompt now says a Synopsis passage summarises a bill or Act and is
+  not its legal text.
+- Data:
+  - which rows: the remaining unversioned bill documents under
+    `https://sansad.in/getFile/BillsPDFFiles/synopsis/`, 456 rows on 456 bills
+    (467 before the F115 cleanup removed 11 misfiled synopsis copies);
+  - what changed: they gained `document_role: "synopsis"` and the same
+    `document_role_source: "sansad_url_folder"` marker;
+  - inventory: the `md5` of the sorted IDs, `fa1a6bd7d77c693c4e46e2aeb00c1f9d`,
+    taken before the update and identical in the `UPDATE … RETURNING`.
+- Undo: `update public.documents set metadata = metadata - 'document_role' -
+  'document_role_source' where metadata->>'document_role' = 'synopsis' and
+  metadata->>'document_role_source' = 'sansad_url_folder'`.
+- After: 2,695 of 2,697 bill documents carry a role. The remaining two are
+  Hindi errata files (`LSBillTexts/Hindi/Errata/`). `document_chunks` is
+  unchanged at 99,263.
+- The label reaches the model and citations from `research-chat` v50.

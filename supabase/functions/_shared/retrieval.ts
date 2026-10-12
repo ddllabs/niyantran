@@ -14,6 +14,7 @@ export const DOCUMENT_ROLE_LABELS = {
   as_passed_both_houses: 'As passed by both Houses',
   gazette_notification: 'Gazette notification',
   errata: 'Errata',
+  synopsis: 'Synopsis',
 } as const;
 export type DocumentRole = keyof typeof DOCUMENT_ROLE_LABELS;
 export function documentRole(value: unknown): DocumentRole | undefined {

@@ -1726,3 +1726,6 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   backup in `tmp/backups/2026-10-13-f115-cleanup/`; then `analyze` was run.
   Corpus: 3,382 documents, 99,263 chunks.
   [Record](../research/2026-10-13-f115-cleanup.md).
+- **Synopsis role (F117, NTER data change):** the owner approved it. 456
+  synopsis documents gained `document_role = synopsis` with the URL-folder
+  marker; the checksum matches the inventory and no chunks changed.

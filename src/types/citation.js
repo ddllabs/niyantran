@@ -69,6 +69,7 @@ export const DOCUMENT_ROLE_LABELS = {
   as_passed_both_houses: 'As passed by both Houses',
   gazette_notification: 'Gazette notification',
   errata: 'Errata',
+  synopsis: 'Synopsis',
 };
 
 /** The label for a known role; '' for none or anything else. */
