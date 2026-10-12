@@ -12,6 +12,7 @@ import { errorResponse, HttpError, json } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { sha256Hex } from '../_shared/textNormalise.ts';
 import { CHUNK, chunkDocument, type ChunkRow } from '../_shared/chunking.ts';
+import { chunkTextWithContext, TEXT_CONTEXT_VERSION, type ContextChunk } from '../_shared/textContext.ts';
 import { EMBED_MODEL, EmbeddingError, type EmbedResult } from '../_shared/embed.ts';
 
 export const MAX_DOCUMENTS_PER_REQUEST = 50;
@@ -51,6 +52,8 @@ export const PAGE_AWARE_REFUSAL = 'page-aware document: managed by the page pipe
 export const COMMIT_BATCH = 100;
 
 export interface IngestDocument {
+  /** Explicit opt-in; historical callers retain version 2. */
+  chunking_mode?: 'section_context_v1';
   source_key: string;
   title: string;
   file_name?: string | null;
@@ -74,6 +77,7 @@ export interface DocumentRow {
 }
 
 export interface CommitRow {
+  embed_hash?: string;
   chunk_hash: string;
   chunk_index: number;
   source_kind: 'document' | 'pdf_page';
@@ -102,6 +106,8 @@ export interface CallLogRow {
 }
 
 export interface DocumentResult {
+  /** Explicit mode acknowledgement, required by context-aware job runners. */
+  chunker_version?: number;
   source_key: string;
   status: 'indexed' | 'unchanged' | 'dry_run' | 'refused' | 'error';
   chunks: number;
@@ -163,10 +169,12 @@ export function validateDocument(raw: unknown): IngestDocument {
   if (!title) throw new Error('title is required');
   if (typeof d.ocr_text !== 'string') throw new Error('ocr_text must be a string');
   if (d.metadata !== undefined && d.metadata !== null && (typeof d.metadata !== 'object' || Array.isArray(d.metadata))) throw new Error('metadata must be an object');
+  if (d.chunking_mode !== undefined && d.chunking_mode !== 'section_context_v1') throw new Error('unsupported chunking_mode');
   const metadata = d.metadata && typeof d.metadata === 'object' && !Array.isArray(d.metadata) ? (d.metadata as Record<string, unknown>) : {};
   return {
     source_key,
     title,
+    ...(d.chunking_mode === 'section_context_v1' ? { chunking_mode: 'section_context_v1' as const } : {}),
     file_name: str(d.file_name),
     file_url: str(d.file_url),
     desk_tier: str(d.desk_tier),
@@ -229,7 +237,7 @@ function validateTextClaims(text: string, sha: string, metadata: Record<string, 
   }
 }
 
-function toCommitRow(r: ChunkRow, embedding?: number[]): CommitRow {
+function toCommitRow(r: ChunkRow | ContextChunk, version: number, embedding?: number[]): CommitRow {
   return {
     chunk_hash: r.chunkHash,
     chunk_index: r.chunkIndex,
@@ -239,14 +247,15 @@ function toCommitRow(r: ChunkRow, embedding?: number[]): CommitRow {
     char_to: r.charTo,
     content: r.content,
     token_count: r.tokenEstimate,
-    chunker_version: CHUNK.version,
-    metadata: {},
+    chunker_version: version,
+    metadata: 'section' in r ? { section: r.section } : {},
+    ...('embed_hash' in r ? { embed_hash: r.embed_hash } : {}),
     embedding,
   };
 }
 
 /** Drop a repeated chunk (same hash twice in one document) so the unique key holds. */
-function dedupe(rows: ChunkRow[]): ChunkRow[] {
+function dedupe<T extends ChunkRow>(rows: T[]): T[] {
   const seen = new Set<string>();
   return rows.filter((r) => (seen.has(r.chunkHash) ? false : (seen.add(r.chunkHash), true)));
 }
@@ -264,12 +273,18 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   if (existing && (existing.extract_hash != null || existing.storage_path != null)) {
     return { ...base, status: 'refused', reason: PAGE_AWARE_REFUSAL };
   }
+  const version = doc.chunking_mode === 'section_context_v1' ? TEXT_CONTEXT_VERSION : CHUNK.version;
+  if ((existing?.chunker_version === TEXT_CONTEXT_VERSION || existing?.metadata.text_chunking_mode === 'section_context_v1') && version !== TEXT_CONTEXT_VERSION) {
+    return { ...base, status: 'refused', reason: 'section-context document: explicit section_context_v1 mode required' };
+  }
+  if (version === TEXT_CONTEXT_VERSION) base.chunker_version = version;
   const metadata = mergeDocumentMetadata(existing?.metadata ?? {}, doc.metadata ?? {});
+  if (version === TEXT_CONTEXT_VERSION) metadata.text_chunking_mode = 'section_context_v1';
   // An inherited text claim must not describe the previous revision.
   if ('n_chars' in metadata) metadata.n_chars = unicodeLength(doc.ocr_text);
   if ('text_sha256' in metadata) metadata.text_sha256 = sha;
 
-  if (existing && existing.content_sha256 === sha && existing.chunker_version === CHUNK.version) {
+  if (existing && existing.content_sha256 === sha && existing.chunker_version === version) {
     const hashes = await deps.db.existingHashes(existing.id);
     if (!dryRun) {
       // Same text, same chunks: only the descriptive fields can have changed (a title,
@@ -287,7 +302,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
     return { ...base, status: 'unchanged', chunks: hashes.size, kept: hashes.size };
   }
 
-  const rows = dedupe(await chunkDocument(doc.ocr_text));
+  const rows = dedupe(doc.chunking_mode === 'section_context_v1' ? await chunkTextWithContext(doc.ocr_text) : await chunkDocument(doc.ocr_text));
   base.chunks = rows.length;
 
   if (dryRun) {
@@ -314,7 +329,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   if (misses.length) {
     const started = now();
     try {
-      const r = await deps.embed(misses.map((m) => m.content));
+      const r = await deps.embed(misses.map((m) => 'embedding_input' in m ? (m as ContextChunk).embedding_input : m.content));
       misses.forEach((m, i) => vectors.set(m.chunkHash, r.vectors[i]));
       base.embedded_tokens = r.promptTokens;
       base.cost_usd = r.costUsd;
@@ -350,7 +365,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
     }
   }
 
-  const commit = rows.map((r) => toCommitRow(r, vectors.get(r.chunkHash)));
+  const commit = rows.map((r) => toCommitRow(r, version, vectors.get(r.chunkHash)));
   const keep = rows.map((r) => r.chunkHash);
   const size = Math.max(1, deps.commitBatch ?? COMMIT_BATCH);
   const slices: CommitRow[][] = [];
@@ -371,7 +386,7 @@ export async function ingestOne(deps: IngestDeps, doc: IngestDocument, dryRun: b
   }
   // Only now. A slice that throws leaves indexed_at null, so the document stays
   // invisible and a re-run embeds and commits just the chunks still missing.
-  await deps.db.markIndexed(id, CHUNK.version);
+  await deps.db.markIndexed(id, version);
   return { ...base, ...result };
 }
 

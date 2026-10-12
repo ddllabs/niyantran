@@ -68,6 +68,8 @@ interface Piece {
  */
 export interface SplitOptions {
   atomicPlaceholders?: boolean;
+  /** Existing-text context mode only: prefer whitespace for hard size cuts. */
+  wordBoundaries?: boolean;
 }
 
 /** Image and link tokens; the same pattern pageText.ts uses to recognise placeholders. */
@@ -140,7 +142,7 @@ export function blocks(text: string): Block[] {
  * (placeholder atomicity), a sentence boundary inside a token is skipped and a hard cut inside one moves
  * back to the token's start (forward to its end when the token opens the piece). No tokens: version 2.
  */
-function pieces(text: string, block: Block, o: ChunkOptions, tokens: readonly Piece[] = []): Piece[] {
+function pieces(text: string, block: Block, o: ChunkOptions, tokens: readonly Piece[] = [], wordBoundaries = false): Piece[] {
   const len = block.to - block.from;
   let out: Piece[] = [];
   if (block.kind === 'table' && len > o.tableAtomicMax) {
@@ -169,12 +171,17 @@ function pieces(text: string, block: Block, o: ChunkOptions, tokens: readonly Pi
       if (p.to > p.from) bounded.push(p);
       continue;
     }
-    if (tokens.length === 0) {
+    if (tokens.length === 0 && !wordBoundaries) {
       for (let s = p.from; s < p.to; s += o.maxChars) bounded.push({ from: s, to: Math.min(p.to, s + o.maxChars) });
       continue;
     }
     for (let s = p.from; s < p.to;) {
       let e = Math.min(p.to, s + o.maxChars);
+      if (wordBoundaries && e < p.to && !/\s/.test(text[e - 1]) && !/\s/.test(text[e])) {
+        let k = e - 1;
+        while (k > s && !/\s/.test(text[k])) k--;
+        if (k > s) e = k + 1;
+      }
       const t = tokenAround(tokens, e);
       if (t) e = t.from > s ? t.from : t.to;
       bounded.push({ from: s, to: e });
@@ -225,7 +232,7 @@ export function chunkUnit(unit: ChunkUnit, opts: Partial<ChunkOptions> = {}, spl
   const o: ChunkOptions = { ...CHUNK, ...opts };
   const tokens = split.atomicPlaceholders ? placeholderTokens(unit.text) : [];
   const all: Piece[] = [];
-  for (const b of blocks(unit.text)) all.push(...pieces(unit.text, b, o, tokens));
+  for (const b of blocks(unit.text)) all.push(...pieces(unit.text, b, o, tokens, split.wordBoundaries));
   return pack(unit.text, all, o, tokens).map((s) => ({
     unitKey: unit.unitKey,
     sourceKind: unit.sourceKind,
@@ -451,7 +458,7 @@ const TABLE_DIVIDER = /^\s*\|?[\s:|-]*-[\s:|-]*$/;
  * `from` strictly inside the table block), followed by '\n'; '' otherwise, or when the table's second
  * line is not a divider (no identifiable header).
  */
-function tableHeaderPrefix(pageText: string, tables: readonly Block[], from: number): string {
+export function tableHeaderPrefix(pageText: string, tables: readonly Block[], from: number): string {
   const t = tables.find((b) => b.from < from && from < b.to);
   if (!t) return '';
   const [header, divider] = pageText.slice(t.from, t.to).split('\n');

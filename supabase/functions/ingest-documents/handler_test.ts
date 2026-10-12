@@ -560,3 +560,67 @@ Deno.test('ingestion-v2: a document with storage_path set and extract_hash null 
   assertEquals(logs.length, 0);
   assertEquals(docs.get('Q')!.row, before);
 });
+
+Deno.test('section mode embeds context, keeps original spans and cannot silently downgrade', async () => {
+  const f = fakeDb();
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, db: f.db, embed: fakeEmbed(calls) };
+  const text = '# Powers\nThe authority may act.\n\n# Appeals\nThe applicant may appeal.';
+  const doc = { source_key: 'context-test', title: 'Test', ocr_text: text, chunking_mode: 'section_context_v1' };
+  const response = await handleIngest(post({ documents: [doc] }), deps);
+  const result = await response.json();
+  assertEquals(result.results[0].status, 'indexed');
+  const stored = f.docs.get(doc.source_key)!;
+  assertEquals(result.results[0].chunker_version, 4);
+  assertEquals(stored.chunker_version, 4);
+  assertEquals(stored.hashes.size, 2);
+  assert(calls[0][1].startsWith('Appeals\n\n'));
+  for (const row of stored.hashes.values()) {
+    assertEquals(row.content, text.slice(row.char_from, row.char_to));
+    assert(row.metadata.section);
+  }
+  const again = await (await handleIngest(post({ documents: [doc] }), deps)).json();
+  assertEquals(again.results[0].status, 'unchanged');
+  assertEquals(calls.length, 1);
+  const old = await (await handleIngest(post({ documents: [{ ...doc, chunking_mode: undefined }] }), deps)).json();
+  assertEquals(old.results[0].status, 'refused');
+  assertEquals(stored.chunker_version, 4);
+});
+
+Deno.test('section mode upgrade dry run is no-write and does not reuse bare-text embeddings', async () => {
+  const f = fakeDb();
+  const calls: string[][] = [];
+  const deps: IngestDeps = { secretKey: SECRET, db: f.db, embed: fakeEmbed(calls) };
+  const doc = { source_key: 'upgrade-test', title: 'Test', ocr_text: '# Powers\nAn authority may act.' };
+  await handleIngest(post({ documents: [doc] }), deps);
+  const before = [...f.docs.get(doc.source_key)!.hashes.keys()];
+  const upgraded = { ...doc, chunking_mode: 'section_context_v1' };
+  const dry = await (await handleIngest(post({ documents: [upgraded], dry_run: true }), deps)).json();
+  assertEquals(dry.results[0].status, 'dry_run');
+  assertEquals(dry.results[0].kept, 0);
+  assertEquals(calls.length, 1);
+  assertEquals([...f.docs.get(doc.source_key)!.hashes.keys()], before);
+  await handleIngest(post({ documents: [upgraded] }), deps);
+  assertEquals(calls.length, 2);
+  assert(calls[1][0].startsWith('Powers\n\n'));
+});
+
+Deno.test('section mode partial retry preserves context identity and cannot downgrade while unindexed', async () => {
+  const f = fakeDb();
+  const calls: string[][] = [];
+  const realCommit = f.db.chunkCommit;
+  let commits = 0;
+  const deps: IngestDeps = { secretKey: SECRET, db: { ...f.db, chunkCommit: (id, rows, keep) => { if (++commits === 2) return Promise.reject(Error('interrupted')); return realCommit(id, rows, keep); } }, embed: fakeEmbed(calls), commitBatch: 1 };
+  const doc = { source_key: 'retry-context', title: 'Test', ocr_text: '# Powers\nAn authority may act.\n# Appeals\nAn applicant may appeal.', chunking_mode: 'section_context_v1' };
+  const first = await (await handleIngest(post({ documents: [doc] }), deps)).json();
+  assertEquals(first.results[0].status, 'error');
+  assertEquals(f.docs.get(doc.source_key)!.hashes.size, 1);
+  assertEquals(f.docs.get(doc.source_key)!.chunker_version, null);
+  const old = await (await handleIngest(post({ documents: [{ ...doc, chunking_mode: undefined }] }), deps)).json();
+  assertEquals(old.results[0].status, 'refused');
+  const retry = await (await handleIngest(post({ documents: [doc] }), deps)).json();
+  assertEquals(retry.results[0].status, 'indexed');
+  assertEquals(calls[1].length, 1);
+  assert(calls[1][0].startsWith('Appeals\n\n'));
+  assertEquals(f.docs.get(doc.source_key)!.hashes.size, 2);
+});
