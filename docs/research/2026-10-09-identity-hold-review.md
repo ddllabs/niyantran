@@ -1,5 +1,7 @@
 # Corpus identity-hold investigation
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`d0a8020` (corpus integration, 2026-10-12)). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Read-only corpus/production investigation and narrow local parser correction, 2026-10-09. No ingestion in this phase.
 
 Subsequent owner-go follow-up: the regressed four-point layout preserved139/139 prior passes and recovered two fresh sources, now indexed with12 version4 chunks. Current production is2,505 documents /2,502 indexed /67,854 chunks.52 selected identity cases remain unreleased. [Completed follow-up](2026-10-09-corpus-500-worker-pilot.md). The initial diagnostic results below describe the earlier read-only phase and are preserved as evidence.

@@ -1,5 +1,7 @@
 # Sector selector polish
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`19ffef6`). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Owner requested visual polish on 2026-10-12; task/terminal-follow-up only.
 
 Current native selector looks like an unstyled form field in the restored V6

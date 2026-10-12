@@ -53,8 +53,9 @@ Every coding agent working on this codebase must adhere to these eight non-negot
    in `docs/` (`docs/design.md`, `docs/flow.md`, `docs/decisions/`).
 
 8. **Preserve Established Decisions in Future Integrations:**
-   Future git merges, upstream rebases, or integration tasks must strictly preserve the established decisions
-   documented in ADR 0001 through ADR 0010.
+   Future git merges or integration tasks must strictly preserve the established decisions
+   documented in ADR 0001 through ADR 0010. (The `upstream` remote was retired on
+   2026-09-26; `origin` is the only remote. Corrected 2026-10-13, F105.)
 
 ---
 

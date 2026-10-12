@@ -84,8 +84,12 @@ The system processes two distinct layers of document data:
 
 | Asset | Location / Format | Count | Characteristics | Ingestion Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **OCR Sidecar Slice** | `04_indexes/OCR_FILES.csv` | 12,830 rows | Scanned OCR text with whitespace noise and OCR line breaks. | **2,338 ingested** (100% indexed; affidavits and oversized files excluded). |
-| **Full Source Package** | `01_original_corpus/documents.jsonl.gz` | 1,876,044 records | 18,071 `pdf_text` (extracted directly from digital PDF layers; 7,966 bills, 6,758 parliamentary questions, 2,813 regulatory docs). | **Parked** pending Supabase instance memory upgrade (nano tier `shared_buffers` constraint). |
+| **OCR Sidecar Slice** | `04_indexes/OCR_FILES.csv` | 12,830 rows | Scanned OCR text with whitespace noise and OCR line breaks. | **2,338 ingested** on 2026-09-22 (100% indexed; affidavits and oversized files excluded). |
+| **Full Source Package** | `01_original_corpus/documents.jsonl.gz` | 1,876,044 records | 18,071 `pdf_text` (extracted directly from digital PDF layers; 7,966 bills, 6,758 parliamentary questions, 2,813 regulatory docs). | Parked on 2026-09-22 (nano-tier memory); since ingested in part: linked bill texts and their versions through the RAG v2 runs of 2026-10-08 to 10-10. Remaining linked `pdf_text` acquisition is open-work R7. |
+
+*Corrected 2026-10-13 (F105): the counts above are the 2026-09-22 snapshot. On
+2026-10-13 NTER held 3,379 documents (3,376 indexed) and 99,225 chunks, after
+the F115 duplicate cleanup.*
 
 ### 2.2 Link Extraction & Document Keying
 

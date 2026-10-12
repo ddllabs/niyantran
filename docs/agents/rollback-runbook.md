@@ -41,8 +41,23 @@ git checkout main
 ```
 
 `verify_jwt` is off by design for `research-chat`, `ingest-documents`,
-`refresh-model-pricing` and `desk-brief` (their handlers check the bearer).
-`health` and `admin-models` keep it on.
+`refresh-model-pricing`, `desk-brief`, `ingest-worker`, `admin-ingest`,
+`document-file` and `transcribe-audio` (their handlers check the bearer or a
+shared secret; `supabase/config.toml` records each). `health` and
+`admin-models` keep it on. *(Corrected 2026-10-13, F105: the list predated the
+last four functions.)*
+
+Observed on 2026-10-13 (`research-chat` v48–v50):
+
+- A deploy can fail with `unexpected deploy status 500: Function deploy failed
+  due to an internal error` while leaving the live version untouched. Confirm
+  the version with `supabase functions list` (or the MCP
+  `list_edge_functions`), then retry; `--use-api` succeeded on the third
+  attempt that day.
+- Supabase could not return `research-chat`'s deployed bundle ("Failed to
+  retrieve function bundle") through the MCP, `supabase functions download
+  --use-api` or `--legacy-bundle`. Record the commit every deploy is made
+  from; a rollback redeploys that commit, not a downloaded copy.
 
 Emergency path when no CLI is available (the MCP `deploy_edge_function`
 tool): deploy a single `index.ts` entry that imports the function from this
@@ -108,7 +123,11 @@ inventory and the owner's explicit approval first.
 `ALLOWED_ORIGINS` (Edge Function secret, read by `_shared/cors.ts`) must list
 every origin that calls the functions: today
 `https://niyantran-six.vercel.app,http://localhost:5173`, and nter.pro after
-the cutover. It is changed in the dashboard (Edge Functions → Secrets), and
+the cutover. An entry may hold one `*` inside the host of an `https` origin
+for Vercel's per-deployment previews, for example
+`https://niyantran-*-ddl-labs.vercel.app`; the `*` matches one DNS label of
+letters, digits and hyphens, and any other use of `*` matches nothing. Add it
+only when preview builds must call the functions. *(Added 2026-10-13, F105.)* It is changed in the dashboard (Edge Functions → Secrets), and
 functions pick it up on their next cold start.
 
 ## 6. After any rollback
