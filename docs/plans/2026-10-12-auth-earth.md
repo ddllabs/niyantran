@@ -1,5 +1,7 @@
 # Auth Earth implementation
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`f20ef35` (merged 2026-10-12, pushed and deployed with F102/F103)). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Owner authorized 2026-10-12; sequential work on task/client-ui-spec.
 
 1. Verify primary Three.js API and texture source/licence. Download optimized

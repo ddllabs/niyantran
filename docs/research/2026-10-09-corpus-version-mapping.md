@@ -1,5 +1,7 @@
 # Alternate bill-version mapping audit
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`d0a8020` (corpus integration, 2026-10-12)). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Executed2026-10-09. R7 mapping/preparation evidence; no new ingestion or publication. [Spec](../specs/2026-10-09-corpus-version-mapping.md), [plan](../plans/2026-10-09-corpus-version-mapping.md).
 
 Yes, more files already have local mappings. The frozen broader bill inventory has6,829 unstored sources with local text, source URLs and bill keys. That is a candidate count, not a verified ingestion count.827 are marked as the same bill with another document version; they must not be conflated with links to a different bill.

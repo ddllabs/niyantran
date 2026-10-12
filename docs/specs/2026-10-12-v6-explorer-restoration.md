@@ -1,5 +1,7 @@
 # Restore the original V6 module explorer
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`70267e8`). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Owner correction and sector-selector decision approved on 2026-10-12. Supersedes the accordion design in the earlier module-discovery spec.
 
 The implementation at 66c7944 introduced a new accordion design rather than

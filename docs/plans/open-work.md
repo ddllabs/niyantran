@@ -43,8 +43,8 @@ NTER. No tests were rerun for this note.
     - version backfills: F116 / F117 (24 + 1,153 + 456 rows);
     - deletions: F115 (1 + 51 + 3 documents).
   - R7 stays open.
-- **Done today:** F104, F69, F113, F115, F117 (versions for the whole bill
-  corpus).
+- **Done today:** F104, F69, F105 (docs reconciled), F106 (NterEarth retired),
+  F113, F115, F117 (versions for the whole bill corpus).
 - **Shipped and awaiting the owner's check on production:**
   - F112: navigation, type scale, search and hero spacing;
   - F114: side panel collapsed by default on module pages;
@@ -56,10 +56,11 @@ NTER. No tests were rerun for this note.
   - F107: legal pages, awaiting the full address and a lawyer review;
   - F108: legal text is stored per browser;
   - F109: INR billing, with migration `20261012120000` applied.
-- **Blocked on the owner:**
-  - F111: needs a definition of an AI credit;
-  - O6: live Razorpay keys;
-  - F105: stale documentation to reconcile.
+- **Order of work (owner, 2026-10-13):**
+  1. finish the existing bugs and fixes;
+  2. the owner's next UI changes, to be described;
+  3. plan AI credits (F111);
+  4. the Razorpay integration and live keys (O6).
 
 ## UI follow-ups
 
@@ -182,14 +183,6 @@ NTER. No tests were rerun for this note.
   credits carried forward, enforcement in research-chat, NYAI gating to
   Pro/Max).
 
-- [ ] **F105. Reconcile stale documentation.** Found in the 2026-10-12
-  read-only review: `agents/rollback-runbook.md` omits `ingest-worker`,
-  `admin-ingest` and `document-file` and the preview origin pattern;
-  `Architectures/01`, `03` and `06` still quote the 2,338-document / nano-tier
-  figures; `ai-agent.md` rule 8 mentions upstream rebases; several dated
-  plans/specs still read "local only / not merged" for work now in `main`.
-  Documentation only; correct in place or mark Historical.
-
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
 
@@ -261,6 +254,17 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 
 ## 1. Done
+
+- [x] **F105. Reconcile stale documentation.** Owner approved 2026-10-13.
+  - `agents/rollback-runbook.md`: all eight `verify_jwt = false` functions,
+    the 2026-10-13 deploy-500 and unreadable-bundle notes, and the preview
+    origin pattern.
+  - `Architectures/01` and `06`: the 2,338-document and 54,219-chunk figures
+    dated as 2026-09-22 snapshots, with the 2026-10-13 counts.
+  - `ai-agent.md` rule 8: the retired upstream remote.
+  - Nine Living plans, specs and research reports whose "uncommitted / local
+    only" lines are stale got a dated reconciliation note naming the `main`
+    commit. Historical records were left as written.
 
 - [x] **F106. Retire the unused NterEarth runtime.** Owner approved
   2026-10-13. Removed `src/marketing/NterEarth.jsx` and its test,

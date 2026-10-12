@@ -1,5 +1,7 @@
 # Larger-document worker plan
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`d0a8020` (corpus integration, 2026-10-12)). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Sequential, no delegation. [Spec](../specs/2026-10-09-medium-worker.md).
 
 1. Add failing tests for explicit medium profile, unchanged small defaults, illegal profiles/limits and pagination beyond101/800 rows; real context handler multi-commit/lost-response reconciliation and partial-commit hold.

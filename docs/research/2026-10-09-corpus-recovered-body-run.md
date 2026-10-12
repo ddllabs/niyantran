@@ -1,5 +1,7 @@
 # Recovered body-text corpus run
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`d0a8020` (corpus integration, 2026-10-12)). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Owner requested continue/do500 on2026-10-09. Exact eligible stage preparation; execution evidence appended after verification.
 
 The500-capacity worker is available, but500 new documents are not currently identity-proven. A complete read-only refresh of7,064 frozen bill sources against19,634 current bill-feature rows and2,505 stored documents found327 unstored exact-Download candidates within historical size bounds,438 listing-identity holds,6,124 unresolved Download URLs,11 oversize sources and164 stored sources. These are exclusive screening classifications, not claims that every unresolved URL is wrong. Valid alternate versions, cross-year resolver errors and missing URLs must be distinguished.6,855 nonbill sources remain outside the existing bill-only attachment/worker scope.

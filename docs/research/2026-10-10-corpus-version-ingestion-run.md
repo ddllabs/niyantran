@@ -1,5 +1,7 @@
 # Approved corpus version ingestion
 
+> **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`d0a8020` (corpus integration, 2026-10-12); the retrieval correction reached production as `research-chat` v48 on 2026-10-13). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
+
 > **Status: Living.** Execution completed 2026-10-10; final independent audit and accounting passed. R7 mapping work and owner natural-language sample acceptance remain open.
 
 Owner-authorized resume uses the existing sequential_500_v1 worker: at most 500 documents per job, one document in flight, complete version-4 context chunks, with independent audits and ANALYZE/count gates. Current proven queue is 175 alternate-version documents for 116 already-covered bill keys, 12,842 chunks and 8,584,074 Unicode characters. It adds versions, not new bill coverage. Do not expand it with unverified or wrong-Download candidates.

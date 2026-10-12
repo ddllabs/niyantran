@@ -157,9 +157,9 @@ flowchart TD
 ```
 
 #### Why Scoped Uses B-Tree Pre-Filtering Rather Than HNSW
-1. **Elimination of Post-Filter Candidate Loss:** HNSW graph traversal on a 54,219-chunk dataset returns the top 40 global nearest neighbors. If the search is scoped to a specific 25-chunk document, HNSW post-filtering drops 98% of candidates, returning 0 to 1 chunk.
+1. **Elimination of Post-Filter Candidate Loss:** HNSW graph traversal on a 54,219-chunk dataset (2026-09-22; 99,225 chunks on 2026-10-13) returns the top 40 global nearest neighbors. If the search is scoped to a specific 25-chunk document, HNSW post-filtering drops 98% of candidates, returning 0 to 1 chunk.
 2. **In-Memory Scoring Velocity:** Over 20 to 900 chunks, scanning `document_chunks_document_order` B-tree index takes $< 1\text{ ms}$. Computing exact cosine distances in memory is faster than graph traversal and guaranteed to find the true nearest neighbor (similarity 1.0).
-3. **Late Join Optimization:** Joining `documents` after computing the top candidates replaces hashing the 2,338-row `documents` table with $\le 40$ primary-key index lookups.
+3. **Late Join Optimization:** Joining `documents` after computing the top candidates replaces hashing the `documents` table (2,338 rows when this was measured on 2026-09-22; 3,379 on 2026-10-13) with $\le 40$ primary-key index lookups.
 
 ---
 
