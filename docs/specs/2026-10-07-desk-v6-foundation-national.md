@@ -40,8 +40,8 @@ Prove mapping/unknown/dedup/stage guards fail under the protected defect. Browse
 
 Owner-approved F95 direct entry and the three terminal follow-up specs supersede
 the selection/explorer/dialog and commercial directory clauses above. Picture
-cards open the approved defaults directly. An optional collapsed all-module
-disclosure with per-sector accordions exposes direct sibling-module links; no
+cards open the approved defaults directly. The restored original selected-sector explorer
+with an internal sector selector exposes direct sibling-module links; no
 Open in Terminal popup is required. The directory no longer accepts lockedIds:
 all authorized signed-in accounts receive all known desks, copy/export and
 rows without commercial caps. Authentication and AI limits remain binding.
@@ -50,3 +50,5 @@ rows without commercial caps. Authentication and AI limits remain binding.
 [free access](2026-10-12-free-desk-access.md) define the current UI contracts.
 Data availability, truthful source summaries, assets and workspace callbacks
 remain unchanged. [Local execution evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
+
+Owner correction: [original V6 explorer restoration](2026-10-12-v6-explorer-restoration.md) supersedes the accordion introduced by F96.

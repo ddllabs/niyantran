@@ -95,6 +95,8 @@ Current baseline (read-only observations, 2026-10-03):
 
 ## 1. Done
 
+- [x] **F100. Restore original V6 selected-sector explorer.** Owner preview correction implemented locally in `70267e8`: original left sector details and right icon/count/coverage module cards, with approved internal sector select; all 35 picture-card defaults and 120 direct module destinations retained. 2,506 tests, lint/build/assets and eight-desk browser matrix passed. [Evidence](../research/2026-10-12-v6-explorer-restoration-local-run.md). Corpus untouched; no merge/push/deploy.
+
 - [x] **F96. Optional landing module discovery.** Implemented locally in `66c7944`: collapsed all-module disclosure, per-sector accordions and 120 direct links across eight desks; all 35 approved picture-card defaults retained. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
 - [x] **F97. Meaningful terminal header controls.** Implemented locally in `540f99d` / `12a148c`: disabled bell and unused icon removed, landing refresh hidden, Home/module refresh retained, sun/moon with next-action labels. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
 - [x] **F98. Free signed-in desk access, copy and export.** Implemented locally in `ec89cdc`: all known desks/modules, no commercial row caps, no terminal Upgrade interruption or signup plan step, entry independent of subscription metadata. Account authorization, stored billing facts and AI limits retained. This owner-approved desk contract supersedes earlier commercial-lock assumptions; no backend enforcement work activated. 2,504 Vitest / 880 Deno, lint/build/assets and isolated browser matrix passed. Corpus excluded. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md). No push/deployment/main merge.

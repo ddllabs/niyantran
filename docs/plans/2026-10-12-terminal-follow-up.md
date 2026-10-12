@@ -183,3 +183,9 @@ Full checks: 2,504 Vitest tests / 185 files, 880 Deno tests, lint, build and
 asset verification passed. Existing build chunk-size warning remains.
 [Executed browser matrix, guard failures, boundaries and preservation audit](../research/2026-10-12-terminal-follow-up-local-run.md).
 All code tasks are complete locally; no owner acceptance is inferred.
+
+## Owner preview correction
+
+Owner rejected the accordion design after local preview and requested the
+original V6 explorer component, retaining direct picture links with a sector
+selector inside the explorer. F100 and the [restoration plan](2026-10-12-v6-explorer-restoration.md) supersede T1’s layout. Prior execution evidence remains dated history.

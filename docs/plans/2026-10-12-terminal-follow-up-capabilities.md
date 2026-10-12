@@ -6,7 +6,7 @@
 
 | Module id | Responsibility | Depends on | Spec |
 | --- | --- | --- | --- |
-| desk-module-discovery | Restore optional module visibility below picture cards; direct links throughout | Existing presentation groups and canonical routing | [Spec](../specs/2026-10-12-desk-module-discovery.md) |
+| desk-module-discovery | Restore original V6 selected-sector explorer below picture cards; direct links throughout | Existing presentation groups and canonical routing | [Spec](../specs/2026-10-12-desk-module-discovery.md) |
 | terminal-header-controls | Remove disabled bell, hide ineffective landing refresh, clarify theme toggle | Existing shell route and theme state | [Spec](../specs/2026-10-12-terminal-header-controls.md) |
 | free-desk-access | All signed-in users get all desks, modules, rows, copy and export; remove upgrade interruptions and signup plan selection | Existing session/authentication boundaries | [Spec](../specs/2026-10-12-free-desk-access.md) |
 
@@ -53,3 +53,5 @@ Corpus safeguard: 94 pre-existing dirty files were hashed before planning.
 Only the shared tracker receives additive planning entries; every other
 pre-existing file must retain its hash. Existing tracker content must also be
 preserved verbatim.
+
+Owner preview correction: the accordion design is superseded by [F100 restoration](2026-10-12-v6-explorer-restoration.md); header/free-access boundaries remain unchanged.
