@@ -179,8 +179,8 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - Status: batch 1 merged to `main` at `a62c2bb` and pushed on 2026-10-13,
     after an independent re-review. Batch 2 (seven modules, the value board,
     country centres, and Record tabs for Heads of State and Global
-    Commodities) is built on `task/global-record-panels-b2`; it awaits an
-    independent review, a local merge and the owner's go-ahead to push.
+    Commodities) passed an independent review and re-check and was merged to
+    `main` locally at `931538c`; it awaits the owner's go-ahead to push.
     Batch 3 follows the owner's review on production.
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
