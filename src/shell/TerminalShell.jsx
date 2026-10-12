@@ -9,6 +9,7 @@ import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import UpgradeModal from './UpgradeModal.jsx';
 import { Icon } from './Icons.jsx';
+import { Moon, Sun } from 'lucide-react';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isChokepointsFeature } from '../lib/strategicAssets.js';
@@ -394,9 +395,6 @@ export default function TerminalShell({ onLogout }) {
           <button type="button" className="icon-btn" onClick={() => setLang(hi ? 'en' : 'hi')}>
             {hi ? 'HI' : 'EN'}
           </button>
-          <button type="button" className="icon-btn" disabled title="Notifications not configured (Beta)">
-            <Icon name="bell" />
-          </button>
           <div className="tv-wrap">
             <button
               type="button"
@@ -417,21 +415,22 @@ export default function TerminalShell({ onLogout }) {
               onNavigateDesk={(deskTab, feature) => onOpen({ tab: deskTab, feature: feature || '' })}
             />
           </div>
-          <button
+          {!v6Landing && <button
             type="button"
             className={`icon-btn${loading ? ' spin' : ''}`}
             onClick={() => setReload((n) => n + 1)}
             title="Refresh feed"
           >
             <Icon name="refresh" />
-          </button>
+          </button>}
           <button
             type="button"
             className="icon-btn"
             onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-            title="Theme"
+            title={theme === 'light' ? hi ? 'डार्क मोड पर जाएँ' : 'Switch to dark mode' : hi ? 'लाइट मोड पर जाएँ' : 'Switch to light mode'}
+            aria-label={theme === 'light' ? hi ? 'डार्क मोड पर जाएँ' : 'Switch to dark mode' : hi ? 'लाइट मोड पर जाएँ' : 'Switch to light mode'}
           >
-            <Icon name="info" />
+            {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
           <div className="profile-wrap" ref={profileRef}>
             <button

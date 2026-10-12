@@ -51,3 +51,18 @@ describe('v6 header hierarchy', () => {
     expect(html.match(/class="v6-landing-tabs"/g)).toHaveLength(1);
   });
 });
+
+
+describe('meaningful header controls', () => {
+  it.each(['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'])('hides ineffective refresh and notifications on %s landing', desk => {
+    location.hash = '#/' + desk;
+    const html = renderToStaticMarkup(<TerminalShell/>);
+    expect(html).not.toContain('Notifications not configured');
+    expect(html).not.toContain('Refresh feed');
+    expect(html).toContain('aria-label="Switch to dark mode"');
+  });
+  it.each(['#/home', '#/economics/Live%20Global%20Stock%20Exchanges'])('keeps functional refresh on %s', hash => {
+    location.hash = hash;
+    expect(renderToStaticMarkup(<TerminalShell/>)).toContain('Refresh feed');
+  });
+});
