@@ -3102,6 +3102,24 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-pr-hero {
   padding: 36px 0 8px;
 }
+/* The shared photographic globe sits beside the header copy, in the flow, so
+   the plan cards start below it instead of cutting across it. */
+@media (min-width: 1025px) {
+  .mkt-pr-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(400px, 34vw);
+    align-items: center;
+    gap: 40px;
+    padding-bottom: 32px;
+  }
+}
+.mkt-pr-earth {
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 1024px) {
+  .mkt-pr-earth { display: none; }
+}
 .mkt-pr-card-body,
 .mkt-pr-card-lead {
   display: contents;

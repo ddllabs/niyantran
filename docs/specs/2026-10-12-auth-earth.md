@@ -221,3 +221,14 @@ earlier one stopped): pause toggles, never overlaps a label at 360/768/1280/
 1440 on all three pages; footer credit visible with both links; homepage
 labels keep their offsets; zero console errors. Homepage 15 px overflow at
 360/768 remains the existing F80 trivia block.
+
+### Amendment 7 — the same globe on the pricing page (owner, 2026-10-12)
+
+The pricing header showed a flat globe image with SVG rings, absolutely
+positioned so the plan cards cut across it. It now uses the shared globe
+(`AuthEarth labels={false}`) in a second column of the header, in the flow, so
+the notes and cards start below it; hidden at 1024 px and under, as the old
+image was. Red-first source test in `publicPlans.test.js`; `npm test` 193
+files / 2,553 tests, lint, build. Browser: globe whole and above the notes at
+1100–1920 px, no overflow at 360–1920 px, zero console errors on a fresh tab
+(pricing, home, signup).

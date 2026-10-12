@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PRICING_COMPARE, PRICING_NOTES, PUBLIC_PLANS, rupees } from '../lib/publicPlans.js';
 import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
+import AuthEarth from './AuthEarth.jsx';
 
 function Ico({ d, size = 18 }) {
   return (
@@ -72,60 +73,38 @@ export default function PricingPage({ onLogin, onContact }) {
         <span className="mkt-pr-sh sand" />
         <span className="mkt-pr-sh purple" />
         <span className="mkt-pr-sh red" />
-        <div className="mkt-pr-globe-wrap">
-          <div className="mkt-pr-fx">
-            <span className="mkt-pr-halo" />
-            <span className="mkt-pr-ring r1" />
-            <span className="mkt-pr-ring r2" />
-            <span className="mkt-pr-ring r3" />
-            <span className="mkt-pr-spark s1" />
-            <span className="mkt-pr-spark s2" />
-            <span className="mkt-pr-spark s3" />
-            <span className="mkt-pr-spark s4" />
-            <span className="mkt-pr-spark s5" />
-          </div>
-          <svg className="mkt-pr-orbits" viewBox="0 0 400 400" aria-hidden="true">
-            <ellipse cx="200" cy="200" rx="188" ry="72" fill="none" stroke="#e4dfd6" strokeWidth="1" strokeDasharray="3 6" transform="rotate(-22 200 200)" />
-            <ellipse cx="200" cy="200" rx="176" ry="58" fill="none" stroke="#ebe6de" strokeWidth="1" strokeDasharray="2 7" transform="rotate(16 200 200)" />
-            <circle cx="200" cy="200" r="152" fill="none" stroke="#ddd8cf" strokeWidth="1" strokeDasharray="2 4" />
-            <ellipse cx="200" cy="200" rx="72" ry="152" fill="none" stroke="#e6e1d8" strokeWidth="0.8" strokeDasharray="2 5" />
-            <ellipse cx="200" cy="200" rx="152" ry="48" fill="none" stroke="#e6e1d8" strokeWidth="0.8" strokeDasharray="2 5" />
-            <ellipse cx="200" cy="200" rx="152" ry="100" fill="none" stroke="#ece7de" strokeWidth="0.7" strokeDasharray="2 6" />
-            <circle cx="318" cy="118" r="3" fill="#c81322" />
-            <circle cx="86" cy="168" r="3" fill="#012ea1" />
-            <circle cx="274" cy="286" r="2.5" fill="#c81322" />
-          </svg>
-          <img className="mkt-pr-globe" src="/brand/globe.png?v=3" alt="" width="1536" height="1024" />
-        </div>
       </div>
 
       <section className="mkt-wrap mkt-pr-hero">
-        <p className="mkt-pr-kicker">
-          <span className="live">● LIVE</span>
-          PRICING
-          <span className="sys">SYS/READY_</span>
-        </p>
-        <h1>
-          Choose the plan that <em>powers</em> your mission
-        </h1>
-        <p className="mkt-pr-lede">
-          Niyantran Terminal delivers real-time intelligence, authoritative data, and powerful tools for government, policy, and global affairs—built for scale, security, and impact.
-        </p>
-        <div className="mkt-pr-tele">
-          <span>
-            <i />
-            MODULES {SITE_FIGURES.modules}
-          </span>
-          <span>
-            <i />
-            BILLS {figure(SITE_FIGURES.bills)}
-          </span>
-          <span>
-            <i />
-            DOCUMENTS {figure(SITE_FIGURES.documents)}
-          </span>
-          <span className="blink">▌</span>
+        <div className="mkt-pr-hero-copy">
+          <p className="mkt-pr-kicker">
+            <span className="live">● LIVE</span>
+            PRICING
+            <span className="sys">SYS/READY_</span>
+          </p>
+          <h1>
+            Choose the plan that <em>powers</em> your mission
+          </h1>
+          <p className="mkt-pr-lede">
+            Niyantran Terminal delivers real-time intelligence, authoritative data, and powerful tools for government, policy, and global affairs—built for scale, security, and impact.
+          </p>
+          <div className="mkt-pr-tele">
+            <span>
+              <i />
+              MODULES {SITE_FIGURES.modules}
+            </span>
+            <span>
+              <i />
+              BILLS {figure(SITE_FIGURES.bills)}
+            </span>
+            <span>
+              <i />
+              DOCUMENTS {figure(SITE_FIGURES.documents)}
+            </span>
+            <span className="blink">▌</span>
+          </div>
         </div>
+        <div className="mkt-pr-earth"><AuthEarth labels={false} /></div>
       </section>
 
       <div className="mkt-wrap">
