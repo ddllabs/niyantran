@@ -25,6 +25,7 @@ function row(id, owner, n) {
 }
 
 let invoices;
+let entitlements;
 let issued;
 let granted;
 let grantError;
@@ -35,7 +36,10 @@ function userClient(token) {
   const visible = () => invoices.filter((r) => who && (r.user_id === who.id || who.admin));
   return {
     auth: { getUser: vi.fn(async () => (who ? { data: { user: { id: who.id, email: who.email } }, error: null } : { data: { user: null }, error: { message: 'bad jwt' } })) },
-    rpc: vi.fn(async (name) => ({ data: name === 'is_platform_admin' ? Boolean(who?.admin) : { user_id: who?.id, role: who?.admin ? 'admin' : 'user', status: 'active' }, error: null })),
+    rpc: vi.fn(async (name) => {
+      if (name === 'my_entitlement') return { data: entitlements[who?.id] || { plan: 'free', status: 'free' }, error: null };
+      return { data: name === 'is_platform_admin' ? Boolean(who?.admin) : { user_id: who?.id, role: who?.admin ? 'admin' : 'user', status: 'active' }, error: null };
+    }),
     from: vi.fn(() => {
       const filters = [];
       const chain = {
@@ -79,7 +83,7 @@ function razorpay({ order = {}, payment = { status: 'captured' } } = {}) {
 }
 
 function deps(extra = {}) {
-  return { adminClient, clientForToken: userClient, razorpayFetch: razorpay(), serverless: false, razorpayEnabled: true, ...extra };
+  return { adminClient, clientForToken: userClient, razorpayFetch: razorpay(), serverless: false, razorpayEnabled: true, checkoutOpen: true, ...extra };
 }
 
 function request(method, path, { body, as } = {}) {
@@ -97,6 +101,7 @@ async function call(req, d = deps()) {
 
 beforeEach(() => {
   invoices = [row('inv_a_one', A, 1), row('inv_b_one', B, 2)];
+  entitlements = {};
   issued = [];
   granted = [];
   grantError = null;
@@ -301,5 +306,38 @@ describe('Razorpay orders and verification', () => {
     expect(retry.status).toBe(200);
     expect(retry.body).toMatchObject({ ok: true, invoice: null });
     expect(granted).toHaveLength(2);
+  });
+});
+
+describe('checkout stays closed until the owner opens it (F110)', () => {
+  it('reports checkout closed even with Razorpay keys, and creates no order', async () => {
+    const rz = razorpay();
+    const closed = deps({ checkoutOpen: false, razorpayFetch: rz });
+    expect((await call(request('GET', '/api/billing/config'), closed)).body).toMatchObject({ enabled: false, checkoutOpen: false });
+    const response = await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'pro' } }), closed);
+    expect(response.status).toBe(503);
+    expect(response.body.reason).toMatch(/open soon/i);
+    expect(rz).not.toHaveBeenCalled();
+  });
+
+  it('reports checkout open only when keys exist and the switch is on', async () => {
+    expect((await call(request('GET', '/api/billing/config'))).body).toMatchObject({ enabled: true, checkoutOpen: true });
+    expect((await call(request('GET', '/api/billing/config'), deps({ razorpayEnabled: false }))).body).toMatchObject({ enabled: false });
+  });
+});
+
+describe('upgrades only while a plan is active (owner, F110)', () => {
+  it('refuses a lower plan, allows the same plan and a higher one', async () => {
+    entitlements[A.id] = { plan: 'pro', status: 'active', period_end: '2099-01-01T00:00:00Z' };
+    const lower = await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'plus' } }));
+    expect(lower.status).toBe(409);
+    expect(lower.body.reason).toMatch(/upgrade/i);
+    expect((await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'pro' } }))).status).toBe(200);
+    expect((await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'max' } }))).status).toBe(200);
+  });
+
+  it('lets a free or lapsed account choose any paid plan', async () => {
+    entitlements[A.id] = { plan: 'free', status: 'free', lapsed: true, granted_plan: 'max' };
+    expect((await call(request('POST', '/api/billing/create-order', { as: A, body: { planId: 'plus' } }))).status).toBe(200);
   });
 });

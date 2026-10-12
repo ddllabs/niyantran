@@ -343,3 +343,18 @@
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Plan & billing (F110) */
+.plan-billing { width: min(640px, 100%); }
+.plan-up-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.plan-up-plan:disabled { opacity: 0.5; cursor: not-allowed; }
+.plan-up-renew { margin: -6px 0 14px; padding: 8px 12px; border-radius: 10px; background: #fbf3e6; color: #8a5a12; font-size: 13px; }
+.plan-up-selnote { margin: 12px 0 0; font-size: 13px; line-height: 1.45; color: #3d3a36; }
+.plan-up-sub { margin: 20px 0 8px; font-size: 11px; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; color: #5c564c; }
+.plan-up-invoices { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.plan-up-invoices li { display: grid; grid-template-columns: 1.4fr 1fr auto auto; gap: 12px; align-items: center; padding: 8px 10px; border: 1px solid #e4ddd4; border-radius: 10px; font-size: 13px; }
+.plan-up-pay:disabled:not([aria-busy]) { cursor: not-allowed; }
+@media (max-width: 560px) {
+  .plan-up-choices { grid-template-columns: 1fr; }
+  .plan-up-invoices li { grid-template-columns: 1fr auto; }
+}

@@ -62,7 +62,7 @@ function onCardMove(e) {
 export default function PricingPage({ onLogin, onContact }) {
   const [focus, setFocus] = useState(null);
   const plans = PUBLIC_PLANS;
-  const goPlan = () => onLogin?.('signup');
+  const goPlan = (planId) => onLogin?.(planId);
 
   return (
     <div className="mkt-pr">
@@ -138,7 +138,7 @@ export default function PricingPage({ onLogin, onContact }) {
                     </div>
                     <div className="unit">{p.unit}</div>
                     <p className="tag">{p.tag}</p>
-                    <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={goPlan}>
+                    <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={() => goPlan(p.id)}>
                       {p.cta}
                     </button>
                     {p.plus ? (

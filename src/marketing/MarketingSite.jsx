@@ -11,6 +11,7 @@ import { AboutPage, ContactPage, DeliveryPage, RefundPage } from './PolicyPages.
 import { LEGAL_PATHS as LEGAL, isLegalPathname } from './legalRoutes.js';
 import { loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
+import { sessionUser } from '../lib/userStore.js';
 import './marketing.css';
 
 function pageFromRoute() {
@@ -148,7 +149,16 @@ export default function MarketingSite({ onAuthed }) {
         <HomePage onLogin={() => go('login')} onCoverage={onCoverage} onPricing={() => go('pricing')} />
       )}
       {page === 'pricing' && (
-        <PricingPage onLogin={() => go('signup')} onContact={() => go('contact')} />
+        <PricingPage
+          onLogin={(planId) => {
+            // Signed in: open Plan & billing in the terminal with this plan chosen.
+            if (sessionStorage.getItem('niyantranAuthed') === '1' && sessionUser()) {
+              sessionStorage.setItem('niyOpenBilling', planId || '');
+              location.hash = '#/';
+            } else go('signup');
+          }}
+          onContact={() => go('contact')}
+        />
       )}
       {page === 'privacy' && <PrivacyPage />}
       {page === 'terms' && <TermsPage />}

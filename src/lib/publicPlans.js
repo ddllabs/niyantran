@@ -45,6 +45,21 @@ export function normalizePlanId(plan) {
   return PUBLIC_PLANS.some(p => p.id === next) ? next : 'free';
 }
 
+const PLAN_RANK = { free: 0, plus: 1, pro: 2, max: 3 };
+
+// What buying `target` means for an account (owner, F110): any paid plan from
+// Free (or a lapsed month); while a plan is active, the same plan renews and a
+// higher one upgrades from now; a lower plan or Free cannot be bought.
+export function purchaseKind(entitlement, target) {
+  const want = PLAN_RANK[String(target || '').toLowerCase()];
+  if (!want) return 'blocked';
+  const active = entitlement?.status === 'active' && !entitlement?.lapsed;
+  const have = active ? PLAN_RANK[normalizePlanId(entitlement.plan)] : 0;
+  if (!have) return 'choose';
+  if (want === have) return 'renew';
+  return want > have ? 'upgrade' : 'blocked';
+}
+
 export const PRICING_COMPARE = [
   ['Desks and modules', 'All 8 desks', 'All 8 desks', 'All 8 desks', 'All 8 desks'],
   ['AI research assistant', true, true, true, true],
