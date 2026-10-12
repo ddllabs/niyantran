@@ -136,8 +136,13 @@ note.
     - Passed Lok Sabha: 8
     - Passed both Houses: 7
     - Hindi: 2
-  - Owner decision needed: derive roles from the folder (the code avoids
-    filename inference today), and whether to add a "Synopsis" role.
+  - **Done for five folders, 2026-10-13** (owner approved the URL-folder
+    approach): 1,153 documents gained `document_role`, with a
+    `document_role_source` marker.
+    [Record](../research/2026-10-13-document-role-folder-backfill.md).
+  - Remaining: 467 synopses wait on the owner's decision on a "Synopsis"
+    role, which needs label-map code and a `research-chat` deploy; 2 Hindi
+    files are left as they are.
   - The 24-document old-key backfill is done:
     [record](../research/2026-10-13-document-role-backfill.md).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,

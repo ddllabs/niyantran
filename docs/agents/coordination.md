@@ -1712,3 +1712,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   rows from the 2026-10-08 run gained `metadata.document_role`, copied from
   `metadata.role`; no chunks or embeddings changed.
   [Record](../research/2026-10-13-document-role-backfill.md).
+- **Document role from URL folder (F117, NTER data change):** the owner
+  approved it. 1,153 bill documents gained `metadata.document_role` and the
+  marker `document_role_source = sansad_url_folder`; the checksum matches the
+  saved inventory, and no chunks changed.
+  [Record](../research/2026-10-13-document-role-folder-backfill.md).
