@@ -554,6 +554,11 @@
 .theme-dark .desk-v6[data-desk=law] .hero-photo img{opacity:.72}
 
 /* Restore the reference explorer; sector selection is independent of direct picture links. */
-.desk-v6 .explorer-selector{display:block;margin-top:12px;font-size:11px;color:var(--explorer-muted)}
-.desk-v6 .explorer-selector select{display:block;width:100%;min-width:0;max-width:100%;min-height:44px;margin-top:6px;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--paper);color:var(--ink);font:inherit;touch-action:manipulation}
-.desk-v6 .explorer-selector select:focus-visible{outline:3px solid #6287f7;outline-offset:4px}
+.desk-v6 .explorer-selector{display:block;margin-top:14px;color:var(--explorer-muted)}
+.desk-v6 .explorer-selector label{display:block;font-size:10px;font-weight:600;letter-spacing:.6px}
+.desk-v6 .explorer-selector-control{position:relative;margin-top:7px}
+.desk-v6 .explorer-selector select{appearance:none;-webkit-appearance:none;display:block;width:100%;min-width:0;max-width:100%;min-height:44px;padding:12px 34px 12px 12px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:12px;font-weight:600;line-height:1.4;text-overflow:ellipsis;cursor:pointer;touch-action:manipulation;box-shadow:0 2px 4px #1b283d05}
+.desk-v6 .explorer-selector-control>svg{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--explorer-muted);pointer-events:none}
+.desk-v6 .explorer-selector select:hover{border-color:#8ea8d0}
+.desk-v6 .explorer-selector select:focus-visible{outline:3px solid #6287f7;outline-offset:3px;border-color:var(--blue)}
+.theme-dark .desk-v6 .explorer-selector select{background:var(--paper);color-scheme:dark;box-shadow:none}

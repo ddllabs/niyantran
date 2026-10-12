@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { ArrowRight, ArrowUpRight, Database, FileText, Network, Newspaper, Pause, Play, Users } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, ChevronDown, Database, FileText, Network, Newspaper, Pause, Play, Users } from 'lucide-react';
 import { DESK_IMAGES, DESK_IMAGE_CREDITS } from './deskImages.js';
 import { deskHash } from '../../lib/deskRoute.js';
 import { formatCount, moduleAvailability, sourceDate, summarizeModules } from './deskPresentation.js';
@@ -41,9 +41,9 @@ export function ModuleExplorer({ presentation, group, summaries, onSector, onFea
       <div><span className="eyebrow">INSIDE THIS SECTOR</span><h2 id={`${id}-explorer`}>{group?.name}</h2><p>{group?.description}</p></div>
       <span className="explorer-badge">{group?.modules.length || 0} modules · {group?.modules.filter(module => hasSource(summaries[module.feature])).length || 0} with sources</span>
       <div className="explorer-selector"><label htmlFor={`${id}-sector`}>{lang === 'hi' ? 'सेक्टर चुनें' : 'Select a sector'}</label>
-        <select id={`${id}-sector`} value={group?.id || ''} onChange={event => onSector(event.target.value)}>
+        <div className="explorer-selector-control"><select id={`${id}-sector`} title={group?.name} value={group?.id || ''} onChange={event => onSector(event.target.value)}>
           {presentation.groups.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
+        </select><ChevronDown aria-hidden="true" /></div>
       </div>
     </div>
     <div key={group?.id} className="module-list refresh" id={`${id}-modules`} tabIndex={0} aria-label="Modules in the selected sector">
