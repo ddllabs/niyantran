@@ -59,7 +59,6 @@ NTER. No tests were rerun for this note.
 - **Blocked on the owner:**
   - F111: needs a definition of an AI credit;
   - O6: live Razorpay keys;
-  - F106: needs approval to retire NterEarth;
   - F105: stale documentation to reconcile.
 
 ## UI follow-ups
@@ -183,12 +182,6 @@ NTER. No tests were rerun for this note.
   credits carried forward, enforcement in research-chat, NYAI gating to
   Pro/Max).
 
-- [ ] **F106. Retire the unused NterEarth runtime.** Since F103 amendment 5
-  the homepage hero renders the shared photographic globe. `src/marketing/
-  NterEarth.jsx` (and its test), `public/brand/earth/nter-earth.js`,
-  `earth-poster.png` and the old `.mkt-earth*` / login-orb CSS are no longer
-  rendered. Remove only with owner approval and an exact file inventory.
-
 - [ ] **F105. Reconcile stale documentation.** Found in the 2026-10-12
   read-only review: `agents/rollback-runbook.md` omits `ingest-worker`,
   `admin-ingest` and `document-file` and the preview origin pattern;
@@ -268,6 +261,16 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 
 ## 1. Done
+
+- [x] **F106. Retire the unused NterEarth runtime.** Owner approved
+  2026-10-13. Removed `src/marketing/NterEarth.jsx` and its test,
+  `public/brand/earth/nter-earth.js` (282 KB), `earth-poster.png` (450 KB),
+  and the dead `.mkt-earth*`, `.mkt-login-earth .mkt-login-orb` and
+  `.mkt-login-earth-control` CSS. Kept `.mkt-login-orb`, which the Forgot and
+  Reset password pages still render. Lint, 2,578 tests and the build pass.
+  The browser check found the homepage and login globes and the forgot/reset
+  orbs intact, no requests to the removed files and no console errors.
+  Merged `8ef1acf`.
 
 - [x] **F69. Deploy F64 retrieval telemetry.** Deployed with F104 as
   `research-chat` v48 on 2026-10-13. Verified on the owner's live turn (`1e584cfc…`):
