@@ -23,7 +23,14 @@ function proj(lon, lat, w, h) {
   return [((lon + 180) / 360) * w, ((90 - lat) / 180) * h];
 }
 
-export default function GeoDotsMap({ points, legend, onPick, ariaLabel }) {
+// `variant`: omitted (the monitors) keeps the dark map; 'auto' (record panels, F121) draws light
+// unless the terminal is in its dark theme.
+const PALETTES = {
+  dark: { ocean: ['rgba(16,26,44,.55)', 'rgba(7,11,20,.78)'], grid: 'rgba(96,128,168,.075)', equator: 'rgba(96,128,168,.15)', land: 'rgba(150,184,109,.26)' },
+  light: { ocean: ['rgba(234,241,250,1)', 'rgba(222,233,246,1)'], grid: 'rgba(29,63,184,.07)', equator: 'rgba(29,63,184,.14)', land: 'rgba(96,128,80,.42)' },
+};
+
+export default function GeoDotsMap({ points, legend, onPick, ariaLabel, variant }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
   const ptsRef = useRef([]);
@@ -41,13 +48,14 @@ export default function GeoDotsMap({ points, legend, onPick, ariaLabel }) {
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
+      const pal = PALETTES[variant === 'auto' ? (canvas.closest('.theme-dark') ? 'dark' : 'light') : 'dark'];
       const og = ctx.createLinearGradient(0, 0, 0, cssH);
-      og.addColorStop(0, 'rgba(16,26,44,.55)');
-      og.addColorStop(1, 'rgba(7,11,20,.78)');
+      og.addColorStop(0, pal.ocean[0]);
+      og.addColorStop(1, pal.ocean[1]);
       ctx.fillStyle = og;
       ctx.fillRect(0, 0, cssW, cssH);
       ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(96,128,168,.075)';
+      ctx.strokeStyle = pal.grid;
       for (let lon = -150; lon <= 150; lon += 30) {
         const a = proj(lon, 84, cssW, cssH);
         const b = proj(lon, -84, cssW, cssH);
@@ -66,12 +74,12 @@ export default function GeoDotsMap({ points, legend, onPick, ariaLabel }) {
       }
       const e0 = proj(-180, 0, cssW, cssH);
       const e1 = proj(180, 0, cssW, cssH);
-      ctx.strokeStyle = 'rgba(96,128,168,.15)';
+      ctx.strokeStyle = pal.equator;
       ctx.beginPath();
       ctx.moveTo(e0[0], e0[1]);
       ctx.lineTo(e1[0], e1[1]);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(150,184,109,.26)';
+      ctx.fillStyle = pal.land;
       landCells().forEach((c) => {
         const p = proj(c[0], c[1], cssW, cssH);
         ctx.beginPath();
@@ -117,7 +125,7 @@ export default function GeoDotsMap({ points, legend, onPick, ariaLabel }) {
     const ro = new ResizeObserver(draw);
     ro.observe(canvas);
     return () => ro.disconnect();
-  }, [points]);
+  }, [points, variant]);
 
   function hitAt(e) {
     const canvas = canvasRef.current;

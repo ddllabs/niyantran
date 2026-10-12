@@ -1,0 +1,26 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import warTracker from '../../../public/data/embedded_csv/geopolitics_war_tracker.json';
+import { adapterFor } from './registry.js';
+
+vi.mock('../RecordDetail.jsx', () => ({ default: () => <div data-record-detail /> }));
+const { default: RailContent } = await import('../RailContent.jsx');
+
+// F121: only registered Global modules switch to the record panel; every other desk keeps the
+// existing record view, so nothing outside the batch changes.
+describe('record panel registry', () => {
+  it('registers the batch 1 modules and nothing else', () => {
+    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra']) expect(adapterFor(feature), feature).toBeTypeOf('function');
+    for (const feature of ['Bill Passage Probability Index', 'Alliances', 'Satellite Infrastructure', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
+  });
+
+  it('renders the panel for a registered module and the old view for others', () => {
+    const row = warTracker[0];
+    const panel = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: warTracker }} selected={row} />);
+    expect(panel).toContain('class="rp"');
+    expect(panel).not.toContain('data-record-detail');
+    const other = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Satellite Infrastructure', tier: 'global', rows: [{ title: 'A launch' }] }} selected={{ title: 'A launch' }} />);
+    expect(other).toContain('data-record-detail');
+    expect(other).not.toContain('class="rp"');
+  });
+});

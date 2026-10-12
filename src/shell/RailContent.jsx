@@ -17,6 +17,8 @@ import { isGlobalResourcesTable } from '../lib/globalResources.js';
 import { isGeonomicsTable } from '../lib/geonomics.js';
 import { isNationalTable } from '../lib/national.js';
 import NationalRecord from '../desks/NationalRecord.jsx';
+import RecordPanel from './record/RecordPanel.jsx';
+import { adapterFor } from './record/registry.js';
 
 function isLocalDesk(feed) {
   if (String(feed?.tier || '').toLowerCase() === 'local') return true;
@@ -101,6 +103,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
     isGeonomicsTable(feed?.feature) ||
     isNationalTable(feed?.feature);
   const dossier = alliances || sanctions || aid || nuclear;
+  const panelAdapter = adapterFor(feed?.feature);
   const showFallbackBanner =
     !localDesk && !carbonDesk && feed?.fallback && dataState.id !== 'live' && !status && dataState.detail;
 
@@ -180,6 +183,13 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
               onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
               feed={feed}
               loading={loading}
+            />
+          ) : selected && panelAdapter ? (
+            // F121: Global modules with a record-panel adapter; every other module keeps RecordDetail.
+            <RecordPanel
+              model={panelAdapter(selected, { rows: feed?.rows || [], feed })}
+              onClose={() => onSelect?.(null)}
+              onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
             />
           ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />
