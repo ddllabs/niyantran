@@ -73,6 +73,7 @@ describe('Desk Landing Architecture & Views', () => {
     expect(html).toContain('The world, through five lenses.');
     expect(html).toContain('16 modules');
     expect(html).toContain('Open Fronts');
-    expect(html).toContain('Global Trade');
+    // Cards select a sector (owner, 2026-10-13); Global Trade sits in Geonomics, offered as a card.
+    expect(html).toContain('Show Geonomics: 4 modules');
   });
 });

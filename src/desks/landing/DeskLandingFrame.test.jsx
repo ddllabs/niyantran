@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import DeskLandingFrame, { ModuleDetail, ModuleExplorer, DataBreakdown, groupsWithSources } from './DeskLandingFrame.jsx';
 import { deskHash, parseDeskHash } from '../../lib/deskRoute.js';
@@ -115,5 +115,46 @@ describe('restored V6 sector explorer', () => {
     expect(html).toContain('0 records');
     expect(html).toContain('— records');
     expect(html).toContain('5 modules · 1 with sources');
+  });
+});
+
+// Owner, 2026-10-13: choosing a sector must be noticeable. When the module list is off screen (a
+// phone, a short window) it is scrolled into view; keyboard selection also moves focus to it.
+describe('revealing the chosen sector\'s modules', () => {
+  const list = (top, height = 300) => {
+    const explorer = { getBoundingClientRect: () => ({ top, height }), scrollIntoView: vi.fn() };
+    return { explorer, el: { closest: () => explorer, focus: vi.fn() } };
+  };
+
+  it('scrolls the module list into view when it starts below the fold', async () => {
+    const { revealModules } = await import('./DeskLandingFrame.jsx');
+    const { explorer, el } = list(900);
+    expect(revealModules(el, { viewportHeight: 800 })).toBe(true);
+    expect(explorer.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(el.focus).not.toHaveBeenCalled();
+  });
+
+  it('leaves a list that is already in view where it is, and jumps without animation when motion is off', async () => {
+    const { revealModules } = await import('./DeskLandingFrame.jsx');
+    const shown = list(400);
+    expect(revealModules(shown.el, { viewportHeight: 800 })).toBe(false);
+    expect(shown.explorer.scrollIntoView).not.toHaveBeenCalled();
+    const below = list(1200);
+    revealModules(below.el, { viewportHeight: 800, instant: true });
+    expect(below.explorer.scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
+  });
+
+  it('treats a list hidden above the scrolling area (under the header) as off screen', async () => {
+    const { revealModules } = await import('./DeskLandingFrame.jsx');
+    const { explorer, el } = list(120);
+    expect(revealModules(el, { viewportTop: 193, viewportHeight: 567 })).toBe(true);
+    expect(explorer.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('moves focus to the module list after a keyboard selection, without a second scroll', async () => {
+    const { revealModules } = await import('./DeskLandingFrame.jsx');
+    const { el } = list(400);
+    revealModules(el, { viewportHeight: 800, keyboard: true });
+    expect(el.focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 });
