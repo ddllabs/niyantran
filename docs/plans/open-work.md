@@ -43,8 +43,8 @@ note.
 - **Blocked on the owner:**
   - F111: needs a definition of an AI credit.
   - O6: live Razorpay keys.
-  - F104: needs authorization for the `research-chat` Edge deploy. The last
-    recorded deploy is v47 (2026-10-10), which predates `a796383`.
+  - F104 and F69: deployed as `research-chat` v48 on 2026-10-13; waiting on
+    the owner's live RAG/citation check.
   - F106: needs approval to retire NterEarth.
 - **Corpus:** last recorded 2026-10-11, not recounted: 3,434 documents /
   3,431 indexed / 100,031 chunks / 2,143 covered bill keys. R7 stays open.
@@ -126,8 +126,9 @@ note.
 
 
 - [ ] **F80. Existing mobile marketing trivia overflow.** Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
-- [ ] **F69. Deploy F64 retrieval telemetry.** Source integrated in main;
-  research-chat function deployment remains separately owner-authorized.
+- [ ] **F69. Deploy F64 retrieval telemetry.** Deployed with F104 as
+  `research-chat` v48 on 2026-10-13. Remaining: confirm the measurements appear
+  on a live turn.
   Existing turns cannot acquire missing measurements retroactively.
 
 
@@ -983,6 +984,28 @@ Follow-ups and findings:
     - Deploying `main`'s `research-chat` would therefore ship F104 and F69
       together, plus v47's version roles (already live), unless the deploy is
       narrowed.
+  - **Deployed as v48, 2026-10-13 (owner: "go with option 1, deploy main").**
+    - The saved v47 release source turned up at
+      `~/.codex/visualizations/2026/10/08/01a11c8e-85fa-72c1-8681-1fd77f93549f/corpus-version-live-20261010/research-chat-release`.
+      Its recorded hashes match the v47 release. It is the rollback copy.
+    - Compared with `main`, ignoring trailing newlines, seven files differ:
+      - section labels on document passages (F104);
+      - retrieval timing, requested top-k and cancelled status (F69);
+      - research-coverage switches A (`coverageCheck`) and B (`digNudge`),
+        which nothing sets. Empty prompt parts are filtered, so the system
+        prompt is byte-identical.
+    - Two deploys of `50dca74` (Deno 881 passed) failed with Supabase 500
+      "Function deploy failed due to an internal error": one with `--use-api`,
+      one by the owner without Docker. The third, `--use-api --debug`,
+      succeeded.
+    - Result: v48 ACTIVE, `verify_jwt` false, bundle `4adce437…`.
+      Unauthenticated POST returns 401, the CORS preflight 204, and no
+      function errors are logged.
+    - The bundle still cannot be read back ("Failed to retrieve function
+      bundle"), so byte equality with `main` rests on the deploy source.
+    - Remaining: owner live RAG/citation check on a bill question, then a
+      read-only check that `chat_messages.activity` carries
+      `embeddingMs`/`retrievalMs`/`requestedTopK` (F69).
 
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split

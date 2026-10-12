@@ -1688,3 +1688,10 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   contains "Choose a desk to begin". `index-DDzlnMkb.css` carries the hero
   `min-height:288px`. Rollback candidate: `dpl_R3RF6vGa6k1PkWbtu7okfrSeGLeH`
   (`1940b02`).
+- **research-chat v48 (F104, F69):** deployed from `main` at `50dca74` (owner:
+  "go with option 1, deploy main"). The first two attempts returned Supabase
+  500 internal errors and left v47 untouched; the third succeeded.
+  - Live state: v48 ACTIVE, `verify_jwt` false, bundle `4adce437…`.
+    Unauthenticated POST returns 401 and the CORS preflight 204.
+  - Rollback: redeploy the saved v47 release source listed under F104 in
+    `docs/plans/open-work.md`.
