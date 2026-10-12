@@ -5339,7 +5339,8 @@ html.mkt-doc:has(.mkt-auth) #root {
 .auth-earth-personas{position:absolute;inset:0;pointer-events:none;display:none}
 .auth-earth-personas .mkt-pchip{pointer-events:auto}
 @container (min-width:440px){
- .labelled .auth-earth-view{width:60%;margin-inline:auto}
+ .labelled .auth-earth-globe{width:60%;margin-inline:auto}
+ .labelled .auth-earth-pause{right:auto;left:50%;bottom:0;transform:translateX(-50%)}
  .auth-earth-personas{display:block;--r:24.54cqi}
  .auth-earth-personas .mkt-pchip.c1{left:calc(50cqi - 1.04 * var(--r));top:calc(30cqi - .89 * var(--r))}
  .auth-earth-personas .mkt-pchip.c2{left:calc(50cqi + 1.04 * var(--r));top:calc(30cqi - .89 * var(--r))}
@@ -5355,10 +5356,10 @@ html.mkt-doc:has(.mkt-auth) #root {
 .auth-earth-view.ready:active{cursor:grabbing}
 .auth-earth-view:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
 .auth-earth-poster{position:absolute;width:178%;height:100%;max-width:none;left:-39%;object-fit:cover;border-radius:0}
-.auth-earth-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 16px;font-size:11px;line-height:1.5}
-.auth-earth-controls button{font:inherit;color:var(--mkt-black);border:1px solid var(--mkt-border);background:var(--mkt-white);border-radius:6px;padding:6px 10px;cursor:pointer;min-height:32px}
-.auth-earth-controls a{flex-basis:100%;text-align:center;color:var(--mkt-text);font-size:10px;text-underline-offset:3px}
-.auth-earth-controls button:focus-visible,.auth-earth-controls a:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
+.auth-earth-globe{position:relative}
+/* Small pause icon in the view's bottom-right corner, outside the globe's disc. */
+.auth-earth-pause{position:absolute;right:4%;bottom:4%;z-index:2;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--mkt-border);border-radius:50%;background:rgba(255,255,255,.88);color:var(--mkt-black);cursor:pointer}
+.auth-earth-pause:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
 .mkt-login-earth-visual{position:absolute;right:3%;top:50%;transform:translateY(-50%);width:clamp(280px,calc(100vw - 890px),550px);z-index:2}
 .mkt-signup-context{max-width:600px;width:100%}
 .mkt-signup-illustration{width:100%;max-width:clamp(280px,calc(100vw - 890px),550px);aspect-ratio:auto}
@@ -5375,13 +5376,13 @@ html.mkt-doc:has(.mkt-auth) #root {
  .mkt-signup-context p{margin-inline:auto}
  .mkt-signup-context-desks{margin-top:16px;padding-top:12px}
 }
-@media(max-width:420px){.mkt-signup-context h2{font-size:24px}.auth-earth-controls{font-size:10px}}
+@media(max-width:420px){.mkt-signup-context h2{font-size:24px}}
 /* Homepage hero: same globe radius and centre as the earlier NterEarth canvas
    (r = 0.228 × min(880px, 155%)), so the hero's persona labels stay aligned. */
 .mkt-home-earth{position:absolute;left:50%;top:48%;width:min(491px,86.5%);transform:translate(-50%,-50%);pointer-events:auto}
-.mkt-home-earth .auth-earth-controls{position:absolute;top:100%;left:0;right:0;color:#c9d5e7}
-.mkt-home-earth .auth-earth-controls button{background:#080d14;color:#c9d5e7;border-color:rgba(159,183,219,.35)}
-.mkt-home-earth .auth-earth-controls a{color:#9fb7db}
+.mkt-home-earth .auth-earth-pause{background:#080d14;color:#c9d5e7;border-color:rgba(159,183,219,.35)}
+/* With persona labels around the globe, the icon sits bottom-centre, clear of them. */
+@media(min-width:561px){.mkt-home-earth .auth-earth-pause{right:auto;left:50%;bottom:0;transform:translateX(-50%)}}
 @media(max-width:560px){.mkt-home-earth{width:min(312px,83.7%)}}
 /* Wide screens give the globe and its labels the free space beside the form. */
 @media(min-width:1330px){

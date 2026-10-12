@@ -241,6 +241,12 @@ export default function MarketingSite({ onAuthed }) {
             <span>
               © {year} {site.siteName}. All rights reserved.
             </span>
+            <span className="mkt-credit">
+              Earth imagery adapted from{' '}
+              <a href="https://ssi.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a>
+              {' · '}
+              <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
+            </span>
             <div className="mkt-legal-links">
               <button type="button" onClick={() => go('privacy')}>
                 Privacy Policy

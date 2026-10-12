@@ -199,3 +199,25 @@ errors. At 360/768 the page is 15 px wider than the viewport with or without
 the globe; hiding `.mkt-trivia-inner` removes it (existing F80).
 `NterEarth.jsx` and `public/brand/earth/` are no longer rendered but are kept
 (F106).
+
+### Amendment 6 — minimal controls, credit in the footer (owner, 2026-10-12)
+
+The "Drag to explore" hint and the text Pause button are removed. A 32 px
+pause/play icon remains (accessible name "Pause globe" / "Resume globe",
+`aria-pressed`) because the globe moves on its own indefinitely (WCAG 2.2.2);
+reduced-motion users already get a still globe. It sits in the view's
+bottom-right corner, or bottom-centre below the globe wherever persona labels
+surround it (sign-in/signup label layout, homepage hero from 561 px).
+The CC BY 4.0 credit moves from beside the globe to the marketing footer's
+bottom row: "Earth imagery adapted from Solar System Scope · CC BY 4.0",
+linking the source and the licence. The footer is site-wide but not rendered
+on the auth pages; this is the licence's "reasonable manner" reading, not
+legal advice.
+
+Evidence: red-first tests (pause icon only, no hint or link by the globe;
+footer carries source and licence links). Full `npm test` 190 files / 2,529
+tests, lint exit 0, build. Local browser (dev server restarted after the
+earlier one stopped): pause toggles, never overlaps a label at 360/768/1280/
+1440 on all three pages; footer credit visible with both links; homepage
+labels keep their offsets; zero console errors. Homepage 15 px overflow at
+360/768 remains the existing F80 trivia block.

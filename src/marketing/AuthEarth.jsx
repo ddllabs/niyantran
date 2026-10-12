@@ -46,12 +46,21 @@ export default function AuthEarth({ persona, onPersona, labels = true }) {
   }
   return <div className={`auth-earth${labels ? ' labelled' : ''}`} role="group" aria-label="Earth globe">
     <div className="auth-earth-stage">
-      <div className={`auth-earth-view ${state}`} ref={host} role="img"
-        aria-label={state === 'ready' ? 'Interactive Earth. Drag or use arrow keys to rotate.' : 'Earth viewed from space'}
-        tabIndex={state === 'ready' ? 0 : undefined} onKeyDown={keyboard}
-        onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} onLostPointerCapture={stop}>
-        {/* Nothing stands in while loading, so globe and rings appear together. */}
-        {state === 'fallback' && <img className="auth-earth-poster" src="/images/desks-v6/ddc31bd30cf098243de4.jpg" alt="" />}
+      <div className="auth-earth-globe">
+        <div className={`auth-earth-view ${state}`} ref={host} role="img"
+          aria-label={state === 'ready' ? 'Interactive Earth. Drag or use arrow keys to rotate.' : 'Earth viewed from space'}
+          tabIndex={state === 'ready' ? 0 : undefined} onKeyDown={keyboard}
+          onPointerDown={start} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop} onLostPointerCapture={stop}>
+          {/* Nothing stands in while loading, so globe and rings appear together. */}
+          {state === 'fallback' && <img className="auth-earth-poster" src="/images/desks-v6/ddc31bd30cf098243de4.jpg" alt="" />}
+        </div>
+        {/* Self-moving content keeps a pause control (WCAG 2.2.2); imagery credit is in the site footer. */}
+        {state === 'ready' && <button type="button" className="auth-earth-pause" aria-label={paused ? 'Resume globe' : 'Pause globe'}
+          aria-pressed={paused} title={paused ? 'Resume globe' : 'Pause globe'} onClick={() => setPaused(value => !value)}>
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="currentColor">
+            {paused ? <path d="M3 1.5v9l7.5-4.5z" /> : <path d="M2.5 1.5h2.5v9H2.5zM7 1.5h2.5v9H7z" />}
+          </svg>
+        </button>}
       </div>
       {labels && <div className="auth-earth-personas">
         {PERSONAS.map((p, i) => (
@@ -67,10 +76,6 @@ export default function AuthEarth({ persona, onPersona, labels = true }) {
           </button>
         ))}
       </div>}
-    </div>
-    <div className="auth-earth-controls">
-      {state === 'ready' && <><span>Drag to explore</span><button type="button" aria-pressed={paused} onClick={() => setPaused(value => !value)}>{paused ? 'Resume globe' : 'Pause globe'}</button></>}
-      <a href="https://ssi.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Earth imagery · Solar System Scope</a>
     </div>
   </div>;
 }
