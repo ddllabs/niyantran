@@ -81,6 +81,13 @@ export function loadAnalysisMap(file) {
       key,
       fetch(`/data/embedded_json/${key}`)
         .then((r) => (r.ok ? r.json() : {}))
+        .then(async (map) => {
+          if (key !== DESKS.bill.analysis) return map;
+          const identities = await fetch('/data/embedded_json/national_bill_analysis_identity.json')
+            .then((r) => r.ok ? r.json() : null).catch(() => null);
+          return bindBillAnalysisIdentities(map, identities?.schema === 'nter.bill-analysis-identities/1' ? identities.records : [],
+            identities?.schema === 'nter.bill-analysis-identities/1' ? identities.sources || [] : []);
+        })
         .catch(() => ({})),
     );
   }
@@ -100,51 +107,107 @@ export function loadOntology() {
   return ontologyP;
 }
 
-function catNorm(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[^a-z]+/g, '');
+// Bill numbers recur across years and chambers. Ordinal analysis keys are not
+// tracker IDs. Missing identity is a hold, never permission to choose the first.
+const analysisIndexCache = new WeakMap();
+const billSourcesCache = new WeakMap();
+const identityPart = (value) => String(value ?? '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+function billIdentity(value) {
+  const title = value.bill_name || value.title || '';
+  const titleYears = [...new Set(title.match(/\b(?:19|20)\d{2}\b/g) || [])];
+  const year = String(value.bill_year || /(?:^|\D)((?:19|20)\d{2})\s*$/.exec(title)?.[1]
+    || (titleYears.length === 1 ? titleYears[0] : ''));
+  if (!value.bill_number || !title || !value.house || !/^\d{4}$/.test(year)) return null;
+  return [value.bill_number, year, value.house, title].map(identityPart).join('|');
 }
 
-/** Analysis JSON is keyed "1"…"N"; tracker rows use Sansad-style ids. Join by bill_number + category. */
-const analysisIndexCache = new WeakMap();
+/** Add explicit identity without mutating the archived analysis collection. */
+export function bindBillAnalysisIdentities(map, records = [], sources = []) {
+  const bound = { ...map };
+  const counts = new Map();
+  for (const r of records) counts.set(r.analysis_key, (counts.get(r.analysis_key) || 0) + 1);
+  const links = (value) => JSON.stringify(Object.entries(value || {}).sort(([a], [b]) => a.localeCompare(b)));
+  for (const r of records) {
+    const value = map[r.analysis_key];
+    const identity = r.identity;
+    if (counts.get(r.analysis_key) !== 1 || !value || !identity || !billIdentity(identity)
+      || identity.document_key !== `bill:${identity.bill_year}:${identity.bill_number}`
+      || identityPart(value.enrichment?.bill_number) !== identityPart(identity.bill_number)
+      || links(value.enrichment?.pdf_links) !== links(r.pdf_links)) continue;
+    bound[r.analysis_key] = { ...value, enrichment: { ...value.enrichment, bill_number: identity.bill_number,
+      bill_year: identity.bill_year, bill_name: identity.bill_name, house: identity.house } };
+  }
+  const sourceIndex = new Map();
+  for (const source of sources) {
+    const identity = source.identity;
+    const key = identity && billIdentity(identity);
+    if (!key || identity.document_key !== `bill:${identity.bill_year}:${identity.bill_number}`) continue;
+    const entries = Object.entries(source.pdf_links || {});
+    if (!entries.length || !entries.every(([role, value]) => {
+      if (!['introduced', 'passed_ls', 'passed_rs', 'passed_both', 'gazetted'].includes(role)) return false;
+      try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && url.hostname === 'sansad.in' && !url.username && !url.password
+          && /^\/getFile\/(?:BillsTexts\/|BillsPDFFiles\/Notification\/)/.test(url.pathname) && /\.pdf$/i.test(url.pathname);
+      } catch { return false; }
+    })) continue;
+    const value = { enrichment: { bill_number: identity.bill_number, bill_year: identity.bill_year,
+      bill_name: identity.bill_name, house: identity.house, pdf_links: { ...source.pdf_links } } };
+    if (sourceIndex.has(key) && JSON.stringify(canonicalAnalysis(sourceIndex.get(key))) !== JSON.stringify(canonicalAnalysis(value))) {
+      sourceIndex.set(key, null);
+    } else if (!sourceIndex.has(key)) sourceIndex.set(key, value);
+  }
+  billSourcesCache.set(bound, sourceIndex);
+  return bound;
+}
+
+// Preserve array order and all values; only JSON object key order is irrelevant.
+function canonicalAnalysis(value) {
+  if (Array.isArray(value)) return value.map(canonicalAnalysis);
+  if (value && typeof value === 'object') return Object.fromEntries(
+    Object.keys(value).sort().map((key) => [key, canonicalAnalysis(value[key])]),
+  );
+  return value;
+}
 
 function analysisIndex(map) {
-  let ix = analysisIndexCache.get(map);
-  if (ix) return ix;
-  const byNumCat = new Map();
-  const byNum = new Map();
-  for (const v of Object.values(map)) {
-    if (!v || typeof v !== 'object') continue;
-    const n = String(v.enrichment?.bill_number || '').trim();
-    if (!n) {
-      // numeric string keys remain direct lookups via map[k]
-      continue;
-    }
-    const cat = catNorm(v.enrichment?.bill_category);
-    const nc = `${n}|${cat}`;
-    if (!byNumCat.has(nc)) byNumCat.set(nc, v);
-    const bucket = byNum.get(n) || [];
-    bucket.push(v);
-    byNum.set(n, bucket);
+  let index = analysisIndexCache.get(map);
+  if (index) return index;
+  index = new Map();
+  for (const value of Object.values(map)) {
+    const key = billIdentity(value?.enrichment || {});
+    if (!key) continue;
+    const bucket = index.get(key) || [];
+    // Duplicate exports of the same analysis are not conflicting identities.
+    // A changed URL or any changed analysis content still leaves an ambiguity.
+    if (!bucket.some((other) => JSON.stringify(canonicalAnalysis(other)) === JSON.stringify(canonicalAnalysis(value)))) bucket.push(value);
+    index.set(key, bucket);
   }
-  ix = { byNumCat, byNum };
-  analysisIndexCache.set(map, ix);
-  return ix;
+  analysisIndexCache.set(map, index);
+  return index;
 }
 
 export function analysisFor(row, map) {
   if (!row || !map) return null;
-  if (row.id != null && (map[String(row.id)] || map[row.id])) return map[String(row.id)] || map[row.id];
+  if (row.bill_number != null) {
+    const key = billIdentity(row);
+    const matches = key ? analysisIndex(map).get(key) || [] : [];
+    const sourceIndex = billSourcesCache.get(map);
+    if (sourceIndex?.has(key)) {
+      const source = sourceIndex.get(key);
+      if (!source) return null;
+      // Document availability does not imply that an analysis exists. Preserve
+      // enrichment only when it is unique; never pick conflicting analysis prose.
+      return matches.length === 1
+        ? { ...matches[0], enrichment: { ...matches[0].enrichment, ...source.enrichment } }
+        : source;
+    }
+    return matches.length === 1 ? matches[0] : null;
+  }
+  // Other desks retain their explicit keyed analysis contract.
+  if (row.id != null && map[String(row.id)]) return map[String(row.id)];
   if (row.__idx != null && map[String(row.__idx)]) return map[String(row.__idx)];
-  const n = String(row.bill_number || '').trim();
-  if (!n) return null;
-  const ix = analysisIndex(map);
-  const cat = catNorm(row.bill_category);
-  const byCat = ix.byNumCat.get(`${n}|${cat}`);
-  if (byCat) return byCat;
-  const bucket = ix.byNum.get(n) || [];
-  if (bucket.length === 1) return bucket[0];
   return null;
 }
 
