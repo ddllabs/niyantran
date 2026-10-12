@@ -1,5 +1,10 @@
 # Direct desk entry and AI dismissal
 
+> **2026-10-13 owner amendment (F119):** picture cards no longer open a
+> module. A card selects its sector, and the module cards below it open the
+> terminal. The AI-dismissal half of this spec is unchanged. See
+> [sector cards select](2026-10-13-sector-cards-select.md).
+
 > **Status: Normative.** Owner-approved local UI work, 2026-10-12.
 
 Current picture cards select sectors, then modules open coverage dialogs before navigation. An open AI dock survives landing navigation and shrinks the landing.

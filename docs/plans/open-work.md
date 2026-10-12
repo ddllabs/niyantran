@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F119 is next) and goes in the
+- A new finding gets the next free `F` number (F120 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (evening)
@@ -177,6 +177,12 @@ NTER. No tests were rerun for this note.
   `task/source-card-per-bill`, merged `46290e8`, pushed 2026-10-13.
   [Spec](../specs/2026-10-13-source-card-per-bill.md). Remaining: owner check
   on production.
+- [ ] **F119. Sector picture cards select instead of opening.** Owner
+  2026-10-13: a card selects its sector, with a visible switch and a scroll
+  into view on phones; the module cards open the terminal. Built on
+  `task/sector-card-select` and merged locally.
+  [Spec](../specs/2026-10-13-sector-cards-select.md). Remaining: push, owner
+  check.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

@@ -15,16 +15,21 @@ import { ENTERTAINMENT_PRESENTATION } from './entertainmentPresentation.js';
 import { STATE_PRESENTATION } from './statePresentation.js';
 
 describe('direct sector entry', () => {
-  it('picture cards link to their explicit defaults without a module-picker step', () => {
+  // Owner, 2026-10-13 (amends desk-direct-entry): a picture card only selects its sector; the module
+  // cards below it are the way into the terminal. Cards are buttons that control the module list.
+  it('picture cards select their sector and open nothing', () => {
     for (const presentation of [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION, STATE_PRESENTATION]) {
       const html = renderToStaticMarkup(<DeskLandingFrame presentation={presentation} onFeature={() => {}}/>);
       const pictureGrid = html.match(/<section[^>]*class="sector-grid"[\s\S]*?<\/section>/)?.[0];
       expect(pictureGrid).toBeDefined();
-      for (const feature of Object.values(DESK_DEFAULTS[presentation.id])) {
-        expect(pictureGrid).toContain(`href="/${deskHash(presentation.id, feature)}"`);
+      expect(pictureGrid).not.toContain('href=');
+      expect(pictureGrid).not.toContain('lucide-arrow-up-right');
+      expect((pictureGrid.match(/<button[^>]*class="sector-card"/g) || []).length).toBe(presentation.groups.length);
+      expect((pictureGrid.match(/aria-pressed="true"/g) || []).length).toBe(1);
+      expect(pictureGrid).toMatch(/aria-controls="[^"]+-modules"/);
+      for (const module of presentation.groups[0].modules) {
+        expect(html).toContain(`href="/${deskHash(presentation.id, module.feature)}"`);
       }
-      expect(pictureGrid).not.toContain('class="module-item"');
-      expect(pictureGrid).not.toContain('aria-controls=');
     }
   });
   it('all 35 defaults belong to their sectors and all 120 modules retain canonical menu routes', () => {
