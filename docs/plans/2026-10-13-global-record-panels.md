@@ -147,18 +147,33 @@ Every task is test-first, and every phase ends with a checkpoint.
 
 ## Batch 2 tasks (parallel sub-agents after batch 1 lands)
 
-One task per module. Each has its own worktree and write scope, limited to
-`adapters/<module>.js` plus its test and at most one new visual.
+Batch 1 landed at `a62c2bb`. Batch 2 branches from `main` as
+`task/global-record-panels-b2`.
 
-| Task | Module |
-|---|---|
-| T8 | Satellite Infrastructure (orbit visual and launch-site map) |
-| T9 | World Constitutions (jurisdiction map) |
-| T10 | Growth Indicators (indicator board) |
-| T11 | Global Trade (trade board) |
-| T12 | Geopolitics News Wire (feed-state board; live-fetch caution) |
-| T13 | Heads of State (leader card) |
-| T14 | Global Commodities (benchmark board; licence caution) |
+**T7b (supervisor, first, sequential):** the shared pieces the adapters inherit, so no task agent
+edits a shared file:
+
+- the value-board visual (`visuals/ValueBoard.jsx`), registered in `visuals/index.js` and
+  `visuals/types.js`, with its shape checked by `modelContract.js`;
+- source-status rows keep the old view (`RailContent.jsx`);
+- the batch 2 decisions in the spec (no orbit or leader visual, country centres, touch lanes).
+
+**Then one task per module**, each in a supervisor-created worktree under `.claude/worktrees/`, on
+a `task/f121-<module>` branch from the T7b commit. Each write scope is the adapter and its own test
+only: `src/shell/record/adapters/<module>.js` and `<module>.test.js`. Task agents run on Sonnet;
+the supervisor reviews each diff.
+
+| Task | Module | Visual | Wave |
+|---|---|---|---|
+| T8 | Satellite Infrastructure | launch-site map (exact pad coordinates) | 1 |
+| T9 | World Constitutions | country map (approximate) | 2 |
+| T10–T11 | Growth Indicators and Global Trade (one agent, same World Bank shape) | value board, country map | 1 |
+| T12 | Geopolitics News Wire | value board (story facts) | 2 |
+| T13 | Heads of State | country map | 2 |
+| T14 | Global Commodities | value board (illustrative levels) | 1 |
+| T14b | Country centres for the maps | none (`geoLookup.js` data and test) | 1 |
+
+At most four agents run at once.
 
 After those:
 

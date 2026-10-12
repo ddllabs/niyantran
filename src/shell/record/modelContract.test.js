@@ -32,6 +32,18 @@ describe('record panel contract', () => {
     expect(contractProblems(m).join()).toMatch(/one current step/);
   });
 
+  it('accepts a well-formed value board and rejects an empty or unlabelled one', () => {
+    const m = base();
+    m.glance.visual = { type: 'board', title: 'Latest year', rows: [{ label: 'GDP growth', value: '6.5%', note: '2024', tone: 'green' }] };
+    expect(contractProblems(m)).toEqual([]);
+    m.glance.visual = { type: 'board', title: 'Latest year', rows: [] };
+    expect(contractProblems(m).join()).toMatch(/board has no rows/);
+    m.glance.visual = { type: 'board', title: 'Latest year', rows: [{ label: 'GDP growth', value: '' }] };
+    expect(contractProblems(m).join()).toMatch(/board row/);
+    m.glance.visual = { type: 'board', title: 'Latest year', rows: [{ label: 'GDP growth', value: '6.5%', tone: 'pink' }] };
+    expect(contractProblems(m).join()).toMatch(/bad tone pink/);
+  });
+
   it('rejects reference placeholders but allows ordinary prose', () => {
     const m = base();
     m.about.cards = [{ heading: 'Note', body: 'The order was declared null and void.' }];

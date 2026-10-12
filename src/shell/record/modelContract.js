@@ -25,6 +25,13 @@ function visualProblems(v, where) {
     if (!(v.steps || []).length || v.steps.some((st) => !String(st.label || '').trim())) out.push(`${where} timeline needs labelled steps`);
     if ((v.steps || []).filter((st) => st.now).length > 1) out.push(`${where} timeline has more than one current step`);
   }
+  if (v.type === 'board') {
+    if (!(v.rows || []).length) out.push(`${where} board has no rows`);
+    for (const r of v.rows || []) {
+      if (!String(r.label || '').trim() || !String(r.value || '').trim()) out.push(`${where} has an empty board row ${r.label || '?'}`);
+      if (r.tone && !TONES.has(r.tone)) out.push(`bad tone ${r.tone}`);
+    }
+  }
   return out;
 }
 

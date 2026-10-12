@@ -23,4 +23,11 @@ describe('record panel registry', () => {
     expect(other).toContain('data-record-detail');
     expect(other).not.toContain('class="rp"');
   });
+
+  it('keeps the old view for a source-status row on a registered module', () => {
+    const status = { title: 'Source offline or empty', status: 'source_status', detail: 'No records were invented.' };
+    const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: [status] }} selected={status} />);
+    expect(html).toContain('data-record-detail');
+    expect(html).not.toContain('class="rp"');
+  });
 });
