@@ -1699,3 +1699,11 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   (owner left the push to the supervisor: "you can if you think it's
   required"). Production deploy `dpl_6spMz1nbjzthDzh4tQ4rPigZ1RJ1` (`7f0563e`)
   is READY and serves `index-OvViFPJv.js`.
+- **Citation version labels (F116):** `main` pushed `7f0563e..839d7dc` (owner:
+  "yes, push and deploy v49"); the outgoing scan was clean.
+  - Vercel `dpl_5terWzWj3hK3nRtkVpsW9e9dgfma` (`839d7dc`) is READY and serves
+    `index-va4WMjG9.js`, which carries the labels and `ai-source-version`.
+  - `research-chat` v49 deployed from `839d7dc` on the first attempt: ACTIVE,
+    `verify_jwt` false, bundle `dea97d5f…`. Unauthenticated POST returns 401
+    and the CORS preflight 204.
+  - Rollback: redeploy the `research-chat` source from `7f0563e` (= v48).
