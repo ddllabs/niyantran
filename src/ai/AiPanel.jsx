@@ -2,7 +2,7 @@ import DictationButton from '../components/DictationButton.jsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
-import { filesFromDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
+import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
 import { rowPinKey } from '../lib/sourceUrls.js';
 import { billDocumentKey, deskRowKey } from '../lib/deskRows.js';
 import { COVERAGE_TTL_MS, coverageOf, recheckCoverage, refreshCoverage } from '../lib/corpusCoverage.js';
@@ -554,6 +554,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   async function onDrop(e) {
     e.preventDefault();
     setDragOver(false);
+    // Opened by the drag itself (F113), the thread may still be loading: the seed waits for it.
+    if (!research.ready) { void handOffAiDrop(e); return; }
     const payload = readAiDrag(e);
     const files = [...(e.dataTransfer?.files || [])];
     await research.actions.attach(async () => [

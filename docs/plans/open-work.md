@@ -73,7 +73,9 @@ no tests rerun, no production probe).
 - [ ] **F113. Drag a record to AI from any panel tab.** Dropping a bill or row
   on the right-hand panel works only while the AI tab is open. The panel should
   switch to AI (expanding if collapsed) when a Niyantran record or file is
-  dragged over it. Approved 2026-10-13; next after F112.
+  dragged over it. Approved 2026-10-13. Built on `task/panel-drag-ai` and
+  merged locally; not pushed. [Spec](../specs/2026-10-13-panel-drag-ai.md).
+  Remaining: owner check of a real drop in a signed-in chat, push.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
