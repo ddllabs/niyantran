@@ -40,6 +40,7 @@ describe('SourceList', () => {
       text(3, 'd3', 'THE GAMING BILL, 2025', { document_role: '<b>forged</b>' }),
     ];
     expect(documentChips(sources).map((c) => c.version)).toEqual(['As introduced', 'As passed by Lok Sabha', '']);
+    expect(documentChips([text(9, 'd9', 'A BILL', { document_role: 'synopsis' })])[0].version).toBe('Synopsis');
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
     expect(html).toContain('<span class="ai-source-version">As introduced</span>');
     expect(html).toContain('<span class="ai-source-version">As passed by Lok Sabha</span>');

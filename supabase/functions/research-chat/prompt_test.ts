@@ -416,3 +416,8 @@ Deno.test('bill version guidance requires version-specific attribution rather th
  const p=buildSystemPrompt({persona:'analyst',focus:'broad',today:'2026-10-09',catalogue:''});
  assert(p.includes('introduced provisions are not evidence of enacted law'));
 });
+
+// F117: a synopsis is a summary of a bill or Act, never its legal text.
+Deno.test('the grounding rules say a synopsis is not the legal text', () => {
+  assertStringIncludes(SYSTEM_PROMPT_STATIC, 'A Synopsis passage summarises a bill or Act; it is not its legal text');
+});

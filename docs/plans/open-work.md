@@ -138,7 +138,7 @@ note.
   `dpl_5terWzWj3hK3nRtkVpsW9e9dgfma`, `research-chat` v49.
   [Spec](../specs/2026-10-13-citation-version-labels.md). Remaining: confirm a
   new answer's sources carry `document_role`, and an owner check.
-- [ ] **F117. Versions for the original bill corpus.** 1,622 bill documents
+- [x] **F117. Versions for the original bill corpus.** 1,622 bill documents
   loaded between 2026-09-21 and 2026-10-01 record no `document_role`, so they
   show no version label and the model does not see their version.
   - Their sansad.in URL folder names the kind:
@@ -153,9 +153,9 @@ note.
     approach): 1,153 documents gained `document_role`, with a
     `document_role_source` marker.
     [Record](../research/2026-10-13-document-role-folder-backfill.md).
-  - Remaining: 467 synopses wait on the owner's decision on a "Synopsis"
-    role, which needs label-map code and a `research-chat` deploy; 2 Hindi
-    files are left as they are.
+  - **Synopsis role done, 2026-10-13** (owner approved): 456 synopsis
+    documents tagged; label maps and grounding prompt updated;
+    `research-chat` v50. Only 2 Hindi errata files remain unversioned.
   - The 24-document old-key backfill is done:
     [record](../research/2026-10-13-document-role-backfill.md).
 - [ ] **F118. One source card per bill.** Versions of one bill cited in an
