@@ -121,6 +121,14 @@ note.
     documents of the same version.
     [Record](../research/2026-10-13-duplicate-document-delete.md).
     Remaining: the TRAI repeats and the text shared across different bills.
+  - **Repeats and misattributed bill files removed, 2026-10-13** (owner
+    approved the exact list): 51 documents and 670 chunks, each identical to
+    a kept document; 32 TRAI/CCI repeats and 19 bill files whose text names
+    a different Act or version. Corpus: 3,382 documents, 99,263 chunks.
+    [Record](../research/2026-10-13-f115-cleanup.md).
+  - Remaining for review, because the text does not settle the owner:
+    `bill:2002:48` vs `bill:2002:64`, `bill:2003:41` vs `bill:2012:106`,
+    and `bill:2004:106` vs `bill:2005:106`.
 - [ ] **F116. Citations do not say which version or format a source is.** Two
   versions of a bill appear under identical titles. 413 bills have several
   documents (versions). Only two documents have a stored PDF, so all other

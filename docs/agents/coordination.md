@@ -1721,3 +1721,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   it. `510cd60e…` and its 98 chunks (cascade) were deleted after a local
   backup in `tmp/backups/2026-10-13-doc-510cd60e/` (checksums in the record).
   [Record](../research/2026-10-13-duplicate-document-delete.md).
+- **F115 cleanup (NTER data change):** the owner approved the exact 51-row
+  list. 51 documents and 670 chunks (cascade) were deleted after a local
+  backup in `tmp/backups/2026-10-13-f115-cleanup/`; then `analyze` was run.
+  Corpus: 3,382 documents, 99,263 chunks.
+  [Record](../research/2026-10-13-f115-cleanup.md).
