@@ -7,10 +7,11 @@ import growthIndicators from './adapters/growthIndicators.js';
 import globalTrade from './adapters/globalTrade.js';
 import constitutions from './adapters/constitutions.js';
 import headsOfState from './adapters/headsOfState.js';
+import newsWire from './adapters/newsWire.js';
 
 /**
  * Which Global modules render the record panel (F121), by feature name. A module not listed here
- * keeps the existing record view. Batches 2 and 3 add their adapters here.
+ * keeps the existing record view. Batch 3 adds the four dossiers here.
  */
 const ADAPTERS = [
   [/^open fronts$/i, openFronts],
@@ -22,6 +23,7 @@ const ADAPTERS = [
   [/^global trade$/i, globalTrade],
   [/^world constitutions$/i, constitutions],
   [/^heads of state$/i, headsOfState],
+  [/^geopolitics news wire$/i, newsWire],
 ];
 
 export function adapterFor(feature) {
