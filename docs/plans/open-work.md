@@ -19,6 +19,12 @@
 
 ## UI follow-ups
 
+- [ ] **F103. Photographic auth Earth.** Owner authorized shared textured 3D globe
+  for sign-in/signup, rotation, drag, pause and responsive/fallback checks.
+  [Spec](../specs/2026-10-12-auth-earth.md); [plan](2026-10-12-auth-earth.md).
+  Implemented and locally verified in 9e6f12c on task/client-ui-spec. Await
+  owner visual review/local merge. No corpus/backend or release changes.
+
 - [ ] **F102. Client UI refinement.** Owner-authorized four-module implementation:
   cream desk/Home-news theme and graphics, signup composition, top desk
   navigation/access verification, and removal of the record-level linkage graph.
