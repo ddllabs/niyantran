@@ -1,4 +1,4 @@
-import { isTextCitation } from '../types/citation.js';
+import { documentRoleLabel, isTextCitation } from '../types/citation.js';
 
 const MAX_PAGES = 5;
 
@@ -13,7 +13,7 @@ export function documentChips(sources) {
     if (!isTextCitation(s)) continue;
     let c = byId.get(s.document_id);
     if (!c) {
-      c = { document_id: s.document_id, title: s.title, file_name: s.file_name, desk_feature: s.desk_feature, first: s, pages: [], ids: [] };
+      c = { document_id: s.document_id, title: s.title, version: documentRoleLabel(s.document_role), file_name: s.file_name, desk_feature: s.desk_feature, first: s, pages: [], ids: [] };
       byId.set(s.document_id, c);
       chips.push(c);
     }
@@ -73,6 +73,7 @@ export default function SourceList({ sources, onOpen, lang }) {
                 <span className="ai-source-main">
                   <span className="ai-source-title">{c.title}</span>
                   <span className="ai-source-meta">
+                    {c.version ? <span className="ai-source-version">{c.version}</span> : null}
                     {c.desk_feature ? <span>{c.desk_feature}</span> : null}
                     {pages ? <span>{pages}</span> : null}
                     <span className="ai-source-ids">

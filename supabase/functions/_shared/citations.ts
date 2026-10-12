@@ -250,6 +250,7 @@ export function textCitation(id: number, c: Chunk, page?: PageEvidence): TextCit
   if (boxes?.length) out.boxes = boxes.slice(0, MAX_CITATION_BOXES).map((b) => ({ ...b }));
   if (images?.length) out.images = images.map((i) => ({ ...i }));
   if (c.section) out.section = { ...c.section };
+  if (c.document_role) out.document_role = c.document_role;
   return out;
 }
 

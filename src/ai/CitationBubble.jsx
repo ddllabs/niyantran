@@ -6,7 +6,7 @@
  * the turn has finished, a marker with nothing behind it is dropped rather
  * than left as a bracket the reader cannot open.
  */
-import { isTextCitation, isRowCitation } from '../types/citation.js';
+import { documentRoleLabel, isTextCitation, isRowCitation } from '../types/citation.js';
 import './research.css';
 
 const nonblank = value => typeof value === 'string' && Boolean(value.trim());
@@ -52,6 +52,7 @@ export function sanitizeCitation(source) {
     if (kept.length) out[key] = kept;
     else delete out[key];
   }
+  if ('document_role' in out && !documentRoleLabel(out.document_role)) delete out.document_role;
   if ('section' in out) {
     const section = {};
     for (const key of ['heading', 'note']) {

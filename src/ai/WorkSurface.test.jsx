@@ -75,6 +75,14 @@ describe('WorkSurface branching', () => {
     expect(handed.page_number).toBe(4);
   });
 
+  // F116: the reader's title says which version is open; an unknown role is dropped when sanitised.
+  it('names the version beside the title, and drops an unknown role', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: { ...LEGACY, document_role: 'as_passed_lok_sabha' } }} />);
+    expect(html).toContain('<small class="ai-work-version">As passed by Lok Sabha</small>');
+    expect(resolveViewer({ kind: 'text', source: { ...LEGACY, document_role: 'forged' } }).source).not.toHaveProperty('document_role');
+    expect(renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: LEGACY }} />)).not.toContain('ai-work-version');
+  });
+
   it('keeps legacy text citations on SourceReader, unchanged', () => {
     const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'text', source: LEGACY }} />);
     expect(html).toContain('aria-label="Cited source"');
