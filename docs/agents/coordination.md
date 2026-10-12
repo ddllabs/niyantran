@@ -1658,4 +1658,15 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     functions fell from eight to seven (`start_trial` removed).
 - **Frontend push:** `main` pushed to origin with F102, F103 (globe on auth,
   homepage and pricing), F107 policies, the INR pricing page, measured
-  figures and INR billing; Vercel deploy recorded below once verified.
+  figures and INR billing (`2a5be9c..85ba864`, 24 commits, 82 files; outgoing
+  scan found no env files, `docs/security`, secrets or AI attribution).
+  - **Vercel:** production deploy `dpl_G5VXUKXa4nkj7VPYsfEj1KMgkaAu`
+    (`85ba864`) is READY on `niyantran-six.vercel.app`; served main entry
+    `index--LbtejpN.js` carries the new pricing, policy and globe copy and none
+    of the yearly, trial, uptime or endpoint claims.
+  - **Live API:** `/api/billing/config` answers INR, `gstRegistered: false`,
+    payments disabled (no Razorpay keys); `/api/billing/quote?planId=pro`
+    answers ₹999 / 99,900 paise from Niyantran Strategy Consulting Private
+    Limited, Kolkata; `planId=enterprise` answers 400. `/privacy`, `/terms`,
+    `/refunds`, `/delivery`, `/about`, `/contact` answer 200.
+  - Rollback candidate: the previous production deploy of `2a5be9c`.
