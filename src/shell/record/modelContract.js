@@ -1,0 +1,62 @@
+/**
+ * The RecordPanelModel contract (F121), as a checker every adapter test runs over real rows.
+ * It returns the list of problems; an empty list means the model honours the spec: a title, two to
+ * four glance tiles with values, only registered and well-formed visuals, no placeholder text,
+ * https-only links, a named source with an as-of date (or the flag "as-of not on record"), and a
+ * footer Ask AI label. docs/specs/2026-10-13-global-record-panels.md, "Panel anatomy".
+ */
+import { VISUAL_TYPES } from './visuals/types.js';
+
+const TONES = new Set(['red', 'amber', 'green', 'blue', 'grey']);
+/** Reference-style placeholders ("[date]", "[as listed on the record]") and leaked JS values. */
+const PLACEHOLDER = /\[[A-Za-z][A-Za-z0-9 /&,.'-]{0,40}\]|\bundefined\b|\bNaN\b|^\s*null\s*$/;
+const NO_AS_OF = 'as-of not on record';
+
+function visualProblems(v, where) {
+  if (!v) return [];
+  if (!VISUAL_TYPES.includes(v.type)) return [`unsupported visual type ${v.type} in ${where}`];
+  const out = [];
+  if (!String(v.title || '').trim()) out.push(`${where} has no title`);
+  if (v.type === 'map') {
+    if (!(v.points || []).length) out.push(`${where} map has no points`);
+    for (const p of v.points || []) if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon) || !String(p.label || '').trim()) out.push(`${where} has a bad map point ${p.label || '?'}`);
+  }
+  if (v.type === 'timeline') {
+    if (!(v.steps || []).length || v.steps.some((st) => !String(st.label || '').trim())) out.push(`${where} timeline needs labelled steps`);
+    if ((v.steps || []).filter((st) => st.now).length > 1) out.push(`${where} timeline has more than one current step`);
+  }
+  return out;
+}
+
+function strings(value, out = []) {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) value.forEach((v) => strings(v, out));
+  else if (value && typeof value === 'object') Object.values(value).forEach((v) => strings(v, out));
+  return out;
+}
+
+export function contractProblems(model) {
+  const problems = [];
+  if (!model || typeof model !== 'object') return ['no model'];
+  if (!String(model.title || '').trim()) problems.push('missing title');
+  const tiles = model.glance?.tiles || [];
+  if (tiles.length < 2 || tiles.length > 4) problems.push(`glance has ${tiles.length} tiles (needs 2–4)`);
+  for (const t of tiles) {
+    if (!String(t.label || '').trim() || !String(t.value || '').trim()) problems.push(`empty tile ${t.label || '?'}`);
+    if (t.tone && !TONES.has(t.tone)) problems.push(`bad tone ${t.tone}`);
+  }
+  if (model.badge && (!String(model.badge.text || '').trim() || !TONES.has(model.badge.tone))) problems.push('bad badge');
+  problems.push(...visualProblems(model.glance?.visual, 'glance.visual'), ...visualProblems(model.glance?.visual2, 'glance.visual2'));
+  for (const l of model.links || []) if (!/^https:\/\//i.test(String(l.href || ''))) problems.push(`non-https link ${l.href}`);
+  if (!String(model.about?.label || '').trim()) problems.push('missing about label');
+  for (const [k, v] of model.about?.rows || []) if (!String(k || '').trim() || !String(v || '').trim()) problems.push(`empty about row ${k}`);
+  if (model.touches) {
+    if ((model.touches.lanes || []).length !== 4) problems.push('touches needs four lanes');
+    if (!model.touches.nodes?.center) problems.push('touches needs a centre node');
+  }
+  if (!String(model.footer?.ask || '').trim()) problems.push('missing Ask AI label');
+  if (!String(model.footer?.provenance?.source || '').trim()) problems.push('missing provenance source');
+  if (!String(model.footer?.provenance?.asOf || '').trim() && !(model.footer?.provenance?.flags || []).includes(NO_AS_OF)) problems.push('missing as-of date');
+  for (const s of strings(model)) if (PLACEHOLDER.test(s)) problems.push(`placeholder text: ${s.slice(0, 60)}`);
+  return problems;
+}

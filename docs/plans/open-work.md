@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F121 is next) and goes in the
+- A new finding gets the next free `F` number (F122 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -163,6 +163,23 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   `task/consistent-header` and merged locally.
   [Spec](../specs/2026-10-13-consistent-header.md). Remaining: push, owner
   check.
+- [ ] **F121. Global record panels.** Owner request 2026-10-13: every Global
+  record opens one consistent panel modelled on the owner's reference (header,
+  01 at a glance, 02 about, 03 what it touches, a footer with Ask AI and
+  provenance). Owner decisions: staged rollout; re-skin the Alliances,
+  Sanctions, Aid and Nuclear dossiers; add a Record tab for Heads of State and
+  Commodities; rule-based links and no impact page.
+  [Research](../research/2026-10-13-global-record-panels.md) ·
+  [Spec](../specs/2026-10-13-global-record-panels.md) ·
+  [Plan](2026-10-13-global-record-panels.md).
+  - Batch 1: the kit, Open Fronts, Global Intelligence and Infra (the
+    supervisor, sequential).
+  - Batch 2: seven modules (parallel sub-agents).
+  - Batch 3: the four dossiers (parallel sub-agents).
+  - Status: batch 1 built on `task/global-record-panels` and passed an
+    independent re-review on 2026-10-13. It awaits the owner's local test,
+    then a local merge and a push on the owner's go-ahead. Batches 2 and 3
+    follow the owner's review on production.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
