@@ -17,45 +17,45 @@
 - A new finding gets the next free `F` number (F120 is next) and goes in the
   right section.
 
-## Current state — 2026-10-13 (evening)
+## Current state — 2026-10-13 (late evening)
 
 Checked by the supervisor with `git fetch`, the Vercel deployment list, the
-served bundle name, the Supabase function list and read-only SQL counts on
-NTER. No tests were rerun for this note.
+served bundle name and the Supabase function list. Corpus counts are from
+read-only SQL earlier the same evening. No tests were rerun for this note.
 
 - **Branches:** one branch, `main`, locally and on `origin`. Local `main` =
-  `origin/main` = `79d24f6`; the working tree is clean.
-- **Website:** production deploy `dpl_GdGPGLFRpXFP6Remmh7s5iakTcUV`
-  (`79d24f6`) is READY on niyantran-six.vercel.app and serves
-  `index-Cnk1SWaU.js`. The last code change is `d4b1e29` (F117 Synopsis
-  label); later commits are docs only.
-- **Research chat:** `research-chat` v50 is ACTIVE (deployed from `c117dc2`,
-  `verify_jwt` false). Rollback: redeploy from `839d7dc` (v49) or `7f0563e`
-  (v48).
-- **Corpus** (counted 2026-10-13):
+  `origin/main` = `8441097`; the working tree is clean.
+- **Website:** production deploy `dpl_C5YLx6rxa9d3mW3NSrVqbvDDGNBL`
+  (`8441097`) is READY on niyantran-six.vercel.app and serves
+  `index-D2ExlX5h.js`. It includes F119 (sector cards select) and the desk
+  tab icons, which show down to 900px.
+- **Research chat:** `research-chat` v50 is ACTIVE (deployed from `c117dc2`).
+  Rollback: redeploy from `839d7dc` (v49) or `7f0563e` (v48).
+- **Corpus:**
   - 3,379 documents, 3,376 indexed, 99,225 chunks;
-  - 2,694 bill documents on 2,216 bills, of which 2,692 carry a version (the
-    two without one are Hindi errata);
+  - 2,692 of 2,694 bill documents carry a version (the two without one are
+    Hindi errata);
   - no identical-text documents, and no bill holds two documents of the same
     version.
-  - Today's data changes, each backed up under `tmp/backups/` (local,
-    git-ignored):
-    - version backfills: F116 / F117 (24 + 1,153 + 456 rows);
-    - deletions: F115 (1 + 51 + 3 documents).
+  - Today's data changes are backed up under `tmp/backups/` (local,
+    git-ignored).
   - R7 stays open.
-- **Done today:** F104, F69, F105 (docs reconciled), F106 (NterEarth retired),
-  F113, F115, F117 (versions for the whole bill corpus).
-- **Shipped and awaiting the owner's check on production:**
-  - F112: navigation, type scale, search and hero spacing;
-  - F114: side panel collapsed by default on module pages;
-  - F116: version labels on citations;
-  - F118: one source card per bill;
-  - F110: Plan & billing panel; checkout stays closed (`BILLING_CHECKOUT_OPEN`
-    unset, no Razorpay keys).
+- **Done today:**
+  - F69, F104 (`research-chat` v48);
+  - F105 (docs reconciled), F106 (NterEarth retired);
+  - F112, F113, F114, F115;
+  - F116, F117, F118 (citation versions and one card per bill).
+
+  The owner checked F112–F118 and F110 on production.
+- **Awaiting the owner's check on production:** F119, sector cards select:
+  - picture cards stay on the landing, the switch is visible, and phones
+    scroll to the modules;
+  - module cards open the terminal.
 - **Shipped and still open:**
   - F107: legal pages, awaiting the full address and a lawyer review;
   - F108: legal text is stored per browser;
-  - F109: INR billing, with migration `20261012120000` applied.
+  - F109: INR billing, with migration `20261012120000` applied;
+  - F110: Plan & billing panel; checkout stays closed until F111 and O6.
 - **Order of work (owner, 2026-10-13):**
   1. finish the existing bugs and fixes;
   2. the owner's next UI changes, to be described;
@@ -88,21 +88,9 @@ NTER. No tests were rerun for this note.
   menu (current plan, Plus/Pro/Max in rupees, renew or upgrade only, invoices,
   renewal reminder), pricing hand-off for signed-in users, and a server switch
   `BILLING_CHECKOUT_OPEN` that keeps checkout closed until credits (F111).
-  [Spec](../specs/2026-10-12-upgrade-screen.md). Remaining: owner review, a
-  Razorpay test-mode run on a preview with test keys, then open checkout after
+  [Spec](../specs/2026-10-12-upgrade-screen.md). Owner checked the panel on
+  production 2026-10-13. Remaining: a Razorpay test-mode run on a preview with test keys, then open checkout after
   F111.
-- [ ] **F112. Terminal navigation, type scale and search.** Owner review
-  2026-10-13: no "Choose a desk" row on Home, larger highlighted desk tabs, one
-  type scale on desk landings, a wider "Search desks, modules and records" box.
-  The desk hero now grows to fit the larger title (amendment 1). Shipped in
-  `ef4754a` (production `dpl_89StSPmjxkYuVtFLdWBq7bABvDXF`).
-  [Spec](../specs/2026-10-13-nav-type-search.md). Remaining: owner review.
-- [ ] **F114. Side panel collapsed by default on module pages.** Approved
-  2026-10-13. A module page loads with the slim bar so the table gets the
-  width; a row click opens Record; picking up a record opens AI.
-  Commit `408835e`, merged `426a879`, pushed 2026-10-13.
-  [Spec](../specs/2026-10-13-panel-collapsed-default.md). Remaining: owner
-  review on production.
 - [x] **F115. Duplicate and misattributed corpus documents.** Found
   2026-10-13 from the owner's anti-doping question. It returned three
   citations to `bill:2025:77`: the admin-uploaded PDF (`89b71893…`, page
@@ -143,15 +131,6 @@ NTER. No tests were rerun for this note.
     bill records; the wrong copies were deleted (amendment 1 of the record).
     No identical-text documents remain. Corpus: 3,379 documents, 99,225
     chunks.
-- [ ] **F116. Citations do not say which version or format a source is.** Two
-  versions of a bill appear under identical titles. 413 bills have several
-  documents (versions). Only two documents have a stored PDF, so all other
-  citations open in Text. Show the version (`document_role`, for example "As
-  introduced" or "As passed Lok Sabha") on source cards and in the reader.
-  Shipped 2026-10-13: merged `839d7dc`, pushed, Vercel
-  `dpl_5terWzWj3hK3nRtkVpsW9e9dgfma`, `research-chat` v49.
-  [Spec](../specs/2026-10-13-citation-version-labels.md). Remaining: confirm a
-  new answer's sources carry `document_role`, and an owner check.
 - [x] **F117. Versions for the original bill corpus.** 1,622 bill documents
   loaded between 2026-09-21 and 2026-10-01 record no `document_role`, so they
   show no version label and the model does not see their version.
@@ -172,17 +151,12 @@ NTER. No tests were rerun for this note.
     `research-chat` v50. Only 2 Hindi errata files remain unversioned.
   - The 24-document old-key backfill is done:
     [record](../research/2026-10-13-document-role-backfill.md).
-- [ ] **F118. One source card per bill.** Versions of one bill cited in an
-  answer share a card with a tag per version (owner, 2026-10-13). Built on
-  `task/source-card-per-bill`, merged `46290e8`, pushed 2026-10-13.
-  [Spec](../specs/2026-10-13-source-card-per-bill.md). Remaining: owner check
-  on production.
 - [ ] **F119. Sector picture cards select instead of opening.** Owner
   2026-10-13: a card selects its sector, with a visible switch and a scroll
   into view on phones; the module cards open the terminal. Built on
-  `task/sector-card-select` and merged locally.
-  [Spec](../specs/2026-10-13-sector-cards-select.md). Remaining: push, owner
-  check.
+  `task/sector-card-select`, merged `8441097`, pushed 2026-10-13.
+  [Spec](../specs/2026-10-13-sector-cards-select.md). Remaining: owner check
+  on production.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -260,6 +234,34 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 
 ## 1. Done
+
+- [x] **F112. Terminal navigation, type scale and search.** Owner review
+  2026-10-13: no "Choose a desk" row on Home, larger highlighted desk tabs, one
+  type scale on desk landings, a wider "Search desks, modules and records" box.
+  The desk hero now grows to fit the larger title (amendment 1). Shipped in
+  `ef4754a` (production `dpl_89StSPmjxkYuVtFLdWBq7bABvDXF`).
+  [Spec](../specs/2026-10-13-nav-type-search.md).
+  Owner checked on production and accepted, 2026-10-13.
+- [x] **F114. Side panel collapsed by default on module pages.** Approved
+  2026-10-13. A module page loads with the slim bar so the table gets the
+  width; a row click opens Record; picking up a record opens AI.
+  Commit `408835e`, merged `426a879`, pushed 2026-10-13.
+  [Spec](../specs/2026-10-13-panel-collapsed-default.md).
+  Owner checked on production and accepted, 2026-10-13.
+- [x] **F116. Citations do not say which version or format a source is.** Two
+  versions of a bill appear under identical titles. 413 bills have several
+  documents (versions). Only two documents have a stored PDF, so all other
+  citations open in Text. Show the version (`document_role`, for example "As
+  introduced" or "As passed Lok Sabha") on source cards and in the reader.
+  Shipped 2026-10-13: merged `839d7dc`, pushed, Vercel
+  `dpl_5terWzWj3hK3nRtkVpsW9e9dgfma`, `research-chat` v49.
+  [Spec](../specs/2026-10-13-citation-version-labels.md).
+  Owner checked on production and accepted, 2026-10-13.
+- [x] **F118. One source card per bill.** Versions of one bill cited in an
+  answer share a card with a tag per version (owner, 2026-10-13). Built on
+  `task/source-card-per-bill`, merged `46290e8`, pushed 2026-10-13.
+  [Spec](../specs/2026-10-13-source-card-per-bill.md).
+  Owner checked on production and accepted, 2026-10-13.
 
 - [x] **F105. Reconcile stale documentation.** Owner approved 2026-10-13.
   - `agents/rollback-runbook.md`: all eight `verify_jwt = false` functions,
