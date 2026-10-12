@@ -1695,3 +1695,7 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     Unauthenticated POST returns 401 and the CORS preflight 204.
   - Rollback: redeploy the saved v47 release source listed under F104 in
     `docs/plans/open-work.md`.
+- **Side panel collapsed by default (F114):** `main` pushed `5a3b4a3..7f0563e`
+  (owner left the push to the supervisor: "you can if you think it's
+  required"). Production deploy `dpl_6spMz1nbjzthDzh4tQ4rPigZ1RJ1` (`7f0563e`)
+  is READY and serves `index-OvViFPJv.js`.
