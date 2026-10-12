@@ -70,7 +70,7 @@ no tests rerun, no production probe).
   plans/specs still read "local only / not merged" for work now in `main`.
   Documentation only; correct in place or mark Historical.
 
-- [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
+- [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
 
 

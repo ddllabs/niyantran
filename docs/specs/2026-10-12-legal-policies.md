@@ -120,3 +120,24 @@ decision existed:
   no horizontal overflow; signup notice links verified.
 - Not done here: pricing page (F99, with F109), admin editor persistence
   (F108), lawyer review, full registered address.
+
+## Pricing page (F99), 2026-10-12, branch `task/pricing-inr`
+
+The public pricing page now shows Free ₹0, Plus ₹399, Pro ₹999 and Max
+₹9,999 per month from `src/lib/publicPlans.js`, with "Niyantran AI is coming
+soon" on Pro and Max, notes that no GST is charged and that credit allowances
+will be published with the credit policy, and a comparison of only what the
+product offers. The yearly toggle, USD prices, Government plan and
+unsupported claims (API access, team collaboration, dashboards, deployment
+options) are removed. Every plan button leads to signup; "Contact us" opens
+the contact page. Billing (`pricingStore.js`, `billing.js`, server charge
+table) is unchanged and still describes the old plans: F109 must align it
+before payments go live. The admin pricing editor no longer feeds this page
+(it never reached visitors; F108).
+
+Evidence: red-first `src/lib/publicPlans.test.js`; `npm test` 192 files /
+2,539 tests; Deno 881; lint exit 0; build. Browser (DOM checks, pane hidden):
+four rupee cards, Pro/Max coming-soon, nine comparison rows, no "$" or yearly
+text, no overflow at 360/768/1440; plan button goes to signup, help button to
+`/contact`; zero console errors. The hero's unmeasured figures ("UPTIME
+99.9%", "FEED 211+") remain under F30.

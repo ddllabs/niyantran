@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { loadPricing, PLAN_IDS, subscribePricing } from '../lib/pricingStore.js';
+import { useState } from 'react';
+import { PRICING_COMPARE, PRICING_NOTES, PUBLIC_PLANS, rupees } from '../lib/publicPlans.js';
 
 function Ico({ d, size = 18 }) {
   return (
@@ -33,25 +33,14 @@ const C = {
 };
 
 const PERKS = [
-  { d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM8.2 12.1l2.4 2.4 5.2-5.4', title: 'Secure & Compliant', copy: 'Enterprise-grade security and data protection' },
-  { d: 'M13 2L4 14h7l-1 8 10-14h-7l1-8z', title: 'Real-Time Intelligence', copy: 'Live, authoritative data from 200+ sources' },
-  { d: 'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75', title: 'Built for Collaboration', copy: 'Share insights and work together seamlessly' },
-  { d: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18', title: 'Global Coverage', copy: 'Comprehensive coverage across regions and sectors' },
-];
-
-const COMPARE = [
-  ['Access to Desks', '5 Core Desks', 'All Desks', 'All Desks', 'All Desks'],
-  ['Real-Time Data Feeds', 'Limited', true, true, true],
-  ['Custom Dashboards', 'Up to 3', 'Up to 10', 'Unlimited', 'Unlimited'],
-  ['AI Research Assistant', false, false, true, true],
-  ['API Access', false, false, true, true],
-  ['Data Exports', false, true, true, true],
-  ['Team Collaboration', false, true, true, true],
-  ['Support', 'Community', 'Priority', 'SLA Support', 'Dedicated'],
-  ['Deployment', 'Cloud', 'Cloud', 'Cloud', 'Private Cloud / On-Prem'],
+  { d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM8.2 12.1l2.4 2.4 5.2-5.4', title: 'Secure by design', copy: 'Per-account access controls and encryption in transit' },
+  { d: 'M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z', title: 'Source-linked records', copy: 'Official and published sources with provenance shown' },
+  { d: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', title: 'Cited AI answers', copy: 'Every answer links back to the documents it used' },
+  { d: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18', title: 'Eight desks', copy: 'National, state, law, global, economics, carbon, sports and entertainment' },
 ];
 
 const COL_COLOR = [C.blue, C.purple, C.blue, C.red];
+const TONE_COLOR = { explorer: C.blue, pro: C.purple, enterprise: C.blue, gov: C.red };
 
 function Cell({ value, color }) {
   if (value === true) return <CircCheck color={color} />;
@@ -66,20 +55,12 @@ function onCardMove(e) {
   el.style.setProperty('--py', `${((e.clientY - r.top) / r.height) * 100}%`);
 }
 
-export default function PricingPage({ onLogin }) {
-  const [yearly, setYearly] = useState(false);
+// Every plan starts at signup; paid plans are bought from the account once
+// online payments open.
+export default function PricingPage({ onLogin, onContact }) {
   const [focus, setFocus] = useState(null);
-  const [plans, setPlans] = useState(() => loadPricing());
-
-  useEffect(() => subscribePricing(setPlans), []);
-
-  function goPlan(planId) {
-    if (planId === 'gov') {
-      onLogin?.('signup');
-      return;
-    }
-    onLogin?.(planId);
-  }
+  const plans = PUBLIC_PLANS;
+  const goPlan = () => onLogin?.('signup');
 
   return (
     <div className="mkt-pr">
@@ -147,48 +128,36 @@ export default function PricingPage({ onLogin }) {
       </section>
 
       <div className="mkt-wrap">
-        <div className="mkt-pr-bill">
-            <span className={!yearly ? 'on' : ''}>Pay Monthly</span>
-            <button
-              type="button"
-              className={`mkt-pr-switch${yearly ? ' on' : ''}`}
-              role="switch"
-              aria-checked={yearly}
-              aria-label="Toggle yearly billing"
-              onClick={() => setYearly((v) => !v)}
-            >
-              <i />
-            </button>
-            <span className={yearly ? 'on' : ''}>Pay Yearly</span>
-            <em>Save 17%</em>
-          </div>
+        <div className="mkt-pr-notes">
+          {PRICING_NOTES.map((note) => <p key={note}>{note}</p>)}
+        </div>
 
         <div className="mkt-pr-grid" onMouseLeave={() => setFocus(null)}>
           {plans.map((p) => {
-            const price = p.custom ? 'Custom' : `$${yearly && p.yearly != null ? p.yearly : p.monthly}`;
+            const price = rupees(p.monthly);
             return (
               <article
                 key={p.id}
-                className={`mkt-pr-card ${p.id}${focus === p.id ? ' on' : ''}`}
-                onMouseEnter={() => setFocus(p.id)}
+                className={`mkt-pr-card ${p.tone}${focus === p.tone ? ' on' : ''}`}
+                onMouseEnter={() => setFocus(p.tone)}
                 onMouseMove={onCardMove}
               >
                 <span className="mkt-pr-glow" aria-hidden="true" />
                 {p.popular ? <div className="mkt-pr-pop">MOST POPULAR</div> : null}
                 <div className="mkt-pr-card-body">
                   <div className="mkt-pr-card-lead">
-                    <h2 style={{ color: p.color }}>{p.name}</h2>
+                    <h2 style={{ color: TONE_COLOR[p.tone] }}>{p.name}</h2>
                     <p className="who">{p.who}</p>
                     <div className="amt" key={`${p.id}-${price}`}>
                       {price}
                     </div>
                     <div className="unit">{p.unit}</div>
                     <p className="tag">{p.tag}</p>
-                    <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={() => goPlan(p.id)}>
+                    <button type="button" className={`mkt-pr-btn ${p.ctaKind}`} onClick={goPlan}>
                       {p.cta}
                     </button>
                     {p.plus ? (
-                      <p className="plus" style={{ color: p.color }}>
+                      <p className="plus" style={{ color: TONE_COLOR[p.tone] }}>
                         {p.plus}
                       </p>
                     ) : (
@@ -198,7 +167,7 @@ export default function PricingPage({ onLogin }) {
                   <ul>
                     {p.items.map((item) => (
                       <li key={item}>
-                        <Tick color={p.id === 'explorer' ? C.purple : p.color} />
+                        <Tick color={p.tone === 'explorer' ? C.purple : TONE_COLOR[p.tone]} />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -230,20 +199,20 @@ export default function PricingPage({ onLogin }) {
             <thead>
               <tr>
                 <th>FEATURES</th>
-                {PLAN_IDS.map((id, i) => (
+                {plans.map((p, i) => (
                   <th
-                    key={id}
+                    key={p.id}
                     className={['ex', 'pro', 'ent', 'gov'][i]}
-                    onMouseEnter={() => setFocus(id)}
+                    onMouseEnter={() => setFocus(p.tone)}
                     onMouseLeave={() => setFocus(null)}
                   >
-                    {plans[i]?.name || ['EXPLORER', 'PROFESSIONAL', 'ENTERPRISE', 'GOVERNMENT'][i]}
+                    {p.name}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {COMPARE.map((row) => (
+              {PRICING_COMPARE.map((row) => (
                 <tr key={row[0]}>
                   <th scope="row">{row[0]}</th>
                   {row.slice(1).map((cell, i) => (
@@ -264,10 +233,10 @@ export default function PricingPage({ onLogin }) {
           </div>
           <div className="mkt-pr-help-copy">
             <h3>Not sure which plan fits your needs?</h3>
-            <p>Our team can help you find the right solution.</p>
+            <p>Write to us and we will help you choose.</p>
           </div>
-          <button type="button" className="mkt-pr-btn ghost-dark" onClick={() => goPlan('gov')}>
-            Talk to an Expert
+          <button type="button" className="mkt-pr-btn ghost-dark" onClick={() => onContact?.()}>
+            Contact us
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
