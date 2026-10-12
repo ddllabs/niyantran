@@ -12,7 +12,7 @@ vi.mock('./supabaseClient.js', () => ({
 }));
 
 import {
-  canAccessDesk, canExport, entitlementOf, rowCapForUser, trialDaysLeft, FREE_ROW_CAP, TRIAL_ROW_CAP,
+  canAccessDesk, canExport, entitlementOf, rowCapForUser, trialDaysLeft, canCopy, applyRowCap,
 } from './planEntitlements.js';
 import { clearEntitlement, refreshEntitlement, serverEntitlement, startTrial } from './entitlementStore.js';
 
@@ -41,16 +41,16 @@ function serve(data) {
 describe('a session user cannot grant itself a plan', () => {
   it('ignores plan fields on the session user until the server has answered', () => {
     expect(entitlementOf(tampered)).toMatchObject({ plan: 'explorer', status: 'free' });
-    expect(canExport(tampered)).toBe(false);
-    expect(rowCapForUser(tampered)).toBe(FREE_ROW_CAP);
-    expect(canAccessDesk(tampered, 'state')).toBe(false);
+    expect(canExport(tampered)).toBe(true);
+    expect(rowCapForUser(tampered)).toBe(null);
+    expect(canAccessDesk(tampered, 'state')).toBe(true);
   });
 
   it('keeps ignoring them after the server says free', async () => {
     serve({ plan: 'explorer', status: 'free', period_end: null, lapsed: false, trial_used: false });
     await refreshEntitlement();
     expect(entitlementOf(tampered)).toMatchObject({ plan: 'explorer', status: 'free', loaded: true });
-    expect(canExport(tampered)).toBe(false);
+    expect(canExport(tampered)).toBe(true);
   });
 
   it("does not apply one account's entitlement to another", async () => {
@@ -66,7 +66,7 @@ describe('a session user cannot grant itself a plan', () => {
   });
 });
 
-describe('the server entitlement drives the locks', () => {
+describe('subscription facts remain accurate without commercial desk locks', () => {
   it('a paid plan unlocks every desk and export, with no row cap', async () => {
     serve({ plan: 'professional', status: 'active', period_end: new Date(Date.now() + 30 * DAY).toISOString(), lapsed: false });
     await refreshEntitlement();
@@ -77,13 +77,13 @@ describe('the server entitlement drives the locks', () => {
     expect(canAccessDesk(user, 'state')).toBe(true);
   });
 
-  it('a trial opens desks with the trial cap and counts its days', async () => {
+  it('a trial retains its accurate days without record or export caps', async () => {
     serve({ plan: 'enterprise', status: 'trial', period_end: new Date(Date.now() + 3.5 * DAY).toISOString(), trial_used: true });
     await refreshEntitlement();
     const user = { id: 'u1', email: 'a@example.test' };
     expect(entitlementOf(user)).toMatchObject({ plan: 'enterprise', status: 'trial', trialUsed: true });
-    expect(rowCapForUser(user)).toBe(TRIAL_ROW_CAP);
-    expect(canExport(user)).toBe(false);
+    expect(rowCapForUser(user)).toBe(null);
+    expect(canExport(user)).toBe(true);
     expect(trialDaysLeft(user)).toBe(4);
   });
 
@@ -129,5 +129,27 @@ describe('startTrial', () => {
     auth.rpc = vi.fn(async () => ({ data: null, error: { message: 'This account has already used its trial' } }));
     expect(await startTrial('enterprise')).toEqual({ ok: false, reason: 'This account has already used its trial' });
     expect(entitlementOf({ id: 'u1' })).toMatchObject({ plan: 'explorer', status: 'free' });
+  });
+});
+
+
+describe('free desk capabilities', () => {
+  it.each(['policy', 'journalist', 'student', 'analyst', 'lawyer', 'academic'])('allows every desk, copying and full feeds for a free %s', type => {
+    const user = { id: 'u1', type };
+    for (const desk of ['home', 'national', 'global', 'state', 'law', 'economics', 'carbon', 'sports', 'entertainment']) expect(canAccessDesk(user, desk)).toBe(true);
+    expect(canCopy(user)).toBe(true);
+    expect(canExport(user)).toBe(true);
+    const feed = { rows: Array.from({ length: 55 }, (_, id) => ({ id })), note: 'Original source note' };
+    expect(applyRowCap(feed, user)).toBe(feed);
+    expect(feed.rows).toHaveLength(55);
+    expect(rowCapForUser(user)).toBe(null);
+  });
+  it('rejects unknown desks and does not grant capabilities to signed-out or disabled accounts', () => {
+    expect(canAccessDesk({ id: 'u1' }, 'unknown')).toBe(false);
+    for (const user of [null, {}, { id: 'u1', active: false }]) {
+      expect(canAccessDesk(user, 'national')).toBe(false);
+      expect(canCopy(user)).toBe(false);
+      expect(canExport(user)).toBe(false);
+    }
   });
 });

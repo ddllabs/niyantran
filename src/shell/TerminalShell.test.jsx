@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const fixture = vi.hoisted(() => ({ allowed: true, user: { id: 'local-shell-fixture', type: 'policy' } }));
-vi.mock('../lib/userStore.js', () => ({ sessionUser: () => fixture.user, userTypeOf: () => ({ id: 'policy', startTab: 'national' }), clearSessionUser: vi.fn() }));
-vi.mock('../lib/planEntitlements.js', async importOriginal => ({ ...(await importOriginal()), canAccessDesk: (_user, tab) => tab === 'home' || fixture.allowed, deskLocked: (_user, tab) => tab !== 'home' && !fixture.allowed }));
+vi.mock('../lib/userStore.js', () => ({ sessionUser: () => ({ ...fixture.user, active: fixture.allowed }), userTypeOf: () => ({ id: 'policy', startTab: 'national' }), clearSessionUser: vi.fn() }));
 vi.mock('./SidePanel.jsx', () => ({ default: () => <aside data-protected="side-panel"/>, useSidePanel: () => ({ collapsed: false, aiOpen: false }) }));
 vi.mock('../desks/DeskView.jsx', () => ({ default: props => <div data-protected="workspace">{props.featureName}</div> }));
 vi.mock('../desks/DeskLandingView.jsx', () => ({ default: () => <div data-protected="landing"/> }));
@@ -11,11 +10,10 @@ vi.mock('../desks/HomeDesk.jsx', () => ({ default: () => <div>Home fixture</div>
 vi.mock('./OnboardingTour.jsx', () => ({ default: () => <div data-protected="tour"/> }));
 vi.mock('./CommandSearch.jsx', () => ({ default: () => <div>Search fixture</div> }));
 vi.mock('./LiveTvModal.jsx', () => ({ default: () => null }));
-vi.mock('./UpgradeModal.jsx', () => ({ default: () => null }));
 import TerminalShell from './TerminalShell.jsx';
 
 beforeEach(() => { fixture.allowed = true; vi.stubGlobal('location', { hash: '#/economics/Live%20Global%20Stock%20Exchanges' }); });
-describe('restricted canonical destinations', () => {
+describe('account-restricted canonical destinations', () => {
   it('does not mount protected workspace, side panel or tour for a denied deep link', () => {
     fixture.allowed = false;
     const html = renderToStaticMarkup(<TerminalShell/>);
@@ -31,7 +29,7 @@ describe('restricted canonical destinations', () => {
     expect(html).toContain('Access restricted');
     expect(html).not.toContain('data-protected=');
   });
-  it('gates fresh render snapshots by current entitlement without claiming mounted hydration', () => {
+  it('gates fresh render snapshots by active account without claiming mounted hydration', () => {
     expect(renderToStaticMarkup(<TerminalShell/>)).toContain('data-protected="workspace"');
     fixture.allowed = false;
     expect(renderToStaticMarkup(<TerminalShell/>)).not.toContain('data-protected=');
@@ -64,5 +62,16 @@ describe('meaningful header controls', () => {
   it.each(['#/home', '#/economics/Live%20Global%20Stock%20Exchanges'])('keeps functional refresh on %s', hash => {
     location.hash = hash;
     expect(renderToStaticMarkup(<TerminalShell/>)).toContain('Refresh feed');
+  });
+});
+
+
+describe('free module access', () => {
+  it.each(['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'])('opens %s landing for a free account without upgrade badges', desk => {
+    location.hash = '#/' + desk;
+    const html = renderToStaticMarkup(<TerminalShell/>);
+    expect(html).toContain('data-protected="landing"');
+    expect(html).not.toContain('Upgrade');
+    expect(html).not.toContain('Access restricted');
   });
 });

@@ -7,7 +7,6 @@ import DeskNav from './DeskNav.jsx';
 import DeskRail from './DeskRail.jsx';
 import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
-import UpgradeModal from './UpgradeModal.jsx';
 import { Icon } from './Icons.jsx';
 import { Moon, Sun } from 'lucide-react';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
@@ -21,13 +20,8 @@ import { parseDeskHash, resolveDeskRoute, writeDeskHash } from '../lib/deskRoute
 import { kickHomeRefreshIfDue } from '../lib/homeCache.js';
 import { clearSessionUser, sessionUser, userTypeOf } from '../lib/userStore.js';
 import {
-  applyRowCap,
   canAccessDesk,
-  canCopy,
-  canExport,
-  deskLocked,
   entitlementOf,
-  isTrial,
   navTabsForUser,
   planOf,
   trialDaysLeft,
@@ -44,7 +38,6 @@ import './upgrade.css';
 import DeskCatalogueSearch from './DeskCatalogueSearch.jsx';
 import RestrictedDeskRoute from './RestrictedDeskRoute.jsx';
 import { backFromRestrictedDesk, rememberDeskNavigation } from './deskRouteHistory.js';
-import { isEditableCopy } from './copyPolicy.js';
 
 export default function TerminalShell({ onLogout }) {
   const start = parseDeskHash();
@@ -61,7 +54,6 @@ export default function TerminalShell({ onLogout }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
-  const [upgrade, setUpgrade] = useState(null);
   const profileRef = useRef(null);
   const user = sessionUser();
   const typeId = userTypeOf(user?.type).id;
@@ -69,19 +61,12 @@ export default function TerminalShell({ onLogout }) {
   const ent = entitlementOf(user);
   const planMeta = planOf(ent.plan);
   const deskTabs = navTabsForUser(user);
-  const lockedIds = useMemo(
-    () => new Set(deskTabs.filter((t) => deskLocked(user, t.id)).map((t) => t.id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.id, user?.personaId, user?.type, userTick],
-  );
+  const lockedIds = useMemo(() => new Set(), []);
 
   const active = deskTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
   const hi = lang === 'hi';
   const restricted = !canAccessDesk(user, tab);
 
-  const openUpgrade = useCallback((reason = 'desk', deskLabel = '') => {
-    setUpgrade({ reason, deskLabel });
-  }, []);
 
   useEffect(() => {
     if (!profileOpen) return undefined;
@@ -112,42 +97,7 @@ export default function TerminalShell({ onLogout }) {
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    window.__niyExportGate = () => {
-      if (canExport(sessionUser())) return true;
-      openUpgrade('export');
-      return false;
-    };
-    return () => {
-      delete window.__niyExportGate;
-    };
-  }, [openUpgrade, userTick]);
-
-  useEffect(() => {
-    if (canCopy(user)) {
-      document.body.classList.remove('plan-no-copy');
-      return undefined;
-    }
-    document.body.classList.add('plan-no-copy');
-    function onCopy(e) {
-      if (isEditableCopy(e) || canCopy(sessionUser())) return;
-      e.preventDefault();
-      openUpgrade('copy');
-    };
-    document.addEventListener('copy', onCopy, true);
-    return () => {
-      document.body.classList.remove('plan-no-copy');
-      document.removeEventListener('copy', onCopy, true);
-    };
-  }, [user, openUpgrade, userTick]);
-
-  const onFeed = useCallback(
-    (body) => {
-      setFeed(applyRowCap(body, sessionUser()));
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sessionUser() is read outside React; userTick is its change signal.
-    [userTick],
-  );
+  const onFeed = useCallback(body => setFeed(body), []);
   const onSelect = useCallback((row) => setSelected(row), []);
   const onLoading = useCallback((v) => setLoading(Boolean(v)), []);
   const onClearViz = useCallback(() => setVizFilter(null), []);
@@ -280,11 +230,6 @@ export default function TerminalShell({ onLogout }) {
   useEffect(() => {
     function onPop() {
       const r = parseDeskHash();
-      if (!canAccessDesk(sessionUser(), r.tab)) {
-        openUpgrade('desk', TABS.find((t) => t.id === r.tab)?.label || r.tab);
-      } else if (isTrial(sessionUser()) && r.tab !== 'home') {
-        openUpgrade('trial');
-      }
       setTab(r.tab);
       setFeatureName(r.feature);
       setSelected(null);
@@ -296,18 +241,12 @@ export default function TerminalShell({ onLogout }) {
       window.removeEventListener('popstate', onPop);
       window.removeEventListener('hashchange', onPop);
     };
-  }, [typeId, openUpgrade]);
+  }, [typeId]);
 
-  const searchTabs = useMemo(() => deskTabs.filter(t => canAccessDesk(user, t.id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- entitlement store updates are signalled by userTick.
-    [deskTabs, user, userTick]);
+  const searchTabs = deskTabs;
 
   function onDesk(id) {
     panel.act({ type: 'landing' });
-    if (!canAccessDesk(sessionUser(), id)) {
-      openUpgrade('desk', TABS.find((t) => t.id === id)?.label || id);
-    }
-    if (isTrial(sessionUser()) && id !== 'home') openUpgrade('trial');
     const r = resolveDeskRoute(id, '');
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -316,8 +255,6 @@ export default function TerminalShell({ onLogout }) {
   }
 
   function onFeature(name) {
-    if (!canAccessDesk(sessionUser(), tab)) openUpgrade('desk', active.label);
-    else if (isTrial(sessionUser())) openUpgrade('trial');
     const r = resolveDeskRoute(tab, name);
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -326,10 +263,6 @@ export default function TerminalShell({ onLogout }) {
   }
 
   function onOpen({ tab: nextTab, feature }) {
-    if (!canAccessDesk(sessionUser(), nextTab)) {
-      openUpgrade('desk', TABS.find((t) => t.id === nextTab)?.label || nextTab);
-    }
-    if (isTrial(sessionUser()) && nextTab !== 'home') openUpgrade('trial');
     const r = resolveDeskRoute(nextTab, feature);
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -361,8 +294,6 @@ export default function TerminalShell({ onLogout }) {
         : ent.status === 'free' || ent.plan === 'explorer'
           ? 'Free'
           : 'Active';
-  const canUpgrade =
-    (ent.status === 'trial' || ent.status === 'free' || ent.plan === 'explorer');
 
   function doLogout() {
     clearSessionUser();
@@ -482,18 +413,6 @@ export default function TerminalShell({ onLogout }) {
                 </dl>
                 {planMeta?.tag ? <p className="profile-pop-tag">{planMeta.tag}</p> : null}
                 <div className="profile-pop-actions">
-                  {canUpgrade ? (
-                    <button
-                      type="button"
-                      className="profile-pop-upgrade"
-                      onClick={() => {
-                        setProfileOpen(false);
-                        openUpgrade(ent.status === 'trial' ? 'trial' : 'desk');
-                      }}
-                    >
-                      {ent.status === 'trial' ? 'Upgrade plan' : 'View plans'}
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     className="profile-pop-persona"
@@ -531,7 +450,7 @@ export default function TerminalShell({ onLogout }) {
         <main className="main-col">
           {restricted ? (
             <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
-              onAccess={() => openUpgrade('desk', active.label)}
+              onAccess={doLogout}
               onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
           ) : tab === 'home' ? (
             <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
@@ -581,16 +500,7 @@ export default function TerminalShell({ onLogout }) {
           }}
         />
       ) : null}
-      <UpgradeModal
-        open={Boolean(upgrade)}
-        reason={upgrade?.reason || 'desk'}
-        deskLabel={upgrade?.deskLabel || ''}
-        onClose={() => setUpgrade(null)}
-        onUpgraded={() => {
-          setUserTick((n) => n + 1);
-          setUpgrade(null);
-        }}
-      />
+
     </div>
   );
 }

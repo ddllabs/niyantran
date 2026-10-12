@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PERSONAS, applyPersonaForUser } from '../lib/personas.js';
 import {
   PENDING_PERSONA_KEY,
@@ -6,44 +6,24 @@ import {
   userTypeOf,
 } from '../lib/userStore.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
-import { entitlementOf, normalizePlanId, TRIAL_DAYS } from '../lib/planEntitlements.js';
-import { refreshEntitlement, startTrial } from '../lib/entitlementStore.js';
-import { loadPricing } from '../lib/pricingStore.js';
+import { entitlementOf } from '../lib/planEntitlements.js';
+import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
 import { signupErrorMessage } from '../lib/signupErrors.js';
 import { nextSignupStep } from '../lib/signupFlow.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
-function planFromRoute() {
-  if (typeof location === 'undefined') return 'explorer';
-  const raw = String(location.hash || '')
-    .replace(/^#/, '')
-    .replace(/^\/+/, '')
-    .toLowerCase();
-  const q = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '';
-  const params = new URLSearchParams(q);
-  const fromQuery = params.get('plan');
-  if (fromQuery) return normalizePlanId(fromQuery);
-  const parts = raw.split(/[/?#]/).filter(Boolean);
-  if (parts[0] === 'signup' && parts[1]) return normalizePlanId(parts[1]);
-  return 'explorer';
-}
-
 export default function SignupPage({ onSuccess, onLogin }) {
-  const [step, setStep] = useState('account'); // account | plan
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [personaId, setPersonaId] = useState('');
-  const [planId, setPlanId] = useState(() => planFromRoute());
-  const [draftUser, setDraftUser] = useState(null);
   const [verificationSentEmail, setVerificationSentEmail] = useState('');
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState('');
   const [cooldown, setCooldown] = useState(0);
 
   const root = useRef(null);
-  const plans = useMemo(() => loadPricing().filter((p) => p.id !== 'gov'), []);
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -105,43 +85,13 @@ export default function SignupPage({ onSuccess, onLogin }) {
     applyPersonaForUser(seat);
     setSessionUser(seat);
     sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
-    // The plan is the server's: handle_new_user() started any trial picked
-    // here, so read it back rather than assuming it (F2).
-    await refreshEntitlement();
+    // Preserve the server's subscription facts; desk access is free.
+    refreshEntitlement().catch(() => {});
     const ent = entitlementOf(seat);
     trackProductEvent('persona_selected', { personaId: type, source, plan: ent.plan });
     trackProductEvent('plan_selected', { plan: ent.plan, status: ent.status });
     await hydrateUserPrefs(seat.email);
     onSuccess();
-  }
-
-  function goToPlanStep(user, { source = 'signup' } = {}) {
-    setDraftUser({ user, source });
-    setPlanId('explorer');
-    setStep('plan');
-    setPending(false);
-    setError('');
-  }
-
-  async function applyPlanAndEnter() {
-    if (!draftUser?.user?.id) return;
-    setPending(true);
-    setError('');
-    if (planId !== 'explorer') {
-      const trial = await startTrial(planId);
-      // An account that already had its trial still enters, on its current plan.
-      if (!trial.ok && !/already/i.test(trial.reason)) {
-        setError(trial.reason);
-        setPending(false);
-        return;
-      }
-    }
-    const next = {
-      ...draftUser.user,
-      type: draftUser.user.type || draftUser.user.personaId,
-      personaId: draftUser.user.personaId || draftUser.user.type,
-    };
-    await enterTerminal(next, { source: draftUser.source || 'signup' });
   }
 
   async function handleSubmit(e) {
@@ -179,8 +129,8 @@ export default function SignupPage({ onSuccess, onLogin }) {
             first_name: firstName,
             last_name: lastName,
             personaId,
-            // pro or enterprise: handle_new_user() starts this account's one trial.
-            plan: planId || 'explorer',
+            // Legacy plan URLs must not start a trial during free signup.
+            plan: 'explorer',
           },
         },
       });
@@ -189,13 +139,10 @@ export default function SignupPage({ onSuccess, onLogin }) {
         setPending(false);
         return;
       }
-      const step = nextSignupStep({ hasSession: Boolean(signUpData?.session), planId });
+      const step = nextSignupStep({ hasSession: Boolean(signUpData?.session) });
       if (step !== 'verify') {
         const seat = { id: signUpData.session.user?.id, name, email: user, type: personaId, personaId };
-        // A free pick sees the second step, "Choose plan" (C7); a trial pick
-        // already has its trial from the server (open-work F24).
-        if (step === 'plan') goToPlanStep(seat);
-        else await enterTerminal(seat);
+        await enterTerminal(seat);
         return;
       }
     } catch (authErr) {
@@ -324,51 +271,13 @@ export default function SignupPage({ onSuccess, onLogin }) {
           <div className="mark">
             <img src="/brand/logo.png?v=2" alt="" />
           </div>
-          <h1>{step === 'plan' ? 'CHOOSE PLAN' : 'CREATE ACCESS'}</h1>
-          <div className="tag">{step === 'plan' ? 'STEP 2 OF 2' : 'SIGN UP'}</div>
+          <h1>CREATE ACCESS</h1>
+          <div className="tag">SIGN UP</div>
 
-          {step === 'plan' ? (
-            <div className="mkt-signup-plan-step">
-              <p className="mkt-signup-lead">
-                {`Account ready${draftUser?.user?.email ? ` for ${draftUser.user.email}` : ''}. Pick a plan to continue — Explorer is free; Professional / Enterprise start a ${TRIAL_DAYS}-day trial with no card.`}
-              </p>
-              <div className="mkt-signup-plan-grid" role="radiogroup" aria-label="Plan">
-                {plans.map((p, index) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={planId === p.id}
-                    tabIndex={planId === p.id ? 0 : -1}
-                    onKeyDown={(e) => chooseRadio(e, plans, index, setPlanId)}
-                    className={`mkt-signup-plan${planId === p.id ? ' on' : ''}`}
-                    onClick={() => setPlanId(p.id)}
-                  >
-                    <strong>{p.name}</strong>
-                    <span>
-                      {p.id === 'explorer' ? 'Free · 5 core desks' : `$${p.monthly}/mo · ${TRIAL_DAYS}-day trial, no card`}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <button className="mkt-cta" type="button" disabled={pending} onClick={applyPlanAndEnter}>
-                {pending
-                  ? 'Opening terminal…'
-                  : planId === 'explorer'
-                    ? 'Continue free'
-                    : `Start ${TRIAL_DAYS}-day trial`}
-              </button>
-              <div className="mkt-err" role="alert">
-                {error}
-              </div>
-            </div>
-          ) : null}
-
-          {step === 'account' ? (
             <form onSubmit={handleSubmit} autoComplete="off">
               <div className="mkt-signup-block">
                 <h2 className="mkt-signup-label">Who are you working as?</h2>
-                <p className="mkt-signup-lead">Sets your free-tier core desks and start desk.</p>
+                <p className="mkt-signup-lead">Sets your starting desk and research perspective. All desks are available.</p>
                 <div className="mkt-signup-persona-grid" role="radiogroup" aria-label="Working as">
                   {PERSONAS.map((p, index) => (
                     <button
@@ -426,19 +335,16 @@ export default function SignupPage({ onSuccess, onLogin }) {
                   }}
                   onError={(err) => setError(err.message || 'Google Sign-In failed.')}
                 />
-                <p className="mkt-google-note">Pick a role above first. You’ll choose a plan on the next step.</p>
+                <p className="mkt-google-note">Pick a role above first. Every desk is included with your account.</p>
               </div>
             </form>
-          ) : null}
 
-          {step !== 'plan' ? (
             <p className="mkt-auth-switch">
               Already have access?{' '}
               <button type="button" onClick={onLogin}>
                 Sign in
               </button>
             </p>
-          ) : null}
         </main>
       )}
     </div>

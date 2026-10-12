@@ -6,7 +6,6 @@ import { startSiteHead } from './lib/siteHead.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
 import PersonaChooser from './shell/PersonaChooser.jsx';
 import { publishVerifiedSessionUser, sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
-import { refreshEntitlement, serverEntitlement } from './lib/entitlementStore.js';
 import './shell/onboarding.css';
 
 function pathKey() {
@@ -66,22 +65,6 @@ export default function App() {
     if (!isSignedIn()) return Boolean(readPersonaId());
     return ensurePersonaFromSession();
   });
-  // The terminal opens once the server has said which plan this account has
-  // (F2): its desk routing would otherwise treat a paid account as free for
-  // the first render and move it off a desk it may open.
-  const [planReady, setPlanReady] = useState(() => Boolean(serverEntitlement(sessionUser()?.id)));
-
-  useEffect(() => {
-    if (!authed || planReady) return undefined;
-    let live = true;
-    refreshEntitlement().finally(() => {
-      if (live) setPlanReady(true);
-    });
-    return () => {
-      live = false;
-    };
-  }, [authed, planReady]);
-
   useEffect(() => startSiteHead(), []);
   useEffect(() => {
     let mounted = true;
@@ -104,7 +87,6 @@ export default function App() {
         }
       } else {
         setAuthed(false);
-        setPlanReady(false);
       }
     });
     return () => {
@@ -158,14 +140,6 @@ export default function App() {
     );
   }
 
-  if (!planReady) {
-    return (
-      <div className="niy-plan-wait" role="status" aria-live="polite">
-        Opening terminal…
-      </div>
-    );
-  }
-
   // Persona is set at signup / restored on login, or chosen once above.
   if (!personaReady) ensurePersonaFromSession();
 
@@ -174,7 +148,6 @@ export default function App() {
       onLogout={() => {
         setAuthed(false);
         setPersonaReady(false);
-        setPlanReady(false);
       }}
     />
   );

@@ -46,7 +46,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('F60 marketing and admin controls', () => {
   it('verification email text contrasts with its actual input background', () => {
-    render(SignupPage); hooks.states[6] = 'offline@example.test';
+    render(SignupPage); hooks.states[3] = 'offline@example.test';
     const input = nodes(render(SignupPage), node => node.type === 'input')[0];
     const luminance = hex => {
       const [r,g,b] = hex.slice(1).match(/../g).map(v=>parseInt(v,16)/255)
@@ -83,13 +83,11 @@ describe('F60 marketing and admin controls', () => {
     expect(radios.at(-1).props['aria-checked']).toBe(true);
     expect(key(radios.at(-1), 'Home', radios).focused).toEqual([0]);
   });
-  it('plan radios support arrow selection without submitting or entering the terminal', () => {
-    render(SignupPage); hooks.states[0] = 'plan';
-    let radios = role(render(SignupPage), 'radio');
-    expect(radios.filter((r) => r.props.tabIndex === 0)).toHaveLength(1);
-    expect(key(radios[0], 'ArrowRight', radios).focused).toEqual([1]);
-    radios = role(render(SignupPage), 'radio');
-    expect(radios[1].props['aria-checked']).toBe(true);
+  it('signup shows persona choice and no commercial plan selector', () => {
+    const tree = render(SignupPage);
+    expect(nodes(tree, node => node.props?.role === 'radiogroup' && node.props['aria-label'] === 'Plan')).toHaveLength(0);
+    expect(nodes(tree, node => node.props?.className === 'mkt-signup-plan-step')).toHaveLength(0);
+    expect(nodes(tree, node => node.type === 'form')).toHaveLength(1);
   });
   it('persona tabs have roving focus and select their labelled panel with End', () => {
     let tree = render(AiPersonasPage);

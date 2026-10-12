@@ -4,11 +4,11 @@ import { DeskDirectoryCards } from './DeskDirectory.jsx';
 import { TABS } from '../desks/catalog.js';
 
 describe('v6 desk directory', () => {
-  it('retains persona destinations, canonical route identities and visible locks without a Local invention', () => {
+  it('retains persona destinations, canonical route identities and free access without a Local invention', () => {
     const tabs = TABS.filter(tab => ['home', 'national', 'global', 'state'].includes(tab.id));
     const html = renderToStaticMarkup(<DeskDirectoryCards tabs={tabs} tab="national" lockedIds={new Set(['global'])} onDesk={() => {}}/>);
     expect((html.match(/<button/g) || []).length).toBe(4);
-    expect(html).toContain('Global · Upgrade');
+    expect(html).not.toContain('Upgrade');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('data-directory="state"');
     expect(html).not.toContain('data-directory="local"');

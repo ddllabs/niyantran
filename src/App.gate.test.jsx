@@ -20,7 +20,7 @@ vi.mock('./lib/entitlementStore.js', () => ({
 
 import App from './App.jsx';
 import { setSessionUser } from './lib/userStore.js';
-import { entitlementOf, canExport, rowCapForUser, FREE_ROW_CAP } from './lib/planEntitlements.js';
+import { entitlementOf, canExport, rowCapForUser } from './lib/planEntitlements.js';
 
 function memoryStorage() {
   const values = new Map();
@@ -74,13 +74,12 @@ describe('terminal sign-in gate', () => {
   });
 });
 
-describe('the plan gate', () => {
-  it('waits for the server plan before opening the terminal', () => {
+describe('free access while subscription metadata loads', () => {
+  it('opens the terminal without waiting for the server plan', () => {
     plan.loaded = false;
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student', plan: 'enterprise', planStatus: 'active' });
     const html = renderToStaticMarkup(createElement(App));
-    expect(html).not.toBe('TERMINAL');
-    expect(html).toContain('Opening terminal');
+    expect(html).toBe('TERMINAL');
   });
 });
 
@@ -88,6 +87,6 @@ describe('entitlements for a missing user', () => {
   it('treats null as the explorer entitlement', () => {
     expect(entitlementOf(null)).toMatchObject({ plan: 'explorer', status: 'free', trialExpired: false });
     expect(canExport(null)).toBe(false);
-    expect(rowCapForUser(null)).toBe(FREE_ROW_CAP);
+    expect(rowCapForUser(null)).toBe(null);
   });
 });

@@ -93,55 +93,35 @@ export function isPaidActive(user) {
   return e.status === 'active' && e.plan !== 'explorer';
 }
 
+/** Commercial desk access is free; the app verifies the session/profile. */
 export function canAccessDesk(user, deskId) {
-  const e = entitlementOf(user);
-  if (deskId === 'home') return true;
-  if (e.status === 'active' || e.status === 'trial') return true;
-  return coreDesksForPersona(user?.personaId || user?.type).includes(deskId);
+  return Boolean(user?.id && user.active !== false && TABS.some(tab => tab.id === deskId));
 }
 
 export function deskLocked(user, deskId) {
   return !canAccessDesk(user, deskId);
 }
 
-/** Nav shows every terminal desk; locks apply for free seats. */
+/** Every signed-in account can discover every terminal desk. */
 export function navTabsForUser(user) {
   return TABS;
 }
 
 export function canExport(user) {
-  const e = entitlementOf(user);
-  if (e.status === 'trial') return false;
-  if (e.status === 'free' || e.plan === 'explorer') return false;
-  return true;
+  return Boolean(user?.id && user.active !== false);
 }
 
 export function canCopy(user) {
   return canExport(user);
 }
 
-export function rowCapForUser(user) {
-  const e = entitlementOf(user);
-  if (e.status === 'trial') return TRIAL_ROW_CAP;
-  if (e.status === 'free' || e.plan === 'explorer') return FREE_ROW_CAP;
+/** Source and pagination limits remain; there is no commercial row cap. */
+export function rowCapForUser() {
   return null;
 }
 
-export function applyRowCap(feed, user) {
-  const cap = rowCapForUser(user);
-  if (!feed || !cap || !Array.isArray(feed.rows)) return feed;
-  const total = feed.rows.length;
-  if (total <= cap) return feed;
-  return {
-    ...feed,
-    rows: feed.rows.slice(0, cap),
-    note: [feed.note, `Showing ${cap} of ${total} rows — upgrade for full coverage.`]
-      .filter(Boolean)
-      .join(' '),
-    _planCapped: true,
-    _planCap: cap,
-    _planTotal: total,
-  };
+export function applyRowCap(feed) {
+  return feed;
 }
 
 export function trialDaysLeft(user) {
