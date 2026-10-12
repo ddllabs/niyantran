@@ -66,7 +66,7 @@ component:
  * visuals/types.js; modelContract rejects any other type):
  *   map:      points: { lat: number, lon: number, label: string, tone?: Tone, main?: boolean, approximate?: boolean }[]
  *   timeline: steps: { label: string, detail?: string, done?: boolean, now?: boolean }[]   // at most one `now`
- * Batch 2 registers board, leader and orbit before any adapter uses them.
+ *   board:    rows: { label: string, value: string, note?: string, tone?: Tone }[]   // batch 2; at least one row
  */
 ```
 
@@ -118,6 +118,33 @@ Links are computed only from data we hold, by documented rules in `touchRules.js
 
 A link that resolves to nothing is shown as "None on record", never invented. The
 "Open full impact analysis" button is omitted.
+
+### Batch 2 decisions (2026-10-13, supervisor)
+
+- **One new visual, the value board**, for Growth Indicators, Global Trade, Global Commodities and
+  Geopolitics News Wire. The orbit and leader-card visuals in the reference are not built: launch
+  rows hold no orbital data, so an orbit profile would imply facts the platform does not hold, and
+  a leader card would repeat the tiles.
+- **Country positions.** Constitutions, Growth, Trade and Heads of State place a country on the map
+  from a curated table of country centres, captioned approximate. A country missing from the table
+  gets no map, never a guessed one.
+- **Source-status rows** ("Source offline or empty") are not records. They keep the old view on
+  every module, registered or not.
+- **Touch lanes** use only the fields in the module's own feed rows:
+
+| Module | Left | Centre | Right | Far |
+|---|---|---|---|---|
+| Satellite Infrastructure | Provider | Launch | Launch site | Same provider (count) |
+| World Constitutions | Country | Constitution | Enacted (decade) | Same decade (count) |
+| Growth Indicators | Economy | Series | Rank on GDP growth | Same year (count) |
+| Global Trade | Economy | Exports | Rank on exports | Openness (trade share of GDP) |
+| Geopolitics News Wire | Publisher | Story | Published | Same publisher (count) |
+| Heads of State | Country | Leader | Party | Same ideology (count) |
+| Global Commodities | Group | Benchmark | Move | Same group (count) |
+
+- **Licence and liveness cautions.** Global Commodities levels are illustrative pack values, and the
+  panel says so; it never names a licence-gated provider as its source. News Wire stories are
+  reporting search results (GDELT) or BBC World RSS, not official records.
 
 ## Rollout (staged)
 

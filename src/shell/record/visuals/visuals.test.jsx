@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import PanelMap from './PanelMap.jsx';
 import StageTimeline from './StageTimeline.jsx';
+import ValueBoard from './ValueBoard.jsx';
 import TouchGraph from './TouchGraph.jsx';
 
 // F121: the record visuals say what they are. A map with an approximate marker says so; the graph
@@ -26,6 +27,15 @@ describe('record visuals', () => {
     expect(html).toMatch(/class="rp-step done"[^>]*>[\s\S]*?Negotiation/);
     expect(html).toMatch(/class="rp-step now"[^>]*aria-current="step"[\s\S]*?Contract signed/);
     expect(html).toContain('Step dates are not on record.');
+  });
+
+  it('lists board values with their notes and tones, and its caption', () => {
+    const html = renderToStaticMarkup(<ValueBoard title="Latest published year" right="World Bank" visual={{ type: 'board', caption: 'Annual series, not a forecast.', rows: [{ label: 'GDP growth', value: '6.5%', note: '2024', tone: 'green' }, { label: 'Unemployment', value: 'Not on record' }] }} />);
+    expect(html).toContain('Latest published year');
+    expect(html).toContain('World Bank');
+    expect(html).toMatch(/<dt>GDP growth<small>2024<\/small><\/dt><dd class="rp-green-text">6.5%<\/dd>/);
+    expect(html).toMatch(/<dt>Unemployment<\/dt><dd>Not on record<\/dd>/);
+    expect(html).toContain('Annual series, not a forecast.');
   });
 
   it('draws up to four nodes and names empty lanes', () => {

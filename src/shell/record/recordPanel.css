@@ -45,6 +45,12 @@
 .rp-map .geo-tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; font-size: 11px; color: var(--fg); z-index: 5; white-space: nowrap; box-shadow: 0 6px 18px #0002; }
 .rp-map .geo-tip[hidden] { display: none; }
 
+.rp-board-rows { margin: 0; padding: 4px 12px; }
+.rp-board-rows > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.rp-board-rows > div:last-child { border-bottom: 0; }
+.rp-board-rows dt { font-size: 13px; color: var(--fg, var(--text, #0f172a)); min-width: 0; }
+.rp-board-rows dt small { display: block; font-size: 11px; color: var(--muted); }
+.rp-board-rows dd { margin: 0; font-size: 14px; font-weight: 700; text-align: right; white-space: nowrap; }
 .rp-steps { list-style: none; margin: 0; padding: 12px 14px; display: flex; flex-direction: column; }
 .rp-step { position: relative; display: grid; grid-template-columns: 16px 1fr; gap: 10px; padding-bottom: 12px; font-size: 13px; color: var(--muted); }
 .rp-step:last-child { padding-bottom: 0; }

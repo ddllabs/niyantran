@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F122 is next) and goes in the
+- A new finding gets the next free `F` number (F123 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -177,8 +177,33 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - Batch 2: seven modules (parallel sub-agents).
   - Batch 3: the four dossiers (parallel sub-agents).
   - Status: batch 1 merged to `main` at `a62c2bb` and pushed on 2026-10-13,
-    after an independent re-review. Batches 2 and 3 follow the owner's review
-    on production.
+    after an independent re-review. Batch 2 (seven modules, the value board,
+    country centres, and Record tabs for Heads of State and Global
+    Commodities) is built on `task/global-record-panels-b2`; it awaits an
+    independent review, a local merge and the owner's go-ahead to push.
+    Batch 3 follows the owner's review on production.
+- [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
+  agents (2026-10-13); outside F121's scope, nothing changed yet.
+  - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
+    list names Trading Economics and CME, but the levels are illustrative pack
+    values (`src/desks/CommoditiesDesk.jsx`; feed `links` in
+    `server/featureFeed.mjs` near the Global Commodities branch; the pack note
+    in `src/data/commodities.json`). The record panel already says illustrative.
+  - Global Commodities desk: the search box does not filter, because
+    `groupsFrom` returns `feed.meta.groups` whenever the feed has them
+    (`src/desks/CommoditiesDesk.jsx`).
+  - Heads of State pack: row `ua2` duplicates `ua` ("Ukraine (see
+    Zelensky)"), and several names are offices that `flattenLeader` does not
+    flag as unverified ("UK Prime Minister", "German Chancellor", "Japan PM",
+    "Poland (govt)", "Taliban (IEA)", "Qatar (Emir)") (`src/data/leaders.json`,
+    `src/lib/globalResources.js`).
+  - The Heads of State feed lists Wikidata and the CIA World Factbook as links,
+    though its rows come from the embedded pack (`server/featureFeed.mjs`).
+  - The `.geo-holistic` workspace rules in `src/index.css` no longer apply to
+    any desk since F121 T15 and can be removed.
+  - Satellite Infrastructure: a launch's "Source" link is the Launch Library
+    JSON endpoint, not a readable page (`flattenLaunch` in
+    `server/assetsApi.mjs`).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
