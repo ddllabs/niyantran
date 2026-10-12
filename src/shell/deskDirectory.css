@@ -32,8 +32,10 @@
 .v6-landing-tabs button { display:inline-flex;align-items:center;gap:7px; }
 .v6-landing-tabs button svg { flex:none;opacity:.72; }
 .v6-landing-tabs button[aria-current=page] svg,.v6-landing-tabs button:hover svg { opacity:1; }
-/* Decoration only: below 1000px the nine names alone fill the row, so the icons step aside. */
-@media(max-width:999px) { .v6-landing-tabs button svg { display:none; } }
+/* Decoration only. Between 900 and 999px the tabs tighten so the icons still fit; below 900px the
+   nine names alone fill the row, so the icons step aside. */
+@media(max-width:999px) { .v6-landing-tabs button { padding:0 10px;gap:6px; }.v6-landing-tabs button[aria-current=page]::after { left:10px;right:10px; } }
+@media(max-width:899px) { .v6-landing-tabs button svg { display:none; } }
 .v6-landing-tabs small { font-size:9px; }
 .with-v6-directory>.topbar { grid-area:top; }
 .with-v6-directory>.workspace { grid-area:work;min-width:0; }

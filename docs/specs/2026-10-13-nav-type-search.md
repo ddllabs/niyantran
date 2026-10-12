@@ -85,6 +85,11 @@ in `Icons.jsx`), which `b0ba405` (F102) replaced with plain-text top tabs.
   hover.
 - Below 1000px the icons are hidden, because the nine names alone fill the
   row. At 768px the icons would have made it scroll by 202px.
+- Correction, same day: the owner's browser pane is 939px wide, so the icons
+  did not show there. Between 900 and 999px the tabs now tighten (10px
+  padding, 6px gap) and keep their icons; only below 900px are the icons
+  hidden. Measured at 1000, 939 and 900px (icons shown) and at 899 and 768px
+  (hidden): the row scrolls at none of them.
 
 Evidence:
 
