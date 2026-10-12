@@ -17,24 +17,37 @@
 - A new finding gets the next free `F` number (F114 is next) and goes in the
   right section.
 
-## Current state — 2026-10-12
+## Current state — 2026-10-13
 
-Read-only check by the supervisor (git commands and `git ls-remote origin`;
-no tests rerun, no production probe).
+Checked by the supervisor with `git fetch`, `git worktree list`, the Vercel
+deployment list and a fetch of the served bundle. No tests were rerun for this
+note.
 
-- `origin/main` = `2a5be9c` (production). `origin` has one branch, `main`.
-  Everything through F101, the Download fix (`6acabfb`) and the corpus code
-  (`d0a8020`) is in `origin/main`.
-- Local `main` = `f20ef35`, 11 commits ahead of `origin/main` (`2a5be9c`):
-  F102 and F103 merged locally on 2026-10-12, not pushed. Push and deployment
-  need a separate owner go-ahead. `task/client-ui-spec` (`2ff385e`) is fully
-  merged and kept until that push.
-- Second worktree `~/.codex/worktrees/corpus-integration/…`: detached at
-  `d0a8020` (in `main`), clean, kept for reference.
-- Corpus, last recorded 2026-10-11 (not recounted): 3,434 documents /
+- **Branches:** one branch, `main`, locally and on `origin`. Local `main` =
+  `origin/main` = `8a5eddb` with a clean working tree. All merged task branches
+  were deleted on 2026-10-13 (owner: "clean up"), and so was the old Codex
+  worktree `~/.codex/worktrees/corpus-integration` (it pointed at `d0a8020`,
+  which is in `main`).
+- **Production:** deploy `dpl_9k7YDwqEdbkCxqUkR9nMbYfeqMwg` (`8a5eddb`) is
+  READY on niyantran-six.vercel.app. Its last code change is `ef4754a`
+  (F112, F113), served as `index-D84x6f8c.js`; the commits after it change
+  only docs.
+- **Shipped and still open:**
+  - F107: legal pages, awaiting the address and a lawyer review.
+  - F109: INR billing, with migration `20261012120000` applied to NTER.
+  - F110: Plan & billing panel, awaiting owner review; checkout stays closed
+    (`BILLING_CHECKOUT_OPEN` unset, no Razorpay keys).
+  - F112: navigation, type scale and search, awaiting owner review.
+- **Shipped and done:** F113, drag-to-AI, confirmed by the owner on
+  production.
+- **Blocked on the owner:**
+  - F111: needs a definition of an AI credit.
+  - O6: live Razorpay keys.
+  - F104: needs authorization for the `research-chat` Edge deploy. The last
+    recorded deploy is v47 (2026-10-10), which predates `a796383`.
+  - F106: needs approval to retire NterEarth.
+- **Corpus:** last recorded 2026-10-11, not recounted: 3,434 documents /
   3,431 indexed / 100,031 chunks / 2,143 covered bill keys. R7 stays open.
-- Last recorded Edge deploy of `research-chat` is v47 (2026-10-10), which
-  predates `a796383` in `main` (F104).
 
 ## UI follow-ups
 
@@ -57,8 +70,8 @@ no tests rerun, no production probe).
   `20261012120000_inr_plans.sql`, applied to NTER and verified on 2026-10-12
   (owner authorized; see coordination Operations), then `main` pushed.
   Remaining for live payments: F110, F111, O6. [Spec](../specs/2026-10-12-inr-billing.md).
-- [ ] **F110. In-app upgrade and checkout screen.** Built on
-  `task/upgrade-screen` (2026-10-13): "Plan & billing" panel in the profile
+- [ ] **F110. In-app upgrade and checkout screen.** Shipped in `1940b02`
+  (production 2026-10-13): "Plan & billing" panel in the profile
   menu (current plan, Plus/Pro/Max in rupees, renew or upgrade only, invoices,
   renewal reminder), pricing hand-off for signed-in users, and a server switch
   `BILLING_CHECKOUT_OPEN` that keeps checkout closed until credits (F111).
@@ -68,8 +81,9 @@ no tests rerun, no production probe).
 - [ ] **F112. Terminal navigation, type scale and search.** Owner review
   2026-10-13: no "Choose a desk" row on Home, larger highlighted desk tabs, one
   type scale on desk landings, a wider "Search desks, modules and records" box.
-  Built on `task/nav-type-search` and merged locally; not pushed.
-  [Spec](../specs/2026-10-13-nav-type-search.md). Remaining: owner review, push.
+  The desk hero now grows to fit the larger title (amendment 1). Shipped in
+  `ef4754a` (production `dpl_89StSPmjxkYuVtFLdWBq7bABvDXF`).
+  [Spec](../specs/2026-10-13-nav-type-search.md). Remaining: owner review.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
