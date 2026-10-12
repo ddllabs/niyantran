@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import MarketingSite from './marketing/MarketingSite.jsx';
+import { isLegalPathname } from './marketing/legalRoutes.js';
 import TerminalShell from './shell/TerminalShell.jsx';
 import AdminApp from './admin/AdminApp.jsx';
 import { startSiteHead } from './lib/siteHead.js';
@@ -17,8 +18,7 @@ function isAdminPath() {
 }
 
 function isLegalPath() {
-  const p = pathKey();
-  return p === '/privacy' || p === '/terms';
+  return isLegalPathname(pathKey());
 }
 
 function isMarketingOverlayPath() {

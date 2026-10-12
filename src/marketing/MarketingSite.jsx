@@ -7,16 +7,16 @@ import ResetPasswordPage from './ResetPasswordPage.jsx';
 import PricingPage from './PricingPage.jsx';
 import PrivacyPage from './PrivacyPage.jsx';
 import TermsPage from './TermsPage.jsx';
+import { AboutPage, ContactPage, DeliveryPage, RefundPage } from './PolicyPages.jsx';
+import { LEGAL_PATHS as LEGAL, isLegalPathname } from './legalRoutes.js';
 import { loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import './marketing.css';
 
-const LEGAL = { privacy: '/privacy', terms: '/terms' };
-
 function pageFromRoute() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
-  if (path === '/privacy') return 'privacy';
-  if (path === '/terms') return 'terms';
+  const legalPage = Object.keys(LEGAL).find((key) => LEGAL[key] === path);
+  if (legalPage) return legalPage;
   if (path === '/forgot-password') return 'forgot-password';
   if (path === '/reset-password') return 'reset-password';
   const raw = String(location.hash || '')
@@ -28,8 +28,8 @@ function pageFromRoute() {
   if (raw.startsWith('pricing')) return 'pricing';
   if (raw.startsWith('signup') || raw.startsWith('register')) return 'signup';
   if (raw.startsWith('login')) return 'login';
-  if (raw.startsWith('privacy')) return 'privacy';
-  if (raw.startsWith('terms')) return 'terms';
+  const legalHash = Object.keys(LEGAL).find((key) => raw.startsWith(key));
+  if (legalHash) return legalHash;
   return 'home';
 }
 
@@ -62,6 +62,10 @@ export default function MarketingSite({ onAuthed }) {
     if (page === 'privacy') setPageTitle('Privacy Policy');
     else if (page === 'terms') setPageTitle('Terms & Conditions');
     else if (page === 'pricing') setPageTitle('Pricing');
+    else if (page === 'about') setPageTitle('About us');
+    else if (page === 'contact') setPageTitle('Contact us');
+    else if (page === 'refunds') setPageTitle('Refund & Cancellation Policy');
+    else if (page === 'delivery') setPageTitle('Shipping & Delivery Policy');
     else if (page === 'login') setPageTitle('Sign in');
     else if (page === 'signup') setPageTitle('Create account');
     else if (page === 'forgot-password') setPageTitle('Forgot Password');
@@ -84,7 +88,7 @@ export default function MarketingSite({ onAuthed }) {
       return;
     }
     const hash = next === 'home' ? '#/' : `#/${next}`;
-    if (path === '/privacy' || path === '/terms') {
+    if (isLegalPathname(path)) {
       history.pushState({}, '', `/${hash}`);
       window.dispatchEvent(new Event('popstate'));
       return;
@@ -153,6 +157,10 @@ export default function MarketingSite({ onAuthed }) {
       )}
       {page === 'privacy' && <PrivacyPage />}
       {page === 'terms' && <TermsPage />}
+      {page === 'about' && <AboutPage />}
+      {page === 'contact' && <ContactPage />}
+      {page === 'refunds' && <RefundPage />}
+      {page === 'delivery' && <DeliveryPage />}
       {page === 'login' && <LoginPage onSuccess={onAuthed} onSignup={() => go('signup')} onForgotPassword={() => go('forgot-password')} />}
       {page === 'signup' && <SignupPage onSuccess={onAuthed} onLogin={() => go('login')} />}
       {page === 'forgot-password' && <ForgotPasswordPage onLogin={() => go('login')} />}
@@ -223,8 +231,23 @@ export default function MarketingSite({ onAuthed }) {
                 </button>
               </li>
               <li>
-                <button type="button" onClick={() => go('home')}>
-                  About
+                <button type="button" onClick={() => go('refunds')}>
+                  Refund & Cancellation
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => go('delivery')}>
+                  Shipping & Delivery
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => go('about')}>
+                  About us
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => go('contact')}>
+                  Contact us
                 </button>
               </li>
             </ul>
@@ -239,7 +262,7 @@ export default function MarketingSite({ onAuthed }) {
         <div className="mkt-wrap mkt-copy">
           <div className="mkt-copy-row">
             <span>
-              © {year} {site.siteName}. All rights reserved.
+              © {year} {site.siteName}. All rights reserved. Operated by Niyantran Strategy Consulting Private Limited, Kolkata.
             </span>
             <div className="mkt-legal-links">
               <button type="button" onClick={() => go('privacy')}>

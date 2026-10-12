@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F107 is next) and goes in the
+- A new finding gets the next free `F` number (F110 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-12
@@ -37,6 +37,24 @@ no tests rerun, no production probe).
   predates `a796383` in `main` (F104).
 
 ## UI follow-ups
+
+- [ ] **F107. Legal policies for payment-gateway activation.** Owner request
+  2026-10-12: Privacy, Terms, Refund & Cancellation, Delivery and Contact pages
+  for Niyantran Strategy Consulting Pvt Ltd (Kolkata, not GST-registered),
+  matching plans Free/Plus ₹399/Pro ₹999/Max ₹9,999 priced on AI credits and
+  storage, and the grievance officer. [Spec](../specs/2026-10-12-legal-policies.md).
+  Drafted and verified on `task/legal-policies` (2026-10-12): six pages at
+  clean paths, footer company line and links, signup notice; 2,533 Vitest /
+  881 Deno tests, lint, build. Open: full registered address, the eight drafted
+  assumptions in the spec, lawyer review, pricing page (F99 with F109).
+- [ ] **F108. Legal page content is per-browser.** `privacyStore.js` and
+  `termsStore.js` keep edited content in `localStorage`, so an admin edit is
+  not seen by other visitors. Make published legal content shared (part of
+  F107).
+- [ ] **F109. Billing assumes GST invoicing.** The owner's entity is not
+  GST-registered; the invoice path (`issue_invoice`, GST supplier settings)
+  must not add GST before real payments. Sensitive billing scope: separate
+  task with focused verification before Razorpay goes live (O6).
 
 - [ ] **F106. Retire the unused NterEarth runtime.** Since F103 amendment 5
   the homepage hero renders the shared photographic globe. `src/marketing/

@@ -310,6 +310,12 @@ export default function SignupPage({ onSuccess, onLogin }) {
                 <span>Confirm password</span>
                 <input name="pass2" type="password" autoComplete="new-password" required minLength={6} />
               </label>
+              <p className="mkt-signup-legal">
+                By creating an account you agree to the{' '}
+                <a href="#/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                {' '}and acknowledge the{' '}
+                <a href="#/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+              </p>
               <button className="mkt-cta" type="submit" disabled={pending}>
                 {pending ? 'Creating…' : 'Create account'}
               </button>

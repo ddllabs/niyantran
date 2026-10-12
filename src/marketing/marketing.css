@@ -5383,6 +5383,8 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-home-earth .auth-earth-controls button{background:#080d14;color:#c9d5e7;border-color:rgba(159,183,219,.35)}
 .mkt-home-earth .auth-earth-controls a{color:#9fb7db}
 @media(max-width:560px){.mkt-home-earth{width:min(312px,83.7%)}}
+.mkt-signup-legal{margin:4px 0 12px;font-size:12px;line-height:1.5;color:var(--mkt-text)}
+.mkt-signup-legal a{color:var(--mkt-blue);text-underline-offset:2px}
 /* Wide screens give the globe and its labels the free space beside the form. */
 @media(min-width:1330px){
  .mkt-login-earth-visual{--w:min(calc(90vw - 480px),860px);width:var(--w);right:calc(45vw - 210px - var(--w) / 2)}
