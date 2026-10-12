@@ -1729,3 +1729,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
 - **Synopsis role (F117, NTER data change):** the owner approved it. 456
   synopsis documents gained `document_role = synopsis` with the URL-folder
   marker; the checksum matches the inventory and no chunks changed.
+- **research-chat v50 (F117 Synopsis label):** deployed from `c117dc2` (owner:
+  "go ahead with the Synopsis label") on the first attempt: ACTIVE,
+  `verify_jwt` false, bundle `c2354d8e…`. Unauthenticated POST returns 401
+  and the CORS preflight 204. `main` pushed `1193448..c117dc2`. Rollback:
+  redeploy `research-chat` from `839d7dc` (= v49).
