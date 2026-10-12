@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F117 is next) and goes in the
+- A new finding gets the next free `F` number (F118 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13
@@ -125,6 +125,21 @@ note.
   `dpl_5terWzWj3hK3nRtkVpsW9e9dgfma`, `research-chat` v49.
   [Spec](../specs/2026-10-13-citation-version-labels.md). Remaining: confirm a
   new answer's sources carry `document_role`, and an owner check.
+- [ ] **F117. Versions for the original bill corpus.** 1,622 bill documents
+  loaded between 2026-09-21 and 2026-10-01 record no `document_role`, so they
+  show no version label and the model does not see their version.
+  - Their sansad.in URL folder names the kind:
+    - As introduced: 838
+    - Notification: 287
+    - Synopsis: 467 (not a current role)
+    - Errata: 13
+    - Passed Lok Sabha: 8
+    - Passed both Houses: 7
+    - Hindi: 2
+  - Owner decision needed: derive roles from the folder (the code avoids
+    filename inference today), and whether to add a "Synopsis" role.
+  - The 24-document old-key backfill is done:
+    [record](../research/2026-10-13-document-role-backfill.md).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

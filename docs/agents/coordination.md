@@ -1707,3 +1707,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     `verify_jwt` false, bundle `dea97d5f…`. Unauthenticated POST returns 401
     and the CORS preflight 204.
   - Rollback: redeploy the `research-chat` source from `7f0563e` (= v48).
+- **Document role backfill (NTER data change):** the owner approved it ("go
+  ahead with backfill 2") after a read-only description. 24 `public.documents`
+  rows from the 2026-10-08 run gained `metadata.document_role`, copied from
+  `metadata.role`; no chunks or embeddings changed.
+  [Record](../research/2026-10-13-document-role-backfill.md).
