@@ -28,3 +28,11 @@ it('renders rupee prices without dollars, yearly billing or the old government p
   expect(page).not.toContain("goPlan('gov')");
   expect(page).not.toContain('GOVERNMENT');
 });
+
+it('shows the shared photographic globe in the pricing header, not the flat globe image', () => {
+  const page = readFileSync(new URL('../marketing/PricingPage.jsx', import.meta.url), 'utf8');
+  const hero = page.slice(page.indexOf('mkt-pr-hero'), page.indexOf('mkt-pr-notes'));
+  expect(hero).toContain('<AuthEarth labels={false} />');
+  expect(page).not.toContain('/brand/globe.png');
+  expect(page).not.toContain('mkt-pr-globe-wrap');
+});
