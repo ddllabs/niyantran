@@ -1673,3 +1673,9 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
 - **Pricing facts chips:** `main` pushed `b3969ff..3790883` (owner: "push
   it"); production deploy `dpl_9CHJKCZEasuxVhCQP4hLf7DHzWWh` READY, served
   entry `index-CGQEY3TU.js` carries `mkt-pr-facts`.
+- **Plan & billing panel (F110):** `main` pushed `3790883..1940b02` (owner:
+  "push it"); production deploy `dpl_R3RF6vGa6k1PkWbtu7okfrSeGLeH` READY. The
+  served entry, `index-HSNecMQJ.js`, contains "Plan & billing", the
+  `niyOpenBilling` hand-off and the line "Online payments open soon".
+  `/api/billing/config` answers `enabled: false, checkoutOpen: false`. An
+  unsigned `create-order` returns 401.

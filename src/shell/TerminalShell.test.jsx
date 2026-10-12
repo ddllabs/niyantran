@@ -83,3 +83,17 @@ describe('free module access', () => {
     expect(html).not.toContain('Access restricted');
   });
 });
+
+describe('Home is the default view (owner, 2026-10-13)', () => {
+  it('shows no module row or "Choose a desk" prompt on Home, and keeps it inside modules', () => {
+    location.hash = '#/home';
+    let html = renderToStaticMarkup(<TerminalShell/>);
+    expect(html).not.toContain('Choose a desk to begin');
+    expect(html).not.toContain('aria-label="Desk modules"');
+    expect(html).not.toContain('with-module-navigation');
+    location.hash = '#/economics/Live%20Global%20Stock%20Exchanges';
+    html = renderToStaticMarkup(<TerminalShell/>);
+    expect(html).toContain('aria-label="Desk modules"');
+    expect(html).toContain('with-module-navigation');
+  });
+});

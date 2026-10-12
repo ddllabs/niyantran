@@ -97,7 +97,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
   };
   return <div className="desk-catalogue-search" data-catalogue-desks={tabs?.length || 0}>
     <button ref={trigger} type="button" className="catalogue-open" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); setOpen(true); }}>
-      <Search size={15} aria-hidden="true" /><span>{hi ? 'मॉड्यूल खोजें' : 'Find a module'}</span><kbd>⌘ K</kbd>
+      <Search size={16} aria-hidden="true" /><span>{hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'}</span><kbd>⌘ K</kbd>
     </button>
     {open && <dialog ref={dialog} className="catalogue-dialog" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); setOpen(false); }} onClick={event => {
       if (event.target !== dialog.current) return;

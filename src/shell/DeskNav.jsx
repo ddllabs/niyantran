@@ -97,7 +97,6 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
         </button>
       )}
 
-      {tab === 'home' && <span className="desk-current">{hi ? 'अपना डेस्क चुनें' : 'Choose a desk to begin'}</span>}
       {buckets.map((b) => {
         const isOn = currentBucket?.label === b.label;
         const isOpen = open === b.label;

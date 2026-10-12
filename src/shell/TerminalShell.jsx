@@ -112,6 +112,8 @@ export default function TerminalShell({ onLogout }) {
   const onClearViz = useCallback(() => setVizFilter(null), []);
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
   const v6Landing = guideMode && ['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'].includes(tab);
+  // Home is the default view: like a desk landing, it has no module row.
+  const moduleNavigation = !v6Landing && tab !== 'home';
   const deskBuckets = useMemo(
     () => (tab === 'home' ? [] : bucketsFor(modulesForTier(active.tier), active.tier)),
     [tab, active.tier],
@@ -304,7 +306,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-v6-directory${v6Landing ? '' : ' with-module-navigation'} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${moduleNavigation ? ' with-module-navigation' : ''} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
@@ -447,7 +449,7 @@ export default function TerminalShell({ onLogout }) {
         </div>
         </div>
       </header>
-      {!v6Landing && <DeskNav
+      {moduleNavigation && <DeskNav
         tab={tab}
         featureName={featureName}
         lang={lang}

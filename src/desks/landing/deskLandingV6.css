@@ -576,3 +576,61 @@
 .desk-v6 .explorer-selector select:focus-visible{outline-color:var(--accent)}
 .theme-dark .desk-v6{--paper:var(--bg);--ink:var(--fg);--border:var(--line);--explorer-muted:var(--muted)}
 .theme-dark .desk-v6 .explorer,.theme-dark .desk-v6 .hero-insight{background:var(--panel)}
+
+/* Type scale (owner, 2026-10-13): one hierarchy on all eight desk landings.
+   page title > section heading > card and module titles > body > labels, with
+   nothing set below 10px. `.desk-v6.desk-v6` deliberately doubles the class so
+   these roles win over the per-breakpoint and per-desk rules above; artwork
+   overlays (exchange labels, growth glass, government names) keep their sizes. */
+.desk-v6.desk-v6 h1{font-size:clamp(40px,3.8vw,58px);font-weight:700;letter-spacing:-2px;line-height:1.05}
+.desk-v6.desk-v6 .eyebrow{font-size:11px;font-weight:650;letter-spacing:1.6px}
+.desk-v6.desk-v6 .hero-copy>p{font-size:15px;line-height:1.6;max-width:480px}
+.desk-v6.desk-v6 .hero-meta,.desk-v6.desk-v6 .crumb,.desk-v6.desk-v6 .crumb>span:first-child,.desk-v6.desk-v6 .snapshot{font-size:12px}
+.desk-v6.desk-v6 .photo-label,.desk-v6.desk-v6 .image-caption{font-size:10px}
+.desk-v6.desk-v6 .insight-top,.desk-v6.desk-v6 .insight-foot,.desk-v6.desk-v6 .insight-foot>span,.desk-v6.desk-v6 .insight-foot button{font-size:12px}
+.desk-v6.desk-v6 .stat-label{font-size:12px;font-weight:500}
+.desk-v6.desk-v6 .stat-value{font-size:30px;font-weight:700;letter-spacing:-.8px}
+.desk-v6.desk-v6 .stat-value small{font-size:13px}
+.desk-v6.desk-v6 .stat-note{font-size:11px}
+.desk-v6.desk-v6 .section-heading h2{font-size:24px;font-weight:700;letter-spacing:-.6px}
+.desk-v6.desk-v6 .section-heading>div>span,.desk-v6.desk-v6 .sector-controls>span{font-size:13px}
+.desk-v6.desk-v6 .segmented button{font-size:12px}
+.desk-v6.desk-v6 .sector-card{height:auto;min-height:228px}
+.desk-v6.desk-v6 .card-number{font-size:11px;font-weight:600}
+.desk-v6.desk-v6 .card-count{font-size:11px}
+.desk-v6.desk-v6 .card-body{padding:14px 15px}
+.desk-v6.desk-v6 .card-title-row h3{font-size:15px;font-weight:650;line-height:1.3;min-height:39px}
+.desk-v6.desk-v6 .card-desc{font-size:12px;line-height:1.45;color:#6f7a89}
+.desk-v6.desk-v6 .card-total{font-size:14px;font-weight:700}
+.desk-v6.desk-v6 .card-total small{font-size:11px}
+.desk-v6.desk-v6 .status{font-size:11px}
+.desk-v6.desk-v6 .explorer-heading .eyebrow{font-size:11px}
+.desk-v6.desk-v6 .explorer-heading h2{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.desk-v6.desk-v6 .explorer-heading p{font-size:14px}
+.desk-v6.desk-v6 .explorer-badge{font-size:13px}
+.desk-v6.desk-v6 .module-copy b{font-size:15px;font-weight:600}
+.desk-v6.desk-v6 .module-copy>span{font-size:13px}
+.desk-v6.desk-v6 .module-item>.status{font-size:12px}
+.desk-v6.desk-v6 .detail-inner h2{font-size:28px;font-weight:700}
+.desk-v6.desk-v6 .detail-inner>p{font-size:14px}
+.desk-v6.desk-v6 .detail-count b{font-size:44px;font-weight:700}
+.desk-v6.desk-v6 .detail-note,.desk-v6.desk-v6 .detail-action p{font-size:12px}
+.desk-v6.desk-v6 .detail-inner h3{font-size:12px;font-weight:650;letter-spacing:.8px}
+.desk-v6.desk-v6 footer,.desk-v6.desk-v6 footer button{font-size:11px}
+@media(max-width:850px){
+  .desk-v6.desk-v6 h1{font-size:clamp(32px,6vw,42px);letter-spacing:-1.4px}
+  .desk-v6.desk-v6 .hero-copy>p{font-size:14px}
+  .desk-v6.desk-v6 .section-heading h2{font-size:21px}
+  .desk-v6.desk-v6 .stat-value{font-size:26px}
+}
+@media(max-width:560px){
+  .desk-v6.desk-v6 h1{font-size:clamp(30px,8.4vw,38px)}
+  .desk-v6.desk-v6 .hero-copy>p{font-size:13px}
+  .desk-v6.desk-v6 .section-heading h2{font-size:20px}
+  .desk-v6.desk-v6 .stat-value{font-size:23px}
+  .desk-v6.desk-v6 .stat-label{font-size:11px}
+  .desk-v6.desk-v6 .sector-card{min-height:0}
+  .desk-v6.desk-v6 .card-title-row h3{font-size:14px;min-height:0}
+  .desk-v6.desk-v6 .module-copy b{font-size:14px}
+  .desk-v6.desk-v6 .explorer-heading h2{font-size:18px}
+}
