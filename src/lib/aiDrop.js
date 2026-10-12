@@ -44,6 +44,25 @@ export function rowDragProps(row, extra = {}) {
   });
 }
 
+/** A dragged Niyantran record or file, which the side panel opens AI for (F113). */
+export function isAiDrag(dataTransfer) {
+  const types = [...(dataTransfer?.types || [])];
+  return types.includes(AI_DND) || types.includes('Files');
+}
+
+/**
+ * Hands a drop to the chat as its seed (niy-ai-open), for a drop the chat cannot take itself: one
+ * outside it, or before its thread has loaded. The record and the file list are read while the
+ * event is live; the seed waits until the chat is ready.
+ */
+export async function handOffAiDrop(e) {
+  const drop = readAiDrag(e);
+  const files = [...(e.dataTransfer?.files || [])];
+  const droppedFiles = files.length ? await filesFromDrop({ dataTransfer: { files, items: [] } }) : [];
+  if (!drop && !droppedFiles.length) return;
+  openAiResearch({ ...(drop ? { drop } : {}), ...(droppedFiles.length ? { droppedFiles } : {}) });
+}
+
 export function readAiDrag(e) {
   try {
     const raw = e.dataTransfer?.getData(AI_DND) || e.dataTransfer?.getData('text/plain');

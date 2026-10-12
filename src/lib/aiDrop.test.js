@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { attachmentIdentity, filesFromDrop, isModuleAttachment, materializeAiDrop, partitionAttachments } from './aiDrop.js';
+import { AI_DND, attachmentIdentity, filesFromDrop, handOffAiDrop, isAiDrag, isModuleAttachment, materializeAiDrop, partitionAttachments } from './aiDrop.js';
 
 const BILL = {
   bill_name: 'The Competition (Amendment) Bill, 2007',
@@ -99,4 +99,43 @@ it('reads dropped binary bytes once and preserves its exact base64 payload', asy
  const [chip]=await filesFromDrop({dataTransfer:{files:[file]}});
  expect(chip.files[0].base64).toBe(Buffer.from(bytes).toString('base64'));
  expect(read).toHaveBeenCalledOnce();
+});
+
+// panel-drag-ai (F113): the side panel switches to AI for a dragged record or file, and a drop the
+// chat cannot take yet is handed to it through niy-ai-open, which waits until the chat is ready.
+describe('dragging to AI', () => {
+  it('a Niyantran record or a file is an AI drag; plain text and nothing are not', () => {
+    expect(isAiDrag({ types: [AI_DND, 'text/plain'] })).toBe(true);
+    expect(isAiDrag({ types: ['Files'] })).toBe(true);
+    expect(isAiDrag({ types: ['text/plain'] })).toBe(false);
+    expect(isAiDrag({ types: [] })).toBe(false);
+    expect(isAiDrag(null)).toBe(false);
+  });
+
+  function catchOpen() {
+    const opened = [];
+    vi.stubGlobal('window', { dispatchEvent: (e) => opened.push(e.detail) });
+    return opened;
+  }
+
+  it('hands a dropped record to the chat as its seed', async () => {
+    const opened = catchOpen();
+    const payload = { kind: 'row', title: 'A bill', row: BILL };
+    await handOffAiDrop({ dataTransfer: { getData: (t) => (t === AI_DND ? JSON.stringify(payload) : ''), files: [] } });
+    expect(opened).toEqual([{ drop: payload }]);
+  });
+
+  it('hands dropped files over already read', async () => {
+    const opened = catchOpen();
+    await handOffAiDrop({ dataTransfer: { getData: () => '', files: [new File(['hello world'], 'notes.txt', { type: 'text/plain' })] } });
+    expect(opened).toHaveLength(1);
+    expect(opened[0].drop).toBeUndefined();
+    expect(opened[0].droppedFiles.map((f) => f.title)).toEqual(['notes.txt']);
+  });
+
+  it('opens nothing for a drop that carries neither', async () => {
+    const opened = catchOpen();
+    await handOffAiDrop({ dataTransfer: { getData: () => 'just text', files: [] } });
+    expect(opened).toEqual([]);
+  });
 });

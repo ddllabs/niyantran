@@ -7,6 +7,7 @@ import {
 } from './sidePanelModel.js';
 import { writeStored } from './resizeModel.js';
 import { attachOutsideClose } from '../ai/citationOverlayModel.js';
+import { handOffAiDrop, isAiDrag } from '../lib/aiDrop.js';
 
 /**
  * The side panel (docs/specs/2026-10-03-side-panel.md): one component for the right of the
@@ -121,6 +122,28 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
   };
 }
 
+/**
+ * F113: a record or file dragged over the panel opens AI (from Desk, Record or collapsed), so it
+ * can be dropped without opening AI first. A drop the chat took (it prevents the default) is left
+ * to it; one elsewhere on the panel is handed over. Other drags are left alone.
+ */
+export function panelDragProps({ onAi, act, handOff = handOffAiDrop }) {
+  const over = (e) => {
+    if (!isAiDrag(e.dataTransfer)) return;
+    e.preventDefault();
+    if (!onAi) act({ type: 'ai-open' });
+  };
+  return {
+    onDragEnter: over,
+    onDragOver: over,
+    onDrop(e) {
+      if (e.defaultPrevented || !isAiDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      handOff(e);
+    },
+  };
+}
+
 export default function SidePanel({ panel, hasRail, feed, selected, onSelect, lang, loading, vizFilter, tab, featureName }) {
   const { state, act, seed, consumeSeed, width, setWidth, expanded, userExpanded, setUserExpanded, setCitation, citation, citationExpanded } = panel;
   const [viewerSlot, setViewerSlot] = useState(null);
@@ -217,6 +240,7 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
       className={`side-panel${state.active === 'ai' ? ' is-ai' : ''}${collapsed ? ' is-collapsed' : ''}`}
       aria-label={hi ? 'साइड पैनल' : 'Side panel'}
       hidden={!state.open && !collapsed}
+      {...panelDragProps({ onAi: state.open && state.active === 'ai', act })}
     >
       {state.open && !collapsed && !expanded ? (
         <div

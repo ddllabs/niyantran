@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
-import SidePanel from './SidePanel.jsx';
+import SidePanel, { panelDragProps } from './SidePanel.jsx';
 
 const panel = (state, extra = {}) => ({
   state: { open: true, collapsed: false, mounted: ['desk'], active: 'desk', ...state }, act: () => {}, seed: null, consumeSeed: () => {},
@@ -103,4 +103,62 @@ describe('the side panel', () => {
 it('dock separator exposes a numeric range and current width', () => {
   const html = render({});
   expect(html).toMatch(/role="separator"[^>]*aria-valuemin="[0-9]+"[^>]*aria-valuemax="[0-9]+"[^>]*aria-valuenow="[0-9]+"/);
+});
+
+// panel-drag-ai (F113): a record or file dragged over the panel switches it to AI, from Desk,
+// Record or collapsed, and a drop the chat did not take is handed over rather than lost.
+describe('dragging onto the panel', () => {
+  const RECORD = { types: ['application/x-niyantran-ai', 'text/plain'] };
+  const event = (dataTransfer, extra = {}) => ({ dataTransfer, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra });
+  const setup = (onAi) => {
+    const acts = [];
+    const handed = [];
+    const props = panelDragProps({ onAi, act: (a) => acts.push(a), handOff: (e) => handed.push(e) });
+    return { acts, handed, props };
+  };
+
+  it('a record dragged over Desk, Record or the collapsed handle opens AI and accepts the drop', () => {
+    const { acts, props } = setup(false);
+    const enter = event(RECORD);
+    props.onDragEnter(enter);
+    const over = event(RECORD);
+    props.onDragOver(over);
+    expect(acts).toEqual([{ type: 'ai-open' }, { type: 'ai-open' }]);
+    expect(enter.defaultPrevented && over.defaultPrevented).toBe(true);
+  });
+
+  it('a dragged file does the same', () => {
+    const { acts, props } = setup(false);
+    props.onDragOver(event({ types: ['Files'] }));
+    expect(acts).toEqual([{ type: 'ai-open' }]);
+  });
+
+  it('on AI already, it does not dispatch again', () => {
+    const { acts, props } = setup(true);
+    const over = event(RECORD);
+    props.onDragOver(over);
+    expect(acts).toEqual([]);
+    expect(over.defaultPrevented).toBe(true);
+  });
+
+  it('other drags are left alone', () => {
+    const { acts, handed, props } = setup(false);
+    const text = event({ types: ['text/plain'] });
+    props.onDragOver(text);
+    props.onDrop(text);
+    expect(acts).toEqual([]);
+    expect(handed).toEqual([]);
+    expect(text.defaultPrevented).toBe(false);
+  });
+
+  it('a drop the chat took is not handed over twice; one it did not take is', () => {
+    const { handed, props } = setup(true);
+    const taken = event(RECORD, { defaultPrevented: true });
+    props.onDrop(taken);
+    expect(handed).toEqual([]);
+    const missed = event(RECORD);
+    props.onDrop(missed);
+    expect(handed).toEqual([missed]);
+    expect(missed.defaultPrevented).toBe(true);
+  });
 });
