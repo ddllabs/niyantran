@@ -134,3 +134,8 @@ ul.ai-suggest > li { display: contents; }
 .ai-source-id { display: inline-flex; justify-content: center; align-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border: 1px solid var(--ai-line, #e5e7eb); border-radius: 4px; background: var(--ai-blue-soft, #eff4ff); color: var(--ai-blue, #2563eb); font: 600 10px/1 var(--font-ui, Arial, sans-serif); font-variant-numeric: tabular-nums; }
 .ai-source-go { flex: none; align-self: center; color: #9ca3af; }
 .ai-source-chip:hover .ai-source-go { color: var(--ai-blue, #2563eb); }
+/* F118: one row per bill; each cited version is a tag that opens it. */
+.ai-source-versions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px 38px; }
+.ai-source-version-tag { border: 1px solid var(--ai-line, #e5e7eb); border-radius: 999px; background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font: 600 11px/1 var(--font-ui, Arial, sans-serif); padding: 5px 9px; cursor: pointer; }
+.ai-source-version-tag:hover { border-color: var(--accent, #012ea1); }
+.ai-source-version-tag:focus-visible { outline: 2px solid var(--ai-blue, #2563eb); outline-offset: 1px; }
