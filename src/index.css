@@ -3943,7 +3943,7 @@ button.live-feed:hover { color: var(--fg); }
   box-shadow: none;
 }
 
-.nh { padding: 0 0 40px; min-height: 100%; background: #fff; }
+.nh { padding: 0 0 40px; min-height: 100%; background: var(--bg); }
 .nh-strip {
   overflow: hidden;
   border-bottom: 1px solid var(--line);
@@ -7456,6 +7456,12 @@ tr.close-soon { color: #6d675f; }
 .workspace.desk-guide-mode:not(.ai-open) {
   grid-template-rows: minmax(0, 1fr);
 }
-.workspace.desk-guide-mode > .main-col { background: #f7f9fc; }
+.workspace.desk-guide-mode > .main-col { background: var(--bg); }
 .workspace.desk-guide-mode > .main-col > .desk-v6 { min-height: 100%; }
-.theme-dark .workspace.desk-guide-mode > .main-col { background: #111b2c; }
+.theme-dark .workspace.desk-guide-mode > .main-col { background: var(--bg); }
+
+/* Signed-in introduction and reporting share the terminal surface hierarchy. */
+.nh-hero{padding:24px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.nh-news-lead,.nh-news-card{background:color-mix(in srgb,var(--bg) 60%,var(--panel))}
+.nh-news-ph{background:linear-gradient(135deg,var(--sand),var(--bg))}
+@media(max-width:600px){.nh-hero{padding:16px}}
