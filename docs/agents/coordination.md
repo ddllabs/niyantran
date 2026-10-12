@@ -1734,3 +1734,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   `verify_jwt` false, bundle `c2354d8e…`. Unauthenticated POST returns 401
   and the CORS preflight 204. `main` pushed `1193448..c117dc2`. Rollback:
   redeploy `research-chat` from `839d7dc` (= v49).
+- **F115 review pairs (NTER data change):** the owner said "fix the
+  ambiguous" ones. Three wrong copies (`bill:2002:48` gazette, `bill:2003:41`
+  gazette, `bill:2005:106` synopsis), each identical to a kept document, were
+  deleted after a local backup; then `analyze` was run. No identical-text
+  documents remain. Corpus: 3,379 documents, 99,225 chunks.

@@ -90,7 +90,7 @@ note.
   Commit `408835e`, merged `426a879`, pushed 2026-10-13.
   [Spec](../specs/2026-10-13-panel-collapsed-default.md). Remaining: owner
   review on production.
-- [ ] **F115. Duplicate and misattributed corpus documents.** Found
+- [x] **F115. Duplicate and misattributed corpus documents.** Found
   2026-10-13 from the owner's anti-doping question. It returned three
   citations to `bill:2025:77`: the admin-uploaded PDF (`89b71893…`, page
   pipeline), the same "As introduced" PDF ingested again as text on 2026-10-09
@@ -126,9 +126,10 @@ note.
     a kept document; 32 TRAI/CCI repeats and 19 bill files whose text names
     a different Act or version. Corpus: 3,382 documents, 99,263 chunks.
     [Record](../research/2026-10-13-f115-cleanup.md).
-  - Remaining for review, because the text does not settle the owner:
-    `bill:2002:48` vs `bill:2002:64`, `bill:2003:41` vs `bill:2012:106`,
-    and `bill:2004:106` vs `bill:2005:106`.
+  - **The three review pairs were resolved, 2026-10-13**, from the text and
+    bill records; the wrong copies were deleted (amendment 1 of the record).
+    No identical-text documents remain. Corpus: 3,379 documents, 99,225
+    chunks.
 - [ ] **F116. Citations do not say which version or format a source is.** Two
   versions of a bill appear under identical titles. 413 bills have several
   documents (versions). Only two documents have a stored PDF, so all other
