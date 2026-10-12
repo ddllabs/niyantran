@@ -22,12 +22,13 @@
 Read-only check by the supervisor (git commands and `git ls-remote origin`;
 no tests rerun, no production probe).
 
-- `main` = `origin/main` = `2a5be9c`. `origin` has one branch, `main`.
+- `origin/main` = `2a5be9c` (production). `origin` has one branch, `main`.
   Everything through F101, the Download fix (`6acabfb`) and the corpus code
   (`d0a8020`) is in `origin/main`.
-- `task/client-ui-spec` = `9ea8f35`: 7 commits ahead of `main`, 0 behind,
-  clean, not pushed. It holds F102 and F103, both awaiting the owner's visual
-  review. Merge, push and deployment each need a separate owner go-ahead.
+- Local `main` = `f20ef35`, 11 commits ahead of `origin/main` (`2a5be9c`):
+  F102 and F103 merged locally on 2026-10-12, not pushed. Push and deployment
+  need a separate owner go-ahead. `task/client-ui-spec` (`2ff385e`) is fully
+  merged and kept until that push.
 - Second worktree `~/.codex/worktrees/corpus-integration/…`: detached at
   `d0a8020` (in `main`), clean, kept for reference.
 - Corpus, last recorded 2026-10-11 (not recounted): 3,434 documents /
@@ -36,24 +37,6 @@ no tests rerun, no production probe).
   predates `a796383` in `main` (F104).
 
 ## UI follow-ups
-
-- [ ] **F103. Photographic auth Earth.** Owner authorized shared textured 3D globe
-  for sign-in/signup, rotation, drag, pause and responsive/fallback checks.
-  [Spec](../specs/2026-10-12-auth-earth.md); [plan](2026-10-12-auth-earth.md).
-  Implemented and locally verified in 9e6f12c on task/client-ui-spec.
-  Amendment 1 (owner, 2026-10-12): homepage-style orbit rings and satellites,
-  India start view, satellites moving while the globe is held; auth pages
-  only. Amendment 2: no black stand-in on load (globe and rings fade in
-  together) and the homepage persona labels around the globe (signup label
-  selects the persona). Both verified locally, uncommitted (2,526 tests,
-  lint, build, browser at 360–1440). Await owner visual review/local merge. No
-  corpus/backend or release changes.
-
-- [ ] **F102. Client UI refinement.** Owner-authorized four-module implementation:
-  cream desk/Home-news theme and graphics, signup composition, top desk
-  navigation/access verification, and removal of the record-level linkage graph.
-  Live graph confirmed on Vercel in the Kerala bill Record panel. Implemented and locally verified on task/client-ui-spec; commits 01634e4, d072308, b0ba405 and 35366d8. Await owner visual review/local merge; main unchanged. Backend/corpus excluded.
-  [Spec index](../specs/2026-10-12-client-ui/index.md).
 
 - [ ] **F106. Retire the unused NterEarth runtime.** Since F103 amendment 5
   the homepage hero renders the shared photographic globe. `src/marketing/
@@ -144,6 +127,19 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 
 ## 1. Done
+
+- [x] **F102 / F103. Client UI refinement and shared orbit globe.** Owner
+  accepted on 2026-10-12 ("it's perfect") and authorized commit and local merge.
+  Merged into local `main` at `f20ef35` (no-ff; branch `task/client-ui-spec`
+  at `2ff385e`, tree identical). F102: cream desks/Home, top desk navigation,
+  record graph removal, signup composition (`01634e4`, `d072308`, `b0ba405`,
+  `35366d8`). F103: photographic globe (`9e6f12c`) plus amendments 1–5
+  (`f7c6ffa`): India start, orbit rings and satellites, clean fade-in, persona
+  labels at homepage spacing on sign-in/signup, no blue rim, and the same
+  globe on the homepage hero. Final checks: 189 files / 2,527 tests, lint,
+  build. **Not pushed or deployed**; production still serves `2a5be9c`.
+  [Client UI spec](../specs/2026-10-12-client-ui/index.md),
+  [auth Earth spec](../specs/2026-10-12-auth-earth.md).
 
 - **Status reconciliation (2026-10-12):** F93, F95, F96, F97, F98, F100 and
   F101 below say "local only / no merge / no push" as of their execution.
