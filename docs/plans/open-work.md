@@ -968,6 +968,22 @@ Follow-ups and findings:
   compare the live function bytes with `main`; then a separately authorized
   `research-chat` deployment and live RAG/citation checks. No re-embedding
   needed.
+  - **Read-only comparison attempted, 2026-10-13.** The live code could not be
+    downloaded: Supabase returned "Failed to retrieve function bundle" for v47
+    to the MCP read, to the CLI `--use-api` path, and to the legacy eszip
+    unpacker. Indirect evidence:
+    - Live is still v47, deployed 2026-10-10 00:28 IST, with the same bundle
+      hash recorded on 2026-10-10 (`a54690a5…`). It is unchanged since then.
+    - v47 was built from uncommitted files, and its record lists only
+      version-role edits to four files. The section-rendering correction was
+      made on 2026-10-12, after v47, so live lacks it.
+    - That record also says no telemetry changes were deployed. F64's
+      retrieval telemetry (`8d0ba3d`, F69) is in `main` but has no recorded
+      deploy.
+    - Deploying `main`'s `research-chat` would therefore ship F104 and F69
+      together, plus v47's version roles (already live), unless the deploy is
+      narrowed.
+
 - [ ] **F37.** The `index` step recomposes the whole document on every
   claim. It took 547 ms of laptop CPU for 1,000 pages (I7), so a split
   document of 3,000 or more pages would pass the spec's 1.5 s threshold.
