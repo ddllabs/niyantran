@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F118 is next) and goes in the
+- A new finding gets the next free `F` number (F119 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13
@@ -145,6 +145,10 @@ note.
     files are left as they are.
   - The 24-document old-key backfill is done:
     [record](../research/2026-10-13-document-role-backfill.md).
+- [ ] **F118. One source card per bill.** Versions of one bill cited in an
+  answer share a card with a tag per version (owner, 2026-10-13). Built on
+  `task/source-card-per-bill` and merged locally; not pushed.
+  [Spec](../specs/2026-10-13-source-card-per-bill.md).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

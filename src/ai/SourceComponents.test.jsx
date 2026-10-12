@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import SourceList, { documentChips } from './SourceList.jsx';
+import SourceList, { documentChips, sourceGroups } from './SourceList.jsx';
 import SourceReader, * as reader from './SourceReader.jsx';
 
 const text = (id, document_id, title, extra = {}) => ({
@@ -36,8 +36,8 @@ describe('SourceList', () => {
   it('names the version of each document, and ignores an unknown role', () => {
     const sources = [
       text(1, 'd1', 'THE ANTI-DOPING BILL, 2025', { document_role: 'as_introduced' }),
-      text(2, 'd2', 'THE ANTI-DOPING BILL, 2025', { document_role: 'as_passed_lok_sabha' }),
-      text(3, 'd3', 'THE ANTI-DOPING BILL, 2025', { document_role: '<b>forged</b>' }),
+      text(2, 'd2', 'THE SPORTS BILL, 2025', { document_role: 'as_passed_lok_sabha' }),
+      text(3, 'd3', 'THE GAMING BILL, 2025', { document_role: '<b>forged</b>' }),
     ];
     expect(documentChips(sources).map((c) => c.version)).toEqual(['As introduced', 'As passed by Lok Sabha', '']);
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
@@ -45,6 +45,49 @@ describe('SourceList', () => {
     expect(html).toContain('<span class="ai-source-version">As passed by Lok Sabha</span>');
     expect(html).not.toContain('forged');
     expect(html.match(/ai-source-version/g)).toHaveLength(2);
+  });
+
+  // F118 (owner, 2026-10-13): a bill cited in several versions was a wall of identical cards. Versions
+  // of one bill (same title and module) share one card, with a tag per version that opens it.
+  describe('one card per bill', () => {
+    const BILL = 'THE NATIONAL ANTI-DOPING (AMENDMENT) BILL, 2025';
+    const f = { desk_feature: 'Bill Passage Probability Index' };
+    const versions = [
+      text(1, 'pdf', BILL, { ...f, source_kind: 'pdf_page', page_number: 12, document_role: 'as_introduced', file_name: 'intro.pdf' }),
+      text(2, 'intro', BILL, { ...f, document_role: 'as_introduced' }),
+      text(3, 'ls', `  ${BILL.toLowerCase()} `, { ...f, document_role: 'as_passed_lok_sabha' }),
+      text(4, 'both', BILL, { ...f, document_role: 'as_passed_both_houses' }),
+      text(5, 'pdf', BILL, { ...f, source_kind: 'pdf_page', page_number: 1, document_role: 'as_introduced' }),
+      text(6, 'other', 'THE SPORTS BILL, 2025', f),
+    ];
+
+    it('groups the versions of one bill, in first-citation order, and keeps other documents apart', () => {
+      const groups = sourceGroups(versions);
+      expect(groups.map((g) => g.docs.map((d) => d.document_id))).toEqual([['pdf', 'intro', 'ls', 'both'], ['other']]);
+      expect(groups[0].ids).toEqual([1, 2, 3, 4, 5]);
+      expect(groups[0].docs.map((d) => d.tag)).toEqual(['As introduced · PDF', 'As introduced', 'As passed by Lok Sabha', 'As passed by both Houses']);
+    });
+
+    it('does not merge the same title from different modules', () => {
+      const groups = sourceGroups([text(1, 'a', BILL, f), text(2, 'b', BILL, { desk_feature: 'Policy Intelligence Graph' })]);
+      expect(groups).toHaveLength(2);
+    });
+
+    it('renders one card with a tag per version and counts the bill once', () => {
+      const html = renderToStaticMarkup(<SourceList sources={versions} />);
+      expect(html.match(/class="ai-source-chip"/g)).toHaveLength(2);
+      expect(html).toContain('Sources · 2 documents');
+      expect(html.match(/class="ai-source-version-tag"/g)).toHaveLength(4);
+      expect(html).toContain('aria-label="Open As passed by Lok Sabha"');
+      expect(html).toContain('>As introduced · PDF<');
+      expect(html.indexOf('ai-source-versions')).toBeGreaterThan(html.indexOf('</button>'));
+    });
+
+    it('a single document keeps its card as before, with the version in the meta line and no tags', () => {
+      const html = renderToStaticMarkup(<SourceList sources={[versions[1]]} />);
+      expect(html).toContain('<span class="ai-source-version">As introduced</span>');
+      expect(html).not.toContain('ai-source-versions');
+    });
   });
 
   it('shows the file name only as the tooltip', () => {
