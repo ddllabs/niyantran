@@ -95,6 +95,8 @@ Current baseline (read-only observations, 2026-10-03):
 
 ## 1. Done
 
+- [x] **F101. Polish V6 sector selector.** Implemented locally in `19ffef6`: refined typography/surface/spacing, decorative chevron and theme/focus styling; native selection retained. All eight desks/35 options, mobile/desktop and keyboard checks, 29 focused tests, lint/build passed. [Evidence](../specs/2026-10-12-sector-selector-polish.md). Corpus untouched; no merge/push/deploy.
+
 - [x] **F100. Restore original V6 selected-sector explorer.** Owner preview correction implemented locally in `70267e8`: original left sector details and right icon/count/coverage module cards, with approved internal sector select; all 35 picture-card defaults and 120 direct module destinations retained. 2,506 tests, lint/build/assets and eight-desk browser matrix passed. [Evidence](../research/2026-10-12-v6-explorer-restoration-local-run.md). Corpus untouched; no merge/push/deploy.
 
 - [x] **F96. Optional landing module discovery.** Implemented locally in `66c7944`: collapsed all-module disclosure, per-sector accordions and 120 direct links across eight desks; all 35 approved picture-card defaults retained. [Evidence](../research/2026-10-12-terminal-follow-up-local-run.md).
