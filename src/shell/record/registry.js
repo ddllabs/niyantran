@@ -13,6 +13,7 @@ import sanctions from './adapters/sanctions.js';
 import globalAid from './adapters/globalAid.js';
 import nuclearWatch from './adapters/nuclearWatch.js';
 import nationalBills from './adapters/nationalBills.js';
+import nationalPipeline from './adapters/nationalPipeline.js';
 import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
@@ -41,6 +42,7 @@ const ADAPTERS = [
   [{ test: isNuclearWatchFeature }, nuclearWatch],
   // National (F124): matched as NationalRecord matched them, so exactly the same names switch.
   [DESKS.bill.match, nationalBills],
+  [DESKS.pipeline.match, nationalPipeline],
 ];
 
 export function adapterFor(feature) {

@@ -14,7 +14,7 @@ const { default: RailContent } = await import('../RailContent.jsx');
 // existing record view, so nothing outside the batch changes.
 describe('record panel registry', () => {
   it('registers the Global modules of batches 1–3 and nothing else', () => {
-    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch', 'Bill Passage Probability Index']) expect(adapterFor(feature), feature).toBeTypeOf('function');
+    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch', 'Bill Passage Probability Index', 'Policy Pipeline Tracker (Draft-to-Gazette)']) expect(adapterFor(feature), feature).toBeTypeOf('function');
     for (const feature of ['Maritime Choke-Points', 'Energy', 'Central Tender Aggregator + Constituency Filter', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
   });
 
