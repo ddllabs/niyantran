@@ -3,6 +3,7 @@
 // provider. Every deps.model invocation must represent exactly one attempt.
 import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
+import type { WebPage } from '../_shared/webSearch.ts';
 import { accumulate, DEFAULT_TOP_K, documentRole, DOCUMENT_ROLE_LABELS, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
 import {
@@ -129,6 +130,9 @@ export type AgentEvent =
   | { promoted: { index: number; model: string } }
   | { tool: ToolFrame }
   | { widened: WidenedScope }
+  /** After a research call that searched the web: the pages new to this turn, the provider's
+   * search count and cost for that call (web-search spec §2, §5). */
+  | { web: { pages: WebPage[]; searches: number; costUsd: number | null; latencyMs: number } }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
   request: Omit<StreamRequest, 'messages' | 'tools' | 'tool_choice'>;
@@ -146,6 +150,10 @@ export interface AgentDeps {
    * benchmark.md). Unset or null keeps every passage. */
   toolReplyChars?: number | null;
   searchDeskRows(args: SearchDeskRowsArgs): Promise<DeskRowsResult>;
+  /** Web search offered on this turn with this model, and the turn's search budget. Unset or null:
+   * not offered. In deps, not AgentInput, because a failover to a gated model withdraws it
+   * while the checkpoint carries on (web-search spec §1). */
+  webSearch?: { perTurn: number } | null;
   handles: HandleAssigner;
   onEvent(e: AgentEvent): void;
   budget?: AgentBudget;
@@ -168,6 +176,10 @@ export interface AgentResult {
   searches: number;
   /** Set when document evidence came from outside the attached documents. */
   widened: WidenedScope | null;
+  /** The turn's web pages, first seen first, de-duplicated (web-search spec §2). */
+  webPages: WebPage[];
+  /** Web searches the provider reported for the turn. */
+  webSearches: number;
 }
 
 export interface AgentInput {
@@ -685,6 +697,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
             deps.onEvent({ text: event.text });
           } else if (event.text) deps.onEvent({ draftText: event.text });
         } else if (event.type === 'tool-call') calls.push(event);
+        else if (event.type === 'web-results') continue; // Contract stub (web-search plan T0); T2 handles it.
         else {
           ended = event;
           if (event.usage) state.usage.push(event.usage);
@@ -779,5 +792,8 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     modelCalls: budget.modelAttempts,
     searches: budget.searches,
     widened: state.widened,
+    // Contract stub (web-search plan T0); T2 fills both.
+    webPages: [],
+    webSearches: 0,
   };
 }

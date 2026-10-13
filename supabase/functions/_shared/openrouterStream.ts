@@ -4,6 +4,8 @@
 // failover chain lives in the handler, which needs to know whether any text
 // already reached the reader before it decides.
 
+import type { WebPage } from './webSearch.ts';
+
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
@@ -19,12 +21,18 @@ export interface Usage {
   cached_prompt_tokens?: number;
   reasoning_tokens?: number;
   cost?: number;
+  /** Searches OpenRouter's web-search server tool ran (`server_tool_use_details.web_search_requests`). */
+  web_search_requests?: number;
+  /** The model's share of `cost` (`cost_details.upstream_inference_cost`); the rest is server tools. */
+  upstream_inference_cost?: number;
 }
 
 export type ModelEvent =
   | { type: 'reasoning'; text: string }
   | { type: 'text'; text: string }
   | { type: 'tool-call'; id: string; name: string; args: string }
+  /** Pages a server-side web search returned, from `url_citation` annotations (web-search spec §2). */
+  | { type: 'web-results'; pages: WebPage[] }
   | { type: 'finish'; reason: string; usage: Usage | null; served: string | null; generationId: string | null };
 
 /** Private accounting observations; never serialized into the provider body. */
@@ -38,6 +46,9 @@ export interface StreamRequest {
   model: string;
   messages: Message[];
   tools?: unknown[];
+  /** OpenRouter server tools (web search). Sent beside `tools` on calls that may use tools,
+   * never on a `tool_choice: 'none'` call, whatever the provider (web-search spec §2). */
+  serverTools?: unknown[];
   /** 'none' offers the tools for prompt identity only; they cannot be called.
    * Only an Anthropic body keeps them - see buildRequestBody. */
   tool_choice?: 'none';

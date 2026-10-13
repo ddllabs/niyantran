@@ -2,6 +2,18 @@
 // Frame names are shared with the browser parser and must remain stable.
 
 import type { CitationSource } from './citation.types.ts';
+import type { WebSource } from './webSearch.ts';
+
+/** Why web search was or was not offered on a turn (web-search spec §1, §4). */
+export type WebReason =
+  | 'record-without-document'
+  | 'module-without-documents'
+  | 'documents-in-scope'
+  | 'broad'
+  | 'override-on'
+  | 'override-off'
+  | 'conversational'
+  | 'model-unsupported';
 
 export type ToolPhase = 'start' | 'end';
 
@@ -13,9 +25,13 @@ export type ChatFrame =
   | { patch: { from: number; text: string } }
   | { model: { requested: string; served: string; reason: string } }
   | { sources: CitationSource[] }
+  /** The pages searched this turn, from the provider's annotations; never in `sources`. */
+  | { webSources: WebSource[] }
   | { followUpQuestions: string[] }
   | { truncated: { reason: 'length'; continuations: number } }
   | { notice: { kind: 'window'; dropped: number } }
+  /** Sent once, early: the server's web-search decision. `mode` is the override, or 'auto'. */
+  | { web: { offered: boolean; mode: 'auto' | 'on' | 'off'; reason: WebReason } }
   | {
     timing: { search_ms: number; reasoning_ms: number; writing_ms: number; total_ms: number; first_model_ms?: number; first_answer_ms?: number; rounds?: number };
     /** Token usage is not a measurement of reasoning duration. */
@@ -35,9 +51,11 @@ export const CHAT_FRAME_KEYS = [
   'patch',
   'model',
   'sources',
+  'webSources',
   'followUpQuestions',
   'truncated',
   'notice',
+  'web',
   'timing',
   'duplicate',
   'saveFailed',
