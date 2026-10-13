@@ -424,6 +424,13 @@ rechecked. Nothing in this check wrote to production.
   owner's credit definition, then a spec (ledger, allowances per plan, unused
   credits carried forward, enforcement in research-chat, NYAI gating to
   Pro/Max).
+  - 2026-10-14: TenderBase's credits system reviewed against its code
+    ([research](../research/2026-10-14-ai-credits-reference-review.md)).
+    Take its log-then-trigger ledger; avoid its defects (last-round-only
+    billing, broken renewal after overspend, free stopped turns, no chat
+    reservation). Waiting on the owner's seven decisions in §7 before the spec.
+  - transcribe-audio calls a paid model with no `model_call_logs` row; it
+    needs one before credits apply to dictation.
 
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
