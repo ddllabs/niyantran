@@ -107,13 +107,15 @@ describe('nterGlobe module', () => {
 // F145: the globe carries over between pages. Each page mounts its own element, so the decoded
 // images, the animation time and the WebGL context are handled across elements.
 describe('nterGlobe across page changes', () => {
-  // The tests share one Node process (singleFork), so stubbed browser globals are removed after each.
+  // The tests share one Node process (singleFork), so stubbed browser globals are put back after each:
+  // Node's own fetch restored, the others removed.
+  const nodeFetch = globalThis.fetch;
   afterEach(async () => {
     const { sharedClock, resetSharedTextures } = await import('./nterGlobe.js');
     sharedClock.time = 0;
     sharedClock.earth = 0;
     resetSharedTextures();
-    delete globalThis.fetch;
+    globalThis.fetch = nodeFetch;
     delete globalThis.createImageBitmap;
     delete globalThis.document;
     delete globalThis.requestAnimationFrame;
