@@ -340,7 +340,6 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     limit of three stays, and every search is logged with its cost.
   - **Follow-ups:**
     - the privacy policy to name OpenRouter/Exa as the search provider (F107);
-    - the web viewer's close button still reads "Close citation";
     - the two rare client prediction mismatches in spec amendment 2.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the

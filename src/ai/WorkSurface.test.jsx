@@ -214,7 +214,9 @@ describe('web sources viewer', () => {
     expect(html).toContain('RBI press release');
     expect(html).toContain('href="https://pib.gov.in/x"');
     expect(html).toContain('aria-label="Back to the answer"');
-    expect(html.match(/aria-label="Close citation"/g)).toHaveLength(1);
+    // The web list is not a citation, so its close control says what it closes.
+    expect(html.match(/<button[^>]*aria-label="Close web sources"[^>]*title="Close web sources"[^>]*>✕<\/button>/g)).toHaveLength(1);
+    expect(html).not.toContain('Close citation');
     expect(html).not.toContain('Ask about this document');
     expect(html).not.toContain('This source is unavailable');
     expect(html).not.toContain('aria-label="Cited source"');

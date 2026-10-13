@@ -102,6 +102,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   const documentState = currentDocumentState(reported, citationKey);
   if (!viewer) return null;
   const { source, invalid, sources: validSources, reader, pages } = resolved;
+  const closeLabel = reader === 'web' ? 'Close web sources' : 'Close citation';
 
   // "← Back" and the ✕ close the citation only; the chat stays open (revision 5, point 2). The ✕
   // is the viewer's one close control, so the readers below are not given their own.
@@ -116,7 +117,8 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         </span>
         {source?.kind === 'text' && documentRoleLabel(source.document_role) ? <small className="ai-work-version">{documentRoleLabel(source.document_role)}</small> : null}
         {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} documentState={documentState} /> : null}
-        <button type="button" className="ai-work-close" onClick={onClose} aria-label="Close citation" title="Close citation">✕</button>
+        {/* The web list (F130) is not a citation, so its ✕ says what it closes. */}
+        <button type="button" className="ai-work-close" onClick={onClose} aria-label={closeLabel} title={closeLabel}>✕</button>
       </div>
 
       <div className="ai-work-body">
