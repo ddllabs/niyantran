@@ -1769,9 +1769,12 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - The outgoing scan found no env files, nothing from `docs/security`, no
       key patterns, no test credential and no AI attribution.
     - Local `main` was not touched: it is checked out in another agent's
-      checkout, which holds an unpushed merge (`b4ea998`, heading
-      abbreviations). That checkout must merge `origin/main` before its next
-      push; the only overlapping file is `docs/plans/open-work.md`.
+      checkout, which held an unpushed merge (`b4ea998`, heading
+      abbreviations). That checkout then merged `origin/main` and pushed
+      `38f430c`.
+  - **Record push** (owner: "yes, push the record"): this entry and the F130
+    status went out as a fast-forward of `origin/main` from `38f430c`; docs
+    only.
     - **Vercel:** production serves entry `index-CNoD7MWA.js` about 60 s after
       the push. It carries "Web search on (automatic)", "Web search off
       (automatic)" and "Web sources searched".
