@@ -445,8 +445,9 @@ rechecked. Nothing in this check wrote to production.
   the 246, 189 are per-module search URLs on GDELT and Google News; 31 distinct hosts). Remaining:
   push, owner and client check. Not done, low priority: "Data coverage" from another page scrolls
   after an 80 ms timer; inherited from the client's globe, its focus listeners are re-added on
-  reconnect and a partly hidden rear label stays clickable through Earth. Found on the way (not this
-  change): the homepage scrolls sideways at 375 px because of the walkthrough and trivia sections.
+  reconnect and a partly hidden rear label stays clickable through Earth. The homepage's sideways
+  scroll at 375 px is fixed on `task/mobile-overflow` (the trivia band, see the Done entry below);
+  its 47 px overhang on desktop is left as it is.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -524,6 +525,13 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 ## 1. Done
 
+- [x] **Homepage sideways scroll at phone width.** Fixed on `task/mobile-overflow` (2026-10-14). The
+  trivia band is a `.mkt-wrap` with its own padding and border added on top, so on phones and tablets
+  (to 768 px) it was 47 px wider than the page (scrollWidth 390 at 375). Its padding and border now
+  sit inside its width there: scrollWidth equals the viewport at 375, 390 and 768 px. The walkthrough
+  globe image also measured past the edge but is clipped by its container and never scrolled the page.
+  Desktop is unchanged; there the band still starts at x=1 instead of the 24 px gutter (no scroll),
+  a one-line fix if wanted.
 - [x] **F132. Gemini sometimes double-escapes newlines in the strict JSON
   answer.** Done `54b98e6` (2026-10-13). Found in the F131 local run, 2026-10-13: one answer in three was
   saved with 41 literal `\n` sequences and rendered them as text. The answer
