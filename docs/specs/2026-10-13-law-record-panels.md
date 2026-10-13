@@ -79,7 +79,8 @@ for good-law status, never a guess.
   - NCLAT is not in the pack;
   - 208 of 220 SC topics are unclassified;
   - SC PDFs may need a court session;
-  - a wire item matched a broad keyword search and may not concern this forum.
+  - a wire item was found by a keyword search for the forum and may still not concern it
+    (the searches were narrowed to each forum's own terms by F84).
 - **02 The pointers:** the held fields as key–value rows, the saved-AI-brief card, a "Summary as
   published" card for wire items (plain text, quoted), and an "If you cite this" card.
 - **Quick exit** (owner decision 1): document buttons as in the reference. Each one opens AI

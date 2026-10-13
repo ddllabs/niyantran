@@ -125,7 +125,7 @@ const CASES = [
     cite: 'An ITAT order binds differently from a SAT order. Naming the wrong forum is worse than naming none.',
   },
 ];
-const BROAD = ' It matched a broad keyword search and may not concern this forum.';
+const BROAD = ' It was found by a keyword search for this forum and may still not concern it.';
 const UNKNOWN = 'Some Other Court Watch';
 
 const feedOf = (feature, gdeltFlag) => ({ feature, source: { gdelt: gdeltFlag === true }, coverage: { through: '7d' } });
