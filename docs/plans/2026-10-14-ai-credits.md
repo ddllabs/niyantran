@@ -51,7 +51,7 @@ At most three agents run at once.
 
 - [x] Task 0: answer costs measured (2026-10-14; spec, Current state);
   `hold_credits` set to 300.
-- [ ] Task 1: database
+- [x] Task 1: database (`9e7559e`; 144 assertions, vacuity ok, two guard-removal proofs; full `npm run test:sql` green)
 - [ ] Review 1R
 - [ ] Checkpoint A
 - [ ] Task 2a: reserve and claim

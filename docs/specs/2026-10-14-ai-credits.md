@@ -178,7 +178,8 @@ the payment.
       - In shadow mode it still records the hold and returns its id with
         `ok:false`, so the turn is charged and measured like any other.
       - Otherwise it records a hold of `min(available, hold_credits)` and
-        returns `{ok:true, hold_id, available}`.
+        returns `{ok:true, hold:{credits, expires_at}, available, balance}`
+        (the hold is identified by the turn; §12).
 
    **The hold is only about answers running at the same time.** It never
    charges anything, and a user asking one question at a time never notices
@@ -634,6 +635,36 @@ granted to `anon`.
   - Rollover expiry after a lapse.
   - Holds keyed by turn, which also fixes a retry getting 402.
   - The settings history table was dropped.
+
+## Implementation notes (task 1, accepted 2026-10-14)
+
+Choices made in `20261014200000_ai_credits.sql` where this spec was silent;
+none changes a §12 contract.
+
+- **Launch backfill.** Paid profiles with no `plan_grants` row are recorded
+  in `private.credit_launch_grants`, and their lots are keyed `launch:<n>`.
+  No `plan_grants` rows are invented. Production had none on 2026-10-14.
+- **Deleted conversations.** Deleting a conversation clears
+  `research_turns.assistant_message_id`. A trigger therefore keeps each
+  turn's message id in `private.credit_turn_messages`, and such a turn is
+  charged from its logs as `complete`.
+- **Manual grants.**
+  - Every manual grant, including the same plan, ends the open monthly lots,
+    and its cycles stop at the user's next grant. An admin re-granting the
+    same plan therefore refills the month. This is accepted, because an
+    admin can grant credits directly anyway.
+  - A payment never ends an open lot.
+- **Lot timing.** Lots are minted only once usable, and a rollover that
+  would already be expired is skipped.
+- **Shadow holds.** A shadow-blocked hold is full size but does not count
+  against other turns, so shadow behaves as enforcement would.
+- **`my_conversation_credits`** lists charged answers only. A missing answer
+  means no credits were used.
+- **The usage scrub** disables `research_result_immutable` for its one
+  UPDATE, inside the migration transaction, under an exclusive lock.
+- **Out of scope, for O6.** `grant_paid_plan` chains renewal ends by +1
+  month, so billing dates drift after a 31st (31 Jan → 28 Feb → 28 Mar).
+  Lots follow the grants exactly.
 
 ## Settled after the design review (owner, 2026-10-14)
 
