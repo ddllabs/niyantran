@@ -52,8 +52,8 @@ At most three agents run at once.
 - [x] Task 0: answer costs measured (2026-10-14; spec, Current state);
   `hold_credits` set to 300.
 - [x] Task 1: database (`9e7559e`; 144 assertions, vacuity ok, two guard-removal proofs; full `npm run test:sql` green)
-- [x] Review 1R (3 defects + 7 minor; fixes in progress: stale turn-key reserve, grant ordering by id, manual-then-payment gap)
-- [ ] Checkpoint A
+- [x] Review 1R: 3 defects + 7 minor, all fixed with failing-first fixtures
+- [x] Checkpoint A (full `npm run test:sql` green, 26 fixtures, re-run by the supervisor)
 - [ ] Task 2a: reserve and claim
 - [ ] Task 2b: settle and frames
 - [ ] Task 3: dictation log
