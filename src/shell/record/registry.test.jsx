@@ -69,6 +69,7 @@ describe('record panel registry', () => {
     expect(adapterFor('Cabinet Decisions')).toBeNull();
     expect(adapterFor('Candidate Affidavit Database (Structured + API)', 'national')).toBeTypeOf('function');
     expect(adapterFor('Candidate Affidavit Database (Structured + API)', 'state')).toBeNull();
+    expect(adapterFor('National Morning Brief (Auto-digest)', 'national')).toBeTypeOf('function');
     const row = { title: 'Cabinet approves the scheme', date: '2026-10-01' };
     const state = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Cabinet Decisions', tier: 'state', rows: [row] }} selected={row} />);
     expect(state).not.toContain('class="rp"');

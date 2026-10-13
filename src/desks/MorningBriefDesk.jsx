@@ -146,7 +146,9 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
   }, []);
 
   useEffect(() => {
-    const rows = dedupeNewsRows([...top.rows, ...pib.rows, ...eco.rows]);
+    // Each item keeps the section it came from (F124), so its record panel can name it.
+    const tag = (list, section) => list.map((r) => ({ ...r, section }));
+    const rows = dedupeNewsRows([...tag(top.rows, 'Top of the Day'), ...tag(pib.rows, 'Government Wire'), ...tag(eco.rows, 'Economy')]);
     const anyLive = rows.length > 0;
     onFeed?.(
       applyRecordChecklistToFeed({
