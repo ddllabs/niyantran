@@ -3466,6 +3466,28 @@ button.live-feed:hover { color: var(--fg); }
   cursor: pointer;
 }
 .ai-v2-comp-clip:hover { background: #f3f4f6; color: var(--ai-blue); }
+/* F124 web search: the composer globe (src/ai/WebSearchToggle.jsx). A pill beside the attach button;
+   lit when web search will run on the next turn, with the same tokens as the model pill. */
+.ai-v2-web {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ai-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ai-muted);
+  font: 650 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.ai-v2-web:hover { color: var(--ai-blue); }
+.ai-v2-web.on { border-color: var(--ai-blue); background: var(--ai-blue-soft); color: var(--ai-blue); }
+.ai-v2-web:focus-visible { outline: 2px solid var(--ai-blue); outline-offset: 2px; }
+.ai-v2-web:disabled { opacity: 0.55; cursor: not-allowed; }
+.ai-v2-web:disabled:hover { color: var(--ai-muted); }
+.ai-v2-web.on:disabled:hover { color: var(--ai-blue); }
 /* The model name yields last. Without a floor it was the only shrinkable
    item in the pill, so a narrow panel collapsed it to nothing and left the
    rung and the cost dots labelling a model you could no longer see. */

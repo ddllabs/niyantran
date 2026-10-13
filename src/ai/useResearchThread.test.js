@@ -308,3 +308,84 @@ it('Reload after a failed history write refreshes the authoritative conversation
  expect(f.deps.hydrateConversations).toHaveBeenCalledTimes(2);
  expect(f.controller.getSnapshot().chat.draft).toBe(true);
 });
+
+// F124 T4a: the web-search override and the server's decision (web-search spec §1, §6).
+function webFixture(){
+ const f=fixture();
+ f.deps.setChatWebSearch=vi.fn((id,value)=>{const s=f.getState();f.setState({...s,chats:s.chats.map(c=>c.id===id?{...c,webSearch:typeof value==='boolean'?value:null}:c)});});
+ const controller=createResearchThread(f.deps);
+ return{...f,controller};
+}
+const savedChat=(id,webSearch,extra={})=>({id,attachments:[],messages:[],webSearch,...extra});
+it('a new conversation starts automatic and sends no web_search',async()=>{
+ const f=webFixture();await f.controller.start();
+ expect(f.controller.getSnapshot().webSearch).toBe(null);
+ await f.controller.send({message:'Q',turn_key:'auto',focus:'attached'});
+ expect('web_search' in f.sent[0]).toBe(false);
+});
+it('setWebSearch records the override on the active conversation and sends it with the next turn',async()=>{
+ const f=webFixture();await f.controller.start();
+ expect(f.controller.setWebSearch).toBeTypeOf('function');
+ f.controller.setWebSearch(false);
+ expect(f.deps.setChatWebSearch).toHaveBeenCalledWith('',false);
+ expect(f.controller.getSnapshot().webSearch).toBe(false);
+ await f.controller.send({message:'Q',turn_key:'off'});
+ expect(f.sent[0].web_search).toBe(false);
+});
+it('an override of true is sent as true, and is not dropped as falsy',async()=>{
+ const f=webFixture();await f.controller.start();f.controller.setWebSearch(true);
+ await f.controller.send({message:'Q',turn_key:'on'});
+ expect(f.sent[0].web_search).toBe(true);
+});
+it('the override starts from the loaded conversation and switching conversations switches it',async()=>{
+ const f=webFixture();await f.controller.start();
+ f.setState({activeId:'on',loaded:true,chats:[savedChat('on',true),savedChat('off',false),savedChat('auto',null),savedChat('old',undefined)]});
+ expect(f.controller.getSnapshot().webSearch).toBe(true);
+ await f.controller.selectChat('off');expect(f.controller.getSnapshot().webSearch).toBe(false);
+ await f.controller.selectChat('auto');expect(f.controller.getSnapshot().webSearch).toBe(null);
+ await f.controller.selectChat('old');expect(f.controller.getSnapshot().webSearch).toBe(null);
+ await f.controller.selectChat('on');
+ await f.controller.send({message:'Q',turn_key:'reopened'});
+ expect(f.sent[0]).toMatchObject({web_search:true,conversation_id:'on'});
+ await f.controller.selectChat('auto');
+ await f.controller.send({message:'Q2',turn_key:'auto-again'});
+ expect('web_search' in f.sent[1]).toBe(false);
+});
+it('a conversation that was automatic sends nothing even if the caller supplied a value',async()=>{
+ const f=webFixture();await f.controller.start();
+ await f.controller.send({message:'Q',turn_key:'stray',web_search:true});
+ expect('web_search' in f.sent[0]).toBe(false);
+});
+it('the override cannot be changed while a turn is locked',async()=>{
+ const f=webFixture();await f.controller.start();
+ f.setState({activeId:'run',loaded:true,chats:[savedChat('run',null,{messages:[{role:'assistant',id:'m',status:'running',execution_expires_at:new Date(Date.now()+60000).toISOString()}]})]});
+ expect(f.controller.getSnapshot().locked).toBe(true);
+ expect(f.controller.setWebSearch(true)).toBe(false);
+ expect(f.deps.setChatWebSearch).not.toHaveBeenCalled();
+});
+it('keeps the server decision for the turn in flight and nothing once the stream is gone',async()=>{
+ const f=webFixture();await f.controller.start();
+ f.setState({activeId:'c',loaded:true,chats:[savedChat('c',null)]});
+ expect(f.controller.getSnapshot().web).toBe(null);
+ const decision={offered:true,mode:'auto',reason:'module-without-documents'};
+ f.setStreams({c:{conversationId:'c',status:'streaming',isStreaming:true,isPending:true,streamingText:'',sources:[],web:decision}});
+ expect(f.controller.getSnapshot().web).toEqual(decision);
+ f.setStreams({});
+ expect(f.controller.getSnapshot().web).toBe(null);
+});
+it('webSources come from the stream while it holds some, then from the latest saved answer',async()=>{
+ const f=webFixture();await f.controller.start();
+ const saved=[{url:'https://saved.example/',title:'Saved',domain:'saved.example',cited:true}];
+ const live=[{url:'https://live.example/',title:'Live',domain:'live.example',cited:false}];
+ f.setState({activeId:'c',loaded:true,chats:[savedChat('c',null,{messages:[{id:'m1',role:'assistant',content:'A',status:'complete',webSources:saved}]})]});
+ expect(f.controller.getSnapshot().webSources).toEqual(saved);
+ f.setStreams({c:{conversationId:'c',status:'streaming',isStreaming:true,isPending:true,streamingText:'x',sources:[],webSources:live}});
+ expect(f.controller.getSnapshot().webSources).toEqual(live);
+});
+it('the finished assistant message keeps its webSources after reconciliation',async()=>{
+ const f=webFixture();await f.controller.start();
+ const pages=[{url:'https://a.example/',title:'A',domain:'a.example',cited:true}];
+ f.deps.reconcileTurn.mockImplementation(async()=>{const s={...f.getState(),activeId:'server-c',chats:[savedChat('server-c',null,{messages:[{id:'m',role:'assistant',content:'Done',status:'complete',webSources:pages}]})]};f.setState(s);return s;});
+ await f.controller.send({message:'Q',turn_key:'reload'});
+ expect(f.controller.getSnapshot().messages.find(m=>m.role==='assistant').webSources).toEqual(pages);
+});

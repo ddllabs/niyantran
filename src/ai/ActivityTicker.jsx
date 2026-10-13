@@ -16,7 +16,7 @@ export function compactModelId(id) {
   return name.match(/(?:^|-)(\d+(?:\.\d+)+)(?:-|$)/)?.[1] || name;
 }
 
-const SEARCH_TOOLS = ['search_documents', 'search_desk_rows'];
+const SEARCH_TOOLS = ['search_documents', 'search_desk_rows', 'web_search'];
 
 /**
  * The steps to list: public stage lines, each once, and the two searches, each search once. A
@@ -33,7 +33,7 @@ export function tickerSteps(activity) {
   return kept.filter((a, i) => (a.type === 'activity'
     // A saved turn from before F46 repeated its stage label every round.
     ? kept.findIndex((b) => b.type === 'activity' && b.text === a.text) === i
-    : a.phase !== 'start' || !kept.some((b) => b.type === 'tool' && b.step === a.step && b.phase === 'end')));
+    : a.phase !== 'start' || !kept.some((b) => b.type === 'tool' && b.name === a.name && b.step === a.step && b.phase === 'end')));
 }
 
 function inputOf(step) {
@@ -48,10 +48,15 @@ function plural(n, one, many) {
 export function stepLabel(step) {
   if (step.type === 'activity') return step.text;
   const input = inputOf(step);
+  const what = step.name === 'web_search' ? 'web search' : step.name === 'search_documents' ? 'document search' : 'desk lookup';
   if (step.phase === 'end' && ['error', 'cancelled'].includes(step.status)) {
-    return `${step.status === 'cancelled' ? 'Cancelled' : 'Failed'} ${step.name === 'search_documents' ? 'document search' : 'desk lookup'}${input.query ? ` “${input.query}”` : ''}`;
+    return `${step.status === 'cancelled' ? 'Cancelled' : 'Failed'} ${what}${input.query ? ` “${input.query}”` : ''}`;
   }
   const n = Number.isFinite(step.resultCount) && step.resultCount >= 0 ? step.resultCount : null;
+  // F124: the provider does not expose the query, so a web step is named by its page count alone.
+  if (step.name === 'web_search') {
+    return step.phase === 'end' ? `Searched the web${n === null ? '' : ` · ${plural(n, 'page', 'pages')}`}` : 'Searching the web…';
+  }
   if (step.name === 'search_documents') {
     if (step.phase !== 'end') return input.query ? `Searching “${input.query}”…` : 'Searching documents…';
     return `${input.query ? `Searched “${input.query}”` : 'Searched documents'}${n === null ? '' : ` · ${plural(n, 'passage', 'passages')}`}`;

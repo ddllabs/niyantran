@@ -27,6 +27,7 @@ import {
   renameAiChat,
   resetConversations,
   setActiveAiChat,
+  setChatWebSearch,
   useClient,
 } from './aiConversations.js';
 
@@ -556,6 +557,82 @@ describe('aiConversations (server-backed thread store)', () => {
 
 });
 
+
+// F124 T4a: the web-search override lives on the conversation (web-search spec §1, §6).
+describe('web search on the conversation', () => {
+  const selects = [];
+  const spied = (tables) => {
+    const db = fakeClient(tables);
+    const from = db.from;
+    db.from = (table) => { const q = from(table); const select = q.select; q.select = (cols) => { selects.push([table, cols]); return select(cols); }; return q; };
+    return db;
+  };
+  beforeEach(async () => {
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('sessionStorage', { getItem: () => null, removeItem() {}, setItem() {} });
+    auth.expired = false; auth.blocked = false; switchAccount('owner-a');
+    await resumeLocalIdentityAfterSignIn({access_token:'token-owner-a', user:{id:'owner-a'}, expires_at:Date.now()/1000+3600});
+    resetConversations();
+    localStorage.clear();
+    selects.length = 0;
+  });
+  const rows = [
+    { id: 'w-on', title: 'On', created_at: '2026-09-22T10:00:00Z', last_message_at: '2026-09-22T11:00:00Z', web_search: true },
+    { id: 'w-off', title: 'Off', created_at: '2026-09-21T10:00:00Z', last_message_at: '2026-09-21T11:00:00Z', web_search: false },
+    { id: 'w-auto', title: 'Auto', created_at: '2026-09-20T10:00:00Z', last_message_at: '2026-09-20T11:00:00Z', web_search: null },
+    { id: 'w-old', title: 'Old', created_at: '2026-09-19T10:00:00Z', last_message_at: '2026-09-19T11:00:00Z' },
+  ];
+
+  it('reads conversations.web_search: a boolean is an override, anything else is automatic (null)', async () => {
+    useClient(spied({ conversations: rows, chat_messages: [] }));
+    await hydrateConversations();
+    expect(selects.find(([t]) => t === 'conversations')[1]).toContain('web_search');
+    expect(Object.fromEntries(loadAiState().chats.map((c) => [c.id, c.webSearch]))).toEqual({ 'w-on': true, 'w-off': false, 'w-auto': null, 'w-old': null });
+  });
+
+  it('maps chat_messages.web_sources to webSources, defaulting to an empty list', async () => {
+    const sources = [{ url: 'https://a.example/x', title: 'A', domain: 'a.example', cited: true }];
+    useClient(spied({ conversations: [rows[0]], chat_messages: [
+      { id: 'a1', conversation_id: 'w-on', role: 'assistant', content: 'One', web_sources: sources, status: 'complete', created_at: '2026-09-22T10:01:00Z' },
+      { id: 'a2', conversation_id: 'w-on', role: 'assistant', content: 'Two', web_sources: null, status: 'complete', created_at: '2026-09-22T10:02:00Z' },
+      { id: 'a3', conversation_id: 'w-on', role: 'assistant', content: 'Three', status: 'complete', created_at: '2026-09-22T10:03:00Z' },
+      { id: 'a4', conversation_id: 'w-on', role: 'assistant', content: 'Four', web_sources: 'garbage', status: 'complete', created_at: '2026-09-22T10:04:00Z' },
+    ] }));
+    await hydrateConversations();
+    expect(selects.find(([t]) => t === 'chat_messages')[1]).toContain('web_sources');
+    expect(activeAiChat().messages.map((m) => m.webSources)).toEqual([sources, [], [], []]);
+  });
+
+  it('setChatWebSearch sets the override on that conversation only, and null returns it to automatic', async () => {
+    useClient(spied({ conversations: rows, chat_messages: [] }));
+    await hydrateConversations();
+    setChatWebSearch('w-auto', true);
+    expect(loadAiState().chats.find((c) => c.id === 'w-auto').webSearch).toBe(true);
+    expect(loadAiState().chats.find((c) => c.id === 'w-on').webSearch).toBe(true);
+    expect(loadAiState().chats.find((c) => c.id === 'w-off').webSearch).toBe(false);
+    setChatWebSearch('w-auto', 'yes');
+    expect(loadAiState().chats.find((c) => c.id === 'w-auto').webSearch).toBe(null);
+  });
+
+  it('a new conversation starts automatic; its override survives adopting the server id', async () => {
+    useClient(spied({ conversations: [rows[2]], chat_messages: [] }));
+    await hydrateConversations();
+    createAiChat();
+    expect(loadAiState().chats[0].webSearch).toBe(null);
+    setChatWebSearch('', false);
+    expect(loadAiState().chats[0].webSearch).toBe(false);
+    await reconcileTurn('w-new', conversations.captureConversationContext());
+    expect(loadAiState().chats.find((c) => c.id === 'w-new').webSearch).toBe(false);
+  });
+
+  it('a refresh of the list keeps the override the reader chose here', async () => {
+    useClient(spied({ conversations: rows, chat_messages: [] }));
+    await hydrateConversations();
+    setChatWebSearch('w-auto', true);
+    await hydrateConversations();
+    expect(loadAiState().chats.find((c) => c.id === 'w-auto').webSearch).toBe(true);
+  });
+});
 
 it('aiThreads is the server conversation store, with no legacy fallback', async () => {
   const threads = await import('./aiThreads.js');

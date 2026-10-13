@@ -37,6 +37,7 @@ const known = new Map();
 
 export function resetCoverageCache() {
   known.clear();
+  modulesRequest = null;
 }
 
 const keysOf = (keys) => [...new Set((keys || []).filter((k) => typeof k === 'string' && k.trim()))];
@@ -150,4 +151,79 @@ export function coverageOf(attachment, indexed, now = Date.now) {
   // The last answer, even past its lifetime: re-querying is the caller's job (indexedDocumentKeys,
   // refreshCoverage), and a badge that blanks every minute tells the reader nothing.
   return known.get(key)?.value === false ? 'row' : null;
+}
+
+/** The one in-flight or settled document_modules() request, or null when none is worth keeping. */
+let modulesRequest = null;
+
+/**
+ * The desk modules that have indexed documents, as `[{ desk_tier, desk_feature }]` (F124). It
+ * changes only when the corpus is ingested and the answer is a handful of rows, so one request
+ * serves the page's life; the web-search globe reads it to predict desk-focus turns.
+ *
+ * A failure answers null and is not kept, so the next call asks again: "unknown" is not evidence
+ * that no module has documents. Concurrent callers share one request.
+ *
+ * @param {object} [client]  a Supabase client
+ * @returns {Promise<{ desk_tier: string, desk_feature: string }[] | null>}
+ */
+export function documentModules(client = defaultClient) {
+  if (!client) return Promise.resolve(null);
+  if (modulesRequest) return modulesRequest;
+  const request = Promise.resolve()
+    .then(() => client.rpc('document_modules'))
+    .then(({ data, error }) => {
+      if (error || !Array.isArray(data)) return null;
+      return data.filter((r) => r && typeof r.desk_tier === 'string' && r.desk_tier.trim()
+        && typeof r.desk_feature === 'string' && r.desk_feature.trim())
+        .map((r) => ({ desk_tier: r.desk_tier, desk_feature: r.desk_feature }));
+    })
+    .catch(() => null)
+    .then((modules) => {
+      if (modules === null && modulesRequest === request) modulesRequest = null;
+      return modules;
+    });
+  modulesRequest = request;
+  return request;
+}
+
+/** The server's module comparison (research-chat handler `moduleName`): case and punctuation do not matter. */
+const moduleName = (s) => String(s ?? '').toLowerCase().replace(/[\p{P}/]+/gu, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Whether web search will start on for a turn, predicted from what the panel can see, by the same
+ * rule the server applies (web-search spec section 1). The server's `web` frame stays
+ * authoritative; this only lets the globe show the likely answer before the question is sent.
+ *
+ * `attachments` are the chips as stored on the chat (`kind`, `document_key`), plus the selected row
+ * when the panel sends one. A row or record counts as having no document when it has no key or its
+ * key is not in `indexedKeys`. A keyed record whose coverage has not answered yet (`indexedKeys`
+ * null) is unknown: off, reason null, rather than a claim either way.
+ *
+ * @param {{ focus: string, attachments?: object[], indexedKeys?: Set<string> | null,
+ *   deskContext?: { tier?: string, feature?: string } | null,
+ *   modules?: { desk_tier: string, desk_feature: string }[] | null }} scope
+ * @returns {{ on: boolean, reason: string | null }}
+ */
+export function webDefaultFor({ focus, attachments = [], indexedKeys = null, deskContext = null, modules = null }) {
+  if (focus === 'broad') return { on: false, reason: 'broad' };
+  if (focus === 'desk') {
+    const tier = moduleName(deskContext?.tier);
+    const feature = moduleName(deskContext?.feature);
+    if (!tier || !feature) return { on: false, reason: 'no-record' };
+    if (!Array.isArray(modules)) return { on: false, reason: null };
+    return modules.some((m) => moduleName(m?.desk_tier) === tier && moduleName(m?.desk_feature) === feature)
+      ? { on: false, reason: 'documents-in-scope' }
+      : { on: true, reason: 'module-without-documents' };
+  }
+  const records = (attachments || []).filter((a) => a?.kind === 'row' || a?.kind === 'record');
+  let unknown = false;
+  for (const a of records) {
+    if (!a.document_key) return { on: true, reason: 'record-without-document' };
+    if (!indexedKeys) unknown = true;
+    else if (!indexedKeys.has(a.document_key)) return { on: true, reason: 'record-without-document' };
+  }
+  if (unknown) return { on: false, reason: null };
+  if (records.length || (attachments || []).some((a) => a?.kind === 'document')) return { on: false, reason: 'documents-in-scope' };
+  return { on: false, reason: 'no-record' };
 }

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import ActivityTicker, { clock, compactModelId, finishedSummary, foundSoFar, stepLabel } from './ActivityTicker.jsx';
+import ActivityTicker, { clock, compactModelId, finishedSummary, foundSoFar, stepLabel, tickerSteps } from './ActivityTicker.jsx';
 import ResearchFlow, { actionState, measured } from './ResearchFlow.jsx';
 
 // thinking-display spec (docs/specs/2026-10-02-thinking-display.md), owner-approved 2026-10-02.
@@ -93,4 +93,37 @@ it('compacts model versions while keeping the exact ID as a tooltip',()=>{
   expect(compactModelId('deepseek/deepseek-v4-flash')).toBe('deepseek-v4-flash');
   const html=renderToStaticMarkup(<ActivityTicker model={{served:'google/gemini-3.8-flash'}} labelOf={()=>'Gemini Flash'} />);
   expect(html).toContain('title="google/gemini-3.8-flash">3.8');
+});
+
+// F124 T4a: the web search step (web-search spec section 6).
+describe('web search step', () => {
+  const web = { type: 'tool', name: 'web_search', phase: 'end', step: 2, resultCount: 5, status: 'ok', latencyMs: 900 };
+  it('reads "Searched the web · N pages", singular for one page', () => {
+    expect(stepLabel(web)).toBe('Searched the web · 5 pages');
+    expect(stepLabel({ ...web, resultCount: 1 })).toBe('Searched the web · 1 page');
+    expect(stepLabel({ ...web, resultCount: 0 })).toBe('Searched the web · 0 pages');
+    expect(stepLabel({ ...web, resultCount: undefined })).toBe('Searched the web');
+  });
+  it('a failed or cancelled web search does not claim pages', () => {
+    expect(stepLabel({ ...web, status: 'error' })).toBe('Failed web search');
+    expect(stepLabel({ ...web, status: 'cancelled' })).toBe('Cancelled web search');
+  });
+  it('is listed, from its end frame or as a saved step with no phase', () => {
+    expect(tickerSteps([web])).toEqual([web]);
+    const saved = { ...web };
+    delete saved.phase;
+    expect(tickerSteps([saved])).toEqual([{ ...saved, phase: 'end' }]);
+  });
+  it('a web step and a document search that share a step number are both kept', () => {
+    const start = { type: 'tool', name: 'search_documents', phase: 'start', step: 2, input: { query: 'q' } };
+    expect(tickerSteps([start, web])).toHaveLength(2);
+  });
+  it('counts with the other searches in the finished line', () => {
+    const doc = { type: 'tool', name: 'search_documents', phase: 'end', step: 1, resultCount: 4 };
+    expect(finishedSummary({ steps: [doc, web], sourceCount: 2, timing: { total_ms: 9000 } })).toBe('2 searches · 2 citations · 9 s');
+  });
+  it('shows in the live ticker as the current step', () => {
+    const html = renderToStaticMarkup(<ActivityTicker active activity={[web]} />);
+    expect(html).toContain('Searched the web · 5 pages');
+  });
 });
