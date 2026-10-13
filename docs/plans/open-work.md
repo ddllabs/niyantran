@@ -448,6 +448,23 @@ rechecked. Nothing in this check wrote to production.
   reconnect and a partly hidden rear label stays clickable through Earth. The homepage's sideways
   scroll at 375 px is fixed on `task/mobile-overflow` (the trivia band, see the Done entry below);
   its 47 px overhang on desktop is left as it is.
+- [ ] **F141. One globe across the marketing site.** Owner request 2026-10-14: the client's globe
+  (F140) replaces the old `AuthEarth` on sign-in, sign-up and pricing (globe only; page styling
+  stays), behind one shared wrapper; then the old globe is retired.
+  [Spec](../specs/2026-10-14-one-globe.md). Built on `task/one-globe`: `DataGlobe.jsx` on all four
+  pages; the Earth keeps the old size at 1440 px (sign-in 490 px, sign-up 331 px), is 179 px where
+  sign-in and sign-up sit beside a narrow 280 px box (was 280 px) and 256 px on pricing (was 400 px),
+  so labels never cross the form, heading or copy and nothing leaves the screen (checked over a full
+  orbit at 1440, 1024, 939, 858 and 375 px). Old globe retired (6 files, 79 CSS rules). Reviewed:
+  a pause button on every globe (WCAG 2.2.2, as the old globe had), the mount wiring tested, the old
+  globe's docs marked historical. Left for later: the `three` package has no importer now (it was the
+  old globe's renderer); removing it is a dependency change. Remaining: merge, push.
+- [ ] **F142. Live, database-backed figures on the marketing site.** Owner request 2026-10-14: today
+  9,817 bills and 3,431 documents are typed constants, and the carousel counts come from snapshot
+  files, so new records never show. One `site_figures()` database function (service role) behind a
+  cached public `/api/site-figures`, with the measured constants as the fallback; the hero, KPIs,
+  ribbon, pricing and carousel read it. [Spec](../specs/2026-10-14-live-site-figures.md). Waiting on
+  the owner: approve the migration and the bills definition (spec, "Decisions").
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
