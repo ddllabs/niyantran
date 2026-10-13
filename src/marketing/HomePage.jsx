@@ -53,7 +53,7 @@ const DESKS = [
       [(f) => figure(f.bills), 'blue', 'BILLS ON RECORD'],
       [String(PREVIEW.bills.houses), 'ok', 'HOUSES'],
       [(f) => figure(f.ministries), 'warn', 'MINISTRIES'],
-      [String(PREVIEW.bills.seriesStart), 'gold', 'SERIES START'],
+      [String(PREVIEW.bills.seriesStart ?? '—'), 'gold', 'SERIES START'],
     ],
     bars: [
       // F144: real counts from the bill register, as a share of all bills.

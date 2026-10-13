@@ -50,5 +50,6 @@ export function computePreviewFigures({ bills, fronts, mps, macro }) {
 export function stageBar(label, figures, tone = '') {
   const count = figures.bills.stages[label];
   const share = figures.bills.total ? (count / figures.bills.total) * 100 : 0;
-  return [label, count, `${share >= 10 ? Math.round(share) : share.toFixed(1)}%`, share, tone];
+  // The printed share is exact; the drawn bar has a 2% floor so a small stage stays visible.
+  return [label, count, `${share >= 10 ? Math.round(share) : share.toFixed(1)}%`, Math.max(share, 2), tone];
 }
