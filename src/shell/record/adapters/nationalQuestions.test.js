@@ -8,6 +8,10 @@ import { shapeParliamentaryQuestionRows } from '../../../lib/shapeQuestions.js';
 import { contractProblems } from '../modelContract.js';
 import nationalQuestions from './nationalQuestions.js';
 
+// These tests build a panel for every row of the register (thousands); GitHub's runners are slower
+// than a laptop, so they get more than Vitest's 5-second default.
+const WHOLE_REGISTER_MS = 20_000;
+
 // The real impact builder, wrapped so one test can hand the adapter a company drawn by sector (path P2),
 // which the question desk's own configuration never produces.
 vi.mock('../../../lib/impactRecord.js', async (importOriginal) => {
@@ -47,7 +51,7 @@ describe('National questions adapter', () => {
     for (const row of questions) expect(contractProblems(nationalQuestions(row, ctx({ packs: null }))), row.id).toEqual([]);
     for (const row of sample) expect(contractProblems(nationalQuestions(row, ctx())), row.id).toEqual([]);
     for (const row of questions.slice(0, 50)) expect(contractProblems(nationalQuestions(row, ctx({ packs: { ready: false } }))), row.id).toEqual([]);
-  });
+  }, WHOLE_REGISTER_MS);
 
   it('honours the contract for rows the desk shaped, including missing fields', () => {
     const shaped = shapeParliamentaryQuestionRows([plain, starred, blank, { ...plain, id: 'x-2', mp_name: '', ministry: '', question_type: '' }]);
@@ -288,7 +292,7 @@ describe('National questions adapter', () => {
       const shown = strings({ ...rest, touches: { ...m.touches, links: m.touches.links.map(({ title: _lt, ...l }) => l) } });
       for (const s of shown) expect(s, row.id).not.toMatch(/—|\bundefined\b|\bNaN\b|^\s*null\s*$|not reported/i);
     }
-  });
+  }, WHOLE_REGISTER_MS);
 
   it('is synchronous and makes no network or AI call', () => {
     const fetchSpy = vi.fn(() => { throw new Error('network call'); });
