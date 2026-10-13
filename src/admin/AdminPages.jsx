@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiStats, classifyApis, STATUS } from '../lib/apiStatus.js';
 import { setUserActive, setUserPlan, setUserType, USER_TYPES, userTypeOf } from '../lib/userStore.js';
+import { adjustUserCredits, CREDIT_ACTIONS, creditRequest, formatBalance, newRequestId } from './userCredits.js';
 import {
   formatAgo,
   formatDuration,
@@ -372,11 +373,27 @@ function planSummary(u) {
   return name;
 }
 
+const NO_CREDIT_DRAFT = { kind: 'add', amount: '', reason: '', requestId: null };
+
+/** What an applied adjustment says: the user, the amount and the balance now. */
+function creditNoteFor(u, request, result) {
+  const amount = formatBalance(Math.abs(request.credits));
+  const balance = formatBalance(result.balance);
+  if (result.repeated) return `That adjustment was already applied to ${u.email}; it was not applied again. Balance ${balance}.`;
+  const what = request.kind === 'topup' ? `Granted a top-up of ${amount} credits to ${u.email}`
+    : request.credits < 0 ? `Removed ${amount} credits from ${u.email}` : `Added ${amount} credits to ${u.email}`;
+  return `${what}. Balance ${balance}.`;
+}
+
 export function UsersPage({ users, onChange }) {
   const [err, setErr] = useState('');
   const [busyId, setBusyId] = useState(null);
   // Per-row plan choice before "Set plan": { [id]: { plan, end } }.
   const [planDrafts, setPlanDrafts] = useState({});
+  // Per-row credit form before "Apply": { [id]: { kind, amount, reason, requestId } }.
+  // requestId names one adjustment, so a retry after a lost answer applies once.
+  const [creditDrafts, setCreditDrafts] = useState({});
+  const [creditNote, setCreditNote] = useState('');
 
   function draftFor(u) {
     return planDrafts[u.id] || { plan: PLAN_NAMES[u.plan] ? u.plan : 'free', end: '' };
@@ -393,9 +410,45 @@ export function UsersPage({ users, onChange }) {
     return change(u.id, () => setUserPlan(u.id, d.plan, end));
   }
 
+  function creditDraftFor(u) {
+    return creditDrafts[u.id] || NO_CREDIT_DRAFT;
+  }
+
+  // Any edit makes it a different adjustment, so it gets a new request id.
+  function editCredit(u, patch) {
+    setCreditDrafts((all) => ({ ...all, [u.id]: { ...(all[u.id] || NO_CREDIT_DRAFT), ...patch, requestId: null } }));
+  }
+
+  async function applyCredits(u) {
+    setCreditNote('');
+    const draft = creditDraftFor(u);
+    const checked = creditRequest(draft);
+    if (!checked.ok) {
+      setErr(checked.reason);
+      return;
+    }
+    const { credits, kind, reason } = checked;
+    const request = { credits, kind, reason };
+    const requestId = draft.requestId || newRequestId();
+    // Keep the id with the form until the credits are applied.
+    setCreditDrafts((all) => ({ ...all, [u.id]: { ...(all[u.id] || draft), requestId } }));
+    setBusyId(u.id);
+    setErr('');
+    const res = await adjustUserCredits(u.id, request, requestId);
+    setBusyId(null);
+    if (res.ok) {
+      setCreditDrafts((all) => Object.fromEntries(Object.entries(all).filter(([id]) => id !== u.id)));
+      setCreditNote(creditNoteFor(u, request, res));
+    } else {
+      setErr(res.reason || 'The adjustment was not applied.');
+    }
+    onChange();
+  }
+
   async function change(id, action) {
     setBusyId(id);
     setErr('');
+    setCreditNote('');
     const res = await action();
     setBusyId(null);
     if (!res.ok) setErr(res.reason || 'The change was not saved.');
@@ -408,7 +461,8 @@ export function UsersPage({ users, onChange }) {
       <p className="adm-lede">
         Every account that has signed up. Assign a user type so each seat opens the matching desks. Set a plan to grant
         Plus, Pro or Max until a date (or open-ended), or Free to revoke; verified payments set plans on their
-        own. Suspend to lock an account without deleting it, and restore to reopen it.
+        own. Credits shows each balance (and any debt); add or remove credits, or grant a top-up, with a reason that
+        is kept with the adjustment. Suspend to lock an account without deleting it, and restore to reopen it.
       </p>
       <div className="adm-card">
         <h2>Adding people</h2>
@@ -421,6 +475,11 @@ export function UsersPage({ users, onChange }) {
             {err}
           </p>
         ) : null}
+        {creditNote ? (
+          <p className="adm-msg" role="status">
+            {creditNote}
+          </p>
+        ) : null}
       </div>
       <div className="adm-card" style={{ padding: 0 }}>
         <div className="adm-table-wrap">
@@ -431,6 +490,7 @@ export function UsersPage({ users, onChange }) {
                 <th>Email</th>
                 <th>Type</th>
                 <th>Plan</th>
+                <th>Credits</th>
                 <th>State</th>
                 <th />
               </tr>
@@ -492,6 +552,58 @@ export function UsersPage({ users, onChange }) {
                           onClick={() => { void grantPlan(u); }}
                         >
                           Set plan
+                        </button>
+                      </div>
+                    </td>
+                    <td className="admin-credits">
+                      <div className="admin-credits-cell" role="group" aria-label={`Credits for ${u.email}`}>
+                        <span className="admin-credits-balance">{formatBalance(u.creditBalance)}</span>
+                        {u.creditDebt > 0 ? (
+                          <span className="admin-credits-debt">{`Owes ${formatBalance(u.creditDebt)}`}</span>
+                        ) : null}
+                        <select
+                          className="adm-inline-select admin-credits-field"
+                          aria-label={`Credit action for ${u.email}`}
+                          value={creditDraftFor(u).kind}
+                          disabled={locked || busy}
+                          onChange={(e) => editCredit(u, { kind: e.target.value })}
+                        >
+                          {CREDIT_ACTIONS.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="any"
+                          className="adm-inline-select admin-credits-field"
+                          aria-label={`Credit amount for ${u.email}`}
+                          placeholder="Credits"
+                          value={creditDraftFor(u).amount}
+                          disabled={locked || busy}
+                          onChange={(e) => editCredit(u, { amount: e.target.value })}
+                        />
+                        <input
+                          type="text"
+                          maxLength={500}
+                          className="adm-inline-select admin-credits-field admin-credits-reason"
+                          aria-label={`Credit reason for ${u.email}`}
+                          aria-required="true"
+                          placeholder="Reason (required)"
+                          value={creditDraftFor(u).reason}
+                          disabled={locked || busy}
+                          onChange={(e) => editCredit(u, { reason: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          className="adm-btn ghost admin-credits-apply"
+                          disabled={locked || busy}
+                          onClick={() => { void applyCredits(u); }}
+                        >
+                          {busyId === u.id ? 'Saving…' : 'Apply'}
                         </button>
                       </div>
                     </td>

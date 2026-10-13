@@ -611,6 +611,27 @@ html.adm-doc #root {
   flex-basis: 100%;
   font: 600 12px var(--adm-ui);
 }
+.admin-credits-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 220px;
+}
+.admin-credits-balance {
+  font: 600 13px var(--adm-mono);
+  color: var(--adm-black);
+}
+.admin-credits-debt {
+  font: 600 12px var(--adm-ui);
+  color: var(--adm-red);
+}
+.admin-credits-field { min-width: 0; }
+input.admin-credits-field[type='number'] { width: 90px; }
+.admin-credits-reason {
+  flex-basis: 100%;
+  max-width: none;
+}
 .adm-persona-types {
   display: flex;
   flex-wrap: wrap;
