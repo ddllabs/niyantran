@@ -1,4 +1,6 @@
 import { dateLabel, plural, presentRows, sourceLinks } from './common.js';
+import { parseFeedDate } from './feedDate.js';
+import { plainText, text } from './feedText.js';
 
 /**
  * Geopolitics News Wire → record panel (F121). A wire item is a news report, not a verified
@@ -17,86 +19,8 @@ const NOT_ON_RECORD = 'Not on record';
 const GDELT = 'gdelt';
 const RSS = 'rss';
 
-const text = (value) => (typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '');
-
-/**
- * Control characters (other than whitespace, which is collapsed to a space) and the bidirectional
- * marks and overrides, which can hide or reorder what a reader sees.
- */
-const isInvisible = (code) => code <= 8 || (code >= 14 && code <= 31) || (code >= 127 && code <= 159)
-  || code === 0x200e || code === 0x200f || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
-const withoutInvisible = (s) => Array.from(s).filter((ch) => !isInvisible(ch.codePointAt(0))).join('');
-const ENTITIES = { '&amp;': '&', '&quot;': '"', '&apos;': "'", '&#39;': "'", '&#x27;': "'", '&nbsp;': ' ' };
-
-/**
- * Article text as one line of plain text: the few entities RSS leaves behind decoded once (never
- * `&lt;` or `&gt;`, so nothing can turn back into markup), invisible controls removed, whitespace
- * collapsed. It stays a string; nothing here builds HTML.
- */
-const plainText = (value) => withoutInvisible(text(value))
-  .replace(/&(?:amp|quot|apos|#39|#x27|nbsp);/gi, (m) => ENTITIES[m.toLowerCase()])
-  .replace(/\s+/g, ' ')
-  .trim();
-
-/** RFC 822 zone names, in minutes east of UTC. A zone not listed (BST, IST, CET) is ambiguous and is not guessed. */
-const ZONES = { GMT: 0, UT: 0, UTC: 0, Z: 0, EST: -300, EDT: -240, CST: -360, CDT: -300, MST: -420, MDT: -360, PST: -480, PDT: -420 };
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-
-const GDELT_DATE = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2}))?$/i;
-const RFC_DATE = /^(?:[A-Za-z]{3},?\s+)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([A-Za-z]{1,3}|[+-]\d{4}))?$/;
-
-/** A real instant from calendar parts and a UTC offset in minutes, or null. Reads no local zone. */
-function instant(year, month, day, hour, minute, second, offset) {
-  if (year < 1900 || year > 2200 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
-  const ms = Date.UTC(year, month - 1, day, hour, minute, second);
-  const probe = new Date(ms);
-  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
-  return new Date(ms - offset * 60000);
-}
-
-const offsetOf = (zone) => {
-  if (/^[+-]\d{4}$/.test(zone)) {
-    const minutes = Number(zone.slice(1, 3)) * 60 + Number(zone.slice(3, 5));
-    return Number(zone.slice(3, 5)) > 59 ? null : (zone[0] === '-' ? -minutes : minutes);
-  }
-  const key = zone.toUpperCase();
-  return Object.hasOwn(ZONES, key) ? ZONES[key] : null;
-};
-
-/**
- * The instant a feed date names, or null. Three shapes are read, each strictly:
- *  - GDELT seendate "20261012T143000Z" (UTC);
- *  - RFC 822 pubDate "Mon, 12 Oct 2026 14:30:00 GMT" (a listed zone name or a ±hhmm offset);
- *  - ISO 8601 / Atom "2026-10-12T14:30:00+01:00" (a zone is required with a time).
- * A bare calendar date ("12 Oct 2026", "2026-10-12") is read as that date. Anything else, an
- * impossible date, or a time with no zone is not a date: `new Date(text)` would guess and would
- * read local time on the machine.
- */
-function parsePublished(value) {
-  const t = typeof value === 'string' ? value.trim() : '';
-  if (!t) return null;
-  let m = GDELT_DATE.exec(t);
-  if (m) return instant(...m.slice(1, 7).map(Number), 0);
-  m = ISO_DATE.exec(t);
-  if (m) {
-    const [year, month, day] = m.slice(1, 4).map(Number);
-    if (m[4] == null) return instant(year, month, day, 0, 0, 0, 0);
-    const zone = m[7].toUpperCase();
-    const offset = zone === 'Z' ? 0 : (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(-2))) * (zone[0] === '-' ? -1 : 1);
-    if (zone !== 'Z' && Number(zone.slice(-2)) > 59) return null;
-    return instant(year, month, day, Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  m = RFC_DATE.exec(t);
-  if (m) {
-    const month = MONTHS.indexOf(m[2].toLowerCase()) + 1;
-    if (!month) return null;
-    if (m[4] == null) return instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
-    const offset = offsetOf(m[7]);
-    return offset == null ? null : instant(Number(m[3]), month, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  return null;
-}
+/** Feed dates are read strictly by the shared reader (feedDate.js, F127). */
+const parsePublished = (value) => parseFeedDate(value);
 
 /** "12 Oct 2026" in India time for the item's own date (GDELT seendate first, then date), or ''. */
 function publishedLabel(row) {

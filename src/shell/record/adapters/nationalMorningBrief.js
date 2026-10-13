@@ -1,5 +1,7 @@
 import { headlineKey } from '../../../lib/newsDedup.js';
 import { dateLabel, plural, presentRows } from './common.js';
+import { parseFeedDate } from './feedDate.js';
+import { plainText, text } from './feedText.js';
 
 /**
  * National Morning Brief → record panel (F124 N9).
@@ -43,93 +45,13 @@ const GOOGLE = 'google';
 const WIRE = { [TOP]: 'India government and parliament wire', [ECO]: 'India economy and markets wire' };
 const AGGREGATOR = /^(?:gdelt|google news)$/i;
 
-const text = (value) => (typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '');
-
-/** Control characters (whitespace is collapsed instead) and the bidirectional marks and overrides, which can hide or reorder what a reader sees. */
-const isInvisible = (code) => code <= 8 || (code >= 14 && code <= 31) || (code >= 127 && code <= 159)
-  || code === 0x200e || code === 0x200f || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
-const withoutInvisible = (s) => Array.from(s).filter((ch) => !isInvisible(ch.codePointAt(0))).join('');
-const ENTITIES = { '&amp;': '&', '&quot;': '"', '&apos;': "'", '&#39;': "'", '&#x27;': "'", '&nbsp;': ' ' };
-
-/** One line of plain text: entities decoded once, invisible controls removed, whitespace collapsed. Nothing here builds HTML. */
-const plainText = (value) => withoutInvisible(text(value))
-  .replace(/&(?:amp|quot|apos|#39|#x27|nbsp);/gi, (m) => ENTITIES[m.toLowerCase()])
-  .replace(/\s+/g, ' ')
-  .trim();
 
 // ---------------------------------------------------------------------------------------------
 // Dates: read strictly, never guessed, never in the machine's local zone.
 // ---------------------------------------------------------------------------------------------
 
-const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-/**
- * RFC 822 zone names, in minutes east of UTC. IST is read as India Standard Time because PIB's feed
- * is Indian; BST, CET and the like are ambiguous and are not guessed.
- */
-const ZONES = { GMT: 0, UT: 0, UTC: 0, Z: 0, IST: 330, EST: -300, EDT: -240, CST: -360, CDT: -300, MST: -420, MDT: -360, PST: -480, PDT: -420 };
-const GDELT_DATE = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2}))?$/i;
-const RFC_DATE = /^(?:[A-Za-z]{3,9},?\s+)?(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([A-Za-z]{1,3}|[+-]\d{4}))?$/;
-
-/** A real instant from calendar parts and a UTC offset in minutes, or null. Reads no local zone. */
-function instant(year, month, day, hour, minute, second, offset) {
-  if (year < 1900 || year > 2200 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
-  const ms = Date.UTC(year, month - 1, day, hour, minute, second);
-  const probe = new Date(ms);
-  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
-  return new Date(ms - offset * 60000);
-}
-
-function offsetOf(zone) {
-  if (/^[+-]\d{4}$/.test(zone)) {
-    if (Number(zone.slice(3, 5)) > 59) return null;
-    const minutes = Number(zone.slice(1, 3)) * 60 + Number(zone.slice(3, 5));
-    return zone[0] === '-' ? -minutes : minutes;
-  }
-  const key = zone.toUpperCase();
-  return Object.hasOwn(ZONES, key) ? ZONES[key] : null;
-}
-
-/** A month named by its three-letter abbreviation, "Sept", or in full; "Marc" or "Foo" is not a month. */
-function monthOf(name) {
-  const n = name.toLowerCase();
-  const i = MONTH_NAMES.findIndex((full) => full === n || (n.length === 3 && full.startsWith(n)) || (n === 'sept' && full === 'september'));
-  return i + 1;
-}
-
-/**
- * The instant a date string names, or null. Three shapes, each strictly:
- *  - GDELT seendate "20261012T143000Z" (UTC);
- *  - ISO 8601 ("2026-10-12" as that calendar date, or with a time and a required zone);
- *  - RFC 822 as RSS writes it ("Mon, 12 Oct 2026 14:30:00 GMT", a listed zone name or ±hhmm; the
- *    weekday and the time are optional).
- * A time with no zone, an impossible date, or any other text is not a date: `new Date(text)` would
- * guess, and would read local time on the machine.
- */
-function parseDate(value) {
-  const t = text(value);
-  if (!t) return null;
-  let m = GDELT_DATE.exec(t);
-  if (m) return instant(...m.slice(1, 7).map(Number), 0);
-  m = ISO_DATE.exec(t);
-  if (m) {
-    const [year, month, day] = m.slice(1, 4).map(Number);
-    if (m[4] == null) return instant(year, month, day, 0, 0, 0, 0);
-    const zone = m[7].toUpperCase();
-    if (zone !== 'Z' && Number(zone.slice(-2)) > 59) return null;
-    const offset = zone === 'Z' ? 0 : (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(-2))) * (zone[0] === '-' ? -1 : 1);
-    return instant(year, month, day, Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  m = RFC_DATE.exec(t);
-  if (m) {
-    const month = monthOf(m[2]);
-    if (!month) return null;
-    if (m[4] == null) return instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
-    const offset = offsetOf(m[7]);
-    return offset == null ? null : instant(Number(m[3]), month, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  return null;
-}
+/** IST is India time (PIB's feed is Indian), and full month names are read (feedDate.js, F127). */
+const parseDate = (value) => parseFeedDate(value, { ist: true, monthNames: true });
 
 /** The item's own date: `date`, then `published`, then `seendate`. The checklist's eventDate is derived in the machine's zone and is not used. */
 function publishedAt(row) {
@@ -270,8 +192,21 @@ export default function nationalMorningBrief(selection, ctx = {}) {
 
   // The items the list holds: source-status notices out, each item once, and the selection in it exactly once (it may be a copy).
   const served = (Array.isArray(ctx?.rows) ? ctx.rows : []).map(asObject).filter((r) => r && r.status !== 'source_status');
+  // Each item once: sameItem matches on the link or the headline key, so two sets find a repeat in
+  // one pass (F127; it was a nested scan).
   const items = [];
-  for (const r of served) if (!items.some((x) => sameItem(x, r))) items.push(r);
+  const links = new Set();
+  const keys = new Set();
+  const held = new Set();
+  for (const r of served) {
+    const link = text(r.source_url);
+    const key = headlineKey(r);
+    if (held.has(r) || (link && links.has(link)) || (key && keys.has(key))) continue;
+    items.push(r);
+    held.add(r);
+    if (link) links.add(link);
+    if (key) keys.add(key);
+  }
   const at = items.findIndex((x) => sameItem(x, row));
   if (at >= 0) items[at] = row;
   else items.push(row);
