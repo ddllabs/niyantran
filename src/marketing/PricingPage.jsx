@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PRICING_COMPARE, PRICING_NOTES, PUBLIC_PLANS, rupees } from '../lib/publicPlans.js';
 import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
-import AuthEarth from './AuthEarth.jsx';
+import DataGlobe from './DataGlobe.jsx';
 
 function Ico({ d, size = 18 }) {
   return (
@@ -104,7 +104,7 @@ export default function PricingPage({ onLogin, onContact }) {
             <span className="blink">▌</span>
           </div>
         </div>
-        <div className="mkt-pr-earth"><AuthEarth labels={false} /></div>
+        <div className="mkt-pr-earth mkt-globe-slot"><DataGlobe /></div>
       </section>
 
       <div className="mkt-wrap">

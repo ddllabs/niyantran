@@ -12,7 +12,7 @@ import {
 } from '../lib/userStore.js';
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
-import AuthEarth from './AuthEarth.jsx';
+import DataGlobe from './DataGlobe.jsx';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
@@ -32,6 +32,9 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
       setUserId(lastEmail);
     }
   }, []);
+
+  // A globe label already stored its destination; the visitor is on sign-in, so bring them to it.
+  const focusSignIn = () => root.current?.querySelector('input[name="user"]')?.focus();
 
   function onMove(e) {
     const el = root.current;
@@ -131,7 +134,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
         <span className="sh sand" />
         <span className="sh red" />
       </div>
-      <div className="mkt-login-earth-visual"><AuthEarth /></div>
+      <div className="mkt-login-earth-visual mkt-globe-slot"><DataGlobe onLogin={focusSignIn} /></div>
       <main className="mkt-login-card">
         <p className="live">
           <i /> SYS/READY

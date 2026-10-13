@@ -258,9 +258,6 @@ html.mkt-doc:has(.mkt-auth) #root {
 
 /* —— Hero —— */
 
-
-
-
 .mkt-hero-bg {
   position: absolute;
   inset: 0;
@@ -271,38 +268,6 @@ html.mkt-doc:has(.mkt-auth) #root {
   display: block;
 }
 /* Homepage-only geometry: the old background also contained a baked globe. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* —— Post-hero showcase (video + analytics) —— */
 .mkt-showcase {
@@ -677,8 +642,6 @@ html.mkt-doc:has(.mkt-auth) #root {
 
 /* Globe */
 
-
-
 .mkt-orb-fx {
   position: absolute;
   left: 50%;
@@ -771,179 +734,16 @@ html.mkt-doc:has(.mkt-auth) #root {
   filter: none;
   image-rendering: auto;
 }
-.mkt-chip {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px 8px 8px;
-  background: var(--mkt-surface);
-  border-radius: 12px;
-  box-shadow: 0 10px 28px rgba(19, 19, 19, 0.16);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mkt-black);
-  white-space: nowrap;
-  z-index: 2;
-  animation: none;
-  will-change: auto;
-  cursor: default;
-  translate: calc(var(--px) * -0.12) calc(var(--py) * -0.08);
-  transition: opacity 0.25s ease, scale 0.25s ease, filter 0.25s ease;
-}
+
 /* CR-02 — persona cards around the globe (hover/tap reveals what they get) */
-.mkt-pchip {
-  position: absolute;
-  display: inline-flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 8px;
-  width: max-content;
-  max-width: min(190px, 46%);
-  padding: 7px 11px 7px 7px;
-  background: var(--mkt-surface);
-  border: 1px solid #e4ddd4;
-  border-radius: 12px;
-  box-shadow: 0 10px 28px rgba(19, 19, 19, 0.14);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--mkt-black);
-  text-align: left;
-  line-height: 1.25;
-  z-index: 2;
-  cursor: pointer;
-  /* Centre the chip on its orbit point (globe at 50% / 48%) */
-  transform: translate(-50%, -50%);
-  transition: opacity 0.25s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.mkt-pchip i {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: #eef3fb;
-  color: var(--mkt-blue);
-  flex-shrink: 0;
-}
-.mkt-pchip .lab {
-  flex: 0 1 auto;
-  min-width: 0;
-  line-height: 1.25;
-  white-space: nowrap;
-}
-.mkt-pchip .gets {
-  display: none;
-  width: 100%;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  flex-direction: column;
-  gap: 4px;
-  flex-basis: 100%;
-}
-.mkt-pchip .gets em {
-  display: block;
-  font-style: normal;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.35;
-  color: var(--mkt-muted);
-  white-space: normal;
-}
-.mkt-pchip:hover,
-.mkt-pchip:focus-visible,
-.mkt-pchip.on {
-  z-index: 6;
-  flex-wrap: wrap;
-  width: min(220px, 52%);
-  max-width: min(220px, 52%);
-  transform: translate(-50%, -50%) scale(1.04);
-  border-color: #9bb4e8;
-  box-shadow: 0 14px 32px rgba(19, 19, 19, 0.18);
-  outline: none;
-}
-.mkt-pchip:hover .gets,
-.mkt-pchip:focus-visible .gets,
-.mkt-pchip.on .gets {
-  display: flex;
-}
 
 /* Even hex orbit around globe centre (50%, 48%) */
-.mkt-pchip.c1 { left: 22%; top: 16%; } /* Policy Analyst — NW */
-.mkt-pchip.c2 {
-  left: 78%;
-  top: 16%;
-  /* Journalist — slightly shorter chip */
-  padding: 5px 10px 5px 5px;
-  min-height: 0;
-  line-height: 1.15;
-}
-.mkt-pchip.c2 i {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-}
-.mkt-pchip.c2 .lab {
-  font-size: 11.5px;
-  line-height: 1.15;
-}
-.mkt-pchip.c3 { left: 8%;  top: 48%; } /* UPSC — W */
-.mkt-pchip.c4 { left: 92%; top: 48%; } /* Corporate Affairs — E */
-.mkt-pchip.c5 { left: 22%; top: 80%; } /* Legal Researcher — SW */
-.mkt-pchip.c6 { left: 78%; top: 80%; } /* Academic — SE */
-.mkt-pchip.tone-red i { background: #f8e8ea; color: var(--mkt-red); }
-.mkt-pchip.tone-sand i { background: #f3e6d0; color: #8a5a12; }
-.mkt-pchip.tone-navy i { background: #e4ecfb; color: var(--mkt-blue); }
-.mkt-pchip.tone-purple i { background: #eee4f6; color: var(--mkt-purple); }
-.mkt-pchip.tone-teal i { background: #e4f3ef; color: #176b55; }
-.mkt-chip.c1 { top: 6%; left: 4%; animation-delay: 0s; }
-.mkt-chip.c2 { top: 14%; right: 4%; animation-delay: 0.7s; }
-.mkt-chip.c3 { top: 42%; left: 0%; animation-delay: 1.4s; }
-.mkt-chip.c4 { top: 48%; right: 2%; animation-delay: 0.4s; max-width: min(200px, 42%); white-space: normal; }
-.mkt-chip.c5 { bottom: 18%; left: 6%; animation-delay: 1.1s; }
-.mkt-chip.c6 { bottom: 6%; right: 8%; animation-delay: 1.8s; }
+ /* Policy Analyst — NW */
 
-.mkt-chip:hover,
-.mkt-chip.on {
-  z-index: 5;
-  scale: 1.07;
-  animation-play-state: paused;
-  filter: brightness(1.06);
-}
-.mkt-chip i {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-}
-.mkt-chip.blue {
-  border: 1px solid #9bb4e8;
-  box-shadow: 0 0 16px rgba(0, 120, 255, 0.28), 0 10px 28px rgba(19, 19, 19, 0.16);
-}
-.mkt-chip.blue i { background: #e8eefc; color: var(--mkt-blue); }
-.mkt-chip.fill-purple {
-  background: var(--mkt-purple);
-  color: #fff;
-  box-shadow: 0 0 18px rgba(168, 85, 247, 0.45), 0 10px 28px rgba(19, 19, 19, 0.16);
-}
-.mkt-chip.fill-purple i { background: rgba(255, 255, 255, 0.18); color: #fff; }
-.mkt-chip.fill-sand {
-  background: var(--mkt-sand);
-  color: #5c3a0e;
-  box-shadow: 0 0 16px rgba(234, 208, 175, 0.45), 0 10px 28px rgba(19, 19, 19, 0.16);
-}
-.mkt-chip.fill-sand i { background: rgba(255, 255, 255, 0.45); color: #8a5a12; }
-.mkt-chip.fill-red {
-  background: var(--mkt-red);
-  color: #fff;
-  box-shadow: 0 0 18px rgba(200, 19, 34, 0.5), 0 10px 28px rgba(19, 19, 19, 0.16);
-}
-.mkt-chip.fill-red i { background: rgba(255, 255, 255, 0.18); color: #fff; }
-
-
+ /* UPSC — W */
+ /* Corporate Affairs — E */
+ /* Legal Researcher — SW */
+ /* Academic — SE */
 
 @keyframes mktHalo {
   0%, 100% { opacity: 0.55; transform: scale(1); }
@@ -1002,8 +802,6 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-halo,
 .mkt-ring,
 .mkt-spark,
-.mkt-chip,
-.mkt-pchip,
 .mkt-globe,
 .mkt-globe-slow,
 .mkt-preview-scan,
@@ -1018,21 +816,14 @@ html.mkt-doc:has(.mkt-auth) #root {
     animation: none !important;
     background-position: 0% 50%;
   }
-  .mkt-chip,
-.mkt-pchip {
-    translate: none;
-    transition: none;
-  }
+  
   .mkt-card:hover,
   .mkt-card.on,
   .mkt-preview-frame:hover,
   .mkt-ribbon-item:hover {
     transform: none;
   }
-  .mkt-pchip.on .gets,
-  .mkt-pchip:focus-visible .gets {
-    display: flex;
-  }
+  
 }
 
 /* Preview */
@@ -4425,21 +4216,15 @@ html.mkt-doc:has(.mkt-auth) #root {
     grid-template-columns: 1fr;
     gap: 20px;
   }
-  .mkt-pchip.c1 { left: 20%; top: 14%; }
-  .mkt-pchip.c2 { left: 80%; top: 14%; }
-  .mkt-pchip.c3,
-  .mkt-pchip.c4 {
-    display: none;
-  }
-  .mkt-pchip.c5 { left: 20%; top: 82%; }
-  .mkt-pchip.c6 { left: 80%; top: 82%; }
+  
+  
+  
+  
+  
   .mkt-prev-nav {
     display: none;
   }
-  .mkt-chip.c3,
-  .mkt-chip.c4 {
-    display: none;
-  }
+  
   .mkt-login-orb {
     right: -8%;
     top: auto;
@@ -4603,12 +4388,8 @@ html.mkt-doc:has(.mkt-auth) #root {
     letter-spacing: 0.16em;
     font-size: 13px;
   }
-  .mkt-chip {
-    display: none;
-  }
-  .mkt-pchip {
-    display: none;
-  }
+  
+  
   .mkt-ribbon-inner {
     border-radius: 16px;
     padding: 16px 12px;
@@ -5124,44 +4905,26 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 @media(max-width:420px){.mkt-signup{padding:18px 12px}.mkt-signup-context{grid-template-columns:64px minmax(0,1fr)}.mkt-signup-illustration{width:64px}.mkt-signup-context h2{font-size:20px}.mkt-signup-context p{display:none}}
 
-/* Photographic auth Earth: same desktop canvas, no decorative rings. */
-.auth-earth{position:relative;width:100%;color:var(--mkt-text);container-type:inline-size}
-.auth-earth-stage{position:relative}
-.auth-earth-view{position:relative;width:100%;aspect-ratio:1;border-radius:50%}
-.auth-earth-view.fallback{overflow:hidden}
-/* The canvas is 128% of the drag area so the orbit rings fit around a globe of unchanged size. */
-.auth-earth-view canvas{position:absolute;left:-14%;top:-14%;display:block;width:128%;height:128%;pointer-events:none;opacity:0;transition:opacity .6s ease}
-.auth-earth-view.ready canvas{opacity:1}
-.auth-earth-view.ready{cursor:grab;touch-action:pan-y}
-/* Homepage persona cards (.mkt-pchip) around the globe, at the homepage hero's
-   spacing in globe radii (r): corners ±1.04r / ±0.89r, sides ±1.56r. They need
-   a wide area, so the globe takes its middle 60% and r = 0.409 × 60cqi. Like
-   the homepage on narrower screens, the side pair drops first. */
-.auth-earth-personas{position:absolute;inset:0;pointer-events:none;display:none}
-.auth-earth-personas .mkt-pchip{pointer-events:auto}
-@container (min-width:440px){
- .labelled .auth-earth-globe{width:60%;margin-inline:auto}
- .labelled .auth-earth-pause{right:auto;left:50%;bottom:0;transform:translateX(-50%)}
- .auth-earth-personas{display:block;--r:24.54cqi}
- .auth-earth-personas .mkt-pchip.c1{left:calc(50cqi - 1.04 * var(--r));top:calc(30cqi - .89 * var(--r))}
- .auth-earth-personas .mkt-pchip.c2{left:calc(50cqi + 1.04 * var(--r));top:calc(30cqi - .89 * var(--r))}
- .auth-earth-personas .mkt-pchip.c3{left:calc(50cqi - 1.56 * var(--r));top:30cqi}
- .auth-earth-personas .mkt-pchip.c4{left:calc(50cqi + 1.56 * var(--r));top:30cqi}
- .auth-earth-personas .mkt-pchip.c5{left:calc(50cqi - 1.04 * var(--r));top:calc(30cqi + .89 * var(--r))}
- .auth-earth-personas .mkt-pchip.c6{left:calc(50cqi + 1.04 * var(--r));top:calc(30cqi + .89 * var(--r))}
-}
-@container (max-width:599px){.auth-earth-personas .mkt-pchip.c3,.auth-earth-personas .mkt-pchip.c4{display:none}}
-.auth-earth-personas .mkt-pchip.picked{border-color:var(--mkt-blue);box-shadow:0 0 0 1px var(--mkt-blue),0 10px 28px rgba(19,19,19,.14)}
-.auth-earth-personas:has(.mkt-pchip:hover) .mkt-pchip:not(:hover):not(.on),.auth-earth-personas:has(.mkt-pchip.on) .mkt-pchip:not(.on){opacity:.45}
-@media(prefers-reduced-motion:reduce){.auth-earth-view canvas{transition:none}}
-.auth-earth-view.ready:active{cursor:grabbing}
-.auth-earth-view:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
-.auth-earth-poster{position:absolute;width:178%;height:100%;max-width:none;left:-39%;object-fit:cover;border-radius:0}
-.auth-earth-globe{position:relative}
-/* Small pause icon in the view's bottom-right corner, outside the globe's disc. */
-.auth-earth-pause{position:absolute;right:4%;bottom:4%;z-index:2;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--mkt-border);border-radius:50%;background:rgba(255,255,255,.88);color:var(--mkt-black);cursor:pointer}
-.auth-earth-pause:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
 .mkt-login-earth-visual{position:absolute;right:3%;top:50%;transform:translateY(-50%);width:clamp(280px,calc(100vw - 890px),550px);z-index:2}
+/* F141 (owner 2026-10-14): the data globe (F140) in the boxes the old globe used. The old globe gave
+   its Earth 60% of the box once labelled; the data globe's Earth is 64% of its square, so a square of
+   93.75% of the box keeps the Earth the same size, with the orbits where the persona chips were. The
+   square is centred and may extend past the box (never past the screen); nothing here clips it. */
+/* Zero specificity, so each page's own display rules (Pricing hides its globe up to 1024px) still win. */
+:where(.mkt-globe-slot){display:flex;justify-content:center;align-items:center;container-type:inline-size}
+.mkt-globe-slot>.nter-globe-scene{flex:none;width:93.75%;max-width:calc(100vw - 24px)}
+/* A narrow box beside other content (sign-in and sign-up between the stacked and the wide layouts)
+   keeps the whole square inside it, so labels never cross the form or the heading. */
+@container (max-width:439px){.mkt-globe-slot>.nter-globe-scene{width:100%}}
+/* Stacked layouts have room around the box: there the Earth keeps the old globe's size (it filled the
+   box), within the screen. */
+/* Sign-up's box is a grid by its own rule; a content-sized grid track would collapse the square to 0. */
+.mkt-signup-illustration.mkt-globe-slot{display:flex}
+@media(max-width:999px){.mkt-login-earth-visual.mkt-globe-slot>.nter-globe-scene{width:min(156.25%,calc(100vw - 24px))}}
+@media(max-width:850px){.mkt-signup-illustration.mkt-globe-slot>.nter-globe-scene{width:min(156.25%,calc(100vw - 24px))}}
+/* Pricing showed an unlabelled 400px Earth at the hero's right edge; the square fits that box, so the
+   orbits stay on screen. */
+.mkt-pr-earth.mkt-globe-slot>.nter-globe-scene{width:100%}
 .mkt-signup-context{max-width:600px;width:100%}
 .mkt-signup-illustration{width:100%;max-width:clamp(280px,calc(100vw - 890px),550px);aspect-ratio:auto}
 @media(max-width:999px){
@@ -5178,12 +4941,6 @@ html.mkt-doc:has(.mkt-auth) #root {
  .mkt-signup-context-desks{margin-top:16px;padding-top:12px}
 }
 @media(max-width:420px){.mkt-signup-context h2{font-size:24px}}
-/* Homepage hero: same globe radius and centre as the earlier NterEarth canvas
-   (r = 0.228 × min(880px, 155%)), so the hero's persona labels stay aligned. */
-
-
-/* With persona labels around the globe, the icon sits bottom-centre, clear of them. */
-
 
 .mkt-signup-legal{margin:4px 0 12px;font-size:12px;line-height:1.5;color:var(--mkt-text)}
 .mkt-signup-legal a{color:var(--mkt-blue);text-underline-offset:2px}
