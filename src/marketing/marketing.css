@@ -68,36 +68,50 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 
 /* —— Header —— */
+/* F140 (client design, owner 2026-10-13): a white header in the design's palette, kept sticky and
+   72px. Brand with "BY NTER.PRO"; links Home · Data coverage · Pricing, the current one blue with a
+   red dash; Sign in beside a "Get started ↗" button. */
+.mkt {
+  --nd-blue: #293fa5;
+  --nd-purple: #572c91;
+  --nd-red: #c2353d;
+  --nd-sand: #e5d3bb;
+  --nd-ink: #252425;
+  --nd-muted: #716d79;
+  --nd-line: #e7e3ea;
+}
 .mkt-header {
   position: sticky;
   top: 0;
   z-index: 200;
   height: 72px;
-  background: rgba(250, 246, 243, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(19, 19, 19, 0.06);
+  background: #fff;
+  border-bottom: 1px solid #eeeaf0;
 }
 .mkt-header-inner {
   height: 72px;
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 24px;
+  gap: 30px;
   position: relative;
-  width: calc(100% - 48px);
+  width: 100%;
+  max-width: 1440px;
   margin: 0 auto;
+  padding: 0 48px;
+  box-sizing: border-box;
 }
 .mkt-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--mkt-black);
+  gap: 15px;
+  color: var(--nd-ink);
   flex-shrink: 0;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
+  text-align: left;
 }
 .mkt-brand img {
   width: 42px;
@@ -109,58 +123,98 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-brand span {
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.28em;
-  color: #131313;
+  letter-spacing: 3px;
+  line-height: 1.5;
+  color: var(--nd-ink);
 }
-.mkt-nav {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+.mkt-brand small {
+  display: block;
+  font-size: 7px;
+  font-weight: 400;
+  letter-spacing: 2.3px;
+  color: #837689;
 }
 .mkt-nav-links {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 32px;
 }
-.mkt-nav-links a,
 .mkt-nav-links button.mkt-nav-link {
+  position: relative;
   border: 0;
   background: transparent;
-  color: #131313;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 6px;
+  color: var(--nd-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 0;
   cursor: pointer;
 }
-.mkt-nav-links a:hover,
 .mkt-nav-links button.mkt-nav-link:hover,
-.mkt-nav-links a.on,
 .mkt-nav-links button.mkt-nav-link.on {
-  color: var(--mkt-blue);
+  color: var(--nd-blue);
+}
+.mkt-nav-links button.mkt-nav-link.on::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 3px;
+  border-radius: 8px;
+  background: var(--nd-red);
 }
 .mkt-nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 27px;
+  margin-left: 20px;
 }
-.mkt-login-btn {
-  height: 38px;
-  padding: 0 16px;
-  border: 1px solid #d8d4cc;
-  background: #fff;
-  color: #131313;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 700;
+.mkt-sign-in {
+  border: 0;
+  background: transparent;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nd-ink);
   cursor: pointer;
 }
-.mkt-login-btn:hover,
-.mkt-login-btn.on {
-  border-color: var(--mkt-blue);
-  color: var(--mkt-blue);
+.mkt-sign-in:hover,
+.mkt-sign-in.on {
+  color: var(--nd-blue);
+}
+.mkt-nav-links .mkt-cta.mkt-start {
+  height: auto;
+  min-height: 42px;
+  padding: 12px 19px;
+  gap: 18px;
+  border-radius: 8px;
+  background: var(--nd-blue);
+  box-shadow: 0 5px 15px #293fa51a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: transform 0.2s, background 0.2s;
+}
+.mkt-nav-links .mkt-cta.mkt-start:hover {
+  background: var(--nd-purple);
+  filter: none;
+  transform: translateY(-2px);
+}
+.mkt-nav-links .mkt-cta.mkt-start > span {
+  font-size: 19px;
+  line-height: 1;
+}
+@media (max-width: 1100px) {
+  .mkt-header-inner { padding: 0 32px; }
+  .mkt-nav-links { gap: 22px; }
+  .mkt-nav-actions { gap: 18px; margin-left: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mkt-nav-links .mkt-cta.mkt-start { transition: none; }
+  .mkt-nav-links .mkt-cta.mkt-start:hover { transform: none; }
 }
 .mkt-cta {
   display: inline-flex;
@@ -179,9 +233,6 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 .mkt-cta:hover {
   filter: brightness(1.08);
-}
-.mkt-nav-links .mkt-cta {
-  margin-left: 6px;
 }
 .mkt-cta.ghost {
   background: #fff;
@@ -206,41 +257,10 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 
 /* —— Hero —— */
-.mkt-hero {
-  --mx: 72%;
-  --my: 42%;
-  --px: 0px;
-  --py: 0px;
-  position: relative;
-  overflow: hidden;
-  background: transparent;
-  min-height: min(720px, 100svh);
-  max-height: none;
-  isolation: isolate;
-  contain: layout paint;
-}
-.mkt-hero-spot {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  background: radial-gradient(ellipse 42% 38% at var(--mx) var(--my), rgba(1, 46, 161, 0.16), transparent 62%);
-  transition: background 0.12s linear;
-}
-.mkt-hero .mkt-hero-gridlines {
-  mask-image: radial-gradient(ellipse 65% 55% at 68% 38%, #000 18%, transparent 74%);
-  opacity: 0.9;
-}
-.mkt-hero-scene {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: calc(100% + 220px);
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
+
+
+
+
 .mkt-hero-bg {
   position: absolute;
   inset: 0;
@@ -251,158 +271,38 @@ html.mkt-doc:has(.mkt-auth) #root {
   display: block;
 }
 /* Homepage-only geometry: the old background also contained a baked globe. */
-.mkt-hero-backdrop {
-  position: absolute;
-  inset: 0;
-  background: #080d14;
-}
-.mkt-hero-backdrop::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--mkt-canvas);
-  clip-path: polygon(0 0, 34% 0, 41% 20%, 47% 42%, 48% 60%, 44% 78%, 30% 100%, 0 100%);
-}
-.mkt-hero .mkt-hero-scene > .mkt-pr-sh {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  animation: none;
-}
-.mkt-hero .mkt-pr-sh.navy { clip-path: polygon(34% 0, 74% 0, 48% 52%, 41% 20%); }
-.mkt-hero .mkt-pr-sh.sand { clip-path: polygon(82% 0, 100% 0, 100% 100%, 93% 100%); }
-.mkt-hero .mkt-pr-sh.purple { clip-path: polygon(100% 24%, 100% 72%, 86% 62%); }
-.mkt-hero .mkt-pr-sh.red { clip-path: polygon(100% 70%, 100% 100%, 90% 100%); }
-.mkt-hero-inner {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-  gap: 12px;
-  padding: 40px 0 24px;
-  align-items: center;
-}
-.mkt-kicker {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  margin: 0 0 18px;
-}
-.mkt-kicker .live { color: var(--mkt-blue); }
-.mkt-kicker .mid { color: #5b86e5; letter-spacing: 0.16em; }
-.mkt-kicker .sys {
-  color: var(--mkt-muted);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  animation: mktPrCaret 1.1s steps(1) infinite;
-}
-.mkt-hero h1 {
-  margin: 0 0 16px;
-  font-size: 48px;
-  font-weight: 700;
-  line-height: 1.12;
-  letter-spacing: -0.03em;
-  color: var(--mkt-black);
-  max-width: 14ch;
-}
-.mkt-hero h1 em {
-  font-style: normal;
-}
-.mkt-hero-copy .mkt-kicker,
-.mkt-hero-copy h1,
-.mkt-hero-copy .mkt-hook,
-.mkt-hero-copy .mkt-lede,
-.mkt-hero-copy .mkt-hero-tele,
-.mkt-hero-copy .mkt-hero-actions {
-  animation: mktIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.mkt-hero-copy h1 { animation-delay: 0.12s; }
-.mkt-hero-copy .mkt-hook { animation-delay: 0.18s; }
-.mkt-hero-copy .mkt-lede { animation-delay: 0.26s; }
-.mkt-hero-copy .mkt-hero-tele { animation-delay: 0.34s; }
-.mkt-hero-copy .mkt-hero-actions { animation-delay: 0.44s; }
-.mkt-hero h1 .gov,
-.mkt-hero h1 .pol {
-  display: inline-block;
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: mktWordShine 3.2s ease-in-out infinite;
-}
-.mkt-hero h1 .gov {
-  color: var(--mkt-blue);
-  background-image: linear-gradient(90deg, #012ea1 0%, #6b93ff 42%, #012ea1 100%);
-}
-.mkt-hero h1 .pol {
-  color: var(--mkt-purple);
-  background-image: linear-gradient(90deg, #4f1d90 0%, #b57cff 42%, #4f1d90 100%);
-  animation-delay: 0.9s;
-}
-.mkt-lede {
-  margin: 0 0 16px;
-  font-size: 15px;
-  line-height: 1.55;
-  color: var(--mkt-muted);
-  max-width: 48ch;
-}
-.mkt-hook {
-  margin: 0 0 12px;
-  font-size: 17px;
-  font-weight: 650;
-  line-height: 1.4;
-  letter-spacing: -0.01em;
-  color: var(--mkt-black);
-  max-width: 36ch;
-}
-.mkt-hero-tele {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-  margin: 0 0 24px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--mkt-blue);
-}
-.mkt-hero-tele span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.mkt-hero-tele i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #12c48b;
-  box-shadow: 0 0 8px #12c48b;
-  animation: mktLivePulse 1.6s ease-in-out infinite;
-}
-.mkt-hero-tele .blink {
-  color: var(--mkt-purple);
-  animation: mktPrCaret 1.05s steps(1) infinite;
-}
-.mkt-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 32px;
-}
-.mkt-hero-actions .mkt-cta {
-  height: 44px;
-  padding: 0 20px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-.mkt-hero-actions .mkt-cta.ghost {
-  color: var(--mkt-blue) !important;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* —— Post-hero showcase (video + analytics) —— */
 .mkt-showcase {
@@ -776,35 +676,9 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-proof-aside li i.tone-teal { background: #e4f3ef; color: #176b55; }
 
 /* Globe */
-.mkt-orb-wrap {
-  position: relative;
-  height: min(560px, 62vw);
-  max-height: 560px;
-  width: 100%;
-  z-index: 1;
-  overflow: visible;
-}
-.mkt-orb-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  translate: calc(var(--px) * 0.25) calc(var(--py) * 0.2);
-  transition: translate 0.22s ease-out;
-}
-.mkt-hero-orbits {
-  position: absolute;
-  left: 50%;
-  top: 48%;
-  width: min(560px, 48vw);
-  height: min(560px, 48vw);
-  transform: translate(-50%, -50%);
-  transform-origin: center center;
-  pointer-events: none;
-  z-index: 0;
-  animation: none;
-  will-change: auto;
-  opacity: 0.85;
-}
+
+
+
 .mkt-orb-fx {
   position: absolute;
   left: 50%;
@@ -995,10 +869,7 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-pchip.on .gets {
   display: flex;
 }
-.mkt-orb-wrap:has(.mkt-pchip:hover) .mkt-pchip:not(:hover):not(.on),
-.mkt-orb-wrap:has(.mkt-pchip.on) .mkt-pchip:not(.on) {
-  opacity: 0.45;
-}
+
 /* Even hex orbit around globe centre (50%, 48%) */
 .mkt-pchip.c1 { left: 22%; top: 16%; } /* Policy Analyst — NW */
 .mkt-pchip.c2 {
@@ -1033,9 +904,7 @@ html.mkt-doc:has(.mkt-auth) #root {
 .mkt-chip.c4 { top: 48%; right: 2%; animation-delay: 0.4s; max-width: min(200px, 42%); white-space: normal; }
 .mkt-chip.c5 { bottom: 18%; left: 6%; animation-delay: 1.1s; }
 .mkt-chip.c6 { bottom: 6%; right: 8%; animation-delay: 1.8s; }
-.mkt-orb-wrap:has(.mkt-chip:hover) .mkt-chip:not(:hover):not(.on) {
-  opacity: 0.5;
-}
+
 .mkt-chip:hover,
 .mkt-chip.on {
   z-index: 5;
@@ -1073,14 +942,8 @@ html.mkt-doc:has(.mkt-auth) #root {
   box-shadow: 0 0 18px rgba(200, 19, 34, 0.5), 0 10px 28px rgba(19, 19, 19, 0.16);
 }
 .mkt-chip.fill-red i { background: rgba(255, 255, 255, 0.18); color: #fff; }
-.mkt-kicker .live {
-  animation: mktLivePulse 1.8s ease-in-out infinite;
-  text-shadow: 0 0 10px rgba(1, 46, 161, 0.35);
-}
-.mkt-hero-actions .mkt-cta:not(.ghost) {
-  box-shadow: 0 0 0 0 rgba(1, 46, 161, 0.45);
-  animation: mktCtaGlow 2.8s ease-out infinite;
-}
+
+
 
 @keyframes mktHalo {
   0%, 100% { opacity: 0.55; transform: scale(1); }
@@ -1135,45 +998,28 @@ html.mkt-doc:has(.mkt-auth) #root {
 
 @media (prefers-reduced-motion: reduce) {
   .mkt-walk-video-bg img,
-  .mkt-walk-video-tip,
-  .mkt-halo,
-  .mkt-ring,
-  .mkt-spark,
-  .mkt-chip,
-  .mkt-pchip,
-  .mkt-kicker .live,
-  .mkt-kicker .sys,
-  .mkt-hero-tele i,
-  .mkt-hero-tele .blink,
-  .mkt-hero-actions .mkt-cta:not(.ghost),
-  .mkt-hero-copy .mkt-kicker,
-  .mkt-hero-copy h1,
-  .mkt-hero-copy .mkt-hook,
-  .mkt-hero-copy .mkt-lede,
-  .mkt-hero-copy .mkt-hero-tele,
-  .mkt-hero-copy .mkt-hero-actions,
-  .mkt-hero h1 .gov,
-  .mkt-hero h1 .pol,
-  .mkt-hero-orbits,
-  .mkt-globe,
-  .mkt-globe-slow,
-  .mkt-hero .mkt-pr-scan,
-  .mkt-hero .mkt-pr-sh,
-  .mkt-preview-scan,
-  .mkt-prev-live i,
-  .mkt-bar i b,
-  .mkt-card,
-  .mkt-caps-head h2 em,
-  .mkt-bill-card,
-  .mkt-bill-flyer,
-  .mkt-bill-trail,
-  .mkt-bill-trail-path {
+.mkt-walk-video-tip,
+.mkt-halo,
+.mkt-ring,
+.mkt-spark,
+.mkt-chip,
+.mkt-pchip,
+.mkt-globe,
+.mkt-globe-slow,
+.mkt-preview-scan,
+.mkt-prev-live i,
+.mkt-bar i b,
+.mkt-card,
+.mkt-caps-head h2 em,
+.mkt-bill-card,
+.mkt-bill-flyer,
+.mkt-bill-trail,
+.mkt-bill-trail-path {
     animation: none !important;
     background-position: 0% 50%;
   }
-  .mkt-orb-layer,
   .mkt-chip,
-  .mkt-pchip {
+.mkt-pchip {
     translate: none;
     transition: none;
   }
@@ -4521,11 +4367,10 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 
 @media (max-width: 1024px) {
-  .mkt-hero-inner,
   .mkt-preview-frame,
-  .mkt-caps-layout,
-  .mkt-ribbon-inner,
-  .mkt-footer-grid {
+.mkt-caps-layout,
+.mkt-ribbon-inner,
+.mkt-footer-grid {
     grid-template-columns: 1fr;
   }
   .mkt-grid {
@@ -4539,14 +4384,8 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-caps-head h2 {
     max-width: none;
   }
-  .mkt-hero {
-    min-height: 0;
-    overflow: hidden;
-  }
-  .mkt-hero-scene {
-    inset: 0;
-    height: 100%;
-  }
+  
+  
   .mkt-hero-bg {
     inset: 0;
     width: 100%;
@@ -4554,37 +4393,22 @@ html.mkt-doc:has(.mkt-auth) #root {
     object-fit: cover;
     object-position: center top;
   }
-  .mkt-orb-wrap {
-    height: 420px;
-    max-width: min(520px, 100%);
-    margin-inline: auto;
-  }
-  .mkt-hero .mkt-pr-sh,
+  
   .mkt-preview-scan {
     display: none;
   }
   .mkt-globe,
-  .mkt-hero-orbits,
-  .mkt-orb-fx {
+.mkt-orb-fx {
     left: 50%;
     top: 48%;
   }
   .mkt-globe {
     width: min(420px, 80vw);
   }
-  .mkt-hero-backdrop::before { display: none; }
-  .mkt-hero-backdrop { background: var(--mkt-canvas); }
-  .mkt-orb-wrap::before {
-    content: '';
-    position: absolute;
-    inset: -12px -100vw -24px;
-    background: #080d14;
-    z-index: -1;
-  }
-  .mkt-hero h1 {
-    font-size: 36px;
-    max-width: none;
-  }
+  
+  
+  
+  
   .mkt-showcase-top {
     grid-template-columns: 1fr;
     gap: 24px;
@@ -4627,7 +4451,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   }
   .mkt-header-inner {
     grid-template-columns: auto 1fr;
-    width: calc(100% - 32px);
+    padding: 0 22px;
   }
   .mkt-nav-links {
     display: none;
@@ -4645,8 +4469,30 @@ html.mkt-doc:has(.mkt-auth) #root {
     z-index: 30;
     top: 72px;
   }
-  .mkt-nav-links.open .mkt-cta {
-    margin-left: 0;
+  .mkt-nav-links.open {
+    gap: 4px;
+    background: #fff;
+  }
+  .mkt-nav-links.open button.mkt-nav-link {
+    padding: 10px 0;
+    font-size: 14px;
+    text-align: left;
+  }
+  .mkt-nav-links.open button.mkt-nav-link.on::after {
+    bottom: 4px;
+  }
+  .mkt-nav-links.open .mkt-nav-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin: 8px 0 0;
+  }
+  .mkt-nav-links.open .mkt-sign-in {
+    padding: 10px 0;
+    font-size: 14px;
+    text-align: left;
+  }
+  .mkt-nav-links.open .mkt-cta.mkt-start {
     justify-content: center;
     width: 100%;
   }
@@ -4687,15 +4533,9 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-pr-btn.ghost-dark {
     width: 100%;
   }
-  .mkt-hero h1 {
-    font-size: 30px;
-  }
-  .mkt-hero-tele {
-    gap: 10px 14px;
-  }
-  .mkt-orb-wrap {
-    height: 280px;
-  }
+  
+  
+  
   .mkt-walk-video {
     min-height: 300px;
   }
@@ -4751,9 +4591,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-grid {
     grid-template-columns: 1fr;
   }
-  .mkt-hero h1 {
-    font-size: 26px;
-  }
+  
   .mkt-caps-head h2 {
     font-size: 28px;
   }
@@ -5338,11 +5176,11 @@ html.mkt-doc:has(.mkt-auth) #root {
 @media(max-width:420px){.mkt-signup-context h2{font-size:24px}}
 /* Homepage hero: same globe radius and centre as the earlier NterEarth canvas
    (r = 0.228 × min(880px, 155%)), so the hero's persona labels stay aligned. */
-.mkt-home-earth{position:absolute;left:50%;top:48%;width:min(491px,86.5%);transform:translate(-50%,-50%);pointer-events:auto}
-.mkt-home-earth .auth-earth-pause{background:#080d14;color:#c9d5e7;border-color:rgba(159,183,219,.35)}
+
+
 /* With persona labels around the globe, the icon sits bottom-centre, clear of them. */
-@media(min-width:561px){.mkt-home-earth .auth-earth-pause{right:auto;left:50%;bottom:0;transform:translateX(-50%)}}
-@media(max-width:560px){.mkt-home-earth{width:min(312px,83.7%)}}
+
+
 .mkt-signup-legal{margin:4px 0 12px;font-size:12px;line-height:1.5;color:var(--mkt-text)}
 .mkt-signup-legal a{color:var(--mkt-blue);text-underline-offset:2px}
 /* Wide screens give the globe and its labels the free space beside the form. */

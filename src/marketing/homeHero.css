@@ -1,0 +1,351 @@
+/*
+ * F140 (client design `NTER-Homepage-Final.html`, owner 2026-10-13): the homepage hero and the
+ * "Curated for" strip, ported from the design with its palette, type scale and breakpoints. The
+ * palette tokens (--nd-*) are set on .mkt in marketing.css. Ported in cascade order: where the design
+ * overrides itself, the winning value is the one kept here.
+ */
+.nd-container {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: 48px;
+  box-sizing: border-box;
+}
+
+/* —— Hero —— */
+/* The design's body type (15px/1.65 Inter), so every line inherits the same metrics. */
+.nd-hero-shell,
+.nd-curated {
+  font: 15px/1.65 Inter, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.nd-hero-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #fff;
+  color: var(--nd-ink);
+}
+.nd-hero {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  align-items: center;
+  gap: 20px;
+  padding-block: clamp(12px, 1.8svh, 20px);
+  position: relative;
+}
+/* The design's reset (h1, h2, p have no margin), at zero specificity so each element's own spacing wins. */
+:where(.nd-hero) :where(h1, p),
+:where(.nd-curated) :where(h2) {
+  margin: 0;
+}
+.nd-hero-copy {
+  position: relative;
+  z-index: 1;
+  width: calc(100% + 64px);
+  max-width: 640px;
+  min-width: 0;
+}
+.nd-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 1.8px;
+  font-weight: 600;
+  color: var(--nd-purple);
+}
+.nd-spark {
+  color: var(--nd-red);
+  font-size: 22px;
+  line-height: 1;
+}
+.nd-hero h1 {
+  margin-top: 14px;
+  font-size: clamp(44px, 6.8svh, 62px);
+  font-weight: 600;
+  line-height: 1.03;
+  letter-spacing: -2.4px;
+  color: var(--nd-ink);
+}
+.nd-blue { color: var(--nd-blue); }
+.nd-purple { color: var(--nd-purple); }
+.nd-red { color: var(--nd-red); }
+.nd-promise {
+  margin-top: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--nd-ink);
+}
+.nd-description {
+  margin-top: 8px;
+  max-width: 510px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--nd-muted);
+}
+.nd-actions {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 18px;
+}
+.nd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  min-height: 43px;
+  padding: 12px 19px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+.nd-btn:hover { transform: translateY(-2px); }
+.nd-btn-primary {
+  background: var(--nd-blue);
+  color: #fff;
+  box-shadow: 0 5px 15px #293fa51a;
+}
+.nd-btn-primary:hover { background: var(--nd-purple); }
+.nd-btn-primary > span {
+  font-size: 19px;
+  line-height: 1;
+}
+.nd-btn-secondary {
+  background: #fff;
+  color: var(--nd-blue);
+  border-color: #d1d6ec;
+}
+.nd-btn-secondary:hover { background: #f3f3fa; }
+.nd-btn:focus-visible,
+.nd-coverage-link:focus-visible,
+.nd-audience > a:focus-visible {
+  outline: 3px solid var(--nd-blue);
+  outline-offset: 5px;
+}
+.nd-coverage-link {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  width: max-content;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #726482;
+  cursor: pointer;
+}
+.nd-coverage-link span { color: var(--nd-blue); }
+.nd-metrics {
+  display: flex;
+  gap: 28px;
+  max-width: 442px;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--nd-line);
+}
+.nd-metrics > div { flex: 1; }
+.nd-metrics strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1.3;
+  color: var(--nd-blue);
+}
+.nd-metrics > div:nth-child(2) strong { color: var(--nd-purple); }
+.nd-metrics > div:nth-child(3) strong { color: var(--nd-red); }
+.nd-metrics div > span {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #8a8190;
+}
+
+/* The globe, with separate radial colour clouds dissolving into white around it. */
+.nd-globe-column {
+  position: relative;
+  isolation: isolate;
+  align-self: center;
+  width: 100%;
+  min-width: 0;
+  max-width: min(756px, calc(100svh - 144px));
+  margin-inline: auto;
+}
+.nd-globe-column::before {
+  content: '';
+  position: absolute;
+  inset: 0 -28%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 65% 29%, #e5d3bbd9 0%, #e5d3bb66 23%, transparent 58%),
+    radial-gradient(ellipse at 73% 65%, #572c917a 0%, #572c9138 25%, transparent 61%),
+    radial-gradient(ellipse at 34% 72%, #293fa566 0%, #293fa52b 23%, transparent 59%),
+    radial-gradient(ellipse at 33% 31%, #c2353d52 0%, #c2353d1f 23%, transparent 57%);
+  mask-image: radial-gradient(ellipse closest-side, #000 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%);
+}
+.nd-globe-column .nter-globe-scene { max-width: none; }
+.nd-globe-column nter-data-globe { margin-block: -28px; }
+
+/* —— "Curated for" strip —— */
+.nd-curated {
+  position: relative;
+  border-top: 1px solid var(--nd-line);
+  border-bottom: 1px solid var(--nd-line);
+  background: linear-gradient(110deg, #293fa50a, #572c910d 48%, #c2353d09 75%, #e5d3bb40);
+  color: var(--nd-ink);
+}
+.nd-curated::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--nd-blue) 0 29%, var(--nd-purple) 29% 53%, var(--nd-sand) 53% 76%, var(--nd-red) 76% 100%);
+}
+.nd-curated-bar {
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  padding-block: 17px;
+}
+.nd-curated h2 {
+  flex-shrink: 0;
+  padding-right: 25px;
+  border-right: 1px solid #e0d6e5;
+  font-size: 10px;
+  line-height: 1.8;
+  letter-spacing: 1.7px;
+  font-weight: 600;
+  color: #8e7d99;
+}
+.nd-audience {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 15px;
+  width: 100%;
+}
+.nd-audience > a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--nd-ink);
+  text-decoration: none;
+  transition: color 0.2s, transform 0.2s;
+}
+.nd-audience > a:hover {
+  color: var(--nd-purple);
+  transform: translateY(-3px);
+}
+.nd-audience-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 31px;
+  height: 34px;
+  border-radius: 7px;
+  font-size: 22px;
+}
+.nd-audience-icon.blue { background: #e9edfb; color: var(--nd-blue); }
+.nd-audience-icon.red { background: #fae9eb; color: var(--nd-red); }
+.nd-audience-icon.purple { background: #eee6f5; color: var(--nd-purple); }
+.nd-audience-icon.sand { background: #f0e5d7; color: #8d7151; }
+
+/* —— Breakpoints, as the design —— */
+@media (min-width: 1550px) {
+  .nd-description { font-size: 15px; }
+}
+@media (min-width: 851px) and (max-height: 720px) {
+  .nd-hero h1 { font-size: 44px; }
+  .nd-promise { font-size: 15px; margin-top: 12px; }
+  .nd-description { font-size: 14px; line-height: 1.6; }
+  .nd-metrics strong { font-size: 24px; }
+  .nd-curated-bar { padding-block: 13px; }
+}
+@media (min-width: 851px) and (max-height: 680px) {
+  .nd-hero h1 { font-size: 42px; }
+  .nd-promise { font-size: 14px; }
+  .nd-description { font-size: 13.5px; line-height: 1.55; }
+  .nd-actions { margin-top: 11px; }
+  .nd-metrics { margin-top: 10px; padding-top: 9px; }
+}
+@media (max-width: 1100px) {
+  .nd-container { padding-inline: 32px; }
+  .nd-metrics { gap: 18px; }
+  .nd-curated-bar { gap: 22px; }
+  .nd-curated h2 { padding-right: 19px; }
+  .nd-audience { gap: 9px; }
+  .nd-audience > a { gap: 7px; font-size: 10px; }
+}
+@media (min-width: 851px) and (max-width: 1100px) {
+  .nd-hero-copy { width: calc(100% + 48px); }
+  .nd-hero h1 { font-size: clamp(40px, 5.9svh, 46px); }
+  .nd-description { font-size: 14px; }
+}
+@media (min-width: 651px) and (max-width: 850px) {
+  .nd-hero { grid-template-columns: 1fr 1.08fr; }
+  .nd-hero-copy { width: auto; }
+  .nd-hero h1 { font-size: clamp(34px, 5.3svh, 43px); letter-spacing: -2px; }
+  .nd-eyebrow { font-size: 8px; letter-spacing: 1px; }
+  .nd-promise { font-size: 13px; }
+  .nd-description { font-size: 12px; }
+  .nd-btn { font-size: 12px; }
+  .nd-coverage-link { font-size: 11px; }
+  .nd-metrics { gap: 12px; }
+  .nd-metrics strong { font-size: 23px; }
+  .nd-metrics div > span { font-size: 8px; }
+  .nd-curated-bar { align-items: start; padding-block: 14px; }
+  .nd-curated h2 { padding-top: 10px; }
+  .nd-audience { grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .nd-audience > a { font-size: 11px; }
+}
+@media (max-width: 650px) {
+  .nd-container { padding-inline: 22px; }
+  .nd-hero { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px; }
+  .nd-hero-copy { width: auto; max-width: none; }
+  .nd-eyebrow { font-size: 8px; letter-spacing: 1.3px; }
+  .nd-hero h1 { font-size: clamp(38px, 11vw, 50px); letter-spacing: -2.6px; }
+  .nd-promise { margin-top: 18px; font-size: 16px; }
+  .nd-description { font-size: 15px; max-width: 490px; }
+  .nd-btn { min-height: 43px; padding: 12px 20px; gap: 20px; font-size: 12px; }
+  .nd-coverage-link { margin-top: 16px; font-size: 11px; }
+  .nd-metrics { margin-top: 18px; padding-top: 14px; max-width: 100%; min-width: 0; }
+  .nd-metrics strong { font-size: 25px; }
+  .nd-metrics div > span { font-size: 9px; }
+  .nd-globe-column { max-width: 100%; }
+  .nd-globe-column::before { inset: 0 -12%; }
+  .nd-globe-column nter-data-globe { margin-block: 0; }
+  .nd-curated-bar { display: block; padding-block: 18px; }
+  .nd-curated h2 { margin-bottom: 21px; padding: 0; border: 0; font-size: 9px; letter-spacing: 1.6px; line-height: 1; }
+  .nd-curated h2 br { display: none; }
+  .nd-audience { grid-template-columns: repeat(3, 1fr); gap: 20px 10px; }
+  .nd-audience > a { gap: 7px; font-size: 9px; }
+  .nd-audience-icon { width: 28px; height: 33px; font-size: 20px; }
+}
+@media (max-width: 370px) {
+  .nd-audience { grid-template-columns: repeat(2, 1fr); gap: 17px; }
+  .nd-audience > a { font-size: 11px; }
+  .nd-metrics strong { font-size: 23px; }
+  .nd-metrics div > span { font-size: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-btn,
+  .nd-audience > a { transition: none; }
+  .nd-btn:hover,
+  .nd-audience > a:hover { transform: none; }
+}
