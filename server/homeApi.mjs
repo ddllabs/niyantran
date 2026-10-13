@@ -7,9 +7,9 @@
  *   GET /api/home/markets | latest | pulse               Home desk helpers
  */
 import fs from 'node:fs';
-import { readSiteFigures } from './siteFiguresApi.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSiteFigures } from './siteFiguresApi.mjs';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
 import { serveNterLatest } from './nterNews.mjs';
 import { writablePath } from './writableRoot.mjs';

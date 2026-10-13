@@ -26,3 +26,22 @@ describe('live figures', () => {
     expect(await fetchSiteFigures(async () => ({ ok: false, json: async () => ({}) }))).toBeNull();
   });
 });
+
+// Review (2026-10-14): a failed request is not kept for the whole visit, and a long-open tab refreshes.
+describe('live figures over a visit', () => {
+  it('asks again after a failure, and after 15 minutes', async () => {
+    resetLiveFigures();
+    let t = 0;
+    const now = () => t;
+    const failing = vi.fn(async () => { throw new Error('offline'); });
+    expect(await fetchSiteFigures(failing, now)).toBeNull();
+    const ok = vi.fn(async () => ({ ok: true, json: async () => ({ bills: 9901 }) }));
+    expect(await fetchSiteFigures(ok, now)).toEqual({ bills: 9901 });
+    t = 14 * 60 * 1000;
+    await fetchSiteFigures(ok, now);
+    expect(ok).toHaveBeenCalledTimes(1);
+    t = 15 * 60 * 1000 + 1;
+    await fetchSiteFigures(ok, now);
+    expect(ok).toHaveBeenCalledTimes(2);
+  });
+});

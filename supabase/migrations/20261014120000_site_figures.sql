@@ -52,7 +52,7 @@ as $$
     'ministries', (
       select count(distinct k) from (
         select lower(btrim(regexp_replace(row ->> 'ministry',
-                 '[ \t\n\r\f\v   -     　﻿]+', ' ', 'g'), ' ')) as k
+                 '[ \t\n\r\f\v\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g'), ' ')) as k
           from public.desk_rows
          where tier = 'national' and feature = 'Parliamentary Question Database'
       ) q where k <> ''
@@ -60,7 +60,7 @@ as $$
     'fronts', (
       select count(distinct k) from (
         select lower(btrim(regexp_replace(row ->> 'conflict_name',
-                 '[ \t\n\r\f\v   -     　﻿]+', ' ', 'g'), ' ')) as k
+                 '[ \t\n\r\f\v\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g'), ' ')) as k
           from public.desk_rows
          where tier = 'global' and feature = 'Open Fronts'
       ) q where k <> ''

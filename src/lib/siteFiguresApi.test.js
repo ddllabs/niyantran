@@ -91,3 +91,50 @@ it('registers one dev middleware and returns no post hook', () => {
   expect(plugin.configurePreviewServer({ middlewares: { use } })).toBeUndefined();
   expect(use).toHaveBeenCalledTimes(2);
 });
+
+// Review (2026-10-14): a stalled database must not hang the endpoint (or the carousel behind it), a
+// failure is remembered briefly so an outage cannot flood the database, and concurrent requests share
+// one call.
+describe('robustness', () => {
+  beforeEach(() => resetSiteFiguresCache());
+
+  it('gives up on a database call after the timeout and serves the fallback', async () => {
+    const hung = { rpc: vi.fn(() => new Promise(() => {})) };
+    const r = await get({ adminClient: () => hung, now: () => 0, timeoutMs: 20 });
+    expect(r.body.source).toBe('fallback');
+  });
+
+  it('remembers a failure for a minute before asking the database again', async () => {
+    const down = client({ data: null, error: { message: 'down' } });
+    let t = 0;
+    const deps = { adminClient: () => down, now: () => t };
+    await get(deps);
+    t = 59 * 1000;
+    await get(deps);
+    expect(down.rpc).toHaveBeenCalledTimes(1);
+    t = 61 * 1000;
+    await get(deps);
+    expect(down.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares one database call between concurrent requests, and answers HEAD without a body', async () => {
+    let release;
+    const slow = { rpc: vi.fn(() => new Promise((r) => { release = () => r({ data: LIVE, error: null }); })) };
+    const deps = { adminClient: () => slow, now: () => 0 };
+    const both = Promise.all([get(deps), get(deps)]);
+    await new Promise((r) => setTimeout(r, 0));
+    release();
+    const [a, b] = await both;
+    expect(slow.rpc).toHaveBeenCalledTimes(1);
+    expect([a.body.source, b.body.source]).toEqual(['live', 'live']);
+    const head = await get(deps, 'HEAD');
+    expect(head.status).toBe(200);
+    expect(head.body).toBeNull();
+  });
+
+  it('ignores a malformed Host header', async () => {
+    const res = { setHeader: vi.fn(), end: vi.fn() };
+    await handleSiteFiguresApi({ method: 'GET', url: '/api/site-figures', headers: { host: 'bad host::' } }, res, vi.fn(), { adminClient: () => client({ data: LIVE, error: null }), now: () => 0 });
+    expect(res.statusCode).toBe(200);
+  });
+});

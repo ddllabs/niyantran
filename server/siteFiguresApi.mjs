@@ -6,23 +6,30 @@
  *
  * The counts come from public.site_figures() (migration 20261014120000), which returns aggregate counts
  * only and is executable by the service role alone, so this calls it with the server's secret-key
- * client. Each server keeps the answer for 15 minutes, and the CDN may serve it for as long. When the
- * database cannot be read, the last good answer is served ('cached'), else the measured figures
- * ('fallback'), and the CDN keeps either for a minute only. Modules and source endpoints are not here:
- * they are counted from the code (src/lib/siteFigures.js).
+ * client. Each server keeps the answer for 15 minutes ('live' means read from the database within that
+ * window; the CDN may add 15 minutes more, revalidating for up to an hour). A database call that takes
+ * longer than 5 seconds is abandoned. When the database cannot be read, the last good answer is served
+ * ('cached'), else the measured figures ('fallback'); the failure is remembered for a minute so an
+ * outage cannot flood the database, and the CDN keeps either for a minute only. A deployment without
+ * the secret key (a preview) serves the fallback. Modules and source endpoints are not here: they are
+ * counted from the code (src/lib/siteFigures.js).
  */
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
 import { MEASURED_FIGURES } from '../src/lib/measuredFigures.js';
 
 const PATH = '/api/site-figures';
 const TTL_MS = 15 * 60 * 1000;
+const FAILURE_MS = 60 * 1000;
+const TIMEOUT_MS = 5000;
 const FIELDS = ['bills', 'documents', 'ministries', 'fronts'];
 
 let cache = null; // { figures, at }
+let failedAt = null;
 let inflight = null;
 
 export function resetSiteFiguresCache() {
   cache = null;
+  failedAt = null;
   inflight = null;
 }
 
@@ -34,30 +41,39 @@ function validFigures(data) {
   return { ...figures, as_of: String(data.as_of || new Date().toISOString()) };
 }
 
-async function fetchFigures(adminClient) {
+async function fetchFigures(adminClient, timeoutMs) {
+  let timer;
   try {
-    const { data, error } = await adminClient().rpc('site_figures');
+    const call = Promise.resolve(adminClient().rpc('site_figures'));
+    const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), timeoutMs); });
+    const { data, error } = await Promise.race([call, timeout]);
     return error ? null : validFigures(data);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-export async function readSiteFigures({ adminClient = getSupabaseAdminClient, now = Date.now } = {}) {
+const unavailable = () => (cache ? { ...cache.figures, source: 'cached' } : { ...MEASURED_FIGURES, source: 'fallback' });
+
+export async function readSiteFigures({ adminClient = getSupabaseAdminClient, now = Date.now, timeoutMs = TIMEOUT_MS } = {}) {
   if (cache && now() - cache.at < TTL_MS) return { ...cache.figures, source: 'live' };
-  inflight ??= fetchFigures(adminClient).finally(() => { inflight = null; });
+  if (failedAt !== null && now() - failedAt < FAILURE_MS) return unavailable();
+  inflight ??= fetchFigures(adminClient, timeoutMs).finally(() => { inflight = null; });
   const figures = await inflight;
   if (figures) {
     cache = { figures, at: now() };
+    failedAt = null;
     return { ...figures, source: 'live' };
   }
-  if (cache) return { ...cache.figures, source: 'cached' };
-  return { ...MEASURED_FIGURES, source: 'fallback' };
+  failedAt = now();
+  return unavailable();
 }
 
 export async function handleSiteFiguresApi(req, res, next, deps = {}) {
-  const host = req.headers?.host || 'localhost';
-  if (new URL(req.url || '/', `http://${host}`).pathname !== PATH) {
+  // Only the path matters; a fixed base keeps a malformed Host header from throwing.
+  if (new URL(req.url || '/', 'http://localhost').pathname !== PATH) {
     next();
     return;
   }
