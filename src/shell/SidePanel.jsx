@@ -101,21 +101,22 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
     if (citationOpen) closeCitation?.();
   }, [state.open, citationOpen, closeCitation]);
 
+  const railOpen = railDismissible({ hasRail, open: state.open, active: state.active, expanded });
   const keyState = useRef({});
-  keyState.current = { aiActive, userExpanded, citationExpanded };
+  keyState.current = { aiActive, userExpanded, citationExpanded, railOpen };
   useEffect(() => {
-    if (!aiActive && !userExpanded) return undefined;
+    if (!aiActive && !userExpanded && !railOpen) return undefined;
     function onKey(e) {
       if (e.key !== 'Escape') return;
-      const k = keyState.current;
-      // A citation's Esc is the viewer's own (WorkSurface). Otherwise Esc first restores an
-      // expanded panel, and then, on AI, closes it as the dock's Esc did.
-      if (k.userExpanded && !k.citationExpanded) setUserExpanded(false);
-      else if (k.aiActive) dispatch({ type: 'close-ai', ctx: ctxRef.current });
+      const modalOpen = Boolean(document.querySelector('dialog[open], [aria-modal="true"]'));
+      const step = escapeAction({ ...keyState.current, modalOpen });
+      if (step === 'restore') setUserExpanded(false);
+      else if (step === 'close-ai') dispatch({ type: 'close-ai', ctx: ctxRef.current });
+      else if (step === 'collapse') dispatch({ type: 'collapse', ctx: ctxRef.current });
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [aiActive, userExpanded]);
+  }, [aiActive, userExpanded, railOpen]);
 
   // The docked width (spec point 2): the reader's choice in px, or null for the default. The shell
   // hands it to the grid as --panel-chosen; CSS clamps it to 400 px and 60% on every resize.
@@ -131,6 +132,48 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
     state, act, seed, consumeSeed, aiOpen: aiActive, collapsed: hasRail && state.collapsed, width, setWidth,
     expanded, userExpanded, setUserExpanded, citation, setCitation, citationExpanded,
   };
+}
+
+/**
+ * F135 (owner 2026-10-13): on a rail desk, the open Desk or Record view collapses to the slim bar on
+ * a click outside it or on Escape, as the side-panel plan said. Not while expanded (the first click
+ * outside restores the width) and not on AI, which keeps its own rules. The selection is kept, so a
+ * row click after the collapse reopens Record and the desks that auto-select a row stay collapsed.
+ */
+export function railDismissible({ hasRail, open, active, expanded }) {
+  return Boolean(hasRail && open && active && active !== 'ai' && !expanded);
+}
+
+/** A completed click outside the panel and any open native dialog collapses it. */
+export function attachRailDismiss(doc, { aside, act }) {
+  return attachOutsideClose(doc, {
+    zones: () => [aside(), ...(doc.querySelectorAll?.('dialog[open]') ?? [])],
+    onOutside: () => act({ type: 'collapse' }),
+  });
+}
+
+/**
+ * What Escape does. A citation's Esc is the viewer's own (WorkSurface). Otherwise Esc first restores
+ * an expanded panel, then on AI closes it as the dock's Esc did, and on Desk or Record collapses it,
+ * unless a dialog is open (its Esc is its own).
+ */
+export function escapeAction({ userExpanded, citationExpanded, aiActive, railOpen, modalOpen }) {
+  if (userExpanded && !citationExpanded) return 'restore';
+  if (aiActive) return 'close-ai';
+  if (railOpen && !modalOpen) return 'collapse';
+  return null;
+}
+
+/**
+ * F135: what a row pick does. With the panel collapsed, picking the selected row again reopens its
+ * record: a desk that deselects on a second click passes `toggled` (the row it was asked about), and
+ * one that re-picks passes the same row. Anything else, including a clear with no row picked, sets
+ * the selection as before.
+ */
+export function pickIntent({ row, toggled, selected, collapsed }) {
+  if (!collapsed || !selected) return 'set';
+  if (row ? row === selected : toggled) return 'reopen';
+  return 'set';
 }
 
 /** F114: a page drag opens AI on a module page (rail, not a landing) unless AI is already open. */
@@ -182,6 +225,11 @@ export default function SidePanel({ panel, hasRail, feed, selected, onSelect, la
       onOutside: () => act({ type: 'dismiss-ai' }),
     });
   }, [state.open, state.active, act]);
+  const railOpen = railDismissible({ hasRail, open: state.open, active: state.active, expanded });
+  useEffect(() => {
+    if (!railOpen) return undefined;
+    return attachRailDismiss(document, { aside: () => asideRef.current, act });
+  }, [railOpen, act]);
   const drag = useRef(null);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
   useEffect(() => {

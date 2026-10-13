@@ -113,7 +113,7 @@ export default function ManifestosDesk({ selected, onSelect, onFeed, vizFilter, 
               <tr
                 key={r.promise || i}
                 className={selected?.promise === r.promise ? 'on' : ''}
-                {...rowSelectionProps(() => onSelect?.(selected?.promise === r.promise ? null : r))}
+                {...rowSelectionProps(() => (selected?.promise === r.promise ? onSelect?.(null, { toggled: r }) : onSelect?.(r)))}
                 {...rowDragProps(r, { title: r.promise || r.title, feature: 'Manifestos' })}
               >
                 <td>{r.party}</td>

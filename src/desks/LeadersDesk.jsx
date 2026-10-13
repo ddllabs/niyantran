@@ -116,7 +116,7 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
                       key={l.id || l.country}
                       type="button"
                       className={`geo-e${selectedId === l.id ? ' on' : ''}`}
-                      onClick={() => onSelect?.(selectedId === l.id ? null : l)}
+                      onClick={() => (selectedId === l.id ? onSelect?.(null, { toggled: l }) : onSelect?.(l))}
                       {...aiDragProps({ kind: 'row', feature: feed?.feature, title: name, row: l })}
                     >
                       <div className="geo-e-h">

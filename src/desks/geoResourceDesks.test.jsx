@@ -36,7 +36,8 @@ it('selects a commodity benchmark as its feed row, and clears it on a second cli
   const again = nodes(CommoditiesDesk({ feed, selected: chosen, onSelect: select })).filter((n) => n.type === 'button' && n.props['data-commodity'] === chosen.commodity);
   expect(again[0].props['aria-pressed']).toBe(true);
   again[0].props.onClick();
-  expect(select).toHaveBeenLastCalledWith(null);
+  // F135: the second click names the row, so a collapsed panel can reopen it instead.
+  expect(select).toHaveBeenLastCalledWith(null, { toggled: chosen });
 });
 
 // F121 T15: the Record tab now shows the selected leader, so the desk no longer repeats it inline.
