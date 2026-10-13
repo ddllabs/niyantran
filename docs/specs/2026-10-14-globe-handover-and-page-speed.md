@@ -1,0 +1,175 @@
+# Spec: globe handover and page speed (F145)
+
+> **Status: Living.** Owner request 2026-10-14, from the client:
+> - **The flash.** Since the new globe arrived, every page with a globe briefly shows a globe on a
+>   black background before the real globe appears and starts moving.
+> - **Speed.** Pages have felt slow since the globe was added.
+>
+> The owner accepted the recommendations and asked for this spec. The findings below were measured on
+> 2026-10-14 against a production build (`vite preview`) and the live site's headers, unless marked
+> as read from the code.
+
+## Current state
+
+### The flash
+
+- `<nter-data-globe>` (`src/marketing/nterGlobe.js`) shows a stand-in image until WebGL is ready,
+  then fades over 0.5 s (`.data-orbit-earth` opacity transition, `nterGlobe.css`).
+- **The stand-in is the problem.** `/brand/auth-earth/fallback.jpg` is a 1600 × 900 photo of Earth
+  on black space, cropped into a circle. It shows a different face of Earth (Africa) at a slightly
+  different size than the shader's globe. It came in the client's globe package (byte-identical to
+  the package's embedded `fallback`), so F140 inherited it.
+- **It happens on every page change.** Each page (home, sign-in, sign-up, pricing) mounts its own
+  `DataGlobe`, so each change builds a new element. That element creates a new WebGL context,
+  re-unpacks the three Earth images on the main thread, recompiles the shader and starts its motion
+  from time 0.
+  - Measured, with everything already downloaded on a fast Mac: the stand-in shows for 100–155 ms
+    per page change, then the 0.5 s fade begins. There was one long task of 75 ms on the first
+    change.
+- Read from the code: on unmount the old WebGL context is never released. It stays alive until
+  garbage collection, holding a 4096 × 2048 texture (about 32 MB of GPU memory). Browsers allow
+  about 16 live contexts and then drop the oldest.
+
+### Page weight: first visit to the signed-out homepage
+
+| Item | Measured | Note |
+|---|---|---|
+| `/brand/globe.gif` | **34.4 MB** (960 × 540, 401 frames) | The walkthrough video's backdrop (`HomePage.jsx:496`), shown at most 460 px wide, at 55% opacity and darkened. It loads eagerly although it is below the fold. Added 2026-09-21 by the former developer; it predates the 3D globe. |
+| Main script `index-*.js` | 2,565 KB (about 720 KB compressed) | `App.jsx` statically imports `TerminalShell`, `AdminApp` and `PersonaChooser`, so a signed-out visitor downloads the whole terminal. |
+| Main stylesheet | 451 KB | Includes the terminal's CSS for the same reason. |
+| Earth images | 2,276 KB | `day.jpg` 4096 × 2048 (1,089 KB), `clouds.jpg` 2048 × 1024 (943 KB), `oceans.jpg` 2048 × 1024 (244 KB). The largest globe drawn is about 480 CSS px across. |
+| Stand-in `fallback.jpg` | 143 KB | Replaced by the still below. |
+| `/brand/logo.png` | 164 KB (624 × 621) | Shown about 28 px wide. |
+
+- Off the homepage: the forgot-password and reset-password pages spin `/brand/globe.png`, which is
+  2 MB.
+
+### Caching (live site)
+
+- Every file is served with `cache-control: public, max-age=0, must-revalidate`. That includes the
+  hashed `/assets/*` files, whose names change on every release. `vercel.json` sets no `headers`.
+
+## Outcome
+
+### Step 1: what the client feels
+
+1. **No black flash.** The stand-in is replaced by a still of our own globe:
+   - rendered from the same shader at time 0;
+   - transparent background;
+   - the size of the whole globe box, so the Earth sits exactly where the moving globe draws it.
+
+   The fade from the still to the moving globe is invisible.
+2. **The globe carries over between pages.**
+   - The three Earth images are fetched and decoded once per visit, off the main thread
+     (`createImageBitmap`), and every later globe reuses them.
+   - The animation time is shared, so the next page's globe continues from where the last one was,
+     instead of restarting.
+   - A globe whose images are already in hand draws on its first frame with no fade.
+   - An unmounted globe releases its WebGL context (`WEBGL_lose_context`).
+3. **The 34 MB GIF goes.** The walkthrough backdrop becomes a small image that loads lazily (see
+   open question 1). Its look stays the same: same position, opacity, darkening and slow CSS spin.
+
+### Step 2: the rest
+
+4. **Signed-out visitors don't download the terminal.**
+   - `TerminalShell`, `AdminApp` and `PersonaChooser` load on demand (`React.lazy`) behind a plain
+     loading state.
+   - The sign-in and sign-up pages start fetching the terminal in the background after they mount,
+     so signing in doesn't wait for it.
+5. **Smaller Earth images, with the same look at the sizes drawn:**
+   - `day` at 2048 × 1024;
+   - `clouds` at 2048 × 1024;
+   - `oceans` at 1024 × 512.
+
+   All three are WebP. Measured in a trial: about 0.66 MB in total, against 2.28 MB. `CREDITS.md`
+   records the resizing (CC BY 4.0 allows adaptation with attribution).
+6. **Small logo and globe images.**
+   - A 64 px copy of the logo is used wherever it is shown small. `logo.png` stays as the favicon
+     and share image, and the admin-set favicon override is untouched.
+   - A WebP copy of `globe.png` serves the forgot-password and reset-password pages.
+7. **Caching (needs approval, deployment config).** In `vercel.json`:
+   - `/assets/*` is cached for a year as immutable, because the file names are content hashes;
+   - `/brand/*` is cached for a day, with a week of stale-while-revalidate.
+
+   Changed brand files get new names (or a `?v=` bump), so a stale copy is never served.
+
+## Acceptance
+
+### Tests
+
+Each guard is shown to fail without its code.
+
+- The globe:
+  - uses the transparent still, not `fallback.jpg`;
+  - a second element reuses the first's decoded images without fetching again;
+  - a new element starts at the shared time;
+  - disconnecting releases the WebGL context;
+  - an element with cached images is ready without the fade class.
+- `HomePage` no longer references `globe.gif`, and its backdrop image is lazy.
+- `App.jsx` imports `TerminalShell`, `AdminApp` and `PersonaChooser` lazily. A build check confirms
+  that the signed-out entry chunk contains no terminal module.
+- A size budget on images under `public/brand` that the marketing pages reference: none over
+  600 KB.
+- `vercel.json` carries the two cache rules (once approved).
+
+### Browser, production build
+
+- **Flash.** Walk home → sign-in → pricing → sign-up → home twice:
+  - no frame shows a black background;
+  - after the first page, every globe is ready on its first frame and continues the previous one's
+    time;
+  - no WebGL-context warning in the console after 20 page changes.
+
+  The browser pane must be visible for this, because a hidden pane pauses motion.
+- **Weight.** A first visit to the signed-out homepage downloads under 2 MB in total, against about
+  40 MB. The before and after for each row of the table above are recorded.
+- **Look.** Side-by-side screenshots of the globe and the walkthrough backdrop, before and after, at
+  1440 and 375 px, for the owner and client to approve before merge.
+- **Signed in.** Signing in from sign-in and opening a desk still work, and a signed-in reload goes
+  straight to the terminal.
+
+### After deploy (owner's push)
+
+- `curl -I` on the live site shows the new cache headers.
+
+### Gates
+
+- `npm run lint`, `npm test`, `npm run build`, and the router import check.
+
+## Plan
+
+| Task | Write scope | Depends on |
+|---|---|---|
+| T1 Globe handover | `nterGlobe.js`, `nterGlobe.css`, new `public/brand/auth-earth/globe-still.webp`, the globe tests | None |
+| T2 Walkthrough backdrop | `HomePage.jsx` (backdrop only), its `marketing.css` rule, the new backdrop image, `homeHero.test.jsx` | None |
+| *Checkpoint: owner and client look at T1 and T2* | | |
+| T3 Terminal on demand | `App.jsx`, `LoginPage.jsx` and `SignupPage.jsx` (prefetch only), an App test, a build-chunk check | T1 |
+| T4 Smaller images | new WebP textures and `TEXTURE_URLS`, `CREDITS.md`, the small logo and its `<img>` uses, the WebP `globe.png` for forgot and reset | T1 |
+| T5 Caching | `vercel.json` and its test | Owner approval |
+
+The tasks run in order on one branch, `task/page-speed`. I'm the supervisor and do them myself, with
+an independent review before merge. I push only on the owner's word.
+
+## Open questions for the owner
+
+1. **The GIF's replacement.**
+   - **(a) Recommended.** A still frame at display size (WebP, about 30–60 KB, lazy) that keeps the
+     existing slow CSS spin. At 55% opacity and darkened, behind the play button, it reads almost
+     the same. No new tools are needed.
+   - **(b)** A short looping video (about 1–2 MB, lazy). It keeps the surface motion, but needs
+     `ffmpeg` installed with Homebrew on this Mac. An animated WebP at full size measured 4.7 MB,
+     which is too large.
+2. **The caching rule in `vercel.json`** (deployment config): approve T5?
+3. **Unused files.** Once nothing references `globe.gif` (34 MB), the four `.jpg` Earth images and
+   `globe.png`, may I remove them from `public/`? They stay in git history. This is not `public/data`
+   or `backup/`.
+4. **Client sign-off** on the before and after screenshots, before merge.
+
+## Not in scope
+
+- Moving forgot-password and reset-password to the new globe: a page change, not a speed fix.
+- Removing the unused `three` package (a dependency change, noted under F141).
+- Further splitting of the terminal's own bundle, including the 1.4 MB PDF worker, which already
+  loads only on demand.
+- The F140 notes on the globe's focus listeners and the rear label that stays clickable through
+  Earth.

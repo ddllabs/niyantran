@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F136 is next; F133–F135 are on `task/ui-polish`) and goes in the
+- A new finding gets the next free `F` number (F146 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -489,6 +489,14 @@ rechecked. Nothing in this check wrote to production.
   client: 15 items in [the client document](../research/2026-10-14-homepage-preview-for-client.md)
   (retitling Media, Ops and Economy to real datasets; the bars, rows and tiles with no data).
   Remaining: merge, push, then the client's answers.
+- [ ] **F145. Globe handover and page speed.** Owner request 2026-10-14, from the client: a globe on
+  a black background flashes before the real globe on every page change, and pages feel slow. Causes
+  (measured on a production build): the globe's stand-in image is a photo of Earth on black space
+  (inherited from the client's package), and each page rebuilds the globe from scratch; the homepage
+  loads a 34 MB GIF as the walkthrough backdrop (since 2026-09-21), the whole terminal script
+  (2.6 MB) for signed-out visitors, and 2.3 MB of Earth images; nothing is cached by browsers.
+  [Spec](../specs/2026-10-14-globe-handover-and-page-speed.md). On `task/page-speed`. Waiting on the
+  owner: the spec, the GIF's replacement, the `vercel.json` caching rule, removing unused images.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
