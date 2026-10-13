@@ -3,7 +3,7 @@
 > **Status: Living.** Owner request 2026-10-13. Research:
 > [web search](../research/2026-10-13-web-search.md) (TenderBase reference,
 > Niyantran gap, two OpenRouter probes). Branch `task/web-search`, worktree
-> `.claude/worktrees/web-search`. Plan: to follow once this spec is approved.
+> `.claude/worktrees/web-search`. Plan: [plan](../plans/2026-10-13-web-search.md).
 
 ## Objective
 

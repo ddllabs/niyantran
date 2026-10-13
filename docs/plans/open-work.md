@@ -247,7 +247,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   [Research](../research/2026-10-13-web-search.md) ·
   [Spec](../specs/2026-10-13-web-search.md). Branch `task/web-search`
   (worktree `.claude/worktrees/web-search`). Status: research and probes done
-  (spend $0.21 of an approved $1.00); spec awaiting the owner's approval.
+  (spend $0.21 of an approved $1.00); spec approved 2026-10-13; [plan](2026-10-13-web-search.md) awaiting approval.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
