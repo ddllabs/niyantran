@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F124 is next) and goes in the
+- A new finding gets the next free `F` number (F125 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -187,6 +187,24 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     after F121: the cached AI brief (F123) and the follow-ups in F122.
     Maritime Choke-Points and Energy stay as they are: the reference has no
     panel for them (owner, 2026-10-13).
+- [ ] **F124. National record panels.** Owner request 2026-10-13: the same
+  record-panel makeover as Global (F121) for the eight National modules the
+  client reference covers. The reference is a mockup: its layout and kind of
+  information count, its figures do not.
+  [Research](../research/2026-10-13-national-record-panels.md) ·
+  [Spec](../specs/2026-10-13-national-record-panels.md) ·
+  [Plan](2026-10-13-national-record-panels.md).
+  - Status: research, spec and plan written; awaiting the owner's answers on
+    AI briefs on selection, rollout, and backend fixes before coding.
+  - Backend gaps the reference points to (not in F124's scope):
+    - Cabinet Decisions serves the unfiltered PIB feed;
+    - the MP register has no house column, mixes Lok Sabha and Rajya Sabha
+      under an "18th Lok Sabha" label, and has inconsistent party names;
+    - affidavit criminal cases are a single count, not individual listings;
+    - questions hold no answer text;
+    - the stored bill `probability_score` and `summary` are empty;
+    - Pipeline sources are `news.google.com` links;
+    - status labels in `src/lib/apiStatus.js` call embedded packs "live".
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
