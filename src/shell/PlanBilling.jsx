@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
+import { formatCredits, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 
@@ -13,6 +14,115 @@ function planLabel(id) {
 
 function day(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const LOT_KINDS = {
+  monthly: 'Monthly',
+  rollover: 'Rolled over',
+  signup: 'Sign-up',
+  topup: 'Top-up',
+  adjustment: 'Adjustment',
+};
+
+function lotLabel(kind) {
+  const known = LOT_KINDS[kind];
+  if (known) return known;
+  const text = String(kind || 'Other').replace(/[_-]+/g, ' ');
+  return text[0].toUpperCase() + text.slice(1);
+}
+
+/** A date for display, or null when the server sent none or something unreadable. */
+function dayOrNull(iso) {
+  return iso && !Number.isNaN(Date.parse(iso)) ? day(iso) : null;
+}
+
+function creditsText(n) {
+  return `${formatCredits(n)} ${Math.abs(Number(n)) === 1 ? 'credit' : 'credits'}`;
+}
+
+/** Earliest expiry first; a lot with no expiry goes last. */
+function byExpiry(lots) {
+  const at = (l) => (dayOrNull(l.expiresAt) ? Date.parse(l.expiresAt) : Infinity);
+  return [...lots].sort((a, b) => at(a) - at(b));
+}
+
+/**
+ * The AI credits section (F111, docs/specs/2026-10-14-ai-credits.md §8). Credits
+ * first, the rupee value second and muted; the server sends only credits. "Used
+ * this cycle" is not shown: my_credits() returns the plan's allowance and the
+ * lots' remainders, but spending draws the earliest-expiring lot first and
+ * admin removals draw lots too, so allowance minus the monthly lot would be a
+ * guess, not a count.
+ */
+function CreditsSection({ credits, tried, checkoutClosed }) {
+  if (!credits) {
+    return (
+      <section className="plan-credits" aria-labelledby="plan-credits-title">
+        <h3 className="plan-up-sub" id="plan-credits-title">AI credits</h3>
+        <p className="plan-up-note">{tried ? 'Your credits could not be loaded just now.' : 'Loading credits…'}</p>
+      </section>
+    );
+  }
+  const owed = credits.balance < 0;
+  const rate = credits.inrPerCredit;
+  const hint = (n) => (rupeeHint(n, rate) ? `${rupeeHint(n, rate)} of AI` : '');
+  const free = credits.plan === 'free';
+  const endsOn = dayOrNull(credits.cycleEndsAt);
+  const lots = byExpiry(credits.lots);
+  const answers = credits.recent.slice(0, 20);
+  return (
+    <section className="plan-credits" aria-labelledby="plan-credits-title">
+      <h3 className="plan-up-sub" id="plan-credits-title">AI credits</h3>
+      <p className={`plan-credits-balance${owed ? ' plan-credits-negative' : ''}`}>
+        <strong>{creditsText(credits.balance)}</strong>
+        {!owed && hint(credits.balance) ? <span className="plan-credits-inr">{hint(credits.balance)}</span> : null}
+      </p>
+      {owed ? <p className="plan-credits-owed">taken from your next credits</p> : null}
+
+      {credits.allowance !== null && credits.allowance > 0 ? (
+        <p className="plan-credits-cycle">
+          {free ? 'Sign-up credits' : 'Monthly allowance'} <strong>{creditsText(credits.allowance)}</strong>
+          {hint(credits.allowance) ? <span className="plan-credits-inr">{hint(credits.allowance)}</span> : null}
+          {endsOn ? <span className="plan-credits-until">{free ? `valid until ${endsOn}` : `this month ends ${endsOn}`}</span> : null}
+        </p>
+      ) : null}
+
+      <h4 className="plan-credits-sub">Credits by expiry</h4>
+      {lots.length ? (
+        <ul className="plan-credits-lots">
+          {lots.map((l, i) => (
+            <li key={`${l.kind}-${l.expiresAt}-${i}`} className="plan-credits-lot">
+              <span className="plan-credits-kind">{lotLabel(l.kind)}</span>
+              <span className="plan-credits-num">{creditsText(l.remaining)}</span>
+              <span className="plan-credits-when">{dayOrNull(l.expiresAt) ? `Expires ${dayOrNull(l.expiresAt)}` : 'No expiry'}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="plan-up-note">You have no credits right now.</p>
+      )}
+
+      <h4 className="plan-credits-sub">Recent answers</h4>
+      {answers.length ? (
+        <ul className="plan-credits-answers">
+          {answers.map((r, i) => {
+            const title = r.title || (r.conversationId ? 'Untitled' : 'Deleted conversation');
+            return (
+              <li key={`${r.conversationId}-${r.createdAt}-${i}`} className="plan-credits-answer">
+                <span className="plan-credits-when">{dayOrNull(r.createdAt) || ''}</span>
+                <span className="plan-credits-title" title={title}>{title}</span>
+                <span className="plan-credits-num">{creditsText(r.credits)}</span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="plan-up-note">No answers yet.</p>
+      )}
+
+      {checkoutClosed ? <p className="plan-up-note plan-credits-note">Top-ups coming soon.</p> : null}
+    </section>
+  );
 }
 
 /**
@@ -30,6 +140,9 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
   );
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const userId = user?.id || null;
+  const [credits, setCredits] = useState(() => serverCredits(userId));
+  const [creditsTried, setCreditsTried] = useState(false);
   const card = useRef(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -49,6 +162,24 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
       window.removeEventListener('keydown', onKey);
     };
   }, []);
+
+  // Credits are read the way the plan is: subscribe to the store, then refresh it.
+  useEffect(() => {
+    if (!userId) return undefined;
+    let live = true;
+    const sync = () => {
+      if (live) setCredits(serverCredits(userId));
+    };
+    const unsubscribe = subscribeCredits(sync);
+    Promise.resolve(refreshCredits()).then(() => {
+      sync();
+      if (live) setCreditsTried(true);
+    });
+    return () => {
+      live = false;
+      unsubscribe();
+    };
+  }, [userId]);
 
   const active = ent?.status === 'active';
   const current = active ? ent.plan : 'free';
@@ -153,6 +284,8 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
           </p>
         ) : null}
         {result && !result.ok ? <p className="plan-up-err" role="alert">{result.text}</p> : null}
+
+        {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutClosed={Boolean(config) && !open} /> : null}
 
         <h3 className="plan-up-sub">Invoices</h3>
         {invoices === null ? (
