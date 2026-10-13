@@ -16,7 +16,7 @@ import { flattenAlliance } from '../src/lib/alliances.js';
 import { flattenSanction } from '../src/lib/sanctions.js';
 import { flattenAppeal } from '../src/lib/globalAid.js';
 import { flattenChokepoint, flattenInfra, flattenNuclear } from '../src/lib/strategicAssets.js';
-import { flattenLeader, commoditiesFromPack } from '../src/lib/globalResources.js';
+import { leadersFromPack, commoditiesFromPack } from '../src/lib/globalResources.js';
 import { flattenEnergyMineral, flattenMineralRef } from '../src/lib/geonomics.js';
 import { geoRows, geoNote, isGeoDesk } from '../src/lib/niyGeo.js';
 import {
@@ -2529,14 +2529,15 @@ export async function serveFeatureFeed(searchParams) {
   // Global Resources — Heads of State: original HTML leader dossier (44 profiles), not Wikidata/GDELT.
   if (/^heads of state$/i.test(feat.htmlFeature || '') || dataset === 'geo_leaders') {
     const pack = loadJsonPack('leaders.json');
-    const rows = (pack?.leaders || []).map(flattenLeader).filter((r) => r.name);
+    const rows = leadersFromPack(pack);
     if (rows.length) {
       return envelope({
         tier,
         feature: feat,
         rows,
         adapter: 'embedded',
-        links: ['https://www.wikidata.org/', 'https://www.cia.gov/the-world-factbook/'],
+        // F122: the rows are the embedded register; no outside site is their source.
+        links: [],
         coverage: { from: pack.asOf || '', through: pack.asOf || '', exhaustive: false },
         fallback: false,
         kind: 'dossier',
@@ -2559,15 +2560,12 @@ export async function serveFeatureFeed(searchParams) {
         feature: feat,
         rows,
         adapter: 'embedded',
-        links: [
-          'https://tradingeconomics.com/commodities',
-          'https://www.cmegroup.com/',
-          'https://www.worldbank.org/en/research/commodity-markets',
-        ],
+        // F122: the levels are the pack's illustrative values; no outside site is their source.
+        links: [],
         coverage: { from: pack.meta?.asOf || '', through: pack.meta?.asOf || '', exhaustive: false },
         fallback: false,
         kind: 'dossier',
-        note: pack.meta?.note || 'Original HTML commodity benchmark board. Levels are as-of the pack date, not a live ticker.',
+        note: `Illustrative benchmark levels from the terminal's pack, as of ${pack.meta?.asOf || 'the pack date'}; no live price feed is connected.`,
         meta: {
           section: 'GLOBAL COMMODITIES',
           status: `AS OF ${String(pack.meta?.asOf || '').toUpperCase()} · ${pack.stats?.tracked || rows.length} BENCHMARKS`,

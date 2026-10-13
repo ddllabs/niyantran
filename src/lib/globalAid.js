@@ -6,8 +6,10 @@ export function money(v) {
   if (v == null || v === '') return 'Not stated';
   const n = Number(v);
   if (!Number.isFinite(n)) return String(v);
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(n >= 10e9 ? 1 : 2).replace(/\.00$/, '').replace(/\.0$/, '')}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 100e6 ? 0 : 1).replace(/\.0$/, '')}M`;
+  // Trailing zeros after the point are trimmed ("$2.5B", not "$2.50B"; F122).
+  const trim = (s) => s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  if (n >= 1e9) return `$${trim((n / 1e9).toFixed(n >= 10e9 ? 1 : 2))}B`;
+  if (n >= 1e6) return `$${trim((n / 1e6).toFixed(n >= 100e6 ? 0 : 1))}M`;
   return `$${Math.round(n).toLocaleString()}`;
 }
 

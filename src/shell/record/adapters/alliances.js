@@ -14,7 +14,7 @@ const NOT_ON_RECORD = 'Not on record';
 const TONE_OF_STANDING = { aligned: 'blue', differentiated: 'amber', transition: 'green', exception: 'red', review: 'red' };
 const LEGEND = { amber: 'differentiated participation', green: 'accession transition or restored participation', red: 'formal exception, withdrawal or status review' };
 /** The library's fallback when a legal basis names no treaty, charter or agreement; not a finding. */
-const BINDING_FALLBACK = 'Political declaration';
+const BINDING_FALLBACK = 'Not stated';
 
 const text = (value) => (typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '');
 
