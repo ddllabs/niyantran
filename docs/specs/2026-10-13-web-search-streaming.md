@@ -2,8 +2,9 @@
 
 > **Status: Living.** Owner request 2026-10-13, after using F130 web search
 > on production. Follows [web search](2026-10-13-web-search.md) (F130). Branch
-> `task/web-search`, worktree `.claude/worktrees/web-search`. Awaiting the
-> owner's approval; no code until then.
+> `task/web-search`, worktree `.claude/worktrees/web-search`. Approved by the
+> owner 2026-10-13 with the recommendations on both open questions.
+> Plan: [plan](../plans/2026-10-13-web-search-streaming.md).
 
 ## Objective
 
@@ -45,6 +46,9 @@ The owner asked for:
 4. F130's decisions stand: automatic per record, the globe overrides both
    ways, at most 3 searches per turn, web sources labelled unofficial and kept
    apart from record citations.
+5. **Approval (2026-10-13):** hold drafts on web turns only for now, and
+   measure how often other turns retract a draft before deciding on them;
+   add the half-sentence about site icons to the privacy policy.
 
 ## Current state (code reading and Probe 3)
 
@@ -125,8 +129,11 @@ of streaming it**.
   frame is sent and the reader's view never empties.
 - **Promoted.** If the call did not search and its draft is promoted as the
   answer, the held text is sent once as answer text, then `promoted`, as today.
-- **While held,** the ticker shows its stage line ("Reading the web results"),
-  and the source strip (§2) fills live.
+- **While held,** the ticker shows "Searching the web…": the handler sends a
+  `web_search` tool `start` frame with the first live page, and the existing
+  `end` frame when the call ends. The source strip (§3) fills live.
+- The `web_search` tool frame and its saved activity step gain `searches`
+  (the capped count), so the strip can say how many searches ran.
 - **Unchanged.**
   - Research calls not offered the web tool still stream their drafts and
     retract them as today. Holding those too is an open question below.
@@ -337,7 +344,65 @@ No schema change.
 | A retried call's live pages appear and then drop out | A brief inconsistency | The terminal `webSources` frame is authoritative. Accepted |
 | Some Indian government sites have no DuckDuckGo icon (rbi.org.in, egazette.gov.in) | Letter circles for them | Accepted. Fetching the site's own favicon is out of scope |
 
-## Open questions (owner)
+## Build and local run (2026-10-13)
+
+**Build.** Two sub-agents, server (task A) and chat UI (task C), and the
+supervisor (icon endpoint, privacy, integration). Every new test failed
+before its fix, and each guard was proved by mutation.
+
+**Supervisor fixes during integration**
+- The usage that telemetry records is capped too, so `model_call_logs` and
+  the turn total record 3 searches, not 4 (task A had capped only the agent's
+  own count).
+- The icon plugin's Vite hooks returned a value, which Vite calls as a
+  post-middleware hook. Local dev would not start; this was caught by the
+  local run, and a test now covers it.
+- The strip stops saying "Searching the web…" once the `web_search` step
+  ends, while the answer is written.
+- The "Not from the record" note now says the web sources are "listed above
+  the answer".
+- The finished ticker line counts web searches apart: "2 searches · 2 web
+  searches · 68 s".
+
+**Checks:** 3,663 Vitest and 1,012 Deno tests, lint 0, the build, and the
+router import check.
+
+**Local run** in the browser pane, against a scratch local stack (all 46
+migrations), Gemini 3.8 Flash and a Parliamentary Question row with no
+document. A page recorder sampled the in-flight answer every 200 ms.
+
+| Turn | Searches (logged) | What the reader saw |
+|---|---|---|
+| 1 | 3 at $0.021 | Strip from 18.5 s: 5, then 10, then 14 pages with icons and "+6". Answer streamed once: length rose 258 → 3,683 and never fell. Final strip "3 searches · 14 sources". |
+| 2 | 1 at $0.007 | "Searching the web… 5 pages so far" with real icons; it switched to "From the web · unofficial · 1 search · 5 sources" when writing began. Answer streamed once (414 → 3,290). |
+| 3 | 2 at $0.014 | Saved view: ticker, then the strip, then the answer. The sources panel shows site icons (PIB's real icon; letters for indiabudget.gov.in and static.pib.gov.in) and "Cited in the answer". |
+
+- **Icons.** They are served through `/api/site-icon`. A DuckDuckGo 404
+  gives a letter circle.
+- **Spend.** The local run cost $0.12 (three turns). F130 and F131 have spent
+  $0.57 of the approved $1.00 in total.
+- **Found during the run (not caused by F131).** Turn 2's saved answer held
+  41 literal `\n` sequences: Gemini escaped newlines twice inside the strict
+  JSON answer. The answer phase is unchanged by F131. Production had none in
+  11 answers over 14 days. Tracked as F132.
+
+## Measurement: draft retractions on production (2026-10-13, read-only)
+
+The NTER function logs for the 24 hours to 2026-10-13 13:45 UTC were read,
+along with `model_call_logs` grouped by minute.
+
+- **Retractions.** There were three `research.draft_retracted` events, all
+  with the reason `rewriting`, at 12:51, 13:42 and 13:44.
+- **All three were web turns.** Each fell in a minute with a web search, and
+  each `model_call_logs` minute shows exactly one search.
+- **No other turn retracted.** About ten turns without a web search, from
+  2026-10-12 18:41 onwards, retracted nothing.
+
+So in this window the double stream happened only on web turns, which this
+spec fixes. Holding drafts on other turns is not needed now. Measure again
+over a longer window after F131 ships.
+
+## Open questions (owner) — answered 2026-10-13 (decision 5)
 
 1. **Hold drafts on all turns?** The same jump happens, less often, on turns
    without web search, when the model writes text and then decides to search

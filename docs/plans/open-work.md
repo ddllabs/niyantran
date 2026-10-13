@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F132 is next) and goes in the
+- A new finding gets the next free `F` number (F133 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -369,9 +369,27 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   `max_uses` by one (billed correctly), so F130 logs overstate.
   [Spec](../specs/2026-10-13-web-search-streaming.md). Branch
   `task/web-search`.
-  - **Status, 2026-10-13: spec awaiting the owner's approval.** Two open
-    questions in the spec (hold drafts on all turns; a privacy-policy
-    half-sentence). Spend: Probe 3 about $0.13, F130 total $0.44 of $1.00.
+  - **Status, 2026-10-13: built and verified locally on `task/web-search`;
+    awaiting the owner's go-ahead** to redeploy `research-chat` and push.
+    - The owner approved the spec with both recommendations: hold drafts on
+      web turns only, and add the privacy half-sentence. Production logs
+      showed that all three retractions in 24 hours were on web turns.
+    - Checks: 3,663 Vitest and 1,012 Deno tests, lint, the build and the
+      router check.
+    - The local run streamed each answer once, with the strip filling live
+      and real icons ([spec](../specs/2026-10-13-web-search-streaming.md),
+      "Build and local run").
+    - Spend: $0.57 of $1.00 in total.
+- [ ] **F132. Gemini sometimes double-escapes newlines in the strict JSON
+  answer.** Found in the F131 local run, 2026-10-13: one answer in three was
+  saved with 41 literal `\n` sequences and rendered them as text. The answer
+  phase is unchanged by F131, and production had none in 11 answers over 14
+  days. Options:
+  - unescape when an answer has many literal `\n` and almost no real
+    newlines;
+  - tighten the answer prompt.
+
+  Measure the frequency on production first.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
