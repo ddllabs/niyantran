@@ -1454,6 +1454,7 @@ export async function serveFeatureFeed(searchParams) {
         sc: loadRawEmbedded('judiciary_sc_orders.csv'),
         nclt: loadRawEmbedded('judiciary_nclt_orders.csv'),
         ibbi: loadRawEmbedded('national_ibbi_announcements.csv'),
+        wto: slice === 'wto' ? loadRawEmbedded('judiciary_wto_disputes.csv') : [],
       });
       if (rows.length) {
         return envelope({
@@ -1466,7 +1467,7 @@ export async function serveFeatureFeed(searchParams) {
           fallback: false,
           kind: 'law-pack',
           note: lawNote(slice),
-          meta: { heading: feat.htmlFeature, section: slice === 'archive' ? 'ORDERS BY TOPIC' : slice === 'nclt' ? 'INSOLVENCY' : 'SUPREME COURT' },
+          meta: { heading: feat.htmlFeature, section: slice === 'archive' ? 'ORDERS BY TOPIC' : slice === 'nclt' ? 'INSOLVENCY' : slice === 'wto' ? 'WTO DISPUTE REGISTER' : 'SUPREME COURT', ...(slice === 'wto' ? { asOf: rows[0]?.as_of || '' } : {}) },
         });
       }
     }

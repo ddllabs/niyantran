@@ -255,7 +255,18 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     `featureMenuLabel` keeps a word written with inner capitals unless the
     whole label is in capitals; `src/lib/national.test.js`.
 - [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
-  research (2026-10-13); owner: not now.
+  research (2026-10-13).
+  - Owner 2026-10-13: ICJ stays as it is ("keep what we have"); WTO approved
+    for collection.
+  - WTO built on `task/wto-register`
+    ([spec](../specs/2026-10-13-wto-register.md)): the WTO's own register
+    (646 disputes) collected from wto.org's data files, a register panel, and a
+    Fable review with all findings fixed (several current stages, third-party
+    naming by the WTO's exception lists, parser hardening, the news-fallback
+    table, two guards made falsifiable).
+  - **Not pushed:** the WTO's terms of use for wto.org could not be read;
+    the owner decides before the data is published (the repository is
+    public).
   - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
   - `backup/` holds 177 ICJ General List cases and 641 WTO DS case pages.
     Either would turn a wire module into a register.

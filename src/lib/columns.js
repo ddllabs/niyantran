@@ -571,6 +571,21 @@ const PRESETS = [
     ],
   },
   {
+    // F129: the WTO dispute register. News rows (the fallback when the register is missing) carry no
+    // DS number, so they take the generic columns instead.
+    test: /^wto dispute settlement$/i,
+    onlyIf: (rows) => rows.some((r) => r && r.ds_number),
+    cols: [
+      { key: 'ds_number', label: 'DS', dot: true },
+      { key: 'short_title', label: 'DISPUTE', fallback: 'title' },
+      { key: 'complainant', label: 'COMPLAINANT' },
+      { key: 'respondent', label: 'RESPONDENT' },
+      { key: 'status', label: 'STAGE', pill: true },
+      { key: 'date', label: 'REQUESTED' },
+      { key: 'title', label: 'MEASURE', default: false },
+    ],
+  },
+  {
     test: /^nclt/i,
     cols: [
       { key: 'entity', label: 'ENTITY', fallback: 'title', dot: true, keep: true },
@@ -817,7 +832,7 @@ const PRESETS = [
 ];
 
 export function feedColumns(feature, rows) {
-  const preset = PRESETS.find((p) => p.test.test(feature || ''));
+  const preset = PRESETS.find((p) => p.test.test(feature || '') && (!p.onlyIf || p.onlyIf(rows || [])));
   if (preset) {
     const available = preset.cols.filter((c) => {
       if (c.keep) return true;

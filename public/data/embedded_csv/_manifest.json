@@ -192,6 +192,10 @@
     "file": "judiciary_sc_orders.json"
   },
   {
+    "key": "judiciary_wto_disputes.csv",
+    "file": "judiciary_wto_disputes.json"
+  },
+  {
     "key": "local_hyper_news.csv",
     "file": "local_hyper_news.json"
   },

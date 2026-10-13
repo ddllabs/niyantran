@@ -23,6 +23,7 @@ import nationalMorningBrief from './adapters/nationalMorningBrief.js';
 import lawInsolvency from './adapters/lawInsolvency.js';
 import lawSupremeCourt, { lawOrdersByTopic } from './adapters/lawSupremeCourt.js';
 import lawWire, { LAW_WIRE_FEATURES } from './adapters/lawWire.js';
+import lawWtoRegister, { isRegisterRow } from './adapters/lawWtoRegister.js';
 import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
@@ -63,6 +64,8 @@ const ADAPTERS = [
   [/^nclt/i, lawInsolvency, { tier: 'judiciary' }],
   [/^supreme court order/i, lawSupremeCourt, { tier: 'judiciary' }],
   [/^order archive by topic/i, lawOrdersByTopic, { tier: 'judiciary' }],
+  // WTO (F129): a register row gets the register panel; a news row (the fallback feed) the news panel.
+  [/^wto dispute settlement$/i, (row, ctx) => (isRegisterRow(row) ? lawWtoRegister(row, ctx) : lawWire(row, ctx)), { tier: 'judiciary' }],
   // The nine news-wire modules by exact name (an object with a test(), like the dossier checks above).
   [{ test: (name) => LAW_WIRE_FEATURES.includes(name) }, lawWire, { tier: 'judiciary' }],
 ];
