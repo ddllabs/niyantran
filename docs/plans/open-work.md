@@ -512,9 +512,10 @@ rechecked. Nothing in this check wrote to production.
     - the news snapshot images under `/assets/uploads/` (F146), which were already 404 and are now
       remembered as 404 for a year.
 
-    Proposed, awaiting the owner: limit the rule to top-level build files
-    (`/assets/:file([^/]+)`), which excludes `/assets/uploads/`.
-  - Remaining: that decision; owner and client check.
+    Owner 2026-10-14: narrowed to top-level build files (`/assets/([^/]+)`), which excludes
+    `/assets/uploads/`.
+  - Remaining: push the narrowing and check it live (a build file keeps the year;
+    `/assets/uploads/…` loses it); owner and client check.
 - [ ] **F146. News snapshot images are broken.** Found 2026-10-14 during the F145 live check:
   `public/data/nter-news.json` and `news.json` point items at `/assets/uploads/<sha1>.jpg`, which do
   not exist on our deployment. Seven images on the signed-in terminal returned 404 on the live site,

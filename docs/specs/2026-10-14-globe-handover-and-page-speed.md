@@ -186,6 +186,10 @@ Measured on production builds of `main` (before) and the branch (after), signed 
   - The import scanner ignores comments.
   - The default logo matches with or without `?v=`.
   - Tests reset the shared state.
+- **After the push (2026-10-14):** live headers as intended. Vercel also sends the one-year header
+  with a 404 under `/assets/`. That includes the news snapshot's missing `/assets/uploads/` images
+  (F146). The owner approved narrowing the rule to top-level build files (`/assets/([^/]+)`); Vite
+  emits no subfolders.
 - Still to check after the owner's push:
   - the cache headers on the live site;
   - that a missing `/assets/` file does not come back with the one-year header (`curl -I` on a made-up
