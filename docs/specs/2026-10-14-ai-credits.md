@@ -40,8 +40,11 @@ the payment.
    cannot pile up. A Plus user who used nothing carries 200.
 6. **Failed turns are free.** A failure is ours, not the user's.
 7. **Stop charges the part already used.**
-8. **Running out mid-answer:** the answer always finishes. The charge never
-   takes the balance below zero; we absorb the difference.
+8. **Running out mid-answer: the answer always finishes, and the balance may
+   go negative** (owner, second answer of 2026-10-14). A user with 50 credits
+   whose answer costs 100 ends at −50. The −50 comes out of their next
+   credits: the next month, a top-up or an admin grant. A user may start an
+   answer with any balance above zero.
 9. **Downgrade takes effect at the next cycle.** The current plan and its
    credits run to the end of the paid period.
 10. **Top-ups: yes, valid 12 months.** Buying them is O6.
@@ -82,14 +85,13 @@ the payment.
 
   | Setting | Value |
   |---|---|
-  | `usd_to_inr` | **95** (an all-in rate covering forex and OpenRouter's fee; owner to confirm) |
+  | `usd_to_inr` | **95**, fixed by the owner (all-in: forex and OpenRouter's fee) |
   | `inr_per_credit` | 0.10 |
   | `rollover_pct` | 10 |
   | `signup_credits` | 1000 |
   | `signup_valid` | 30 days |
   | `topup_valid` | 12 months |
-  | `min_start_credits` | 20 (about one short answer) |
-  | `hold_credits` | 150 (above the dearest normal turn; measured first, plan task 0) |
+  | `hold_credits` | 150 (above the dearest normal turn; checked in plan task 0) |
   | `hold_minutes` | 30 |
 
 - **`credit_plan_allowances`** has one row per paid plan with its monthly
@@ -114,9 +116,13 @@ the payment.
   - adjustment (±).
   - Each charge records which lots it drew from.
 - **Wallet balance.**
-  - It is the sum of remaining amounts in unexpired lots.
+  - It is the sum of remaining amounts in unexpired lots, minus the wallet's
+    `debt`.
   - It is updated in the same transaction as the entry.
-  - It is never negative.
+  - A lot never goes below zero. A charge larger than the lots holds adds the
+    rest to `debt`.
+  - Any new lot first pays off the debt, as a ledger entry, before the rest
+    is usable.
   - A fixture proves that the ledger sums to the balance.
 - **Idempotency.** A charge is unique per answer (`message_id`), and a grant
   is unique per source.
@@ -130,13 +136,23 @@ the payment.
    2. Mints any lot that is due (§4).
    3. Expires any lot that is past its date.
    4. Checks *available = balance − active holds*.
-      - Below `min_start_credits`, it returns `blocked` with the balance. The
-        function answers 402 `credits_exhausted`, and no message is created.
+      - At zero or below, it returns `blocked` with the balance. The function
+        answers 402 `credits_exhausted`, and no message is created.
       - Otherwise it records a hold of `min(available, hold_credits)` for
         `hold_minutes` and returns its id.
 
-   Two turns started together cannot both spend the last credits, because each
-   one's hold reduces what the other can start with.
+   **The hold is only about answers running at the same time.** It never
+   charges anything and is invisible to a user asking one question at a time.
+
+   - **Without it:** a user with 10 credits could open five tabs and start
+     five answers at once. All five would pass the "above zero" check and
+     finish, leaving the balance hundreds of credits negative.
+   - **With it:** the first answer holds those 10 credits, so the others are
+     told to wait until it finishes.
+   - **At a healthy balance:** several answers can run side by side as
+     before.
+   - **Bound:** a balance can therefore go negative by about one answer, not
+     by many.
 2. **Claim.** The turn is claimed as now. A replay releases the hold, and the
    claimed message id is attached to the hold.
 3. **Run.** The turn is unchanged. Its log rows flush after the durable
@@ -147,13 +163,15 @@ the payment.
    | Message status | Charged |
    |---|---|
    | `complete` | every `chat_answer` and `embedding` row with status `success` and a cost |
-   | `truncated` | the same (the answer was delivered; open question 2) |
+   | `truncated` | the same (the answer was delivered; owner 2026-10-14) |
    | `cancelled` (Stop) | the same rows, i.e. what finished before Stop. A call cut off mid-stream reports no cost and is not charged |
    | `error`, `interrupted` | nothing |
    | any | `citation_repair` rows are never charged (they fix our mistakes) |
 
-   - The charge is `min(credits used, balance)`, so the balance stops at zero
-     and the rest is absorbed.
+   - The charge is the full credits used. Whatever the lots cannot cover
+     becomes debt (§2), so the balance can end below zero.
+   - A Free user who never pays leaves that debt unpaid: one answer's cost at
+     most.
    - A settle that never runs, because the function died, is done at the
      user's next reserve once the hold has expired. A hold with no message
      simply lapses.
@@ -182,8 +200,12 @@ the payment.
   - It holds 1,000 credits and expires 30 days after it is minted. This
     gives existing Free accounts the same 30 days from launch (open
     question 5).
-  - If production requires confirmed emails, it is minted only for a
-    confirmed email (open question 4).
+  - Production already requires a confirmed email for email sign-ups. An
+    unconfirmed account cannot sign in, so it cannot reach the grant. Google
+    sign-ins arrive confirmed. The grant is still minted only when
+    `email_confirmed_at` is set. (Checked 2026-10-14 with two aggregate
+    counts over `auth.users`: all 4 email sign-ups were sent a link, 2 never
+    confirmed. No personal data was read.)
 - **Expiry.** An expired lot's remainder becomes an expiry entry, so the
   ledger stays complete.
 
@@ -231,6 +253,8 @@ the payment.
   - It shows the balance next to the chat box.
   - It warns at 10% of the cycle allowance (or 10% of the signup grant on
     Free).
+  - A negative balance shows as such: "−50 credits · taken from your next
+    credits".
   - When the reserve is blocked, it shows the balance and a way forward:
     "Upgrade" or "Buy credits". Each opens Plan & billing, which says top-ups
     are coming soon while checkout is closed.
@@ -288,7 +312,11 @@ the payment.
     operation.
   - **Holds.** Two reserves at a balance of 25 credits: the first holds 25 and
     the second is blocked.
-  - **Floor.** A charge of 300 on a balance of 120 leaves 0.
+  - **Debt.**
+    - A charge of 300 on a balance of 120 leaves −180.
+    - At −180, a reserve is blocked.
+    - A new 2,000-credit monthly lot leaves a balance of 1,820, and the
+      repayment is a ledger entry.
   - **Status rules.** Each row of the §3 table is charged as stated: complete,
     truncated, cancelled, error, interrupted, and repair rows.
   - **Idempotency.** A second settle of the same answer charges nothing.
@@ -357,25 +385,29 @@ the payment.
   - Switching enforcement on.
   - Any production read used to measure holds.
 - **Never.**
-  - Rewrite a ledger entry, or let a balance go below zero.
+  - Rewrite a ledger entry, or let a lot go below zero (debt lives on the
+    wallet).
   - Let a gate fail open.
   - Touch billing payment code beyond reading it.
 
-## Open questions (defaults used unless the owner says otherwise)
+## Settled questions (owner, 2026-10-14)
 
-1. **Exchange rate:** ₹95 per USD, all-in. The owner can check an OpenRouter
-   invoice against the bank charge.
-2. **Truncated answers** (the model hit its length limit): charged, since the
-   answer was delivered with a "cut short" note.
-3. **Hold and minimum:** 150 and 20 credits, confirmed by measuring the
-   dearest turns in production logs (read-only, plan task 0).
-4. **Email confirmation:** the local config has it off, and production is
-   unchecked. Each unconfirmed email can claim ₹100 of AI. Default: grant only
-   to confirmed emails if production confirms them; otherwise ask the owner
-   whether to turn confirmation on.
+1. **Exchange rate:** ₹95 per USD, fixed.
+2. **Truncated answers:** charged.
+3. **Minimum to start:** none; any balance above zero starts an answer.
+   - The answer always finishes and may leave the balance negative.
+   - The hold stays, only to stop several answers at once from running far
+     below zero.
+   - Its size (150) is checked against the dearest real answers in plan
+     task 0.
+4. **Email confirmation:** production already requires it for email
+   sign-ups, so nothing changes. Moving the emails to Resend on the
+   company domain is separate work and needs no change here.
 5. **Existing users at launch:**
-   - Free accounts get the signup grant, counted from launch rather than
-     their sign-up date.
-   - Current paid or manually granted plans get the current cycle's credits.
-6. **Shadow-mode length:** about a week, or 50 production turns, whichever
-   is later.
+   - Free accounts get their 30 days from launch.
+   - Paid and manually granted plans get the current cycle's credits.
+6. **Shadow mode:** one week.
+
+## Open
+
+- Approval of the spec as a whole.

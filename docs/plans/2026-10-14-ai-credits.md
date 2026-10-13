@@ -47,10 +47,11 @@ All of these are service role only unless marked otherwise.
 - **Query.** One read-only query over production `model_call_logs` for the
   last 30 days, grouped by `message_id`. It reports the cost of each answer
   at p50, p90, p99 and max, split by model and by web on or off.
-- **Output.** Set `hold_credits` and `min_start_credits` (spec defaults 150
-  and 20) and record the figures in the spec.
-- **Also check** whether production auth requires email confirmation (spec
-  open question 4).
+- **Output.** Set `hold_credits` (spec default 150) and record the figures
+  in the spec. The p99 figure is also the deepest a balance should normally
+  go below zero.
+- Email confirmation was already checked on 2026-10-14: production requires
+  it.
 
 ### 1. Migration and SQL fixtures
 
@@ -121,7 +122,8 @@ All of these are service role only unless marked otherwise.
 
 - Both test suites pass.
 - Local run 1 on a scratch Supabase stack:
-  - reserve, settle and the floor at zero;
+  - reserve and settle;
+  - a balance going negative, and being repaid from the next lot;
   - Stop charges the part used;
   - an error charges nothing;
   - two tabs at a low balance.
@@ -205,7 +207,8 @@ All of these are service role only unless marked otherwise.
 | Risk | Mitigation |
 |---|---|
 | A wallet lock slows every turn | One indexed row lock per reserve and settle; measured in local run 1 |
-| The hold is too small for a long turn | Task 0 measurement; the floor at zero bounds the loss to one turn |
+| A balance goes deep below zero | The hold allows one answer at a time when low; task 0 measures the dearest answer |
+| Free users leave debt unpaid | At most one answer's cost each; they are then blocked |
 | Charges drift from OpenRouter's bill | Shadow week comparison; the rate is a database setting |
-| Repeated Free sign-ups | ₹100 each; email confirmation (spec open question 4) |
+| Repeated Free sign-ups | ₹100 each; production requires a confirmed email |
 | The copy promises the old rule | Task 7 lands with the rest, before enforcement |
