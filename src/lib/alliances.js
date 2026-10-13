@@ -4,14 +4,6 @@ export function isAlliancesFeature(name) {
 
 export const OBLIGATIONS = ['Mutual / collective', 'Security cooperation', 'Intelligence / command', 'Political / economic'];
 
-const TONE_COLOR = {
-  aligned: '#397ca5',
-  differentiated: '#c18a2f',
-  transition: '#6f9c78',
-  exception: '#d4513c',
-  review: '#8a6aa6',
-};
-
 export function obligationClass(p) {
   const t = `${p.obligation || ''} ${p.category || ''}`;
   if (/collective|mutual defence/i.test(p.obligation || '')) return 'Mutual / collective';
@@ -111,19 +103,6 @@ export function memberSummary(p, flags = p.flags || {}) {
   out.active = rows.length - (out.exception || 0) - (out.review || 0);
   out.total = rows.length;
   return out;
-}
-
-export function heatRecords(p, flags = p.flags || {}) {
-  return memberRecords(p, flags)
-    .filter((m) => !/^(European Union|African Union)$/i.test(m.country))
-    .map((m) => ({
-      country: m.country,
-      color: TONE_COLOR[m.tone] || TONE_COLOR.aligned,
-      label: m.standing,
-      detail: m.alignment,
-      focus: m.tone === 'exception' || m.tone === 'review',
-      tone: m.tone,
-    }));
 }
 
 export function overlaps(p, all) {

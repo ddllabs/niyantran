@@ -7,10 +7,6 @@ export function strategicKind(name) {
   return '';
 }
 
-export function isStrategicAssetFeature(name) {
-  return Boolean(strategicKind(name));
-}
-
 export function isNuclearWatchFeature(name) {
   return strategicKind(name) === 'nuclear';
 }
@@ -41,7 +37,8 @@ function parsePairs(v) {
   return [];
 }
 
-export function operatorCountries(operators) {
+/** The countries an operators string names ("PRC / UK (Gib)" → China, United Kingdom), for the asset stats. */
+function operatorCountries(operators) {
   return String(operators || '')
     .split('/')
     .map((t) =>
@@ -174,43 +171,6 @@ export function flattenNuclear(p) {
 
 function unique(list) {
   return [...new Set(list.filter(Boolean))];
-}
-
-export function heatFor(kind, selected, list) {
-  if (!selected) return [];
-  if (kind === 'chokepoint') {
-    const focus = new Set(operatorCountries(selected.operators));
-    const others = new Set();
-    list.forEach((p) => operatorCountries(p.operators).forEach((c) => others.add(c)));
-    const records = [...others]
-      .filter((c) => !focus.has(c))
-      .map((c) => ({ country: c, color: '#a7c4d3', label: 'Other recorded operator', detail: 'Appears on another chokepoint in this register' }));
-    focus.forEach((c) => {
-      records.push({ country: c, color: '#d94e35', label: 'Selected operator geography', detail: selected.name, focus: true });
-    });
-    return records;
-  }
-  if (kind === 'infra' || kind === 'nuclear' || kind === 'satellite') {
-    const focus = selected.country;
-    const others = unique(list.map((p) => p.country).filter((c) => c && c !== focus));
-    const records = others.map((c) => ({
-      country: c,
-      color: '#63859a',
-      label: kind === 'infra' ? 'Other project country' : kind === 'nuclear' ? 'Other facility country' : 'Other launch geography',
-      detail: 'Present in this register',
-    }));
-    if (focus) {
-      records.push({
-        country: focus,
-        color: '#d94e35',
-        label: kind === 'infra' ? 'Selected project country' : kind === 'nuclear' ? 'Selected facility country' : 'Selected launch geography',
-        detail: selected.name,
-        focus: true,
-      });
-    }
-    return records;
-  }
-  return [];
 }
 
 export function deskCopy(kind) {

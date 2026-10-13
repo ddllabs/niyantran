@@ -1,7 +1,7 @@
 // F26: point names and statuses come from desk feeds, which are untrusted text.
 // The tooltip must show them as text, never parse them as HTML.
 import { describe, expect, it } from 'vitest';
-import { fillGeoTip, fillSiteLabel } from './geoTip.js';
+import { fillGeoTip } from './geoTip.js';
 
 function fakeTip() {
   // Every fake element throws if innerHTML is written.
@@ -31,25 +31,5 @@ describe('fillGeoTip', () => {
     const { tip } = fakeTip();
     fillGeoTip(tip, { name: 'Hormuz' });
     expect(tip.nodes[2]).toBe(' · ');
-  });
-});
-
-describe('fillSiteLabel', () => {
-  it('shows hostile site fields as text inside the hover span', () => {
-    const { tip: button } = fakeTip();
-    const name = '<img src=x onerror=alert(1)>';
-    fillSiteLabel(button, { name, country: '<i>Iran</i>', facilityKind: 'enrichment' });
-    const [span] = button.nodes;
-    expect(span.tag).toBe('span');
-    const [first, br, line] = span.nodes;
-    expect(first).toBe(name);
-    expect(br).toMatchObject({ tag: 'br' });
-    expect(line).toBe('<i>Iran</i> · enrichment');
-  });
-
-  it('falls back to kind when facilityKind is missing', () => {
-    const { tip: button } = fakeTip();
-    fillSiteLabel(button, { name: 'Natanz', country: 'Iran', kind: 'plant' });
-    expect(button.nodes[0].nodes[2]).toBe('Iran · plant');
   });
 });

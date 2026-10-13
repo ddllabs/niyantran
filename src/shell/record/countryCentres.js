@@ -224,6 +224,12 @@ export const COUNTRY_CENTRES = {
 export const TERRITORY_CENTRES = {
   'Hong Kong': [22.4, 114.1],
   Macao: [22.2, 113.55],
+  // F122: territories on alliance rosters, each on its main island (two decimals for small islands).
+  'Cook Islands': [-21.23, -159.78],
+  'French Polynesia': [-17.65, -149.43],
+  'New Caledonia': [-21.3, 165.5],
+  Niue: [-19.05, -169.87],
+  Montserrat: [16.74, -62.19],
 };
 
 /** Canonical name → the other spellings that name it. @type {Record<string, string[]>} */

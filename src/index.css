@@ -2906,8 +2906,7 @@ button.live-feed:hover { color: var(--fg); }
 }
 .workspace.home.ai-open .main-col,
 .workspace.conflicts-holistic.ai-open .main-col,
-.workspace.choke-holistic.ai-open .main-col,
-.workspace.geo-holistic.ai-open .main-col {
+.workspace.choke-holistic.ai-open .main-col {
   overflow: auto;
 }
 
@@ -6324,8 +6323,6 @@ button.live-feed:hover { color: var(--fg); }
   .cpd .geo-kpis { grid-template-columns: repeat(3, 1fr); }
   .cpd .geo-grid { grid-template-columns: 1fr; }
 }
-.workspace.geo-holistic { grid-template-columns: 1fr; }
-.workspace.geo-holistic .main-col { overflow: auto; background: #fff; }
 
 /* Heads of State + Global Commodities — light HTML geo dossier (theme blue) */
 .gld-desk { overflow: auto; background: #fff; color: #111; }
@@ -6985,7 +6982,6 @@ tr.close-soon { color: #6d675f; }
   .workspace.home,
   .workspace.conflicts-holistic,
   .workspace.choke-holistic,
-  .workspace.geo-holistic,
   .workspace.transit-map,
   .workspace.pig-holistic {
     grid-template-rows: minmax(0, 1fr);
@@ -6993,7 +6989,6 @@ tr.close-soon { color: #6d675f; }
   .workspace.ai-open.home,
   .workspace.ai-open.conflicts-holistic,
   .workspace.ai-open.choke-holistic,
-  .workspace.ai-open.geo-holistic,
   .workspace.ai-open.transit-map,
   .workspace.ai-open.pig-holistic {
     grid-template-rows: minmax(0, 1fr) minmax(0, 65%);
@@ -7037,7 +7032,6 @@ tr.close-soon { color: #6d675f; }
   .workspace.ai-open.home,
   .workspace.ai-open.conflicts-holistic,
   .workspace.ai-open.choke-holistic,
-  .workspace.ai-open.geo-holistic,
   .workspace.ai-open.transit-map,
   .workspace.ai-open.pig-holistic {
     grid-template-rows: 0 minmax(0, 1fr);
