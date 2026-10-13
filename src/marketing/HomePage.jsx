@@ -350,7 +350,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             <span className="mkt-preview-scan" aria-hidden="true" />
             <aside className="mkt-prev-nav">
               <div className="mark">
-                <img src="/brand/logo.png?v=2" alt="" />
+                <img src="/brand/logo-128.webp" alt="" />
                 TERMINAL
               </div>
               {DESKS.map((item) => (

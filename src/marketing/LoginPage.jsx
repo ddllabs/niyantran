@@ -144,7 +144,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
           <i /> SYS/READY
         </p>
         <div className="mark">
-          <img src="/brand/logo.png?v=2" alt="" />
+          <img src="/brand/logo-128.webp" alt="" />
         </div>
         <h1>TERMINAL</h1>
         <div className="tag">DESK ACCESS</div>

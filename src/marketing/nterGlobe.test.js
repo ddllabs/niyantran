@@ -34,7 +34,7 @@ describe('nterGlobe module', () => {
     const { TEXTURE_URLS } = await import('./nterGlobe.js');
     expect(Object.keys(TEXTURE_URLS).sort()).toEqual(['clouds', 'day', 'fallback', 'oceans']);
     Object.values(TEXTURE_URLS).forEach(url => {
-      expect(url).toMatch(/^\/brand\/auth-earth\/[a-z-]+\.(jpg|webp)$/);
+      expect(url).toMatch(/^\/brand\/auth-earth\/[a-z-]+\.webp$/);
       expect(existsSync(new URL(url.slice(1), PUBLIC)), url).toBe(true);
     });
   });

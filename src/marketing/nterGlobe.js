@@ -16,9 +16,10 @@
  * releases its WebGL context. */
 
 export const TEXTURE_URLS = {
-  day: '/brand/auth-earth/day.jpg',
-  clouds: '/brand/auth-earth/clouds.jpg',
-  oceans: '/brand/auth-earth/oceans.jpg',
+  // WebP at the sizes the globe is drawn (F145): day 2048 x 1024, clouds 2048 x 1024, oceans 1024 x 512.
+  day: '/brand/auth-earth/day.webp',
+  clouds: '/brand/auth-earth/clouds.webp',
+  oceans: '/brand/auth-earth/oceans.webp',
   // A still of this globe at time 0, rendered from the shader on a transparent background (F145).
   fallback: '/brand/auth-earth/globe-still.webp',
 };

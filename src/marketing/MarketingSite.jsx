@@ -9,10 +9,14 @@ import PrivacyPage from './PrivacyPage.jsx';
 import TermsPage from './TermsPage.jsx';
 import { AboutPage, ContactPage, DeliveryPage, RefundPage } from './PolicyPages.jsx';
 import { LEGAL_PATHS as LEGAL, isLegalPathname } from './legalRoutes.js';
-import { loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
+import { DEFAULT_SITE_SETTINGS, loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { sessionUser } from '../lib/userStore.js';
 import './marketing.css';
+
+// F145: the default logo is drawn from its 128 px copy (the full logo is 164 KB); a favicon set in
+// admin is shown as set.
+const brandLogo = (url) => (!url || url === DEFAULT_SITE_SETTINGS.faviconUrl ? '/brand/logo-128.webp' : url);
 
 function pageFromRoute() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
@@ -120,7 +124,7 @@ export default function MarketingSite({ onAuthed }) {
       <header className="mkt-header">
         <div className="mkt-header-inner">
           <button type="button" className="mkt-brand" onClick={() => go('home')}>
-            <img src={site.faviconUrl || '/brand/logo.png?v=2'} alt="" />
+            <img src={brandLogo(site.faviconUrl)} alt="" />
             <span>{short}<small>BY NTER.PRO</small></span>
           </button>
           {/* F140 (client design, owner 2026-10-13): Home · Data coverage · Pricing, then Sign in beside
@@ -183,7 +187,7 @@ export default function MarketingSite({ onAuthed }) {
         <div className="mkt-wrap mkt-footer-grid">
           <div>
             <div className="mark">
-              <img src={site.faviconUrl || '/brand/logo.png?v=2'} alt="" />
+              <img src={brandLogo(site.faviconUrl)} alt="" />
               {short}
             </div>
             <p>{site.tagline}</p>

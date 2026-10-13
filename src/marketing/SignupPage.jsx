@@ -181,7 +181,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
             <i /> SYS/READY
           </p>
           <div className="mark">
-            <img src="/brand/logo.png?v=2" alt="" />
+            <img src="/brand/logo-128.webp" alt="" />
           </div>
           <h1>VERIFY GMAIL</h1>
           <div className="tag">ACTIVATION LINK DISPATCHED</div>
@@ -273,7 +273,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
             <i /> SYS/READY
           </p>
           <div className="mark">
-            <img src="/brand/logo.png?v=2" alt="" />
+            <img src="/brand/logo-128.webp" alt="" />
           </div>
           <h1>CREATE ACCESS</h1>
           <div className="tag">SIGN UP</div>
