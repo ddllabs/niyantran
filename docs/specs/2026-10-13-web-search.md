@@ -179,6 +179,7 @@ tool, and the web block sits with the protected rules.
     - `record-without-document`
     - `module-without-documents`
     - `documents-in-scope`
+    - `no-record` (only uploaded files, or desk focus with no open module)
     - `broad`
     - `override-on`
     - `override-off`

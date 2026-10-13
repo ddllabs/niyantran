@@ -9,6 +9,8 @@ export type WebReason =
   | 'record-without-document'
   | 'module-without-documents'
   | 'documents-in-scope'
+  /** Nothing in scope is a record: only uploaded files, or desk focus with no open module. */
+  | 'no-record'
   | 'broad'
   | 'override-on'
   | 'override-off'
