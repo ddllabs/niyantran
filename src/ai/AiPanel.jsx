@@ -181,6 +181,24 @@ export function requestAttachments(pins) {
     .filter((a) => (a.kind === 'document' ? a.document_id : a.text));
 }
 
+/**
+ * F130: what the web-search globe predicts from, built the way sendResearch builds the turn, so the
+ * prediction counts exactly the records the server will see. `attachments` are the chips as sent
+ * (a row chip with no text is dropped there, so it is no record here either). `selectedRecord` is
+ * the selected row whenever the send would pin it - sent as the selection with a module name, as an
+ * attachment without one - and null when it is already a chip or has nothing to send.
+ */
+export function webPredictionRecords(pins, selected) {
+  let selection = null;
+  try { selection = selected && selected.status !== 'source_status' ? researchSelection(selected) : null; }
+  catch { selection = null; } // the send itself refuses this row and says why
+  const key = selection ? billDocumentKey(selected) : null;
+  return {
+    attachments: requestAttachments(pins),
+    selectedRecord: selection && !rowIsPinned(pins, selected) ? { kind: 'row', ...(key ? { document_key: key } : {}) } : null,
+  };
+}
+
 /** The chip "Ask about this document" attaches for a text citation, or null. */
 export function documentChip(citation) {
   const id = typeof citation?.document_id === 'string' ? citation.document_id.trim() : '';
@@ -422,17 +440,13 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     if (!stop) setIndexedKeys(null);
     return stop ?? undefined;
   }, [attachedKeys, open]);
-  // F130: the globe's prediction. The selected row joins the chips here because the next send pins it.
-  const selectedRecord = useMemo(
-    () => (selected && selected.status !== 'source_status' && featureName && !rowIsPinned(chat?.attachments, selected)
-      ? { kind: 'row', ...(billDocumentKey(selected) ? { document_key: billDocumentKey(selected) } : {}) } : null),
-    [selected, featureName, chat?.attachments],
-  );
+  // F130: the globe's prediction, from the records the next send will carry (webPredictionRecords).
+  const predictionRecords = useMemo(() => webPredictionRecords(chat?.attachments, selected), [chat?.attachments, selected]);
   const deskContext = useMemo(
     () => (featureName || tab ? { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } : null),
     [featureName, tab],
   );
-  const webPrediction = useWebPrediction({ focus, attachments: chat?.attachments, selectedRecord, indexedKeys, deskContext, open });
+  const webPrediction = useWebPrediction({ focus, ...predictionRecords, indexedKeys, deskContext, open });
   const messages = research.messages.filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
