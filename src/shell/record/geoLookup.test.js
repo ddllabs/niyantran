@@ -249,6 +249,12 @@ const COUNTRY_BOX = {
 const TERRITORY_BOX = {
   'Hong Kong': [22.1, 22.6, 113.8, 114.5],
   Macao: [22.1, 22.3, 113.5, 113.7],
+  // F122: territories on alliance rosters, each box the island group its centre sits in.
+  'Cook Islands': [-22, -18.8, -160, -157.3],
+  'French Polynesia': [-18, -16, -152, -148],
+  'New Caledonia': [-22.8, -19.5, 163.5, 167.2],
+  Niue: [-19.2, -18.9, -170, -169.7],
+  Montserrat: [16.65, 16.83, -62.25, -62.13],
 };
 const ROSTER = Object.keys(COUNTRY_BOX);
 
@@ -291,6 +297,10 @@ const LAND_TOLERANCE_CELLS = 1;
 // CAPITAL_RADIUS_KM of it, which on an island state means the right island. The list is a roster of
 // exceptions, not a loophole: a test below fails if an entry no longer needs its exemption.
 const SMALL_ISLAND_CAPITAL = {
+  'Cook Islands': [-21.21, -159.78], // Avarua
+  'French Polynesia': [-17.54, -149.57], // Papeete
+  Niue: [-19.06, -169.92], // Alofi
+  Montserrat: [16.79, -62.21], // Brades
   'Antigua and Barbuda': [17.12, -61.85], // St John's
   Barbados: [13.1, -59.61], // Bridgetown
   'Cabo Verde': [14.93, -23.51], // Praia
@@ -554,5 +564,18 @@ describe('country centres (T14b)', () => {
       expect(countryPosition(name), name).toBeNull();
       expect(regionPosition(name), name).toBeNull();
     }
+  });
+});
+
+// F122: the alliance rosters name five territories; each is placed at its own position, and the
+// non-states on rosters (the EU, the AU) are not places and stay unplaced.
+describe('alliance roster territories', () => {
+  it('places the five territories and leaves non-states unplaced', () => {
+    for (const name of ['Cook Islands', 'French Polynesia', 'New Caledonia', 'Niue', 'Montserrat']) {
+      const p = countryPosition(name);
+      expect(p, name).toBeTruthy();
+      expect(inBox(TERRITORY_BOX[name], [p.lat, p.lon]), name).toBe(true);
+    }
+    for (const name of ['European Union', 'African Union', 'EU', 'AU']) expect(countryPosition(name), name).toBeNull();
   });
 });
