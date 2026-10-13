@@ -93,9 +93,13 @@ export function featureMenuLabel(mod) {
     .replace(/\bJudgement\b/g, 'Judgements')
     .replace(/\bOrder Archive\b/gi, 'Orders by Topic')
     .replace(/\bORDER ARCHIVE\b/gi, 'Orders by Topic');
-  return spelled.replace(/[A-Za-z]+/g, (w) => {
+  // A word written with capitals after its first letter (NCLT, ICC, ECtHR) is kept as written, unless
+  // the whole label is in capitals (a workbook short code), where that tells us nothing.
+  const allCaps = !/[a-z]/.test(spelled);
+  return spelled.replace(/[A-Za-z]+(?:['’][A-Za-z]+)*/g, (w) => {
     if (/^(IAS|IPS|AGMUT|MP|MLA|PIB|RBI|SEBI|TRAI|CCI|LS|SIR|CAG|GPDP|MGNREGA|BDO|SDO|SDM|EO)$/i.test(w)) return w.toUpperCase();
     if (/^judgements$/i.test(w)) return 'Judgements';
+    if (!allCaps && /[A-Z]/.test(w.slice(1))) return w;
     return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
   });
 }
