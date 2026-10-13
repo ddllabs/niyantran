@@ -467,8 +467,12 @@ rechecked. Nothing in this check wrote to production.
   2026-10-14: migration approved; bills stay one per bill ID. Built on `task/live-figures`: the
   function and its SQL fixture (27 fixtures pass; vacuity and 7 mutations caught), the endpoint
   (15-minute cache, last good then measured fallback, CDN header per source), the carousel and the
-  pages (the homepage's hand-typed "48 MINISTRIES" now reads the count). Remaining: review, apply the
-  migration to NTER, a read-only check that the endpoint equals direct counts, merge, push.
+  pages (the homepage's hand-typed "48 MINISTRIES" now reads the count; the ribbon's and the
+  walkthrough's "200+ authoritative sources" now read the endpoint count). Reviewed (5 s database
+  timeout, a minute of failure memory, client refresh). Migration 46 applied to NTER 2026-10-14; live
+  counts equal direct counts (bills 9,817, documents 3,376, ministries 56, fronts 88); see coordination
+  Operations. Remaining: merge, push. Still hand-typed on the homepage (F30): the preview cards'
+  other figures (houses, series start, status bars and the other desks' samples).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

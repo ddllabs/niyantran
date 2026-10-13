@@ -444,7 +444,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
               <em>provenance visible.</em>
             </h2>
             <p>
-              Search, compare and ask across 200+ authoritative sources while keeping context, timeline and source
+              Search, compare and ask across {figures.endpoints} source endpoints while keeping context, timeline and source
               provenance visible — all in one terminal.
             </p>
             <div className="mkt-showcase-actions">
@@ -686,8 +686,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M4 20h16M7 16V10M12 16V6M17 16v-8" size={16} />
               </i>
               <div>
-                <div className="n">200+</div>
-                <div className="l">Authoritative Sources</div>
+                <div className="n">{figures.endpoints}</div>
+                <div className="l">Source Endpoints</div>
               </div>
             </div>
             <div className="mkt-ribbon-item">
