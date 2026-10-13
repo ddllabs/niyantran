@@ -44,8 +44,9 @@ the payment.
 5. **Rollover: 10% of a cycle's unused plan credits** carry into the next
    cycle only, then expire. Rolled-over credits never roll again, so credits
    cannot pile up. A Plus user who used nothing carries 200.
-6. **Failed turns are free.** A failure is ours, not the user's. (A failed
-   turn that still delivered text is open question 1.)
+6. **Failed turns are free when the user received nothing.** A failure is
+   ours, not the user's. A failed turn that still delivered answer text is
+   charged (settled question 7).
 7. **Stop charges the part already used.**
 8. **Running out mid-answer: the answer always finishes, and the balance may
    go negative** (owner, second answer of 2026-10-14). A user with 50 credits
@@ -216,7 +217,7 @@ the payment.
 | `complete`, `truncated` | every `chat_answer` and `embedding` row of the turn with status `success` or `aborted` and a cost |
 | `cancelled` (Stop) | the same: everything spent up to Stop, including the round cut off mid-stream (its cost is fetched, below) |
 | `error`, `interrupted`, **and the saved answer is empty** | nothing (our failure; the user got nothing) |
-| `error`, `interrupted`, **with saved answer text** | **open question for the owner (§ Open):** recommended, charge as `complete`, because the user received an answer |
+| `error`, `interrupted`, **with saved answer text** | charged as `complete`, because the user received an answer (owner, settled question 7) |
 | any | `citation_repair` rows, never |
 
 - **The round cut off by Stop.** OpenRouter sends a call's cost only at the
@@ -612,7 +613,7 @@ granted to `anon`.
   - A reserve-time settle could race the log flush and make answers free.
     Only the handler settles before a hold expires, and charges are per log
     row (§3, §12).
-  - Failed turns that still deliver text: open question 1 below.
+  - Failed turns that still deliver text: settled as charged (question 7).
   - A round cut off by Stop reported no cost. It is now fetched (§3.1).
 - **Important findings, all fixed above:**
   - Repayment broke the ledger sum.
@@ -634,14 +635,13 @@ granted to `anon`.
   - Holds keyed by turn, which also fixes a retry getting 402.
   - The settings history table was dropped.
 
-## Open (owner)
+## Settled after the design review (owner, 2026-10-14)
 
-1. **Failed turns that still show text.** A turn that errors or hits the
-   120-second limit keeps whatever answer text had streamed, and shows it.
-   - As written, decision 6 makes these free, so a user could get long
-     answers free by picking a slow model and a long question.
-   - **Recommendation:** free only when no answer text was delivered; charge
-     when the user received text.
-2. **Account deletion.** Deleting an account deletes its credit history.
-   - This matches "unused credits lapse on closure" and erasure rights.
-   - Invoices stay in the billing tables, so this is recommended as is.
+7. **Failed turns that still showed text are charged.** A turn ending
+   `error` or `interrupted` is free only when no answer text was saved.
+   - When text was delivered, it is charged as `complete` (§3.1).
+   - This amends decision 6: "free" means the user received nothing.
+8. **Deleting an account deletes its credit history** (§12, cascade).
+   Invoices stay in the billing tables.
+
+No questions are open. Code starts on the owner's word.
