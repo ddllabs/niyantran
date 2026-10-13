@@ -183,7 +183,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     `main` locally at `931538c` and pushed at `3978309`. Batch 3 (Alliances,
     Sanctions, Global Aid, Nuclear Watch on the new panel; old dossier record
     views retired) passed an independent review and was merged to `main`
-    locally at `067f09b`; it awaits the owner's go-ahead to push. Still open
+    locally at `067f09b` and pushed at `a3d79d7` on 2026-10-13. Still open
     after F121: the cached AI brief (F123) and the follow-ups in F122.
     Maritime Choke-Points and Energy stay as they are: the reference has no
     panel for them (owner, 2026-10-13).
