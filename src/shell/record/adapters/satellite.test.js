@@ -99,8 +99,9 @@ describe('header, badge and links', () => {
     expect(model(bare).badge).toBeUndefined();
   });
 
-  it('links the launch record over https only', () => {
-    expect(model(falcon1).links).toEqual([{ label: 'The Space Devs', href: falcon1.source_url }]);
+  it('links a launch only to a readable https page: none for Launch Library, whose link is a JSON endpoint (F122)', () => {
+    expect(model(falcon1).links).toEqual([]);
+    expect(model({ ...falcon1, source_url: 'https://example.org/launch' }).links).toEqual([{ label: 'The Space Devs', href: 'https://example.org/launch' }]);
     expect(model({ ...falcon1, source_url: 'http://insecure.example/launch' }).links).toEqual([]);
   });
 });

@@ -20,10 +20,10 @@ const PROMPTS = [
   ['Elections ahead', 'Which upcoming elections most affect global geopolitics and how?'],
 ];
 
+// F122: the profiles come from the terminal's own register; these sites are offered only to check them.
 const SOURCES = [
-  ['Wikidata', 'https://www.wikidata.org/'],
-  ['CIA World Factbook', 'https://www.cia.gov/the-world-factbook/'],
-  ['Government portals', 'https://www.gov.uk/'],
+  ['Wikidata (for checking)', 'https://www.wikidata.org/'],
+  ['CIA World Factbook (for checking)', 'https://www.cia.gov/the-world-factbook/'],
 ];
 
 function isoOf(id) {
@@ -45,7 +45,8 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
   }, [feed, vizFilter, q]);
   const stats = feed?.meta?.stats || {};
   const asOf = feed?.meta?.asOf || '2026-07';
-  const n = stats.tracked || leaders.length;
+  // F122: the profiles actually listed (the pack's stored count included a duplicate row).
+  const n = leaders.length || stats.tracked || 0;
   const aut = stats.autocracies || 0;
   const selectedId = selected?.id || '';
   const current = selectedId ? leaders.find((l) => l.id === selectedId) || selected : null;
@@ -164,7 +165,7 @@ export default function LeadersDesk({ feed, selected, onSelect, vizFilter, onCle
                 />
               </div>
             </section>
-            <GeoSources links={SOURCES} asOf={asOf} />
+            <GeoSources links={SOURCES} asOf={asOf} note={`Profiles come from the terminal's own register, as of ${asOf}; they are not pulled from these sites. Use the links to check a profile.`} />
           </div>
         </div>
       </GeoDossierChrome>

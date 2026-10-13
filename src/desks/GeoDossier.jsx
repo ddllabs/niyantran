@@ -84,7 +84,8 @@ export function GeoAi({ summary, prompts, onAsk }) {
   );
 }
 
-export function GeoSources({ links, asOf }) {
+/** The desk's sources panel. `note` replaces the default line when the desk's figures come from its own pack (F122). */
+export function GeoSources({ links, asOf, note }) {
   return (
     <section className="geo-panel">
       <div className="geo-panel-h">
@@ -98,7 +99,7 @@ export function GeoSources({ links, asOf }) {
             </a>
           ))}
         </div>
-        <p>Curated from public sources; figures are estimates unless cited. {asOf}.</p>
+        <p>{note || `Curated from public sources; figures are estimates unless cited. ${asOf}.`}</p>
       </div>
     </section>
   );

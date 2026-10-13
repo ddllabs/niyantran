@@ -133,3 +133,23 @@ unusable:**
 - The Sector Tribunals and High Court backup packs. The Sector Tribunals pack holds at least one
   PAN and needs a personal-data check before any use.
 - Splitting CAT/NCDRC and the Sector Tribunals by forum (a catalogue change the reference suggests).
+
+## Outcome
+
+- **G1, done `bed03ba` (2026-10-13).**
+  - The four bugs are fixed, each with a test that fails on the old code (`src/lib/globalFixes.test.js`).
+  - Removing the duplicate Ukraine row changed the committed desk catalogue's Heads of State count
+    from 44 to 43. The file was regenerated with `scripts/build-desk-catalog.mjs`.
+- **G2, done `e0c3e8d` (2026-10-13).** Labels and sources say no more than the data holds
+  (`src/desks/globalLabels.test.jsx`). Since the plan:
+  - the Leaders header counts the profiles listed (43), not the pack's stored 44;
+  - office-named rows ("UK Prime Minister" and 17 others) now read "Not verified", as "US President"
+    already did, with the country and office shown beneath.
+- **Verification:**
+  - lint 0; 3,624 tests; build; router import; Deno 993.
+  - Browser:
+    - Commodities search "brent" leaves 1 of 24 bars;
+    - no "API-ready", Trading Economics or CME;
+    - Global Aid prints "$2.5B";
+    - Heads of State lists one Ukraine row, and its sources read "for checking".
+- **G3:** waits for decision 1.

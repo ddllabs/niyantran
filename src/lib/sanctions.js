@@ -16,9 +16,11 @@ export function issuerTokens(p) {
     ['AUS', 'Australia'],
     ['S. Korea', 'South Korea'],
   ];
+  // Whole tokens only, so "AUS" is not also read as "US" (F122).
+  const has = (k) => new RegExp(`(^|[^A-Za-z])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z])`).test(s);
   const out = [];
   for (const [k, v] of all) {
-    if (s.includes(k) && !out.includes(v)) out.push(v);
+    if (has(k) && !out.includes(v)) out.push(v);
   }
   return out.length ? out : ['Other'];
 }

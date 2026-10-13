@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { exportJson, GeoAi, GeoDossierChrome, GeoSources } from './GeoDossier.jsx';
-import { applyVizFilter } from '../lib/nationalKpi.js';
+import { commodityGroups } from '../lib/commodityGroups.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
@@ -20,22 +20,8 @@ const PROMPTS = [
   ['Safe havens', 'Explain the gold move in the context of current geopolitical risk.'],
 ];
 
-const SOURCES = [
-  ['Trading Economics', 'https://tradingeconomics.com/commodities'],
-  ['CME Group', 'https://www.cmegroup.com/'],
-  ['World Bank Pink Sheet', 'https://www.worldbank.org/en/research/commodity-markets'],
-];
-
-function groupsFrom(feed) {
-  if (Array.isArray(feed?.meta?.groups) && feed.meta.groups.length) return feed.meta.groups;
-  const map = new Map();
-  for (const r of feed?.rows || []) {
-    const g = r.group || 'Other';
-    if (!map.has(g)) map.set(g, []);
-    map.get(g).push([r.commodity || r.title, r.level, r.change, r.pct]);
-  }
-  return [...map.entries()].map(([g, items]) => ({ g, items }));
-}
+// F122: the levels are the pack's illustrative values; the Pink Sheet is offered only to check them.
+const SOURCES = [['World Bank Pink Sheet (for checking)', 'https://www.worldbank.org/en/research/commodity-markets']];
 
 function BarRow({ label, pct, val, up, on, onPick }) {
   const n = Math.max(2, Math.min(100, Number(pct) || 2));
@@ -73,14 +59,8 @@ function GroupPanel({ title, items, rowFor, selected, onSelect }) {
 export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
   const [tab, setTab] = useState('analytics');
   const [q, setQ] = useState('');
-  const groups = useMemo(() => {
-    const rows = (feed?.rows || []).filter((r) => applyVizFilter(r, vizFilter));
-    const n = q.trim().toLowerCase();
-    const filtered = n
-      ? rows.filter((r) => `${r.commodity || r.title || ''} ${r.group || ''}`.toLowerCase().includes(n))
-      : rows;
-    return groupsFrom({ ...feed, rows: filtered });
-  }, [feed, vizFilter, q]);
+  // F122: the search and the chart filter apply to the pack's groups too.
+  const groups = useMemo(() => commodityGroups(feed, { q, vizFilter }), [feed, vizFilter, q]);
   const byName = useMemo(() => new Map((feed?.rows || []).map((r) => [r.commodity || r.title, r])), [feed]);
   const rowFor = (name) => byName.get(name) || null;
   const stats = feed?.meta?.stats || {};
@@ -107,7 +87,7 @@ export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, o
           [stats.losers ?? 0, 'Losers', 'bad'],
           [groups.length || 4, 'Complexes'],
           [stats.riskPremium || '—', 'Risk premium', 'warn'],
-          ['Live', 'API-ready', 'acc'],
+          ['Illustrative', 'Pack levels', 'warn'],
         ]}
         tab={tab}
         onTab={(t) => {
@@ -144,7 +124,7 @@ export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, o
               {groups.slice(2).map((g) => (
                 <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} />
               ))}
-              <GeoSources links={SOURCES} asOf={asOfLabel} />
+              <GeoSources links={SOURCES} asOf={asOfLabel} note={`Levels are illustrative values in the terminal's pack, as of ${asOfLabel}; no live price feed is connected.`} />
             </div>
           </div>
       </GeoDossierChrome>

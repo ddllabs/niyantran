@@ -264,8 +264,16 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - The Sector Tribunals pack holds a PAN in at least one title; check it for
     personal data before any use.
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
-  agents (2026-10-13); outside F121's scope, nothing changed yet.
+  agents (2026-10-13); outside F121's scope.
   - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
+  - G1 done `bed03ba` and G2 done `e0c3e8d` (2026-10-13): the Commodities
+    search, "$2.5B", whole-token sanctions issuers, one Ukraine leader row;
+    illustrative commodity levels, register-only leader profiles with outside
+    sites "for checking", office names not verified, no JSON launch link,
+    alliance fallbacks "Not stated". The desk catalogue's Heads of State count
+    is now 43 (`supabase/functions/_shared/deskCatalog.json`; reaches the Edge
+    Functions on their next deploy). G3 (map positions, dead code) waits for
+    the owner's approval of the deletions.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
     list names Trading Economics and CME, but the levels are illustrative pack
     values (`src/desks/CommoditiesDesk.jsx`; feed `links` in

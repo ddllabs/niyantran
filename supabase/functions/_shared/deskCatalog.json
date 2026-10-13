@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-21T07:17:59.674Z",
+  "generated_at": "2026-10-13T12:39:50.411Z",
   "entries": [
     {
       "tier": "global",
@@ -102,7 +102,7 @@
       "feature": "Heads of State",
       "bucket": "Global Resources",
       "pack": "geo_leaders",
-      "rows": 44,
+      "rows": 43,
       "note": null
     },
     {
