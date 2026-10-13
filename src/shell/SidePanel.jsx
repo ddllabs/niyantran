@@ -106,16 +106,27 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
   keyState.current = { aiActive, userExpanded, citationExpanded, railOpen };
   useEffect(() => {
     if (!aiActive && !userExpanded && !railOpen) return undefined;
+    // Whether a popup owns this Escape is read first (window, capture), before any popup's own
+    // listener closes it.
+    let ownerOpen = false;
+    function onKeyFirst(e) {
+      if (e.key === 'Escape') ownerOpen = escapeOwnerOpen(document, document.querySelector('aside.side-panel'));
+    }
     function onKey(e) {
       if (e.key !== 'Escape') return;
-      const modalOpen = Boolean(document.querySelector('dialog[open], [aria-modal="true"]'));
+      const modalOpen = ownerOpen || e.defaultPrevented;
+      ownerOpen = false;
       const step = escapeAction({ ...keyState.current, modalOpen });
       if (step === 'restore') setUserExpanded(false);
       else if (step === 'close-ai') dispatch({ type: 'close-ai', ctx: ctxRef.current });
       else if (step === 'collapse') dispatch({ type: 'collapse', ctx: ctxRef.current });
     }
+    window.addEventListener('keydown', onKeyFirst, true);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKeyFirst, true);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [aiActive, userExpanded, railOpen]);
 
   // The docked width (spec point 2): the reader's choice in px, or null for the default. The shell
@@ -165,15 +176,13 @@ export function escapeAction({ userExpanded, citationExpanded, aiActive, railOpe
 }
 
 /**
- * F135: what a row pick does. With the panel collapsed, picking the selected row again reopens its
- * record: a desk that deselects on a second click passes `toggled` (the row it was asked about), and
- * one that re-picks passes the same row. Anything else, including a clear with no row picked, sets
- * the selection as before.
+ * Popups that own Escape: native and modal dialogs, role="dialog" and role="menu" popovers (filters,
+ * columns, account, Live TV, the desk menu, the tour) and the monitors' live feeds. One open outside
+ * the panel takes Escape, so the panel does not collapse in the same keystroke.
  */
-export function pickIntent({ row, toggled, selected, collapsed }) {
-  if (!collapsed || !selected) return 'set';
-  if (row ? row === selected : toggled) return 'reopen';
-  return 'set';
+const ESCAPE_OWNERS = 'dialog[open], [aria-modal="true"], [role="dialog"], [role="menu"], .alw-live';
+export function escapeOwnerOpen(doc, aside) {
+  return [...(doc?.querySelectorAll?.(ESCAPE_OWNERS) ?? [])].some((el) => !aside?.contains?.(el));
 }
 
 /** F114: a page drag opens AI on a module page (rail, not a landing) unless AI is already open. */

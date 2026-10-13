@@ -104,6 +104,32 @@ export function panelReducer(state, action, ctx) {
   }
 }
 
+/* ─── Row picks (F135) ─────────────────────────────────────────────────────────────────────── */
+
+/**
+ * F135: what a row pick does. With the panel collapsed, picking the selected row again reopens its
+ * record: a desk that deselects on a second click passes `toggled` (the row it was asked about), and
+ * one that re-picks passes the same row. Anything else, including a clear with no row picked, sets
+ * the selection as before.
+ */
+export function pickIntent({ row, toggled, selected, collapsed }) {
+  if (!collapsed || !selected) return 'set';
+  if (row ? row === selected : toggled) return 'reopen';
+  return 'set';
+}
+
+/**
+ * The shell's row pick (F135): `state()` gives the current selection and panel. Picking the
+ * collapsed panel's row again reopens Record; anything else sets the selection.
+ */
+export function rowPicker(state, setSelected) {
+  return (row, { toggled } = {}) => {
+    const { selected, panel } = state();
+    if (pickIntent({ row, toggled, selected, collapsed: panel?.collapsed }) === 'reopen') panel.act({ type: 'reopen', tab: 'record' });
+    else setSelected(row);
+  };
+}
+
 /* ─── Docked width (owner decision 1: 50% by default, 400 px to 60%) ─────────────────────────── */
 
 export const PANEL_WIDTH_STORAGE_KEY = 'niyantranSidePanelWidth';

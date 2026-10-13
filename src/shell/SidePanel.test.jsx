@@ -2,8 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
-import SidePanel, { attachRailDismiss, dragOpensAi, escapeAction, panelDragProps, pickIntent, railDismissible } from './SidePanel.jsx';
-import { panelReducer } from './sidePanelModel.js';
+import SidePanel, { attachRailDismiss, dragOpensAi, escapeAction, escapeOwnerOpen, panelDragProps, railDismissible } from './SidePanel.jsx';
+import { panelReducer, pickIntent, rowPicker } from './sidePanelModel.js';
 
 const panel = (state, extra = {}) => ({
   state: { open: true, collapsed: false, mounted: ['desk'], active: 'desk', ...state }, act: () => {}, seed: null, consumeSeed: () => {},
@@ -260,5 +260,50 @@ describe('picking a row while the panel is collapsed', () => {
     expect(pickIntent({ row: null, selected: sel, collapsed: true })).toBe('set');
     expect(pickIntent({ row: { id: 2 }, selected: sel, collapsed: true })).toBe('set');
     expect(pickIntent({ row: sel, selected: null, collapsed: true })).toBe('set');
+  });
+});
+
+// Review (2026-10-13): Escape belongs to an open popup first. The filter popover, column chooser,
+// profile menu, Live TV, the desk menu, the tour and the monitors' live feeds close on Escape
+// themselves; the panel must not collapse in the same keystroke.
+describe('Escape with a popup open', () => {
+  const el = () => ({});
+  const docWith = (...els) => ({ querySelectorAll: () => els });
+  it('sees a popup outside the panel, and ignores one inside it', () => {
+    const inside = el();
+    const aside = { contains: (e) => e === inside };
+    expect(escapeOwnerOpen(docWith(el()), aside)).toBe(true);
+    expect(escapeOwnerOpen(docWith(inside), aside)).toBe(false);
+    expect(escapeOwnerOpen(docWith(), aside)).toBe(false);
+  });
+  it('asks for every kind of popup by role or mark', () => {
+    let asked = '';
+    escapeOwnerOpen({ querySelectorAll: (sel) => { asked = sel; return []; } }, null);
+    for (const part of ['dialog[open]', '[aria-modal="true"]', '[role="dialog"]', '[role="menu"]', '.alw-live']) expect(asked).toContain(part);
+  });
+});
+
+// Review (2026-10-13): the shell's row picker, where the reopen bug lived.
+describe('the row picker', () => {
+  const row = { id: 1 };
+  const setup = (collapsed, selected = row) => {
+    const calls = { set: [], act: [] };
+    const pick = rowPicker(() => ({ selected, panel: { collapsed, act: (a) => calls.act.push(a) } }), (r) => calls.set.push(r));
+    return { pick, calls };
+  };
+  it('reopens Record, without changing the selection, when the collapsed panel\'s row is picked again', () => {
+    const { pick, calls } = setup(true);
+    pick(null, { toggled: row });
+    pick(row);
+    expect(calls.act).toEqual([{ type: 'reopen', tab: 'record' }, { type: 'reopen', tab: 'record' }]);
+    expect(calls.set).toEqual([]);
+  });
+  it('sets the selection otherwise', () => {
+    const { pick, calls } = setup(false);
+    pick(null, { toggled: row });
+    const other = { id: 2 };
+    pick(other);
+    expect(calls.set).toEqual([null, other]);
+    expect(calls.act).toEqual([]);
   });
 });

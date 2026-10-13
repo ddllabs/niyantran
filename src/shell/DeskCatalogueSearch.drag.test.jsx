@@ -25,7 +25,7 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 const React = await import('react');
-const { default: DeskCatalogueSearch, createSearchDrag, SEARCH_DRAGGING } = await import('./DeskCatalogueSearch.jsx');
+const { default: DeskCatalogueSearch, createSearchDrag, openSearch, SEARCH_DRAGGING } = await import('./DeskCatalogueSearch.jsx');
 
 const draggableTarget = { closest: (selector) => (selector === '[draggable="true"]' ? {} : null) };
 const textTarget = { closest: () => null };
@@ -139,5 +139,26 @@ describe('DeskCatalogueSearch dialog wiring', () => {
     expect(setters[0]).not.toHaveBeenCalled(); // still open: the dragged element stays mounted
     dialog.props.onDragEndCapture({});
     expect(setters[0]).toHaveBeenCalledWith(false);
+  });
+});
+
+// Review (2026-10-13): if a drag's end never arrives, the search is left mounted but invisible. The
+// next ⌘K or click on the trigger resets it and opens it again, instead of doing nothing.
+describe('opening the search after a drag that never ended', () => {
+  const dialogWith = (dragging) => ({ classList: { contains: (c) => dragging && c === SEARCH_DRAGGING } });
+  it('resets the stuck search, then opens it on the next tick', () => {
+    const calls = [];
+    const drag = { dispose: () => calls.push('dispose') };
+    let later;
+    openSearch({ dialog: dialogWith(true), drag, setOpen: (v) => calls.push(v), schedule: (fn) => { later = fn; } });
+    expect(calls).toEqual(['dispose', false]);
+    later();
+    expect(calls).toEqual(['dispose', false, true]);
+  });
+  it('just opens it otherwise', () => {
+    const calls = [];
+    openSearch({ dialog: dialogWith(false), drag: { dispose: () => calls.push('dispose') }, setOpen: (v) => calls.push(v), schedule: () => calls.push('scheduled') });
+    openSearch({ dialog: null, drag: null, setOpen: (v) => calls.push(v) });
+    expect(calls).toEqual([true, true]);
   });
 });

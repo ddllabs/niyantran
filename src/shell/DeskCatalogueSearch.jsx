@@ -57,6 +57,20 @@ export function createSearchDrag({ getDialog, onEnd, openAi = openAiResearch, sc
   };
 }
 
+/**
+ * Opens the search. A search left mounted but invisible by a drag whose end never arrived is reset
+ * first (closed, then opened on the next tick), so ⌘K and the trigger always work.
+ */
+export function openSearch({ dialog, drag, setOpen, schedule = fn => setTimeout(fn, 0) }) {
+  if (dialog?.classList?.contains(SEARCH_DRAGGING)) {
+    drag?.dispose();
+    setOpen(false);
+    schedule(() => setOpen(true));
+    return;
+  }
+  setOpen(true);
+}
+
 export function CatalogueResults({ results, selected, lockedIds, listId, onSelect, onHighlight }) {
   return <div id={listId} role="listbox" aria-label="Module catalogue" className="catalogue-results">
     {results.length ? results.map((entry, index) => <button type="button" role="option" aria-selected={selected === index}
@@ -100,7 +114,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !event.altKey) {
         // Do not stack a search modal above another unrelated native dialog.
         if (document.querySelector('dialog[open]') && !dialog.current?.open) return;
-        event.preventDefault(); setMode('catalogue'); setOpen(true);
+        event.preventDefault(); setMode('catalogue'); openSearch({ dialog: dialog.current, drag: drag.current, setOpen });
       }
     };
     document.addEventListener('keydown', shortcut);
@@ -143,7 +157,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
     if (event.key === 'Enter' && results[active]) { event.preventDefault(); choose(results[active]); }
   };
   return <div className="desk-catalogue-search" data-catalogue-desks={tabs?.length || 0}>
-    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); setOpen(true); }}>
+    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); openSearch({ dialog: dialog.current, drag: drag.current, setOpen }); }}>
       <Search size={16} aria-hidden="true" /><span className="catalogue-label-long">{hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'}</span><span className="catalogue-label-short" aria-hidden="true">{hi ? 'टर्मिनल में खोजें' : 'Search the terminal'}</span><kbd>⌘ K</kbd>
     </button>
     {open && <dialog ref={dialog} className="catalogue-dialog" aria-labelledby={titleId} onDragStartCapture={event => drag.current.start(event)} onDragEndCapture={() => drag.current.end()} onCancel={event => { event.preventDefault(); setOpen(false); }} onClick={event => {
