@@ -25,6 +25,16 @@ it('lists the processors the product actually sends personal data to', () => {
   expect(body).not.toMatch(/we collect (your )?IP address/i);
 });
 
+// F130: web search sends a query to a search provider, so the policy names it and what it receives.
+it('names OpenRouter and Exa for web search, what they receive, and that it may leave India', () => {
+  const body = text(DEFAULT_PRIVACY);
+  expect(body).toMatch(/OpenRouter[^\n]*web search[^\n]*Exa/);
+  expect(body).toMatch(/Exa[^\n]*search query/);
+  expect(body).toMatch(/not your name, email address or account/);
+  expect(body).toMatch(/including AI model providers, web search and hosting/);
+  expect(DEFAULT_PRIVACY.lastUpdated).toBe('13 October 2026');
+});
+
 it('states the owner plans, monthly billing, no GST and Kolkata courts in the terms', () => {
   const body = text(DEFAULT_TERMS);
   for (const price of ['₹399', '₹999', '₹9,999']) expect(body).toContain(price);

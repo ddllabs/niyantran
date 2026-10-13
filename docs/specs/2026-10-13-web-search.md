@@ -446,10 +446,14 @@ Each change has a test that fails without it.
   row chip with no text, and a selection without a feature name. The server
   decides, and the globe shows its `web` decision for the turn.
 
-**Open for launch** (tracked in `docs/plans/open-work.md` under F130):
-- There is no per-user search cap. Any signed-in user can turn the globe on
-  for every turn, so a daily cap belongs with credits (F111).
-- The privacy policy should name the search provider (open question 1).
+**Privacy policy, 2026-10-13:** done. It names OpenRouter's web search, run
+by Exa, says Exa receives the search query and not the reader's identity,
+and lists web search among the providers that may process data outside India.
+
+**Owner decision, 2026-10-13: no per-user search cap.** The security pass
+noted that any signed-in user can turn the globe on for every turn. The
+owner decided no cap is needed. The per-turn limit of three searches stays,
+and every search is recorded with its cost for F111.
 
 ## Open questions
 
