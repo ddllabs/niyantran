@@ -354,6 +354,47 @@ mutation where a test cannot fail first), plus the local browser run.
 | Cost | About $0.007 per search plus one extra answer call on a searching turn; recorded per call; at most 3 searches |
 | The globe predicts differently from the server | The server's `web` frame is authoritative, and the globe follows it for the turn |
 
+## Amendment 1 (2026-10-13, during the build)
+
+Found while building and verifying phases 1–3. Behaviour changes are tested;
+the rest are recorded facts.
+
+1. **Saving web sources.** `finalize_research_turn` writes an explicit column
+   list, so the migration replaces it, unchanged except that it validates and
+   writes `web_sources` (missing means `[]`). Its snapshots already return the
+   whole row. Tested in `supabase/tests/web_search.sql`; the Down block
+   restores the original function.
+2. **The globe override is written with the reader's own client**, not the
+   service role. Readers already hold UPDATE on their own conversations
+   (`conversations_update`, migration 0002), so row-level security confines
+   it to their conversation and no new grant is needed (§5).
+3. **The link check scans code too** (`checkLinks(…, { scanCode: true })`).
+   `AiMarkdown` renders links inside code spans and has no fenced-code
+   handling, so skipping code would let an injected link through unchecked.
+   It runs on every answer. Allowed links are the pages searched this turn and
+   any http(s) URL already in the turn's evidence.
+4. **Two search counts.** `model_call_logs.web_search_count` is what the
+   provider reported. The agent's budget also counts a call that returned
+   pages without a count as one search, so the three-search limit can never
+   be exceeded. They can differ only when the provider omits its count.
+5. **Prompt cache on Anthropic.** The server tool joins the tool list on
+   research calls and is withdrawn on the answer call and once spent, so on
+   Claude models a searching turn does not reuse the prompt cache across that
+   change. It is unavoidable (the tool cannot go on the answer call) and
+   affects only Claude turns that search.
+6. **Gated failover.** The system prompt is built once with the web block when
+   web search is offered. If the turn fails over to a model that may not
+   search, the tool is withdrawn but the block stays; the model simply has no
+   tool to call. The `web` frame reports the decision made with the chosen
+   model.
+7. **The live answer is corrected, not pre-filtered.** Answer text streams as
+   it is written; the saved, link-checked answer replaces it through the
+   existing final `patch` frame, so a removed link disappears from the
+   reader's view when the turn finishes.
+8. **Research flow label.** `ResearchFlow.jsx` (outside T4a's scope) labelled
+   any non-document tool "Desk lookup · N rows"; it now reads "Searched the
+   web · N pages" for a web step.
+
 ## Open questions
 
 1. Should the privacy policy (F107) name the web search provider (OpenRouter
