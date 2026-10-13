@@ -143,6 +143,13 @@ describe('counter animation lifecycle', () => {
     h.cleanup();
   });
 
+  it('never shows "-0" when the first frame is stamped before the run started', () => {
+    const h = harness();
+    h.render('a'); h.tick(-5);
+    expect(h.node.textContent).toBe('0');
+    h.cleanup();
+  });
+
   it('does not paint over a value React cleared before the next run starts', () => {
     const h = harness();
     h.render('a'); h.tick(500);

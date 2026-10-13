@@ -76,7 +76,7 @@ export default function useDeskLandingMotion(countKey) {
     const start = performance.now();
     let frame;
     const tick = now => {
-      const progress = Math.min((now - start) / 1000, 1);
+      const progress = Math.min(Math.max((now - start) / 1000, 0), 1);
       const eased = 1 - (1 - progress) ** 3;
       plan.forEach(({ node, from, to }) => {
         if (target(node) == null) return;
