@@ -66,3 +66,39 @@ npm test
 npx vitest run src/shell/record
 npm run build
 ```
+
+## Outcome (2026-10-13)
+
+| Commit | Content |
+|---|---|
+| `3da8bc0` | N1: `packs.js` loads the analysis pack and the ontology into `ctx.packs`; registered modules take the panel before `NationalRecord` |
+| `0aa72b6` | N2: Bills adapter; the contract reads a record's own title as source text (official titles carry a bracketed purpose) |
+| `6a30711` | N5 Pipeline |
+| `823789a` | N3 Questions, N4 Regulatory, N6 Cabinet, N7 MP Profiles; `companiesNamedIn` (shared); desk-scoped registry |
+| `1248188` | N4 fix: RBI's zoneless pubDate read as the day written |
+| `adba9f8` | N8 Affidavits |
+| `fe5732f` | N9 Morning Brief; brief items keep their section |
+
+- **Agents.** Seven Sonnet task agents in worktrees, with at most four at once; each showed that its
+  guards fail when their defect is restored.
+- **Supervisor review findings fixed:**
+  - **Named companies.** The shared company matcher took ordinary words as company names ("oil
+    companies" → Oil India, "self reliance" → Reliance). `companiesNamedIn` now counts only a
+    multi-word name or an upper-case abbreviation. Bills and Questions use it; a test fails with the
+    old matcher.
+  - **Live RBI dates.** RBI's live feed writes times without a zone, so live notices were undated.
+  - **Cabinet Decisions on the State desk.** That module has the same name, so the National entry is
+    scoped by tier.
+- **No AI calls.** Selecting a National record makes no model call; `/api/ai/source-extract` was not
+  requested in the browser. The saved-brief card only reads the cache.
+- **Verification:**
+  - `npm run lint` 0; `npm test` 3,345 tests in 222 files; `npm run build` passes, with the main
+    chunk 46 kB larger.
+  - Browser, all eight modules on live data:
+    - the panel opens;
+    - related links work where the data holds a relation;
+    - no sideways scroll at 375px.
+- **Not related, by design:** Affidavits link no other candidates, because the three shared
+  constituency names are different seats in different states. Live Cabinet and Pipeline items hold
+  no ministry, so they have no related links.
+

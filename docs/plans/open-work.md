@@ -197,7 +197,9 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - Owner decisions 2026-10-13: saved AI briefs only (no model call on
     selection); one batch; the Cabinet filter and the MP house fix as separate
     tasks (F125, F126).
-  - Status: N1 (kit) in progress on `task/national-record-panels`.
+  - Status: all eight panels built on `task/national-record-panels`
+    (N1–N9); an independent review is under way, then the local merge and
+    the owner's go-ahead to push.
   - Backend gaps the reference points to (not in F124's scope):
     - Cabinet Decisions serves the unfiltered PIB feed;
     - the MP register has no house column, mixes Lok Sabha and Rajya Sabha
