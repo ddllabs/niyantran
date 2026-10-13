@@ -60,6 +60,8 @@ export function scOrderRows(raw) {
         order_date: r.order_date || r.date || '',
         topic: r.topic || 'Other / Unclassified',
         court: r.court || 'Supreme Court',
+        // F128: the table's snapshot time, so the record panel's "as of" is not the order date.
+        as_of: r.as_of || '',
         source_url: pdf,
         pdf_url: pdf,
         pdf_note: sciPdf
@@ -103,6 +105,9 @@ function ibbiOne(r) {
     remarks: r.type || '',
     applicant: r.applicant || '',
     insolvency_professional: r.insolvency_professional || '',
+    // F128: the announcement's stated last date for claims, kept as written for the record panel.
+    process_type: r.type || '',
+    last_submission_date: r.last_submission_date || '',
     court: 'IBBI',
     source_url: r.source_url || '',
   };

@@ -6,6 +6,8 @@ import { applyParliamentaryQuestionShapingToFeed } from './shapeQuestions.js';
 import { applyCitationGuardToFeed } from './citationGuard.js';
 import { applyOpenTenderFilterToFeed } from './shapeTenders.js';
 import { preferEnglishRows, shapeCabinetEnglishRows } from './textStyle.js';
+import { isMpCardsFeature } from './national.js';
+import { shapeMpRows } from './parliament.js';
 
 /** Run client-side cleanup passes on a feature-feed body before paint. */
 export function prepareDeskFeed(feed) {
@@ -22,6 +24,8 @@ export function prepareDeskFeed(feed) {
       }),
     };
   }
+  // F126: the MP register's house (from each member's Sansad link) and unified party names.
+  if (isMpCardsFeature(next.feature) && Array.isArray(next.rows)) next = { ...next, rows: shapeMpRows(next.rows) };
   if (next?.meta) {
     const scrub = (s) =>
       String(s || '')

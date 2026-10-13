@@ -103,7 +103,8 @@ export function shapeCabinetEnglishRows(rows) {
         ...r,
         topic,
         title: topic,
-        ministry: toTitleCase(r.ministry || r.source || r.department || 'Press Information Bureau'),
+        // The issuing body as the source names it (F125): title-casing turned "(CCEA)" into "(Ccea)".
+        ministry: String(r.ministry || '').trim() || toTitleCase(r.source || r.department || 'Press Information Bureau'),
       };
     })
     .filter((r) => r?.status === 'source_status' || !looksHindi(`${r.topic || ''} ${r.title || ''}`));

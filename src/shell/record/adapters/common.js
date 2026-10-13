@@ -14,6 +14,11 @@ export function dateLabel(value) {
   return `${String(ist.getUTCDate()).padStart(2, '0')} ${MONTHS[ist.getUTCMonth()]} ${ist.getUTCFullYear()}`;
 }
 
+/** Today's date in India (YYYY-MM-DD), for marking a stated deadline as passed; UTC would be a day behind before 05:30 IST. */
+export function todayInIndia(now = new Date()) {
+  return new Date(now.getTime() + 330 * 60000).toISOString().slice(0, 10);
+}
+
 export const cap = (s) => {
   const text = String(s ?? '').trim();
   return text ? text[0].toUpperCase() + text.slice(1) : '';
@@ -29,3 +34,32 @@ export const presentRows = (pairs) => pairs.filter(([, v]) => String(v ?? '').tr
 
 /** The provenance flag a register row carries ("unconfirmed"), as footer text. */
 export const provenanceFlags = (row) => (String(row?.provenance || '').toLowerCase() === 'unconfirmed' ? ['provenance unconfirmed'] : []);
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Whether the text names a company (F124): by a multi-word name or alias (any case, so an
+ * all-capitals bill title still matches), or an upper-case abbreviation ("ONGC", "SAIL") standing as
+ * a whole token. A single ordinary word ("Oil", "Reliance") is not a mention, though the ontology
+ * lists it as an alias; and in text written in capitals every word looks like an abbreviation, so
+ * abbreviations are not read from it.
+ */
+function namesCompany(company, text) {
+  const t = String(text || '');
+  const shouting = /[A-Z]/.test(t) && !/[a-z]/.test(t);
+  return [company.name, company.legalName, ...(company.aliases || [])].filter(Boolean).some((alias) => {
+    const a = String(alias).trim();
+    const multiWord = /\s/.test(a);
+    if (!multiWord && (shouting || !/^[A-Z0-9&]{3,}$/.test(a))) return false;
+    return new RegExp(`(^|[^A-Za-z0-9])${escapeRe(a)}($|[^A-Za-z0-9])`, multiWord ? 'i' : '').test(t);
+  });
+}
+
+/** The companies of an impact model (buildRecordModel) that the record's own text names; never sector-level (P2). */
+export function companiesNamedIn(impact, ontology, text) {
+  const registered = new Map((ontology?.companies || []).map((c) => [`company:${c.id}`, c]));
+  return (impact?.companies || [])
+    .filter((c) => c.path !== 'P2' && registered.has(c.id) && namesCompany(registered.get(c.id), text))
+    .map((c) => c.name)
+    .filter(Boolean);
+}
