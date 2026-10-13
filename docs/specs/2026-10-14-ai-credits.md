@@ -331,6 +331,9 @@ the payment.
   - research-chat stops writing any cost into `chat_messages.usage`. That
     covers the top-level `cost_usd` and `web_search_cost_usd`, and the
     `observed` block's `cost_usd` and `cost_usd_from`.
+  - A BEFORE INSERT OR UPDATE trigger on `chat_messages` strips the same keys
+    from any new write, so dollars cannot return before (or regardless of)
+    the research-chat change (review 1R, M3).
   - The migration strips those keys from existing rows. A fixture checks, as
     `authenticated`, that no row matches
     `jsonb_path_exists(usage, 'strict $.**.cost_usd')`.
@@ -412,7 +415,10 @@ a spec amendment. Amounts are `numeric(14,4)` credits.
 - RLS is on, with no user policies.
 - All privileges, including column grants, are revoked from `PUBLIC`, `anon`
   and `authenticated`.
-- `service_role` gets SELECT and INSERT, and gets UPDATE only where noted.
+- `service_role` gets SELECT only (review 1R, M6). Every write goes through
+  the SECURITY DEFINER functions, which keep the invariants under the wallet
+  lock. The "UPDATE allowed" notes below describe what those functions do,
+  not grants.
 - Every `user_id` references `auth.users ON DELETE CASCADE`. Deleting an
   account therefore deletes its credit history, which fits "unused credits
   lapse on closure" and erasure requests (settled question 8).
