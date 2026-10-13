@@ -1,13 +1,19 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import MarketingSite from './marketing/MarketingSite.jsx';
 import { isLegalPathname } from './marketing/legalRoutes.js';
-import TerminalShell from './shell/TerminalShell.jsx';
-import AdminApp from './admin/AdminApp.jsx';
+import './shell/terminalStyles.js';
 import { startSiteHead } from './lib/siteHead.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
-import PersonaChooser from './shell/PersonaChooser.jsx';
 import { publishVerifiedSessionUser, sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
+import { loadTerminal } from './lib/loadTerminal.js';
 import './shell/onboarding.css';
+
+// F145: the terminal, admin and persona chooser load on demand, so a signed-out visitor does not
+// download them. Their stylesheets stay in the entry (terminalStyles.js), so the cascade is unchanged.
+const TerminalShell = lazy(loadTerminal);
+const AdminApp = lazy(() => import('./admin/AdminApp.jsx'));
+const PersonaChooser = lazy(() => import('./shell/PersonaChooser.jsx'));
+const loading = <div className="app-loading" aria-busy="true" />;
 
 function pathKey() {
   return location.pathname.replace(/\/+$/, '') || '/';
@@ -109,7 +115,7 @@ export default function App() {
     };
   }, []);
 
-  if (admin) return <AdminApp />;
+  if (admin) return <Suspense fallback={loading}><AdminApp /></Suspense>;
 
   // A-10: pricing / login / signup hash must still resolve when already signed in.
   if (legal || !authed || !isSignedIn() || mktOverlay) {
@@ -131,12 +137,14 @@ export default function App() {
 
   if (choosingPersona) {
     return (
-      <PersonaChooser
-        onDone={() => {
-          setChoosingPersona(false);
-          setPersonaReady(ensurePersonaFromSession());
-        }}
-      />
+      <Suspense fallback={loading}>
+        <PersonaChooser
+          onDone={() => {
+            setChoosingPersona(false);
+            setPersonaReady(ensurePersonaFromSession());
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -144,11 +152,13 @@ export default function App() {
   if (!personaReady) ensurePersonaFromSession();
 
   return (
-    <TerminalShell
-      onLogout={() => {
-        setAuthed(false);
-        setPersonaReady(false);
-      }}
-    />
+    <Suspense fallback={loading}>
+      <TerminalShell
+        onLogout={() => {
+          setAuthed(false);
+          setPersonaReady(false);
+        }}
+      />
+    </Suspense>
   );
 }
