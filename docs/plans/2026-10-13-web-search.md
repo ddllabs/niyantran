@@ -93,6 +93,9 @@ In total there are seven sub-agent runs plus the supervisor.
   - one answer-phase response from probe 2.
 
   The fixtures contain no key and no auth header.
+- **Amended at Checkpoint 1:** probe 1 kept parsed fields, not raw SSE bytes,
+  so the fixtures are parsed responses. Probe 2 saved only summaries, so there
+  is no answer-phase fixture; T2 and T5 use synthetic answers.
 - **Verify:** `grep` finds no `Bearer`, `sk-or` or `Authorization`; the JSON parses.
 - **Files:** that folder only. Size S.
 
@@ -106,8 +109,12 @@ In total there are seven sub-agent runs plus the supervisor.
     - the `web_search` step type;
   - its down steps are in the header;
   - the fixture proves that the owner reads the new columns and another user
-    cannot, that an `authenticated` role cannot write
-    `conversations.web_search`, and that an unknown step type is rejected;
+    cannot, that a reader cannot write `web_sources` or the telemetry, and
+    that an unknown step type is rejected. **Amended at Checkpoint 1:**
+    signed-in users already hold UPDATE on their own conversations
+    (`conversations_update`, migration 0002), so the owner may set their own
+    `web_search` (it is their preference); the fixture proves they cannot set
+    another user's;
   - it runs as a non-superuser, and the vacuity check fails without the
     migration.
 - **Verify:** `npm run test:sql` (needs Docker, run outside the sandbox).
