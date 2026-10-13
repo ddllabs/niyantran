@@ -424,6 +424,12 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     - There are 3 tests, and each guard was proved by mutation: removing the
       call, lowering the threshold to one, and dropping the line-break
       comparison.
+  - **Status, 2026-10-13: shipped.** `research-chat` v53 is deployed (fix
+    `54b98e6`) and `origin/main` is pushed (see coordination Operations).
+    - Checks on Node 24.21.0: 3,688 Vitest and 1,015 Deno tests, lint, the
+      build and the router check.
+    - Nothing remains unless the double escaping shows up on production:
+      search `chat_messages` for literal `\n` now and then.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

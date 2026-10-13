@@ -1800,3 +1800,22 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - `model_call_logs` by minute;
     - a 14-day `chat_messages` check for literal `\n` (none in 11 answers;
       F132).
+- **Gemini double-escaped newlines: safety net (F132)**, owner: "Deploy
+  research-chat and push main to origin":
+  - **Measured first**, at the owner's request:
+    - production, read-only: 0 of 12 saved answers;
+    - a 20-call answer-phase probe on Gemini 3.8 Flash: 0 of 20, for $0.13.
+      Web search spend is now $0.70 of $1.00.
+  - **research-chat v53:** deployed from `task/f132-json-newlines` at
+    `4525ec9`, which is `origin/main` `38fbc4b` plus the fix. It is ACTIVE
+    with `verify_jwt` false.
+    - The served source carries `undoDoubleEscapes`.
+    - An unauthenticated POST returns 401 and the CORS preflight returns 204.
+    - Rollback: redeploy `research-chat` from `38fbc4b` (= v52).
+  - **Checks on Node 24.21.0:** 3,688 Vitest and 1,015 Deno tests, lint 0,
+    the build, and the router import check.
+    - The owner installed Node 24 with Homebrew the same day. It is now the
+      default `node`, which matches `.nvmrc`, CI and Vercel.
+  - **Push:** a fast-forward of `origin/main` from `task/f132-json-newlines`.
+    The branch and its worktree are then removed, leaving `main` as the only
+    branch.
