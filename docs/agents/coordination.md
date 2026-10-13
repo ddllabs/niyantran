@@ -1819,3 +1819,17 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Push:** a fast-forward of `origin/main` from `task/f132-json-newlines`.
     The branch and its worktree are then removed, leaving `main` as the only
     branch.
+- **Live site figures (F142), owner: "migration approved, keep bill IDs":**
+  - **Migration 46** `20261014120000_site_figures` (file SHA-256 `b740b4c6…`, commit `fa7956e`):
+    - **Before** (read-only): last migration `20261013140000`; no `site_figures`. Direct counts:
+      bills 9,817 (the graph desk's duplicate 9,817 not counted), indexed documents 3,376 of
+      3,379 (the site showed a stale 3,431), ministries 56 (of 8,000 question rows), fronts 88.
+    - Applied through the MCP tool after `npm run test:sql` passed locally (fixture, vacuity,
+      seven mutations). The stamped version (`20261013201758`) was pinned to the file name.
+    - **Verified live:** `site_figures()` returns exactly the direct counts; SECURITY DEFINER,
+      STABLE, `search_path=""`, owner `postgres`, ACL `postgres` and `service_role` only (`anon`
+      and `authenticated` cannot execute); 123 ms per call. Security advisor: no new finding.
+    - Rollback: `drop function public.site_figures();` and delete its `schema_migrations` row.
+  - **Endpoint:** `/api/site-figures` on `task/live-figures` answered `source: live` with those
+    counts through the local dev server (secret-key client). Production serves it after the push.
+

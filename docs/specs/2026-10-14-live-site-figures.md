@@ -41,8 +41,10 @@ RPC returns corpus counts to the server except `admin_desk_records` (service rol
    only, never row data). Execute is granted to `service_role` only, not `anon`. New migration; applied
    to NTER only with the owner's approval.
 2. **One public endpoint**, `GET /api/site-figures` (`server/siteFiguresApi.mjs`, routed in
-   `api/router.js` and the Vite dev middleware): calls the function with the secret-key client and
-   adds the code-derived `modules` and `endpoints`.
+   `api/router.js` and the Vite dev middleware): calls the function with the secret-key client.
+   `modules` and `endpoints` stay in the client bundle, counted from the code (as built).
+   - A database call over 5 seconds is abandoned; a failure is remembered for a minute; a deployment
+     without the secret key (a preview) serves the fallback (review, 2026-10-14).
    - Cached in memory for 15 minutes per server instance, and `Cache-Control: public, s-maxage=900,
      stale-while-revalidate=3600` so Vercel's edge serves most visits (overriding the router's default
      `no-store` for this path only).

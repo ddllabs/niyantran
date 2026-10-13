@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSiteFigures } from './siteFiguresApi.mjs';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
 import { serveNterLatest } from './nterNews.mjs';
 import { writablePath } from './writableRoot.mjs';
@@ -747,8 +748,25 @@ function metric(label, value) {
   return value == null ? null : { label, value: typeof value === 'number' ? value.toLocaleString('en-US') : value };
 }
 
-export async function serveHomeSegments() {
-  const counts = segmentCounts();
+/**
+ * F142: bills, ministries and fronts from the live database counts (/api/site-figures), so the
+ * carousel matches the hero; the snapshot computation stands when those are only the fallback.
+ */
+async function liveSegmentCounts(figures) {
+  const counts = { ...segmentCounts() };
+  try {
+    const live = await figures();
+    if (live && live.source !== 'fallback') {
+      for (const k of ['bills', 'ministries', 'fronts']) if (Number.isInteger(live[k])) counts[k] = live[k];
+    }
+  } catch {
+    /* the snapshot figures stand */
+  }
+  return counts;
+}
+
+export async function serveHomeSegments({ figures = readSiteFigures } = {}) {
+  const counts = await liveSegmentCounts(figures);
   const headline = (value, label) => (value == null ? {} : { liveCount: value, liveCountLabel: label });
   // Constants are true facts; everything else is computed above. No figure is hand-written.
   return {

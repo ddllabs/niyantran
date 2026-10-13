@@ -26,6 +26,7 @@ import { isExtractableSourceUrl, isHubListingUrl } from '../src/lib/sourceUrls.j
 import { authorizeLocalUser, handleUsersApi } from '../server/usersApi.mjs';
 import { handleLiveTvApi } from '../server/liveTvApi.mjs';
 import { handleMarketingMediaApi } from '../server/marketingMediaApi.mjs';
+import { handleSiteFiguresApi } from '../server/siteFiguresApi.mjs';
 import { handleAnalyticsApi } from '../server/analyticsApi.mjs';
 import { handleUserPrefsApi } from '../server/userPrefsApi.mjs';
 import { handleBillingApi } from '../server/billingApi.mjs';
@@ -281,6 +282,15 @@ export default async function handler(req, res) {
     // /api/auth/* is not served in production (2026-09-28): the app signs in
     // through Supabase Auth directly, and a server-side password proxy would
     // pool every attempt behind this deployment's addresses.
+
+    // F142: the marketing site's live counts. Public; sets its own Cache-Control over the no-store above.
+    if (path === '/api/site-figures') {
+      req.url = path;
+      await handleSiteFiguresApi(req, res, () => {
+        res.status(404).json({ ok: false, error: `No route for ${path}` });
+      });
+      return;
+    }
 
     if (path.startsWith('/api/marketing/intro-video')) {
       const qStr = q(req).toString();

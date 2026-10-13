@@ -49,10 +49,13 @@ import { DESKS, deskForFeature } from './impactRecord.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// F142: tests never reach the database; without live counts the carousel keeps its snapshot figures.
+const noLiveFigures = async () => { throw new Error('no database in tests'); };
+
 describe('CR-06 — End-to-End API Verification Suite', () => {
   describe('CR-06.1 & CR-06.2: Endpoint Inventory & Data Correctness', () => {
     it('verifies /api/home/segments contract and data correctness', async () => {
-      const res = await serveHomeSegments();
+      const res = await serveHomeSegments({ figures: noLiveFigures });
       expect(res.ok).toBe(true);
       expect(typeof res.timestamp).toBe('string');
       expect(Array.isArray(res.segments)).toBe(true);

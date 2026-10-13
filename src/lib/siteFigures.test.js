@@ -13,8 +13,10 @@ it('uses measured counts: bills and documents from the live query, modules from 
 it('leaves no hand-typed bill, endpoint or uptime figures on the homepage and pricing page', () => {
   for (const file of ['HomePage.jsx', 'PricingPage.jsx']) {
     const source = readFileSync(new URL(`../marketing/${file}`, import.meta.url), 'utf8');
-    for (const stale of ['9,819', '4,576', '211+', '99.9%', 'UPTIME', 'Live API Endpoints']) expect(source, `${file}: ${stale}`).not.toContain(stale);
-    expect(source, file).toContain('SITE_FIGURES');
+    for (const stale of ['9,819', '4,576', '211+', '99.9%', 'UPTIME', 'Live API Endpoints', "'48'", '200+', 'Authoritative Sources']) expect(source, `${file}: ${stale}`).not.toContain(stale);
+    // F142: the figures come through the live hook (measured first, then the database counts).
+    expect(source, file).toContain('useSiteFigures()');
+    expect(source, file).not.toMatch(/SITE_FIGURES\./);
   }
 });
 
