@@ -349,8 +349,9 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - The privacy policy names OpenRouter's web search, run by Exa, and what
     it receives (updated 13 October 2026; the F107 lawyer review still
     applies).
-  - **Follow-ups:**
-    - the two rare client prediction mismatches in spec amendment 2.
+  - The globe's prediction now counts exactly the records the next send
+    carries (`webPredictionRecords`), so it agrees with the server in the two
+    cases spec amendment 2 listed. No follow-ups remain.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
