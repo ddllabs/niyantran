@@ -31,10 +31,12 @@ The reader is an analyst checking a claim. Success is three things:
    on record" where its absence matters (e.g. procurement value).
 3. The "✦ Niyantran analysis" block (a fixed sentence for Open Fronts, empty for most
    other Global rows) is replaced by the panel. A cached entry brief, when one exists,
-   appears as a card in 02 · About, labelled as a generated brief. **Not yet built**
-   (review of batch 3, 2026-10-13): no panel shows the cached brief. The retired dossier
-   views did, through `useEntryBrief`. It is open as F123, because fetching briefs
-   touches the AI-credit work (F111).
+   appears as a card in 02 · About, labelled as a generated brief. Built 2026-10-13 (F123,
+   interim; owner: "keep it there" until AI credits). The "✦ Niyantran analysis" card in
+   every panel shows a brief saved earlier from AI Research, or says that none is saved.
+   It only reads the cache, never generates a brief, and never shows template text as AI.
+   The template "AI analyst brief" sentences of the retired dossier views are not
+   restored.
 4. Non-Global desks and the AI source reader keep the existing `RecordDetail`
    unchanged.
 5. Maritime Choke-Points and Energy are not in the reference and stay as they are.
