@@ -13,7 +13,7 @@ export const SITE_FIGURES = {
   endpoints: 246,
 };
 
-/** Unique source endpoint URLs across a registry's pipe-separated `sourceUrls` lists. */
+/** Unique source endpoint URLs across a registry's `sourceUrls` lists (newline- or pipe-separated). */
 export function registryEndpointCount(registry) {
   const urls = new Set();
   for (const entry of registry || []) {

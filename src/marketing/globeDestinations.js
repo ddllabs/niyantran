@@ -26,3 +26,13 @@ export function openGlobeDestination(key, { storage, signedIn, onLogin, navigate
   else storage.removeItem('niyantranFeature');
   onLogin?.();
 }
+
+/**
+ * Where a new account lands: a desk requested before sign-up (a globe label, the coverage carousel)
+ * wins over the persona's start desk, as LoginPage already does for sign-in.
+ */
+export function landAfterSignUp(storage, startTab) {
+  if (storage.getItem('niyantranLand')) return;
+  storage.setItem('niyantranLand', startTab);
+  storage.removeItem('niyantranFeature');
+}

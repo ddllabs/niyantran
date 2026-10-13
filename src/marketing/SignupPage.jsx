@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { landAfterSignUp } from './globeDestinations.js';
 import { PERSONAS, applyPersonaForUser } from '../lib/personas.js';
 import {
   PENDING_PERSONA_KEY,
@@ -85,7 +86,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
     const seat = { ...user, type, personaId: type };
     applyPersonaForUser(seat);
     setSessionUser(seat);
-    sessionStorage.setItem('niyantranLand', userTypeOf(type).startTab);
+    landAfterSignUp(sessionStorage, userTypeOf(type).startTab);
     // Preserve the server's subscription facts; desk access is free.
     refreshEntitlement().catch(() => {});
     const ent = entitlementOf(seat);

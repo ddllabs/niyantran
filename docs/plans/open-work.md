@@ -440,8 +440,13 @@ rechecked. Nothing in this check wrote to production.
   first); figures 9,817 bills, 120 modules and 246 source endpoints (counted from the source registry);
   the six personas in a strip. Measured against the design: identical positions at 1440 px apart from
   the shorter header. On `task/home-hero`; [spec](../specs/2026-10-14-home-hero-redesign.md).
-  Remaining: review, merge, push, owner and client check. Found on the way (not this change): the
-  homepage scrolls sideways at 375 px because of the walkthrough and trivia sections.
+  Reviewed (fixes: a new account now keeps a destination chosen before sign-up, as sign-in already
+  did; the signed-in label path uses the hash, as Pricing). Owner kept "246 · Source endpoints" (of
+  the 246, 189 are per-module search URLs on GDELT and Google News; 31 distinct hosts). Remaining:
+  push, owner and client check. Not done, low priority: "Data coverage" from another page scrolls
+  after an 80 ms timer; inherited from the client's globe, its focus listeners are re-added on
+  reconnect and a partly hidden rear label stays clickable through Earth. Found on the way (not this
+  change): the homepage scrolls sideways at 375 px because of the walkthrough and trivia sections.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

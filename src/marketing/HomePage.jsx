@@ -5,7 +5,8 @@ import BillAiDropDemo from './BillAiDropDemo.jsx';
 import SegmentCarousel from './SegmentCarousel.jsx';
 import NterLatestRail from './NterLatestRail.jsx';
 import { openGlobeDestination } from './globeDestinations.js';
-import { writeDeskHash } from '../lib/deskRoute.js';
+import { deskHash } from '../lib/deskRoute.js';
+import { sessionUser } from '../lib/userStore.js';
 import './nterGlobe.css';
 import './homeHero.css';
 import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
@@ -248,26 +249,25 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
   }
 
   // The globe is a custom element; its module loads after first paint, as AuthEarth's scene does.
+  // A label opens its desk or module (globeDestinations.js). The homepage is shown signed out, so the
+  // visitor signs in first; a signed-in session (as on Pricing) goes straight there.
+  const loginRef = useRef(onLogin);
+  loginRef.current = onLogin;
   useEffect(() => {
-    let live = true;
     import('./nterGlobe.js').catch(() => {});
     const el = globeRef.current;
     if (!el) return undefined;
     const onSelect = (e) => {
-      if (!live) return;
       openGlobeDestination(e.detail?.key, {
         storage: sessionStorage,
-        signedIn: sessionStorage.getItem('niyantranAuthed') === '1',
-        onLogin,
-        navigate: (tab, feature) => writeDeskHash(tab, feature),
+        signedIn: sessionStorage.getItem('niyantranAuthed') === '1' && Boolean(sessionUser()),
+        onLogin: () => loginRef.current?.(),
+        navigate: (tab, feature) => { location.hash = deskHash(tab, feature); },
       });
     };
     el.addEventListener('data-select', onSelect);
-    return () => {
-      live = false;
-      el.removeEventListener('data-select', onSelect);
-    };
-  }, [onLogin]);
+    return () => el.removeEventListener('data-select', onSelect);
+  }, []);
 
   function openPersona(id) {
     const i = PERSONAS.findIndex((p) => p.id === id);
@@ -316,7 +316,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
           </div>
           <div className="nd-globe-column">
             <div className="nter-globe-scene">
-              <nter-data-globe ref={globeRef} aria-label="Explore seven types of research data around a rotating Earth" />
+              <nter-data-globe ref={globeRef} />
             </div>
           </div>
         </div>

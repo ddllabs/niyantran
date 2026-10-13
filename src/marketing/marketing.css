@@ -4463,7 +4463,7 @@ html.mkt-doc:has(.mkt-auth) #root {
     position: absolute;
     left: 0;
     right: 0;
-    background: #f7f6f3;
+    background: #fff;
     border-bottom: 1px solid var(--mkt-border);
     padding: 12px 16px 16px;
     z-index: 30;
@@ -4471,7 +4471,6 @@ html.mkt-doc:has(.mkt-auth) #root {
   }
   .mkt-nav-links.open {
     gap: 4px;
-    background: #fff;
   }
   .mkt-nav-links.open button.mkt-nav-link {
     padding: 10px 0;

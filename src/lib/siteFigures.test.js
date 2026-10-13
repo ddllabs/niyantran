@@ -27,11 +27,12 @@ it('counts source endpoints from the source registry', () => {
   expect(SITE_FIGURES.endpoints).toBeGreaterThan(200);
 });
 
-it('counts each endpoint URL once, across the pipe-separated source lists', () => {
+it('counts each endpoint URL once, across newline- or pipe-separated source lists', () => {
   expect(registryEndpointCount([
     { sourceUrls: 'https://a.example/rss | https://b.example/api' },
+    { sourceUrls: 'https://b.example/api\nhttps://c.example/feed' },
     { sourceUrls: 'https://a.example/rss' },
     { sourceUrls: '' },
     {},
-  ])).toBe(2);
+  ])).toBe(3);
 });
