@@ -18,13 +18,17 @@ function Stage({ step, current, active, hi }) {
   const failed = tool && ['Failed', 'Cancelled', 'Incomplete'].includes(state);
   const writing = !tool && /writing the answer/i.test(step.text);
   const Icon = success ? Check : failed ? CircleAlert : tool ? Search : writing ? PenLine : Sparkles;
+  // F124: a web search reads as one, and counts the pages it returned, not rows.
+  const web = step.name === 'web_search';
   const title = tool
-    ? (step.name === 'search_documents' ? (hi ? 'दस्तावेज़ खोज' : success ? 'Searched documents' : 'Document search') : (hi ? 'डेस्क खोज' : 'Desk lookup'))
+    ? (web ? (hi ? 'वेब खोज' : success ? 'Searched the web' : 'Web search')
+      : step.name === 'search_documents' ? (hi ? 'दस्तावेज़ खोज' : success ? 'Searched documents' : 'Document search') : (hi ? 'डेस्क खोज' : 'Desk lookup'))
     : step.text;
   const query = [step.input?.query, step.input?.feature, step.input?.tier]
     .find(value => typeof value === 'string' && value.trim());
   const count = Number.isSafeInteger(step.resultCount) && step.resultCount >= 0
-    ? `${step.resultCount} ${step.name === 'search_documents' ? (hi ? 'अंश' : step.resultCount === 1 ? 'passage' : 'passages') : (hi ? 'पंक्तियाँ' : step.resultCount === 1 ? 'row' : 'rows')}` : '';
+    ? `${step.resultCount} ${web ? (hi ? 'पृष्ठ' : step.resultCount === 1 ? 'page' : 'pages')
+      : step.name === 'search_documents' ? (hi ? 'अंश' : step.resultCount === 1 ? 'passage' : 'passages') : (hi ? 'पंक्तियाँ' : step.resultCount === 1 ? 'row' : 'rows')}` : '';
   return <li className={`ai-flow-step${current ? ' current' : ''}${failed ? ' unsuccessful' : ''}`}>
     <span className="ai-flow-marker"><Icon size={15} aria-hidden="true" /></span>
     <div className="ai-flow-content">
