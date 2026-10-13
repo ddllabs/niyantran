@@ -7,7 +7,7 @@
 
 ## Who does what
 
-The **supervisor** (the coordinating agent, Opus 5.5) has four jobs:
+The **supervisor** (the coordinating agent) has four jobs:
 
 - fixes the contract;
 - writes the migration;
@@ -17,19 +17,19 @@ The **supervisor** (the coordinating agent, Opus 5.5) has four jobs:
 Task agents follow `docs/agents/onboarding.md`. Each works in its own worktree
 branched from `task/web-search` and leaves an uncommitted diff.
 
-| Task | Owner | Model | Why that model |
-|---|---|---|---|
-| T0 contract and pure helpers | supervisor | Opus 5.5 | fixes every interface the others build on |
-| T0f probe fixtures | sub-agent | Haiku 5.5 | mechanical: trims saved probe responses into test fixtures |
-| T1 migration and SQL fixture | supervisor | Opus 5.5 | schema, RLS and the non-superuser test are sensitive |
-| T2 stream and agent loop | sub-agent | Fable 5.1 | the riskiest code: streaming, failover, budget, the `acceptedDraft` shortcut |
-| T3 policy, prompt, telemetry | sub-agent | Sonnet 5.5 | pure functions with a precise spec |
-| T4a composer, thread state, ticker | sub-agent | Sonnet 5.5 | UI against a fixed frame contract |
-| T4b source row, panel, links | sub-agent | Sonnet 5.5 | UI against a fixed message shape |
-| T5 handler wiring | supervisor | Opus 5.5 | joins T2 and T3 across the handler, index and validator |
-| T6 independent review | sub-agent | Opus 5.5 (`code-reviewer`) | fresh context, did not write the code |
-| T6s security pass | sub-agent | Sonnet 5.5 (`security-auditor`) | untrusted web text, link check, privacy |
-| T7 local run and docs | supervisor | Opus 5.5 | browser verification and evidence |
+| Task | Owner | Why that owner |
+|---|---|---|
+| T0 contract and pure helpers | supervisor | fixes every interface the others build on |
+| T0f probe fixtures | sub-agent (light) | mechanical: trims saved probe responses into test fixtures |
+| T1 migration and SQL fixture | supervisor | schema, RLS and the non-superuser test are sensitive |
+| T2 stream and agent loop | sub-agent (strongest) | the riskiest code: streaming, failover, budget, the `acceptedDraft` shortcut |
+| T3 policy, prompt, telemetry | sub-agent | pure functions with a precise spec |
+| T4a composer, thread state, ticker | sub-agent | UI against a fixed frame contract |
+| T4b source row, panel, links | sub-agent | UI against a fixed message shape |
+| T5 handler wiring | supervisor | joins T2 and T3 across the handler, index and validator |
+| T6 independent review | sub-agent (`code-reviewer`) | fresh context, did not write the code |
+| T6s security pass | sub-agent (`security-auditor`) | untrusted web text, link check, privacy |
+| T7 local run and docs | supervisor | browser verification and evidence |
 
 **Concurrency.**
 
@@ -85,7 +85,7 @@ In total there are seven sub-agent runs plus the supervisor.
 - **Files:** `_shared/webSearch.ts` and its test, `_shared/chatStream.ts`, type-only
   edits in `_shared/openrouterStream.ts` and `research-chat/agent.ts`. Size M.
 
-### T0f: Probe fixtures (Haiku sub-agent, alongside T0)
+### T0f: Probe fixtures (sub-agent, alongside T0)
 
 - **Acceptance:** `_shared/__fixtures__/web-search/`:
   - one trimmed SSE transcript per probe-1 model, with annotations shortened to
@@ -129,7 +129,7 @@ In total there are seven sub-agent runs plus the supervisor.
 
 ## Phase 2: parallel (four agents, disjoint files)
 
-### T2: Stream and agent loop (Fable)
+### T2: Stream and agent loop (sub-agent)
 
 - **Acceptance:**
   - `buildRequestBody` puts `serverTools` beside `tools` on research calls and
@@ -152,7 +152,7 @@ In total there are seven sub-agent runs plus the supervisor.
   `research-chat/agent.ts`, `research-chat/agent_test.ts`. Size M/L.
   Depends on: T0, T0f.
 
-### T3: Policy, prompt and telemetry (Sonnet)
+### T3: Policy, prompt and telemetry (sub-agent)
 
 - **Acceptance:**
   - new `research-chat/webPolicy.ts`:
@@ -173,7 +173,7 @@ In total there are seven sub-agent runs plus the supervisor.
 - **Files:** `research-chat/webPolicy.ts` and its test, `prompt.ts`, `prompt_test.ts`,
   `telemetry.ts`, `telemetry_test.ts`. Size M. Depends on: T0.
 
-### T4a: Composer globe, thread state, ticker (Sonnet)
+### T4a: Composer globe, thread state, ticker (sub-agent)
 
 - **Acceptance:**
   - `WebSearchToggle` shows the predicted state, its reason and the gated
@@ -194,7 +194,7 @@ In total there are seven sub-agent runs plus the supervisor.
   `src/lib/aiConversations.js`, `src/lib/corpusCoverage.js`, and their tests.
   Size L, made up of small slices. Depends on: T0.
 
-### T4b: "From the web" row, sources panel, link marks (Sonnet)
+### T4b: "From the web" row, sources panel, link marks (sub-agent)
 
 - **Acceptance:**
   - `WebSourceRow` under the answer shows "From the web · unofficial", up to
@@ -247,8 +247,8 @@ In total there are seven sub-agent runs plus the supervisor.
 
 ### T6 and T6s: independent review and security pass (side by side)
 
-- `code-reviewer` (Opus) reads the whole branch diff against the spec.
-- `security-auditor` (Sonnet) covers:
+- `code-reviewer` reads the whole branch diff against the spec.
+- `security-auditor` covers:
   - web text as untrusted input;
   - the link check, including `javascript:`, `data:` and lookalike URLs;
   - the absence of any third-party request from the browser;
@@ -297,11 +297,11 @@ in `docs/agents/coordination.md`.
 Phases 1–4 are done on `task/web-search`. It is not merged to `main` and not
 pushed.
 
-- **Phase 1:** T0 and T1 were done by the supervisor, T0f by Haiku.
+- **Phase 1:** T0 and T1 were done by the supervisor, T0f by a sub-agent.
 - **Phase 2 (four agents in parallel):**
-  - T2 (Fable): the agent loop.
-  - T3 (Sonnet): policy, prompt and telemetry.
-  - T4a and T4b (Sonnet): the chat UI.
+  - T2: the agent loop.
+  - T3: policy, prompt and telemetry.
+  - T4a and T4b: the chat UI.
 
   The supervisor reviewed each diff and reran its checks before merging it.
   T4a's out-of-scope finding (the research flow labelled a web search "Desk
@@ -310,8 +310,8 @@ pushed.
   plan did not foresee: `finalize_research_turn` is replaced so it saves
   `web_sources` (spec amendment 1).
 - **Phase 4:**
-  - The security pass (Sonnet) found 3 medium, 3 low and 3 informational
-    issues. The independent review (Opus) found 2 confirmed security
+  - The security pass found 3 medium, 3 low and 3 informational
+    issues. The independent review found 2 confirmed security
     defects that overlap with those, and 3 low ones.
   - All were fixed test-first, except the items spec amendment 2 lists as
     considered and not changed.

@@ -335,8 +335,8 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     - Research and probes; spec with amendments 1–2.
       [Plan](2026-10-13-web-search.md),
       [local run](../research/2026-10-13-web-search-local-run.md).
-    - Agents: Haiku (fixtures), Fable (agent loop), Sonnet (policy, UI,
-      security pass), Opus (independent review).
+    - Sub-agents built the fixtures, the agent loop, the policy and the UI,
+      and ran the security pass and an independent review.
     - Checks: 993 Deno and 3,166 Vitest tests, lint, the build and all SQL
       fixtures pass; the migration's Down block was executed.
     - Spend: $0.31 of an approved $1.00.
