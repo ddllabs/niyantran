@@ -48,7 +48,7 @@ export default function MpCardsDesk({ feed, selected, onSelect, vizFilter, onCle
         />
       </div>
       <div className="desk-strip">
-        <span>18TH LOK SABHA — MEMBER REGISTER</span>
+        <span>PARLIAMENT — MEMBER REGISTER (LOK SABHA AND RAJYA SABHA)</span>
         <span>CURATED · PUBLIC RECORD · AS OF THE 2024 ELECTION · NOT A RANKING</span>
       </div>
       <div className="nat-facts">

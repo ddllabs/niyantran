@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import embedded from '../../../../public/data/embedded_csv/national_mp_report_card.json';
 import { contractProblems } from '../modelContract.js';
 import nationalMps, { houseFromSource } from './nationalMps.js';
+import { shapeMpRows } from '../../../lib/parliament.js';
 
 // The embedded member register exactly as the server serves it (server/nationalFeed.mjs, MP Profiles
 // branch: loadEmbedded runs every row through flattenRow, which adds `date` (empty, the register has
@@ -275,7 +276,7 @@ describe('National MP profiles adapter', () => {
       const bjp = register.find((r) => r.party === 'BJP' && register.some((x) => x.party === 'Bharatiya Janata Party' && x.state === r.state));
       expect(bjp).toBeTruthy();
       for (const { row } of links(bjp)) expect(row.party).toBe('BJP');
-      expect(model(bjp).footer.note).toMatch(/party names are shown as the register holds them/i);
+      expect(model(bjp).footer.note).toMatch(/unified only where the full name and the abbreviation are certainly the same party/i);
     });
 
     it('counts the members beyond the three shown, without a link to open', () => {
@@ -344,5 +345,30 @@ describe('National MP profiles adapter', () => {
     it('does not claim the "18th Lok Sabha" or a 2024 election coverage the register does not state', () => {
       for (const row of [ls, rs]) expect(text(model(row))).not.toMatch(/18th lok sabha|2024 election/i);
     });
+  });
+});
+
+// F126: the desk now hands over shaped rows: `house` from the member's link and a unified `party`,
+// with the register's spelling kept in `party_raw`.
+describe('National MP profiles adapter on the shaped register (F126)', () => {
+  const shaped = shapeMpRows(register);
+  const rsBjp = shaped.find((r) => r.party_raw === 'Bharatiya Janata Party' && r.state);
+  const m = nationalMps(rsBjp, { rows: shaped });
+
+  it('shows the unified party, and the name as the register lists it', () => {
+    expect(m.meta).toContain('BJP');
+    expect(m.meta).toContain('Rajya Sabha');
+    expect(m.about.rows).toContainEqual(['Listed as', 'Bharatiya Janata Party']);
+  });
+
+  it('relates members of the same party across both houses once the names are unified', () => {
+    const peers = m.touches.links.filter((l) => l.row);
+    expect(peers.length).toBeGreaterThan(0);
+    for (const l of peers) expect(l.row.party).toBe('BJP');
+  });
+
+  it('adds no "listed as" row when the register already uses the unified name', () => {
+    const lsBjp = shaped.find((r) => r.party_raw === 'BJP');
+    expect(nationalMps(lsBjp, { rows: shaped }).about.rows.some(([k]) => k === 'Listed as')).toBe(false);
   });
 });

@@ -418,7 +418,7 @@ export async function serveNational(ctx) {
       fallback: false,
       kind: 'cards',
       note: 'national_mp_report_card.csv — current house. Attendance empty in every row. Committees filled on most rows; blanks read “not recorded”, never “none”.',
-      meta: { section: 'MP REPORT CARDS', status: 'REGISTER · 18TH LOK SABHA', heading: heading(feat) },
+      meta: { section: 'MP REPORT CARDS', status: 'REGISTER · LOK SABHA AND RAJYA SABHA', heading: heading(feat) },
     });
   }
 
