@@ -16,6 +16,7 @@ import NationalRecord from '../desks/NationalRecord.jsx';
 import RecordPanel from './record/RecordPanel.jsx';
 import { adapterFor } from './record/registry.js';
 import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
+import { useRecordPacks } from './record/packs.js';
 
 /**
  * A record panel with its saved AI brief (F123). The brief is only read from the cache that AI
@@ -23,9 +24,10 @@ import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
  */
 function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
   const { brief, busy, err } = useEntryBrief({ feed, selected, loading });
+  const packs = useRecordPacks(feed?.feature);
   return (
     <RecordPanel
-      model={adapter(selected, { rows: feed?.rows || [], feed })}
+      model={adapter(selected, { rows: feed?.rows || [], feed, packs })}
       brief={{ busy, err: Boolean(err), lines: briefPlainLines(brief).slice(0, 4) }}
       onClose={() => onSelect?.(null)}
       onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
@@ -152,6 +154,10 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
             <div className="rail-empty">
               <p className="muted">Analytics stay empty until live or stored rows exist for this destination.</p>
             </div>
+          ) : selected && panelAdapter ? (
+            // F121/F124: modules with a record-panel adapter; National modules without one keep
+            // NationalRecord and every other module keeps RecordDetail.
+            <RecordPanelWithBrief adapter={panelAdapter} selected={selected} feed={feed} loading={loading} onSelect={onSelect} />
           ) : selected && isNationalTable(feed?.feature) ? (
             <NationalRecord
               row={selected}
@@ -164,9 +170,6 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
               feed={feed}
               loading={loading}
             />
-          ) : selected && panelAdapter ? (
-            // F121: Global modules with a record-panel adapter; every other module keeps RecordDetail.
-            <RecordPanelWithBrief adapter={panelAdapter} selected={selected} feed={feed} loading={loading} onSelect={onSelect} />
           ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />
           ) : !indicators ? (

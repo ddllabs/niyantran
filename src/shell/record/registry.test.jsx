@@ -6,6 +6,7 @@ import { flattenAlliance } from '../../lib/alliances.js';
 import { adapterFor } from './registry.js';
 
 vi.mock('../RecordDetail.jsx', () => ({ default: () => <div data-record-detail /> }));
+vi.mock('../../desks/NationalRecord.jsx', () => ({ default: () => <div data-national-record /> }));
 const { default: RailContent } = await import('../RailContent.jsx');
 
 // F121: only registered Global modules switch to the record panel; every other desk keeps the
@@ -44,5 +45,14 @@ describe('record panel registry', () => {
     const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: warTracker }} selected={warTracker[0]} />);
     expect(html).toContain('✦ Niyantran analysis');
     expect(html).toContain('Checking for a saved AI brief');
+  });
+
+  it('keeps the existing National record view for National modules the reference does not cover', () => {
+    for (const feature of ['Central Tender Aggregator + Constituency Filter', 'Bureaucratic Transfers — AGMUT Cadre', 'Budget Utilisation & Schemes']) {
+      const row = { title: 'A row', id: '1' };
+      const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature, tier: 'national', rows: [row] }} selected={row} />);
+      expect(html, feature).toContain('data-national-record');
+      expect(html, feature).not.toContain('class="rp"');
+    }
   });
 });
