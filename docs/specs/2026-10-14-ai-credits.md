@@ -200,8 +200,10 @@ the payment.
    the turn's chargeable rows that are not yet charged (§3.1), then marks the
    hold settled.
    - A settle error or timeout is logged and never fails the answer.
-   - The terminal frame then carries `credits: null`, and the sweep finishes
-     the job.
+   - The credits then arrive as their own `{credits}` frame after `done`
+     (`null` when the settle is pending or failed, and the sweep finishes
+     the job). The client either reads past `done` for it or calls
+     `my_conversation_credits` (task 4b).
    - Settle treats a message still `running` past its `execution_expires_at`
      as `interrupted`.
 5. **Sweep.** Every hold gets one final pass after it expires, inside a later
@@ -222,10 +224,14 @@ the payment.
 | any | `citation_repair` rows, never |
 
 - **The round cut off by Stop.** OpenRouter sends a call's cost only at the
-  end of its stream, so the round Stop cuts off reports none. The recorder
-  fetches it afterwards by its generation id from OpenRouter's generation
-  endpoint, bounded, during the flush. If no cost comes back, the row stays
-  uncharged and is logged.
+  end of its stream, so the round Stop cuts off reports none.
+  - A probe on 2026-10-14 found the generation endpoint reports an aborted
+    stream's cost 8–15 s after the abort, with about 60 tokens billed after
+    the abort. A lookup inside the flush therefore misses.
+  - After the response has closed, a background job polls the generation
+    endpoint for up to about 25 s and writes the cost onto the log row. The
+    hold's sweep, after it expires, charges it.
+  - If the runtime stops first, the row stays uncharged and is logged.
 - **A row reported as `success` with no cost** is logged as a warning, never
   silently charged as zero.
 
