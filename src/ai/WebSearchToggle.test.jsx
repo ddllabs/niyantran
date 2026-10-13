@@ -86,6 +86,7 @@ describe('webToggleView: what the globe shows and why', () => {
 describe('isWebGated: the models that cannot search', () => {
   it('a :free model, or one whose params switch web search off, is gated', () => {
     expect(isWebGated({ model_id: 'vendor/model:free' })).toBe(true);
+    expect(isWebGated({ model_id: 'vendor/model:FREE' })).toBe(true); // as the server's webModelAllowed
     expect(isWebGated({ model_id: 'vendor/model', params: { web_search: false } })).toBe(true);
   });
   it('anything else is allowed, including a model the list does not hold', () => {

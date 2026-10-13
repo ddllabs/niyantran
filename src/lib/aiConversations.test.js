@@ -625,6 +625,17 @@ describe('web search on the conversation', () => {
     expect(loadAiState().chats.find((c) => c.id === 'w-new').webSearch).toBe(false);
   });
 
+  // Review finding 5: an override saved from another device reaches this one on refresh.
+  it('a refresh picks up an override stored from another device when none was chosen here', async () => {
+    const live = rows.map((r) => ({ ...r }));
+    useClient(spied({ conversations: live, chat_messages: [] }));
+    await hydrateConversations();
+    expect(loadAiState().chats.find((c) => c.id === 'w-auto').webSearch).toBe(null);
+    live.find((r) => r.id === 'w-auto').web_search = false; // stored from another device
+    await hydrateConversations();
+    expect(loadAiState().chats.find((c) => c.id === 'w-auto').webSearch).toBe(false);
+  });
+
   it('a refresh of the list keeps the override the reader chose here', async () => {
     useClient(spied({ conversations: rows, chat_messages: [] }));
     await hydrateConversations();

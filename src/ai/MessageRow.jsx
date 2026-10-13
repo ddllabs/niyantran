@@ -17,6 +17,13 @@ export function sameRow(a, b) {
     && a.labelOf === b.labelOf && a.onOpenSource === b.onOpenSource && a.selectedSource === b.selectedSource;
 }
 
+/** The URLs an answer may link to: the pages it searched and the files of the documents it cites. */
+function linksOf(m) {
+  const pages = Array.isArray(m.webSources) ? m.webSources.map((p) => p?.url) : [];
+  const files = Array.isArray(m.sources) ? m.sources.map((s) => s?.file_url) : [];
+  return [...pages, ...files].filter((u) => typeof u === 'string');
+}
+
 function MessageRow({ m, lang, labelOf, onOpenSource, selectedSource }) {
   const readable = (m.sources || []).filter(isReadableCitation);
   return (
@@ -24,7 +31,7 @@ function MessageRow({ m, lang, labelOf, onOpenSource, selectedSource }) {
       {m.role === 'assistant' ? (
         <>
           {(m.activity?.length || m.timing || m.model_served || m.model || m.model_requested) ? <ActivityTicker activity={m.activity} timing={m.timing} effort={m.reasoning_effort} usage={m.usage} model={{ requested: m.model_requested || m.model, served: m.model_served || m.model }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}
-          <AiMarkdown text={m.content} sources={m.sources || []} webSources={m.webSources} onOpenSource={onOpenSource} selectedSource={selectedSource} />
+          <AiMarkdown text={m.content} sources={m.sources || []} webSources={m.webSources} allowedLinks={linksOf(m)} onOpenSource={onOpenSource} selectedSource={selectedSource} />
           {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={readable} onOpen={onOpenSource} lang={lang} /> : null}
           {Array.isArray(m.webSources) && m.webSources.length ? <WebSourceRow sources={m.webSources} messageId={m.id} onOpen={onOpenSource} /> : null}
           {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}

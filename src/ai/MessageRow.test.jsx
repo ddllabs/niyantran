@@ -86,3 +86,17 @@ function findWebRow(node) {
   if (node.type === WebSourceRow) return node;
   return findWebRow(node.props?.children);
 }
+
+// Security pass M1: the message links only to its searched pages and its cited documents' files.
+it('a saved answer links only to its web sources and cited files; any other link is plain text', () => {
+  const m = {
+    id: 'm1', role: 'assistant', status: 'complete',
+    content: 'Per [RBI](https://rbi.org.in/x), the [bill](https://sansad.in/b.pdf) and [this](https://evil.example/p).',
+    sources: [{ id: 1, kind: 'text', chunk_id: 'c', document_id: 'd', title: 'Bill', file_url: 'https://sansad.in/b.pdf', char_from: 0, char_to: 1, text_hash: 'h', source_kind: 'document' }],
+    webSources: [{ url: 'https://rbi.org.in/x', title: 'RBI', domain: 'rbi.org.in', cited: true }],
+  };
+  const html = renderToStaticMarkup(<MessageRow m={m} lang="en" labelOf={(x) => x} onOpenSource={() => {}} />);
+  expect(html).toContain('href="https://rbi.org.in/x"');
+  expect(html).toContain('href="https://sansad.in/b.pdf"');
+  expect(html).not.toContain('evil.example');
+});

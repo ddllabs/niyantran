@@ -3477,7 +3477,7 @@ button.live-feed:hover { color: var(--fg); }
   padding: 0 10px;
   border: 1px solid var(--ai-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--ai-surface, #fff);
   color: var(--ai-muted);
   font: 650 12.5px var(--font-ui);
   cursor: pointer;

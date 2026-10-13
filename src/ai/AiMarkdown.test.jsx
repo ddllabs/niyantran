@@ -106,3 +106,20 @@ it('marks web links in table cells and list items as well',()=>{
  const html=renderToStaticMarkup(<AiMarkdown text={'- see [PIB](https://pib.gov.in/x)\n\n| a | b |\n|---|---|\n| c | [RBI](https://www.rbi.org.in/press?id=1) |'} webSources={WEB}/>);
  expect(html.match(/class="ai-web-link"/g)).toHaveLength(2);
 });
+
+// Security pass M1 (client half): in the research chat a link is clickable only when its page is
+// one this answer may link to - a searched page or a cited document's file. Anything else, and
+// anything with a fragment, is its plain text. Without the prop, rendering is unchanged.
+it('with allowedLinks, only an allowed link without a fragment is an anchor; the rest is plain text',()=>{
+  const allowed=['https://www.rbi.org.in/press','https://sansad.in/bill.pdf'];
+  const html=renderToStaticMarkup(<AiMarkdown allowedLinks={allowed} text={'See [RBI](https://WWW.RBI.org.in/press), [bill](https://sansad.in/bill.pdf), [bad](https://evil.example/x) and [frag](https://www.rbi.org.in/press#d=1).'}/>);
+  expect(html.match(/<a /g)).toHaveLength(2);
+  expect(html).not.toContain('evil.example');
+  expect(html).toContain('bad');
+  expect(html).not.toContain('#d=1');
+  expect(html).toContain('frag');
+});
+it('with an empty allowedLinks (a streaming answer), no link is clickable; without the prop, links are as before',()=>{
+  expect(renderToStaticMarkup(<AiMarkdown allowedLinks={[]} streaming sources={[]} text="[x](https://pib.gov.in/x)"/>)).not.toContain('<a ');
+  expect(renderToStaticMarkup(<AiMarkdown text="[x](https://pib.gov.in/x)"/>)).toContain('<a href="https://pib.gov.in/x"');
+});

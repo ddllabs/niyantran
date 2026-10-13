@@ -1021,7 +1021,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 lang={lang}
               />
               {stream?.streamingText ? (
-                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} selectedSource={viewer?.source} />
+                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} allowedLinks={[]} onOpenSource={openSource} selectedSource={viewer?.source} />
               ) : null}
             </div>
           ) : null}

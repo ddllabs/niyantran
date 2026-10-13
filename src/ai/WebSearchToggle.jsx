@@ -13,7 +13,7 @@ import { coverageOf, documentModules, indexedDocumentKeys, webDefaultFor } from 
 /** Models that never get the web tool: a `:free` model, or one the admin has switched off (spec section 1). */
 export function isWebGated(model) {
   if (!model) return false;
-  return String(model.model_id || '').endsWith(':free') || model.params?.web_search === false;
+  return String(model.model_id || '').toLowerCase().endsWith(':free') || model.params?.web_search === false;
 }
 
 const WORDS = {

@@ -14,7 +14,7 @@ function WebMark() {
   return <span className="ai-web-link-mark" role="img" aria-label="web source"><GlobeIcon className="ai-web-link-icon" size={11} /></span>;
 }
 
-function Emphasis({ text, keyPrefix, webUrls }) {
+function Emphasis({ text, keyPrefix, webUrls, allowedUrls }) {
   const nodes = [];
   const re = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g;
   let last = 0;
@@ -26,6 +26,8 @@ function Emphasis({ text, keyPrefix, webUrls }) {
     if (m[1]) nodes.push(<strong key={key}>{breaks(m[1], key)}</strong>);
     else if (m[2]) nodes.push(<em key={key}>{breaks(m[2], key)}</em>);
     else if (m[3]) nodes.push(<code key={key}>{m[3]}</code>);
+    // Security pass M1: with an allow-list, a link the answer may not carry is its plain text.
+    else if (m[4] && allowedUrls && (m[5].includes('#') || !allowedUrls.has(normaliseWebUrl(m[5])))) nodes.push(m[4]);
     else if (m[4]) {
       const web = Boolean(webUrls?.size) && webUrls.has(normaliseWebUrl(m[5]));
       nodes.push(
@@ -51,13 +53,13 @@ function Emphasis({ text, keyPrefix, webUrls }) {
  * behind it is dropped, because a bracket with no bubble behind it is never
  * correct output.
  */
-function Inline({ text, sources, streaming, onOpenSource, selectedSource, webUrls, keyPrefix = 'i' }) {
-  if (!sources && !streaming) return Emphasis({ text, keyPrefix, webUrls });
+function Inline({ text, sources, streaming, onOpenSource, selectedSource, webUrls, allowedUrls, keyPrefix = 'i' }) {
+  if (!sources && !streaming) return Emphasis({ text, keyPrefix, webUrls, allowedUrls });
   const byId = new Map((Array.isArray(sources) ? sources : []).filter(isReadableCitation).map((s) => [s.id, s]));
   const nodes = [];
   splitCitationMarkers(text).forEach((part, n) => {
     if (typeof part === 'string') {
-      nodes.push(...Emphasis({ text: part, keyPrefix: `${keyPrefix}-${n}`, webUrls }));
+      nodes.push(...Emphasis({ text: part, keyPrefix: `${keyPrefix}-${n}`, webUrls, allowedUrls }));
       return;
     }
     const source = byId.get(part.citation);
@@ -221,8 +223,14 @@ function webUrlSet(webSources) {
   return urls.size ? urls : null;
 }
 
-export default function AiMarkdown({ text, sources, streaming, onOpenSource, selectedSource, webSources }) {
-  const cite = { sources, streaming, onOpenSource, selectedSource, webUrls: webUrlSet(webSources) };
+/**
+ * `allowedLinks`: when given, the only URLs a link may point at (the research chat passes the
+ * searched pages and the cited files; a streaming answer passes none). Omitted: every http(s) link
+ * renders, as before.
+ */
+export default function AiMarkdown({ text, sources, streaming, onOpenSource, selectedSource, webSources, allowedLinks }) {
+  const allowedUrls = Array.isArray(allowedLinks) ? new Set(allowedLinks.map(normaliseWebUrl).filter(Boolean)) : null;
+  const cite = { sources, streaming, onOpenSource, selectedSource, webUrls: webUrlSet(webSources), allowedUrls };
   const lines = String(text || '')
     .replace(/\r\n/g, '\n')
     .split('\n');

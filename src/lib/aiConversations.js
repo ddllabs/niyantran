@@ -225,8 +225,10 @@ export async function hydrateConversations(verified = null) {
   const pins = readPins();
   const chats = (data || []).map((r) => {
     const previous = state.chats.find(c => c.id === r.id);
-    // A list refresh keeps the override chosen here: the server learns it only when a turn is sent.
-    return { ...toChat(r, pins), ...(previous ? { messages: previous.messages, draftId: previous.draftId, webSearch: previous.webSearch ?? null } : {}) };
+    // A list refresh keeps an override chosen here (the server learns it only when a turn is sent),
+    // and otherwise takes the stored one, which may have been set from another device.
+    const chat = toChat(r, pins);
+    return { ...chat, ...(previous ? { messages: previous.messages, draftId: previous.draftId, webSearch: previous.webSearch ?? chat.webSearch } : {}) };
   });
   const draft = state.chats.find(c => c.draft);
   if (draft) chats.unshift(draft);
