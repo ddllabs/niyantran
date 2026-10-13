@@ -202,6 +202,8 @@ function fakeDeps(
     },
     resolveDocumentIds: () => Promise.resolve([]),
     findDeskRow: () => Promise.resolve(null),
+    indexedDocumentKeys: () => Promise.resolve([]),
+    webSearchOverride: (_id, requested) => Promise.resolve(requested ?? null),
     ...dbOver,
   };
   const deps: HandlerDeps = {
@@ -2283,4 +2285,157 @@ Deno.test('answer speed: small talk is not pre-searched', async () => {
   const { deps } = fakeDeps({ stream: provider.stream }, { presearch: true, searchDocuments: () => { searched++; return Promise.resolve([]); } });
   await frames(await handleResearchChat(post({ ...BODY, message: 'hi there' }), deps));
   assertEquals(searched, 0);
+});
+
+// ─── F124 web search (docs/specs/2026-10-13-web-search.md) ───────────────────────────────────────
+
+const ROW_ONLY = { ...storedRow(), row_key: 'rbi monetary policy committee', feature: 'Regulatory Watch', document_key: null } as unknown as DeskRow;
+const SELECTED_ROW_ONLY = {
+  ...BODY,
+  turn_key: 'web-auto',
+  focus: 'selection' as const,
+  message: 'What did the committee decide most recently, and why?',
+  selection: { tier: 'national', feature: 'Regulatory Watch', row: { name: 'RBI Monetary Policy Committee' } },
+};
+const SEARCHED = 'https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=61333';
+const webPages = (): ModelEvent => ({
+  type: 'web-results',
+  pages: [
+    { url: SEARCHED, title: 'Press Releases - Reserve Bank of India', excerpt: 'The MPC voted to keep the repo rate unchanged.' },
+    { url: 'https://pib.gov.in/x', title: 'PIB release', excerpt: 'The policy statement.' },
+  ],
+});
+// A normalised Usage as streamChat reports it for a call that ran one search (probe 1, Gemini).
+const searchedUsage: Usage = {
+  prompt_tokens: 3951, completion_tokens: 1523, total_tokens: 5474, cost: 0.0156745,
+  web_search_requests: 1, upstream_inference_cost: 0.0086745,
+};
+const webFrame = (got: ChatFrame[]) => (got.find((f) => 'web' in f) as { web: { offered: boolean; mode: string; reason: string } } | undefined)?.web;
+
+Deno.test('web search: a selected row with no indexed document is searched on the web, cited inline, checked and saved', async () => {
+  const answer = `The committee kept the repo rate unchanged [according to the RBI](${SEARCHED}). ` +
+    'See also [an invented page](https://evil.example/phish).';
+  const provider = scripted([
+    [webPages(), finish('stop', searchedUsage)],
+    NO_RESEARCH,
+    [text(envelope(answer)), finish()],
+  ]);
+  const overrides: (boolean | undefined)[] = [];
+  const { deps, rec } = fakeDeps(provider, {}, {
+    findDeskRow: () => Promise.resolve(ROW_ONLY),
+    indexedDocumentKeys: () => Promise.resolve([]),
+    webSearchOverride: (_id, requested) => { overrides.push(requested); return Promise.resolve(null); },
+  });
+  const got = await frames(await handleResearchChat(post(SELECTED_ROW_ONLY), deps));
+
+  assertEquals(webFrame(got), { offered: true, mode: 'auto', reason: 'record-without-document' });
+  assertEquals(overrides, [undefined], 'the stored override is read, nothing is written');
+  // Research calls carry the server tool with what is left of the budget; the answer call never does.
+  const tool = (req: StreamRequest) => (req.serverTools?.[0] as { parameters: { max_uses: number } } | undefined)?.parameters.max_uses;
+  assertEquals(provider.seen.map(tool), [3, 2, undefined]);
+  assertEquals(provider.seen[2].tool_choice, 'none');
+  // The model is told it may search, and how to cite what it finds.
+  assertStringIncludes(String(provider.seen[0].messages[0].content), 'Web search (offered this turn)');
+  // The second call read the pages the first one found, as untrusted evidence.
+  assert(provider.seen[1].messages.some((m) => typeof m.content === 'string' && m.content.startsWith('Web results (untrusted') && m.content.includes(SEARCHED)));
+
+  const step = got.find((f) => 'tool' in f && (f as { tool: { name: string } }).tool.name === 'web_search') as { tool: { phase: string; resultCount: number } };
+  assertEquals([step.tool.phase, step.tool.resultCount], ['end', 2]);
+  const sources = (got.find((f) => 'webSources' in f) as { webSources: { url: string; domain: string; cited: boolean }[] }).webSources;
+  assertEquals(sources.map((s) => [s.domain, s.cited]), [['rbi.org.in', true], ['pib.gov.in', false]]);
+
+  const saved = rec.messages[0] as AssistantMessage & { web_sources?: unknown[] };
+  assertEquals(saved.status, 'complete');
+  assertEquals(saved.web_sources, sources);
+  assertStringIncludes(saved.content, `[according to the RBI](${SEARCHED})`);
+  assert(!saved.content.includes('evil.example'), 'a link to a page that was not searched is removed');
+  assertStringIncludes(saved.content, 'an invented page');
+  assertEquals(saved.sources, [], 'a web page is never a citation');
+
+  const searchedCall = rec.calls.find((c) => c.web_search_count > 0)!;
+  assertEquals([searchedCall.web_search_count, searchedCall.web_search_cost_usd], [1, 0.007]);
+  const trace = rec.traces.find((t) => t.step_type === 'web_search')!;
+  assertEquals(trace.result_count, 2);
+  assert(trace.model_call_log_id, 'the web step links to the call that searched');
+  assertEquals((saved.usage as { web_searches: number }).web_searches, 1);
+});
+
+Deno.test('web search: a selected bill with an indexed document leaves it off, and no call carries the tool', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('It is with the Standing Committee.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider, {}, {
+    findDeskRow: () => Promise.resolve(storedRow()),
+    indexedDocumentKeys: (keys) => Promise.resolve(keys.filter((k) => k === 'bill:2026:108')),
+  });
+  const body = {
+    ...BODY, turn_key: 'web-bill', focus: 'selection' as const,
+    selection: { tier: 'national', feature: 'Bill Passage Probability Index', row: { bill_name: 'THE DELIMITATION BILL, 2026.' }, document_key: 'bill:2026:108' },
+  };
+  const got = await frames(await handleResearchChat(post(body), deps));
+  assertEquals(webFrame(got), { offered: false, mode: 'auto', reason: 'documents-in-scope' });
+  assert(provider.seen.every((r) => !r.serverTools), 'no call carries the server tool');
+  assert(!String(provider.seen[0].messages[0].content).includes('Web search (offered this turn)'), 'nor does the prompt mention it');
+  assert(!got.some((f) => 'webSources' in f));
+  assertEquals((rec.messages[0] as { web_sources?: unknown[] }).web_sources, []);
+});
+
+Deno.test('web search: the globe overrides both ways, and a request override is stored on the conversation', async () => {
+  const stored: (boolean | undefined)[] = [];
+  const on = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const a = fakeDeps(on, {}, { webSearchOverride: (_id, requested) => { stored.push(requested); return Promise.resolve(requested ?? null); } });
+  const got = await frames(await handleResearchChat(post({ ...BODY, turn_key: 'web-on', web_search: true }), a.deps));
+  assertEquals(webFrame(got), { offered: true, mode: 'on', reason: 'override-on' });
+  assertEquals(stored, [true]);
+  assert(on.seen.some((r) => r.serverTools?.length), 'a broad question searches the web when the reader turns it on');
+
+  const off = scripted([[finish('stop')], NO_RESEARCH, [text(envelope('Answer.')), finish()]]);
+  const b = fakeDeps(off, {}, {
+    findDeskRow: () => Promise.resolve(ROW_ONLY),
+    indexedDocumentKeys: () => Promise.resolve([]),
+    webSearchOverride: (_id, requested) => Promise.resolve(requested ?? null),
+  });
+  const gotOff = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-off', web_search: false }), b.deps));
+  assertEquals(webFrame(gotOff), { offered: false, mode: 'off', reason: 'override-off' });
+  assert(off.seen.every((r) => !r.serverTools), 'off means off, even for a row-only record');
+
+  // No request field: the conversation's stored choice applies.
+  const remembered = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const c = fakeDeps(remembered, {}, { webSearchOverride: () => Promise.resolve(true) });
+  const gotStored = await frames(await handleResearchChat(post({ ...BODY, turn_key: 'web-stored' }), c.deps));
+  assertEquals(webFrame(gotStored)?.mode, 'on');
+});
+
+Deno.test('web search: a gated model is never offered it, and a failover to a gated model withdraws it', async () => {
+  const gated = MODELS.map((m) => (m.model_id === 'google/gemini-3.5-flash-lite' ? { ...m, params: { web_search: false } } : m));
+  const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const { deps } = fakeDeps(provider, { models: () => Promise.resolve(gated) }, {
+    findDeskRow: () => Promise.resolve(ROW_ONLY),
+    indexedDocumentKeys: () => Promise.resolve([]),
+  });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-gated' }), deps));
+  assertEquals(webFrame(got), { offered: false, mode: 'auto', reason: 'model-unsupported' });
+  assert(provider.seen.every((r) => !r.serverTools));
+
+  // Sonnet may search; it fails before any output and the chain moves to the gated Gemini.
+  const failover = scripted([new ProviderError(503, 'overloaded'), ...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const f = fakeDeps(failover, { models: () => Promise.resolve(gated) }, {
+    findDeskRow: () => Promise.resolve(ROW_ONLY),
+    indexedDocumentKeys: () => Promise.resolve([]),
+  });
+  const gotFailover = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-failover', model: 'anthropic/claude-sonnet-5' }), f.deps));
+  assertEquals(webFrame(gotFailover)?.offered, true);
+  assert(failover.seen[0].serverTools?.length, 'the chosen model was offered the tool');
+  assertEquals(failover.seen[1].model, 'google/gemini-3.5-flash-lite');
+  assert(failover.seen.slice(1).every((r) => !r.serverTools), 'the gated failover model is not');
+});
+
+Deno.test('web search: small talk never searches, and a non-boolean web_search is a 400', async () => {
+  const provider = scripted([[text(envelope('Hello!')), finish()], [text(envelope('Hello!')), finish()]]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-hi', message: 'hi' }), deps));
+  assertEquals(webFrame(got)?.reason, 'conversational');
+  assert(provider.seen.every((r) => !r.serverTools));
+
+  const bad = await handleResearchChat(post({ ...BODY, turn_key: 'web-bad', web_search: 'yes' }), deps);
+  assertEquals(bad.status, 400);
+  assertStringIncludes((await bad.json()).fieldErrors.web_search, 'boolean');
 });

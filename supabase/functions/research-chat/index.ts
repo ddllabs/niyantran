@@ -344,6 +344,32 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         const [byKey, byId] = await Promise.all([indexed('metadata->>document_key', keys), indexed('id', ids)]);
         return [...new Set([...(byKey ?? []), ...(byId ?? [])].map((d) => String(d.id)))];
       },
+      indexedDocumentKeys: async (keys) => {
+        // web-search spec §1: the keys that name an indexed document. Same filter as
+        // resolveDocumentIds, so "has embeddings" and "is searchable" cannot disagree.
+        if (!keys.length) return [];
+        const data = await query((signal) =>
+          caller().from('documents').select('document_key:metadata->>document_key').in('metadata->>document_key', keys)
+            .not('indexed_at', 'is', null).abortSignal(signal)
+        );
+        return [...new Set((data ?? []).map((d) => String((d as { document_key: unknown }).document_key ?? '')).filter(Boolean))];
+      },
+      webSearchOverride: async (conversationId, requested) => {
+        // The reader's own client: conversations RLS limits both the read and the write to the
+        // owner's conversation (migration 0002's conversations_update).
+        if (typeof requested === 'boolean') {
+          await query((signal) =>
+            caller().from('conversations').update({ web_search: requested }).eq('id', conversationId).eq('user_id', owner!)
+              .abortSignal(signal)
+          );
+          return requested;
+        }
+        const row = await query((signal) =>
+          caller().from('conversations').select('web_search').eq('id', conversationId).eq('user_id', owner!)
+            .abortSignal(signal).maybeSingle()
+        );
+        return typeof row?.web_search === 'boolean' ? row.web_search : null;
+      },
       findDeskRow: async (tier, feature, key) =>
         await query((signal) =>
           caller().from('desk_rows').select('tier,feature,row_key,row,record_text,document_key,snapshot_at').eq(
