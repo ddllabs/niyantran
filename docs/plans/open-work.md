@@ -17,20 +17,37 @@
 - A new finding gets the next free `F` number (F133 is next) and goes in the
   right section.
 
-## Current state — 2026-10-13 (late evening)
+## Current state — 2026-10-13 (night, milestone check)
 
-Checked by the supervisor with `git fetch`, the Vercel deployment list, the
-served bundle name and the Supabase function list. Corpus counts are from
-read-only SQL earlier the same evening. No tests were rerun for this note.
+The supervisor checked this with:
+- `git fetch`, the branch, worktree and stash lists;
+- the CI runs on `main`;
+- the served site;
+- `list_migrations` and the security advisor;
+- the `research-chat` source on NTER.
 
-- **Branches:** one branch, `main`, locally and on `origin`. Local `main` =
-  `origin/main` = `8441097`; the working tree is clean.
-- **Website:** production deploy `dpl_C5YLx6rxa9d3mW3NSrVqbvDDGNBL`
-  (`8441097`) is READY on niyantran-six.vercel.app and serves
-  `index-D2ExlX5h.js`. It includes F119 (sector cards select) and the desk
-  tab icons, which show down to 900px.
-- **Research chat:** `research-chat` v50 is ACTIVE (deployed from `c117dc2`).
-  Rollback: redeploy from `839d7dc` (v49) or `7f0563e` (v48).
+Corpus counts are from read-only SQL earlier the same evening and were not
+rechecked. Nothing in this check wrote to production.
+
+- **Branches:** one, `main`, locally and on `origin`.
+  - Local `main` = `origin/main` = `6706838` (before this note's commit). The
+    working tree is clean.
+  - No stashes and no other worktrees.
+- **CI:** the run on `6706838` passed both jobs (build and tests; SQL fixtures
+  on a disposable Postgres). So did the three runs before it.
+- **Node:** 24.x in `.nvmrc`, `package.json`, CI and Vercel. The owner's Mac
+  runs Node 24.21.0 from Homebrew (2026-10-13). Lint, the build, the router
+  check and all 3,688 Vitest tests pass on it.
+- **Website:** niyantran-six.vercel.app serves `index-BAwrMUD7.js`, built
+  from F131 onwards. `/`, `/privacy` and `/api/site-icon` answer 200.
+- **Research chat:** `research-chat` v53 is ACTIVE (deployed from `4525ec9`).
+  It carries F130 web search, F131 one stream and F132 newline repair.
+  Rollback: redeploy from `38fbc4b` (v52) or `4159037` (v51).
+- **Database:** 45 migrations in the repo and on NTER; the last is
+  `20261013140000_web_search`.
+  - Security advisor: nothing new. It reports the seven signed-in SECURITY
+    DEFINER functions, nine service-only tables with RLS and no policy (for
+    information), and leaked-password protection off (section 7).
 - **Corpus:**
   - 3,379 documents, 3,376 indexed, 99,225 chunks;
   - 2,692 of 2,694 bill documents carry a version (the two without one are
@@ -44,13 +61,20 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - F69, F104 (`research-chat` v48);
   - F105 (docs reconciled), F106 (NterEarth retired);
   - F112, F113, F114, F115;
-  - F116, F117, F118 (citation versions and one card per bill).
+  - F116, F117, F118 (citation versions and one card per bill);
+  - F132 (Gemini newline safety net, `research-chat` v53).
 
   The owner checked F112–F118 and F110 on production.
-- **Awaiting the owner's check on production:** F119, sector cards select:
-  - picture cards stay on the landing, the switch is visible, and phones
-    scroll to the modules;
-  - module cards open the terminal.
+- **Shipped and awaiting the owner's check on production** (nothing is
+  unfinished in code):
+  - F119, sector cards select:
+    - picture cards stay on the landing, the switch is visible, and phones
+      scroll to the modules;
+    - module cards open the terminal.
+  - F120: one header on every page.
+  - F121, F124, F128: Global, National and Law record panels.
+  - F129: WTO register.
+  - F130, F131: web search, and the source strip with site icons.
 - **Shipped and still open:**
   - F107: legal pages, awaiting the full address and a lawyer review;
   - F108: legal text is stored per browser;
@@ -161,8 +185,8 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   and refresh on every page (landing refresh reloads its summaries); the
   search box shows a short label below 1,110px instead of truncating. Built on
   `task/consistent-header` and merged locally.
-  [Spec](../specs/2026-10-13-consistent-header.md). Remaining: push, owner
-  check.
+  [Spec](../specs/2026-10-13-consistent-header.md). Pushed in `cec56ee` and
+  live on production. Remaining: owner check.
 - [ ] **F121. Global record panels.** Owner request 2026-10-13: every Global
   record opens one consistent panel modelled on the owner's reference (header,
   01 at a glance, 02 about, 03 what it touches, a footer with Ask AI and
@@ -395,41 +419,6 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
       and real icons ([spec](../specs/2026-10-13-web-search-streaming.md),
       "Build and local run").
     - Spend: $0.57 of $1.00 in total.
-- [ ] **F132. Gemini sometimes double-escapes newlines in the strict JSON
-  answer.** Found in the F131 local run, 2026-10-13: one answer in three was
-  saved with 41 literal `\n` sequences and rendered them as text. The answer
-  phase is unchanged by F131, and production had none in 11 answers over 14
-  days.
-  - **Measured 2026-10-13 (owner: "run the test first, then add the safety
-    net"):**
-    - **Production, read-only:** 0 of 12 saved answers ever, 10 of them from
-      Gemini 3.8 Flash and 3 of those web turns. `chat_messages` is the only
-      table that stores answers.
-    - **Probe:** 20 answer-phase calls to Gemini 3.8 Flash, built with
-      production's own prompt builder, answer schema and OpenRouter client.
-      14 were follow-up questions with a prior markdown answer and web
-      evidence, and 6 were first questions. **None was double-escaped**
-      (0 literal `\n` in any answer). With a sizing call, the probe cost
-      $0.13. Web search spend is now $0.70 of the approved $1.00.
-    - Together with the one local case, that is 1 in 36 known answers: rare,
-      but real.
-  - **Safety net, on `task/f132-json-newlines`:** `undoDoubleEscapes`
-    (`answerStream.ts`), applied to the answer in `handler.ts` before the
-    citation ladder.
-    - It turns literal `\n`, `\t` and `\"` back into real characters, but
-      only when there are at least three literal `\n` and they outnumber the
-      real line breaks.
-    - The saved answer is corrected, and the terminal patch corrects what the
-      reader already sees.
-    - There are 3 tests, and each guard was proved by mutation: removing the
-      call, lowering the threshold to one, and dropping the line-break
-      comparison.
-  - **Status, 2026-10-13: shipped.** `research-chat` v53 is deployed (fix
-    `54b98e6`) and `origin/main` is pushed (see coordination Operations).
-    - Checks on Node 24.21.0: 3,688 Vitest and 1,015 Deno tests, lint, the
-      build and the router check.
-    - Nothing remains unless the double escaping shows up on production:
-      search `chat_messages` for literal `\n` now and then.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -507,6 +496,41 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 ## 1. Done
 
+- [x] **F132. Gemini sometimes double-escapes newlines in the strict JSON
+  answer.** Done `54b98e6` (2026-10-13). Found in the F131 local run, 2026-10-13: one answer in three was
+  saved with 41 literal `\n` sequences and rendered them as text. The answer
+  phase is unchanged by F131, and production had none in 11 answers over 14
+  days.
+  - **Measured 2026-10-13 (owner: "run the test first, then add the safety
+    net"):**
+    - **Production, read-only:** 0 of 12 saved answers ever, 10 of them from
+      Gemini 3.8 Flash and 3 of those web turns. `chat_messages` is the only
+      table that stores answers.
+    - **Probe:** 20 answer-phase calls to Gemini 3.8 Flash, built with
+      production's own prompt builder, answer schema and OpenRouter client.
+      14 were follow-up questions with a prior markdown answer and web
+      evidence, and 6 were first questions. **None was double-escaped**
+      (0 literal `\n` in any answer). With a sizing call, the probe cost
+      $0.13. Web search spend is now $0.70 of the approved $1.00.
+    - Together with the one local case, that is 1 in 36 known answers: rare,
+      but real.
+  - **Safety net, on `task/f132-json-newlines`:** `undoDoubleEscapes`
+    (`answerStream.ts`), applied to the answer in `handler.ts` before the
+    citation ladder.
+    - It turns literal `\n`, `\t` and `\"` back into real characters, but
+      only when there are at least three literal `\n` and they outnumber the
+      real line breaks.
+    - The saved answer is corrected, and the terminal patch corrects what the
+      reader already sees.
+    - There are 3 tests, and each guard was proved by mutation: removing the
+      call, lowering the threshold to one, and dropping the line-break
+      comparison.
+  - **Status, 2026-10-13: shipped.** `research-chat` v53 is deployed (fix
+    `54b98e6`) and `origin/main` is pushed (see coordination Operations).
+    - Checks on Node 24.21.0: 3,688 Vitest and 1,015 Deno tests, lint, the
+      build and the router check.
+    - Nothing remains unless the double escaping shows up on production:
+      search `chat_messages` for literal `\n` now and then.
 - [x] **F127. Record adapter helper clean-up.** Done `d19a9f3` (2026-10-13). One strict feed-date reader (`feedDate.js`, options for IST, full month names and RBI's zoneless times) and one plain-text helper (`feedText.js`) replace the copies in five adapters. Behaviour changes, deliberate: zero-width characters are stripped everywhere; the Cabinet adapter no longer reads a month fragment such as "Marc"; a weekday may be spelt out. Bill and question names print as Parliament writes them; only all-capitals names are title-cased, keeping abbreviations and roman numerals ("The ASHA Workers…", "Chapter VIIB", not "Asha", "Viib"). The Morning Brief dedup is one pass.
 - [x] **F84. Law reporting-query relevance.** Fixed `897ccc7` (2026-10-13). The nine Law news-wire modules search Google News with each forum's own name and legal terms instead of product-name OR queries; ICC excludes cricket, and the international forums carry no India filter. Live check: ICC moved from cricket to International Criminal Court coverage, and the other eight moved likewise. Also fixed: Google News descriptions showed as raw link markup in tables and in the Law summary card; they are now plain text. [Spec](../specs/2026-10-13-law-news-queries.md).
 - [x] **F112. Terminal navigation, type scale and search.** Owner review
