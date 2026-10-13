@@ -2351,6 +2351,7 @@ Deno.test('web search: a selected row with no indexed document is searched on th
   assert(!saved.content.includes('evil.example'), 'a link to a page that was not searched is removed');
   assertStringIncludes(saved.content, 'an invented page');
   assertEquals(saved.sources, [], 'a web page is never a citation');
+  assert(!saved.content.includes('**Unverified.**'));
 
   const searchedCall = rec.calls.find((c) => c.web_search_count > 0)!;
   assertEquals([searchedCall.web_search_count, searchedCall.web_search_cost_usd], [1, 0.007]);
@@ -2500,4 +2501,20 @@ Deno.test('web search: a turn that searched and then failed keeps its web_search
   const web = rec.traces.filter((t) => t.step_type === 'web_search');
   assertEquals(web.length, 1);
   assert(web[0].model_call_log_id, 'linked to the call that searched');
+});
+
+// Local run finding: an answer with nothing from the record but web pages behind it was headed
+// "Unverified ... nothing below is backed by the record". It says where it comes from instead.
+Deno.test('web search: an answer backed only by the web says so, not "Unverified"', async () => {
+  const provider = scripted([
+    [webPages(), finish('stop', searchedUsage)],
+    NO_RESEARCH,
+    [text(envelope(`The committee kept the repo rate unchanged, according to [the RBI](${SEARCHED}). ${'More context from the release. '.repeat(12)}`)), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'web-only', web_search: true }), deps));
+  const saved = rec.messages[0];
+  assert(!saved.content.includes('**Unverified.**'));
+  assertStringIncludes(saved.content, '**Not from the record.**');
+  assertStringIncludes(saved.content, 'unofficial');
 });

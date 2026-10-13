@@ -458,7 +458,12 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
  * the record was never searched, or it was and returned nothing - because those
  * are different facts and the reader can act on the difference.
  */
-function unverifiedNote(searches: number): string {
+function unverifiedNote(searches: number, webPages = 0): string {
+  // F124: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
+  // record, and the reader is told so, and that those pages are unofficial.
+  if (webPages > 0) {
+    return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed under the answer, which are unofficial.';
+  }
   return searches > 0
     ? '**Unverified.** The searches this turn ran returned no passages, so nothing below is backed by the record.'
     : '**Unverified.** Nothing was retrieved this turn, so nothing below is backed by the record. Earlier answers in this conversation are not evidence.';
@@ -1106,7 +1111,7 @@ async function runTurnBody(
   // Both can be true at once - a widened search that also returned nothing -
   // and they answer different questions, so neither replaces the other.
   const notes = [
-    ...(grounded ? [] : [unverifiedNote(result.searches)]),
+    ...(grounded ? [] : [unverifiedNote(result.searches, result.webPages.length)]),
     ...(result.widened ? [widenedNote(result.widened, featureScope?.feature)] : []),
   ];
   // Spec §4: a link survives only to a page searched this turn or a URL already in the turn's
