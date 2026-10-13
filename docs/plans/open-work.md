@@ -259,7 +259,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     [research](../research/2026-10-13-law-record-panels.md). Branch
     `task/law-record-panels`.
   - Done: twelve panels, Fable review (one must-fix, fixed), merged locally on
-    2026-10-13; awaiting the owner's go-ahead to push.
+    2026-10-13 and pushed at `5806d13`.
   - Noticed, not fixed: the module heading title-cases abbreviations
     ("Nclt / Nclat (Insolvency)", "Icc Proceedings").
 - [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
