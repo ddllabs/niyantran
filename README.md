@@ -9,7 +9,8 @@ local API plugins, hosted API functions, administration and billing integrations
 ## Local setup
 
 Use the project-approved Node/npm environment and Deno for Edge Function tests.
-Install dependencies with `npm ci`. Configure an ignored `.env.local` using
+The app runs on Node 24 (`.nvmrc`; Vercel builds on 24.x and CI tests on 24). Install
+dependencies with `npm ci`. Configure an ignored `.env.local` using
 `.env.example` as a variable-name reference; placeholder values are not working
 credentials. A production build needs no environment variables (checked on
 2026-09-28 by building with none set; CI builds the same way). The dev server's
