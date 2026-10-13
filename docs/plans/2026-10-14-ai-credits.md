@@ -57,7 +57,7 @@ At most three agents run at once.
 - [x] Task 2a: reserve and claim (`8a2cec2`)
 - [x] Task 2b: settle and frames, Stop-round cost in the background (`8a2cec2`)
 - [x] Task 3: dictation log (`bb3004d`, merged `3c6c9af`)
-- [ ] Checkpoint B (local run 1)
+- [x] Checkpoint B (local run 1): every case as expected, $0.03 spent ([evidence](../research/2026-10-14-ai-credits-local-run-1.md))
 - [ ] Task 4a: credits library and composer
 - [ ] Task 4b: per-answer credits
 - [ ] Task 5: Plan & billing
