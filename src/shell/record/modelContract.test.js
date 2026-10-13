@@ -64,6 +64,14 @@ describe('record panel contract', () => {
     expect(contractProblems(m).join()).toMatch(/placeholder/);
   });
 
+  it('reads a related record\'s title as source text too, but still checks a link without a record', () => {
+    const m = base();
+    m.touches = { label: '03', lanes: ['A', 'B', 'C', 'D'], nodes: { center: { l1: 'This' } }, links: [{ title: 'The Constitution (Amendment) Bill, 1995 [to amend article 292]', detail: 'Lapsed', row: { id: 'b1' } }] };
+    expect(contractProblems(m)).toEqual([]);
+    m.touches.links = [{ title: '[Other bills]', detail: 'x' }];
+    expect(contractProblems(m).join()).toMatch(/placeholder/);
+  });
+
   it('rejects reference placeholders but allows ordinary prose', () => {
     const m = base();
     m.about.cards = [{ heading: 'Note', body: 'The order was declared null and void.' }];

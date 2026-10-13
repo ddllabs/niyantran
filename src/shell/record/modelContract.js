@@ -72,7 +72,8 @@ export function contractProblems(model) {
   // title is the record's own name as its source prints it (official bill titles carry a bracketed
   // purpose, "[to amend article 292]"), so it is source text, not a template placeholder.
   const { title: _title, ...rest } = model;
-  const shown = model.touches ? { ...rest, touches: { ...model.touches, links: (model.touches.links || []).map(({ row: _row, ...l }) => l) } } : rest;
+  // A link that opens a related record is titled with that record's own name, so it is source text too.
+  const shown = model.touches ? { ...rest, touches: { ...model.touches, links: (model.touches.links || []).map(({ row, title, ...l }) => (row ? l : { title, ...l })) } } : rest;
   for (const s of strings(shown)) if (PLACEHOLDER.test(s)) problems.push(`placeholder text: ${s.slice(0, 60)}`);
   return problems;
 }

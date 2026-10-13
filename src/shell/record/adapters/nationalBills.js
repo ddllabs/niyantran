@@ -55,8 +55,10 @@ export default function nationalBills(row, ctx = {}) {
   const asOf = dateLabel(row.as_of);
   const ministry = titleCase(row.sector);
   const pp = a?.passage_probability || {};
-  const resolved = Boolean(info) && stageKey(stage) !== 'pending';
-  const baseRate = !resolved && pp.score != null && Number.isFinite(Number(pp.score)) ? Math.round(Number(pp.score)) : null;
+  // A passage figure is shown only for a pending bill whose pack note says it is a base rate; for any
+  // other bill (including the 369 with no stage on record) the stored figure may be its outcome.
+  const isBaseRate = stageKey(stage) === 'pending' && /^base rate/i.test(String(pp.methodology_note || '').trim());
+  const baseRate = isBaseRate && pp.score != null && Number.isFinite(Number(pp.score)) ? Math.round(Number(pp.score)) : null;
   const precedent = a?.precedent?.similar_bill_count ? a.precedent : null;
   const days = a?.stage_duration?.days_in_current_stage;
   const daysInStage = days != null && Number.isFinite(Number(days)) ? Number(days) : null;

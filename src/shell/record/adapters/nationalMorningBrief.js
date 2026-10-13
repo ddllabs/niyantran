@@ -13,9 +13,10 @@ import { dateLabel, plural, presentRows } from './common.js';
  *
  * What the adapter is given:
  *  - the selection: the item plus `section`, `headline`, `topic` and `region` (desk lines 202-208);
- *  - `ctx.rows` (the shell's `feed.rows`): the three sections merged and deduped, with NO `section`
- *    on any row. Only the PIB wire is told apart (its `source` is the literal 'PIB'); a GDELT or
- *    Google News row is "Top of the Day or Economy", and the board says so rather than guessing;
+ *  - `ctx.rows` (the shell's `feed.rows`): the three sections merged and deduped. The desk tags each
+ *    row with its `section` before the merge (F124). A row without one (an older feed) is told apart
+ *    only for the PIB wire (its `source` is the literal 'PIB'); a GDELT or Google News row is then
+ *    "Top of the Day or Economy", and the board says so rather than guessing;
  *  - `ctx.feed`: the envelope, whose `coverage.through` ('3d') is the only window the desk states
  *    (for the GDELT and Google News searches; the PIB RSS states none) and whose `meta.pib` is
  *    'OFFLINE' when the PIB wire could not be reached.

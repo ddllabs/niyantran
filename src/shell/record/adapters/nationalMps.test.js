@@ -31,6 +31,11 @@ const repeated = register.find((r) => {
   const parts = r.committees.split(';').map((s) => s.trim()).filter(Boolean);
   return new Set(parts).size < parts.length;
 });
+// A member whose list repeats a committee and still names more than one distinct committee.
+const repeatedSeveral = register.find((r) => {
+  const parts = r.committees.split(';').map((s) => s.trim()).filter(Boolean);
+  return new Set(parts).size < parts.length && new Set(parts).size > 1;
+});
 const withPeers = register.find((r) => isLs(r) && register.filter((x) => x.party === r.party && x.state === r.state).length > 6);
 const loner = register.find((r) => register.filter((x) => x.party === r.party && x.state === r.state).length === 1);
 
@@ -229,9 +234,10 @@ describe('National MP profiles adapter', () => {
     });
 
     it('counts the remaining committees, not the repeats', () => {
-      const far = model(repeated).touches.nodes.far;
-      const distinct = Number(tile(model(repeated), 'Committees').value);
-      if (distinct > 1) expect(far.l2).toBe(`+${distinct - 1} more`);
+      const far = model(repeatedSeveral).touches.nodes.far;
+      const distinct = Number(tile(model(repeatedSeveral), 'Committees').value);
+      expect(distinct).toBeGreaterThan(1); // the fixture must reach the branch
+      expect(far.l2).toBe(`+${distinct - 1} more`);
     });
   });
 

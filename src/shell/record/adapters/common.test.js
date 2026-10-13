@@ -25,6 +25,12 @@ describe('companiesNamedIn', () => {
     expect(companiesNamedIn(impact, ontology, 'Disinvestment in Oil India')).toEqual(['Oil India Ltd']);
   });
 
+  it('matches a multi-word name in a title written in capitals, but takes no abbreviation from all-capitals text', () => {
+    expect(companiesNamedIn(impact, ontology, 'THE OIL INDIA (TRANSFER OF UNDERTAKINGS) BILL')).toEqual(['Oil India Ltd']);
+    expect(companiesNamedIn(impact, ontology, 'THE OIL FIELDS (REGULATION) BILL')).toEqual([]);
+    expect(companiesNamedIn(impact, ontology, 'THE ONGC (REPEAL) BILL')).toEqual([]);
+  });
+
   it('never draws a sector-level (P2) company', () => {
     const p2 = { companies: [{ id: 'company:ongc', name: 'Oil and Natural Gas Corporation', path: 'P2' }] };
     expect(companiesNamedIn(p2, ontology, 'Exploration blocks of ONGC')).toEqual([]);

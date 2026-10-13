@@ -101,4 +101,17 @@ npm run build
 - **Not related, by design:** Affidavits link no other candidates, because the three shared
   constituency names are different seats in different states. Live Cabinet and Pipeline items hold
   no ministry, so they have no related links.
+- **Independent review (Fable, 2026-10-13):** not ready, with one must-fix; all fixed before the merge.
+  - **Must-fix:** 186 bills with no stage showed their outcome as a "base rate". A passage figure now
+    needs a pending stage and a pack note that says "base rate"; a test over every bill fails on the
+    old rule.
+  - **Should-fix:**
+    - four test assertions sat inside `if` blocks, and two of them never ran; each now checks its
+      precondition, with fixtures that reach the branch;
+    - related-record link titles are read as source text, like the record's own title;
+    - the Morning Brief comment matches the section tagging.
+  - **Nit fixed:** multi-word company names now match all-capitals bill titles, and abbreviations
+    are not read from all-capitals text.
+  - **Logged as F127:** the duplicated date and text helpers, acronym casing, and the quadratic
+    brief dedup.
 

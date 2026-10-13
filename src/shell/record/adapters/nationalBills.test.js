@@ -46,6 +46,17 @@ describe('National bills adapter', () => {
     expect(m.footer.note).toMatch(/not a forecast/i);
   });
 
+  it('never shows a passage figure where the pack calls it a completed outcome, whatever the stage column says', () => {
+    let checked = 0;
+    for (const row of withAnalysis) {
+      const note = analysisFor(row, analysis)?.passage_probability?.methodology_note || '';
+      if (!/completed outcome|already/i.test(note)) continue;
+      checked += 1;
+      expect(nationalBills(row, ctx()).glance.tiles.some((t) => /passage/i.test(t.label)), row.id).toBe(false);
+    }
+    expect(checked).toBeGreaterThan(1000);
+  });
+
   it('shows no passage figure for a resolved bill, whose stored score is just its outcome', () => {
     const m = nationalBills(assented, ctx());
     expect(m.glance.tiles.some((t) => /passage/i.test(t.label))).toBe(false);
@@ -56,7 +67,8 @@ describe('National bills adapter', () => {
     expect(noPack.glance.tiles.some((t) => /days in stage/i.test(t.label))).toBe(false);
     const a = analysisFor(pending, analysis);
     const tile = nationalBills(pending, ctx()).glance.tiles.find((t) => /days in stage/i.test(t.label));
-    if (a.stage_duration?.days_in_current_stage != null) expect(tile.value).toContain(String(a.stage_duration.days_in_current_stage));
+    expect(a.stage_duration?.days_in_current_stage).not.toBeUndefined(); // the fixture must reach the branch
+    expect(tile.value).toContain(String(a.stage_duration.days_in_current_stage));
   });
 
   it('draws the stage history with only the introduction dated, and says so', () => {
@@ -80,7 +92,8 @@ describe('National bills adapter', () => {
     const t = nationalBills(assented, ctx()).touches;
     expect(t.lanes).toEqual(['MINISTRY', 'BILL', 'SECTORS & SEGMENTS', 'COMPANIES']);
     expect(t.nodes.center).toMatchObject({ code: 'B' });
-    if (assented.sector) expect(t.nodes.left.l1.toLowerCase()).toBe(assented.sector.toLowerCase());
+    expect(assented.sector).toBeTruthy(); // the fixture must reach the branch
+    expect(t.nodes.left.l1.toLowerCase()).toBe(assented.sector.toLowerCase());
   });
 
   it('names a company only where the bill text names it, not on an ordinary word such as "oil"', () => {

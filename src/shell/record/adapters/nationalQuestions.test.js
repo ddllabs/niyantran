@@ -29,7 +29,7 @@ const realBuild = (...args) => vi.mocked(buildRecordModel).getMockImplementation
 const withAnalysis = questions.filter((r) => analysisFor(r, analysis));
 // Building a model with the packs links against the whole ontology (about a millisecond per row), so
 // the with-packs loops cover every fifth row plus every row the pack covers; no-pack loops cover all 8,000.
-const sample = questions.filter((r, i) => i % 5 === 0 || analysisFor(r, analysis));
+const sample = questions.filter((r, i) => i % 5 === 0 || analysisFor(r, analysis) || /\b(ONGC|SAIL|NHPC|NTPC|Coal India)\b/.test(r.subject || ''));
 const byId = (id) => questions.find((r) => r.id === id);
 const plain = questions[0]; // id 1, Mani A (DMK), MSME, unstarred; in the pack
 const bare = questions.find((r) => !analysisFor(r, analysis));
@@ -188,10 +188,12 @@ describe('National questions adapter', () => {
     expect(company('CSR Projects by Oil Companies in Tamil Nadu')).toBeUndefined();
     expect(company('Self Reliance of Domestic Fertilizer Industry')).toBeUndefined();
     expect(company('Persistent Challenges in Punjab')).toBeUndefined();
+    let drawn = 0;
     for (const row of sample) {
       const far = nationalQuestions(row, ctx()).touches.nodes.far;
-      if (far) expect(far.l2, row.id).toMatch(/named in the question|more named$/);
+      if (far) { drawn += 1; expect(far.l2, row.id).toMatch(/named in the question|more named$/); }
     }
+    expect(drawn).toBeGreaterThan(0); // the sample must contain questions that name a company
   });
 
   it('never draws a company by sector association (path P2), even one the text names', () => {

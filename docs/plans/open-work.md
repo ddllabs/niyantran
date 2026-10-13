@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F127 is next) and goes in the
+- A new finding gets the next free `F` number (F128 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -222,6 +222,17 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   correct the "18th Lok Sabha" label that covers both houses, and normalise
   party names for display while keeping the original. Data and shaping
   change: explain it before making it. After F124.
+- [ ] **F127. Record adapter helper clean-up.** Found in the F124 review
+  (2026-10-13).
+  - The strict feed-date parser and the plain-text helpers (`instant`,
+    `offsetOf`, the ISO/RFC patterns, the zone table, `plainText`, the
+    invisible-character strip, the entity decoder) are copied in `newsWire.js`,
+    `nationalCabinet.js`, `nationalRegulatory.js` and `nationalMorningBrief.js`
+    (`src/shell/record/adapters/`), and already differ: month-name leniency, IST
+    in the zone table, zoneless times. Move them to shared `feedDate.js` and
+    `feedText.js`.
+  - `titleCase` in `nationalBills.js` lowercases acronyms ("GST" → "Gst").
+  - The Morning Brief dedup is quadratic (fine at today's ~64 rows).
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
