@@ -260,8 +260,11 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     `task/law-record-panels`.
   - Done: twelve panels, Fable review (one must-fix, fixed), merged locally on
     2026-10-13 and pushed at `5806d13`.
-  - Noticed, not fixed: the module heading title-cases abbreviations
-    ("Nclt / Nclat (Insolvency)", "Icc Proceedings").
+  - Follow-up fixed 2026-10-13: module headings and menus no longer
+    title-case abbreviations ("Nclt" → "NCLT", "Icc" → "ICC", and about 30
+    labels on other desks, such as "GDP, CPI, PMI", "CBAM", "OTT").
+    `featureMenuLabel` keeps a word written with inner capitals unless the
+    whole label is in capitals; `src/lib/national.test.js`.
 - [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
   research (2026-10-13); owner: not now.
   - `backup/` holds 177 ICJ General List cases and 641 WTO DS case pages.
