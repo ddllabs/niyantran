@@ -1,7 +1,7 @@
 // The terminal opens only for a signed-in user: the session flag alone is not
 // enough, because sessionUser() no longer falls back to a built-in account.
 import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { prerenderToNodeStream } from 'react-dom/static';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./marketing/MarketingSite.jsx', () => ({ default: () => 'MARKETING' }));
@@ -22,6 +22,15 @@ import App from './App.jsx';
 import { setSessionUser } from './lib/userStore.js';
 import { entitlementOf, canExport, rowCapForUser } from './lib/planEntitlements.js';
 
+// F145: the terminal, admin and chooser are lazy, so render the way a server would: wait for them,
+// then drop React's Suspense boundary markers.
+async function renderApp() {
+  const { prelude } = await prerenderToNodeStream(createElement(App));
+  let html = '';
+  for await (const chunk of prelude) html += chunk;
+  return html.replace(/<!--.*?-->/g, '');
+}
+
 function memoryStorage() {
   const values = new Map();
   return { getItem: (k) => values.get(k) ?? null, setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) };
@@ -37,48 +46,48 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('terminal sign-in gate', () => {
-  it('shows the marketing site when the session flag is set but no user is stored', () => {
+  it('shows the marketing site when the session flag is set but no user is stored', async () => {
     sessionStorage.setItem('niyantranAuthed', '1');
-    expect(renderToStaticMarkup(createElement(App))).toBe('MARKETING');
+    expect(await renderApp()).toBe('MARKETING');
   });
 
-  it('shows the marketing site for a legacy email-only session', () => {
+  it('shows the marketing site for a legacy email-only session', async () => {
     sessionStorage.setItem('niyantranAuthed', '1');
     sessionStorage.setItem('niyantranUser', 'analyst@niyantran');
-    expect(renderToStaticMarkup(createElement(App))).toBe('MARKETING');
+    expect(await renderApp()).toBe('MARKETING');
   });
 
-  it('shows the marketing site when a user is stored without the flag', () => {
+  it('shows the marketing site when a user is stored without the flag', async () => {
     setSessionUser({ id: 'uid-1', email: 'person@example.org' });
     sessionStorage.removeItem('niyantranAuthed');
-    expect(renderToStaticMarkup(createElement(App))).toBe('MARKETING');
+    expect(await renderApp()).toBe('MARKETING');
   });
 
-  it('opens the terminal when the flag is set and a user is stored', () => {
+  it('opens the terminal when the flag is set and a user is stored', async () => {
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student' });
     expect(sessionStorage.getItem('niyantranAuthed')).toBe('1');
-    expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
+    expect(await renderApp()).toBe('TERMINAL');
   });
   // Accounts whose profile has no saved persona answered as Corporate Affairs
   // without ever being asked (plan C5). They choose once, at sign-in.
-  it('asks an account with no saved persona to choose one', () => {
+  it('asks an account with no saved persona to choose one', async () => {
     setSessionUser({ id: 'uid-1', email: 'person@example.org', personaSaved: false });
-    expect(renderToStaticMarkup(createElement(App))).toBe('CHOOSER');
+    expect(await renderApp()).toBe('CHOOSER');
   });
 
-  it('opens the terminal directly for an account whose persona is saved, or unknown', () => {
+  it('opens the terminal directly for an account whose persona is saved, or unknown', async () => {
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'journalist', personaSaved: true });
-    expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
+    expect(await renderApp()).toBe('TERMINAL');
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'journalist' });
-    expect(renderToStaticMarkup(createElement(App))).toBe('TERMINAL');
+    expect(await renderApp()).toBe('TERMINAL');
   });
 });
 
 describe('free access while subscription metadata loads', () => {
-  it('opens the terminal without waiting for the server plan', () => {
+  it('opens the terminal without waiting for the server plan', async () => {
     plan.loaded = false;
     setSessionUser({ id: 'uid-1', email: 'person@example.org', type: 'student', plan: 'max', planStatus: 'active' });
-    const html = renderToStaticMarkup(createElement(App));
+    const html = await renderApp();
     expect(html).toBe('TERMINAL');
   });
 });

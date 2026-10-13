@@ -69,7 +69,7 @@ export default function DeskSidebar({ tab, lang, onDesk, onClose, tabs, lockedId
       <aside ref={dialogRef} tabIndex={-1} className="desk-side" role="dialog" aria-modal="true" aria-labelledby="desk-side-title">
         <header className="desk-side-head">
           <div className="desk-side-brand">
-            <img src="/brand/logo.png?v=2" alt="" />
+            <img src="/brand/logo-128.webp" alt="" />
             <div>
               <b>TERMINAL</b>
               <h2 id="desk-side-title">{hi ? 'डेस्क' : 'Desks'}</h2>

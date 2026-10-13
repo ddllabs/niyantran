@@ -156,7 +156,7 @@ export default function ResetPasswordPage({ onLogin }) {
         <span className="mkt-pr-gridlines mkt-login-grid" />
         <div className="mkt-login-orb">
           <span className="mkt-halo" />
-          <img className="mkt-globe mkt-globe-slow" src="/brand/globe.png?v=3" alt="" />
+          <img className="mkt-globe mkt-globe-slow" src="/brand/globe.webp" alt="" />
         </div>
         <span className="sh navy" />
         <span className="sh sand" />
@@ -168,7 +168,7 @@ export default function ResetPasswordPage({ onLogin }) {
           <i /> SYS/READY
         </p>
         <div className="mark">
-          <img src="/brand/logo.png?v=2" alt="" />
+          <img src="/brand/logo-128.webp" alt="" />
         </div>
         <h1>TERMINAL</h1>
         <div className="tag">CREDENTIAL RESET</div>

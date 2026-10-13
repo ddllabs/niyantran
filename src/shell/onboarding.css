@@ -211,3 +211,10 @@
   font-size: 13px;
   letter-spacing: 0.04em;
 }
+
+/* F145: while the terminal, admin or persona chooser downloads (App.jsx), and if that fails. */
+.app-loading { min-height: 100vh; }
+.app-load-error { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; font: 15px/1.5 Inter, system-ui, sans-serif; color: #252425; background: #fff; }
+.app-load-error p { margin: 0; }
+.app-load-retry { padding: 8px 18px; border: 1px solid #293fa5; border-radius: 8px; background: #293fa5; color: #fff; font: 600 14px/1.2 Inter, system-ui, sans-serif; cursor: pointer; }
+.app-load-retry:focus-visible { outline: 3px solid #293fa555; outline-offset: 2px; }

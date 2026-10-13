@@ -12,9 +12,13 @@ nter-data-globe.data-orbit{display:block;position:relative;width:100%;aspect-rat
 .data-orbit-rings-front{z-index:4;opacity:.66;}
 .data-orbit-rings-front path{stroke-width:1.5;}
 .data-orbit-earth{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;opacity:0;transition:opacity .5s ease;}
-.data-orbit-fallback{position:absolute;left:18%;top:18%;width:64%;height:64%;border-radius:50%;object-fit:cover;z-index:3;box-shadow:0 0 28px #293fa52a;pointer-events:none;}
+/* F145: the still (globe-still.webp) covers the shader's disc and glow, 16% to 84% of the box, so the
+   moving globe fades in exactly over it; the still leaves once the fade is done. A globe whose
+   textures an earlier page decoded draws at once (.globe-instant). */
+.data-orbit-fallback{position:absolute;left:16%;top:16%;width:68%;height:68%;z-index:3;pointer-events:none;transition:opacity .2s ease .5s;}
 .globe-ready .data-orbit-earth{opacity:1;}
 .globe-ready .data-orbit-fallback{opacity:0;}
+.globe-instant .data-orbit-earth,.globe-instant .data-orbit-fallback{transition:none;}
 /* No wrapper stacking context: each card can move behind or ahead of Earth.
    Do not add transform, isolation or any other stacking context to
    .data-orbit-labels; its display:contents is what lets a label pass behind Earth. */
@@ -27,7 +31,7 @@ nter-data-globe.data-orbit{display:block;position:relative;width:100%;aspect-rat
 @container(max-width:540px){.data-orbit-label{font-size:11px;gap:6px;max-width:140px;min-height:42px;padding:8px;border-radius:11px;}.data-orbit-label-icon{flex-basis:24px;height:24px;border-radius:7px;}.data-orbit-label-icon svg{width:15px;height:15px;}.data-orbit-label-arrow{display:none;}}
 @container(max-width:390px){.data-orbit-label{font-size:11px;max-width:116px;gap:5px;padding:6px;min-height:39px;}.data-orbit-label-icon{flex-basis:19px;height:22px;background:transparent;}.data-orbit-label-icon svg{width:15px;height:15px;}}
 @container(max-width:340px){.data-orbit-label{max-width:88px;font-size:10.5px;padding:6px;min-height:40px;text-align:center;justify-content:center;}.data-orbit-label-icon{display:none;}}
-@media(prefers-reduced-motion:reduce){.data-orbit-earth,.data-orbit-label{transition:none;}}
+@media(prefers-reduced-motion:reduce){.data-orbit-earth,.data-orbit-fallback,.data-orbit-label{transition:none;}}
 
 /* The approved brand glow: wrap <nter-data-globe> in .nter-globe-scene. Keep white behind it. */
 .nter-globe-scene{position:relative;isolation:isolate;width:100%;max-width:756px;margin-inline:auto;}

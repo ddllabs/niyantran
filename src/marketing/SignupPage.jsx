@@ -15,6 +15,7 @@ import { signupErrorMessage } from '../lib/signupErrors.js';
 import { nextSignupStep } from '../lib/signupFlow.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 import DataGlobe from './DataGlobe.jsx';
+import { prefetchTerminal } from '../lib/loadTerminal.js';
 
 export default function SignupPage({ onSuccess, onLogin }) {
   const [error, setError] = useState('');
@@ -26,6 +27,9 @@ export default function SignupPage({ onSuccess, onLogin }) {
   const [cooldown, setCooldown] = useState(0);
 
   const root = useRef(null);
+
+  // F145: likely to sign in next, so fetch the terminal in the background.
+  useEffect(() => { prefetchTerminal(); }, []);
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -177,7 +181,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
             <i /> SYS/READY
           </p>
           <div className="mark">
-            <img src="/brand/logo.png?v=2" alt="" />
+            <img src="/brand/logo-128.webp" alt="" />
           </div>
           <h1>VERIFY GMAIL</h1>
           <div className="tag">ACTIVATION LINK DISPATCHED</div>
@@ -269,7 +273,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
             <i /> SYS/READY
           </p>
           <div className="mark">
-            <img src="/brand/logo.png?v=2" alt="" />
+            <img src="/brand/logo-128.webp" alt="" />
           </div>
           <h1>CREATE ACCESS</h1>
           <div className="tag">SIGN UP</div>

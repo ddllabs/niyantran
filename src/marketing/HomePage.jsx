@@ -350,7 +350,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             <span className="mkt-preview-scan" aria-hidden="true" />
             <aside className="mkt-prev-nav">
               <div className="mark">
-                <img src="/brand/logo.png?v=2" alt="" />
+                <img src="/brand/logo-128.webp" alt="" />
                 TERMINAL
               </div>
               {DESKS.map((item) => (
@@ -493,7 +493,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             {!videoPlaying ? (
               <button type="button" className="mkt-walk-video-face" onClick={openWalkthrough} aria-label="Play product walkthrough">
                 <span className="mkt-walk-video-bg" aria-hidden="true">
-                  <img src="/brand/globe.gif?v=4" alt="" decoding="async" />
+                  <img src="/brand/walkthrough-globe.webp" alt="" loading="lazy" decoding="async" />
                 </span>
                 <span className="mkt-walk-video-brand">— NTER.PRO</span>
                 <span className="mkt-walk-video-title">
