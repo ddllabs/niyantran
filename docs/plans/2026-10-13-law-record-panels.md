@@ -68,3 +68,38 @@ npm run build
 node -e "import('./api/router.js').then(() => console.log('router import ok'))"
 deno test -A --config supabase/functions/deno.json supabase/functions
 ```
+
+## Outcome (2026-10-13)
+
+| Commit | Content |
+|---|---|
+| `8419edd` | L1: clock tile, health strip, Quick exit (drafts in AI Research), `ctx.today`; IBBI claims deadline and Google News publisher kept |
+| `a47bfc9` | L2: NCLT / IBBI insolvency adapter |
+| `50a9f5f` | L3: Supreme Court and Orders by Topic |
+| `3f6e89d` | L4 and L5: the nine wire modules; all twelve registered on the judiciary tier |
+| `301a09f` | Review fixes |
+
+- **Agents.** Two Sonnet task agents in worktrees (L3, L4); each showed that its guards fail when
+  their defect is restored. The supervisor reworded two provenance phrases in L4.
+- **No model call on selection.** In the browser, selecting NCLT, Topic and ICC records made only
+  the saved-brief cache lookup; `/api/ai/source-extract` ran only after a Quick exit click, when AI
+  Research attached the record (as Ask AI does).
+- **Verification:**
+  - `npm run lint` 0; `npm test` 3,478 tests in 231 files; `npm run build` passes; Deno 883 passed;
+    router import ok.
+  - Browser: NCLT at 1440px and 375px (light and dark), Topic at 800px, ICC at 939px and 375px on live
+    data; no sideways scroll.
+  - Live ICC data is cricket coverage, as the callout warns (F84 stays open).
+- **Independent review (Fable, 2026-10-13):** not ready, with one must-fix; all fixed before the merge.
+  - **Must-fix:** the SC footer gave the order date as "As of". It now uses the table's snapshot
+    time (`as_of`, kept by `scOrderRows`); the IBBI and NCLT packs hold none, so they carry the
+    "as-of not on record" flag.
+  - **Should-fix, fixed:**
+    - deadlines are compared with India's date (`todayInIndia`), not UTC;
+    - without a today, the claims step is neither done nor current;
+    - the spec now says the cache lookup is expected on selection, and that Google News rows on
+      other desks also gain `publisher`.
+  - **Nits fixed:** strict pack dates in the insolvency adapter; no health strip without rows; a
+    registry comment; a header note on the server test's location.
+  - **Nits left:** the generic wire panel is unreachable through the registry (kept as defence);
+    "Record-level rows 0" is constant by construction; a wrapped health item keeps its left rule.

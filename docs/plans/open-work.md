@@ -258,6 +258,10 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     [plan](2026-10-13-law-record-panels.md),
     [research](../research/2026-10-13-law-record-panels.md). Branch
     `task/law-record-panels`.
+  - Done: twelve panels, Fable review (one must-fix, fixed), merged locally on
+    2026-10-13; awaiting the owner's go-ahead to push.
+  - Noticed, not fixed: the module heading title-cases abbreviations
+    ("Nclt / Nclat (Insolvency)", "Icc Proceedings").
 - [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
   research (2026-10-13); owner: not now.
   - `backup/` holds 177 ICJ General List cases and 641 WTO DS case pages.
