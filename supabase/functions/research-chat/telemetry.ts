@@ -7,6 +7,7 @@
 
 import type { AttemptMetadata, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
 import { log } from '../_shared/logging.ts';
+import { webSearchCostUsd, webSearchCount } from '../_shared/webSearch.ts';
 import type { TraceStep } from './agent.ts';
 
 export type CallPurpose = 'chat_answer' | 'citation_repair' | 'embedding';
@@ -30,6 +31,10 @@ export interface ModelCallRow {
   cached_prompt_tokens: number | null;
   reasoning_tokens: number | null;
   cost_usd: number | null;
+  /** Searches the provider ran in this call; 0 when none. */
+  web_search_count: number;
+  /** The searches' share of cost_usd (never added to it); null when the call did not search. */
+  web_search_cost_usd: number | null;
   openrouter_generation_id: string | null;
   raw_usage: Record<string, unknown> | null;
 }
@@ -39,7 +44,7 @@ export interface TurnTraceRow {
   conversation_id: string | null;
   message_id: string;
   step_index: number;
-  step_type: 'search_documents' | 'search_desk_rows' | 'reasoning' | 'answer';
+  step_type: 'search_documents' | 'search_desk_rows' | 'reasoning' | 'answer' | 'web_search';
   input: string | null;
   result_count: number | null;
   top_similarity: number | null;
@@ -49,6 +54,24 @@ export interface TurnTraceRow {
   model_call_log_id: string | null;
   aborted: boolean;
   error_message: string | null;
+}
+
+/**
+ * A trace row that still has to be linked to a provider attempt. `attempt_index`
+ * is the position of the attempt in the recorder (see lastAttemptIndex); flush
+ * turns it into `model_call_log_id` once the attempt's row has an id, and
+ * removes it, so it never reaches the database.
+ */
+export type LinkedTraceRow = TurnTraceRow & { attempt_index?: number };
+
+/** One research call that searched the web, as a trace step. */
+export interface WebTraceStep {
+  /** The recorder's index of the attempt whose model_call_logs row this links to. */
+  attemptIndex: number;
+  searches: number;
+  /** New unique pages this call added to the turn. */
+  pagesAdded: number;
+  latencyMs: number;
 }
 
 /** Per-token prices as model_pricing stores them (USD per token). */
@@ -113,6 +136,7 @@ export interface AttemptInput {
 
 export function modelCallRow(a: AttemptInput): ModelCallRow {
   const { cost, source } = costOf(a.usage ?? null, a.pricing);
+  const searches = webSearchCount(a.usage) ?? 0;
   return {
     user_id: a.userId,
     conversation_id: a.conversationId,
@@ -140,6 +164,8 @@ export function modelCallRow(a: AttemptInput): ModelCallRow {
     cached_prompt_tokens: known(a.usage?.cached_prompt_tokens),
     reasoning_tokens: known(a.usage?.reasoning_tokens),
     cost_usd: cost,
+    web_search_count: searches,
+    web_search_cost_usd: searches > 0 ? webSearchCostUsd(a.usage, searches) : null,
     openrouter_generation_id: a.generationId ?? null,
     raw_usage: a.usage ? { ...a.usage, cost_source: source } : null,
   };
@@ -155,15 +181,21 @@ export function modelCallRow(a: AttemptInput): ModelCallRow {
  * tied to its step - the embed happens inside the search, which does not know
  * the step number. Guessing by call order would link the wrong row after a
  * retry, and a wrong link is worse than an empty column.
+ *
+ * A web_search step is different: the call that searched is known, so it names
+ * its attempt (`web[].attemptIndex`) and flush links it the way it links the
+ * answer. Web rows follow the tool steps and precede the answer. Without `web`
+ * the rows are exactly what they were.
  */
 export function turnTraceRows(a: {
   userId: string;
   conversationId: string | null;
   messageId: string;
   steps: TraceStep[];
+  web?: WebTraceStep[];
   answer?: { latencyMs: number; aborted: boolean; error?: string | null };
-}): TurnTraceRow[] {
-  const rows: TurnTraceRow[] = a.steps.map((s) => ({
+}): LinkedTraceRow[] {
+  const rows: LinkedTraceRow[] = a.steps.map((s) => ({
     user_id: a.userId,
     conversation_id: a.conversationId,
     message_id: a.messageId,
@@ -179,6 +211,25 @@ export function turnTraceRows(a: {
     aborted: s.status === 'cancelled',
     error_message: s.status === 'error' ? 'tool step failed' : null,
   }));
+  for (const w of a.web ?? []) {
+    rows.push({
+      user_id: a.userId,
+      conversation_id: a.conversationId,
+      message_id: a.messageId,
+      step_index: rows.length + 1,
+      step_type: 'web_search',
+      input: null,
+      result_count: Math.max(0, Math.round(w.pagesAdded)),
+      top_similarity: null,
+      latency_ms: Math.max(0, Math.round(w.latencyMs)),
+      chunk_ids: null,
+      row_keys: null,
+      model_call_log_id: null,
+      aborted: false,
+      error_message: null,
+      attempt_index: w.attemptIndex,
+    });
+  }
   if (a.answer) {
     rows.push({
       user_id: a.userId,
@@ -231,7 +282,7 @@ export function createAttemptRecorder(options: {
 }) {
   const now = options.now ?? Date.now;
   const records: RecordedAttempt[] = [];
-  const traces = new Map<string, TurnTraceRow>();
+  const traces = new Map<string, LinkedTraceRow>();
   let flushing: Promise<void> | undefined;
   function merge(record: RecordedAttempt, metadata: AttemptMetadata): void {
     if (record.status !== null || flushing) return;
@@ -254,6 +305,8 @@ export function createAttemptRecorder(options: {
           'cached_prompt_tokens',
           'reasoning_tokens',
           'cost',
+          'web_search_requests',
+          'upstream_inference_cost',
         ] as const
       ) {
         const value = known(metadata.usage[key]);
@@ -352,6 +405,17 @@ export function createAttemptRecorder(options: {
       return null;
     };
     for (const record of records) if (record.usage) attemptsReporting++;
+    // Searches are summed over the attempts that reported any. Unlike the
+    // token totals there is no all-or-nothing rule: a call that did not report
+    // a search did not search, and a count of zero is the honest report.
+    let webSearches = 0;
+    let webCost = 0;
+    for (const record of records) {
+      const n = webSearchCount(record.usage) ?? 0;
+      if (n <= 0) continue;
+      webSearches += n;
+      webCost += webSearchCostUsd(record.usage, n) ?? 0;
+    }
     const out: Record<string, unknown> = {
       attempts: records.length,
       prompt_tokens: sum('prompt_tokens'),
@@ -360,6 +424,8 @@ export function createAttemptRecorder(options: {
       cached_prompt_tokens: sum('cached_prompt_tokens'),
       reasoning_tokens: sum('reasoning_tokens'),
       cost_usd: sum('cost'),
+      web_searches: webSearches,
+      web_search_cost_usd: Math.round(webCost * 1e6) / 1e6,
     };
     // Only when the turn is actually short of figures. A complete turn carries
     // nothing extra, so its shape is unchanged.
@@ -434,9 +500,14 @@ export function createAttemptRecorder(options: {
         if (records[i].answer && records[i].status === 'success') answerId = ids[i];
       }
       if (traces.size) {
-        const rows = [...traces.values()].map((row) =>
-          row.step_type === 'answer' && !row.aborted ? { ...row, model_call_log_id: answerId } : row
-        );
+        const rows: TurnTraceRow[] = [...traces.values()].map((linked) => {
+          const { attempt_index: attempt, ...row } = linked;
+          if (row.step_type === 'answer' && !row.aborted) return { ...row, model_call_log_id: answerId };
+          // A web step links to the attempt that searched; an index that names
+          // no attempt stays unlinked rather than guessing.
+          if (attempt !== undefined) return { ...row, model_call_log_id: ids[attempt] ?? null };
+          return row;
+        });
         await bounded('turn_trace', () => options.db.logTurnTraces(rows), undefined);
       }
     })();
@@ -486,7 +557,11 @@ export function createAttemptRecorder(options: {
       const record = records.findLast((r) => r.purpose === purpose);
       if (record) record.answer = true;
     },
-    addTraces(rows: TurnTraceRow[]) {
+    /** The recorder's index of the latest attempt of this purpose, or -1: what a web step's `attemptIndex` names. */
+    lastAttemptIndex(purpose: CallPurpose): number {
+      return records.findLastIndex((r) => r.purpose === purpose);
+    },
+    addTraces(rows: LinkedTraceRow[]) {
       if (!flushing) { for (const row of rows) traces.set(`${row.step_type}:${row.step_index}`, row); }
     },
   };
