@@ -432,6 +432,16 @@ rechecked. Nothing in this check wrote to production.
   2026-10-13. Only AI had an outside-click close; Desk and Record now collapse to the slim bar on a
   click outside or Escape (owner's choice), and picking the selected row again reopens its record.
   On `task/ui-polish`. Remaining: review, merge, push, owner check.
+- [ ] **F140. Homepage header, hero, globe and "Curated for" strip to the client's design.** Owner
+  request 2026-10-13 (client review of `NTER-Homepage-Final.html` and `globe-animation/`). The
+  design's look, our data and links: white header kept sticky at 72 px with "Data coverage", Sign in
+  beside "Get started ↗" and "BY NTER.PRO"; the design's hero (no mouse-follow); the orbiting globe
+  with seven data labels that pass behind Earth, each opening its desk or module (signed out: sign in
+  first); figures 9,817 bills, 120 modules and 246 source endpoints (counted from the source registry);
+  the six personas in a strip. Measured against the design: identical positions at 1440 px apart from
+  the shorter header. On `task/home-hero`; [spec](../specs/2026-10-14-home-hero-redesign.md).
+  Remaining: review, merge, push, owner and client check. Found on the way (not this change): the
+  homepage scrolls sideways at 375 px because of the walkthrough and trivia sections.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
