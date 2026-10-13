@@ -39,7 +39,7 @@ import {
   type TraceStep,
   type WidenedScope,
 } from './agent.ts';
-import { createAnswerDecoder } from './answerStream.ts';
+import { createAnswerDecoder, undoDoubleEscapes } from './answerStream.ts';
 import { buildSystemPrompt, buildUserTurn, type RenderedAttachment } from './prompt.ts';
 import { repairCitations, repairSources, repairWorthwhile } from './repair.ts';
 import {
@@ -1067,7 +1067,8 @@ async function runTurnBody(
   }
   for (const row of result.rows) evidence.set(handles.assign(rowSourceKey(row)), { kind: 'row', row });
 
-  const rawAnswer = envelope?.answer ?? decoder.text ?? '';
+  // F132: the saved answer, and by the terminal patch the streamed one, get their line breaks back.
+  const rawAnswer = undoDoubleEscapes(envelope?.answer ?? decoder.text ?? '');
   // Kept so the ladder can run once more, on the same input, with page evidence.
   let ladderInput: LadderInput = { answer: rawAnswer, modelSources: envelope?.sources, evidence };
   let ladder = applyCitationLadder(ladderInput);

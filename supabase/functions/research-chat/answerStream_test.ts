@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { createAnswerDecoder } from './answerStream.ts';
+import { createAnswerDecoder, undoDoubleEscapes } from './answerStream.ts';
 
 const ENVELOPES = [
   { answer: 'Plain answer with [1] and [2].', sources: [{ id: 1, source: 'ref:abc123-1' }], follow_up_questions: [] },
@@ -151,4 +151,23 @@ Deno.test('a malformed answer closes without output and reset clears all parser 
   assertEquals(d.text, '');
   assertEquals(d.push('{"other":{"answer":"nested"},"answer":"fresh"}'), 'fresh');
   assertEquals(d.closed, true);
+});
+
+// F132: Gemini sometimes escapes a newline twice inside the strict JSON answer, so the decoded
+// answer reads "### 1. WHAT IT IS\\n\\n- **Point:**..." as text. Seen once in the F131 local run
+// (41 literal, 4 real line breaks).
+Deno.test('F132: a double-escaped answer gets its line breaks, tabs and quotes back', () => {
+  const broken = '### 1. WHAT IT IS\\n\\n- **KVIC** reported \\"record\\" sales.\\n- Turnover:\\t₹1.70 lakh crore.\\n\\n---\\n\\n### 2. WATCH\\r\\n- Tabling.';
+  assertEquals(
+    undoDoubleEscapes(broken),
+    '### 1. WHAT IT IS\n\n- **KVIC** reported "record" sales.\n- Turnover:\t₹1.70 lakh crore.\n\n---\n\n### 2. WATCH\n- Tabling.',
+  );
+});
+
+Deno.test('F132: an ordinary answer is left alone, even one that writes \\n as text', () => {
+  const ordinary = 'Split on newlines:\n\n```js\nline.split("\\n")\n```\n\nThe pattern `\\n` matches one line break.\nA third: "\\n".';
+  assertEquals(undoDoubleEscapes(ordinary), ordinary, 'fewer literal \\n than real line breaks');
+  const few = 'One line with two literal markers \\n and \\n only.';
+  assertEquals(undoDoubleEscapes(few), few, 'below the threshold of three');
+  assertEquals(undoDoubleEscapes(''), '');
 });

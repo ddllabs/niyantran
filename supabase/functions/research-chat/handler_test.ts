@@ -332,6 +332,16 @@ Deno.test('a plain answer streams as chunks, persists, and reports sources, timi
   assertEquals(rec.calls.at(-1)!.cost_usd, 0.0001, 'the provider figure is preferred');
 });
 
+Deno.test('F132: a double-escaped answer is saved with real line breaks, and the reader is patched to match', async () => {
+  const doubled = '### 1. WHAT IT IS\\n\\n- First point.\\n- Second point.\\n\\n### 2. WATCH\\n- Tabling.';
+  const provider = scripted([...DECLINES, [text(envelope(doubled)), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const fixed = '### 1. WHAT IT IS\n\n- First point.\n- Second point.\n\n### 2. WATCH\n- Tabling.';
+  assertEquals(rec.messages[0].content, fixed);
+  assertEquals(rendered(got), fixed, 'the streamed text is corrected by the terminal patch');
+});
+
 Deno.test('a persona_probe reaches the persona lookup with the caller', async () => {
   const provider = scripted([...DECLINES, [text(envelope('Probe answer.')), finish()]]);
   const asked: unknown[][] = [];

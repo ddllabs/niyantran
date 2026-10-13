@@ -380,3 +380,15 @@ export function createAnswerDecoder(): AnswerDecoder {
     },
   };
 }
+
+/**
+ * F132: Gemini sometimes escapes a newline twice inside the strict JSON answer, so the decoded
+ * answer holds "\n" as text and renders as one run-on paragraph (seen once in the F131 local run:
+ * 41 literal, 4 real line breaks). Undone only when there are at least three literal "\n" and
+ * they outnumber the real line breaks, so an answer that writes "\n" as text is left alone.
+ */
+export function undoDoubleEscapes(answer: string): string {
+  const literal = answer.match(/\\n/g)?.length ?? 0;
+  if (literal < 3 || (answer.match(/\n/g)?.length ?? 0) >= literal) return answer;
+  return answer.replace(/\\r\\n|\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
+}
