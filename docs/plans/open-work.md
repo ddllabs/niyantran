@@ -399,12 +399,31 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   answer.** Found in the F131 local run, 2026-10-13: one answer in three was
   saved with 41 literal `\n` sequences and rendered them as text. The answer
   phase is unchanged by F131, and production had none in 11 answers over 14
-  days. Options:
-  - unescape when an answer has many literal `\n` and almost no real
-    newlines;
-  - tighten the answer prompt.
-
-  Measure the frequency on production first.
+  days.
+  - **Measured 2026-10-13 (owner: "run the test first, then add the safety
+    net"):**
+    - **Production, read-only:** 0 of 12 saved answers ever, 10 of them from
+      Gemini 3.8 Flash and 3 of those web turns. `chat_messages` is the only
+      table that stores answers.
+    - **Probe:** 20 answer-phase calls to Gemini 3.8 Flash, built with
+      production's own prompt builder, answer schema and OpenRouter client.
+      14 were follow-up questions with a prior markdown answer and web
+      evidence, and 6 were first questions. **None was double-escaped**
+      (0 literal `\n` in any answer). With a sizing call, the probe cost
+      $0.13. Web search spend is now $0.70 of the approved $1.00.
+    - Together with the one local case, that is 1 in 36 known answers: rare,
+      but real.
+  - **Safety net, on `task/f132-json-newlines`:** `undoDoubleEscapes`
+    (`answerStream.ts`), applied to the answer in `handler.ts` before the
+    citation ladder.
+    - It turns literal `\n`, `\t` and `\"` back into real characters, but
+      only when there are at least three literal `\n` and they outnumber the
+      real line breaks.
+    - The saved answer is corrected, and the terminal patch corrects what the
+      reader already sees.
+    - There are 3 tests, and each guard was proved by mutation: removing the
+      call, lowering the threshold to one, and dropping the line-break
+      comparison.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
