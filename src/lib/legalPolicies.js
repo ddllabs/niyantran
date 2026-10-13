@@ -76,7 +76,7 @@ We do not sell personal data and we do not show advertising. We do not use your 
 
 - Supabase: accounts, authentication, database and file storage, on servers in Mumbai, India. It also sends our account emails.
 - OpenRouter and the AI model providers it routes to: your question, relevant recent conversation, attached text and the cited source passages, to generate an answer, and voice recordings for transcription. These providers may process data outside India.
-- OpenRouter's web search, run by Exa: when web search is on for a question, the AI model writes a search query from your question and the conversation's material, such as the record in view or attached text, and Exa receives that search query to find public web pages. Exa receives the query, not your name, email address or account.
+- OpenRouter's web search, run by Exa: when web search is on for a question, the AI model writes a search query from your question and the conversation's material, such as the record in view or attached text, and Exa receives that search query to find public web pages. Exa receives the query, not your name, email address or account. The small site icons shown beside web sources are fetched by our server from DuckDuckGo, which receives only the sites' domain names, not your details or IP address.
 - Razorpay: payment processing.
 - Vercel: hosting of the website and its application programming interface.
 - Google: sign-in with Google, and web fonts loaded by the site.
