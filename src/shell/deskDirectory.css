@@ -59,7 +59,11 @@
 .with-v6-directory .shell-header-utilities { display:flex;align-items:center;gap:12px;margin-left:auto;min-width:0; }
 .with-v6-directory .top-actions { flex:none;grid-row:auto;grid-column:auto;overflow:visible;max-width:none; }
 .with-v6-directory .v6-landing-tabs { order:3;box-sizing:border-box;flex:0 0 calc(100% + 2 * var(--topbar-gutter));grid-area:auto;min-height:42px;margin:0 calc(-1 * var(--topbar-gutter));padding:0 var(--topbar-gutter);border:0;border-top:1px solid var(--line);background:transparent; }
-.with-v6-directory .v6-landing-tabs button { min-height:34px; }
+/* Owner 2026-10-13: no space around the tabs; each tab, and the current desk's highlight, fills
+   the row from the line above to the line below. */
+.with-v6-directory .v6-landing-tabs { align-items:stretch; }
+.with-v6-directory .v6-landing-tabs button { min-height:0;border-radius:0; }
+.with-v6-directory .v6-landing-tabs button[aria-current=page]::after { bottom:0;border-radius:0; }
 @media(max-width:900px) {
   .with-v6-directory>.topbar { --topbar-gutter:16px;height:auto;grid-template-rows:none;padding-top:10px;row-gap:10px; }
   .with-v6-directory .shell-header-utilities { gap:8px; }

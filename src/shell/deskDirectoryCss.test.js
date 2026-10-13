@@ -19,9 +19,11 @@ describe('desk tabs in the header', () => {
     expect(css).not.toMatch(/max-width:1799px/);
   });
 
-  it('use a 42px row with the pill shortened to fit', () => {
+  it('use a 42px row that each tab fills from line to line, with no space around it', () => {
     expect(tabs).toMatch(/min-height:42px/);
-    expect(rule('.with-v6-directory .v6-landing-tabs button')).toMatch(/min-height:34px/);
+    expect(topLevel).toMatch(/\.with-v6-directory \.v6-landing-tabs \{ align-items:stretch; \}/);
+    expect(rule('.with-v6-directory .v6-landing-tabs button')).toMatch(/min-height:0;border-radius:0/);
+    expect(rule('.with-v6-directory .v6-landing-tabs button[aria-current=page]::after')).toMatch(/bottom:0/);
     expect(css).not.toMatch(/\.v6-landing-tabs \{ min-height:52px/);
   });
 });
