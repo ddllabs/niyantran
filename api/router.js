@@ -32,6 +32,7 @@ import { handleBillingApi } from '../server/billingApi.mjs';
 import { handleTransitApi } from '../server/transitApi.mjs';
 import { handleDiplomacyRequest } from '../server/diplomacyApi.mjs';
 import { handleAssetsRequest } from '../server/assetsApi.mjs';
+import { handleSiteIconRequest } from '../server/siteIconApi.mjs';
 
 export const config = {
   maxDuration: 60,
@@ -332,6 +333,15 @@ export default async function handler(req, res) {
       req.url = qStr ? `${path}?${qStr}` : path;
       await handleDiplomacyRequest(req, res, () => {
         res.status(404).json({ ok: false, error: `No diplomacy route for ${path}` });
+      });
+      return;
+    }
+
+    if (path === '/api/site-icon') {
+      const qStr = q(req).toString();
+      req.url = qStr ? `${path}?${qStr}` : path;
+      await handleSiteIconRequest(req, res, () => {
+        res.status(404).json({ ok: false, error: `No site-icon route for ${path}` });
       });
       return;
     }

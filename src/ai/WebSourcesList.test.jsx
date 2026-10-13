@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import WebSourcesList, { cleanWebPages, normaliseWebUrl } from './WebSourcesList.jsx';
+import WebSourcesList, { SiteIcon, cleanWebPages, hideFailedIcon, normaliseWebUrl, siteIconUrl } from './WebSourcesList.jsx';
 
 const PAGES = [
   { url: 'https://www.rbi.org.in/press?id=1', title: 'RBI press release', domain: 'rbi.org.in', cited: true },
@@ -18,7 +18,22 @@ describe('WebSourcesList (F130 T4b): the "Web sources searched" panel', () => {
     expect(html).toContain('rbi.org.in');
     expect(html.match(/Cited in the answer/g)).toHaveLength(1);
     expect(html.indexOf('Cited in the answer')).toBeLessThan(html.indexOf('PIB note'));
-    expect(html.match(/<svg/g).length).toBeGreaterThanOrEqual(2);
+  });
+
+  // F131 §3: each entry shows its site's icon, through our own server, instead of the plain globe.
+  it('shows each entry\'s site icon from our icon endpoint, with the letter beneath it as the fallback', () => {
+    const html = renderToStaticMarkup(<WebSourcesList pages={PAGES} />);
+    const imgs = html.match(/<img [^>]*>/g);
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]).toContain('src="/api/site-icon?domain=rbi.org.in"');
+    expect(imgs[1]).toContain('src="/api/site-icon?domain=pib.gov.in"');
+    expect(html.match(/class="ai-site-icon-letter">[RP]</g)).toHaveLength(2);
+  });
+
+  it('keeps the globe for an entry with no domain at all', () => {
+    const html = renderToStaticMarkup(<WebSourcesList pages={[{ url: 'javascript:alert(1)', title: 'Untitled page', domain: '', cited: false }]} />);
+    expect(html).toContain('<svg');
+    expect(html).not.toContain('<img');
   });
 
   it('links each page out with target _blank and rel noopener noreferrer, and embeds nothing', () => {
@@ -31,7 +46,9 @@ describe('WebSourcesList (F130 T4b): the "Web sources searched" panel', () => {
     }
     expect(anchors[0]).toContain('href="https://www.rbi.org.in/press?id=1"');
     expect(anchors[1]).toContain('href="http://pib.gov.in/x"');
-    expect(html).not.toMatch(/<img|<iframe|<embed|<object|favicon|\ssrc=/i);
+    expect(html).not.toMatch(/<iframe|<embed|<object|srcset/i);
+    // The only images are site icons from our own server: never the page itself, never a third party.
+    for (const src of html.match(/\ssrc="[^"]*"/g)) expect(src).toMatch(/^ src="\/api\/site-icon\?domain=[a-z0-9.-]+"$/);
   });
 
   it('never renders a link for a URL that is not http or https; it is shown as text', () => {
@@ -76,5 +93,41 @@ describe('cleanWebPages and normaliseWebUrl', () => {
     expect(normaliseWebUrl('javascript:alert(1)')).toBeNull();
     expect(normaliseWebUrl('not a url')).toBeNull();
     expect(normaliseWebUrl(undefined)).toBeNull();
+  });
+});
+
+// F131 §3-4: the site icon, its URL on our server, and the letter it falls back to.
+describe('siteIconUrl and SiteIcon', () => {
+  it('builds our endpoint\'s URL from the lower-cased domain, encoded, and none without a domain', () => {
+    expect(siteIconUrl('Reuters.COM')).toBe('/api/site-icon?domain=reuters.com');
+    expect(siteIconUrl(' pib.gov.in ')).toBe('/api/site-icon?domain=pib.gov.in');
+    expect(siteIconUrl('a b/c?d')).toBe('/api/site-icon?domain=a%20b%2Fc%3Fd');
+    for (const bad of ['', '  ', null, undefined, 42]) expect(siteIconUrl(bad)).toBeNull();
+  });
+
+  it('is a decorative, lazy, no-referrer image over the domain\'s first letter', () => {
+    const html = renderToStaticMarkup(<SiteIcon domain="www.rbi.org.in" />);
+    expect(html).toMatch(/^<span class="ai-site-icon" aria-hidden="true">/);
+    expect(html).toContain('<span class="ai-site-icon-letter">R</span>');
+    const img = html.match(/<img [^>]*>/)[0];
+    expect(img).toContain('alt=""');
+    expect(img).toContain('loading="lazy"');
+    expect(img).toMatch(/referrerpolicy="no-referrer"/i);
+    expect(img).toContain('src="/api/site-icon?domain=www.rbi.org.in"');
+  });
+
+  it('hides a failed image, so the letter shows and never a broken-image glyph', () => {
+    const tree = SiteIcon({ domain: 'pib.gov.in' });
+    const img = tree.props.children.find((c) => c?.type === 'img');
+    expect(img.props.onError).toBe(hideFailedIcon);
+    const target = { hidden: false };
+    img.props.onError({ currentTarget: target });
+    expect(target.hidden).toBe(true);
+  });
+
+  it('draws only the letter without a domain, and a neutral mark when there is no letter', () => {
+    expect(renderToStaticMarkup(<SiteIcon domain="" />)).not.toContain('<img');
+    expect(renderToStaticMarkup(<SiteIcon domain="" />)).toContain('ai-site-icon-letter">?<');
+    expect(renderToStaticMarkup(<SiteIcon domain="xn--h2brj9c.in" />)).toContain('ai-site-icon-letter">X<');
   });
 });

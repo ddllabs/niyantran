@@ -32,6 +32,8 @@ it('names OpenRouter and Exa for web search, what they receive, and that it may 
   expect(body).toMatch(/Exa[^\n]*search query/);
   expect(body).toMatch(/not your name, email address or account/);
   expect(body).toMatch(/including AI model providers, web search and hosting/);
+  // F131: site icons for web sources are fetched by our server, so DuckDuckGo never sees the reader.
+  expect(body).toMatch(/Exa receives the query[^\n]*site icons[^\n]*our server[^\n]*DuckDuckGo[^\n]*domain names?, not your/);
   expect(DEFAULT_PRIVACY.lastUpdated).toBe('13 October 2026');
 });
 

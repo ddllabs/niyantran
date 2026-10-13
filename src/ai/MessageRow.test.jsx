@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import MessageRow, { sameRow } from './MessageRow.jsx';
-import WebSourceRow from './WebSourceRow.jsx';
+import WebSourceStrip from './WebSourceStrip.jsx';
 
 // panel-loading spec E: a saved message re-renders (and its markdown is parsed again) only when
 // something it shows changed - not on every streaming frame, keystroke or controller emit.
@@ -32,23 +32,36 @@ it('keeps user actions outside the colored message bubble',()=>{
   expect(html).toContain('<time');
 });
 
-// F130 T4b: the "From the web" row sits after the document sources, only when there are web sources.
-describe('web sources under the answer', () => {
+// F131 §3: the "From the web" strip sits at the top of the answer, after the thinking notes; the row
+// F130 drew under the answer is gone. The document source list stays under the answer.
+describe('web sources at the top of the answer', () => {
   const WEB_SOURCES = [
     { url: 'https://www.rbi.org.in/a', title: 'RBI', domain: 'rbi.org.in', cited: true },
     { url: 'https://pib.gov.in/b', title: 'PIB', domain: 'pib.gov.in', cited: false },
   ];
   const doc = { id: 1, kind: 'text', chunk_id: 'c1', document_id: 'd1', title: 'The Delimitation Bill, 2026', char_from: 0, char_to: 40, text_hash: 'h', source_kind: 'document' };
 
-  it('shows the row for a message with web sources, after the document source list', () => {
-    const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, content: 'Answer [1].', sources: [doc], webSources: WEB_SOURCES }} />);
+  it('shows the strip after the ticker and above the answer text, and the document sources under the answer', () => {
+    const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, content: 'ANSWER_TEXT [1].', sources: [doc], webSources: WEB_SOURCES }} />);
     expect(html).toContain('From the web · unofficial');
     expect(html).toContain('2 sources');
-    expect(html.indexOf('ai-sources-block')).toBeGreaterThan(-1);
-    expect(html.indexOf('ai-sources-block')).toBeLessThan(html.indexOf('From the web'));
+    expect(html.match(/class="ai-web-strip"/g)).toHaveLength(1);
+    expect(html.indexOf('ai-ticker')).toBeGreaterThan(-1);
+    expect(html.indexOf('ai-ticker')).toBeLessThan(html.indexOf('ai-web-strip'));
+    expect(html.indexOf('ai-web-strip')).toBeLessThan(html.indexOf('ANSWER_TEXT'));
+    expect(html.indexOf('ANSWER_TEXT')).toBeLessThan(html.indexOf('ai-sources-block'));
+    expect(html.slice(html.indexOf('ANSWER_TEXT'))).not.toContain('From the web');
+    expect(html).not.toContain('ai-web-row');
   });
 
-  it('shows no row without web sources: absent, empty, or on an old message', () => {
+  it('says how many searches the saved turn ran, from its web_search steps', () => {
+    const activity = [{ type: 'tool', name: 'web_search', step: 1, resultCount: 2, searches: 3, status: 'ok' }];
+    const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, activity, webSources: WEB_SOURCES }} />);
+    expect(html).toContain('3 searches · 2 sources');
+    expect(html).not.toContain('ai-web-strip searching');
+  });
+
+  it('shows no strip without web sources: absent, empty, or on an old message', () => {
     for (const webSources of [undefined, [], null]) {
       const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, webSources }} />);
       expect(html).not.toContain('From the web');
@@ -61,30 +74,30 @@ describe('web sources under the answer', () => {
     expect(html).not.toContain('ai-sources-block');
   });
 
-  it('passes the web sources to the markdown, so a link to a searched page gets the web mark', () => {
+  it('passes the web sources to the markdown, so a link to a searched page gets the site icon', () => {
     const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, content: 'See [RBI](https://www.rbi.org.in/a).', webSources: WEB_SOURCES }} />);
     expect(html).toContain('ai-web-link');
     const none = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, content: 'See [RBI](https://www.rbi.org.in/a).' }} />);
     expect(none).not.toContain('ai-web-link');
   });
 
-  it('clicking the row opens the web list through onOpenSource', () => {
+  it('clicking the strip opens the web list through onOpenSource', () => {
     const opened = [];
     const tree = MessageRow.type({ ...base, m: { ...m, webSources: WEB_SOURCES }, onOpenSource: (s) => opened.push(s) });
-    const row = findWebRow(tree);
-    expect(row).toBeTruthy();
-    expect(row.props).toMatchObject({ sources: WEB_SOURCES, messageId: 'a1' });
-    // The row's own click payload is tested in WebSourceRow.test.jsx; here it must be wired to onOpenSource.
-    WebSourceRow({ ...row.props }).props.onClick();
+    const strip = findStrip(tree);
+    expect(strip).toBeTruthy();
+    expect(strip.props).toMatchObject({ sources: WEB_SOURCES, messageId: 'a1' });
+    // The strip's own click payload is tested in WebSourceStrip.test.jsx; here it must be wired to onOpenSource.
+    WebSourceStrip({ ...strip.props }).props.onClick();
     expect(opened).toEqual([{ kind: 'web', pages: WEB_SOURCES, messageId: 'a1' }]);
   });
 });
 
-function findWebRow(node) {
+function findStrip(node) {
   if (!node || typeof node !== 'object') return null;
-  if (Array.isArray(node)) { for (const n of node) { const f = findWebRow(n); if (f) return f; } return null; }
-  if (node.type === WebSourceRow) return node;
-  return findWebRow(node.props?.children);
+  if (Array.isArray(node)) { for (const n of node) { const f = findStrip(n); if (f) return f; } return null; }
+  if (node.type === WebSourceStrip) return node;
+  return findStrip(node.props?.children);
 }
 
 // Security pass M1: the message links only to its searched pages and its cited documents' files.

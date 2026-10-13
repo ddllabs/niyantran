@@ -93,6 +93,8 @@ export function createResearchThread(overrides = {}) {
       locked: !data.ready || data.loading || data.submitting || data.attaching || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
       sources: stream?.sources?.length ? stream.sources : savedSources,
       webSources: stream?.webSources?.length ? stream.webSources : savedWebSources,
+      // F131: the pages found so far by the turn in flight, for display only; never saved.
+      webLive: Array.isArray(stream?.webLive) ? stream.webLive : [],
       // The reader's globe override for the active conversation (true, false, or null for automatic),
       // and the server's decision for the turn in flight, which wins the globe while it runs.
       webSearch: typeof chat?.webSearch === 'boolean' ? chat.webSearch : null,

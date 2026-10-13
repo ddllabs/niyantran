@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F131 is next) and goes in the
+- A new finding gets the next free `F` number (F133 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -373,6 +373,38 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - The globe's prediction now counts exactly the records the next send
     carries (`webPredictionRecords`), so it agrees with the server in the two
     cases spec amendment 2 listed. No follow-ups remain.
+- [ ] **F131. Web search: one stream, live sources and site icons.** Owner
+  report 2026-10-13: on a web turn the answer streams, vanishes and streams
+  again, and the sources appear only at the end. Cause: a research call that
+  searched is never the answer, so its live draft is always taken back and
+  rewritten. Owner decisions: stay on OpenRouter (search terms are not
+  exposed, Probe 3); real site icons through our server via DuckDuckGo; four
+  icons, then "+N". Probe 3 also found the reported search count can exceed
+  `max_uses` by one (billed correctly), so F130 logs overstate.
+  [Spec](../specs/2026-10-13-web-search-streaming.md). Branch
+  `task/web-search`.
+  - **Status, 2026-10-13: shipped.** `research-chat` v52 is deployed and
+    `origin/main` is pushed (see coordination Operations). Remaining: the
+    owner's check on production.
+    - The owner approved the spec with both recommendations: hold drafts on
+      web turns only, and add the privacy half-sentence. Production logs
+      showed that all three retractions in 24 hours were on web turns.
+    - Checks: 3,663 Vitest and 1,012 Deno tests, lint, the build and the
+      router check.
+    - The local run streamed each answer once, with the strip filling live
+      and real icons ([spec](../specs/2026-10-13-web-search-streaming.md),
+      "Build and local run").
+    - Spend: $0.57 of $1.00 in total.
+- [ ] **F132. Gemini sometimes double-escapes newlines in the strict JSON
+  answer.** Found in the F131 local run, 2026-10-13: one answer in three was
+  saved with 41 literal `\n` sequences and rendered them as text. The answer
+  phase is unchanged by F131, and production had none in 11 answers over 14
+  days. Options:
+  - unescape when an answer has many literal `\n` and almost no real
+    newlines;
+  - tighten the answer prompt.
+
+  Measure the frequency on production first.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

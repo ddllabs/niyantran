@@ -382,6 +382,17 @@ it('webSources come from the stream while it holds some, then from the latest sa
  f.setStreams({c:{conversationId:'c',status:'streaming',isStreaming:true,isPending:true,streamingText:'x',sources:[],webSources:live}});
  expect(f.controller.getSnapshot().webSources).toEqual(live);
 });
+// F131 §2: the pages found so far, from the stream only; nothing once the stream is gone.
+it('webLive comes from the turn in flight only',async()=>{
+ const f=webFixture();await f.controller.start();
+ f.setState({activeId:'c',loaded:true,chats:[savedChat('c',null,{messages:[{id:'m1',role:'assistant',content:'A',status:'complete',webSources:[{url:'https://saved.example/',title:'S',domain:'saved.example',cited:true}]}]})]});
+ expect(f.controller.getSnapshot().webLive).toEqual([]);
+ const live=[{url:'https://live.example/',title:'Live',domain:'live.example'}];
+ f.setStreams({c:{conversationId:'c',status:'streaming',isStreaming:true,isPending:true,streamingText:'',sources:[],webSources:[],webLive:live}});
+ expect(f.controller.getSnapshot().webLive).toEqual(live);
+ f.setStreams({});
+ expect(f.controller.getSnapshot().webLive).toEqual([]);
+});
 it('the finished assistant message keeps its webSources after reconciliation',async()=>{
  const f=webFixture();await f.controller.start();
  const pages=[{url:'https://a.example/',title:'A',domain:'a.example',cited:true}];

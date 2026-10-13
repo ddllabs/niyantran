@@ -21,7 +21,7 @@ import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
 import { isConversational } from './conversational.ts';
 import { checkLinks, decideWebSearch, webModelAllowed, type WebScope, webSourcesOf } from './webPolicy.ts';
-import { WEB_SEARCHES_PER_TURN, type WebSource } from '../_shared/webSearch.ts';
+import { normaliseUrl, WEB_PAGES_PER_TURN, WEB_SEARCHES_PER_TURN, webDomain, type WebSource } from '../_shared/webSearch.ts';
 import { log } from '../_shared/logging.ts';
 import { type Message, type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -79,6 +79,9 @@ import {
 export const WINDOW_CHARS = 60_000;
 export const CANCEL_POLL_MS = 2_000;
 export const MAX_FOLLOW_UPS = 3;
+/** A live page's title on the wire (web-search-streaming spec §2): one line, at most this long. */
+const LIVE_TITLE_MAX = 200;
+type WebProgressPage = { url: string; title: string; domain: string };
 
 export interface AiModelLike {
   model_id: string;
@@ -462,7 +465,7 @@ function unverifiedNote(searches: number, webPages = 0): string {
   // F130: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
   // record, and the reader is told so, and that those pages are unofficial.
   if (webPages > 0) {
-    return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed under the answer, which are unofficial.';
+    return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed above the answer, which are unofficial.';
   }
   return searches > 0
     ? '**Unverified.** The searches this turn ran returned no passages, so nothing below is backed by the record.'
@@ -743,6 +746,10 @@ async function runTurnBody(
   // Pages searched so far, and the link check every saved text passes (security pass M3): a turn
   // that breaks off or is cancelled saves what it streamed, so that text is checked as well.
   const webSeen: string[] = [];
+  // web-search-streaming spec §2: the live pages already sent this turn, and the research round
+  // whose web_search start frame has gone out. Display only: never checkpointed, logged or saved.
+  const liveSent = new Set<string>();
+  let liveRound = 0;
   const safeText = (s: string) =>
     s ? checkLinks(s, [...webSeen, ...evidenceUrls(evidence)], { scanCode: true }).text : s;
 
@@ -870,6 +877,24 @@ async function runTurnBody(
           ...found,
         });
       }
+    } else if ('webProgress' in e) {
+      // Pages a running research call's searches returned (web-search-streaming spec §2). The
+      // ticker says "Searching the web…" from the first one: a start frame with the step the end
+      // frame below will use. The start is not saved; saved steps are end-only.
+      if (liveRound !== rounds) {
+        liveRound = rounds;
+        sender.send({ tool: { name: 'web_search', phase: 'start', step: rounds } });
+      }
+      const pages: WebProgressPage[] = [];
+      for (const page of e.webProgress.pages) {
+        if (liveSent.size >= WEB_PAGES_PER_TURN) break;
+        const url = normaliseUrl(page.url);
+        if (!url?.startsWith('https://') || liveSent.has(url)) continue;
+        liveSent.add(url);
+        const title = String(page.title ?? '').replace(/\s+/g, ' ').trim().slice(0, LIVE_TITLE_MAX);
+        pages.push({ url, title: title || url, domain: webDomain(url) });
+      }
+      if (pages.length) sender.send({ webProgress: { pages } });
     } else if ('web' in e) {
       // A research call that searched the web (spec §4, §5): one ticker step, one trace row.
       const w = e.web;
@@ -884,7 +909,7 @@ async function runTurnBody(
         web: [{ attemptIndex: attempts.lastAttemptIndex('chat_answer'), searches: w.searches, pagesAdded: w.pages.length, latencyMs: w.latencyMs }],
       });
       attempts.addTraces([{ ...traceRow, step_index: rounds }]);
-      const step = { name: 'web_search', step: rounds, resultCount: w.pages.length, latencyMs: w.latencyMs, status: 'ok' as const };
+      const step = { name: 'web_search', step: rounds, resultCount: w.pages.length, searches: w.searches, latencyMs: w.latencyMs, status: 'ok' as const };
       sender.send({ tool: { ...step, phase: 'end' } });
       activity.push({ type: 'tool', ...step, phase: 'end' });
       context.checkpoint({ activity: [...activity] });

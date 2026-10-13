@@ -1,17 +1,18 @@
 import { splitCitationMarkers } from '../lib/citationMarkers.js';
 import CitationBubble, { CitationPlaceholder, isReadableCitation } from './CitationBubble.jsx';
-import { GlobeIcon, normaliseWebUrl } from './WebSourcesList.jsx';
+import { SiteIcon, normaliseWebUrl } from './WebSourcesList.jsx';
 
 function breaks(text, keyPrefix) {
   return text.split(/<br\s*\/?>/i).flatMap((part, i) => i ? [<br key={`${keyPrefix}-br${i}`} />, part] : [part]);
 }
 
 /**
- * A link to a page the turn searched (F130): the same link, plus a small globe, so a web citation
+ * A link to a page the turn searched (F130): the same link, plus a small mark, so a web citation
  * reads differently from a record citation [n]. It is matched against the message's web sources only.
+ * F131 §3: the mark is the page's site icon, with the same letter fallback as the source strip.
  */
-function WebMark() {
-  return <span className="ai-web-link-mark" role="img" aria-label="web source"><GlobeIcon className="ai-web-link-icon" size={11} /></span>;
+function WebMark({ domain }) {
+  return <span className="ai-web-link-mark" role="img" aria-label="web source"><SiteIcon domain={domain} className="ai-web-link-icon" /></span>;
 }
 
 function Emphasis({ text, keyPrefix, webUrls, allowedUrls }) {
@@ -30,10 +31,11 @@ function Emphasis({ text, keyPrefix, webUrls, allowedUrls }) {
     else if (m[4] && allowedUrls && (m[5].includes('#') || !allowedUrls.has(normaliseWebUrl(m[5])))) nodes.push(m[4]);
     else if (m[4]) {
       const web = Boolean(webUrls?.size) && webUrls.has(normaliseWebUrl(m[5]));
+      const domain = web ? webUrls.get(normaliseWebUrl(m[5])) : '';
       nodes.push(
         <a key={key} href={m[5]} target="_blank" rel="noreferrer" className={web ? 'ai-web-link' : undefined}>
           {m[4]}
-          {web ? <WebMark /> : null}
+          {web ? <WebMark domain={domain} /> : null}
         </a>,
       );
     }
@@ -216,10 +218,17 @@ function ListItems({ items, keyPrefix, cite }) {
   });
 }
 
-/** The normalised URLs of the searched pages, or null when there are none (links then render as before). */
-function webUrlSet(webSources) {
+/**
+ * The normalised URLs of the searched pages, each with its domain (the page's own, else the URL's
+ * host), or null when there are none (links then render as before).
+ */
+function webUrlMap(webSources) {
   if (!Array.isArray(webSources) || !webSources.length) return null;
-  const urls = new Set(webSources.map(page => normaliseWebUrl(page?.url)).filter(Boolean));
+  const urls = new Map();
+  for (const page of webSources) {
+    const url = normaliseWebUrl(page?.url);
+    if (url && !urls.has(url)) urls.set(url, (typeof page.domain === 'string' && page.domain.trim()) || new URL(url).hostname);
+  }
   return urls.size ? urls : null;
 }
 
@@ -230,7 +239,7 @@ function webUrlSet(webSources) {
  */
 export default function AiMarkdown({ text, sources, streaming, onOpenSource, selectedSource, webSources, allowedLinks }) {
   const allowedUrls = Array.isArray(allowedLinks) ? new Set(allowedLinks.map(normaliseWebUrl).filter(Boolean)) : null;
-  const cite = { sources, streaming, onOpenSource, selectedSource, webUrls: webUrlSet(webSources), allowedUrls };
+  const cite = { sources, streaming, onOpenSource, selectedSource, webUrls: webUrlMap(webSources), allowedUrls };
   const lines = String(text || '')
     .replace(/\r\n/g, '\n')
     .split('\n');

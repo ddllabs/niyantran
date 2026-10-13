@@ -3,10 +3,11 @@ import { useId } from 'react';
 /**
  * The pages a turn searched on the web (web-search spec, F130 §6). Web pages are not citations: they
  * never get a `[n]` marker, a source id or a reader. The panel lists them and links out; no page is
- * fetched or embedded, and no favicon is requested (owner decision 6), so the icon is a plain globe.
+ * fetched or embedded. Each entry shows its site's icon (F131 §3-4), which the reader's browser
+ * asks only of our own server.
  */
 
-/** A plain globe. Drawn inline so no icon service or image request is involved. */
+/** A plain globe, drawn inline: the mark for the web itself, and for an entry with no domain. */
 export const GlobeIcon = ({ className = 'ai-web-icon', size = 16 }) => (
   <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     <circle cx="12" cy="12" r="9" />
@@ -15,6 +16,40 @@ export const GlobeIcon = ({ className = 'ai-web-icon', size = 16 }) => (
 );
 
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
+
+/**
+ * Our server's icon for a domain (F131 §4): `/api/site-icon` answers with the image, or 404 when the
+ * site has none. Null without a domain. The server validates the host; this only lower-cases it.
+ */
+export function siteIconUrl(domain) {
+  const host = text(domain).toLowerCase();
+  return host ? `/api/site-icon?domain=${encodeURIComponent(host)}` : null;
+}
+
+/** The letter a site shows without an icon: its domain's first letter or digit, after any `www.`. */
+const letterOf = (domain) => (text(domain).replace(/^www\./i, '').match(/[a-z0-9]/i)?.[0] || '?').toUpperCase();
+
+/**
+ * A failed image (an error, or our server's 404 for "no icon") is hidden, so the letter beneath it
+ * shows. Done on the element rather than in state, so it works in a memoised row without a re-render.
+ */
+export function hideFailedIcon(event) {
+  event.currentTarget.hidden = true;
+}
+
+/**
+ * A round site icon (F131 §3). Decorative: the name of the site is always given in text nearby. The
+ * letter sits beneath the image, so a missing icon reads as the letter and never as a broken image.
+ */
+export function SiteIcon({ domain, className = '' }) {
+  const src = siteIconUrl(domain);
+  return (
+    <span className={className ? `ai-site-icon ${className}` : 'ai-site-icon'} aria-hidden="true">
+      <span className="ai-site-icon-letter">{letterOf(domain)}</span>
+      {src ? <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={hideFailedIcon} /> : null}
+    </span>
+  );
+}
 
 /**
  * The URL as a comparable string: scheme and host lower-cased, fragment dropped. Null for anything
@@ -70,7 +105,7 @@ function entriesOf(pages) {
 const Entry = ({ entry }) => {
   const body = (
     <>
-      <GlobeIcon />
+      {entry.domain ? <SiteIcon domain={entry.domain} /> : <GlobeIcon />}
       <span className="ai-web-main">
         <span className="ai-web-title">{entry.title}</span>
         <span className="ai-web-meta">

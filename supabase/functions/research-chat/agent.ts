@@ -126,7 +126,13 @@ export type WidenedScope = 'empty' | 'unresolved' | 'unkeyed' | 'feature-empty';
  * out to be the answer. A research call whose draft is not the answer - it ends in tool
  * calls, fails acceptedDraft(), is pressed to search, or breaks - ends with `retract`, sent
  * only if it sent any draft text, and the handler takes that text back from the reader. A
- * draft that is the answer ends with `promoted`; it is never sent a second time. */
+ * draft that is the answer ends with `promoted`; it is never sent a second time.
+ *
+ * A research call offered the web tool holds its draft instead (web-search-streaming spec §1):
+ * such a call that searches is never the answer, so streaming it only ever led to a retraction.
+ * It sends no `draftText` while it runs and so never a `retract`; if its draft is promoted, the
+ * whole text goes out once, as one `draftText`, immediately before `promoted`. Its live pages
+ * arrive as `webProgress`, for display only (spec §2). */
 export type RetractReason = 'searching' | 'rewriting' | 'error';
 export type AgentEvent =
   | { internalReasoning: string }
@@ -140,6 +146,9 @@ export type AgentEvent =
   /** After a research call that searched the web: the pages new to this turn, the provider's
    * search count and cost for that call (web-search spec §2, §5). */
   | { web: { pages: WebPage[]; searches: number; costUsd: number | null; latencyMs: number } }
+  /** While a research call offered the web tool runs: pages its searches returned that the call
+   * had not yet reported. Display only: never carried forward, counted or charged (spec §2). */
+  | { webProgress: { pages: WebPage[] } }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
   /** The agent alone decides the tools, the server tools and the tool choice of each call. */
@@ -691,16 +700,19 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     // that breaks off and is retried contributes nothing (web-search spec §2).
     let callPages: WebPage[] = [];
     let ended: Extract<ModelEvent, { type: 'finish' }> | null = null;
-    // A research call's draft has reached the reader live; take it back unless it is the answer.
-    const retract = (reason: RetractReason) => {
-      if (phase === 'research' && partial) deps.onEvent({ retract: reason });
-    };
     // web-search spec §2: a research call is offered the server tool with what is left of the
     // turn's budget, and not at all once it is spent. The answer call never carries it. Read
     // from the current deps each call: a failover to a gated model withdraws it mid-turn.
     const webTool = phase === 'research' && deps.webSearch && state.webSearches < deps.webSearch.perTurn
       ? webSearchTool(deps.webSearch.perTurn - state.webSearches)
       : null;
+    // web-search-streaming spec §1: a research call offered the web tool holds its draft. Every
+    // other research call streams it live and takes it back unless it is the answer.
+    const holdDraft = phase === 'research' && !!webTool;
+    let draftSent = false;
+    const retract = (reason: RetractReason) => {
+      if (phase === 'research' && draftSent) deps.onEvent({ retract: reason });
+    };
     const request: StreamRequest = {
       response_format: ANSWER_JSON_SCHEMA,
       cache: true,
@@ -723,12 +735,24 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
             state.text += event.text;
             if (event.text) state.answerModel = deps.request.model;
             deps.onEvent({ text: event.text });
-          } else if (event.text) deps.onEvent({ draftText: event.text });
+          } else if (event.text && !holdDraft) {
+            draftSent = true;
+            deps.onEvent({ draftText: event.text });
+          }
         } else if (event.type === 'tool-call') calls.push(event);
+        // Display only, and only from a call offered the tool (security pass I3).
+        else if (event.type === 'web-progress') { if (webTool) deps.onEvent({ webProgress: { pages: event.pages } }); }
         // Only a search this call was offered counts (security pass I3): pages that arrive without
         // the tool would become sources and allowed links nobody asked for.
         else if (event.type === 'web-results') { if (webTool) callPages = [...callPages, ...event.pages]; }
         else {
+          // web-search-streaming spec §2, §5: the provider also counts the search it refused at
+          // the limit (Probe 3: 4 reported, 3 billed). Capped here, before telemetry sees the
+          // usage, so model_call_logs and the turn total record what ran.
+          const usage = event.usage;
+          if (webTool && usage && (usage.web_search_requests ?? 0) > webTool.parameters.max_uses) {
+            event.usage = { ...usage, web_search_requests: webTool.parameters.max_uses };
+          }
           ended = event;
           if (event.usage) state.usage.push(event.usage);
           if (event.served) state.served = event.served;
@@ -759,7 +783,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     // returned pages is charged everything it was allowed, or a provider that omits the count could
     // search on every call. A call with neither a count nor pages shows no sign of a search.
     // A call that was not offered the tool takes no part (I3); its usage still reaches telemetry.
-    const reported = webTool ? webSearchCount(ended.usage) : 0;
+    // web-search-streaming spec §2: the provider counts the attempt it refused at the limit too
+    // (Probe 3: 4 reported, 3 billed), so the count is capped at what this call was offered.
+    const count = webTool ? webSearchCount(ended.usage) : 0;
+    const reported = count === null || !webTool ? count : Math.min(count, webTool.parameters.max_uses);
     const webSearches = reported ?? (callPages.length ? 1 : 0);
     const charged = reported ?? (callPages.length && webTool ? webTool.parameters.max_uses : 0);
     const merged = mergePages(state.webPages, callPages);
@@ -820,7 +847,9 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         acceptedDraft(partial, deps.handles)
       ) {
         // A reply is promoted only after its call finished. It already reached the reader as
-        // draft text; text that turned out to precede a tool call was retracted above.
+        // draft text; text that turned out to precede a tool call was retracted above. A held
+        // draft (spec §1) has not, so it is sent now, once, whole.
+        if (holdDraft && partial) deps.onEvent({ draftText: partial });
         messages.push({ role: 'assistant', content: partial });
         state.text = partial;
         state.answerModel = deps.request.model;

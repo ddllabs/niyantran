@@ -7,7 +7,7 @@ import { memo } from 'react';
 import ActivityTicker from './ActivityTicker.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import SourceList from './SourceList.jsx';
-import WebSourceRow from './WebSourceRow.jsx';
+import WebSourceStrip, { webSearchCount } from './WebSourceStrip.jsx';
 import MessageActions from './MessageActions.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
 
@@ -31,9 +31,10 @@ function MessageRow({ m, lang, labelOf, onOpenSource, selectedSource }) {
       {m.role === 'assistant' ? (
         <>
           {(m.activity?.length || m.timing || m.model_served || m.model || m.model_requested) ? <ActivityTicker activity={m.activity} timing={m.timing} effort={m.reasoning_effort} usage={m.usage} model={{ requested: m.model_requested || m.model, served: m.model_served || m.model }} labelOf={labelOf} sourceCount={readable.length} lang={lang} /> : null}
+          {/* F131 §3: the pages searched, at the top of the answer, as on the live turn. */}
+          {Array.isArray(m.webSources) && m.webSources.length ? <WebSourceStrip sources={m.webSources} searches={webSearchCount(m.activity)} messageId={m.id} onOpen={onOpenSource} /> : null}
           <AiMarkdown text={m.content} sources={m.sources || []} webSources={m.webSources} allowedLinks={linksOf(m)} onOpenSource={onOpenSource} selectedSource={selectedSource} />
           {Array.isArray(m.sources) && m.sources.length ? <SourceList sources={readable} onOpen={onOpenSource} lang={lang} /> : null}
-          {Array.isArray(m.webSources) && m.webSources.length ? <WebSourceRow sources={m.webSources} messageId={m.id} onOpen={onOpenSource} /> : null}
           {m.status && m.status !== 'complete' ? <p className="ai-research-status">{m.status === 'running' ? 'Running — use Reload for the saved result.' : m.status}</p> : null}
           {m.error_message ? <p className="ai-foot warn">{m.error_message}</p> : null}
         </>

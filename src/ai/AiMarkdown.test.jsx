@@ -67,8 +67,9 @@ it('an answer that only uses paragraphs and flat bullets renders as it always di
  expect(html).toBe('<div class="ai-md"><p>Lead sentence with <strong>bold</strong>.</p><ul><li>One</li><li>Two</li></ul><p>Closing line.</p></div>');
 });
 
-// F130 T4b: a link to a page the turn searched carries a small globe, so a web citation reads
-// differently from a record citation [n]. Every other link renders as it always did.
+// F130 T4b: a link to a page the turn searched carries a small mark, so a web citation reads
+// differently from a record citation [n]. Every other link renders as it always did. F131 §3: the
+// mark is the page's site icon, from our own server, in place of the globe.
 const WEB = [
  {url:'https://www.rbi.org.in/press?id=1',title:'RBI',domain:'rbi.org.in',cited:true},
  {url:'https://pib.gov.in/x',title:'PIB',domain:'pib.gov.in',cited:false},
@@ -79,8 +80,18 @@ it('marks a link whose URL is a searched page, with an accessible "web source" l
  expect(html).toContain('href="https://www.rbi.org.in/press?id=1"');
  expect(html).toContain('target="_blank"');
  expect(html).toMatch(/aria-label="web source"/);
- expect(html).toContain('<svg');
+ expect(html).toContain('src="/api/site-icon?domain=rbi.org.in"');
+ expect(html).toContain('class="ai-site-icon ai-web-link-icon"');
+ expect(html).toContain('ai-site-icon-letter">R<');
+ expect(html).toContain('alt=""');
+ expect(html).not.toContain('<svg');
  expect(html).toContain('>RBI<');
+});
+it('takes the icon\'s domain from the searched page, else from the link\'s own host',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text="[a](https://news.example.org/x) and [b](https://www.rbi.org.in/press?id=1)" webSources={[{url:'https://news.example.org/x',title:'N'},WEB[0]]}/>);
+ expect(html).toContain('src="/api/site-icon?domain=news.example.org"');
+ expect(html).toContain('src="/api/site-icon?domain=rbi.org.in"');
+ expect(html).not.toContain('domain=www.rbi.org.in');
 });
 it('matches after lower-casing scheme and host and dropping the fragment, and only then',()=>{
  const html=renderToStaticMarkup(<AiMarkdown text="[a](https://WWW.RBI.ORG.IN/press?id=1#section) and [b](https://pib.gov.in/other) and [c](https://www.rbi.org.in/press?id=2) and [d](https://pib.gov.in/Y)" webSources={[...WEB,{url:'HTTPS://PIB.GOV.IN/Y#top',title:'Y',domain:'pib.gov.in',cited:false}]}/>);

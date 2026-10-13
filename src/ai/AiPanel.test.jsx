@@ -1,5 +1,5 @@
 import {renderToStaticMarkup} from 'react-dom/server';
-import {beforeEach,expect,it,vi} from 'vitest';
+import {beforeEach,describe,expect,it,vi} from 'vitest';
 const fake=vi.hoisted(()=>({ensure:vi.fn(()=>({chats:[],activeId:''})),research:null}));
 function methods(){return {activeAiChat:()=>null,addChatAttachments(){},appendAiMessage(){},createAiChat(){},deleteAiChat(){},ensureAiChat:fake.ensure,setActiveAiChat(){},setChatAttachments(){},setChatRole(){},subscribeAiChats:()=>()=>{}};}
 vi.mock('../lib/aiThreads.js',()=>({...methods(),hydrateConversations(){},reconcileTurn(){}}));
@@ -127,6 +127,46 @@ it('a live research turn shows one thinking indicator, the ticker, from Send to 
  const streamHtml = renderToStaticMarkup(<AiPanel lang="en" />);
  expect(streamHtml).toContain('ai-ticker active');
  expect(streamHtml).toContain('Here is the analysis from the record.');
+});
+
+// F131 §3: the live turn draws the same source strip as the saved one, between the thinking notes
+// and the answer. Pages found so far fill it while the turn searches; the terminal list replaces them.
+describe('the web-source strip on the turn in flight', () => {
+ const livePages = [
+  { url: 'https://reuters.com/a', title: 'R', domain: 'reuters.com' },
+  { url: 'https://pib.gov.in/b', title: 'P', domain: 'pib.gov.in' },
+ ];
+ const finalPages = [{ url: 'https://pib.gov.in/b', title: 'P', domain: 'pib.gov.in', cited: true }];
+ const flight = (stream) => {
+  fake.research = { ...fake.research, ready: true, loading: false, locked: false, live: true, stream };
+  return renderToStaticMarkup(<AiPanel lang="en" />);
+ };
+
+ it('fills from the live pages while the turn searches, after the ticker and before the answer', () => {
+  const html = flight({ isPending: true, isStreaming: true, streamingText: 'STREAMED_ANSWER', webSources: [], webLive: livePages,
+   activity: [{ type: 'tool', name: 'web_search', phase: 'start', step: 1 }] });
+  expect(html).toContain('class="ai-web-strip searching"');
+  expect(html).toContain('Searching the web…');
+  expect(html).toContain('2 pages so far');
+  expect(html).toContain('src="/api/site-icon?domain=reuters.com"');
+  expect(html.indexOf('ai-ticker active')).toBeLessThan(html.indexOf('ai-web-strip'));
+  expect(html.indexOf('ai-web-strip')).toBeLessThan(html.indexOf('STREAMED_ANSWER'));
+ });
+
+ it('shows the terminal webSources in place of the live pages, with the search count, no longer searching', () => {
+  const html = flight({ isPending: true, isStreaming: true, streamingText: 'Answer', webSources: finalPages, webLive: livePages,
+   activity: [{ type: 'tool', name: 'web_search', phase: 'end', step: 1, resultCount: 2, searches: 2 }] });
+  expect(html).toContain('class="ai-web-strip"');
+  expect(html).toContain('From the web · unofficial');
+  expect(html).toContain('2 searches · 1 source');
+  expect(html).not.toContain('domain=reuters.com');
+ });
+
+ it('shows nothing for a turn with no pages, and drops live pages once the turn ends without a list', () => {
+  expect(flight({ isPending: true, isStreaming: true, streamingText: 'Answer', webSources: [], webLive: [] })).not.toContain('ai-web-strip');
+  expect(flight({ isPending: true, isStreaming: true, streamingText: 'Answer' })).not.toContain('ai-web-strip');
+  expect(flight({ isPending: false, isStreaming: false, streamingText: 'Answer', webSources: [], webLive: livePages })).not.toContain('ai-web-strip');
+ });
 });
 
 it('a failed research turn leaves no running indicator and shows the error', () => {

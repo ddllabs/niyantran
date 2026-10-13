@@ -118,12 +118,30 @@ describe('web search step', () => {
     const start = { type: 'tool', name: 'search_documents', phase: 'start', step: 2, input: { query: 'q' } };
     expect(tickerSteps([start, web])).toHaveLength(2);
   });
-  it('counts with the other searches in the finished line', () => {
+  it('is counted apart from the record searches in the finished line, by the searches it ran (F131)', () => {
     const doc = { type: 'tool', name: 'search_documents', phase: 'end', step: 1, resultCount: 4 };
-    expect(finishedSummary({ steps: [doc, web], sourceCount: 2, timing: { total_ms: 9000 } })).toBe('2 searches · 2 citations · 9 s');
+    const desk = { type: 'tool', name: 'search_desk_rows', phase: 'end', step: 2, resultCount: 0 };
+    const ran = { type: 'tool', name: 'web_search', phase: 'end', step: 3, resultCount: 5, searches: 3 };
+    expect(finishedSummary({ steps: [doc, desk, ran], sourceCount: 2, timing: { total_ms: 9000 } })).toBe('2 searches · 3 web searches · 2 citations · 9 s');
+    expect(finishedSummary({ steps: [doc, { ...ran, searches: 1 }], timing: { total_ms: 9000 } })).toBe('1 search · 1 web search · 9 s');
+    // A saved F130 step has no count: it ran at least one search.
+    expect(finishedSummary({ steps: [web] })).toBe('1 web search');
   });
   it('shows in the live ticker as the current step', () => {
     const html = renderToStaticMarkup(<ActivityTicker active activity={[web]} />);
     expect(html).toContain('Searched the web · 5 pages');
+  });
+  // F131 §2: the step's start arrives with the first live page; its end carries the search count.
+  it('reads "Searching the web…" from its start frame, which its end then replaces', () => {
+    const start = { type: 'tool', name: 'web_search', phase: 'start', step: 2 };
+    expect(stepLabel(start)).toBe('Searching the web…');
+    expect(tickerSteps([start])).toEqual([start]);
+    expect(tickerSteps([start, web])).toEqual([web]);
+  });
+  it('says how many searches ran when the step carries the count', () => {
+    expect(stepLabel({ ...web, resultCount: 15, searches: 3 })).toBe('Searched the web 3 times · 15 pages');
+    expect(stepLabel({ ...web, resultCount: 1, searches: 1 })).toBe('Searched the web once · 1 page');
+    expect(stepLabel({ ...web, resultCount: undefined, searches: 2 })).toBe('Searched the web 2 times');
+    for (const searches of [0, -1, 1.5, '3', null]) expect(stepLabel({ ...web, searches })).toBe('Searched the web · 5 pages');
   });
 });

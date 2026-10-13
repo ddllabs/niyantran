@@ -22,13 +22,16 @@ export type ToolPhase = 'start' | 'end';
 export type ChatFrame =
   | { conversation: { id: string; title: string } }
   | { reasoning: string }
-  | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; latencyMs?: number; status?: 'ok' | 'error' | 'cancelled'; requestedTopK?: number; embeddingMs?: number; retrievalMs?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
+  | { tool: { name: string; phase: ToolPhase; input?: unknown; step: number; resultCount?: number; searches?: number; latencyMs?: number; status?: 'ok' | 'error' | 'cancelled'; requestedTopK?: number; embeddingMs?: number; retrievalMs?: number; found?: { document_id: string; title: string; pages: number[] }[] } }
   | { chunk: string }
   | { patch: { from: number; text: string } }
   | { model: { requested: string; served: string; reason: string } }
   | { sources: CitationSource[] }
   /** The pages searched this turn, from the provider's annotations; never in `sources`. */
   | { webSources: WebSource[] }
+  /** Display only (web-search-streaming spec §2): pages a running search returned that this turn
+   * has not sent yet. https only, no excerpt; never stored. `webSources` replaces them at the end. */
+  | { webProgress: { pages: { url: string; title: string; domain: string }[] } }
   | { followUpQuestions: string[] }
   | { truncated: { reason: 'length'; continuations: number } }
   | { notice: { kind: 'window'; dropped: number } }
@@ -54,6 +57,7 @@ export const CHAT_FRAME_KEYS = [
   'model',
   'sources',
   'webSources',
+  'webProgress',
   'followUpQuestions',
   'truncated',
   'notice',

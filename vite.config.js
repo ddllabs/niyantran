@@ -7,6 +7,7 @@ import { nterNewsApiPlugin } from './server/nterNews.mjs'
 import { transitApiPlugin } from './server/transitApi.mjs'
 import { diplomacyApiPlugin } from './server/diplomacyApi.mjs'
 import { assetsApiPlugin } from './server/assetsApi.mjs'
+import { siteIconApiPlugin } from './server/siteIconApi.mjs'
 import { resourcesApiPlugin } from './server/resourcesApi.mjs'
 import { aiApiPlugin } from './server/aiApi.mjs'
 import { usersApiPlugin } from './server/usersApi.mjs'
@@ -30,6 +31,7 @@ export default defineConfig({
     transitApiPlugin(),
     diplomacyApiPlugin(),
     assetsApiPlugin(),
+    siteIconApiPlugin(),
     resourcesApiPlugin(),
     aiApiPlugin(),
     usersApiPlugin(),

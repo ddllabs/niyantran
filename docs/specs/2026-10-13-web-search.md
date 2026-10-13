@@ -38,6 +38,9 @@ Success means three things:
    document and row citations, and clicking them shows the list of pages
    searched.
 6. **A plain globe and the domain name** for each source. No favicon service.
+   *Superseded 2026-10-13 by F131* ([web search streaming](2026-10-13-web-search-streaming.md)):
+   real site icons through our server via DuckDuckGo, and a source strip at
+   the top of the answer in place of the row under it.
 7. Searches and their cost are recorded for later credit pricing (F111). No
    credit enforcement in this change.
 8. The chat panel is outside the parallel UI refactor, so the backend and the
