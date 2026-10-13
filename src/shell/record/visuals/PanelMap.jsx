@@ -20,7 +20,7 @@ export default function PanelMap({ title, right, visual }) {
   }));
   const caption = [
     visual.caption,
-    approximate ? 'Markers marked approximate sit at a region or country centre.' : '',
+    approximate ? 'Markers marked approximate show an approximate position, not an exact site.' : '',
     'Schematic map, not to scale; no line here is a border.',
   ].filter(Boolean).join(' ');
   return (

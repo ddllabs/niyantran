@@ -17,7 +17,7 @@ function Visual({ visual }) {
   return Component ? <Component title={visual.title} right={visual.right} visual={visual} /> : null;
 }
 
-export default function RecordPanel({ model, onClose, onAsk }) {
+export default function RecordPanel({ model, onClose, onAsk, onSelect }) {
   if (!model) return null;
   const { glance = {}, about = {}, touches, footer = {} } = model;
   const links = (model.links || []).map((l) => ({ ...l, href: safeHref(l.href) })).filter((l) => l.href);
@@ -78,9 +78,11 @@ export default function RecordPanel({ model, onClose, onAsk }) {
           <p className="rp-viz-cap">Relations on record, computed from the registers; not an assessed impact.</p>
           {touches.links?.length ? (
             <div className="rp-xlinks">
-              {touches.links.map((l) => l.to
-                ? <a key={l.title} href={`/${deskHash(l.to.tab, l.to.feature)}`}><b>{l.title} →</b><span>{l.detail}</span></a>
-                : <div key={l.title} className="rp-xlink-static"><b>{l.title}</b><span>{l.detail}</span></div>)}
+              {touches.links.map((l) => (l.row && onSelect
+                ? <button key={l.title} type="button" className="rp-xlink-open" onClick={() => onSelect(l.row)}><b>{l.title} →</b><span>{l.detail}</span></button>
+                : l.to
+                  ? <a key={l.title} href={`/${deskHash(l.to.tab, l.to.feature)}`}><b>{l.title} →</b><span>{l.detail}</span></a>
+                  : <div key={l.title} className="rp-xlink-static"><b>{l.title}</b><span>{l.detail}</span></div>))}
             </div>
           ) : null}
         </section>

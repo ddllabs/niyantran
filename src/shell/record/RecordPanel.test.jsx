@@ -90,3 +90,30 @@ describe('RecordPanel', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
+
+// F121 batch 3: a related record (an overlapping bloc, another facility) opens in place, as the
+// retired dossier views allowed; a link with no row stays static text.
+describe('RecordPanel related-record links', () => {
+  const related = { title: 'Other bloc', detail: '12 common members', row: { id: 'b2', title: 'Other bloc' } };
+  const withLinks = (links) => model({ touches: { ...model().touches, links } });
+  const find = (node, cls, out = []) => {
+    if (!node || typeof node !== 'object') return out;
+    if (String(node.props?.className || '').split(' ').includes(cls)) out.push(node);
+    for (const child of [].concat(node.props?.children ?? [])) find(child, cls, out);
+    return out;
+  };
+
+  it('renders a link that carries a row as a button that selects that row', () => {
+    const onSelect = vi.fn();
+    const [button] = find(RecordPanel({ model: withLinks([related]), onSelect }), 'rp-xlink-open');
+    expect(button.type).toBe('button');
+    button.props.onClick();
+    expect(onSelect).toHaveBeenCalledWith(related.row);
+  });
+
+  it('keeps it as static text when no selection handler is given', () => {
+    const html = renderToStaticMarkup(<RecordPanel model={withLinks([related])} />);
+    expect(html).not.toContain('rp-xlink-open');
+    expect(html).toContain('rp-xlink-static');
+  });
+});

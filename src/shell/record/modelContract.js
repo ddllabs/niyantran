@@ -63,10 +63,13 @@ export function contractProblems(model) {
   if (model.touches) {
     if ((model.touches.lanes || []).length !== 4) problems.push('touches needs four lanes');
     if (!model.touches.nodes?.center) problems.push('touches needs a centre node');
+    for (const l of model.touches.links || []) if (l.row !== undefined && (!l.row || typeof l.row !== 'object' || Array.isArray(l.row))) problems.push(`touch link ${l.title} has a row that is not a record`);
   }
   if (!String(model.footer?.ask || '').trim()) problems.push('missing Ask AI label');
   if (!String(model.footer?.provenance?.source || '').trim()) problems.push('missing provenance source');
   if (!String(model.footer?.provenance?.asOf || '').trim() && !(model.footer?.provenance?.flags || []).includes(NO_AS_OF)) problems.push('missing as-of date');
-  for (const s of strings(model)) if (PLACEHOLDER.test(s)) problems.push(`placeholder text: ${s.slice(0, 60)}`);
+  // A touch link's `row` is the record it opens, not text the panel shows, so it is not scanned.
+  const shown = model.touches ? { ...model, touches: { ...model.touches, links: (model.touches.links || []).map(({ row: _row, ...l }) => l) } } : model;
+  for (const s of strings(shown)) if (PLACEHOLDER.test(s)) problems.push(`placeholder text: ${s.slice(0, 60)}`);
   return problems;
 }

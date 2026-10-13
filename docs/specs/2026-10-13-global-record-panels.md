@@ -31,7 +31,10 @@ The reader is an analyst checking a claim. Success is three things:
    on record" where its absence matters (e.g. procurement value).
 3. The "✦ Niyantran analysis" block (a fixed sentence for Open Fronts, empty for most
    other Global rows) is replaced by the panel. A cached entry brief, when one exists,
-   appears as a card in 02 · About, labelled as a generated brief.
+   appears as a card in 02 · About, labelled as a generated brief. **Not yet built**
+   (review of batch 3, 2026-10-13): no panel shows the cached brief. The retired dossier
+   views did, through `useEntryBrief`. It is open as F123, because fetching briefs
+   touches the AI-credit work (F111).
 4. Non-Global desks and the AI source reader keep the existing `RecordDetail`
    unchanged.
 5. Maritime Choke-Points and Energy are not in the reference and stay as they are.
@@ -58,7 +61,7 @@ component:
  *   about: { label: string, rows?: [string, string][], chips?: string[], cards?: { heading: string, body: string }[] },
  *   touches?: { label: string, lanes: [string, string, string, string],
  *               nodes: { left?: Node, center: Node, right?: Node, far?: Node },   // a missing node draws "None on record"
- *               links: { title: string, detail: string, to?: { tab: string, feature: string } }[] },
+ *               links: { title: string, detail: string, to?: { tab: string, feature: string }, row?: object }[] },   // row: a related record from ctx.rows, opened in place (batch 3)
  *   footer: { ask: string, provenance: { source: string, asOf?: string, flags?: string[] }, note?: string },
  * }} RecordPanelModel
  *
@@ -235,7 +238,37 @@ The router import check is not needed (no `api/` or `server/` change is planned)
 - Choke-Points and Energy panels.
 - Changes to non-Global record views.
 
+## Batch 3 decisions (2026-10-13)
+
+- **Scope (owner, 2026-10-13):** include a module only if the reference has a panel for it. The
+  reference has panels for Alliances, Sanctions, Global Aid and Nuclear Watch, and none for Maritime
+  Choke-Points or Energy (it only mentions them inside other panels), so those two stay as they are.
+- **Visuals follow the reference:**
+
+| Module | Visual | Visual 2 |
+|---|---|---|
+| Alliances | Member states (map, members placed at approximate country centres) | Roster history (timeline from the milestones) |
+| Sanctions | Who listed whom (map: issuers and the target) | Who has listed what (board) |
+| Global Aid | Where the appeal lands (map) | none |
+| Nuclear Watch | Facility on the map (exact facility coordinates) | none |
+
+- **Touch lanes** start from the reference and keep only what the rows hold; a lane with nothing
+  behind it reads "None on record":
+
+| Module | Left | Centre | Right | Far |
+|---|---|---|---|---|
+| Alliances | Region or seat | Bloc | Members (count) | Fronts touching members (from Open Fronts, if the rows allow) |
+| Sanctions | Issuing authority | Programme | Sectors | Listed entities or instruments |
+| Global Aid | Agency | Appeal | Countries or region | Sectors |
+| Nuclear Watch | Country | Facility | Front (if the row names one) | Operator or capacity |
+
+- **Proven figures carry over.** Each adapter reuses the data logic already in `src/lib` (rosters,
+  programme boards, funding, facility status) rather than recomputing it.
+- **Retirement:** the four dossier record components (`AlliancesAnalytics`, `SanctionsAnalytics`,
+  `GlobalAidAnalytics`, `NuclearAnalytics`) are used only by the Record tab, so they are removed
+  with their dispatch in `RailContent.jsx`. Their `alw-*` and `nww-*` CSS classes stay, because the
+  desk monitors share them.
+
 ## Open questions
 
-None blocking batch 1. Batch 3 specifics (which dossier visuals carry over) will be
-confirmed with the owner after batch 1 review.
+None.

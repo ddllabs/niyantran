@@ -5,10 +5,6 @@ import { resolveDataState, isTerminalState } from '../lib/dataState.js';
 import { BarList, Heatmap, Sparkline, VizCard } from './AnalyticsViz.jsx';
 import RecordDetail from './RecordDetail.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
-import AlliancesAnalytics from '../desks/AlliancesAnalytics.jsx';
-import SanctionsAnalytics from '../desks/SanctionsAnalytics.jsx';
-import GlobalAidAnalytics from '../desks/GlobalAidAnalytics.jsx';
-import NuclearAnalytics from '../desks/NuclearAnalytics.jsx';
 import { isAlliancesFeature } from '../lib/alliances.js';
 import { isSanctionsFeature } from '../lib/sanctions.js';
 import { isGlobalAidFeature } from '../lib/globalAid.js';
@@ -150,47 +146,13 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
               feed={feed}
               loading={loading}
             />
-          ) : selected && alliances ? (
-            <AlliancesAnalytics
-              row={selected}
-              rows={feed?.rows || []}
-              flags={feed?.meta?.memberFlags || {}}
-              onSelect={onSelect}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && sanctions ? (
-            <SanctionsAnalytics
-              row={selected}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && aid ? (
-            <GlobalAidAnalytics
-              row={selected}
-              rows={feed?.rows || []}
-              onSelect={onSelect}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && nuclear ? (
-            <NuclearAnalytics
-              row={selected}
-              rows={feed?.rows || []}
-              onSelect={onSelect}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
           ) : selected && panelAdapter ? (
             // F121: Global modules with a record-panel adapter; every other module keeps RecordDetail.
             <RecordPanel
               model={panelAdapter(selected, { rows: feed?.rows || [], feed })}
               onClose={() => onSelect?.(null)}
               onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
+              onSelect={onSelect}
             />
           ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />
