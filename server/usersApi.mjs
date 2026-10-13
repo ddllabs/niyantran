@@ -4,12 +4,17 @@
  *   GET   /api/users           internal admin: every profile, oldest first
  *   PATCH /api/users/:userId   internal admin: { active?: boolean, type?: persona }
  *                              or { plan: free|plus|pro|max, planEnd?: date|null }
+ *   POST  /api/users/:userId/credits
+ *                              internal admin: { credits, kind: adjustment|topup,
+ *                              reason, requestId } (F111 spec section 9)
  *
  * Accounts are created only through Supabase sign-up; this route never
  * creates, deletes or sets a password for anyone. Reads and writes use the
  * server's secret-key client after the route's own internal-admin check.
  * A plan is granted or revoked only through grant_manual_plan() (F2,
  * docs/specs/2026-09-29-f2-entitlements.md), which logs the granting admin.
+ * Credits are added or removed only through admin_adjust_credits(), which
+ * records the admin and the reason in the append-only ledger (F111).
  */
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from './authEmailProvider.mjs';
@@ -23,6 +28,12 @@ const PLAN_FIELDS = new Set(['plan', 'planEnd']);
 const GRANTABLE_PLANS = new Set(['free', 'plus', 'pro', 'max']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 16 * 1024;
+const CREDIT_FIELDS = new Set(['credits', 'kind', 'reason', 'requestId']);
+const CREDIT_KINDS = new Set(['adjustment', 'topup']);
+const CREDIT_DECIMALS = 1e4;
+// A typo guard, not a business rule: the largest plan grants 75,000 a month.
+const MAX_CREDIT_AMOUNT = 1_000_000;
+const MAX_REASON_LENGTH = 500;
 
 function json(res, body, status = 200) {
   res.statusCode = status;
@@ -80,8 +91,12 @@ export async function authorizeLocalUser(req, res, { admin = false, clientForTok
   }
 }
 
-/** One user_profiles row in the directory shape. An allowlist: nothing else leaves. */
-function directoryUser(row) {
+/**
+ * One user_profiles row in the directory shape. An allowlist: nothing else
+ * leaves. `credits` is { balance, debt } (null for each when the wallet read
+ * failed); left out, the credit fields are left out too rather than shown as 0.
+ */
+function directoryUser(row, credits) {
   const email = String(row.email || '').trim().toLowerCase();
   const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || email.split('@')[0];
   const persona = frontendPersona(row.persona);
@@ -106,7 +121,31 @@ function directoryUser(row) {
     status: row.status,
     role: row.role,
     createdAt: row.created_at,
+    ...(credits ? { creditBalance: credits.balance, creditDebt: credits.debt } : {}),
   };
+}
+
+function creditAmount(value) {
+  const amount = Number(value);
+  return value == null || !Number.isFinite(amount) ? null : amount;
+}
+
+/**
+ * Each listed user's wallet in one query. A user with no wallet row yet has
+ * nothing (balance 0). If the read fails the list still answers, with the
+ * balance unknown (null), never a made-up 0.
+ */
+async function walletsFor(client, ids) {
+  const unknown = { balance: null, debt: null };
+  if (!ids.length) return () => unknown;
+  try {
+    const { data, error } = await client.from('credit_wallets').select('user_id, balance, debt').in('user_id', ids);
+    if (error || !Array.isArray(data)) return () => unknown;
+    const byUser = new Map(data.map((w) => [w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0 }]));
+    return (id) => byUser.get(id) || { balance: 0, debt: 0 };
+  } catch {
+    return () => unknown;
+  }
 }
 
 function adminClientFrom(deps) {
@@ -161,12 +200,14 @@ function planGrant(body) {
 
 async function listUsers(res, deps) {
   try {
-    const { data, error } = await adminClientFrom(deps)
+    const client = adminClientFrom(deps);
+    const { data, error } = await client
       .from('user_profiles')
       .select(PROFILE_COLUMNS)
       .order('created_at', { ascending: true });
     if (error || !Array.isArray(data)) throw new Error('Directory read failed');
-    return json(res, { ok: true, users: data.map(directoryUser) });
+    const walletOf = await walletsFor(client, data.map((row) => row.user_id));
+    return json(res, { ok: true, users: data.map((row) => directoryUser(row, walletOf(row.user_id))) });
   } catch {
     return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);
   }
@@ -240,6 +281,81 @@ async function grantPlan(res, caller, userId, grant, deps) {
   }
 }
 
+/** { credits, kind, reason, requestId } for a valid body, or { error } with a plain message. */
+function creditAdjustment(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Send credits, kind, reason and requestId' };
+  }
+  if (Object.keys(body).some((key) => !CREDIT_FIELDS.has(key))) {
+    return { error: 'Send only credits, kind, reason and requestId' };
+  }
+  if (typeof body.kind !== 'string' || !CREDIT_KINDS.has(body.kind)) {
+    return { error: 'The kind must be adjustment or topup' };
+  }
+  const raw = body.credits;
+  const scaled = typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw * CREDIT_DECIMALS) : NaN;
+  if (!Number.isFinite(scaled) || Math.abs(raw * CREDIT_DECIMALS - scaled) > 1e-6) {
+    return { error: 'Credits must be a number with at most four decimals' };
+  }
+  const credits = scaled / CREDIT_DECIMALS;
+  if (credits === 0) return { error: 'Credits must not be zero' };
+  if (Math.abs(credits) > MAX_CREDIT_AMOUNT) {
+    return { error: `Credits must be no more than ${MAX_CREDIT_AMOUNT.toLocaleString('en-US')} either way` };
+  }
+  if (body.kind === 'topup' && credits < 0) return { error: 'A top-up must be a positive number of credits' };
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+  if (!reason || reason.length > MAX_REASON_LENGTH) {
+    return { error: `A reason is required, up to ${MAX_REASON_LENGTH} characters` };
+  }
+  // Chosen by the browser, once per adjustment, so a retry or a double click
+  // reaches the database as the same request and applies once.
+  if (typeof body.requestId !== 'string' || !UUID.test(body.requestId)) {
+    return { error: 'Send a request id (a UUID) so a retry cannot apply twice' };
+  }
+  return { credits, kind: body.kind, reason, requestId: body.requestId.toLowerCase() };
+}
+
+async function adjustCredits(req, res, caller, userId, deps) {
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return json(res, { ok: false, error: 'Invalid JSON' }, 400);
+  }
+  const adjustment = creditAdjustment(body);
+  if (adjustment.error) return json(res, { ok: false, error: adjustment.error }, 400);
+  if (!UUID.test(userId)) return json(res, { ok: false, error: 'User not found' }, 404);
+  try {
+    const client = adminClientFrom(deps);
+    const target = await client.from('user_profiles').select(PROFILE_COLUMNS).eq('user_id', userId).maybeSingle();
+    if (target.error) throw new Error('Directory read failed');
+    if (!target.data) return json(res, { ok: false, error: 'User not found' }, 404);
+    if (target.data.role === 'owner') return json(res, { ok: false, error: 'Owner accounts cannot be changed here' }, 403);
+    const adjusted = await client.rpc('admin_adjust_credits', {
+      p_user: userId,
+      p_credits: adjustment.credits,
+      p_kind: adjustment.kind,
+      p_reason: adjustment.reason,
+      p_admin: caller.id,
+      p_request_id: adjustment.requestId,
+    });
+    // 22023 carries the function's own argument message (no provider detail).
+    if (adjusted.error?.code === '22023') return json(res, { ok: false, error: String(adjusted.error.message) }, 400);
+    const result = adjusted.data;
+    if (adjusted.error || result?.ok !== true || creditAmount(result.balance) === null) throw new Error('Credit adjustment failed');
+    return json(res, {
+      ok: true,
+      repeated: result.repeated === true,
+      kind: result.kind,
+      credits: creditAmount(result.credits),
+      expiresAt: result.expires_at ?? null,
+      balance: creditAmount(result.balance),
+    });
+  } catch {
+    return json(res, { ok: false, error: 'The credit adjustment could not be completed' }, 503);
+  }
+}
+
 function methodNotAllowed(res, allow) {
   res.setHeader('Allow', allow);
   return json(res, { ok: false, error: `${allow} only` }, 405);
@@ -269,6 +385,18 @@ export async function handleUsersApi(req, res, next, deps = {}) {
     const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
     if (!caller) return;
     return updateUser(req, res, caller, userId, deps);
+  }
+  if (segments.length === 2 && segments[0] && segments[1] === 'credits') {
+    if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
+    let userId;
+    try {
+      userId = decodeURIComponent(segments[0]);
+    } catch {
+      userId = '';
+    }
+    const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
+    if (!caller) return;
+    return adjustCredits(req, res, caller, userId, deps);
   }
   return json(res, { ok: false, error: 'Not found' }, 404);
 }
