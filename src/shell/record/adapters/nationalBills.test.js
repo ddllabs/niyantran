@@ -129,3 +129,18 @@ describe('National bills adapter', () => {
     expect(cards.some((c) => /register analysis/i.test(c.heading))).toBe(true);
   });
 });
+
+// F127: a bill's name prints as Parliament writes it ("NEET", "ASHA", "Chapter VIIB"); only a name
+// written entirely in capitals is title-cased, keeping small words lower case.
+describe('National bill names', () => {
+  it('prints a mixed-case name exactly as the register writes it', () => {
+    const neet = bills.find((b) => /\(NEET\) Exemption/.test(b.bill_name));
+    const asha = bills.find((b) => /^The ASHA Workers/.test(b.bill_name));
+    for (const b of [neet, asha]) expect(nationalBills(b, ctx()).title).toBe(b.bill_name.trim());
+  });
+
+  it('title-cases a name written entirely in capitals', () => {
+    const kerala = bills.find((b) => b.bill_name === 'THE KERALA (ALTERATION OF NAME) BILL, 2026');
+    expect(nationalBills(kerala, ctx()).title).toBe('The Kerala (Alteration of Name) Bill, 2026');
+  });
+});

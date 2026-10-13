@@ -652,3 +652,16 @@ describe('footer and provenance', () => {
     expect(brief(p1).footer.note).not.toMatch(/GDELT/);
   });
 });
+
+// F127: the list's items are deduped in one pass; a repeat by link, by headline or by the same object
+// is still counted once, exactly as the nested scan counted it.
+describe('each item counted once', () => {
+  it('ignores a repeat by link, by headline or by object in the section board and the related links', () => {
+    const rows = FEED.rows;
+    const repeats = [...rows, { ...rows[1], title: 'An entirely different headline for the same link' }, { ...rows[2], source_url: 'https://other.example.org/copy' }, rows[3]];
+    const plain = brief(t1, ctxOf());
+    const doubled = brief(t1, { ...ctxOf(), rows: repeats });
+    expect(board(doubled).rows).toEqual(board(plain).rows);
+    expect(doubled.touches.links.map((l) => l.title)).toEqual(plain.touches.links.map((l) => l.title));
+  });
+});

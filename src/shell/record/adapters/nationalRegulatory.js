@@ -1,5 +1,7 @@
 import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
 import { cap, dateLabel, plural, presentRows } from './common.js';
+import { parseFeedDate } from './feedDate.js';
+import { plainText as feedPlainText, text } from './feedText.js';
 
 /**
  * Regulatory Body Watch → record panel (F124 N4). A row has one of two shapes:
@@ -31,86 +33,14 @@ const ACTIONS = {
   direction: { label: 'Direction', badge: { text: 'Direction', tone: 'amber' } },
 };
 
-const text = (value) => (typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '');
-
-/** Control characters (whitespace aside) and the bidirectional marks, which can hide or reorder what a reader sees. */
-const isInvisible = (code) => code <= 8 || (code >= 14 && code <= 31) || (code >= 127 && code <= 159)
-  || code === 0x200e || code === 0x200f || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
-const withoutInvisible = (s) => Array.from(s).filter((ch) => !isInvisible(ch.codePointAt(0))).join('');
-const ENTITIES = { '&amp;': '&', '&quot;': '"', '&apos;': "'", '&#39;': "'", '&#x27;': "'", '&nbsp;': ' ' };
+/** Feed text with markup, written out or escaped, removed (feedText.js, F127). */
+const plainText = (value) => feedPlainText(value, { stripMarkup: true });
 
 /**
- * Feed text as one line of plain text: markup, written out or escaped, removed; the few entities
- * RSS leaves behind decoded once (never `&lt;` or `&gt;`, so nothing can turn back into markup);
- * invisible controls removed; whitespace collapsed. It stays a string; nothing here builds HTML.
+ * The instant a row's date names, or null (feedDate.js, F127). IST is India time (both feeds are Indian
+ * regulators'), and an RFC 822 time with no zone (the live RBI feed's form) gives the day as written.
  */
-const plainText = (value) => withoutInvisible(text(value))
-  .replace(/&lt;[^&]{0,200}?&gt;/gi, ' ')
-  .replace(/<[^>]*>/g, ' ')
-  .replace(/&(?:amp|quot|apos|#39|#x27|nbsp);/gi, (m) => ENTITIES[m.toLowerCase()])
-  .replace(/\s+/g, ' ')
-  .trim();
-
-// A date. Read strictly, as newsWire does: new Date(text) would guess and would read the machine's zone.
-/** RFC 822 zone names, in minutes east of UTC. IST is read as India time because both feeds are Indian regulators'. */
-const ZONES = { GMT: 0, UT: 0, UTC: 0, Z: 0, IST: IST_MINUTES, EST: -300, EDT: -240, CST: -360, CDT: -300, MST: -420, MDT: -360, PST: -480, PDT: -420 };
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2}))?$/i;
-const RFC_DATE = /^(?:[A-Za-z]{3,9},?\s+)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s+([A-Za-z]{1,3}|[+-]\d{4}))?)?$/;
-
-/** A real instant from calendar parts and a UTC offset in minutes, or null. Reads no local zone. */
-function instant(year, month, day, hour, minute, second, offset) {
-  if (year < 1900 || year > 2200 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
-  const ms = Date.UTC(year, month - 1, day, hour, minute, second);
-  const probe = new Date(ms);
-  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
-  return new Date(ms - offset * 60000);
-}
-
-const offsetOf = (zone) => {
-  if (/^[+-]\d{4}$/.test(zone)) {
-    const minutes = Number(zone.slice(1, 3)) * 60 + Number(zone.slice(3, 5));
-    return Number(zone.slice(3, 5)) > 59 ? null : (zone[0] === '-' ? -minutes : minutes);
-  }
-  const key = zone.toUpperCase();
-  return Object.hasOwn(ZONES, key) ? ZONES[key] : null;
-};
-
-/**
- * The instant a row's date names, or null. Two shapes are read:
- *  - RFC 822 pubDate "Tue, 13 Oct 2026 10:16:00 +0530" (a listed zone name or a ±hhmm offset);
- *  - ISO 8601 "2026-07-03" or "2026-10-12T14:30:00+01:00" (a zone is required with a time).
- * A bare calendar date is that day, and so is an RFC 822 date whose time carries no zone (the RBI
- * feed's form): the day is read as written and the time is not converted. Anything else, an
- * impossible date, or an ISO time with no zone is not a date.
- */
-function parseIssued(value) {
-  const t = text(value);
-  if (!t) return null;
-  let m = ISO_DATE.exec(t);
-  if (m) {
-    const [year, month, day] = m.slice(1, 4).map(Number);
-    if (m[4] == null) return instant(year, month, day, 0, 0, 0, 0);
-    const zone = m[7].toUpperCase();
-    const offset = zone === 'Z' ? 0 : (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(-2))) * (zone[0] === '-' ? -1 : 1);
-    if (zone !== 'Z' && Number(zone.slice(-2)) > 59) return null;
-    return instant(year, month, day, Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  m = RFC_DATE.exec(t);
-  if (m) {
-    const month = MONTHS.indexOf(m[2].toLowerCase()) + 1;
-    if (!month) return null;
-    if (m[4] == null) return instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
-    // The live RBI feed writes its time with no zone ("Mon, 12 Oct 2026 23:55:00"). The time is not
-    // converted; the calendar day it names is read as written, the time checked only for validity.
-    if (m[7] == null) {
-      return Number(m[4]) > 23 || Number(m[5]) > 59 || Number(m[6] || 0) > 59 ? null : instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
-    }
-    const offset = offsetOf(m[7]);
-    return offset == null ? null : instant(Number(m[3]), month, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  return null;
-}
+const parseIssued = (value) => parseFeedDate(value, { ist: true, zonelessDay: true });
 
 /** { at, key: 'YYYY-MM-DD' (India date), label: '03 Jul 2026' } for a row's date, or null. */
 function issuedOf(row) {

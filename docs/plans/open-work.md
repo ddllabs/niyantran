@@ -236,17 +236,6 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - **Labels and panel:** the labels now say both houses, and the panel shows
     "Listed as" where the name differs.
   - Merged and pushed at `abfb912` on 2026-10-13.
-- [ ] **F127. Record adapter helper clean-up.** Found in the F124 review
-  (2026-10-13).
-  - The strict feed-date parser and the plain-text helpers (`instant`,
-    `offsetOf`, the ISO/RFC patterns, the zone table, `plainText`, the
-    invisible-character strip, the entity decoder) are copied in `newsWire.js`,
-    `nationalCabinet.js`, `nationalRegulatory.js` and `nationalMorningBrief.js`
-    (`src/shell/record/adapters/`), and already differ: month-name leniency, IST
-    in the zone table, zoneless times. Move them to shared `feedDate.js` and
-    `feedText.js`.
-  - `titleCase` in `nationalBills.js` lowercases acronyms ("GST" → "Gst").
-  - The Morning Brief dedup is quadratic (fine at today's ~64 rows).
 - [ ] **F128. Law record panels.** Owner request 2026-10-13 ("go ahead with
   Law now, same process").
   - All twelve Law modules get the record panel in the Law reference's form:
@@ -267,6 +256,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     whole label is in capitals; `src/lib/national.test.js`.
 - [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
   research (2026-10-13); owner: not now.
+  - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
   - `backup/` holds 177 ICJ General List cases and 641 WTO DS case pages.
     Either would turn a wire module into a register.
   - `backup/` is probably not deployed, so this is a data task that needs
@@ -275,6 +265,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     personal data before any use.
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
+  - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
     list names Trading Economics and CME, but the levels are illustrative pack
     values (`src/desks/CommoditiesDesk.jsx`; feed `links` in
@@ -427,6 +418,7 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 ## 1. Done
 
+- [x] **F127. Record adapter helper clean-up.** Done `d19a9f3` (2026-10-13). One strict feed-date reader (`feedDate.js`, options for IST, full month names and RBI's zoneless times) and one plain-text helper (`feedText.js`) replace the copies in five adapters. Behaviour changes, deliberate: zero-width characters are stripped everywhere; the Cabinet adapter no longer reads a month fragment such as "Marc"; a weekday may be spelt out. Bill and question names print as Parliament writes them; only all-capitals names are title-cased, keeping abbreviations and roman numerals ("The ASHA Workers…", "Chapter VIIB", not "Asha", "Viib"). The Morning Brief dedup is one pass.
 - [x] **F84. Law reporting-query relevance.** Fixed `897ccc7` (2026-10-13). The nine Law news-wire modules search Google News with each forum's own name and legal terms instead of product-name OR queries; ICC excludes cricket, and the international forums carry no India filter. Live check: ICC moved from cricket to International Criminal Court coverage, and the other eight moved likewise. Also fixed: Google News descriptions showed as raw link markup in tables and in the Law summary card; they are now plain text. [Spec](../specs/2026-10-13-law-news-queries.md).
 - [x] **F112. Terminal navigation, type scale and search.** Owner review
   2026-10-13: no "Choose a desk" row on Home, larger highlighted desk tabs, one

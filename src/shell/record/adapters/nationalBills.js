@@ -1,5 +1,6 @@
 import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
 import { cap, companiesNamedIn, dateLabel, plural, presentRows, sourceLinks } from './common.js';
+import { titleCaseCaps } from './feedText.js';
 
 /**
  * Bill Passage Probability Index → record panel (F124). Rows are the Sansad bills register; the
@@ -20,7 +21,8 @@ const STAGES = {
 const PATH = ['Introduced', 'Pending in Parliament', 'Passed', 'Assented'];
 const MAX_RELATED = 3;
 
-const titleCase = (s) => String(s || '').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+// Register names print as written; only an all-capitals name is title-cased (feedText.js, F127).
+const titleCase = titleCaseCaps;
 const stageKey = (s) => String(s || '').trim().toLowerCase();
 const httpsOnly = (u) => (/^https:\/\//i.test(String(u || '')) ? String(u) : '');
 

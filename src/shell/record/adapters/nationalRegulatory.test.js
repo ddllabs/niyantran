@@ -504,7 +504,8 @@ describe('National regulatory adapter', () => {
       const source = readFileSync(fileURLToPath(new URL('./nationalRegulatory.js', import.meta.url)), 'utf8');
       expect(source).not.toMatch(/resolveOrganisedBrief|ensureDeskBrief|sourceDoc|\bfetch\s*\(|XMLHttpRequest|\/api\/|loadAnalysisMap|loadOntology/);
       const imports = [...source.matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1]);
-      expect(imports.sort()).toEqual(['../../../lib/impactRecord.js', './common.js']);
+      // feedDate.js and feedText.js (F127) are pure helpers that import nothing.
+      expect(imports.sort()).toEqual(['../../../lib/impactRecord.js', './common.js', './feedDate.js', './feedText.js']);
     });
   });
 });
