@@ -198,8 +198,8 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     selection); one batch; the Cabinet filter and the MP house fix as separate
     tasks (F125, F126).
   - Status: all eight panels built (N1–N9), independently reviewed (one
-    must-fix, fixed), and merged to `main` locally at `51a707f`; awaiting the
-    owner's go-ahead to push. Next: F125 and F126.
+    must-fix, fixed), merged at `51a707f` and pushed on 2026-10-13. F125 and
+    F126 followed (pushed at `abfb912`).
   - Backend gaps the reference points to (not in F124's scope):
     - Cabinet Decisions serves the unfiltered PIB feed;
     - the MP register has no house column, mixes Lok Sabha and Rajya Sabha
@@ -224,7 +224,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - **Client and panel:** the client keeps the body's name as written
     ("(CCEA)", not "(Ccea)"), and the panel reads the body as its marker.
   - **Verification:** a server test with PIB stubbed fails on the old code.
-    Built on `task/cabinet-filter-mp-house`; awaits a push.
+    Merged and pushed at `abfb912` on 2026-10-13.
 - [x] **F126. MP register: house and party names.** Owner 2026-10-13.
   - **House:** each row's `house` comes from its own `sansad.in` link (540
     Lok Sabha, 242 Rajya Sabha).
@@ -235,7 +235,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - **Shaping:** done in `prepareDeskFeed`, so the live and stored paths agree.
   - **Labels and panel:** the labels now say both houses, and the panel shows
     "Listed as" where the name differs.
-  - Built on `task/cabinet-filter-mp-house`; awaits a push.
+  - Merged and pushed at `abfb912` on 2026-10-13.
 - [ ] **F127. Record adapter helper clean-up.** Found in the F124 review
   (2026-10-13).
   - The strict feed-date parser and the plain-text helpers (`instant`,
