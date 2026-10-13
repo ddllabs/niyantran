@@ -246,8 +246,26 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   searches and cost recorded for F111.
   [Research](../research/2026-10-13-web-search.md) ·
   [Spec](../specs/2026-10-13-web-search.md). Branch `task/web-search`
-  (worktree `.claude/worktrees/web-search`). Status: research and probes done
-  (spend $0.21 of an approved $1.00); spec approved 2026-10-13; [plan](2026-10-13-web-search.md) awaiting approval.
+  (worktree `.claude/worktrees/web-search`).
+  - **Status, 2026-10-13:** built, reviewed and verified locally on
+    `task/web-search`; not merged to `main`, not pushed.
+    - Research and probes; spec with amendments 1–2.
+      [Plan](2026-10-13-web-search.md),
+      [local run](../research/2026-10-13-web-search-local-run.md).
+    - Agents: Haiku (fixtures), Fable (agent loop), Sonnet (policy, UI,
+      security pass), Opus (independent review).
+    - Checks: 993 Deno and 3,166 Vitest tests, lint, the build and all SQL
+      fixtures pass; the migration's Down block was executed.
+    - Spend: $0.31 of an approved $1.00.
+  - **Waiting on the owner**, each a named go-ahead, in this order:
+    1. apply migration `20261013140000_web_search` to NTER;
+    2. deploy `research-chat`;
+    3. merge into `main` and push.
+  - **Follow-ups:**
+    - a per-user daily web-search cap, with F111;
+    - the privacy policy to name OpenRouter/Exa as the search provider (F107);
+    - the web viewer's close button still reads "Close citation";
+    - the two rare client prediction mismatches in spec amendment 2.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

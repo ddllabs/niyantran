@@ -291,3 +291,39 @@ in `docs/agents/coordination.md`.
   `supabase/`. `docs/plans/open-work.md` is the shared file most likely to
   conflict, so its edits stay small.
 - **Spend.** Only T7 calls OpenRouter. Unit tests use the fixtures.
+
+## Outcome (2026-10-13)
+
+Phases 1–4 are done on `task/web-search`. It is not merged to `main` and not
+pushed.
+
+- **Phase 1:** T0 and T1 were done by the supervisor, T0f by Haiku.
+- **Phase 2 (four agents in parallel):**
+  - T2 (Fable): the agent loop.
+  - T3 (Sonnet): policy, prompt and telemetry.
+  - T4a and T4b (Sonnet): the chat UI.
+
+  The supervisor reviewed each diff and reran its checks before merging it.
+  T4a's out-of-scope finding (the research flow labelled a web search "Desk
+  lookup") was fixed by the supervisor.
+- **Phase 3 (T5, supervisor):** the handler wiring. It needed a change the
+  plan did not foresee: `finalize_research_turn` is replaced so it saves
+  `web_sources` (spec amendment 1).
+- **Phase 4:**
+  - The security pass (Sonnet) found 3 medium, 3 low and 3 informational
+    issues. The independent review (Opus) found 2 confirmed security
+    defects that overlap with those, and 3 low ones.
+  - All were fixed test-first, except the items spec amendment 2 lists as
+    considered and not changed.
+  - The local browser run passed all three spec cases and found one more
+    issue: the header on a web-only answer. It was fixed.
+
+**Slips, recorded:**
+- `646dc17` was committed before its new test passed; `2d2903c` corrected
+  the test.
+- One `git checkout --` during a mutation check discarded an uncommitted
+  edit of the supervisor's own. It was reapplied and verified before the
+  commit.
+
+**Production** (checkpoint 3) waits for the owner's go-ahead on each action:
+the migration, then the function, then the push.
