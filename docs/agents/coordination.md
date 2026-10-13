@@ -1739,3 +1739,39 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   gazette, `bill:2005:106` synopsis), each identical to a kept document, were
   deleted after a local backup; then `analyze` was run. No identical-text
   documents remain. Corpus: 3,379 documents, 99,225 chunks.
+- **Web search in AI Research (F130), owner: "go", then "All three, in order":**
+  - **Migration 45** `20261013140000_web_search` (file SHA-256 `f6a51277…`,
+    commit `78b8eb9`):
+    - **Before** (read-only): last migration `20261012120000`; none of the
+      four columns existed; the old step-type check; the live
+      `finalize_research_turn` body matched `20260921115831` exactly; 6
+      conversations, 20 messages, 4,018 call logs, 336 traces.
+    - Applied through the MCP tool. The stamped version (`20261013111552`)
+      was pinned to the file name.
+    - **Verified live:**
+      - all four columns exist with the expected types and defaults;
+      - the three checks are present, and the step check includes
+        `web_search`;
+      - `finalize_research_turn` writes `web_sources`, keeps its ACL
+        (`postgres`, `service_role`) and stays SECURITY INVOKER;
+      - `authenticated` cannot insert or update `web_sources` or write
+        `model_call_logs`, and may update its own `conversations.web_search`;
+      - row counts are unchanged.
+    - Security advisor: no new finding (the same seven signed-in-executable
+      SECURITY DEFINER functions as on 2026-10-12).
+  - **research-chat v51:** deployed from `task/web-search` at `e6187df` (main
+    `8d649d6` merged in; `supabase/` on `main` was identical to v50's source
+    `c117dc2`). ACTIVE, `verify_jwt` false, bundle `4c79ade5…`.
+    Unauthenticated POST returns 401 and the CORS preflight 204. Rollback:
+    redeploy `research-chat` from `8d649d6` (= v50).
+  - **Push:** `origin/main` fast-forwarded `8d649d6..3d937af` from
+    `task/web-search` (28 commits, 58 files).
+    - The outgoing scan found no env files, nothing from `docs/security`, no
+      key patterns, no test credential and no AI attribution.
+    - Local `main` was not touched: it is checked out in another agent's
+      checkout, which holds an unpushed merge (`b4ea998`, heading
+      abbreviations). That checkout must merge `origin/main` before its next
+      push; the only overlapping file is `docs/plans/open-work.md`.
+    - **Vercel:** production serves entry `index-CNoD7MWA.js` about 60 s after
+      the push. It carries "Web search on (automatic)", "Web search off
+      (automatic)" and "Web sources searched".
