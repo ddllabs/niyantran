@@ -1778,3 +1778,25 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     - **Vercel:** production serves entry `index-CNoD7MWA.js` about 60 s after
       the push. It carries "Web search on (automatic)", "Web search off
       (automatic)" and "Web sources searched".
+- **Web search streams once, with live sources and site icons (F131)**, owner:
+  "Deploy research-chat and push main to origin":
+  - **research-chat v52:** deployed from `task/web-search` at `d45b9d1`
+    (`origin/main` `483af1a` merged in). It is ACTIVE with `verify_jwt` false.
+    - The served source carries the F131 code (`webProgress`, "listed above
+      the answer").
+    - An unauthenticated POST returns 401 and the CORS preflight returns 204.
+    - Rollback: redeploy `research-chat` from `4159037` (= v51).
+    - The order of deploys is safe either way. The live client ignores the
+      new `webProgress` frame, and the new client works against v51 without
+      live pages.
+  - **Checks after merging `origin/main`:** 3,688 Vitest and 1,012 Deno
+    tests, lint 0, the build, and the router import check.
+  - **Push:** a fast-forward of `origin/main` from `task/web-search`. It
+    carries `/api/site-icon` (server, router, Vite plugin), the source strip,
+    and the privacy-policy line about DuckDuckGo. There is no migration.
+  - **Read-only on NTER:**
+    - function logs for 24 hours (three `research.draft_retracted`, all on
+      web turns);
+    - `model_call_logs` by minute;
+    - a 14-day `chat_messages` check for literal `\n` (none in 11 answers;
+      F132).

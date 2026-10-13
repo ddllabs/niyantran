@@ -383,8 +383,9 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   `max_uses` by one (billed correctly), so F130 logs overstate.
   [Spec](../specs/2026-10-13-web-search-streaming.md). Branch
   `task/web-search`.
-  - **Status, 2026-10-13: built and verified locally on `task/web-search`;
-    awaiting the owner's go-ahead** to redeploy `research-chat` and push.
+  - **Status, 2026-10-13: shipped.** `research-chat` v52 is deployed and
+    `origin/main` is pushed (see coordination Operations). Remaining: the
+    owner's check on production.
     - The owner approved the spec with both recommendations: hold drafts on
       web turns only, and add the privacy half-sentence. Production logs
       showed that all three retractions in 24 hours were on web turns.
