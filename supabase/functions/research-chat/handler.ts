@@ -726,13 +726,19 @@ async function runTurnBody(
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
   const web = decideWebSearch({
     scope: await webScopeOf(deps, request, selectionKey, modules, modulesKnown),
+    // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
     override: await deps.db.webSearchOverride(conversation.id, request.web_search)
-      .catch(() => request.web_search ?? null),
+      .catch(() => request.web_search ?? false),
     conversational,
     modelAllowed: webModelAllowed(t.chosen.model_id, t.chosen.params),
   });
   sender.send({ web });
   const webTrace: WebTraceStep[] = [];
+  // Pages searched so far, and the link check every saved text passes (security pass M3): a turn
+  // that breaks off or is cancelled saves what it streamed, so that text is checked as well.
+  const webSeen: string[] = [];
+  const safeText = (s: string) =>
+    s ? checkLinks(s, [...webSeen, ...evidenceUrls(evidence)], { scanCode: true }).text : s;
 
   const system = buildSystemPrompt({
     persona,
@@ -861,6 +867,7 @@ async function runTurnBody(
     } else if ('web' in e) {
       // A research call that searched the web (spec §4, §5): one ticker step, one trace row.
       const w = e.web;
+      webSeen.push(...w.pages.map((p) => p.url));
       webTrace.push({
         attemptIndex: attempts.lastAttemptIndex('chat_answer'),
         searches: w.searches,
@@ -880,7 +887,7 @@ async function runTurnBody(
         if (!firstAnswerAt) firstAnswerAt = now();
         writingEnd = now();
         streamed += shown;
-        context.checkpoint({ content: streamed });
+        context.checkpoint({ content: safeText(streamed) });
         sender.send({ chunk: shown });
       }
     }
@@ -984,7 +991,7 @@ async function runTurnBody(
 
   if (!result) {
     return makeAssistantMessage({
-      content: streamed,
+      content: safeText(streamed),
       sources: [],
       followUps: [],
       activity,
@@ -1006,7 +1013,7 @@ async function runTurnBody(
       signal.aborted ? undefined : `Answer declined by this server: finish=${result.finish}, envelope=${envelope ? 'parsed' : 'absent'}.`,
     );
     return makeAssistantMessage({
-      content: streamed,
+      content: safeText(streamed),
       sources: [],
       followUps: [],
       activity,

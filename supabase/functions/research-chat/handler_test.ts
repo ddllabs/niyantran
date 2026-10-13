@@ -2439,3 +2439,41 @@ Deno.test('web search: small talk never searches, and a non-boolean web_search i
   assertEquals(bad.status, 400);
   assertStringIncludes((await bad.json()).fieldErrors.web_search, 'boolean');
 });
+
+// Security pass M3: a turn that fails or is cancelled saves the text it streamed. That text is
+// link-checked too, or an injected link would be saved and shown on every reload.
+Deno.test('web search: a turn that breaks off mid-answer saves its text without unsearched links', async () => {
+  const provider = scripted([
+    ...DECLINES,
+    [text('{"answer":"See [the circular](https://evil.example/a) and [RBI](https://www.rbi.org.in/x) now. More'), new ProviderError(502, 'upstream reset') as unknown as ModelEvent],
+  ]);
+  // The scripted provider yields events in order; an Error object in the list is thrown by this wrapper.
+  const throwing = {
+    stream: async function* (req: StreamRequest) {
+      for await (const e of provider.stream(req)) {
+        if (e instanceof Error) throw e;
+        yield e;
+      }
+    },
+  };
+  const { deps, rec } = fakeDeps(throwing);
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'web-broken' }), deps));
+  const saved = rec.messages[0];
+  assertEquals(saved.status, 'error');
+  assert(saved.content.includes('the circular'), 'the text is kept');
+  assert(!saved.content.includes('evil.example'), 'the unsearched link is not');
+  assert(!saved.content.includes('](https://www.rbi.org.in'), 'nor is a link to a page this turn never searched');
+});
+
+// Security pass I2: "off" is a privacy choice, so a failed read of it must not turn the web back on.
+Deno.test('web search: when the stored override cannot be read, the turn does not search', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const { deps } = fakeDeps(provider, {}, {
+    findDeskRow: () => Promise.resolve(ROW_ONLY),
+    indexedDocumentKeys: () => Promise.resolve([]),
+    webSearchOverride: () => Promise.reject(new Error('database unavailable')),
+  });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-unreadable' }), deps));
+  assertEquals(webFrame(got)?.offered, false);
+  assert(provider.seen.every((r) => !r.serverTools));
+});

@@ -249,8 +249,8 @@ export interface AgentCheckpoint {
   /** The turn's web pages, first seen first, one per URL (web-search spec §2). A resumed turn
    * carries them on rather than searching again. */
   webPages: WebPage[];
-  /** Web searches the provider reported for the turn so far: what the next research call is
-   * offered is the budget less this. */
+  /** Web searches charged to the turn's budget so far: the provider's count, or everything an
+   * uncounted call was allowed. What the next research call is offered is the budget less this. */
   webSearches: number;
 }
 
@@ -724,7 +724,9 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
             deps.onEvent({ text: event.text });
           } else if (event.text) deps.onEvent({ draftText: event.text });
         } else if (event.type === 'tool-call') calls.push(event);
-        else if (event.type === 'web-results') callPages = [...callPages, ...event.pages];
+        // Only a search this call was offered counts (security pass I3): pages that arrive without
+        // the tool would become sources and allowed links nobody asked for.
+        else if (event.type === 'web-results') { if (webTool) callPages = [...callPages, ...event.pages]; }
         else {
           ended = event;
           if (event.usage) state.usage.push(event.usage);
@@ -748,10 +750,17 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     // are a floor of one search, never a guess upward. The turn keeps one entry per URL; what
     // this call added is what the next call reads and what the trace row counts. A web search
     // is not a record search: budget.searches and the no-search press are untouched.
-    const webSearches = webSearchCount(ended.usage) ?? (callPages.length ? 1 : 0);
+    // The reported count is the provider's; without one, pages returned are a floor of one search,
+    // never a guess upward. The budget is stricter (security pass L1): an uncounted call that
+    // returned pages is charged everything it was allowed, or a provider that omits the count could
+    // search on every call. A call with neither a count nor pages shows no sign of a search.
+    // A call that was not offered the tool takes no part (I3); its usage still reaches telemetry.
+    const reported = webTool ? webSearchCount(ended.usage) : 0;
+    const webSearches = reported ?? (callPages.length ? 1 : 0);
+    const charged = reported ?? (callPages.length && webTool ? webTool.parameters.max_uses : 0);
     const merged = mergePages(state.webPages, callPages);
     state.webPages = merged.pages;
-    state.webSearches += webSearches;
+    state.webSearches += charged;
     const webAdded = merged.added;
     if (webSearches > 0 || webAdded.length) {
       deps.onEvent({

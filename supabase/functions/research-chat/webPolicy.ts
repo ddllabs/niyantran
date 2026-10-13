@@ -290,14 +290,33 @@ export function checkLinks(
     if (n) ok.add(n);
   }
   let removed = 0;
-  const text = rewriteText(String(answer ?? ''), ({ url }) => {
-    const n = normaliseUrl(url);
-    if (n && ok.has(n)) return true;
+  // A fragment never reaches the server, so it could carry the reader's data to a searched page's
+  // own script: a link with one is removed even when the page is allowed (security pass M2).
+  const keep = (url: string) => !url.includes('#') && ok.has(normaliseUrl(url) ?? '');
+  let text = rewriteText(String(answer ?? ''), ({ url }) => {
+    if (keep(url)) return true;
     removed++;
     return false;
   }, options.scanCode === true);
+  // The chat client does not parse CommonMark: AiMarkdown links whatever CLIENT_LINK matches. So
+  // whatever that pattern would still render after the scan must pass the same test, until
+  // nothing changes (security pass M1). An allowed link matches both and is left alone. Only with
+  // scanCode, the mode that answers what the client renders: the client links inside code too.
+  for (let pass = 0; options.scanCode === true && pass < 8; pass++) {
+    let changed = false;
+    text = text.replace(CLIENT_LINK, (whole, label: string, url: string) => {
+      if (keep(url)) return whole;
+      removed++;
+      changed = true;
+      return label;
+    });
+    if (!changed) break;
+  }
   return { text, removed };
 }
+
+/** The chat client's link pattern (src/ai/AiMarkdown.jsx, Emphasis). Keep the two in step. */
+const CLIENT_LINK = /\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g;
 
 const SOURCES_MAX = 20;
 const TITLE_MAX = 300;

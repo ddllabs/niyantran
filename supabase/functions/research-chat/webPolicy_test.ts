@@ -169,9 +169,40 @@ Deno.test('checkLinks keeps a link to a page that was searched, and nothing chan
   assertEquals(check(text), { text, removed: 0 });
 });
 
-Deno.test('checkLinks matches on the normalised URL: host case, fragment, and a title', () => {
-  const text = `See [RBI](HTTPS://WWW.RBI.ORG.IN/press/2026#top "Press release").`;
+Deno.test('checkLinks matches on the normalised URL: host case and a title', () => {
+  const text = `See [RBI](HTTPS://WWW.RBI.ORG.IN/press/2026 "Press release").`;
   assertEquals(check(text), { text, removed: 0 });
+});
+
+// Security pass M2: a fragment never reaches the server, so it can carry the reader's data to a
+// searched page's own script. The page is allowed; a link to it with a fragment is not.
+Deno.test('checkLinks removes a link with a fragment, even to a searched page', () => {
+  assertEquals(check(`See [RBI](${GOOD}#d=SECRET).`), { text: 'See RBI.', removed: 1 });
+  assertEquals(check('See [RBI](HTTPS://WWW.RBI.ORG.IN:443/press/2026#x).'), { text: 'See RBI.', removed: 1 });
+  assertEquals(check(`See [RBI](${GOOD}#).`), { text: 'See RBI.', removed: 1 });
+});
+
+// Security pass M1: the chat client links with its own lazy pattern (AiMarkdown), not CommonMark.
+// Whatever that pattern would render as a link must also have passed the check.
+const CLIENT_LINK = /\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g;
+Deno.test('checkLinks leaves nothing the chat client would render as a link to an unsearched page', () => {
+  const payloads = [
+    '[a]](https://evil.example/x)',
+    '[a] ](https://evil.example/x)',
+    '\\[a](https://evil.example/x)',
+    '[a\\](https://evil.example/x)',
+    '[a](https://evil.example/x(1)',
+    'x [a]]](https://evil.example/x) y',
+    '**[a](https://evil.example/x)**',
+  ];
+  for (const payload of payloads) {
+    const { text, removed } = check(payload, [GOOD], { scanCode: true });
+    const rendered = [...text.matchAll(CLIENT_LINK)].map((m) => m[2]);
+    assertEquals(rendered, [], `${payload} -> ${text}`);
+    assertEquals(removed > 0, true, payload);
+  }
+  // An allowed link the client renders is untouched.
+  assertEquals(check(`[RBI](${GOOD})`, [GOOD], { scanCode: true }), { text: `[RBI](${GOOD})`, removed: 0 });
 });
 
 Deno.test('checkLinks keeps the text and drops the URL of a link that was not searched', () => {

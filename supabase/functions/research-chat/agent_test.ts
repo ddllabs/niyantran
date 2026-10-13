@@ -1589,21 +1589,47 @@ Deno.test('web: a call that searched emits one web event after its finish, with 
   assertEquals(keys.indexOf('web'), keys.indexOf('finish') + 1, 'after the call it accounts for');
 });
 
-Deno.test('web: without a provider count, pages returned count as one search - a floor, never a guess upward', async () => {
+Deno.test('web: without a provider count, the event reports a floor of one search, but the budget is charged everything the call was allowed', async () => {
+  // Security pass L1: counting an uncounted call as one would re-offer the tool on every later
+  // call and break the three-search limit. The report stays a floor; the budget assumes the worst.
   const f = fake([
     [docCall('one'), webResults(page(1), page(2), page(3)), searched(null, 'tool_calls')],
-    [docCall('two'), webResults(page(4)), searched(0, 'tool_calls')],
-    [docCall('three'), searched(null, 'tool_calls')],
+    [docCall('two'), searched(null, 'tool_calls')],
     ready(),
     answer(),
   ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
   const result = await runAgent(f.deps, input);
   const web = webEvents(f.events);
-  assertEquals(web.map((w) => [w.searches, w.costUsd, w.pages.length]), [[1, 0.007, 3], [0, 0, 1]]);
-  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(2)]);
-  assertEquals(serverToolsOf(f.requests[2]), [webSearchTool(2)], 'a reported zero with pages is zero');
-  assertEquals(result.webSearches, 1);
-  assertEquals(result.webPages.length, 4);
+  assertEquals(web.map((w) => [w.searches, w.costUsd, w.pages.length]), [[1, 0.007, 3]]);
+  assertEquals('serverTools' in f.requests[1], false, 'the uncounted call spent the budget');
+  assertEquals(result.webSearches, 3);
+  assertEquals(result.webPages.length, 3);
+});
+
+Deno.test('web: a reported zero is zero, even with pages', async () => {
+  const f = fake([
+    [docCall('one'), webResults(page(1)), searched(0, 'tool_calls')],
+    [docCall('two'), searched(0, 'tool_calls')],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(3)]);
+  assertEquals(result.webSearches, 0);
+});
+
+Deno.test('web: pages from a call that was not offered the tool are ignored', async () => {
+  // Security pass I3: only a search this turn asked for may become a source or an allowed link.
+  const f = fake([
+    [docCall('one'), webResults(page(1)), searched(1, 'tool_calls')],
+    ready(),
+    answer(),
+  ], { searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(webEvents(f.events), []);
+  assertEquals(result.webPages, []);
+  assertEquals(result.webSearches, 0);
+  assertEquals(evidenceMessages(f.requests[1]), []);
 });
 
 Deno.test('web: pages are carried into the next call as one untrusted user message, after the tool replies; only new pages are carried', async () => {
