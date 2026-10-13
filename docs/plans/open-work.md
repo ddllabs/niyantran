@@ -345,8 +345,9 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     - Checks: 993 Deno and 3,166 Vitest tests, lint, the build and all SQL
       fixtures pass; the migration's Down block was executed.
     - Spend: $0.31 of an approved $1.00.
+  - **Owner decision, 2026-10-13:** no per-user search cap. The per-turn
+    limit of three stays, and every search is logged with its cost.
   - **Follow-ups:**
-    - a per-user daily web-search cap, with F111;
     - the privacy policy to name OpenRouter/Exa as the search provider (F107);
     - the web viewer's close button still reads "Close citation";
     - the two rare client prediction mismatches in spec amendment 2.
