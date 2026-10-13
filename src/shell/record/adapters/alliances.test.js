@@ -187,9 +187,11 @@ describe('01 at a glance: member map', () => {
     expect(mapOf(au).caption).toContain('Sahrawi Arab Democratic Republic');
     expect(mapOf(g20).caption).toContain('Showing 19 of 21 members');
     expect(mapOf(g20).caption).toMatch(/European Union.*African Union|African Union.*European Union/);
-    expect(mapOf(pif).points).toHaveLength(14);
-    expect(mapOf(pif).caption).toContain('Showing 14 of 18 members');
-    expect(mapOf(caricom).caption).toContain('Showing 14 of 15 members');
+    // F122: the four Pacific territories on the roster now have their own positions.
+    expect(mapOf(pif).points).toHaveLength(18);
+    expect(mapOf(pif).caption).toContain('Showing 18 of 18 members');
+    // F122: Montserrat, a territory on the CARICOM roster, now has its own position.
+    expect(mapOf(caricom).caption).toContain('Showing 15 of 15 members');
   });
 
   it('says it is approximate and schematic: country centres, not capitals or borders', () => {

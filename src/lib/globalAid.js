@@ -151,28 +151,3 @@ export const AID_COUNTRIES = {
   bfa26: 'Burkina Faso',
   lbn26: 'Lebanon',
 };
-
-export function aidHeatRecords(selected, list) {
-  return (list || [])
-    .filter((x) => AID_COUNTRIES[x.id])
-    .map((x) => {
-      const on = x.id === selected?.id;
-      const v = Number(x.requirement) || 0;
-      const color = on ? '#d94e35' : v >= 800000000 ? '#397ca5' : v >= 300000000 ? '#6f9eb8' : '#a7c4d3';
-      return {
-        country: AID_COUNTRIES[x.id],
-        color,
-        label: on ? 'Selected programme' : 'Published programme requirement',
-        detail: `${money(x.requirement)} · ${x.agency}`,
-        focus: on,
-        id: x.id,
-      };
-    });
-}
-
-export const AID_MAP_LEGEND = [
-  ['Selected programme', '#d94e35'],
-  ['≥ $800M requirement', '#397ca5'],
-  ['$300–799M', '#6f9eb8'],
-  ['< $300M', '#a7c4d3'],
-];

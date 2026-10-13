@@ -152,4 +152,12 @@ unusable:**
     - no "API-ready", Trading Economics or CME;
     - Global Aid prints "$2.5B";
     - Heads of State lists one Ukraine row, and its sources read "for checking".
-- **G3:** waits for decision 1.
+- **G3, done `9dffe65` (2026-10-13).** The owner approved the deletions.
+  - **Positions:** five roster territories now have positions. The Pacific Islands Forum map
+    shows 18 of 18 members and CARICOM 15 of 15.
+  - **Deleted, after an importer search:** 327 lines of dead code. `operatorCountries` was kept
+    because the live `statsFor` uses it.
+  - **Checks:** all affected desks load in the browser.
+- **L1 (ICJ), owner 2026-10-13:** "not sure, keep what we have". The ICJ module stays as it is,
+  serving live news under the F84 query; no register is built.
+- **L2 (WTO), owner 2026-10-13:** approved collecting the data.

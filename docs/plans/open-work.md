@@ -263,7 +263,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     approval.
   - The Sector Tribunals pack holds a PAN in at least one title; check it for
     personal data before any use.
-- [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
+- [x] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope.
   - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
   - G1 done `bed03ba` and G2 done `e0c3e8d` (2026-10-13): the Commodities
@@ -272,8 +272,15 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     sites "for checking", office names not verified, no JSON launch link,
     alliance fallbacks "Not stated". The desk catalogue's Heads of State count
     is now 43 (`supabase/functions/_shared/deskCatalog.json`; reaches the Edge
-    Functions on their next deploy). G3 (map positions, dead code) waits for
-    the owner's approval of the deletions.
+    Functions on their next deploy).
+  - G3 done `9dffe65` (2026-10-13; owner approved the deletions): Cook
+    Islands, French Polynesia, New Caledonia, Niue and Montserrat placed on the
+    maps (Pacific Islands Forum 18 of 18, CARICOM 15 of 15); EU, AU and SADR
+    stay unplaced, as non-places. Removed: `AssetAnalytics.jsx`, the
+    `.geo-holistic` rules, the dossier-only heat/legend helpers in
+    `alliances.js`, `sanctions.js`, `globalAid.js` and `strategicAssets.js`,
+    and `fillSiteLabel` (`operatorCountries` stays: `statsFor` uses it).
+    F122 is complete.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
     list names Trading Economics and CME, but the levels are illustrative pack
     values (`src/desks/CommoditiesDesk.jsx`; feed `links` in
