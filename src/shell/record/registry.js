@@ -63,6 +63,7 @@ const ADAPTERS = [
   [/^nclt/i, lawInsolvency, { tier: 'judiciary' }],
   [/^supreme court order/i, lawSupremeCourt, { tier: 'judiciary' }],
   [/^order archive by topic/i, lawOrdersByTopic, { tier: 'judiciary' }],
+  // The nine news-wire modules by exact name (an object with a test(), like the dossier checks above).
   [{ test: (name) => LAW_WIRE_FEATURES.includes(name) }, lawWire, { tier: 'judiciary' }],
 ];
 

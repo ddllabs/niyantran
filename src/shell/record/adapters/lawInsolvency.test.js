@@ -50,7 +50,11 @@ describe('NCLT / IBBI record panel (F128)', () => {
     expect(steps.every((s) => s.done)).toBe(true);
     expect(steps.some((s) => s.now)).toBe(false);
     const open = lawInsolvency(kobelco, { rows, today: '2026-09-01' }).glance.visual.steps;
-    expect(open[1]).toMatchObject({ done: false, now: true });
+    expect(open[1]).toMatchObject({ now: true });
+    expect(open[1].done).toBeUndefined();
+    const noToday = lawInsolvency(kobelco, { rows }).glance.visual.steps[1];
+    expect(noToday.done).toBeUndefined();
+    expect(noToday.now).toBeUndefined();
   });
 
   it('marks each needed field from the row itself', () => {
@@ -92,6 +96,21 @@ describe('NCLT / IBBI record panel (F128)', () => {
     expect(linked).toBeGreaterThan(60);
     const cross = rows.find((r) => r.court === 'IBBI' && lawInsolvency(r, ctx).touches.links.some((l) => l.row?.court === 'NCLT'));
     expect(cross).toBeTruthy();
+  });
+
+  it('names no snapshot date the pack does not hold', () => {
+    for (const r of [kobelco, order]) {
+      const prov = lawInsolvency(r, ctx).footer.provenance;
+      expect(prov.asOf).toBeUndefined();
+      expect(prov.flags).toEqual(['as-of not on record']);
+    }
+  });
+
+  it('reads pack dates strictly and shows no health strip without rows', () => {
+    const odd = lawInsolvency({ ...kobelco, date: '08/08/2026', last_submission_date: '2026-02-31' }, ctx);
+    expect(odd.meta).toEqual(['IBBI public announcement']);
+    expect(tile(odd, 'Claims due').value).toBe('Not on the row');
+    expect(lawInsolvency(kobelco, { today: TODAY }).footer.health).toEqual([]);
   });
 
   it('computes the health strip from the rows on hand', () => {

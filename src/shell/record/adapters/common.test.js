@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { companiesNamedIn } from './common.js';
+import { companiesNamedIn, todayInIndia } from './common.js';
 
 const ontology = { companies: [
   { id: 'oil', name: 'Oil India Ltd', aliases: ['OIL', 'Oil India'] },
@@ -34,5 +34,14 @@ describe('companiesNamedIn', () => {
   it('never draws a sector-level (P2) company', () => {
     const p2 = { companies: [{ id: 'company:ongc', name: 'Oil and Natural Gas Corporation', path: 'P2' }] };
     expect(companiesNamedIn(p2, ontology, 'Exploration blocks of ONGC')).toEqual([]);
+  });
+});
+
+// F128: a stated deadline is marked passed against India's date, which runs 05:30 ahead of UTC.
+describe('todayInIndia', () => {
+  it('reads the India date across the UTC midnight boundary', () => {
+    expect(todayInIndia(new Date('2026-09-03T19:00:00Z'))).toBe('2026-09-04');
+    expect(todayInIndia(new Date('2026-09-03T18:29:00Z'))).toBe('2026-09-03');
+    expect(todayInIndia(new Date('2026-09-04T12:00:00Z'))).toBe('2026-09-04');
   });
 });

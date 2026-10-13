@@ -87,7 +87,9 @@ for good-law status, never a guess.
   sends it.
 - **Footer:**
   - "Ask AI about this matter / order / item";
-  - provenance: source, plus as-of or the flag "as-of not on record";
+  - provenance: source, plus as-of or the flag "as-of not on record". As-of is the data's
+    snapshot time (the SC table's `as_of`), never the record's own date; the IBBI and NCLT packs
+    hold no snapshot time, so they carry the flag;
   - a health strip computed from the rows on hand, for example "Rows 434 · Claims date on row 66%";
   - the module note.
 - **Related records** open in place:
@@ -118,8 +120,10 @@ for good-law status, never a guess.
      the clock tile and the timeline have a date. Both the server and the client fallback use this
      shaper.
    - **News publisher.** `parseRssOrXml` in `server/featureFeed.mjs` reads Google News's `<source>`
-     element into `publisher`. Feeds without it are unchanged, and an explicit outlet tag set
-     elsewhere still wins.
+     element into `publisher`. Feeds without it are unchanged. Every Google News feed carries it,
+     so rows on other desks that use Google News (MLA and district coverage, State governance,
+     India sports, Bollywood news) gain the same source field: their generic record view lists it,
+     and server brief shaping may prefer it. It is the source's own data, not an inference.
 3. **Not now:**
    - narrowing the broad news searches (F84 stays open);
    - the ICJ and WTO registers from the backup packs, logged as a later data task.
@@ -149,7 +153,8 @@ As for National:
 - `lawPack.test.js` proves that the deadline survives shaping;
 - a server test proves that the publisher is read from `<source>`;
 - browser checks at 375, 939 and 1440px, in light and dark, on live data;
-- no `/api/ai/*` request on selection;
+- no model call on selection: no `/api/ai/source-extract` and no brief generation (the saved-brief
+  cache lookup, a GET to `/api/ai/desk-brief`, is expected);
 - an independent review before merge.
 
 ## Boundaries
@@ -176,5 +181,6 @@ As for National:
    provenance and health.
 2. No rendered panel contains placeholder text, a figure without a source and date, or a label that
    overstates its data.
-3. Non-Law desks render exactly as before.
+3. Non-Law desks render as before, except that Google News rows elsewhere now carry their
+   publisher (see owner decision 2).
 4. Lint, all tests, the router import and the build pass. The owner accepts on production.

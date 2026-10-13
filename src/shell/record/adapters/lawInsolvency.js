@@ -1,4 +1,4 @@
-import { dateLabel, presentRows, sourceLinks } from './common.js';
+import { presentRows, sourceLinks } from './common.js';
 
 /**
  * NCLT / NCLAT (Insolvency) → record panel (F128 L2; docs/specs/2026-10-13-law-record-panels.md).
@@ -38,14 +38,28 @@ export function caseNumberOf(subject) {
   return m ? m[1].trim() : '';
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A YYYY-MM-DD calendar date as UTC midnight, or NaN; read strictly, never guessed. */
+function parseDay(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s ?? '').trim());
+  if (!m) return NaN;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(ms).getUTCDate() === Number(m[3]) ? ms : NaN;
+}
+
+/** "08 Aug 2026" for a YYYY-MM-DD date the pack holds; '' for anything else. */
+function dateLabel(s) {
+  const ms = parseDay(s);
+  if (!Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  return `${String(d.getUTCDate()).padStart(2, '0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
 /** Whole days from `today` to `date` (both YYYY-MM-DD), or null when either is not such a date. */
 function daysUntil(date, today) {
-  const parse = (s) => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s ?? '').trim());
-    return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
-  };
-  const a = parse(date);
-  const b = parse(today);
+  const a = parseDay(date);
+  const b = parseDay(today);
   return Number.isFinite(a) && Number.isFinite(b) ? Math.round((a - b) / DAY) : null;
 }
 
@@ -90,6 +104,7 @@ function relatedLinks(row, rows) {
 }
 
 function health(rows) {
+  if (!rows.length) return [];
   const notices = rows.filter(isIbbi);
   const withDate = notices.filter((r) => clean(r.last_submission_date)).length;
   return [
@@ -111,10 +126,12 @@ function announcement(row, ctx) {
   const process = processOf(row);
   const clock = claimsTile(row, ctx.today);
   const claimsStated = dateLabel(row.last_submission_date);
-  const claimsOpen = claimsStated ? (daysUntil(row.last_submission_date, ctx.today) ?? -1) >= 0 : false;
+  // null when there is no today to compare with: the step is then neither done nor current.
+  const claimsDays = claimsStated ? daysUntil(row.last_submission_date, ctx.today) : null;
+  const claimsStep = claimsDays === null ? {} : claimsDays >= 0 ? { now: true } : { done: true };
   const steps = [
     ...(announced ? [{ label: 'Public announcement', detail: announced, done: true }] : []),
-    ...(claimsStated ? [{ label: 'Last date for claims', detail: claimsStated, done: !claimsOpen, ...(claimsOpen ? { now: true } : {}) }] : []),
+    ...(claimsStated ? [{ label: 'Last date for claims', detail: claimsStated, ...claimsStep }] : []),
   ];
   return {
     title: debtor,
@@ -171,7 +188,8 @@ function announcement(row, ctx) {
     },
     footer: {
       ask: 'Ask AI about this matter',
-      provenance: { source: 'IBBI public announcements (stored pack)', asOf: announced || undefined, flags: announced ? [] : ['as-of not on record'] },
+      // The pack holds no snapshot date; the announcement date is the record's own, shown above.
+      provenance: { source: 'IBBI public announcements (stored pack)', flags: ['as-of not on record'] },
       health: health(ctx.rows || []),
       note: NOTE,
     },
@@ -234,7 +252,7 @@ function order(row, ctx) {
     },
     footer: {
       ask: 'Ask AI about this order',
-      provenance: { source: 'NCLT orders as republished on ibbi.gov.in (stored pack)', asOf: dated || undefined, flags: dated ? [] : ['as-of not on record'] },
+      provenance: { source: 'NCLT orders as republished on ibbi.gov.in (stored pack)', flags: ['as-of not on record'] },
       health: health(ctx.rows || []),
       note: NOTE,
     },

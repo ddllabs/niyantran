@@ -17,6 +17,7 @@ import RecordPanel from './record/RecordPanel.jsx';
 import { adapterFor } from './record/registry.js';
 import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
 import { useRecordPacks } from './record/packs.js';
+import { todayInIndia } from './record/adapters/common.js';
 
 /**
  * A record panel with its saved AI brief (F123). The brief is only read from the cache that AI
@@ -27,7 +28,7 @@ import { useRecordPacks } from './record/packs.js';
 function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
   const { brief, busy, err } = useEntryBrief({ feed, selected, loading });
   const packs = useRecordPacks(feed?.feature);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInIndia();
   return (
     <RecordPanel
       model={adapter(selected, { rows: feed?.rows || [], feed, packs, today })}

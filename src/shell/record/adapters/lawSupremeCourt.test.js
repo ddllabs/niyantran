@@ -53,7 +53,9 @@ describe('Supreme Court order record panel (F128 L3)', () => {
     expect(m.touches.lanes).toEqual(['COURT', 'ORDER', 'TOPIC', 'LATER CASES']);
     expect(m.footer.ask).toBe('Ask AI about this order');
     expect(m.footer.provenance.source).toBe('Supreme Court of India order listings (stored table, sci.gov.in)');
-    expect(m.footer.provenance.asOf).toBe(orderDateLabel(bail.order_date));
+    // The table's snapshot time (07 Sep 2026 in India), never the order date.
+    expect(m.footer.provenance.asOf).toBe('07 Sep 2026');
+    expect(m.footer.provenance.asOf).not.toBe(orderDateLabel(bail.order_date));
     expect(m.glance.callout.text).toMatch(/live court session/);
     expect(m.footer.note).toBe('Case titles print exactly as the Court lists them. A topic is a classifier label, not a recommendation or a finding.');
   });
@@ -156,7 +158,7 @@ describe('Supreme Court order record panel (F128 L3)', () => {
   });
 
   it('never shows an empty tile or a guessed date for an undated, bare row', () => {
-    const bare = rowOf({ order_date: 'garbage', date: 'garbage', diary_no: '', topic: '', source_url: '', pdf_url: '' });
+    const bare = rowOf({ order_date: 'garbage', date: 'garbage', diary_no: '', topic: '', source_url: '', pdf_url: '', as_of: '' });
     for (const adapter of [lawSupremeCourt, lawOrdersByTopic]) {
       const m = adapter(bare, scCtx);
       expect(contractProblems(m)).toEqual([]);

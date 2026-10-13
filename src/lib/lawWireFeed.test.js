@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 /**
  * F128: Google News RSS names each item's publisher in a <source> element. The server keeps it as
  * `publisher`, so a Law wire panel can say who published the item. A feed without the element is
- * unchanged. Google News is stubbed with the shape it serves.
+ * unchanged. Google News is stubbed with the shape it serves. It tests server/featureFeed.mjs and
+ * lives here because Vitest collects tests from src/ only.
  */
 const item = (title, source) => `<item><title>${title}</title><link>https://news.google.com/rss/articles/abc</link><pubDate>Mon, 12 Oct 2026 09:00:00 GMT</pubDate><description>Summary text</description>${source}</item>`;
 const rss = (items) => `<?xml version="1.0"?><rss><channel>${items.join('')}</channel></rss>`;

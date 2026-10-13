@@ -1,4 +1,4 @@
-import { presentRows, sourceLinks } from './common.js';
+import { dateLabel, presentRows, sourceLinks } from './common.js';
 
 /**
  * Supreme Court order record panels (F128 L3; docs/specs/2026-10-13-law-record-panels.md).
@@ -130,6 +130,8 @@ function build(row, ctx, variant) {
   const rows = (ctx?.rows || []).filter(Boolean);
   const title = titleOf(row);
   const dated = dateOf(row);
+  // The table's snapshot time, not the order date (which the meta and tiles already give).
+  const asOf = dateLabel(row.as_of);
   const topic = topicOf(row);
   const unclassified = isUnclassified(topic);
   const topicTile = {
@@ -205,8 +207,8 @@ function build(row, ctx, variant) {
       ask: 'Ask AI about this order',
       provenance: {
         source: 'Supreme Court of India order listings (stored table, sci.gov.in)',
-        asOf: dated || undefined,
-        flags: dated ? [] : ['as-of not on record'],
+        asOf: asOf || undefined,
+        flags: asOf ? [] : ['as-of not on record'],
       },
       health: health(rows),
       note: NOTE,

@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import ibbi from '../../public/data/embedded_csv/national_ibbi_announcements.json';
 import nclt from '../../public/data/embedded_csv/judiciary_nclt_orders.json';
-import { insolvencyRows } from './lawPack.js';
+import sc from '../../public/data/embedded_csv/judiciary_sc_orders.json';
+import { insolvencyRows, scOrderRows } from './lawPack.js';
+
+// F128: the SC table's snapshot time survives shaping, so a panel's "as of" is not an order date.
+describe('Supreme Court rows keep the table snapshot time', () => {
+  it('keeps as_of on every row, as held', () => {
+    const rows = scOrderRows(sc);
+    expect(rows).toHaveLength(sc.length);
+    rows.forEach((r, i) => expect(r.as_of).toBe(sc[i].as_of));
+    expect(rows.every((r) => r.as_of)).toBe(true);
+  });
+});
 
 // F128: IBBI announcements state the last date for claims; the shaper keeps it, as written, so the
 // record panel's clock has a date the source gave. Nothing is computed from statute.

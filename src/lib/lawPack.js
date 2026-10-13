@@ -60,6 +60,8 @@ export function scOrderRows(raw) {
         order_date: r.order_date || r.date || '',
         topic: r.topic || 'Other / Unclassified',
         court: r.court || 'Supreme Court',
+        // F128: the table's snapshot time, so the record panel's "as of" is not the order date.
+        as_of: r.as_of || '',
         source_url: pdf,
         pdf_url: pdf,
         pdf_note: sciPdf
