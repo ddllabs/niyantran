@@ -1,7 +1,7 @@
 import { useId } from 'react';
 
 /**
- * The pages a turn searched on the web (web-search spec, F124 §6). Web pages are not citations: they
+ * The pages a turn searched on the web (web-search spec, F130 §6). Web pages are not citations: they
  * never get a `[n]` marker, a source id or a reader. The panel lists them and links out; no page is
  * fetched or embedded, and no favicon is requested (owner decision 6), so the icon is a plain globe.
  */

@@ -1,4 +1,4 @@
-// Web search for research-chat (docs/specs/2026-10-13-web-search.md, F124).
+// Web search for research-chat (docs/specs/2026-10-13-web-search.md, F130).
 //
 // OpenRouter runs the search itself, with the Exa engine, when a research call
 // carries its server tool; the results come back as `url_citation`

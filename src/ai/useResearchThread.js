@@ -43,7 +43,7 @@ function saveChoice(storage, choice) {
 // This controller owns only the research path. Its injected dependencies use
 // the same B4 identity and D7/D8 store interfaces as the production defaults.
 export function createResearchThread(overrides = {}) {
-  // setChatWebSearch is imported from the store itself: lib/aiThreads.js is outside F124 T4a's scope.
+  // setChatWebSearch is imported from the store itself: lib/aiThreads.js is outside F130 T4a's scope.
   const deps = { setChatWebSearch, ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
     : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
@@ -86,7 +86,7 @@ export function createResearchThread(overrides = {}) {
     const messages = (chat?.messages || []).filter(m => !(live && m.role === 'assistant'
       && (m.id === stream.messageId || (request?.turn_key && m.turn_key === request.turn_key))));
     const savedSources = [...(chat?.messages || [])].reverse().find(m => m.role === 'assistant' && m.sources?.length)?.sources || [];
-    // F124: the pages searched, kept beside `sources` and never merged into it.
+    // F130: the pages searched, kept beside `sources` and never merged into it.
     const savedWebSources = [...(chat?.messages || [])].reverse().find(m => m.role === 'assistant' && m.webSources?.length)?.webSources || [];
     view = { ...data, chat, stream, messages, live, storedRunning,
       canStop: data.ready && Boolean(data.submitting || stream?.isPending || stream?.isStreaming || storedRunning),

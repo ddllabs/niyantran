@@ -1,8 +1,8 @@
-# Implementation plan: web search in AI Research (F124)
+# Implementation plan: web search in AI Research (F130)
 
 > **Status: Living.** Implements the [web search spec](../specs/2026-10-13-web-search.md)
 > (approved by the owner on 2026-10-13). Branch `task/web-search` from `main` at
-> `879b917`, worktree `.claude/worktrees/web-search`. Tracked as F124 in
+> `879b917`, worktree `.claude/worktrees/web-search`. Tracked as F130 in
 > [open-work](open-work.md).
 
 ## Who does what
@@ -266,7 +266,7 @@ In total there are seven sub-agent runs plus the supervisor.
   already used.
 - Record screenshots, the `model_call_logs` and trace rows, and the cost in
   `docs/research/2026-10-13-web-search-local-run.md`.
-- Update F124 in `open-work.md`.
+- Update F130 in `open-work.md`.
 - Merge `task/web-search` into `main` locally (fast-forward or merge commit).
 
 ### Checkpoint 3 (owner)

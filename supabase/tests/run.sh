@@ -141,7 +141,7 @@ chain() {
           return 0 ;;
         email_unique)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(m 20260929110000_email_unique.sql)") ;;
-        # Web search columns (F124), applied as a non-superuser; they need only 0002, 0004 and 0013.
+        # Web search columns (F130), applied as a non-superuser; they need only 0002, 0004 and 0013.
         web_search) FILES+=("$(as_non_superuser 20261013140000_web_search.sql)") ;;
         # plan_entitlements' chain plus the INR plan set, applied as a non-superuser.
         inr_plans)

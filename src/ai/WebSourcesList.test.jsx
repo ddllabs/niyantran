@@ -7,7 +7,7 @@ const PAGES = [
   { url: 'http://pib.gov.in/x', title: 'PIB note', domain: 'pib.gov.in', cited: false },
 ];
 
-describe('WebSourcesList (F124 T4b): the "Web sources searched" panel', () => {
+describe('WebSourcesList (F130 T4b): the "Web sources searched" panel', () => {
   it('has the heading, the unofficial note and one entry per page with title, domain and the cited marker', () => {
     const html = renderToStaticMarkup(<WebSourcesList pages={PAGES} />);
     expect(html).toContain('Web sources searched');

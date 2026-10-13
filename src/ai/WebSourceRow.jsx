@@ -17,7 +17,7 @@ function domainsOf(pages) {
 }
 
 /**
- * "From the web · unofficial" (web-search spec, F124 §6): the one row under an answer that tells the
+ * "From the web · unofficial" (web-search spec, F130 §6): the one row under an answer that tells the
  * reader web pages were searched. It sits apart from the document `SourceList`, is a single button,
  * and opens the list of pages in the viewer. Web pages are not citations, so it carries no number.
  * No favicon or other remote image is requested (owner decision 6): the icon is an inline globe.

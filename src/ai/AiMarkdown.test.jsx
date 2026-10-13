@@ -67,7 +67,7 @@ it('an answer that only uses paragraphs and flat bullets renders as it always di
  expect(html).toBe('<div class="ai-md"><p>Lead sentence with <strong>bold</strong>.</p><ul><li>One</li><li>Two</li></ul><p>Closing line.</p></div>');
 });
 
-// F124 T4b: a link to a page the turn searched carries a small globe, so a web citation reads
+// F130 T4b: a link to a page the turn searched carries a small globe, so a web citation reads
 // differently from a record citation [n]. Every other link renders as it always did.
 const WEB = [
  {url:'https://www.rbi.org.in/press?id=1',title:'RBI',domain:'rbi.org.in',cited:true},

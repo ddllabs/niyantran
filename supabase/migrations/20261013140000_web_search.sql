@@ -1,4 +1,4 @@
--- Web search in AI Research (open-work F124; docs/specs/2026-10-13-web-search.md §5).
+-- Web search in AI Research (open-work F130; docs/specs/2026-10-13-web-search.md §5).
 --
 -- research-chat offers OpenRouter's web-search server tool (Exa) on research
 -- calls. This migration stores what that needs:

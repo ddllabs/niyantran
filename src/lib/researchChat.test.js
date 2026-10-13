@@ -934,7 +934,7 @@ describe('same-account auth events keep the turn (F43)', () => {
  });
 });
 
-// F124 T4a: the web-search frames (web-search spec §4, §6).
+// F130 T4a: the web-search frames (web-search spec §4, §6).
 describe('web search frames', () => {
   beforeEach(() => clearStream('new'));
   const turn = { message: 'About this record', turn_key: 'web-1', focus: 'attached' };

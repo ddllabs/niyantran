@@ -28,7 +28,7 @@ const isPage = value => Number.isSafeInteger(value) && value >= 1;
  * list paths all reach a viewer with malformed boxes, images and sections already removed.
  * `reader` picks the viewer: 'page' for a `pdf_page` citation with a page number, 'text' for
  * any other text citation (today's SourceReader), 'row' for a desk record, 'web' for the pages a
- * turn searched on the web (F124). Web pages are not citations: that case is decided before the
+ * turn searched on the web (F130). Web pages are not citations: that case is decided before the
  * readability check, is never `invalid`, and never produces a `source`.
  */
 export function resolveViewer(viewer, sources) {

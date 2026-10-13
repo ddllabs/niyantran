@@ -558,7 +558,7 @@ describe('aiConversations (server-backed thread store)', () => {
 });
 
 
-// F124 T4a: the web-search override lives on the conversation (web-search spec §1, §6).
+// F130 T4a: the web-search override lives on the conversation (web-search spec §1, §6).
 describe('web search on the conversation', () => {
   const selects = [];
   const spied = (tables) => {

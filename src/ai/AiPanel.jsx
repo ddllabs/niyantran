@@ -422,7 +422,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     if (!stop) setIndexedKeys(null);
     return stop ?? undefined;
   }, [attachedKeys, open]);
-  // F124: the globe's prediction. The selected row joins the chips here because the next send pins it.
+  // F130: the globe's prediction. The selected row joins the chips here because the next send pins it.
   const selectedRecord = useMemo(
     () => (selected && selected.status !== 'source_status' && featureName && !rowIsPinned(chat?.attachments, selected)
       ? { kind: 'row', ...(billDocumentKey(selected) ? { document_key: billDocumentKey(selected) } : {}) } : null),

@@ -7,7 +7,7 @@ function breaks(text, keyPrefix) {
 }
 
 /**
- * A link to a page the turn searched (F124): the same link, plus a small globe, so a web citation
+ * A link to a page the turn searched (F130): the same link, plus a small globe, so a web citation
  * reads differently from a record citation [n]. It is matched against the message's web sources only.
  */
 function WebMark() {

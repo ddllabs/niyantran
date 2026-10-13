@@ -18,7 +18,7 @@ function Stage({ step, current, active, hi }) {
   const failed = tool && ['Failed', 'Cancelled', 'Incomplete'].includes(state);
   const writing = !tool && /writing the answer/i.test(step.text);
   const Icon = success ? Check : failed ? CircleAlert : tool ? Search : writing ? PenLine : Sparkles;
-  // F124: a web search reads as one, and counts the pages it returned, not rows.
+  // F130: a web search reads as one, and counts the pages it returned, not rows.
   const web = step.name === 'web_search';
   const title = tool
     ? (web ? (hi ? 'वेब खोज' : success ? 'Searched the web' : 'Web search')

@@ -309,7 +309,7 @@ it('Reload after a failed history write refreshes the authoritative conversation
  expect(f.controller.getSnapshot().chat.draft).toBe(true);
 });
 
-// F124 T4a: the web-search override and the server's decision (web-search spec §1, §6).
+// F130 T4a: the web-search override and the server's decision (web-search spec §1, §6).
 function webFixture(){
  const f=fixture();
  f.deps.setChatWebSearch=vi.fn((id,value)=>{const s=f.getState();f.setState({...s,chats:s.chats.map(c=>c.id===id?{...c,webSearch:typeof value==='boolean'?value:null}:c)});});

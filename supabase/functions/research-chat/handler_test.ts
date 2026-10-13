@@ -2287,7 +2287,7 @@ Deno.test('answer speed: small talk is not pre-searched', async () => {
   assertEquals(searched, 0);
 });
 
-// ─── F124 web search (docs/specs/2026-10-13-web-search.md) ───────────────────────────────────────
+// ─── F130 web search (docs/specs/2026-10-13-web-search.md) ───────────────────────────────────────
 
 const ROW_ONLY = { ...storedRow(), row_key: 'rbi monetary policy committee', feature: 'Regulatory Watch', document_key: null } as unknown as DeskRow;
 const SELECTED_ROW_ONLY = {

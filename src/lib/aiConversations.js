@@ -161,7 +161,7 @@ function toChat(row, pins) {
     updatedAt: Date.parse(row.last_message_at || row.created_at || '') || Date.now(),
     messages: [],
     attachments: Array.isArray(pins[row.id]) ? pins[row.id].slice(0, MAX_ATTACHMENTS) : [],
-    // F124: the reader's web-search override for this conversation, null while it is automatic.
+    // F130: the reader's web-search override for this conversation, null while it is automatic.
     webSearch: typeof row.web_search === 'boolean' ? row.web_search : null,
     loaded: false,
   };
@@ -318,7 +318,7 @@ export function setActiveAiChat(id) {
 }
 
 /**
- * The reader's web-search override for a conversation (F124): true, false, or null for automatic.
+ * The reader's web-search override for a conversation (F130): true, false, or null for automatic.
  * Kept here and sent with the next turn, where the server stores it on the conversation; a
  * conversation reopened reads it back. `''` is the unsent draft.
  */

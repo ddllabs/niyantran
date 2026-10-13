@@ -53,7 +53,7 @@ export function stepLabel(step) {
     return `${step.status === 'cancelled' ? 'Cancelled' : 'Failed'} ${what}${input.query ? ` “${input.query}”` : ''}`;
   }
   const n = Number.isFinite(step.resultCount) && step.resultCount >= 0 ? step.resultCount : null;
-  // F124: the provider does not expose the query, so a web step is named by its page count alone.
+  // F130: the provider does not expose the query, so a web step is named by its page count alone.
   if (step.name === 'web_search') {
     return step.phase === 'end' ? `Searched the web${n === null ? '' : ` · ${plural(n, 'page', 'pages')}`}` : 'Searching the web…';
   }

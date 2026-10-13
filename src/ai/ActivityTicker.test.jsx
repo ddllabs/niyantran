@@ -95,7 +95,7 @@ it('compacts model versions while keeping the exact ID as a tooltip',()=>{
   expect(html).toContain('title="google/gemini-3.8-flash">3.8');
 });
 
-// F124 T4a: the web search step (web-search spec section 6).
+// F130 T4a: the web search step (web-search spec section 6).
 describe('web search step', () => {
   const web = { type: 'tool', name: 'web_search', phase: 'end', step: 2, resultCount: 5, status: 'ok', latencyMs: 900 };
   it('reads "Searched the web · N pages", singular for one page', () => {

@@ -236,7 +236,7 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     No template text is shown as AI.
   - Remaining, with F111: whether selecting a record should generate a brief,
     what it costs in credits, and how it is labelled.
-- [ ] **F124. Web search in AI Research.** Owner request 2026-10-13: web
+- [ ] **F130. Web search in AI Research.** Owner request 2026-10-13: web
   context for records without indexed documents, site-wide, through
   OpenRouter's server web-search tool (Exa), as in TenderBase. Owner
   decisions: automatic per record or module without an indexed document; the
@@ -1375,7 +1375,7 @@ Each can be reopened by the condition named.
   indexes at today's traffic, and multiple permissive policies.
 - **P4. Deferred agent features:** compaction, memories, user
   uploads and binary attachments, a durable queue for long turns. Not
-  planned until the owner schedules them. (Web search moved to F124 on
+  planned until the owner schedules them. (Web search moved to F130 on
   2026-10-13.)
 - **P10.** Google sign-ups, and email sign-ups that wait for verification,
   skip the plan step and get no signup trial. They can start one from the

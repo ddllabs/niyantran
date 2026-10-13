@@ -3466,7 +3466,7 @@ button.live-feed:hover { color: var(--fg); }
   cursor: pointer;
 }
 .ai-v2-comp-clip:hover { background: #f3f4f6; color: var(--ai-blue); }
-/* F124 web search: the composer globe (src/ai/WebSearchToggle.jsx). A pill beside the attach button;
+/* F130 web search: the composer globe (src/ai/WebSearchToggle.jsx). A pill beside the attach button;
    lit when web search will run on the next turn, with the same tokens as the model pill. */
 .ai-v2-web {
   display: inline-flex;
@@ -7367,7 +7367,7 @@ tr.close-soon { color: #6d675f; }
 .nh-news-ph{background:linear-gradient(135deg,var(--sand),var(--bg))}
 @media(max-width:600px){.nh-hero{padding:16px}}
 
-/* F124 web search (T4b): the "From the web · unofficial" row under an answer, the "Web sources
+/* F130 web search (T4b): the "From the web · unofficial" row under an answer, the "Web sources
    searched" list in the viewer, and the small globe on an inline link to a searched page. Global
    tokens only, so both themes follow; the row wraps rather than overflowing the ~400px panel. */
 .ai-web-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: 100%; margin: 12px 0 0; padding: 9px 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 500 12.5px/1.4 var(--font-ui); text-align: left; cursor: pointer; overflow-wrap: anywhere; }

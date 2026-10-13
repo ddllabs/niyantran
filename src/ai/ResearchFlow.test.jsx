@@ -44,7 +44,7 @@ it('labels the supported max effort rather than claiming it is unavailable', () 
   expect(effortLabel('max', false)).toBe('Max');
   expect(effortLabel('max', true)).toBe('अधिकतम');
 });
-// F124: a web search is neither a document search nor a desk lookup, and counts pages.
+// F130: a web search is neither a document search nor a desk lookup, and counts pages.
 it('labels a web search as such and counts pages, never rows', () => {
   const web = { type: 'tool', name: 'web_search', phase: 'end', status: 'ok', step: 2, resultCount: 5, latencyMs: 4200 };
   const html = renderToStaticMarkup(<ResearchFlow steps={[web]} />);

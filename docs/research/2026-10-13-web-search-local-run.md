@@ -1,4 +1,4 @@
-# Web search: local browser run (F124)
+# Web search: local browser run (F130)
 
 > **Status: Historical (dated 2026-10-13).** This is the browser evidence for
 > `docs/specs/2026-10-13-web-search.md` (acceptance item 8), gathered on
@@ -21,7 +21,7 @@
 >   could not cite the record. One indexed document row was inserted for
 >   `bill:2026:156` so a bill would count as having embeddings.
 >
-> **Cost:** $0.107 over four turns. Total spend for F124 so far is $0.31 of
+> **Cost:** $0.107 over four turns. Total spend for F130 so far is $0.31 of
 > the approved $1.00: $0.207 for the probes and $0.107 here.
 
 ## Case 1: a record with no indexed document (automatic)

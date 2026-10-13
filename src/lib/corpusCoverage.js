@@ -157,7 +157,7 @@ export function coverageOf(attachment, indexed, now = Date.now) {
 let modulesRequest = null;
 
 /**
- * The desk modules that have indexed documents, as `[{ desk_tier, desk_feature }]` (F124). It
+ * The desk modules that have indexed documents, as `[{ desk_tier, desk_feature }]` (F130). It
  * changes only when the corpus is ingested and the answer is a handful of rows, so one request
  * serves the page's life; the web-search globe reads it to predict desk-focus turns.
  *

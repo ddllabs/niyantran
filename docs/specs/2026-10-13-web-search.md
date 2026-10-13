@@ -1,4 +1,4 @@
-# Web search in AI Research (F124)
+# Web search in AI Research (F130)
 
 > **Status: Living.** Owner request 2026-10-13. Research:
 > [web search](../research/2026-10-13-web-search.md) (TenderBase reference,
@@ -330,7 +330,7 @@ mutation where a test cannot fail first), plus the local browser run.
 - `src/lib/`: `researchChat.js`, `aiConversations.js`, `corpusCoverage.js`,
   and their tests.
 - `src/index.css`: only the new web-source and toggle rules.
-- `docs/`: this spec, its plan, the local-run record, and `open-work.md` (F124,
+- `docs/`: this spec, its plan, the local-run record, and `open-work.md` (F130,
   and P4 updated).
 
 **Excluded:**
@@ -446,7 +446,7 @@ Each change has a test that fails without it.
   row chip with no text, and a selection without a feature name. The server
   decides, and the globe shows its `web` decision for the turn.
 
-**Open for launch** (tracked in `docs/plans/open-work.md` under F124):
+**Open for launch** (tracked in `docs/plans/open-work.md` under F130):
 - There is no per-user search cap. Any signed-in user can turn the globe on
   for every turn, so a daily cap belongs with credits (F111).
 - The privacy policy should name the search provider (open question 1).

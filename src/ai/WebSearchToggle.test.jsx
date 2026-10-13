@@ -12,7 +12,7 @@ vi.mock('../lib/aiThreads.js', () => ({ activeAiChat: () => null, addChatAttachm
 vi.mock('./useResearchThread.js', () => ({ default: () => fake.research }));
 import AiPanel from './AiPanel.jsx';
 
-// F124 T4a: the composer globe (web-search spec section 6).
+// F130 T4a: the composer globe (web-search spec section 6).
 const on = (reason) => ({ on: true, reason });
 const off = (reason) => ({ on: false, reason });
 

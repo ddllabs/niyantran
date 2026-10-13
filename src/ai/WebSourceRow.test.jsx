@@ -5,7 +5,7 @@ import WebSourceRow from './WebSourceRow.jsx';
 const page = (domain, cited = false, path = '') => ({ url: `https://${domain}/${path}`, title: `Page on ${domain}`, domain, cited });
 const FIVE = [page('rbi.org.in', true, 'a'), page('pib.gov.in', true, 'b'), page('rbi.org.in', false, 'c'), page('thehindu.com', false, 'd'), page('livemint.com', false, 'e')];
 
-describe('WebSourceRow (F124 T4b): the "From the web" row under an answer', () => {
+describe('WebSourceRow (F130 T4b): the "From the web" row under an answer', () => {
   it('is one button with the label, the distinct domains and the count', () => {
     const html = renderToStaticMarkup(<WebSourceRow sources={FIVE} messageId="a1" onOpen={() => {}} />);
     expect(html.match(/<button/g)).toHaveLength(1);

@@ -259,7 +259,7 @@ describe('answer lifetime', () => {
 });
 
 
-// F124 T4a: the globe's prediction (web-search spec §1, §6). It mirrors the server's rule, so the
+// F130 T4a: the globe's prediction (web-search spec §1, §6). It mirrors the server's rule, so the
 // reader sees in advance what the turn will do.
 describe('documentModules', () => {
   const rpcClient = (results, calls = []) => ({ calls, rpc: (name) => { calls.push(name); const next = results.shift(); return Promise.resolve(next); } });

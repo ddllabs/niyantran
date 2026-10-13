@@ -459,7 +459,7 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
  * are different facts and the reader can act on the difference.
  */
 function unverifiedNote(searches: number, webPages = 0): string {
-  // F124: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
+  // F130: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
   // record, and the reader is told so, and that those pages are unofficial.
   if (webPages > 0) {
     return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed under the answer, which are unofficial.';
@@ -726,7 +726,7 @@ async function runTurnBody(
   const featureScope = featureScopeOf(request, modules);
   // A greeting carries no question (see the attachments below), so it never searches the web either.
   const conversational = isConversational(request.message);
-  // 3. Web search (F124, web-search spec §1): decided once, before the first model call, and said
+  // 3. Web search (F130, web-search spec §1): decided once, before the first model call, and said
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
   const [webScope, webOverride] = await Promise.all([
     webScopeOf(deps, request, selectionKey, modules, modulesKnown),

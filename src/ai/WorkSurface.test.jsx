@@ -174,7 +174,7 @@ describe('AskAboutDocument and the document state', () => {
   });
 });
 
-// F124 T4b: web sources are not citations. They open their own viewer and never reach the citation paths.
+// F130 T4b: web sources are not citations. They open their own viewer and never reach the citation paths.
 describe('web sources viewer', () => {
   const PAGES = [
     { url: 'https://www.rbi.org.in/press?id=1', title: 'RBI press release', domain: 'rbi.org.in', cited: true },

@@ -1513,7 +1513,7 @@ Deno.test('document continuation preserves bounded section context from chunking
   assertEquals(renderChunk('h', { ...passage, section: undefined }), `h | Bill | \n${last.content}`);
 });
 
-// ---- web-search spec §2 (F124): the server tool on research calls only, the provider's count,
+// ---- web-search spec §2 (F130): the server tool on research calls only, the provider's count,
 // pages carried forward as untrusted evidence, and no answer shortcut for a call that searched.
 
 const page = (n: number): WebPage => ({ url: `https://example.org/${n}`, title: `Page ${n}`, excerpt: `Excerpt ${n}` });
