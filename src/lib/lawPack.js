@@ -14,6 +14,7 @@ const SLICE = [
   [/^supreme court order/i, 'sc'],
   [/^order archive by topic/i, 'archive'],
   [/^nclt/i, 'nclt'],
+  [/^wto dispute settlement$/i, 'wto'],
   [/supreme courts & precedent/i, 'scotus'],
 ];
 
@@ -25,7 +26,7 @@ export function lawSlice(feature) {
 
 export function isLawExtract(feature) {
   const s = lawSlice(feature);
-  return s === 'sc' || s === 'archive' || s === 'nclt';
+  return s === 'sc' || s === 'archive' || s === 'nclt' || s === 'wto';
 }
 
 export function isUsScotusDesk(feature) {
@@ -41,6 +42,9 @@ export function lawNote(slice) {
   }
   if (slice === 'nclt') {
     return 'Extracted NCLT orders plus IBBI public announcements. NCLAT bodies are not in this pack.';
+  }
+  if (slice === 'wto') {
+    return 'The WTO dispute settlement register (DS1 onward), as the WTO publishes it: parties, stage and dates. Collected from wto.org; the official case page is the authority.';
   }
   return 'Extracted judiciary pack.';
 }
@@ -119,10 +123,26 @@ export function insolvencyRows(nclt, ibbi) {
   return [...a, ...b].sort((x, y) => String(y.date).localeCompare(String(x.date)));
 }
 
+/**
+ * The WTO register (F129) for the desk table: newest dispute first, with the parties also as one line
+ * each for the table. The register's own fields are kept as collected.
+ */
+export function wtoRows(raw) {
+  return (raw || [])
+    .filter((r) => r && r.ds_number)
+    .map((r) => ({
+      ...r,
+      complainant: (r.complainants || []).join('; '),
+      date: r.consultations_requested || '',
+    }))
+    .sort((a, b) => b.ds - a.ds);
+}
+
 export function lawRows(slice, packs) {
   if (slice === 'sc') return scOrderRows(packs?.sc);
   if (slice === 'archive') return archiveOrderRows(packs?.sc);
   if (slice === 'nclt') return insolvencyRows(packs?.nclt, packs?.ibbi);
+  if (slice === 'wto') return wtoRows(packs?.wto);
   return [];
 }
 

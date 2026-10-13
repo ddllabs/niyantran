@@ -571,6 +571,19 @@ const PRESETS = [
     ],
   },
   {
+    // F129: the WTO dispute register.
+    test: /^wto dispute settlement$/i,
+    cols: [
+      { key: 'ds_number', label: 'DS', dot: true },
+      { key: 'short_title', label: 'DISPUTE', fallback: 'title' },
+      { key: 'complainant', label: 'COMPLAINANT' },
+      { key: 'respondent', label: 'RESPONDENT' },
+      { key: 'status', label: 'STAGE', pill: true },
+      { key: 'date', label: 'REQUESTED' },
+      { key: 'title', label: 'MEASURE', default: false },
+    ],
+  },
+  {
     test: /^nclt/i,
     cols: [
       { key: 'entity', label: 'ENTITY', fallback: 'title', dot: true, keep: true },
