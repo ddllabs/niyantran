@@ -304,7 +304,8 @@ describe('National questions adapter', () => {
     const src = readFileSync(new URL('./nationalQuestions.js', import.meta.url), 'utf8');
     expect(src).not.toMatch(/\bfetch\b|XMLHttpRequest|sendBeacon|\basync\b|\bawait\b|resolveOrganisedBrief|ensureDeskBrief|loadAnalysisMap|loadOntology/);
     const imports = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-    expect(imports.sort()).toEqual(['../../../lib/impactRecord.js', './common.js']);
+    // feedText.js (F127) is a pure helper that imports nothing.
+    expect(imports.sort()).toEqual(['../../../lib/impactRecord.js', './common.js', './feedText.js']);
   });
 
   it('does not mutate the row or the context rows', () => {

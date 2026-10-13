@@ -1,5 +1,6 @@
 import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
 import { companiesNamedIn, dateLabel, presentRows, provenanceFlags, sourceLinks } from './common.js';
+import { titleCaseCaps } from './feedText.js';
 
 /**
  * Parliamentary Question Database → record panel (F124 N3). Rows are the Lok Sabha question register
@@ -11,8 +12,6 @@ import { companiesNamedIn, dateLabel, presentRows, provenanceFlags, sourceLinks 
  * synchronous: it reads the saved pack only and never fetches or generates anything.
  */
 const MAX_RELATED = 3;
-const SMALL_WORDS = new Set(['and', 'of', 'the', 'for', 'in', 'to', 'on']);
-const ACRONYMS = new Set(['AYUSH']);
 const ISO_DATE = /^\d{4}-\d{2}(-\d{2})?([T ].*)?$/;
 
 /** A field's text, or '' when the row holds nothing real: the shaping helper's "Not reported", a dash or blank. */
@@ -20,12 +19,8 @@ const held = (v) => {
   const s = String(v ?? '').replace(/\s+/g, ' ').trim();
   return /^(not reported|—|–|-)?$/i.test(s) ? '' : s;
 };
-/** "MICRO, SMALL AND MEDIUM ENTERPRISES" → "Micro, Small and Medium Enterprises". */
-const titleCase = (v) => held(v).replace(/[A-Za-z][A-Za-z'’]*/g, (w, i) => {
-  if (ACRONYMS.has(w.toUpperCase())) return w.toUpperCase();
-  const lower = w.toLowerCase();
-  return i > 0 && SMALL_WORDS.has(lower) ? lower : lower[0].toUpperCase() + lower.slice(1);
-});
+/** "MICRO, SMALL AND MEDIUM ENTERPRISES" → "Micro, Small and Medium Enterprises"; a mixed-case name as written (feedText.js, F127). */
+const titleCase = (v) => titleCaseCaps(held(v));
 const sentence = (v) => { const s = held(v).toLowerCase(); return s ? s[0].toUpperCase() + s.slice(1) : ''; };
 /** Only an ISO date is read; "02.04.2026" would be misread as month-first, so it is never parsed. */
 const when = (v) => (ISO_DATE.test(String(v ?? '').trim()) ? dateLabel(String(v).trim()) : '');

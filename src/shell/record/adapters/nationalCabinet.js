@@ -1,5 +1,7 @@
 import { isCabinetBody } from '../../../lib/parliament.js';
 import { dateLabel, plural, presentRows } from './common.js';
+import { parseFeedDate } from './feedDate.js';
+import { plainText, text } from './feedText.js';
 
 /**
  * Cabinet Decisions (National) → record panel (F124 N6).
@@ -24,19 +26,6 @@ const MAX_RELATED = 3;
 const MAX_MINISTRIES = 3;
 const PUBLISHER = /^(?:the\s+)?(?:press information bureau|pib)$/i;
 
-const text = (value) => (typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '');
-
-/** Control characters (whitespace is collapsed instead) and the bidirectional marks and overrides, which can hide or reorder what a reader sees. */
-const isInvisible = (code) => code <= 8 || (code >= 14 && code <= 31) || (code >= 127 && code <= 159)
-  || code === 0x200e || code === 0x200f || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
-const withoutInvisible = (s) => Array.from(s).filter((ch) => !isInvisible(ch.codePointAt(0))).join('');
-const ENTITIES = { '&amp;': '&', '&quot;': '"', '&apos;': "'", '&#39;': "'", '&#x27;': "'", '&nbsp;': ' ' };
-
-/** One line of plain text: entities decoded once (never `&lt;` or `&gt;`, so nothing turns back into markup). */
-const plainText = (value) => withoutInvisible(text(value))
-  .replace(/&(?:amp|quot|apos|#39|#x27|nbsp);/gi, (m) => ENTITIES[m.toLowerCase()])
-  .replace(/\s+/g, ' ')
-  .trim();
 
 // ---------------------------------------------------------------------------------------------
 // What the title says: the only basis for the "Cabinet decision" label.
@@ -81,63 +70,8 @@ export function statesCabinetDecision(title) {
 // Dates: read strictly, never guessed, never in the machine's local zone.
 // ---------------------------------------------------------------------------------------------
 
-const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-/**
- * RFC 822 zone names, in minutes east of UTC. IST is read as India Standard Time because the feed
- * is PIB's; BST, CET and the like are ambiguous and are not guessed.
- */
-const ZONES = { GMT: 0, UT: 0, UTC: 0, Z: 0, IST: 330, EST: -300, EDT: -240, CST: -360, CDT: -300, MST: -420, MDT: -360, PST: -480, PDT: -420 };
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2}))?$/i;
-const RFC_DATE = /^(?:[A-Za-z]{3,9},?\s+)?(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([A-Za-z]{1,3}|[+-]\d{4}))?$/;
-
-/** A real instant from calendar parts and a UTC offset in minutes, or null. Reads no local zone. */
-function instant(year, month, day, hour, minute, second, offset) {
-  if (year < 1900 || year > 2200 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
-  const ms = Date.UTC(year, month - 1, day, hour, minute, second);
-  const probe = new Date(ms);
-  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
-  return new Date(ms - offset * 60000);
-}
-
-function offsetOf(zone) {
-  if (/^[+-]\d{4}$/.test(zone)) {
-    if (Number(zone.slice(3, 5)) > 59) return null;
-    const minutes = Number(zone.slice(1, 3)) * 60 + Number(zone.slice(3, 5));
-    return zone[0] === '-' ? -minutes : minutes;
-  }
-  const key = zone.toUpperCase();
-  return Object.hasOwn(ZONES, key) ? ZONES[key] : null;
-}
-
-/**
- * The instant a date string names, or null. Two shapes, each strictly: ISO 8601 ("2026-10-12" as
- * that calendar date, or with a time and a required zone) and RFC 822 as RSS writes it ("Mon, 12 Oct
- * 2026 14:30:00 GMT", a listed zone name or ±hhmm; the weekday and the time are optional). A time
- * with no zone, an impossible date, or any other text is not a date.
- */
-function parseDate(value) {
-  const t = text(value);
-  if (!t) return null;
-  let m = ISO_DATE.exec(t);
-  if (m) {
-    const [year, month, day] = m.slice(1, 4).map(Number);
-    if (m[4] == null) return instant(year, month, day, 0, 0, 0, 0);
-    const zone = m[7].toUpperCase();
-    if (zone !== 'Z' && Number(zone.slice(-2)) > 59) return null;
-    const offset = zone === 'Z' ? 0 : (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(-2))) * (zone[0] === '-' ? -1 : 1);
-    return instant(year, month, day, Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  m = RFC_DATE.exec(t);
-  if (m) {
-    const name = m[2].toLowerCase();
-    const month = name.length >= 3 ? MONTH_NAMES.findIndex((full) => full.startsWith(name)) + 1 : 0;
-    if (!month) return null;
-    if (m[4] == null) return instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
-    const offset = offsetOf(m[7]);
-    return offset == null ? null : instant(Number(m[3]), month, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
-  }
-  return null;
-}
+/** PIB's dates: IST is India time, and full month names are read (feedDate.js, F127). */
+const parseDate = (value) => parseFeedDate(value, { ist: true, monthNames: true });
 
 /** "12 Oct 2026" (India date) for a date string, or ''. */
 const labelOf = (value) => {
