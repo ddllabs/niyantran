@@ -481,6 +481,14 @@ rechecked. Nothing in this check wrote to production.
   numbers do not move, the key follows the numbers on screen, a cleared value is left to React.
   Unit-tested (each guard fails without its code). Remaining: a browser check with the pane visible
   (a hidden pane pauses motion), merge, push.
+- [ ] **F144. Homepage desk preview: only real figures.** Owner 2026-10-14: fix the figures our data
+  backs under their current labels; list the rest for the client. Fixed on `task/preview-figures`:
+  bill houses, series start and the four stage bars (real counts, checked against NTER), MP states
+  covered (36), macro series (7) and publishers (2), fronts (88) and theatres (17), and the false
+  "probability scores" note; generated from the snapshot files with a recount test. Waiting on the
+  client: 15 items in [the client document](../research/2026-10-14-homepage-preview-for-client.md)
+  (retitling Media, Ops and Economy to real datasets; the bars, rows and tiles with no data).
+  Remaining: merge, push, then the client's answers.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

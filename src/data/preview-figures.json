@@ -1,0 +1,24 @@
+{
+  "bills": {
+    "total": 9817,
+    "houses": 2,
+    "seriesStart": 1952,
+    "stages": {
+      "Pending": 689,
+      "Passed": 169,
+      "Assented": 3391,
+      "Withdrawn": 361
+    }
+  },
+  "fronts": {
+    "fronts": 88,
+    "regions": 17
+  },
+  "mps": {
+    "states": 36
+  },
+  "macro": {
+    "series": 7,
+    "publishers": 2
+  }
+}
