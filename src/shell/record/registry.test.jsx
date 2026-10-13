@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import warTracker from '../../../public/data/embedded_csv/geopolitics_war_tracker.json';
+import alliancesPack from '../../data/alliances.json';
+import { flattenAlliance } from '../../lib/alliances.js';
 import { adapterFor } from './registry.js';
 
 vi.mock('../RecordDetail.jsx', () => ({ default: () => <div data-record-detail /> }));
@@ -10,8 +12,8 @@ const { default: RailContent } = await import('../RailContent.jsx');
 // existing record view, so nothing outside the batch changes.
 describe('record panel registry', () => {
   it('registers the batch 1 and batch 2 modules and nothing else', () => {
-    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire']) expect(adapterFor(feature), feature).toBeTypeOf('function');
-    for (const feature of ['Bill Passage Probability Index', 'Alliances', 'Maritime Choke-Points', 'Energy', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
+    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch']) expect(adapterFor(feature), feature).toBeTypeOf('function');
+    for (const feature of ['Bill Passage Probability Index', 'Maritime Choke-Points', 'Energy', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
   });
 
   it('renders the panel for a registered module and the old view for others', () => {
@@ -29,5 +31,12 @@ describe('record panel registry', () => {
     const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: [status] }} selected={status} />);
     expect(html).toContain('data-record-detail');
     expect(html).not.toContain('class="rp"');
+  });
+
+  it('renders the record panel, not the retired dossier view, for the four dossier modules', () => {
+    const rows = (alliancesPack.alliances || alliancesPack).map(flattenAlliance);
+    const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Alliances', tier: 'global', rows, meta: {} }} selected={rows[0]} />);
+    expect(html).toContain('class="rp"');
+    expect(html).not.toMatch(/class="alw-/);
   });
 });

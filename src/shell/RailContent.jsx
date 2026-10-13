@@ -5,10 +5,6 @@ import { resolveDataState, isTerminalState } from '../lib/dataState.js';
 import { BarList, Heatmap, Sparkline, VizCard } from './AnalyticsViz.jsx';
 import RecordDetail from './RecordDetail.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
-import AlliancesAnalytics from '../desks/AlliancesAnalytics.jsx';
-import SanctionsAnalytics from '../desks/SanctionsAnalytics.jsx';
-import GlobalAidAnalytics from '../desks/GlobalAidAnalytics.jsx';
-import NuclearAnalytics from '../desks/NuclearAnalytics.jsx';
 import { isAlliancesFeature } from '../lib/alliances.js';
 import { isSanctionsFeature } from '../lib/sanctions.js';
 import { isGlobalAidFeature } from '../lib/globalAid.js';
@@ -147,41 +143,6 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
               liveCount={(feed?.rows || []).filter((r) => r.status !== 'source_status').length}
               onClear={() => onSelect?.(null)}
               onAskAi={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && alliances ? (
-            <AlliancesAnalytics
-              row={selected}
-              rows={feed?.rows || []}
-              flags={feed?.meta?.memberFlags || {}}
-              onSelect={onSelect}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && sanctions ? (
-            <SanctionsAnalytics
-              row={selected}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && aid ? (
-            <GlobalAidAnalytics
-              row={selected}
-              rows={feed?.rows || []}
-              onSelect={onSelect}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
-              feed={feed}
-              loading={loading}
-            />
-          ) : selected && nuclear ? (
-            <NuclearAnalytics
-              row={selected}
-              rows={feed?.rows || []}
-              onSelect={onSelect}
-              onResearch={() => openAiResearch({ row: selected, attachFeed: true })}
               feed={feed}
               loading={loading}
             />
