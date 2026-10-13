@@ -12,7 +12,7 @@
  * Pair it with nterGlobe.css. Credits: public/brand/auth-earth/CREDITS.md.
  *
  * F145: each page mounts its own element, so what can outlive one is kept at module level: the
- * decoded textures (sharedTextures), the animation time (sharedClock). An element leaving the page
+ * decoded textures (sharedTextures), the animation and Earth times (sharedClock). An element leaving the page
  * releases its WebGL context. */
 
 export const TEXTURE_URLS = {
@@ -50,8 +50,11 @@ export function sharedTextures(load = decodeTexture) {
 export const texturesReady = () => texturesLoaded;
 export function resetSharedTextures() { textures = null; texturesLoaded = false; }
 
-/** The animation time, so the next page's globe continues where the last one was. */
-export const sharedClock = { time: 0 };
+/**
+ * The labels' time and the Earth's turn, so the next page's globe continues where the last one was.
+ * The Earth turns only while it is drawn, so on a slow first load it starts from the still (time 0).
+ */
+export const sharedClock = { time: 0, earth: 0 };
 
 export function releaseContext(gl) {
   gl?.getExtension?.('WEBGL_lose_context')?.loseContext();
@@ -141,7 +144,7 @@ export function createGlobeClass(Base = HTMLElement) {
 
     constructor() {
       super();
-      this._time = sharedClock.time; this._last = 0; this._frame = 0;
+      this._time = sharedClock.time; this._earth = sharedClock.earth; this._last = 0; this._frame = 0;
       this._visible = true; this._hovered = false; this._focused = false; this._ready = false;
       this._onTick = this._tick.bind(this);
     }
@@ -149,7 +152,7 @@ export function createGlobeClass(Base = HTMLElement) {
     connectedCallback() {
       if (this._ready) { this._sync(); return; }
       this._ready = true;
-      this._time = sharedClock.time;
+      this._time = sharedClock.time; this._earth = sharedClock.earth;
       this.classList.add('data-orbit');
       this.setAttribute('role', 'group');
       this.setAttribute('aria-label', 'Explore seven connected kinds of research data');
@@ -179,8 +182,7 @@ export function createGlobeClass(Base = HTMLElement) {
       this._resize.observe(this);
       this._observer = new IntersectionObserver(entries => { this._visible = entries[0].isIntersecting; this._sync(); }, { rootMargin: '100px' });
       this._observer.observe(this);
-      this._canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); this.classList.remove('globe-ready'); this._gl = null; });
-      this._canvas.addEventListener('webglcontextrestored', () => this._initGL());
+      this._watchContext(this._canvas);
       this._size(); this._initGL(); this._sync();
     }
 
@@ -194,6 +196,16 @@ export function createGlobeClass(Base = HTMLElement) {
       this.classList.remove('globe-ready', 'globe-instant');
     }
 
+    // loseContext() fires 'webglcontextlost' later, as a task: by then the element may have
+    // reconnected with a new canvas, whose context that late event must not touch.
+    _watchContext(canvas) {
+      canvas.addEventListener('webglcontextlost', e => {
+        if (canvas !== this._canvas) return;
+        e.preventDefault(); this.classList.remove('globe-ready', 'globe-instant'); this._gl = null;
+      });
+      canvas.addEventListener('webglcontextrestored', () => { if (canvas === this._canvas) this._initGL(); });
+    }
+
     attributeChangedCallback() { if (this._ready) this._sync(); }
     get paused() { return this.hasAttribute('paused'); }
     set paused(value) { this.toggleAttribute('paused', !!value); }
@@ -203,7 +215,8 @@ export function createGlobeClass(Base = HTMLElement) {
     set currentTime(seconds) { this.seek(seconds); }
     seek(seconds) {
       if (!Number.isFinite(Number(seconds))) return;
-      this._time = sharedClock.time = Math.max(0, Number(seconds)); this._last = 0; this._render();
+      this._time = sharedClock.time = this._earth = sharedClock.earth = Math.max(0, Number(seconds));
+      this._last = 0; this._render();
     }
 
     _shouldRun() {
@@ -219,7 +232,11 @@ export function createGlobeClass(Base = HTMLElement) {
 
     _tick(now) {
       if (!this._shouldRun()) { this._frame = 0; return; }
-      if (this._last) sharedClock.time = this._time += Math.min((now - this._last) / 1000, .08);
+      if (this._last) {
+        const step = Math.min((now - this._last) / 1000, .08);
+        sharedClock.time = this._time += step;
+        if (this._gl) sharedClock.earth = this._earth += step;
+      }
       this._last = now; this._render();
       this._frame = requestAnimationFrame(this._onTick);
     }
@@ -251,8 +268,9 @@ export function createGlobeClass(Base = HTMLElement) {
       const canvas = this._canvas;
       // Textures already decoded by an earlier globe: draw on the first frame, with no fade.
       const instant = texturesReady();
+      let gl = null;
       try {
-        const gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false, powerPreference: 'low-power' });
+        gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false, powerPreference: 'low-power' });
         if (!gl) return;
         const compile = (type, source) => {
           const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader);
@@ -291,6 +309,7 @@ export function createGlobeClass(Base = HTMLElement) {
         this.classList.add('globe-ready');
         this._render();
       } catch (_error) {
+        releaseContext(gl);
         this.classList.remove('globe-ready'); this._gl = null;
       }
     }
@@ -319,7 +338,7 @@ export function createGlobeClass(Base = HTMLElement) {
         gl.viewport(0, 0, this._canvas.width, this._canvas.height);
         gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(this._program);
-        gl.uniform1f(this._timeLocation, this._time);
+        gl.uniform1f(this._timeLocation, this._earth);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
     }

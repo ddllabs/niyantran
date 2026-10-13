@@ -43,4 +43,13 @@ describe('image weight', () => {
     // The favicon and share image stay the full logo (siteSettingsStore.js).
     expect(readFileSync(new URL('lib/siteSettingsStore.js', SRC), 'utf8')).toContain("faviconUrl: '/brand/logo.png?v=2'");
   });
+
+  it('draws the default logo small however it was saved, and an admin-set favicon as set', async () => {
+    const { brandLogo } = await import('./MarketingSite.jsx');
+    expect(brandLogo('/brand/logo.png?v=2')).toBe('/brand/logo-128.webp');
+    expect(brandLogo('/brand/logo.png')).toBe('/brand/logo-128.webp');
+    expect(brandLogo('')).toBe('/brand/logo-128.webp');
+    expect(brandLogo('https://cdn.example.com/custom.svg')).toBe('https://cdn.example.com/custom.svg');
+  });
 });
+

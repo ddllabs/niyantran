@@ -14,9 +14,10 @@ import { setPageTitle } from '../lib/siteHead.js';
 import { sessionUser } from '../lib/userStore.js';
 import './marketing.css';
 
-// F145: the default logo is drawn from its 128 px copy (the full logo is 164 KB); a favicon set in
-// admin is shown as set.
-const brandLogo = (url) => (!url || url === DEFAULT_SITE_SETTINGS.faviconUrl ? '/brand/logo-128.webp' : url);
+// F145: the default logo, with or without a ?v= query, is drawn from its 128 px copy (the full logo
+// is 164 KB); a favicon set in admin is shown as set.
+const FULL_LOGO = DEFAULT_SITE_SETTINGS.faviconUrl.split('?')[0];
+export const brandLogo = (url) => (!url || url.split('?')[0] === FULL_LOGO ? '/brand/logo-128.webp' : url);
 
 function pageFromRoute() {
   const path = location.pathname.replace(/\/+$/, '') || '/';

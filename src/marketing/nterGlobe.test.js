@@ -53,10 +53,17 @@ describe('nterGlobe module', () => {
   it('places the still over the shader globe: the disc and its glow, 16% to 84% of the box', () => {
     const css = readFileSync(new URL('./nterGlobe.css', import.meta.url), 'utf8');
     const rule = css.match(/\.data-orbit-fallback\{([^}]*)\}/)[1];
-    expect(rule).toMatch(/left:16%/);
-    expect(rule).toMatch(/top:16%/);
-    expect(rule).toMatch(/width:68%/);
-    expect(rule).toMatch(/height:68%/);
+    // Review: derive the box from the shader. The disc has radius .64 (clip space, half the box is 1),
+    // and its glow alpha exp(-(r-.64)*120)*.17 is discarded below .001.
+    const radius = Number(SOURCE.match(/const float radius=([\d.]+);/)[1]);
+    const [falloff, peak, floor] = SOURCE.match(/exp\(-\(r-radius\)\*(\d+)\.\)\*([\d.]+);if\(a<([\d.]+)\)discard/).slice(1).map(Number);
+    const outer = radius + Math.log(peak / floor) / falloff;
+    const left = Number(rule.match(/left:([\d.]+)%/)[1]);
+    const width = Number(rule.match(/width:([\d.]+)%/)[1]);
+    expect(Number(rule.match(/top:([\d.]+)%/)[1])).toBe(left);
+    expect(Number(rule.match(/height:([\d.]+)%/)[1])).toBe(width);
+    expect(Math.abs(left - 50 * (1 - outer))).toBeLessThan(0.25);
+    expect(Math.abs(width - 100 * outer)).toBeLessThan(0.5);
     expect(rule).not.toMatch(/border-radius|object-fit|box-shadow/);
     expect(css).toMatch(/\.globe-instant \.data-orbit-earth,\.globe-instant \.data-orbit-fallback\{transition:none;?\}/);
   });
@@ -101,7 +108,13 @@ describe('nterGlobe module', () => {
 // images, the animation time and the WebGL context are handled across elements.
 describe('nterGlobe across page changes', () => {
   // The tests share one Node process (singleFork), so stubbed browser globals are removed after each.
-  afterEach(() => {
+  afterEach(async () => {
+    const { sharedClock, resetSharedTextures } = await import('./nterGlobe.js');
+    sharedClock.time = 0;
+    sharedClock.earth = 0;
+    resetSharedTextures();
+    delete globalThis.fetch;
+    delete globalThis.createImageBitmap;
     delete globalThis.document;
     delete globalThis.requestAnimationFrame;
     delete globalThis.cancelAnimationFrame;
@@ -159,6 +172,78 @@ describe('nterGlobe across page changes', () => {
     expect(mod.sharedClock.time).toBeCloseTo(12.55, 5);
     first.seek(3);
     expect(mod.sharedClock.time).toBe(3);
+  });
+
+  // Review: the Earth turns only once it is drawn, so on a slow first visit it starts from the still
+  // (rendered at Earth time 0) instead of jumping ahead; the labels keep their own time.
+  it('turns the Earth only while it is drawn, and carries its turn to the next globe', async () => {
+    const { mod, el } = await element();
+    globalThis.document = { hidden: false };
+    globalThis.requestAnimationFrame = () => 1;
+    el._motion = { matches: false };
+    el._tick(1000);
+    el._tick(1050);
+    expect(el._time).toBeCloseTo(0.05, 5);
+    expect(el._earth).toBe(0);
+    el._gl = fakeGl();
+    el._tick(1100);
+    expect(el._earth).toBeCloseTo(0.05, 5);
+    expect(mod.sharedClock.earth).toBeCloseTo(0.05, 5);
+    const { el: next } = await element();
+    expect(next._earth).toBeCloseTo(0.05, 5);
+  });
+
+  it('draws the Earth at its own turn, not at the labels\' time', async () => {
+    const { el } = await element();
+    const times = [];
+    el._gl = new Proxy({}, { get: (_, key) => (key === 'uniform1f' ? (_loc, value) => times.push(value) : () => true) });
+    el._canvas = { width: 100, height: 100 };
+    el._labels = [];
+    el._width = 100;
+    el._time = 5;
+    el._earth = 2;
+    Object.getPrototypeOf(el)._render.call(el);
+    expect(times).toEqual([2]);
+  });
+
+  // Review: loseContext() queues 'webglcontextlost' as a task. If the element reconnects first, that
+  // late event from the old canvas must not wipe out the new context.
+  it('ignores a lost-context event from a canvas it no longer uses', async () => {
+    const { el } = await element();
+    const old = new EventTarget();
+    el._canvas = old;
+    el._watchContext(old);
+    el._canvas = new EventTarget();
+    const live = fakeGl();
+    el._gl = live;
+    el.classList.add('globe-ready');
+    old.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    expect(el._gl).toBe(live);
+    expect(el.classList.contains('globe-ready')).toBe(true);
+    const current = el._canvas;
+    el._watchContext(current);
+    current.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    expect(el._gl).toBe(null);
+    expect(el.classList.contains('globe-ready')).toBe(false);
+  });
+
+  it('releases the context it made when the textures fail to load', async () => {
+    const { mod, el } = await element();
+    mod.resetSharedTextures();
+    mod.sharedTextures(() => Promise.reject(new Error('offline'))).catch(() => {});
+    let lost = 0;
+    el._canvas = { getContext: () => fakeGl(() => { lost += 1; }) };
+    await el._initGL();
+    expect(lost).toBe(1);
+    expect(el.classList.contains('globe-ready')).toBe(false);
+  });
+
+  it('decodes a texture off the main thread, and fails on an HTTP error', async () => {
+    const { decodeTexture } = await import('./nterGlobe.js');
+    globalThis.createImageBitmap = async (blob) => ({ bitmap: blob });
+    globalThis.fetch = async (url) => (url.endsWith('ok.webp') ? { ok: true, blob: async () => 'BLOB' } : { ok: false, status: 404 });
+    await expect(decodeTexture('/ok.webp')).resolves.toEqual({ bitmap: 'BLOB' });
+    await expect(decodeTexture('/gone.webp')).rejects.toThrow('Globe texture 404');
   });
 
   it('releases its WebGL context when it leaves the page', async () => {

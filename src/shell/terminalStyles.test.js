@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LAZY_ROOTS, OUTPUT, render, terminalStyles, walk } from '../../scripts/build-terminal-styles.mjs';
+import { LAZY_ROOTS, OUTPUT, render, staticImports, terminalStyles, walk } from '../../scripts/build-terminal-styles.mjs';
 
 // F145: a signed-out visitor no longer downloads the terminal, admin or persona chooser; their
 // stylesheets stay in the entry, in the same order, so the cascade does not change.
@@ -8,7 +8,7 @@ const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), '
 
 describe('terminal on demand', () => {
   it('keeps src/shell/terminalStyles.js in step with what the lazy modules import', () => {
-    expect(read(OUTPUT)).toBe(render(terminalStyles()));
+    expect(read(OUTPUT), 'out of date: run npm run build:terminal-styles').toBe(render(terminalStyles()));
     expect(terminalStyles().length).toBeGreaterThan(10);
   });
 
@@ -30,4 +30,22 @@ describe('terminal on demand', () => {
     const lazyStyles = walk(LAZY_ROOTS);
     lazyStyles.forEach(s => expect(entryStyles, s).toContain(s));
   });
+
+  // Review: forms the scanner must read, and the ones it must not follow.
+  it('reads imports with comments inside braces, without spaces, and skips commented-out ones', () => {
+    const code = [
+      "import { a, // the first",
+      "  b, /* the second */ c } from './m.js';",
+      "import'./tight.css';",
+      "// import './commented.css';",
+      "/* import './blocked.css'; */",
+      "export * from './re.js';",
+      "const url = 'https://example.com/x.css';",
+      "const note = 'see src/data/personas/*.md';",
+      "import './after-note.css';",
+      "const later = () => import('./lazy.jsx');",
+    ].join('\n');
+    expect(staticImports(code)).toEqual(['./m.js', './tight.css', './re.js', './after-note.css']);
+  });
 });
+

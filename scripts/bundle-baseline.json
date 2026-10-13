@@ -1,6 +1,6 @@
 {
-  "mainEntryGzipBytes": 219578,
+  "mainEntryGzipBytes": 219945,
   "measuredAt": "task/page-speed (F145 T3), npm run build (vite 5.4.21), zlib default level as vite reports it",
   "spec": "docs/specs/2026-10-01-rag-v2-citations-pdf.md (Testing, Bundle check)",
-  "note": "Re-measured 2026-10-14 (F145): the terminal, admin and persona chooser now load on demand, so the entry fell from 722,868 B gzip (main at b8d79ad, which was already 76,697 B over the stale 646,171 baseline) to 219,578 B. Their stylesheets stay in the entry (src/shell/terminalStyles.js); the built CSS is byte-identical. pdf.js stays lazy."
+  "note": "Re-measured 2026-10-14 (F145): the terminal, admin and persona chooser now load on demand, so the entry fell from 722,868 B gzip (main at b8d79ad, which was already 76,697 B over the stale 646,171 baseline) to 219,945 B (with the review's error screen and stale-file reload). Their stylesheets stay in the entry (src/shell/terminalStyles.js); the built CSS is byte-identical. pdf.js stays lazy."
 }

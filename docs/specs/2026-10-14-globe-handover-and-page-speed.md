@@ -86,7 +86,7 @@
    All three are WebP. Measured in a trial: about 0.66 MB in total, against 2.28 MB. `CREDITS.md`
    records the resizing (CC BY 4.0 allows adaptation with attribution).
 6. **Small logo and globe images.**
-   - A 64 px copy of the logo is used wherever it is shown small. `logo.png` stays as the favicon
+   - A 128 px copy of the logo (`logo-128.webp`; drawn at most 52 px) is used wherever it is shown small. `logo.png` stays as the favicon
      and share image, and the admin-set favicon override is untouched.
    - A WebP copy of `globe.png` serves the forgot-password and reset-password pages.
 7. **Caching (needs approval, deployment config).** In `vercel.json`:
@@ -160,7 +160,7 @@ Measured on production builds of `main` (before) and the branch (after), signed 
 |---|---|---|
 | Walkthrough backdrop | 34.4 MB GIF | 11 KB still (`walkthrough-globe.webp`), lazy |
 | Main script (gzip) | 722,868 B | 219,578 B (`TerminalShell`, `AdminApp`, `PersonaChooser` are their own chunks) |
-| Main stylesheet | 462 KB | 462 KB, byte-identical (same hash): the lazy modules' styles stay in the entry through the generated `src/shell/terminalStyles.js` |
+| Main stylesheet | 462 KB | 462 KB. The terminal split (T3) left it byte-identical, measured before and after T3. Across the branch, only the intended globe rules (T1) and the loading and error styles (review) are added. The lazy modules' styles stay in the entry through the generated `src/shell/terminalStyles.js`, and `check:bundle` now fails if any other stylesheet is emitted. |
 | Earth images | 2,276 KB (JPEG) | 525 KB (WebP; 2.5 of 255 mean difference per channel at the largest globe) |
 | Stand-in | 143 KB black-background photo | 87 KB transparent still of our own globe |
 | Logo | 164 KB | 4 KB (`logo-128.webp`; the favicon, share image and an admin-set favicon unchanged) |
@@ -176,7 +176,20 @@ Measured on production builds of `main` (before) and the branch (after), signed 
   - `CREDITS.md` records the re-encoding and the new still.
 - `globe-still.webp` and `walkthrough-globe.webp` were rendered in the browser from the shader and
   from the GIF's first frame, then encoded with `cwebp`.
-- Still to check: the cache headers on the live site after the owner's push.
+- **Review (independent, 2026-10-14):** nothing critical. Fixed:
+  - A late lost-context event from an old canvas no longer breaks a reconnected globe.
+  - A failed download of the terminal reloads once (`vite:preloadError`, at most once a minute) and
+    otherwise shows a Reload screen (`ChunkBoundary`), not a white page.
+  - A signed-in visitor's terminal download starts at start-up.
+  - The Earth turns only once drawn, so a slow first load starts from the still.
+  - A context made before a texture failure is released.
+  - The import scanner ignores comments.
+  - The default logo matches with or without `?v=`.
+  - Tests reset the shared state.
+- Still to check after the owner's push:
+  - the cache headers on the live site;
+  - that a missing `/assets/` file does not come back with the one-year header (`curl -I` on a made-up
+    name).
 
 ## Not in scope
 

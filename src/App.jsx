@@ -5,7 +5,8 @@ import './shell/terminalStyles.js';
 import { startSiteHead } from './lib/siteHead.js';
 import { applyPersonaForUser, readPersonaId } from './lib/personas.js';
 import { publishVerifiedSessionUser, sessionUser, subscribeLocalIdentity, userTypeOf } from './lib/userStore.js';
-import { loadTerminal } from './lib/loadTerminal.js';
+import { loadTerminal, reloadForStaleChunk } from './lib/loadTerminal.js';
+import ChunkBoundary from './shell/ChunkBoundary.jsx';
 import './shell/onboarding.css';
 
 // F145: the terminal, admin and persona chooser load on demand, so a signed-out visitor does not
@@ -14,6 +15,9 @@ const TerminalShell = lazy(loadTerminal);
 const AdminApp = lazy(() => import('./admin/AdminApp.jsx'));
 const PersonaChooser = lazy(() => import('./shell/PersonaChooser.jsx'));
 const loading = <div className="app-loading" aria-busy="true" />;
+// A deploy since the page opened: fetch the new file names instead of failing (ChunkBoundary
+// catches what a reload cannot fix).
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('vite:preloadError', (e) => reloadForStaleChunk(e));
 
 function pathKey() {
   return location.pathname.replace(/\/+$/, '') || '/';
@@ -48,6 +52,10 @@ function isSignedIn() {
   return sessionStorage.getItem('niyantranAuthed') === '1' && sessionUser() !== null;
 }
 
+// A signed-in visitor goes straight to the terminal: start its download now, alongside the rest of
+// the start-up, rather than after the first render.
+if (typeof sessionStorage !== 'undefined' && isSignedIn()) loadTerminal().catch(() => {});
+
 function ensurePersonaFromSession() {
   if (readPersonaId()) return true;
   const user = sessionUser();
@@ -76,6 +84,7 @@ export default function App() {
     let mounted = true;
     const unsubscribe = subscribeLocalIdentity((id) => {
       if (id) {
+        loadTerminal().catch(() => {});
         setAuthed(true);
         setPersonaReady(ensurePersonaFromSession());
         // A Google OAuth return has a verified identity but no login form to
@@ -115,7 +124,7 @@ export default function App() {
     };
   }, []);
 
-  if (admin) return <Suspense fallback={loading}><AdminApp /></Suspense>;
+  if (admin) return <ChunkBoundary><Suspense fallback={loading}><AdminApp /></Suspense></ChunkBoundary>;
 
   // A-10: pricing / login / signup hash must still resolve when already signed in.
   if (legal || !authed || !isSignedIn() || mktOverlay) {
@@ -137,14 +146,16 @@ export default function App() {
 
   if (choosingPersona) {
     return (
-      <Suspense fallback={loading}>
-        <PersonaChooser
-          onDone={() => {
-            setChoosingPersona(false);
-            setPersonaReady(ensurePersonaFromSession());
-          }}
-        />
-      </Suspense>
+      <ChunkBoundary>
+        <Suspense fallback={loading}>
+          <PersonaChooser
+            onDone={() => {
+              setChoosingPersona(false);
+              setPersonaReady(ensurePersonaFromSession());
+            }}
+          />
+        </Suspense>
+      </ChunkBoundary>
     );
   }
 
@@ -152,13 +163,15 @@ export default function App() {
   if (!personaReady) ensurePersonaFromSession();
 
   return (
-    <Suspense fallback={loading}>
-      <TerminalShell
-        onLogout={() => {
-          setAuthed(false);
-          setPersonaReady(false);
-        }}
-      />
-    </Suspense>
+    <ChunkBoundary>
+      <Suspense fallback={loading}>
+        <TerminalShell
+          onLogout={() => {
+            setAuthed(false);
+            setPersonaReady(false);
+          }}
+        />
+      </Suspense>
+    </ChunkBoundary>
   );
 }

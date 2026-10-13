@@ -6,9 +6,10 @@
 // bundler meets them, into src/shell/terminalStyles.js, which App.jsx imports where TerminalShell was.
 // The entry keeps the same CSS, in the same order; only the JavaScript moves.
 //
-//   node scripts/build-terminal-styles.mjs
+//   npm run build:terminal-styles
 //
-// src/shell/terminalStyles.test.js regenerates the list and fails when the file is out of date.
+// src/shell/terminalStyles.test.js regenerates the list and fails when the file is out of date, and
+// scripts/check-bundle.mjs fails a build in which any lazy chunk carries a stylesheet.
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,11 +20,15 @@ export const OUTPUT = 'src/shell/terminalStyles.js';
 export const EAGER_BEFORE = ['src/marketing/MarketingSite.jsx', 'src/marketing/legalRoutes.js'];
 export const LAZY_ROOTS = ['src/shell/TerminalShell.jsx', 'src/admin/AdminApp.jsx', 'src/shell/PersonaChooser.jsx'];
 
-const IMPORT = /^\s*(?:import|export)\s+(?:[\w$*{}\s,]+?\s+from\s+)?['"]([^'"\n]+)['"]/gm;
+const IMPORT = /^\s*(?:import|export)(?:\s+[\w$*{}\s,]+?\s+from)?\s*['"]([^'"\n]+)['"]/gm;
+// Comments go first, so a commented-out import is not followed and a comment inside an import's
+// braces does not hide it. A comment needs whitespace or a line start before it, so "//" in a URL and
+// "/*" in a path pattern inside a string are left alone.
+const COMMENTS = /(^|\s)(?:\/\*[\s\S]*?\*\/|\/\/.*$)/gm;
 
 /** The static import specifiers of a module, in source order (dynamic import() is not one). */
 export function staticImports(code) {
-  return [...code.matchAll(IMPORT)].map(m => m[1]);
+  return [...code.replace(COMMENTS, '$1').matchAll(IMPORT)].map(m => m[1]);
 }
 
 function resolveFile(spec, from) {
