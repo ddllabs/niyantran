@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import warTracker from '../../../public/data/embedded_csv/geopolitics_war_tracker.json';
 import alliancesPack from '../../data/alliances.json';
 import { flattenAlliance } from '../../lib/alliances.js';
+import bills from '../../../public/data/embedded_csv/national_bill_tracker.json';
 import { adapterFor } from './registry.js';
 
 vi.mock('../RecordDetail.jsx', () => ({ default: () => <div data-record-detail /> }));
@@ -13,8 +14,8 @@ const { default: RailContent } = await import('../RailContent.jsx');
 // existing record view, so nothing outside the batch changes.
 describe('record panel registry', () => {
   it('registers the Global modules of batches 1–3 and nothing else', () => {
-    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch']) expect(adapterFor(feature), feature).toBeTypeOf('function');
-    for (const feature of ['Bill Passage Probability Index', 'Maritime Choke-Points', 'Energy', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
+    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch', 'Bill Passage Probability Index']) expect(adapterFor(feature), feature).toBeTypeOf('function');
+    for (const feature of ['Maritime Choke-Points', 'Energy', 'Central Tender Aggregator + Constituency Filter', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
   });
 
   it('renders the panel for a registered module and the old view for others', () => {
@@ -54,5 +55,11 @@ describe('record panel registry', () => {
       expect(html, feature).toContain('data-national-record');
       expect(html, feature).not.toContain('class="rp"');
     }
+  });
+
+  it('renders the record panel, not the old National view, for a registered National module', () => {
+    const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Bill Passage Probability Index', tier: 'national', rows: bills.slice(0, 50) }} selected={bills[0]} />);
+    expect(html).toContain('class="rp"');
+    expect(html).not.toContain('data-national-record');
   });
 });
