@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { COVERAGE_TTL_MS, coverageOf, indexedDocumentKeys, recheckCoverage, refreshCoverage, resetCoverageCache } from './corpusCoverage.js';
+import { COVERAGE_TTL_MS, coverageOf, documentModules, indexedDocumentKeys, recheckCoverage, refreshCoverage, resetCoverageCache, webDefaultFor } from './corpusCoverage.js';
 
 /** A Supabase query chain that answers with `rows`, recording what it was asked. */
 function client(rows, { error = null, calls = [] } = {}) {
@@ -255,5 +255,113 @@ describe('answer lifetime', () => {
     const found = await refreshCoverage([], { from: none });
     expect(found.size).toBe(0);
     expect(none).not.toHaveBeenCalled();
+  });
+});
+
+
+// F124 T4a: the globe's prediction (web-search spec §1, §6). It mirrors the server's rule, so the
+// reader sees in advance what the turn will do.
+describe('documentModules', () => {
+  const rpcClient = (results, calls = []) => ({ calls, rpc: (name) => { calls.push(name); const next = results.shift(); return Promise.resolve(next); } });
+  const rows = [{ desk_tier: 'National', desk_feature: 'Bills' }, { desk_tier: 'Global', desk_feature: 'Treaties' }];
+
+  it('calls the document_modules RPC once and caches the answer', async () => {
+    const db = rpcClient([{ data: rows, error: null }]);
+    expect(await documentModules(db)).toEqual(rows);
+    expect(await documentModules(db)).toEqual(rows);
+    expect(db.calls).toEqual(['document_modules']);
+  });
+
+  it('a failure returns null and is not cached, so the next call asks again', async () => {
+    const db = rpcClient([{ data: null, error: { message: 'offline' } }, { data: rows, error: null }]);
+    expect(await documentModules(db)).toBe(null);
+    expect(await documentModules(db)).toEqual(rows);
+    expect(db.calls).toHaveLength(2);
+  });
+
+  it('a thrown request is a failure too, and rows without a tier and feature are dropped', async () => {
+    const throwing = { rpc: () => Promise.reject(new Error('network')) };
+    expect(await documentModules(throwing)).toBe(null);
+    const db = rpcClient([{ data: [...rows, { desk_tier: 'National' }, null, { desk_tier: '', desk_feature: 'x' }], error: null }]);
+    expect(await documentModules(db)).toEqual(rows);
+  });
+
+  it('with no client it answers null', async () => {
+    expect(await documentModules(null)).toBe(null);
+  });
+
+  it('resetCoverageCache forgets the modules', async () => {
+    const db = rpcClient([{ data: rows, error: null }, { data: [], error: null }]);
+    await documentModules(db);
+    resetCoverageCache();
+    expect(await documentModules(db)).toEqual([]);
+    expect(db.calls).toHaveLength(2);
+  });
+});
+
+describe('webDefaultFor', () => {
+  const modules = [{ desk_tier: 'National', desk_feature: 'Bills' }];
+  const indexedKeys = new Set(['bill:2026:153']);
+  const row = (document_key) => ({ kind: 'row', title: 'A row', ...(document_key ? { document_key } : {}) });
+
+  it('broad focus is off', () => {
+    expect(webDefaultFor({ focus: 'broad', attachments: [row()], indexedKeys, deskContext: null, modules })).toEqual({ on: false, reason: 'broad' });
+  });
+
+  it.each(['attached', 'selection'])('%s: a row without a document key is on', (focus) => {
+    expect(webDefaultFor({ focus, attachments: [row()], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+  });
+
+  it('a record whose key is not indexed is on; a record whose key is indexed is off', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:999')], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'record', document_key: 'bill:2026:999' }], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153')], indexedKeys, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
+  });
+
+  it('one record without a document is enough, among records that have one', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153'), row()], indexedKeys, modules })).toEqual({ on: true, reason: 'record-without-document' });
+  });
+
+  it('a document attachment is indexed by construction', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'document', document_id: 'd1' }], indexedKeys: null, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
+  });
+
+  it('an uploaded file is not a record: only files, or nothing attached, is no-record', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'file', title: 'f.pdf' }], indexedKeys, modules })).toEqual({ on: false, reason: 'no-record' });
+    expect(webDefaultFor({ focus: 'attached', attachments: [], indexedKeys, modules })).toEqual({ on: false, reason: 'no-record' });
+    expect(webDefaultFor({ focus: 'selection', attachments: [{ kind: 'feature', title: 'Bills' }], indexedKeys, modules })).toEqual({ on: false, reason: 'no-record' });
+  });
+
+  it('a file beside an indexed record leaves the record to decide', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [{ kind: 'file' }, row('bill:2026:153')], indexedKeys, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
+  });
+
+  it('a keyed record whose coverage has not answered yet is unknown: off, with no reason', () => {
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153')], indexedKeys: null, modules })).toEqual({ on: false, reason: null });
+    // A record that definitely has no document is on whatever the lookup says.
+    expect(webDefaultFor({ focus: 'attached', attachments: [row('bill:2026:153'), row()], indexedKeys: null, modules })).toEqual({ on: true, reason: 'record-without-document' });
+  });
+
+  it('desk focus follows the open module', () => {
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: null, modules })).toEqual({ on: false, reason: 'no-record' });
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: { tier: 'National' }, modules })).toEqual({ on: false, reason: 'no-record' });
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: { tier: 'National', feature: 'Bills' }, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: { tier: 'National', feature: 'Orders' }, modules })).toEqual({ on: true, reason: 'module-without-documents' });
+    // Module names repeat across tiers: the pair decides.
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: { tier: 'Global', feature: 'Bills' }, modules })).toEqual({ on: true, reason: 'module-without-documents' });
+  });
+
+  it('desk focus matches names the way the server does: case and punctuation do not matter', () => {
+    const catalogue = [{ desk_tier: 'National', desk_feature: 'Regulatory (RBI SEBI TRAI CCI)' }];
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: { tier: 'national', feature: 'Regulatory (RBI/SEBI/TRAI/CCI)' }, modules: catalogue })).toEqual({ on: false, reason: 'documents-in-scope' });
+  });
+
+  it('desk focus with the module list unknown is off, with no reason', () => {
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: { tier: 'National', feature: 'Bills' }, modules: null })).toEqual({ on: false, reason: null });
+    expect(webDefaultFor({ focus: 'desk', attachments: [], indexedKeys, deskContext: null, modules: null })).toEqual({ on: false, reason: 'no-record' });
+  });
+
+  it('desk focus ignores attachments, as the server does', () => {
+    expect(webDefaultFor({ focus: 'desk', attachments: [row()], indexedKeys, deskContext: { tier: 'National', feature: 'Bills' }, modules })).toEqual({ on: false, reason: 'documents-in-scope' });
   });
 });

@@ -116,7 +116,7 @@ export function createTextCoalescer(commit, schedule) {
 
 function blankState() {
   return { isStreaming: false, isPending: false, status: 'idle', streamingText: '', activity: [], sources: [],
-    followUps: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '',
+    followUps: [], web: null, webSources: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '',
     conversationId: '', messageId: '', executionExpiresAt: null, retryable: false, retryCount: 0,
     cancelRequested: false, cancelPending: false, cancelError: '', stopQueued: false };
 }
@@ -478,7 +478,7 @@ async function run(entry, opts) {
     entry.identity = identity;
     entry.generation = version;
     await publish(entry, { isStreaming: true, isPending: true, status: 'connecting', error: '', errorCode: '',
-      retryable: false, retryCount: entry.retryCount, streamingText: '', sources: [], followUps: [], truncated: null,
+      retryable: false, retryCount: entry.retryCount, streamingText: '', sources: [], followUps: [], web: null, webSources: [], truncated: null,
       activity: [], timing: null, usage: null, messageId: '', cancelPending: false }, attempt);
     if (!bound(entry, attempt) || controller.signal.aborted) throw new Error('Your research session changed.');
     entry.dispatched = true;
@@ -512,15 +512,21 @@ async function run(entry, opts) {
       if (frame.conversation) await conversation(frame.conversation);
       else if (frame.duplicate) await publish(entry, { duplicate: true }, attempt);
       else if (typeof frame.reasoning === 'string') await publish(entry, { activity: [...entry.state.activity, { type: 'activity', text: frame.reasoning }] }, attempt);
-      else if (frame.tool) await publish(entry, { activity: frame.tool.phase === 'start'
+      // The server's web-search decision for this turn, sent once and early (web-search spec §4).
+      else if (frame.web && typeof frame.web === 'object') await publish(entry, { web: frame.web }, attempt);
+      // A web_search step has no start frame, so its end frame is listed as it is, and a document or
+      // desk search that ends later never merges into it, whatever step number the two share.
+      else if (frame.tool) await publish(entry, { activity: frame.tool.phase === 'start' || frame.tool.name === 'web_search'
         ? [...entry.state.activity, { type: 'tool', ...frame.tool }]
-        : entry.state.activity.map(a => a.type === 'tool' && a.step === frame.tool.step ? { ...a, ...frame.tool } : a) }, attempt);
+        : entry.state.activity.map(a => a.type === 'tool' && a.name !== 'web_search' && a.step === frame.tool.step ? { ...a, ...frame.tool } : a) }, attempt);
       else if (typeof frame.chunk === 'string') coalescer.push(frame.chunk);
       else if (frame.patch) {
         if (!Number.isInteger(frame.patch.from) || frame.patch.from < 0 || frame.patch.from > coalescer.text.length || typeof frame.patch.text !== 'string') throw new Error('Invalid answer patch.');
         coalescer.patch(frame.patch.from, frame.patch.text);
       } else if (frame.model) await publish(entry, { model: frame.model }, attempt);
       else if (Array.isArray(frame.sources)) { sawSources = true; await publish(entry, { sources: frame.sources }, attempt); }
+      // The pages the turn searched, kept apart from `sources`: a web page is never a citation.
+      else if (Array.isArray(frame.webSources)) await publish(entry, { webSources: frame.webSources }, attempt);
       else if (Array.isArray(frame.followUpQuestions)) await publish(entry, { followUps: frame.followUpQuestions }, attempt);
       else if (frame.truncated?.reason === 'length') await publish(entry, { truncated: frame.truncated }, attempt);
       else if (frame.notice) await publish(entry, { notice: frame.notice }, attempt);
