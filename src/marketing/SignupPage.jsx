@@ -14,7 +14,7 @@ import { supabase } from '../lib/supabaseClient.js';
 import { signupErrorMessage } from '../lib/signupErrors.js';
 import { nextSignupStep } from '../lib/signupFlow.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
-import AuthEarth from './AuthEarth.jsx';
+import DataGlobe from './DataGlobe.jsx';
 
 export default function SignupPage({ onSuccess, onLogin }) {
   const [error, setError] = useState('');
@@ -67,6 +67,9 @@ export default function SignupPage({ onSuccess, onLogin }) {
       setResending(false);
     }
   }
+
+  // A globe label already stored its destination (landAfterSignUp keeps it); bring the visitor to the form.
+  const focusSignUp = () => root.current?.querySelector('input[name="name"]')?.focus();
 
   function onMove(e) {
     const el = root.current;
@@ -162,7 +165,7 @@ export default function SignupPage({ onSuccess, onLogin }) {
   return (
     <div className="mkt-login mkt-login-globe mkt-signup" ref={root} onMouseMove={onMove}>
       <aside className="mkt-signup-context" aria-labelledby="signup-context-title">
-        <div className="mkt-signup-illustration"><AuthEarth persona={personaId} onPersona={setPersonaId} /></div>
+        <div className="mkt-signup-illustration mkt-globe-slot"><DataGlobe onLogin={focusSignUp} /></div>
         <h2 id="signup-context-title">A world of records.<br />Your own perspective.</h2>
         <p>Explore legislation, global affairs, markets and the courts with the source always in view.</p>
         <div className="mkt-signup-context-desks">Eight desks · One research workspace</div>

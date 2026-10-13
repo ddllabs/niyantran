@@ -1,4 +1,5 @@
-/* NTER data orbit: the homepage <nter-data-globe> custom element (F140).
+/* NTER data orbit: the marketing site's <nter-data-globe> custom element (F140; on every page with
+ * a globe since F141, through DataGlobe.jsx).
  *
  * Ported from the client-approved package globe-animation/nter-globe.js. The
  * rendering, shader, orbits, label projection and occlusion are unchanged. Two

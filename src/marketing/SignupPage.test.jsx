@@ -69,14 +69,12 @@ describe('free signup', () => {
   });
 });
 
-it('lets the globe persona labels drive the same persona choice', () => {
-  fake.states = []; let tree = render(vi.fn());
-  const globe = find(tree, node => node.props?.onPersona);
-  expect(globe.props.persona).toBe('');
-  globe.props.onPersona('policy');
-  tree = render(vi.fn());
-  expect(find(tree, node => node.props?.onPersona).props.persona).toBe('policy');
-  expect(find(tree, node => node.props?.role === 'radio').props['aria-checked']).toBe(true);
+// F141 (owner 2026-10-14): the globe shows data labels now; the persona is chosen in the form only.
+it('keeps the persona choice in the form, with the data globe beside it', () => {
+  fake.states = []; const tree = render(vi.fn());
+  expect(find(tree, node => node.props?.onPersona)).toBeNull();
+  expect(find(tree, node => node.props?.role === 'radiogroup').props['aria-label']).toBe('Working as');
+  expect(find(tree, node => node.props?.className === 'mkt-signup-illustration mkt-globe-slot')).not.toBeNull();
 });
 
 it('tells new users which Terms and Privacy Policy they accept, without a pre-ticked box', () => {

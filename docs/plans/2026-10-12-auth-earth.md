@@ -2,7 +2,10 @@
 
 > **Reconciled 2026-10-13 (F105):** this work is in `main` and production (`f20ef35` (merged 2026-10-12, pushed and deployed with F102/F103)). Lines below that call it uncommitted, local only or unmerged describe its state on the date written.
 
-> **Status: Living.** Owner authorized 2026-10-12; sequential work on task/client-ui-spec.
+> **Status: Historical (2026-10-12).** Retired by F141 on 2026-10-14: the client's data globe
+> replaced `AuthEarth` on every page and `AuthEarth` was deleted; see
+> [the one-globe spec](../specs/2026-10-14-one-globe.md). Kept as the record of what it was.
+> Originally: Owner authorized 2026-10-12; sequential work on task/client-ui-spec.
 
 1. Verify primary Three.js API and texture source/licence. Download optimized
    surface/cloud/specular textures under new auth-earth directory only.
