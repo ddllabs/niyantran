@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { exportJson, GeoAi, GeoDossierChrome, GeoSources } from './GeoDossier.jsx';
-import { applyVizFilter } from '../lib/nationalKpi.js';
+import { commodityGroups } from '../lib/commodityGroups.js';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
@@ -25,17 +25,6 @@ const SOURCES = [
   ['CME Group', 'https://www.cmegroup.com/'],
   ['World Bank Pink Sheet', 'https://www.worldbank.org/en/research/commodity-markets'],
 ];
-
-function groupsFrom(feed) {
-  if (Array.isArray(feed?.meta?.groups) && feed.meta.groups.length) return feed.meta.groups;
-  const map = new Map();
-  for (const r of feed?.rows || []) {
-    const g = r.group || 'Other';
-    if (!map.has(g)) map.set(g, []);
-    map.get(g).push([r.commodity || r.title, r.level, r.change, r.pct]);
-  }
-  return [...map.entries()].map(([g, items]) => ({ g, items }));
-}
 
 function BarRow({ label, pct, val, up, on, onPick }) {
   const n = Math.max(2, Math.min(100, Number(pct) || 2));
@@ -73,14 +62,8 @@ function GroupPanel({ title, items, rowFor, selected, onSelect }) {
 export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, onClearViz }) {
   const [tab, setTab] = useState('analytics');
   const [q, setQ] = useState('');
-  const groups = useMemo(() => {
-    const rows = (feed?.rows || []).filter((r) => applyVizFilter(r, vizFilter));
-    const n = q.trim().toLowerCase();
-    const filtered = n
-      ? rows.filter((r) => `${r.commodity || r.title || ''} ${r.group || ''}`.toLowerCase().includes(n))
-      : rows;
-    return groupsFrom({ ...feed, rows: filtered });
-  }, [feed, vizFilter, q]);
+  // F122: the search and the chart filter apply to the pack's groups too.
+  const groups = useMemo(() => commodityGroups(feed, { q, vizFilter }), [feed, vizFilter, q]);
   const byName = useMemo(() => new Map((feed?.rows || []).map((r) => [r.commodity || r.title, r])), [feed]);
   const rowFor = (name) => byName.get(name) || null;
   const stats = feed?.meta?.stats || {};

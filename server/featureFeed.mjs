@@ -16,7 +16,7 @@ import { flattenAlliance } from '../src/lib/alliances.js';
 import { flattenSanction } from '../src/lib/sanctions.js';
 import { flattenAppeal } from '../src/lib/globalAid.js';
 import { flattenChokepoint, flattenInfra, flattenNuclear } from '../src/lib/strategicAssets.js';
-import { flattenLeader, commoditiesFromPack } from '../src/lib/globalResources.js';
+import { leadersFromPack, commoditiesFromPack } from '../src/lib/globalResources.js';
 import { flattenEnergyMineral, flattenMineralRef } from '../src/lib/geonomics.js';
 import { geoRows, geoNote, isGeoDesk } from '../src/lib/niyGeo.js';
 import {
@@ -2529,7 +2529,7 @@ export async function serveFeatureFeed(searchParams) {
   // Global Resources — Heads of State: original HTML leader dossier (44 profiles), not Wikidata/GDELT.
   if (/^heads of state$/i.test(feat.htmlFeature || '') || dataset === 'geo_leaders') {
     const pack = loadJsonPack('leaders.json');
-    const rows = (pack?.leaders || []).map(flattenLeader).filter((r) => r.name);
+    const rows = leadersFromPack(pack);
     if (rows.length) {
       return envelope({
         tier,

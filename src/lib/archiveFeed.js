@@ -20,7 +20,7 @@ import { flattenAlliance } from './alliances.js';
 import { flattenSanction } from './sanctions.js';
 import { flattenAppeal } from './globalAid.js';
 import { flattenChokepoint, flattenInfra, flattenNuclear } from './strategicAssets.js';
-import { flattenLeader, commoditiesFromPack } from './globalResources.js';
+import { leadersFromPack, commoditiesFromPack } from './globalResources.js';
 import { flattenEnergyMineral, flattenMineralRef } from './geonomics.js';
 import { geoRows, geoNote, isGeoDesk } from './niyGeo.js';
 import { isLawExtract, isUsScotusDesk, lawNote, lawRows, lawSlice } from './lawPack.js';
@@ -566,7 +566,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
   }
 
   if (/^heads of state$/i.test(name) || dataset === 'geo_leaders') {
-    const rows = (leaders.leaders || []).map(flattenLeader).filter((r) => r.name);
+    const rows = leadersFromPack(leaders);
     if (rows.length) {
       return envelope({
         feature: feat,

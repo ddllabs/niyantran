@@ -26,6 +26,23 @@ export function isGlobalResourcesTable(name) {
   return isWorldConstitutionsFeature(name) || isGrowthIndicatorsFeature(name);
 }
 
+/**
+ * The Heads of State rows from the pack (F122): each leader flattened, rows without a name dropped,
+ * and a pointer row ("Ukraine (see Zelensky)") dropped when the leader it points to is in the pack,
+ * so a country is not listed twice. A pointer whose target is missing is kept.
+ */
+export function leadersFromPack(pack) {
+  const list = Array.isArray(pack?.leaders) ? pack.leaders : [];
+  const names = list.map((p) => String(p?.name || '').toLowerCase());
+  const isPointerToHeld = (p) => {
+    const m = /\(see ([^)]+)\)\s*$/i.exec(String(p?.name || ''));
+    if (!m) return false;
+    const target = m[1].trim().toLowerCase();
+    return names.some((n, i) => list[i] !== p && !/\(see /i.test(n) && n.includes(target));
+  };
+  return list.filter((p) => !isPointerToHeld(p)).map(flattenLeader).filter((r) => r.name);
+}
+
 export function flattenLeader(p) {
   const name = String(p.name || '').trim();
   const role = String(p.role || p.office || '').trim();
