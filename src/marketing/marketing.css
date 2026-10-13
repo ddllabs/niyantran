@@ -2553,6 +2553,11 @@ html.mkt-doc:has(.mkt-auth) #root {
   overflow: visible;
 }
 
+/* Phones and tablets: the band's padding and border sit inside its width, so it ends at the gutter
+   instead of 47px past it (the homepage scrolled sideways at 375px, 2026-10-14). */
+@media (max-width: 768px) {
+  .mkt-trivia-inner { box-sizing: border-box; }
+}
 @media (max-width: 540px) {
   .mkt-trivia-inner { align-items: flex-start; flex-direction: column; }
 }
