@@ -1,12 +1,33 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import DataGlobe, { globeSelectHandler } from './DataGlobe.jsx';
+import DataGlobe, { attachGlobe, globeSelectHandler } from './DataGlobe.jsx';
 
 // F141 (owner 2026-10-14): one globe across the marketing site, behind one wrapper.
 describe('DataGlobe', () => {
-  it('renders the client globe inside its scene', () => {
-    expect(renderToStaticMarkup(<DataGlobe />)).toBe('<div class="nter-globe-scene"><nter-data-globe></nter-data-globe></div>');
+  it('renders the client globe inside its scene, with a pause control (WCAG 2.2.2)', () => {
+    expect(renderToStaticMarkup(<DataGlobe />)).toBe(
+      '<div class="nter-globe-scene"><nter-data-globe></nter-data-globe>'
+      + '<button type="button" class="data-globe-pause" aria-label="Pause globe" aria-pressed="false" title="Pause globe">'
+      + '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="currentColor"><path d="M2.5 1.5h2.5v9H2.5zM7 1.5h2.5v9H7z"></path></svg>'
+      + '</button></div>',
+    );
+  });
+
+  // Review (2026-10-14): the wiring the component runs on mount, which a static render never reaches.
+  it('loads the globe module and listens for label picks until unmounted', () => {
+    const calls = [];
+    const el = {
+      addEventListener: (type, fn) => calls.push(['add', type, fn]),
+      removeEventListener: (type, fn) => calls.push(['remove', type, fn]),
+    };
+    let loaded = 0;
+    const onSelect = () => {};
+    const detach = attachGlobe(el, { onSelect, importGlobe: async () => { loaded += 1; } });
+    expect(loaded).toBe(1);
+    expect(calls).toEqual([['add', 'data-select', onSelect]]);
+    detach();
+    expect(calls).toEqual([['add', 'data-select', onSelect], ['remove', 'data-select', onSelect]]);
   });
 
   it('sends a label to its destination: signed out, it remembers it and asks to sign in', () => {

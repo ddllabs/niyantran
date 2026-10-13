@@ -455,8 +455,10 @@ rechecked. Nothing in this check wrote to production.
   pages; the Earth keeps the old size at 1440 px (sign-in 490 px, sign-up 331 px), is 179 px where
   sign-in and sign-up sit beside a narrow 280 px box (was 280 px) and 256 px on pricing (was 400 px),
   so labels never cross the form, heading or copy and nothing leaves the screen (checked over a full
-  orbit at 1440, 1024, 939, 858 and 375 px). Old globe retired (6 files, 79 CSS rules). Remaining:
-  review, merge, push.
+  orbit at 1440, 1024, 939, 858 and 375 px). Old globe retired (6 files, 79 CSS rules). Reviewed:
+  a pause button on every globe (WCAG 2.2.2, as the old globe had), the mount wiring tested, the old
+  globe's docs marked historical. Left for later: the `three` package has no importer now (it was the
+  old globe's renderer); removing it is a dependency change. Remaining: merge, push.
 - [ ] **F142. Live, database-backed figures on the marketing site.** Owner request 2026-10-14: today
   9,817 bills and 3,431 documents are typed constants, and the carousel counts come from snapshot
   files, so new records never show. One `site_figures()` database function (service role) behind a

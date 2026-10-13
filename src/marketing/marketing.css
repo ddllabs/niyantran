@@ -735,15 +735,9 @@ html.mkt-doc:has(.mkt-auth) #root {
   image-rendering: auto;
 }
 
-/* CR-02 — persona cards around the globe (hover/tap reveals what they get) */
-
 /* Even hex orbit around globe centre (50%, 48%) */
- /* Policy Analyst — NW */
 
  /* UPSC — W */
- /* Corporate Affairs — E */
- /* Legal Researcher — SW */
- /* Academic — SE */
 
 @keyframes mktHalo {
   0%, 100% { opacity: 0.55; transform: scale(1); }
@@ -4180,8 +4174,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-caps-head h2 {
     max-width: none;
   }
-  
-  
+
   .mkt-hero-bg {
     inset: 0;
     width: 100%;
@@ -4201,10 +4194,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-globe {
     width: min(420px, 80vw);
   }
-  
-  
-  
-  
+
   .mkt-showcase-top {
     grid-template-columns: 1fr;
     gap: 24px;
@@ -4216,11 +4206,7 @@ html.mkt-doc:has(.mkt-auth) #root {
     grid-template-columns: 1fr;
     gap: 20px;
   }
-  
-  
-  
-  
-  
+
   .mkt-prev-nav {
     display: none;
   }
@@ -4322,9 +4308,7 @@ html.mkt-doc:has(.mkt-auth) #root {
   .mkt-pr-btn.ghost-dark {
     width: 100%;
   }
-  
-  
-  
+
   .mkt-walk-video {
     min-height: 300px;
   }
@@ -4388,8 +4372,7 @@ html.mkt-doc:has(.mkt-auth) #root {
     letter-spacing: 0.16em;
     font-size: 13px;
   }
-  
-  
+
   .mkt-ribbon-inner {
     border-radius: 16px;
     padding: 16px 12px;
@@ -4912,6 +4895,10 @@ html.mkt-doc:has(.mkt-auth) #root {
    square is centred and may extend past the box (never past the screen); nothing here clips it. */
 /* Zero specificity, so each page's own display rules (Pricing hides its globe up to 1024px) still win. */
 :where(.mkt-globe-slot){display:flex;justify-content:center;align-items:center;container-type:inline-size}
+/* The globe's pause control (WCAG 2.2.2), as the old globe had: a small round button in the scene's
+   bottom-right corner, above the labels. */
+.data-globe-pause{position:absolute;right:4%;bottom:4%;z-index:40;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--mkt-border);border-radius:50%;background:rgba(255,255,255,.88);color:var(--mkt-black);cursor:pointer}
+.data-globe-pause:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
 .mkt-globe-slot>.nter-globe-scene{flex:none;width:93.75%;max-width:calc(100vw - 24px)}
 /* A narrow box beside other content (sign-in and sign-up between the stacked and the wide layouts)
    keeps the whole square inside it, so labels never cross the form or the heading. */

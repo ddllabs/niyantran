@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { deskHash } from '../lib/deskRoute.js';
 import { sessionUser } from '../lib/userStore.js';
 import { openGlobeDestination } from './globeDestinations.js';
@@ -25,21 +25,40 @@ const signedInNow = () => sessionStorage.getItem('niyantranAuthed') === '1' && B
  * site. Its module loads after first paint. `onLogin` is where a signed-out label pick goes; by default
  * the sign-in page (the sign-in and sign-up pages pass their own, as the visitor is already there).
  */
+/** Loads the globe module (after first paint) and listens for label picks; returns the detach. */
+export function attachGlobe(el, { onSelect, importGlobe = () => import('./nterGlobe.js') }) {
+  importGlobe().catch(() => {});
+  el.addEventListener('data-select', onSelect);
+  return () => el.removeEventListener('data-select', onSelect);
+}
+
 export default function DataGlobe({ onLogin }) {
   const globeRef = useRef(null);
   const loginRef = useRef(onLogin);
   loginRef.current = onLogin;
+  // The globe moves on its own for longer than five seconds, so it keeps a pause control (WCAG 2.2.2),
+  // as the old globe did; hover, focus, reduced motion and a hidden tab also pause it.
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
-    import('./nterGlobe.js').catch(() => {});
     const el = globeRef.current;
     if (!el) return undefined;
-    const onSelect = globeSelectHandler({
-      storage: sessionStorage,
-      signedIn: signedInNow,
-      onLogin: () => (loginRef.current ? loginRef.current() : (location.hash = '#/login')),
+    return attachGlobe(el, {
+      onSelect: globeSelectHandler({
+        storage: sessionStorage,
+        signedIn: signedInNow,
+        onLogin: () => (loginRef.current ? loginRef.current() : (location.hash = '#/login')),
+      }),
     });
-    el.addEventListener('data-select', onSelect);
-    return () => el.removeEventListener('data-select', onSelect);
   }, []);
-  return <div className="nter-globe-scene"><nter-data-globe ref={globeRef} /></div>;
+  const label = paused ? 'Resume globe' : 'Pause globe';
+  return (
+    <div className="nter-globe-scene">
+      <nter-data-globe ref={globeRef} paused={paused ? '' : undefined} />
+      <button type="button" className="data-globe-pause" aria-label={label} aria-pressed={paused} title={label} onClick={() => setPaused((v) => !v)}>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" fill="currentColor">
+          {paused ? <path d="M3 1.5v9l7.5-4.5z" /> : <path d="M2.5 1.5h2.5v9H2.5zM7 1.5h2.5v9H7z" />}
+        </svg>
+      </button>
+    </div>
+  );
 }

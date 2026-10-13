@@ -1,6 +1,9 @@
 # Photographic interactive Earth for authentication
 
-> **Status: Living.** Owner authorized implementation on 2026-10-12.
+> **Status: Historical (2026-10-12).** Retired by F141 on 2026-10-14: the client's data globe
+> replaced `AuthEarth` on every page and `AuthEarth` was deleted; see
+> [the one-globe spec](../specs/2026-10-14-one-globe.md). Kept as the record of what it was.
+> Originally: Owner authorized implementation on 2026-10-12.
 
 Current sign-in uses a stylized canvas Earth; signup uses a static PNG with
 added rings. Replace both with one real textured 3D sphere, matching the natural
