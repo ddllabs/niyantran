@@ -235,7 +235,37 @@ The router import check is not needed (no `api/` or `server/` change is planned)
 - Choke-Points and Energy panels.
 - Changes to non-Global record views.
 
+## Batch 3 decisions (2026-10-13)
+
+- **Scope (owner, 2026-10-13):** include a module only if the reference has a panel for it. The
+  reference has panels for Alliances, Sanctions, Global Aid and Nuclear Watch, and none for Maritime
+  Choke-Points or Energy (it only mentions them inside other panels), so those two stay as they are.
+- **Visuals follow the reference:**
+
+| Module | Visual | Visual 2 |
+|---|---|---|
+| Alliances | Member states (map, members placed at approximate country centres) | Roster history (timeline from the milestones) |
+| Sanctions | Who listed whom (map: issuers and the target) | Who has listed what (board) |
+| Global Aid | Where the appeal lands (map) | none |
+| Nuclear Watch | Facility on the map (exact facility coordinates) | none |
+
+- **Touch lanes** start from the reference and keep only what the rows hold; a lane with nothing
+  behind it reads "None on record":
+
+| Module | Left | Centre | Right | Far |
+|---|---|---|---|---|
+| Alliances | Region or seat | Bloc | Members (count) | Fronts touching members (from Open Fronts, if the rows allow) |
+| Sanctions | Issuing authority | Programme | Sectors | Listed entities or instruments |
+| Global Aid | Agency | Appeal | Countries or region | Sectors |
+| Nuclear Watch | Country | Facility | Front (if the row names one) | Operator or capacity |
+
+- **Proven figures carry over.** Each adapter reuses the data logic already in `src/lib` (rosters,
+  programme boards, funding, facility status) rather than recomputing it.
+- **Retirement:** the four dossier record components (`AlliancesAnalytics`, `SanctionsAnalytics`,
+  `GlobalAidAnalytics`, `NuclearAnalytics`) are used only by the Record tab, so they are removed
+  with their dispatch in `RailContent.jsx`. Their `alw-*` and `nww-*` CSS classes stay, because the
+  desk monitors share them.
+
 ## Open questions
 
-None blocking batch 1. Batch 3 specifics (which dossier visuals carry over) will be
-confirmed with the owner after batch 1 review.
+None.

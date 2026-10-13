@@ -242,17 +242,20 @@ All seven modules and both Record tabs are built on `task/global-record-panels-b
 
 ## Batch 3 tasks (parallel sub-agents after batch 2 lands)
 
-| Task | Module |
-|---|---|
-| T16 | Alliances |
-| T17 | Sanctions |
-| T18 | Global Aid |
-| T19 | Nuclear Watch |
+Batch 2 was pushed at `3978309`. Batch 3 branches from it as `task/global-record-panels-b3`. The
+visuals and lanes are fixed in the spec's "Batch 3 decisions".
 
-- **Scope of each:** move the dossier's data logic into an adapter, keep its proven
-  figures, and retire its record markup.
-- **T20 (supervisor):** register them, remove the dossier dispatch, and run the
-  regression tests.
+| Task | Module | Agent |
+|---|---|---|
+| T16 | Alliances | Sonnet, worktree `f121-alliances` |
+| T17 | Sanctions | Sonnet, worktree `f121-sanctions` |
+| T18 | Global Aid | Sonnet, worktree `f121-aid` |
+| T19 | Nuclear Watch | Sonnet, worktree `f121-nuclear` |
+
+- **Scope of each:** the adapter and its test only (`adapters/<module>.js`, `<module>.test.js`).
+  Each reuses the dossier's data logic from `src/lib` and keeps its proven figures.
+- **T20 (supervisor):** register them, remove the dossier dispatch and the four dossier record
+  components, and run the regression tests. An independent review follows, then the merge.
 - **Checkpoint:** owner review.
 
 ## Risks and mitigations
