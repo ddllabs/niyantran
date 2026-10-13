@@ -77,6 +77,36 @@ SELECT pg_temp.assert_true((SELECT web_search_count = 0 AND web_search_cost_usd 
     WHERE user_id = '00000000-0000-4000-8000-000000000021' AND message_id IS NULL),
   'a call without a search logs a count of 0 and no search cost');
 
+-- The research-chat server saves a turn's web sources through finalize_research_turn.
+SET LOCAL ROLE service_role;
+DO $$
+DECLARE
+  a uuid := '00000000-0000-4000-8000-000000000021';
+  claim jsonb; saved jsonb;
+  terminal jsonb := '{"status":"complete","content":"Answer","sources":[],"follow_ups":[],"activity":[],"model_served":"fake","error_message":null,"usage":null,"timing":null}';
+BEGIN
+  claim := public.claim_research_turn(a, 'web-1', repeat('a', 64), NULL, 'Question', 'fake');
+  saved := public.finalize_research_turn(a, 'web-1', (claim->>'execution_token')::uuid,
+    terminal || '{"web_sources":[{"url":"https://rbi.org.in/x","title":"RBI","domain":"rbi.org.in","cited":true}]}'::jsonb);
+  PERFORM pg_temp.assert_true(saved#>>'{assistant,web_sources,0,domain}' = 'rbi.org.in',
+    'finalize saves the web sources and returns them in the snapshot');
+  PERFORM pg_temp.assert_true((SELECT jsonb_array_length(web_sources) = 1 FROM public.chat_messages
+    WHERE id = (claim#>>'{assistant,id}')::uuid), 'the saved row holds the web sources');
+
+  claim := public.claim_research_turn(a, 'web-2', repeat('b', 64), NULL, 'Question', 'fake');
+  saved := public.finalize_research_turn(a, 'web-2', (claim->>'execution_token')::uuid, terminal);
+  PERFORM pg_temp.assert_true(saved#>'{assistant,web_sources}' = '[]'::jsonb,
+    'a result without web sources saves an empty list (older servers keep working)');
+
+  claim := public.claim_research_turn(a, 'web-3', repeat('c', 64), NULL, 'Question', 'fake');
+  PERFORM pg_temp.rejected(format('SELECT public.finalize_research_turn(%L, ''web-3'', %L, %L)', a, claim->>'execution_token',
+    terminal || '{"web_sources":{"url":"https://x.example"}}'::jsonb), '22023', 'finalize rejects web sources that are not an array');
+  PERFORM pg_temp.rejected(format('SELECT public.finalize_research_turn(%L, ''web-3'', %L, %L)', a, claim->>'execution_token',
+    terminal || jsonb_build_object('web_sources', (SELECT jsonb_agg(jsonb_build_object('url', 'https://e.example/' || i)) FROM generate_series(1, 21) i))),
+    '23514', 'finalize cannot save more than 20 web sources');
+END $$;
+RESET ROLE;
+
 -- The reader, user one.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = '00000000-0000-4000-8000-000000000021';
