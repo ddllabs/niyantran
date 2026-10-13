@@ -691,7 +691,7 @@ export default function DeskView({
                         <tr
                           key={rowId}
                           className={rowClass}
-                          {...rowSelectionProps(() => onSelect(on ? null : row))}
+                          {...rowSelectionProps(() => (on ? onSelect(null, { toggled: row }) : onSelect(row)))}
                           {...rowDragProps(row, {
                             feature: featureName,
                             title: cellOf(row, cols[0] || { key: 'title' }) || row.title || row.name || 'Row',

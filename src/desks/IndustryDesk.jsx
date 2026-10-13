@@ -46,7 +46,7 @@ export default function IndustryDesk({ feed, statusRow, selected, onSelect, vizF
               <tr
                 key={r.id}
                 className={selected?.id === r.id ? 'on' : ''}
-                {...rowSelectionProps(() => onSelect?.(selected?.id === r.id ? null : r))}
+                {...rowSelectionProps(() => (selected?.id === r.id ? onSelect?.(null, { toggled: r }) : onSelect?.(r)))}
                 {...rowDragProps(r, { title: r.label, feature: 'Industry Updates' })}
               >
                 <td>{r.label}</td>

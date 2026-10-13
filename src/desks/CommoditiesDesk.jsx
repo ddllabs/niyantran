@@ -49,7 +49,7 @@ function GroupPanel({ title, items, rowFor, selected, onSelect }) {
           const up = String(change || '').trim().startsWith('+');
           const row = rowFor(name);
           const on = Boolean(row && selected && (selected === row || (selected.commodity || selected.title) === name));
-          return <BarRow key={name} label={name} pct={pct} val={`${level}  ${change}`} up={up} on={on} onPick={() => row && onSelect?.(on ? null : row)} />;
+          return <BarRow key={name} label={name} pct={pct} val={`${level}  ${change}`} up={up} on={on} onPick={() => row && (on ? onSelect?.(null, { toggled: row }) : onSelect?.(row))} />;
         })}
       </div>
     </section>

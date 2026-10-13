@@ -4,6 +4,7 @@ import { searchDeskCatalogue } from '../desks/landing/deskCatalogue.js';
 import { ModuleDetail } from '../desks/landing/DeskLandingFrame.jsx';
 import V6Dialog from '../desks/landing/V6Dialog.jsx';
 import { deskHash } from '../lib/deskRoute.js';
+import { aiDragProps, openAiResearch } from '../lib/aiDrop.js';
 import DictationButton from '../components/DictationButton.jsx';
 import CommandSearch from './CommandSearch.jsx';
 import { loadDeskCatalogueSummary } from './deskCatalogueSummary.js';
@@ -12,11 +13,69 @@ import './deskCatalogueSearch.css';
 const EMPTY = [];
 export const catalogueKeySelection = (key, selected, count) => Math.max(0, Math.min(Math.max(0, count - 1), selected + (key === 'ArrowDown' ? 1 : -1)));
 
+/** A catalogue result is a module, so it drags into AI research as a feature (F134). */
+export const catalogueDragProps = entry => aiDragProps({ kind: 'feature', tab: entry.tab, tier: entry.tier, feature: entry.feature, title: entry.title });
+
+export const SEARCH_DRAGGING = 'catalogue-dialog-dragging';
+
+/**
+ * While the search is a modal dialog the page behind it is inert and cannot take a drop. On the start
+ * of a result drag this opens AI research, then (after the browser has taken the drag image) turns the
+ * dialog from modal to a transparent non-modal one: it stays rendered, so the dragged element is not
+ * unmounted. The end of the drag, or a drop anywhere, closes the search.
+ */
+export function createSearchDrag({ getDialog, onEnd, openAi = openAiResearch, schedule = fn => setTimeout(fn, 0), cancel = clearTimeout, getWindow = () => window }) {
+  let active = false, timer = null, win = null;
+  const detach = () => {
+    cancel(timer); timer = null;
+    win?.removeEventListener('dragend', end, true); win?.removeEventListener('drop', end, true);
+    win = null; active = false;
+  };
+  function end() {
+    if (!active) return;
+    detach(); onEnd();
+  }
+  const hide = () => {
+    timer = null;
+    const dialog = getDialog();
+    if (!dialog?.open) return;
+    dialog.classList.add(SEARCH_DRAGGING);
+    dialog.close(); dialog.show();
+  };
+  return {
+    start(event) {
+      // Only a result starts this, not selected text dragged out of the search field.
+      if (active || !event.target?.closest?.('[draggable="true"]')) return;
+      active = true;
+      openAi();
+      win = getWindow();
+      win.addEventListener('dragend', end, true); win.addEventListener('drop', end, true);
+      timer = schedule(hide);
+    },
+    end,
+    dispose: detach,
+  };
+}
+
+/**
+ * Opens the search. A search left mounted but invisible by a drag whose end never arrived is reset
+ * first (closed, then opened on the next tick), so ⌘K and the trigger always work.
+ */
+export function openSearch({ dialog, drag, setOpen, schedule = fn => setTimeout(fn, 0) }) {
+  if (dialog?.classList?.contains(SEARCH_DRAGGING)) {
+    drag?.dispose();
+    setOpen(false);
+    schedule(() => setOpen(true));
+    return;
+  }
+  setOpen(true);
+}
+
 export function CatalogueResults({ results, selected, lockedIds, listId, onSelect, onHighlight }) {
   return <div id={listId} role="listbox" aria-label="Module catalogue" className="catalogue-results">
     {results.length ? results.map((entry, index) => <button type="button" role="option" aria-selected={selected === index}
       id={`${listId}-${index}`} key={entry.id} tabIndex={selected === index ? 0 : -1}
-      className={`catalogue-result${selected === index ? ' active' : ''}`} onMouseEnter={() => onHighlight(index)} onFocus={() => onHighlight(index)} onClick={() => onSelect(entry)}>
+      className={`catalogue-result${selected === index ? ' active' : ''}`} onMouseEnter={() => onHighlight(index)} onFocus={() => onHighlight(index)} onClick={() => onSelect(entry)} {...catalogueDragProps(entry)}>
       <span><b>{entry.title}</b><small>{entry.desk} / {entry.group}</small>{lockedIds.includes(entry.tab) && <small className="catalogue-restriction"><LockKeyhole size={12} aria-hidden="true" />Access restricted</small>}</span><ArrowRight size={17} aria-hidden="true" />
     </button>) : <p className="catalogue-empty">No modules found. Try cricket, music, carbon, bills or courts.</p>}
   </div>;
@@ -38,7 +97,8 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
   const [open, setOpen] = useState(false), [mode, setMode] = useState('catalogue');
   const [query, setQuery] = useState(''), [selected, setSelected] = useState(0);
   const [detail, setDetail] = useState(null), [coverage, setCoverage] = useState(null), [attempt, setAttempt] = useState(0);
-  const trigger = useRef(null), dialog = useRef(null), input = useRef(null);
+  const trigger = useRef(null), dialog = useRef(null), input = useRef(null), drag = useRef(null);
+  if (!drag.current) drag.current = createSearchDrag({ getDialog: () => dialog.current, onEnd: () => setOpen(false) });
   const id = useId(), listId = `${id}-results`, titleId = `${id}-title`;
   const results = useMemo(() => searchDeskCatalogue(query), [query]);
   const active = Math.min(selected, Math.max(0, results.length - 1));
@@ -54,7 +114,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !event.altKey) {
         // Do not stack a search modal above another unrelated native dialog.
         if (document.querySelector('dialog[open]') && !dialog.current?.open) return;
-        event.preventDefault(); setMode('catalogue'); setOpen(true);
+        event.preventDefault(); setMode('catalogue'); openSearch({ dialog: dialog.current, drag: drag.current, setOpen });
       }
     };
     document.addEventListener('keydown', shortcut);
@@ -66,6 +126,7 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
     current.showModal(); input.current?.focus();
     return () => { current.close(); returnFocus?.focus(); };
   }, [open]);
+  useEffect(() => () => drag.current.dispose(), []);
   useEffect(() => {
     if (open) dialog.current?.querySelector('input')?.focus();
   }, [open, mode]);
@@ -96,10 +157,10 @@ export default function DeskCatalogueSearch({ tabs, recordTabs = EMPTY, lockedId
     if (event.key === 'Enter' && results[active]) { event.preventDefault(); choose(results[active]); }
   };
   return <div className="desk-catalogue-search" data-catalogue-desks={tabs?.length || 0}>
-    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); setOpen(true); }}>
+    <button ref={trigger} type="button" className="catalogue-open" aria-label={hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'} aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" onClick={() => { setMode('catalogue'); openSearch({ dialog: dialog.current, drag: drag.current, setOpen }); }}>
       <Search size={16} aria-hidden="true" /><span className="catalogue-label-long">{hi ? 'डेस्क, मॉड्यूल और रिकॉर्ड खोजें' : 'Search desks, modules and records'}</span><span className="catalogue-label-short" aria-hidden="true">{hi ? 'टर्मिनल में खोजें' : 'Search the terminal'}</span><kbd>⌘ K</kbd>
     </button>
-    {open && <dialog ref={dialog} className="catalogue-dialog" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); setOpen(false); }} onClick={event => {
+    {open && <dialog ref={dialog} className="catalogue-dialog" aria-labelledby={titleId} onDragStartCapture={event => drag.current.start(event)} onDragEndCapture={() => drag.current.end()} onCancel={event => { event.preventDefault(); setOpen(false); }} onClick={event => {
       if (event.target !== dialog.current) return;
       const rect = dialog.current.getBoundingClientRect();
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setOpen(false);

@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
-import SidePanel, { dragOpensAi, panelDragProps } from './SidePanel.jsx';
+import SidePanel, { attachRailDismiss, dragOpensAi, escapeAction, escapeOwnerOpen, panelDragProps, railDismissible } from './SidePanel.jsx';
+import { panelReducer, pickIntent, rowPicker } from './sidePanelModel.js';
 
 const panel = (state, extra = {}) => ({
   state: { open: true, collapsed: false, mounted: ['desk'], active: 'desk', ...state }, act: () => {}, seed: null, consumeSeed: () => {},
@@ -183,5 +184,126 @@ describe('a drag that starts on the page', () => {
     expect(opens({ hasRail: false, landing: false, aiActive: false })).toEqual([]);
     expect(opens({ hasRail: true, landing: true, aiActive: false })).toEqual([]);
     expect(opens({ hasRail: true, landing: false, aiActive: false }, { types: ['text/plain'] })).toEqual([]);
+  });
+});
+
+// F135 (owner 2026-10-13): on a rail desk the open Desk or Record view collapses to the slim bar on
+// a click outside it or on Escape, as the side-panel plan said; AI and expanded mode keep their rules.
+describe('Desk and Record close on a click outside or Escape', () => {
+  const el = (keep = false) => ({ isConnected: true, closest: () => (keep ? {} : null) });
+  const fakeDoc = (dialogs = []) => {
+    const on = {};
+    return {
+      addEventListener: (type, fn) => { on[type] = fn; },
+      removeEventListener: (type) => { delete on[type]; },
+      querySelector: () => null,
+      querySelectorAll: (sel) => (sel === 'dialog[open]' ? dialogs : []),
+      click(target) { on.pointerdown?.({ target, button: 0 }); on.pointerup?.({ target, button: 0 }); on.click?.({ target, button: 0 }); },
+      on,
+    };
+  };
+  const zone = (...inside) => ({ contains: (t) => inside.includes(t) });
+
+  it('is armed on a rail desk with Desk or Record open, and not otherwise', () => {
+    expect(railDismissible({ hasRail: true, open: true, active: 'record', expanded: false })).toBe(true);
+    expect(railDismissible({ hasRail: true, open: true, active: 'desk', expanded: false })).toBe(true);
+    expect(railDismissible({ hasRail: true, open: true, active: 'ai', expanded: false })).toBe(false);
+    expect(railDismissible({ hasRail: true, open: true, active: 'record', expanded: true })).toBe(false);
+    expect(railDismissible({ hasRail: true, open: false, active: 'record', expanded: false })).toBe(false);
+    expect(railDismissible({ hasRail: false, open: true, active: 'ai', expanded: false })).toBe(false);
+  });
+
+  it('collapses on a completed click outside the panel, and not on one inside it or inside an open dialog', () => {
+    const inPanel = el();
+    const inDialog = el();
+    const doc = fakeDoc([zone(inDialog)]);
+    const acts = [];
+    const detach = attachRailDismiss(doc, { aside: () => zone(inPanel), act: (a) => acts.push(a) });
+    doc.click(inPanel);
+    doc.click(inDialog);
+    expect(acts).toEqual([]);
+    doc.click(el());
+    expect(acts).toEqual([{ type: 'collapse' }]);
+    detach();
+    expect(doc.on.click).toBeUndefined();
+  });
+
+  it('keeps the selected row, so a row click after the collapse reopens Record', () => {
+    const ctx = { hasRail: true, selected: { id: 1 } };
+    const open = { active: 'record', open: true, collapsed: false, mounted: ['record'] };
+    const collapsed = panelReducer(open, { type: 'collapse' }, ctx);
+    expect(collapsed).toMatchObject({ open: false, collapsed: true, active: 'record' });
+    expect(panelReducer(collapsed, { type: 'select' }, { hasRail: true, selected: { id: 2 } })).toMatchObject({ open: true, active: 'record' });
+  });
+
+  it('Escape collapses Desk or Record, but not over an open dialog; expanded and AI keep their order', () => {
+    const base = { userExpanded: false, citationExpanded: false, aiActive: false, railOpen: true, modalOpen: false };
+    expect(escapeAction(base)).toBe('collapse');
+    expect(escapeAction({ ...base, modalOpen: true })).toBe(null);
+    expect(escapeAction({ ...base, railOpen: false })).toBe(null);
+    expect(escapeAction({ ...base, userExpanded: true })).toBe('restore');
+    expect(escapeAction({ ...base, railOpen: false, aiActive: true })).toBe('close-ai');
+  });
+});
+
+// F135: once the panel has collapsed, picking the selected row again reopens its record. The desks
+// that deselect on a second click pass `{ toggled: row }`; a clear with no row picked (a feature or
+// filter change) still clears.
+describe('picking a row while the panel is collapsed', () => {
+  const sel = { id: 1 };
+  it('reopens Record for the selected row, whether the desk toggles or re-picks it', () => {
+    expect(pickIntent({ row: null, toggled: sel, selected: sel, collapsed: true })).toBe('reopen');
+    expect(pickIntent({ row: sel, selected: sel, collapsed: true })).toBe('reopen');
+  });
+  it('sets the selection otherwise', () => {
+    expect(pickIntent({ row: null, toggled: sel, selected: sel, collapsed: false })).toBe('set');
+    expect(pickIntent({ row: null, selected: sel, collapsed: true })).toBe('set');
+    expect(pickIntent({ row: { id: 2 }, selected: sel, collapsed: true })).toBe('set');
+    expect(pickIntent({ row: sel, selected: null, collapsed: true })).toBe('set');
+  });
+});
+
+// Review (2026-10-13): Escape belongs to an open popup first. The filter popover, column chooser,
+// profile menu, Live TV, the desk menu, the tour and the monitors' live feeds close on Escape
+// themselves; the panel must not collapse in the same keystroke.
+describe('Escape with a popup open', () => {
+  const el = () => ({});
+  const docWith = (...els) => ({ querySelectorAll: () => els });
+  it('sees a popup outside the panel, and ignores one inside it', () => {
+    const inside = el();
+    const aside = { contains: (e) => e === inside };
+    expect(escapeOwnerOpen(docWith(el()), aside)).toBe(true);
+    expect(escapeOwnerOpen(docWith(inside), aside)).toBe(false);
+    expect(escapeOwnerOpen(docWith(), aside)).toBe(false);
+  });
+  it('asks for every kind of popup by role or mark', () => {
+    let asked = '';
+    escapeOwnerOpen({ querySelectorAll: (sel) => { asked = sel; return []; } }, null);
+    for (const part of ['dialog[open]', '[aria-modal="true"]', '[role="dialog"]', '[role="menu"]', '.alw-live']) expect(asked).toContain(part);
+  });
+});
+
+// Review (2026-10-13): the shell's row picker, where the reopen bug lived.
+describe('the row picker', () => {
+  const row = { id: 1 };
+  const setup = (collapsed, selected = row) => {
+    const calls = { set: [], act: [] };
+    const pick = rowPicker(() => ({ selected, panel: { collapsed, act: (a) => calls.act.push(a) } }), (r) => calls.set.push(r));
+    return { pick, calls };
+  };
+  it('reopens Record, without changing the selection, when the collapsed panel\'s row is picked again', () => {
+    const { pick, calls } = setup(true);
+    pick(null, { toggled: row });
+    pick(row);
+    expect(calls.act).toEqual([{ type: 'reopen', tab: 'record' }, { type: 'reopen', tab: 'record' }]);
+    expect(calls.set).toEqual([]);
+  });
+  it('sets the selection otherwise', () => {
+    const { pick, calls } = setup(false);
+    pick(null, { toggled: row });
+    const other = { id: 2 };
+    pick(other);
+    expect(calls.set).toEqual([null, other]);
+    expect(calls.act).toEqual([]);
   });
 });

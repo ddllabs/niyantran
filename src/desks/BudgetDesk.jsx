@@ -95,7 +95,7 @@ export default function BudgetDesk({ selected, onSelect, onFeed, vizFilter, onCl
               <tr
                 key={r.measure}
                 className={selected?.measure === r.measure ? 'on' : ''}
-                {...rowSelectionProps(() => onSelect?.(selected?.measure === r.measure ? null : r))}
+                {...rowSelectionProps(() => (selected?.measure === r.measure ? onSelect?.(null, { toggled: r }) : onSelect?.(r)))}
                 {...rowDragProps(r, { title: r.measure, feature: 'Budget Utilisation Tracker' })}
               >
                 <td>{r.measure}</td>
@@ -129,7 +129,7 @@ export default function BudgetDesk({ selected, onSelect, onFeed, vizFilter, onCl
               <tr
                 key={r.scheme}
                 className={selected?.scheme === r.scheme && selected?.type === 'scheme_be' ? 'on' : ''}
-                {...rowSelectionProps(() => onSelect?.(selected?.scheme === r.scheme && selected?.type === 'scheme_be' ? null : r))}
+                {...rowSelectionProps(() => (selected?.scheme === r.scheme && selected?.type === 'scheme_be' ? onSelect?.(null, { toggled: r }) : onSelect?.(r)))}
                 {...rowDragProps(r, { title: r.scheme, feature: 'Budget Utilisation Tracker' })}
               >
                 <td>{r.scheme}</td>

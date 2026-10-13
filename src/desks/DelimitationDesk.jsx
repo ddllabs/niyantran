@@ -161,7 +161,7 @@ export default function DelimitationDesk({ selected, onSelect, onFeed, vizFilter
               <tr
                 key={r.name}
                 className={selected?.name === r.name ? 'on' : ''}
-                {...rowSelectionProps(() => onSelect?.(selected?.name === r.name ? null : r))}
+                {...rowSelectionProps(() => (selected?.name === r.name ? onSelect?.(null, { toggled: r }) : onSelect?.(r)))}
                 {...rowDragProps(r, { title: r.name, feature: 'Delimitation' })}
               >
                 <td className="delim-state">{r.name}</td>

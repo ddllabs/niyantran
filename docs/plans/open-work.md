@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F133 is next) and goes in the
+- A new finding gets the next free `F` number (F136 is next; F133–F135 are on `task/ui-polish`) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -419,6 +419,19 @@ rechecked. Nothing in this check wrote to production.
       and real icons ([spec](../specs/2026-10-13-web-search-streaming.md),
       "Build and local run").
     - Spend: $0.57 of $1.00 in total.
+- [ ] **F133. Desk tabs: the separator back and less space.** Owner request 2026-10-13. The line
+  between the search row and the desk tabs was lost in `38fae22`, and F112 made the tab row 58 px.
+  The tabs are now their own row at every width under a full-width line, in a 42 px row; the
+  current desk's highlight fills the row from line to line (owner's choices). Header at 1440 px: 107 px (was 119). On `task/ui-polish`;
+  [spec](../specs/2026-10-13-ui-polish.md). Remaining: review, merge, push, owner check.
+- [ ] **F134. Header search results drag into AI research.** Owner request 2026-10-13. Catalogue and
+  Records results now carry the shared drag payload (a record carries its row); a drag opens AI
+  research and the search window steps aside. On `task/ui-polish`. Remaining: a real mouse drag in
+  the browser (the drop could not be simulated), review, merge, push.
+- [ ] **F135. The side panel closes on a click outside or Escape on every page.** Owner request
+  2026-10-13. Only AI had an outside-click close; Desk and Record now collapse to the slim bar on a
+  click outside or Escape (owner's choice), and picking the selected row again reopens its record.
+  On `task/ui-polish`. Remaining: review, merge, push, owner check.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

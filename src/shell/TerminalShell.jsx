@@ -6,7 +6,7 @@ import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
 import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
-import { deskHasRail } from './sidePanelModel.js';
+import { deskHasRail, rowPicker } from './sidePanelModel.js';
 import { Icon } from './Icons.jsx';
 import { Moon, Sun } from 'lucide-react';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
@@ -107,7 +107,9 @@ export default function TerminalShell({ onLogout }) {
   }, []);
 
   const onFeed = useCallback(body => setFeed(body), []);
-  const onSelect = useCallback((row) => setSelected(row), []);
+  // F135: with the panel collapsed, picking the selected row again reopens its record.
+  const pickRef = useRef({});
+  const onSelect = useMemo(() => rowPicker(() => pickRef.current, setSelected), []);
   const onLoading = useCallback((v) => setLoading(Boolean(v)), []);
   const onClearViz = useCallback(() => setVizFilter(null), []);
   const guideMode = tab !== 'home' && !String(featureName || '').trim();
@@ -284,6 +286,7 @@ export default function TerminalShell({ onLogout }) {
   const billRecordOpen = (isImpactRecordFeature(featureName) || isGithubCsvRow(selected)) && selected;
   const hasRail = deskHasRail({ restricted, tab, guideMode, featureName });
   const panel = useSidePanel({ hasRail, selected, featureName, tab, landing: guideMode || tab === 'home' });
+  pickRef.current = { selected, panel };
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
