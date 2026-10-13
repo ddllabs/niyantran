@@ -52,6 +52,8 @@ describe('record panel contract', () => {
     expect(contractProblems(m)).toEqual([]); // the row is data to open, not text the panel shows
     m.touches.links = [{ title: 'Other', detail: 'x', row: 'Other' }];
     expect(contractProblems(m).join()).toMatch(/touch link Other has a row that is not a record/);
+    m.touches.links = [{ title: 'Other', detail: 'x', row: [] }];
+    expect(contractProblems(m).join()).toMatch(/touch link Other has a row that is not a record/);
   });
 
   it('rejects reference placeholders but allows ordinary prose', () => {

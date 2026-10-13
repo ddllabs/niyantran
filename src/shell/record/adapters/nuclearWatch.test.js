@@ -22,7 +22,8 @@ const natanz = byId('natanz'); // approximate area
 const reserve = byId('kaz-reserve'); // country centroid, not a facility
 const rivne = byId('rivnenska');
 const navoi = byId('navoi'); // regional centroid
-const APPROX = /approximate|regional|country|city-level/i;
+/** Only the register's "Exact …" labels vouch for the facility itself; any other centroid or area is approximate. */
+const APPROX = { test: (precision) => !/^exact\b/i.test(String(precision || '').trim()) };
 
 function strings(value, out = []) {
   if (typeof value === 'string') out.push(value);
@@ -141,7 +142,7 @@ describe('facility map', () => {
     expect(v.caption).not.toMatch(/approximate/i);
   });
 
-  it('marks every record whose precision says approximate, regional, city-level or country as approximate, and says so', () => {
+  it('marks every record whose precision is not an "Exact" label as approximate, and says so', () => {
     let approx = 0;
     for (const row of rows) {
       const p = model(row).glance.visual.points[0];
@@ -156,7 +157,7 @@ describe('facility map', () => {
       expect(p, row.id).toMatchObject({ lat: row.lat, lon: row.lon, main: true });
     }
     expect(approx).toBe(rows.filter((r) => APPROX.test(r.precision)).length);
-    expect(approx).toBeGreaterThanOrEqual(15);
+    expect(approx).toBe(35); // 112 rows, 77 with an "Exact" label
   });
 
   it('says a country centroid is not a facility', () => {

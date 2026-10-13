@@ -86,7 +86,7 @@ export default function alliances(row, ctx = {}) {
   const points = records
     .map((m) => ({ m, at: countryPosition(m.country) }))
     .filter(({ at }) => at)
-    .map(({ m, at }) => ({ lat: at.lat, lon: at.lon, label: m.country, tone: flags ? TONE_OF_STANDING[m.tone] || 'blue' : 'blue', approximate: true, ...(m.country === seat ? { main: true } : {}) }));
+    .map(({ m, at }) => ({ lat: at.lat, lon: at.lon, label: m.country, tone: flags && Object.hasOwn(TONE_OF_STANDING, m.tone) ? TONE_OF_STANDING[m.tone] : 'blue', approximate: true, ...(m.country === seat ? { main: true } : {}) }));
   const unplaced = names.filter((n) => !countryPosition(n));
   const legend = ['amber', 'green', 'red'].filter((t) => points.some((pt) => pt.tone === t)).map((t) => `${t}: ${LEGEND[t]}`);
   const mapCaption = [

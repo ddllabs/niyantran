@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F123 is next) and goes in the
+- A new finding gets the next free `F` number (F124 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -222,7 +222,15 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - Dead code: `src/desks/AssetAnalytics.jsx` has no importer; helpers in
     `src/lib/alliances.js`, `sanctions.js`, `globalAid.js` and
     `strategicAssets.js` used only by the retired dossier record views may
-    now be unused.
+    now be unused; `fillSiteLabel` in `src/lib/geoTip.js` is now called only
+    by its test, and its comment and the F28 note below still name the
+    deleted `NuclearSiteMap.jsx`.
+- [ ] **F123. Cached AI brief in the Global record panels.** The spec
+  (assumption 3) says a cached entry brief appears as a card in 02 · About.
+  No Global record panel shows it. The four retired dossier views showed it
+  through `useEntryBrief` (`src/shell/EntryBriefInline.jsx`), so the dossier
+  records lost it in F121 batch 3. Decide with the owner after F111 (AI
+  credits), because loading briefs may call the `desk-brief` function.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

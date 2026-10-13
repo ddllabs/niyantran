@@ -297,6 +297,16 @@ visuals and lanes are fixed in the spec's "Batch 3 decisions".
     - no sideways scroll at 375px;
     - readable dark-mode colours;
     - no console errors after a clean reload.
+- **Independent review (Fable, 2026-10-13):** ready to merge, with no must-fix items. Addressed
+  before the merge:
+  - **Nuclear Watch precision:** only the register's "Exact …" labels count as exact; any other
+    centroid or area is approximate. That marks 35 of 112 records approximate, up from 17.
+  - **Contract:** rejects an array as a link `row`. The test failed with the guard removed.
+  - **Alliances:** looks up member tones by own property only.
+  - **Registry test title** corrected.
+- **Recorded, not built:**
+  - the cached AI brief is not shown in any panel (F123);
+  - the dead code and stale `NuclearSiteMap` references (F122).
 - **Found out of scope:** added to F122 in open-work.
 
 ## Risks and mitigations

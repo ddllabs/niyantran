@@ -14,8 +14,12 @@ import { cap, dateLabel, presentRows, sourceLinks } from './common.js';
  */
 const NOT_ON_RECORD = 'Not on record';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** The precision labels that say the position is not the facility itself (the old site map's rule, plus the register's "city-level"). */
-const APPROXIMATE = /approximate|regional|country|city-level/i;
+/**
+ * Only the register's "Exact …" labels vouch for the facility itself. Any other label (a complex,
+ * campus or mine-area centroid, an approximate area, a regional or country centroid) or no label at
+ * all is treated as approximate.
+ */
+const APPROXIMATE = { test: (precision) => !/^exact\b/i.test(String(precision || '').trim()) };
 const COUNTRY_LEVEL = /country centroid/i;
 const MAX_FACILITY_LINKS = 3;
 
@@ -96,7 +100,7 @@ export default function nuclearWatch(row, ctx = {}) {
   const countryLevel = COUNTRY_LEVEL.test(precision);
   const noun = countryLevel ? 'record' : 'facility';
   const where = position(row);
-  const approximate = !precision || APPROXIMATE.test(precision);
+  const approximate = APPROXIMATE.test(precision);
   const front = text(row.front);
   const asOf = checked || dateLabel(ctx.feed?.meta?.asOf);
 

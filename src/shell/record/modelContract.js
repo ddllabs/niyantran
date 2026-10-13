@@ -63,7 +63,7 @@ export function contractProblems(model) {
   if (model.touches) {
     if ((model.touches.lanes || []).length !== 4) problems.push('touches needs four lanes');
     if (!model.touches.nodes?.center) problems.push('touches needs a centre node');
-    for (const l of model.touches.links || []) if (l.row !== undefined && (!l.row || typeof l.row !== 'object')) problems.push(`touch link ${l.title} has a row that is not a record`);
+    for (const l of model.touches.links || []) if (l.row !== undefined && (!l.row || typeof l.row !== 'object' || Array.isArray(l.row))) problems.push(`touch link ${l.title} has a row that is not a record`);
   }
   if (!String(model.footer?.ask || '').trim()) problems.push('missing Ask AI label');
   if (!String(model.footer?.provenance?.source || '').trim()) problems.push('missing provenance source');
