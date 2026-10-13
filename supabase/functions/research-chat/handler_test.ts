@@ -2516,5 +2516,116 @@ Deno.test('web search: an answer backed only by the web says so, not "Unverified
   const saved = rec.messages[0];
   assert(!saved.content.includes('**Unverified.**'));
   assertStringIncludes(saved.content, '**Not from the record.**');
+  // F131: the web sources now sit in the strip above the answer.
+  assertStringIncludes(saved.content, 'the web sources listed above the answer');
   assertStringIncludes(saved.content, 'unofficial');
+});
+
+// ─── F131 web search streaming (docs/specs/2026-10-13-web-search-streaming.md) ───────────────────
+
+type ToolOnWire = { tool: { name: string; phase: string; step: number; resultCount?: number; searches?: number } };
+const progress = (...pages: { url: string; title: string; excerpt: string }[]): ModelEvent => ({ type: 'web-progress', pages });
+const livePages = (got: ChatFrame[]) =>
+  got.flatMap((f) => ('webProgress' in f ? [(f as { webProgress: { pages: unknown[] } }).webProgress.pages] : []));
+const webTools = (got: ChatFrame[]) =>
+  got.filter((f) => 'tool' in f && (f as ToolOnWire).tool.name === 'web_search') as ToolOnWire[];
+/** Probe 3: Gemini reported four searches against max_uses 3 and was billed three. */
+const overReported: Usage = { ...searchedUsage, web_search_requests: 4, cost: 0.039461775, upstream_inference_cost: 0.018461775 };
+
+Deno.test('live pages: webProgress frames carry url, title and domain only, https only, each page once, after a web_search start', async () => {
+  const rbi = { url: SEARCHED, title: '  Press Releases -\n Reserve Bank of India  ', excerpt: 'SECRET-EXCERPT the MPC voted.' };
+  const plain = { url: 'http://insecure.example.org/page', title: 'Insecure', excerpt: 'x' };
+  const pib = { url: 'https://pib.gov.in/x', title: 'P'.repeat(300), excerpt: 'SECRET-EXCERPT policy.' };
+  const provider = scripted([
+    [progress(rbi, plain), progress(rbi, pib), webPages(), finish('stop', overReported)],
+    NO_RESEARCH,
+    [text(envelope(`The repo rate was kept [according to the RBI](${SEARCHED}).`)), finish()],
+  ]);
+  const { deps, rec } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  const notices: string[] = [];
+  const log = console.log;
+  console.log = (message) => notices.push(String(message));
+  let got: ChatFrame[];
+  try {
+    got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-live' }), deps));
+  } finally {
+    console.log = log;
+  }
+  assertEquals(livePages(got), [
+    [{ url: SEARCHED, title: 'Press Releases - Reserve Bank of India', domain: 'rbi.org.in' }],
+    [{ url: 'https://pib.gov.in/x', title: 'P'.repeat(200), domain: 'pib.gov.in' }],
+  ], 'no excerpt, no http page, and the repeated page is not sent again');
+  assert(!JSON.stringify(got).includes('SECRET-EXCERPT'), 'excerpts never reach the wire');
+
+  // The ticker: one start, before the first page, with the step the end frame uses.
+  const tools = webTools(got);
+  assertEquals(tools.map((f) => [f.tool.phase, f.tool.step]), [['start', 1], ['end', 1]]);
+  const keys = got.map(keyOf);
+  const at = (phase: string) => got.findIndex((f) => 'tool' in f && (f as ToolOnWire).tool.name === 'web_search' && (f as ToolOnWire).tool.phase === phase);
+  assert(at('start') < keys.indexOf('webProgress') && keys.lastIndexOf('webProgress') < at('end'));
+  // The end frame and the saved step carry the capped search count.
+  assertEquals([tools[1].tool.searches, tools[1].tool.resultCount], [3, 2]);
+  const saved = rec.messages[0] as AssistantMessage & Record<string, unknown>;
+  const savedWeb = (saved.activity as { name?: string; phase?: string; searches?: number }[]).filter((a) => a.name === 'web_search');
+  assertEquals(savedWeb.map((a) => [a.phase, a.searches]), [['end', 3]], 'saved steps are end-only');
+  // Display only: not saved, not logged.
+  assert(!JSON.stringify(saved).includes('webProgress'));
+  assert(!notices.some((line) => line.includes('webProgress') || line.includes('pib.gov.in')), 'live pages are not logged');
+  assertEquals(rec.traces.find((t) => t.step_type === 'web_search')?.result_count, 2);
+});
+
+Deno.test('live pages: each research round that searches gets its own start; pages already sent this turn are not sent again', async () => {
+  const one = { url: 'https://rbi.org.in/one', title: 'One', excerpt: '' };
+  const two = { url: 'https://rbi.org.in/two', title: 'Two', excerpt: '' };
+  const provider = scripted([
+    [progress(one), { type: 'web-results', pages: [one] }, finish('stop', searchedUsage)],
+    [progress(one, two), { type: 'web-results', pages: [one, two] }, finish('stop', searchedUsage)],
+    [text(envelope('Answer.')), finish()],
+  ]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-rounds' }), deps));
+  assertEquals(livePages(got).map((pages) => (pages as { url: string }[]).map((p) => p.url)), [[one.url], [two.url]]);
+  assertEquals(webTools(got).map((f) => [f.tool.phase, f.tool.step, f.tool.searches]), [
+    ['start', 1, undefined], ['end', 1, 1], ['start', 2, undefined], ['end', 2, 1],
+  ]);
+});
+
+Deno.test('live pages: at most fifteen are sent in a turn', async () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ url: `https://example.org/${i}`, title: `Page ${i}`, excerpt: '' }));
+  const provider = scripted([
+    [progress(...many.slice(0, 12)), progress(...many.slice(12)), finish('stop', searchedUsage)],
+    NO_RESEARCH,
+    [text(envelope('Answer.')), finish()],
+  ]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-many' }), deps));
+  const sent = livePages(got).flat() as { url: string }[];
+  assertEquals(sent.map((p) => p.url), many.slice(0, 15).map((p) => p.url));
+});
+
+Deno.test('live pages: a turn whose calls are not offered the tool sends no live pages and no web_search start', async () => {
+  const provider = scripted([
+    [progress({ url: SEARCHED, title: 'RBI', excerpt: '' }), finish('stop')],
+    NO_RESEARCH,
+    [text(envelope('Answer.')), finish()],
+  ]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-unoffered', web_search: false }), deps));
+  assertEquals(webFrame(got)?.offered, false);
+  assertEquals(livePages(got), []);
+  assertEquals(webTools(got), []);
+});
+
+Deno.test('one stream: a web turn whose research call searched streams the answer once, with no patch', async () => {
+  const provider = scripted([
+    [text(envelope('Draft that will be rewritten.')), progress({ url: SEARCHED, title: 'RBI', excerpt: '' }), webPages(), finish('stop', searchedUsage)],
+    NO_RESEARCH,
+    [text(envelope('The final answer.')), finish()],
+  ]);
+  const { deps } = fakeDeps(provider, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  const got = await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-once' }), deps));
+  assertEquals(got.some((f) => 'patch' in f), false, 'nothing was taken back');
+  const streamed = got.flatMap((f) => ('chunk' in f ? [(f as { chunk: string }).chunk] : [])).join('');
+  assert(!streamed.includes('Draft that will be rewritten'));
+  assertStringIncludes(streamed, 'The final answer.');
 });

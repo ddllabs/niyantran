@@ -73,6 +73,7 @@ Deno.test('every declared frame key round-trips through frameKey', () => {
     { model: { requested: 'a', served: 'b', reason: 'unavailable' } },
     { sources: [] },
     { webSources: [{ url: 'https://rbi.org.in/x', title: 'RBI', domain: 'rbi.org.in', cited: true }] },
+    { webProgress: { pages: [{ url: 'https://rbi.org.in/x', title: 'RBI', domain: 'rbi.org.in' }] } },
     { followUpQuestions: [] },
     { truncated: { reason: 'length', continuations: 1 } },
     { notice: { kind: 'window', dropped: 3 } },

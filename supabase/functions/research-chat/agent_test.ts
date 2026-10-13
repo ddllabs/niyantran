@@ -2,7 +2,7 @@ import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { createAnswerDecoder } from './answerStream.ts';
 import { HttpError } from '../_shared/http.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
-import { type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
+import { type ModelEvent, ProviderError, type StreamRequest, streamChat } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
 import { WEB_SEARCHES_PER_TURN, type WebPage, webEvidenceBlock, webSearchTool } from '../_shared/webSearch.ts';
@@ -1690,7 +1690,8 @@ for (
     const result = await runAgent(f.deps, input);
     assertEquals(f.requests.length, 3, 'no shortcut');
     assertEquals(f.events.filter((e) => 'promoted' in e), []);
-    assertEquals(f.events.filter((e) => 'retract' in e), [{ retract: 'rewriting' }]);
+    // F131: the call was offered the tool, so its draft was held, never sent, and never retracted.
+    assertEquals(f.events.filter((e) => 'draftText' in e || 'retract' in e), []);
     assertEquals(f.requests[2].tool_choice, 'none');
     assertEquals('serverTools' in f.requests[2], false);
     const hadPages = events.some((e) => e.type === 'web-results');
@@ -1772,4 +1773,148 @@ Deno.test('web: a resumed turn whose model still allows web search is offered wh
   assertEquals('serverTools' in resumed.requests[1], false, 'all three used');
   assertEquals(result.webSearches, 3);
   assertEquals(result.webPages, [page(1), page(2), page(3)]);
+});
+
+// ---- web-search-streaming spec §1, §2 (F131): the count is capped at what the call was offered,
+// a research call offered the web tool holds its draft, and its live pages are forwarded.
+
+type Probe3 = { chunks: { delta: Record<string, unknown> }[]; finish: { reason: string }; usage: Record<string, unknown> };
+const probe3 = (): Probe3 =>
+  JSON.parse(Deno.readTextFileSync(new URL('../_shared/__fixtures__/web-search/probe3-gemini-3.8-flash-bursts.json', import.meta.url)));
+/** The Probe 3 Gemini call as streamChat yields it: 15 live pages, a held sentence, a tool call. */
+async function probe3Call(edit: (p: Probe3) => void = () => {}): Promise<ModelEvent[]> {
+  const p = probe3();
+  edit(p);
+  const frame = (choice: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    `data: ${JSON.stringify({ id: 'gen-p3', model: 'google/gemini-3.8-flash', choices: [{ index: 0, ...choice }], ...extra })}\n\n`;
+  const body = p.chunks.map((c) => frame({ delta: c.delta, finish_reason: null })).join('') +
+    frame({ delta: {}, finish_reason: p.finish.reason }, { usage: p.usage }) + 'data: [DONE]\n\n';
+  const out: ModelEvent[] = [];
+  const fetch = (() => Promise.resolve(new Response(body))) as unknown as typeof globalThis.fetch;
+  for await (const e of streamChat({ apiKey: 'k', fetch }, { model: 'google/gemini-3.8-flash', messages: [] })) out.push(e);
+  return out;
+}
+const keysOf = (events: AgentEvent[]) => events.map((e) => Object.keys(e)[0]);
+
+Deno.test('web cap: Probe 3 reported 4 searches with max_uses 3; the turn counts and charges 3, at the split cost of $0.021', async () => {
+  const f = fake([await probe3Call(), ready(), answer()], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(serverToolsOf(f.requests[0])?.[0].parameters.max_uses, 3);
+  const web = webEvents(f.events);
+  assertEquals(web.length, 1);
+  assertEquals([web[0].searches, web[0].costUsd, web[0].pages.length], [3, 0.021, 15]);
+  assertEquals(result.webSearches, 3, 'the budget is charged the capped count');
+});
+
+Deno.test('web cap: the usage telemetry records is capped too, so model_call_logs and the turn total say 3', async () => {
+  const f = fake([await probe3Call(), ready(), answer()], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  const finishes = f.events.filter((e): e is { finish: Extract<ModelEvent, { type: 'finish' }> } => 'finish' in e);
+  assertEquals(finishes[0].finish.usage?.web_search_requests, 3);
+  assertEquals(result.usage[0]?.web_search_requests, 3);
+});
+
+Deno.test('web cap: without a cost split, the fallback prices the capped count, 3 x $0.007', async () => {
+  const events = await probe3Call((p) => { delete p.usage.cost_details; });
+  const f = fake([events, ready(), answer()], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(webEvents(f.events).map((w) => [w.searches, w.costUsd]), [[3, 0.021]]);
+  assertEquals(result.webSearches, 3);
+});
+
+Deno.test('web cap: the cap is what this call was offered, not the turn limit', async () => {
+  const f = fake([
+    [docCall('one'), webResults(page(1)), searched(2, 'tool_calls')],
+    [docCall('two'), webResults(page(2)), searched(4, 'tool_calls')],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(serverToolsOf(f.requests[1])?.[0].parameters.max_uses, 1);
+  assertEquals(webEvents(f.events).map((w) => w.searches), [2, 1]);
+  assertEquals(result.webSearches, 3);
+});
+
+Deno.test('one stream: a web-offered research call that searches sends no draft and no retract; the answer is sent once', async () => {
+  // A budget of six keeps the second call offered the tool after Probe 3's three searches.
+  const f = fake([await probe3Call(), [{ type: 'text', text: draft() }, webResults(page(1)), searched(1)], answer()], {
+    webSearch: { perTurn: 6 },
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3);
+  assertEquals(f.requests.slice(0, 2).map((r) => serverToolsOf(r)?.[0].parameters.max_uses), [3, 3], 'both research calls were offered the tool');
+  assertEquals(f.events.filter((e) => 'draftText' in e || 'retract' in e), [], 'neither call sent its draft');
+  const answerText = (answer()[0] as { text: string }).text;
+  assertEquals(f.events.flatMap((e) => ('text' in e ? [e.text] : [])).join(''), answerText);
+  assertEquals(result.text, answerText);
+  // The held sentence still reaches the transcript, as before.
+  assertEquals(f.requests[1].messages.some((m) => m.role === 'assistant' && m.content === 'Checking the record for the committee\'s decision.'), true);
+});
+
+Deno.test('one stream: a web-offered call that did not search and is promoted sends its text once, just before promoted', async () => {
+  const whole = draft();
+  const parts = [whole.slice(0, 20), whole.slice(20)];
+  const f = fake([[docCall(), finish('tool_calls')], [...parts.map((t) => ({ type: 'text' as const, text: t })), finish()]], {
+    webSearch: { perTurn: 3 },
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 2);
+  assertEquals(result.text, whole);
+  assertEquals(f.events.filter((e) => 'draftText' in e), [{ draftText: whole }], 'once, whole');
+  const keys = keysOf(f.events);
+  assertEquals(keys.slice(keys.lastIndexOf('finish')), ['finish', 'draftText', 'promoted']);
+  assertEquals(keys.includes('retract'), false);
+});
+
+Deno.test('one stream: a held call that breaks off retracts nothing', async () => {
+  const f = fake([], {
+    webSearch: { perTurn: 3 },
+    model: async function* () {
+      yield { type: 'text' as const, text: '{"answer":"Half' };
+      throw new ProviderError(503, 'down');
+    },
+  });
+  await assertRejects(() => runAgent(f.deps, input), ProviderError);
+  assertEquals(f.events.filter((e) => 'draftText' in e || 'retract' in e), []);
+});
+
+Deno.test('one stream: a call not offered the tool streams and retracts as before, even on a web turn whose budget is spent', async () => {
+  const f = fake([
+    [docCall('one'), webResults(page(1)), searched(3, 'tool_calls')],
+    [{ type: 'text', text: '{"answer":"Early guess' }, docCall('two'), finish('tool_calls')],
+    [{ type: 'text', text: draft() }, finish()],
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals('serverTools' in f.requests[1], false, 'budget spent: the second call is not offered the tool');
+  const drafts = f.events.flatMap((e) => ('draftText' in e ? [e.draftText] : []));
+  assertEquals(drafts, ['{"answer":"Early guess', draft()], 'both unoffered calls stream live');
+  assertEquals(f.events.filter((e) => 'retract' in e), [{ retract: 'searching' }]);
+  const keys = keysOf(f.events);
+  assert(keys.indexOf('draftText') < keys.indexOf('finish', keys.indexOf('draftText')), 'live, before the call finished');
+  assertEquals(result.text, draft());
+});
+
+Deno.test('live pages: a call offered the tool forwards each web-progress as webProgress, while it runs', async () => {
+  const f = fake([await probe3Call(), ready(), answer()], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  await runAgent(f.deps, input);
+  const progress = f.events.flatMap((e) => ('webProgress' in e ? [e.webProgress.pages] : []));
+  assertEquals(progress.length, 15);
+  assertEquals(progress.flat(), webEvents(f.events)[0].pages, 'the same pages the web event reports, in order');
+  const keys = keysOf(f.events);
+  assert(keys.lastIndexOf('webProgress') < keys.indexOf('finish'), 'before the call finished');
+});
+
+Deno.test('live pages: a call not offered the tool forwards nothing, and its progress does not end the call', async () => {
+  const f = fake([
+    [{ type: 'web-progress', pages: [page(1)] }, docCall(), finish('tool_calls')],
+    ready(),
+    answer(),
+  ], { searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.events.filter((e) => 'webProgress' in e), []);
+  assertEquals(f.events.filter((e) => 'finish' in e).map((e) => (e as { finish: ModelEvent }).finish.type), ['finish', 'finish', 'finish']);
+  assertEquals(result.searches, 1, 'the tool call after the progress still ran');
+  assertEquals(result.webPages, []);
 });

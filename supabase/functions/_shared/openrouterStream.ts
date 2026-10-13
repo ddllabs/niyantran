@@ -33,6 +33,10 @@ export type ModelEvent =
   | { type: 'tool-call'; id: string; name: string; args: string }
   /** Pages a server-side web search returned, from `url_citation` annotations (web-search spec §2). */
   | { type: 'web-results'; pages: WebPage[] }
+  /** Display only (web-search-streaming spec §2): the pages a chunk's annotations added that this
+   * call had not seen, as they arrive. Never carried forward, counted or charged: `web-results`
+   * alone is, and only once the call completes. */
+  | { type: 'web-progress'; pages: WebPage[] }
   | { type: 'finish'; reason: string; usage: Usage | null; served: string | null; generationId: string | null };
 
 /** Private accounting observations; never serialized into the provider body. */
@@ -289,9 +293,17 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
       }
     }
     const message = (choice.message ?? {}) as Record<string, unknown>;
+    const fresh: WebPage[] = [];
     for (const source of [delta.annotations, message.annotations]) {
-      for (const page of parseWebAnnotations(source)) if (!pages.has(page.url)) pages.set(page.url, page);
+      for (const page of parseWebAnnotations(source)) {
+        if (pages.has(page.url)) continue;
+        pages.set(page.url, page);
+        fresh.push(page);
+      }
     }
+    // Each search's pages arrive in a burst, seconds before the call ends (Probe 3), so they are
+    // shown as they come. Display only: what is carried forward is the web-results event below.
+    if (fresh.length) yield { type: 'web-progress', pages: fresh };
     const reasoning = delta.reasoning ?? delta.reasoning_content;
     if (typeof reasoning === 'string' && reasoning) yield { type: 'reasoning', text: reasoning };
     if (typeof delta.content === 'string' && delta.content) yield { type: 'text', text: delta.content };

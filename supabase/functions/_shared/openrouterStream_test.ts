@@ -463,7 +463,7 @@ Deno.test('annotations on delta become one web-results event after the text and 
     chunk({ annotations: gemini.annotations.slice(2) }),
     { ...finished(gemini.finish), usage: gemini.usage },
   ]), { model: 'google/gemini-3.8-flash', messages: [] }));
-  assertEquals(events.map((e) => e.type), ['text', 'text', 'web-results', 'finish']);
+  assertEquals(events.map((e) => e.type), ['text', 'web-progress', 'text', 'web-progress', 'web-results', 'finish']);
   const pages = webResults(events)[0].pages;
   assertEquals(pages.length, 5);
   assertEquals(pages[0].url, 'https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=59692');
@@ -483,7 +483,8 @@ Deno.test('annotations on message are read too, and a page repeated within the c
     { ...chunk({}), choices: [{ index: 0, delta: {}, message: { annotations: claude.annotations.slice(0, 3) }, finish_reason: null }] },
     { ...finished('stop'), usage: claude.usage },
   ]), { model: 'anthropic/claude-sonnet-5', messages: [] }));
-  assertEquals(events.map((e) => e.type), ['text', 'web-results', 'finish']);
+  // The repeat on the second message frame adds nothing new, so it yields no progress.
+  assertEquals(events.map((e) => e.type), ['text', 'web-progress', 'web-results', 'finish']);
   const urls = webResults(events)[0].pages.map((p) => p.url);
   assertEquals(new Set(urls).size, urls.length, 'de-duplicated by URL within the call');
   assertEquals(urls.length, new Set(claude.annotations.map((a) => (a as { url_citation: { url: string } }).url_citation.url)).size);
@@ -497,7 +498,7 @@ Deno.test('a searching call that ends in tool calls yields its pages before the 
     tool(),
     { ...finished('tool_calls'), usage: deepseek.usage },
   ]), { model: 'deepseek/deepseek-v4-flash', messages: [] }));
-  assertEquals(events.map((e) => e.type), ['web-results', 'tool-call', 'finish']);
+  assertEquals(events.map((e) => e.type), ['web-progress', 'web-results', 'tool-call', 'finish']);
   assertEquals(webResults(events)[0].pages.length, 5);
   // DeepSeek's split put the whole cost on the model; the count is still what the provider said.
   assertEquals(finishOf(events).usage!.web_search_requests, 1);
@@ -512,7 +513,7 @@ Deno.test('annotations arriving with or after the finish frame are kept and are 
     chunk({ annotations: gpt.annotations.slice(5) }),
     { ...finished('stop'), usage: gpt.usage },
   ]), { model: 'openai/gpt-6-astra', messages: [] }));
-  assertEquals(events.map((e) => e.type), ['text', 'web-results', 'finish']);
+  assertEquals(events.map((e) => e.type), ['text', 'web-progress', 'web-progress', 'web-results', 'finish']);
   assertEquals(webResults(events)[0].pages.length, new Set(gpt.annotations.map((a) => (a as { url_citation: { url: string } }).url_citation.url)).size);
   assertEquals(finishOf(events).usage!.web_search_requests, 3);
 });
@@ -535,6 +536,76 @@ Deno.test('annotations without a usable http(s) URL are dropped, and a call of o
   ]), { model: 'fake', messages: [] }));
   assertEquals(events.map((e) => e.type), ['text', 'finish']);
 });
+
+// ---- web-search-streaming spec §2 (F131): pages are shown live, as each search's annotations
+// arrive. The Probe 3 fixture keeps Gemini's real chunk order: three bursts of five
+// annotations, one per chunk, with reasoning between them, then a tool call.
+
+type Probe3 = {
+  max_uses: number;
+  chunks: { ms: number; delta: Record<string, unknown> }[];
+  finish: { ms: number; reason: string };
+  usage: Record<string, unknown>;
+};
+const probe3 = (): Probe3 =>
+  JSON.parse(Deno.readTextFileSync(new URL('./__fixtures__/web-search/probe3-gemini-3.8-flash-bursts.json', import.meta.url)));
+const probe3Payloads = (p: Probe3, withFinish = true): unknown[] => [
+  ...p.chunks.map((c) => chunk(c.delta)),
+  ...(withFinish ? [{ ...finished(p.finish.reason), usage: p.usage }] : []),
+];
+const progressOf = (events: ModelEvent[]) =>
+  events.filter((e) => e.type === 'web-progress') as Extract<ModelEvent, { type: 'web-progress' }>[];
+/** Contiguous runs of web-progress events, by the number of pages each run carried. */
+const bursts = (events: ModelEvent[]): number[] => {
+  const out: number[] = [];
+  let run = 0;
+  for (const e of events) {
+    if (e.type === 'web-progress') run += e.pages.length;
+    else if (run) { out.push(run); run = 0; }
+  }
+  if (run) out.push(run);
+  return out;
+};
+
+Deno.test('Probe 3: each search burst yields its pages live, between the reasoning, long before the one web-results at the end', async () => {
+  const p = probe3();
+  const events = await collect(streamChat(rawDeps(probe3Payloads(p)), { model: 'google/gemini-3.8-flash', messages: [] }));
+  assertEquals(bursts(events), [5, 5, 5], 'three bursts of five, as the probe timed them');
+  const types = events.map((e) => e.type);
+  // Each burst arrives before the reasoning that followed it in the probe, not at the end.
+  const reasoningAt = types.flatMap((t, i) => (t === 'reasoning' ? [i] : []));
+  const progressAt = types.flatMap((t, i) => (t === 'web-progress' ? [i] : []));
+  assert(progressAt[4] < reasoningAt[1] && progressAt[9] < reasoningAt[2] && progressAt[14] < reasoningAt[3]);
+  // web-results is unchanged: once, after the last progress, before the tool call and finish.
+  assertEquals(types.filter((t) => t === 'web-results').length, 1);
+  assertEquals(types.slice(-3), ['web-results', 'tool-call', 'finish']);
+  const live = progressOf(events).flatMap((e) => e.pages);
+  assertEquals(live, webResults(events)[0].pages, 'the live pages are exactly the final list, in order');
+  assertEquals(live.length, 15);
+  assertEquals(finishOf(events).usage!.web_search_requests, 4, 'the stream reports the provider count as given');
+});
+
+Deno.test('web-progress carries only pages new to the call, by normalised URL, from delta or message', async () => {
+  const a = { type: 'url_citation', url_citation: { url: 'https://www.rbi.org.in/a', title: 'A', content: 'a' } };
+  const aAgain = { type: 'url_citation', url_citation: { url: 'https://WWW.RBI.ORG.IN/a#top', title: 'A again', content: 'a' } };
+  const b = { type: 'url_citation', url_citation: { url: 'https://pib.gov.in/b', title: 'B', content: 'b' } };
+  const events = await collect(streamChat(rawDeps([
+    chunk({ annotations: [a] }),
+    chunk({ annotations: [aAgain] }),
+    { ...chunk({}), choices: [{ index: 0, delta: {}, message: { annotations: [aAgain, b] }, finish_reason: null }] },
+    finished('stop'),
+  ]), { model: 'fake', messages: [] }));
+  assertEquals(progressOf(events).map((e) => e.pages.map((p) => p.url)), [['https://www.rbi.org.in/a'], ['https://pib.gov.in/b']]);
+  assertEquals(webResults(events)[0].pages.map((p) => p.url), ['https://www.rbi.org.in/a', 'https://pib.gov.in/b']);
+});
+
+for (const done of [false, true]) {
+  Deno.test(`Probe 3 cut off before its finish (${done ? '[DONE]' : 'EOF'}): pages were shown live, but no web-results is yielded`, async () => {
+    const events = await expectFailure(probe3Payloads(probe3(), false), done);
+    assertEquals(bursts(events), [5, 5, 5]);
+    assertEquals(events.some((e) => e.type === 'web-results'), false, 'a call that breaks off contributes nothing');
+  });
+}
 
 // chat-turn-cost amendment 1: OpenRouter provider routing, measured before it is wired in.
 Deno.test('providerSort sets provider.sort, alongside require_parameters; unset, the body has no sort', () => {
