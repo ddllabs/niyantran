@@ -15,6 +15,24 @@ import { isNationalTable } from '../lib/national.js';
 import NationalRecord from '../desks/NationalRecord.jsx';
 import RecordPanel from './record/RecordPanel.jsx';
 import { adapterFor } from './record/registry.js';
+import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
+
+/**
+ * A record panel with its saved AI brief (F123). The brief is only read from the cache that AI
+ * Research fills; selecting a record never generates one, so it spends no credits.
+ */
+function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
+  const { brief, busy, err } = useEntryBrief({ feed, selected, loading });
+  return (
+    <RecordPanel
+      model={adapter(selected, { rows: feed?.rows || [], feed })}
+      brief={{ busy, err: Boolean(err), lines: briefPlainLines(brief).slice(0, 4) }}
+      onClose={() => onSelect?.(null)}
+      onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
+      onSelect={onSelect}
+    />
+  );
+}
 
 function isLocalDesk(feed) {
   if (String(feed?.tier || '').toLowerCase() === 'local') return true;
@@ -148,12 +166,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
             />
           ) : selected && panelAdapter ? (
             // F121: Global modules with a record-panel adapter; every other module keeps RecordDetail.
-            <RecordPanel
-              model={panelAdapter(selected, { rows: feed?.rows || [], feed })}
-              onClose={() => onSelect?.(null)}
-              onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
-              onSelect={onSelect}
-            />
+            <RecordPanelWithBrief adapter={panelAdapter} selected={selected} feed={feed} loading={loading} onSelect={onSelect} />
           ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />
           ) : !indicators ? (

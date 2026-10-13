@@ -39,4 +39,10 @@ describe('record panel registry', () => {
     expect(html).toContain('class="rp"');
     expect(html).not.toMatch(/class="alw-/);
   });
+
+  it('gives every record panel the saved-AI-brief box, starting with the lookup', () => {
+    const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: warTracker }} selected={warTracker[0]} />);
+    expect(html).toContain('✦ Niyantran analysis');
+    expect(html).toContain('Checking for a saved AI brief');
+  });
 });

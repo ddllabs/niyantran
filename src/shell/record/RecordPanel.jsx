@@ -12,12 +12,34 @@ import './recordPanel.css';
 
 const safeHref = (href) => (/^https:\/\//i.test(String(href || '')) ? href : null);
 
+/**
+ * The saved AI brief box (F123; owner 2026-10-13: keep it until AI credits). It shows a brief only
+ * when one was saved earlier from AI Research, says so plainly when none was, and never fills the
+ * box with template text. `brief` is { busy, lines, err } from useEntryBrief; absent means no box.
+ */
+function BriefCard({ brief }) {
+  const lines = brief.lines || [];
+  const body = brief.busy && !lines.length
+    ? 'Checking for a saved AI brief…'
+    : lines.length
+      ? null
+      : brief.err
+        ? 'Saved AI brief unavailable right now.'
+        : 'No saved AI brief for this record yet. Use Ask AI below to research it.';
+  return (
+    <div className="rp-card rp-brief">
+      <div className="rp-card-hd">✦ Niyantran analysis{lines.length ? <small>Saved AI brief</small> : null}</div>
+      {lines.length ? lines.map((l) => <p key={l}>{l}</p>) : <p className="rp-brief-empty">{body}</p>}
+    </div>
+  );
+}
+
 function Visual({ visual }) {
   const Component = visual && Object.hasOwn(VISUALS, visual.type) ? VISUALS[visual.type] : null;
   return Component ? <Component title={visual.title} right={visual.right} visual={visual} /> : null;
 }
 
-export default function RecordPanel({ model, onClose, onAsk, onSelect }) {
+export default function RecordPanel({ model, onClose, onAsk, onSelect, brief }) {
   if (!model) return null;
   const { glance = {}, about = {}, touches, footer = {} } = model;
   const links = (model.links || []).map((l) => ({ ...l, href: safeHref(l.href) })).filter((l) => l.href);
@@ -58,9 +80,10 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect }) {
         {glance.callout ? <p className={`rp-callout rp-callout-${glance.callout.tone || 'amber'}`}><b aria-hidden="true">!</b><span>{glance.callout.text}</span></p> : null}
       </section>
 
-      {about.rows?.length || about.chips?.length || about.cards?.length ? (
+      {about.rows?.length || about.chips?.length || about.cards?.length || brief ? (
         <section className="rp-block">
           <h3 className="rp-eyebrow">{about.label || '02 · About this record'}</h3>
+          {brief ? <BriefCard brief={brief} /> : null}
           {about.rows?.length ? (
             <dl className="rp-kv">{about.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
           ) : null}

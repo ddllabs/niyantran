@@ -117,3 +117,33 @@ describe('RecordPanel related-record links', () => {
     expect(html).toContain('rp-xlink-static');
   });
 });
+
+// F123 (owner 2026-10-13: keep the brief box until AI credits): the panel shows a saved AI brief
+// when one exists, says plainly when none does, and never presents template text as AI.
+describe('RecordPanel saved AI brief', () => {
+  const html = (brief) => renderToStaticMarkup(<RecordPanel model={model()} brief={brief} />);
+
+  it('shows the saved brief, labelled as a saved AI brief, in About', () => {
+    const out = html({ busy: false, lines: ['Front remains attritional.', 'Watch the energy grid.'] });
+    expect(out).toContain('✦ Niyantran analysis');
+    expect(out).toContain('Saved AI brief');
+    expect(out).toContain('Front remains attritional.');
+    expect(out.indexOf('Niyantran analysis')).toBeGreaterThan(out.indexOf('02 · About this front'));
+  });
+
+  it('says when it is checking, when no brief is saved, and when the lookup failed', () => {
+    expect(html({ busy: true, lines: [] })).toContain('Checking for a saved AI brief');
+    expect(html({ busy: false, lines: [] })).toContain('No saved AI brief for this record yet');
+    expect(html({ busy: false, lines: [], err: true })).toContain('Saved AI brief unavailable');
+  });
+
+  it('shows no brief box when the panel is given no brief state', () => {
+    expect(html(undefined)).not.toContain('Niyantran analysis');
+  });
+
+  it('opens About for the brief even when the model has no About content', () => {
+    const out = renderToStaticMarkup(<RecordPanel model={model({ about: { label: '02 · About' } })} brief={{ busy: false, lines: [] }} />);
+    expect(out).toContain('02 · About');
+    expect(out).toContain('No saved AI brief for this record yet');
+  });
+});

@@ -226,12 +226,16 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     now be unused; `fillSiteLabel` in `src/lib/geoTip.js` is now called only
     by its test, and its comment and the F28 note below still name the
     deleted `NuclearSiteMap.jsx`.
-- [ ] **F123. Cached AI brief in the Global record panels.** The spec
-  (assumption 3) says a cached entry brief appears as a card in 02 · About.
-  No Global record panel shows it. The four retired dossier views showed it
-  through `useEntryBrief` (`src/shell/EntryBriefInline.jsx`), so the dossier
-  records lost it in F121 batch 3. Decide with the owner after F111 (AI
-  credits), because loading briefs may call the `desk-brief` function.
+- [ ] **F123. AI brief in the Global record panels.** Owner 2026-10-13: the
+  old brief box was largely a dummy (its base text was a template filled from
+  the row, labelled "AI analyst brief"); keep a box there for now and revisit
+  it properly with AI credits (F111).
+  - Interim, built 2026-10-13: every record panel has a "✦ Niyantran analysis"
+    card in 02 · About. It shows a brief saved earlier from AI Research
+    (`useEntryBrief`, cache read only, no generation) or says that none is saved.
+    No template text is shown as AI.
+  - Remaining, with F111: whether selecting a record should generate a brief,
+    what it costs in credits, and how it is labelled.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
