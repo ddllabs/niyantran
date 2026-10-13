@@ -50,8 +50,8 @@ One third-party entry ("OR") matches no member and is shown as written.
 A dispute may have several current stages, separated by "|" on the WTO's side. All of them are
 kept (`stages`), each with its date; the table shows the first.
 
-**Terms (open question for the owner; publication gate).** The data file is committed on the task
-branch only; it is not pushed until the owner decides. The terms page for wto.org could not be retrieved. Related
+**Terms (publication gate).** Owner, 2026-10-13: "merge and push the WTO register". The data is
+published with the WTO credited throughout. Confirming the terms with the WTO remains advisable. The terms page for wto.org could not be retrieved. Related
 WTO platforms allow reuse with acknowledgement and require permission for commercial use or
 redistribution. Niyantran is a paid product, so the owner should confirm with the WTO
 (enquiries@wto.org) before the data is published.

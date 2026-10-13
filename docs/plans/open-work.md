@@ -264,9 +264,12 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     Fable review with all findings fixed (several current stages, third-party
     naming by the WTO's exception lists, parser hardening, the news-fallback
     table, two guards made falsifiable).
-  - **Not pushed:** the WTO's terms of use for wto.org could not be read;
-    the owner decides before the data is published (the repository is
-    public).
+  - The WTO's terms of use for wto.org could not be read; the owner chose
+    to publish on 2026-10-13 ("merge and push the WTO register"), with the
+    WTO credited on every row and panel. Confirming the terms with the WTO
+    (enquiries@wto.org) remains advisable.
+  - ICJ is unchanged by the owner's choice, so F129 stays open only for a
+    possible ICJ register later.
   - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
   - `backup/` holds 177 ICJ General List cases and 641 WTO DS case pages.
     Either would turn a wire module into a register.
