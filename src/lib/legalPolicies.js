@@ -76,13 +76,14 @@ We do not sell personal data and we do not show advertising. We do not use your 
 
 - Supabase: accounts, authentication, database and file storage, on servers in Mumbai, India. It also sends our account emails.
 - OpenRouter and the AI model providers it routes to: your question, relevant recent conversation, attached text and the cited source passages, to generate an answer, and voice recordings for transcription. These providers may process data outside India.
+- OpenRouter's web search, run by Exa: when web search is on for a question, the AI model writes a search query from your question and the conversation's material, such as the record in view or attached text, and Exa receives that search query to find public web pages. Exa receives the query, not your name, email address or account.
 - Razorpay: payment processing.
 - Vercel: hosting of the website and its application programming interface.
 - Google: sign-in with Google, and web fonts loaded by the site.
 - Content you choose to open from third parties, such as embedded videos or map tiles, is loaded from those providers, which receive your browser's network address.
 
 We may disclose personal data where the law requires it, to protect our rights or users' safety, or as part of a merger or sale of the business with equivalent protection.`],
-  ['transfers', 'Processing outside India', `Some providers above, including AI model providers and hosting, may process data outside India. We use them only as needed to provide the service and subject to contractual safeguards, and we will follow any restrictions the Government of India notifies under the Digital Personal Data Protection Act, 2023.`],
+  ['transfers', 'Processing outside India', `Some providers above, including AI model providers, web search and hosting, may process data outside India. We use them only as needed to provide the service and subject to contractual safeguards, and we will follow any restrictions the Government of India notifies under the Digital Personal Data Protection Act, 2023.`],
   ['retention', 'How long we keep it', `- Account and profile data: while your account is open.
 - Conversations: until you delete them or close your account. Usage records (model, tokens, cost) are kept for billing and security.
 - Product usage events: 180 days. Abuse-prevention hashes: one hour.
@@ -105,6 +106,9 @@ Write from your registered email address to the Grievance Officer below. We may 
   ['changes', 'Changes to this policy', `We may update this policy. We will post the new version here with its date and, for material changes, notify you by email or in the Terminal.`],
   ['contact', 'Grievance Officer and contact', contactBody],
 ]);
+// Web search (F130) added the search provider to "Who we share it with" on this date.
+PRIVACY_POLICY.lastUpdated = '13 October 2026';
+
 
 export const TERMS_OF_SERVICE = {
   ...doc('Grievance Officer: Tamanesh Kauri', [

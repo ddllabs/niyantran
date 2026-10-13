@@ -338,8 +338,10 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     - Spend: $0.31 of an approved $1.00.
   - **Owner decision, 2026-10-13:** no per-user search cap. The per-turn
     limit of three stays, and every search is logged with its cost.
+  - The privacy policy names OpenRouter's web search, run by Exa, and what
+    it receives (updated 13 October 2026; the F107 lawyer review still
+    applies).
   - **Follow-ups:**
-    - the privacy policy to name OpenRouter/Exa as the search provider (F107);
     - the two rare client prediction mismatches in spec amendment 2.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
