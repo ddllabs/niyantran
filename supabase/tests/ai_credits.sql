@@ -3,10 +3,11 @@
 -- only in a disposable database, through run.sh, which applies the migration as
 -- a non-superuser (nter_migrator).
 -- Bootstrap: the least_privilege chain, research_turn_persistence,
--- signup_persona, plan_entitlements, then inr_plans, web_search and
--- 20261014200000_ai_credits.sql, each of the last three as a non-superuser. The
--- vacuity check drops the last: the credit settings table is then missing, so
--- the first assertion fails.
+-- signup_persona, plan_entitlements, inr_plans and web_search (the last two as
+-- a non-superuser), bootstrap_ai_credits_seed.sql (data the migration must
+-- process), then 20261014200000_ai_credits.sql as a non-superuser. The vacuity
+-- check drops the last: the credit settings table is then missing, so the
+-- first assertion fails.
 --
 -- The bootstrap's auth.users stub has neither created_at nor
 -- email_confirmed_at (Supabase's table has both). This fixture adds them inside
@@ -20,7 +21,12 @@
 -- 03 what is charged; 04 settle and sweep; 05 lot order; 06 payments; 07 31
 -- January payment; 08 31 January manual; 09 away three months; 0a re-subscribe;
 -- 0b admin plan switches; 0c launch backfill; 0d top-ups; 0e deletion; 0f usage
--- scrub; 11-14 signup.
+-- scrub; 11-15 signup; 21 stale holds; 22 lock-order payments; 23 manual then
+-- payment; 24-25 rollover cases; 26-27 launch then payment / manual; 28
+-- negative cost; a1 seeded before the migration.
+--
+-- Two sessions racing (the wallet row lock) cannot be shown inside one
+-- transaction; this fixture covers single-session behaviour only.
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL TimeZone = 'UTC';
@@ -153,6 +159,18 @@ SELECT pg_temp.assert_true(EXISTS (SELECT FROM pg_indexes WHERE schemaname = 'pu
   AND indexdef LIKE '%(message_id)%'), 'model_call_logs is indexed on message_id');
 SELECT pg_temp.assert_true((SELECT tgenabled = 'O' FROM pg_trigger WHERE tgname = 'research_result_immutable'),
   'the result immutability guard is enabled after the migration');
+-- The migration's own data steps, over rows seeded before it ran
+-- (bootstrap_ai_credits_seed.sql). No helper is called here.
+SELECT pg_temp.assert_true(EXISTS (SELECT FROM private.credit_launch_grants WHERE user_id = '00000000-0000-4000-8000-00000000c0a1'
+    AND plan = 'plus' AND period_end > now() AND created_at = (SELECT launch_at FROM public.credit_settings)),
+  'the migration backfilled the seeded paid profile that has no plan_grants row');
+SELECT pg_temp.assert_true((SELECT usage = '{"prompt_tokens": 7, "web_searches": 1, "observed": {"attempts_reporting": 2},
+      "attempts": [{"model": "m"}, {"nested": [{"tokens": 3}]}]}'::jsonb AND status = 'complete' AND content = 'An answer.'
+  FROM public.chat_messages WHERE id = 'd0000000-0000-4000-8000-0000000000a1'),
+  'the migration stripped the seeded answer''s cost keys (top level, observed, arrays) and changed nothing else');
+SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.chat_messages WHERE jsonb_path_exists(usage, 'strict $.**.cost_usd')
+    OR jsonb_path_exists(usage, 'strict $.**.web_search_cost_usd') OR jsonb_path_exists(usage, 'strict $.**.cost_usd_from')),
+  'after the migration no saved message carries a cost key');
 
 -- 2. Privileges -----------------------------------------------------------------------
 -- Every function the migration adds: those nter_migrator owns in public and
@@ -195,25 +213,9 @@ SELECT pg_temp.assert_true(has_table_privilege('authenticated', 'public.model_pr
   'model_pricing stays readable for the model picker');
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM credit_tables
   WHERE NOT has_table_privilege('service_role', 'public.' || t, 'SELECT')
-     OR NOT has_table_privilege('service_role', 'public.' || t, 'INSERT')
-     OR has_table_privilege('service_role', 'public.' || t, 'DELETE')
-     OR has_table_privilege('service_role', 'public.' || t, 'TRUNCATE')), 'service_role: SELECT and INSERT, never DELETE');
-SELECT pg_temp.assert_true(
-  has_table_privilege('service_role', 'public.credit_settings', 'UPDATE')
-  AND has_table_privilege('service_role', 'public.credit_plan_allowances', 'UPDATE')
-  AND has_table_privilege('service_role', 'public.credit_wallets', 'UPDATE')
-  AND NOT has_table_privilege('service_role', 'public.credit_lots', 'UPDATE')
-  AND has_column_privilege('service_role', 'public.credit_lots', 'remaining', 'UPDATE')
-  AND has_column_privilege('service_role', 'public.credit_lots', 'closed_at', 'UPDATE')
-  AND NOT has_column_privilege('service_role', 'public.credit_lots', 'granted', 'UPDATE')
-  AND NOT has_table_privilege('service_role', 'public.credit_holds', 'UPDATE')
-  AND has_column_privilege('service_role', 'public.credit_holds', 'settled_at', 'UPDATE')
-  AND has_column_privilege('service_role', 'public.credit_holds', 'swept_at', 'UPDATE')
-  AND NOT has_column_privilege('service_role', 'public.credit_holds', 'credits', 'UPDATE')
-  AND NOT has_any_column_privilege('service_role', 'public.credit_ledger', 'UPDATE')
-  AND NOT has_any_column_privilege('service_role', 'public.credit_charge_rows', 'UPDATE')
-  AND NOT has_any_column_privilege('service_role', 'public.credit_lot_draws', 'UPDATE'),
-  'service_role UPDATE only where §12 allows it; never on the ledger');
+     OR has_table_privilege('service_role', 'public.' || t, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+     OR has_any_column_privilege('service_role', 'public.' || t, 'INSERT,UPDATE,REFERENCES')),
+  'service_role only reads the credit tables: no INSERT, UPDATE or DELETE, by table or by column (every writer is SECURITY DEFINER)');
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM credit_tables c JOIN pg_class k ON k.oid = ('public.' || c.t)::regclass
   WHERE NOT k.relrowsecurity OR EXISTS (SELECT FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = c.t)),
   'every credit table has RLS on and no policy');
@@ -265,6 +267,44 @@ SELECT pg_temp.rejected($q$SELECT public.reserve_turn_credits('00000000-0000-400
   'a missing enforcement flag is refused');
 SELECT pg_temp.rejected($q$SELECT public.reserve_turn_credits(NULL, 'h5', true)$q$, '22023', 'a missing user is refused');
 SELECT pg_temp.invariants('holds');
+
+-- 3b. A stale hold cannot be reused to pass the check (review C1) ----------------------
+-- Turn keys are chosen by the client. A hold that has expired, been settled or
+-- been swept is checked again, unless a turn was claimed under the key (the
+-- claim then only replays it).
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c021');
+SELECT public.admin_adjust_credits('00000000-0000-4000-8000-00000000c021', 1000, 'adjustment', 'Fixture credits', '00000000-0000-4000-8000-00000000c0ff',
+  'a0000000-0000-4000-8000-000000000021');
+SELECT public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k1', true);
+SELECT public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k2', true);
+SELECT public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k3', true);
+SELECT public.settle_turn_credits('00000000-0000-4000-8000-00000000c021', 'k2');
+SELECT pg_temp.turn('00000000-0000-4000-8000-00000000c021', 'k3', 'complete');
+UPDATE public.credit_holds SET expires_at = now() - interval '1 second'
+  WHERE user_id = '00000000-0000-4000-8000-00000000c021' AND turn_key IN ('k1', 'k3');
+SELECT public.admin_adjust_credits('00000000-0000-4000-8000-00000000c021', -1000, 'adjustment', 'Fixture removal', '00000000-0000-4000-8000-00000000c0ff',
+  'a0000000-0000-4000-8000-000000000022');
+INSERT INTO res VALUES ('c1.k1', public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k1', true));
+INSERT INTO res VALUES ('c1.k2', public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k2', true));
+INSERT INTO res VALUES ('c1.k3', public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k3', true));
+SELECT pg_temp.assert_true(pg_temp.r('c1.k1') @> '{"ok": false, "reason": "credits_exhausted", "balance": 0}'
+  AND pg_temp.r('c1.k1') -> 'hold' = 'null'::jsonb, 'an expired hold for an unclaimed key is checked again: blocked at 0');
+SELECT pg_temp.assert_true(pg_temp.r('c1.k2') @> '{"ok": false, "reason": "credits_exhausted"}',
+  'a settled hold for an unclaimed key is checked again: blocked at 0');
+SELECT pg_temp.assert_true(pg_temp.r('c1.k3') @> '{"ok": true, "hold": {"credits": 300}}',
+  'a key whose turn was claimed gets its hold back as it is (the claim only replays the turn)');
+INSERT INTO res VALUES ('c1.k1.shadow', public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k1', false));
+SELECT pg_temp.assert_true(pg_temp.r('c1.k1.shadow') @> '{"ok": false, "reason": "credits_exhausted", "hold": {"credits": 300}}'
+  AND (SELECT shadow_blocked AND settled_at IS NULL AND swept_at IS NULL AND expires_at = now() + interval '5 minutes'
+       FROM public.credit_holds WHERE user_id = '00000000-0000-4000-8000-00000000c021' AND turn_key = 'k1'),
+  'in shadow mode the stale hold is refreshed in place as shadow_blocked');
+SELECT public.admin_adjust_credits('00000000-0000-4000-8000-00000000c021', 500, 'adjustment', 'Fixture top-up', '00000000-0000-4000-8000-00000000c0ff',
+  'a0000000-0000-4000-8000-000000000023');
+INSERT INTO res VALUES ('c1.k1.recovered', public.reserve_turn_credits('00000000-0000-4000-8000-00000000c021', 'k1', false));
+SELECT pg_temp.assert_true(pg_temp.r('c1.k1.recovered') @> '{"ok": true, "hold": {"credits": 300}, "balance": 500}'
+  AND NOT (SELECT shadow_blocked FROM public.credit_holds WHERE user_id = '00000000-0000-4000-8000-00000000c021' AND turn_key = 'k1'),
+  'a shadow-blocked key recovers once the balance is positive');
+SELECT pg_temp.invariants('stale holds');
 
 -- 4. Debt (worked example) and the rate frozen per charge --------------------------
 SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c002');
@@ -372,6 +412,29 @@ SELECT pg_temp.assert_true(pg_temp.r('chg.c_overdue') @> '{"state": "free", "cre
 SELECT pg_temp.assert_true(pg_temp.balance('00000000-0000-4000-8000-00000000c003') = 10000 - 12.35 - 3.8 - 2.85 - 9.5 - 9.5,
   'the wallet moved by exactly the charged turns');
 SELECT pg_temp.invariants('what is charged');
+
+-- 5b. A negative cost is ignored, not charged and not fatal (review M4) ----------------------
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c028');
+SELECT public.admin_adjust_credits('00000000-0000-4000-8000-00000000c028', 100, 'topup', 'Fixture credits', '00000000-0000-4000-8000-00000000c0ff',
+  'a0000000-0000-4000-8000-000000000028');
+SELECT public.reserve_turn_credits('00000000-0000-4000-8000-00000000c028', 'n1', true);
+CREATE TEMP TABLE neg AS SELECT pg_temp.turn('00000000-0000-4000-8000-00000000c028', 'n1', 'complete') AS msg;
+SELECT pg_temp.log('00000000-0000-4000-8000-00000000c028', msg, 'chat_answer', 'success', 0.01) FROM neg;
+SELECT pg_temp.log('00000000-0000-4000-8000-00000000c028', msg, 'chat_answer', 'success', -0.5) FROM neg;
+SELECT pg_temp.log('00000000-0000-4000-8000-00000000c028', msg, 'embedding', 'success', -0.1) FROM neg;
+INSERT INTO res VALUES ('neg.settle', public.settle_turn_credits('00000000-0000-4000-8000-00000000c028', 'n1'));
+SELECT pg_temp.assert_true(pg_temp.r('neg.settle') @> '{"state": "charged", "credits": 9.5, "balance": 90.5}'
+  AND NOT EXISTS (SELECT FROM public.credit_charge_rows c JOIN public.model_call_logs l ON l.id = c.model_call_log_id
+                  WHERE l.cost_usd < 0), 'a row with a negative cost is neither charged nor fatal');
+UPDATE public.credit_holds SET expires_at = now() - interval '1 second' WHERE user_id = '00000000-0000-4000-8000-00000000c028';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c028', true);
+INSERT INTO res VALUES ('neg.mine', public.my_credits());
+RESET ROLE;
+SELECT pg_temp.assert_true((pg_temp.r('neg.mine') ->> 'balance')::numeric = 90.5
+  AND (SELECT swept_at IS NOT NULL FROM public.credit_holds WHERE user_id = '00000000-0000-4000-8000-00000000c028'),
+  'the user''s refresh and sweep keep working over the negative row');
+SELECT pg_temp.invariants('negative cost');
 
 -- 6. Settle and sweep ----------------------------------------------------------------------
 SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c004');
@@ -596,6 +659,68 @@ SELECT pg_temp.assert_true((SELECT array_agg(source_key || '@' || starts_at ORDE
           'grant:' || (SELECT id FROM public.plan_grants WHERE payment_id = 'rs_2') || '@2026-03-10 00:00:00+00'],
   're-subscribing after a lapse is one new lot starting on the payment day');
 SELECT pg_temp.assert_true(pg_temp.balance('00000000-0000-4000-8000-00000000c00a') = 2000, 'after the lapse only the new month remains');
+-- Two payments whose transactions started in one order and took the profile
+-- lock in the other: plan_grants.id is the lock order (review I1).
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c022');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, payment_id, created_at) VALUES
+  ('00000000-0000-4000-8000-00000000c022', 'plus', 'active', '2026-02-01 00:00+00', 'payment', 'i1_0', '2026-01-01 00:00+00');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, payment_id, created_at) VALUES
+  ('00000000-0000-4000-8000-00000000c022', 'plus', 'active', '2026-03-01 00:00+00', 'payment', 'i1_locked_first', '2026-01-20 00:00:00.002+00');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, payment_id, created_at) VALUES
+  ('00000000-0000-4000-8000-00000000c022', 'plus', 'active', '2026-04-01 00:00+00', 'payment', 'i1_started_first', '2026-01-20 00:00:00.001+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c022', '2026-01-21 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c022', '2026-02-15 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c022', '2026-03-15 00:00+00');
+SELECT pg_temp.assert_true((SELECT array_agg(starts_at || '..' || expires_at ORDER BY starts_at) FROM public.credit_lots
+  WHERE user_id = '00000000-0000-4000-8000-00000000c022' AND kind = 'monthly')
+  = ARRAY['2026-01-01 00:00:00+00..2026-02-01 00:00:00+00', '2026-02-01 00:00:00+00..2026-03-01 00:00:00+00',
+          '2026-03-01 00:00:00+00..2026-04-01 00:00:00+00'],
+  'payments are ordered by plan_grants.id (lock order), not created_at: both paid months mint');
+-- A manual plan paid for early: the manual months run until the paid month
+-- starts, with no gap (review I2).
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c023');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, created_at)
+  VALUES ('00000000-0000-4000-8000-00000000c023', 'plus', 'active', '2026-04-01 00:00+00', 'manual', '2026-01-01 00:00+00');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, payment_id, created_at)
+  VALUES ('00000000-0000-4000-8000-00000000c023', 'plus', 'active', '2026-05-01 00:00+00', 'payment', 'i2_pay', '2026-01-10 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c023', '2026-01-05 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c023', '2026-01-15 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c023', '2026-02-15 00:00+00');
+SELECT pg_temp.assert_true(EXISTS (SELECT FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c023' AND kind = 'monthly'
+  AND closed_at IS NULL AND starts_at <= '2026-02-15 00:00+00' AND expires_at > '2026-02-15 00:00+00'),
+  'on 15 February the manual plan''s monthly lot exists although a payment was made on 10 January');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c023', '2026-03-15 00:00+00');
+SELECT pg_temp.assert_true(EXISTS (SELECT FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c023' AND kind = 'monthly'
+  AND closed_at IS NULL AND starts_at <= '2026-03-15 00:00+00' AND expires_at > '2026-03-15 00:00+00'),
+  'on 15 March as well');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c023', '2026-04-02 00:00+00');
+SELECT pg_temp.assert_true((SELECT array_agg(source_key ~ '^grant:[0-9]+:[0-9]+$' ORDER BY starts_at) = ARRAY[true, true, true, false]
+    AND array_agg(starts_at ORDER BY starts_at) = ARRAY['2026-01-01 00:00+00', '2026-02-01 00:00+00', '2026-03-01 00:00+00',
+                                                         '2026-04-01 00:00+00']::timestamptz[]
+    AND max(expires_at) = '2026-05-01 00:00+00'
+  FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c023' AND kind = 'monthly'),
+  'three manual months, then from 1 April the paid month, back to back');
+-- A rollover that would already be expired when processed is not minted (review M7).
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c024');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, payment_id, created_at)
+  VALUES ('00000000-0000-4000-8000-00000000c024', 'plus', 'active', '2026-02-01 00:00+00', 'payment', 'm7a', '2026-01-01 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c024', '2026-01-05 00:00+00');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c024', '2026-03-05 00:00+00');
+SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c024' AND kind = 'rollover')
+  AND (SELECT sum(credits) FROM public.credit_ledger WHERE user_id = '00000000-0000-4000-8000-00000000c024' AND kind = 'expiry') = -2000,
+  'processed after its rollover month had passed, an expired lot rolls nothing over');
+-- A manual cycle's lot rolls over like a paid one (review M7).
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c025');
+INSERT INTO public.plan_grants (user_id, plan, status, period_end, source, created_at)
+  VALUES ('00000000-0000-4000-8000-00000000c025', 'pro', 'active', NULL, 'manual', now() - interval '1 month 5 days');
+CREATE TEMP TABLE m7b AS SELECT id, expires_at FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c025' AND kind = 'monthly';
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c025', now() + interval '27 days');
+SELECT pg_temp.assert_true((SELECT count(*) = 1 AND min(o.granted) = 650 AND min(o.plan::text) = 'pro'
+    AND min(o.source_key) = 'rollover:' || (SELECT id FROM m7b)
+    AND min(o.starts_at) = (SELECT expires_at FROM m7b) AND min(o.expires_at) = (SELECT expires_at + interval '1 month' FROM m7b)
+  FROM public.credit_lots o WHERE o.user_id = '00000000-0000-4000-8000-00000000c025' AND o.kind = 'rollover')
+  AND (SELECT count(*) FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c025' AND kind = 'monthly') = 2,
+  'a manual cycle''s lot rolls 10% over at its natural expiry, and the next cycle mints');
 SELECT pg_temp.invariants('cycles');
 
 -- 11. Launch backfill ---------------------------------------------------------------------
@@ -604,8 +729,8 @@ UPDATE public.user_profiles SET plan = 'pro', plan_status = 'active', plan_sourc
   WHERE user_id = '00000000-0000-4000-8000-00000000c00c';
 SELECT private.credit_launch_backfill();
 SELECT private.credit_launch_backfill();
-SELECT pg_temp.assert_true((SELECT count(*) FROM private.credit_launch_grants) = 1
-  AND EXISTS (SELECT FROM private.credit_launch_grants WHERE user_id = '00000000-0000-4000-8000-00000000c00c'),
+SELECT pg_temp.assert_true((SELECT array_agg(user_id ORDER BY user_id) FROM private.credit_launch_grants)
+  = ARRAY['00000000-0000-4000-8000-00000000c00c', '00000000-0000-4000-8000-00000000c0a1']::uuid[],
   'only a paid profile with no plan_grants row is backfilled, once');
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c00c', true);
@@ -619,6 +744,39 @@ SELECT pg_temp.assert_true((SELECT count(*) = 1 AND min(granted) = 6500 AND min(
 SELECT pg_temp.assert_true(pg_temp.r('launch.mine') @> '{"plan": "pro", "balance": 6500, "cycle": {"allowance": 6500}}'
   AND (pg_temp.r('launch.mine') -> 'cycle' ->> 'ends_at')::timestamptz = (SELECT launch_at + interval '1 month' FROM public.credit_settings),
   'my_credits shows the cycle allowance and end');
+-- Launch backfill, then a payment for the same plan: the launch months run
+-- until the paid month starts at the old period end (review M7, I2).
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c026');
+UPDATE public.user_profiles SET plan = 'pro', plan_status = 'active', plan_source = 'manual', plan_period_end = now() + interval '40 days'
+  WHERE user_id = '00000000-0000-4000-8000-00000000c026';
+SELECT private.credit_launch_backfill();
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c026', now());
+SET LOCAL ROLE service_role;
+SELECT public.grant_paid_plan('00000000-0000-4000-8000-00000000c026', 'pro', 'month', 'm7_l26');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT array_agg(source_key) FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c026' AND closed_at IS NULL)
+  = ARRAY['launch:0'], 'a payment during the launch grant keeps the launch lot and waits for the old period end');
+SELECT pg_temp.assert_true(EXISTS (SELECT FROM private.credit_due_cycles('00000000-0000-4000-8000-00000000c026',
+    (SELECT launch_at + interval '1 month 1 day' FROM public.credit_settings)) WHERE source_key = 'launch:1')
+  AND (SELECT array_agg(source_key || '@' || (starts_at = now() + interval '40 days'))
+       FROM private.credit_due_cycles('00000000-0000-4000-8000-00000000c026', now() + interval '41 days'))
+      = ARRAY['grant:' || (SELECT id FROM public.plan_grants WHERE payment_id = 'm7_l26') || '@true'],
+  'the launch months continue up to the old period end, then the paid month starts there');
+-- Launch backfill, then an admin grant: the launch lot ends with no rollover.
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c027');
+UPDATE public.user_profiles SET plan = 'plus', plan_status = 'active', plan_source = 'manual', plan_period_end = NULL
+  WHERE user_id = '00000000-0000-4000-8000-00000000c027';
+SELECT private.credit_launch_backfill();
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c027', now());
+SET LOCAL ROLE service_role;
+SELECT public.grant_manual_plan('00000000-0000-4000-8000-00000000c027', 'max', NULL, '00000000-0000-4000-8000-00000000c0ff');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT jsonb_object_agg(source_key LIKE 'launch:%', closed_at IS NULL) FROM public.credit_lots
+    WHERE user_id = '00000000-0000-4000-8000-00000000c027') = '{"true": false, "false": true}'::jsonb
+  AND pg_temp.balance('00000000-0000-4000-8000-00000000c027') = 75000
+  AND NOT EXISTS (SELECT FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c027' AND kind = 'rollover')
+  AND NOT EXISTS (SELECT FROM private.credit_due_cycles('00000000-0000-4000-8000-00000000c027', now() + interval '2 months') WHERE source_key LIKE 'launch:%'),
+  'an admin grant after the launch backfill ends the launch lot (no rollover) and its months');
 SELECT pg_temp.invariants('launch backfill');
 
 -- 12. Signup lot ----------------------------------------------------------------------------
@@ -668,6 +826,15 @@ SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c014', now());
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c014'),
   'no signup lot after its window has passed');
 UPDATE public.credit_settings SET launch_at = now() - interval '1 minute';
+-- Supervisor decision (review M5): every confirmed user gets the signup lot,
+-- whatever their plan.
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c015', true, now() - interval '2 days');
+SET LOCAL ROLE service_role;
+SELECT public.grant_paid_plan('00000000-0000-4000-8000-00000000c015', 'plus', 'month', 'm5_s15');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT array_agg(kind ORDER BY kind) FROM public.credit_lots WHERE user_id = '00000000-0000-4000-8000-00000000c015')
+  = ARRAY['monthly', 'signup'] AND pg_temp.balance('00000000-0000-4000-8000-00000000c015') = 3000,
+  'a confirmed user on a paid plan also gets the signup lot');
 SELECT pg_temp.invariants('signup');
 
 -- 13. Top-ups and admin adjustments -----------------------------------------------------------
@@ -719,6 +886,12 @@ SELECT pg_temp.rejected($q$UPDATE public.credit_ledger SET credits = 0$q$, '4250
 SELECT pg_temp.rejected($q$DELETE FROM public.credit_ledger$q$, '42501', 'service_role cannot DELETE from the ledger');
 SELECT pg_temp.rejected($q$DELETE FROM public.credit_lots$q$, '42501', 'service_role cannot DELETE lots');
 SELECT pg_temp.rejected($q$UPDATE public.credit_lots SET granted = 1$q$, '42501', 'service_role cannot change a lot''s grant');
+SELECT pg_temp.rejected($q$UPDATE public.credit_wallets SET balance = 1000000$q$, '42501', 'service_role cannot write a balance');
+SELECT pg_temp.rejected($q$INSERT INTO public.credit_ledger (user_id, kind, credits, turn_key, usd_to_inr, inr_per_credit)
+  VALUES ('00000000-0000-4000-8000-00000000c0ff', 'charge', 0, 'x', 95, 0.1)$q$, '42501', 'service_role cannot insert into the ledger');
+SELECT pg_temp.rejected($q$INSERT INTO public.credit_lots (user_id, kind, granted, remaining, starts_at, expires_at, source_key)
+  VALUES ('00000000-0000-4000-8000-00000000c0ff', 'topup', 1, 1, now(), now() + interval '1 day', 'x')$q$, '42501',
+  'service_role cannot mint a lot directly');
 RESET ROLE;
 SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c00e');
 SELECT public.admin_adjust_credits('00000000-0000-4000-8000-00000000c00e', 100, 'adjustment', 'Fixture credits',
@@ -745,23 +918,44 @@ SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.credit_wallets WHERE u
   'deleting the account (by a role with no DELETE on the ledger) cascades every credit row; the call logs survive');
 SELECT pg_temp.invariants('account deletion');
 
--- 15. No dollars in saved messages ------------------------------------------------------------------
+-- 15. No dollars in saved messages (review M3: stripped on every write) ------------------------
+SELECT pg_temp.assert_true((SELECT array_agg(tgname::text ORDER BY tgname) FROM pg_trigger
+    WHERE tgrelid = 'public.chat_messages'::regclass AND NOT tgisinternal AND tgenabled = 'O')
+  = ARRAY['credit_strip_usage_cost', 'research_result_immutable'],
+  'the cost strip and the immutability guard are enabled; BEFORE triggers run in name order, so the strip runs first');
 SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c00f');
 CREATE TEMP TABLE scrub AS SELECT pg_temp.turn('00000000-0000-4000-8000-00000000c00f', 's1', 'complete', 'An answer.',
   '{"prompt_tokens": 10, "cost_usd": 0.01, "web_searches": 1, "web_search_cost_usd": 0.002,
     "observed": {"cost_usd": 0.005, "cost_usd_from": 2, "attempts_reporting": 1},
     "attempts": [{"cost_usd": 1, "model": "m"}]}'::jsonb) AS msg;
-SELECT pg_temp.turn('00000000-0000-4000-8000-00000000c00f', 's2', 'complete', 'An answer.', '{"cost_usd": null}'::jsonb);
-SELECT pg_temp.assert_true((SELECT count(*) FROM public.chat_messages WHERE jsonb_path_exists(usage, 'strict $.**.cost_usd')) = 2,
-  'before the scrub, saved usage carries dollars');
-SELECT pg_temp.assert_true(private.credit_scrub_usage() = 2, 'the scrub rewrites exactly the rows carrying a cost key');
-SELECT pg_temp.assert_true((SELECT tgenabled = 'O' FROM pg_trigger WHERE tgname = 'research_result_immutable'),
-  'the scrub leaves the immutability guard enabled');
-SELECT pg_temp.rejected($q$UPDATE public.chat_messages SET content = 'changed' WHERE id = (SELECT msg FROM scrub)$q$, '23514',
-  'a completed answer is still immutable after the scrub');
 SELECT pg_temp.assert_true((SELECT usage FROM public.chat_messages WHERE id = (SELECT msg FROM scrub))
   = '{"prompt_tokens": 10, "web_searches": 1, "observed": {"attempts_reporting": 1}, "attempts": [{"model": "m"}]}'::jsonb,
-  'the scrub removes every cost key at any depth and keeps everything else');
+  'an insert carrying cost keys stores none, at any depth, and keeps everything else');
+-- Adding only a cost key to a completed answer is stripped before the guard
+-- compares the row, so it is a no-op rather than a dollar written back (and
+-- it would raise if the guard ran first).
+UPDATE public.chat_messages SET usage = usage || '{"cost_usd": 3}' WHERE id = (SELECT msg FROM scrub);
+SELECT pg_temp.assert_true((SELECT usage FROM public.chat_messages WHERE id = (SELECT msg FROM scrub))
+  = '{"prompt_tokens": 10, "web_searches": 1, "observed": {"attempts_reporting": 1}, "attempts": [{"model": "m"}]}'::jsonb,
+  'an update cannot write dollars back');
+SELECT pg_temp.rejected($q$UPDATE public.chat_messages SET content = 'changed' WHERE id = (SELECT msg FROM scrub)$q$, '23514',
+  'a completed answer is still immutable');
+CREATE TEMP TABLE running AS SELECT pg_temp.turn('00000000-0000-4000-8000-00000000c00f', 's3', 'running', '') AS msg;
+SELECT public.finalize_research_turn('00000000-0000-4000-8000-00000000c00f', 's3',
+  (SELECT execution_token FROM public.research_turns WHERE user_id = '00000000-0000-4000-8000-00000000c00f' AND turn_key = 's3'),
+  '{"status": "complete", "content": "Done.", "sources": [], "follow_ups": [], "activity": [],
+    "usage": {"prompt_tokens": 5, "cost_usd": 0.3, "observed": {"cost_usd_from": 1}}}'::jsonb);
+SELECT pg_temp.assert_true((SELECT status = 'complete' AND content = 'Done.' AND usage = '{"prompt_tokens": 5, "observed": {}}'::jsonb
+  FROM public.chat_messages WHERE id = (SELECT msg FROM running)), 'finalizing a running answer still works and stores no dollars');
+SELECT pg_temp.rejected($q$UPDATE public.chat_messages SET content = 'changed' WHERE id = (SELECT msg FROM running)$q$, '23514',
+  'the finalized answer is immutable');
+-- The migration's scrub helper, over a row written while the strip was off.
+ALTER TABLE public.chat_messages DISABLE TRIGGER credit_strip_usage_cost;
+SELECT pg_temp.turn('00000000-0000-4000-8000-00000000c00f', 's2', 'complete', 'An answer.', '{"cost_usd": null, "list": [{"cost_usd_from": 1, "n": 2}]}'::jsonb);
+ALTER TABLE public.chat_messages ENABLE TRIGGER credit_strip_usage_cost;
+SELECT pg_temp.assert_true(private.credit_scrub_usage() = 1, 'the scrub rewrites exactly the rows carrying a cost key');
+SELECT pg_temp.assert_true((SELECT bool_and(tgenabled = 'O') FROM pg_trigger WHERE tgname IN ('research_result_immutable', 'credit_strip_usage_cost')),
+  'the scrub leaves both triggers enabled');
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c00f', true);
 SELECT pg_temp.assert_true((SELECT count(*) FROM public.chat_messages) > 0

@@ -148,11 +148,14 @@ chain() {
         # plan_entitlements' chain plus the INR plan set, applied as a non-superuser.
         inr_plans)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)") ;;
-        # AI credits (F111): inr_plans' chain plus web search, then the credits
-        # migration, each applied as a non-superuser.
+        # AI credits (F111): inr_plans' chain plus web search, then seeded data the
+        # migration must process (a paid profile with no grant, an answer whose
+        # usage carries dollars), then the credits migration. The migrations are
+        # applied as a non-superuser.
         ai_credits)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)"
-                  "$(as_non_superuser 20261013140000_web_search.sql)" "$(as_non_superuser 20261014200000_ai_credits.sql)") ;;
+                  "$(as_non_superuser 20261013140000_web_search.sql)" "$TESTS/bootstrap_ai_credits_seed.sql"
+                  "$(as_non_superuser 20261014200000_ai_credits.sql)") ;;
       esac
       return 0 ;;
     *) echo "unknown fixture: $1" >&2; return 1 ;;

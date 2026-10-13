@@ -14,10 +14,10 @@
 --   * credit_wallets (balance, debt), credit_lots, credit_ledger,
 --     credit_charge_rows (one row per charged model_call_logs row, so a row is
 --     never charged twice), credit_lot_draws and credit_holds. RLS is on with
---     no policies; anon and authenticated hold nothing; service_role reads and
---     inserts, and updates only where §12 allows. Nobody may UPDATE or DELETE
---     the ledger; only the auth.users ON DELETE CASCADE removes its rows (FK
---     actions run as the table owner).
+--     no policies; anon and authenticated hold nothing; service_role only reads
+--     (every writer is a SECURITY DEFINER function). Nobody may INSERT, UPDATE
+--     or DELETE the ledger directly; only the auth.users ON DELETE CASCADE
+--     removes its rows (FK actions run as the table owner).
 --   * public: reserve_turn_credits, settle_turn_credits, admin_adjust_credits
 --     and the plan_grants trigger credits_on_plan_grant (service_role only);
 --     my_credits and my_conversation_credits (authenticated only). Every
@@ -41,8 +41,15 @@
 --     web_search_cost_usd, cost_usd_from) are stripped at any depth from saved
 --     chat_messages.usage. guard_research_result makes completed answers
 --     immutable, so private.credit_scrub_usage() disables that one trigger for
---     its single UPDATE and re-enables it; ALTER TABLE holds ACCESS EXCLUSIVE
---     on chat_messages until commit, so no other writer runs while it is off.
+--     its single UPDATE and re-enables it. ALTER TABLE ... DISABLE TRIGGER takes
+--     SHARE ROW EXCLUSIVE on chat_messages, held until commit; it conflicts
+--     with the ROW EXCLUSIVE lock every INSERT, UPDATE and DELETE takes, so no
+--     other writer runs while the guard is off (readers are not blocked).
+--     A BEFORE INSERT OR UPDATE trigger, credit_strip_usage_cost, then strips
+--     the same keys from every new write, so dollars cannot be saved again
+--     before research-chat stops sending them. Its name sorts before
+--     research_result_immutable, and BEFORE triggers fire in name order, so a
+--     completed answer is compared after the strip.
 --   * model_call_logs gains an index on message_id, which settle and sweep read.
 --
 -- Down (manual; drops only what this migration added and restores the two
@@ -51,6 +58,7 @@
 --   begin;
 --   drop trigger credits_on_plan_grant on public.plan_grants;
 --   drop trigger credit_remember_turn_message on public.research_turns;
+--   drop trigger credit_strip_usage_cost on public.chat_messages;
 --   drop function public.reserve_turn_credits(uuid, text, boolean), public.settle_turn_credits(uuid, text),
 --     public.admin_adjust_credits(uuid, numeric, text, text, uuid, uuid), public.credits_on_plan_grant(),
 --     public.my_credits(), public.my_conversation_credits(uuid);
@@ -62,7 +70,8 @@
 --     private.credit_mint(uuid, text, numeric, timestamptz, timestamptz, text, public.app_plan, text, uuid, uuid, text),
 --     private.credit_entry(uuid, text, numeric, uuid, text, uuid, numeric, numeric, uuid, text),
 --     private.credit_wallet(uuid), private.credit_config(), private.credit_launch_backfill(),
---     private.credit_remember_turn_message(), private.credit_scrub_usage(), private.credit_strip_cost(jsonb);
+--     private.credit_remember_turn_message(), private.credit_scrub_usage(), private.credit_strip_usage(),
+--     private.credit_strip_cost(jsonb);
 --   drop table private.credit_turn_messages, private.credit_launch_grants;
 --   drop schema private;   -- refuses if anything else has been put there since
 --   drop table public.credit_holds, public.credit_lot_draws, public.credit_charge_rows, public.credit_ledger,
@@ -219,11 +228,10 @@ ALTER TABLE public.credit_holds           ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.credit_settings, public.credit_plan_allowances, public.credit_wallets, public.credit_lots,
   public.credit_ledger, public.credit_charge_rows, public.credit_lot_draws, public.credit_holds
   FROM PUBLIC, anon, authenticated, service_role;
-GRANT SELECT, INSERT ON public.credit_settings, public.credit_plan_allowances, public.credit_wallets, public.credit_lots,
+-- service_role only reads: every write goes through the SECURITY DEFINER
+-- functions below, so a leaked service key cannot rewrite a balance.
+GRANT SELECT ON public.credit_settings, public.credit_plan_allowances, public.credit_wallets, public.credit_lots,
   public.credit_ledger, public.credit_charge_rows, public.credit_lot_draws, public.credit_holds TO service_role;
-GRANT UPDATE ON public.credit_settings, public.credit_plan_allowances, public.credit_wallets TO service_role;
-GRANT UPDATE (remaining, closed_at) ON public.credit_lots TO service_role;
-GRANT UPDATE (settled_at, swept_at) ON public.credit_holds TO service_role;
 REVOKE ALL ON private.credit_launch_grants, private.credit_turn_messages FROM PUBLIC, anon, authenticated, service_role;
 
 -- Dollar leaks: signed-in users no longer read call logs or traces. Table-only
@@ -422,14 +430,19 @@ BEGIN
 END;
 $$;
 
--- The monthly cycles due at p_now (spec §4), current cycle only.
+-- The monthly cycles due at p_now (spec §4), current cycle only. Grants are
+-- ordered by plan_grants.id, which is assigned under the profile lock, so id
+-- order is the order grant_paid_plan saw them (created_at is the transaction
+-- start and can be the other way round). The launch backfill row sorts first.
 --  * A payment grant is exactly one cycle, [base, period_end). base follows
 --    grant_paid_plan: the previous grant's period_end when that grant was the
 --    same plan, active and ending after this grant was made; otherwise the
 --    grant's created_at. A later manual grant cancels a cycle not yet started.
 --  * A manual grant (and the launch backfill) runs monthly cycles from its
 --    created_at, anchored there so month ends never drift, until its
---    period_end (or for ever) and until the user's next grant of any kind.
+--    period_end (or for ever), the next manual grant, or the base of the next
+--    payment's cycle, whichever comes first: a plan paid for in advance takes
+--    over when its paid month starts, with no gap.
 CREATE FUNCTION private.credit_due_cycles(p_user uuid, p_now timestamptz)
 RETURNS TABLE (source_key text, plan public.app_plan, credits numeric, starts_at timestamptz, expires_at timestamptz)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
@@ -439,6 +452,7 @@ DECLARE
   n integer;
   v_base timestamptz;
   v_end timestamptz;
+  v_cut timestamptz;
 BEGIN
   FOR g IN
     WITH grants AS (
@@ -450,33 +464,33 @@ BEGIN
       FROM private.credit_launch_grants lg WHERE lg.user_id = p_user
     ), ordered AS (
       SELECT gr.*,
-             lag(gr.gplan) OVER w AS prev_plan, lag(gr.gstatus) OVER w AS prev_status, lag(gr.gend) OVER w AS prev_end,
-             lead(gr.gat) OVER w AS next_at
+             CASE WHEN lag(gr.gplan) OVER w = gr.gplan AND lag(gr.gstatus) OVER w = 'active' AND lag(gr.gend) OVER w > gr.gat
+                  THEN lag(gr.gend) OVER w ELSE gr.gat END AS base
       FROM grants gr
-      WINDOW w AS (ORDER BY gr.gat, gr.ord)
+      WINDOW w AS (ORDER BY gr.ord)
     )
     SELECT o.*, a.monthly_credits,
-           (SELECT min(m.gat) FROM grants m
-             WHERE m.gsource = 'manual' AND (m.gat > o.gat OR (m.gat = o.gat AND m.ord > o.ord))) AS next_manual_at
+           (SELECT min(m.gat) FROM ordered m WHERE m.gsource = 'manual' AND m.ord > o.ord) AS next_manual_at,
+           (SELECT p.base FROM ordered p WHERE p.gsource = 'payment' AND p.ord > o.ord ORDER BY p.ord LIMIT 1) AS next_payment_base
     FROM ordered o
     JOIN public.credit_plan_allowances a ON a.plan = o.gplan
     WHERE o.gstatus = 'active' AND o.gsource IN ('payment', 'manual')
   LOOP
     IF g.gsource = 'payment' THEN
       CONTINUE WHEN g.gend IS NULL;
-      v_base := CASE WHEN g.prev_plan = g.gplan AND g.prev_status = 'active' AND g.prev_end > g.gat
-                     THEN g.prev_end ELSE g.gat END;
+      v_base := g.base;
       IF v_base <= p_now AND p_now < g.gend AND v_base < g.gend AND p_now < coalesce(g.next_manual_at, 'infinity') THEN
         source_key := g.gkey; plan := g.gplan; credits := g.monthly_credits; starts_at := v_base; expires_at := g.gend;
         RETURN NEXT;
       END IF;
     ELSE
-      CONTINUE WHEN p_now < g.gat OR p_now >= coalesce(g.gend, 'infinity') OR p_now >= coalesce(g.next_at, 'infinity');
+      v_cut := least(coalesce(g.gend, 'infinity'), coalesce(g.next_manual_at, 'infinity'), coalesce(g.next_payment_base, 'infinity'));
+      CONTINUE WHEN p_now < g.gat OR p_now >= v_cut;
       n := (extract(year FROM age(p_now, g.gat)) * 12 + extract(month FROM age(p_now, g.gat)))::integer;
       WHILE g.gat + make_interval(months => n + 1) <= p_now LOOP n := n + 1; END LOOP;
       WHILE n > 0 AND g.gat + make_interval(months => n) > p_now LOOP n := n - 1; END LOOP;
       v_base := g.gat + make_interval(months => n);
-      v_end := least(g.gat + make_interval(months => n + 1), coalesce(g.gend, 'infinity'));
+      v_end := least(g.gat + make_interval(months => n + 1), v_cut);
       IF v_base < v_end THEN
         source_key := g.gkey || ':' || n; plan := g.gplan; credits := g.monthly_credits; starts_at := v_base; expires_at := v_end;
         RETURN NEXT;
@@ -562,7 +576,7 @@ BEGIN
   WHERE l.message_id = v_msg AND l.user_id = p_user
     AND l.purpose IN ('chat_answer', 'embedding')
     AND l.status IN ('success', 'aborted')
-    AND l.cost_usd IS NOT NULL
+    AND l.cost_usd >= 0   -- a negative (bogus) cost is ignored, never charged
     AND NOT EXISTS (SELECT FROM public.credit_charge_rows c WHERE c.model_call_log_id = l.id);
   IF v_rows IS NULL THEN
     RETURN jsonb_build_object('state', 'done', 'credits', 0);
@@ -667,9 +681,11 @@ END;
 $$;
 
 -- Strips every cost key from saved usage. guard_research_result makes a
--- completed answer immutable, so its trigger is off for this one UPDATE only:
--- the ALTER TABLE lock (ACCESS EXCLUSIVE, held to commit) keeps every other
--- writer out meanwhile, and an error rolls the DISABLE back with the rest.
+-- completed answer immutable, so its trigger is off for this one UPDATE only.
+-- DISABLE TRIGGER takes SHARE ROW EXCLUSIVE on chat_messages until commit,
+-- which conflicts with the ROW EXCLUSIVE lock of every INSERT, UPDATE and
+-- DELETE, so no other session writes while the guard is off; an error rolls
+-- the DISABLE back with the rest.
 CREATE FUNCTION private.credit_scrub_usage() RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
 DECLARE n integer;
@@ -685,11 +701,34 @@ BEGIN
 END;
 $$;
 
+-- Strips the cost keys from every write to chat_messages.usage, so dollars
+-- cannot be saved again before research-chat stops sending them. Named to fire
+-- before research_result_immutable (BEFORE triggers run in name order).
+CREATE FUNCTION private.credit_strip_usage() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
+BEGIN
+  IF jsonb_path_exists(NEW.usage, 'strict $.**.cost_usd')
+     OR jsonb_path_exists(NEW.usage, 'strict $.**.web_search_cost_usd')
+     OR jsonb_path_exists(NEW.usage, 'strict $.**.cost_usd_from') THEN
+    NEW.usage := private.credit_strip_cost(NEW.usage);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER credit_strip_usage_cost
+BEFORE INSERT OR UPDATE ON public.chat_messages
+FOR EACH ROW WHEN (NEW.usage IS NOT NULL)
+EXECUTE FUNCTION private.credit_strip_usage();
+
 -- 5. Public functions ---------------------------------------------------------------------------------
 
--- Reserve before the turn is claimed (spec §3). An existing hold for the turn
--- is returned unchanged. Blocked when available <= 0: enforced, no hold;
--- shadow, a shadow_blocked hold that never counts against other turns.
+-- Reserve before the turn is claimed (spec §3). Blocked when available <= 0:
+-- enforced, no hold; shadow, a shadow_blocked hold that never counts against
+-- other turns. Turn keys are chosen by the client, so an existing hold is
+-- returned as it is only while it is live (unsettled, unswept, unexpired and
+-- not shadow-blocked) or when a turn was already claimed under the key (the
+-- claim then only replays it). Any other existing hold is checked again and,
+-- unless blocked under enforcement, refreshed in place.
 CREATE FUNCTION public.reserve_turn_credits(p_user uuid, p_turn_key text, p_enforced boolean) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
 DECLARE
@@ -698,6 +737,9 @@ DECLARE
   h public.credit_holds;
   v_held numeric;
   v_available numeric;
+  v_existing boolean;
+  v_shadow boolean;
+  v_credits numeric;
 BEGIN
   IF p_user IS NULL OR p_enforced IS NULL OR p_turn_key IS NULL
      OR length(p_turn_key) NOT BETWEEN 1 AND 64 OR length(btrim(p_turn_key)) = 0 THEN
@@ -710,32 +752,37 @@ BEGIN
   WHERE x.user_id = p_user AND x.settled_at IS NULL AND x.expires_at > now() AND NOT x.shadow_blocked;
   v_available := w.balance - v_held;
 
-  SELECT * INTO h FROM public.credit_holds WHERE user_id = p_user AND turn_key = p_turn_key;
-  IF FOUND THEN
+  SELECT * INTO h FROM public.credit_holds WHERE user_id = p_user AND turn_key = p_turn_key FOR UPDATE;
+  v_existing := FOUND;
+  IF v_existing AND (
+       (h.settled_at IS NULL AND h.swept_at IS NULL AND h.expires_at > now() AND NOT h.shadow_blocked)
+       OR EXISTS (SELECT FROM public.research_turns t WHERE t.user_id = p_user AND t.turn_key = p_turn_key)) THEN
     RETURN jsonb_build_object('ok', NOT h.shadow_blocked,
              'hold', jsonb_build_object('credits', h.credits, 'expires_at', h.expires_at),
              'available', v_available, 'balance', w.balance)
         || CASE WHEN h.shadow_blocked THEN jsonb_build_object('reason', 'credits_exhausted') ELSE '{}'::jsonb END;
   END IF;
 
-  IF v_available <= 0 THEN
-    IF p_enforced THEN
-      RETURN jsonb_build_object('ok', false, 'reason', 'credits_exhausted', 'hold', NULL,
-               'available', v_available, 'balance', w.balance);
-    END IF;
-    INSERT INTO public.credit_holds (user_id, turn_key, credits, expires_at, shadow_blocked)
-    VALUES (p_user, p_turn_key, s.hold_credits, now() + make_interval(mins => s.hold_minutes), true)
-    RETURNING * INTO h;
-    RETURN jsonb_build_object('ok', false, 'reason', 'credits_exhausted',
-             'hold', jsonb_build_object('credits', h.credits, 'expires_at', h.expires_at),
+  IF v_available <= 0 AND p_enforced THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'credits_exhausted', 'hold', NULL,
              'available', v_available, 'balance', w.balance);
   END IF;
-
-  INSERT INTO public.credit_holds (user_id, turn_key, credits, expires_at)
-  VALUES (p_user, p_turn_key, least(v_available, s.hold_credits), now() + make_interval(mins => s.hold_minutes))
-  RETURNING * INTO h;
-  RETURN jsonb_build_object('ok', true, 'hold', jsonb_build_object('credits', h.credits, 'expires_at', h.expires_at),
-           'available', v_available, 'balance', w.balance);
+  v_shadow := v_available <= 0;
+  v_credits := CASE WHEN v_shadow THEN s.hold_credits ELSE least(v_available, s.hold_credits) END;
+  IF v_existing THEN
+    UPDATE public.credit_holds
+    SET credits = v_credits, expires_at = now() + make_interval(mins => s.hold_minutes), shadow_blocked = v_shadow,
+        settled_at = NULL, swept_at = NULL
+    WHERE user_id = p_user AND turn_key = p_turn_key
+    RETURNING * INTO h;
+  ELSE
+    INSERT INTO public.credit_holds (user_id, turn_key, credits, expires_at, shadow_blocked)
+    VALUES (p_user, p_turn_key, v_credits, now() + make_interval(mins => s.hold_minutes), v_shadow)
+    RETURNING * INTO h;
+  END IF;
+  RETURN jsonb_build_object('ok', NOT v_shadow, 'hold', jsonb_build_object('credits', h.credits, 'expires_at', h.expires_at),
+           'available', v_available, 'balance', w.balance)
+      || CASE WHEN v_shadow THEN jsonb_build_object('reason', 'credits_exhausted') ELSE '{}'::jsonb END;
 END;
 $$;
 
