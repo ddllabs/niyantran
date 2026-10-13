@@ -76,7 +76,8 @@ describe('v6 reference motion behavior', () => {
 describe('counter animation lifecycle', () => {
   const harness = () => {
     const document = { hidden: false }, node = { dataset: { v6Count: '100' }, textContent: '100' };
-    const root = { querySelector: () => null, querySelectorAll: () => [node] };
+    const nodes = [node];
+    const root = { querySelector: () => null, querySelectorAll: () => nodes };
     let effects = [], frame, id = 0;
     const raf = vi.fn(callback => { frame = callback; return ++id; });
     vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
@@ -96,7 +97,7 @@ describe('counter animation lifecycle', () => {
       });
       return motion;
     };
-    return { document, node, raf, render: useRenderMotion, tick: time => { const callback = frame; frame = null; callback?.(time); }, cleanup: () => effects.forEach(effect => effect.cleanup?.()) };
+    return { document, node, nodes, raf, render: useRenderMotion, tick: time => { const callback = frame; frame = null; callback?.(time); }, cleanup: () => effects.forEach(effect => effect.cleanup?.()) };
   };
   it.each(['manual', 'hidden'])('finalizes an interrupted counter and does not replay it on %s resume', reason => {
     const h = harness(), motion = h.render('100');
@@ -110,7 +111,7 @@ describe('counter animation lifecycle', () => {
     h.tick(0); expect(h.node.textContent).toBe('100');
     h.cleanup();
   });
-  it('does not replay completed data but animates changed data once visible', () => {
+  it('does not replay completed data but animates changed data once visible, from the shown value', () => {
     const h = harness(); h.render('100'); h.tick(1000);
     h.document.hidden = true; h.render('100');
     h.document.hidden = false; h.render('100');
@@ -118,9 +119,54 @@ describe('counter animation lifecycle', () => {
     h.document.hidden = true; h.node.dataset.v6Count = '250'; h.node.textContent = '250'; h.render('250');
     expect(h.raf).toHaveBeenCalledTimes(1);
     h.document.hidden = false; h.render('250');
-    expect(h.raf).toHaveBeenCalledTimes(2);
-    h.tick(500); expect(h.node.textContent).toBe('219');
-    h.tick(1000); expect(h.node.textContent).toBe('250');
+    expect(h.raf).toHaveBeenCalledTimes(1);
+    expect(h.node.textContent).toBe('250');
+    h.cleanup();
+  });
+
+  // Owner bug report (2026-10-14): on load the counters ran from 0 two or three times, or kept doing
+  // it, because every arriving summary restarted every counter from 0.
+  it('counts each number once: a new target continues from the shown value, and an unchanged one does not move', () => {
+    const h = harness();
+    const other = { dataset: { v6Count: '40' }, textContent: '40' };
+    h.nodes.push(other);
+    h.render('a');
+    h.tick(500); expect(h.node.textContent).toBe('88'); expect(other.textContent).toBe('35');
+    h.node.dataset.v6Count = '200'; h.node.textContent = '200';
+    h.render('b');
+    expect(h.node.textContent).not.toBe('0');
+    h.tick(0); expect(h.node.textContent).toBe('88');
+    h.tick(1000); expect(h.node.textContent).toBe('200'); expect(other.textContent).toBe('40');
+    const requests = h.raf.mock.calls.length;
+    h.render('c');
+    expect(h.raf).toHaveBeenCalledTimes(requests);
+    h.cleanup();
+  });
+
+  it('never shows "-0" when the first frame is stamped before the run started', () => {
+    const h = harness();
+    h.render('a'); h.tick(-5);
+    expect(h.node.textContent).toBe('0');
+    h.cleanup();
+  });
+
+  it('does not paint over a value React cleared before the next run starts', () => {
+    const h = harness();
+    h.render('a'); h.tick(500);
+    delete h.node.dataset.v6Count; h.node.textContent = '—';
+    h.tick(600);
+    expect(h.node.textContent).toBe('—');
+    h.cleanup();
+  });
+
+  it('never writes NaN for a counter that lost its value, and leaves its text to React', () => {
+    const h = harness();
+    h.render('a'); h.tick(500);
+    delete h.node.dataset.v6Count; h.node.textContent = '—';
+    h.render('b'); h.tick(1000);
+    expect(h.node.textContent).toBe('—');
+    h.document.hidden = true; h.render('b');
+    expect(h.node.textContent).toBe('—');
     h.cleanup();
   });
 });
