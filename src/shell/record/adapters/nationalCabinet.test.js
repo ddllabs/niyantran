@@ -167,21 +167,22 @@ describe('National cabinet adapter', () => {
       for (const r of [L.secretary, L.state, L.briefing, L.apprised]) expect(kindOf(nationalCabinet(r, ctx(LIVE))), r.title).toBe('Press release');
     });
 
-    it('does not follow the row\'s ministry, its stage, its source or its provenance', () => {
+    it('follows the issuing body PIB names (F125), but never the row\'s stage, source or provenance', () => {
       const ccea = STORED[0];
-      const notADecision = { ...STORED[1], ministry: ccea.ministry, provenance: 'official', stage: 'Cabinet decision' };
+      const notADecision = { ...STORED[1], provenance: 'official', stage: 'Cabinet decision', source: 'Cabinet' };
       const m = nationalCabinet(notADecision, storedCtx());
       expect(m.badge.text).toBe('Press release');
       expect(kindOf(m)).toBe('Press release');
-      const noCabinetWord = { ...ccea, title: 'Minimum Support Prices announced for Kharif crops', topic: 'Minimum Support Prices announced for Kharif crops' };
-      expect(nationalCabinet(noCabinetWord, storedCtx()).badge.text).toBe('Press release');
+      const issuedByCcea = { ...ccea, title: 'Minimum Support Prices announced for Kharif crops', topic: 'Minimum Support Prices announced for Kharif crops' };
+      expect(nationalCabinet(issuedByCcea, storedCtx()).badge.text).toBe('Cabinet decision');
+      expect(nationalCabinet({ ...issuedByCcea, ministry: 'Cabinet Secretariat' }, storedCtx()).badge.text).toBe('Press release');
     });
 
     it('says what it rests on, and never reads "Cabinet decision" outside the rows that earned it', () => {
       for (const r of [...STORED.slice(1), L.home, L.secretary, L.state]) {
         const all = strings(nationalCabinet(r, ctx([...STORED, ...LIVE]))).filter((s) => /cabinet decision\b/i.test(s));
         // Only the explanatory board row, caption and footer note may name the term, never a label for this item.
-        expect(all.every((s) => /^(?:Stated as Cabinet decisions|.*not a list of Cabinet decisions.*|.*not yet filtered to Cabinet decisions.*)$/.test(s)), `${r.title}: ${all.join(' | ')}`).toBe(true);
+        expect(all.every((s) => /^(?:Cabinet decisions|.*issued by the Cabinet or one of its committees.*|.*the stored Cabinet decisions.*|.*"Cabinet decisions" counts those.*)$/.test(s)), `${r.title}: ${all.join(' | ')}`).toBe(true);
       }
       const m = nationalCabinet(L.msp, ctx(LIVE));
       expect(tile(m, 'Kind').sub).toMatch(/title states a Cabinet approval/i);
@@ -269,19 +270,19 @@ describe('National cabinet adapter', () => {
       const v = board(m);
       expect(v).toMatchObject({ type: 'board', title: 'What the feed served today' });
       expect(boardRow(m, 'Items in this feed').value).toBe(String(rows.length));
-      expect(boardRow(m, 'Stated as Cabinet decisions')).toMatchObject({ value: '5', note: 'includes this item', tone: 'blue' });
+      expect(boardRow(m, 'Cabinet decisions')).toMatchObject({ value: '5', note: 'includes this item', tone: 'blue' });
       expect(boardRow(m, 'Other releases').value).toBe(String(rows.length - 5));
       expect(boardRow(m, 'Ministry tagged')).toMatchObject({ value: `0 of ${rows.length}`, note: 'the feed does not tag a ministry' });
       const other = boardRow(nationalCabinet(L.home, ctx(rows)), 'Other releases');
       expect(other.note).toBe('includes this item');
-      expect(boardRow(nationalCabinet(L.home, ctx(rows)), 'Stated as Cabinet decisions').note).not.toMatch(/includes this item/);
+      expect(boardRow(nationalCabinet(L.home, ctx(rows)), 'Cabinet decisions').note).not.toMatch(/includes this item/);
     });
 
-    it('says the feed is the unfiltered PIB stream and that the count is a text match', () => {
+    it('says the feed keeps releases by their issuing body, and what the count includes (F125)', () => {
       const cap = board(nationalCabinet(L.home, ctx(LIVE))).caption;
-      expect(cap).toMatch(/unfiltered PIB stream/);
-      expect(cap).toMatch(/not a list of Cabinet decisions/);
-      expect(cap).toMatch(/text match/);
+      expect(cap).toMatch(/issuing body/);
+      expect(cap).toMatch(/Cabinet or one of its committees/);
+      expect(cap).not.toMatch(/unfiltered/);
     });
 
     it('counts a copy of the selection once, and not a source-status notice', () => {
@@ -289,7 +290,7 @@ describe('National cabinet adapter', () => {
       const rows = [...LIVE, statusRow, { ...L.msp }];
       const m = nationalCabinet({ ...L.msp }, ctx(rows));
       expect(boardRow(m, 'Items in this feed').value).toBe(String(LIVE.length));
-      expect(boardRow(m, 'Stated as Cabinet decisions').value).toBe('5');
+      expect(boardRow(m, 'Cabinet decisions').value).toBe('5');
       // A selection missing from the rows is still part of the feed it came from.
       expect(boardRow(nationalCabinet(L.msp, ctx([])), 'Items in this feed').value).toBe('1');
     });
@@ -322,7 +323,7 @@ describe('National cabinet adapter', () => {
       expect(board(m)).toMatchObject({ title: 'What the stored register holds', right: 'as of 07 Sep 2026' });
       expect(board(m).caption).toMatch(/stored copy/);
       expect(boardRow(m, 'Items in this feed')).toMatchObject({ value: '6', note: 'in the stored register' });
-      expect(boardRow(m, 'Stated as Cabinet decisions')).toMatchObject({ value: '1', note: 'includes this item' });
+      expect(boardRow(m, 'Cabinet decisions')).toMatchObject({ value: '1', note: 'includes this item' });
       expect(boardRow(m, 'Other releases').value).toBe('5');
       expect(boardRow(m, 'Ministry tagged').value).toBe('1 of 6');
     });
@@ -445,12 +446,12 @@ describe('National cabinet adapter', () => {
       for (const r of STORED) expect(nationalCabinet(r, storedCtx()).footer.provenance.asOf, r.id).toBe('07 Sep 2026');
     });
 
-    it('says a press release is not an approval, an approval is not an implementation, and the feed is not filtered yet', () => {
+    it('says a press release is not an approval, an approval is not an implementation, and how the feed is filtered (F125)', () => {
       for (const r of [STORED[0], L.msp, L.home]) {
         const note = nationalCabinet(r, ctx(LIVE)).footer.note;
         expect(note).toMatch(/press release is not an approval/i);
         expect(note).toMatch(/approval is not an implementation/i);
-        expect(note).toMatch(/not yet filtered to Cabinet decisions/i);
+        expect(note).toMatch(/issued by the Cabinet or one of its committees/i);
       }
     });
 
@@ -482,5 +483,24 @@ describe('National cabinet adapter', () => {
       const decision = renderToStaticMarkup(createElement(RecordPanel, { model: nationalCabinet(L.msp, ctx(LIVE)) }));
       expect(decision).toContain('rp-badge rp-blue">Cabinet decision<');
     });
+  });
+});
+
+// F125: the server now keeps only releases PIB says the Cabinet or a Cabinet committee issued, and
+// sets `ministry` to that body; the panel reads the body as the marker and no longer calls the feed unfiltered.
+describe('National cabinet adapter on the filtered feed (F125)', () => {
+  const filtered = { id: 'pib-1', title: 'Cabinet Approves The Example Scheme For 2026-27', date: 'Mon, 12 Oct 2026 10:00:00 +0530', source_url: 'https://www.pib.gov.in/PressReleasePage.aspx?PRID=1111', ministry: 'Cabinet Committee on Economic Affairs (CCEA)', stage: 'PIB release', source: 'Press Information Bureau', language: 'en' };
+  const quiet = { ...filtered, id: 'pib-2', title: 'Union Cabinet meeting held in New Delhi today', source_url: 'https://www.pib.gov.in/PressReleasePage.aspx?PRID=2222', ministry: 'Cabinet' };
+  const m = nationalCabinet(quiet, { rows: [filtered, quiet], feed: { source: { adapter: 'live' } } });
+
+  it('calls an item a Cabinet decision when PIB names the Cabinet as its issuing body, even if the title does not say "approves"', () => {
+    expect(m.badge).toMatchObject({ text: 'Cabinet decision' });
+    expect(m.glance.tiles.find((t) => t.label === 'Ministry').value).toBe('Cabinet');
+  });
+
+  it('no longer says the feed is unfiltered', () => {
+    const text = JSON.stringify(m);
+    expect(text).not.toMatch(/not yet filtered|unfiltered PIB stream/i);
+    expect(m.footer.note).toMatch(/issued by the Cabinet or one of its committees/i);
   });
 });

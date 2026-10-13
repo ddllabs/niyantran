@@ -56,10 +56,13 @@ function attendanceOf(row) {
 
 export default function nationalMps(row, ctx = {}) {
   const name = clean(row.mp_name ?? row.name ?? row.title) || 'Member';
+  // The desk hands over shaped rows (F126): a unified `party` with the register's spelling in
+  // `party_raw`, and `house` read from the member's own link. A raw row still works.
   const party = clean(row.party);
+  const listedAs = clean(row.party_raw);
   const state = clean(row.state);
   const constituency = clean(row.constituency);
-  const house = houseFromSource(row.source_url);
+  const house = clean(row.house) || houseFromSource(row.source_url);
   const questions = clean(row.questions_asked);
   const committees = committeesOf(row.committees);
   const repeats = listedCount(row.committees) - committees.length;
@@ -96,6 +99,7 @@ export default function nationalMps(row, ctx = {}) {
       label: '02 · About this member',
       rows: presentRows([
         ['Party', party],
+        ['Listed as', listedAs && listedAs !== party ? listedAs : ''],
         ['House', house || 'Not on record'],
         ['Constituency', constituency || 'Not on record'],
         ['State', state],
@@ -113,7 +117,7 @@ export default function nationalMps(row, ctx = {}) {
       label: '03 · Member & party',
       lanes: ['PARTY', 'MEMBER', 'CONSTITUENCY', 'COMMITTEES'],
       nodes: {
-        left: party ? { l1: party, l2: 'as in the register' } : undefined,
+        left: party ? { l1: party, l2: listedAs && listedAs !== party ? `listed as ${listedAs}` : 'as in the register' } : undefined,
         center: { code: 'M', l1: 'This member', l2: house || undefined },
         right: constituency ? { l1: constituency, l2: state || 'constituency' } : state ? { l1: state, l2: 'state' } : undefined,
         far: committees.length ? { l1: committees[0], l2: committees.length > 1 ? `+${committees.length - 1} more` : 'committee' } : undefined,
@@ -130,7 +134,7 @@ export default function nationalMps(row, ctx = {}) {
     footer: {
       ask: 'Ask AI about this member',
       provenance: { source: 'Sansad member profiles (sansad.in)', asOf: asOf || undefined, flags: asOf ? [] : ['as-of not on record'] },
-      note: `This is a register of members, not a ranking, and its counts are not a measure of effectiveness. Party names are shown as the register holds them, so one party can appear under two names, and related members are matched on the exact spelling.`,
+      note: `This is a register of members, not a ranking, and its counts are not a measure of effectiveness. Party names are unified only where the full name and the abbreviation are certainly the same party, and the name as listed is shown beside it; related members are matched on that name.`,
     },
   };
 }

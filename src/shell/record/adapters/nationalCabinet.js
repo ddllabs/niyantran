@@ -1,3 +1,4 @@
+import { isCabinetBody } from '../../../lib/parliament.js';
 import { dateLabel, plural, presentRows } from './common.js';
 
 /**
@@ -151,7 +152,9 @@ const releasedLabel = (row) => [row.date, row.occurred_at, row.source_date_raw].
 // ---------------------------------------------------------------------------------------------
 
 const titleOf = (row) => plainText(row?.title) || plainText(row?.topic);
-const isCabinet = (row) => statesCabinetDecision(titleOf(row));
+// F125: the server keeps only releases whose issuing body (PIB's release page) is the Cabinet or a
+// Cabinet committee and sets `ministry` to that body; a title that states a Cabinet approval also counts.
+const isCabinet = (row) => isCabinetBody(plainText(row?.ministry)) || statesCabinetDecision(titleOf(row));
 
 /** The ministry the row holds. The publisher name the server falls back to is not a ministry. */
 function ministryOf(row) {
@@ -228,7 +231,7 @@ export default function nationalCabinet(row, ctx = {}) {
 
   const boardRows = [
     { label: 'Items in this feed', value: String(items.length), note: stored ? 'in the stored register' : 'served today' },
-    { label: 'Stated as Cabinet decisions', value: String(cabinetItems), note: cabinet ? 'includes this item' : 'by their titles', tone: cabinetItems ? 'blue' : undefined },
+    { label: 'Cabinet decisions', value: String(cabinetItems), note: cabinet ? 'includes this item' : 'by issuing body or title', tone: cabinetItems ? 'blue' : undefined },
     { label: 'Other releases', value: String(items.length - cabinetItems), note: cabinet ? undefined : 'includes this item', tone: items.length - cabinetItems ? 'grey' : undefined },
     { label: 'Ministry tagged', value: `${tagged} of ${items.length}`, note: tagged ? 'items that name a ministry' : 'the feed does not tag a ministry' },
   ];
@@ -273,7 +276,7 @@ export default function nationalCabinet(row, ctx = {}) {
         title: stored ? 'What the stored register holds' : 'What the feed served today',
         right: stored && asOf ? `as of ${asOf}` : undefined,
         rows: boardRows,
-        caption: `${stored ? 'The stored copy of the Press Information Bureau feed, not today\'s releases. ' : ''}The feed is the unfiltered PIB stream of press releases, not a list of Cabinet decisions. "Stated as Cabinet decisions" counts titles that say the Cabinet or the CCEA approved something: a text match, not an official classification.`,
+        caption: `${stored ? 'The stored copy of the Press Information Bureau feed, not today\'s releases. ' : ''}The feed keeps PIB releases whose issuing body, as each release page names it, is the Cabinet or one of its committees. "Cabinet decisions" counts those, and any title that states a Cabinet approval.`,
       },
     },
     about: {
@@ -311,7 +314,7 @@ export default function nationalCabinet(row, ctx = {}) {
         asOf,
         flags: [...(stored ? ['stored copy, not the live feed'] : []), ...(asOf ? [] : ['as-of not on record'])],
       },
-      note: 'A press release is not an approval, and an approval is not an implementation. This feed is not yet filtered to Cabinet decisions: most items are ordinary PIB releases, and one is called a Cabinet decision only when its own title says the Cabinet approved something.',
+      note: 'A press release is not an approval, and an approval is not an implementation. The feed keeps only releases issued by the Cabinet or one of its committees, as each PIB release page names its issuing body; when the latest PIB window holds none, it shows the stored Cabinet decisions.',
     },
   };
 }
