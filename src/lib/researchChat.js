@@ -16,6 +16,10 @@ import { sendResearchTurn } from './aiClient.js';
 import { verifiedLocalIdentity, localIdentityIsCurrent, reverifiedAccount, subscribeLocalIdentity } from './userStore.js';
 
 export const SAFETY_TIMEOUT_MS = 120_000;
+// F111 §3: after `done` the server settles the turn and sends one `{credits}` frame, which on a
+// stopped turn can come a few seconds later. The answer is finished at `done`; this only bounds how
+// long the reader stays on the stream for that frame.
+export const CREDITS_WAIT_MS = 6000;
 const EVENT = 'niy-research-stream';
 
 /**
@@ -404,6 +408,49 @@ export async function stopTurn(conversationId) {
     : { cancelRequested: false, cancelError: 'Your research session changed.' };
 }
 
+/** The one frame allowed after `done`: `{credits: number | null}` and nothing beside it. */
+function creditsFrame(frame) {
+  if (!frame || typeof frame !== 'object' || Array.isArray(frame)) return null;
+  const keys = Object.keys(frame);
+  if (keys.length !== 1 || keys[0] !== 'credits') return null;
+  const value = frame.credits;
+  if (value === null) return { credits: null };
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? { credits: value } : null;
+}
+
+/**
+ * Keep reading a finished turn's stream for its credits (F111 §3). The answer is already shown as
+ * finished; nothing here can change it. Exactly one `{credits}` frame is accepted. Any other data,
+ * a second credits frame, a broken stream or the wait running out ends the read, and the caller
+ * hears `credits: null` (not settled, or not known) rather than a guess. `onCredits` is called once.
+ */
+async function readCreditsTail(frames, reading, waitMs, onCredits) {
+  let reported = false;
+  const report = (credits) => {
+    if (reported) return;
+    reported = true;
+    try { void Promise.resolve(onCredits?.(credits)).catch(() => {}); } catch { /* a caller's failure is its own */ }
+  };
+  const timer = setTimeout(() => reading.abort(), waitMs);
+  timer?.unref?.();
+  try {
+    for (;;) {
+      const next = await raceAbort(frames.next(), reading.signal);
+      if (next.done) break;
+      const accepted = reported ? null : creditsFrame(next.value);
+      if (!accepted) break;
+      report(accepted.credits);
+    }
+  } catch { /* the saved answer stands whatever happens to the stream */ }
+  finally {
+    clearTimeout(timer);
+    report(null);
+    // The reader is released without waiting for the transport's own cancellation.
+    reading.abort();
+    void Promise.resolve(frames.return?.()).catch(() => {});
+  }
+}
+
 /** Exactly one active/unknown execution per conversation; replay is explicit. */
 export async function sendTurn(body, opts = {}) {
   watchIdentity();
@@ -508,12 +555,29 @@ async function run(entry, opts) {
     if (!response.ok) {
       const detail = await raceAbort(response.json().catch(() => null), controller.signal);
       const rejected = response.status >= 400 && response.status < 500;
-      await publish(entry, { isStreaming: false, status: rejected ? 'error' : 'unknown', isPending: !rejected,
+      // F111 §3: a credit check that could not run is refused before the claim, so nothing
+      // started and nothing is unknown. It is not "rejected" (the same turn may be sent
+      // again as it was), but it is not pending either.
+      const unchecked = response.status === 503 && detail?.code === 'credits_unavailable';
+      await publish(entry, { isStreaming: false, status: rejected || unchecked ? 'error' : 'unknown', isPending: !rejected && !unchecked,
         error: detail?.error || `research-chat HTTP ${response.status}`, errorCode: detail?.code || `http_${response.status}`,
         retryable: !rejected }, attempt);
       return result(entry);
     }
-    for await (const frame of readSseFrames(response, controller.signal)) {
+    // At `done` the frames stay open for the credits that follow (F111 §3): a loop that ends there would
+    // cancel the reader. The wrapper lets that one `break` hand the stream on instead.
+    // `reading` follows the turn's own abort, and is the only thing the credits wait ever aborts, so
+    // ending that wait cannot make the finished turn look cancelled.
+    const reading = new AbortController();
+    controller.signal.addEventListener('abort', () => reading.abort(), { once: true });
+    if (controller.signal.aborted) reading.abort();
+    const frames = readSseFrames(response, reading.signal);
+    let handedOn = false;
+    const source = { [Symbol.asyncIterator]: () => ({
+      next: () => frames.next(),
+      return: async value => (handedOn ? { done: true, value } : frames.return(value)),
+    }) };
+    for await (const frame of source) {
       if (!await current(entry, attempt) || !bound(entry, attempt) || controller.signal.aborted) break;
       bump();
       if (doneSeen) throw new Error('Unexpected data after the terminal result.');
@@ -558,13 +622,19 @@ async function run(entry, opts) {
           isStreaming: false, isPending: false, retryable: false, cancelPending: false, stopQueued: false }, attempt);
         // Saved terminal evidence ends this operation, independently of how the
         // server or network subsequently closes its transport.
-        if (terminal) break;
+        if (terminal) { handedOn = true; break; }
       }
     }
     await coalescer.flush();
     if (!terminal) throw new Error('The connection ended before a saved result was confirmed. Reload or replay this turn.');
     await publish(entry, { isStreaming: false }, attempt);
-    return result(entry);
+    const finished = result(entry);
+    if (handedOn) {
+      const done = { conversationId: entry.state.conversationId, messageId: entry.state.messageId };
+      void readCreditsTail(frames, reading, opts.creditsWaitMs ?? CREDITS_WAIT_MS,
+        credits => opts.onCredits?.({ ...done, credits }));
+    }
+    return finished;
   } catch (error) {
     await coalescer.flush();
     const message = entry.endReason === 'timeout' ? 'The answer stopped arriving. Its server outcome is unknown; reload or replay this turn.'

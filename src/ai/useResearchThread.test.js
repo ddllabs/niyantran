@@ -1,4 +1,4 @@
-import {expect,it,vi} from 'vitest';
+import {describe,expect,it,vi} from 'vitest';
 import {createResearchThread,normalizeResearchChoice} from './useResearchThread.js';
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve}};
 function fixture(){
@@ -17,6 +17,8 @@ function fixture(){
  retryTurn:vi.fn(),reconcileSavedTurn:vi.fn(async()=>false),recordChatCancellation:vi.fn(async()=>({cancelRequested:true})),stopTurn:vi.fn(async()=>({cancelRequested:true})),
  loadRegistry:async()=>({models:[{model_id:'model/default',is_default:true,efforts:['low']}],roles:[]}),subscribeRegistry:()=>()=>{},
  setActiveAiChat:id=>{state.activeId=id;callback?.(state);return state},loadMessages:async()=>state,deleteAiChat:vi.fn(),addChatAttachments:vi.fn(),
+ // F111: the credits store reads the network; a test that does not care gets quiet stand-ins.
+ refreshCredits:vi.fn(async()=>null),conversationCredits:vi.fn(async()=>new Map()),
  };
  const controller=createResearchThread(deps);
  return{controller,deps,sent,append,reconciled,adopted,setStreams:v=>{streams=v;streamListener?.()},changeOwner(id='b'){owner={id,epoch:owner.epoch+1,token:id,expiresAt:Date.now()+60000};state={chats:[],activeId:'',loaded:false};listener?.(id,'TOKEN_REFRESHED')},
@@ -399,4 +401,88 @@ it('the finished assistant message keeps its webSources after reconciliation',as
  f.deps.reconcileTurn.mockImplementation(async()=>{const s={...f.getState(),activeId:'server-c',chats:[savedChat('server-c',null,{messages:[{id:'m',role:'assistant',content:'Done',status:'complete',webSources:pages}]})]};f.setState(s);return s;});
  await f.controller.send({message:'Q',turn_key:'reload'});
  expect(f.controller.getSnapshot().messages.find(m=>m.role==='assistant').webSources).toEqual(pages);
+});
+
+// F111 task 4a (spec §8): a refused turn tells the composer why, and the balance is re-read.
+const refusal=(errorCode,error)=>({conversationId:'server-c',isPending:false,status:'error',retryable:errorCode==='credits_unavailable',error,errorCode,messageId:''});
+it('the view names the verified account, for the credits it shows',async()=>{
+ const f=fixture();expect(f.controller.getSnapshot().ownerId).toBe('');await f.controller.start();expect(f.controller.getSnapshot().ownerId).toBe('a');
+ f.signOut();expect(f.controller.getSnapshot().ownerId).toBe('');
+});
+it('a 402 credits_exhausted refusal sets the blocked state, re-reads the balance, and the next send clears it',async()=>{
+ const f=fixture();await f.controller.start();
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('credits_exhausted','You have no AI credits left to start an answer.'));
+ await f.controller.send({message:'Q1',turn_key:'k1'});
+ expect(f.controller.getSnapshot().creditBlock).toBe('credits_exhausted');expect(f.deps.refreshCredits).toHaveBeenCalled();
+ let release;f.deps.sendTurn.mockImplementationOnce(()=>new Promise(r=>release=r));
+ const second=f.controller.send({message:'Q2',turn_key:'k2'});await vi.waitFor(()=>expect(f.deps.sendTurn).toHaveBeenCalledTimes(2));
+ expect(f.controller.getSnapshot().creditBlock).toBe('');
+ release({conversationId:'server-c',isPending:false,status:'complete',messageId:'m'});await second;
+});
+it('a 503 credits_unavailable refusal is its own state, never the blocked one',async()=>{
+ const f=fixture();await f.controller.start();
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('credits_unavailable','AI credits could not be checked.'));
+ await f.controller.send({message:'Q1',turn_key:'k1'});
+ expect(f.controller.getSnapshot().creditBlock).toBe('credits_unavailable');expect(f.deps.refreshCredits).toHaveBeenCalled();
+});
+it('another error leaves the credit state alone, and an account change clears it',async()=>{
+ const f=fixture();await f.controller.start();
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('turn_conflict','Conflicting'));
+ await f.controller.send({message:'Q1',turn_key:'k1'});expect(f.controller.getSnapshot().creditBlock).toBe('');
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('credits_exhausted','none'));
+ await f.controller.send({message:'Q2',turn_key:'k2'});expect(f.controller.getSnapshot().creditBlock).toBe('credits_exhausted');
+ f.changeOwner();expect(f.controller.getSnapshot().creditBlock).toBe('');
+});
+it('re-reads the balance after each finished turn, and not before one',async()=>{
+ const f=fixture();await f.controller.start();expect(f.deps.refreshCredits).not.toHaveBeenCalled();
+ await f.controller.send({message:'Q',turn_key:'k'});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(1);
+});
+it('a balance read that fails never fails the turn',async()=>{
+ const f=fixture();await f.controller.start();f.deps.refreshCredits.mockRejectedValue(new Error('offline'));
+ expect(await f.controller.send({message:'Q',turn_key:'k'})).toBe(true);expect(f.controller.getSnapshot().error).toBe('');
+});
+
+// F111 task 4b (spec §8): each answer's credits, from the turn's own frame and from the saved record.
+describe('credits on each answer',()=>{
+ const savedState=()=>({chats:[{id:'saved',messages:[{id:'m1',role:'assistant',content:'A',status:'complete'}],attachments:[]}],activeId:'saved',loaded:true});
+ function withCallback(f){let opts;f.deps.sendTurn.mockImplementation(async(_b,o)=>{opts=o;await o.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:false,status:'complete',messageId:'m'}});return()=>opts}
+ it('records the credits of the frame against the answer, and re-reads the balance once more',async()=>{
+  const f=fixture();await f.controller.start();const opts=withCallback(f);
+  await f.controller.send({message:'Q',turn_key:'k'});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(1);
+  expect(f.controller.getSnapshot().answerCredits).toEqual({});
+  await opts().onCredits({conversationId:'server-c',messageId:'m',credits:38.25});
+  expect(f.controller.getSnapshot().answerCredits).toEqual({m:38.25});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(2);
+ });
+ it('with no credits in the frame, asks the record once and shows nothing for what it does not hold',async()=>{
+  const f=fixture();await f.controller.start();const opts=withCallback(f);await f.controller.send({message:'Q',turn_key:'k'});
+  await opts().onCredits({conversationId:'server-c',messageId:'m',credits:null});
+  expect(f.deps.conversationCredits).toHaveBeenCalledWith('server-c');expect(f.controller.getSnapshot().answerCredits).toEqual({});
+  f.deps.conversationCredits.mockResolvedValueOnce(new Map([['m',12]]));
+  await opts().onCredits({conversationId:'server-c',messageId:'m',credits:null});
+  await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m:12}));
+ });
+ it('ignores a frame that arrives after the account changed',async()=>{
+  const f=fixture();await f.controller.start();const opts=withCallback(f);await f.controller.send({message:'Q',turn_key:'k'});
+  f.changeOwner();await vi.waitFor(()=>expect(f.controller.getSnapshot().ready).toBe(true));
+  await opts().onCredits({conversationId:'server-c',messageId:'m',credits:38});
+  expect(f.controller.getSnapshot().answerCredits).toEqual({});
+ });
+ it('loads the saved credits of the open conversation after a reload, but asks nothing for a new draft',async()=>{
+  const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());f.deps.conversationCredits.mockResolvedValue(new Map([['m1',5]]));
+  await f.controller.start();await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:5}));
+  expect(f.deps.conversationCredits).toHaveBeenCalledWith('saved');
+  const g=fixture();await g.controller.start();expect(g.deps.conversationCredits).not.toHaveBeenCalled();
+ });
+ it('loads them again when a conversation is opened or reloaded, and drops them with the account',async()=>{
+  const f=fixture();await f.controller.start();f.setState(savedState());
+  f.deps.conversationCredits.mockResolvedValue(new Map([['m1',7]]));
+  await f.controller.selectChat('saved');await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:7}));
+  f.deps.conversationCredits.mockResolvedValue(new Map([['m1',8]]));
+  await f.controller.reload();await vi.waitFor(()=>expect(f.controller.getSnapshot().answerCredits).toEqual({m1:8}));
+  f.changeOwner();expect(f.controller.getSnapshot().answerCredits).toEqual({});
+ });
+ it('a failed read of the record changes nothing',async()=>{
+  const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());f.deps.conversationCredits.mockRejectedValue(new Error('offline'));
+  await f.controller.start();await Promise.resolve();expect(f.controller.getSnapshot()).toMatchObject({ready:true,answerCredits:{},error:''});
+ });
 });

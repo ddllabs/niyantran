@@ -1029,3 +1029,148 @@ describe('web search frames', () => {
     clearStream('web-i');
   });
 });
+
+// F111 task 4a (spec §3, §8): research-chat refuses a turn before any stream when the user has no
+// credits (402) or when credits could not be checked (503). Neither is a lost connection.
+describe('credit refusals before the stream', () => {
+  const turn = { message: 'Question', focus: 'broad' };
+  const refuse = (status, body) => async () => new Response(JSON.stringify(body), { status });
+
+  it('402 credits_exhausted is a definite refusal: nothing pending, not replayable, the code kept', async () => {
+    const body = { error: 'You have no AI credits left to start an answer.', code: 'credits_exhausted', balance: -50 };
+    const result = await sendTurn({ ...turn, turn_key: 'credits-402' }, { send: refuse(402, body) });
+    expect(result).toMatchObject({ errorCode: 'credits_exhausted', isPending: false, retryable: false, status: 'error' });
+    expect(result.error).toBe('You have no AI credits left to start an answer.');
+    clearStream('new');
+  });
+
+  it('503 credits_unavailable is also definite (the turn never started) and can be sent again as it was', async () => {
+    const body = { error: 'AI credits could not be checked.', code: 'credits_unavailable' };
+    const result = await sendTurn({ ...turn, turn_key: 'credits-503' }, { send: refuse(503, body) });
+    expect(result).toMatchObject({ errorCode: 'credits_unavailable', isPending: false, retryable: true, status: 'error' });
+    expect(streamState('new')).toMatchObject({ isPending: false, status: 'error', retryable: true });
+    clearStream('new');
+  });
+
+  it('any other 503 stays an unknown, pending outcome', async () => {
+    const result = await sendTurn({ ...turn, turn_key: 'plain-503' }, { send: refuse(503, { error: 'busy' }) });
+    expect(result).toMatchObject({ isPending: true, retryable: true, status: 'unknown' });
+    clearStream('new');
+  });
+});
+
+// F111 task 4b (spec §3): after `done` the server sends one `{credits}` frame, then [DONE]. The answer is
+// finished at `done`; the reader waits for the frame in the background, for [DONE] or a few seconds.
+describe('the credits frame after done', () => {
+  const live = (frames) => {
+    let wire, cancelled = false;
+    const body = new ReadableStream({ start(c) { wire = c; for (const f of frames) c.enqueue(frame(f)); }, cancel() { cancelled = true; } });
+    return { response: new Response(body), push: (f) => wire.enqueue(frame(f)), close: () => wire.close(), get cancelled() { return cancelled; } };
+  };
+  const answer = (id, text = 'Saved answer') => [{ conversation: { id } }, { chunk: text }, { sources: [] }, { timing: { total_ms: 10 } }, { done: { message_id: `${id}-m` } }];
+  const turn = (key) => ({ message: 'Question', turn_key: key, focus: 'broad' });
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+
+  it('hands the credits to the caller, with the answer it belongs to', async () => {
+    const onCredits = vi.fn();
+    await sendTurn(turn('cr-1'), { send: async () => sse([...answer('cr-a'), { credits: 38.25 }]), schedule: (fn) => fn(), onCredits });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledOnce());
+    expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-a', messageId: 'cr-a-m', credits: 38.25 });
+    clearStream('cr-a');
+  });
+
+  it('finishes the answer at done, without waiting for the credits frame', async () => {
+    const wire = live(answer('cr-b'));
+    const onCredits = vi.fn();
+    const pending = sendTurn(turn('cr-2'), { send: async () => wire.response, schedule: (fn) => fn(), onCredits });
+    const outcome = await Promise.race([pending.then(() => 'finished'), new Promise((r) => setTimeout(() => r('waited'), 150))]);
+    expect(outcome).toBe('finished');
+    expect(streamState('cr-b')).toMatchObject({ status: 'complete', isStreaming: false, isPending: false, messageId: 'cr-b-m' });
+    expect(onCredits).not.toHaveBeenCalled();
+    wire.push({ credits: 12 });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-b', messageId: 'cr-b-m', credits: 12 }));
+    wire.close();
+    clearStream('cr-b');
+  });
+
+  it('reports null when the server has not settled yet, and when [DONE] comes without credits', async () => {
+    const onCredits = vi.fn();
+    await sendTurn(turn('cr-3'), { send: async () => sse([...answer('cr-c'), { credits: null }]), schedule: (fn) => fn(), onCredits });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-c', messageId: 'cr-c-m', credits: null }));
+    onCredits.mockClear();
+    await sendTurn(turn('cr-4'), { send: async () => sse(answer('cr-d')), schedule: (fn) => fn(), onCredits });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-d', messageId: 'cr-d-m', credits: null }));
+    expect(onCredits).toHaveBeenCalledOnce();
+    clearStream('cr-c'); clearStream('cr-d');
+  });
+
+  it('gives up after the wait and lets the reader go', async () => {
+    const wire = live(answer('cr-e'));
+    const onCredits = vi.fn();
+    await sendTurn(turn('cr-5'), { send: async () => wire.response, schedule: (fn) => fn(), onCredits, creditsWaitMs: 40 });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-e', messageId: 'cr-e-m', credits: null }), { timeout: 1000 });
+    expect(wire.cancelled).toBe(true);
+    expect(streamState('cr-e')).toMatchObject({ status: 'complete', isPending: false });
+    clearStream('cr-e');
+  });
+
+  it('allows exactly one credits frame: anything else after done is rejected and cannot change the finished answer', async () => {
+    const cases = {
+      'a second frame of text': [{ chunk: ' more' }, { credits: 5 }],
+      'a second credits frame': [{ credits: 5 }, { credits: 9 }],
+      'a credits frame with a cost beside it': [{ credits: 5, cost: 0.01 }],
+      'credits that are not a count': [{ credits: '5' }],
+      'negative credits': [{ credits: -5 }],
+    };
+    let i = 0;
+    for (const [name, extra] of Object.entries(cases)) {
+      const id = `cr-x${i++}`;
+      const onCredits = vi.fn();
+      await sendTurn(turn(`cr-6-${i}`), { send: async () => sse([...answer(id), ...extra]), schedule: (fn) => fn(), onCredits });
+      await vi.waitFor(() => expect(onCredits).toHaveBeenCalledOnce());
+      const credits = onCredits.mock.calls[0][0].credits;
+      expect(credits, name).toBe(name === 'a second credits frame' ? 5 : null);
+      expect(streamState(id), name).toMatchObject({ status: 'complete', isPending: false, errorCode: '', error: '' });
+      clearStream(id);
+    }
+  });
+
+  it('stops reading at the second credits frame, rather than waiting out the clock', async () => {
+    const wire = live(answer('cr-two'));
+    const onCredits = vi.fn();
+    await sendTurn(turn('cr-two-key'), { send: async () => wire.response, schedule: (fn) => fn(), onCredits, creditsWaitMs: 60_000 });
+    wire.push({ credits: 5 });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-two', messageId: 'cr-two-m', credits: 5 }));
+    expect(wire.cancelled).toBe(false);
+    wire.push({ credits: 9 });
+    await vi.waitFor(() => expect(wire.cancelled).toBe(true), { timeout: 1000 });
+    expect(onCredits).toHaveBeenCalledOnce();
+    clearStream('cr-two');
+  });
+
+  it('a stream that breaks after done leaves the saved answer alone and reports no credits', async () => {
+    const wire = live(answer('cr-f'));
+    const onCredits = vi.fn();
+    await sendTurn(turn('cr-7'), { send: async () => wire.response, schedule: (fn) => fn(), onCredits });
+    wire.push({ chunk: 'late' });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalledWith({ conversationId: 'cr-f', messageId: 'cr-f-m', credits: null }));
+    expect(streamState('cr-f')).toMatchObject({ status: 'complete', error: '' });
+    clearStream('cr-f');
+  });
+
+  it('a throwing callback never disturbs the turn', async () => {
+    const onCredits = vi.fn(() => { throw new Error('boom'); });
+    const result = await sendTurn(turn('cr-8'), { send: async () => sse([...answer('cr-g'), { credits: 3 }]), schedule: (fn) => fn(), onCredits });
+    await vi.waitFor(() => expect(onCredits).toHaveBeenCalled());
+    expect(result).toMatchObject({ status: 'complete' });
+    clearStream('cr-g');
+  });
+
+  it('no turn that did not finish asks for credits', async () => {
+    const onCredits = vi.fn();
+    await sendTurn(turn('cr-9'), { send: async () => sse([{ conversation: { id: 'cr-h' } }, { chunk: 'partial' }]), schedule: (fn) => fn(), onCredits });
+    await settle();
+    expect(onCredits).not.toHaveBeenCalled();
+    clearStream('cr-h');
+  });
+});

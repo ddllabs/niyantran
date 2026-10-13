@@ -11,6 +11,7 @@ import './research.css';
 import './chat-presentation.css';
 import AttachmentTray from './AttachmentTray.jsx';
 import ChatSubmit from './ChatSubmit.jsx';
+import CreditBalance, { useCredits } from './CreditBalance.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import WebSourceStrip, { liveStrip } from './WebSourceStrip.jsx';
@@ -380,7 +381,10 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const draft = research.draft;
   const setDraft = research.actions.setDraft;
   const busy = research.locked;
-  const err = research.error;
+  // F111 §8: a turn refused for credits says so in the credits notice by the composer, once.
+  const creditBlock = research.creditBlock || '';
+  const credits = useCredits(research.ownerId);
+  const err = creditBlock ? '' : research.error;
   const [dragOver, setDragOver] = useState(false);
   const [dictationActive, setDictationActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -715,9 +719,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const connectionLost = stream?.status === 'unknown';
   const running = Boolean(research.storedRunning || (stream?.status === 'running' && !streaming));
   const stopping = Boolean(research.cancelRequested || stream?.cancelRequested);
-  const needsReload = connectionLost || running || stopping || Boolean(err || stream?.error || state.persistenceError)
+  const shownError = err || (creditBlock ? '' : stream?.error);
+  const needsReload = connectionLost || running || stopping || Boolean(shownError || state.persistenceError)
     || messages.some((m) => m.status === 'running');
-  const showControls = needsReload || research.loading || research.attaching || research.recoverable || Boolean(research.cancelError || stream?.cancelError);
+  // The credits notice carries its own "Try again" for an unchecked balance; Recover would be a second one.
+  const recoverable = research.recoverable && creditBlock !== 'credits_unavailable';
+  const showControls = needsReload || research.loading || research.attaching || recoverable || Boolean(research.cancelError || stream?.cancelError);
 
   // The header's actions: new research, history, docs and download.
   const headActions = (
@@ -1014,7 +1021,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             </div>
           ) : null}
           {research.ready ? messages.map((m) => (
-            <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} selectedSource={viewer?.source} />
+            <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} selectedSource={viewer?.source} credits={research.answerCredits?.[m.id]} />
           )) : null}
 
           {/* The turn in flight: the ticker, the pages searched (F131), then the answer as it is written. */}
@@ -1097,12 +1104,12 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             {running ? <span>Research is running.</span> : null}
             {stopping ? <span>Stopping — awaiting the saved result.</span> : null}
             {research.cancelError || stream?.cancelError ? <span role="alert">{research.cancelError || stream.cancelError}</span> : null}
-            {research.recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
+            {recoverable ? <button type="button" onClick={() => research.actions.recover()}>Recover answer</button> : null}
             {needsReload ? <button type="button" disabled={research.loading} onClick={() => research.actions.reload()}>Reload</button> : null}
           </div>
         ) : null}
-        {err || stream?.error ? (
-          <p className="ai-foot warn" role="alert">{err || stream?.error}</p>
+        {shownError ? (
+          <p className="ai-foot warn" role="alert">{shownError}</p>
         ) : null}
         {state.persistenceError ? <p className="ai-foot warn" role="alert">{state.persistenceError}</p> : null}
         <div className="ai-composer-stack">
@@ -1182,6 +1189,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         </form>
         </div>
+        <CreditBalance credits={credits} block={creditBlock}
+          onRetry={research.recoverable && creditBlock === 'credits_unavailable' ? () => research.actions.recover() : undefined} />
       </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import * as identity from '../lib/userStore.js';
 import * as registry from '../lib/aiRegistry.js';
 import { partitionAttachments } from '../lib/aiDrop.js';
 import { setChatWebSearch } from '../lib/aiConversations.js';
+import { conversationCredits, refreshCredits } from '../lib/creditsStore.js';
 import { defaultEffortFor, effortsFor } from './ModelPicker.jsx';
 
 export function normalizeResearchChoice(models, value = {}) {
@@ -44,7 +45,7 @@ function saveChoice(storage, choice) {
 // the same B4 identity and D7/D8 store interfaces as the production defaults.
 export function createResearchThread(overrides = {}) {
   // setChatWebSearch is imported from the store itself: lib/aiThreads.js is outside F130 T4a's scope.
-  const deps = { setChatWebSearch, ...threads, ...streaming, ...identity, ...registry, ...overrides };
+  const deps = { setChatWebSearch, conversationCredits, refreshCredits, ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
     : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
   const emptyStore = () => ({ chats: [], activeId: '', loaded: false, persistenceError: '' });
@@ -54,7 +55,12 @@ export function createResearchThread(overrides = {}) {
     // 'off' here would be indistinguishable from a reader who picked it.
     // A saved choice (F14) is kept as given and normalised once models load.
     registry: { models: [], roles: [] }, choice: readSavedChoice(storage) || { modelId: '', effort: '' }, submitting: false,
-    cancelRequested: false, cancelPending: false, cancelError: '', attaching: false, attachNotice: '', identityVersion: 0 };
+    cancelRequested: false, cancelPending: false, cancelError: '', attaching: false, attachNotice: '', identityVersion: 0,
+    // F111 §8: why the last turn was refused for credits: '' | 'credits_exhausted' | 'credits_unavailable'.
+    creditBlock: '',
+    // F111 §8: credits charged per answer, by message id. Only what the server has said; an answer it has
+    // not (yet) charged has no entry, so nothing is ever shown as 0 by guess.
+    answerCredits: {} };
   let view = data;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
   let rechecking = null, recheckSequence = 0;
@@ -89,6 +95,8 @@ export function createResearchThread(overrides = {}) {
     // F130: the pages searched, kept beside `sources` and never merged into it.
     const savedWebSources = [...(chat?.messages || [])].reverse().find(m => m.role === 'assistant' && m.webSources?.length)?.webSources || [];
     view = { ...data, chat, stream, messages, live, storedRunning,
+      // The verified account these values belong to, so the credits shown are never another account's.
+      ownerId: owner?.id || '',
       canStop: data.ready && Boolean(data.submitting || stream?.isPending || stream?.isStreaming || storedRunning),
       locked: !data.ready || data.loading || data.submitting || data.attaching || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
       sources: stream?.sources?.length ? stream.sources : savedSources,
@@ -121,6 +129,7 @@ export function createResearchThread(overrides = {}) {
       if (!await current(t) || seq !== sequence) return;
       const hydrated = store.chats.length ? store : deps.createAiChat();
       emit({ store: hydrated, registry: choices, ready: true, loading: false });
+      void loadAnswerCredits(hydrated.activeId, t);
     } catch {
       if (active && seq === sequence && version === generation) emit({ loading: false, error: 'Research could not be loaded. Try Reload.' });
     }
@@ -129,7 +138,7 @@ export function createResearchThread(overrides = {}) {
     generation++; sequence++; owner = null; operation = null;
     emit({ ready: false, loading: Boolean(id), error: id ? '' : 'Sign in to use AI research.', store: emptyStore(),
       draft: '', viewer: null, submitting: false, attaching: false, attachNotice: '', cancelRequested: false, cancelPending: false, cancelError: '',
-      identityVersion: data.identityVersion + 1 });
+      creditBlock: '', answerCredits: {}, identityVersion: data.identityVersion + 1 });
     // Never invoke another Auth method inside its synchronous event callback.
     if (id) queueMicrotask(() => { if (active) void hydrate(); });
   }
@@ -188,10 +197,29 @@ export function createResearchThread(overrides = {}) {
       if (fenced) { if (fenced.fence === fence) fenced.fence = null; lift(); }
     }
   }
+  // The charges the server holds for a saved conversation (my_conversation_credits). Never blocks or fails a load.
+  async function loadAnswerCredits(chatId, t) {
+    if (!chatId) return;
+    try {
+      const found = await deps.conversationCredits(chatId);
+      if (!found?.size || !await current(t)) return;
+      emit({ answerCredits: { ...data.answerCredits, ...Object.fromEntries(found) } });
+    } catch { /* an unread charge simply shows nothing */ }
+  }
+  // The balance is read by the credits store; a failed read changes nothing and never fails a turn.
+  async function refreshWallet() {
+    try { await deps.refreshCredits(); } catch { /* the chip keeps its last balance */ }
+  }
   async function finishTurn(result, context, t) {
     if (!valid(t)) return;
     if (result.error) emit({ error: result.error });
-    if (['complete', 'cancelled', 'truncated', 'interrupted', 'error'].includes(result.status) && !result.isPending) emit({ cancelRequested: false, cancelPending: false });
+    // F111 §3: a turn refused for credits never started. Say which refusal it was.
+    if (result.errorCode === 'credits_exhausted' || result.errorCode === 'credits_unavailable') emit({ creditBlock: result.errorCode });
+    if (['complete', 'cancelled', 'truncated', 'interrupted', 'error'].includes(result.status) && !result.isPending) {
+      emit({ cancelRequested: false, cancelPending: false });
+      // F111 §8: a finished turn (answered, stopped, failed or refused) has changed the balance, or been refused by it.
+      void refreshWallet();
+    }
     if (result.conversationId) {
       try {
         const store = await deps.reconcileTurn(result.conversationId, context);
@@ -211,7 +239,7 @@ export function createResearchThread(overrides = {}) {
     const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
     if (!context) return false;
     const op = { context }; operation = op;
-    emit({ submitting: true, error: '', cancelError: '', attachNotice: '' });
+    emit({ submitting: true, error: '', cancelError: '', attachNotice: '', creditBlock: '' });
     try {
       if (!await current(t)) return false;
       if (!replay) {
@@ -231,10 +259,19 @@ export function createResearchThread(overrides = {}) {
         deps.appendAiMessage(context.chatId, { role: 'user', content: body.message, turn_key: body.turn_key });
         emit({ draft: '', store: deps.loadAiState() });
       }
-      const options = { onConversation: async conversation => {
-        if (!await current(t)) return;
-        emit({ store: deps.adoptConversation(conversation, context) });
-      } };
+      const options = {
+        onConversation: async conversation => {
+          if (!await current(t)) return;
+          emit({ store: deps.adoptConversation(conversation, context) });
+        },
+        // F111 §3: the settled credits, after the answer was shown as finished. `null` means not settled yet.
+        onCredits: async ({ conversationId, messageId, credits }) => {
+          if (!valid(t)) return;
+          void refreshWallet();
+          if (typeof credits === 'number' && messageId) emit({ answerCredits: { ...data.answerCredits, [messageId]: credits } });
+          else await loadAnswerCredits(conversationId, t);
+        },
+      };
       op.dispatched = true;
       const pending = replay ? deps.retryTurn(view.chat?.id || '', options) : deps.sendTurn(body, options);
       if (op.stopQueued) void api.stop();
@@ -288,7 +325,7 @@ export function createResearchThread(overrides = {}) {
       if (!data.ready || data.submitting || data.attaching) return;
       const t = token();
       emit({ store: deps.setActiveAiChat(id), viewer: null, draft: '', loading: true, error: '', cancelRequested: false, cancelError: '', attachNotice: '' });
-      try { const store = await deps.loadMessages(id); if (await current(t)) emit({ store }); }
+      try { const store = await deps.loadMessages(id); if (await current(t)) { emit({ store }); void loadAnswerCredits(id, t); } }
       catch { if (valid(t)) emit({ error: 'Conversation messages could not be loaded. Try Reload.' }); }
       finally { if (valid(t)) emit({ loading: false }); }
     },
@@ -339,6 +376,7 @@ export function createResearchThread(overrides = {}) {
         const store = await deps.loadMessages(id);
         if (!await current(t)) return;
         emit({ store });
+        void loadAnswerCredits(id, t);
         await settleSaved(id, t);
       }
       catch { if (valid(t)) emit({ error: 'The saved result could not be loaded. Try Reload.' }); }

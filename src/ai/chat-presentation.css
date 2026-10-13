@@ -130,6 +130,23 @@
 .ai-shell.ai-shell-research .ai-v2-drop { background: var(--bg); border-color: var(--ai-line); }
 .ai-shell.ai-shell-research .ai-msg.err { border-left: 2px solid var(--warn); padding-left: 12px; }
 .ai-shell.ai-shell-research :is(button, summary):focus-visible { outline: 2px solid var(--ai-blue); outline-offset: 2px; }
+/* F111: AI credits by the chat box and on each answer. Quiet, tabular, existing tokens only. */
+.ai-shell.ai-shell-research .ai-credit { display: grid; gap: 4px; padding: 0 2px; font-size: 12px; line-height: 1.4; color: var(--ai-muted); }
+.ai-shell.ai-shell-research .ai-credit-line { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 0; font-variant-numeric: tabular-nums; }
+.ai-shell.ai-shell-research .ai-credit-hint::before { content: '·'; margin-right: 6px; }
+.ai-shell.ai-shell-research .ai-credit-warn, .ai-shell.ai-shell-research .ai-credit-msg { margin: 0; color: var(--ai-text); font-variant-numeric: tabular-nums; }
+.ai-shell.ai-shell-research .ai-credit-warn:empty { display: none; }
+.ai-shell.ai-shell-research .ai-credit-msg { font-weight: 500; }
+.ai-shell.ai-shell-research .ai-credit:is([data-state="blocked"], [data-state="unchecked"]) { padding: 2px 0 2px 10px; border-left: 2px solid var(--warn); gap: 6px; }
+.ai-shell.ai-shell-research .ai-credit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-shell.ai-shell-research .ai-credit-actions button { min-height: 36px; padding: 0 14px; border: 1px solid var(--ai-line); border-radius: 999px; background: var(--ai-surface); color: var(--ai-text); font: 500 12px var(--font-ui); cursor: pointer; }
+.ai-shell.ai-shell-research .ai-credit-actions button:first-child { border-color: var(--ai-blue); background: var(--ai-blue); color: var(--ai-surface); }
+.ai-shell.ai-shell-research .ai-credit-actions button:active { transform: scale(.97); }
+/* An answer's footer: the copy button and time, then what the answer cost, on one quiet line. */
+.ai-shell.ai-shell-research .ai-msg-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; margin-top: 12px; }
+.ai-shell.ai-shell-research .ai-msg-foot:empty { display: none; }
+.ai-shell.ai-shell-research .ai-msg-foot .ai-message-actions { margin-top: 0; }
+.ai-shell.ai-shell-research .ai-credit-used { font-size: 11px; color: var(--ai-muted); font-variant-numeric: tabular-nums; }
 @media (hover: hover) and (pointer: fine) {
   .ai-shell.ai-shell-research .ai-v2-model-btn::before { transition: opacity 160ms ease; }
   .ai-shell.ai-shell-research .ai-v2-model-btn:hover::before { opacity: .65; }
@@ -137,6 +154,7 @@
   .ai-shell.ai-shell-research :is(.ai-source-chip, .ai-v2-pop-opt, .ai-v2-model-opt, .ai-v2-history-item):hover { background: var(--ai-blue-soft); }
   .ai-shell.ai-shell-research .cite-bubble:not(.placeholder):hover { outline: 1px solid var(--ai-blue); outline-offset: 1px; }
   .ai-shell.ai-shell-research .ai-message-actions button:hover { color: var(--ai-blue); }
+  .ai-shell.ai-shell-research .ai-credit-actions button:not(:first-child):hover { background: var(--ai-blue-soft); border-color: color-mix(in srgb, var(--ai-blue) 35%, var(--ai-line)); }
   .ai-shell.ai-shell-research .ai-v2-suggest button:hover:not(:disabled) { background: var(--ai-blue-soft); border-color: color-mix(in srgb, var(--ai-blue) 35%, var(--ai-line)); color: var(--ai-text); }
 }
 @media (max-width: 480px) {
@@ -147,7 +165,7 @@
 @media (prefers-reduced-motion: reduce) {
   .ai-shell.ai-shell-research .ai-v2-model-btn::before { transition: none; }
   .ai-shell.ai-shell-research .ai-v2-send, .ai-shell.ai-shell-research .ai-v2-send svg { transition: none; }
-  .ai-shell.ai-shell-research .ai-v2-send:active:not(:disabled), .ai-shell.ai-shell-research .cite-bubble:active { transform: none; }
+  .ai-shell.ai-shell-research .ai-v2-send:active:not(:disabled), .ai-shell.ai-shell-research .cite-bubble:active, .ai-shell.ai-shell-research .ai-credit-actions button:active { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

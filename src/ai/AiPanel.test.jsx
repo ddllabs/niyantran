@@ -1,9 +1,11 @@
 import {renderToStaticMarkup} from 'react-dom/server';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-const fake=vi.hoisted(()=>({ensure:vi.fn(()=>({chats:[],activeId:''})),research:null}));
+const fake=vi.hoisted(()=>({ensure:vi.fn(()=>({chats:[],activeId:''})),research:null,credits:null}));
 function methods(){return {activeAiChat:()=>null,addChatAttachments(){},appendAiMessage(){},createAiChat(){},deleteAiChat(){},ensureAiChat:fake.ensure,setActiveAiChat(){},setChatAttachments(){},setChatRole(){},subscribeAiChats:()=>()=>{}};}
 vi.mock('../lib/aiThreads.js',()=>({...methods(),hydrateConversations(){},reconcileTurn(){}}));
 vi.mock('./useResearchThread.js',()=>({default:()=>fake.research}));
+// F111: only the read of the balance is replaced; the formatting is the real one.
+vi.mock('../lib/creditsStore.js',async orig=>({...await orig(),serverCredits:id=>id==='u1'?fake.credits:null,refreshCredits:async()=>null,subscribeCredits:()=>()=>{}}));
 import AiPanel from './AiPanel.jsx';
 it('places attachments by the composer and uses one submit position while running',()=>{
  const chat={id:'c',attachments:[{id:'a',kind:'file',title:'Evidence.txt'}]};
@@ -25,7 +27,7 @@ it('shows attachment processing and save failure recovery, and disables locked r
  expect(html).toMatch(/<button[^>]*>Reload<\/button>/);
  expect(html).not.toContain('aria-label="Stop"');
 });
-beforeEach(()=>{fake.ensure.mockClear();fake.research={store:{chats:[],activeId:'',loaded:false},ready:false,loading:true,locked:true,registry:{models:[],roles:[]},choice:{modelId:'',effort:'off'},draft:'',error:'',viewer:null,messages:[],sources:[],actions:{},identityVersion:0};});
+beforeEach(()=>{fake.credits=null;fake.ensure.mockClear();fake.research={store:{chats:[],activeId:'',loaded:false},ready:false,loading:true,locked:true,registry:{models:[],roles:[]},choice:{modelId:'',effort:'off'},draft:'',error:'',viewer:null,messages:[],sources:[],actions:{},identityVersion:0};});
 it('research panel does not create an empty draft during render before verified hydration',()=>{
  const html=renderToStaticMarkup(<AiPanel lang="en"/>);expect(fake.ensure).not.toHaveBeenCalled();expect(html).toContain('Loading research');
 });
@@ -508,3 +510,45 @@ it('the web prediction counts a selected row whenever the send would pin it, wit
  // A keyless row is still a record.
  expect(webPredictionRecords([],{name:'Raja A',party:'DMK'}).selectedRecord).toEqual({kind:'row'});
 });
+
+// F111 task 4a (spec §8): the balance sits with the chat box; a refused turn becomes the blocked state.
+describe('AI credits in the composer',()=>{
+ const wallet=(patch={})=>({userId:'u1',balance:1520.4567,held:0,available:1520.4567,debt:0,plan:'plus',inrPerCredit:0.1,allowance:2000,cycleEndsAt:null,lots:[],recent:[],...patch});
+ const ready=()=>({...fake.research,ready:true,loading:false,locked:false,ownerId:'u1'});
+ it('shows the balance under the chat box for the verified account',()=>{
+  fake.credits=wallet();fake.research=ready();
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html).toContain('1,520 credits');
+  expect(html.indexOf('ai-credit"')).toBeGreaterThan(html.indexOf('class="ai-v2-composer"'));
+ });
+ it('shows nothing signed out, or for credits that belong to nobody verified',()=>{
+  fake.credits=wallet();fake.research={...ready(),ownerId:''};
+  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('ai-credit');
+  fake.research={...ready(),ownerId:'someone-else'};
+  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('ai-credit');
+ });
+ it('a 402 refusal becomes the blocked state, with the message once',()=>{
+  fake.credits=wallet({balance:0,available:0});
+  fake.research={...ready(),creditBlock:'credits_exhausted',error:'You have no AI credits left to start an answer.'};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html).toContain('>Upgrade</button>');expect(html).toContain('>Buy credits</button>');
+  expect(html.match(/You have no AI credits left to start an answer\./g)).toHaveLength(1);
+ });
+ it('a 503 refusal is a retry message that replays the turn, with one retry button',()=>{
+  const recover=vi.fn();
+  fake.credits=wallet();
+  fake.research={...ready(),creditBlock:'credits_unavailable',error:'AI credits could not be checked.',recoverable:true,actions:{recover}};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html).toContain('>Try again</button>');expect(html).not.toContain('Upgrade');
+  expect(html).not.toContain('Recover answer');expect(html).not.toContain('AI credits could not be checked.<');
+ });
+});
+describe('credits on each answer in the thread',()=>{
+ it('gives every saved answer its own credits, and shows none for an answer the server has not charged',()=>{
+  const messages=[{id:'a1',role:'assistant',content:'First',status:'complete',sources:[]},{id:'a2',role:'assistant',content:'Second',status:'complete',sources:[]}];
+  fake.research={...fake.research,ready:true,loading:false,locked:false,messages,answerCredits:{a1:38}};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html.match(/class="ai-credit-used"/g)).toHaveLength(1);expect(html).toContain('>38 credits<');
+ });
+});
+

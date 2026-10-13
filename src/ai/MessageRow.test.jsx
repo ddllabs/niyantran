@@ -113,3 +113,56 @@ it('a saved answer links only to its web sources and cited files; any other link
   expect(html).toContain('href="https://sansad.in/b.pdf"');
   expect(html).not.toContain('evil.example');
 });
+
+// F111 task 4b (docs/specs/2026-10-14-ai-credits.md §8): the credits an answer used, quietly, with the
+// copy button and time. Only what the server has said; nothing is shown as 0 by guess.
+describe('credits used by an answer', () => {
+  const done = { ...m, status: 'complete', at: 1791000000000 };
+  const out = (props) => renderToStaticMarkup(<MessageRow {...base} {...props} />);
+
+  it('shows a finished answer\'s credits beside its actions', () => {
+    const html = out({ m: done, credits: 38 });
+    expect(html).toContain('<span class="ai-credit-used">38 credits</span>');
+    expect(html.indexOf('ai-message-actions')).toBeLessThan(html.indexOf('ai-credit-used'));
+  });
+
+  it('formats like the rest of the app, and says "1 credit" for one', () => {
+    expect(out({ m: done, credits: 1520.4 })).toContain('>1,520 credits<');
+    expect(out({ m: done, credits: 4.5 })).toContain('>4.5 credits<');
+    expect(out({ m: done, credits: 1 })).toContain('>1 credit<');
+  });
+
+  it('shows what a stopped answer was charged', () => {
+    expect(out({ m: { ...done, status: 'cancelled' }, credits: 12 })).toContain('>12 credits<');
+  });
+
+  it('says "No credits used" for a failed answer with no text, and for a charge of nothing', () => {
+    const failed = { ...done, status: 'error', content: '' };
+    expect(out({ m: failed })).toContain('>No credits used<');
+    expect(out({ m: { ...failed, status: 'interrupted' } })).toContain('>No credits used<');
+    expect(out({ m: done, credits: 0 })).toContain('>No credits used<');
+  });
+
+  it('a failed answer that still showed text is charged like any other', () => {
+    const partial = { ...done, status: 'error', content: 'Half an answer' };
+    expect(out({ m: partial, credits: 9 })).toContain('>9 credits<');
+    expect(out({ m: partial })).not.toContain('ai-credit-used');
+  });
+
+  it('shows nothing when the credits are unknown, never a guessed zero', () => {
+    for (const credits of [undefined, null, NaN]) expect(out({ m: done, credits })).not.toContain('ai-credit-used');
+    expect(out({ m: { ...done, status: 'running' }, credits: 5 })).not.toContain('ai-credit-used');
+    expect(out({ m: { id: 'u1', role: 'user', content: 'Question?' }, credits: 5 })).not.toContain('ai-credit-used');
+  });
+
+  it('reads and shows credits only: no dollars, and no cost field', () => {
+    const html = out({ m: { ...done, usage: { cost_usd: 0.04, observed: { cost_usd: 0.04 } }, cost: 0.04 }, credits: 38 });
+    expect(html).not.toMatch(/\$|USD|cost/i);
+  });
+
+  it('is part of the row\'s render identity', () => {
+    expect(sameRow({ ...base, credits: 1 }, { ...base, credits: 1 })).toBe(true);
+    expect(sameRow({ ...base, credits: 1 }, { ...base, credits: 2 })).toBe(false);
+    expect(sameRow({ ...base }, { ...base, credits: 2 })).toBe(false);
+  });
+});
