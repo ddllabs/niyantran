@@ -498,9 +498,30 @@ rechecked. Nothing in this check wrote to production.
     ([research](../research/2026-10-14-ai-credits-reference-review.md)).
     Take its log-then-trigger ledger; avoid its defects (last-round-only
     billing, broken renewal after overspend, free stopped turns, no chat
-    reservation). Waiting on the owner's seven decisions in §7 before the spec.
-  - transcribe-audio calls a paid model with no `model_call_logs` row; it
-    needs one before credits apply to dictation.
+    reservation).
+  - 2026-10-14: owner decisions taken; the
+    [spec](../specs/2026-10-14-ai-credits.md),
+    [plan](../plans/2026-10-14-ai-credits.md) (the working log, with
+    progress) and [ADR 0011](../decisions/0011-per-user-credit-ledger.md)
+    are approved.
+    - Code starts on the owner's word.
+    - Task 0 is done: the median answer costs 21 credits, and the dearest
+      301.
+    - A design review (`security-auditor`) found 3 critical and 10
+      important issues; all are fixed in the spec.
+    - Two owner questions remain: charging failed turns that still showed
+      text, and deleting credit history with the account.
+    - 1 credit = 10 paise of AI cost.
+    - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
+      month.
+    - 10% of unused credits roll over for one cycle.
+    - Top-ups are valid 12 months.
+    - Failed turns are free, and Stop charges the part used.
+    - Briefs and dictation are free.
+  - transcribe-audio calls a paid model with no `model_call_logs` row (plan
+    task 3).
+  - For O6: a downgrade must start at the next cycle, but `grant_paid_plan`
+    starts a different plan at once.
 
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
