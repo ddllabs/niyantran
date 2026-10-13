@@ -500,8 +500,11 @@ rechecked. Nothing in this check wrote to production.
   of our globe and shared textures and time across pages (no flash; later globes draw at once); the
   GIF is an 11 KB lazy still; the terminal, admin and chooser load on demand (entry 723 → 220 KB gzip,
   CSS byte-identical); WebP textures (2.28 → 0.52 MB), a 4 KB logo; `vercel.json` caching. A first
-  homepage visit is about 0.94 MB over the wire, against about 40 MB. Remaining: review, merge, push,
-  the cache headers checked live, owner and client check.
+  homepage visit is about 0.94 MB over the wire, against about 40 MB. Reviewed (fixes: a late
+  lost-context event, a reload screen for a failed download after a deploy, the terminal loading at
+  start-up for a signed-in visitor, the Earth clock, a stylesheet guard in `check:bundle`). Merged
+  locally (`3daa484`). Remaining: push; then on the live site check the cache headers and that a
+  missing `/assets/` file is not cached for a year; owner and client check.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
