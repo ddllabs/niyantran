@@ -438,3 +438,33 @@ it('shares dictation beside Send and disables it while the chat is locked', () =
  fake.research={...fake.research,locked:true};
  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toMatch(/class="dictation-button" disabled="" aria-label="Dictate text"/);
 });
+
+// F130 review finding 8: the globe predicts from exactly what the next send carries.
+it('the web prediction counts only the records the request will send', async () => {
+ const {webPredictionRecords}=await import('./AiPanel.jsx');
+ const {webDefaultFor}=await import('../lib/corpusCoverage.js');
+ // A row chip with no text is dropped by requestAttachments, so it is not a record in scope.
+ const textless={id:'a',kind:'row',title:'Empty row',preview:{}};
+ const {attachments,selectedRecord}=webPredictionRecords([textless],null);
+ expect(attachments).toEqual([]);
+ expect(selectedRecord).toBe(null);
+ expect(webDefaultFor({focus:'attached',attachments,indexedKeys:new Set()})).toEqual({on:false,reason:'no-record'});
+ // A chip with text is kept, key and all.
+ const bill={id:'b',kind:'row',title:'Bill',text:'Record: Bill',document_key:'bill:2026:156'};
+ expect(webPredictionRecords([bill],null).attachments).toEqual([expect.objectContaining({kind:'row',document_key:'bill:2026:156'})]);
+});
+
+it('the web prediction counts a selected row whenever the send would pin it, with or without a module name', async () => {
+ const {webPredictionRecords}=await import('./AiPanel.jsx');
+ const row={bill_name:'THE NATIONAL CO-OPERATIVE DEVELOPMENT CORPORATION (AMENDMENT) BILL, 2026',bill_number:'156',house:'Lok Sabha'};
+ // No module name: the row is pinned and sent as an attachment, so it is in scope.
+ expect(webPredictionRecords([],row).selectedRecord).toEqual({kind:'row',document_key:'bill:2026:156'});
+ // Already pinned: counted once, through the chip.
+ const pinned=[{id:'p',kind:'row',title:row.bill_name,text:'Record',document_key:'bill:2026:156'}];
+ expect(webPredictionRecords(pinned,row).selectedRecord).toBe(null);
+ // A row with nothing to send, or a source-status row, is never pinned.
+ expect(webPredictionRecords([],{}).selectedRecord).toBe(null);
+ expect(webPredictionRecords([],{...row,status:'source_status'}).selectedRecord).toBe(null);
+ // A keyless row is still a record.
+ expect(webPredictionRecords([],{name:'Raja A',party:'DMK'}).selectedRecord).toEqual({kind:'row'});
+});

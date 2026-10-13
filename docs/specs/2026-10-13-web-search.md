@@ -442,9 +442,12 @@ Each change has a test that fails without it.
 - After a web-only research call, the no-search press-back still asks the
   model to search the records. This is tested and intended: the records
   stay first.
-- Two rare cases where the client's prediction can differ from the server: a
-  row chip with no text, and a selection without a feature name. The server
-  decides, and the globe shows its `web` decision for the turn.
+- Two rare cases where the client's prediction differed from the server: a
+  row chip with no text, and a selection without a feature name. **Fixed
+  2026-10-13:** the globe predicts from `webPredictionRecords`, built with the
+  same `requestAttachments`, `researchSelection` and `rowIsPinned` the send
+  uses. A text-less chip is no record, and a selected row counts whenever the
+  send would pin it. The server's `web` frame still wins for the turn.
 
 **Privacy policy, 2026-10-13:** done. It names OpenRouter's web search, run
 by Exa, says Exa receives the search query and not the reader's identity,

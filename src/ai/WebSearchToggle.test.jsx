@@ -198,7 +198,7 @@ describe('predictWeb', () => {
 
 describe('the globe in the composer', () => {
   const models = [{ model_id: 'google/gemini-3.8-flash', is_default: true, efforts: ['low'] }, { model_id: 'vendor/free-one:free', efforts: ['low'] }, { model_id: 'vendor/no-web', efforts: ['low'], params: { web_search: false } }];
-  const research = (patch = {}) => ({ ready: true, loading: false, locked: false, store: { chats: [{ id: 'c', attachments: [{ id: 'a', kind: 'row', title: 'A row' }] }], activeId: 'c' },
+  const research = (patch = {}) => ({ ready: true, loading: false, locked: false, store: { chats: [{ id: 'c', attachments: [{ id: 'a', kind: 'row', title: 'A row', text: 'Record: A row' }] }], activeId: 'c' },
     registry: { models, roles: [] }, choice: { modelId: 'google/gemini-3.8-flash', effort: 'low' }, draft: '', error: '', viewer: null, messages: [], sources: [], actions: {}, identityVersion: 0, ...patch });
   const render = (patch) => { fake.research = research(patch); return renderToStaticMarkup(<AiPanel lang="en" />); };
 
