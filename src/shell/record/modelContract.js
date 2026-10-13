@@ -68,8 +68,12 @@ export function contractProblems(model) {
   if (!String(model.footer?.ask || '').trim()) problems.push('missing Ask AI label');
   if (!String(model.footer?.provenance?.source || '').trim()) problems.push('missing provenance source');
   if (!String(model.footer?.provenance?.asOf || '').trim() && !(model.footer?.provenance?.flags || []).includes(NO_AS_OF)) problems.push('missing as-of date');
-  // A touch link's `row` is the record it opens, not text the panel shows, so it is not scanned.
-  const shown = model.touches ? { ...model, touches: { ...model.touches, links: (model.touches.links || []).map(({ row: _row, ...l }) => l) } } : model;
+  // A touch link's `row` is the record it opens, not text the panel shows, so it is not scanned. The
+  // title is the record's own name as its source prints it (official bill titles carry a bracketed
+  // purpose, "[to amend article 292]"), so it is source text, not a template placeholder.
+  const { title: _title, ...rest } = model;
+  // A link that opens a related record is titled with that record's own name, so it is source text too.
+  const shown = model.touches ? { ...rest, touches: { ...model.touches, links: (model.touches.links || []).map(({ row, title, ...l }) => (row ? l : { title, ...l })) } } : rest;
   for (const s of strings(shown)) if (PLACEHOLDER.test(s)) problems.push(`placeholder text: ${s.slice(0, 60)}`);
   return problems;
 }

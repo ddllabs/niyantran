@@ -12,6 +12,15 @@ import alliances from './adapters/alliances.js';
 import sanctions from './adapters/sanctions.js';
 import globalAid from './adapters/globalAid.js';
 import nuclearWatch from './adapters/nuclearWatch.js';
+import nationalBills from './adapters/nationalBills.js';
+import nationalPipeline from './adapters/nationalPipeline.js';
+import nationalQuestions from './adapters/nationalQuestions.js';
+import nationalRegulatory from './adapters/nationalRegulatory.js';
+import nationalMps from './adapters/nationalMps.js';
+import nationalCabinet from './adapters/nationalCabinet.js';
+import nationalAffidavits from './adapters/nationalAffidavits.js';
+import nationalMorningBrief from './adapters/nationalMorningBrief.js';
+import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
 import { isGlobalAidFeature } from '../../lib/globalAid.js';
@@ -37,10 +46,20 @@ const ADAPTERS = [
   [{ test: isSanctionsFeature }, sanctions],
   [{ test: isGlobalAidFeature }, globalAid],
   [{ test: isNuclearWatchFeature }, nuclearWatch],
+  // National (F124): matched as NationalRecord matched them, so exactly the same names switch.
+  [DESKS.bill.match, nationalBills],
+  [DESKS.pipeline.match, nationalPipeline],
+  [DESKS.question.match, nationalQuestions],
+  [DESKS.regulatory.match, nationalRegulatory],
+  [/mp profiles|mp report/i, nationalMps],
+  // The State desk has its own "Cabinet Decisions" module, so this one is matched on the National desk only.
+  [/^cabinet decisions$/i, nationalCabinet, { tier: 'national' }],
+  [/candidate affidavit/i, nationalAffidavits, { tier: 'national' }],
+  [/morning brief/i, nationalMorningBrief, { tier: 'national' }],
 ];
 
-export function adapterFor(feature) {
+export function adapterFor(feature, tier) {
   const name = String(feature ?? '').trim();
   if (!name) return null;
-  return ADAPTERS.find(([pattern]) => pattern.test(name))?.[1] || null;
+  return ADAPTERS.find(([pattern, , only]) => pattern.test(name) && (!only?.tier || only.tier === tier))?.[1] || null;
 }

@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F124 is next) and goes in the
+- A new finding gets the next free `F` number (F128 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -187,6 +187,52 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     after F121: the cached AI brief (F123) and the follow-ups in F122.
     Maritime Choke-Points and Energy stay as they are: the reference has no
     panel for them (owner, 2026-10-13).
+- [ ] **F124. National record panels.** Owner request 2026-10-13: the same
+  record-panel makeover as Global (F121) for the eight National modules the
+  client reference covers. The reference is a mockup: its layout and kind of
+  information count, its figures do not.
+  [Research](../research/2026-10-13-national-record-panels.md) ·
+  [Spec](../specs/2026-10-13-national-record-panels.md) ·
+  [Plan](2026-10-13-national-record-panels.md).
+  - Owner decisions 2026-10-13: saved AI briefs only (no model call on
+    selection); one batch; the Cabinet filter and the MP house fix as separate
+    tasks (F125, F126).
+  - Status: all eight panels built on `task/national-record-panels`
+    (N1–N9); an independent review is under way, then the local merge and
+    the owner's go-ahead to push.
+  - Backend gaps the reference points to (not in F124's scope):
+    - Cabinet Decisions serves the unfiltered PIB feed;
+    - the MP register has no house column, mixes Lok Sabha and Rajya Sabha
+      under an "18th Lok Sabha" label, and has inconsistent party names;
+    - affidavit criminal cases are a single count, not individual listings
+      (owner asked for a fix; blocked: it needs a richer source, and MyNeta/ADR
+      restrict redistribution);
+    - questions hold no answer text;
+    - the stored bill `probability_score` and `summary` are empty;
+    - Pipeline sources are `news.google.com` links;
+    - status labels in `src/lib/apiStatus.js` call embedded packs "live".
+- [ ] **F125. Cabinet Decisions: only Cabinet decisions.** Owner 2026-10-13.
+  The module serves every PIB press release
+  (`server/nationalFeed.mjs`, Cabinet branch). Show only items the source itself
+  marks as Cabinet decisions. Check first how PIB marks them; if there is no
+  reliable marker, ask the owner instead of guessing. Server change: explain
+  it before making it. After F124.
+- [ ] **F126. MP register: house and party names.** Owner 2026-10-13. Derive
+  Lok Sabha or Rajya Sabha from each member's source link (`/ls/`, `/rs/`),
+  correct the "18th Lok Sabha" label that covers both houses, and normalise
+  party names for display while keeping the original. Data and shaping
+  change: explain it before making it. After F124.
+- [ ] **F127. Record adapter helper clean-up.** Found in the F124 review
+  (2026-10-13).
+  - The strict feed-date parser and the plain-text helpers (`instant`,
+    `offsetOf`, the ISO/RFC patterns, the zone table, `plainText`, the
+    invisible-character strip, the entity decoder) are copied in `newsWire.js`,
+    `nationalCabinet.js`, `nationalRegulatory.js` and `nationalMorningBrief.js`
+    (`src/shell/record/adapters/`), and already differ: month-name leniency, IST
+    in the zone table, zoneless times. Move them to shared `feedDate.js` and
+    `feedText.js`.
+  - `titleCase` in `nationalBills.js` lowercases acronyms ("GST" → "Gst").
+  - The Morning Brief dedup is quadratic (fine at today's ~64 rows).
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
