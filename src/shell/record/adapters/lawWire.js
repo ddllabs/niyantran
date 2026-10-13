@@ -214,7 +214,8 @@ const GENERIC = {
   callout: 'This module holds news coverage of a court or tribunal, not its records. A report of a decision is not the decision.',
   cite: 'There is no record to cite. Cite the publisher and the date, and say plainly that the underlying record was not read.',
 };
-const BROAD_SEARCH = 'It matched a broad keyword search and may not concern this forum.';
+// F84 narrowed the searches to each forum's own terms; a keyword match can still miss.
+const BROAD_SEARCH = 'It was found by a keyword search for this forum and may still not concern it.';
 
 export const LAW_WIRE_FEATURES = Object.keys(CONFIG);
 

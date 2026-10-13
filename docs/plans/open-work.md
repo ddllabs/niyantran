@@ -366,7 +366,6 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
 
 
 
-- [ ] **F84. Law reporting-query relevance.** Read-only audit found nine Law modules backed by news-search rather than official dockets/analytics; several RSS queries use broad OR terms and India filtering, including international modules. Landing must disclose reporting identity; provider relevance and official integrations require a separate scope, not opportunistic changes in F83.
 
 
 
@@ -428,6 +427,7 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 ## 1. Done
 
+- [x] **F84. Law reporting-query relevance.** Fixed `897ccc7` (2026-10-13). The nine Law news-wire modules search Google News with each forum's own name and legal terms instead of product-name OR queries; ICC excludes cricket, and the international forums carry no India filter. Live check: ICC moved from cricket to International Criminal Court coverage, and the other eight moved likewise. Also fixed: Google News descriptions showed as raw link markup in tables and in the Law summary card; they are now plain text. [Spec](../specs/2026-10-13-law-news-queries.md).
 - [x] **F112. Terminal navigation, type scale and search.** Owner review
   2026-10-13: no "Choose a desk" row on Home, larger highlighted desk tabs, one
   type scale on desk landings, a wider "Search desks, modules and records" box.

@@ -349,19 +349,38 @@ const FEATURE_TOPIC_Q = {
   'maritime choke-points':
     '(Hormuz OR Malacca OR Bab-el-Mandeb OR "South China Sea" OR chokepoint OR "shipping lane")',
   'critical minerals': '(lithium OR cobalt OR nickel OR "rare earth" OR graphite) (mine OR mining OR supply)',
+  // F84: the Law news-wire modules search with the forum's own name and legal terms, checked
+  // against live Google News results on 2026-10-13 (docs/specs/2026-10-13-law-news-queries.md).
+  // International forums carry no "India" filter; ICC excludes cricket's ICC.
   'district court case tracker':
-    'India ("district court" OR "sessions court" OR "judicial magistrate") (order OR judgment OR case)',
+    'India ("district court" OR "sessions court" OR "judicial magistrate" OR "district judge") (order OR judgment OR case OR bail)',
   'up high court (allahabad) order feed':
-    'India ("Allahabad High Court" OR "High Court of Judicature at Allahabad") (order OR judgment OR bench)',
+    '("Allahabad High Court" OR "High Court of Judicature at Allahabad") (order OR judgment OR bench OR hearing OR petition)',
   'ngt environmental litigation tracker':
-    'India ("National Green Tribunal" OR NGT) (order OR petition OR environment)',
+    '("National Green Tribunal" OR NGT) (order OR petition OR notice OR directs OR compensation)',
   'cat & consumer disputes (ncdrc) watch':
-    'India (NCDRC OR "Central Administrative Tribunal" OR "consumer commission") (order OR judgment)',
+    '("Central Administrative Tribunal" OR NCDRC OR "consumer commission" OR "consumer forum") (order OR judgment OR directs OR compensation)',
+  'hc judge profiles & bench analytics':
+    '("High Court" OR "Supreme Court") (collegium OR justice OR judge) (appointed OR elevated OR transferred OR retires OR "sworn in" OR recommends)',
+  'icc proceedings':
+    '("International Criminal Court" OR "ICC prosecutor" OR "ICC judges" OR "ICC arrest warrant" OR "Rome Statute") -cricket',
+  'icj proceedings':
+    '("International Court of Justice" OR "ICJ ruling" OR "ICJ case" OR "ICJ hearing" OR "ICJ judges") -cricket',
+  'wto dispute settlement':
+    '("World Trade Organization" OR WTO) ("dispute settlement" OR "dispute panel" OR "panel report" OR "Appellate Body" OR "files complaint" OR "requests consultations")',
+  'sector tribunals (itat / tdsat / sat / drt)':
+    '("Income Tax Appellate Tribunal" OR ITAT OR TDSAT OR "Securities Appellate Tribunal" OR "Debts Recovery Tribunal") (order OR appeal OR ruling OR directs)',
   'constitutional bench tracker':
     'India ("Constitution Bench" OR "constitutional bench") (Supreme Court) (hearing OR judgment)',
   'hc constitutional & pil tracker':
     'India ("High Court") (PIL OR "public interest litigation" OR constitutional) (order OR judgment)',
 };
+
+/** Whether a feature has a curated topic query (FEATURE_TOPIC_Q), rather than the name-derived fallback. */
+function hasCuratedTopic(featureName) {
+  const n = norm(featureName);
+  return Boolean(n) && Object.keys(FEATURE_TOPIC_Q).some((k) => n.includes(k) || k.includes(n));
+}
 
 function topicQueryForFeature(featureName) {
   const n = norm(featureName);
@@ -712,6 +731,29 @@ function parseCsv(text, cap = MAX_ROWS) {
   });
 }
 
+/**
+ * An RSS description as one line of plain text. Feeds such as Google News send it as entity-encoded
+ * HTML (&lt;a href=…&gt;headline&lt;/a&gt;&amp;nbsp;…): the XML level is decoded once, the tags are
+ * stripped, then only spacing and quote entities are decoded, never &lt; or &gt;, so the result can
+ * never become markup.
+ */
+function plainSummary(raw) {
+  const html = String(raw || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function parseRssOrXml(text) {
   const items = [];
   const itemRe = /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
@@ -736,7 +778,7 @@ function parseRssOrXml(text) {
         date: tag('pubDate') || tag('updated') || tag('date'),
         title: tag('title'),
         source_url: href,
-        summary: tag('description').replace(/<[^>]+>/g, '').slice(0, 400),
+        summary: plainSummary(tag('description')).slice(0, 400),
         ...(publisher ? { publisher } : {}),
       }),
     );
@@ -1460,11 +1502,12 @@ export async function serveFeatureFeed(searchParams) {
     }
 
     // Desks without an extracted docket: Google News RSS coverage first (honest wire, not a
-    // cause-list). Avoids GDELT product-name / ≥5s rate-limit noise on fleet probes.
+    // cause-list). Avoids GDELT product-name / ≥5s rate-limit noise on fleet probes. A curated
+    // forum query (F84) wins over the registry's product-name search.
     {
-      const newsUrl = /news\.google\.com/i.test(primary || '')
-        ? primary
-        : newsRssUrlForFeature(feat.htmlFeature);
+      const newsUrl = hasCuratedTopic(feat.htmlFeature) || !/news\.google\.com/i.test(primary || '')
+        ? newsRssUrlForFeature(feat.htmlFeature)
+        : primary;
       const gdeltUrl = gdeltTopicUrlForFeature(feat.htmlFeature);
       let wire = await tryUrls([newsUrl].filter(Boolean));
       let wireNote = 'Google News RSS — court / litigation coverage. Not an official docket or cause list.';
