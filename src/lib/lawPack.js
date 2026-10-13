@@ -103,6 +103,9 @@ function ibbiOne(r) {
     remarks: r.type || '',
     applicant: r.applicant || '',
     insolvency_professional: r.insolvency_professional || '',
+    // F128: the announcement's stated last date for claims, kept as written for the record panel.
+    process_type: r.type || '',
+    last_submission_date: r.last_submission_date || '',
     court: 'IBBI',
     source_url: r.source_url || '',
   };

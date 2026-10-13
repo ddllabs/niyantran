@@ -39,13 +39,14 @@ function Visual({ visual }) {
   return Component ? <Component title={visual.title} right={visual.right} visual={visual} /> : null;
 }
 
-export default function RecordPanel({ model, onClose, onAsk, onSelect, brief }) {
+export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, brief }) {
   if (!model) return null;
   const { glance = {}, about = {}, touches, footer = {} } = model;
   const links = (model.links || []).map((l) => ({ ...l, href: safeHref(l.href) })).filter((l) => l.href);
   const tiles = glance.tiles || [];
   const nodeCount = touches ? ['left', 'center', 'right', 'far'].filter((k) => touches.nodes?.[k]).length : 0;
   const prov = footer.provenance || {};
+  const quick = onQuick ? (model.quick || []) : [];
   return (
     <article className="rp" aria-label={`Record: ${model.title}`}>
       <header className="rp-head">
@@ -67,7 +68,7 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, brief }) 
         {tiles.length ? (
           <div className="rp-tiles" style={{ '--rp-cols': Math.min(tiles.length, 4) }}>
             {tiles.map((t) => (
-              <div key={t.label} className="rp-tile">
+              <div key={t.label} className={`rp-tile${t.clock ? ' rp-clock' : ''}`}>
                 <span className="rp-tile-l">{t.label}</span>
                 <span className={`rp-tile-v${t.tone ? ` rp-${t.tone}-text` : ''}`}>{t.value}</span>
                 {t.sub ? <span className="rp-tile-s">{t.sub}</span> : null}
@@ -94,6 +95,15 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, brief }) 
         </section>
       ) : null}
 
+      {quick.length ? (
+        <section className="rp-block rp-quick">
+          <div className="rp-blockhead"><h3 className="rp-eyebrow">Quick exit</h3><span>drafts the request in AI Research</span></div>
+          <div className="rp-qrow">
+            {quick.map((q) => <button key={q.label} type="button" className="rp-qbtn" onClick={() => onQuick(q.prompt)}>{q.label}</button>)}
+          </div>
+        </section>
+      ) : null}
+
       {touches ? (
         <section className="rp-block rp-touches">
           <div className="rp-blockhead"><h3 className="rp-eyebrow">{touches.label}</h3><span>{nodeCount} nodes on record</span></div>
@@ -117,6 +127,7 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, brief }) 
           <span><b>Source</b> {prov.source || 'Not on record'}</span>
           {prov.asOf ? <span><b>As of</b> {prov.asOf}</span> : null}
           {(prov.flags || []).map((f) => <span key={f} className="rp-flag">{f}</span>)}
+          {(footer.health || []).map(([label, value]) => <span key={label} className="rp-health">{label} <b>{value}</b></span>)}
         </p>
         {footer.note ? <p className="rp-note">{footer.note}</p> : null}
       </section>
