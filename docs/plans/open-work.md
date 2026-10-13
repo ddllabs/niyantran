@@ -507,6 +507,10 @@ rechecked. Nothing in this check wrote to production.
     - Code starts on the owner's word.
     - Task 0 is done: the median answer costs 21 credits, and the dearest
       301.
+    - A design review (`security-auditor`) found 3 critical and 10
+      important issues; all are fixed in the spec.
+    - Two owner questions remain: charging failed turns that still showed
+      text, and deleting credit history with the account.
     - 1 credit = 10 paise of AI cost.
     - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
       month.

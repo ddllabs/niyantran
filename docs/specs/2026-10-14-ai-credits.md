@@ -44,7 +44,8 @@ the payment.
 5. **Rollover: 10% of a cycle's unused plan credits** carry into the next
    cycle only, then expire. Rolled-over credits never roll again, so credits
    cannot pile up. A Plus user who used nothing carries 200.
-6. **Failed turns are free.** A failure is ours, not the user's.
+6. **Failed turns are free.** A failure is ours, not the user's. (A failed
+   turn that still delivered text is open question 1.)
 7. **Stop charges the part already used.**
 8. **Running out mid-answer: the answer always finishes, and the balance may
    go negative** (owner, second answer of 2026-10-14). A user with 50 credits
@@ -111,134 +112,180 @@ the payment.
   | `signup_valid` | 30 days |
   | `topup_valid` | 12 months |
   | `hold_credits` | 300 (the dearest answer measured was 301) |
-  | `hold_minutes` | 30 |
+  | `hold_minutes` | 5 |
+  | `launch_at` | when credits go live in shadow mode; balances are real from then |
 
+  **Why five minutes:** a turn ends by 120 s (`research-chat`'s execution
+  deadline). The hold must outlive the deadline plus the log flush plus the
+  settle; 5 minutes does, and a crashed turn blocks a low balance for 5
+  minutes at most.
 - **`credit_plan_allowances`** has one row per paid plan with its monthly
   credits.
-- **Rate history.** Changes take effect for later charges only. Each charge
-  stores the rate it used, so history is never rewritten.
-- **Credits for a turn** are `cost_usd × usd_to_inr ÷ inr_per_credit`. That
-  is `cost_usd × 950` today: a short answer at $0.015 costs about 14 credits.
+- **Rate changes** apply to later charges only. Each charge stores the rate it
+  used, so no separate history table is needed.
+- **Credits for a charge** are `round(sum(cost_usd) × usd_to_inr ÷
+  inr_per_credit, 4)`, summed over the rows that charge covers. That is
+  `cost_usd × 950` today.
 
 ### 2. Lots and the ledger
 
-- **Lots.** Credits enter as **lots**: signup, monthly, rollover, top-up and
+- **Lots.** Credits enter as lots: signup, monthly, rollover, top-up and
   adjustment. Each lot has its granted amount, its remaining amount, its
-  expiry and its source (plan cycle, admin, later a payment id).
-- **Spending order.** Spending draws from the lot that expires first. Plan
-  and rollover credits go before top-ups, which last 12 months.
-- **Ledger.** Every change is one signed entry in a ledger, and is never
-  edited:
-  - grant (+);
-  - charge (−);
-  - expiry (−);
-  - adjustment (±).
-  - Each charge records which lots it drew from.
-- **Wallet balance.**
-  - It is the sum of remaining amounts in unexpired lots, minus the wallet's
-    `debt`.
-  - It is updated in the same transaction as the entry.
-  - A lot never goes below zero. A charge larger than the lots holds adds the
-    rest to `debt`.
-  - Any new lot first pays off the debt, as a ledger entry, before the rest
-    is usable.
-  - A fixture proves that the ledger sums to the balance.
-- **Idempotency.** A charge is unique per answer (`message_id`), and a grant
-  is unique per source.
+  validity window and its source.
+- **Spending order.** Spending draws from the usable lot that expires first,
+  where usable means `starts_at ≤ now < expires_at`. Plan and rollover credits
+  therefore go before top-ups.
+- **Ledger.** Every change to the balance is one signed entry: grant (+),
+  charge (−), expiry (−) or adjustment (±). Entries are never edited or
+  deleted: `service_role` has no UPDATE or DELETE on the ledger. The one
+  exception is the account-deletion cascade (§12).
+- **Wallet balance and debt.**
+  - The balance is the sum of `remaining` in usable lots, minus `debt`. It is
+    updated in the same transaction as the entry, and **always equals the sum
+    of the user's ledger entries**.
+  - A lot never goes below zero. Whatever a charge cannot draw from lots is
+    added to `debt`.
+  - A new lot first pays off `debt`. This repayment is a draw recorded in
+    `credit_lot_draws`, **not a ledger entry**, because it moves credits
+    between a lot and the debt without changing the balance.
+  - Worked example: lots 120, charge 300. The ledger records −300, the lots
+    fall to 0, the debt is 180 and the balance −180. A 2,000 monthly grant
+    then records +2,000, and the draw takes 180 for repayment: the lot keeps
+    1,820, the debt is 0, and the balance is 1,820, which matches the ledger
+    sum.
+- **Idempotency.**
+  - Each charged log row is recorded once: `model_call_logs.id` is unique in
+    `credit_charge_rows`.
+  - Each grant is unique per source.
+  - Each admin adjustment is unique per request id.
 
 ### 3. A turn
 
 1. **Reserve.** Before the turn is claimed, research-chat calls
-   `reserve_turn_credits(user)`. Under a lock on the user's wallet, it does
-   four things in order:
-   1. Settles any finished but unsettled turn of this user (step 4).
-   2. Mints any lot that is due (§4).
-   3. Expires any lot that is past its date.
-   4. Checks *available = balance − active holds*.
-      - At zero or below, it returns `blocked` with the balance. The function
-        answers 402 `credits_exhausted`, and no message is created.
-      - Otherwise it records a hold of `min(available, hold_credits)` for
-        `hold_minutes` and returns its id.
+   `reserve_turn_credits(user, turn_key)`. The hold is keyed by the turn, so
+   a retry of the same turn gets the same hold back rather than a 402. Under a
+   lock on the user's wallet (never the profile), it works in this fixed order,
+   which every writer uses:
+   1. Sweeps holds that have **expired** (§3 step 5).
+   2. Expires lots past their date and mints their rollovers.
+   3. Mints lots that are due (§4).
+   4. Repays debt from new lots.
+   5. Checks *available = balance − active holds*.
+      - At zero or below, it returns `{ok:false, reason:'credits_exhausted',
+        balance}`. With enforcement on, the function answers 402 and no
+        message is created.
+      - In shadow mode it still records the hold and returns its id with
+        `ok:false`, so the turn is charged and measured like any other.
+      - Otherwise it records a hold of `min(available, hold_credits)` and
+        returns `{ok:true, hold_id, available}`.
 
    **The hold is only about answers running at the same time.** It never
-   charges anything and is invisible to a user asking one question at a time.
-
-   - **Without it:** a user with 10 credits could open five tabs and start
-     five answers at once. All five would pass the "above zero" check and
-     finish, leaving the balance hundreds of credits negative.
+   charges anything, and a user asking one question at a time never notices
+   it.
+   - **The risk without it:** with 10 credits, a user could start five answers
+     in five tabs at once. All five would pass the "above zero" check and
+     finish, hundreds of credits below zero.
    - **With it:** the first answer holds those 10 credits, so the others are
-     told to wait until it finishes.
-   - **At a healthy balance:** several answers can run side by side as
-     before.
-   - **Bound:** a balance can therefore go negative by about one answer, not
-     by many.
-2. **Claim.** The turn is claimed as now. A replay releases the hold, and the
-   claimed message id is attached to the hold.
-3. **Run.** The turn is unchanged. Its log rows flush after the durable
-   write, as they do now.
-4. **Settle.** After the flush, `settle_turn_credits(hold)` reads the
-   message's final status and its log rows, charges, and releases the hold.
+     told to wait.
+   - **At a healthy balance,** answers run side by side as before.
+2. **Claim.** The turn is claimed as now. Settlement later finds the message
+   through `research_turns` using `(user_id, turn_key)`, so the hold needs no
+   message id.
+3. **Run.** The turn runs unchanged, and its log rows flush after the durable
+   write.
+4. **Settle.** After the flush, the handler calls
+   `settle_turn_credits(user, turn_key)`, with a 3-second limit. It charges
+   the turn's chargeable rows that are not yet charged (§3.1), then marks the
+   hold settled.
+   - A settle error or timeout is logged and never fails the answer.
+   - The terminal frame then carries `credits: null`, and the sweep finishes
+     the job.
+   - Settle treats a message still `running` past its `execution_expires_at`
+     as `interrupted`.
+5. **Sweep.** Every hold gets one final pass after it expires, inside a later
+   reserve or `my_credits()`. The pass charges any chargeable row that
+   committed late (after a timed-out flush), then marks the hold swept. Before
+   expiry, only the handler settles, so a sweep can never race a flush.
+6. **Fail closed.** If reserve errors, the turn does not start: 503, "AI
+   credits could not be checked".
 
-   | Message status | Charged |
-   |---|---|
-   | `complete` | every `chat_answer` and `embedding` row with status `success` and a cost |
-   | `truncated` | the same (the answer was delivered; owner 2026-10-14) |
-   | `cancelled` (Stop) | the same rows, i.e. what finished before Stop. A call cut off mid-stream reports no cost and is not charged |
-   | `error`, `interrupted` | nothing |
-   | any | `citation_repair` rows are never charged (they fix our mistakes) |
+#### 3.1 What is charged
 
-   - The charge is the full credits used. Whatever the lots cannot cover
-     becomes debt (§2), so the balance can end below zero.
-   - A Free user who never pays leaves that debt unpaid: one answer's cost at
-     most.
-   - A settle that never runs, because the function died, is done at the
-     user's next reserve once the hold has expired. A hold with no message
-     simply lapses.
-5. **Fail closed.** If the reserve call errors, the turn does not start: 503
-   with "AI credits could not be checked". Settle errors are logged and retried
-   at the next reserve. They never fail the answer.
+| The turn | Charged |
+|---|---|
+| `complete`, `truncated` | every `chat_answer` and `embedding` row of the turn with status `success` or `aborted` and a cost |
+| `cancelled` (Stop) | the same: everything spent up to Stop, including the round cut off mid-stream (its cost is fetched, below) |
+| `error`, `interrupted`, **and the saved answer is empty** | nothing (our failure; the user got nothing) |
+| `error`, `interrupted`, **with saved answer text** | **open question for the owner (§ Open):** recommended, charge as `complete`, because the user received an answer |
+| any | `citation_repair` rows, never |
+
+- **The round cut off by Stop.** OpenRouter sends a call's cost only at the
+  end of its stream, so the round Stop cuts off reports none. The recorder
+  fetches it afterwards by its generation id from OpenRouter's generation
+  endpoint, bounded, during the flush. If no cost comes back, the row stays
+  uncharged and is logged.
+- **A row reported as `success` with no cost** is logged as a warning, never
+  silently charged as zero.
 
 ### 4. Cycles, rollover and expiry
 
 - **Lazy minting.** Lots are minted when the user next reserves or reads
-  their credits, so no cron job is needed.
-- **Monthly lot.**
-  - While the profile has an active paid plan, the user has one monthly lot
-    for the current cycle.
-  - The lot expires at the cycle end.
-  - Cycles run monthly from the plan's start, up to `plan_period_end`. A manual
-    grant with no end runs monthly indefinitely.
-- **Rollover lot.**
-  - When a cycle's monthly lot expires, 10% of its remaining credits becomes a
-    rollover lot that expires one cycle later.
-  - This happens even if the plan has lapsed.
-  - Rollover lots themselves are never rolled.
+  their credits, so no cron job is needed. Minting covers only the current
+  cycle: a user away for three months does not collect three months of
+  credits.
+- **Paid plans.** Each `plan_grants` row with `source = 'payment'` is exactly
+  one cycle, `[base, period_end)`.
+  - `base` follows `grant_paid_plan`'s own rule: the previous grant's
+    `period_end` if that grant was the same plan, active, and ending after
+    this grant's `created_at`; otherwise this grant's `created_at`.
+  - The cycle's monthly lot has `source_key 'grant:<plan_grants.id>'`. It
+    becomes usable at `base` (an early renewal waits its turn) and expires at
+    `period_end`.
+  - Every lot therefore matches one month that was actually paid for. One
+    payment can never mint two lots, and lapse dates do not drift at month
+    ends.
+- **Manual plans** (admin grants, and current plans at launch).
+  - Monthly cycles run from the grant's `created_at` until `period_end`, or
+    indefinitely when the end is NULL. Each cycle mints its own lot,
+    `source_key 'grant:<id>:<n>'`.
+  - **Launch backfill.** A profile on a paid plan at launch with no
+    `plan_grants` row is treated as one manual grant made at `launch_at`,
+    ending at its `plan_period_end`.
+- **Plan taken away or changed by an admin.** A manual grant to Free, or to a
+  different plan, ends the open monthly lot at once, with no rollover. This
+  way an admin switching plans back and forth cannot mint credits. A paid
+  upgrade keeps the old lot to its own expiry, because that month was paid.
+- **Rollover.** When a monthly lot reaches its natural expiry, 10% of its
+  remainder becomes a rollover lot. That lot expires at the source lot's
+  `expires_at` + 1 month, even if the plan has lapsed. Rollover lots never
+  roll again.
 - **Signup lot.**
-  - Each user gets one signup lot, minted once at their first reserve or read,
-    with a unique key per user.
-  - It holds 1,000 credits and expires 30 days after it is minted. This
-    gives existing Free accounts the same 30 days from launch (open
-    question 5).
-  - Production already requires a confirmed email for email sign-ups. An
-    unconfirmed account cannot sign in, so it cannot reach the grant. Google
-    sign-ins arrive confirmed. The grant is still minted only when
-    `email_confirmed_at` is set. (Checked 2026-10-14 with two aggregate
-    counts over `auth.users`: all 4 email sign-ups were sent a link, 2 never
-    confirmed. No personal data was read.)
+  - One per user, `source_key 'signup'`, with 1,000 credits.
+  - It is valid from minting until `greatest(auth.users.created_at,
+    launch_at) + 30 days`, and is not minted after that date. Existing Free
+    accounts get 30 days from launch; a new account gets 30 days from
+    sign-up, and does not get a fresh 30 days by staying away.
+  - It is minted only when `auth.users.email_confirmed_at` is set. Production
+    already requires a confirmed email for email sign-ups, and Google
+    sign-ins arrive confirmed. This was checked on 2026-10-14 with two
+    aggregate counts over `auth.users`: all 4 email sign-ups were sent a link,
+    and 2 never confirmed. No personal data was read.
 - **Expiry.** An expired lot's remainder becomes an expiry entry, so the
   ledger stays complete.
 
 ### 5. Plan changes
 
-- **Upgrade (a different, higher plan paid now).** `grant_paid_plan` starts
-  the new plan at once (current behaviour). The new cycle's lot is minted. The
-  old monthly lot keeps its own expiry, so its unused credits are not lost.
-- **Downgrade at the next cycle** needs `grant_paid_plan` to queue a lower
-  plan instead of starting it now. That function is billing code, so the
-  change is recorded for O6. Until checkout opens, plans change only by admin
-  grant.
-- **Lapse.** At `plan_period_end` the user is Free. Monthly credits expire;
-  rollover and top-up lots stay until their own dates.
+- **Upgrade, paid now.** `grant_paid_plan` starts the new plan at once (current
+  behaviour). The new grant mints its lot, and the old lot keeps its expiry.
+- **Downgrade at the next cycle.** This needs `grant_paid_plan` to queue a
+  lower plan instead of starting it now. That is billing code, so it is
+  recorded for O6. Until checkout opens, plans change only by admin grant
+  (§4).
+- **Lapse.** At `plan_period_end` the user is Free. Their monthly credits
+  expire into a rollover; rollover and top-up lots stay until their own
+  dates.
+- **Re-subscribing after a lapse** is a new grant with `base = created_at`:
+  a new cycle starting that day.
 
 ### 6. What spends credits
 
@@ -260,19 +307,35 @@ the payment.
 - **No dollars.** It returns no dollars and no exchange rate.
 - **No direct table access.** Credit tables have RLS on and no user
   policies.
-- **Privileges.** Every writing function is `SECURITY DEFINER` with a fixed
-  `search_path`, revoked from `PUBLIC`, `anon` and `authenticated`, and
-  granted to `service_role` only. A fixture checks this as the
-  `authenticated` role.
+- **Privileges.**
+  - Every function is `SECURITY DEFINER` with `SET search_path = ''` and
+    `SET TimeZone = 'UTC'`.
+  - **Executable by `service_role` only:** everything except the two `my_`
+    functions, revoked from `PUBLIC`, `anon` and `authenticated`.
+  - **Internal helpers** (mint, expire, draw, sweep) live in a `private`
+    schema that only the owner can use. Supabase's default privileges grant
+    EXECUTE on new `public` functions to `anon` and `authenticated`, so no
+    helper may sit in `public`.
+  - **The one exception:** `my_credits()` writes (it mints, expires and
+    sweeps for the caller only) and is granted to `authenticated`. It is
+    `VOLATILE`, and its only input is `auth.uid()`.
+  - **The fixture** enumerates every function the migration adds in `public`
+    and `private`, through `pg_proc`, and checks `has_function_privilege` for
+    each role.
 - **Answer frames.** The answer stream carries credits only, never cost.
 - **Closing today's dollar leaks.**
   - The migration drops the `authenticated` SELECT on `model_call_logs` and
     `chat_turn_traces`. Nothing in the app reads them.
-  - research-chat stops writing `cost_usd` and `web_search_cost_usd` into
-    `chat_messages.usage`. The migration removes those two keys from existing
-    rows.
+  - research-chat stops writing any cost into `chat_messages.usage`. That
+    covers the top-level `cost_usd` and `web_search_cost_usd`, and the
+    `observed` block's `cost_usd` and `cost_usd_from`.
+  - The migration strips those keys from existing rows. A fixture checks, as
+    `authenticated`, that no row matches
+    `jsonb_path_exists(usage, 'strict $.**.cost_usd')`.
   - `model_pricing` stays readable, because the model picker uses it and it
     holds public list prices.
+  - Dollars still follow from credits ÷ 950. Hiding them is a display
+    choice, not a secret, and no further fixtures are needed.
 
 ### 8. What users see
 
@@ -328,147 +391,182 @@ the payment.
 ### 11. Rollout
 
 1. **Migration, function and site,** each with the owner's go-ahead.
-2. **Shadow mode first.** Ledger, holds and charges run for real, but a
-   blocked reserve is only logged, controlled by the switch
-   `CREDITS_ENFORCED` (unset means shadow). The owner then compares charges
-   with OpenRouter's bill.
-3. **Enforcement.** The owner sets `CREDITS_ENFORCED=1`.
+2. **Shadow mode first.**
+   - Ledger, holds and charges run for real. A blocked reserve still holds
+     and charges, but the turn runs.
+   - The switch is `CREDITS_ENFORCED` (unset means shadow).
+   - The owner then compares charges with OpenRouter's bill.
+3. **Enforcement.** The owner sets `CREDITS_ENFORCED=1`. Balances are not
+   reset: a user who ran below zero during the shadow week is blocked until
+   their next credits, exactly as they would have been.
 
 ### 12. Schema and function contracts
 
 This is the interface every later task builds on. The migration may add
-indexes, checks and private helpers, but not change these shapes without a
-spec amendment. Amounts are `numeric(14,4)` credits.
+indexes, checks and `private` helpers, but may not change these shapes without
+a spec amendment. Amounts are `numeric(14,4)` credits.
 
-**Tables** (RLS on, no user policies, all privileges revoked from `PUBLIC`,
-`anon` and `authenticated`, including column grants; `service_role` only)
+**Tables**
+- RLS is on, with no user policies.
+- All privileges, including column grants, are revoked from `PUBLIC`, `anon`
+  and `authenticated`.
+- `service_role` gets SELECT and INSERT, and gets UPDATE only where noted.
+- Every `user_id` references `auth.users ON DELETE CASCADE`. Deleting an
+  account therefore deletes its credit history, which fits "unused credits
+  lapse on closure" and erasure requests (open question 2).
 
 | Table | Key columns and rules |
 |---|---|
-| `credit_settings` | One row (`id boolean PK CHECK (id)`): `usd_to_inr`, `inr_per_credit`, `rollover_pct` (0–100), `signup_credits`, `signup_valid interval`, `topup_valid interval`, `hold_credits`, `hold_minutes`, `updated_at`, `updated_by`. Every change copies the old row to `credit_settings_history` |
-| `credit_plan_allowances` | `plan app_plan PK` (paid plans only), `monthly_credits > 0` |
-| `credit_wallets` | `user_id PK → auth.users ON DELETE CASCADE`, `balance`, `debt ≥ 0`, `cycle_anchor timestamptz null`, `updated_at`. `balance` = sum of usable lot `remaining` − `debt`, kept in step in the same transaction |
-| `credit_lots` | `id uuid PK`, `user_id`, `kind` ∈ signup, monthly, rollover, topup, adjustment; `granted > 0`; `0 ≤ remaining ≤ granted`; `starts_at < expires_at`; `source_key text`, `UNIQUE (user_id, source_key)`; `plan app_plan null`; `created_by uuid null`; `note text null`; `expired_at null` |
-| `credit_ledger` | `id uuid PK`, `user_id`, `kind` ∈ grant, charge, expiry, adjustment; signed `credits`; `lot_id null` (grant, expiry); `message_id uuid null` with a partial unique index on (`message_id`) where `kind = 'charge'`; for charges, `cost_usd`, `usd_to_inr` and `inr_per_credit` as used; `created_by`, `note`, `created_at`. Append-only: an `UPDATE`/`DELETE` trigger raises |
-| `credit_lot_draws` | `ledger_id → credit_ledger`, `lot_id → credit_lots`, `credits > 0`, `created_at`. A charge or a removal may gain draws later, when debt is repaid from a new lot |
-| `credit_holds` | `id uuid PK`, `user_id`, `credits > 0`, `message_id null`, `created_at`, `expires_at`, `settled_at null`, `released_at null`. Active means not settled, not released and not expired |
+| `credit_settings` | One row (`id boolean PK CHECK (id)`): the §1 settings, plus `updated_at` and `updated_by`. UPDATE allowed |
+| `credit_plan_allowances` | `plan app_plan PK` (paid plans only), `monthly_credits > 0`. UPDATE allowed |
+| `credit_wallets` | `user_id PK`, `balance`, `debt ≥ 0`, `updated_at`. UPDATE allowed |
+| `credit_lots` | `id uuid PK`, `user_id`, `kind` ∈ signup, monthly, rollover, topup, adjustment; `granted > 0`; `0 ≤ remaining ≤ granted`; `starts_at < expires_at`; `source_key`, `UNIQUE (user_id, source_key)`; `plan app_plan null`; `created_by null`; `note null`; `closed_at null` (expired or ended). UPDATE allowed on `remaining` and `closed_at` |
+| `credit_ledger` | `id uuid PK`, `user_id`, `kind` ∈ grant, charge, expiry, adjustment; signed `credits`; `lot_id null`; `turn_key null` (charges); `request_id null UNIQUE` (admin adjustments); for charges, the `usd_to_inr` and `inr_per_credit` used; `created_by null`, `note null`, `created_at`. **No UPDATE or DELETE for anyone**, so it is append-only by privilege. Only the account-deletion cascade removes rows |
+| `credit_charge_rows` | `model_call_log_id PK`, `ledger_id → credit_ledger`, `cost_usd`. One row per charged log row, so a row is never charged twice |
+| `credit_lot_draws` | `id`, `lot_id`, `ledger_id null`, `reason` ∈ charge, removal, repayment; `credits > 0`; `created_at` |
+| `credit_holds` | `(user_id, turn_key) PK`, `credits > 0`, `created_at`, `expires_at`, `settled_at null`, `swept_at null`, `shadow_blocked boolean`. UPDATE allowed on `settled_at` and `swept_at` |
 
-**Invariants** (each a fixture)
-- `wallet.balance` = sum(`ledger.credits`) for the user.
-- Lot accounting, for each lot: `granted` − `remaining` = draws on it +
-  its expiry entry.
-- `debt` = charges and removals − their draws.
+**Index added to an existing table:** `model_call_logs (message_id)`, which
+settle and sweep read.
+
+**Invariants** (each one a fixture)
+- `credit_wallets.balance` = sum of the user's `credit_ledger.credits`.
+- For each lot, `granted − remaining` = its draws + its expiry entry.
+- `debt` = (charges + removals) − (their draws) − (repayment draws).
 - No lot is negative, and no grant is negative.
 
-**Cycles and the plan.**
-- An `AFTER INSERT` trigger on `plan_grants` sets
-  `credit_wallets.cycle_anchor`.
-  - When the plan differs from the one active before the grant, the anchor is
-    the grant time.
-  - A same-plan renewal leaves it unchanged.
-  - A grant to Free clears it.
-- Cycle *n* is [anchor + *n* months, anchor + *n*+1 months), clamped to
-  `plan_period_end`.
-- The monthly lot for cycle *n* has `source_key` `monthly:<anchor>:<n>`, and
-  is minted only once its cycle has started.
-- **Mint order.** Each new lot first repays `debt`, in the same transaction,
-  through draws against the oldest charges.
-
-**Functions** (`SECURITY DEFINER`, `SET search_path = ''`)
+**Functions**
+- All are `SECURITY DEFINER`, with `SET search_path = ''` and
+  `SET TimeZone = 'UTC'`.
+- Helpers live in `private`.
+- Every writer takes the wallet row lock (`FOR UPDATE`) and never locks
+  `user_profiles`. Grants to a plan lock the profile first and the wallet
+  second, so there is one lock order.
 
 | Function | Caller | Contract |
 |---|---|---|
-| `reserve_turn_credits(p_user uuid) → jsonb` | service_role | Locks the wallet row (creating it if missing). Settles holds that expired with a message, and releases those without. Mints due lots and expires past ones. Then returns `{ok:true, hold_id, available}`, or `{ok:false, reason:'credits_exhausted', balance}` when `balance − active holds ≤ 0` |
-| `attach_turn_hold(p_hold uuid, p_message uuid) → void` | service_role | Raises unless the hold is active and the message belongs to the hold's user |
-| `release_turn_hold(p_hold uuid) → void` | service_role | Idempotent |
-| `settle_turn_credits(p_hold uuid) → jsonb` | service_role | Returns `{state:'pending'}` while the message is `running`. Otherwise it applies the §3 table to `model_call_logs` rows with that `message_id`, writes at most one charge, marks the hold settled, and returns `{state:'charged'\|'free', credits, balance}`. Idempotent. A message deleted with its conversation is charged from its logs, which have no foreign key and survive |
-| `admin_adjust_credits(p_user, p_credits, p_kind, p_reason, p_admin) → jsonb` | service_role | Takes `p_kind` adjustment or topup and a non-empty reason. A positive amount mints a lot (a top-up valid `topup_valid`, an adjustment for 12 months). A negative amount writes an adjustment entry that draws lots and may create debt |
-| `my_credits() → jsonb` | authenticated | For `auth.uid()` only, minting and expiring first. Returns `{balance, held, debt, plan, cycle:{allowance, ends_at}, lots:[{kind, remaining, expires_at}], recent:[{message_id, conversation_id, title, credits, created_at}]}` (the last 20 charges). No USD, no rate |
-| `my_conversation_credits(p_conversation uuid) → jsonb` | authenticated | `[{message_id, credits}]` for the caller's own conversation, so reloaded answers show their credits |
+| `reserve_turn_credits(p_user uuid, p_turn_key text, p_enforced boolean) → jsonb` | service_role | Runs the §3 order. An existing hold for the turn is returned unchanged. Returns `{ok, hold:{credits, expires_at}, available, balance}`, with `reason:'credits_exhausted'` when `available ≤ 0`. Creates no hold when blocked and `p_enforced` is true. Creates one marked `shadow_blocked` when blocked and `p_enforced` is false |
+| `settle_turn_credits(p_user uuid, p_turn_key text) → jsonb` | service_role | Finds the message through `research_turns`. Returns `{state:'pending'}` while it is `running` and inside its deadline. Otherwise it charges the turn's uncharged chargeable rows (§3.1) as one ledger entry, sets `settled_at`, and returns `{state:'charged'\|'free', credits, balance}`. Idempotent. A message deleted with its conversation is charged from its logs |
+| `admin_adjust_credits(p_user, p_credits, p_kind, p_reason, p_admin, p_request_id uuid) → jsonb` | service_role | `p_kind` is adjustment or topup, and `p_reason` must not be empty. A repeated `p_request_id` returns the first result. Positive: mints a lot (a top-up valid `topup_valid`, an adjustment valid 12 months). Negative: an adjustment entry that draws lots and may create debt |
+| `credits_on_plan_grant()` | trigger on `plan_grants` | Applies §4: a payment grant becomes one cycle, and a manual change ends the open monthly lot |
+| `my_credits() → jsonb` | authenticated | For `auth.uid()` only. It sweeps, expires and mints first. Returns `{balance, held, debt, plan, cycle:{allowance, ends_at}, lots:[{kind, remaining, expires_at}], recent:[{conversation_id, title, credits, created_at}]}`: the last 20 charged answers, with no USD and no rate |
+| `my_conversation_credits(p_conversation uuid) → jsonb` | authenticated | `[{message_id, credits}]` for the caller's own conversation, read only, so reloaded answers show their credits |
 
-Every function above is revoked from `PUBLIC` and `anon`, and from
-`authenticated` except the two `my_` functions. A fixture checks this through
-`has_function_privilege` for each role.
+The `my_` functions are the only ones granted to `authenticated`; nothing is
+granted to `anon`.
 
 ## Acceptance evidence
 
-- **SQL fixtures, run as the non-superuser migrator.** Each fixture is proved
-  non-vacuous by the runner.
-  - **Ledger and balance.** The ledger sums to the balance after every
-    operation.
-  - **Holds.** Two reserves at a balance of 25 credits: the first holds 25 and
-    the second is blocked.
-  - **Debt.**
-    - A charge of 300 on a balance of 120 leaves −180.
-    - At −180, a reserve is blocked.
-    - A new 2,000-credit monthly lot leaves a balance of 1,820, and the
-      repayment is a ledger entry.
-  - **Status rules.** Each row of the §3 table is charged as stated: complete,
-    truncated, cancelled, error, interrupted, and repair rows.
-  - **Idempotency.** A second settle of the same answer charges nothing.
-  - **Lots.**
-    - Spending draws the earliest-expiring lot first.
-    - Monthly minting and the 10% rollover give the right figures, and a
-      rollover never rolls.
-    - Signup is minted once, and expires 30 days after minting.
-    - Top-ups expire at 12 months.
-    - An expiry writes an entry.
-  - **Privileges and privacy.**
-    - `authenticated` and `anon` cannot execute any writing function or read
-      a credit table.
-    - `authenticated` can no longer read `model_call_logs`.
-    - `my_credits()` returns no USD field.
-    - No `chat_messages.usage` keeps a cost key.
-  - **Append-only.** An UPDATE or DELETE on `credit_ledger` raises.
-  - **Deleted conversation.** A turn whose conversation was deleted before
-    settling is still charged from its logs.
-  - **Plan changes.**
-    - An upgrade grant starts a new cycle lot, and the old lot keeps its
-      expiry.
-    - A same-plan renewal keeps the anchor.
-    - A lapse mints no further monthly lot, and its rollover is still
-      minted.
-- **Deno tests (research-chat).**
-  - Reserve is called before claim, and a blocked reserve returns 402 with no
-    message.
-  - A reserve error returns 503.
-  - A replay releases its hold.
-  - Settle runs after the flush, and a settle error does not fail the turn.
-  - Shadow mode does not block.
-- **Deno tests (transcribe-audio).** A log row is written, and the call is
-  never charged.
-- **Vitest.**
-  - The composer shows the balance, the warning and the blocked state.
-  - Per-answer credits show, including "No credits used".
-  - The Plan & billing breakdown renders.
-  - The admin adjustment works.
-  - The copy changes are in place.
-- **Repository checks.** `npm run lint`, `npm run build`, both test suites
-  and `npm run test:sql`.
-- **Local end-to-end run on a scratch Supabase stack, with real OpenRouter.**
-  - A Plus user answers, stops a turn and runs out.
-  - Charges are checked against `cost_usd` × 950.
-  - Spend cap $0.50.
-- **After deploy (shadow mode).** For each turn, credits charged match its
-  logged cost, over at least 50 production turns.
+**SQL fixtures**
+- Each fixture runs as the non-superuser migrator, and the runner proves it
+  non-vacuous.
+- **Invariants.** Every §12 invariant holds after each operation below.
+- **Holds.**
+  - Two reserves at a balance of 25 for different turns: the first holds 25
+    and the second is blocked.
+  - The same turn reserved twice gets its first hold back.
+  - When enforcement is off, a blocked turn still gets a `shadow_blocked`
+    hold and is charged at settle.
+- **Debt.**
+  - A charge of 300 on lots of 120 leaves −180, and the reserve is then
+    blocked.
+  - A new 2,000 monthly lot leaves 1,820, through a repayment draw.
+  - No ledger entry is written for the repayment, and the ledger still sums
+    to the balance.
+- **What is charged.**
+  - Each row of the §3.1 table is charged as stated.
+  - Repair rows are never charged.
+  - A `success` row with no cost is not charged.
+- **Settle and sweep.**
+  - Settle is idempotent.
+  - A log row committed after the settle is charged by the sweep, once.
+  - Before a hold expires, the sweep does not touch it.
+  - A turn still `running` past its deadline settles as `interrupted`.
+  - A deleted conversation is still charged from its logs.
+- **Lots.**
+  - Spending draws the earliest-expiring usable lot.
+  - An early renewal's lot is unusable until its `base`.
+  - The 10% rollover is right, and a rollover never rolls.
+  - A plan paid on 31 January does not drift at month ends.
+  - A user away for three months gets the current cycle only.
+- **Plan changes.**
+  - One payment mints exactly one lot, including a re-subscription after a
+    lapse.
+  - A paid upgrade keeps the old lot.
+  - An admin grant to Free, or to another plan, ends the open monthly lot
+    with no rollover.
+  - A paid plan at launch with no `plan_grants` row gets its current cycle.
+- **Signup.**
+  - Minted once, and only for a confirmed email.
+  - Expires at `greatest(created_at, launch_at) + 30 days`.
+  - Not minted after that date.
+- **Top-ups and adjustments.**
+  - Top-ups expire at 12 months.
+  - A repeated admin `request_id` grants once.
+- **Privileges and privacy.**
+  - For every function the migration adds, `has_function_privilege` matches
+    §12 for `anon`, `authenticated` and `service_role`.
+  - `authenticated` cannot read any credit table, `model_call_logs` or
+    `chat_turn_traces`.
+  - `service_role` cannot UPDATE or DELETE `credit_ledger`.
+  - Deleting an account cascades its credit rows.
+  - No `chat_messages.usage` matches `strict $.**.cost_usd`.
+  - `my_credits()` has no USD key.
+
+**Deno tests (research-chat)**
+- Reserve runs before the claim.
+  - Enforced and blocked: 402 `credits_exhausted`, and no message.
+  - Shadow and blocked: the turn runs.
+  - Reserve error: 503.
+- Settle runs after the flush and within 3 seconds. A settle error or
+  timeout leaves `credits: null` and does not fail the turn.
+- The round cut off by Stop gets its cost from the generation endpoint, and
+  stays uncharged if none arrives.
+- No cost key is written into `chat_messages.usage`.
+
+**Deno tests (transcribe-audio)**
+- A log row is written, and the call is never charged.
+
+**Vitest**
+- The composer shows the balance (including negative), the warning and the
+  blocked state.
+- Per-answer credits show, including "No credits used".
+- Plan & billing: the breakdown and recent answers render, with no dollars.
+- The admin adjustment needs a reason.
+- The copy changes are in place.
+
+**Repository checks**
+- `npm run lint`, `npm run build`, both test suites, `npm run test:sql` and
+  the router import.
+
+**Local end-to-end runs (scratch Supabase stack, real OpenRouter)**
+- A Plus user answers, stops a turn, uses two tabs at a low balance, and
+  goes negative and is repaid.
+- Each charge equals logged cost × 950.
+- Total test spend is at most $1.00.
+
+**After deploy (shadow week)**
+- Each answer's credits match its logged cost, over at least 50 production
+  turns.
 
 ## Scope
 
-**In scope:**
+**In scope**
 - The tables, functions, fixtures and migration above.
-- research-chat's reserve and settle.
+- research-chat's reserve and settle, and the cost of a stopped round.
 - The transcribe-audio log row.
 - The composer, answer, Plan & billing and admin UI.
 - The pricing and policy copy.
 - Docs.
 
-**Excluded:**
+**Excluded**
 - Razorpay orders for plans and top-ups, and the downgrade queue in
   `grant_paid_plan` (both O6).
 - Organisations and seats (P2).
 - NYAI gating (the model does not exist yet).
 - Per-feature limits, and charging briefs, dictation or indexing.
-- Per-model credit estimates in the picker.
+- Per-model credit estimates in the picker, and limiting expensive models on
+  a low balance. These are follow-ups, if needed.
 - GST.
 
 ## Boundaries
@@ -477,15 +575,16 @@ Every function above is revoked from `PUBLIC` and `anon`, and from
   - Write tests first, and prove each fixture fails without its migration.
   - Keep rates and allowances in the database only.
   - Keep dollars out of every user-facing response.
+  - Use the §3 order in every writer.
 - **Ask first.**
   - Any change to the published copy wording.
   - The migration, function deploy and push to production.
   - Switching enforcement on.
-  - Any production read used to measure holds.
 - **Never.**
-  - Rewrite a ledger entry, or let a lot go below zero (debt lives on the
-    wallet).
+  - Edit or delete a ledger entry, or let a lot go below zero (debt lives on
+    the wallet).
   - Let a gate fail open.
+  - Put a credit helper in `public`.
   - Touch billing payment code beyond reading it.
 
 ## Settled questions (owner, 2026-10-14)
@@ -494,18 +593,55 @@ Every function above is revoked from `PUBLIC` and `anon`, and from
 2. **Truncated answers:** charged.
 3. **Minimum to start:** none; any balance above zero starts an answer.
    - The answer always finishes and may leave the balance negative.
-   - The hold stays, only to stop several answers at once from running far
-     below zero.
-   - Its size (150) is checked against the dearest real answers in plan
-     task 0.
+   - The hold (300 credits, above the dearest measured answer) only stops
+     several answers at once from running far below zero.
 4. **Email confirmation:** production already requires it for email
-   sign-ups, so nothing changes. Moving the emails to Resend on the
-   company domain is separate work and needs no change here.
+   sign-ups. Resend on the company domain is separate work.
 5. **Existing users at launch:**
-   - Free accounts get their 30 days from launch.
+   - Free accounts get 30 days from launch.
    - Paid and manually granted plans get the current cycle's credits.
-6. **Shadow mode:** one week.
+6. **Shadow mode:** one week, on real balances.
 
-## Open
+## Design review (2026-10-14)
 
-- Approval of the spec as a whole.
+- **Who reviewed.** A fresh-context `security-auditor` reviewed this spec
+  against the code before any implementation.
+- **Critical findings, all fixed above:**
+  - Anchor cycles could mint two lots for one payment. Cycles now follow the
+    payment grants (§4).
+  - A reserve-time settle could race the log flush and make answers free.
+    Only the handler settles before a hold expires, and charges are per log
+    row (§3, §12).
+  - Failed turns that still deliver text: open question 1 below.
+  - A round cut off by Stop reported no cost. It is now fetched (§3.1).
+- **Important findings, all fixed above:**
+  - Repayment broke the ledger sum.
+  - The reserve order was wrong.
+  - Shadow mode skipped exhausted users.
+  - Helpers were exposed by default privileges.
+  - `usage.observed` still carried dollars.
+  - The hold was too long and the settle limit too short.
+  - The launch backfill was missing.
+  - An admin could mint credits by switching plans.
+  - Account deletion clashed with the append-only ledger.
+  - Lock order.
+- **Minor findings, adopted:**
+  - UTC in every function.
+  - Rounding rule.
+  - Admin idempotency.
+  - Uncosted rows logged.
+  - Rollover expiry after a lapse.
+  - Holds keyed by turn, which also fixes a retry getting 402.
+  - The settings history table was dropped.
+
+## Open (owner)
+
+1. **Failed turns that still show text.** A turn that errors or hits the
+   120-second limit keeps whatever answer text had streamed, and shows it.
+   - As written, decision 6 makes these free, so a user could get long
+     answers free by picking a slow model and a long question.
+   - **Recommendation:** free only when no answer text was delivered; charge
+     when the user received text.
+2. **Account deletion.** Deleting an account deletes its credit history.
+   - This matches "unused credits lapse on closure" and erasure rights.
+   - Invoices stay in the billing tables, so this is recommended as is.

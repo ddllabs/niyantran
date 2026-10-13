@@ -85,14 +85,17 @@ At most three agents run at once.
 
 **Builds**
 - Spec §12: the tables, invariants, functions and privileges.
-- The `plan_grants` trigger.
+- The `plan_grants` trigger, and the launch backfill for paid profiles that
+  have no grant row (spec §4).
+- The index on `model_call_logs (message_id)`.
+- Helpers live in the `private` schema.
 - The dollar-leak closure in §7:
   - revoke `authenticated` SELECT on `model_call_logs` and
     `chat_turn_traces`;
   - remove the cost keys from `chat_messages.usage`.
 - Seeds:
   - `credit_settings` (95, 0.10, 10, 1000, 30 days, 12 months, 300,
-    30 minutes);
+    5 minutes; `launch_at` = when the migration is applied);
   - `credit_plan_allowances` (plus 2000, pro 6500, max 75000).
 
 **Acceptance criteria**
@@ -100,7 +103,8 @@ At most three agents run at once.
   migrator.
 - The runner's vacuity check fails it without the migration.
 - `has_function_privilege` holds for `anon`, `authenticated` and
-  `service_role` on every function.
+  `service_role` on every function the migration adds (enumerated from
+  `pg_proc`).
 
 **Verify**
 - `npm run test:sql`.
@@ -131,14 +135,15 @@ At most three agents run at once.
   `persistence.ts` and their tests.
 
 **Acceptance criteria**
-- `reserve_turn_credits` runs before `claim_research_turn`.
+- `reserve_turn_credits(user, turn_key, enforced)` runs before
+  `claim_research_turn`. A replay is answered before reserve, as it is
+  today.
 - **Blocked.** A blocked reserve returns 402
   `{error, code:'credits_exhausted', balance}` and creates no message.
 - **Error.** A reserve error returns 503, so the gate never fails open.
-- **Shadow.** `CREDITS_ENFORCED` unset means shadow: a blocked reserve is
-  logged and the turn runs.
-- **Claim.** After the claim, the hold is attached. A replay or a refused
-  claim releases it.
+- **Shadow.** `CREDITS_ENFORCED` unset means shadow: a blocked reserve still
+  holds, is logged, and the turn runs.
+- **Retry.** A retry of the same `turn_key` gets its own hold back, not a 402.
 
 **Verify**
 - `deno test -A --config supabase/functions/deno.json supabase/functions`.
@@ -151,14 +156,25 @@ At most three agents run at once.
 - `supabase/functions/_shared/chatStream.ts` and its test.
 
 **Acceptance criteria**
-- **Settle.** `settle_turn_credits` runs after the telemetry flush, bounded
-  like the flush. A settle error is logged and never fails the turn.
-- **Frame.** The terminal frame carries `credits` (a number, or null when
-  unsettled).
-- **No dollars.** The `usage` saved on `chat_messages` has no `cost_usd` or
-  `web_search_cost_usd`.
+- **Settle.** `settle_turn_credits(user, turn_key)` runs after the telemetry
+  flush, with a 3-second limit. A settle error or timeout is logged and never
+  fails the turn.
+- **Frame.** The terminal frame is sent before the flush today, as it should
+  stay, so the answer is not delayed. After settle, a `credits` frame is sent
+  if the stream is still open. Otherwise the client reads
+  `my_conversation_credits`. The implementer reads the stream lifecycle and
+  picks the one that works, without moving the terminal frame later.
+- **The round cut off by Stop.** The recorder fetches its cost from
+  OpenRouter's generation endpoint by generation id, bounded, during the
+  flush.
+  - First, one probe (`source-driven-development`) confirms the endpoint
+    reports cost for an aborted stream, and how soon.
+  - If it does not, the row stays uncharged and logged, and the spec is
+    amended.
+- **No dollars.** The `usage` saved on `chat_messages` has no cost key at
+  any depth (including `observed`).
 - **Order.** A test proves the settle happens after the flush. A Stop test
-  proves only finished rounds are charged.
+  proves the cut-off round is charged when its cost is known.
 
 **Verify**
 - The Deno suite.

@@ -38,18 +38,28 @@ therefore recorded here.
    first.
 4. **The ledger is append-only.**
    - Every change is a signed entry: grant, charge, expiry, adjustment.
-   - Nothing is updated or deleted, and a correction is a new entry.
+   - Nothing is updated or deleted, and a correction is a new entry. This is
+     enforced by privilege: no role has UPDATE or DELETE on the ledger.
+   - The one exception is deleting the account. Its credit rows cascade with
+     it, honouring erasure requests and "unused credits lapse on closure".
    - Each charge stores the rate it used.
+   - Each charged log row is recorded once, so a late or repeated settlement
+     can never charge a row twice.
 5. **Debt lives on the wallet, never in a lot.**
    - A charge larger than the remaining lots leaves the balance negative.
    - The next lot repays the debt before it is usable.
    - No lot and no grant is ever negative.
 6. **A turn reserves before it runs and settles after.**
    - A hold under a per-user row lock keeps concurrent turns from spending the
-     same credits.
+     same credits. Holds are keyed by the turn.
    - Settlement reads the turn's logged cost and its final status, so the
      database decides what is charged.
-7. **The database is the only writer and the only source of rates.**
+   - Every hold also gets one sweep after it expires, which catches log rows
+     that committed late.
+7. **A plan's credits follow its payments.** Each paid month is exactly one
+   lot. Manual grants are cut into monthly lots. Nothing is anchored to a
+   calendar date that could drift or double up.
+8. **The database is the only writer and the only source of rates.**
    - Writing functions are `SECURITY DEFINER`, executable by `service_role`
      only.
    - Users read their credits through one function scoped to `auth.uid()`.
