@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { catalogModules } from '../desks/catalog.js';
 import { Icon } from './Icons.jsx';
-import { navigationMatches, recordMatches } from './commandSearch.js';
+import { navigationMatches, recordMatches, resultDragProps } from './commandSearch.js';
 import DictationButton from '../components/DictationButton.jsx';
 import './command-search.css';
 
@@ -13,6 +13,10 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
   const [remote, setRemote] = useState({ query: '', hits: [], loading: false, error: '' });
   const [retry, setRetry] = useState(0);
   const input = useRef(null);
+  // A result is held from mousedown until the click or drag ends. Without cancelling the mousedown
+  // (which would also stop a native drag), focus can leave the input, and that must not close the
+  // list and unmount the result being clicked or dragged (F134).
+  const held = useRef(false);
   const id = useId();
   const query = q.trim();
   const local = useMemo(() => navigationMatches(query, tabs, modules), [query, tabs]);
@@ -42,13 +46,22 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
     if (visible) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: 'nearest' });
   }, [visible, id, active]);
 
+  function hold() {
+    held.current = true;
+    const release = event => {
+      held.current = false;
+      for (const type of ['mouseup', 'dragend', 'drop']) window.removeEventListener(type, release, true);
+      if (event.type === 'mouseup' && document.activeElement !== input.current) input.current?.focus();
+    };
+    for (const type of ['mouseup', 'dragend', 'drop']) window.addEventListener(type, release, true);
+  }
   function choose(hit) {
     if (!hit) return;
     onOpen(hit);
     setQ(''); setOpen(false); setSelected(0);
   }
   return <div className="cmd" onBlur={e => {
-    if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+    if (!held.current && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
   }}>
     <Icon name="search" />
     <input ref={input} value={q} role="combobox" aria-label="Command search"
@@ -80,7 +93,7 @@ export default function CommandSearch({ tabs, onOpen, identity, lang = 'en', sea
               const index = hits.indexOf(hit);
               return <div role="option" aria-selected={active === index} id={`${id}-${index}`} key={hit.id}
                 className={`cmd-result${active === index ? ' active' : ''}`} onMouseEnter={() => setSelected(index)}>
-                <button type="button" tabIndex={-1} onMouseDown={e => e.preventDefault()} onClick={() => choose(hit)}>
+                <button type="button" tabIndex={-1} {...resultDragProps(hit)} onMouseDown={hold} onClick={() => choose(hit)}>
                   <strong>{hit.title}</strong><span>{hit.detail}</span>
                 </button>
               </div>;

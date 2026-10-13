@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { AI_DND } from '../lib/aiDrop.js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
-import DeskCatalogueSearch, { CatalogueResults, CatalogueModuleCoverage, catalogueKeySelection } from './DeskCatalogueSearch.jsx';
+import DeskCatalogueSearch, { CatalogueResults, CatalogueModuleCoverage, catalogueKeySelection, catalogueDragProps } from './DeskCatalogueSearch.jsx';
 
 const noop = () => {};
 describe('catalogue discovery UI contract', () => {
@@ -53,5 +54,18 @@ describe('catalogue discovery UI contract', () => {
     expect(catalogueKeySelection('ArrowUp', 0, 3)).toBe(0);
     expect(catalogueKeySelection('ArrowDown', 2, 3)).toBe(2);
     expect(catalogueKeySelection('ArrowDown', 0, 0)).toBe(0);
+  });
+  // F134: a catalogue result is a module, so it drags into AI research as a feature payload.
+  it('makes every catalogue result draggable', () => {
+    const html = renderToStaticMarkup(<CatalogueResults results={DESK_CATALOGUE} selected={0} lockedIds={[]} listId="results" onSelect={noop} onHighlight={noop} />);
+    expect((html.match(/draggable="true"/g) || [])).toHaveLength(120);
+  });
+  it('drags a catalogue result as a feature payload', () => {
+    const entry = DESK_CATALOGUE.find(entry => entry.feature === 'Cricket Wire');
+    const props = catalogueDragProps(entry);
+    expect(props.draggable).toBe(true);
+    const store = {};
+    props.onDragStart({ stopPropagation: vi.fn(), dataTransfer: { setData: (type, value) => { store[type] = value; } } });
+    expect(JSON.parse(store[AI_DND])).toMatchObject({ v: 1, kind: 'feature', tab: entry.tab, tier: entry.tier, feature: 'Cricket Wire', title: entry.title });
   });
 });
