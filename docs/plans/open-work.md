@@ -495,8 +495,13 @@ rechecked. Nothing in this check wrote to production.
   (inherited from the client's package), and each page rebuilds the globe from scratch; the homepage
   loads a 34 MB GIF as the walkthrough backdrop (since 2026-09-21), the whole terminal script
   (2.6 MB) for signed-out visitors, and 2.3 MB of Earth images; nothing is cached by browsers.
-  [Spec](../specs/2026-10-14-globe-handover-and-page-speed.md). On `task/page-speed`. Waiting on the
-  owner: the spec, the GIF's replacement, the `vercel.json` caching rule, removing unused images.
+  [Spec](../specs/2026-10-14-globe-handover-and-page-speed.md). Owner 2026-10-14: GIF becomes a still,
+  caching rule approved, unused files removed. Built on `task/page-speed` (T1–T5): a transparent still
+  of our globe and shared textures and time across pages (no flash; later globes draw at once); the
+  GIF is an 11 KB lazy still; the terminal, admin and chooser load on demand (entry 723 → 220 KB gzip,
+  CSS byte-identical); WebP textures (2.28 → 0.52 MB), a 4 KB logo; `vercel.json` caching. A first
+  homepage visit is about 0.94 MB over the wire, against about 40 MB. Remaining: review, merge, push,
+  the cache headers checked live, owner and client check.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

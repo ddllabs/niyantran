@@ -5,7 +5,9 @@
 >   black background before the real globe appears and starts moving.
 > - **Speed.** Pages have felt slow since the globe was added.
 >
-> The owner accepted the recommendations and asked for this spec. The findings below were measured on
+> The owner accepted the recommendations and asked for this spec. **Owner decisions, 2026-10-14:**
+> the GIF becomes a still (option a), the `vercel.json` caching rule is approved, and the unused
+> files may be removed. The findings below were measured on
 > 2026-10-14 against a production build (`vite preview`) and the live site's headers, unless marked
 > as read from the code.
 
@@ -150,20 +152,31 @@ Each guard is shown to fail without its code.
 The tasks run in order on one branch, `task/page-speed`. I'm the supervisor and do them myself, with
 an independent review before merge. I push only on the owner's word.
 
-## Open questions for the owner
+## As built (2026-10-14, `task/page-speed`)
 
-1. **The GIF's replacement.**
-   - **(a) Recommended.** A still frame at display size (WebP, about 30–60 KB, lazy) that keeps the
-     existing slow CSS spin. At 55% opacity and darkened, behind the play button, it reads almost
-     the same. No new tools are needed.
-   - **(b)** A short looping video (about 1–2 MB, lazy). It keeps the surface motion, but needs
-     `ffmpeg` installed with Homebrew on this Mac. An animated WebP at full size measured 4.7 MB,
-     which is too large.
-2. **The caching rule in `vercel.json`** (deployment config): approve T5?
-3. **Unused files.** Once nothing references `globe.gif` (34 MB), the four `.jpg` Earth images and
-   `globe.png`, may I remove them from `public/`? They stay in git history. This is not `public/data`
-   or `backup/`.
-4. **Client sign-off** on the before and after screenshots, before merge.
+Measured on production builds of `main` (before) and the branch (after), signed out:
+
+| First homepage visit | Before | After |
+|---|---|---|
+| Walkthrough backdrop | 34.4 MB GIF | 11 KB still (`walkthrough-globe.webp`), lazy |
+| Main script (gzip) | 722,868 B | 219,578 B (`TerminalShell`, `AdminApp`, `PersonaChooser` are their own chunks) |
+| Main stylesheet | 462 KB | 462 KB, byte-identical (same hash): the lazy modules' styles stay in the entry through the generated `src/shell/terminalStyles.js` |
+| Earth images | 2,276 KB (JPEG) | 525 KB (WebP; 2.5 of 255 mean difference per channel at the largest globe) |
+| Stand-in | 143 KB black-background photo | 87 KB transparent still of our own globe |
+| Logo | 164 KB | 4 KB (`logo-128.webp`; the favicon, share image and an admin-set favicon unchanged) |
+| Total | about 40 MB (about 37.7 MB over the wire) | about 2.0 MB decoded, about 0.94 MB over the wire |
+
+- **Page changes (dev, 24 changes):** every globe after the first was ready at once with no fade
+  (`globe-instant`) and continued the previous globe's time. No WebGL warnings appeared.
+- **Screenshots:** before and after at 858 px, and after at 375 px (no sideways scroll), show the
+  still and the moving globe identical at t = 0, and the same globe and backdrop before and after.
+- Also in this change:
+  - `scripts/bundle-baseline.json` is re-measured. On `main` it was already 76,697 B gzip over its
+    stale baseline.
+  - `CREDITS.md` records the re-encoding and the new still.
+- `globe-still.webp` and `walkthrough-globe.webp` were rendered in the browser from the shader and
+  from the GIF's first frame, then encoded with `cwebp`.
+- Still to check: the cache headers on the live site after the owner's push.
 
 ## Not in scope
 
