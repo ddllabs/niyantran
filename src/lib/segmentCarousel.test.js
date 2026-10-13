@@ -5,6 +5,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { serveHomeSegments } from '../../server/homeApi.mjs';
 import SegmentCarousel, { FALLBACK_SEGMENTS } from '../marketing/SegmentCarousel.jsx';
 
+// F142: tests never reach the database; without live counts the carousel keeps its snapshot figures.
+const noLiveFigures = async () => { throw new Error('no database in tests'); };
+
 const readRows = (name) => JSON.parse(fs.readFileSync(new URL(`../../public/data/embedded_csv/${name}.json`, import.meta.url), 'utf8'));
 const key = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
 // Recomputed here from the same files, independently of the server code.
@@ -38,7 +41,7 @@ describe('CR-09 — Front-Page Carousel and Sign-In Gate', () => {
   });
 
   it('provides one canonical slide per segment with distinct identity', async () => {
-    const data = await serveHomeSegments();
+    const data = await serveHomeSegments({ figures: noLiveFigures });
     expect(data.ok).toBe(true);
     expect(Array.isArray(data.segments)).toBe(true);
     expect(data.segments.length).toBe(8);
@@ -72,7 +75,7 @@ describe('CR-09 — Front-Page Carousel and Sign-In Gate', () => {
   // P16: every number on a slide is computed from the files the desks read, or
   // is one of the approved true constants. Nothing is hand-written.
   it('computes the live counts from the desk files', async () => {
-    const data = await serveHomeSegments();
+    const data = await serveHomeSegments({ figures: noLiveFigures });
     const seg = new Map(data.segments.map((s) => [s.id, s]));
     const metric = (id, label) => seg.get(id).keyMetrics.find((m) => m.label === label)?.value;
 
@@ -88,7 +91,7 @@ describe('CR-09 — Front-Page Carousel and Sign-In Gate', () => {
   });
 
   it('shows no figure that is neither computed nor an approved constant', async () => {
-    const data = await serveHomeSegments();
+    const data = await serveHomeSegments({ figures: noLiveFigures });
     const allowed = new Set([...CONSTANTS, ...Object.values(COMPUTED)]);
     expect(figures(data.segments).filter((n) => !allowed.has(n))).toEqual([]);
     // Dropped slides carry no headline number at all.
