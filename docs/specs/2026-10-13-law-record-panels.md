@@ -73,8 +73,8 @@ for good-law status, never a guess.
 
 **Shared rules:**
 
-- **Header:** title as the source prints it, meta, one status badge ("Live registry" for stored
-  records, "Coverage — not an order" for wire items), and the PDF or source link (https only).
+- **Header:** title as the source prints it, meta, one status badge ("Registry record" for stored
+  records (not "live": they are a stored pack), "Coverage — not an order" for wire items), and the PDF or source link (https only).
 - **Callout:** the module's main limit, stated plainly. Examples:
   - NCLAT is not in the pack;
   - 208 of 220 SC topics are unclassified;
