@@ -117,7 +117,10 @@ export function flattenLaunch(l) {
     region: loc.name || '',
     lat: pad.latitude,
     lon: pad.longitude,
-    source_url: l.url || pad.wiki_url || 'https://ll.thespacedevs.com/',
+    // F122: Launch Library's `url` is a JSON endpoint, not a page a reader can open, and the pad's
+    // wiki page is not the launch; no readable launch page is given, so no record link is drawn.
+    source_url: '',
+    api_url: l.url || '',
     source_label: 'The Space Devs',
   };
 }

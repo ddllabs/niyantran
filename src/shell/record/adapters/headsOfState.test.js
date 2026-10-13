@@ -104,8 +104,12 @@ describe('flattenLeader defaults are treated as not on record', () => {
     }
   });
 
-  it('badges only a verified-name problem: every pack row but the placeholder has no badge', () => {
-    expect(rows.filter((r) => model(r).badge).map((r) => r.id)).toEqual(['us']);
+  it('badges only a verified-name problem: a row is badged exactly when its name is an office, not a holder', () => {
+    // F122: rows named by an office ("UK Prime Minister", "Qatar (Emir)") are not verified, as "US President" was.
+    const badged = rows.filter((r) => model(r).badge).map((r) => r.id);
+    expect(badged).toEqual(rows.filter((r) => r.name === 'Not verified').map((r) => r.id));
+    expect(badged).toEqual(expect.arrayContaining(['us', 'gb', 'de', 'jp', 'af', 'qa']));
+    for (const id of ['in', 'sa', 'ng2', 'kp2']) expect(badged, id).not.toContain(id);
   });
 
   it('shows a next transition, authority, status and last-verified date once a profile really sets them', () => {

@@ -2536,7 +2536,8 @@ export async function serveFeatureFeed(searchParams) {
         feature: feat,
         rows,
         adapter: 'embedded',
-        links: ['https://www.wikidata.org/', 'https://www.cia.gov/the-world-factbook/'],
+        // F122: the rows are the embedded register; no outside site is their source.
+        links: [],
         coverage: { from: pack.asOf || '', through: pack.asOf || '', exhaustive: false },
         fallback: false,
         kind: 'dossier',
@@ -2559,15 +2560,12 @@ export async function serveFeatureFeed(searchParams) {
         feature: feat,
         rows,
         adapter: 'embedded',
-        links: [
-          'https://tradingeconomics.com/commodities',
-          'https://www.cmegroup.com/',
-          'https://www.worldbank.org/en/research/commodity-markets',
-        ],
+        // F122: the levels are the pack's illustrative values; no outside site is their source.
+        links: [],
         coverage: { from: pack.meta?.asOf || '', through: pack.meta?.asOf || '', exhaustive: false },
         fallback: false,
         kind: 'dossier',
-        note: pack.meta?.note || 'Original HTML commodity benchmark board. Levels are as-of the pack date, not a live ticker.',
+        note: `Illustrative benchmark levels from the terminal's pack, as of ${pack.meta?.asOf || 'the pack date'}; no live price feed is connected.`,
         meta: {
           section: 'GLOBAL COMMODITIES',
           status: `AS OF ${String(pack.meta?.asOf || '').toUpperCase()} · ${pack.stats?.tracked || rows.length} BENCHMARKS`,

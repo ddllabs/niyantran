@@ -20,11 +20,8 @@ const PROMPTS = [
   ['Safe havens', 'Explain the gold move in the context of current geopolitical risk.'],
 ];
 
-const SOURCES = [
-  ['Trading Economics', 'https://tradingeconomics.com/commodities'],
-  ['CME Group', 'https://www.cmegroup.com/'],
-  ['World Bank Pink Sheet', 'https://www.worldbank.org/en/research/commodity-markets'],
-];
+// F122: the levels are the pack's illustrative values; the Pink Sheet is offered only to check them.
+const SOURCES = [['World Bank Pink Sheet (for checking)', 'https://www.worldbank.org/en/research/commodity-markets']];
 
 function BarRow({ label, pct, val, up, on, onPick }) {
   const n = Math.max(2, Math.min(100, Number(pct) || 2));
@@ -90,7 +87,7 @@ export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, o
           [stats.losers ?? 0, 'Losers', 'bad'],
           [groups.length || 4, 'Complexes'],
           [stats.riskPremium || '—', 'Risk premium', 'warn'],
-          ['Live', 'API-ready', 'acc'],
+          ['Illustrative', 'Pack levels', 'warn'],
         ]}
         tab={tab}
         onTab={(t) => {
@@ -127,7 +124,7 @@ export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, o
               {groups.slice(2).map((g) => (
                 <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} />
               ))}
-              <GeoSources links={SOURCES} asOf={asOfLabel} />
+              <GeoSources links={SOURCES} asOf={asOfLabel} note={`Levels are illustrative values in the terminal's pack, as of ${asOfLabel}; no live price feed is connected.`} />
             </div>
           </div>
       </GeoDossierChrome>

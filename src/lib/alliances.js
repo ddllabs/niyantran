@@ -24,7 +24,8 @@ export function bindingType(p) {
   if (/treaty|convention|protocol/i.test(p.legalBasis || '')) return 'Treaty / protocol';
   if (/charter/i.test(p.legalBasis || '')) return 'Charter-based';
   if (/agreement/i.test(p.legalBasis || '')) return 'Agreement-based';
-  return 'Political declaration';
+  // F122: nothing in the legal basis says what kind it is; no binding form is asserted.
+  return 'Not stated';
 }
 
 function parseList(v) {
@@ -42,8 +43,9 @@ function parseList(v) {
     .filter(Boolean);
 }
 
-function defaultStanding(p) {
-  return /bilateral|partnership|dialogue|forum|group/i.test(p.category || '') ? 'Participant' : 'Full member';
+/** F122: the register holds no per-member standing, so none is asserted (flags set it where they exist). */
+function defaultStanding() {
+  return 'Not stated';
 }
 
 export function hydrateAlliance(row, flags = {}) {

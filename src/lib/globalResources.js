@@ -46,11 +46,16 @@ export function leadersFromPack(pack) {
 export function flattenLeader(p) {
   const name = String(p.name || '').trim();
   const role = String(p.role || p.office || '').trim();
+  // A name that is an office, not its holder ("UK Prime Minister", "Japan PM", "Poland (govt)",
+  // "Qatar (Emir)") names no one, so it is not verified (F122). "MBS (Crown Prince)" and
+  // "Venezuela (Maduro)" name a person and are kept.
+  const officeName =
+    /\b(president|prime minister|pm|chancellor)$/i.test(name) ||
+    /^[A-Za-z .'-]+ \((govt|government|interim|iea|cpv|emir|president|king|monarch)\)$/i.test(name);
   const placeholder =
     !name ||
     /^not verified$/i.test(name) ||
-    /^(us )?president$/i.test(name) ||
-    /^prime minister$/i.test(name) ||
+    officeName ||
     (role && name.toLowerCase() === role.toLowerCase());
   return {
     id: p.id || '',
