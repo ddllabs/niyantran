@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F146 is next) and goes in the
+- A new finding gets the next free `F` number (F147 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -503,8 +503,23 @@ rechecked. Nothing in this check wrote to production.
   homepage visit is about 0.94 MB over the wire, against about 40 MB. Reviewed (fixes: a late
   lost-context event, a reload screen for a failed download after a deploy, the terminal loading at
   start-up for a signed-in visitor, the Earth clock, a stylesheet guard in `check:bundle`). Merged
-  locally (`3daa484`). Remaining: push; then on the live site check the cache headers and that a
-  missing `/assets/` file is not cached for a year; owner and client check.
+  (`3daa484`) and pushed (`5503287`, owner 2026-10-14); CI passed on both jobs.
+  - **Live check, 2026-10-14:** build files are cached a year as immutable, brand images a day, and
+    pages still revalidate. The signed-in terminal loads its on-demand chunks with no error screen.
+  - **Finding: a missing `/assets/` file also gets the one-year header**, because Vercel applies
+    headers to 404s. It matters in two cases:
+    - a browser that hit a missing build file, followed by a rollback to the deployment that has it;
+    - the news snapshot images under `/assets/uploads/` (F146), which were already 404 and are now
+      remembered as 404 for a year.
+
+    Proposed, awaiting the owner: limit the rule to top-level build files
+    (`/assets/:file([^/]+)`), which excludes `/assets/uploads/`.
+  - Remaining: that decision; owner and client check.
+- [ ] **F146. News snapshot images are broken.** Found 2026-10-14 during the F145 live check:
+  `public/data/nter-news.json` and `news.json` point items at `/assets/uploads/<sha1>.jpg`, which do
+  not exist on our deployment. Seven images on the signed-in terminal returned 404 on the live site,
+  before F145 too. Needs a look at where the snapshot came from (probably the former upstream site)
+  and an approved data task before any change under `public/data`.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
