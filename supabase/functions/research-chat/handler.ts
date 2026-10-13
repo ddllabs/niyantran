@@ -20,6 +20,8 @@ import { deskRecordText, deskRowKey } from '../_shared/deskRows.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import { HttpError } from '../_shared/http.ts';
 import { isConversational } from './conversational.ts';
+import { checkLinks, decideWebSearch, webModelAllowed, type WebScope, webSourcesOf } from './webPolicy.ts';
+import { WEB_SEARCHES_PER_TURN, type WebSource } from '../_shared/webSearch.ts';
 import { log } from '../_shared/logging.ts';
 import { type Message, type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
@@ -122,6 +124,12 @@ export interface UserDb {
   resolveDocumentIds(scope: { keys: string[]; ids: string[] }): Promise<string[]>;
   /** The stored row, so a client-supplied selection can be trusted before it is cited. */
   findDeskRow(tier: string, feature: string, rowKey: string): Promise<DeskRow | null>;
+  /** The keys among `keys` that name a document with indexed_at set: what decides whether a
+   * record in scope has embeddings (web-search spec §1). */
+  indexedDocumentKeys(keys: string[]): Promise<string[]>;
+  /** The conversation's web-search globe override (web-search spec §1). With `requested`, stores
+   * it and returns it; without, reads the stored value. Null is automatic. */
+  webSearchOverride(conversationId: string, requested?: boolean): Promise<boolean | null>;
 }
 
 /** One desk module that has indexed documents: `documents.desk_tier` and `documents.desk_feature`, verbatim. */
@@ -450,7 +458,12 @@ function replayTurn(state: TurnState, headers: Record<string, string>): Response
  * the record was never searched, or it was and returned nothing - because those
  * are different facts and the reader can act on the difference.
  */
-function unverifiedNote(searches: number): string {
+function unverifiedNote(searches: number, webPages = 0): string {
+  // F130: with web pages behind it, the answer is not unbacked - it is backed by the web, not the
+  // record, and the reader is told so, and that those pages are unofficial.
+  if (webPages > 0) {
+    return '**Not from the record.** Nothing below is backed by Niyantran\'s records; it draws on the web sources listed under the answer, which are unofficial.';
+  }
   return searches > 0
     ? '**Unverified.** The searches this turn ran returned no passages, so nothing below is backed by the record.'
     : '**Unverified.** Nothing was retrieved this turn, so nothing below is backed by the record. Earlier answers in this conversation are not evidence.';
@@ -499,6 +512,7 @@ function sendTerminal(
   }
   if (row.status === 'complete' || row.status === 'truncated') {
     sender.send({ sources: row.sources });
+    if (Array.isArray(row.web_sources) && row.web_sources.length) sender.send({ webSources: row.web_sources });
     if (row.follow_ups.length) sender.send({ followUpQuestions: row.follow_ups });
   }
   // The reasoning count goes with the timing, so the live summary's "thought" or "waited" matches
@@ -678,6 +692,8 @@ async function runTurnBody(
   if (dropped > 0) sender.send({ notice: { kind: 'window', dropped } });
 
   let selectionBlock: { handle: string; tier: string; feature: string; recordText: string } | undefined;
+  // The selected record's document key, the stored row's when the server can confirm the row.
+  let selectionKey: string | null = request.selection?.document_key ?? null;
   if (request.selection) {
     const rowKey = deskRowKey(request.selection.row);
     const stored = await deps.db.findDeskRow(request.selection.tier, request.selection.feature, rowKey);
@@ -686,6 +702,7 @@ async function runTurnBody(
       const handle = handles.assign(rowSourceKey(stored));
       evidence.set(handle, { kind: 'row', row: { ...stored, snapshot_at: stored.snapshot_at || '' } });
       selectionBlock = { handle, tier: stored.tier, feature: stored.feature, recordText: stored.record_text };
+      selectionKey = stored.document_key ?? selectionKey;
     } else {
       selectionBlock = {
         handle: 'the selected record (user-supplied, not citable)',
@@ -699,10 +716,36 @@ async function runTurnBody(
   // A corpus fact, and a cheap one: cached for the isolate and never fatal. A
   // turn is still answerable without it, so a failure here costs the coverage
   // line, not the turn.
-  const modules = await deps.documentModules().catch(() => [] as DocumentModule[]);
+  let modulesKnown = true;
+  const modules = await deps.documentModules().catch(() => {
+    modulesKnown = false;
+    return [] as DocumentModule[];
+  });
   // The coverage line names modules, not tiers: a name on two tiers is listed once.
   const documentModules = [...new Set(modules.map((m) => m.desk_feature.trim()).filter(Boolean))];
   const featureScope = featureScopeOf(request, modules);
+  // A greeting carries no question (see the attachments below), so it never searches the web either.
+  const conversational = isConversational(request.message);
+  // 3. Web search (F130, web-search spec §1): decided once, before the first model call, and said
+  //    to the reader. Every lookup here is best-effort; none can fail the turn.
+  const [webScope, webOverride] = await Promise.all([
+    webScopeOf(deps, request, selectionKey, modules, modulesKnown),
+    // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
+    deps.db.webSearchOverride(conversation.id, request.web_search).catch(() => request.web_search ?? false),
+  ]);
+  const web = decideWebSearch({
+    scope: webScope,
+    override: webOverride,
+    conversational,
+    modelAllowed: webModelAllowed(t.chosen.model_id, t.chosen.params),
+  });
+  sender.send({ web });
+  // Pages searched so far, and the link check every saved text passes (security pass M3): a turn
+  // that breaks off or is cancelled saves what it streamed, so that text is checked as well.
+  const webSeen: string[] = [];
+  const safeText = (s: string) =>
+    s ? checkLinks(s, [...webSeen, ...evidenceUrls(evidence)], { scanCode: true }).text : s;
+
   const system = buildSystemPrompt({
     persona,
     today: deps.today?.() ?? new Date(startedAt).toISOString().slice(0, 10),
@@ -710,13 +753,13 @@ async function runTurnBody(
     focus: request.focus,
     selection: selectionBlock,
     documentModules,
+    webSearch: web.offered,
   });
   // A greeting carries no question, so the attachments are not context for it -
   // they are the reason a bare "hi" came back as a 2,342-character brief with
   // three follow-up chips. The prompt already asks for no tool and no
   // follow-ups here; withholding the attachments removes what the model was
   // summarising instead of greeting.
-  const conversational = isConversational(request.message);
   const attachments: RenderedAttachment[] = conversational ? [] : request.attachments.map(promptAttachment);
   const userTurn = buildUserTurn(request.message, attachments);
   const documentKeys = documentKeysOf(request);
@@ -827,6 +870,24 @@ async function runTurnBody(
           ...found,
         });
       }
+    } else if ('web' in e) {
+      // A research call that searched the web (spec §4, §5): one ticker step, one trace row.
+      const w = e.web;
+      webSeen.push(...w.pages.map((p) => p.url));
+      // Written now, like the other tool steps, so a turn that fails later keeps it (spec §5). The
+      // round number keeps each call's row distinct.
+      const [traceRow] = turnTraceRows({
+        userId: caller.userId,
+        conversationId: conversation.id,
+        messageId,
+        steps: [],
+        web: [{ attemptIndex: attempts.lastAttemptIndex('chat_answer'), searches: w.searches, pagesAdded: w.pages.length, latencyMs: w.latencyMs }],
+      });
+      attempts.addTraces([{ ...traceRow, step_index: rounds }]);
+      const step = { name: 'web_search', step: rounds, resultCount: w.pages.length, latencyMs: w.latencyMs, status: 'ok' as const };
+      sender.send({ tool: { ...step, phase: 'end' } });
+      activity.push({ type: 'tool', ...step, phase: 'end' });
+      context.checkpoint({ activity: [...activity] });
     } else if ('text' in e || 'draftText' in e) {
       const shown = decoder.push('text' in e ? e.text : e.draftText);
       if (shown) {
@@ -836,7 +897,7 @@ async function runTurnBody(
         if (!firstAnswerAt) firstAnswerAt = now();
         writingEnd = now();
         streamed += shown;
-        context.checkpoint({ content: streamed });
+        context.checkpoint({ content: safeText(streamed) });
         sender.send({ chunk: shown });
       }
     }
@@ -891,6 +952,10 @@ async function runTurnBody(
               beginEmbeddingAttempt: (model) => attempts.beginEmbeddingAttempt(model, signal),
             }),
           searchDeskRows: (args) => deps.searchDeskRows(args, { signal }),
+          // Offered per model: a failover to a model that may not search withdraws it (spec §1).
+          webSearch: web.offered && webModelAllowed(model, t.models.find((m) => m.model_id === model)?.params)
+            ? { perTurn: WEB_SEARCHES_PER_TURN }
+            : null,
           handles,
           budget,
           checkpoint,
@@ -936,7 +1001,7 @@ async function runTurnBody(
 
   if (!result) {
     return makeAssistantMessage({
-      content: streamed,
+      content: safeText(streamed),
       sources: [],
       followUps: [],
       activity,
@@ -958,7 +1023,7 @@ async function runTurnBody(
       signal.aborted ? undefined : `Answer declined by this server: finish=${result.finish}, envelope=${envelope ? 'parsed' : 'absent'}.`,
     );
     return makeAssistantMessage({
-      content: streamed,
+      content: safeText(streamed),
       sources: [],
       followUps: [],
       activity,
@@ -1046,10 +1111,15 @@ async function runTurnBody(
   // Both can be true at once - a widened search that also returned nothing -
   // and they answer different questions, so neither replaces the other.
   const notes = [
-    ...(grounded ? [] : [unverifiedNote(result.searches)]),
+    ...(grounded ? [] : [unverifiedNote(result.searches, result.webPages.length)]),
     ...(result.widened ? [widenedNote(result.widened, featureScope?.feature)] : []),
   ];
-  const content = notes.length ? `${notes.join('\n\n')}\n\n${ladder.answer}` : ladder.answer;
+  // Spec §4: a link survives only to a page searched this turn or a URL already in the turn's
+  // evidence. Code is scanned too, because the reader's renderer links inside code as well.
+  const checked = checkLinks(ladder.answer, [...result.webPages.map((p) => p.url), ...evidenceUrls(evidence)], { scanCode: true });
+  if (checked.removed) log('research.links_removed', { count: checked.removed });
+  const webSources = webSourcesOf(result.webPages, checked.text);
+  const content = notes.length ? `${notes.join('\n\n')}\n\n${checked.text}` : checked.text;
 
   const timing = timingOf(startedAt, now(), searchMs, writingStart, writingEnd, { firstModelAt, firstAnswerAt, rounds });
   // `searches` is a step count, not a token figure; `attempts` beside it already
@@ -1070,6 +1140,7 @@ async function runTurnBody(
   const terminal = makeAssistantMessage({
     content,
     sources: ladder.sources,
+    webSources,
     followUps,
     activity,
     served,
@@ -1188,6 +1259,7 @@ function makeAssistantMessage(
   a: {
     content: string;
     sources: CitationSource[];
+    webSources?: WebSource[];
     followUps: string[];
     activity: unknown[];
     served: string | null;
@@ -1200,6 +1272,7 @@ function makeAssistantMessage(
   return {
     content: a.content,
     sources: a.sources,
+    web_sources: a.webSources ?? [],
     follow_ups: a.followUps,
     activity: a.activity,
     model_served: a.served,
@@ -1208,4 +1281,46 @@ function makeAssistantMessage(
     usage: a.usage,
     timing: a.timing,
   };
+}
+
+/**
+ * What the turn's scope says about embeddings (web-search spec §1): each row or record in scope
+ * (uploaded files are not records) with whether its document key names an indexed document, and,
+ * under desk focus, whether the open module has documents. A failed lookup is not evidence that a
+ * document is missing: a keyed record then counts as indexed, and an unknown module as no module.
+ */
+async function webScopeOf(
+  deps: HandlerDeps,
+  request: ResearchRequest,
+  selectionKey: string | null,
+  modules: DocumentModule[],
+  modulesKnown: boolean,
+): Promise<WebScope> {
+  const keys = [
+    ...request.attachments.flatMap((a) => (a.kind === 'row' || a.kind === 'record' ? [a.document_key ?? null] : [])),
+    ...(request.selection ? [selectionKey] : []),
+  ];
+  const wanted = [...new Set(keys.filter((k): k is string => typeof k === 'string' && k.trim().length > 0))];
+  const indexed = wanted.length
+    ? await deps.db.indexedDocumentKeys(wanted).then((found) => new Set(found)).catch(() => null)
+    : new Set<string>();
+  const context = request.desk_context;
+  return {
+    focus: request.focus,
+    records: keys.map((key) => ({ key, indexed: Boolean(key) && (indexed === null || indexed.has(key!)) })),
+    documentAttached: request.attachments.some((a) => a.kind === 'document'),
+    moduleHasDocuments: context?.feature && modulesKnown
+      ? Boolean(featureScopeOf({ focus: 'desk', desk_context: context }, modules))
+      : null,
+  };
+}
+
+/** Every http(s) URL already in the turn's evidence (passages, file links, rows): links the
+ * answer may keep without a web search behind them. */
+function evidenceUrls(evidence: EvidenceMap): string[] {
+  const urls = new Set<string>();
+  for (const e of evidence.values()) {
+    for (const m of JSON.stringify(e).matchAll(/https?:\/\/[^\s"'<>()\\]+/g)) urls.add(m[0]);
+  }
+  return [...urls];
 }

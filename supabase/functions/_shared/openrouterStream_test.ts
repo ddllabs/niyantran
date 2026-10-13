@@ -421,6 +421,121 @@ Deno.test('Google bodies carry no cache breakpoints; Anthropic bodies keep them'
   assertEquals(claude.cache_control, { type: 'ephemeral' });
 });
 
+// web-search spec §2: the server tool rides beside the function tools on a research call and is
+// never sent on a tool_choice 'none' call - on any provider. Anthropic keeps its function tools
+// there for cache identity; a server tool is not a definition the cache needs, and a paid search
+// on the answer call would be a surprising bill.
+Deno.test('serverTools join tools with tool_choice auto on a research call, and never reach a tool_choice none body', () => {
+  const tools = [{ type: 'function', function: { name: 'search_documents' } }];
+  const serverTools = [{ type: 'openrouter:web_search', parameters: { engine: 'exa', max_uses: 3 } }];
+  const messages = [{ role: 'user' as const, content: 'hi' }];
+  for (const model of ['anthropic/claude-sonnet-5', 'google/gemini-3.8-flash', 'deepseek/deepseek-v4-flash', 'openai/gpt-6-astra']) {
+    const research = buildRequestBody({ model, messages, tools, serverTools });
+    assertEquals(research.tools, [...tools, ...serverTools], model);
+    assertEquals(research.tool_choice, 'auto', model);
+    const answer = buildRequestBody({ model, messages, tools, serverTools, tool_choice: 'none' });
+    assertEquals(JSON.stringify(answer).includes('web_search'), false, `${model}: no server tool on the answer call`);
+  }
+  // Anthropic's answer call keeps exactly its function tools, as before.
+  const claude = buildRequestBody({ model: 'anthropic/claude-sonnet-5', messages, tools, serverTools, tool_choice: 'none' });
+  assertEquals(claude.tools, tools);
+  assertEquals(claude.tool_choice, 'none');
+  // A server tool with no function tools still goes out; an empty list changes nothing.
+  assertEquals(buildRequestBody({ model: 'google/gemini-3.8-flash', messages, serverTools }).tools, serverTools);
+  assertEquals('tools' in buildRequestBody({ model: 'google/gemini-3.8-flash', messages, serverTools: [] }), false);
+});
+
+// ---- web-search spec §2: the stream carries the pages a server-side search returned.
+// The fixtures are the 2026-10-13 probe responses (parsed fields; content and annotations arrived
+// on `delta`, so the streams below put them there, and one test puts them on `message`).
+
+type Probe = { annotations: unknown[]; usage: Record<string, unknown>; finish: string };
+const probe = (name: string): Probe =>
+  JSON.parse(Deno.readTextFileSync(new URL(`./__fixtures__/web-search/probe1-${name}.json`, import.meta.url)));
+const webResults = (events: ModelEvent[]) => events.filter((e) => e.type === 'web-results') as Extract<ModelEvent, { type: 'web-results' }>[];
+const finishOf = (events: ModelEvent[]) => events.at(-1) as Extract<ModelEvent, { type: 'finish' }>;
+
+Deno.test('annotations on delta become one web-results event after the text and before finish, with the search count and the model cost in usage', async () => {
+  const gemini = probe('gemini-3.8-flash');
+  const events = await collect(streamChat(rawDeps([
+    chunk({ content: 'Part ' }),
+    chunk({ content: 'two', annotations: gemini.annotations.slice(0, 2) }),
+    chunk({ annotations: gemini.annotations.slice(2) }),
+    { ...finished(gemini.finish), usage: gemini.usage },
+  ]), { model: 'google/gemini-3.8-flash', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['text', 'text', 'web-results', 'finish']);
+  const pages = webResults(events)[0].pages;
+  assertEquals(pages.length, 5);
+  assertEquals(pages[0].url, 'https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=59692');
+  assertEquals(pages[0].title, 'Press Releases - Reserve Bank of India');
+  assert(pages[0].excerpt.startsWith('Date : Feb 07, 2025'));
+  const usage = finishOf(events).usage!;
+  assertEquals(usage.web_search_requests, 1);
+  assertEquals(usage.upstream_inference_cost, 0.0086745);
+  assertEquals(usage.cost, 0.0156745);
+});
+
+Deno.test('annotations on message are read too, and a page repeated within the call is kept once', async () => {
+  const claude = probe('claude-sonnet-5');
+  const events = await collect(streamChat(rawDeps([
+    chunk({ content: 'Answer' }),
+    { ...chunk({}), choices: [{ index: 0, delta: {}, message: { annotations: claude.annotations }, finish_reason: null }] },
+    { ...chunk({}), choices: [{ index: 0, delta: {}, message: { annotations: claude.annotations.slice(0, 3) }, finish_reason: null }] },
+    { ...finished('stop'), usage: claude.usage },
+  ]), { model: 'anthropic/claude-sonnet-5', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['text', 'web-results', 'finish']);
+  const urls = webResults(events)[0].pages.map((p) => p.url);
+  assertEquals(new Set(urls).size, urls.length, 'de-duplicated by URL within the call');
+  assertEquals(urls.length, new Set(claude.annotations.map((a) => (a as { url_citation: { url: string } }).url_citation.url)).size);
+  assertEquals(finishOf(events).usage!.web_search_requests, 2);
+});
+
+Deno.test('a searching call that ends in tool calls yields its pages before the tool calls', async () => {
+  const deepseek = probe('deepseek-v4-flash');
+  const events = await collect(streamChat(rawDeps([
+    chunk({ annotations: deepseek.annotations }),
+    tool(),
+    { ...finished('tool_calls'), usage: deepseek.usage },
+  ]), { model: 'deepseek/deepseek-v4-flash', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['web-results', 'tool-call', 'finish']);
+  assertEquals(webResults(events)[0].pages.length, 5);
+  // DeepSeek's split put the whole cost on the model; the count is still what the provider said.
+  assertEquals(finishOf(events).usage!.web_search_requests, 1);
+  assertEquals(finishOf(events).usage!.upstream_inference_cost, 0.000111111);
+});
+
+Deno.test('annotations arriving with or after the finish frame are kept and are not contradictory data', async () => {
+  const gpt = probe('gpt-6-astra');
+  const events = await collect(streamChat(rawDeps([
+    chunk({ content: 'Answer' }),
+    { ...chunk({ annotations: gpt.annotations.slice(0, 5) }), choices: [{ index: 0, delta: { annotations: gpt.annotations.slice(0, 5) }, finish_reason: 'stop' }] },
+    chunk({ annotations: gpt.annotations.slice(5) }),
+    { ...finished('stop'), usage: gpt.usage },
+  ]), { model: 'openai/gpt-6-astra', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['text', 'web-results', 'finish']);
+  assertEquals(webResults(events)[0].pages.length, new Set(gpt.annotations.map((a) => (a as { url_citation: { url: string } }).url_citation.url)).size);
+  assertEquals(finishOf(events).usage!.web_search_requests, 3);
+});
+
+Deno.test('a call without annotations yields no web-results event, and usage without a search count carries none', async () => {
+  const events = await collect(streamChat(rawDeps([
+    chunk({ content: 'Answer', annotations: [] }),
+    { ...finished('stop'), usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.01, cost_details: { upstream_inference_cost: -1 } } },
+  ]), { model: 'fake', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['text', 'finish']);
+  const usage = finishOf(events).usage!;
+  assertEquals('web_search_requests' in usage, false);
+  assertEquals('upstream_inference_cost' in usage, false, 'a negative model cost is unknown, not a number');
+});
+
+Deno.test('annotations without a usable http(s) URL are dropped, and a call of only those yields nothing', async () => {
+  const events = await collect(streamChat(rawDeps([
+    chunk({ content: 'x', annotations: [{ type: 'url_citation', url_citation: { url: 'javascript:alert(1)', title: 'bad' } }, { type: 'file_citation' }] }),
+    finished('stop'),
+  ]), { model: 'fake', messages: [] }));
+  assertEquals(events.map((e) => e.type), ['text', 'finish']);
+});
+
 // chat-turn-cost amendment 1: OpenRouter provider routing, measured before it is wired in.
 Deno.test('providerSort sets provider.sort, alongside require_parameters; unset, the body has no sort', () => {
   const base = { model: 'google/gemini-3.8-flash', messages: [{ role: 'user' as const, content: 'q' }] };

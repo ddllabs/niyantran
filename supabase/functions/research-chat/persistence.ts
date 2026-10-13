@@ -1,4 +1,5 @@
 import type { CitationSource } from '../_shared/citation.types.ts';
+import type { WebSource } from '../_shared/webSearch.ts';
 import { log } from '../_shared/logging.ts';
 import type { ResearchRequest } from './validate.ts';
 
@@ -8,6 +9,8 @@ export interface TerminalResult {
   content: string;
   status: TerminalStatus;
   sources: CitationSource[];
+  /** The pages searched on the web for this answer (web-search spec §4); finalize saves `[]` when absent. */
+  web_sources?: WebSource[];
   follow_ups: string[];
   activity: unknown[];
   model_served: string | null;

@@ -14,6 +14,7 @@ import ChatSubmit from './ChatSubmit.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import ModelPicker from './ModelPicker.jsx';
+import WebSearchToggle, { isWebGated, useWebPrediction } from './WebSearchToggle.jsx';
 import MessageRow from './MessageRow.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
 import WorkSurface from './WorkSurface.jsx';
@@ -421,6 +422,17 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     if (!stop) setIndexedKeys(null);
     return stop ?? undefined;
   }, [attachedKeys, open]);
+  // F130: the globe's prediction. The selected row joins the chips here because the next send pins it.
+  const selectedRecord = useMemo(
+    () => (selected && selected.status !== 'source_status' && featureName && !rowIsPinned(chat?.attachments, selected)
+      ? { kind: 'row', ...(billDocumentKey(selected) ? { document_key: billDocumentKey(selected) } : {}) } : null),
+    [selected, featureName, chat?.attachments],
+  );
+  const deskContext = useMemo(
+    () => (featureName || tab ? { tier: tab || '', ...(featureName ? { feature: featureName } : {}) } : null),
+    [featureName, tab],
+  );
+  const webPrediction = useWebPrediction({ focus, attachments: chat?.attachments, selectedRecord, indexedKeys, deskContext, open });
   const messages = research.messages.filter((m) => m.role !== 'system');
   const emptyThread = messages.length === 0;
   const focusMeta = FOCUS_OPTS.find((o) => o.id === focus) || FOCUS_OPTS[0];
@@ -1009,7 +1021,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 lang={lang}
               />
               {stream?.streamingText ? (
-                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} onOpenSource={openSource} selectedSource={viewer?.source} />
+                <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} allowedLinks={[]} onOpenSource={openSource} selectedSource={viewer?.source} />
               ) : null}
             </div>
           ) : null}
@@ -1114,6 +1126,16 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               >
                 <Ico name="clip" size={16} />
               </button>
+              <WebSearchToggle
+                override={research.webSearch}
+                predicted={webPrediction}
+                server={research.web}
+                gated={isWebGated(registry.models.find((m) => m.model_id === modelChoice.modelId))}
+                streaming={busy || streaming}
+                focus={focus}
+                lang={lang}
+                onChange={(next) => research.actions.setWebSearch(next)}
+              />
           <div ref={modelRef}>
             <ModelPicker
               pending={!research.ready}

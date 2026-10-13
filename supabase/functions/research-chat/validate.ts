@@ -75,6 +75,9 @@ export interface ResearchRequest {
   desk_context?: { tier: string; feature?: string };
   /** Admin persona probe: an app_persona value. research-chat honours it only for a platform admin. */
   persona_probe?: string;
+  /** The composer globe's override for this conversation (web-search spec §1). Absent: the stored
+   * choice applies, or automatic when there is none. */
+  web_search?: boolean;
 }
 
 export type FieldErrors = Record<string, string>;
@@ -209,6 +212,12 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
     } else personaProbe = b.persona_probe;
   }
 
+  let webSearch: boolean | undefined;
+  if (b.web_search !== undefined && b.web_search !== null) {
+    if (typeof b.web_search !== 'boolean') fieldErrors.web_search = 'web_search must be a boolean';
+    else webSearch = b.web_search;
+  }
+
   if (Object.keys(fieldErrors).length) return { fieldErrors };
   return {
     request: {
@@ -222,6 +231,7 @@ export function validateRequest(body: unknown): { request: ResearchRequest } | {
       attachments,
       ...(deskContext ? { desk_context: deskContext } : {}),
       ...(personaProbe ? { persona_probe: personaProbe } : {}),
+      ...(webSearch === undefined ? {} : { web_search: webSearch }),
     },
   };
 }

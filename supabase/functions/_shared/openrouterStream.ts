@@ -4,6 +4,8 @@
 // failover chain lives in the handler, which needs to know whether any text
 // already reached the reader before it decides.
 
+import { parseWebAnnotations, webSearchCount, type WebPage } from './webSearch.ts';
+
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
@@ -19,12 +21,18 @@ export interface Usage {
   cached_prompt_tokens?: number;
   reasoning_tokens?: number;
   cost?: number;
+  /** Searches OpenRouter's web-search server tool ran (`server_tool_use_details.web_search_requests`). */
+  web_search_requests?: number;
+  /** The model's share of `cost` (`cost_details.upstream_inference_cost`); the rest is server tools. */
+  upstream_inference_cost?: number;
 }
 
 export type ModelEvent =
   | { type: 'reasoning'; text: string }
   | { type: 'text'; text: string }
   | { type: 'tool-call'; id: string; name: string; args: string }
+  /** Pages a server-side web search returned, from `url_citation` annotations (web-search spec §2). */
+  | { type: 'web-results'; pages: WebPage[] }
   | { type: 'finish'; reason: string; usage: Usage | null; served: string | null; generationId: string | null };
 
 /** Private accounting observations; never serialized into the provider body. */
@@ -38,6 +46,9 @@ export interface StreamRequest {
   model: string;
   messages: Message[];
   tools?: unknown[];
+  /** OpenRouter server tools (web search). Sent beside `tools` on calls that may use tools,
+   * never on a `tool_choice: 'none'` call, whatever the provider (web-search spec §2). */
+  serverTools?: unknown[];
   /** 'none' offers the tools for prompt identity only; they cannot be called.
    * Only an Anthropic body keeps them - see buildRequestBody. */
   tool_choice?: 'none';
@@ -123,6 +134,12 @@ export function buildRequestBody(req: StreamRequest): Record<string, unknown> {
     body.tools = req.tools;
     body.tool_choice = req.tool_choice ?? 'auto';
   }
+  // A server tool (web search) is a paid action, not a definition the cache
+  // needs, so it is never sent on a tools-disabled call - Anthropic included.
+  if (req.serverTools?.length && req.tool_choice !== 'none') {
+    body.tools = [...(req.tools ?? []), ...req.serverTools];
+    body.tool_choice = 'auto';
+  }
   // The explicit breakpoints stop at the question. Top-level cache_control is
   // Anthropic's automatic breakpoint on the last block, so each research call
   // reads the search results the previous one wrote instead of paying for them
@@ -190,6 +207,11 @@ function normaliseUsage(u: Record<string, unknown> | null | undefined): Usage | 
   if (n(details.cached_tokens) !== null) out.cached_prompt_tokens = n(details.cached_tokens)!;
   if (n(cdetails.reasoning_tokens) !== null) out.reasoning_tokens = n(cdetails.reasoning_tokens)!;
   if (n(u.cost) !== null) out.cost = n(u.cost)!;
+  // web-search spec §5: the provider's search count and the model's share of the cost.
+  const searches = webSearchCount(u);
+  if (searches !== null) out.web_search_requests = searches;
+  const upstream = n((u.cost_details as Record<string, unknown> | undefined)?.upstream_inference_cost);
+  if (upstream !== null) out.upstream_inference_cost = upstream;
   return out;
 }
 
@@ -224,6 +246,10 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
   if (!res.body) throw new ProviderError(502, 'empty response body');
 
   const calls = new Map<number, { id: string; name: string; args: string }>();
+  // Pages a server-side web search returned, one per URL, in first-seen order
+  // (web-search spec §2). They describe the generation, not its output, so they
+  // may arrive on `delta` or on `message`, with or after the finish frame.
+  const pages = new Map<string, WebPage>();
   let finish: string | null = null;
 
   for await (const payload of parseSseStream(res.body)) {
@@ -262,6 +288,10 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
         throw new ProviderError(502, 'Provider sent contradictory data after finishing');
       }
     }
+    const message = (choice.message ?? {}) as Record<string, unknown>;
+    for (const source of [delta.annotations, message.annotations]) {
+      for (const page of parseWebAnnotations(source)) if (!pages.has(page.url)) pages.set(page.url, page);
+    }
     const reasoning = delta.reasoning ?? delta.reasoning_content;
     if (typeof reasoning === 'string' && reasoning) yield { type: 'reasoning', text: reasoning };
     if (typeof delta.content === 'string' && delta.content) yield { type: 'text', text: delta.content };
@@ -281,6 +311,10 @@ export async function* streamChat(deps: StreamDeps, req: StreamRequest): AsyncGe
   // EOF and [DONE] describe the transport, not a completed generation. Usage
   // may be missing, or repeat the actual finish reason in its final frame.
   if (!finish) throw new ProviderError(502, 'Provider stream ended without a finish reason');
+  // Only a completed generation reports its pages: a call that breaks off
+  // contributes nothing, so the caller never carries forward or counts a search
+  // whose call it is about to retry.
+  if (pages.size) yield { type: 'web-results', pages: [...pages.values()] };
   if (finish === 'tool_calls') {
     const ordered = [...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, call]) => call);
     if (!ordered.length) throw new ProviderError(502, 'Provider finished without complete tool calls');

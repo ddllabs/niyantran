@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F130 is next) and goes in the
+- A new finding gets the next free `F` number (F131 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -322,6 +322,36 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     No template text is shown as AI.
   - Remaining, with F111: whether selecting a record should generate a brief,
     what it costs in credits, and how it is labelled.
+- [ ] **F130. Web search in AI Research.** Owner request 2026-10-13: web
+  context for records without indexed documents, site-wide, through
+  OpenRouter's server web-search tool (Exa), as in TenderBase. Owner
+  decisions: automatic per record or module without an indexed document; the
+  composer globe overrides both ways and is stored per conversation; at most
+  three searches per turn; web sources labelled unofficial, shown as a "From
+  the web" row and a side-panel list, with a plain globe and the domain;
+  searches and cost recorded for F111.
+  [Research](../research/2026-10-13-web-search.md) ·
+  [Spec](../specs/2026-10-13-web-search.md). Branch `task/web-search`
+  (worktree `.claude/worktrees/web-search`).
+  - **Status, 2026-10-13:** built, reviewed and verified locally on
+    `task/web-search`; not merged to `main`, not pushed.
+    - Research and probes; spec with amendments 1–2.
+      [Plan](2026-10-13-web-search.md),
+      [local run](../research/2026-10-13-web-search-local-run.md).
+    - Sub-agents built the fixtures, the agent loop, the policy and the UI,
+      and ran the security pass and an independent review.
+    - Checks: 993 Deno and 3,166 Vitest tests, lint, the build and all SQL
+      fixtures pass; the migration's Down block was executed.
+    - Spend: $0.31 of an approved $1.00.
+  - **Waiting on the owner**, each a named go-ahead, in this order:
+    1. apply migration `20261013140000_web_search` to NTER;
+    2. deploy `research-chat`;
+    3. merge into `main` and push.
+  - **Follow-ups:**
+    - a per-user daily web-search cap, with F111;
+    - the privacy policy to name OpenRouter/Exa as the search provider (F107);
+    - the web viewer's close button still reads "Close citation";
+    - the two rare client prediction mismatches in spec amendment 2.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -1429,9 +1459,10 @@ Each can be reopened by the condition named.
 - **Advisor findings that are by design** (see P12): RLS with no policy on
   server-only tables, the `SECURITY DEFINER` RPCs that are the API, unused
   indexes at today's traffic, and multiple permissive policies.
-- **P4. Deferred agent features:** web search, compaction, memories, user
+- **P4. Deferred agent features:** compaction, memories, user
   uploads and binary attachments, a durable queue for long turns. Not
-  planned until the owner schedules them.
+  planned until the owner schedules them. (Web search moved to F130 on
+  2026-10-13.)
 - **P10.** Google sign-ups, and email sign-ups that wait for verification,
   skip the plan step and get no signup trial. They can start one from the
   upgrade dialog. Reopen if it matters commercially.

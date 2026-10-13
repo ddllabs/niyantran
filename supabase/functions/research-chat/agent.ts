@@ -3,6 +3,14 @@
 // provider. Every deps.model invocation must represent exactly one attempt.
 import { type HandleAssigner, handlesIn } from '../_shared/handles.ts';
 import type { Message, ModelEvent, StreamRequest, Usage } from '../_shared/openrouterStream.ts';
+import {
+  mergePages,
+  webEvidenceBlock,
+  type WebPage,
+  webSearchCostUsd,
+  webSearchCount,
+  webSearchTool,
+} from '../_shared/webSearch.ts';
 import { accumulate, DEFAULT_TOP_K, documentRole, DOCUMENT_ROLE_LABELS, type RetrievalPhase, type Chunk } from '../_shared/retrieval.ts';
 import { SEARCH_DOCUMENTS_TOOL } from '../_shared/tools/searchDocuments.ts';
 import {
@@ -129,9 +137,13 @@ export type AgentEvent =
   | { promoted: { index: number; model: string } }
   | { tool: ToolFrame }
   | { widened: WidenedScope }
+  /** After a research call that searched the web: the pages new to this turn, the provider's
+   * search count and cost for that call (web-search spec §2, §5). */
+  | { web: { pages: WebPage[]; searches: number; costUsd: number | null; latencyMs: number } }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
-  request: Omit<StreamRequest, 'messages' | 'tools' | 'tool_choice'>;
+  /** The agent alone decides the tools, the server tools and the tool choice of each call. */
+  request: Omit<StreamRequest, 'messages' | 'tools' | 'serverTools' | 'tool_choice'>;
   model(req: StreamRequest): AsyncGenerator<ModelEvent>;
   /** `topK` is set only for a widened search when widenedTopK asks for it; otherwise retrieval's default. */
   searchDocuments(args: DocumentSearchArgs, documentIds?: string[], topK?: number, onTiming?: (phase: RetrievalPhase, ms: number) => void): Promise<Chunk[]>;
@@ -146,6 +158,10 @@ export interface AgentDeps {
    * benchmark.md). Unset or null keeps every passage. */
   toolReplyChars?: number | null;
   searchDeskRows(args: SearchDeskRowsArgs): Promise<DeskRowsResult>;
+  /** Web search offered on this turn with this model, and the turn's search budget. Unset or null:
+   * not offered. In deps, not AgentInput, because a failover to a gated model withdraws it
+   * while the checkpoint carries on (web-search spec §1). */
+  webSearch?: { perTurn: number } | null;
   handles: HandleAssigner;
   onEvent(e: AgentEvent): void;
   budget?: AgentBudget;
@@ -168,6 +184,11 @@ export interface AgentResult {
   searches: number;
   /** Set when document evidence came from outside the attached documents. */
   widened: WidenedScope | null;
+  /** The turn's web pages, first seen first, de-duplicated (web-search spec §2). */
+  webPages: WebPage[];
+  /** Web searches charged to the turn: the provider's counts, plus everything an uncounted call
+   * that returned pages was allowed, plus one for each call that carried the tool and broke off. */
+  webSearches: number;
 }
 
 export interface AgentInput {
@@ -226,6 +247,12 @@ export interface AgentCheckpoint {
   /** Announced at most once per turn, and kept across failover so a retry that
    * does not widen again cannot un-say it. */
   widened: WidenedScope | null;
+  /** The turn's web pages, first seen first, one per URL (web-search spec §2). A resumed turn
+   * carries them on rather than searching again. */
+  webPages: WebPage[];
+  /** Web searches charged to the turn's budget so far: the provider's count, or everything an
+   * uncounted call was allowed. What the next research call is offered is the budget less this. */
+  webSearches: number;
 }
 
 function inputKey(a: AgentInput): string {
@@ -271,6 +298,8 @@ export function createAgentCheckpoint(
     pressedToDig: false,
     presearched: false,
     widened: null,
+    webPages: [],
+    webSearches: 0,
   };
 }
 
@@ -658,11 +687,20 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     deps.onEvent({ attempt: { phase, index: budget.modelAttempts, model: deps.request.model } });
     const calls: ToolCall[] = [];
     let partial = '';
+    // Pages this call's web search returned: call-local until the call completes, so a call
+    // that breaks off and is retried contributes nothing (web-search spec §2).
+    let callPages: WebPage[] = [];
     let ended: Extract<ModelEvent, { type: 'finish' }> | null = null;
     // A research call's draft has reached the reader live; take it back unless it is the answer.
     const retract = (reason: RetractReason) => {
       if (phase === 'research' && partial) deps.onEvent({ retract: reason });
     };
+    // web-search spec §2: a research call is offered the server tool with what is left of the
+    // turn's budget, and not at all once it is spent. The answer call never carries it. Read
+    // from the current deps each call: a failover to a gated model withdraws it mid-turn.
+    const webTool = phase === 'research' && deps.webSearch && state.webSearches < deps.webSearch.perTurn
+      ? webSearchTool(deps.webSearch.perTurn - state.webSearches)
+      : null;
     const request: StreamRequest = {
       response_format: ANSWER_JSON_SCHEMA,
       cache: true,
@@ -671,8 +709,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       // The answer phase is offered the same tools but may call none: an
       // unchanged tool list keeps the prompt cache the research calls wrote.
       tools: [SEARCH_DOCUMENTS_TOOL, SEARCH_DESK_ROWS_TOOL],
+      ...(webTool ? { serverTools: [webTool] } : {}),
       ...(phase === 'answer' ? { tool_choice: 'none' as const } : {}),
     };
+    const started = now();
     try {
       for await (const event of deps.model(request)) {
         checkAbort();
@@ -685,6 +725,9 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
             deps.onEvent({ text: event.text });
           } else if (event.text) deps.onEvent({ draftText: event.text });
         } else if (event.type === 'tool-call') calls.push(event);
+        // Only a search this call was offered counts (security pass I3): pages that arrive without
+        // the tool would become sources and allowed links nobody asked for.
+        else if (event.type === 'web-results') { if (webTool) callPages = [...callPages, ...event.pages]; }
         else {
           ended = event;
           if (event.usage) state.usage.push(event.usage);
@@ -700,11 +743,48 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       if (partial) messages.push({ role: 'assistant', content: partial });
       if (phase === 'answer' && state.text) state.resumeAnswer = true;
       state.finish = 'error';
+      // A call that carried the tool and broke off may have searched, and been billed, before it
+      // did: it is charged one search, so retries cannot run past the turn's budget (review 6).
+      if (webTool) state.webSearches += 1;
       retract('error');
       throw error;
     }
     state.finish = ended.reason;
+    // web-search spec §2, §5: the provider's count is the count. Without one, pages returned
+    // are a floor of one search, never a guess upward. The turn keeps one entry per URL; what
+    // this call added is what the next call reads and what the trace row counts. A web search
+    // is not a record search: budget.searches and the no-search press are untouched.
+    // The reported count is the provider's; without one, pages returned are a floor of one search,
+    // never a guess upward. The budget is stricter (security pass L1): an uncounted call that
+    // returned pages is charged everything it was allowed, or a provider that omits the count could
+    // search on every call. A call with neither a count nor pages shows no sign of a search.
+    // A call that was not offered the tool takes no part (I3); its usage still reaches telemetry.
+    const reported = webTool ? webSearchCount(ended.usage) : 0;
+    const webSearches = reported ?? (callPages.length ? 1 : 0);
+    const charged = reported ?? (callPages.length && webTool ? webTool.parameters.max_uses : 0);
+    const merged = mergePages(state.webPages, callPages);
+    state.webPages = merged.pages;
+    state.webSearches += charged;
+    const webAdded = merged.added;
+    if (webSearches > 0 || webAdded.length) {
+      deps.onEvent({
+        web: {
+          pages: webAdded,
+          searches: webSearches,
+          costUsd: webSearchCostUsd(ended.usage, webSearches),
+          latencyMs: Math.max(0, now() - started),
+        },
+      });
+    }
+    // The pages travel as one untrusted user message, after the assistant message that
+    // searched and its tool replies, so the transcript stays one a provider accepts.
+    const carryWeb = () => {
+      if (webAdded.length) messages.push({ role: 'user', content: webEvidenceBlock(webAdded) });
+    };
     if (phase === 'research') {
+      // A call that ran a web search is never the answer: its reply did not keep the schema
+      // in the probes, and the answer phase must cite the web evidence under the strict one.
+      const webSearched = webSearches > 0 || callPages.length > 0;
       const dig = !calls.length && deps.digNudge && !a.conversational && !state.pressedToDig &&
           budget.searches > 0 && budget.searches < BUDGET.maxSearches && budget.modelAttempts < BUDGET.maxSteps - 1
         ? digNudge(partial, state.chunks, budget.searches, (h) => deps.handles.lookup(h))
@@ -718,6 +798,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         });
         state.pendingTools.push(...calls);
         await completeToolReplies();
+        carryWeb();
       } else if (
         !a.conversational && !state.pressedToSearch && budget.searches === 0 &&
         budget.modelAttempts < BUDGET.maxSteps - 1
@@ -725,13 +806,16 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
         state.pressedToSearch = true;
         retract('searching');
         if (partial) messages.push({ role: 'assistant', content: partial });
+        carryWeb();
         messages.push({ role: 'user', content: SEARCH_FIRST });
       } else if (dig) {
         state.pressedToDig = true;
         retract('searching');
         if (partial) messages.push({ role: 'assistant', content: partial });
+        carryWeb();
         messages.push({ role: 'user', content: dig });
       } else if (
+        !webSearched &&
         state.finish === 'stop' && (a.conversational || state.steps.some((s) => s.status === 'ok')) &&
         acceptedDraft(partial, deps.handles)
       ) {
@@ -745,6 +829,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       } else {
         retract('rewriting');
         if (partial) messages.push({ role: 'assistant', content: partial });
+        carryWeb();
         beginAnswer();
       }
       continue;
@@ -779,5 +864,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     modelCalls: budget.modelAttempts,
     searches: budget.searches,
     widened: state.widened,
+    webPages: [...state.webPages],
+    webSearches: state.webSearches,
   };
 }

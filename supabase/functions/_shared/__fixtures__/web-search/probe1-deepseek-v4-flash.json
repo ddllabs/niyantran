@@ -1,0 +1,89 @@
+{
+  "model": "deepseek/deepseek-v4-flash",
+  "served": "deepseek/deepseek-v4-flash",
+  "provider": "StreamLake",
+  "finish": "tool_calls",
+  "annotations": [
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=61749",
+        "title": "Press Releases - Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Releases\n\n...\n\nDate : Dec 05, 2025\n\n...\n\nMonetary Policy Statement, 2025-26 Resolution of the Monetary Policy Committee December 3 to 5, 2025\n\n...\n\nMonetary Policy Decisions\n\n...\n\nThe Monetary Policy Committee (MPC) held its 58th meeting from December 3 to 5, 2025, under the chairmanship of Shri San"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=61333",
+        "title": "Press Releases - Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "4. The Monetary Policy Committee (MPC) met on the 29th, 30th of September and 1st October to deliberate and decide on the policy repo rate. After a detailed assessment of the evolving macroeconomic conditions and the outlook, the MPC voted unanimously to keep the policy repo rate unchanged at 5.50 p"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=61433",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Resolution\n\n...\n\n5. The Monetary Policy Committee (MPC) held its 57th meeting from September 29 to October 1, 2025, under the chairmanship of Shri Sanjay Malhotra, Governor, Reserve Bank of India. The MPC members Dr. Nagesh Kumar, Shri Saugata Bhattacharya, Prof. Ram Singh, Dr. Poonam Gupta and Shri"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/scripts/bs_pressreleasedisplay.aspx/BS_PressReleaseDisplay.aspx?prid=61856",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Date : Dec 19, 2025\n\n...\n\nMinutes of the Monetary Policy Committee Meeting, December 3 to 5, 2025\n\n...\n\nResolution\n\n...\n\n5. The Monetary Policy Committee (MPC) held its 58th meeting from December 3 to 5, 2025, under the chairmanship of Shri Sanjay Malhotra, Governor, Reserve Bank of India. The MPC m"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/Scripts/BS_ViewBulletin.aspx?Id=23705",
+        "title": "RBI Bulletin | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Resolution of ... Monetary ... Committee (MPC) Sep 29 to Oct 1, 20 ... 5\n\n...\n\nDate : Oct 20, 2025\n\n...\n\nThe Monetary Policy Committee (MPC) held its 57th meeting from September 29 to October 1, 2025, under the chairmanship of Shri Sanjay Malhotra, Governor, Reserve Bank of India. The MPC members Dr"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 901,
+    "completion_tokens": 160,
+    "total_tokens": 1061,
+    "cost": 0.000111111,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 58,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.000111111,
+      "upstream_inference_prompt_cost": 0.000081991,
+      "upstream_inference_completions_cost": 0.00002912
+    },
+    "server_tool_use_details": {
+      "web_search_requests": 1,
+      "tool_calls_requested": 1,
+      "tool_calls_executed": 1
+    }
+  },
+  "content": "",
+  "toolCallNames": [
+    "search_documents"
+  ]
+}

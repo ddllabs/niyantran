@@ -1,0 +1,187 @@
+{
+  "model": "openai/gpt-6-astra",
+  "served": "openai/gpt-6-astra",
+  "provider": "OpenAI",
+  "finish": "stop",
+  "annotations": [
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=63742",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "2. After ... detailed assessment of ... and financial ... , the MPC ... unanimously to increase the policy repo rate under the liquidity adjustment facility (LAF ... by 25 bps to 5.50 per cent. Consequently, ... standing deposit ... (SDF) rate stands adjusted at 5.25 per cent and the marginal standi"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63744",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "3. In this global backdrop, the Monetary Policy ... (MPC ... met on 5th, 6th and 7th of this month to ... and ... on the policy repo rate. After a detailed assessment of the evolving macroeconomic and financial developments and the outlook, the MPC voted unanimously to increase the policy repo rate "
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=62974",
+        "title": "Press Releases - Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Date : Jun 19, 2026\n\n...\n\nMinutes of the Monetary Policy Committee Meeting, June 3 to 5, 2026\n\n...\n\nThe sixty first meeting of the Monetary Policy Committee (MPC), constituted under Section 45ZB of the Reserve Bank of India Act, 1934, was held during June 3 to 5, 2026.\n\n...\n\nResolution\n\n...\n\n5. The "
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://rbi.org.in/scripts/BS_ViewBulletin.aspx?Id=24238",
+        "title": "RBI Bulletin | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "s ... : June 05, 2026\n\n...\n\nDate : Jun 22, 2026\n\n...\n\nDecisions of the Monetary Policy Committee (MPC)\n\n...\n\n4. The Monetary Policy Committee (MPC) met on the 3rd, 4th and 5th of June to deliberate and decide on the policy repo rate. After a detailed assessment of the evolving macroeconomic and fina"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=62864",
+        "title": "Press Releases - Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "0 ... 20 ... 6\n\n...\n\nDecisions of the Monetary Policy Committee (MPC)\n\n...\n\n4. The Monetary Policy Committee (MPC) met on the 3rd, 4th and 5th of June to deliberate and decide on the policy repo rate. After a detailed assessment of the evolving macroeconomic and financial developments and the outloo"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=63742",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Date : Oct 07, 2026\n\n...\n\nMonetary Policy Statement, 2026-27 Resolution of the Monetary Policy Committee October 5 to 7, 2026\n\n...\n\netary Policy Decisions\n\n...\n\nThe Monetary Policy Committee (MPC) held its 63rd meeting from October 5 to 7, 2026, under the chairmanship of Shri Sanjay Malhotra, Govern"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://trackrbi.com/notification/13727/liquidity-adjustment-facility-change-in-rates",
+        "title": "Liquidity Adjustment Facility - Change in rates - Track RBI",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "2\n\n...\n\nOctober 07, 2026\n\n...\n\nAs announced in the Monetary Policy Statement dated October 07, 2026, it has been decided by the Monetary Policy Committee (MPC) to increase the policy repo rate under the Liquidity Adjustment Facility (LAF) by 25 basis points from 5.25 per cent to 5.50 per cent with i"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://macroindex.org/bank/reserve-bank-of-india/history",
+        "title": "Reserve Bank of India: history · Macro Index",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "| Date | Decision | Before | After | Change | Statement |\n| --- | --- | --- | --- | --- | --- |\n| Wed, 7 Oct 2026 | raise | 5.25% | ↑ 5.50% | +25 bp | `https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742` |\n| Wed, 5 Aug 2026 | hold | 5. ... 5% | = 5.25% | 0 bp | `https://www.rbi.or"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://trackrbi.com/notification/13726/standing-liquidity-facility-for-primary-dealers",
+        "title": "Standing Liquidity Facility for Primary Dealers - Track RBI",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "October 7, 2026\n\n...\n\nAs announced in the bi-monthly Monetary Policy Statement, 2026-27, today, it has been decided by the Monetary Policy Committee (MPC) to increase the policy repo rate under the Liquidity Adjustment Facility (LAF) by 25 basis points from 5.25 per cent to 5.50 per cent with immedi"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://macroindex.org/bank/reserve-bank-of-india",
+        "title": "Reserve Bank of India · Macro Index",
+        "start_index": 0,
+        "end_index": 0,
+        "content": ": Wed, 7 Oct 2026\n...\n: `https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742`\n...\n\" | `https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742` | 7 / 0 / 0 4 Oct 2026: 1 / 0 / 0 7 Oct 2026: 6 / 0 / 0 | resolvable |"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=63742",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "The Monetary Policy Committee (MPC) held its 63rd meeting from October 5 to 7, 2026, under the chairmanship of Shri Sanjay Malhotra, Governor, Reserve Bank of India. The MPC members Dr. Nagesh Kumar, Shri Saugata Bhattacharya, Prof. Ram Singh, Dr. Poonam Gupta and Shri Indranil Bhattacharyya attende"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/scripts/FS_PressRelease.aspx?fn=2752",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "2 kb |\n| Governor’ ... , October ... , 2026 | 411 kb |\n| Statement on Developmental and Regulatory Policies October 7, 2026 | 305 kb |\n| Monetary Policy Statement, 2026-27 Resolution of the Monetary Policy Committee October 5 to 7, 2026 | 436 kb |"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://taxguru.in/rbi/rbi-raises-repo-rate-25-bps-5-50-percent-shifts-stance-calibrated-tightening.html",
+        "title": "RBI Raises Repo Rate by 25 Bps to 5.50%, Shifts Stance to Calibrated Tightening",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "3. In this global backdrop, the Monetary Policy Committee (MPC) met on 5th, 6th and 7th of this month to deliberate and decide on the policy repo rate. After a detailed assessment of the evolving macroeconomic and financial developments and the outlook, the MPC voted unanimously to increase the poli"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.cainindia.org/news/10_2026/monetary_policy_statement_202627_resolution_of_the_monetary_policy_committee_october_5_to_7_2026.html",
+        "title": "Monetary Policy Statement, 2026-27 Resolution of the Monetary Policy Committee October 5 to 7, 2026 Monetary Policy Statement, 2026-27 Resolution of the Monetary Policy Committee October 5 to 7, 2026 Chartered Accountant CA ICAI Chartered Accountants CA ICAI CAinINDIA ICAI Announcements Accounting Standards CA News ICAI Students ICAI Members Case Laws CPT IPCC Final ICAI Course CA Course ICAI Forum CA Question Papers ICAI Study Material",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "by 25 basis points to 5.50 per cent. The MPC also decided to change the stance to calibrated tightening. It only signals that given the current conditions, rate cuts are off the table in the near term and policy action ahead can only be a rate hike or a"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://worldtradescanner.com/RBI%20Raises%20Repo%20Rate%20by%2025%20basis%20Points%20to%20Quell%20Inflation.pdf",
+        "title": "RBI Raises Repo Rate by 25 basis Points to Quell Inflation",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "by 25 basis points to 5.50 per cent. The MPC also decided to change the stance to calibrated tightening. It only signals that given the current conditions, rate cuts are off the table in the near term and policy action ahead can only be a rate hike or a"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12018,
+    "completion_tokens": 480,
+    "total_tokens": 12498,
+    "cost": 0.13307049999999998,
+    "prompt_tokens_details": {
+      "cached_tokens": 5298,
+      "cache_write_tokens": 6229,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 20,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.1120705,
+      "upstream_inference_prompt_cost": 0.0880705,
+      "upstream_inference_completions_cost": 0.024
+    },
+    "server_tool_use_details": {
+      "web_search_requests": 3,
+      "tool_calls_requested": 3,
+      "tool_calls_executed": 3
+    }
+  },
+  "content": "{\n  \"meeting\": \"October 5–7, 2026; decision announced October 7.\",\n  \"decision\": \"The RBI’s Monetary Policy Committee unanimously raised the repo rate by 25 basis points (0.25 percentage point), from 5.25% to 5.50%, and changed its stance to “calibrated tightening”. The standing deposit facility rate rose to 5.25%, and the marginal standing facility and Bank Rate to 5.75%. [RBI policy resolution](",
+  "toolCallNames": []
+}

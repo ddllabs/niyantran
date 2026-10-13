@@ -161,6 +161,8 @@ function toChat(row, pins) {
     updatedAt: Date.parse(row.last_message_at || row.created_at || '') || Date.now(),
     messages: [],
     attachments: Array.isArray(pins[row.id]) ? pins[row.id].slice(0, MAX_ATTACHMENTS) : [],
+    // F130: the reader's web-search override for this conversation, null while it is automatic.
+    webSearch: typeof row.web_search === 'boolean' ? row.web_search : null,
     loaded: false,
   };
 }
@@ -216,14 +218,17 @@ export async function hydrateConversations(verified = null) {
   const requestClient = client;
   const snapshot = await verifiedScope(original, verified);
   if (!snapshot || !bound(snapshot) || sequence !== listSequence || requestClient !== client) return loadAiState();
-  const { data, error } = await Promise.resolve(snapshot.client.from('conversations').select('id, title, created_at, last_message_at')
+  const { data, error } = await Promise.resolve(snapshot.client.from('conversations').select('id, title, created_at, last_message_at, web_search')
     .eq('user_id', snapshot.identity.id).order('last_message_at', { ascending: false, nullsFirst: false }).limit(MAX_CHATS)).catch(error => ({ error }));
   if (!await current(snapshot) || !bound(snapshot) || sequence !== listSequence) return loadAiState();
   if (error) throw new Error(error.message);
   const pins = readPins();
   const chats = (data || []).map((r) => {
     const previous = state.chats.find(c => c.id === r.id);
-    return { ...toChat(r, pins), ...(previous ? { messages: previous.messages, draftId: previous.draftId } : {}) };
+    // A list refresh keeps an override chosen here (the server learns it only when a turn is sent),
+    // and otherwise takes the stored one, which may have been set from another device.
+    const chat = toChat(r, pins);
+    return { ...chat, ...(previous ? { messages: previous.messages, draftId: previous.draftId, webSearch: previous.webSearch ?? chat.webSearch } : {}) };
   });
   const draft = state.chats.find(c => c.draft);
   if (draft) chats.unshift(draft);
@@ -252,13 +257,14 @@ export async function loadMessages(conversationId, verified = null) {
   messageSequences.set(conversationId, sequence);
   if (!await verifiedScope(snapshot, verified) || !bound(snapshot)) return loadAiState();
   const { data, error } = await Promise.resolve(snapshot.client.from('chat_messages')
-    .select('id, role, content, sources, follow_ups, activity, timing, model_requested, model_served, reasoning_effort, status, error_message, execution_expires_at, turn_key, created_at, reasoning_tokens:usage->reasoning_tokens, observed_reasoning_tokens:usage->observed->reasoning_tokens')
+    .select('id, role, content, sources, web_sources, follow_ups, activity, timing, model_requested, model_served, reasoning_effort, status, error_message, execution_expires_at, turn_key, created_at, reasoning_tokens:usage->reasoning_tokens, observed_reasoning_tokens:usage->observed->reasoning_tokens')
     .eq('conversation_id', conversationId).eq('user_id', snapshot.identity.id)
     .order('created_at', { ascending: true })).catch(error => ({ error }));
   if (!await current(snapshot) || !bound(snapshot) || messageSequences.get(conversationId) !== sequence) return loadAiState();
   if (error) throw new Error(error.message);
   const messages = (data || []).map((m) => expireMessage({
     id: m.id, role: m.role, content: m.content || '', sources: m.sources || [],
+    webSources: Array.isArray(m.web_sources) ? m.web_sources : [],
     followUps: m.follow_ups || [], activity: m.activity || [], model: m.model_served || m.model_requested || '',
     timing: m.timing ?? null, model_requested: m.model_requested ?? null,
     model_served: m.model_served ?? null, reasoning_effort: m.reasoning_effort ?? null,
@@ -296,6 +302,7 @@ export function createAiChat(partial = {}) {
     updatedAt: Date.now(),
     messages: [],
     attachments: [],
+    webSearch: null,
     loaded: true,
     draft: true,
     draftId: ++draftSequence,
@@ -308,6 +315,16 @@ export function setActiveAiChat(id) {
   put({ activeId: id });
   if (id && !state.chats.find((c) => c.id === id)?.loaded) loadMessages(id).catch(() => {});
   return state;
+}
+
+/**
+ * The reader's web-search override for a conversation (F130): true, false, or null for automatic.
+ * Kept here and sent with the next turn, where the server stores it on the conversation; a
+ * conversation reopened reads it back. `''` is the unsent draft.
+ */
+export function setChatWebSearch(id, value) {
+  if (!currentOwner() || !state.chats.some(c => c.id === id)) return state;
+  return patchChat(id, { webSearch: typeof value === 'boolean' ? value : null });
 }
 
 export function renameAiChat(id, title) {
@@ -390,6 +407,7 @@ export function adoptConversation(conversation, context) {
   const known = state.chats.find(c => c.id === id && c !== chat);
   const adopted = { ...chat, ...(known || {}), id, draft: false, draftId: chat.draftId,
     title: conversation.title || known?.title || chat.title,
+    webSearch: chat.webSearch ?? known?.webSearch ?? null,
     messages: [...(known?.messages || []), ...chat.messages], attachments: chat.attachments };
   if (!chat.draft) return loadAiState();
   listSequence++;

@@ -933,3 +933,56 @@ describe('same-account auth events keep the turn (F43)', () => {
   expect(streamState('switch-c')).toMatchObject({status:'idle',streamingText:''});
  });
 });
+
+// F130 T4a: the web-search frames (web-search spec §4, §6).
+describe('web search frames', () => {
+  beforeEach(() => clearStream('new'));
+  const turn = { message: 'About this record', turn_key: 'web-1', focus: 'attached' };
+
+  it('keeps the server decision and the pages searched in the stream state', async () => {
+    const web = { offered: true, mode: 'auto', reason: 'record-without-document' };
+    const pages = [{ url: 'https://a.example/x', title: 'A', domain: 'a.example', cited: true }, { url: 'https://b.example/', title: 'B', domain: 'b.example', cited: false }];
+    const send = async () => sse([{ conversation: { id: 'web-c', title: 'T' } }, { web },
+      { tool: { name: 'web_search', phase: 'end', step: 2, resultCount: 5, status: 'ok', latencyMs: 900 } },
+      { chunk: 'Answer' }, { sources: [] }, { webSources: pages }, { done: { message_id: 'web-m' } }]);
+    await sendTurn(turn, { send, schedule: fn => fn() });
+    const s = streamState('web-c');
+    expect(s.web).toEqual(web);
+    expect(s.webSources).toEqual(pages);
+    // A web_search step has no start frame: it is listed from its end frame alone.
+    expect(s.activity.filter(a => a.type === 'tool')).toEqual([{ type: 'tool', name: 'web_search', phase: 'end', step: 2, resultCount: 5, status: 'ok', latencyMs: 900 }]);
+    clearStream('web-c');
+  });
+
+  it('a web_search end never merges into a document search that shares its step number', async () => {
+    const send = async () => sse([{ conversation: { id: 'web-d' } },
+      { tool: { name: 'search_documents', phase: 'start', step: 1, input: { query: 'q' } } },
+      { tool: { name: 'web_search', phase: 'end', step: 1, resultCount: 3 } },
+      { tool: { name: 'search_documents', phase: 'end', step: 1, resultCount: 7 } },
+      { chunk: 'A' }, { sources: [] }, { done: { message_id: 'm' } }]);
+    await sendTurn({ ...turn, turn_key: 'web-2' }, { send, schedule: fn => fn() });
+    const tools = streamState('web-d').activity.filter(a => a.type === 'tool');
+    expect(tools).toHaveLength(2);
+    expect(tools.find(t => t.name === 'search_documents')).toMatchObject({ phase: 'end', resultCount: 7 });
+    expect(tools.find(t => t.name === 'web_search')).toMatchObject({ phase: 'end', resultCount: 3 });
+    clearStream('web-d');
+  });
+
+  it('a turn with no web frames reports no decision and no pages', async () => {
+    const send = async () => sse([{ conversation: { id: 'web-e' } }, { chunk: 'A' }, { sources: [] }, { done: { message_id: 'm' } }]);
+    await sendTurn({ ...turn, turn_key: 'web-3' }, { send, schedule: fn => fn() });
+    expect(streamState('web-e')).toMatchObject({ web: null, webSources: [] });
+    clearStream('web-e');
+  });
+
+  it('carries web_search to the transport only when the caller put it in the turn', async () => {
+    const bodies = [];
+    const send = async ({ body }) => { bodies.push(body); return sse([{ conversation: { id: 'web-f' } }, { chunk: 'A' }, { sources: [] }, { done: { message_id: 'm' } }]); };
+    await sendTurn({ ...turn, turn_key: 'web-4', web_search: false }, { send, schedule: fn => fn() });
+    clearStream('web-f');
+    await sendTurn({ ...turn, turn_key: 'web-5' }, { send, schedule: fn => fn() });
+    clearStream('web-f');
+    expect(bodies[0].web_search).toBe(false);
+    expect('web_search' in bodies[1]).toBe(false);
+  });
+});

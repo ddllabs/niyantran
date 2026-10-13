@@ -1,0 +1,87 @@
+{
+  "model": "google/gemini-3.8-flash",
+  "served": "google/gemini-3.8-flash",
+  "provider": "Google",
+  "finish": "length",
+  "annotations": [
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=59692",
+        "title": "Press Releases - Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Date : Feb 07, 2025\n\n...\n\nMonetary Policy Statement, 2024-25 Resolution of the Monetary Policy Committee February 5 to 7, 2025\n\n...\n\nMonetary Policy Decisions\n\n...\n\nThe Monetary Policy Committee (MPC) held its 53rd meeting from February 5 to 7, 2025 under the chairmanship of Shri Sanjay Malhotra, Go"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=59818",
+        "title": "Press Releases | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "of ... Monetary Policy Committee Meeting, February 5 to 7, ... 2\n\n...\n\nResolution\n\n...\n\n5. The Monetary Policy Committee (MPC) held its 53rd meeting from February 5 to 7, 2025 under the chairmanship of Shri Sanjay Malhotra, Governor, Reserve Bank of India. The MPC members Dr. Nagesh Kumar, Shri Saug"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/scripts/PublicationsView.aspx?id=23137",
+        "title": "Publications | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "Governor’s Monetary Policy Statement on February 7, 2025\n\n...\n\nDecisions and ... (MPC)\n\n...\n\nThe MPC decided to reduce the policy repo rate by 25 bps from 6.50 percent to 6.25 percent, continuing its stance as ‘neutral’ to align inflation with the target while supporting growth. Consequently, the st"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://www.rbi.org.in/Scripts/BS_ViewBulletin.aspx?Id=23195",
+        "title": "RBI Bulletin | Official Website of Reserve Bank of India",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "In the bimonthly monetary policy meeting of February 2025, the Monetary Policy Committee (MPC) of the Reserve Bank reduced the policy repo rate by 25 bps to 6.25 per cent as growth-inflation dynamics opened up policy space to support growth, while remaining focussed on aligning inflation with the ta"
+      }
+    },
+    {
+      "type": "url_citation",
+      "url_citation": {
+        "url": "https://static-gi.asianetnews.com/common/01jkffaabcghdkr5vedq0y6ysb/governor-statement--on-monetary-policy.pdf",
+        "title": "Governor’s Statement: February 7, 2025",
+        "start_index": 0,
+        "end_index": 0,
+        "content": "ing ... multi-pronged challenges. \nDecisions of the Monetary Policy Committee (MPC) \n7. In this backdrop, the MPC, after a detailed assessment of the evolving \nmacroeconomic and financial developments and the economic outlook, decided \nunanimously to reduce the policy repo rate by 25 basis points fr"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3951,
+    "completion_tokens": 1523,
+    "total_tokens": 5474,
+    "cost": 0.0156745,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1149,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.0086745,
+      "upstream_inference_prompt_cost": 0.0029632499999999997,
+      "upstream_inference_completions_cost": 0.00571125
+    },
+    "server_tool_use_details": {
+      "web_search_requests": 1,
+      "tool_calls_requested": 1,
+      "tool_calls_executed": 1
+    }
+  },
+  "content": "```json\n{\n  \"meeting_details\": {\n    \"committee\": \"Monetary Policy Committee (MPC), Reserve Bank of India\",\n    \"meeting_dates\": \"February 5–7, 2025\",\n    \"meeting_number\": \"53rd meeting\",\n    \"chair\": \"Governor Sanjay Malhotra\"\n  },\n  \"decisions\": {\n    \"policy_repo_rate\": \"Reduced by 25 basis points from 6.50% to 6.25% under the Liquidity Adjustment Facility (LAF) with immediate effect, decided ",
+  "toolCallNames": []
+}

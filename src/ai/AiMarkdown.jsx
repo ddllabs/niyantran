@@ -1,11 +1,20 @@
 import { splitCitationMarkers } from '../lib/citationMarkers.js';
 import CitationBubble, { CitationPlaceholder, isReadableCitation } from './CitationBubble.jsx';
+import { GlobeIcon, normaliseWebUrl } from './WebSourcesList.jsx';
 
 function breaks(text, keyPrefix) {
   return text.split(/<br\s*\/?>/i).flatMap((part, i) => i ? [<br key={`${keyPrefix}-br${i}`} />, part] : [part]);
 }
 
-function Emphasis({ text, keyPrefix }) {
+/**
+ * A link to a page the turn searched (F130): the same link, plus a small globe, so a web citation
+ * reads differently from a record citation [n]. It is matched against the message's web sources only.
+ */
+function WebMark() {
+  return <span className="ai-web-link-mark" role="img" aria-label="web source"><GlobeIcon className="ai-web-link-icon" size={11} /></span>;
+}
+
+function Emphasis({ text, keyPrefix, webUrls, allowedUrls }) {
   const nodes = [];
   const re = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g;
   let last = 0;
@@ -17,10 +26,14 @@ function Emphasis({ text, keyPrefix }) {
     if (m[1]) nodes.push(<strong key={key}>{breaks(m[1], key)}</strong>);
     else if (m[2]) nodes.push(<em key={key}>{breaks(m[2], key)}</em>);
     else if (m[3]) nodes.push(<code key={key}>{m[3]}</code>);
+    // Security pass M1: with an allow-list, a link the answer may not carry is its plain text.
+    else if (m[4] && allowedUrls && (m[5].includes('#') || !allowedUrls.has(normaliseWebUrl(m[5])))) nodes.push(m[4]);
     else if (m[4]) {
+      const web = Boolean(webUrls?.size) && webUrls.has(normaliseWebUrl(m[5]));
       nodes.push(
-        <a key={key} href={m[5]} target="_blank" rel="noreferrer">
+        <a key={key} href={m[5]} target="_blank" rel="noreferrer" className={web ? 'ai-web-link' : undefined}>
           {m[4]}
+          {web ? <WebMark /> : null}
         </a>,
       );
     }
@@ -40,13 +53,13 @@ function Emphasis({ text, keyPrefix }) {
  * behind it is dropped, because a bracket with no bubble behind it is never
  * correct output.
  */
-function Inline({ text, sources, streaming, onOpenSource, selectedSource, keyPrefix = 'i' }) {
-  if (!sources && !streaming) return Emphasis({ text, keyPrefix });
+function Inline({ text, sources, streaming, onOpenSource, selectedSource, webUrls, allowedUrls, keyPrefix = 'i' }) {
+  if (!sources && !streaming) return Emphasis({ text, keyPrefix, webUrls, allowedUrls });
   const byId = new Map((Array.isArray(sources) ? sources : []).filter(isReadableCitation).map((s) => [s.id, s]));
   const nodes = [];
   splitCitationMarkers(text).forEach((part, n) => {
     if (typeof part === 'string') {
-      nodes.push(...Emphasis({ text: part, keyPrefix: `${keyPrefix}-${n}` }));
+      nodes.push(...Emphasis({ text: part, keyPrefix: `${keyPrefix}-${n}`, webUrls, allowedUrls }));
       return;
     }
     const source = byId.get(part.citation);
@@ -203,8 +216,21 @@ function ListItems({ items, keyPrefix, cite }) {
   });
 }
 
-export default function AiMarkdown({ text, sources, streaming, onOpenSource, selectedSource }) {
-  const cite = { sources, streaming, onOpenSource, selectedSource };
+/** The normalised URLs of the searched pages, or null when there are none (links then render as before). */
+function webUrlSet(webSources) {
+  if (!Array.isArray(webSources) || !webSources.length) return null;
+  const urls = new Set(webSources.map(page => normaliseWebUrl(page?.url)).filter(Boolean));
+  return urls.size ? urls : null;
+}
+
+/**
+ * `allowedLinks`: when given, the only URLs a link may point at (the research chat passes the
+ * searched pages and the cited files; a streaming answer passes none). Omitted: every http(s) link
+ * renders, as before.
+ */
+export default function AiMarkdown({ text, sources, streaming, onOpenSource, selectedSource, webSources, allowedLinks }) {
+  const allowedUrls = Array.isArray(allowedLinks) ? new Set(allowedLinks.map(normaliseWebUrl).filter(Boolean)) : null;
+  const cite = { sources, streaming, onOpenSource, selectedSource, webUrls: webUrlSet(webSources), allowedUrls };
   const lines = String(text || '')
     .replace(/\r\n/g, '\n')
     .split('\n');

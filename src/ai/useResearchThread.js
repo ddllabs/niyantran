@@ -4,6 +4,7 @@ import * as streaming from '../lib/researchChat.js';
 import * as identity from '../lib/userStore.js';
 import * as registry from '../lib/aiRegistry.js';
 import { partitionAttachments } from '../lib/aiDrop.js';
+import { setChatWebSearch } from '../lib/aiConversations.js';
 import { defaultEffortFor, effortsFor } from './ModelPicker.jsx';
 
 export function normalizeResearchChoice(models, value = {}) {
@@ -42,7 +43,8 @@ function saveChoice(storage, choice) {
 // This controller owns only the research path. Its injected dependencies use
 // the same B4 identity and D7/D8 store interfaces as the production defaults.
 export function createResearchThread(overrides = {}) {
-  const deps = { ...threads, ...streaming, ...identity, ...registry, ...overrides };
+  // setChatWebSearch is imported from the store itself: lib/aiThreads.js is outside F130 T4a's scope.
+  const deps = { setChatWebSearch, ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
     : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
   const emptyStore = () => ({ chats: [], activeId: '', loaded: false, persistenceError: '' });
@@ -84,10 +86,17 @@ export function createResearchThread(overrides = {}) {
     const messages = (chat?.messages || []).filter(m => !(live && m.role === 'assistant'
       && (m.id === stream.messageId || (request?.turn_key && m.turn_key === request.turn_key))));
     const savedSources = [...(chat?.messages || [])].reverse().find(m => m.role === 'assistant' && m.sources?.length)?.sources || [];
+    // F130: the pages searched, kept beside `sources` and never merged into it.
+    const savedWebSources = [...(chat?.messages || [])].reverse().find(m => m.role === 'assistant' && m.webSources?.length)?.webSources || [];
     view = { ...data, chat, stream, messages, live, storedRunning,
       canStop: data.ready && Boolean(data.submitting || stream?.isPending || stream?.isStreaming || storedRunning),
       locked: !data.ready || data.loading || data.submitting || data.attaching || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
       sources: stream?.sources?.length ? stream.sources : savedSources,
+      webSources: stream?.webSources?.length ? stream.webSources : savedWebSources,
+      // The reader's globe override for the active conversation (true, false, or null for automatic),
+      // and the server's decision for the turn in flight, which wins the globe while it runs.
+      webSearch: typeof chat?.webSearch === 'boolean' ? chat.webSearch : null,
+      web: stream?.web ?? null,
       recoverable: Boolean(request && stream?.retryable && !stream?.isStreaming && !data.submitting),
       choice: normalizeResearchChoice(data.registry.models, data.choice) };
     for (const fn of listeners) fn();
@@ -209,6 +218,10 @@ export function createResearchThread(overrides = {}) {
         const chosen = normalizeResearchChoice(data.registry.models, data.choice);
         if (!chosen.modelId) throw new Error('No research model is available. Reload the model list.');
         body.model = chosen.modelId;
+        // The override travels only when the reader has set one; absent means automatic, and the
+        // server then applies the value stored on the conversation. The thread owns the field.
+        if (typeof view.chat?.webSearch === 'boolean') body.web_search = view.chat.webSearch;
+        else delete body.web_search;
         // Send 'off' rather than omitting the field. The server now reads an
         // omitted field as its own default, so silence would mean "decide for
         // me" and could not express the picker's "No reasoning".
@@ -256,6 +269,12 @@ export function createResearchThread(overrides = {}) {
       const next = normalizeResearchChoice(data.registry.models, choice);
       emit({ choice: next });
       saveChoice(storage, next);
+    },
+    setWebSearch(value) {
+      if (!data.ready || view.locked || typeof value !== 'boolean') return false;
+      deps.setChatWebSearch(view.chat?.id || '', value);
+      emit({ store: deps.loadAiState() });
+      return true;
     },
     openSource(source) { if (data.ready) emit({ viewer: { kind: source?.kind || 'list', source: source || null } }); },
     closeViewer() { emit({ viewer: null }); },
