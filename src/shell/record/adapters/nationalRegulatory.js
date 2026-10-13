@@ -56,7 +56,7 @@ const plainText = (value) => withoutInvisible(text(value))
 const ZONES = { GMT: 0, UT: 0, UTC: 0, Z: 0, IST: IST_MINUTES, EST: -300, EDT: -240, CST: -360, CDT: -300, MST: -420, MDT: -360, PST: -480, PDT: -420 };
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2}))?$/i;
-const RFC_DATE = /^(?:[A-Za-z]{3,9},?\s+)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([A-Za-z]{1,3}|[+-]\d{4}))?$/;
+const RFC_DATE = /^(?:[A-Za-z]{3,9},?\s+)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s+([A-Za-z]{1,3}|[+-]\d{4}))?)?$/;
 
 /** A real instant from calendar parts and a UTC offset in minutes, or null. Reads no local zone. */
 function instant(year, month, day, hour, minute, second, offset) {
@@ -80,8 +80,9 @@ const offsetOf = (zone) => {
  * The instant a row's date names, or null. Two shapes are read:
  *  - RFC 822 pubDate "Tue, 13 Oct 2026 10:16:00 +0530" (a listed zone name or a ±hhmm offset);
  *  - ISO 8601 "2026-07-03" or "2026-10-12T14:30:00+01:00" (a zone is required with a time).
- * A bare calendar date is that day. Anything else, an impossible date, or a time with no zone is not
- * a date.
+ * A bare calendar date is that day, and so is an RFC 822 date whose time carries no zone (the RBI
+ * feed's form): the day is read as written and the time is not converted. Anything else, an
+ * impossible date, or an ISO time with no zone is not a date.
  */
 function parseIssued(value) {
   const t = text(value);
@@ -100,6 +101,11 @@ function parseIssued(value) {
     const month = MONTHS.indexOf(m[2].toLowerCase()) + 1;
     if (!month) return null;
     if (m[4] == null) return instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
+    // The live RBI feed writes its time with no zone ("Mon, 12 Oct 2026 23:55:00"). The time is not
+    // converted; the calendar day it names is read as written, the time checked only for validity.
+    if (m[7] == null) {
+      return Number(m[4]) > 23 || Number(m[5]) > 59 || Number(m[6] || 0) > 59 ? null : instant(Number(m[3]), month, Number(m[1]), 0, 0, 0, 0);
+    }
     const offset = offsetOf(m[7]);
     return offset == null ? null : instant(Number(m[3]), month, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0), offset);
   }
@@ -226,7 +232,7 @@ export default function nationalRegulatory(row, ctx = {}) {
     links,
     glance: {
       tiles: [
-        { label: 'Issued', value: asOf || NOT_ON_RECORD, sub: asOf ? (embedded ? 'date on the register' : 'India date; feed publication date') : undefined },
+        { label: 'Issued', value: asOf || NOT_ON_RECORD, sub: asOf ? (embedded ? 'date on the register' : 'publication date in the feed') : undefined },
         { label: 'Regulator', value: regulator || NOT_ON_RECORD, sub: regulator ? 'issuing regulator' : 'this row names none' },
         ...(action ? [{ label: 'Action type', value: action.label, sub: 'as classified in the register', tone: action.badge && action.badge.tone !== 'grey' ? action.badge.tone : undefined }] : []),
         ...(category ? [{ label: 'Category', value: category, sub: 'register analysis' }] : []),

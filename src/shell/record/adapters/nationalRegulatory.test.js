@@ -154,6 +154,15 @@ describe('National regulatory adapter', () => {
       }
     });
 
+    it('reads the RBI feed\'s zoneless pubDate as the calendar day it names, without converting the time', () => {
+      // The live RBI RSS sends "Mon, 12 Oct 2026 23:55:00" with no zone (seen 2026-10-13).
+      for (const [date, label] of [['Mon, 12 Oct 2026 23:55:00', '12 Oct 2026'], ['Sat, 10 Oct 2026 01:20:00', '10 Oct 2026']]) {
+        const m = model(live({ date }));
+        expect(m.glance.tiles[0].value, date).toBe(label);
+        expect(m.footer.provenance.asOf, date).toBe(label);
+      }
+    });
+
     it('does not guess at a date it cannot read: no date, a flag, and no window timeline', () => {
       for (const date of ['', '12/10/2026', 'Tuesday', 'Tue, 31 Feb 2026 10:00:00 GMT', 'Tue, 13 Oct 2026 10:16:00 XYZ', '2026-10-07T10:00:00']) {
         const m = model(live({ date }));
