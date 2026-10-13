@@ -52,7 +52,7 @@ it('labels a web search as such and counts pages, never rows', () => {
   expect(html).toContain('5 pages');
   expect(html).not.toContain('Desk lookup');
   expect(html).not.toContain('rows');
-  expect(renderToStaticMarkup(<ResearchFlow steps={[{ ...web, resultCount: 1 }]} />)).toContain('1 page<');
+  expect(renderToStaticMarkup(<ResearchFlow steps={[{ ...web, resultCount: 1 }]} />)).toMatch(/>1 page \u00b7 /);
   expect(renderToStaticMarkup(<ResearchFlow steps={[{ ...web, status: 'error' }]} />)).toContain('Web search');
   expect(renderToStaticMarkup(<ResearchFlow lang="hi" steps={[web]} />)).toContain('वेब खोज');
 });
