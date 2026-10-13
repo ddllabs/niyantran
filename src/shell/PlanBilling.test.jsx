@@ -1,16 +1,26 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const fake = vi.hoisted(() => ({ states: [], cursor: 0, checkout: vi.fn(), open: vi.fn(), refresh: vi.fn() }));
+const fake = vi.hoisted(() => ({
+  states: [], cursor: 0, effects: [], checkout: vi.fn(), open: vi.fn(), refresh: vi.fn(),
+  refreshCredits: vi.fn(), subscribeCredits: vi.fn(), serverCredits: vi.fn(),
+}));
 vi.mock('react', async original => ({ ...(await original()), useState: initial => {
   const index = fake.cursor++;
   if (!(index in fake.states)) fake.states[index] = typeof initial === 'function' ? initial() : initial;
   return [fake.states[index], value => { fake.states[index] = typeof value === 'function' ? value(fake.states[index]) : value; }];
-}, useEffect: () => {}, useRef: () => ({ current: null }) }));
+}, useEffect: effect => { fake.effects.push(effect); }, useRef: () => ({ current: null }) }));
 vi.mock('../lib/billing.js', () => ({
   fetchBillingConfig: vi.fn(), fetchInvoices: vi.fn(),
   completeCheckout: (...args) => fake.checkout(...args), openInvoice: (...args) => fake.open(...args),
 }));
 vi.mock('../lib/entitlementStore.js', () => ({ refreshEntitlement: (...args) => fake.refresh(...args) }));
+vi.mock('../lib/supabaseClient.js', () => ({ supabase: {} }));
+vi.mock('../lib/creditsStore.js', async original => ({
+  ...(await original()),
+  refreshCredits: (...args) => fake.refreshCredits(...args),
+  subscribeCredits: (...args) => fake.subscribeCredits(...args),
+  serverCredits: (...args) => fake.serverCredits(...args),
+}));
 import PlanBilling from './PlanBilling.jsx';
 
 const DAY = 86400000;
@@ -19,22 +29,29 @@ const PRO = { plan: 'pro', status: 'active', periodEnd: new Date(Date.now() + 20
 const OPEN = { enabled: true, checkoutOpen: true };
 const CLOSED = { enabled: false, checkoutOpen: false };
 
-beforeEach(() => { fake.states = []; fake.checkout.mockReset(); fake.open.mockReset(); });
+beforeEach(() => {
+  fake.states = []; fake.effects = []; fake.checkout.mockReset(); fake.open.mockReset();
+  fake.refreshCredits.mockReset(); fake.subscribeCredits.mockReset(); fake.serverCredits.mockReset();
+});
 afterEach(() => vi.clearAllMocks());
 
-// state order in PlanBilling: config, invoices, selected, busy, result
-function render(ent, { config = CLOSED, invoices = [], selected = null, busy = false, result = null } = {}) {
+const USER = { id: 'u1', email: 'a@example.test', name: 'A' };
+// state order in PlanBilling: config, invoices, selected, busy, result, credits, creditsTried
+function render(ent, { config = CLOSED, invoices = [], selected = null, busy = false, result = null, credits = null, tried = false, user = USER } = {}) {
   fake.cursor = 0;
-  if (!fake.states.length) fake.states = [config, invoices, selected, busy, result];
-  return PlanBilling({ ent, user: { id: 'u1', email: 'a@example.test', name: 'A' }, onClose: vi.fn() });
+  if (!fake.states.length) fake.states = [config, invoices, selected, busy, result, credits, tried];
+  return PlanBilling({ ent, user, onClose: vi.fn() });
 }
+// Hook-free function components (the credits section) are expanded in place.
+const expand = node => (node && typeof node === 'object' && typeof node.type === 'function' ? node.type(node.props) : node);
 function all(node, predicate, found = []) {
+  node = expand(node);
   if (!node || typeof node !== 'object') return found;
   if (predicate(node)) found.push(node);
   for (const child of [node.props?.children].flat(Infinity)) all(child, predicate, found);
   return found;
 }
-const text = node => [node?.props?.children].flat(Infinity).map(c => (typeof c === 'string' || typeof c === 'number' ? c : c && typeof c === 'object' ? text(c) : '')).join('');
+const text = node => { node = expand(node); return [node?.props?.children].flat(Infinity).map(c => (typeof c === 'string' || typeof c === 'number' ? c : c && typeof c === 'object' ? text(c) : '')).join(''); };
 const tiles = tree => all(tree, n => String(n.props?.className || '').includes('plan-up-plan'));
 const pay = tree => all(tree, n => String(n.props?.className || '').includes('plan-up-pay'))[0];
 
@@ -93,4 +110,168 @@ it('lists invoices and opens one as the printable invoice', () => {
   expect(text(tree)).toContain('NIY/2627/00007');
   all(tree, n => n.props?.className === 'plan-up-inv-link')[0].props.onClick();
   expect(fake.open).toHaveBeenCalledWith('inv_a1');
+});
+
+// ---- AI credits (F111 task 5) ----
+
+const lot = (kind, remaining, expiresAt) => ({ kind, remaining, expiresAt });
+const credits = (over = {}) => ({
+  userId: 'u1', balance: 2000, held: 0, available: 2000, debt: 0, plan: 'pro', inrPerCredit: 0.1,
+  allowance: 2000, cycleEndsAt: '2026-11-12T12:00:00Z',
+  lots: [lot('monthly', 2000, '2026-11-12T12:00:00Z')], recent: [], ...over,
+});
+const section = tree => all(tree, n => String(n.props?.className || '').split(' ').includes('plan-credits'))[0];
+const rows = (tree, name) => all(tree, n => n.type === 'li' && String(n.props?.className || '').split(' ').includes(name));
+
+it('shows the balance in credits with the rupee hint', () => {
+  const t = text(section(render(PRO, { credits: credits() })));
+  expect(t).toContain('AI credits');
+  expect(t).toContain('2,000 credits');
+  expect(t).toContain('≈ ₹200 of AI');
+});
+
+it('shows a negative balance as such and says it is taken from the next credits', () => {
+  const t = text(section(render(PRO, { credits: credits({ balance: -50, available: -50, debt: 50, lots: [] }) })));
+  expect(t).toContain('−50 credits');
+  expect(t).toContain('taken from your next credits');
+});
+
+it('omits the rupee hint when the server did not publish a rate', () => {
+  const t = text(section(render(PRO, { credits: credits({ inrPerCredit: null }) })));
+  expect(t).toContain('2,000 credits');
+  expect(t).not.toContain('₹');
+});
+
+it('shows this cycle as the allowance and the cycle end date, not a derived use figure', () => {
+  const t = text(section(render(PRO, { credits: credits() })));
+  expect(t).toMatch(/Monthly allowance/);
+  expect(t).toContain('2,000 credits');
+  expect(t).toContain('12 Nov 2026');
+  expect(t).not.toMatch(/used this cycle/i);
+});
+
+it('describes the Free allowance as the sign-up credits and when they end', () => {
+  const t = text(section(render(FREE, { credits: credits({ plan: 'free', balance: 700, available: 700, allowance: 1000, cycleEndsAt: '2026-11-13T12:00:00Z', lots: [lot('signup', 700, '2026-11-13T12:00:00Z')] }) })));
+  expect(t).toMatch(/Sign-up credits/);
+  expect(t).toContain('1,000 credits');
+  expect(t).toContain('13 Nov 2026');
+});
+
+it('lists the lots in plain words, earliest expiry first, with remaining and expiry', () => {
+  const lots = [
+    lot('topup', 500, '2027-09-01T12:00:00Z'),
+    lot('rollover', 120, '2026-12-12T12:00:00Z'),
+    lot('monthly', 1800, '2026-11-12T12:00:00Z'),
+    lot('signup', 40, '2026-11-02T12:00:00Z'),
+    lot('adjustment', 25, '2027-03-05T12:00:00Z'),
+  ];
+  const items = rows(render(PRO, { credits: credits({ lots }) }), 'plan-credits-lot').map(text);
+  expect(items).toHaveLength(5);
+  expect(items[0]).toMatch(/Sign-up.*40 credits.*2 Nov 2026/);
+  expect(items[1]).toMatch(/Monthly.*1,800 credits.*12 Nov 2026/);
+  expect(items[2]).toMatch(/Rolled over.*120 credits.*12 Dec 2026/);
+  expect(items[3]).toMatch(/Adjustment.*25 credits.*5 Mar 2027/);
+  expect(items[4]).toMatch(/Top-up.*500 credits.*1 Sept? 2027/);
+});
+
+it('lists up to 20 recent answers with date, title and credits', () => {
+  const recent = Array.from({ length: 25 }, (_, i) => ({ conversationId: `c${i}`, title: `Chat ${i}`, credits: 38, createdAt: '2026-10-13T12:00:00Z' }));
+  const items = rows(render(PRO, { credits: credits({ recent }) }), 'plan-credits-answer');
+  expect(items).toHaveLength(20);
+  expect(text(items[0])).toContain('13 Oct 2026');
+  expect(text(items[0])).toContain('Chat 0');
+  expect(text(items[0])).toContain('38 credits');
+});
+
+it('names an untitled conversation and a deleted one', () => {
+  const recent = [
+    { conversationId: 'c1', title: null, credits: 12.5, createdAt: '2026-10-13T12:00:00Z' },
+    { conversationId: null, title: null, credits: 1, createdAt: '2026-10-12T12:00:00Z' },
+  ];
+  const items = rows(render(PRO, { credits: credits({ recent }) }), 'plan-credits-answer').map(text);
+  expect(items[0]).toContain('Untitled');
+  expect(items[0]).toContain('12.5 credits');
+  expect(items[1]).toContain('Deleted conversation');
+  expect(items[1]).toContain('1 credit');
+  expect(items[1]).not.toContain('1 credits');
+});
+
+it('keeps answer rows as plain text because the app has no URL for a conversation', () => {
+  const recent = [{ conversationId: 'c1', title: 'Rate cut', credits: 3, createdAt: '2026-10-13T12:00:00Z' }];
+  const tree = render(PRO, { credits: credits({ recent }) });
+  const [row] = rows(tree, 'plan-credits-answer');
+  expect(text(row)).toContain('Rate cut');
+  expect(all(row, n => n.type === 'a' || n.type === 'button')).toHaveLength(0);
+});
+
+it('says top-ups are coming soon while checkout is closed, and not when it is open', () => {
+  const note = config => { fake.states = []; return text(section(render(PRO, { config, credits: credits() }))); };
+  expect(note(CLOSED)).toMatch(/Top-ups coming soon/);
+  expect(note(OPEN)).not.toMatch(/coming soon/i);
+  expect(note(null)).not.toMatch(/coming soon/i);
+});
+
+it('gives a Free account with no credit lots a plain empty state', () => {
+  const t = text(section(render(FREE, { credits: credits({ plan: 'free', balance: 0, available: 0, allowance: null, cycleEndsAt: null, lots: [] }) })));
+  expect(t).toContain('0 credits');
+  expect(t).toMatch(/no credits right now/i);
+  expect(t).not.toMatch(/Monthly allowance|Sign-up credits/);
+  expect(rows(render(FREE, { credits: credits({ lots: [] }) }), 'plan-credits-lot')).toHaveLength(0);
+});
+
+it('says there are no answers yet when nothing was charged', () => {
+  expect(text(section(render(PRO, { credits: credits({ recent: [] }) })))).toMatch(/No answers yet/);
+});
+
+it('renders nothing new when signed out', () => {
+  const tree = render(FREE, { user: null, credits: credits() });
+  expect(section(tree)).toBeUndefined();
+  expect(text(tree)).not.toMatch(/Credits by expiry|Recent answers|Loading credits/);
+});
+
+it('says credits are loading, then that they could not be read', () => {
+  expect(text(section(render(PRO)))).toMatch(/Loading credits/);
+  fake.states = [];
+  expect(text(section(render(PRO, { tried: true })))).toMatch(/could not be loaded/i);
+});
+
+it('never shows a dollar figure or a dollar word anywhere in the panel', () => {
+  const recent = [{ conversationId: 'c1', title: 'Rate cut', credits: 38, createdAt: '2026-10-13T12:00:00Z' }];
+  const t = text(render(PRO, { credits: credits({ recent, lots: [lot('topup', 500, '2027-09-01T12:00:00Z')] }) }));
+  expect(t).not.toMatch(/\$|USD|dollar/i);
+});
+
+it('reads credits like the plan: subscribes, refreshes, and lets go on unmount', async () => {
+  const off = vi.fn();
+  fake.subscribeCredits.mockReturnValue(off);
+  fake.serverCredits.mockReturnValue(credits());
+  fake.refreshCredits.mockResolvedValue(credits());
+  vi.mocked((await import('../lib/billing.js')).fetchBillingConfig).mockResolvedValue(CLOSED);
+  vi.mocked((await import('../lib/billing.js')).fetchInvoices).mockResolvedValue([]);
+  globalThis.window = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  try {
+    render(PRO);
+    const cleanups = fake.effects.map(effect => effect()).filter(Boolean);
+    expect(fake.refreshCredits).toHaveBeenCalledTimes(1);
+    expect(fake.subscribeCredits).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    cleanups.forEach(c => c());
+    expect(off).toHaveBeenCalledTimes(1);
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+it('does not read credits when signed out', async () => {
+  vi.mocked((await import('../lib/billing.js')).fetchBillingConfig).mockResolvedValue(CLOSED);
+  vi.mocked((await import('../lib/billing.js')).fetchInvoices).mockResolvedValue([]);
+  globalThis.window = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  try {
+    render(FREE, { user: null });
+    fake.effects.forEach(effect => effect());
+    expect(fake.refreshCredits).not.toHaveBeenCalled();
+    expect(fake.subscribeCredits).not.toHaveBeenCalled();
+  } finally {
+    delete globalThis.window;
+  }
 });
