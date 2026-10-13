@@ -54,9 +54,9 @@ At most three agents run at once.
 - [x] Task 1: database (`9e7559e`; 144 assertions, vacuity ok, two guard-removal proofs; full `npm run test:sql` green)
 - [x] Review 1R: 3 defects + 7 minor, all fixed with failing-first fixtures
 - [x] Checkpoint A (full `npm run test:sql` green, 26 fixtures, re-run by the supervisor)
-- [ ] Task 2a: reserve and claim
-- [ ] Task 2b: settle and frames
-- [ ] Task 3: dictation log
+- [x] Task 2a: reserve and claim (`8a2cec2`)
+- [x] Task 2b: settle and frames, Stop-round cost in the background (`8a2cec2`)
+- [x] Task 3: dictation log (`bb3004d`, merged `3c6c9af`)
 - [ ] Checkpoint B (local run 1)
 - [ ] Task 4a: credits library and composer
 - [ ] Task 4b: per-answer credits
