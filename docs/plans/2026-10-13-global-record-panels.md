@@ -258,6 +258,47 @@ visuals and lanes are fixed in the spec's "Batch 3 decisions".
   components, and run the regression tests. An independent review follows, then the merge.
 - **Checkpoint:** owner review.
 
+### Batch 3 outcome (2026-10-13)
+
+| Commit | Content |
+|---|---|
+| `7eb47da` | Batch 3 decisions in the spec and plan |
+| `f54e20f` | Kit: a touch link can open a related record in place (`row`), as the retired views allowed |
+| `476ad5e` | T19 Nuclear Watch, T16 Alliances; the map caption fits approximate facility areas |
+| `27138a2` | T18 Global Aid |
+| `d3ebd23` | T17 Sanctions; register anchors marked approximate |
+| `d25eb24` | T20: the four registered by their old name checks; dispatch and the five retired view files removed |
+
+- **Agents.** Four Sonnet task agents in parallel worktrees, one adapter each. Mid-task, the supervisor
+  added the `row` link to the kit, fast-forwarded the four worktrees (they had no commits), and asked
+  each agent to carry over the old view's "open a related record" behaviour.
+- **Related records.**
+  - Alliances: the three blocs sharing the most members.
+  - Global Aid: up to three appeals by the same agency.
+  - Nuclear Watch: up to three facilities in the same country.
+  - Sanctions: up to three programmes in the same register region.
+- **Supervisor edits during review:**
+  - Sanctions target markers are approximate: the register's coordinates are anchors, such as a
+    point in the Sahara for Magnitsky, not surveyed locations.
+  - The map caption for approximate markers now reads "an approximate position, not an exact site".
+- **Dropped with the old views.** These were in the retired views, and each agent recorded why it
+  dropped them:
+  - figures that are register-wide, not facts about the selected record: Red Book and SIPRI totals,
+    class and region bars;
+  - the multi-country heat maps;
+  - the generated per-member ledger text and the member search;
+  - the generated "AI analyst brief" paragraphs.
+- **Verification:**
+  - `npm run lint` 0; `npm test` 3,055 tests in 212 files; `npm run build` passes, with the main
+    chunk about 19 kB smaller.
+  - Browser, all four modules on live data:
+    - the panel opens with its tiles, visuals and provenance;
+    - a related link opens that record and selects it in the desk;
+    - no sideways scroll at 375px;
+    - readable dark-mode colours;
+    - no console errors after a clean reload.
+- **Found out of scope:** added to F122 in open-work.
+
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |

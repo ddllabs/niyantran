@@ -180,8 +180,12 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     after an independent re-review. Batch 2 (seven modules, the value board,
     country centres, and Record tabs for Heads of State and Global
     Commodities) passed an independent review and re-check and was merged to
-    `main` locally at `931538c`; it awaits the owner's go-ahead to push.
-    Batch 3 follows the owner's review on production.
+    `main` locally at `931538c` and pushed at `3978309`. Batch 3 (Alliances,
+    Sanctions, Global Aid, Nuclear Watch on the new panel; old dossier record
+    views retired) is built on `task/global-record-panels-b3` and awaits an
+    independent review, a local merge and the owner's go-ahead to push.
+    Maritime Choke-Points and Energy stay as they are: the reference has no
+    panel for them (owner, 2026-10-13).
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources
@@ -204,6 +208,21 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   - Satellite Infrastructure: a launch's "Source" link is the Launch Library
     JSON endpoint, not a readable page (`flattenLaunch` in
     `server/assetsApi.mjs`).
+  - Global Aid: `money()` in `src/lib/globalAid.js` prints "$2.50B" (the
+    trailing zero is not trimmed).
+  - Alliances: `bindingType` falls back to "Political declaration" and
+    `defaultStanding` to "Full member"/"Participant", asserting more than the
+    rows hold (`src/lib/alliances.js`); the record panel ignores the fallbacks.
+  - Sanctions: `issuerTokens` matches by substring, so "AUS" yields both the US
+    and Australia (`src/lib/sanctions.js`).
+  - Map coverage: territories on alliance rosters (Cook Islands, French
+    Polynesia, New Caledonia, Niue, Montserrat) and non-states (EU, AU,
+    Sahrawi Arab Democratic Republic) have no position in
+    `src/shell/record/countryCentres.js`, so they are left off the maps.
+  - Dead code: `src/desks/AssetAnalytics.jsx` has no importer; helpers in
+    `src/lib/alliances.js`, `sanctions.js`, `globalAid.js` and
+    `strategicAssets.js` used only by the retired dossier record views may
+    now be unused.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
