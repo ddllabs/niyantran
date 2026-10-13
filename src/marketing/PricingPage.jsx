@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PRICING_COMPARE, PRICING_NOTES, PUBLIC_PLANS, rupees } from '../lib/publicPlans.js';
-import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
+import { figure } from '../lib/siteFigures.js';
+import { useSiteFigures } from './useSiteFigures.js';
 import DataGlobe from './DataGlobe.jsx';
 
 function Ico({ d, size = 18 }) {
@@ -60,6 +61,7 @@ function onCardMove(e) {
 // Every plan starts at signup; paid plans are bought from the account once
 // online payments open.
 export default function PricingPage({ onLogin, onContact }) {
+  const figures = useSiteFigures();
   const [focus, setFocus] = useState(null);
   const plans = PUBLIC_PLANS;
   const goPlan = (planId) => onLogin?.(planId);
@@ -91,15 +93,15 @@ export default function PricingPage({ onLogin, onContact }) {
           <div className="mkt-pr-tele">
             <span>
               <i />
-              MODULES {SITE_FIGURES.modules}
+              MODULES {figures.modules}
             </span>
             <span>
               <i />
-              BILLS {figure(SITE_FIGURES.bills)}
+              BILLS {figure(figures.bills)}
             </span>
             <span>
               <i />
-              DOCUMENTS {figure(SITE_FIGURES.documents)}
+              DOCUMENTS {figure(figures.documents)}
             </span>
             <span className="blink">▌</span>
           </div>

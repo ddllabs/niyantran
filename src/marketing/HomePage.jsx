@@ -6,7 +6,8 @@ import SegmentCarousel from './SegmentCarousel.jsx';
 import NterLatestRail from './NterLatestRail.jsx';
 import DataGlobe from './DataGlobe.jsx';
 import './homeHero.css';
-import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
+import { figure } from '../lib/siteFigures.js';
+import { useSiteFigures } from './useSiteFigures.js';
 
 /**
  * F140: the design's "Curated for" strip: our six personas (src/lib/personas.js), in its order,
@@ -46,9 +47,10 @@ const DESKS = [
       ['The Kerala (Alteration Of Name) Bill, 2026', 'Lok Sabha'],
     ],
     kpis: [
-      [figure(SITE_FIGURES.bills), 'blue', 'BILLS ON RECORD'],
+      // F142: live counts, resolved at render (see desk.kpis below).
+      [(f) => figure(f.bills), 'blue', 'BILLS ON RECORD'],
       ['2', 'ok', 'HOUSES'],
-      ['48', 'warn', 'MINISTRIES'],
+      [(f) => figure(f.ministries), 'warn', 'MINISTRIES'],
       ['1952', 'gold', 'SERIES START'],
     ],
     bars: [
@@ -207,6 +209,7 @@ const DESKS = [
 ];
 
 export default function HomePage({ onLogin, onCoverage, onPricing }) {
+  const figures = useSiteFigures();
   const videoRef = useRef(null);
   const [deskId, setDeskId] = useState('legislative');
   const [q, setQ] = useState('');
@@ -284,9 +287,9 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
               View data coverage <span aria-hidden="true">↓</span>
             </button>
             <div className="nd-metrics" aria-label="Research coverage snapshot">
-              <div><strong>{figure(SITE_FIGURES.bills)}</strong><span>Bills on record</span></div>
-              <div><strong>{SITE_FIGURES.modules}</strong><span>Research modules</span></div>
-              <div><strong>{SITE_FIGURES.endpoints}</strong><span>Source endpoints</span></div>
+              <div><strong>{figure(figures.bills)}</strong><span>Bills on record</span></div>
+              <div><strong>{figures.modules}</strong><span>Research modules</span></div>
+              <div><strong>{figures.endpoints}</strong><span>Source endpoints</span></div>
             </div>
           </div>
           <div className="nd-globe-column">
@@ -407,12 +410,12 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <span className="mkt-prev-tab-static">Key indicators</span>
               </div>
               <div className="mkt-kpi-grid">
-                {desk.kpis.map(([n, tone, lab]) => (
+                {desk.kpis.map(([value, tone, lab]) => { const n = typeof value === 'function' ? value(figures) : value; return (
                   <div className="mkt-kpi" key={lab}>
                     <strong className={tone}>{n}</strong>
                     <small>{lab}</small>
                   </div>
-                ))}
+                ); })}
               </div>
               <div className="mkt-bar-lab">STATUS BY STAGE</div>
               {desk.bars.map(([lab, count, pct, width, tone]) => (
@@ -549,7 +552,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </i>
                 <div>
                   <strong>
-                    <b>{figure(SITE_FIGURES.bills)}</b> Bills on the tracker
+                    <b>{figure(figures.bills)}</b> Bills on the tracker
                   </strong>
                   <span>Live and historical legislation</span>
                 </div>
@@ -692,7 +695,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18" size={16} />
               </i>
               <div>
-                <div className="n">{SITE_FIGURES.modules}</div>
+                <div className="n">{figures.modules}</div>
                 <div className="l">Desk Modules</div>
               </div>
             </div>
@@ -701,7 +704,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M4 21h16M4 10h16M12 3l8 7H4z" size={16} />
               </i>
               <div>
-                <div className="n">{figure(SITE_FIGURES.bills)}</div>
+                <div className="n">{figure(figures.bills)}</div>
                 <div className="l">Bills Tracked</div>
               </div>
             </div>
@@ -719,7 +722,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 <Ico d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" size={16} />
               </i>
               <div>
-                <div className="n">{figure(SITE_FIGURES.documents)}</div>
+                <div className="n">{figure(figures.documents)}</div>
                 <div className="l">Full-text Documents</div>
               </div>
             </div>

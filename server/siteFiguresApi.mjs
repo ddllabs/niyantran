@@ -78,8 +78,11 @@ export async function handleSiteFiguresApi(req, res, next, deps = {}) {
 }
 
 export function siteFiguresApiPlugin() {
-  const use = (server) => server.middlewares.use((req, res, next) => {
-    handleSiteFiguresApi(req, res, next).catch(next);
-  });
+  // Returns nothing: Vite runs a function returned from configureServer as a post hook.
+  const use = (server) => {
+    server.middlewares.use((req, res, next) => {
+      handleSiteFiguresApi(req, res, next).catch(next);
+    });
+  };
   return { name: 'niyantran-site-figures-api', configureServer: use, configurePreviewServer: use };
 }

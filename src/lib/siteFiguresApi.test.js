@@ -6,7 +6,7 @@ vi.mock('../../server/authEmailProvider.mjs', () => ({
   getSupabaseAdminClient: vi.fn(() => { throw new Error('tests inject adminClient'); }),
 }));
 
-import { handleSiteFiguresApi, resetSiteFiguresCache } from '../../server/siteFiguresApi.mjs';
+import { handleSiteFiguresApi, resetSiteFiguresCache, siteFiguresApiPlugin } from '../../server/siteFiguresApi.mjs';
 import { MEASURED_FIGURES } from './measuredFigures.js';
 
 const LIVE = { bills: 9901, documents: 3500, ministries: 57, fronts: 90, as_of: '2026-10-14T10:00:00Z' };
@@ -80,4 +80,14 @@ describe('GET /api/site-figures', () => {
     const other = await get({ adminClient: () => db }, 'GET', '/api/other');
     expect(other.next).toHaveBeenCalled();
   });
+});
+
+// Browser check (2026-10-14): the dev plugin returned the middleware app from configureServer, which
+// Vite then ran as a post hook, and the dev server crashed on start.
+it('registers one dev middleware and returns no post hook', () => {
+  const plugin = siteFiguresApiPlugin();
+  const use = vi.fn(() => () => {});
+  expect(plugin.configureServer({ middlewares: { use } })).toBeUndefined();
+  expect(plugin.configurePreviewServer({ middlewares: { use } })).toBeUndefined();
+  expect(use).toHaveBeenCalledTimes(2);
 });
