@@ -121,21 +121,28 @@ export default function MarketingSite({ onAuthed }) {
         <div className="mkt-header-inner">
           <button type="button" className="mkt-brand" onClick={() => go('home')}>
             <img src={site.faviconUrl || '/brand/logo.png?v=2'} alt="" />
-            <span>{short}</span>
+            <span>{short}<small>BY NTER.PRO</small></span>
           </button>
-          <nav className={`mkt-nav-links${menu ? ' open' : ''}`}>
-            <button type="button" className={`mkt-nav-link${page === 'home' ? ' on' : ''}`} onClick={() => go('home')}>
+          {/* F140 (client design, owner 2026-10-13): Home · Data coverage · Pricing, then Sign in beside
+              Get started. The header stays sticky and 72px. */}
+          <nav className={`mkt-nav-links${menu ? ' open' : ''}`} aria-label="Main navigation">
+            <button type="button" className={`mkt-nav-link${page === 'home' ? ' on' : ''}`} aria-current={page === 'home' ? 'page' : undefined} onClick={() => go('home')}>
               Home
             </button>
-            <button type="button" className={`mkt-nav-link${page === 'pricing' ? ' on' : ''}`} onClick={() => go('pricing')}>
+            <button type="button" className="mkt-nav-link" onClick={() => { setMenu(false); onCoverage(); }}>
+              Data coverage
+            </button>
+            <button type="button" className={`mkt-nav-link${page === 'pricing' ? ' on' : ''}`} aria-current={page === 'pricing' ? 'page' : undefined} onClick={() => go('pricing')}>
               Pricing
             </button>
-            <button type="button" className={`mkt-nav-link${page === 'login' ? ' on' : ''}`} onClick={() => go('login')}>
-              Sign in
-            </button>
-            <button type="button" className={`mkt-cta${page === 'signup' ? ' on' : ''}`} onClick={() => go('signup')}>
-              Get Started
-            </button>
+            <span className="mkt-nav-actions">
+              <button type="button" className={`mkt-sign-in${page === 'login' ? ' on' : ''}`} onClick={() => go('login')}>
+                Sign in
+              </button>
+              <button type="button" className={`mkt-cta mkt-start${page === 'signup' ? ' on' : ''}`} onClick={() => go('signup')}>
+                Get started <span aria-hidden="true">↗</span>
+              </button>
+            </span>
           </nav>
           <button type="button" className="mkt-menu-btn" aria-label="Menu" onClick={() => setMenu((v) => !v)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
