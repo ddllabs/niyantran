@@ -8,8 +8,8 @@ const cacheFor = (source) => vercel.headers?.find((h) => h.source === source)?.h
 
 describe('deploy caching', () => {
   // Owner 2026-10-14 (after the live check): Vercel applies headers to 404s too, so the rule covers
-  // only the top-level build files Vite emits, not /assets/uploads/ (news images that are missing,
-  // F146), whose 404s browsers would otherwise remember for a year.
+  // only the top-level build files Vite emits; a 404 for anything else under /assets/ is not
+  // remembered for a year.
   it('keeps the hashed build files for a year, and only them: their names change with their content', () => {
     expect(cacheFor('/assets/([^/]+)')).toBe('public, max-age=31536000, immutable');
     const source = new RegExp(`^${'/assets/([^/]+)'}$`);

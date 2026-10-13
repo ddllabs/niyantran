@@ -187,9 +187,10 @@ Measured on production builds of `main` (before) and the branch (after), signed 
   - The default logo matches with or without `?v=`.
   - Tests reset the shared state.
 - **After the push (2026-10-14):** live headers as intended. Vercel also sends the one-year header
-  with a 404 under `/assets/`. That includes the news snapshot's missing `/assets/uploads/` images
-  (F146). The owner approved narrowing the rule to top-level build files (`/assets/([^/]+)`); Vite
-  emits no subfolders.
+  with a 404 under `/assets/`. The owner approved narrowing the rule to top-level build files
+  (`/assets/([^/]+)`); Vite emits no subfolders. Checked live after `d6c8849`: a build file keeps
+  the year and a subfolder 404 gets `max-age=0`. The news images first suspected (F146) were a
+  measurement error: they load from nter.news.
 - Still to check after the owner's push:
   - the cache headers on the live site;
   - that a missing `/assets/` file does not come back with the one-year header (`curl -I` on a made-up

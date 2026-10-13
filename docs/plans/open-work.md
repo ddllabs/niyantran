@@ -507,20 +507,18 @@ rechecked. Nothing in this check wrote to production.
   - **Live check, 2026-10-14:** build files are cached a year as immutable, brand images a day, and
     pages still revalidate. The signed-in terminal loads its on-demand chunks with no error screen.
   - **Finding: a missing `/assets/` file also gets the one-year header**, because Vercel applies
-    headers to 404s. It matters in two cases:
-    - a browser that hit a missing build file, followed by a rollback to the deployment that has it;
-    - the news snapshot images under `/assets/uploads/` (F146), which were already 404 and are now
-      remembered as 404 for a year.
-
-    Owner 2026-10-14: narrowed to top-level build files (`/assets/([^/]+)`), which excludes
-    `/assets/uploads/`.
-  - Remaining: push the narrowing and check it live (a build file keeps the year;
-    `/assets/uploads/…` loses it); owner and client check.
-- [ ] **F146. News snapshot images are broken.** Found 2026-10-14 during the F145 live check:
-  `public/data/nter-news.json` and `news.json` point items at `/assets/uploads/<sha1>.jpg`, which do
-  not exist on our deployment. Seven images on the signed-in terminal returned 404 on the live site,
-  before F145 too. Needs a look at where the snapshot came from (probably the former upstream site)
-  and an approved data task before any change under `public/data`.
+    headers to 404s. A browser that hit a missing build file would keep that 404 for a year (it
+    matters only for a rollback to the deployment that has the file). Owner 2026-10-14: the rule is
+    narrowed to top-level build files (`/assets/([^/]+)`). Checked live after `d6c8849`:
+    - a build file keeps the year;
+    - a subfolder 404 (`/assets/uploads/…`) gets `max-age=0`;
+    - brand images keep the day.
+  - Remaining: owner and client check.
+- [x] **F146. Withdrawn, not a defect (2026-10-14).** Reported during the F145 live check as broken
+  news images under our `/assets/uploads/`. That was a measurement error by the supervisor: the
+  filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
+  URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
+  and they load from nter.news (200). Nothing under `public/data` needs changing.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
