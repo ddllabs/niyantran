@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import WorkSurface, { AskAboutDocument, currentDocumentState, resolveViewer } from './WorkSurface.jsx';
+import { isReadableCitation } from './CitationBubble.jsx';
 
 const handedProps = vi.hoisted(() => []);
 // The real viewer loads data in effects; this stand-in shows exactly what WorkSurface hands it.
@@ -170,5 +171,65 @@ describe('AskAboutDocument and the document state', () => {
     expect(currentDocumentState(record, 'd3:c3')).toBe('gone');
     expect(currentDocumentState(record, 'd1:c1')).toBeNull();
     expect(currentDocumentState(null, 'd3:c3')).toBeNull();
+  });
+});
+
+// F124 T4b: web sources are not citations. They open their own viewer and never reach the citation paths.
+describe('web sources viewer', () => {
+  const PAGES = [
+    { url: 'https://www.rbi.org.in/press?id=1', title: 'RBI press release', domain: 'rbi.org.in', cited: true },
+    { url: 'https://pib.gov.in/x', title: 'PIB note', domain: 'pib.gov.in', cited: false },
+  ];
+  const WEB = { kind: 'web', pages: PAGES, messageId: 'a1' };
+  const viewer = { kind: 'web', source: WEB };
+
+  it('resolveViewer recognises kind web before the citation check: reader web, never invalid, pages kept', () => {
+    const r = resolveViewer(viewer, []);
+    expect(r.reader).toBe('web');
+    expect(r.invalid).toBe(false);
+    expect(r.source).toBeNull();
+    expect(r.pages).toEqual(PAGES);
+  });
+
+  it('drops malformed pages: a non-http(s) URL, a missing URL, a non-object', () => {
+    const r = resolveViewer({ kind: 'web', source: { ...WEB, pages: [...PAGES, { url: 'javascript:alert(1)', title: 'x' }, { title: 'no url' }, null, { url: 'data:text/html,x', title: 'd' }] } }, []);
+    expect(r.pages.map(p => p.url)).toEqual(PAGES.map(p => p.url));
+    expect(r.reader).toBe('web');
+    expect(r.invalid).toBe(false);
+  });
+
+  it('a web source with no usable pages is still the web viewer, with an empty list', () => {
+    const r = resolveViewer({ kind: 'web', source: { kind: 'web', pages: undefined } }, []);
+    expect(r).toMatchObject({ reader: 'web', invalid: false, pages: [] });
+  });
+
+  it('other viewers carry no pages', () => {
+    expect(resolveViewer({ kind: 'row', source: ROW }, []).pages).toEqual([]);
+    expect(resolveViewer({ kind: 'list' }, []).pages).toEqual([]);
+  });
+
+  it('renders the sources list inside the usual viewer chrome, with no Ask about this document and no citation reader', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={viewer} sources={[LEGACY]} onClose={() => {}} />);
+    expect(html).toContain('Web sources searched');
+    expect(html).toContain('RBI press release');
+    expect(html).toContain('href="https://pib.gov.in/x"');
+    expect(html).toContain('aria-label="Back to the answer"');
+    expect(html.match(/aria-label="Close citation"/g)).toHaveLength(1);
+    expect(html).not.toContain('Ask about this document');
+    expect(html).not.toContain('This source is unavailable');
+    expect(html).not.toContain('aria-label="Cited source"');
+    expect(html).not.toContain('ai-work-sources');
+    expect(html).not.toContain('This answer cites no sources yet');
+  });
+
+  it('never renders a link for a page that is not http(s), even when it reaches the viewer', () => {
+    const html = renderToStaticMarkup(<WorkSurface viewer={{ kind: 'web', source: { ...WEB, pages: [{ url: 'javascript:alert(1)', title: 'Click me', domain: 'evil.example' }] } }} />);
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('Click me');
+  });
+
+  it('a web source is not a citation: isReadableCitation refuses it and the citation list ignores it', () => {
+    expect(isReadableCitation(WEB)).toBe(false);
+    expect(resolveViewer({ kind: 'list' }, [WEB, LEGACY]).sources).toHaveLength(1);
   });
 });

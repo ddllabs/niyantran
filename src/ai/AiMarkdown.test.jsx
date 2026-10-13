@@ -66,3 +66,43 @@ it('an answer that only uses paragraphs and flat bullets renders as it always di
  const html=renderToStaticMarkup(<AiMarkdown text={'Lead sentence with **bold**.\n\n- One\n- Two\n\nClosing line.'}/>);
  expect(html).toBe('<div class="ai-md"><p>Lead sentence with <strong>bold</strong>.</p><ul><li>One</li><li>Two</li></ul><p>Closing line.</p></div>');
 });
+
+// F124 T4b: a link to a page the turn searched carries a small globe, so a web citation reads
+// differently from a record citation [n]. Every other link renders as it always did.
+const WEB = [
+ {url:'https://www.rbi.org.in/press?id=1',title:'RBI',domain:'rbi.org.in',cited:true},
+ {url:'https://pib.gov.in/x',title:'PIB',domain:'pib.gov.in',cited:false},
+];
+it('marks a link whose URL is a searched page, with an accessible "web source" label',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text="The repo rate held ([RBI](https://www.rbi.org.in/press?id=1))." sources={[source]} webSources={WEB}/>);
+ expect(html).toContain('class="ai-web-link"');
+ expect(html).toContain('href="https://www.rbi.org.in/press?id=1"');
+ expect(html).toContain('target="_blank"');
+ expect(html).toMatch(/aria-label="web source"/);
+ expect(html).toContain('<svg');
+ expect(html).toContain('>RBI<');
+});
+it('matches after lower-casing scheme and host and dropping the fragment, and only then',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text="[a](https://WWW.RBI.ORG.IN/press?id=1#section) and [b](https://pib.gov.in/other) and [c](https://www.rbi.org.in/press?id=2) and [d](https://pib.gov.in/Y)" webSources={[...WEB,{url:'HTTPS://PIB.GOV.IN/Y#top',title:'Y',domain:'pib.gov.in',cited:false}]}/>);
+ expect(html.match(/class="ai-web-link"/g)).toHaveLength(2);
+ expect(html).toContain('>a<');expect(html).toContain('>d<');expect(html).not.toMatch(/>b<span|>c<span/);
+});
+it('leaves every other link exactly as before, with or without web sources',()=>{
+ const text='[Source](https://example.invalid/doc)';
+ const before=renderToStaticMarkup(<AiMarkdown text={text}/>);
+ expect(renderToStaticMarkup(<AiMarkdown text={text} webSources={WEB}/>)).toBe(before);
+ expect(renderToStaticMarkup(<AiMarkdown text={text} webSources={[]}/>)).toBe(before);
+ expect(before).not.toContain('ai-web-link');
+ expect(before).not.toContain('web source');
+});
+it('a web link does not touch citation markers, and ignores web sources that are not http(s)',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text="Evidence [1] and [RBI](https://pib.gov.in/x)." sources={[source]} webSources={[...WEB,{url:'javascript:alert(1)',title:'x',domain:'x'},null]}/>);
+ expect(html.match(/cite-bubble/g)).toHaveLength(1);
+ expect(html.match(/class="ai-web-link"/g)).toHaveLength(1);
+ expect(html).not.toContain('javascript:');
+ expect(renderToStaticMarkup(<AiMarkdown text="[x](https://pib.gov.in/x)" webSources="nope"/>)).not.toContain('ai-web-link');
+});
+it('marks web links in table cells and list items as well',()=>{
+ const html=renderToStaticMarkup(<AiMarkdown text={'- see [PIB](https://pib.gov.in/x)\n\n| a | b |\n|---|---|\n| c | [RBI](https://www.rbi.org.in/press?id=1) |'} webSources={WEB}/>);
+ expect(html.match(/class="ai-web-link"/g)).toHaveLength(2);
+});
