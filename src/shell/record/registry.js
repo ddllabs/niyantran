@@ -22,6 +22,7 @@ import nationalAffidavits from './adapters/nationalAffidavits.js';
 import nationalMorningBrief from './adapters/nationalMorningBrief.js';
 import lawInsolvency from './adapters/lawInsolvency.js';
 import lawSupremeCourt, { lawOrdersByTopic } from './adapters/lawSupremeCourt.js';
+import lawWire, { LAW_WIRE_FEATURES } from './adapters/lawWire.js';
 import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
@@ -62,6 +63,7 @@ const ADAPTERS = [
   [/^nclt/i, lawInsolvency, { tier: 'judiciary' }],
   [/^supreme court order/i, lawSupremeCourt, { tier: 'judiciary' }],
   [/^order archive by topic/i, lawOrdersByTopic, { tier: 'judiciary' }],
+  [{ test: (name) => LAW_WIRE_FEATURES.includes(name) }, lawWire, { tier: 'judiciary' }],
 ];
 
 export function adapterFor(feature, tier) {
