@@ -53,7 +53,10 @@ import {
 import {
   type AttemptRecorder,
   createAttemptRecorder,
+  type GenerationCost,
+  type LateCost,
   type Pricing,
+  recoverLateCosts,
   type TelemetryDb,
   turnTraceRows,
 } from './telemetry.ts';
@@ -162,8 +165,32 @@ export interface RetrievalContext {
   beginEmbeddingAttempt(model: string): ReturnType<AttemptRecorder['beginEmbeddingAttempt']>;
 }
 
+/** What reserve_turn_credits answered (AI credits spec §3, §12), as far as the handler needs it. */
+export interface CreditReservation {
+  /** False when the user had nothing available: under enforcement no hold was made; in shadow one was. */
+  ok: boolean;
+  /** The wallet balance in credits, for the 402 body. */
+  balance: number | null;
+}
+
+/** What settle_turn_credits answered: `pending` while the message still runs inside its deadline. */
+export interface CreditSettlement {
+  state: 'pending' | 'charged' | 'free';
+  /** Credits charged to the turn so far; null while pending. */
+  credits: number | null;
+}
+
+/** The credit gate (AI credits spec §3). Both calls are bounded by the wiring and reject on any failure. */
+export interface CreditsGate {
+  /** CREDITS_ENFORCED === '1', read by index.ts; false is shadow mode (spec §11). */
+  enforced: boolean;
+  reserve(userId: string, turnKey: string, enforced: boolean): Promise<CreditReservation>;
+  settle(userId: string, turnKey: string): Promise<CreditSettlement>;
+}
+
 export interface HandlerDeps {
   requireUser(req: Request): Promise<{ userId: string; token: string }>;
+  credits: CreditsGate;
   models(): Promise<AiModelLike[]>;
   pricing(modelId: string): Promise<Pricing | null>;
   /** The system persona prompt; `probe` is the admin persona probe, honoured only for admins. */
@@ -178,6 +205,11 @@ export interface HandlerDeps {
   persistence: TurnStore;
   executeTurn?: (context: TurnExecution) => Promise<TerminalResult>;
   telemetry: TelemetryDb;
+  /** One lookup of OpenRouter's cost for a generation by id, for the round Stop cut off (AI credits
+   * spec §3.1); polled by a background job kept alive through waitUntil. */
+  generationCost?: GenerationCost;
+  /** The background job's timer; tests pass a fake. */
+  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   stream(req: StreamRequest): AsyncGenerator<ModelEvent>;
   searchDocuments(args: ScopedSearchArgs, documentIds?: string[], context?: RetrievalContext): Promise<Chunk[]>;
   searchDeskRows(args: SearchDeskRowsArgs, context?: Pick<RetrievalContext, 'signal'>): Promise<DeskRowsResult>;
@@ -346,6 +378,33 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     );
   }
 
+  // AI credits (spec §3): reserve before the claim, so a blocked turn creates no message. A replay
+  // was answered above and never reserves; a retry of this turn key gets its own hold back. Any
+  // failure fails closed: the turn does not start.
+  const enforced = deps.credits.enforced;
+  let reservation: CreditReservation;
+  try {
+    reservation = await deps.credits.reserve(caller.userId, request.turn_key, enforced);
+  } catch {
+    log('research_chat.credits_unavailable', { stage: 'reserve' });
+    return json({ error: 'AI credits could not be checked.', code: 'credits_unavailable' }, 503, headers);
+  }
+  if (!reservation.ok) {
+    if (enforced) {
+      return json(
+        {
+          error: 'You have no AI credits left to start an answer.',
+          code: 'credits_exhausted',
+          balance: reservation.balance,
+        },
+        402,
+        headers,
+      );
+    }
+    // Shadow mode (spec §11): the hold was still made and the turn is charged like any other.
+    log('research_chat.credits_shadow_blocked');
+  }
+
   let claim: ClaimedTurn | TurnState;
   try {
     claim = await deps.persistence.claim({
@@ -403,18 +462,55 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
   }).catch(() => {
     sender.send({ saveFailed: { stage: 'assistant_message', detail: 'Turn persistence unavailable' } });
   }).then(async () => {
-    // Accounting is bounded and follows the durable write, even if that write failed.
     try {
-      await attempts.flush();
-    } catch {
-      log('research_chat.telemetry_failed', { stage: 'flush' });
+      // Accounting is bounded and follows the durable write, even if that write failed.
+      try {
+        await attempts.flush();
+      } catch {
+        log('research_chat.telemetry_failed', { stage: 'flush' });
+      }
+      // Settle charges the rows the flush just wrote (AI credits spec §3 step 4). The terminal frame
+      // has already gone, so this adds no answer latency; the credits go in a frame of their own,
+      // dropped quietly by the sender if the reader has already stopped at `done`.
+      sender.send({ credits: await settleCredits(deps.credits, caller.userId, request.turn_key) });
     } finally {
       sender.done();
     }
+    // With the stream closed: the rounds Stop cut off have no cost yet, and OpenRouter has it only
+    // seconds later (spec §3.1). A background job sets it on their rows; the hold's sweep charges it.
+    scheduleLateCosts(deps, attempts.lateCosts());
   });
   deps.waitUntil?.(work);
 
   return new Response(stream, { status: 200, headers: sseHeaders(headers) });
+}
+
+/** Starts the background job for cut-off rounds, kept alive by waitUntil. Without the means to run
+ * it the rows stay uncharged, and say so. Never throws. */
+function scheduleLateCosts(deps: HandlerDeps, pending: LateCost[]): void {
+  if (!pending.length) return;
+  const save = deps.telemetry.saveGenerationCost?.bind(deps.telemetry);
+  if (!deps.waitUntil || !deps.generationCost || !save) {
+    for (const _ of pending) log('research_chat.aborted_cost_unknown', { stage: 'unscheduled' });
+    return;
+  }
+  deps.waitUntil(recoverLateCosts(pending, { lookup: deps.generationCost, save, now: deps.now, sleep: deps.sleep }));
+}
+
+/** The turn's credits to 2 dp, or null when settlement is pending or failed. Never throws: a settle
+ * error or timeout (bounded by the wiring) is logged and the hold's sweep finishes the job. */
+async function settleCredits(credits: CreditsGate, userId: string, turnKey: string): Promise<number | null> {
+  try {
+    const settled = await credits.settle(userId, turnKey);
+    if (settled.state === 'pending' || settled.credits === null) {
+      log('research_chat.credits_pending');
+      return null;
+    }
+    return Math.round(settled.credits * 100) / 100;
+  } catch {
+    log('research_chat.credits_settle_failed');
+    return null;
+  }
 }
 
 /** Replay uses stored output only. Tokens and private claim fields never cross

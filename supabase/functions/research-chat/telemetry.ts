@@ -255,9 +255,13 @@ export interface TelemetryDb {
   /** Returns the new row's id, or null when the write failed (never throws). */
   logModelCall(row: ModelCallRow): Promise<string | null>;
   logTurnTraces(rows: TurnTraceRow[]): Promise<void>;
+  /** Sets a cost found after the turn on a row that has none (AI credits spec §3.1). */
+  saveGenerationCost?(id: string, cost: number, rawUsage: Record<string, unknown>): Promise<void>;
 }
 
 export const TELEMETRY_TIMEOUT_MS = 250;
+/** One lookup of OpenRouter's cost for a generation: null when it has none (yet). */
+export type GenerationCost = (generationId: string, signal: AbortSignal) => Promise<number | null>;
 type ProviderStream = (request: StreamRequest) => AsyncGenerator<ModelEvent>;
 interface RecordedAttempt extends AttemptMetadata {
   requested: string;
@@ -283,6 +287,7 @@ export function createAttemptRecorder(options: {
   const now = options.now ?? Date.now;
   const records: RecordedAttempt[] = [];
   const traces = new Map<string, LinkedTraceRow>();
+  const late: LateCost[] = [];
   let flushing: Promise<void> | undefined;
   function merge(record: RecordedAttempt, metadata: AttemptMetadata): void {
     if (record.status !== null || flushing) return;
@@ -384,12 +389,11 @@ export function createAttemptRecorder(options: {
     const reportedBy: Record<string, number> = {};
     let fieldGap = false;
     let attemptsReporting = 0;
-    const sum = (key: keyof Usage): number | null => {
-      const name = key === 'cost' ? 'cost_usd' : key;
+    const sum = (name: Exclude<keyof Usage, 'cost' | 'web_search_requests' | 'upstream_inference_cost'>): number | null => {
       let total = 0;
       let seen = 0;
       for (const record of records) {
-        const value = known(record.usage?.[key]);
+        const value = known(record.usage?.[name]);
         if (value === null) continue;
         total += value;
         seen++;
@@ -409,13 +413,9 @@ export function createAttemptRecorder(options: {
     // token totals there is no all-or-nothing rule: a call that did not report
     // a search did not search, and a count of zero is the honest report.
     let webSearches = 0;
-    let webCost = 0;
-    for (const record of records) {
-      const n = webSearchCount(record.usage) ?? 0;
-      if (n <= 0) continue;
-      webSearches += n;
-      webCost += webSearchCostUsd(record.usage, n) ?? 0;
-    }
+    for (const record of records) webSearches += Math.max(0, webSearchCount(record.usage) ?? 0);
+    // No dollars (AI credits spec §7): this summary is saved as chat_messages.usage, which the user can
+    // read, so it carries no cost at any depth. model_call_logs keeps each attempt's cost.
     const out: Record<string, unknown> = {
       attempts: records.length,
       prompt_tokens: sum('prompt_tokens'),
@@ -423,9 +423,7 @@ export function createAttemptRecorder(options: {
       total_tokens: sum('total_tokens'),
       cached_prompt_tokens: sum('cached_prompt_tokens'),
       reasoning_tokens: sum('reasoning_tokens'),
-      cost_usd: sum('cost'),
       web_searches: webSearches,
-      web_search_cost_usd: Math.round(webCost * 1e6) / 1e6,
     };
     // Only when the turn is actually short of figures. A complete turn carries
     // nothing extra, so its shape is unchanged.
@@ -487,8 +485,19 @@ export function createAttemptRecorder(options: {
             generationId: record.generationId,
             pricing,
           });
+          // AI credits spec §3.1: a success with no cost is a warning, never charged as zero.
+          if (row.status === 'success' && row.cost_usd === null) log('research_chat.success_without_cost');
           const id = await bounded('model_call', () => options.db.logModelCall(row), null);
           if (id === null) log('research_chat.telemetry_failed', { stage: 'model_call', reason: 'not_recorded' });
+          // A call cut off before it reported a cost stays uncharged. With a generation id and a saved
+          // row, the background job may still find the cost; without either it is unknown now.
+          if (row.status === 'aborted' && row.cost_usd === null) {
+            if (id !== null && row.openrouter_generation_id !== null) {
+              late.push({ id, generationId: row.openrouter_generation_id, abortedAt: record.started + record.latency, rawUsage: row.raw_usage });
+            } else {
+              log('research_chat.aborted_cost_unknown', { purpose: row.purpose });
+            }
+          }
           return id;
         }),
       );
@@ -561,9 +570,99 @@ export function createAttemptRecorder(options: {
     lastAttemptIndex(purpose: CallPurpose): number {
       return records.findLastIndex((r) => r.purpose === purpose);
     },
+    /** After flush: the saved rows of calls cut off before reporting a cost, which have a generation
+     * id to look up later (AI credits spec §3.1). */
+    lateCosts(): LateCost[] {
+      return late;
+    },
     addTraces(rows: LinkedTraceRow[]) {
       if (!flushing) { for (const row of rows) traces.set(`${row.step_type}:${row.step_index}`, row); }
     },
   };
 }
 export type AttemptRecorder = ReturnType<typeof createAttemptRecorder>;
+
+/** When the background job asks for a cut-off call's cost, after the abort (AI credits spec §3.1).
+ * The 2026-10-14 probe saw OpenRouter's generation record appear 6-15 s after the abort. */
+export const LATE_COST_POLLS_MS = [8_000, 12_000, 16_000, 20_000, 25_000];
+/** The whole job's limit, from its start: well inside the Edge wall clock (150 s Free, 400 s paid,
+ * per worker; supabase.com/docs/guides/functions/limits), which waitUntil does not extend. */
+export const LATE_COST_JOB_MS = 30_000;
+
+export interface LateCost {
+  /** The model_call_logs row to update. */
+  id: string;
+  generationId: string;
+  /** When the call was cut off, on the recorder's clock. */
+  abortedAt: number;
+  /** The row's raw_usage as inserted, so the update only adds cost_source. */
+  rawUsage: Record<string, unknown> | null;
+}
+
+function sleepFor(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', stop);
+      resolve();
+    }, ms);
+    function stop() {
+      clearTimeout(timer);
+      reject(signal.reason);
+    }
+    signal.addEventListener('abort', stop, { once: true });
+  });
+}
+
+/**
+ * The background job for calls Stop cut off (AI credits spec §3.1): ask OpenRouter for each one's
+ * cost at LATE_COST_POLLS_MS after its abort, and save the first finite, non-negative figure on its
+ * row. The hold's sweep charges it later; nothing here settles. Bounded by LATE_COST_JOB_MS, and it
+ * never throws: a cost that never comes is logged once per row and stays uncharged.
+ */
+export async function recoverLateCosts(
+  pending: LateCost[],
+  deps: {
+    lookup: GenerationCost;
+    save(id: string, cost: number, rawUsage: Record<string, unknown>): Promise<void>;
+    now?: () => number;
+    sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+    polls?: number[];
+    budgetMs?: number;
+  },
+): Promise<void> {
+  const now = deps.now ?? Date.now;
+  const sleep = deps.sleep ?? sleepFor;
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(new Error('late cost deadline')), deps.budgetMs ?? LATE_COST_JOB_MS);
+  const expired = new Promise<void>((resolve) => deadline.signal.addEventListener('abort', () => resolve(), { once: true }));
+  const recover = async (row: LateCost): Promise<boolean> => {
+    for (const offset of deps.polls ?? LATE_COST_POLLS_MS) {
+      try {
+        await sleep(Math.max(0, row.abortedAt + offset - now()), deadline.signal);
+        const cost = known(await deps.lookup(row.generationId, deadline.signal));
+        if (cost === null || deadline.signal.aborted) continue;
+        try {
+          await deps.save(row.id, cost, { ...row.rawUsage, cost_source: 'generation' });
+        } catch {
+          log('research_chat.telemetry_failed', { stage: 'late_cost', reason: 'write_failed' });
+        }
+        return true;
+      } catch {
+        if (deadline.signal.aborted) return false;
+      }
+    }
+    return false;
+  };
+  try {
+    await Promise.all(pending.map(async (row) => {
+      const found = await Promise.race([recover(row), expired.then(() => false)]);
+      if (!found) log('research_chat.aborted_cost_unknown', { stage: 'late' });
+    }));
+  } catch {
+    /* never thrown out of the job */
+  } finally {
+    clearTimeout(timer);
+    deadline.abort();
+  }
+}

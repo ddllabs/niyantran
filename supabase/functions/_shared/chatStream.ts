@@ -45,7 +45,11 @@ export type ChatFrame =
   | { duplicate: true }
   | { saveFailed: { stage: string; detail: string } }
   | { error: string; status?: number; code?: string; retryable?: boolean }
-  | { done: { message_id: string } };
+  | { done: { message_id: string } }
+  /** AI credits (spec §3, §7): what the turn was charged, in credits to 2 dp, sent after `done` once
+   * the turn has settled, while the stream is still open. Null when settlement is pending or failed;
+   * the client then reads my_conversation_credits. Never a cost. */
+  | { credits: number | null };
 
 /** The frame names, for exhaustiveness checks and the client-side parser. */
 export const CHAT_FRAME_KEYS = [
@@ -67,6 +71,7 @@ export const CHAT_FRAME_KEYS = [
   'saveFailed',
   'error',
   'done',
+  'credits',
 ] as const;
 
 export type ChatFrameKey = (typeof CHAT_FRAME_KEYS)[number];

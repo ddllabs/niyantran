@@ -9,6 +9,8 @@ const request = () =>
     headers: { authorization: 'Bearer fake.user.jwt' },
     body: JSON.stringify({ message: 'Question', turn_key: 'stable-key', focus: 'broad' }),
   });
+const RESERVED = { ok: true, hold: { credits: 300, expires_at: '2026-10-14T00:05:00Z' }, available: 1000, balance: 1000 };
+const SETTLED = { state: 'charged', credits: 21.4567, balance: 978.5433 };
 function fixture() {
   const calls: {
     side: string;
@@ -21,6 +23,8 @@ function fixture() {
   }[] = [];
   let reply = (side: string, table: string, _op: string, _value?: unknown, _filters?: unknown[][]): unknown => {
     if (table === 'lookup_research_turn') return { data: { kind: 'missing' }, error: null };
+    if (table === 'reserve_turn_credits') return { data: RESERVED, error: null };
+    if (table === 'settle_turn_credits') return { data: SETTLED, error: null };
     if (table === 'claim_research_turn') return { data: { kind: 'forbidden' }, error: null };
     if (table === 'ai_models') {
       return { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }], error: null };
@@ -87,6 +91,15 @@ function fixture() {
         entry.value = v;
         return q;
       },
+      update(v: unknown) {
+        entry.op = 'update';
+        entry.value = v;
+        return q;
+      },
+      is(...v: unknown[]) {
+        entry.filters.push(['is', ...v]);
+        return q;
+      },
       delete() {
         entry.op = 'delete';
         return q;
@@ -107,14 +120,14 @@ function fixture() {
   const runtime = {
     userClient: (_token: string) => caller,
     serviceClient: () => service,
-    env: (_key: string) => 'fake-config',
+    env: (_key: string): string | undefined => 'fake-config',
     fetch: async (_url: unknown, init: RequestInit) => {
       sent.push(init);
       return new Response('{}');
     },
     readPersona: () => Promise.resolve('Persona'),
     timeoutMs: 15,
-    sleep: () => Promise.resolve(),
+    sleep: (_ms: number, _signal?: AbortSignal): Promise<void> => Promise.resolve(),
   };
   return {
     calls,
@@ -411,6 +424,8 @@ Deno.test('D6: real wiring finalizes through service RPC before server-only atte
   };
   f.setReply((side, table, op, value) => {
     if (table === 'lookup_research_turn') return { data: { kind: 'missing' }, error: null };
+    if (table === 'reserve_turn_credits') return { data: RESERVED, error: null };
+    if (table === 'settle_turn_credits') return { data: SETTLED, error: null };
     if (table === 'claim_research_turn') {
       return { data: { ...snapshot, kind: 'claimed', execution_token: 'private-execution-token' }, error: null };
     }
@@ -492,6 +507,8 @@ Deno.test('D6: import performs no env/network/serve work and modern keys use the
         ? { id: 'verified-owner' }
         : url.includes('lookup_research_turn')
         ? { kind: 'missing' }
+        : url.includes('reserve_turn_credits')
+        ? RESERVED
         : url.includes('claim_research_turn')
         ? { kind: 'forbidden' }
         : [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }];
@@ -501,6 +518,7 @@ Deno.test('D6: import performs no env/network/serve work and modern keys use the
     assertEquals(response.status, 403);
     const claim = seen.find((x) => x.url.includes('claim_research_turn'));
     assertEquals(claim?.key, 'sb_secret_fake_test');
+    assertEquals(seen.find((x) => x.url.includes('reserve_turn_credits'))?.key, 'sb_secret_fake_test');
     const model = seen.find((x) => x.url.includes('ai_models'));
     assertEquals(model?.key, 'sb_publishable_fake_test');
     assertEquals(model?.authorization, 'Bearer fake.user.jwt');
@@ -702,4 +720,165 @@ Deno.test('version metadata hydration uses caller permissions, retrieved IDs and
  const result=await d.searchDocuments({query:'Q'},undefined,c.context);
  assertEquals((result[0] as unknown as Record<string,unknown>).document_role,'as_introduced');
  const read=f.calls.find(x=>x.table==='documents');assert(read);assertEquals(read.side,'caller');assertEquals(read.columns,'id,metadata');assert(read.signal);assertEquals(read.filters.find(x=>x[0]==='not'),['not','indexed_at','is',null]);
+});
+
+// AI credits (F111, spec §3, §11): the gate's wiring.
+Deno.test('credits: reserve runs on the service client for the verified owner, enforced only when CREDITS_ENFORCED is 1', async () => {
+  for (const [value, enforced] of [['1', true], [undefined, false], ['0', false], ['true', false]] as const) {
+    const f = fixture();
+    f.runtime.env = (key: string) => (key === 'CREDITS_ENFORCED' ? value : 'fake-config');
+    f.setReply((_side, table) =>
+      table === 'lookup_research_turn'
+        ? { data: { kind: 'missing' }, error: null }
+        : table === 'reserve_turn_credits'
+        ? {
+          data: enforced
+            ? { ok: false, reason: 'credits_exhausted', hold: null, available: -180, balance: -180 }
+            : { ok: false, reason: 'credits_exhausted', hold: { credits: 300, expires_at: 'x' }, available: 0, balance: 0 },
+          error: null,
+        }
+        : table === 'claim_research_turn'
+        ? { data: { kind: 'forbidden' }, error: null }
+        : table === 'ai_models'
+        ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }], error: null }
+        : { data: [], error: null }
+    );
+    const response = await createResearchHandler(f.runtime)(request());
+    const reserve = f.calls.find((c) => c.table === 'reserve_turn_credits');
+    assert(reserve, `reserve called (${value})`);
+    assertEquals(reserve.side, 'service');
+    assertEquals(reserve.value, { p_user: 'verified-owner', p_turn_key: 'stable-key', p_enforced: enforced });
+    const order = f.calls.map((c) => c.table).filter((t) => t.endsWith('_research_turn') || t === 'reserve_turn_credits');
+    if (enforced) {
+      assertEquals(response.status, 402);
+      assertEquals((await response.json()).balance, -180);
+      assertEquals(order, ['lookup_research_turn', 'reserve_turn_credits']);
+    } else {
+      // Shadow: the turn goes on to its claim (which this fixture refuses).
+      assertEquals(response.status, 403);
+      assertEquals(order, ['lookup_research_turn', 'reserve_turn_credits', 'claim_research_turn']);
+    }
+    assertEquals(f.sent.length, 0);
+  }
+});
+Deno.test('credits: a reserve that errors, hangs or answers malformed data fails closed with 503', async () => {
+  const answers: unknown[] = [
+    { data: null, error: { code: '42501', message: 'permission denied' } },
+    new Promise(() => {}),
+    { data: [], error: null },
+    { data: { ok: 'yes', balance: 10 }, error: null },
+    { data: null, error: null },
+  ];
+  for (const answer of answers) {
+    const f = fixture();
+    f.setReply((_side, table) =>
+      table === 'lookup_research_turn'
+        ? { data: { kind: 'missing' }, error: null }
+        : table === 'reserve_turn_credits'
+        ? answer
+        : table === 'ai_models'
+        ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }], error: null }
+        : { data: [], error: null }
+    );
+    const response = await createResearchHandler(f.runtime)(request());
+    assertEquals(response.status, 503);
+    assertEquals(await response.json(), { error: 'AI credits could not be checked.', code: 'credits_unavailable' });
+    assertEquals(f.calls.some((c) => c.table === 'claim_research_turn'), false);
+    assertEquals(f.sent.length, 0);
+    if (answer instanceof Promise) assert(f.calls.find((c) => c.table === 'reserve_turn_credits')!.signal!.aborted);
+  }
+});
+Deno.test('credits: a foreign owner never reaches the credit RPCs', async () => {
+  const f = fixture();
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await assertRejects(() => d.credits.reserve('foreign', 'key', false));
+  await assertRejects(() => d.credits.settle('foreign', 'key'));
+  assertEquals(f.calls.length, 0);
+});
+Deno.test('credits: settle runs on the service client, reads its three states, and has its own bound', async () => {
+  const f = fixture();
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  assertEquals(await d.credits.settle('verified-owner', 'stable-key'), { state: 'charged', credits: 21.4567 });
+  const call = f.calls.find((c) => c.table === 'settle_turn_credits')!;
+  assertEquals(call.side, 'service');
+  assertEquals(call.value, { p_user: 'verified-owner', p_turn_key: 'stable-key' });
+  const answers: [unknown, unknown][] = [
+    [{ data: { state: 'free', credits: 0, balance: 5 }, error: null }, { state: 'free', credits: 0 }],
+    [{ data: { state: 'pending' }, error: null }, { state: 'pending', credits: null }],
+  ];
+  for (const [reply, expected] of answers) {
+    f.setReply(() => reply);
+    assertEquals(await d.credits.settle('verified-owner', 'stable-key'), expected);
+  }
+  for (const bad of [{ data: { state: 'charged' }, error: null }, { data: null, error: { message: 'x' } }, { data: [], error: null }]) {
+    f.setReply(() => bad);
+    await assertRejects(() => d.credits.settle('verified-owner', 'stable-key'));
+  }
+  // Its own limit, not the 4 s network bound: a slow settle gives up first.
+  const slow = fixture();
+  slow.setReply((_side, table) => (table === 'settle_turn_credits' ? new Promise(() => {}) : { data: [], error: null }));
+  const s = createDependencies(request(), { ...slow.runtime, timeoutMs: 10_000, settleTimeoutMs: 20 });
+  await s.requireUser(request());
+  const started = Date.now();
+  await assertRejects(() => s.credits.settle('verified-owner', 'stable-key'));
+  assert(Date.now() - started < 1_000);
+  assert(slow.calls.find((c) => c.table === 'settle_turn_credits')!.signal!.aborted);
+});
+Deno.test('credits: a generation\'s cost is one GET to OpenRouter with the server key; not ready is null', async () => {
+  const f = fixture();
+  const seen: { url: string; method?: string; authorization: string | null }[] = [];
+  const answers = [new Response('{"error":{"code":404}}', { status: 404 }), new Response(JSON.stringify({ data: { id: 'gen-1/x', total_cost: 0.0001526 } }))];
+  f.runtime.fetch = (url: unknown, init: RequestInit) => {
+    seen.push({ url: String(url), method: init?.method, authorization: new Headers(init?.headers).get('authorization') });
+    return Promise.resolve(answers.shift()!);
+  };
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  assertEquals(await d.generationCost('gen-1/x', new AbortController().signal), null, 'not there yet');
+  assertEquals(await d.generationCost('gen-1/x', new AbortController().signal), 0.0001526);
+  assertEquals(seen.length, 2, 'one request per lookup: the job owns the schedule');
+  assertEquals(seen[0].url, 'https://openrouter.ai/api/v1/generation?id=gen-1%2Fx');
+  assertEquals(seen[0].authorization, 'Bearer fake-config');
+  assert(seen.every((s) => (s.method ?? 'GET') === 'GET'));
+});
+Deno.test('credits: any other answer, an abort or a missing key is an unknown cost, never a throw', async () => {
+  for (const response of [new Response('{}', { status: 401 }), new Response('{"data":{"total_cost":"0.1"}}'), new Response('{"data":{"total_cost":-1}}'), new Response('not json')]) {
+    const f = fixture();
+    let calls = 0;
+    f.runtime.fetch = () => {
+      calls++;
+      return Promise.resolve(response);
+    };
+    const d = createDependencies(request(), f.runtime);
+    await d.requireUser(request());
+    assertEquals(await d.generationCost('gen', new AbortController().signal), null);
+    assertEquals(calls, 1);
+  }
+  const f = fixture();
+  f.runtime.fetch = (_url: unknown, init: RequestInit) => Promise.reject(init.signal?.reason ?? new Error('aborted'));
+  const d = createDependencies(request(), f.runtime);
+  const aborted = new AbortController();
+  aborted.abort();
+  assertEquals(await d.generationCost('gen', aborted.signal), null);
+  const keyless = fixture();
+  keyless.runtime.env = (key: string) => (key === 'OPENROUTER_API_KEY' ? undefined : 'fake-config');
+  const k = createDependencies(request(), keyless.runtime);
+  assertEquals(await k.generationCost('gen', new AbortController().signal), null);
+  assertEquals(keyless.sent.length, 0);
+});
+Deno.test('credits: a late cost updates its own uncosted log row on the service client, for the verified owner', async () => {
+  const f = fixture();
+  const d = createDependencies(request(), f.runtime);
+  await d.requireUser(request());
+  await d.telemetry.saveGenerationCost('row-1', 0.00042, { prompt_tokens: 3, cost_source: 'generation' });
+  const update = f.calls.find((c) => c.table === 'model_call_logs');
+  assert(update);
+  assertEquals(update.side, 'service');
+  assertEquals(update.op, 'update');
+  assertEquals(update.value, { cost_usd: 0.00042, raw_usage: { prompt_tokens: 3, cost_source: 'generation' } });
+  assertEquals(update.filters, [['eq', 'id', 'row-1'], ['eq', 'user_id', 'verified-owner'], ['is', 'cost_usd', null]]);
+  f.setReply(() => ({ data: null, error: { message: 'denied' } }));
+  await assertRejects(() => d.telemetry.saveGenerationCost('row-1', 0.1, {}));
 });

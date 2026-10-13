@@ -1,6 +1,15 @@
-import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
+import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import type { Usage } from '../_shared/openrouterStream.ts';
-import { costOf, createAttemptRecorder, modelCallRow, turnTraceRows, type TurnTraceRow } from './telemetry.ts';
+import {
+  costOf,
+  createAttemptRecorder,
+  LATE_COST_JOB_MS,
+  LATE_COST_POLLS_MS,
+  modelCallRow,
+  recoverLateCosts,
+  turnTraceRows,
+  type TurnTraceRow,
+} from './telemetry.ts';
 
 const usage = (fields: Partial<Usage>): Usage => fields as Usage;
 Deno.test('partial prices never imply free unpriced completion usage', () => {
@@ -381,31 +390,220 @@ Deno.test('the turn summary totals searches and their cost; a turn with none rep
   };
   const none = make();
   await run(none, usage({ prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.01 }));
-  assertEquals([none.summary()?.web_searches, none.summary()?.web_search_cost_usd], [0, 0]);
+  assertEquals(none.summary()?.web_searches, 0);
 
   const some = make();
   await run(some, usage({ prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.02, upstream_inference_cost: 0.013, web_search_requests: 1 }));
   await run(some, usage({ prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.03, web_search_requests: 2 }));
   await run(some, null);
-  assertEquals([some.summary()?.web_searches, some.summary()?.web_search_cost_usd], [3, 0.021]);
-  assertEquals(some.summary()?.cost_usd, null, 'cost_usd keeps its all-or-nothing rule');
+  assertEquals(some.summary()?.web_searches, 3);
+  assertEquals(costKeys(some.summary()), [], 'the saved summary carries no dollars (AI credits spec §7)');
 });
 
-Deno.test('summary rounds the summed search cost to six places', async () => {
+/** Every cost key at any depth: what AI credits spec §7 keeps out of chat_messages.usage. */
+function costKeys(value: unknown, path = ''): string[] {
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => [
+    ...(['cost_usd', 'web_search_cost_usd', 'cost_usd_from'].includes(key) ? [`${path}${key}`] : []),
+    ...costKeys(item, `${path}${key}.`),
+  ]);
+}
+
+function recorderWith(options: Partial<Parameters<typeof createAttemptRecorder>[0]> = {}) {
+  const rows: ReturnType<typeof modelCallRow>[] = [];
   const recorder = createAttemptRecorder({
     userId: 'u',
     conversationId: 'c',
     messageId: 'm',
     pricing: () => Promise.resolve(null),
-    db: { logModelCall: () => Promise.resolve('id'), logTurnTraces: () => Promise.resolve() },
+    db: {
+      logModelCall: (row) => {
+        rows.push(row);
+        return Promise.resolve(`id-${rows.length}`);
+      },
+      logTurnTraces: () => Promise.resolve(),
+    },
+    ...options,
   });
-  for (const n of [1, 1, 1]) {
+  return { recorder, rows };
+}
+
+/** A call that streams, has its generation id, and is cut off by `stop` before the provider reports usage. */
+async function cutOff(recorder: ReturnType<typeof createAttemptRecorder>, generationId: string | null) {
+  const stop = new AbortController();
+  const wrapped = recorder.wrap(async function* (req) {
+    req.onAttemptMetadata?.({ served: 'google/gemini-3.5-flash-lite', generationId, usage: null });
+    yield { type: 'text', text: 'Partly' };
+    stop.abort();
+    yield { type: 'text', text: ' written' };
+  }, 'chat_answer');
+  try {
+    for await (const _e of wrapped({ model: 'm', messages: [], signal: stop.signal })) { /* consume */ }
+  } catch { /* aborted */ }
+}
+
+async function logged<T>(run: () => Promise<T>): Promise<string[]> {
+  const lines: string[] = [];
+  const original = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    await run();
+  } finally {
+    console.log = original;
+  }
+  return lines;
+}
+
+Deno.test('credits: the saved summary carries no dollars at any depth, complete or partial', async () => {
+  const { recorder } = recorderWith();
+  const run = async (u: Usage | null) => {
     const wrapped = recorder.wrap(async function* () {
-      yield { type: 'finish', reason: 'stop', served: 'x', generationId: null, usage: usage({ cost: 0.1, upstream_inference_cost: 0.0929999, web_search_requests: n }) };
+      yield { type: 'finish', reason: 'stop', served: 'x', generationId: null, usage: u };
+    }, 'chat_answer');
+    for await (const _e of wrapped({ model: 'm', messages: [] })) { /* consume */ }
+  };
+  await run(usage({ prompt_tokens: 3, completion_tokens: 2, total_tokens: 5, cost: 0.02, web_search_requests: 1 }));
+  assertEquals(costKeys(recorder.summary()), []);
+  assertEquals(recorder.summary()?.prompt_tokens, 3, 'the token totals stay');
+  // A partial turn, whose `observed` block used to carry cost_usd and cost_usd_from.
+  await run(usage({ prompt_tokens: 1, completion_tokens: null, total_tokens: 1, cost: 0.01 }));
+  await run(null);
+  const summary = recorder.summary() as Record<string, unknown>;
+  assertEquals(costKeys(summary), []);
+  assertEquals((summary.observed as Record<string, number>).attempts_silent, 1, 'the observed block stays');
+});
+
+/** A fake clock and sleep: each sleep advances the clock at once, and is recorded. */
+function fakeTime(start = 100_000) {
+  let clock = start;
+  const slept: number[] = [];
+  return {
+    now: () => clock,
+    sleep: (ms: number, signal: AbortSignal) => {
+      signal.throwIfAborted();
+      slept.push(ms);
+      clock += ms;
+      return Promise.resolve();
+    },
+    slept,
+  };
+}
+
+Deno.test('credits: the flush never looks a cost up; the cut-off round is left for the background job', async () => {
+  const { recorder, rows } = recorderWith();
+  await cutOff(recorder, 'gen-cut');
+  const lines = await logged(() => recorder.flush());
+  assertEquals(rows[0].status, 'aborted');
+  assertEquals(rows[0].cost_usd, null);
+  const late = recorder.lateCosts();
+  assertEquals(late.map((l) => [l.id, l.generationId, l.rawUsage]), [['id-1', 'gen-cut', null]]);
+  assert(Number.isFinite(late[0].abortedAt));
+  assertEquals(lines.some((l) => l.includes('aborted_cost_unknown')), false, 'not unknown yet: the job may still find it');
+});
+
+Deno.test('credits: only an aborted round with a generation id, a saved row and no cost is left for the job', async () => {
+  const { recorder, rows } = recorderWith();
+  const wrapped = recorder.wrap(async function* () {
+    yield { type: 'finish', reason: 'stop', served: 'x', generationId: 'gen-done', usage: usage({ cost: 0.01 }) };
+  }, 'chat_answer');
+  for await (const _e of wrapped({ model: 'm', messages: [] })) { /* consume */ }
+  await cutOff(recorder, null);
+  const lines = await logged(() => recorder.flush());
+  assertEquals(rows.map((r) => [r.status, r.cost_usd]), [['success', 0.01], ['aborted', null]]);
+  assertEquals(recorder.lateCosts(), []);
+  assertEquals(lines.filter((l) => l.includes('research_chat.aborted_cost_unknown')).length, 1, 'no id: unknown at once');
+
+  // A row whose insert failed has no id to update.
+  const failed = createAttemptRecorder({
+    userId: 'u',
+    conversationId: 'c',
+    messageId: 'm',
+    pricing: () => Promise.resolve(null),
+    db: { logModelCall: () => Promise.resolve(null), logTurnTraces: () => Promise.resolve() },
+  });
+  await cutOff(failed, 'gen-x');
+  await logged(() => failed.flush());
+  assertEquals(failed.lateCosts(), []);
+});
+
+Deno.test('credits: a success row with no cost is logged as a warning, with no ids or amounts', async () => {
+  const { recorder } = recorderWith();
+  for (const u of [usage({ prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }), usage({ cost: 0.01 })]) {
+    const wrapped = recorder.wrap(async function* () {
+      yield { type: 'finish', reason: 'stop', served: 'x', generationId: 'gen', usage: u };
     }, 'chat_answer');
     for await (const _e of wrapped({ model: 'm', messages: [] })) { /* consume */ }
   }
-  const total = recorder.summary()!.web_search_cost_usd as number;
-  assertEquals(total, Math.round(total * 1e6) / 1e6);
-  assertEquals(total, 0.021);
+  const lines = (await logged(() => recorder.flush())).filter((l) => l.includes('research_chat.success_without_cost'));
+  assertEquals(lines.length, 1);
+  assertEquals(Object.keys(JSON.parse(lines[0])).sort(), ['event', 't']);
+});
+
+Deno.test('credits: the background job polls 8-25 s after the abort and saves the cost from the 3rd poll', async () => {
+  const time = fakeTime();
+  const asked: string[] = [];
+  const answers: (number | null)[] = [null, null, 0.0004];
+  const saved: unknown[][] = [];
+  await recoverLateCosts([{ id: 'row-1', generationId: 'gen-cut', abortedAt: time.now() - 2_000, rawUsage: { prompt_tokens: 3 } }], {
+    lookup: (id) => {
+      asked.push(id);
+      return Promise.resolve(answers.shift() ?? null);
+    },
+    save: (...args) => {
+      saved.push(args);
+      return Promise.resolve();
+    },
+    now: time.now,
+    sleep: time.sleep,
+  });
+  assertEquals(asked, ['gen-cut', 'gen-cut', 'gen-cut']);
+  assertEquals(time.slept, [6_000, 4_000, 4_000], 'at 8, 12 and 16 s after the abort');
+  assertEquals(saved, [['row-1', 0.0004, { prompt_tokens: 3, cost_source: 'generation' }]]);
+  assertEquals(LATE_COST_POLLS_MS, [8_000, 12_000, 16_000, 20_000, 25_000]);
+});
+
+Deno.test('credits: a cost that never comes is logged unknown once per row, and the job never throws', async () => {
+  for (const lookup of [() => Promise.resolve(null), () => Promise.reject(new Error('down')), () => Promise.resolve(-1)]) {
+    const time = fakeTime();
+    let asked = 0;
+    const lines = await logged(() =>
+      recoverLateCosts([{ id: 'row-1', generationId: 'gen', abortedAt: time.now(), rawUsage: null }], {
+        lookup: () => {
+          asked++;
+          return lookup();
+        },
+        save: () => Promise.reject(new Error('never called')),
+        now: time.now,
+        sleep: time.sleep,
+      })
+    );
+    assertEquals(asked, 5, 'every poll is tried');
+    assertEquals(lines.filter((l) => l.includes('research_chat.aborted_cost_unknown')).length, 1);
+  }
+  // A save that fails is logged, never thrown.
+  const time = fakeTime();
+  const lines = await logged(() =>
+    recoverLateCosts([{ id: 'row-1', generationId: 'gen', abortedAt: time.now(), rawUsage: null }], {
+      lookup: () => Promise.resolve(0.001),
+      save: () => Promise.reject(new Error('update failed')),
+      now: time.now,
+      sleep: time.sleep,
+    })
+  );
+  assert(lines.some((l) => l.includes('late_cost')));
+});
+
+Deno.test('credits: the whole job stops at its deadline, however the lookups behave', async () => {
+  const started = Date.now();
+  const lines = await logged(() =>
+    recoverLateCosts([{ id: 'row-1', generationId: 'gen', abortedAt: Date.now(), rawUsage: null }], {
+      lookup: () => new Promise(() => {}),
+      save: () => Promise.resolve(),
+      polls: [1, 2],
+      budgetMs: 40,
+    })
+  );
+  assert(Date.now() - started < 500);
+  assertEquals(lines.filter((l) => l.includes('research_chat.aborted_cost_unknown')).length, 1);
+  assertEquals(LATE_COST_JOB_MS, 30_000);
 });

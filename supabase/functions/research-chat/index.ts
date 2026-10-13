@@ -13,11 +13,25 @@ import { type AttemptMetadata, streamChat } from '../_shared/openrouterStream.ts
 import { hydrateDocumentRoles, search } from '../_shared/retrieval.ts';
 import { serviceClient, userClient } from '../_shared/supabase.ts';
 import { type DeskRow, executeSearchDeskRows } from '../_shared/tools/searchDeskRows.ts';
-import { type DocumentModule, type HandlerDeps, handleResearchChat, type RetrievalContext } from './handler.ts';
+import {
+  type CreditsGate,
+  type DocumentModule,
+  type HandlerDeps,
+  handleResearchChat,
+  type RetrievalContext,
+} from './handler.ts';
 import { rpcTurnStore } from './persistence.ts';
 import { resolvePersona } from './persona.ts';
 
 export const NETWORK_TIMEOUT_MS = 4_000;
+/** settle_turn_credits' limit (AI credits spec §3 step 4). reserve_turn_credits shares
+ * NETWORK_TIMEOUT_MS with lookup and claim: it is one RPC under one wallet row lock, which only
+ * another reserve or a settle holds, each bounded, and a turn that cannot be checked in 4 s fails
+ * closed with 503 rather than keeping the reader waiting. */
+export const SETTLE_TIMEOUT_MS = 3_000;
+/** OpenRouter's per-generation record, which carries total_cost (AI credits spec §3.1). It answers
+ * 404 until the record exists: 6-15 s after a stream ended, in the 2026-10-14 probe. */
+export const OPENROUTER_GENERATION_URL = 'https://openrouter.ai/api/v1/generation';
 /** PostgREST's max_rows. A read by id returns at most one row per id, so a page of ids is never truncated. */
 // 100 uuids keep the PostgREST query URL near 3.7 KB, well inside gateway URL limits.
 export const PAGE_EVIDENCE_IDS = 100;
@@ -34,6 +48,7 @@ export interface Runtime {
   env(name: string): string | undefined;
   readPersona(file: string): Promise<string>;
   timeoutMs: number;
+  settleTimeoutMs: number;
   sleep?(ms: number, signal: AbortSignal): Promise<void>;
   waitUntil?(work: Promise<unknown>): void;
 }
@@ -49,6 +64,7 @@ function runtime(overrides: Partial<Runtime>): Runtime {
     readPersona: (file) =>
       Promise.resolve(personaPrompt(file) ?? personaPrompt('analyst.md') ?? ''),
     timeoutMs: NETWORK_TIMEOUT_MS,
+    settleTimeoutMs: SETTLE_TIMEOUT_MS,
     waitUntil: (work) =>
       (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(work),
     ...overrides,
@@ -102,6 +118,10 @@ function number(value: unknown): number | null {
   if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
   const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+/** A credit amount: any finite number, negative included (a balance may be in debt). */
+function credits(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 function scalar(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\x00-\x1f\x7f]/.test(value)
@@ -208,8 +228,9 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
   async function query<T>(
     run: (signal: AbortSignal) => PromiseLike<{ data: T; error: unknown }>,
     signal?: AbortSignal,
+    ms = r.timeoutMs,
   ): Promise<T> {
-    const result = await bounded(run, r.timeoutMs, signal);
+    const result = await bounded(run, ms, signal);
     if (result.error) {
       // PostgREST reports failures as a value rather than a throw, so this
       // branch never reached the catch above and wrote nothing anywhere.
@@ -230,7 +251,32 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
       return bounded((signal) => service().rpc(fn, args).abortSignal(signal), r.timeoutMs);
     },
   });
+  // AI credits (spec §3, §12): service-role RPCs for the verified owner only. Anything but a
+  // well-formed answer rejects, so the handler fails closed.
+  const creditRpc = (fn: string, userId: string, args: Record<string, unknown>, ms: number) => {
+    if (!owner || userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
+    return query<unknown>((signal) => service().rpc(fn, { p_user: userId, ...args }).abortSignal(signal), undefined, ms);
+  };
+  const creditsGate: CreditsGate = {
+    enforced: r.env('CREDITS_ENFORCED') === '1',
+    reserve: async (userId, turnKey, enforced) => {
+      const data = await creditRpc('reserve_turn_credits', userId, { p_turn_key: turnKey, p_enforced: enforced }, r.timeoutMs);
+      const answer = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
+      if (typeof answer?.ok !== 'boolean') throw new Error('Invalid credit reservation');
+      return { ok: answer.ok, balance: credits(answer.balance) };
+    },
+    settle: async (userId, turnKey) => {
+      const data = await creditRpc('settle_turn_credits', userId, { p_turn_key: turnKey }, r.settleTimeoutMs);
+      const answer = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
+      if (answer?.state === 'pending') return { state: 'pending', credits: null };
+      if ((answer?.state === 'charged' || answer?.state === 'free') && credits(answer.credits) !== null) {
+        return { state: answer.state, credits: credits(answer.credits) };
+      }
+      throw new Error('Invalid credit settlement');
+    },
+  };
   return {
+    credits: creditsGate,
     requireUser: async (request) => {
       const verified = await requireUser(request, async (token) => {
         asCaller = r.userClient(token);
@@ -390,8 +436,38 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
         if (rows.some((row) => row.user_id !== owner)) throw new HttpError(403, 'Turn owner mismatch');
         if (rows.length) await query((signal) => service().from('chat_turn_traces').insert(rows).abortSignal(signal));
       },
+      // A cost found after the turn (spec §3.1), on the row the flush inserted, by its id. Only a row
+      // still without a cost is touched, so a figure is never overwritten; the hold's sweep charges it.
+      saveGenerationCost: async (id, cost, rawUsage) => {
+        await query((signal) =>
+          service().from('model_call_logs').update({ cost_usd: cost, raw_usage: rawUsage }).eq('id', id)
+            .eq('user_id', owner!).is('cost_usd', null).abortSignal(signal)
+        );
+      },
     },
     stream: (request) => streamChat({ fetch: r.fetch, apiKey: r.env('OPENROUTER_API_KEY') ?? '' }, request),
+    // The round Stop cut off (spec §3.1): one lookup of its cost. The background job owns the
+    // schedule and the bound (`signal`). Not there yet (404), any other answer, or a cost that is not
+    // a finite non-negative number is null, which never means free.
+    generationCost: async (id, signal) => {
+      const apiKey = r.env('OPENROUTER_API_KEY');
+      if (!apiKey) return null;
+      try {
+        const response = await r.fetch(`${OPENROUTER_GENERATION_URL}?id=${encodeURIComponent(id)}`, {
+          headers: { authorization: `Bearer ${apiKey}` },
+          signal,
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          return null;
+        }
+        const body = await response.json().catch(() => null) as { data?: { total_cost?: unknown } } | null;
+        const cost = body?.data?.total_cost;
+        return typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? cost : null;
+      } catch {
+        return null;
+      }
+    },
     searchDocuments: async (args, ids, context) => {
       caller();
       if (!context) throw new Error('Retrieval context required');

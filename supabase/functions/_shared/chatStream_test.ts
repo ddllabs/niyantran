@@ -83,6 +83,7 @@ Deno.test('every declared frame key round-trips through frameKey', () => {
     { saveFailed: { stage: 'persist', detail: 'x' } },
     { error: 'e' },
     { done: { message_id: 'm' } },
+    { credits: 12.35 },
   ];
   assertEquals(samples.map(frameKey), [...CHAT_FRAME_KEYS]);
   assert(samples.length === CHAT_FRAME_KEYS.length);
@@ -129,4 +130,31 @@ Deno.test('pull-driven replay preserves Unicode across transport chunks and stop
   await reader.read();
   await reader.cancel();
   assertEquals(released, true);
+});
+
+Deno.test('credits: the credits frame is written after done, null included, and dropped once the reader has gone', async () => {
+  const { sender, text } = harness();
+  sender.send({ done: { message_id: 'm1' } });
+  sender.send({ credits: 21.46 });
+  sender.send({ credits: null });
+  sender.done();
+  assertEquals((await text()).split('\n\n').filter(Boolean), [
+    'data: {"done":{"message_id":"m1"}}',
+    'data: {"credits":21.46}',
+    'data: {"credits":null}',
+    'data: [DONE]',
+  ]);
+
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  }, CHAT_STREAM_QUEUE);
+  const gone = createChatSender(controller);
+  gone.send({ done: { message_id: 'm2' } });
+  await stream.cancel();
+  gone.send({ credits: 3 });
+  gone.done();
+  assertEquals(gone.sent, 1, 'the frame is skipped, and nothing throws');
 });

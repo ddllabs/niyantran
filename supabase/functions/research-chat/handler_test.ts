@@ -118,6 +118,10 @@ interface Recorder {
   traces: TurnTraceRow[];
   conversations: number;
   cleared: number;
+  /** The order of the turn store and credit calls, by name. */
+  order: string[];
+  reserves: { userId: string; turnKey: string; enforced: boolean }[];
+  settles: { userId: string; turnKey: string }[];
 }
 
 function fakeDeps(
@@ -125,11 +129,22 @@ function fakeDeps(
   over: Partial<HandlerDeps> = {},
   dbOver: Partial<UserDb> = {},
 ): { deps: HandlerDeps; rec: Recorder } {
-  const rec: Recorder = { messages: [], userMessages: [], calls: [], traces: [], conversations: 0, cleared: 0 };
+  const rec: Recorder = {
+    messages: [],
+    userMessages: [],
+    calls: [],
+    traces: [],
+    conversations: 0,
+    cleared: 0,
+    order: [],
+    reserves: [],
+    settles: [],
+  };
   const claims = new Map<string, { claim: ClaimedTurn; hash: string; index: number }>();
   const keyOfTurn = (owner: string, key: string) => JSON.stringify([owner, key]);
   const persistence: TurnStore = {
     lookup(input) {
+      rec.order.push('lookup');
       const entry = claims.get(keyOfTurn(input.ownerId, input.turnKey));
       if (!entry) return Promise.resolve({ kind: 'missing' });
       if (
@@ -146,6 +161,7 @@ function fakeDeps(
       );
     },
     async claim(input) {
+      rec.order.push('claim');
       const found = await persistence.lookup(input);
       if (found.kind !== 'missing') return found;
       // Recheck after the async lookup: simultaneous fakes obey SQL uniqueness.
@@ -208,6 +224,19 @@ function fakeDeps(
   };
   const deps: HandlerDeps = {
     requireUser: () => Promise.resolve({ userId: 'user-1', token: 'jwt' }),
+    credits: {
+      enforced: false,
+      reserve: (userId, turnKey, enforced) => {
+        rec.order.push('reserve');
+        rec.reserves.push({ userId, turnKey, enforced });
+        return Promise.resolve({ ok: true, balance: 1000 });
+      },
+      settle: (userId, turnKey) => {
+        rec.order.push('settle');
+        rec.settles.push({ userId, turnKey });
+        return Promise.resolve({ state: 'charged', credits: 1.23456 });
+      },
+    },
     models: () => Promise.resolve(MODELS),
     pricing: () => Promise.resolve({ prompt_usd: 0.000001, completion_usd: 0.000002 }),
     persona: () => Promise.resolve('You are the analyst desk.'),
@@ -318,7 +347,7 @@ Deno.test('a plain answer streams as chunks, persists, and reports sources, timi
   const order = got.map(keyOf);
   assertEquals(order[0], 'conversation');
   assert(order.includes('chunk'), 'the answer reached the reader');
-  assertEquals(order.slice(-3), ['sources', 'timing', 'done']);
+  assertEquals(order.slice(-4), ['sources', 'timing', 'done', 'credits']);
   const chunks = got.filter((f) => 'chunk' in f).map((f) => (f as { chunk: string }).chunk).join('');
   assertEquals(chunks, 'Hello — what would you like to check?');
   assertEquals(rec.messages.length, 1);
@@ -919,7 +948,8 @@ Deno.test('D4: finalizer result is the authority for displayed content and termi
   assertEquals(got.some((f) => 'followUpQuestions' in f), false);
   assertEquals(got.some((f) => 'timing' in f), false);
   assert(got.some((f) => 'error' in f && f.code === 'interrupted'));
-  assertEquals(got.at(-1), { done: { message_id: 'msg-1' } });
+  // The terminal frames end at `done`; only the settled credits follow it (AI credits spec §3).
+  assertEquals(got.slice(-2), [{ done: { message_id: 'msg-1' } }, { credits: 1.23 }]);
 });
 Deno.test('D4: failed persistence never publishes terminal sources, followups or timing', async () => {
   const { deps } = fakeDeps(scripted([...DECLINES, [text(envelope('Answer', [], ['Next?'])), finish()]]));
@@ -1127,7 +1157,7 @@ Deno.test('D5: mixed known and unknown usage totals do not fabricate zero-cost o
   assertEquals(rec.calls[0].model_served, null);
   assertEquals(rec.messages[0].usage?.attempts, 3);
   assertEquals(rec.messages[0].usage?.prompt_tokens, null);
-  assertEquals(rec.messages[0].usage?.cost_usd, null);
+  assertEquals(costKeysOf(rec.messages[0].usage), [], 'no dollars in the saved usage (AI credits spec §7)');
 });
 Deno.test('D5: repair cannot become a thirteenth provider attempt after schema retry exhausts shared budget', async () => {
   let calls = 0;
@@ -1487,7 +1517,7 @@ Deno.test('a silent attempt nulls the totals and records what was observed', asy
   const usage = rec.messages[0].usage as Record<string, unknown>;
   assertEquals(usage.attempts, 3);
   assertEquals(usage.prompt_tokens, null, 'a total must not count the silent attempt as zero');
-  assertEquals(usage.cost_usd, null, 'billing must not undercharge on a partial total');
+  assertEquals(costKeysOf(usage), [], 'no dollars in the saved usage (AI credits spec §7)');
 
   const observed = usage.observed as Record<string, number> | undefined;
   assert(observed, 'the figures the reporting attempt did give must survive');
@@ -2638,4 +2668,291 @@ Deno.test('one stream: a web turn whose research call searched streams the answe
   const streamed = got.flatMap((f) => ('chunk' in f ? [(f as { chunk: string }).chunk] : [])).join('');
   assert(!streamed.includes('Draft that will be rewritten'));
   assertStringIncludes(streamed, 'The final answer.');
+});
+
+// ---------------------------------------------------------------------------------------------
+// AI credits (F111, spec §3): reserve after the replay lookup and before the claim.
+
+/** Capture the structured log lines a block writes. */
+async function captureLogs<T>(run: () => Promise<T>): Promise<{ result: T; events: Record<string, unknown>[] }> {
+  const lines: string[] = [];
+  const original = console.log;
+  console.log = (message) => lines.push(String(message));
+  try {
+    const result = await run();
+    const events = lines.flatMap((line) => {
+      try {
+        return [JSON.parse(line) as Record<string, unknown>];
+      } catch {
+        return [];
+      }
+    });
+    return { result, events };
+  } finally {
+    console.log = original;
+  }
+}
+
+Deno.test('credits: reserve follows the replay lookup and precedes the claim, with no provider call before it', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  const reserve = deps.credits.reserve;
+  deps.credits.reserve = (...args) => {
+    assertEquals(provider.seen.length, 0, 'no provider call before reserve');
+    assertEquals(rec.userMessages.length, 0, 'nothing claimed before reserve');
+    return reserve(...args);
+  };
+  await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.order.slice(0, 3), ['lookup', 'reserve', 'claim']);
+  assertEquals(rec.reserves, [{ userId: 'user-1', turnKey: 'turn-1', enforced: false }]);
+  assertEquals(rec.messages[0].status, 'complete');
+});
+
+Deno.test('credits: a replay is answered before reserve, and an invalid model is refused before it', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  await frames(await handleResearchChat(post(BODY), deps));
+  const replay = await frames(await handleResearchChat(post(BODY), deps));
+  assert(replay.some((f) => 'duplicate' in f));
+  assertEquals(rec.reserves.length, 1, 'the replay never reserved');
+
+  const refused = await handleResearchChat(post({ ...BODY, turn_key: 'bad-model', model: 'openai/gpt-6-astra' }), deps);
+  assertEquals(refused.status, 400);
+  assertEquals(rec.reserves.length, 1, 'a request refused as invalid holds nothing');
+});
+
+Deno.test('credits: enforced and blocked answers 402 with the balance and CORS headers, and creates no message', async () => {
+  const provider = scripted([]);
+  const { deps, rec } = fakeDeps(provider, { headers: { 'access-control-allow-origin': 'https://app.test' } });
+  deps.credits.enforced = true;
+  deps.credits.reserve = (userId, turnKey, enforced) => {
+    rec.reserves.push({ userId, turnKey, enforced });
+    return Promise.resolve({ ok: false, balance: -180.5 });
+  };
+  const response = await handleResearchChat(post(BODY), deps);
+  assertEquals(response.status, 402);
+  assertEquals(response.headers.get('access-control-allow-origin'), 'https://app.test');
+  assertStringIncludes(response.headers.get('content-type') ?? '', 'application/json');
+  const body = await response.json();
+  assertEquals(body.code, 'credits_exhausted');
+  assertEquals(body.balance, -180.5);
+  assert(typeof body.error === 'string' && body.error.endsWith('.'), 'a plain sentence');
+  assertEquals(rec.reserves, [{ userId: 'user-1', turnKey: 'turn-1', enforced: true }]);
+  assertEquals(rec.order.includes('claim'), false, 'the claim was never called');
+  assertEquals(rec.userMessages.length, 0);
+  assertEquals(rec.messages.length, 0);
+  assertEquals(provider.seen.length, 0);
+});
+
+Deno.test('credits: shadow and blocked logs the block and runs the turn normally', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Answer in shadow.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  deps.credits.reserve = (userId, turnKey, enforced) => {
+    rec.reserves.push({ userId, turnKey, enforced });
+    return Promise.resolve({ ok: false, balance: 0 });
+  };
+  const { result: got, events } = await captureLogs(async () => await frames(await handleResearchChat(post(BODY), deps)));
+  assertEquals(rec.reserves[0].enforced, false);
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].content, 'Answer in shadow.');
+  assert(got.some((f) => 'done' in f));
+  const blocked = events.filter((e) => e.event === 'research_chat.credits_shadow_blocked');
+  assertEquals(blocked.length, 1);
+  assertEquals(JSON.stringify(blocked[0]).includes('user-1'), false, 'no user id in the log');
+});
+
+Deno.test('credits: a reserve error or timeout answers 503 and never runs the turn', async () => {
+  const provider = scripted([]);
+  const { deps, rec } = fakeDeps(provider);
+  deps.credits.reserve = () => Promise.reject(new Error('reserve timed out'));
+  for (const enforced of [true, false]) {
+    deps.credits.enforced = enforced;
+    const response = await handleResearchChat(post(BODY), deps);
+    assertEquals(response.status, 503);
+    assertEquals(await response.json(), { error: 'AI credits could not be checked.', code: 'credits_unavailable' });
+  }
+  assertEquals(rec.order.includes('claim'), false);
+  assertEquals(rec.messages.length, 0);
+  assertEquals(provider.seen.length, 0);
+});
+
+// AI credits (F111, spec §3 step 4, §3.1, §7): settle after the flush, the credits frame, no dollars.
+
+/** Every cost key at any depth. */
+function costKeysOf(value: unknown, path = ''): string[] {
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => [
+    ...(['cost_usd', 'web_search_cost_usd', 'cost_usd_from'].includes(key) ? [`${path}${key}`] : []),
+    ...costKeysOf(item, `${path}${key}.`),
+  ]);
+}
+
+/** Record each accounting write in `rec.order`, so settle can be placed after them. */
+function traceAccounting(deps: HandlerDeps, rec: Recorder) {
+  const call = deps.telemetry.logModelCall;
+  const traces = deps.telemetry.logTurnTraces;
+  deps.telemetry.logModelCall = (row) => {
+    rec.order.push('log');
+    return call(row);
+  };
+  deps.telemetry.logTurnTraces = (rows) => {
+    rec.order.push('traces');
+    return traces(rows);
+  };
+}
+
+Deno.test('credits: settle runs after the flush, and its credits follow done in their own frame', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  traceAccounting(deps, rec);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.order.filter((x) => ['log', 'traces', 'settle'].includes(x)), ['log', 'log', 'log', 'traces', 'settle']);
+  assertEquals(rec.settles, [{ userId: 'user-1', turnKey: 'turn-1' }]);
+  assertEquals(got.map(keyOf).slice(-2), ['done', 'credits']);
+  assertEquals(got.at(-1), { credits: 1.23 }, 'rounded to 2 dp');
+});
+
+Deno.test('credits: a pending or failed settle sends credits null and leaves the turn unchanged', async () => {
+  const run = async (settle: HandlerDeps['credits']['settle']) => {
+    const { deps, rec } = fakeDeps(scripted([...DECLINES, [text(envelope('Answer.')), finish()]]));
+    deps.credits.settle = settle;
+    const { result: got, events } = await captureLogs(async () => await frames(await handleResearchChat(post(BODY), deps)));
+    return { got, events, saved: rec.messages[0], calls: rec.calls };
+  };
+  const baseline = await run(() => Promise.resolve({ state: 'free', credits: 0 }));
+  assertEquals(baseline.got.at(-1), { credits: 0 }, 'a free turn says 0');
+  const cases = [
+    { settle: () => Promise.reject(new Error('settle timed out')), event: 'research_chat.credits_settle_failed' },
+    { settle: () => Promise.resolve({ state: 'pending' as const, credits: null }), event: 'research_chat.credits_pending' },
+  ];
+  for (const { settle, event } of cases) {
+    const { got, events, saved, calls } = await run(settle);
+    assertEquals(saved, baseline.saved, 'the saved turn is exactly what it would have been');
+    assertEquals(calls, baseline.calls);
+    assertEquals(got.slice(0, -1), baseline.got.slice(0, -1), 'every frame before it is unchanged');
+    assertEquals(got.at(-1), { credits: null });
+    assert(got.every((f) => !('saveFailed' in f) && !('error' in f)));
+    assertEquals(events.filter((e) => e.event === event).length, 1, `${event} is logged`);
+  }
+});
+
+Deno.test('credits: when the reader has gone after done, settle still runs and the frame is skipped quietly', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let work: Promise<unknown> | undefined;
+  const { deps, rec } = fakeDeps(scripted([...DECLINES, [text(envelope('Answer.')), finish()]]), {
+    waitUntil: (p) => {
+      work = p;
+    },
+  });
+  deps.credits.settle = async (userId, turnKey) => {
+    rec.settles.push({ userId, turnKey });
+    await gate;
+    return { state: 'charged', credits: 2 };
+  };
+  const reader = (await handleResearchChat(post(BODY), deps)).body!.getReader();
+  const decoder = new TextDecoder();
+  let body = '';
+  while (!body.includes('"done"')) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    body += decoder.decode(value, { stream: true });
+  }
+  // The client stops reading at `done`, as src/lib/researchChat.js does.
+  await reader.cancel();
+  release();
+  await work;
+  assertEquals(rec.settles.length, 1);
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(body.includes('"credits"'), false);
+});
+
+/** A turn whose answer round is cut off by Stop after its generation id arrived (or none, with `null`). */
+function stoppedProvider(generationId: string | null, onCut: () => void) {
+  return byPhase(
+    async function* () {
+      yield finish('stop');
+    },
+    async function* (req) {
+      req.onAttemptMetadata?.({ served: 'google/gemini-3.5-flash-lite', generationId, usage: null });
+      yield text('{"answer":"Partly written');
+      onCut();
+      await new Promise((r) => setTimeout(r, 40));
+      yield text(' and then stopped."}');
+      yield finish();
+    },
+  );
+}
+
+Deno.test('credits: the round cut off by Stop is costed by a background job after the stream closes, never by the flush', async () => {
+  let cancel = false;
+  const jobs: Promise<unknown>[] = [];
+  const answers: (number | null)[] = [null, 0.00042];
+  const { deps, rec } = fakeDeps(stoppedProvider('gen-cut', () => (cancel = true)), {
+    waitUntil: (p) => {
+      jobs.push(p);
+    },
+    sleep: () => Promise.resolve(),
+    generationCost: (id: string) => {
+      rec.order.push(`lookup:${id}`);
+      return Promise.resolve(answers.shift() ?? null);
+    },
+  }, { cancelRequestedSince: () => Promise.resolve(cancel) });
+  const saved: unknown[][] = [];
+  deps.telemetry.saveGenerationCost = (...args) => {
+    rec.order.push('save');
+    saved.push(args);
+    return Promise.resolve();
+  };
+  traceAccounting(deps, rec);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  await jobs[0];
+  assertEquals(jobs.length, 2, 'the turn, then the background job');
+  await jobs[1];
+  assertEquals(rec.messages[0].status, 'cancelled');
+  assert(got.some((f) => 'done' in f));
+  const index = rec.calls.findIndex((c) => c.openrouter_generation_id === 'gen-cut');
+  assertEquals([rec.calls[index].status, rec.calls[index].cost_usd], ['aborted', null], 'inserted uncosted');
+  assertEquals(saved, [[`call-${index + 1}`, 0.00042, { cost_source: 'generation' }]], 'updated from the 2nd poll');
+  const order = rec.order.filter((x) => x !== 'lookup' && x !== 'claim');
+  assertEquals(order.slice(order.indexOf('settle')), ['settle', 'lookup:gen-cut', 'lookup:gen-cut', 'save'], 'after flush and settle');
+  assertEquals(costKeysOf(rec.messages[0].usage), [], 'the cancelled turn saves no dollars either');
+});
+
+Deno.test('credits: no background job when no cut-off round is waiting for a cost', async () => {
+  // A finished turn, and a stopped turn whose cut-off round never received a generation id.
+  for (const stopped of [false, true]) {
+    let cancel = false;
+    const jobs: Promise<unknown>[] = [];
+    const provider = stopped
+      ? stoppedProvider(null, () => (cancel = true))
+      : scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+    const { deps } = fakeDeps(provider, {
+      waitUntil: (p) => {
+        jobs.push(p);
+      },
+      sleep: () => Promise.resolve(),
+      generationCost: () => Promise.reject(new Error('no lookup expected')),
+    }, { cancelRequestedSince: () => Promise.resolve(cancel) });
+    deps.telemetry.saveGenerationCost = () => Promise.reject(new Error('no update expected'));
+    await frames(await handleResearchChat(post(BODY), deps));
+    await jobs[0];
+    assertEquals(jobs.length, 1, `stopped=${stopped}: only the turn itself`);
+  }
+});
+
+Deno.test('credits: no cost key reaches the saved usage or any frame', async () => {
+  const unknown: ModelEvent = { type: 'finish', reason: 'stop', usage: null, served: null, generationId: null };
+  const searched: Usage = { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cost: 0.02, web_search_requests: 2 };
+  const provider = scripted([[finish('stop', searched)], [unknown], [text(envelope('Answer.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  const usage = rec.messages[0].usage as Record<string, unknown>;
+  assert(usage.observed, 'a partial turn, whose observed block used to carry cost');
+  assertEquals(costKeysOf(usage), []);
+  assertEquals(usage.web_searches, 2, 'the search count stays');
+  assertEquals(/cost/i.test(JSON.stringify(got)), false, 'no frame carries a cost');
+  assert(rec.calls.some((c) => c.cost_usd === 0.02), 'model_call_logs keeps its cost');
 });
