@@ -333,8 +333,10 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   [Research](../research/2026-10-13-web-search.md) ·
   [Spec](../specs/2026-10-13-web-search.md). Branch `task/web-search`
   (worktree `.claude/worktrees/web-search`).
-  - **Status, 2026-10-13:** built, reviewed and verified locally on
-    `task/web-search`; not merged to `main`, not pushed.
+  - **Status, 2026-10-13: shipped.** Migration `20261013140000` applied to
+    NTER, `research-chat` v51 deployed, `origin/main` at `3d937af` (see
+    coordination Operations). Remaining: the owner's check on production,
+    and the follow-ups below.
     - Research and probes; spec with amendments 1–2.
       [Plan](2026-10-13-web-search.md),
       [local run](../research/2026-10-13-web-search-local-run.md).
@@ -343,10 +345,6 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     - Checks: 993 Deno and 3,166 Vitest tests, lint, the build and all SQL
       fixtures pass; the migration's Down block was executed.
     - Spend: $0.31 of an approved $1.00.
-  - **Waiting on the owner**, each a named go-ahead, in this order:
-    1. apply migration `20261013140000_web_search` to NTER;
-    2. deploy `research-chat`;
-    3. merge into `main` and push.
   - **Follow-ups:**
     - a per-user daily web-search cap, with F111;
     - the privacy policy to name OpenRouter/Exa as the search provider (F107);
