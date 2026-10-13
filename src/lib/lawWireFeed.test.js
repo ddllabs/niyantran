@@ -69,9 +69,19 @@ describe('Law wire feed queries (F84)', () => {
     'HC Judge Profiles & Bench Analytics': /collegium/,
     'ICC Proceedings': /^\("International Criminal Court".*\) -cricket$/,
     'ICJ Proceedings': /^\("International Court of Justice"/,
-    'WTO Dispute Settlement': /"dispute settlement"/,
     'Sector Tribunals (ITAT / TDSAT / SAT / DRT)': /"Income Tax Appellate Tribunal" OR ITAT/,
   };
+
+  // F129: WTO serves the stored WTO register first; its forum query is only the fallback.
+  it('serves WTO Dispute Settlement from the WTO register, with no news request', async () => {
+    const asked = [];
+    vi.stubGlobal('fetch', vi.fn(async (url) => { asked.push(String(url)); throw new Error('no network'); }));
+    const feed = await wireFeed('WTO Dispute Settlement');
+    expect(feed.rows.length).toBeGreaterThanOrEqual(646);
+    expect(feed.rows[0].ds_number).toMatch(/^DS\d+$/);
+    expect(feed.rows[0].ds).toBeGreaterThan(feed.rows.at(-1).ds);
+    expect(asked.filter((u) => /news\.google\.com|gdeltproject/.test(u))).toEqual([]);
+  });
 
   for (const [feature, expected] of Object.entries(QUERIES)) {
     it(`searches Google News for ${feature} with its forum's own terms`, async () => {

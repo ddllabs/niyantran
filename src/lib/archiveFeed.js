@@ -365,6 +365,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
       sc: await loadRawEmbedded('judiciary_sc_orders.csv', signal),
       nclt: await loadRawEmbedded('judiciary_nclt_orders.csv', signal),
       ibbi: await loadRawEmbedded('national_ibbi_announcements.csv', signal),
+      wto: slice === 'wto' ? await loadRawEmbedded('judiciary_wto_disputes.csv', signal) : [],
     });
     if (rows.length) {
       return envelope({

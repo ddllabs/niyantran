@@ -26,6 +26,23 @@ const sentence = (v) => { const s = held(v).toLowerCase(); return s ? s[0].toUpp
 const when = (v) => (ISO_DATE.test(String(v ?? '').trim()) ? dateLabel(String(v).trim()) : '');
 const stamp = (r) => String(r.date || r.occurred_at || '');
 
+/** The register's rows by member name (trimmed, lower case), built once per rows array. */
+const MEMBER_INDEX = new WeakMap();
+function memberIndex(rows) {
+  let index = MEMBER_INDEX.get(rows);
+  if (!index) {
+    index = new Map();
+    for (const r of rows) {
+      if (!r || typeof r.mp_name !== 'string') continue;
+      const k = r.mp_name.trim().toLowerCase();
+      if (!index.has(k)) index.set(k, []);
+      index.get(k).push(r);
+    }
+    MEMBER_INDEX.set(rows, index);
+  }
+  return index;
+}
+
 export default function nationalQuestions(row, ctx = {}) {
   const packs = ctx.packs?.ready ? ctx.packs : null;
   const a = packs ? analysisFor(row, packs.analysis) : null;
@@ -59,11 +76,12 @@ export default function nationalQuestions(row, ctx = {}) {
     return t;
   };
   const rows = Array.isArray(ctx.rows) ? ctx.rows : [];
-  // The cheap name test runs first: the register has thousands of rows and this runs on every selection.
+  // The register has thousands of rows and this runs on every selection, so the rows are indexed by
+  // member once per list (memberIndex) instead of scanning the whole register each time.
   const key = member.toLowerCase();
   const mine = member
-    ? rows
-      .filter((r) => r && r !== row && typeof r.mp_name === 'string' && r.mp_name.trim().toLowerCase() === key
+    ? (memberIndex(rows).get(key) || [])
+      .filter((r) => r !== row
         && held(r.status) !== 'source_status'
         && !(r.id != null && r.id === row.id)
         && !(held(r.subject) === subject && stamp(r) === stamp(row)))

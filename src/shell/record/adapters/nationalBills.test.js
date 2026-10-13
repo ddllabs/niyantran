@@ -7,6 +7,10 @@ import { analysisFor, bindBillAnalysisIdentities, DESKS } from '../../../lib/imp
 import { contractProblems } from '../modelContract.js';
 import nationalBills from './nationalBills.js';
 
+// These tests build a panel for every row of the register (thousands); GitHub's runners are slower
+// than a laptop, so they get more than Vitest's 5-second default.
+const WHOLE_REGISTER_MS = 20_000;
+
 // The packs exactly as loadRecordPacks would hand them over (loadAnalysisMap binds the identities).
 const analysis = bindBillAnalysisIdentities(analysisRaw, identities.records, identities.sources || []);
 const packs = { desk: DESKS.bill, analysis, ontology, ready: true };
@@ -28,7 +32,7 @@ describe('National bills adapter', () => {
   it('honours the panel contract for every bill, with and without the packs loaded', () => {
     for (const row of bills) expect(contractProblems(nationalBills(row, ctx({ packs: null }))), row.id).toEqual([]);
     for (const row of withAnalysis.slice(0, 600)) expect(contractProblems(nationalBills(row, ctx())), row.id).toEqual([]);
-  });
+  }, WHOLE_REGISTER_MS);
 
   it('leads with stage and introduction, and badges the stage', () => {
     const m = nationalBills(assented, ctx());
@@ -55,7 +59,7 @@ describe('National bills adapter', () => {
       expect(nationalBills(row, ctx()).glance.tiles.some((t) => /passage/i.test(t.label)), row.id).toBe(false);
     }
     expect(checked).toBeGreaterThan(1000);
-  });
+  }, WHOLE_REGISTER_MS);
 
   it('shows no passage figure for a resolved bill, whose stored score is just its outcome', () => {
     const m = nationalBills(assented, ctx());
