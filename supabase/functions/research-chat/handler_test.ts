@@ -2477,3 +2477,27 @@ Deno.test('web search: when the stored override cannot be read, the turn does no
   assertEquals(webFrame(got)?.offered, false);
   assert(provider.seen.every((r) => !r.serverTools));
 });
+
+// Review finding 3: a web step's trace row is written when the step happens, like the other tool
+// steps, so a turn that searched and then failed still shows the search (spec §5).
+Deno.test('web search: a turn that searched and then failed keeps its web_search trace row', async () => {
+  const provider = scripted([
+    [webPages(), finish('stop', searchedUsage)],
+    NO_RESEARCH,
+    [text('{"answer":"Partial answer'), new ProviderError(502, 'upstream reset') as unknown as ModelEvent],
+  ]);
+  const throwing = {
+    stream: async function* (req: StreamRequest) {
+      for await (const e of provider.stream(req)) {
+        if (e instanceof Error) throw e;
+        yield e;
+      }
+    },
+  };
+  const { deps, rec } = fakeDeps(throwing, {}, { findDeskRow: () => Promise.resolve(ROW_ONLY), indexedDocumentKeys: () => Promise.resolve([]) });
+  await frames(await handleResearchChat(post({ ...SELECTED_ROW_ONLY, turn_key: 'web-failed-after' }), deps));
+  assertEquals(rec.messages[0].status, 'error');
+  const web = rec.traces.filter((t) => t.step_type === 'web_search');
+  assertEquals(web.length, 1);
+  assert(web[0].model_call_log_id, 'linked to the call that searched');
+});

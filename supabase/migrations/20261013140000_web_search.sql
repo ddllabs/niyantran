@@ -7,7 +7,7 @@
 --     conversation. NULL means automatic (the server decides from the turn's
 --     scope). The owner may already update their own conversations
 --     (conversations_update, 0002), so this is their own preference and needs
---     no new grant; research-chat also writes it with the service role.
+--     no new grant; research-chat writes it with the reader's own client.
 --   * chat_messages.web_sources: the pages searched for an assistant answer,
 --     at most 20 {url, title, domain, cited}. Readers cannot insert it: the
 --     INSERT column grant from 0013 does not include it.

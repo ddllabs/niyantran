@@ -1711,7 +1711,7 @@ Deno.test('web: with the tool offered, a complete draft from a call that did not
   assertEquals(result.webSearches, 0);
 });
 
-Deno.test('web: the checkpoint keeps the pages and the count across a failover; a call that broke off contributes nothing; the resumed deps decide the offer', async () => {
+Deno.test('web: the checkpoint keeps the pages and the count across a failover; a call that broke off contributes no pages but is charged one search; the resumed deps decide the offer', async () => {
   const f = fake([], {
     webSearch: { perTurn: 3 },
     searchDocuments: () => Promise.resolve([chunk('a')]),
@@ -1727,7 +1727,8 @@ Deno.test('web: the checkpoint keeps the pages and the count across a failover; 
   });
   await assertRejects(() => runAgent(f.deps, input), ProviderError);
   assertEquals(f.deps.checkpoint!.webPages, [page(1)]);
-  assertEquals(f.deps.checkpoint!.webSearches, 1);
+  // Review finding 6: the broken call carried the tool and may have searched (and been billed).
+  assertEquals(f.deps.checkpoint!.webSearches, 2);
   assertEquals(webEvents(f.events).length, 1, 'the broken call emitted no web event');
   // The failover model is gated: web search withdrawn, the turn's pages and count kept.
   const gated = fake([ready(), answer()], {
@@ -1741,7 +1742,7 @@ Deno.test('web: the checkpoint keeps the pages and the count across a failover; 
   assert(gated.requests.every((r) => !('serverTools' in r)));
   assertEquals(evidenceMessages(gated.requests[0]).length, 1, 'page 1 is still carried');
   assertEquals(result.webPages, [page(1)]);
-  assertEquals(result.webSearches, 1);
+  assertEquals(result.webSearches, 2);
   assertEquals(result.searches, 1);
 });
 
@@ -1753,7 +1754,7 @@ Deno.test('web: a resumed turn whose model still allows web search is offered wh
       let n = 0;
       return async function* (req: StreamRequest) {
         f.requests.push(structuredClone({ ...req, signal: undefined }));
-        if (++n === 1) { yield docCall('one'); yield webResults(page(1), page(2)); yield searched(2, 'tool_calls'); return; }
+        if (++n === 1) { yield docCall('one'); yield webResults(page(1), page(2)); yield searched(1, 'tool_calls'); return; }
         throw new ProviderError(503, 'down');
       };
     })(),
@@ -1767,7 +1768,7 @@ Deno.test('web: a resumed turn whose model still allows web search is offered wh
     searchDocuments: () => Promise.resolve([chunk('a')]),
   });
   const result = await runAgent(resumed.deps, input);
-  assertEquals(serverToolsOf(resumed.requests[0]), [webSearchTool(1)], 'two of three used before the failover');
+  assertEquals(serverToolsOf(resumed.requests[0]), [webSearchTool(1)], 'one search reported, one charged to the call that broke off');
   assertEquals('serverTools' in resumed.requests[1], false, 'all three used');
   assertEquals(result.webSearches, 3);
   assertEquals(result.webPages, [page(1), page(2), page(3)]);

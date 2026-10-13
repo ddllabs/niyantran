@@ -56,7 +56,6 @@ import {
   type Pricing,
   type TelemetryDb,
   turnTraceRows,
-  type WebTraceStep,
 } from './telemetry.ts';
 import {
   type ClaimedTurn,
@@ -724,16 +723,18 @@ async function runTurnBody(
   const conversational = isConversational(request.message);
   // 3. Web search (F124, web-search spec §1): decided once, before the first model call, and said
   //    to the reader. Every lookup here is best-effort; none can fail the turn.
-  const web = decideWebSearch({
-    scope: await webScopeOf(deps, request, selectionKey, modules, modulesKnown),
+  const [webScope, webOverride] = await Promise.all([
+    webScopeOf(deps, request, selectionKey, modules, modulesKnown),
     // A failed read falls back to off, not automatic: "off" may be the reader's privacy choice.
-    override: await deps.db.webSearchOverride(conversation.id, request.web_search)
-      .catch(() => request.web_search ?? false),
+    deps.db.webSearchOverride(conversation.id, request.web_search).catch(() => request.web_search ?? false),
+  ]);
+  const web = decideWebSearch({
+    scope: webScope,
+    override: webOverride,
     conversational,
     modelAllowed: webModelAllowed(t.chosen.model_id, t.chosen.params),
   });
   sender.send({ web });
-  const webTrace: WebTraceStep[] = [];
   // Pages searched so far, and the link check every saved text passes (security pass M3): a turn
   // that breaks off or is cancelled saves what it streamed, so that text is checked as well.
   const webSeen: string[] = [];
@@ -868,12 +869,16 @@ async function runTurnBody(
       // A research call that searched the web (spec §4, §5): one ticker step, one trace row.
       const w = e.web;
       webSeen.push(...w.pages.map((p) => p.url));
-      webTrace.push({
-        attemptIndex: attempts.lastAttemptIndex('chat_answer'),
-        searches: w.searches,
-        pagesAdded: w.pages.length,
-        latencyMs: w.latencyMs,
+      // Written now, like the other tool steps, so a turn that fails later keeps it (spec §5). The
+      // round number keeps each call's row distinct.
+      const [traceRow] = turnTraceRows({
+        userId: caller.userId,
+        conversationId: conversation.id,
+        messageId,
+        steps: [],
+        web: [{ attemptIndex: attempts.lastAttemptIndex('chat_answer'), searches: w.searches, pagesAdded: w.pages.length, latencyMs: w.latencyMs }],
       });
+      attempts.addTraces([{ ...traceRow, step_index: rounds }]);
       const step = { name: 'web_search', step: rounds, resultCount: w.pages.length, latencyMs: w.latencyMs, status: 'ok' as const };
       sender.send({ tool: { ...step, phase: 'end' } });
       activity.push({ type: 'tool', ...step, phase: 'end' });
@@ -1147,7 +1152,6 @@ async function runTurnBody(
         conversationId: conversation.id,
         messageId,
         steps: result.steps as TraceStep[],
-        web: webTrace,
         answer: {
           latencyMs: writingEnd && writingStart ? writingEnd - writingStart : 0,
           aborted: signal.aborted,

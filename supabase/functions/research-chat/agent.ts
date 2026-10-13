@@ -186,7 +186,8 @@ export interface AgentResult {
   widened: WidenedScope | null;
   /** The turn's web pages, first seen first, de-duplicated (web-search spec §2). */
   webPages: WebPage[];
-  /** Web searches the provider reported for the turn. */
+  /** Web searches charged to the turn: the provider's counts, plus everything an uncounted call
+   * that returned pages was allowed, plus one for each call that carried the tool and broke off. */
   webSearches: number;
 }
 
@@ -742,6 +743,9 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       if (partial) messages.push({ role: 'assistant', content: partial });
       if (phase === 'answer' && state.text) state.resumeAnswer = true;
       state.finish = 'error';
+      // A call that carried the tool and broke off may have searched, and been billed, before it
+      // did: it is charged one search, so retries cannot run past the turn's budget (review 6).
+      if (webTool) state.webSearches += 1;
       retract('error');
       throw error;
     }
