@@ -1,10 +1,16 @@
 # AI credits (F111)
 
-> **Status: Living.** Owner decisions 2026-10-14, after the
-> [TenderBase review](../research/2026-10-14-ai-credits-reference-review.md).
-> Branch `task/ai-credits-spec`, worktree `.claude/worktrees/ai-credits-spec`.
-> Plan: [plan](../plans/2026-10-14-ai-credits.md). **Awaiting owner approval;
-> no code until then.**
+> **Status: Living.** Owner decisions and approval 2026-10-14. Code starts
+> only on the owner's word to start.
+
+**Related documents**
+
+| Document | What it holds |
+|---|---|
+| [Plan](../plans/2026-10-14-ai-credits.md) | Tasks, agents, checkpoints and progress (the working log) |
+| [ADR 0011](../decisions/0011-per-user-credit-ledger.md) | Why the ledger has this shape |
+| [TenderBase review](../research/2026-10-14-ai-credits-reference-review.md) | What was copied, changed or avoided, and why |
+| [Open work, F111](../plans/open-work.md) | Tracking line |
 
 ## Objective
 
@@ -76,6 +82,19 @@ the payment.
   - The policies say unused credits "remain" (`src/lib/legalPolicies.js:121,163`).
   - Checkout is closed (`BILLING_CHECKOUT_OPEN`).
 - **transcribe-audio** calls a paid model and writes no log row.
+- **Dollars are readable by the user**, though no screen shows them:
+  - `model_call_logs` has an own-rows SELECT policy for `authenticated`, and
+    nothing in `src/` reads it.
+  - `chat_messages.usage` stores the turn's `cost_usd`, and users can select
+    their own messages. The app reads only the reasoning tokens from it.
+- **What answers cost** (production, last 30 days, measured 2026-10-14):
+  - 129 answers in total.
+  - Per answer, in credits: median 21, p90 50, p99 190, maximum 301.
+  - By model (median): Flash-Lite 8, Gemini 3.7 Flash 17, Gemini 3.8 Flash
+    28, Claude Sonnet 5 170.
+  - Embeddings round to zero, and no successful call is missing its cost.
+  - Plus (2,000 credits) is about 95 typical answers, or about 12 on Claude
+    Sonnet 5.
 
 ## Design
 
@@ -91,7 +110,7 @@ the payment.
   | `signup_credits` | 1000 |
   | `signup_valid` | 30 days |
   | `topup_valid` | 12 months |
-  | `hold_credits` | 150 (above the dearest normal turn; checked in plan task 0) |
+  | `hold_credits` | 300 (the dearest answer measured was 301) |
   | `hold_minutes` | 30 |
 
 - **`credit_plan_allowances`** has one row per paid plan with its monthly
@@ -246,6 +265,14 @@ the payment.
   granted to `service_role` only. A fixture checks this as the
   `authenticated` role.
 - **Answer frames.** The answer stream carries credits only, never cost.
+- **Closing today's dollar leaks.**
+  - The migration drops the `authenticated` SELECT on `model_call_logs` and
+    `chat_turn_traces`. Nothing in the app reads them.
+  - research-chat stops writing `cost_usd` and `web_search_cost_usd` into
+    `chat_messages.usage`. The migration removes those two keys from existing
+    rows.
+  - `model_pricing` stays readable, because the model picker uses it and it
+    holds public list prices.
 
 ### 8. What users see
 
@@ -265,6 +292,9 @@ the payment.
   - It shows the balance in credits with the rupee hint ("2,000 credits ·
     ₹200 of AI").
   - It shows a breakdown by expiry, plus credits used this cycle.
+  - It lists recent answers with their credits: date, conversation title and
+    credits. This follows TenderBase's per-turn cost view, without dollars or
+    model rows.
 - **Model picker.** It keeps its cost diamonds; per-model credit estimates
   can come later.
 
@@ -304,6 +334,62 @@ the payment.
    with OpenRouter's bill.
 3. **Enforcement.** The owner sets `CREDITS_ENFORCED=1`.
 
+### 12. Schema and function contracts
+
+This is the interface every later task builds on. The migration may add
+indexes, checks and private helpers, but not change these shapes without a
+spec amendment. Amounts are `numeric(14,4)` credits.
+
+**Tables** (RLS on, no user policies, all privileges revoked from `PUBLIC`,
+`anon` and `authenticated`, including column grants; `service_role` only)
+
+| Table | Key columns and rules |
+|---|---|
+| `credit_settings` | One row (`id boolean PK CHECK (id)`): `usd_to_inr`, `inr_per_credit`, `rollover_pct` (0–100), `signup_credits`, `signup_valid interval`, `topup_valid interval`, `hold_credits`, `hold_minutes`, `updated_at`, `updated_by`. Every change copies the old row to `credit_settings_history` |
+| `credit_plan_allowances` | `plan app_plan PK` (paid plans only), `monthly_credits > 0` |
+| `credit_wallets` | `user_id PK → auth.users ON DELETE CASCADE`, `balance`, `debt ≥ 0`, `cycle_anchor timestamptz null`, `updated_at`. `balance` = sum of usable lot `remaining` − `debt`, kept in step in the same transaction |
+| `credit_lots` | `id uuid PK`, `user_id`, `kind` ∈ signup, monthly, rollover, topup, adjustment; `granted > 0`; `0 ≤ remaining ≤ granted`; `starts_at < expires_at`; `source_key text`, `UNIQUE (user_id, source_key)`; `plan app_plan null`; `created_by uuid null`; `note text null`; `expired_at null` |
+| `credit_ledger` | `id uuid PK`, `user_id`, `kind` ∈ grant, charge, expiry, adjustment; signed `credits`; `lot_id null` (grant, expiry); `message_id uuid null` with a partial unique index on (`message_id`) where `kind = 'charge'`; for charges, `cost_usd`, `usd_to_inr` and `inr_per_credit` as used; `created_by`, `note`, `created_at`. Append-only: an `UPDATE`/`DELETE` trigger raises |
+| `credit_lot_draws` | `ledger_id → credit_ledger`, `lot_id → credit_lots`, `credits > 0`, `created_at`. A charge or a removal may gain draws later, when debt is repaid from a new lot |
+| `credit_holds` | `id uuid PK`, `user_id`, `credits > 0`, `message_id null`, `created_at`, `expires_at`, `settled_at null`, `released_at null`. Active means not settled, not released and not expired |
+
+**Invariants** (each a fixture)
+- `wallet.balance` = sum(`ledger.credits`) for the user.
+- Lot accounting, for each lot: `granted` − `remaining` = draws on it +
+  its expiry entry.
+- `debt` = charges and removals − their draws.
+- No lot is negative, and no grant is negative.
+
+**Cycles and the plan.**
+- An `AFTER INSERT` trigger on `plan_grants` sets
+  `credit_wallets.cycle_anchor`.
+  - When the plan differs from the one active before the grant, the anchor is
+    the grant time.
+  - A same-plan renewal leaves it unchanged.
+  - A grant to Free clears it.
+- Cycle *n* is [anchor + *n* months, anchor + *n*+1 months), clamped to
+  `plan_period_end`.
+- The monthly lot for cycle *n* has `source_key` `monthly:<anchor>:<n>`, and
+  is minted only once its cycle has started.
+- **Mint order.** Each new lot first repays `debt`, in the same transaction,
+  through draws against the oldest charges.
+
+**Functions** (`SECURITY DEFINER`, `SET search_path = ''`)
+
+| Function | Caller | Contract |
+|---|---|---|
+| `reserve_turn_credits(p_user uuid) → jsonb` | service_role | Locks the wallet row (creating it if missing). Settles holds that expired with a message, and releases those without. Mints due lots and expires past ones. Then returns `{ok:true, hold_id, available}`, or `{ok:false, reason:'credits_exhausted', balance}` when `balance − active holds ≤ 0` |
+| `attach_turn_hold(p_hold uuid, p_message uuid) → void` | service_role | Raises unless the hold is active and the message belongs to the hold's user |
+| `release_turn_hold(p_hold uuid) → void` | service_role | Idempotent |
+| `settle_turn_credits(p_hold uuid) → jsonb` | service_role | Returns `{state:'pending'}` while the message is `running`. Otherwise it applies the §3 table to `model_call_logs` rows with that `message_id`, writes at most one charge, marks the hold settled, and returns `{state:'charged'\|'free', credits, balance}`. Idempotent. A message deleted with its conversation is charged from its logs, which have no foreign key and survive |
+| `admin_adjust_credits(p_user, p_credits, p_kind, p_reason, p_admin) → jsonb` | service_role | Takes `p_kind` adjustment or topup and a non-empty reason. A positive amount mints a lot (a top-up valid `topup_valid`, an adjustment for 12 months). A negative amount writes an adjustment entry that draws lots and may create debt |
+| `my_credits() → jsonb` | authenticated | For `auth.uid()` only, minting and expiring first. Returns `{balance, held, debt, plan, cycle:{allowance, ends_at}, lots:[{kind, remaining, expires_at}], recent:[{message_id, conversation_id, title, credits, created_at}]}` (the last 20 charges). No USD, no rate |
+| `my_conversation_credits(p_conversation uuid) → jsonb` | authenticated | `[{message_id, credits}]` for the caller's own conversation, so reloaded answers show their credits |
+
+Every function above is revoked from `PUBLIC` and `anon`, and from
+`authenticated` except the two `my_` functions. A fixture checks this through
+`has_function_privilege` for each role.
+
 ## Acceptance evidence
 
 - **SQL fixtures, run as the non-superuser migrator.** Each fixture is proved
@@ -327,9 +413,21 @@ the payment.
     - Signup is minted once, and expires 30 days after minting.
     - Top-ups expire at 12 months.
     - An expiry writes an entry.
-  - **Privileges and privacy.** `authenticated` and `anon` cannot execute
-    any writing function or read a credit table. `my_credits()` returns no USD
-    field.
+  - **Privileges and privacy.**
+    - `authenticated` and `anon` cannot execute any writing function or read
+      a credit table.
+    - `authenticated` can no longer read `model_call_logs`.
+    - `my_credits()` returns no USD field.
+    - No `chat_messages.usage` keeps a cost key.
+  - **Append-only.** An UPDATE or DELETE on `credit_ledger` raises.
+  - **Deleted conversation.** A turn whose conversation was deleted before
+    settling is still charged from its logs.
+  - **Plan changes.**
+    - An upgrade grant starts a new cycle lot, and the old lot keeps its
+      expiry.
+    - A same-plan renewal keeps the anchor.
+    - A lapse mints no further monthly lot, and its rollover is still
+      minted.
 - **Deno tests (research-chat).**
   - Reserve is called before claim, and a blocked reserve returns 402 with no
     message.

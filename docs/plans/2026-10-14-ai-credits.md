@@ -1,214 +1,316 @@
 # Plan: AI credits (F111)
 
-> **Status: Living.** Implements the [spec](../specs/2026-10-14-ai-credits.md)
-> once the owner approves it. Branch `task/ai-credits-spec` for the documents.
-> Code goes on `task/ai-credits` in its own worktree, branched from `main` when
-> work starts.
+> **Status: Living.** This plan is the working log for F111: progress is
+> ticked here as it happens. It implements the
+> [spec](../specs/2026-10-14-ai-credits.md), approved by the owner on
+> 2026-10-14, and the decision record
+> [ADR 0011](../decisions/0011-per-user-credit-ledger.md).
+> - **Branches.** Code goes on `task/ai-credits`, in worktree
+>   `.claude/worktrees/ai-credits`, branched from `main` when the owner says
+>   start. Concurrent UI tasks get their own worktrees (see the table).
+> - **Start.** Nothing starts before the owner's word to start.
+> - **Production.** Nothing goes to production without the owner's go-ahead
+>   naming the step.
 
-## How the work is split
+## Method
 
-- **Order.** The work is sequential. The database interface is fixed first
-  (task 1), because every later task calls it.
-- **Concurrency.** Tasks 4, 5 and 6 can then run concurrently, because their
-  write scopes do not overlap.
-- **Commits.** Task agents leave work uncommitted. The supervisor reviews,
-  runs every check and commits each task separately.
-- **Production.** Nothing touches production without the owner's go-ahead
-  naming the action.
+- **Skills.** Every task starts with `using-agent-skills`. The supervisor
+  uses:
+  - `planning-and-task-breakdown` (this plan);
+  - `incremental-implementation` and `test-driven-development` (each task);
+  - `security-and-hardening` and `code-review-and-quality` (the reviews);
+  - `git-workflow-and-versioning` (commits).
+- **Order.** The work is sequential by default (coordination protocol).
+  Tasks run concurrently only when their write scopes are disjoint and the
+  spec's §12 contracts already fix their interface.
+- **Dispatch.**
+  - Each task agent gets `docs/agents/onboarding.md` first.
+  - Each dispatch uses the onboarding template: task, this plan, checkout,
+    branch, exclusive write scope and verification.
+  - Agents leave work uncommitted. The supervisor reviews, re-runs every check
+    and commits each task on its own.
+- **The supervisor's own share.** Task 0, task 7 (copy, after the owner's
+  wording approval), every checkpoint, the local runs and all production
+  steps.
 
-## Interfaces fixed before task 2
+| Task | Who | Model | Runs |
+|---|---|---|---|
+| 1 Database | task agent | Opus | alone; everything else depends on it |
+| 1R Security review | `security-auditor` agent | Opus | after 1, before anything calls it |
+| 2a, 2b research-chat | task agent (one agent, two increments) | Opus | after checkpoint A |
+| 3 Dictation log | task agent | Sonnet | alongside 2a/2b, own worktree |
+| 4a, 4b Chat UI | task agent | Sonnet | after checkpoint B, own worktree |
+| 5 Plan & billing | task agent | Sonnet | alongside 4, own worktree |
+| 6 Admin | task agent | Sonnet | alongside 4 and 5, own worktree |
+| 7 Copy | supervisor | — | after the owner approves the wording |
+| R Whole review | `code-reviewer` agent | Opus | before checkpoint C |
 
-All of these are service role only unless marked otherwise.
+At most three agents run at once.
 
-- **`reserve_turn_credits(p_user uuid) → jsonb`**
-  - `{ok: true, hold_id, available}` or
-    `{ok: false, reason: 'credits_exhausted', balance}`.
-  - Settles stale holds and mints due lots first.
-- **`attach_turn_hold(p_hold uuid, p_message uuid) → void`**
-- **`release_turn_hold(p_hold uuid) → void`**: for a replay or a refused
-  claim.
-- **`settle_turn_credits(p_hold uuid) → jsonb`**
-  - Returns `{charged, balance}`, with `charged` in credits.
-  - Idempotent per message.
-- **`admin_adjust_credits(p_user uuid, p_credits numeric, p_kind text,
-  p_reason text, p_admin uuid) → jsonb`**
-  - `p_kind` is `adjustment` or `topup`.
-- **`my_credits() → jsonb`** (authenticated, `auth.uid()`)
-  - Returns `{balance, held, cycle: {allowance, ends_at}, lots: [{kind,
-    remaining, expires_at}], recent: [{message_id, credits}]}`.
-  - Credits only, never USD or a rate.
-- **research-chat 402 body:** `{error, code: 'credits_exhausted', balance}`.
-  The answer's terminal frame gains `credits: number | null`.
+## Progress
+
+- [x] Task 0: answer costs measured (2026-10-14; spec, Current state);
+  `hold_credits` set to 300.
+- [ ] Task 1: database
+- [ ] Review 1R
+- [ ] Checkpoint A
+- [ ] Task 2a: reserve and claim
+- [ ] Task 2b: settle and frames
+- [ ] Task 3: dictation log
+- [ ] Checkpoint B (local run 1)
+- [ ] Task 4a: credits library and composer
+- [ ] Task 4b: per-answer credits
+- [ ] Task 5: Plan & billing
+- [ ] Task 6: admin
+- [ ] Task 7: copy (wording approved by the owner first)
+- [ ] Review R
+- [ ] Checkpoint C (local run 2, screenshots to the owner)
+- [ ] Production steps 1–5 (each on the owner's go-ahead)
 
 ## Tasks
 
-### 0. Measure turn cost (read-only, owner go-ahead needed)
+### 0. Measure answer costs (done)
 
-- **Query.** One read-only query over production `model_call_logs` for the
-  last 30 days, grouped by `message_id`. It reports the cost of each answer
-  at p50, p90, p99 and max, split by model and by web on or off.
-- **Output.** Set `hold_credits` (spec default 150) and record the figures
-  in the spec. The p99 figure is also the deepest a balance should normally
-  go below zero.
-- Email confirmation was already checked on 2026-10-14: production requires
-  it.
+- **What was run.** A read-only aggregate over production `model_call_logs`
+  for 30 days, plus two aggregate counts on `auth.users` for email
+  confirmation. Results are in the spec.
 
-### 1. Migration and SQL fixtures
+### 1. Database (migration and SQL fixtures)
 
 **Write scope**
-- `supabase/migrations/2026101xxxxxxx_ai_credits.sql` (header with F111, the
-  spec link and a Down block).
+- `supabase/migrations/20261015xxxxxx_ai_credits.sql`, with a header naming
+  F111, the spec link and a Down block.
 - `supabase/tests/ai_credits.sql`.
 - Its registration in `supabase/tests/run.sh`.
 
-**Steps** (each fixture written first and run to fail)
-1. Tables:
-   - `credit_settings` (one row), `credit_plan_allowances`;
-   - `credit_lots`, `credit_ledger`, `credit_lot_draws`, `credit_wallets`,
-     `credit_holds`.
-   - Every table has RLS on with no user policies, and SELECT revoked from
-     `anon` and `authenticated`.
-2. Internal helpers: mint due lots, expire lots, draw in expiry order, and
-   settle one hold. Each takes the wallet row lock.
-3. The interface functions above, with fixed `search_path`, revoked from
-   `PUBLIC`, `anon` and `authenticated`, and granted per the interface list.
-4. The fixtures listed in the spec's acceptance evidence, including the
-   privilege checks run as `authenticated`.
+**Builds**
+- Spec §12: the tables, invariants, functions and privileges.
+- The `plan_grants` trigger.
+- The dollar-leak closure in §7:
+  - revoke `authenticated` SELECT on `model_call_logs` and
+    `chat_turn_traces`;
+  - remove the cost keys from `chat_messages.usage`.
+- Seeds:
+  - `credit_settings` (95, 0.10, 10, 1000, 30 days, 12 months, 300,
+    30 minutes);
+  - `credit_plan_allowances` (plus 2000, pro 6500, max 75000).
+
+**Acceptance criteria**
+- Every fixture in the spec's acceptance list passes as the non-superuser
+  migrator.
+- The runner's vacuity check fails it without the migration.
+- `has_function_privilege` holds for `anon`, `authenticated` and
+  `service_role` on every function.
 
 **Verify**
-- `npm run test:sql`, including the vacuity check.
+- `npm run test:sql`.
+
+**TenderBase reference** (read only;
+`DDL Labs codebase/tenderbase-onboard/supabase/migrations/`)
+- **The gate pattern.** `20260905211310` (`check_credit_cap`) for the order
+  of checks. Do **not** copy its missing caller check.
+- **Reservation against in-flight work.** `20260905170938`
+  (`check_ingestion_credit_serialised`) for reserving against in-flight work
+  under a lock. Do **not** copy its `p_org IS NULL → not blocked` (fail open).
+- **Cycle maths.** `20260817191203` and `20260817202411`
+  (`ensure_org_credit_period`) for the cycle maths. Do **not** copy the
+  negative grant, the 10%-of-grant rollover (ours is 10% of the leftover) or
+  the hourly cron.
 
 ### Checkpoint A
 
-- Fixtures pass.
-- The supervisor reviews the SQL with a security pass (`security-auditor`)
-  before any code calls it.
+- Task 1's fixtures pass.
+- Review 1R (`security-auditor`) has read the migration against spec §7 and
+  §12, and every finding is fixed or answered.
+- The supervisor re-runs `npm run test:sql`.
 
-### 2. research-chat: reserve and settle
+### 2a. research-chat: reserve before claim
 
 **Write scope**
 - `supabase/functions/research-chat/handler.ts`, `index.ts`,
   `persistence.ts` and their tests.
-- `supabase/functions/_shared/chatStream.ts` and its test.
 
-**Steps** (tests first)
-1. Reserve runs before claim. A blocked reserve returns 402
-   `credits_exhausted`, and no message is created. A reserve error returns
-   503.
-2. `CREDITS_ENFORCED` unset means shadow: a blocked reserve is logged and
-   the turn runs.
-3. After the claim, the hold is attached. A replay releases it.
-4. After the telemetry flush, settle runs, bounded like the flush. Its
-   result goes into the terminal frame when the stream is still open. A
-   settle error is logged and never fails the turn.
+**Acceptance criteria**
+- `reserve_turn_credits` runs before `claim_research_turn`.
+- **Blocked.** A blocked reserve returns 402
+  `{error, code:'credits_exhausted', balance}` and creates no message.
+- **Error.** A reserve error returns 503, so the gate never fails open.
+- **Shadow.** `CREDITS_ENFORCED` unset means shadow: a blocked reserve is
+  logged and the turn runs.
+- **Claim.** After the claim, the hold is attached. A replay or a refused
+  claim releases it.
 
 **Verify**
 - `deno test -A --config supabase/functions/deno.json supabase/functions`.
 
-### 3. transcribe-audio cost log
+### 2b. research-chat: settle, frames and no dollars in messages
+
+**Write scope**
+- `supabase/functions/research-chat/handler.ts`, `telemetry.ts` and their
+  tests.
+- `supabase/functions/_shared/chatStream.ts` and its test.
+
+**Acceptance criteria**
+- **Settle.** `settle_turn_credits` runs after the telemetry flush, bounded
+  like the flush. A settle error is logged and never fails the turn.
+- **Frame.** The terminal frame carries `credits` (a number, or null when
+  unsettled).
+- **No dollars.** The `usage` saved on `chat_messages` has no `cost_usd` or
+  `web_search_cost_usd`.
+- **Order.** A test proves the settle happens after the flush. A Stop test
+  proves only finished rounds are charged.
+
+**Verify**
+- The Deno suite.
+
+**TenderBase reference.** Its talk-to-tender logs only the last round
+(review §4.1). Our recorder already logs every attempt; keep it that way.
+
+### 3. Dictation cost log (concurrent with 2a/2b)
 
 **Write scope**
 - `supabase/functions/transcribe-audio/handler.ts`, `index.ts` and
   `handler_test.ts`.
 
-**Steps**
-- One `model_call_logs` row per call (`caller 'transcribe-audio'`), never
-  charged.
+**Acceptance criteria**
+- One `model_call_logs` row per call (`caller 'transcribe-audio'`), with
+  cost when OpenRouter reports it.
+- A log failure never fails the dictation.
+- It is never charged.
 
 **Verify**
 - The Deno suite.
 
-### Checkpoint B
+### Checkpoint B (local run 1, on a scratch Supabase stack)
 
-- Both test suites pass.
-- Local run 1 on a scratch Supabase stack:
-  - reserve and settle;
-  - a balance going negative, and being repaid from the next lot;
-  - Stop charges the part used;
-  - an error charges nothing;
-  - two tabs at a low balance.
-- Spend under $0.25.
+- **Turns run.** Real OpenRouter turns:
+  - a normal answer;
+  - Stop midway;
+  - a forced error;
+  - two tabs on a low balance;
+  - a balance taken negative, then repaid by an admin grant.
+- **Checks.** Each charge equals logged cost × 950 (to 4 decimals). The ledger
+  sums to the balance.
+- **Spend.** Under $0.40 of the $1.00 test budget.
 
-### 4. Credits in the answer and the composer
+### 4a. Credits library and composer
 
 **Write scope**
-- `src/ai/AiPanel.jsx`, `ChatSubmit.jsx` and `MessageRow.jsx`.
-- `src/ai/useResearchThread.js`.
-- A new `src/ai/CreditBalance.jsx` and `src/lib/credits.js` (calls
-  `my_credits`, formats credits and the rupee hint).
-- The matching tests and CSS.
+- New `src/lib/credits.js` and `src/ai/CreditBalance.jsx`.
+- `src/ai/ChatSubmit.jsx` and `src/ai/AiPanel.jsx`.
+- Their tests and CSS.
 
-**Steps**
-- Balance chip.
-- Low-balance warning.
-- Blocked state with Upgrade or Buy credits.
-- Per-answer credits, including "No credits used".
+**Acceptance criteria**
+- `credits.js` calls `my_credits` and formats credits and the rupee hint
+  (credits × 0.10).
+- **Balance chip.** It shows next to the chat box, including a negative
+  balance with "taken from your next credits".
+- **Warning.** The low-balance warning shows at 10% of the allowance.
+- **Blocked state.** The 402 state shows the balance plus Upgrade and Buy
+  credits, which open Plan & billing.
 
-### 5. Plan & billing panel
+### 4b. Credits on each answer
+
+**Write scope**
+- `src/ai/MessageRow.jsx`, `src/ai/useResearchThread.js` and
+  `src/lib/researchChat.js`.
+- Their tests.
+
+**Acceptance criteria**
+- **Finished answers.** A finished answer shows its credits from the frame,
+  and from `my_conversation_credits` after reload.
+- **Failed answers** say "No credits used".
+- **Stopped answers** show what they were charged.
+
+### 5. Plan & billing (concurrent with 4)
 
 **Write scope**
 - `src/shell/PlanBilling.jsx` and its tests.
 
-**Steps**
-- Balance, rupee hint, a breakdown by expiry, and credits used this cycle.
+**Acceptance criteria**
+- Balance with the rupee hint.
+- Lots by expiry.
+- This cycle's use.
+- Recent answers with credits.
 - "Top-ups coming soon" while checkout is closed.
+- No dollars anywhere.
 
-### 6. Admin balance and adjustment
+**TenderBase reference**
+- `src/components/storage/AiUsageCard.tsx` for the layout of used and left.
+- `AiActivityTurnTable.tsx` for credits first, rupees second. We list answers
+  only: no model rows and no dollars.
+
+### 6. Admin (concurrent with 4 and 5)
 
 **Write scope**
-- `server/usersApi.mjs`, `src/admin/AdminPages.jsx` and their tests.
+- `server/usersApi.mjs` and `src/admin/AdminPages.jsx`.
+- Their tests.
 
-**Steps**
-- Show each user's balance.
-- Grant or remove credits, or grant a top-up, with a reason. The ledger
-  records the admin.
+**Acceptance criteria**
+- **Balance.** The Users page shows each user's balance.
+- **Adjustment.** An admin can grant credits, remove credits or grant a
+  top-up, with a required reason. This goes through the existing admin check,
+  then `admin_adjust_credits`.
+- **Errors** are shown plainly.
 
 **Verify**
-- Router import check.
+- Router import check:
+  `node -e "import('./api/router.js').then(() => console.log('router import ok'))"`.
 - Vitest.
 
-### 7. Pricing and policy copy (owner approves the text first)
+### 7. Pricing and policy copy (supervisor)
 
 **Write scope**
 - `src/lib/publicPlans.js`, `src/lib/legalPolicies.js` and their tests.
 
 **Steps**
-- The supervisor drafts the wording in the spec.
-- The owner approves it.
-- Then it is applied.
+1. The wording is drafted in the spec.
+2. The owner approves it.
+3. It is applied.
+
+**Acceptance criteria**
+- No page still says "unused credits carry forward" or "remain".
+- The credit amounts match `credit_plan_allowances`.
+
+### Review R
+
+- A `code-reviewer` agent reads the whole branch diff against the spec.
+  - Correctness, security, simplicity and tests.
+  - Findings are fixed or answered before checkpoint C.
 
 ### Checkpoint C (before any production step)
 
-- `npm run lint`, `npm run build`, `npm test`, the Deno suite and
-  `npm run test:sql` all pass.
-- The router import check passes.
-- Local run 2, end to end in the browser:
-  - a Free user spends the signup grant and is blocked;
+- **Checks.** These all pass: `npm run lint`, `npm run build`, `npm test`,
+  the Deno suite, `npm run test:sql` and the router import.
+- **Local run 2, end to end in the browser:**
+  - a Free user spends the grant and is blocked;
   - an admin grants a top-up;
-  - a Plus user crosses a cycle, and the rollover is correct.
-- The owner reviews screenshots.
+  - a Plus user crosses a cycle with the correct rollover;
+  - phone and desktop widths.
+- **Owner review.** Screenshots go to the owner.
 
-### 8. Production, each step on the owner's go-ahead
+### Production (each step on the owner's go-ahead)
 
 1. Apply the migration.
 2. Deploy `research-chat` and `transcribe-audio` in shadow mode.
 3. Push `main` (Vercel).
-4. Shadow week: check that each answer's charge matches its logged cost.
-   Record this in `docs/agents/coordination.md`.
-5. The owner sets `CREDITS_ENFORCED=1`, and the function is redeployed.
+4. Shadow week: each answer's charge matches its logged cost. Record this in
+   `docs/agents/coordination.md`.
+5. The owner sets `CREDITS_ENFORCED=1`, and `research-chat` is redeployed.
 
 **Rollback**
-- Unset `CREDITS_ENFORCED`. This restores the old behaviour with no
-  migration rollback.
+- Unset `CREDITS_ENFORCED`. Turns then run unblocked, and no migration is
+  undone.
 - The migration's Down block drops only the new objects.
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| A wallet lock slows every turn | One indexed row lock per reserve and settle; measured in local run 1 |
-| A balance goes deep below zero | The hold allows one answer at a time when low; task 0 measures the dearest answer |
+| The wallet lock slows turns | One indexed row lock per reserve and settle; timed in local run 1 |
+| A balance goes deep below zero | Hold 300 credits ≥ the dearest measured answer; one answer at a time when low |
 | Free users leave debt unpaid | At most one answer's cost each; they are then blocked |
-| Charges drift from OpenRouter's bill | Shadow week comparison; the rate is a database setting |
+| Charges drift from OpenRouter's bill | Shadow-week comparison; the rate is a database setting |
 | Repeated Free sign-ups | ₹100 each; production requires a confirmed email |
-| The copy promises the old rule | Task 7 lands with the rest, before enforcement |
+| The copy still promises the old rule | Task 7 lands with the rest, before enforcement |
+| Expensive models drain credits fast (Claude Sonnet 5: about 12 answers on Plus) | The model picker's cost diamonds stay. Per-model credit estimates are a follow-up if users are surprised |

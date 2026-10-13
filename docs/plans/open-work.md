@@ -499,9 +499,14 @@ rechecked. Nothing in this check wrote to production.
     Take its log-then-trigger ledger; avoid its defects (last-round-only
     billing, broken renewal after overspend, free stopped turns, no chat
     reservation).
-  - 2026-10-14: owner decisions taken. The
-    [spec](../specs/2026-10-14-ai-credits.md) and
-    [plan](../plans/2026-10-14-ai-credits.md) await approval.
+  - 2026-10-14: owner decisions taken; the
+    [spec](../specs/2026-10-14-ai-credits.md),
+    [plan](../plans/2026-10-14-ai-credits.md) (the working log, with
+    progress) and [ADR 0011](../decisions/0011-per-user-credit-ledger.md)
+    are approved.
+    - Code starts on the owner's word.
+    - Task 0 is done: the median answer costs 21 credits, and the dearest
+      301.
     - 1 credit = 10 paise of AI cost.
     - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
       month.
