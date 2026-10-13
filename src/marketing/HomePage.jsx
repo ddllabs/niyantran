@@ -4,11 +4,25 @@ import { PERSONAS } from '../lib/personas.js';
 import BillAiDropDemo from './BillAiDropDemo.jsx';
 import SegmentCarousel from './SegmentCarousel.jsx';
 import NterLatestRail from './NterLatestRail.jsx';
-import AuthEarth from './AuthEarth.jsx';
+import { openGlobeDestination } from './globeDestinations.js';
+import { deskHash } from '../lib/deskRoute.js';
+import { sessionUser } from '../lib/userStore.js';
+import './nterGlobe.css';
+import './homeHero.css';
 import { SITE_FIGURES, figure } from '../lib/siteFigures.js';
 
-/** Provisional CR hook line — replace when client finalises. */
-const HOOK = 'See what a record touches — before you argue about it.';
+/**
+ * F140: the design's "Curated for" strip: our six personas (src/lib/personas.js), in its order,
+ * labels and icon tiles. Each opens that persona in the personas section.
+ */
+const CURATED = [
+  { id: 'policy', lines: ['Policy', 'Analysts'], glyph: '⌑', tone: 'blue' },
+  { id: 'journalist', lines: ['Journalists'], glyph: '▤', tone: 'red' },
+  { id: 'student', lines: ['UPSC', 'Aspirants'], glyph: '▥', tone: 'sand' },
+  { id: 'analyst', lines: ['Corporate', 'Affairs'], glyph: '▥', tone: 'blue' },
+  { id: 'lawyer', lines: ['Legal', 'Researchers'], glyph: '§', tone: 'purple' },
+  { id: 'academic', lines: ['Academics'], glyph: '◎', tone: 'sand' },
+];
 
 function Ico({ d, size = 18, stroke = 'currentColor' }) {
   return (
@@ -196,12 +210,11 @@ const DESKS = [
 ];
 
 export default function HomePage({ onLogin, onCoverage, onPricing }) {
-  const heroRef = useRef(null);
+  const globeRef = useRef(null);
   const videoRef = useRef(null);
   const [deskId, setDeskId] = useState('legislative');
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(0);
-  const [heroPersona, setHeroPersona] = useState(null);
   const [activePersona, setActivePersona] = useState(0);
   const [introVideo, setIntroVideo] = useState(() => emptyIntroVideo());
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -235,17 +248,31 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
     setPicked(0);
   }
 
-  function onHeroMove(e) {
-    const el = heroRef.current;
-    if (!el) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / Math.max(1, r.width);
-    const y = (e.clientY - r.top) / Math.max(1, r.height);
-    el.style.setProperty('--mx', `${(x * 100).toFixed(2)}%`);
-    el.style.setProperty('--my', `${(y * 100).toFixed(2)}%`);
-    el.style.setProperty('--px', `${((x - 0.5) * 12).toFixed(2)}px`);
-    el.style.setProperty('--py', `${((y - 0.5) * 8).toFixed(2)}px`);
+  // The globe is a custom element; its module loads after first paint, as AuthEarth's scene does.
+  // A label opens its desk or module (globeDestinations.js). The homepage is shown signed out, so the
+  // visitor signs in first; a signed-in session (as on Pricing) goes straight there.
+  const loginRef = useRef(onLogin);
+  loginRef.current = onLogin;
+  useEffect(() => {
+    import('./nterGlobe.js').catch(() => {});
+    const el = globeRef.current;
+    if (!el) return undefined;
+    const onSelect = (e) => {
+      openGlobeDestination(e.detail?.key, {
+        storage: sessionStorage,
+        signedIn: sessionStorage.getItem('niyantranAuthed') === '1' && Boolean(sessionUser()),
+        onLogin: () => loginRef.current?.(),
+        navigate: (tab, feature) => { location.hash = deskHash(tab, feature); },
+      });
+    };
+    el.addEventListener('data-select', onSelect);
+    return () => el.removeEventListener('data-select', onSelect);
+  }, []);
+
+  function openPersona(id) {
+    const i = PERSONAS.findIndex((p) => p.id === id);
+    if (i >= 0) setActivePersona(i);
+    document.getElementById('personas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function openWalkthrough() {
@@ -256,88 +283,54 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
 
   return (
     <>
-      <section className="mkt-hero" ref={heroRef} onMouseMove={onHeroMove}>
-        <div className="mkt-hero-scene" aria-hidden="true">
-          <span className="mkt-hero-backdrop" />
-          <span className="mkt-pr-scan" />
-          <span className="mkt-pr-gridlines mkt-hero-gridlines" />
-          <span className="mkt-pr-sh navy" />
-          <span className="mkt-pr-sh sand" />
-          <span className="mkt-pr-sh purple" />
-          <span className="mkt-pr-sh red" />
-          <span className="mkt-hero-spot" />
-        </div>
-        <div className="mkt-wrap mkt-hero-inner">
-          <div className="mkt-hero-copy">
-            <p className="mkt-kicker">
-              <span className="live">● LIVE</span>
-              <span className="mid">RESEARCH TERMINAL</span>
-              <span className="sys">SYS/READY_</span>
-            </p>
-            <h1>
-              The Intelligence Layer for <em className="gov">Government</em>, <em className="pol">Policy</em> &amp; Global Affairs.
+      {/* F140 (client design, owner 2026-10-13): the design's hero on white, our figures and links. */}
+      <section className="nd-hero-shell">
+        <div className="nd-hero nd-container" aria-labelledby="nd-hero-title">
+          <div className="nd-hero-copy">
+            <p className="nd-eyebrow"><span className="nd-spark" aria-hidden="true">✳</span> THE RESEARCH TERMINAL</p>
+            <h1 id="nd-hero-title">
+              The intelligence<br /> layer for <span className="nd-blue">Government,</span><br />
+              <span className="nd-purple">Policy</span> &amp;<br />Global Affairs<span className="nd-red">.</span>
             </h1>
-            <p className="mkt-hook">{HOOK}</p>
-            <p className="mkt-lede">
+            <p className="nd-promise">See what a record touches —<br />before you argue about it.</p>
+            <p className="nd-description">
               Official sources across legislation, fronts, markets, carbon and the courts — with every
               connection labelled. Investigate the record without leaving the desk.
             </p>
-            <div className="mkt-hero-tele">
-              <span>
-                <i />
-                MODULES {SITE_FIGURES.modules}
-              </span>
-              <span>
-                <i />
-                BILLS {figure(SITE_FIGURES.bills)}
-              </span>
-              <span>
-                <i />
-                DOCUMENTS {figure(SITE_FIGURES.documents)}
-              </span>
-              <span className="blink">▌</span>
-            </div>
-            <div className="mkt-hero-actions">
-              <button type="button" className="mkt-cta" onClick={onLogin}>
-                Open the terminal
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
+            <div className="nd-actions">
+              <button type="button" className="nd-btn nd-btn-primary" onClick={onLogin}>
+                Open the terminal <span aria-hidden="true">↗</span>
               </button>
-              <button type="button" className="mkt-cta ghost" onClick={onPricing}>
+              <button type="button" className="nd-btn nd-btn-secondary" onClick={onPricing}>
                 See plans
               </button>
-              <button type="button" className="mkt-cta ghost" onClick={onCoverage}>
-                View Data Coverage
-              </button>
+            </div>
+            <button type="button" className="nd-coverage-link" onClick={onCoverage}>
+              View data coverage <span aria-hidden="true">↓</span>
+            </button>
+            <div className="nd-metrics" aria-label="Research coverage snapshot">
+              <div><strong>{figure(SITE_FIGURES.bills)}</strong><span>Bills on record</span></div>
+              <div><strong>{SITE_FIGURES.modules}</strong><span>Research modules</span></div>
+              <div><strong>{SITE_FIGURES.endpoints}</strong><span>Source endpoints</span></div>
             </div>
           </div>
-          <div className="mkt-orb-wrap" aria-hidden="false">
-            <div className="mkt-orb-layer">
-              <div className="mkt-home-earth"><AuthEarth labels={false} /></div>
+          <div className="nd-globe-column">
+            <div className="nter-globe-scene">
+              <nter-data-globe ref={globeRef} />
             </div>
-            {PERSONAS.map((p, i) => (
-              <button
-                type="button"
-                key={p.id}
-                className={`mkt-pchip c${i + 1} tone-${p.tone}${heroPersona === p.id ? ' on' : ''}`}
-                onMouseEnter={() => setHeroPersona(p.id)}
-                onMouseLeave={() => setHeroPersona(null)}
-                onFocus={() => setHeroPersona(p.id)}
-                onBlur={() => setHeroPersona(null)}
-                onClick={onLogin}
-                aria-expanded={heroPersona === p.id}
-              >
-                <i>
-                  <Ico d={p.d} size={14} />
-                </i>
-                <span className="lab">{p.label}</span>
-                <span className="gets">
-                  {p.gets.map((g) => (
-                    <em key={g}>{g}</em>
-                  ))}
-                </span>
-              </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="nd-curated" aria-labelledby="nd-curated-title">
+        <div className="nd-curated-bar nd-container">
+          <h2 id="nd-curated-title">CURATED<br /> FOR</h2>
+          <div className="nd-audience">
+            {CURATED.map((c) => (
+              <a key={c.id} href="#personas" onClick={(e) => { e.preventDefault(); openPersona(c.id); }}>
+                <span className={`nd-audience-icon ${c.tone}`} aria-hidden="true">{c.glyph}</span>
+                <span>{c.lines[0]}{c.lines[1] && <><br />{c.lines[1]}</>}</span>
+              </a>
             ))}
           </div>
         </div>
@@ -625,7 +618,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
         </div>
       </section>
 
-      <section className="mkt-personas" aria-labelledby="mkt-personas-title">
+      <section className="mkt-personas" id="personas" aria-labelledby="mkt-personas-title">
         <div className="mkt-wrap">
           <div className="mkt-personas-head">
             <div className="mkt-personas-lead">

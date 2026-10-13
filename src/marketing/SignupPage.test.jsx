@@ -35,7 +35,7 @@ beforeEach(() => {
   fake.refresh.mockResolvedValue(null);
   fake.signUp.mockResolvedValue({ data: { session: { user: { id: 'u1' } } }, error: null });
   vi.stubGlobal('location', { hash: '#/signup?plan=enterprise' });
-  vi.stubGlobal('sessionStorage', { setItem: vi.fn(), getItem: () => null });
+  vi.stubGlobal('sessionStorage', { setItem: vi.fn(), getItem: () => null, removeItem: vi.fn() });
   vi.stubGlobal('localStorage', { getItem: () => null });
   vi.stubGlobal('FormData', class { constructor(target) { this.target = target; } get(key) { return this.target[key]; } });
 });

@@ -15,3 +15,13 @@ Existing Global banner image serves as fallback and is not modified.
 
 Credited on the site in the marketing footer (MarketingSite.jsx), linking the
 source and the licence.
+
+# Homepage globe (nterGlobe.js)
+
+- fallback.jpg: NASA Earth Observatory / Robert Simmon, "Blue Marble — Eastern Hemisphere",
+  using Suomi NPP VIIRS imagery from NOAA. Shown as the still Earth when WebGL is unavailable.
+  Source: https://science.nasa.gov/resource/blue-marble-eastern-hemisphere/
+- The day, clouds and oceans textures above are byte-identical to the ones embedded in the
+  client-approved globe package, so the homepage globe uses these files directly.
+- Orbital paths are decorative and their speeds are illustrative, not measured data or
+  real-time planetary speeds.
