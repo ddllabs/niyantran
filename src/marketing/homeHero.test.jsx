@@ -53,4 +53,15 @@ describe('homepage hero', () => {
     expect(names).toEqual(['Policy Analysts', 'Journalists', 'UPSC Aspirants', 'Corporate Affairs', 'Legal Researchers', 'Academics']);
     expect(html).toMatch(/<section class="mkt-personas" id="personas"/);
   });
+
+  // F145: the walkthrough backdrop was a 34 MB animated GIF loaded with the page; it is now a small
+  // still that loads when scrolled near, keeping the slow CSS spin.
+  it('backs the walkthrough with a small lazy still, not the 34 MB GIF', async () => {
+    const { statSync } = await import('node:fs');
+    expect(html).not.toContain('globe.gif');
+    const bg = html.match(/<span class="mkt-walk-video-bg"[^>]*>(.*?)<\/span>/)[1];
+    expect(bg).toMatch(/<img src="\/brand\/walkthrough-globe\.webp" alt="" loading="lazy" decoding="async"\/>/);
+    expect(statSync(new URL('../../public/brand/walkthrough-globe.webp', import.meta.url)).size).toBeLessThan(40 * 1024);
+  });
 });
+
