@@ -5,6 +5,7 @@ import { createHandleAssigner } from '../_shared/handles.ts';
 import { type ModelEvent, ProviderError, type StreamRequest } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
 import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
+import { WEB_SEARCHES_PER_TURN, type WebPage, webEvidenceBlock, webSearchTool } from '../_shared/webSearch.ts';
 import {
   foundOf,
   type AgentDeps,
@@ -1510,4 +1511,238 @@ Deno.test('document continuation preserves bounded section context from chunking
   assert(header.includes('Clause 2 \\| text'));
   assert(!header.includes('x'.repeat(201)));
   assertEquals(renderChunk('h', { ...passage, section: undefined }), `h | Bill | \n${last.content}`);
+});
+
+// ---- web-search spec §2 (F124): the server tool on research calls only, the provider's count,
+// pages carried forward as untrusted evidence, and no answer shortcut for a call that searched.
+
+const page = (n: number): WebPage => ({ url: `https://example.org/${n}`, title: `Page ${n}`, excerpt: `Excerpt ${n}` });
+const webResults = (...pages: WebPage[]): ModelEvent => ({ type: 'web-results', pages });
+/** A finish whose usage is the normalised shape streamChat reports after a call that searched. */
+const searched = (requests: number | null, reason = 'stop', cost?: number): ModelEvent => ({
+  type: 'finish',
+  reason,
+  usage: {
+    prompt_tokens: 2,
+    completion_tokens: 3,
+    total_tokens: 5,
+    ...(cost === undefined ? {} : { cost, upstream_inference_cost: 0.001 }),
+    ...(requests === null ? {} : { web_search_requests: requests }),
+  },
+  served: 'served-model',
+  generationId: 'generation',
+});
+const serverToolsOf = (r: StreamRequest) => r.serverTools as ReturnType<typeof webSearchTool>[] | undefined;
+const webEvents = (events: AgentEvent[]) => events.filter((e) => 'web' in e).map((e) => (e as Extract<AgentEvent, { web: unknown }>).web);
+const evidenceMessages = (r: StreamRequest) => r.messages.filter((m) => m.role === 'user' && m.content?.startsWith('Web results ('));
+
+Deno.test('web: each research call carries the server tool with the remaining budget; it is withdrawn at zero and never on the answer call', async () => {
+  const f = fake([
+    [docCall('one'), webResults(page(1)), searched(1, 'tool_calls')],
+    [docCall('two'), webResults(page(2)), searched(2, 'tool_calls')],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: WEB_SEARCHES_PER_TURN }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 4);
+  assertEquals(serverToolsOf(f.requests[0]), [webSearchTool(3)]);
+  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(2)], 'one search used');
+  assertEquals('serverTools' in f.requests[2], false, 'three used: withdrawn');
+  assertEquals(f.requests[3].tool_choice, 'none');
+  assertEquals('serverTools' in f.requests[3], false, 'never on the answer call');
+  assertEquals(f.requests[2].tools, f.requests[0].tools, 'the function tools are unchanged');
+  assertEquals(result.webSearches, 3);
+  assertEquals(result.webPages, [page(1), page(2)]);
+  assertEquals(result.searches, 2, 'web searches are not record searches');
+});
+
+Deno.test('web: with web search not offered, no call carries the server tool', async () => {
+  for (const webSearch of [undefined, null]) {
+    const f = fake([[docCall(), finish('tool_calls')], ready(), answer()], {
+      searchDocuments: () => Promise.resolve([chunk('a')]),
+      ...(webSearch === undefined ? {} : { webSearch }),
+    });
+    const result = await runAgent(f.deps, input);
+    assertEquals(f.requests.length, 3);
+    assert(f.requests.every((r) => !('serverTools' in r)), String(webSearch));
+    assertEquals(webEvents(f.events), []);
+    assertEquals(result.webPages, []);
+    assertEquals(result.webSearches, 0);
+  }
+});
+
+Deno.test('web: a call that searched emits one web event after its finish, with the new pages, the provider count, the cost and the call latency', async () => {
+  let time = 100;
+  const f = fake([
+    [docCall(), webResults(page(1), page(2)), searched(1, 'tool_calls', 0.015)],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]), now: () => time += 5 });
+  await runAgent(f.deps, input);
+  const web = webEvents(f.events);
+  assertEquals(web.length, 1, 'the two calls that did not search emit nothing');
+  assertEquals(web[0].pages, [page(1), page(2)]);
+  assertEquals(web[0].searches, 1);
+  assertEquals(web[0].costUsd, 0.014, 'cost minus the model share, as the probes measured');
+  assert(web[0].latencyMs > 0 && web[0].latencyMs < 100, `latency of that call: ${web[0].latencyMs}`);
+  const keys = f.events.map((e) => Object.keys(e)[0]);
+  assertEquals(keys.indexOf('web'), keys.indexOf('finish') + 1, 'after the call it accounts for');
+});
+
+Deno.test('web: without a provider count, pages returned count as one search - a floor, never a guess upward', async () => {
+  const f = fake([
+    [docCall('one'), webResults(page(1), page(2), page(3)), searched(null, 'tool_calls')],
+    [docCall('two'), webResults(page(4)), searched(0, 'tool_calls')],
+    [docCall('three'), searched(null, 'tool_calls')],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  const web = webEvents(f.events);
+  assertEquals(web.map((w) => [w.searches, w.costUsd, w.pages.length]), [[1, 0.007, 3], [0, 0, 1]]);
+  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(2)]);
+  assertEquals(serverToolsOf(f.requests[2]), [webSearchTool(2)], 'a reported zero with pages is zero');
+  assertEquals(result.webSearches, 1);
+  assertEquals(result.webPages.length, 4);
+});
+
+Deno.test('web: pages are carried into the next call as one untrusted user message, after the tool replies; only new pages are carried', async () => {
+  const f = fake([
+    [docCall('one'), webResults(page(1)), searched(1, 'tool_calls')],
+    [docCall('two'), webResults(page(1), page(2)), searched(1, 'tool_calls')],
+    [docCall('three'), searched(0, 'tool_calls')],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: 3 }, searchDocuments: () => Promise.resolve([chunk('a')]) });
+  const result = await runAgent(f.deps, input);
+  const second = f.requests[1].messages.slice(-3);
+  assertEquals(second.map((m) => m.role), ['assistant', 'tool', 'user']);
+  assertEquals(second[0].tool_calls?.map((c) => c.id), ['one']);
+  assertEquals(second[2].content, webEvidenceBlock([page(1)]));
+  const third = f.requests[2].messages.slice(-3);
+  assertEquals(third.map((m) => m.role), ['assistant', 'tool', 'user']);
+  assertEquals(third[2].content, webEvidenceBlock([page(2)]), 'page 1 was already carried');
+  assertEquals(evidenceMessages(f.requests[2]).length, 2, 'earlier blocks stay in the transcript');
+  assertEquals(evidenceMessages(f.requests[3]).length, 2, 'a call that added nothing carries nothing');
+  assertEquals(webEvents(f.events).map((w) => w.pages), [[page(1)], [page(2)]]);
+  assertEquals(result.webPages, [page(1), page(2)]);
+  assertEquals(result.webSearches, 2);
+});
+
+Deno.test('web: a web search is not a record search - the no-search press still fires, and the evidence precedes it', async () => {
+  const f = fake([
+    [webResults(page(1)), searched(1)],
+    ready(),
+    answer(),
+  ], { webSearch: { perTurn: 3 } });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3);
+  const tail = f.requests[1].messages.slice(-2);
+  assertEquals(tail.map((m) => m.role), ['user', 'user']);
+  assertEquals(tail[0].content, webEvidenceBlock([page(1)]));
+  assert(String(tail[1].content).includes('You have not searched'));
+  assertEquals(serverToolsOf(f.requests[1]), [webSearchTool(2)], 'the pressed call is research and still offered the tool');
+  assertEquals(result.searches, 0);
+  assertEquals(result.webSearches, 1);
+  assertEquals(f.requests[2].tool_choice, 'none');
+  assertEquals('serverTools' in f.requests[2], false, 'budget left, and still never on the answer call');
+  assertEquals(evidenceMessages(f.requests[2]).length, 1, 'the answer phase sees the evidence');
+});
+
+for (
+  const [name, events] of [
+    ['reported a search and returned pages', [{ type: 'text', text: draft() }, webResults(page(1)), searched(1)]],
+    ['returned pages without a count', [{ type: 'text', text: draft() }, webResults(page(1)), searched(null)]],
+    ['reported a search without pages', [{ type: 'text', text: draft() }, searched(1)]],
+  ] as [string, ModelEvent[]][]
+) {
+  Deno.test(`web: a complete draft from a call that ${name} is not the answer; the answer phase writes it with the web evidence`, async () => {
+    const f = fake([[docCall(), finish('tool_calls')], events, answer()], {
+      webSearch: { perTurn: 3 },
+      searchDocuments: () => Promise.resolve([chunk('a')]),
+    });
+    const result = await runAgent(f.deps, input);
+    assertEquals(f.requests.length, 3, 'no shortcut');
+    assertEquals(f.events.filter((e) => 'promoted' in e), []);
+    assertEquals(f.events.filter((e) => 'retract' in e), [{ retract: 'rewriting' }]);
+    assertEquals(f.requests[2].tool_choice, 'none');
+    assertEquals('serverTools' in f.requests[2], false);
+    const hadPages = events.some((e) => e.type === 'web-results');
+    assertEquals(evidenceMessages(f.requests[2]).length, hadPages ? 1 : 0);
+    if (hadPages) assertEquals(f.requests[2].messages.at(-2)?.content, webEvidenceBlock([page(1)]), 'after the draft, before the answer instruction');
+    assertEquals(result.text, (answer()[0] as { text: string }).text);
+  });
+}
+
+Deno.test('web: with the tool offered, a complete draft from a call that did not search is still the answer', async () => {
+  const f = fake([[docCall(), finish('tool_calls')], [{ type: 'text', text: draft() }, finish()]], {
+    webSearch: { perTurn: 3 },
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 2);
+  assertEquals(result.text, draft());
+  assertEquals(result.webSearches, 0);
+});
+
+Deno.test('web: the checkpoint keeps the pages and the count across a failover; a call that broke off contributes nothing; the resumed deps decide the offer', async () => {
+  const f = fake([], {
+    webSearch: { perTurn: 3 },
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+    model: (() => {
+      let n = 0;
+      return async function* (req: StreamRequest) {
+        f.requests.push(structuredClone({ ...req, signal: undefined }));
+        if (++n === 1) { yield docCall('one'); yield webResults(page(1)); yield searched(1, 'tool_calls'); return; }
+        yield webResults(page(2));
+        throw new ProviderError(503, 'down');
+      };
+    })(),
+  });
+  await assertRejects(() => runAgent(f.deps, input), ProviderError);
+  assertEquals(f.deps.checkpoint!.webPages, [page(1)]);
+  assertEquals(f.deps.checkpoint!.webSearches, 1);
+  assertEquals(webEvents(f.events).length, 1, 'the broken call emitted no web event');
+  // The failover model is gated: web search withdrawn, the turn's pages and count kept.
+  const gated = fake([ready(), answer()], {
+    webSearch: null,
+    checkpoint: f.deps.checkpoint,
+    handles: f.deps.handles,
+    budget: f.deps.budget,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(gated.deps, input);
+  assert(gated.requests.every((r) => !('serverTools' in r)));
+  assertEquals(evidenceMessages(gated.requests[0]).length, 1, 'page 1 is still carried');
+  assertEquals(result.webPages, [page(1)]);
+  assertEquals(result.webSearches, 1);
+  assertEquals(result.searches, 1);
+});
+
+Deno.test('web: a resumed turn whose model still allows web search is offered what is left', async () => {
+  const f = fake([], {
+    webSearch: { perTurn: 3 },
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+    model: (() => {
+      let n = 0;
+      return async function* (req: StreamRequest) {
+        f.requests.push(structuredClone({ ...req, signal: undefined }));
+        if (++n === 1) { yield docCall('one'); yield webResults(page(1), page(2)); yield searched(2, 'tool_calls'); return; }
+        throw new ProviderError(503, 'down');
+      };
+    })(),
+  });
+  await assertRejects(() => runAgent(f.deps, input), ProviderError);
+  const resumed = fake([[docCall('two'), webResults(page(3)), searched(1, 'tool_calls')], ready(), answer()], {
+    webSearch: { perTurn: 3 },
+    checkpoint: f.deps.checkpoint,
+    handles: f.deps.handles,
+    budget: f.deps.budget,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(resumed.deps, input);
+  assertEquals(serverToolsOf(resumed.requests[0]), [webSearchTool(1)], 'two of three used before the failover');
+  assertEquals('serverTools' in resumed.requests[1], false, 'all three used');
+  assertEquals(result.webSearches, 3);
+  assertEquals(result.webPages, [page(1), page(2), page(3)]);
 });
