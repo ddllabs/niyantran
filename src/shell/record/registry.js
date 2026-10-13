@@ -18,6 +18,7 @@ import nationalQuestions from './adapters/nationalQuestions.js';
 import nationalRegulatory from './adapters/nationalRegulatory.js';
 import nationalMps from './adapters/nationalMps.js';
 import nationalCabinet from './adapters/nationalCabinet.js';
+import nationalAffidavits from './adapters/nationalAffidavits.js';
 import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
@@ -52,6 +53,7 @@ const ADAPTERS = [
   [/mp profiles|mp report/i, nationalMps],
   // The State desk has its own "Cabinet Decisions" module, so this one is matched on the National desk only.
   [/^cabinet decisions$/i, nationalCabinet, { tier: 'national' }],
+  [/candidate affidavit/i, nationalAffidavits, { tier: 'national' }],
 ];
 
 export function adapterFor(feature, tier) {
