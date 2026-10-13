@@ -20,6 +20,7 @@ import nationalMps from './adapters/nationalMps.js';
 import nationalCabinet from './adapters/nationalCabinet.js';
 import nationalAffidavits from './adapters/nationalAffidavits.js';
 import nationalMorningBrief from './adapters/nationalMorningBrief.js';
+import lawInsolvency from './adapters/lawInsolvency.js';
 import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
@@ -56,6 +57,8 @@ const ADAPTERS = [
   [/^cabinet decisions$/i, nationalCabinet, { tier: 'national' }],
   [/candidate affidavit/i, nationalAffidavits, { tier: 'national' }],
   [/morning brief/i, nationalMorningBrief, { tier: 'national' }],
+  // Law (F128): matched on the judiciary tier, by the names lawPack.js and the catalogue use.
+  [/^nclt/i, lawInsolvency, { tier: 'judiciary' }],
 ];
 
 export function adapterFor(feature, tier) {
