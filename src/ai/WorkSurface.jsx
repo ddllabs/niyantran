@@ -10,6 +10,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { isReadableCitation, sanitizeCitation } from './CitationBubble.jsx';
 import './research.css';
 import SourceReader from './SourceReader.jsx';
+import WebSourcesList, { cleanWebPages } from './WebSourcesList.jsx';
 import { documentRoleLabel } from '../types/citation.js';
 
 /*
@@ -26,17 +27,20 @@ const isPage = value => Number.isSafeInteger(value) && value >= 1;
  * source list pass `sanitizeCitation` here, after the readability check, so the bubble, chip and
  * list paths all reach a viewer with malformed boxes, images and sections already removed.
  * `reader` picks the viewer: 'page' for a `pdf_page` citation with a page number, 'text' for
- * any other text citation (today's SourceReader), 'row' for a desk record.
+ * any other text citation (today's SourceReader), 'row' for a desk record, 'web' for the pages a
+ * turn searched on the web (F124). Web pages are not citations: that case is decided before the
+ * readability check, is never `invalid`, and never produces a `source`.
  */
 export function resolveViewer(viewer, sources) {
   const raw = viewer?.source || null;
+  if (raw?.kind === 'web') return { source: null, invalid: false, sources: [], reader: 'web', pages: cleanWebPages(raw.pages) };
   const invalid = Boolean(raw && !isReadableCitation(raw));
   const source = raw && !invalid ? sanitizeCitation(raw) : null;
   const list = (Array.isArray(sources) ? sources : []).filter(isReadableCitation).map(sanitizeCitation);
   let reader = null;
   if (source?.kind === 'row') reader = 'row';
   else if (source?.kind === 'text') reader = source.source_kind === 'pdf_page' && isPage(source.page_number) ? 'page' : 'text';
-  return { source, invalid, sources: list, reader };
+  return { source, invalid, sources: list, reader, pages: [] };
 }
 
 /**
@@ -86,7 +90,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
     back.current?.focus();
     return () => { if (previous?.isConnected) previous.focus?.(); };
   }, [visible]);
-  const sourceKey = viewer?.source ? `${viewer.source.kind}:${viewer.source.id}` : 'list';
+  const sourceKey = viewer?.source ? (viewer.source.kind === 'web' ? `web:${viewer.source.messageId}` : `${viewer.source.kind}:${viewer.source.id}`) : 'list';
   useEffect(() => { if (visible) back.current?.focus(); }, [visible, sourceKey]);
   // Memoised so the viewers see one citation object per opened source, not a copy per render.
   const resolved = useMemo(() => resolveViewer(viewer, sources), [viewer, sources]);
@@ -97,7 +101,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   const onDocumentState = useCallback((state) => setReported({ key: citationKey, state }), [citationKey]);
   const documentState = currentDocumentState(reported, citationKey);
   if (!viewer) return null;
-  const { source, invalid, sources: validSources, reader } = resolved;
+  const { source, invalid, sources: validSources, reader, pages } = resolved;
 
   // "← Back" and the ✕ close the citation only; the chat stays open (revision 5, point 2). The ✕
   // is the viewer's one close control, so the readers below are not given their own.
@@ -108,7 +112,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
           ← Back
         </button>
         <span className="ai-work-title">
-          {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : 'Sources'}
+          {source ? (source.kind === 'row' ? source.title || source.row_key : source.title) : (reader === 'web' ? 'Web sources' : 'Sources')}
         </span>
         {source?.kind === 'text' && documentRoleLabel(source.document_role) ? <small className="ai-work-version">{documentRoleLabel(source.document_role)}</small> : null}
         {source?.kind === 'text' ? <AskAboutDocument citation={source} locked={locked} onAsk={onAskAboutDocument} documentState={documentState} /> : null}
@@ -123,8 +127,9 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         ) : null}
         {reader === 'text' ? <SourceReader key={citationKey} citation={source} client={client} onDocumentState={onDocumentState} /> : null}
         {reader === 'row' ? <RowSource citation={source} onClose={onClose} /> : null}
+        {reader === 'web' ? <WebSourcesList pages={pages} /> : null}
         {invalid ? <p role="status">This source is unavailable. Return to the answer to choose another.</p> : null}
-        {!source && !invalid ? (validSources.length ? (
+        {!source && !invalid && reader !== 'web' ? (validSources.length ? (
           <ul className="ai-work-sources" aria-label="Sources">
             {validSources.map((s, index) => <li key={`${s.kind}:${s.id}:${index}`}>
               <button type="button" onClick={() => onOpen?.(s)}>
