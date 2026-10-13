@@ -11,6 +11,7 @@ import {
   UNION_PROMISES,
 } from '../src/data/nationalCurated.js';
 import { allocateSeats } from '../src/lib/nationalKpi.js';
+import { isCabinetBody } from '../src/lib/parliament.js';
 
 const WB_MANF = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.MANF.ZS?format=json&date=2000:2030&per_page=100';
 const WB_IND = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.TOTL.ZS?format=json&date=2000:2030&per_page=100';
@@ -93,6 +94,10 @@ async function fetchEnglishPibTitle(prid) {
           .replace(/\s+/g, ' ')
           .trim(),
       );
+      // F125: the issuing body PIB names on the release page (e.g. "Cabinet Committee on Economic Affairs (CCEA)").
+      const ministry = decodeBasicEntities((html.match(/<div[^>]*MinistryName[^>]*>\s*([^<]+)</i) || [])[1] || '')
+        .replace(/\s+/g, ' ')
+        .trim();
       const dateHint = (html.match(/Posted On:\s*([0-9]{1,2}\s+[A-Za-z]{3}\s+[0-9]{4})/i) || [])[1] || '';
       let date = '';
       if (dateHint) {
@@ -115,6 +120,7 @@ async function fetchEnglishPibTitle(prid) {
       return {
         title,
         date,
+        ministry,
         source_url: page,
         hindi: isHindiText(title),
         enPrid,
@@ -130,16 +136,17 @@ async function fetchEnglishPibTitle(prid) {
   const first = await load(prid);
   if (!first) return null;
   if (!first.hindi && first.title) {
-    return { title: first.title, date: first.date, source_url: first.source_url };
+    return { title: first.title, date: first.date, source_url: first.source_url, ministry: first.ministry };
   }
   if (first.enPrid && String(first.enPrid) !== String(prid)) {
     const en = await load(first.enPrid);
     if (en && !en.hindi && en.title) {
-      return { title: en.title, date: en.date || first.date, source_url: en.source_url };
+      // The English page names the body in English; the Hindi page's name is the fallback.
+      return { title: en.title, date: en.date || first.date, source_url: en.source_url, ministry: en.ministry || first.ministry };
     }
   }
   if (first.tweetEn && !isHindiText(first.tweetEn) && first.tweetEn.length > 24) {
-    return { title: first.tweetEn, date: first.date, source_url: first.source_url };
+    return { title: first.tweetEn, date: first.date, source_url: first.source_url, ministry: first.ministry };
   }
   return null;
 }
@@ -159,7 +166,11 @@ async function mapPool(items, limit, fn) {
 }
 
 /** RSS is often Hindi; resolve English titles from PressReleasePage with en cookie. */
-async function enrichPibEnglish(rows) {
+/**
+ * PIB rows with English titles. With { ministry: true } (F125) every row's release page is read for
+ * its issuing body, including rows whose RSS title is already English.
+ */
+async function enrichPibEnglish(rows, opts = {}) {
   const list = (Array.isArray(rows) ? rows : []).slice(0, 40);
   const enriched = await mapPool(list, 4, async (row, idx) => {
     const base = {
@@ -179,7 +190,8 @@ async function enrichPibEnglish(rows) {
     }
     if (!isHindiText(title) && title) {
       const url = base.source_url || `https://www.pib.gov.in/PressReleasePage.aspx?PRID=${prid}&Lang=1`;
-      return { ...base, title, topic: base.topic || title, source_url: url, language: 'en' };
+      const page = opts.ministry ? await fetchEnglishPibTitle(prid) : null;
+      return { ...base, title, topic: base.topic || title, source_url: url, language: 'en', ...(page?.ministry ? { ministry: page.ministry } : {}) };
     }
     const en = await fetchEnglishPibTitle(prid);
     if (!en) {
@@ -192,6 +204,7 @@ async function enrichPibEnglish(rows) {
       date: en.date || base.date || '',
       source_url: en.source_url,
       language: 'en',
+      ...(en.ministry ? { ministry: en.ministry } : {}),
     };
   });
   const english = enriched.filter((r) => {
@@ -589,19 +602,22 @@ export async function serveNational(ctx) {
 
   if (/cabinet decisions/i.test(name)) {
     const live = await tryUrls([PIB_RSS, primary].filter(Boolean));
-    const liveEn = await enrichPibEnglish(live.rows || []);
+    // F125: only releases whose issuing body, as PIB's own release page names it, is the Cabinet or
+    // one of its committees. Nothing is inferred from a title.
+    const liveEn = await enrichPibEnglish(live.rows || [], { ministry: true });
     const shaped = (rows) =>
       (rows || []).map((r, i) => ({
         ...r,
         id: r.id != null ? r.id : `cabinet-${i}`,
         topic: r.topic || r.title || '',
         title: r.title || r.topic || '',
-        ministry: r.ministry || r.source || 'Press Information Bureau',
+        ministry: r.ministry || '',
       }));
-    const archiveRows = shaped(archive || []);
-    const liveRows = shaped(liveEn);
+    const archiveRows = shaped(archive || []).filter((r) => isCabinetBody(r.ministry));
+    const liveRows = shaped(liveEn).filter((r) => isCabinetBody(r.ministry));
     const rows = liveRows.length ? liveRows : archiveRows;
     if (!rows.length) return null;
+    const checked = liveEn.length;
     return envelope({
       tier,
       feature: feat,
@@ -611,8 +627,10 @@ export async function serveNational(ctx) {
       coverage,
       fallback: !liveRows.length,
       note: liveRows.length
-        ? 'PIB RSS with English titles resolved from PressReleasePage (EN cookie).'
-        : 'PIB RSS returned Hindi-only or empty. Showing the English last-known-good cabinet register.',
+        ? `PIB RSS filtered to releases issued by the Cabinet or its committees (${liveRows.length} of ${checked} latest releases).`
+        : checked
+          ? `No Cabinet decision in the latest PIB window (${checked} releases checked). Showing the stored Cabinet decisions.`
+          : 'PIB RSS returned no readable releases. Showing the stored Cabinet decisions.',
       meta: {
         section: 'CABINET DECISIONS',
         status: liveRows.length ? 'LIVE · PIB RSS · EN' : 'STORED · LAST-KNOWN-GOOD',
