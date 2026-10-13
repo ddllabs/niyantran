@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F125 is next) and goes in the
+- A new finding gets the next free `F` number (F127 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -194,17 +194,32 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
   [Research](../research/2026-10-13-national-record-panels.md) ·
   [Spec](../specs/2026-10-13-national-record-panels.md) ·
   [Plan](2026-10-13-national-record-panels.md).
-  - Status: research, spec and plan written; awaiting the owner's answers on
-    AI briefs on selection, rollout, and backend fixes before coding.
+  - Owner decisions 2026-10-13: saved AI briefs only (no model call on
+    selection); one batch; the Cabinet filter and the MP house fix as separate
+    tasks (F125, F126).
+  - Status: N1 (kit) in progress on `task/national-record-panels`.
   - Backend gaps the reference points to (not in F124's scope):
     - Cabinet Decisions serves the unfiltered PIB feed;
     - the MP register has no house column, mixes Lok Sabha and Rajya Sabha
       under an "18th Lok Sabha" label, and has inconsistent party names;
-    - affidavit criminal cases are a single count, not individual listings;
+    - affidavit criminal cases are a single count, not individual listings
+      (owner asked for a fix; blocked: it needs a richer source, and MyNeta/ADR
+      restrict redistribution);
     - questions hold no answer text;
     - the stored bill `probability_score` and `summary` are empty;
     - Pipeline sources are `news.google.com` links;
     - status labels in `src/lib/apiStatus.js` call embedded packs "live".
+- [ ] **F125. Cabinet Decisions: only Cabinet decisions.** Owner 2026-10-13.
+  The module serves every PIB press release
+  (`server/nationalFeed.mjs`, Cabinet branch). Show only items the source itself
+  marks as Cabinet decisions. Check first how PIB marks them; if there is no
+  reliable marker, ask the owner instead of guessing. Server change: explain
+  it before making it. After F124.
+- [ ] **F126. MP register: house and party names.** Owner 2026-10-13. Derive
+  Lok Sabha or Rajya Sabha from each member's source link (`/ls/`, `/rs/`),
+  correct the "18th Lok Sabha" label that covers both houses, and normalise
+  party names for display while keeping the original. Data and shaping
+  change: explain it before making it. After F124.
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources

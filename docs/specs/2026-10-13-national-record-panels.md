@@ -89,21 +89,22 @@ record".
   module's records to `RecordPanel` instead of `NationalRecord`. The other modules still reach
   `NationalRecord`.
 
-## Open questions for the owner
+## Owner decisions (2026-10-13)
 
-1. **AI brief on selection.** Today, opening a bill, question, regulatory or pipeline record without
-   a saved brief generates one with a model call, which costs money each time. Global panels only
-   read saved briefs. For the new National panels:
-   - (a) keep generating on selection, labelled as AI-generated from the source document; or
-   - (b) read saved briefs only, like Global, until AI credits (F111).
-2. **Rollout:**
-   - (a) one batch for all eight modules, with an owner review before push; or
-   - (b) two batches: the four bill-style modules first, then the other four.
-3. **Backend fixes the reference points to.** Each is a separate server or data change; should any
-   be scheduled now?
-   - filter the PIB feed to Cabinet decisions;
-   - add a house column and normalised party names for MPs;
-   - list affidavit cases individually.
+1. **AI briefs: saved only.** The National panels read saved briefs, as Global does (F123). Selecting
+   a record makes no model call. The auto-generation in `BillRecordPane` is not carried over;
+   revisit it with AI credits (F111).
+2. **Rollout: one batch,** on the supervisor's recommendation: N1–N2, then N3–N9 in parallel, one
+   review, one push for owner review on production.
+3. **Backend fixes, as separate tasks after the panels.** Each must keep the app truthful: it may
+   only show more precisely what the source says, never add facts.
+   - **F125 Cabinet filter:** show only PIB items that the source itself marks as Cabinet decisions.
+     If PIB holds no reliable marker, stop and ask the owner.
+   - **F126 MP house and parties:** the house is derived from each member's own source link
+     (`/ls/` or `/rs/`); party names are normalised for display, with the original kept.
+   - **Affidavit case listing: blocked.** The rows hold one count per candidate. Individual cases
+     need a richer source, and MyNeta/ADR restrict redistribution, so it is not built. It is
+     logged in open-work.
 
 ## Commands
 
