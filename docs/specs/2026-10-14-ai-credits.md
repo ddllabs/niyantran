@@ -414,7 +414,7 @@ a spec amendment. Amounts are `numeric(14,4)` credits.
 - `service_role` gets SELECT and INSERT, and gets UPDATE only where noted.
 - Every `user_id` references `auth.users ON DELETE CASCADE`. Deleting an
   account therefore deletes its credit history, which fits "unused credits
-  lapse on closure" and erasure requests (open question 2).
+  lapse on closure" and erasure requests (settled question 8).
 
 | Table | Key columns and rules |
 |---|---|
