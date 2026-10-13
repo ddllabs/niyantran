@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F128 is next) and goes in the
+- A new finding gets the next free `F` number (F130 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (late evening)
@@ -247,6 +247,29 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     `feedText.js`.
   - `titleCase` in `nationalBills.js` lowercases acronyms ("GST" → "Gst").
   - The Morning Brief dedup is quadratic (fine at today's ~64 rows).
+- [ ] **F128. Law record panels.** Owner request 2026-10-13 ("go ahead with
+  Law now, same process").
+  - All twelve Law modules get the record panel in the Law reference's form:
+    four tile questions with the clock last, a "what a lawyer needs" board,
+    Quick exit handing off to AI Research, and a health strip.
+  - Two source fields are kept: the IBBI claims deadline and the Google News
+    publisher.
+  - [Spec](../specs/2026-10-13-law-record-panels.md),
+    [plan](2026-10-13-law-record-panels.md),
+    [research](../research/2026-10-13-law-record-panels.md). Branch
+    `task/law-record-panels`.
+  - Done: twelve panels, Fable review (one must-fix, fixed), merged locally on
+    2026-10-13; awaiting the owner's go-ahead to push.
+  - Noticed, not fixed: the module heading title-cases abbreviations
+    ("Nclt / Nclat (Insolvency)", "Icc Proceedings").
+- [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
+  research (2026-10-13); owner: not now.
+  - `backup/` holds 177 ICJ General List cases and 641 WTO DS case pages.
+    Either would turn a wire module into a register.
+  - `backup/` is probably not deployed, so this is a data task that needs
+    approval.
+  - The Sector Tribunals pack holds a PAN in at least one title; check it for
+    personal data before any use.
 - [ ] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope, nothing changed yet.
   - Global Commodities desk: a KPI tile says "Live · API-ready" and the sources

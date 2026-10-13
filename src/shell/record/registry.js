@@ -20,6 +20,9 @@ import nationalMps from './adapters/nationalMps.js';
 import nationalCabinet from './adapters/nationalCabinet.js';
 import nationalAffidavits from './adapters/nationalAffidavits.js';
 import nationalMorningBrief from './adapters/nationalMorningBrief.js';
+import lawInsolvency from './adapters/lawInsolvency.js';
+import lawSupremeCourt, { lawOrdersByTopic } from './adapters/lawSupremeCourt.js';
+import lawWire, { LAW_WIRE_FEATURES } from './adapters/lawWire.js';
 import { DESKS } from '../../lib/impactRecord.js';
 import { isAlliancesFeature } from '../../lib/alliances.js';
 import { isSanctionsFeature } from '../../lib/sanctions.js';
@@ -56,6 +59,12 @@ const ADAPTERS = [
   [/^cabinet decisions$/i, nationalCabinet, { tier: 'national' }],
   [/candidate affidavit/i, nationalAffidavits, { tier: 'national' }],
   [/morning brief/i, nationalMorningBrief, { tier: 'national' }],
+  // Law (F128): matched on the judiciary tier, by the names lawPack.js and the catalogue use.
+  [/^nclt/i, lawInsolvency, { tier: 'judiciary' }],
+  [/^supreme court order/i, lawSupremeCourt, { tier: 'judiciary' }],
+  [/^order archive by topic/i, lawOrdersByTopic, { tier: 'judiciary' }],
+  // The nine news-wire modules by exact name (an object with a test(), like the dossier checks above).
+  [{ test: (name) => LAW_WIRE_FEATURES.includes(name) }, lawWire, { tier: 'judiciary' }],
 ];
 
 export function adapterFor(feature, tier) {

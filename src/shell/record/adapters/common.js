@@ -14,6 +14,11 @@ export function dateLabel(value) {
   return `${String(ist.getUTCDate()).padStart(2, '0')} ${MONTHS[ist.getUTCMonth()]} ${ist.getUTCFullYear()}`;
 }
 
+/** Today's date in India (YYYY-MM-DD), for marking a stated deadline as passed; UTC would be a day behind before 05:30 IST. */
+export function todayInIndia(now = new Date()) {
+  return new Date(now.getTime() + 330 * 60000).toISOString().slice(0, 10);
+}
+
 export const cap = (s) => {
   const text = String(s ?? '').trim();
   return text ? text[0].toUpperCase() + text.slice(1) : '';

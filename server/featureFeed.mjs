@@ -726,12 +726,18 @@ function parseRssOrXml(text) {
     const href = /<link>([^<]+)<\/link>/i.exec(block)?.[1]?.trim()
       || /href="([^"]+)"/i.exec(block)?.[1]
       || '';
+    // F128: Google News names each item's publisher in <source>; kept as plain text when present.
+    const publisher = tag('source')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&(amp|quot|apos|#39);/g, (_, e) => ({ amp: '&', quot: '"', apos: "'", '#39': "'" })[e])
+      .trim();
     items.push(
       flattenRow({
         date: tag('pubDate') || tag('updated') || tag('date'),
         title: tag('title'),
         source_url: href,
         summary: tag('description').replace(/<[^>]+>/g, '').slice(0, 400),
+        ...(publisher ? { publisher } : {}),
       }),
     );
     if (items.length >= MAX_ROWS) break;

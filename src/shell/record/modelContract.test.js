@@ -80,3 +80,38 @@ describe('record panel contract', () => {
     expect(contractProblems(m).join()).toMatch(/placeholder/);
   });
 });
+
+// F128 (Law): the clock tile, the health strip and the Quick exit row each have a shape to honour.
+describe('record panel contract: Law additions', () => {
+  it('allows one clock tile, and only as the last tile', () => {
+    const m = base();
+    m.glance.tiles[1].clock = true;
+    expect(contractProblems(m)).toEqual([]);
+    m.glance.tiles[0].clock = true;
+    expect(contractProblems(m).join()).toMatch(/one clock tile, last/);
+    m.glance.tiles[1].clock = false;
+    expect(contractProblems(m).join()).toMatch(/one clock tile, last/);
+  });
+
+  it('requires a label and a value in every health pair, at most four', () => {
+    const m = base();
+    m.footer.health = [['Rows', '434'], ['Claims date on row', '66%']];
+    expect(contractProblems(m)).toEqual([]);
+    m.footer.health = [['Rows', '']];
+    expect(contractProblems(m).join()).toMatch(/empty health pair/);
+    m.footer.health = Array.from({ length: 5 }, (_, i) => [`H${i}`, '1']);
+    expect(contractProblems(m).join()).toMatch(/health strip has 5 pairs/);
+  });
+
+  it('requires a label and a prompt on every Quick exit button, at most four, labels unique', () => {
+    const m = base();
+    m.quick = [{ label: 'Case note', prompt: 'Draft a case note for this order.' }];
+    expect(contractProblems(m)).toEqual([]);
+    m.quick = [{ label: 'Case note', prompt: '' }];
+    expect(contractProblems(m).join()).toMatch(/empty Quick exit/);
+    m.quick = [{ label: 'Case note', prompt: 'a' }, { label: 'Case note', prompt: 'b' }];
+    expect(contractProblems(m).join()).toMatch(/duplicate Quick exit Case note/);
+    m.quick = Array.from({ length: 5 }, (_, i) => ({ label: `Q${i}`, prompt: 'x' }));
+    expect(contractProblems(m).join()).toMatch(/Quick exit has 5 buttons/);
+  });
+});

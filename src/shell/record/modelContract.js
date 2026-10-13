@@ -55,6 +55,9 @@ export function contractProblems(model) {
     if (!String(t.label || '').trim() || !String(t.value || '').trim()) problems.push(`empty tile ${t.label || '?'}`);
     if (t.tone && !TONES.has(t.tone)) problems.push(`bad tone ${t.tone}`);
   }
+  // F128: the Law clock tile is tinted so the eye finds the deadline first; one only, and last.
+  const clocks = tiles.filter((t) => t.clock);
+  if (clocks.length > 1 || (clocks.length === 1 && !tiles[tiles.length - 1].clock)) problems.push('glance needs at most one clock tile, last');
   if (model.badge && (!String(model.badge.text || '').trim() || !TONES.has(model.badge.tone))) problems.push('bad badge');
   problems.push(...visualProblems(model.glance?.visual, 'glance.visual'), ...visualProblems(model.glance?.visual2, 'glance.visual2'));
   for (const l of model.links || []) if (!/^https:\/\//i.test(String(l.href || ''))) problems.push(`non-https link ${l.href}`);
@@ -65,6 +68,17 @@ export function contractProblems(model) {
     if (!model.touches.nodes?.center) problems.push('touches needs a centre node');
     for (const l of model.touches.links || []) if (l.row !== undefined && (!l.row || typeof l.row !== 'object' || Array.isArray(l.row))) problems.push(`touch link ${l.title} has a row that is not a record`);
   }
+  const quick = model.quick || [];
+  if (quick.length > 4) problems.push(`Quick exit has ${quick.length} buttons (at most 4)`);
+  const quickSeen = new Set();
+  for (const q of quick) {
+    if (!String(q?.label || '').trim() || !String(q?.prompt || '').trim()) problems.push(`empty Quick exit ${q?.label || '?'}`);
+    if (quickSeen.has(q?.label)) problems.push(`duplicate Quick exit ${q.label}`);
+    quickSeen.add(q?.label);
+  }
+  const health = model.footer?.health || [];
+  if (health.length > 4) problems.push(`health strip has ${health.length} pairs (at most 4)`);
+  for (const pair of health) if (!Array.isArray(pair) || !String(pair[0] ?? '').trim() || !String(pair[1] ?? '').trim()) problems.push(`empty health pair ${Array.isArray(pair) ? pair[0] : '?'}`);
   if (!String(model.footer?.ask || '').trim()) problems.push('missing Ask AI label');
   if (!String(model.footer?.provenance?.source || '').trim()) problems.push('missing provenance source');
   if (!String(model.footer?.provenance?.asOf || '').trim() && !(model.footer?.provenance?.flags || []).includes(NO_AS_OF)) problems.push('missing as-of date');

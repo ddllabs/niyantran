@@ -77,3 +77,33 @@ describe('record panel registry', () => {
     expect(national).toContain('class="rp"');
   });
 });
+
+// F128: every Law module in the catalogue renders the record panel, on the judiciary tier only, and
+// selecting a Law record no longer reaches RecordDetail (which generated a brief on selection).
+describe('record panel registry: Law', () => {
+  it('registers all twelve Law modules on the judiciary tier and nowhere else', async () => {
+    const { modulesForTier } = await import('../../desks/catalog.js');
+    const law = modulesForTier('judiciary').map((m) => m.htmlFeature || m.name || m);
+    expect(law).toHaveLength(12);
+    for (const feature of law) {
+      expect(adapterFor(feature, 'judiciary'), feature).toBeTypeOf('function');
+      expect(adapterFor(feature, 'national'), feature).toBeNull();
+      expect(adapterFor(feature), feature).toBeNull();
+    }
+    for (const feature of ['Supreme Courts & Precedent — United States', 'Constitutional Bench Tracker']) expect(adapterFor(feature, 'judiciary'), feature).toBeNull();
+  });
+
+  it('renders the panel, not RecordDetail, for a selected Law record', () => {
+    const cases = [
+      ['NCLT / NCLAT (Insolvency)', { title: 'ACME PRIVATE LIMITED', entity: 'ACME PRIVATE LIMITED', court: 'IBBI', process_type: 'Public Announcement of Corporate Insolvency Resolution Process', date: '2026-08-08', last_submission_date: '2026-08-22', source_url: 'https://ibbi.gov.in/a.pdf' }],
+      ['Supreme Court Order & Judgment Feed', { case_title: 'A VS. B', title: 'A VS. B', diary_no: '1 / 2026', date: '03-Jul-2026', topic: 'Bail / Criminal', court: 'Supreme Court' }],
+      ['ICC Proceedings', { title: 'Court hears plea - LiveLaw', publisher: 'LiveLaw', date: 'Mon, 12 Oct 2026 09:00:00 GMT', source_url: 'https://news.google.com/rss/articles/x', section: 'COVERAGE — GOOGLE NEWS RSS' }],
+    ];
+    for (const [feature, row] of cases) {
+      const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature, tier: 'judiciary', rows: [row] }} selected={row} />);
+      expect(html, feature).toContain('class="rp"');
+      expect(html, feature).not.toContain('data-record-detail');
+      expect(html, feature).toContain('rp-tile rp-clock');
+    }
+  });
+});

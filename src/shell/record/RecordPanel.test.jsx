@@ -147,3 +147,48 @@ describe('RecordPanel saved AI brief', () => {
     expect(out).toContain('No saved AI brief for this record yet');
   });
 });
+
+// F128 (Law reference): the clock tile is tinted, the health strip sits beside the source, and the
+// Quick exit buttons hand their request to the host (which only drafts it in AI Research).
+describe('RecordPanel Law additions', () => {
+  const find = (node, cls, out = []) => {
+    if (!node || typeof node !== 'object') return out;
+    if (String(node.props?.className || '').split(' ').includes(cls)) out.push(node);
+    for (const child of [].concat(node.props?.children ?? [])) find(child, cls, out);
+    return out;
+  };
+  const law = model({
+    glance: { tiles: [{ label: 'Process', value: 'CIRP' }, { label: 'Claims due', value: 'Closed', sub: '04 Sep 2026', tone: 'red', clock: true }] },
+    quick: [{ label: 'Claim note', prompt: 'Draft a claim note for this announcement.' }, { label: 'Deadline sheet', prompt: 'Draft a deadline sheet.' }],
+    footer: { ...model().footer, health: [['Rows', '434'], ['Claims date on row', '66%']] },
+  });
+
+  it('tints the clock tile only', () => {
+    const html = renderToStaticMarkup(<RecordPanel model={law} />);
+    expect(html.match(/rp-tile rp-clock/g)).toHaveLength(1);
+    expect(html).toMatch(/rp-tile rp-clock"><span class="rp-tile-l">Claims due/);
+  });
+
+  it('renders the health strip inside the provenance line', () => {
+    const html = renderToStaticMarkup(<RecordPanel model={law} />);
+    const prov = html.slice(html.indexOf('rp-prov'), html.indexOf('</p>', html.indexOf('rp-prov')));
+    expect(prov).toContain('<span class="rp-health">Rows <b>434</b></span>');
+    expect(prov).toContain('Claims date on row <b>66%</b>');
+  });
+
+  it('renders Quick exit between About and What it touches, and hands each prompt to onQuick', () => {
+    const html = renderToStaticMarkup(<RecordPanel model={law} onQuick={() => {}} />);
+    expect(html.indexOf('Quick exit')).toBeGreaterThan(html.indexOf('02 · About this front'));
+    expect(html.indexOf('Quick exit')).toBeLessThan(html.indexOf('rp-touches'));
+    const onQuick = vi.fn();
+    const buttons = find(RecordPanel({ model: law, onQuick }), 'rp-qbtn');
+    expect(buttons).toHaveLength(2);
+    buttons[1].props.onClick();
+    expect(onQuick).toHaveBeenCalledWith('Draft a deadline sheet.');
+  });
+
+  it('omits Quick exit when the host gives no handler or the model has none', () => {
+    expect(renderToStaticMarkup(<RecordPanel model={model()} onQuick={() => {}} />)).not.toContain('Quick exit');
+    expect(find(RecordPanel({ model: law }), 'rp-qbtn')).toHaveLength(0);
+  });
+});
