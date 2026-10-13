@@ -7,6 +7,8 @@ import NterLatestRail from './NterLatestRail.jsx';
 import DataGlobe from './DataGlobe.jsx';
 import './homeHero.css';
 import { figure } from '../lib/siteFigures.js';
+import { stageBar } from '../lib/previewFigures.js';
+import PREVIEW from '../data/preview-figures.json';
 import { useSiteFigures } from './useSiteFigures.js';
 
 /**
@@ -49,17 +51,18 @@ const DESKS = [
     kpis: [
       // F142: live counts, resolved at render (see desk.kpis below).
       [(f) => figure(f.bills), 'blue', 'BILLS ON RECORD'],
-      ['2', 'ok', 'HOUSES'],
+      [String(PREVIEW.bills.houses), 'ok', 'HOUSES'],
       [(f) => figure(f.ministries), 'warn', 'MINISTRIES'],
-      ['1952', 'gold', 'SERIES START'],
+      [String(PREVIEW.bills.seriesStart ?? '—'), 'gold', 'SERIES START'],
     ],
     bars: [
-      ['Pending', 4120, '42%', 42, ''],
-      ['Passed', 2890, '29%', 29, 'sand'],
-      ['Assented', 2100, '21%', 21, ''],
-      ['Withdrawn', 709, '7%', 7, 'red'],
+      // F144: real counts from the bill register, as a share of all bills.
+      stageBar('Pending', PREVIEW),
+      stageBar('Passed', PREVIEW, 'sand'),
+      stageBar('Assented', PREVIEW),
+      stageBar('Withdrawn', PREVIEW, 'red'),
     ],
-    note: 'Passage labels are as published on the register. Probability scores are stored columns, not a simulator.',
+    note: 'Passage labels are as published on the register.',
   },
   {
     id: 'electoral',
@@ -78,7 +81,7 @@ const DESKS = [
     ],
     kpis: [
       ['543', 'blue', 'LS CONSTITUENCIES'],
-      ['28', 'ok', 'STATES COVERED'],
+      [String(PREVIEW.mps.states), 'ok', 'STATES COVERED'],
       ['8', 'warn', 'BY-ELECTIONS'],
       ['1951', 'gold', 'SERIES START'],
     ],
@@ -164,8 +167,8 @@ const DESKS = [
       ['World Bank India GDP series', 'World Bank'],
     ],
     kpis: [
-      ['42', 'blue', 'LIVE SERIES'],
-      ['8', 'ok', 'PUBLISHERS'],
+      [String(PREVIEW.macro.series), 'blue', 'LIVE SERIES'],
+      [String(PREVIEW.macro.publishers), 'ok', 'PUBLISHERS'],
       ['4', 'warn', 'UPDATED TODAY'],
       ['1991', 'gold', 'SERIES START'],
     ],
@@ -193,8 +196,8 @@ const DESKS = [
       ['Sahel, security notices', 'Africa'],
     ],
     kpis: [
-      ['18', 'blue', 'OPEN FRONTS'],
-      ['6', 'ok', 'THEATRES'],
+      [String(PREVIEW.fronts.fronts), 'blue', 'OPEN FRONTS'],
+      [String(PREVIEW.fronts.regions), 'ok', 'THEATRES'],
       ['4', 'warn', 'UPDATED 48H'],
       ['9', 'gold', 'SOURCES'],
     ],
