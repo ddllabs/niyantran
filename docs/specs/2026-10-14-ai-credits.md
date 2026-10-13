@@ -399,6 +399,38 @@ the payment.
   - The "Plans, credits and billing" clause says one credit is 10 paise of AI
     processing.
 
+#### 10.1 Proposed wording (2026-10-14, awaiting the owner's approval)
+
+**Pricing page** (`src/lib/publicPlans.js`)
+
+| Place | Now | Proposed |
+|---|---|---|
+| Free card | "AI research assistant with starter credits" | "1,000 AI credits to start, valid 30 days" |
+| Plus card | "More monthly AI credits" / "Unused credits carry forward" | "2,000 AI credits every month" / "10% of unused credits roll over for a month" |
+| Pro card | "Higher monthly AI credits" / "Unused credits carry forward" | "6,500 AI credits every month" / "10% of unused credits roll over for a month" |
+| Max card | "Highest monthly AI credits" / "Unused credits carry forward" | "75,000 AI credits every month" / "10% of unused credits roll over for a month" |
+| Compare table, "Monthly AI credits" | Starter / More / Higher / Highest | 1,000 to start / 2,000 / 6,500 / 75,000 |
+| Compare table, "Unused credits carry forward" | ✓ ✓ ✓ ✓ | Row renamed "Unused credits roll over": — / 10% for a month / 10% for a month / 10% for a month |
+| "AI credits" chip | "allowances published before paid plans open" | "a typical answer uses about 20 credits; larger models use more" |
+
+The "about 20 credits" figure comes from the measured median of 21 credits
+per answer (Current state).
+
+**Terms, "Plans, credits and billing"** (`src/lib/legalPolicies.js`)
+
+- **"What plans include", replacing the current bullet:**
+  > Paid plans differ in AI credits and, when personal file storage is introduced, storage. One credit is worth ₹0.10 of AI processing. An answer uses credits according to the AI processing it needs (tokens and web searches), so longer answers and larger models use more. How many credits each plan includes is published on the Pricing page; we may change it for future billing months with notice.
+- **"Credits", replacing "Unused credits remain available…":**
+  > New accounts receive 1,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Up to 10% of a month's unused plan credits carry into the next month and expire at its end. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
+- **New bullet, "How answers are charged":**
+  > An answer that fails without giving you any text uses no credits. If you stop an answer, the part already produced is charged. An answer always finishes: if it costs more than your remaining credits, your balance can go below zero, and the difference is taken from your next credits.
+
+**Refund policy, "Unused credits"**
+> Unused credits have no cash value and are not refunded. Up to 10% of a month's unused plan credits carry into the next month; the rest expire at the end of the month.
+
+**Unchanged:** "On closure … unused credits lapse" (Suspension and closure),
+and the refund clause about partly used months.
+
 ### 11. Rollout
 
 1. **Migration, function and site,** each with the owner's go-ahead.
