@@ -211,17 +211,31 @@ read-only SQL earlier the same evening. No tests were rerun for this note.
     - the stored bill `probability_score` and `summary` are empty;
     - Pipeline sources are `news.google.com` links;
     - status labels in `src/lib/apiStatus.js` call embedded packs "live".
-- [ ] **F125. Cabinet Decisions: only Cabinet decisions.** Owner 2026-10-13.
-  The module serves every PIB press release
-  (`server/nationalFeed.mjs`, Cabinet branch). Show only items the source itself
-  marks as Cabinet decisions. Check first how PIB marks them; if there is no
-  reliable marker, ask the owner instead of guessing. Server change: explain
-  it before making it. After F124.
-- [ ] **F126. MP register: house and party names.** Owner 2026-10-13. Derive
-  Lok Sabha or Rajya Sabha from each member's source link (`/ls/`, `/rs/`),
-  correct the "18th Lok Sabha" label that covers both houses, and normalise
-  party names for display while keeping the original. Data and shaping
-  change: explain it before making it. After F124.
+- [x] **F125. Cabinet Decisions: only Cabinet decisions.** Owner 2026-10-13.
+  [Spec](../specs/2026-10-13-cabinet-filter-mp-house.md).
+  - **Marker:** PIB names each release's issuing body on its release page; the
+    stored CCEA decision reads "Cabinet Committee on Economic Affairs (CCEA)".
+  - **Server:** reads that field for every PIB release it already opens, and
+    keeps only the Cabinet and its committees (`isCabinetBody`,
+    `src/lib/parliament.js`; never the Cabinet Secretariat).
+  - **Fallback:** when the live window has none, it shows the stored Cabinet
+    decisions and says so. On 2026-10-13 none of the 18 latest releases was a
+    Cabinet decision.
+  - **Client and panel:** the client keeps the body's name as written
+    ("(CCEA)", not "(Ccea)"), and the panel reads the body as its marker.
+  - **Verification:** a server test with PIB stubbed fails on the old code.
+    Built on `task/cabinet-filter-mp-house`; awaits a push.
+- [x] **F126. MP register: house and party names.** Owner 2026-10-13.
+  - **House:** each row's `house` comes from its own `sansad.in` link (540
+    Lok Sabha, 242 Rajya Sabha).
+  - **Party:** `party` is unified to the Lok Sabha abbreviation only where the
+    full name certainly means that party, with the original kept in
+    `party_raw`. "Shiv Sena", "Nationalist Congress Party" and
+    "Independent & Others" are left as held.
+  - **Shaping:** done in `prepareDeskFeed`, so the live and stored paths agree.
+  - **Labels and panel:** the labels now say both houses, and the panel shows
+    "Listed as" where the name differs.
+  - Built on `task/cabinet-filter-mp-house`; awaits a push.
 - [ ] **F127. Record adapter helper clean-up.** Found in the F124 review
   (2026-10-13).
   - The strict feed-date parser and the plain-text helpers (`instant`,
