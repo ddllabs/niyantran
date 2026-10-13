@@ -24,17 +24,22 @@ const isRegisterRow = (r) => Boolean(r && typeof r === 'object' && clean(r.ds_nu
 /** A member name as the map knows it; '' for a member that is not one place (the EU). */
 const MAP_NAME = { 'Chinese Taipei': 'Taiwan', 'Hong Kong, China': 'Hong Kong', 'Türkiye': 'Turkey' };
 const NOT_A_PLACE = /^european (union|communities)$/i;
-const positionOf = (name) => (NOT_A_PLACE.test(name) ? null : countryPosition(MAP_NAME[name] || name));
+export const positionOf = (name) => (NOT_A_PLACE.test(name) ? null : countryPosition(MAP_NAME[name] || name));
+
+/** Every current stage the WTO lists (several are separated on its page), each with its date. */
+const stagesOf = (row) => (Array.isArray(row.stages) && row.stages.length
+  ? row.stages.map((st) => ({ status: clean(st.status), date: clean(st.status_date) })).filter((st) => st.status)
+  : clean(row.status) ? [{ status: clean(row.status), date: clean(row.status_date) }] : []);
 
 function needsBoard(row, complainants, respondents) {
-  const status = clean(row.status);
-  const compliance = /complian|retaliat|implementation|reasonable period|21\.5|22\.6/i.test(status);
+  const stages = stagesOf(row);
+  const compliance = stages.some((st) => /complian|retaliat|implementation|reasonable period|21\.5|22\.6/i.test(st.status));
   const needs = [
     { label: 'DS number', value: ON_ROW },
     { label: 'Complainant and respondent', value: complainants.length && respondents.length ? ON_ROW : NOT_ON_ROW },
     { label: 'Measure at issue', value: clean(row.title) ? ON_ROW : NOT_ON_ROW, note: 'the dispute title' },
     { label: 'Agreements cited', value: list(row.agreements).length ? ON_ROW : NOT_ON_ROW },
-    { label: 'Current stage with its date', value: status && clean(row.status_date) ? ON_ROW : status ? 'Partial' : NOT_ON_ROW },
+    { label: 'Current stage with its date', value: stages.length && stages.every((st) => st.date) ? ON_ROW : stages.length ? 'Partial' : NOT_ON_ROW },
     { label: 'Third parties', value: list(row.third_parties).length ? ON_ROW : NOT_ON_ROW },
     { label: 'Panel composition', value: NOT_ON_ROW },
     { label: 'Compliance and retaliation status', value: compliance ? 'Partial' : NOT_ON_ROW, ...(compliance ? { note: 'only as the stage names it' } : {}) },
@@ -73,9 +78,10 @@ function partiesMap(complainants, respondents) {
 function relatedLinks(row, rows) {
   const others = rows.filter((r) => isRegisterRow(r) && r !== row && r.ds_number !== row.ds_number);
   const short = clean(row.short_title);
-  const respondent = clean(row.respondent);
+  const respondent = list(row.respondents?.length ? row.respondents : row.respondent)[0] || '';
   const sameMatter = short ? others.filter((r) => clean(r.short_title) === short) : [];
-  const sameRespondent = respondent ? others.filter((r) => clean(r.respondent) === respondent && !sameMatter.includes(r)).sort((a, b) => (b.ds || 0) - (a.ds || 0)) : [];
+  const firstRespondent = (r) => list(r.respondents?.length ? r.respondents : r.respondent)[0] || '';
+  const sameRespondent = respondent ? others.filter((r) => firstRespondent(r) === respondent && !sameMatter.includes(r)).sort((a, b) => (b.ds || 0) - (a.ds || 0)) : [];
   const detail = (r, lead) => [lead, list(r.complainants).join(', '), clean(r.status)].filter(Boolean).join(' · ');
   return [
     ...sameMatter.slice(0, MAX_RELATED).map((r) => ({ title: `${r.ds_number}: ${clean(r.short_title) || clean(r.title)}`, detail: detail(r, 'Same matter'), row: r })),
@@ -99,11 +105,12 @@ export default function lawWtoRegister(row, ctx = {}) {
   const short = clean(row.short_title);
   const title = clean(row.title);
   const complainants = list(row.complainants);
-  const respondents = list(row.respondent);
+  const respondents = list(row.respondents?.length ? row.respondents : row.respondent);
+  const stages = stagesOf(row);
   const thirdParties = list(row.third_parties);
   const agreements = list(row.agreements);
-  const status = clean(row.status);
-  const statusDate = dateLabel(row.status_date);
+  const status = stages[0]?.status || '';
+  const statusDate = dateLabel(stages[0]?.date);
   const requested = dateLabel(row.consultations_requested);
   const asOf = dateLabel(row.as_of);
   const parties = complainants.length && respondents.length ? `${complainants.join(', ')} v. ${respondents.join(', ')}` : '';
@@ -116,7 +123,7 @@ export default function lawWtoRegister(row, ctx = {}) {
     links: sourceLinks(row, 'Official case page (wto.org)'),
     glance: {
       tiles: [
-        { label: 'Stage', value: status || NOT_ON_ROW, sub: statusDate ? `as recorded ${statusDate}` : 'as the WTO records it' },
+        { label: 'Stage', value: status || NOT_ON_ROW, sub: [statusDate ? `as recorded ${statusDate}` : 'as the WTO records it', stages.length > 1 ? `+${stages.length - 1} more current` : ''].filter(Boolean).join(' · ') },
         { label: 'Parties', value: parties || NOT_ON_ROW, sub: 'complainant v. respondent' },
         { label: 'Agreements cited', value: agreements.length ? agreements.slice(0, 2).join(', ') + (agreements.length > 2 ? ` +${agreements.length - 2}` : '') : NOT_ON_ROW, sub: agreements.length ? `${agreements.length} cited in the request` : 'none on the row' },
         { label: 'Compliance period ends', value: NOT_ON_ROW, sub: 'the register states no compliance date', clock: true },
@@ -135,8 +142,8 @@ export default function lawWtoRegister(row, ctx = {}) {
         ['Respondent', respondents.join('; ')],
         ['Third parties', thirdParties.length ? `${thirdParties.length}: ${thirdParties.join(', ')}` : ''],
         ['Consultations requested', requested],
-        ['Stage', status],
-        ['Stage recorded', statusDate],
+        ['Stage', stages.length > 1 ? stages.map((st) => `${st.status}${st.date ? ` (${dateLabel(st.date)})` : ''}`).join('; ') : status],
+        ['Stage recorded', stages.length > 1 ? '' : statusDate],
         ['Reports adopted', row.reports_adopted === true ? 'Yes' : row.reports_adopted === false ? 'No' : ''],
         ['Agreements cited', agreements.join('; ')],
         ['Last updated by the WTO', dateLabel(row.last_updated)],
@@ -162,7 +169,7 @@ export default function lawWtoRegister(row, ctx = {}) {
       ask: 'Ask AI about this dispute',
       provenance: { source: 'WTO dispute settlement register (wto.org)', asOf: asOf || undefined, flags: asOf ? [] : ['as-of not on record'] },
       health: health(rows),
-      note: 'Parties, stages and dates as the WTO records them; members are named as the WTO names them. The official case page is the authority; this row is an index to it.',
+      note: 'Parties, stages and dates as the WTO records them. Members are given common English names; the European Union and Türkiye are named as the WTO names them. The official case page is the authority; this row is an index to it.',
     },
   };
 }

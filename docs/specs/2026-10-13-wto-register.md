@@ -26,19 +26,32 @@ loads these files from `www.wto.org/library/disputes/` (checked 2026-10-13):
 - `dispute_arrays_e.js`: the status names (ST0–ST34, some kept only as commented-out lines) and the
   agreement names.
 
-Members are written as codes, mostly ISO 3166 alpha-3. The WTO-specific codes are:
+Members are written as codes, mostly ISO 3166 alpha-3, and given common English names here. The
+WTO's own name table is not in the files its case pages load, so it could not be copied.
+
+The WTO's display code (`dispute_code.js`, read on 2026-10-13) applies two rules:
+
+- **Complainants and respondents** follow the dispute's start date:
+  - EEC is the European Communities before 1 December 2009 and the European Union from that date;
+  - TUR is Turkey before 1 June 2022 and Türkiye from that date.
+- **Third parties** follow two exception lists in `dispute_arrays_e.js` (`eec_exceptions`,
+  `tur_exceptions`): EEC is the European Union, and TUR is Türkiye, unless the dispute is listed.
+
+Other codes:
 
 | Code | Name |
 |---|---|
-| EEC | European Communities before 1 December 2009, European Union from that date (the WTO's own rule) |
-| TUR | Turkey before 1 June 2022, Türkiye from that date |
 | CHT | Chinese Taipei |
 | HKG | Hong Kong, China |
-| ROM | Romania |
+| ROM | Romania (the old ISO code) |
 
 One third-party entry ("OR") matches no member and is shown as written.
 
-**Terms (open question for the owner).** The terms page for wto.org could not be retrieved. Related
+A dispute may have several current stages, separated by "|" on the WTO's side. All of them are
+kept (`stages`), each with its date; the table shows the first.
+
+**Terms (open question for the owner; publication gate).** The data file is committed on the task
+branch only; it is not pushed until the owner decides. The terms page for wto.org could not be retrieved. Related
 WTO platforms allow reuse with acknowledgement and require permission for commercial use or
 redistribution. Niyantran is a paid product, so the owner should confirm with the WTO
 (enquiries@wto.org) before the data is published.

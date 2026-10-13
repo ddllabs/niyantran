@@ -65,3 +65,23 @@ describe('WTO module dispatch', () => {
     expect(adapter(news, { rows: [news], feed: { feature: 'WTO Dispute Settlement' } }).badge.text).toBe('Coverage — not an order');
   });
 });
+
+// Review fixes: every current stage, and the respondent list.
+describe('WTO register panel: stages and respondents', () => {
+  it('shows every current stage the WTO lists, each dated', () => {
+    const multi = rows.find((r) => r.stages.length > 1);
+    const m = lawWtoRegister(multi, ctx);
+    expect(tile(m, 'Stage').sub).toMatch(/\+1 more current/);
+    const stageRow = Object.fromEntries(m.about.rows).Stage;
+    for (const st of multi.stages) expect(stageRow).toContain(st.status);
+    expect(board(m)['Current stage with its date']).toBe('On the row');
+    // DS217 lists two current stages, both "Authorization to retaliate granted".
+    expect(board(lawWtoRegister(byDs(217), ctx))['Compliance and retaliation status']).toBe('Partial');
+  });
+
+  it('links a multi-respondent dispute to the first respondent’s other disputes', () => {
+    const links = lawWtoRegister(byDs(600), ctx).touches.links.filter((l) => /Same respondent/.test(l.detail));
+    expect(links.length).toBeGreaterThan(0);
+    for (const l of links) expect(l.row.respondents[0]).toBe('European Union');
+  });
+});

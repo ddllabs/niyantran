@@ -30,9 +30,14 @@ const MEMBERS = {
   CHT: 'Chinese Taipei', HKG: 'Hong Kong, China', ROM: 'Romania',
 };
 
-/** A member's name on a given date. EEC and TUR follow the WTO's own rule (dispute_code.js). */
+/**
+ * A complainant's or respondent's name on the dispute's start date. EEC and TUR follow the WTO's own
+ * rule for parties (showComplainant/showRespondent in dispute_code.js); without a date they stay as
+ * written.
+ */
 export function memberName(code, startDate = '') {
   const c = String(code || '').trim();
+  if ((c === 'EEC' || c === 'TUR') && !startDate) return c;
   if (c === 'EEC') return startDate >= '2009-12-01' ? 'European Union' : 'European Communities';
   if (c === 'TUR') return startDate >= '2022-06-01' ? 'Türkiye' : 'Turkey';
   return Object.hasOwn(MEMBERS, c) ? MEMBERS[c] : c;
@@ -48,7 +53,11 @@ const ENTITIES = {
 export function wtoText(value) {
   return String(value ?? '')
     .replace(/<[^>]*>/g, ' ')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    // Only a real, printable code point is decoded; anything else is left exactly as written.
+    .replace(/&#(\d+);/g, (m, n) => {
+      const cp = Number(n);
+      return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : m;
+    })
     .replace(/&([a-z]+);/gi, (m, name) => (Object.hasOwn(ENTITIES, name.toLowerCase()) ? ENTITIES[name.toLowerCase()] : m))
     .replace(/\s+/g, ' ')
     .trim();
@@ -88,7 +97,14 @@ export function parseAgreements(arraysText) {
   return out;
 }
 
+/** A WTO exception list (`eec_exceptions = ["DS2", ...]`) as a set of DS numbers. */
+function exceptionsOf(arraysText, name) {
+  const m = new RegExp(`${name}\\s*=\\s*\\[([^\\]]*)\\]`).exec(String(arraysText || ''));
+  return new Set(m ? [...m[1].matchAll(/"(DS\d+)"/g)].map((x) => x[1]) : []);
+}
+
 const caseUrl = (n) => `https://www.wto.org/english/tratop_e/dispu_e/cases_e/ds${n}_e.htm`;
+const clean = (s) => String(s ?? '').trim();
 const split = (s) => String(s || '').split('#').map((x) => x.trim()).filter(Boolean);
 
 /**
@@ -99,24 +115,38 @@ const split = (s) => String(s || '').split('#').map((x) => x.trim()).filter(Bool
 export function parseWtoRegister(caseText, arraysText, { asOf = '' } = {}) {
   const statuses = parseStatuses(arraysText);
   const agreements = parseAgreements(arraysText);
+  const eecOld = exceptionsOf(arraysText, 'eec_exceptions');
+  const turOld = exceptionsOf(arraysText, 'tur_exceptions');
+  /** A third party's name, by the WTO's exception lists (showThirdParty in dispute_code.js), not by date. */
+  const thirdPartyName = (c, ds) => (c === 'EEC' ? (eecOld.has(ds) ? 'European Communities' : 'European Union')
+    : c === 'TUR' ? (turOld.has(ds) ? 'Turkey' : 'Türkiye') : memberName(c));
   const rows = [];
-  for (const m of String(caseText || '').matchAll(/ds_array\[(\d+)\]\s*=\s*\{([\s\S]*?)\};/g)) {
+  // A record ends at a "};" that starts a line, as the WTO's file writes it, never at one inside a value.
+  for (const m of String(caseText || '').matchAll(/ds_array\[(\d+)\]\s*=\s*\{([\s\S]*?)\n\};/g)) {
     const n = Number(m[1]);
     const f = fieldsOf(m[2]);
     const start = isoDate(f.start_date);
-    const [statusCode, statusWhen] = String(f.status || '').split('#');
+    // Several current stages are separated by "|"; each is "code#date", with any added text after a third "#".
+    const stages = String(f.status || '').split('|').map((part) => part.split('#')).filter(([code]) => clean(code)).map(([code, when, extra]) => ({
+      status: (statuses.get(code.trim()) || 'Not stated') + wtoText(extra || ''),
+      status_date: isoDate(when),
+    }));
     const members = (codes) => split(codes).map((c) => memberName(c, start));
+    const code = wtoText(f.code) || `DS${n}`;
+    const respondents = members(f.destination);
     rows.push({
-      ds_number: wtoText(f.code) || `DS${n}`,
+      ds_number: code,
       ds: n,
       title: wtoText(f.title),
       short_title: wtoText(f.short_title),
       complainants: members(f.origin),
-      respondent: members(f.destination).join('; '),
-      third_parties: members(f.third_party),
+      respondents,
+      respondent: respondents.join('; '),
+      third_parties: split(f.third_party).map((c) => thirdPartyName(c, code)),
       consultations_requested: start,
-      status: statusCode ? statuses.get(statusCode.trim()) || 'Not stated' : '',
-      status_date: isoDate(statusWhen),
+      stages,
+      status: stages[0]?.status || '',
+      status_date: stages[0]?.status_date || '',
       reports_adopted: /^true$/i.test(String(f.reports_adopted || '').trim()),
       agreements: [...new Set(split(f.agreement).map((a) => agreements.get(a.split('_')[0])).filter(Boolean))],
       last_updated: isoDate(f.update_date),

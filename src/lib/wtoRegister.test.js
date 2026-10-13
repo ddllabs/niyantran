@@ -84,7 +84,8 @@ describe('WTO register parsing', () => {
   it('names the EU and Türkiye by the date of the dispute, as the WTO does, and keeps an unknown code as written', () => {
     expect(rows[1]).toMatchObject({ complainants: ['Canada', 'European Communities'], respondent: 'European Communities' });
     expect(rows[2].respondent).toBe('European Union');
-    expect(rows[2].third_parties).toEqual(['Australia', 'Chinese Taipei', 'OR', 'Turkey']);
+    // Third parties follow the WTO's exception lists (none here), not the date: TUR is Türkiye.
+    expect(rows[2].third_parties).toEqual(['Australia', 'Chinese Taipei', 'OR', 'Türkiye']);
     expect(memberName('TUR', '2020-01-01')).toBe('Turkey');
     expect(memberName('EEC', '2009-12-01')).toBe('European Union');
   });
@@ -106,5 +107,51 @@ describe('WTO register parsing', () => {
   it('decodes WTO text conservatively', () => {
     expect(wtoText('T&uuml;rkiye&nbsp;&mdash; &unknown; &#233;')).toBe('Türkiye — &unknown; é');
     expect(parseStatuses('').size).toBe(0);
+  });
+});
+
+// Review fixes (2026-10-13): what the WTO's own page shows, and an untrusted file that cannot crash
+// or silently corrupt the register.
+describe('WTO register parsing, as the WTO page shows it', () => {
+  const EXCEPTIONS = `${ARRAYS}
+var eec_exceptions = new Array();
+eec_exceptions = ["DS2", "DS50"];
+var tur_exceptions = new Array();
+tur_exceptions = ["DS50"];`;
+  const caseOf = (n, fields) => `ds_array[${n}] = {\n    code: "DS${n}",\n    title: "T${n}",\n    origin: "USA",\n    destination: "CHN",\n    start_date: "2010/01/01",\n${fields}\n};`;
+
+  it('keeps every current stage the WTO lists, each with its date and any added text', () => {
+    const [row] = parseWtoRegister(caseOf(30, '    status: "ST9#2019_01_11|ST1#2004_11_26#, in part",'), EXCEPTIONS);
+    expect(row.stages).toEqual([
+      { status: 'Report(s) adopted, with recommendation to bring measure(s) into conformity', status_date: '2019-01-11' },
+      { status: 'In consultations, in part', status_date: '2004-11-26' },
+    ]);
+    expect(row).toMatchObject({ status: row.stages[0].status, status_date: '2019-01-11' });
+  });
+
+  it('names third parties by the WTO’s exception lists, not by the dispute’s date', () => {
+    const rows = parseWtoRegister([caseOf(99, '    third_party: "EEC#TUR",'), caseOf(50, '    third_party: "EEC#TUR",')].join('\n'), EXCEPTIONS);
+    expect(rows.find((r) => r.ds === 99).third_parties).toEqual(['European Union', 'Türkiye']);
+    expect(rows.find((r) => r.ds === 50).third_parties).toEqual(['European Communities', 'Turkey']);
+  });
+
+  it('keeps the respondents as a list, and the joined line for the table', () => {
+    const [row] = parseWtoRegister(caseOf(600, '    destination: "EEC#FRA",').replace('    destination: "CHN",\n', ''), EXCEPTIONS);
+    expect(row.respondents).toEqual(['European Union', 'France']);
+    expect(row.respondent).toBe('European Union; France');
+  });
+
+  it('keeps an unknown or undated member as written', () => {
+    expect(memberName('EEC', '')).toBe('EEC');
+    expect(memberName('TUR', '')).toBe('TUR');
+  });
+
+  it('never throws on, or emits, an out-of-range or NUL code point', () => {
+    expect(wtoText('a &#99999999; b &#0; c &#55296; d')).toBe('a &#99999999; b &#0; c &#55296; d');
+  });
+
+  it('does not end a record at a "};" inside a value', () => {
+    const [row] = parseWtoRegister('ds_array[5] = {\n    code: "DS5",\n    title: "Duties }; on goods",\n    origin: "USA",\n    destination: "CHN",\n    start_date: "1995/05/03"\n};', ARRAYS);
+    expect(row).toMatchObject({ title: 'Duties }; on goods', complainants: ['United States'], respondent: 'China' });
   });
 });
