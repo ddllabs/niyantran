@@ -120,7 +120,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
     isNationalTable(feed?.feature);
   const dossier = alliances || sanctions || aid || nuclear;
   // A source-status row ("Source offline or empty") is not a record, so it keeps the old view.
-  const panelAdapter = selected?.status === 'source_status' ? null : adapterFor(feed?.feature);
+  const panelAdapter = selected?.status === 'source_status' ? null : adapterFor(feed?.feature, feed?.tier);
   const showFallbackBanner =
     !localDesk && !carbonDesk && feed?.fallback && dataState.id !== 'live' && !status && dataState.detail;
 

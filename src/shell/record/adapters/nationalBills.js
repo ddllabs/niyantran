@@ -1,5 +1,5 @@
 import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
-import { cap, dateLabel, plural, presentRows, sourceLinks } from './common.js';
+import { cap, companiesNamedIn, dateLabel, plural, presentRows, sourceLinks } from './common.js';
 
 /**
  * Bill Passage Probability Index → record panel (F124). Rows are the Sansad bills register; the
@@ -63,8 +63,8 @@ export default function nationalBills(row, ctx = {}) {
   const typical = a?.stage_duration?.typical_days_for_stage;
   const sectors = (impact?.sectors || []).map((s) => s.name).filter(Boolean);
   if (!sectors.length && ministry) sectors.push(ministry);
-  // Companies are drawn only where the bill text names them (path P1), never by sector association.
-  const companies = (impact?.companies || []).filter((c) => c.path !== 'P2').map((c) => c.name).filter(Boolean);
+  // Companies only where the bill's own text names them, never by sector association or an ordinary word.
+  const companies = packs ? companiesNamedIn(impact, packs.ontology, `${row.bill_name || ''} ${a?.brief || ''}`) : [];
   const pdf = httpsOnly(impact?.pdf);
 
   const rows = ctx.rows || [];

@@ -83,6 +83,13 @@ describe('National bills adapter', () => {
     if (assented.sector) expect(t.nodes.left.l1.toLowerCase()).toBe(assented.sector.toLowerCase());
   });
 
+  it('names a company only where the bill text names it, not on an ordinary word such as "oil"', () => {
+    const edibleOil = bills.find((r) => /edible oil/i.test(r.bill_name));
+    expect(nationalBills(edibleOil, ctx()).touches.nodes.far).toBeUndefined();
+    const coal = bills.find((r) => /^the coal india \(/i.test(r.bill_name));
+    expect(nationalBills(coal, ctx()).touches.nodes.far?.l1).toMatch(/coal india/i);
+  });
+
   it('links up to three other bills from the same ministry, never this one or a copy of it', () => {
     const row = bills.find((r) => r.sector && bills.filter((x) => x.sector === r.sector).length > 5);
     const links = nationalBills({ ...row }, ctx()).touches.links.filter((l) => l.row);

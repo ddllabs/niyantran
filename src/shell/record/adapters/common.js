@@ -29,3 +29,27 @@ export const presentRows = (pairs) => pairs.filter(([, v]) => String(v ?? '').tr
 
 /** The provenance flag a register row carries ("unconfirmed"), as footer text. */
 export const provenanceFlags = (row) => (String(row?.provenance || '').toLowerCase() === 'unconfirmed' ? ['provenance unconfirmed'] : []);
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Whether the text names a company (F124): by a multi-word name or alias, or an upper-case
+ * abbreviation ("ONGC", "SAIL"), standing as a whole token. A single ordinary word ("Oil",
+ * "Reliance") is not a mention, though the ontology lists it as an alias.
+ */
+function namesCompany(company, text) {
+  return [company.name, company.legalName, ...(company.aliases || [])].filter(Boolean).some((alias) => {
+    const a = String(alias).trim();
+    if (!(/\s/.test(a) || /^[A-Z0-9&]{3,}$/.test(a))) return false;
+    return new RegExp(`(^|[^A-Za-z0-9])${escapeRe(a)}($|[^A-Za-z0-9])`).test(String(text || ''));
+  });
+}
+
+/** The companies of an impact model (buildRecordModel) that the record's own text names; never sector-level (P2). */
+export function companiesNamedIn(impact, ontology, text) {
+  const registered = new Map((ontology?.companies || []).map((c) => [`company:${c.id}`, c]));
+  return (impact?.companies || [])
+    .filter((c) => c.path !== 'P2' && registered.has(c.id) && namesCompany(registered.get(c.id), text))
+    .map((c) => c.name)
+    .filter(Boolean);
+}

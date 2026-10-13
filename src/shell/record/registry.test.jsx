@@ -14,7 +14,7 @@ const { default: RailContent } = await import('../RailContent.jsx');
 // existing record view, so nothing outside the batch changes.
 describe('record panel registry', () => {
   it('registers the Global modules of batches 1–3 and nothing else', () => {
-    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch', 'Bill Passage Probability Index', 'Policy Pipeline Tracker (Draft-to-Gazette)']) expect(adapterFor(feature), feature).toBeTypeOf('function');
+    for (const feature of ['Open Fronts', 'Global Intelligence', 'Infra', 'Satellite Infrastructure', 'Global Commodities', 'Growth Indicators', 'Global Trade', 'World Constitutions', 'Heads of State', 'Geopolitics News Wire', 'Alliances', 'Sanctions', 'Global Aid', 'Nuclear Watch', 'Bill Passage Probability Index', 'Policy Pipeline Tracker (Draft-to-Gazette)', 'Parliamentary Question Database', 'Regulatory Body Watch (RBI/SEBI/TRAI/CCI)', 'MP Profiles & Performance (MPLAD, attendance, debates)']) expect(adapterFor(feature), feature).toBeTypeOf('function');
     for (const feature of ['Maritime Choke-Points', 'Energy', 'Central Tender Aggregator + Constituency Filter', '', undefined]) expect(adapterFor(feature), String(feature)).toBeNull();
   });
 
@@ -61,5 +61,16 @@ describe('record panel registry', () => {
     const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Bill Passage Probability Index', tier: 'national', rows: bills.slice(0, 50) }} selected={bills[0]} />);
     expect(html).toContain('class="rp"');
     expect(html).not.toContain('data-national-record');
+  });
+
+  it('scopes Cabinet Decisions to the National desk, leaving the State desk module of the same name alone', () => {
+    expect(adapterFor('Cabinet Decisions', 'national')).toBeTypeOf('function');
+    expect(adapterFor('Cabinet Decisions', 'state')).toBeNull();
+    expect(adapterFor('Cabinet Decisions')).toBeNull();
+    const row = { title: 'Cabinet approves the scheme', date: '2026-10-01' };
+    const state = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Cabinet Decisions', tier: 'state', rows: [row] }} selected={row} />);
+    expect(state).not.toContain('class="rp"');
+    const national = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Cabinet Decisions', tier: 'national', rows: [row] }} selected={row} />);
+    expect(national).toContain('class="rp"');
   });
 });
