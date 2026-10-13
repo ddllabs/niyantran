@@ -58,7 +58,7 @@ component:
  *   about: { label: string, rows?: [string, string][], chips?: string[], cards?: { heading: string, body: string }[] },
  *   touches?: { label: string, lanes: [string, string, string, string],
  *               nodes: { left?: Node, center: Node, right?: Node, far?: Node },   // a missing node draws "None on record"
- *               links: { title: string, detail: string, to?: { tab: string, feature: string } }[] },
+ *               links: { title: string, detail: string, to?: { tab: string, feature: string }, row?: object }[] },   // row: a related record from ctx.rows, opened in place (batch 3)
  *   footer: { ask: string, provenance: { source: string, asOf?: string, flags?: string[] }, note?: string },
  * }} RecordPanelModel
  *

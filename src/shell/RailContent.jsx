@@ -191,6 +191,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
               model={panelAdapter(selected, { rows: feed?.rows || [], feed })}
               onClose={() => onSelect?.(null)}
               onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
+              onSelect={onSelect}
             />
           ) : selected ? (
             <RecordDetail row={selected} feed={feed} onClear={() => onSelect?.(null)} />

@@ -46,6 +46,14 @@ describe('record panel contract', () => {
     expect(contractProblems(m).join()).toMatch(/duplicate board row GDP growth/);
   });
 
+  it('accepts a touch link that opens a related row, and rejects a row that is not a record', () => {
+    const m = base();
+    m.touches = { label: '03', lanes: ['A', 'B', 'C', 'D'], nodes: { center: { l1: 'This' } }, links: [{ title: 'Other', detail: 'x', row: { title: 'Other', note: '[date]', seat: 'undefined' } }] };
+    expect(contractProblems(m)).toEqual([]); // the row is data to open, not text the panel shows
+    m.touches.links = [{ title: 'Other', detail: 'x', row: 'Other' }];
+    expect(contractProblems(m).join()).toMatch(/touch link Other has a row that is not a record/);
+  });
+
   it('rejects reference placeholders but allows ordinary prose', () => {
     const m = base();
     m.about.cards = [{ heading: 'Note', body: 'The order was declared null and void.' }];
