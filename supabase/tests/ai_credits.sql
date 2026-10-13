@@ -509,8 +509,11 @@ SET LOCAL ROLE anon;
 SELECT pg_temp.rejected($q$SELECT public.my_credits()$q$, '42501', 'anon cannot read credits');
 RESET ROLE;
 SELECT pg_temp.assert_true((SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(pg_temp.r('late.mine')) k)
-  = ARRAY['balance', 'cycle', 'debt', 'held', 'lots', 'plan', 'recent'], 'my_credits returns the §12 keys');
-SELECT pg_temp.assert_true(pg_temp.r('late.mine')::text !~* '(usd|cost|rate|inr)', 'my_credits carries no dollars and no rate');
+  = ARRAY['balance', 'cycle', 'debt', 'held', 'inr_per_credit', 'lots', 'plan', 'recent'], 'my_credits returns the §12 keys');
+SELECT pg_temp.assert_true((pg_temp.r('late.mine') - 'inr_per_credit')::text !~* '(usd|cost|rate|inr)',
+  'my_credits carries no dollars and no exchange rate');
+SELECT pg_temp.assert_true((pg_temp.r('late.mine') ->> 'inr_per_credit')::numeric = 0.10,
+  'my_credits gives the published rupees per credit for the rupee hint');
 SELECT pg_temp.assert_true(pg_temp.r('late.mine') @> '{"balance": 962, "held": 300, "debt": 0, "plan": "free"}',
   'my_credits: balance, held (the unsettled l9 hold), debt and plan');
 SELECT pg_temp.assert_true(pg_temp.r('late.mine') -> 'lots' = jsonb_build_array(jsonb_build_object('kind', 'topup', 'remaining', 962,

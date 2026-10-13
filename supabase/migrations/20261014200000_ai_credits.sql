@@ -890,7 +890,7 @@ FOR EACH ROW EXECUTE FUNCTION public.credits_on_plan_grant();
 
 -- The signed-in user's credits (spec §7). It writes (sweeps, expires and
 -- mints for the caller only), so it is VOLATILE; its only input is auth.uid().
--- No dollars and no rate.
+-- No dollars and no exchange rate; only the published rupees per credit.
 CREATE FUNCTION public.my_credits() RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' SET TimeZone = 'UTC' AS $$
 DECLARE
@@ -947,6 +947,8 @@ BEGIN
   ) r;
 
   RETURN jsonb_build_object('balance', w.balance, 'held', v_held, 'debt', w.debt, 'plan', v_plan,
+           -- The published value of one credit in rupees, for the UI's rupee hint; never dollars.
+           'inr_per_credit', (SELECT cs.inr_per_credit FROM public.credit_settings cs WHERE cs.id),
            'cycle', jsonb_build_object('allowance', v_allowance, 'ends_at', v_ends),
            'lots', v_lots, 'recent', v_recent);
 END;

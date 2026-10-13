@@ -212,13 +212,15 @@ At most three agents run at once.
 ### 4a. Credits library and composer
 
 **Write scope**
-- New `src/lib/credits.js` and `src/ai/CreditBalance.jsx`.
+- New `src/ai/CreditBalance.jsx`. The shared store `src/lib/creditsStore.js`
+  was written by the supervisor before dispatch, as the fixed interface for
+  tasks 4, 5 and 6 (read only for them).
 - `src/ai/ChatSubmit.jsx` and `src/ai/AiPanel.jsx`.
 - Their tests and CSS.
 
 **Acceptance criteria**
-- `credits.js` calls `my_credits` and formats credits and the rupee hint
-  (credits × 0.10).
+- `creditsStore.js` (done) calls `my_credits`, and formats credits and the
+  rupee hint from the server's `inr_per_credit`.
 - **Balance chip.** It shows next to the chat box, including a negative
   balance with "taken from your next credits".
 - **Warning.** The low-balance warning shows at 10% of the allowance.
