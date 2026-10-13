@@ -13,6 +13,7 @@ import AttachmentTray from './AttachmentTray.jsx';
 import ChatSubmit from './ChatSubmit.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
+import WebSourceStrip, { liveStrip } from './WebSourceStrip.jsx';
 import ModelPicker from './ModelPicker.jsx';
 import WebSearchToggle, { isWebGated, useWebPrediction } from './WebSearchToggle.jsx';
 import MessageRow from './MessageRow.jsx';
@@ -1016,7 +1017,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             <MessageRow key={m.id} m={m} lang={lang} fallbackLabel={picked.label} labelOf={labelOf} onOpenSource={openSource} selectedSource={viewer?.source} />
           )) : null}
 
-          {/* The turn in flight: the ticker, then the answer as it is written. */}
+          {/* The turn in flight: the ticker, the pages searched (F131), then the answer as it is written. */}
           {showFlight && !stream?.error && !research.error ? (
             <div className="ai-msg ai-msg-assistant">
               {/* One indicator from Send (thinking-display spec §1): the ticker opens at once on
@@ -1034,6 +1035,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                 sourceCount={(stream?.sources || []).filter(isReadableCitation).length}
                 lang={lang}
               />
+              <WebSourceStrip {...liveStrip(stream, Boolean(research.submitting || streaming || stream?.isPending))} onOpen={openSource} />
               {stream?.streamingText ? (
                 <AiMarkdown text={stream.streamingText} sources={stream.sources || []} streaming={streaming} allowedLinks={[]} onOpenSource={openSource} selectedSource={viewer?.source} />
               ) : null}

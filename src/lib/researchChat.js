@@ -114,9 +114,17 @@ export function createTextCoalescer(commit, schedule) {
   };
 }
 
+/** The live pages with the new ones appended, each URL once; an entry without a string URL is dropped. */
+function mergeWebPages(current, pages) {
+  if (!Array.isArray(pages)) return current;
+  const seen = new Set(current.map(p => p.url));
+  const added = pages.filter(p => p && typeof p === 'object' && typeof p.url === 'string' && p.url && !seen.has(p.url) && seen.add(p.url));
+  return added.length ? [...current, ...added] : current;
+}
+
 function blankState() {
   return { isStreaming: false, isPending: false, status: 'idle', streamingText: '', activity: [], sources: [],
-    followUps: [], web: null, webSources: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '',
+    followUps: [], web: null, webSources: [], webLive: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '',
     conversationId: '', messageId: '', executionExpiresAt: null, retryable: false, retryCount: 0,
     cancelRequested: false, cancelPending: false, cancelError: '', stopQueued: false };
 }
@@ -478,7 +486,7 @@ async function run(entry, opts) {
     entry.identity = identity;
     entry.generation = version;
     await publish(entry, { isStreaming: true, isPending: true, status: 'connecting', error: '', errorCode: '',
-      retryable: false, retryCount: entry.retryCount, streamingText: '', sources: [], followUps: [], web: null, webSources: [], truncated: null,
+      retryable: false, retryCount: entry.retryCount, streamingText: '', sources: [], followUps: [], web: null, webSources: [], webLive: [], truncated: null,
       activity: [], timing: null, usage: null, messageId: '', cancelPending: false }, attempt);
     if (!bound(entry, attempt) || controller.signal.aborted) throw new Error('Your research session changed.');
     entry.dispatched = true;
@@ -514,8 +522,12 @@ async function run(entry, opts) {
       else if (typeof frame.reasoning === 'string') await publish(entry, { activity: [...entry.state.activity, { type: 'activity', text: frame.reasoning }] }, attempt);
       // The server's web-search decision for this turn, sent once and early (web-search spec §4).
       else if (frame.web && typeof frame.web === 'object') await publish(entry, { web: frame.web }, attempt);
-      // A web_search step has no start frame, so its end frame is listed as it is, and a document or
-      // desk search that ends later never merges into it, whatever step number the two share.
+      // F131 §2: pages found while the research call searches, for display only. Each frame carries
+      // only new pages; they are merged by URL, and the terminal `webSources` is the authoritative list.
+      else if (frame.webProgress) await publish(entry, { webLive: mergeWebPages(entry.state.webLive, frame.webProgress.pages) }, attempt);
+      // A web_search frame is listed as it is: its start (F131) is hidden by the ticker once its end
+      // arrives, an older turn sent the end alone, and a document or desk search that ends later never
+      // merges into it, whatever step number the two share.
       else if (frame.tool) await publish(entry, { activity: frame.tool.phase === 'start' || frame.tool.name === 'web_search'
         ? [...entry.state.activity, { type: 'tool', ...frame.tool }]
         : entry.state.activity.map(a => a.type === 'tool' && a.name !== 'web_search' && a.step === frame.tool.step ? { ...a, ...frame.tool } : a) }, attempt);

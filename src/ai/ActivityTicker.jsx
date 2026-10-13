@@ -53,9 +53,12 @@ export function stepLabel(step) {
     return `${step.status === 'cancelled' ? 'Cancelled' : 'Failed'} ${what}${input.query ? ` “${input.query}”` : ''}`;
   }
   const n = Number.isFinite(step.resultCount) && step.resultCount >= 0 ? step.resultCount : null;
-  // F130: the provider does not expose the query, so a web step is named by its page count alone.
+  // F130: the provider does not expose the query, so a web step is named by its counts alone:
+  // the searches that ran (F131, when the step carries them) and the pages found.
   if (step.name === 'web_search') {
-    return step.phase === 'end' ? `Searched the web${n === null ? '' : ` · ${plural(n, 'page', 'pages')}`}` : 'Searching the web…';
+    if (step.phase !== 'end') return 'Searching the web…';
+    const times = Number.isInteger(step.searches) && step.searches > 0 ? (step.searches === 1 ? ' once' : ` ${step.searches} times`) : '';
+    return `Searched the web${times}${n === null ? '' : ` · ${plural(n, 'page', 'pages')}`}`;
   }
   if (step.name === 'search_documents') {
     if (step.phase !== 'end') return input.query ? `Searching “${input.query}”…` : 'Searching documents…';
@@ -94,11 +97,16 @@ export function clock(ms) {
 
 /** The finished line: searches, cited sources and total time, each left out when zero. */
 export function finishedSummary({ steps = [], sourceCount = 0, timing = null, hi = false }) {
-  const searches = steps.filter((s) => s.type === 'tool' && s.phase === 'end').length;
+  const ended = steps.filter((s) => s.type === 'tool' && s.phase === 'end');
+  const searches = ended.filter((s) => s.name !== 'web_search').length;
+  // F131: web searches are counted apart, by the searches each step ran (an older saved step
+  // carries no count and ran at least one), so the line agrees with the source strip.
+  const web = ended.filter((s) => s.name === 'web_search')
+    .reduce((n, s) => n + (Number.isSafeInteger(s.searches) && s.searches > 0 ? s.searches : 1), 0);
   const secs = Number(timing?.total_ms) > 0 ? Math.max(1, Math.round(timing.total_ms / 1000)) : 0;
   const parts = hi
-    ? [searches && `${searches} खोज`, sourceCount && `${sourceCount} उद्धरण`, secs && `${secs} से.`]
-    : [searches && plural(searches, 'search', 'searches'), sourceCount && plural(sourceCount, 'citation', 'citations'), secs && `${secs} s`];
+    ? [searches && `${searches} खोज`, web && `${web} वेब खोज`, sourceCount && `${sourceCount} उद्धरण`, secs && `${secs} से.`]
+    : [searches && plural(searches, 'search', 'searches'), web && plural(web, 'web search', 'web searches'), sourceCount && plural(sourceCount, 'citation', 'citations'), secs && `${secs} s`];
   const line = parts.filter(Boolean).join(' · ');
   return line || (hi ? 'उत्तर दिया' : 'Answered');
 }

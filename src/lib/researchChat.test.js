@@ -985,4 +985,47 @@ describe('web search frames', () => {
     expect(bodies[0].web_search).toBe(false);
     expect('web_search' in bodies[1]).toBe(false);
   });
+
+  // F131 §2: display-only pages found while the research call searches, merged by URL.
+  it('merges webProgress pages into webLive by URL, beside webSources, and ignores malformed ones', async () => {
+    const a = { url: 'https://a.example/x', title: 'A', domain: 'a.example' };
+    const b = { url: 'https://b.example/y', title: 'B', domain: 'b.example' };
+    const c = { url: 'https://c.example/z', title: 'C', domain: 'c.example' };
+    const final = [{ ...a, cited: true }];
+    const send = async () => sse([{ conversation: { id: 'web-g' } },
+      { tool: { name: 'web_search', phase: 'start', step: 3 } },
+      { webProgress: { pages: [a, b] } },
+      { webProgress: { pages: [b, { ...a, title: 'A again' }, c, null, 'x', { url: 42 }, { title: 'no url' }] } },
+      { webProgress: { pages: 'nope' } }, { webProgress: null },
+      { tool: { name: 'web_search', phase: 'end', step: 3, resultCount: 3, searches: 2, status: 'ok' } },
+      { chunk: 'A' }, { sources: [] }, { webSources: final }, { done: { message_id: 'm' } }]);
+    await sendTurn({ ...turn, turn_key: 'web-6' }, { send, schedule: fn => fn() });
+    const s = streamState('web-g');
+    expect(s.webLive).toEqual([a, b, c]);
+    expect(s.webSources).toEqual(final);
+    clearStream('web-g');
+  });
+
+  it('starts every turn with no live pages', async () => {
+    expect(streamState('web-h').webLive).toEqual([]);
+    const first = async () => sse([{ conversation: { id: 'web-h' } }, { webProgress: { pages: [{ url: 'https://a.example/', title: 'A', domain: 'a.example' }] } },
+      { chunk: 'A' }, { sources: [] }, { done: { message_id: 'm1' } }]);
+    await sendTurn({ ...turn, turn_key: 'web-7' }, { send: first, schedule: fn => fn() });
+    expect(streamState('web-h').webLive).toHaveLength(1);
+    const second = async () => sse([{ conversation: { id: 'web-h' } }, { chunk: 'B' }, { sources: [] }, { done: { message_id: 'm2' } }]);
+    await sendTurn({ ...turn, conversation_id: 'web-h', turn_key: 'web-8' }, { send: second, schedule: fn => fn() });
+    expect(streamState('web-h').webLive).toEqual([]);
+    clearStream('web-h');
+  });
+
+  it('a replay of the same turn starts again with no live pages', async () => {
+    const broken = async () => sse([{ conversation: { id: 'web-i' } }, { webProgress: { pages: [{ url: 'https://a.example/', title: 'A', domain: 'a.example' }] } }]);
+    await sendTurn({ ...turn, turn_key: 'web-9' }, { send: broken, schedule: fn => fn() });
+    expect(streamState('web-i')).toMatchObject({ status: 'unknown', retryable: true });
+    expect(streamState('web-i').webLive).toHaveLength(1);
+    const replay = async () => sse([{ conversation: { id: 'web-i' } }, { chunk: 'A' }, { sources: [] }, { done: { message_id: 'm' } }]);
+    await research.retryTurn('web-i', { send: replay, schedule: fn => fn() });
+    expect(streamState('web-i')).toMatchObject({ status: 'complete', webLive: [] });
+    clearStream('web-i');
+  });
 });
