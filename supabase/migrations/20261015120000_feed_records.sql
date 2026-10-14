@@ -7,8 +7,9 @@
 --
 --   * feed_items: one row per listed item of a scheduled module, keyed by module, variant and
 --     the item key from server/feedSchedule.mjs itemKeyFor. A refresh updates an item in place;
---     its row is rewritten only when its content_hash changes. sort_at (published_at, else
---     first_seen) orders a module's items newest first.
+--     its row is rewritten only when its content_hash changes. position is the item's 0-based
+--     index in the batch it last arrived in. sort_at (published_at, else first_seen) orders
+--     a kept module's items newest first.
 --   * feed_state: one row per module and variant: the schedule copied from code (class, kind,
 --     interval_minutes), next_due_at, the run lease and its token, health (failures, last
 --     error), the answer's notes (meta: source note, links, coverage, adapter), item_count and
@@ -48,15 +49,18 @@
 --                    published_at; an unchanged one touches last_seen only); kinds latest and
 --                    reference drop the module's items missing from the batch; kind
 --                    measurement writes today's feed_daily row per item; state reset to
---                    healthy, next due after the interval. Logged ok, or unchanged when
---                    nothing was added, changed or dropped.
+--                    healthy, next due after the interval. Every listed item's position is
+--                    set from its index in items. Logged ok, or unchanged when nothing was
+--                    added, changed, dropped or (for latest, reference and measurement) moved.
 --         failures   (failed, timeout, empty, shrunk) items kept, one more failure, retry after
 --                    2, 4, 8 ... minutes but never later than the interval, last_error kept
 --                    to 300 characters, lease released, run logged.
 --       Duplicate item keys within one batch keep the first.
 --   * feed_page(p_tier, p_feature, p_variant, p_limit, p_offset)  service_role
---       Items newest first (sort_at desc, item_key) with the module's state; null for an
---       unknown module. p_limit is clamped to 1..500, p_offset to 0 or more.
+--       The module's items with its state; null for an unknown module. Order by the module's
+--       stored kind: latest, reference and measurement in source order (position); official,
+--       news and events newest first (sort_at desc, then position, so one batch keeps its
+--       source order, then item_key). p_limit is clamped to 1..500, p_offset to 0 or more.
 --   * feed_purge()                                            service_role
 --       Deletes feed_runs older than 30 days and measurement items not seen for 30 days
 --       (their daily summaries in feed_daily are kept), and corrects item_count.
@@ -125,13 +129,16 @@ create table public.feed_items (
   last_seen    timestamptz not null default now(),
   kind         text        not null check (kind in ('official', 'news', 'events', 'measurement', 'latest', 'reference')),
   content_hash text        not null check (length(content_hash) between 1 and 128),
+  position     integer     not null default 0 check (position between 0 and 1999),
   sort_at      timestamptz generated always as (coalesce(published_at, first_seen)) stored,
   primary key (tier, feature, variant, item_key),
   foreign key (tier, feature, variant) references public.feed_state (tier, feature, variant)
 ) with (fillfactor = 90);
 
--- Serving order. last_seen is deliberately not indexed: an unchanged item's refresh touches only
--- last_seen and stays a HOT update (fillfactor 90 leaves the room for it).
+-- Serving order. last_seen and position are deliberately not indexed: a refresh touches every
+-- item it lists (last_seen, and position when the item moved), and an update that changes no
+-- indexed column stays HOT (fillfactor 90 leaves the room for it). A list ordered by position
+-- holds at most 2,000 items, so feed_page sorts it after this index finds the module.
 create index feed_items_serve_idx on public.feed_items (tier, feature, variant, sort_at desc, item_key);
 -- feed_purge's measurement detail.
 create index feed_items_measurement_seen_idx on public.feed_items (last_seen) where kind = 'measurement';
@@ -348,6 +355,7 @@ declare
   v_new      integer := 0;
   v_changed  integer := 0;
   v_pruned   integer := 0;
+  v_moved    integer := 0;
   v_count    integer;
   v_logged   text;
   v_failures integer;
@@ -486,18 +494,21 @@ begin
              e.i ->> 'item_key' as item_key, e.i -> 'row' as row,
              nullif(e.i ->> 'title', '') as title, nullif(e.i ->> 'url', '') as url,
              nullif(e.i ->> 'published_at', '')::timestamptz as published_at,
-             e.i ->> 'content_hash' as content_hash
+             e.i ->> 'content_hash' as content_hash,
+             (e.ord - 1)::integer as position
         from jsonb_array_elements(v_items) with ordinality as e(i, ord)
        order by e.i ->> 'item_key', e.ord
     ), cmp as (
-      select b.item_key, f.content_hash as old_hash, b.content_hash as new_hash
+      select b.item_key, f.content_hash as old_hash, b.content_hash as new_hash,
+             f.position as old_position, b.position as new_position
         from batch b
         left join public.feed_items f
           on f.tier = v_tier and f.feature = v_feature and f.variant = v_variant and f.item_key = b.item_key
     ), up as (
       insert into public.feed_items as f
-             (tier, feature, variant, item_key, row, title, url, published_at, kind, content_hash)
-      select v_tier, v_feature, v_variant, b.item_key, b.row, b.title, b.url, b.published_at, v_kind, b.content_hash
+             (tier, feature, variant, item_key, row, title, url, published_at, kind, content_hash, position)
+      select v_tier, v_feature, v_variant, b.item_key, b.row, b.title, b.url, b.published_at, v_kind, b.content_hash,
+             b.position
         from batch b
       on conflict on constraint feed_items_pkey do update
          set row          = case when f.content_hash = excluded.content_hash then f.row else excluded.row end,
@@ -506,6 +517,7 @@ begin
              published_at = case when f.content_hash = excluded.content_hash then f.published_at else excluded.published_at end,
              content_hash = excluded.content_hash,
              kind         = excluded.kind,
+             position     = excluded.position,
              last_seen    = now()
       returning 1
     ), daily as (
@@ -519,8 +531,11 @@ begin
       returning 1
     )
     select (count(*) filter (where c.old_hash is null))::integer,
-           (count(*) filter (where c.old_hash is not null and c.old_hash <> c.new_hash))::integer
-      into v_new, v_changed
+           (count(*) filter (where c.old_hash is not null and c.old_hash <> c.new_hash))::integer,
+           -- A move changes what a reader sees only where position is the order.
+           (count(*) filter (where c.old_hash is not null and c.old_position <> c.new_position
+                               and v_kind in ('latest', 'reference', 'measurement')))::integer
+      into v_new, v_changed, v_moved
       from cmp c;
 
     if v_kind in ('latest', 'reference') then
@@ -532,7 +547,7 @@ begin
 
     select count(*)::integer into v_count from public.feed_items f
      where f.tier = v_tier and f.feature = v_feature and f.variant = v_variant;
-    v_logged := case when v_new + v_changed + v_pruned > 0 then 'ok' else 'unchanged' end;
+    v_logged := case when v_new + v_changed + v_moved + v_pruned > 0 then 'ok' else 'unchanged' end;
     v_next := now() + make_interval(mins => v_state.interval_minutes);
 
     update public.feed_state s
@@ -570,7 +585,7 @@ begin
 
   return jsonb_build_object(
     'status', v_logged, 'items', v_batch, 'new_items', v_new, 'changed_items', v_changed,
-    'removed_items', v_pruned, 'item_count', v_count, 'next_due_at', v_next,
+    'moved_items', v_moved, 'removed_items', v_pruned, 'item_count', v_count, 'next_due_at', v_next,
     'consecutive_failures', coalesce(v_failures, 0));
 end;
 $$;
@@ -592,11 +607,13 @@ as $$
     'items', coalesce((
       select jsonb_agg(jsonb_build_object('item_key', i.item_key, 'row', i.row, 'published_at', i.published_at,
                                           'first_seen', i.first_seen, 'last_seen', i.last_seen)
-                       order by i.sort_at desc, i.item_key)
-        from (select f.item_key, f.row, f.published_at, f.first_seen, f.last_seen, f.sort_at
+                       order by i.n)
+        from (select f.item_key, f.row, f.published_at, f.first_seen, f.last_seen,
+                     row_number() over (order by case when s.kind in ('latest', 'reference', 'measurement') then f.position end,
+                                                 f.sort_at desc, f.position, f.item_key) as n
                 from public.feed_items f
                where f.tier = s.tier and f.feature = s.feature and f.variant = s.variant
-               order by f.sort_at desc, f.item_key
+               order by n
                limit least(greatest(coalesce(p_limit, 50), 1), 500)
               offset greatest(coalesce(p_offset, 0), 0)) as i), '[]'::jsonb))
     from public.feed_state s
