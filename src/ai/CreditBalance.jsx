@@ -1,9 +1,8 @@
 /**
  * The AI credit balance by the chat box (F111, docs/specs/2026-10-14-ai-credits.md §8).
  *
- * Credits only, never dollars: the rupee hint comes from the rate the server publishes with the
- * balance (my_credits), so no rate is copied here. The balance is read by creditsStore.js; this file
- * only shows it. Three things can replace the quiet balance line:
+ * Credits only (F184, owner 2026-10-15: users buy and spend credits). The balance is read by
+ * creditsStore.js; this file only shows it. Three things can replace the quiet balance line:
  *   - a warning, when the balance is at most 10% of the cycle allowance;
  *   - the blocked state, when research-chat refused the turn with 402 credits_exhausted, offering
  *     Upgrade and Buy credits (both open Plan & billing). When the refusal says `held` (the balance is
@@ -11,7 +10,7 @@
  *   - a plain retry message, when it answered 503 credits_unavailable (the turn never started).
  */
 import { useEffect, useState } from 'react';
-import { creditsText, lowBalance, openCreditsUsage, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, lowBalance, openCreditsUsage, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 
 /**
  * Plan & billing is owned by the terminal shell (TerminalShell.jsx holds its open state), and the
@@ -57,7 +56,6 @@ export default function CreditBalance({ credits, block = '', held = false, onOpe
 
   const negative = Boolean(known && known.balance < 0);
   const low = Boolean(known) && lowBalance(known);
-  const hint = known && !negative ? rupeeHint(known.balance, known.inrPerCredit) : '';
   const state = blocked ? 'blocked' : unchecked ? 'unchecked' : negative ? 'negative' : low ? 'low' : 'ok';
   return (
     <div className="ai-credit" data-state={state}>
@@ -70,7 +68,6 @@ export default function CreditBalance({ credits, block = '', held = false, onOpe
       {known ? (
         <p className="ai-credit-line">
           <span className="ai-credit-amount">{creditsText(known.balance)}</span>
-          {hint ? <span className="ai-credit-hint">{hint}</span> : null}
           {negative ? <span className="ai-credit-hint">taken from your next credits</span> : null}
           {/* F162: credits set aside for an answer still running, released or charged when it ends. */}
           {known.held > 0 ? <span className="ai-credit-hint">{creditsText(known.held)} held for a running answer</span> : null}

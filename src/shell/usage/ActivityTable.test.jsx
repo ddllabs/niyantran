@@ -1,5 +1,5 @@
 // F153: All AI activity - paging, expanding a question into its calls, the filters and switches, the
-// chat links, deleted and dictation rows, the pre-launch note, and credits with rupees, never dollars.
+// chat links, deleted and dictation rows, the pre-launch note, and credits only, never rupees or dollars (F184).
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import ActivityTable, { rowKey } from './ActivityTable.jsx';
@@ -44,13 +44,14 @@ const buttons = (p) => elements(ActivityTable(p)).filter((e) => e.type === 'butt
 const labelled = (p, re) => buttons(p).find((b) => re.test(text(b)) || re.test(b.props['aria-label'] || ''));
 
 describe('the table', () => {
-  it('shows when, chat and model, calls, tokens, credits with rupees, and a status pill', () => {
+  it('shows when, chat and model, calls, tokens, credits only, and a status pill', () => {
     const out = html();
     expect(out).toMatch(/<th scope="col">When<\/th><th scope="col">Chat<\/th>/);
     expect(out).toContain('14 Oct, 12:00');
     expect(out).toContain('>Rate cut</button>');
     expect(out).toContain('class="cu-chat-model" title="google/gemini-3.7-flash">gemini-3.7-flash');
-    expect(out).toMatch(/47\.5<\/span><span class="cu-inr">≈ ₹4\.75<\/span>/);
+    expect(out).toMatch(/<span class="cu-credits-num">47\.5<\/span><\/span>/);
+    expect(out).not.toContain('₹');
     expect(out).toContain('title="3,310 tokens"');
     expect(out).toContain('class="cu-pill cu-pill-succeeded">Succeeded');
     expect(out).toContain('class="cu-pill cu-pill-failed">Failed');
@@ -106,9 +107,10 @@ describe('expanding a question', () => {
     expect(out).toMatch(/<tr id="cu-calls-0" class="cu-detail">/);
     expect(out).toContain('What did the RBI do?');
     expect(out).toMatch(/<td>Search and plan<\/td><td title="google\/gemini-3\.7-flash">gemini-3\.7-flash<\/td><td>Low<\/td>/);
-    expect(out).toMatch(/<td>Answer<\/td>[\s\S]*<td>Extra high<\/td>[\s\S]*28\.5<span class="cu-inr"> ≈ ₹2\.85<\/span>/);
+    expect(out).toMatch(/<td>Answer<\/td>[\s\S]*<td>Extra high<\/td>[\s\S]*<td>28\.5<\/td>/);
     expect(out).toMatch(/<td>Repair<\/td>[\s\S]*<span class="cu-free">free<\/span>/);
-    expect(out).toMatch(/<th scope="row" colSpan="3">TOTAL<\/th>[\s\S]*47\.5<span class="cu-inr"> ≈ ₹4\.75<\/span>/);
+    expect(out).toMatch(/<th scope="row" colSpan="3">TOTAL<\/th>[\s\S]*<td>47\.5<\/td>/);
+    expect(out).not.toContain('₹');
   });
 });
 

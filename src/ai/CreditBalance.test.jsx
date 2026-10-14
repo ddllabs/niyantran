@@ -1,11 +1,11 @@
 // F111 task 4a (docs/specs/2026-10-14-ai-credits.md §8): the balance by the chat box, its warning,
-// and the blocked state. Credits only; the rupee hint comes from the server's published rate.
+// and the blocked state. Credits only, never rupees (F184).
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import CreditBalance, { OPEN_BILLING_EVENT, openPlanBilling, watchCredits } from './CreditBalance.jsx';
 
 const credits = (patch = {}) => ({
-  userId: 'u1', balance: 1520.4567, held: 0, available: 1520.4567, debt: 0, plan: 'plus', inrPerCredit: 0.1,
+  userId: 'u1', balance: 1520.4567, held: 0, available: 1520.4567, debt: 0, plan: 'plus',
   allowance: 2000, cycleEndsAt: '2026-11-14T00:00:00Z', lots: [], recent: [], ...patch,
 });
 const html = (props) => renderToStaticMarkup(<CreditBalance {...props} />);
@@ -22,16 +22,15 @@ function elements(node, out = []) {
 const buttonLabelled = (tree, label) => elements(tree).find((e) => e.type === 'button' && [].concat(e.props.children).join('') === label);
 
 describe('the balance by the chat box', () => {
-  it('shows the balance with the rupee hint', () => {
+  it('shows the balance in credits only, never rupees (F184)', () => {
     const out = html({ credits: credits() });
     expect(out).toContain('1,520 credits');
-    expect(out).toContain('≈ ₹152');
+    expect(out).not.toContain('₹');
     expect(out).not.toContain('role="alert"');
   });
 
-  it('says "1 credit" for exactly one, and never invents a hint without the published rate', () => {
+  it('says "1 credit" for exactly one', () => {
     expect(html({ credits: credits({ balance: 1 }) })).toContain('1 credit<');
-    expect(html({ credits: credits({ inrPerCredit: null }) })).not.toContain('₹');
     // Anything that shows as "1" is singular too (review R, nits).
     expect(html({ credits: credits({ balance: 1.004 }) })).toContain('1 credit<');
   });

@@ -3,7 +3,7 @@
  * from the chart it renders. `state` is {status, summary, series, window} for my_usage_summary and
  * my_usage_timeseries over the selected range.
  */
-import { creditsText, formatCredits, rupeeHint } from '../../lib/creditsStore.js';
+import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
   CREDITS_STARTED_AT, CREDITS_STARTED_NOTE, MEASURES, RANGES, dayText, featureLabel, formatTokens, indianNumber,
   modelName, providerName,
@@ -28,7 +28,7 @@ function rangeLine(range, state) {
   return [`Usage by model · ${label}`, from && to ? `${from} – ${to}` : ''].filter(Boolean).join(' · ');
 }
 
-function Highlights({ summary, rate }) {
+function Highlights({ summary }) {
   const h = highlights(summary);
   return (
     <div className="cu-highs">
@@ -38,14 +38,14 @@ function Highlights({ summary, rate }) {
       <Figure label="Most used" sub={h.mostUsed ? `${indianNumber(h.mostUsed.calls)} calls` : null}>
         <span title={h.mostUsed?.model}>{h.mostUsed ? modelName(h.mostUsed.model) : '—'}</span>
       </Figure>
-      <Figure label="Best value" sub={h.bestValue ? `${formatCredits(h.bestValue.perCall)} credits a call${rupeeHint(h.bestValue.perCall, rate) ? ` (${rupeeHint(h.bestValue.perCall, rate)})` : ''}` : 'Needs 5 calls on a model'}>
+      <Figure label="Best value" sub={h.bestValue ? `${formatCredits(h.bestValue.perCall)} credits a call` : 'Needs 5 calls on a model'}>
         <span title={h.bestValue?.model}>{h.bestValue ? modelName(h.bestValue.model) : '—'}</span>
       </Figure>
     </div>
   );
 }
 
-function ByFeature({ summary, rate }) {
+function ByFeature({ summary }) {
   const features = summary?.byFeature || [];
   return (
     <ul className="cu-features">
@@ -57,7 +57,6 @@ function ByFeature({ summary, rate }) {
             {f.feature === 'dictation' ? ' · free' : (
               <>
                 {` · ${creditsText(f.credits)}`}
-                {rupeeHint(f.credits, rate) ? <span className="cu-inr"> {rupeeHint(f.credits, rate)}</span> : null}
                 {` · ${indianNumber(f.searches)} ${f.searches === 1 ? 'search' : 'searches'}`}
               </>
             )}
@@ -69,7 +68,7 @@ function ByFeature({ summary, rate }) {
 }
 
 export default function UsageAnalytics({
-  range, measure, groupBy, state, chart, rate, onRange, onMeasure, onGroupBy, onToggle,
+  range, measure, groupBy, state, chart, onRange, onMeasure, onGroupBy, onToggle,
 }) {
   const summary = state?.summary || null;
   const valueText = valueFormatter(measure);
@@ -102,13 +101,13 @@ export default function UsageAnalytics({
         <p className="cu-note" role="status">Loading analytics…</p>
       ) : (
         <div className="cu-figs cu-figs-five">
-          <Figure label="Credits spent"><Credits value={summary?.credits ?? 0} rate={rate} /></Figure>
+          <Figure label="Credits spent"><Credits value={summary?.credits ?? 0} /></Figure>
           <Figure label="Model calls" sub={`${indianNumber(summary?.failedCalls ?? 0)} failed`}>{indianNumber(summary?.calls ?? 0)}</Figure>
           <Figure label="Tokens"><Tokens value={summary?.tokens ?? 0} /></Figure>
           <Figure label="Models used" sub={`${indianNumber(summary?.providers ?? 0)} ${summary?.providers === 1 ? 'provider' : 'providers'}`}>
             {indianNumber(summary?.modelsUsed ?? 0)}
           </Figure>
-          <Figure label="Web searches" sub={<>{creditsText(summary?.webSearchCredits ?? 0)}{rupeeHint(summary?.webSearchCredits ?? 0, rate) ? ` · ${rupeeHint(summary?.webSearchCredits ?? 0, rate)}` : ''}</>}>
+          <Figure label="Web searches" sub={creditsText(summary?.webSearchCredits ?? 0)}>
             {indianNumber(summary?.webSearches ?? 0)}
           </Figure>
         </div>
@@ -122,9 +121,9 @@ export default function UsageAnalytics({
       {summary ? (
         <>
           <h4 className="cu-h4">Highlights</h4>
-          <Highlights summary={summary} rate={rate} />
+          <Highlights summary={summary} />
           <h4 className="cu-h4">By feature</h4>
-          <ByFeature summary={summary} rate={rate} />
+          <ByFeature summary={summary} />
         </>
       ) : null}
     </section>

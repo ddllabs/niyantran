@@ -67,8 +67,8 @@ const contrast = (a, b) => {
 const PAIRS = [
   ['.cu-head h2', '.cu-page'], ['.cu-kicker', '.cu-page'], ['.cu-sub', '.cu-card'], ['.cu-h4', '.cu-card'],
   ['.cu-note', '.cu-card'], ['.cu-caption', '.cu-card'], ['.cu-error', '.cu-card'], ['.cu-owed', '.cu-fig'],
-  ['.cu-fig-label', '.cu-fig'], ['.cu-fig-value', '.cu-fig'], ['.cu-fig-sub', '.cu-fig'], ['.cu-inr', '.cu-fig'],
-  ['.cu-inr', '.cu-card'], ['.cu-top-num', '.cu-card'], ['.cu-top-name', '.cu-card'], ['.cu-link', '.cu-card'],
+  ['.cu-fig-label', '.cu-fig'], ['.cu-fig-value', '.cu-fig'], ['.cu-fig-sub', '.cu-fig'], ['.cu-credits-note', '.cu-fig'],
+  ['.cu-credits-note', '.cu-card'], ['.cu-top-num', '.cu-card'], ['.cu-top-name', '.cu-card'], ['.cu-link', '.cu-card'],
   ['.cu-x', '.cu-x'], ['.cu-seg-ctl button', '.cu-seg-ctl'], ['.cu-seg-ctl button.on', '.cu-seg-ctl button.on'],
   ['.cu-select', '.cu-card'], ['.cu-select select', '.cu-select select'], ['.cu-btn', '.cu-btn'], ['.cu-switch', '.cu-card'],
   ['.cu-leg-name', '.cu-card'], ['.cu-leg-share', '.cu-card'], ['.cu-tip', '.cu-tip'], ['.cu-disclose', '.cu-card'],

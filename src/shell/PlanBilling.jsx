@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
-import { creditsText, openCreditsUsage, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, openCreditsUsage, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 import CreditLots, { dayOrNull } from './CreditLots.jsx';
@@ -20,7 +20,7 @@ function day(iso) {
 
 /**
  * The AI credits section (F111, docs/specs/2026-10-14-ai-credits.md §8). Credits
- * first, the rupee value second and muted; the server sends only credits. "Used
+ * only (F184); the server sends only credits. "Used
  * this cycle" is the server's own count of credits charged to answers since the
  * cycle began (my_credits().used_this_cycle), never derived here from the
  * allowance and the lots; it is left out when there is no cycle (null). Below the lots sits the small
@@ -37,8 +37,6 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
     );
   }
   const owed = credits.balance < 0;
-  const rate = credits.inrPerCredit;
-  const hint = (n) => (rupeeHint(n, rate) ? `${rupeeHint(n, rate)} of AI` : '');
   const free = credits.plan === 'free';
   const endsOn = dayOrNull(credits.cycleEndsAt);
   return (
@@ -46,7 +44,6 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
       <h3 className="plan-up-sub" id="plan-credits-title">AI credits</h3>
       <p className={`plan-credits-balance${owed ? ' plan-credits-negative' : ''}`}>
         <strong>{creditsText(credits.balance)}</strong>
-        {!owed && hint(credits.balance) ? <span className="plan-credits-inr">{hint(credits.balance)}</span> : null}
       </p>
       {owed ? <p className="plan-credits-owed">taken from your next credits</p> : null}
       {/* F162: credits set aside for an answer still running. */}
@@ -57,7 +54,6 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
       {credits.allowance !== null && credits.allowance > 0 ? (
         <p className="plan-credits-cycle">
           {free ? 'Sign-up credits' : 'Monthly allowance'} <strong>{creditsText(credits.allowance)}</strong>
-          {hint(credits.allowance) ? <span className="plan-credits-inr">{hint(credits.allowance)}</span> : null}
           {endsOn ? <span className="plan-credits-until">{free ? `valid until ${endsOn}` : `this month ends ${endsOn}`}</span> : null}
         </p>
       ) : null}

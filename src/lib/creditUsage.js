@@ -2,8 +2,8 @@
  * The Credits usage page's data (F153, docs/specs/2026-10-14-credits-usage-page.md, Data).
  *
  * Three read-only reports, each for the signed-in user only: my_usage_summary, my_usage_timeseries
- * and my_usage_activity. They return credits, counts and tokens; never dollars or a rate. Rupees are
- * computed here from the published rupees per credit that my_credits() returns (creditsStore.js).
+ * and my_usage_activity. They return credits, counts and tokens; never dollars or a rate. Credits are
+ * shown as credits only (F184, owner 2026-10-15).
  * Nothing is cached: the page reads afresh each time it opens.
  */
 import { supabase } from './supabaseClient.js';

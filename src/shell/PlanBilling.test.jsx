@@ -121,30 +121,24 @@ it('lists invoices and opens one as the printable invoice', () => {
 
 const lot = (kind, remaining, expiresAt) => ({ kind, remaining, expiresAt });
 const credits = (over = {}) => ({
-  userId: 'u1', balance: 2000, held: 0, available: 2000, debt: 0, plan: 'pro', inrPerCredit: 0.1,
+  userId: 'u1', balance: 2000, held: 0, available: 2000, debt: 0, plan: 'pro',
   allowance: 2000, cycleEndsAt: '2026-11-12T12:00:00Z',
   lots: [lot('monthly', 2000, '2026-11-12T12:00:00Z')], recent: [], ...over,
 });
 const section = tree => all(tree, n => String(n.props?.className || '').split(' ').includes('plan-credits'))[0];
 const rows = (tree, name) => all(tree, n => n.type === 'li' && String(n.props?.className || '').split(' ').includes(name));
 
-it('shows the balance in credits with the rupee hint', () => {
+it('shows the balance in credits only, never rupees (F184)', () => {
   const t = text(section(render(PRO, { credits: credits() })));
   expect(t).toContain('AI credits');
   expect(t).toContain('2,000 credits');
-  expect(t).toContain('≈ ₹200 of AI');
+  expect(t).not.toContain('₹');
 });
 
 it('shows a negative balance as such and says it is taken from the next credits', () => {
   const t = text(section(render(PRO, { credits: credits({ balance: -50, available: -50, debt: 50, lots: [] }) })));
   expect(t).toContain('−50 credits');
   expect(t).toContain('taken from your next credits');
-});
-
-it('omits the rupee hint when the server did not publish a rate', () => {
-  const t = text(section(render(PRO, { credits: credits({ inrPerCredit: null }) })));
-  expect(t).toContain('2,000 credits');
-  expect(t).not.toContain('₹');
 });
 
 it('shows this cycle as the allowance and the cycle end date', () => {

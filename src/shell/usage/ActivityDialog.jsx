@@ -2,7 +2,7 @@
  * Section C (F153): "All AI activity", opened over the Credits usage page like TenderBase's dialog.
  * Holds the filters, the page, the expanded rows and the export; ActivityTable.jsx draws them. The
  * page closes it on Escape. The export reads every matching row (up to 2,000) and saves a CSV in
- * credits with their rupee value.
+ * credits.
  */
 import { useEffect, useRef, useState } from 'react';
 import { ACTIVITY_PAGE, loadAllActivity, loadUsageActivity } from '../../lib/creditUsage.js';
@@ -28,7 +28,7 @@ export function csvName(now = new Date()) {
 }
 
 export default function ActivityDialog({
-  models = [], rate = null, onClose, onOpenChat,
+  models = [], onClose, onOpenChat,
   load = loadUsageActivity, loadAll = loadAllActivity, download = downloadCsv,
 }) {
   const [filters, setFilters] = useState(FIRST_FILTERS);
@@ -63,7 +63,7 @@ export default function ActivityDialog({
     const rows = await loadAll(filters);
     setExporting(false);
     if (!rows) { setExportError('The export could not be prepared just now.'); return; }
-    download(csvName(), activityCsv(rows, rate, { withCalls: filters.grouped }));
+    download(csvName(), activityCsv(rows, { withCalls: filters.grouped }));
   }
 
   return (
@@ -84,7 +84,6 @@ export default function ActivityDialog({
           pageSize={ACTIVITY_PAGE}
           expanded={expanded}
           models={models}
-          rate={rate}
           exporting={exporting}
           exportError={exportError}
           onFilter={onFilter}

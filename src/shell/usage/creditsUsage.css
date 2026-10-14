@@ -47,7 +47,7 @@
 .cu-highs .cu-fig-value { font-size: 15px; }
 .cu-fig-sub { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cu-credits { display: inline-flex; flex-direction: column; gap: 1px; }
-.cu-inr { font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cu-credits-note { font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cu-owed { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #a3101d; }
 .cu-tokens { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
 .cu-tokens:focus-visible, .cu-link:focus-visible, .cu-btn:focus-visible, .cu-x:focus-visible, .cu-expand:focus-visible,

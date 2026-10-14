@@ -1,6 +1,6 @@
 /**
- * The All AI activity export (F153, spec Decision 8): CSV in credits with their rupee value, never
- * dollars. Split from creditUsage.js, which reads the reports.
+ * The All AI activity export (F153): CSV in credits only (F184, owner 2026-10-15: users buy and
+ * spend credits). Split from creditUsage.js, which reads the reports.
  */
 import { roleLabel, rowChat, statusLabel } from './creditUsage.js';
 
@@ -21,26 +21,23 @@ function cell(value) {
 }
 
 /**
- * The activity rows as CSV, in credits with their rupee value (credits x the published rupees per
- * credit, 2 places) and never dollars. Times are IST. One line per row; a grouped row's calls follow
+ * The activity rows as CSV, in credits. Times are IST. One line per row; a grouped row's calls follow
  * it as indented lines when `withCalls` is set.
  */
-export function activityCsv(rows, inrPerCredit, { withCalls = true } = {}) {
-  const rate = Number(inrPerCredit);
-  const inr = (credits) => (Number.isFinite(rate) && rate > 0 ? (num(credits) * rate).toFixed(2) : '');
+export function activityCsv(rows, { withCalls = true } = {}) {
   const credits = (value) => String(Number(num(value).toFixed(4)));
-  const lines = [['When (IST)', 'Chat', 'Question', 'Kind', 'Model', 'Thinking', 'Status', 'Calls', 'Tokens', 'Credits', 'Rupees (₹)']];
+  const lines = [['When (IST)', 'Chat', 'Question', 'Kind', 'Model', 'Thinking', 'Status', 'Calls', 'Tokens', 'Credits']];
   for (const row of rows) {
     const at = Date.parse(row.createdAt || '');
     lines.push([
       Number.isFinite(at) ? IST_STAMP.format(at).replace(',', '') : '',
       rowChat(row), row.question || '', 'Row', row.model || '', '', statusLabel(row.status),
-      row.calls, row.tokens, credits(row.credits), inr(row.credits),
+      row.calls, row.tokens, credits(row.credits),
     ]);
     if (withCalls) {
       for (const d of row.detail) {
         lines.push(['', '', '', roleLabel(d.role), d.model || '', d.effort || '', statusLabel(d.status), 1, d.tokens,
-          d.free ? '0' : credits(d.credits), d.free ? '0.00' : inr(d.credits)]);
+          d.free ? '0' : credits(d.credits)]);
       }
     }
   }

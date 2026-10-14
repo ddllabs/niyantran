@@ -64,7 +64,7 @@ describe('Plan & billing in the dark theme (F148)', () => {
     // The panel's own words, and the credits' words, all have a colour of their own.
     for (const selector of [
       '.plan-up-head h2', '.plan-up-lead', '.plan-up-sub', '.plan-up-note', '.plan-up-selnote',
-      '.plan-credits-balance strong', '.plan-credits-inr', '.plan-credits-cycle', '.plan-credits-sub', '.plan-credits-when',
+      '.plan-credits-balance strong', '.plan-credits-cycle', '.plan-credits-sub', '.plan-credits-when',
     ]) expect(darkRules.get(selector)?.color, `${selector} has no dark colour`).toBeTruthy();
   });
 
@@ -98,7 +98,6 @@ describe('Plan & billing in the dark theme (F148)', () => {
     ['.plan-up-invoices li', '.plan-up-card'],
     ['.plan-credits-balance strong', '.plan-up-card'],
     ['.plan-credits-negative strong', '.plan-up-card'],
-    ['.plan-credits-inr', '.plan-up-card'],
     ['.plan-credits-owed', '.plan-up-card'],
     ['.plan-credits-cycle', '.plan-up-card'],
     ['.plan-credits-until', '.plan-up-card'],

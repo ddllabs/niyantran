@@ -530,6 +530,19 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F184. Credits page, balance pill and visual credits UI.** Owner request 2026-10-15
+  (UI only). Credits get their own page from the profile menu, with a left side menu holding a
+  balance card and four sections:
+  - **Overview:** period bar, pace estimate, where credits went, recent answers.
+  - **Usage:** today's analytics, complete, plus a 90-day heat map.
+  - **Activity:** every existing filter; rows led by the question; a role bar on expand; group by
+    chat.
+  - **Plan and invoices.**
+
+  Also: a header balance pill with a glance popover, and a status bar keeping every existing
+  message. Every credit-to-rupee conversion goes, the CSV included; plan prices and invoices stay
+  in ₹. Spec and plan: `docs/specs/2026-10-15-credits-page.md`; design canvas, board 9. Building on
+  `task/credits-ui`.
 - [x] **F177. Globe position and sizes.** Done 2026-10-14 (owner: "push merge"). Owner request:
   Pricing's globe sat at the extreme right (24 px from the screen, a label 18 px); the homepage
   globe 5% larger; sign-in and sign-up smaller ("the globe" is the whole box). As built

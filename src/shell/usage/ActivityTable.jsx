@@ -3,7 +3,7 @@
  * ActivityDialog.jsx holds the state. Rows with more than one call expand through a real button; the
  * chat title opens the conversation (F149's niy-open-conversation).
  */
-import { formatCredits, rupeeHint } from '../../lib/creditsStore.js';
+import { formatCredits } from '../../lib/creditsStore.js';
 import {
   CREDITS_STARTED_NOTE, beforeCredits, effortLabel, indianNumber, modelName, roleLabel, rowChat, whenText,
 } from '../../lib/creditUsage.js';
@@ -62,14 +62,14 @@ function uncharged(row) {
   return beforeCredits(row.createdAt) && !row.credits && row.status !== 'failed';
 }
 
-function CreditsCell({ row, rate }) {
+function CreditsCell({ row }) {
   if (uncharged(row)) {
-    return <span className="cu-credits" title={CREDITS_STARTED_NOTE}><span className="cu-credits-num">0</span><span className="cu-inr">before credits*</span></span>;
+    return <span className="cu-credits" title={CREDITS_STARTED_NOTE}><span className="cu-credits-num">0</span><span className="cu-credits-note">before credits*</span></span>;
   }
-  return <Credits value={row.credits} rate={rate} />;
+  return <Credits value={row.credits} />;
 }
 
-function Calls({ row, rate, id }) {
+function Calls({ row, id }) {
   const total = row.detail.reduce((s, d) => s + d.credits, 0);
   return (
     <tr id={id} className="cu-detail">
@@ -87,13 +87,13 @@ function Calls({ row, rate, id }) {
                 <td title={d.model || ''}>{modelName(d.model)}</td>
                 <td>{effortLabel(d.effort)}</td>
                 <td><Tokens value={d.tokens} /></td>
-                <td>{d.free ? <span className="cu-free">free</span> : <>{formatCredits(d.credits)}{rupeeHint(d.credits, rate) ? <span className="cu-inr"> {rupeeHint(d.credits, rate)}</span> : null}</>}</td>
+                <td>{d.free ? <span className="cu-free">free</span> : formatCredits(d.credits)}</td>
               </tr>
             ))}
             <tr className="cu-total">
               <th scope="row" colSpan={3}>TOTAL</th>
               <td><Tokens value={row.tokens} /></td>
-              <td>{formatCredits(row.credits || total)}{rupeeHint(row.credits || total, rate) ? <span className="cu-inr"> {rupeeHint(row.credits || total, rate)}</span> : null}</td>
+              <td>{formatCredits(row.credits || total)}</td>
             </tr>
           </tbody>
         </table>
@@ -102,7 +102,7 @@ function Calls({ row, rate, id }) {
   );
 }
 
-function Row({ row, index, rate, expanded, onToggleRow, onOpenChat, grouped }) {
+function Row({ row, index, expanded, onToggleRow, onOpenChat, grouped }) {
   const key = rowKey(row, index);
   const chat = rowChat(row);
   const canExpand = grouped && row.calls > 1 && row.detail.length > 0;
@@ -128,16 +128,16 @@ function Row({ row, index, rate, expanded, onToggleRow, onOpenChat, grouped }) {
         </td>
         <td className="cu-num">{indianNumber(row.calls)}</td>
         <td className="cu-num"><Tokens value={row.tokens} /></td>
-        <td className="cu-num"><CreditsCell row={row} rate={rate} /></td>
+        <td className="cu-num"><CreditsCell row={row} /></td>
         <td><StatusPill status={row.status} /></td>
       </tr>
-      {open ? <Calls row={row} rate={rate} id={detailId} /> : null}
+      {open ? <Calls row={row} id={detailId} /> : null}
     </>
   );
 }
 
 export default function ActivityTable({
-  state, filters, offset, pageSize, expanded, models, rate, exporting, exportError,
+  state, filters, offset, pageSize, expanded, models, exporting, exportError,
   onFilter, onPage, onToggleRow, onOpenChat, onExport,
 }) {
   const rows = state?.rows || [];
@@ -166,7 +166,7 @@ export default function ActivityTable({
               </thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <Row key={rowKey(row, offset + i)} row={row} index={offset + i} rate={rate} expanded={expanded}
+                  <Row key={rowKey(row, offset + i)} row={row} index={offset + i} expanded={expanded}
                     onToggleRow={onToggleRow} onOpenChat={onOpenChat} grouped={filters.grouped} />
                 ))}
               </tbody>

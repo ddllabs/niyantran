@@ -2,8 +2,7 @@
  * The Credits usage page (open-work F153, docs/specs/2026-10-14-credits-usage-page.md): a full-screen
  * panel opened from the profile menu, Plan & billing and the chat's credit chip (niy-open-usage),
  * like Plan & billing. Sections: A. AI activity this period; B. AI analytics over a rolling IST
- * range; C. All AI activity (a dialog over the page); D. Credits by expiry. Credits only, with the
- * rupee value beside each figure; never dollars.
+ * range; C. All AI activity (a dialog over the page); D. Credits by expiry. Credits only (F184).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { openConversation, refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
@@ -92,7 +91,6 @@ export default function CreditsUsage({ user, onClose }) {
     ? buildChart(analytics.series.points, { measure, groupBy, hidden, bucketKind: analytics.series.bucket })
     : null), [analytics.series, measure, groupBy, hidden]);
 
-  const rate = credits?.inrPerCredit ?? null;
   const models = filterModels(cycle.summary, analytics.summary);
 
   return (
@@ -122,7 +120,6 @@ export default function CreditsUsage({ user, onClose }) {
               groupBy={groupBy}
               state={analytics}
               chart={chart}
-              rate={rate}
               onRange={(r) => { setRange(r); setHidden(new Set()); }}
               onMeasure={setMeasure}
               onGroupBy={(g) => { setGroupBy(g); setHidden(new Set()); }}
@@ -138,7 +135,6 @@ export default function CreditsUsage({ user, onClose }) {
       {allOpen ? (
         <ActivityDialog
           models={models}
-          rate={rate}
           onClose={() => { setAllOpen(false); viewAll.current?.focus(); }}
           onOpenChat={(id) => { openConversation(id); onClose?.(); }}
         />

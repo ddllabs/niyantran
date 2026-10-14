@@ -3,7 +3,7 @@
  * `state` is {status: 'loading' | 'error' | 'ready', summary} for my_usage_summary over the cycle
  * (my_credits().cycle.starts_at to now; lifetime when there is no cycle).
  */
-import { creditsText, formatCredits, rupeeHint } from '../../lib/creditsStore.js';
+import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import { dayText, indianNumber, modelName, providerOf } from '../../lib/creditUsage.js';
 import { Credits, Figure, ProviderMark, SparkleIcon, Tokens } from './usageParts.jsx';
 
@@ -18,13 +18,12 @@ export function periodLine(credits) {
 
 /** The four figures, shared with the small version in Plan & billing. */
 export function CycleFigures({ credits, summary, compact = false }) {
-  const rate = credits?.inrPerCredit;
   const allowance = credits?.allowance;
   return (
     <div className={`cu-figs${compact ? ' cu-figs-compact' : ''}`}>
-      <Figure label="Credits used"><Credits value={summary?.credits ?? 0} rate={rate} /></Figure>
+      <Figure label="Credits used"><Credits value={summary?.credits ?? 0} /></Figure>
       <Figure label="Credits left" sub={allowance ? `of ${formatCredits(allowance)} this period` : null}>
-        <Credits value={credits?.balance ?? 0} rate={rate} negativeNote />
+        <Credits value={credits?.balance ?? 0} negativeNote />
       </Figure>
       <Figure label="Model calls">{indianNumber(summary?.calls ?? 0)}</Figure>
       <Figure label="Tokens"><Tokens value={summary?.tokens ?? 0} /></Figure>
@@ -33,7 +32,7 @@ export function CycleFigures({ credits, summary, compact = false }) {
 }
 
 /** Up to three models, most credits first: id, then "N calls · N credits". */
-export function TopModels({ models, rate }) {
+export function TopModels({ models }) {
   const top = (models || []).slice(0, 3);
   if (!top.length) return <p className="cu-note">No model calls yet.</p>;
   return (
@@ -46,7 +45,6 @@ export function TopModels({ models, rate }) {
           </span>
           <span className="cu-top-num">
             {indianNumber(m.calls)} {m.calls === 1 ? 'call' : 'calls'} · {creditsText(m.credits)}
-            {rupeeHint(m.credits, rate) ? <span className="cu-inr"> {rupeeHint(m.credits, rate)}</span> : null}
           </span>
         </li>
       ))}
@@ -56,7 +54,6 @@ export function TopModels({ models, rate }) {
 
 export default function UsageActivityCard({ credits, state, onViewAll, viewAllRef }) {
   const summary = state?.summary || null;
-  const rate = credits?.inrPerCredit;
   const noCycle = Boolean(credits) && !credits.cycleStartsAt;
   return (
     <section className="cu-card" aria-labelledby="cu-activity-title">
@@ -73,10 +70,9 @@ export default function UsageActivityCard({ credits, state, onViewAll, viewAllRe
           <CycleFigures credits={credits} summary={summary} />
           <p className="cu-lifetime">
             Lifetime spend: <strong>{creditsText(summary?.lifetimeCredits ?? 0)}</strong>
-            {rupeeHint(summary?.lifetimeCredits ?? 0, rate) ? <span className="cu-inr"> ({rupeeHint(summary?.lifetimeCredits ?? 0, rate)})</span> : null}
           </p>
           <h4 className="cu-h4">Top models · this billing period</h4>
-          <TopModels models={summary?.byModel} rate={rate} />
+          <TopModels models={summary?.byModel} />
         </>
       )}
       <button type="button" className="cu-link" ref={viewAllRef} onClick={() => onViewAll?.()}>

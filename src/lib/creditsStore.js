@@ -3,8 +3,7 @@
  *
  * my_credits() is the only source of the wallet and my_conversation_credits() of
  * each answer's charge. Values live in memory, keyed by the account they were read
- * for, never in browser storage. Credits only: the server sends no dollars, and the
- * rupee hint uses the rupees per credit it publishes, so no rate is copied here.
+ * for, never in browser storage. Credits only (F184): no amount is shown in money.
  */
 import { supabase } from './supabaseClient.js';
 
@@ -42,7 +41,6 @@ export function shapeCredits(userId, data) {
     available: balance - held,
     debt: num(data.debt) ?? 0,
     plan: String(data.plan || 'free'),
-    inrPerCredit: num(data.inr_per_credit),
     allowance: num(data.cycle?.allowance),
     // Where used_this_cycle counts from (F153); null when there is no cycle.
     cycleStartsAt: data.cycle?.starts_at || null,
@@ -240,18 +238,6 @@ export function formatCredits(value) {
 export function creditsText(value) {
   const text = formatCredits(value);
   return `${text} ${text === '1' || text === '−1' ? 'credit' : 'credits'}`;
-}
-
-/** The rupee value of an amount of credits, e.g. "≈ ₹200". Empty without the published rate. */
-export function rupeeHint(credits, inrPerCredit) {
-  const c = num(credits);
-  const rate = num(inrPerCredit);
-  if (c === null || rate === null || rate <= 0) return '';
-  const inr = Math.abs(c * rate);
-  // A share of a call can be worth less than a paisa (F153's per-call credits): say so, not "₹0".
-  if (inr > 0 && inr < 0.005) return '< ₹0.01';
-  const text = inr >= 100 ? GROUPED.format(Math.round(inr)) : trimmed(inr, 2);
-  return `≈ ${c < 0 ? '−' : ''}₹${text}`;
 }
 
 // F162: an account with no allowance (top-ups only, or between cycles) is low at 10% of the

@@ -1,18 +1,15 @@
 /**
  * Small pieces the Credits usage page, its activity dialog and the small version in Plan & billing
- * share (F153). Hook-free. Every credit figure carries its rupee value (credits x the published
- * rupees per credit), never dollars.
+ * share (F153). Hook-free. Credit figures are credits only (F184).
  */
-import { formatCredits, rupeeHint } from '../../lib/creditsStore.js';
+import { formatCredits } from '../../lib/creditsStore.js';
 import { formatTokens, indianNumber, providerName, statusLabel } from '../../lib/creditUsage.js';
 
-/** Credits, with the rupee hint below them when the rate is known. */
-export function Credits({ value, rate, negativeNote = false }) {
-  const hint = rupeeHint(value, rate);
+/** Credits, with the overdrawn note when asked for. */
+export function Credits({ value, negativeNote = false }) {
   return (
     <span className="cu-credits">
       <span className="cu-credits-num">{formatCredits(value)}</span>
-      {hint ? <span className="cu-inr">{hint}</span> : null}
       {negativeNote && Number(value) < 0 ? <span className="cu-owed">taken from your next credits</span> : null}
     </span>
   );

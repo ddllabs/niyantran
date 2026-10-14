@@ -18,7 +18,7 @@ vi.mock('./supabaseClient.js', () => ({
 
 import {
   OPEN_CONVERSATION_EVENT, clearCredits, conversationCredits, creditEstimateText, creditsText, formatCredits, loadCreditEstimates,
-  LOW_BALANCE_WITHOUT_ALLOWANCE, lowBalance, openConversation, refreshCredits, rupeeHint, serverCredits, shapeCredits, takeWantedConversation,
+  LOW_BALANCE_WITHOUT_ALLOWANCE, lowBalance, openConversation, refreshCredits, serverCredits, shapeCredits, takeWantedConversation,
 } from './creditsStore.js';
 
 const SERVER = {
@@ -39,15 +39,15 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('shapeCredits', () => {
-  it('keeps credits and the rupees per credit, and nothing in dollars', () => {
+  it('keeps credits only: no rupees per credit, nothing in dollars (F184)', () => {
     const c = shapeCredits('u1', SERVER);
     expect(c).toEqual({
-      userId: 'u1', balance: 1520.4567, held: 300, available: 1220.4567, debt: 0, plan: 'plus', inrPerCredit: 0.1,
+      userId: 'u1', balance: 1520.4567, held: 300, available: 1220.4567, debt: 0, plan: 'plus',
       allowance: 2000, cycleStartsAt: '2026-10-14T00:00:00Z', cycleEndsAt: '2026-11-14T00:00:00Z', usedThisCycle: 479.5433,
       lots: [{ kind: 'monthly', remaining: 1520.4567, expiresAt: '2026-11-14T00:00:00Z' }],
       recent: [{ conversationId: 'c1', title: 'Budget scrutiny', credits: 38.25, createdAt: '2026-10-14T10:00:00Z' }],
     });
-    expect(JSON.stringify(c)).not.toMatch(/usd|cost/i);
+    expect(JSON.stringify(c)).not.toMatch(/usd|cost|inr/i);
   });
 
   it('reads a negative balance and debt as they are', () => {
@@ -234,22 +234,6 @@ describe('formatCredits', () => {
   it('shows a dash for an unknown amount', () => {
     expect(formatCredits(null)).toBe('—');
     expect(formatCredits(Number.NaN)).toBe('—');
-  });
-});
-
-describe('rupeeHint', () => {
-  it('gives the rupee value of credits at the published rate', () => {
-    expect(rupeeHint(2000, 0.1)).toBe('≈ ₹200');
-    expect(rupeeHint(38.25, 0.1)).toBe('≈ ₹3.83');
-    expect(rupeeHint(75000, 0.1)).toBe('≈ ₹7,500');
-    // Less than a paisa is said as such (F153), and zero stays zero.
-    expect(rupeeHint(0.02, 0.1)).toBe('< ₹0.01');
-    expect(rupeeHint(0, 0.1)).toBe('≈ ₹0');
-  });
-
-  it('is empty without a rate or an amount', () => {
-    expect(rupeeHint(100, null)).toBe('');
-    expect(rupeeHint(null, 0.1)).toBe('');
   });
 });
 

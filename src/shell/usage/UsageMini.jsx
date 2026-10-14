@@ -42,7 +42,7 @@ export function UsageMini({ credits, state, onSeeUsage }) {
           <div className="cu-mini-row">
             <div className="cu-mini-col">
               <h5 className="cu-h5">Top models</h5>
-              <TopModels models={state.summary?.byModel} rate={credits?.inrPerCredit} />
+              <TopModels models={state.summary?.byModel} />
             </div>
             <div className="cu-mini-col cu-mini-spark">
               <h5 className="cu-h5">Last 30 days</h5>

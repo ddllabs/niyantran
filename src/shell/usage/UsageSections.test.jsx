@@ -1,5 +1,5 @@
 // F153: sections A and B of the Credits usage page, the small version in Plan & billing, and the page
-// itself - figures with their rupee value, the period line, top models, the analytics figures and
+// itself - figures in credits only (F184), the period line, top models, the analytics figures and
 // captions, and never a dollar.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,7 @@ import UsageAnalytics from './UsageAnalytics.jsx';
 import { Sparkline, UsageMini } from './UsageMini.jsx';
 
 const CREDITS = {
-  userId: 'u1', balance: 1500, held: 0, available: 1500, debt: 0, plan: 'plus', inrPerCredit: 0.1, allowance: 2000,
+  userId: 'u1', balance: 1500, held: 0, available: 1500, debt: 0, plan: 'plus', allowance: 2000,
   cycleStartsAt: '2026-10-14T05:46:00Z', cycleEndsAt: '2026-11-14T05:46:00Z', usedThisCycle: 500,
   lots: [{ kind: 'monthly', remaining: 1500, expiresAt: '2026-11-14T05:46:00Z' }], recent: [],
 };
@@ -51,14 +51,15 @@ describe('A. AI activity', () => {
     expect(periodLine({ ...CREDITS, plan: 'free' })).toBe('Sign-up credits · valid until 14 Nov 2026');
   });
 
-  it('shows the four figures with rupees, the lifetime line and the top three models', () => {
+  it('shows the four figures in credits only, the lifetime line and the top three models', () => {
     const out = html();
-    expect(out).toMatch(/Credits used<\/span><span class="cu-fig-value"><span class="cu-credits"><span class="cu-credits-num">500<\/span><span class="cu-inr">≈ ₹50<\/span>/);
-    expect(out).toMatch(/Credits left[\s\S]*1,500[\s\S]*≈ ₹150[\s\S]*of 2,000 this period/);
+    expect(out).toMatch(/Credits used<\/span><span class="cu-fig-value"><span class="cu-credits"><span class="cu-credits-num">500<\/span><\/span>/);
+    expect(out).toMatch(/Credits left[\s\S]*1,500[\s\S]*of 2,000 this period/);
+    expect(out).not.toContain('₹');
     expect(out).toMatch(/Model calls<\/span><span class="cu-fig-value">42</);
     expect(out).toContain('title="22,70,000 tokens"');
     expect(out).toContain('>2.27M</abbr>');
-    expect(out).toMatch(/Lifetime spend: <strong>813 credits<\/strong><span class="cu-inr"> \(≈ ₹81\.25\)/);
+    expect(out).toMatch(/Lifetime spend: <strong>813 credits<\/strong><\/p>/);
     expect(out.match(/class="cu-top-row"/g)).toHaveLength(3);
     expect(out).toContain('30 calls · 300 credits');
     expect(out).toContain('View all AI activity');
@@ -99,12 +100,13 @@ describe('B. AI analytics', () => {
     expect(out).toContain('<option value="lifetime">Lifetime (by month)</option>');
   });
 
-  it('shows the five figures, the IST caption, highlights and features, with rupees and no dollars', () => {
+  it('shows the five figures, the IST caption, highlights and features, in credits only (F184)', () => {
     const out = html();
-    expect(out).toMatch(/Credits spent[\s\S]*500[\s\S]*≈ ₹50/);
+    expect(out).toMatch(/Credits spent[\s\S]*500/);
+    expect(out).not.toContain('₹');
     expect(out).toMatch(/Model calls<\/span><span class="cu-fig-value">42<\/span><span class="cu-fig-sub">3 failed/);
     expect(out).toMatch(/Models used<\/span><span class="cu-fig-value">4<\/span><span class="cu-fig-sub">3 providers/);
-    expect(out).toMatch(/Web searches<\/span><span class="cu-fig-value">7<\/span><span class="cu-fig-sub">35 credits · ≈ ₹3\.5</);
+    expect(out).toMatch(/Web searches<\/span><span class="cu-fig-value">7<\/span><span class="cu-fig-sub">35 credits</);
     expect(out).toContain('Rolling window in IST — independent of your billing period, so these totals can differ from AI activity above.');
     expect(out).toMatch(/Top provider[\s\S]*Google[\s\S]*60% of credits/);
     expect(out).toMatch(/Most used[\s\S]*gemini-3\.7-flash[\s\S]*30 calls/);

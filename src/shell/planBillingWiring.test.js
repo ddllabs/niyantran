@@ -38,7 +38,7 @@ it("sends a signed-in visitor's pricing choice to the panel instead of signup", 
 it('reads credits from the shared store and keeps the panel free of dollars', () => {
   const panel = read('./PlanBilling.jsx');
   expect(panel).toMatch(/from '\.\.\/lib\/creditsStore\.js'/);
-  for (const name of ['refreshCredits', 'serverCredits', 'subscribeCredits', 'creditsText', 'rupeeHint']) expect(panel).toContain(name);
+  for (const name of ['refreshCredits', 'serverCredits', 'subscribeCredits', 'creditsText']) expect(panel).toContain(name);
   expect(panel).not.toMatch(/USD|dollar|\$\d/i);
 });
 

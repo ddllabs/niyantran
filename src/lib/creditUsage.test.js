@@ -98,23 +98,23 @@ describe('activityCsv', () => {
   ];
   const lines = (csv) => csv.trimEnd().split('\r\n');
 
-  it('writes credits and their rupee value, in IST, never dollars', () => {
-    const csv = activityCsv(rows, 0.1);
+  it('writes credits only, in IST, never rupees or dollars (F184)', () => {
+    const csv = activityCsv(rows);
     const out = lines(csv);
-    expect(out[0]).toBe('When (IST),Chat,Question,Kind,Model,Thinking,Status,Calls,Tokens,Credits,Rupees (₹)');
-    expect(out[1]).toBe(`2026-10-14 12:00,"Rate cut, ""again""","'=HYPERLINK(""x"")",Row,google/gemini-3.7-flash,,Succeeded,2,3010,47.5,4.75`);
-    expect(out[2]).toBe(',,,Search and plan,openai/text-embedding-3-small,,Succeeded,1,10,0,0.00');
-    expect(out[3]).toBe(',,,Answer,google/gemini-3.7-flash,low,Succeeded,1,3000,47.5,4.75');
-    expect(out[4]).toMatch(/^2026-10-14 12:30,Deleted conversation,,Row,,,Failed,1,0,0,0\.00$/);
-    expect(out[5]).toMatch(/^,,,Repair,m,,Failed,1,0,0,0\.00$/);
-    expect(out[6]).toMatch(/^2026-10-14 13:30,Dictation,,Row,openai\/whisper-large-v3-turbo,,Succeeded,1,50,0,0\.00$/);
-    expect(csv).not.toMatch(/\$|usd|dollar/i);
+    expect(out[0]).toBe('When (IST),Chat,Question,Kind,Model,Thinking,Status,Calls,Tokens,Credits');
+    expect(out[1]).toBe(`2026-10-14 12:00,"Rate cut, ""again""","'=HYPERLINK(""x"")",Row,google/gemini-3.7-flash,,Succeeded,2,3010,47.5`);
+    expect(out[2]).toBe(',,,Search and plan,openai/text-embedding-3-small,,Succeeded,1,10,0');
+    expect(out[3]).toBe(',,,Answer,google/gemini-3.7-flash,low,Succeeded,1,3000,47.5');
+    expect(out[4]).toMatch(/^2026-10-14 12:30,Deleted conversation,,Row,,,Failed,1,0,0$/);
+    expect(out[5]).toMatch(/^,,,Repair,m,,Failed,1,0,0$/);
+    expect(out[6]).toMatch(/^2026-10-14 13:30,Dictation,,Row,openai\/whisper-large-v3-turbo,,Succeeded,1,50,0$/);
+    expect(csv).not.toMatch(/\$|usd|dollar|₹|rupee/i);
   });
 
-  it('leaves the calls out when ungrouped, and the rupees blank without a published rate', () => {
-    const out = lines(activityCsv(rows, null, { withCalls: false }));
+  it('leaves the calls out when ungrouped', () => {
+    const out = lines(activityCsv(rows, { withCalls: false }));
     expect(out).toHaveLength(4);
-    expect(out[1].endsWith(',47.5,')).toBe(true);
+    expect(out[1].endsWith(',47.5')).toBe(true);
   });
 });
 
