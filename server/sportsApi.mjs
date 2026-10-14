@@ -72,8 +72,22 @@ export async function loadWorldFixtures() {
 export async function loadIsl() {
   if (islCache && Date.now() - islAt < TTL) return islCache;
   try {
-    const json = await getJson(ISL_ESPN);
-    const rows = espnScoreboardRows(json, 'Indian Super League');
+    // F169 T5: the season's two calendar years (the season runs September to April). Without a
+    // date ESPN returns only today's matchday; a date range answers 400 (measured 2026-10-14).
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const years = now.getUTCMonth() >= 6 ? [y, y + 1] : [y - 1, y];
+    const answers = await Promise.allSettled(years.map((year) => getJson(`${ISL_ESPN}?dates=${year}&limit=400`)));
+    const seen = new Set();
+    const rows = answers
+      .flatMap((a) => (a.status === 'fulfilled' ? espnScoreboardRows(a.value, 'Indian Super League') : []))
+      .filter((r) => {
+        const key = r.source_url || `${r.date}|${r.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
     if (rows.length) {
       islCache = { ok: true, source: 'espn', rows };
       islAt = Date.now();
