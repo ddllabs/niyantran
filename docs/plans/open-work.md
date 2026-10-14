@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F147 is next) and goes in the
+- A new finding gets the next free `F` number (F156 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
