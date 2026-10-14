@@ -92,6 +92,15 @@ describe('item keys (F170 rule 1)', () => {
     expect(itemKeyFor({ source_url: 'https://pib.gov.in/PressReleasePage.aspx?PRID=2301146' })).not.toBe(itemKeyFor({ source_url: forms[0] }));
   });
 
+  it('a PIB link without a usable PRID keeps its own path key, and other hosts and pages are unchanged', () => {
+    expect(itemKeyFor({ source_url: 'https://pib.gov.in/PressReleasePage.aspx' })).toBe('url:pib.gov.in/PressReleasePage.aspx');
+    expect(itemKeyFor({ source_url: 'https://pib.gov.in/PressReleasePage.aspx?PRID=' })).toBe('url:pib.gov.in/PressReleasePage.aspx?PRID=');
+    expect(itemKeyFor({ source_url: 'https://www.pib.gov.in/PressReleasePage.aspx?PRID=abc&Lang=1' })).toBe('url:pib.gov.in/PressReleasePage.aspx?PRID=abc&Lang=1');
+    expect(itemKeyFor({ source_url: 'https://pib.gov.in/PressReleasePage.aspx?PRID=12abc' })).toBe('url:pib.gov.in/PressReleasePage.aspx?PRID=12abc');
+    expect(itemKeyFor({ source_url: 'https://pib.nic.in/PressReleasePage.aspx?PRID=2301145' })).toBe('url:pib.nic.in/PressReleasePage.aspx?PRID=2301145');
+    expect(itemKeyFor({ source_url: 'https://pib.gov.in/allRel.aspx?PRID=2301145' })).toBe('url:pib.gov.in/allRel.aspx?PRID=2301145');
+  });
+
   it('otherwise a hash of the title and date, the same on every run', () => {
     const k = itemKeyFor({ title: 'Rupee steadies', date: '2026-10-14' });
     expect(k).toMatch(/^h:[0-9a-f]{16}$/);
