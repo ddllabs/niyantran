@@ -609,6 +609,16 @@ rechecked. Nothing in this check wrote to production.
 - [ ] **F158. The Goa booth geography pack is in every terminal visit's JavaScript.** Found by the
   F156 measurements: `niy-geo.json` costs 120 KB compressed whether or not a booth module opens.
   Recommended: load it only when a booth module opens (`archiveFeed.js`).
+  - 2026-10-14 (task/geo-pack-lazy, awaiting review): `archiveFeed.js` now loads the pack with
+    `import()` inside the geography branch, so it is its own chunk (`niy-geo-*.js`, 378 KB / 119.7 KB
+    gzip) fetched only when a booth or state electoral-roll module opens. Measured with
+    `npm run build`: the shared `AiMarkdown-*.js` chunk fell from 215,264 to 95,290 B gzip, and a
+    terminal visit's first view (entry, `TerminalShell`, `PersonaChooser`, `AiMarkdown`) from
+    702,541 to 582,570 B gzip (-119,971 B). The entry chunk is unchanged (220,773 B gzip; the pack
+    was never in it), so the baseline is not changed. If the chunk fails to load, the module shows
+    its error state. `npm run check:bundle` now fails when the pack is not in its own chunk or a
+    chunk imports it statically; tests in `src/lib/archiveFeedGeoLazy.test.js`. The server copy
+    (`server/featureFeed.mjs`) is unchanged.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
