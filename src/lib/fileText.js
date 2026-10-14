@@ -21,9 +21,21 @@ const SHEET_ROWS = 5000;
 
 const nonSpace = (s) => String(s || '').replace(/\s/g, '').length;
 
+/**
+ * F178: a PDF whose fonts are CID-keyed (much Indian-government text) needs pdf.js's character maps,
+ * and one that names a standard font without embedding it needs the standard font files, or its text
+ * comes out wrong or empty. They are served from /pdfjs/ (vite.config.js copies them from pdfjs-dist,
+ * so they match the installed version). Only in a browser: in Node pdf.js reads its own files.
+ */
+export function pdfAssetOptions() {
+  if (typeof window === 'undefined' || typeof Worker === 'undefined') return {};
+  const base = import.meta.env?.BASE_URL || '/';
+  return { cMapUrl: `${base}pdfjs/cmaps/`, cMapPacked: true, standardFontDataUrl: `${base}pdfjs/standard_fonts/` };
+}
+
 async function pdfPages(bytes, load) {
   const pdfjs = await load();
-  const task = pdfjs.getDocument({ data: new Uint8Array(bytes).slice(), isEvalSupported: false, useSystemFonts: false, verbosity: 0 });
+  const task = pdfjs.getDocument({ data: new Uint8Array(bytes).slice(), isEvalSupported: false, useSystemFonts: false, verbosity: 0, ...pdfAssetOptions() });
   try {
     const doc = await task.promise;
     const pages = [];
@@ -104,4 +116,49 @@ export async function fileText(kind, bytes, { loadPdf = loadPdfjs, loadXlsx = ()
     notes.push(`The AI reads the first ${SENT_TEXT_LIMIT.toLocaleString('en-IN')} characters.`);
   }
   return notes.length ? { text, note: notes.join(' ') } : { text };
+}
+
+/**
+ * F178: the fixed messages above and in aiDrop.js (and the one in aiConversations.js), in Hindi. A
+ * message that has none, or any language but Hindi, is shown as given. The messages with numbers or
+ * page lists are matched by pattern and keep those numbers.
+ */
+const HINDI = new Map([
+  ['Images are not read yet, so this file was not sent.', 'छवियाँ अभी नहीं पढ़ी जातीं, इसलिए यह फ़ाइल नहीं भेजी गई।'],
+  ['Word files are not read yet, so this file was not sent. Save it as PDF or text.', 'Word फ़ाइलें अभी नहीं पढ़ी जातीं, इसलिए यह फ़ाइल नहीं भेजी गई। इसे PDF या पाठ फ़ाइल के रूप में सहेजें।'],
+  ['This PDF needs a password, so it was not sent.', 'इस PDF के लिए पासवर्ड चाहिए, इसलिए इसे नहीं भेजा गया।'],
+  ['This PDF could not be read, so it was not sent.', 'यह PDF पढ़ी नहीं जा सकी, इसलिए इसे नहीं भेजा गया।'],
+  ['No readable text (the PDF looks scanned), so it was not sent.', 'पढ़ने योग्य पाठ नहीं मिला (PDF स्कैन की हुई लगती है), इसलिए इसे नहीं भेजा गया।'],
+  ['This spreadsheet could not be read, so it was not sent.', 'यह स्प्रेडशीट पढ़ी नहीं जा सकी, इसलिए इसे नहीं भेजा गया।'],
+  ['This file is not text, so it was not sent.', 'यह फ़ाइल पाठ नहीं है, इसलिए इसे नहीं भेजा गया।'],
+  ['No readable text, so this file was not sent.', 'पढ़ने योग्य पाठ नहीं मिला, इसलिए यह फ़ाइल नहीं भेजी गई।'],
+  ['Could not read this file, so it was not sent.', 'यह फ़ाइल पढ़ी नहीं जा सकी, इसलिए इसे नहीं भेजा गया।'],
+  ['Attach this file again to send it; file text is not kept after a reload.', 'इसे भेजने के लिए यह फ़ाइल फिर से जोड़ें; रीलोड के बाद फ़ाइल का पाठ सहेजा नहीं जाता।'],
+]);
+const HINDI_PATTERNS = [
+  [/^(?:Page|Pages) (.+) (?:has|have) no readable text \(scanned\) and (?:was|were) not read\.$/, (m) => `पृष्ठ ${m[1].replace(' and ', ' और ')} में पढ़ने योग्य पाठ नहीं है (स्कैन किया हुआ), इसलिए ${/^Pages /.test(m[0]) ? 'इन्हें' : 'इसे'} नहीं पढ़ा गया।`],
+  [/^Only the first (\d+) of (\d+) sheets are read\.$/, (m) => `कुल ${m[2]} शीट में से केवल पहली ${m[1]} पढ़ी गई हैं।`],
+  [/^The AI reads the first ([\d,]+) characters\.$/, (m) => `AI पहले ${m[1]} अक्षर पढ़ता है।`],
+  [/^Larger than (\d+) MB, so it was not read\.$/, (m) => `यह फ़ाइल ${m[1]} MB से बड़ी है, इसलिए इसे नहीं पढ़ा गया।`],
+  [/^This drop is over (\d+) MB, so this file was not read\.$/, (m) => `यह ड्रॉप ${m[1]} MB से बड़ा है, इसलिए यह फ़ाइल नहीं पढ़ी गई।`],
+];
+
+/** @returns {string} a chip's error or note, in Hindi when `lang` is 'hi' and it has a Hindi text */
+export function fileMessage(text, lang) {
+  const message = String(text || '');
+  if (lang !== 'hi') return message;
+  // A whole message first (some fixed messages are two sentences); else a note joined from several by
+  // fileText (a cut sheet and a cut text, say), each sentence translated on its own.
+  const whole = hindiSentence(message);
+  if (whole !== message) return whole;
+  return message.split(/(?<=\.) (?=[A-Z])/).map(hindiSentence).join(' ');
+}
+
+function hindiSentence(message) {
+  if (HINDI.has(message)) return HINDI.get(message);
+  for (const [pattern, say] of HINDI_PATTERNS) {
+    const found = pattern.exec(message);
+    if (found) return say(found);
+  }
+  return message;
 }

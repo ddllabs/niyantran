@@ -645,3 +645,61 @@ it('when the saved answer never arrives the reader is told what to do',async()=>
   expect(f.controller.getSnapshot().error).toBe('Still not saved. Use Recover answer or Reload.');
  }finally{vi.useRealTimers();}
 });
+
+// F178 (F171 review): the saved-answer re-check is one loop per conversation. A second drop, a new
+// turn or a dispose used to leave an earlier loop running beside it.
+describe('one saved-answer re-check loop per conversation (F178)',()=>{
+ const dropped=async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:true,status:'unknown',errorCode:'connection_lost',error:'The connection dropped.',messageId:'m'}};
+ const complete=async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:false,status:'complete',messageId:'m2'}};
+ it('a new turn in the conversation stops the loop of the earlier one',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture();await f.controller.start();
+   f.deps.sendTurn.mockImplementationOnce(dropped);f.deps.reconcileSavedTurn.mockResolvedValue(false);
+   await f.controller.send({message:'Q1',turn_key:'k1'});
+   expect(vi.getTimerCount()).toBe(1);
+   f.deps.sendTurn.mockImplementationOnce(complete);
+   await f.controller.send({message:'Q2',turn_key:'k2'});
+   const calls=f.deps.reconcileSavedTurn.mock.calls.length;
+   expect(vi.getTimerCount()).toBe(0);
+   await vi.advanceTimersByTimeAsync(60000);
+   expect(f.deps.reconcileSavedTurn.mock.calls.length).toBe(calls);
+  }finally{vi.useRealTimers();}
+ });
+ it('a second drop in the same conversation leaves one loop, not two',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture();await f.controller.start();
+   f.deps.sendTurn.mockImplementation(dropped);f.deps.reconcileSavedTurn.mockResolvedValue(false);
+   await f.controller.send({message:'Q1',turn_key:'k1'});
+   await f.controller.send({message:'Q2',turn_key:'k2'});
+   expect(vi.getTimerCount()).toBe(1);
+   const before=f.deps.reconcileSavedTurn.mock.calls.length;
+   await vi.advanceTimersByTimeAsync(5000);
+   expect(f.deps.reconcileSavedTurn.mock.calls.length-before).toBe(1);
+  }finally{vi.useRealTimers();}
+ });
+ it('starting a loop for a conversation cancels the one it already has, whichever way the turn was sent',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture();await f.controller.start();
+   f.deps.sendTurn.mockImplementation(dropped);f.deps.reconcileSavedTurn.mockResolvedValue(false);
+   await f.controller.send({message:'Q1',turn_key:'k1'});
+   // A new draft whose reply lands in the same conversation: execute cancels the draft's (empty) id, not this one.
+   f.deps.createAiChat();
+   await f.controller.send({message:'Q2',turn_key:'k2'});
+   expect(vi.getTimerCount()).toBe(1);
+  }finally{vi.useRealTimers();}
+ });
+ it('dispose stops the loop',async()=>{
+  vi.useFakeTimers();
+  try{
+   const f=fixture();await f.controller.start();
+   f.deps.sendTurn.mockImplementation(dropped);f.deps.reconcileSavedTurn.mockResolvedValue(false);
+   await f.controller.send({message:'Q1',turn_key:'k1'});
+   expect(vi.getTimerCount()).toBe(1);
+   f.controller.dispose();
+   expect(vi.getTimerCount()).toBe(0);
+  }finally{vi.useRealTimers();}
+ });
+});
