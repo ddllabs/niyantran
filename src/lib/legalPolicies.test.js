@@ -78,3 +78,13 @@ it('states the credit value, the credit rules and how answers are charged', () =
   expect(refunds).toContain('Up to 10% of a month\'s unused plan credits carry into the next month; the rest expire at the end of the month.');
   expect(refunds).not.toContain('Unused credits remain on your account');
 });
+
+// F161 (owner approved 2026-10-14): no automatic renewal at launch, and paid-only models are stated.
+it('describes no automatic renewal or payment mandate, and says some models are paid-only', () => {
+  const terms = text(DEFAULT_TERMS);
+  const refunds = text(REFUND_POLICY);
+  for (const t of [terms, refunds]) expect(t).not.toMatch(/automatic renewal|payment mandate|renewal charge|renewal payment/i);
+  expect(terms).toContain('Plans do not renew automatically: your plan ends at the end of the paid month unless you pay again.');
+  expect(terms).toContain('some AI models are available on paid plans only');
+  expect(terms).not.toMatch(/Other models use credits on every plan/);
+});

@@ -63,7 +63,7 @@ export default function CreditBalance({ credits, block = '', held = false, onOpe
     <div className="ai-credit" data-state={state}>
       {blocked ? (
         <p className="ai-credit-msg" role="alert">
-          {inUse ? 'Your credits are in use by an answer that is still running. Try again when it finishes.' : 'You have no AI credits left to start an answer.'}
+          {inUse ? 'Your credits are in use by an answer that is still running. Try again when it finishes.' : 'You have no AI credits left to start an answer. Upgrade your plan, or write to niyantranai@gmail.com for more credits.'}
         </p>
       ) : null}
       {unchecked ? <p className="ai-credit-msg" role="alert">AI credits could not be checked right now. Try again in a moment.</p> : null}

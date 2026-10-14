@@ -60,7 +60,7 @@ it('allows upgrades and renewals while a plan is active, never a lower plan (own
 it('states each plan\'s AI credits and the 10% rollover, never "carry forward"', () => {
   const items = Object.fromEntries(PUBLIC_PLANS.map(p => [p.id, p.items]));
   expect(items.free).toContain('1,000 AI credits to start, valid 30 days');
-  expect(items.plus).toEqual(['2,000 AI credits every month', '10% of unused credits roll over for a month']);
+  expect(items.plus).toEqual(['2,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month']);
   expect(items.pro).toContain('6,500 AI credits every month');
   expect(items.max).toContain('75,000 AI credits every month');
   for (const id of ['plus', 'pro', 'max']) expect(items[id]).toContain('10% of unused credits roll over for a month');
@@ -69,4 +69,14 @@ it('states each plan\'s AI credits and the 10% rollover, never "carry forward"',
   const all = JSON.stringify([PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES]);
   expect(all).not.toMatch(/carry forward|starter credits|allowances published/i);
   expect(PRICING_NOTES.find(n => n.title === 'AI credits').text).toBe('a typical answer uses about 20 credits; larger models use more');
+});
+
+// F161 (owner approved 2026-10-14): which models each plan gets, and Free no longer says AI is free.
+it('names the models each plan gets and never calls Free AI "at no cost"', () => {
+  const items = Object.fromEntries(PUBLIC_PLANS.map(p => [p.id, p.items]));
+  expect(items.free).toContain('Fast AI models: Gemini Flash, DeepSeek, GPT Luna, Claude Haiku');
+  for (const id of ['plus', 'pro', 'max']) expect(items[id]).toContain('Every AI model, including Claude Sonnet and Opus and GPT Astra');
+  const free = PUBLIC_PLANS.find(p => p.id === 'free');
+  expect(free.tag).toBe('Every desk at no cost, plus 1,000 AI credits to try the research assistant.');
+  expect(free.tag).not.toMatch(/assistant at no cost/i);
 });

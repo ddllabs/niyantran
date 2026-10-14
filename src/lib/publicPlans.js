@@ -7,30 +7,30 @@ export const PUBLIC_PLANS = [
   {
     id: 'free', tone: 'explorer', name: 'FREE', monthly: 0, unit: '/month',
     who: 'For everyone getting started',
-    tag: 'Every desk and the AI research assistant at no cost.',
+    tag: 'Every desk at no cost, plus 1,000 AI credits to try the research assistant.',
     cta: 'Get started free', ctaKind: 'ghost-blue',
-    items: ['All 8 desks and 120 modules', 'AI research assistant', '1,000 AI credits to start, valid 30 days', 'Cited answers with the source document', 'Copy and export'],
+    items: ['All 8 desks and 120 modules', 'AI research assistant', '1,000 AI credits to start, valid 30 days', 'Fast AI models: Gemini Flash, DeepSeek, GPT Luna, Claude Haiku', 'Cited answers with the source document', 'Copy and export'],
   },
   {
     id: 'plus', tone: 'pro', name: 'PLUS', monthly: 399, unit: '/month',
     who: 'For regular research',
     tag: 'More AI credits for everyday questions.',
     cta: 'Get started', ctaKind: 'fill-purple', plus: 'Everything in Free, plus',
-    items: ['2,000 AI credits every month', '10% of unused credits roll over for a month'],
+    items: ['2,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', '10% of unused credits roll over for a month'],
   },
   {
     id: 'pro', tone: 'enterprise', name: 'PRO', monthly: 999, unit: '/month', popular: true,
     who: 'For analysts and professionals',
     tag: 'Higher AI credits and our own research model.',
     cta: 'Get started', ctaKind: 'fill-blue', plus: 'Everything in Plus, plus',
-    items: ['6,500 AI credits every month', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
+    items: ['6,500 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
   },
   {
     id: 'max', tone: 'gov', name: 'MAX', monthly: 9999, unit: '/month',
     who: 'For heavy research use',
     tag: 'The largest AI credit allowance.',
     cta: 'Get started', ctaKind: 'ghost-red', plus: 'Everything in Pro, plus',
-    items: ['75,000 AI credits every month', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
+    items: ['75,000 AI credits every month', 'Every AI model, including Claude Sonnet and Opus and GPT Astra', 'Niyantran AI is coming soon', '10% of unused credits roll over for a month'],
   },
 ];
 

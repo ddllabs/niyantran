@@ -117,12 +117,12 @@ export const TERMS_OF_SERVICE = {
     ['service', 'The service', `The Terminal organises information from public government, legislative, economic and other published sources into desks, and offers an AI research assistant that answers questions with citations to those sources. All desks are available to signed-in users. We may add, change or remove features; we will give notice of changes that materially reduce a paid plan.`],
     ['plans', 'Plans, credits and billing', `- Plans: Free (₹0), Plus (₹399 per month), Pro (₹999 per month) and Max (₹9,999 per month). Current plan details are on the [Pricing](/#/pricing) page.
 - What plans include: paid plans differ in AI credits and, when personal file storage is introduced, storage. One credit is worth ₹0.10 of AI processing. An answer uses credits according to the AI processing it needs (tokens and web searches), so longer answers and larger models use more. How many credits each plan includes is published on the Pricing page; we may change it for future billing months with notice.
-- Niyantran AI: our in-house model will be available only on Pro and Max plans once released. Other models use credits on every plan.
+- Model access: some AI models are available on paid plans only, and the model picker marks them. Niyantran AI, our in-house model, will be available only on Pro and Max plans once released. Every model uses credits.
 - Credits: new accounts receive 1,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Up to 10% of a month's unused plan credits carry into the next month and expire at its end. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
 - How answers are charged: an answer that fails without giving you any text uses no credits. If you stop an answer, the part already produced is charged. An answer always finishes: if it costs more than your remaining credits, your balance can go below zero, and the difference is taken from your next credits.
-- Billing: paid plans are billed monthly in advance in Indian rupees through Razorpay. If you choose automatic renewal, your plan renews each month until you cancel, and you are notified before each renewal charge as Reserve Bank of India rules require. Without automatic renewal, your plan ends at the end of the paid month unless you pay again.
+- Billing: paid plans are billed monthly in advance in Indian rupees through Razorpay. Plans do not renew automatically: your plan ends at the end of the paid month unless you pay again.
 - Taxes: we are not registered under GST, so no GST is charged; the price shown is the price you pay.
-- Failed payments: if a renewal payment fails, your account moves to the Free plan.`],
+- Failed payments: if you do not pay again, your account moves to the Free plan at the end of the paid month.`],
     ['cancel', 'Cancellation and refunds', `You can cancel a paid plan at any time; it stays active until the end of the current billing month and then moves to Free. Payments are non-refundable except as set out in our [Refund & Cancellation Policy](/#/refunds).`],
     ['use', 'Acceptable use', `Do not:
 
@@ -152,7 +152,7 @@ export const TERMS_OF_SERVICE = {
 
 export const REFUND_POLICY = doc('Grievance Officer: Tamanesh Kauri', [
   ['overview', 'Overview', `This policy explains cancellations and refunds for paid plans of ${COMPANY.brand}, operated by ${COMPANY.legalName}. It forms part of our [Terms of Service](/#/terms).`],
-  ['cancel', 'Cancelling a plan', `You can cancel a paid plan at any time by writing to us from your registered email address, and through your account once that option is available. There is no cancellation charge. Your plan stays active until the end of the current billing month and then moves to the Free plan; no further charges are made. Cancelling automatic renewal also cancels the payment mandate.`],
+  ['cancel', 'Cancelling a plan', `You can cancel a paid plan at any time by writing to us from your registered email address, and through your account once that option is available. There is no cancellation charge. Your plan stays active until the end of the current billing month and then moves to the Free plan; no further charges are made.`],
   ['refunds', 'Refunds', `Plan fees are non-refundable once a billing month has been charged, including for partly used months and unused credits, because the AI service and credits are made available immediately.`],
   ['exceptions', 'When we do refund', `We refund the full amount, to the original payment method, when:
 

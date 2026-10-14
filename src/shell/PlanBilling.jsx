@@ -27,7 +27,7 @@ function day(iso) {
  * version of the Credits usage page (F153), which replaced the "Recent answers" list: those rows are
  * now the page's All AI activity.
  */
-function CreditsSection({ credits, tried, checkoutClosed, onSeeUsage }) {
+function CreditsSection({ credits, tried, onSeeUsage }) {
   if (!credits) {
     return (
       <section className="plan-credits" aria-labelledby="plan-credits-title">
@@ -68,7 +68,11 @@ function CreditsSection({ credits, tried, checkoutClosed, onSeeUsage }) {
       <h4 className="plan-credits-sub">Usage this period</h4>
       <UsageMiniCard credits={credits} onSeeUsage={onSeeUsage} />
 
-      {checkoutClosed ? <p className="plan-up-note plan-credits-note">Top-ups coming soon.</p> : null}
+      {/* F161: top-ups are not on sale until O6, whatever the state of plan checkout. */}
+      <p className="plan-up-note plan-credits-note">
+        Top-ups coming soon. Need more credits now? Write to{' '}
+        <a href="mailto:niyantranai@gmail.com">niyantranai@gmail.com</a>.
+      </p>
     </section>
   );
 }
@@ -166,7 +170,7 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
         <p className="plan-up-lead">
           {active
             ? `${planLabel(current)} is active ${end ? `until ${day(end)}` : 'with no end date'}.`
-            : 'You are on Free: every desk and the AI research assistant, at no cost.'}
+            : 'You are on Free: every desk at no cost, with 1,000 AI credits to start.'}
         </p>
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>
@@ -237,7 +241,6 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
           <CreditsSection
             credits={credits}
             tried={creditsTried}
-            checkoutClosed={Boolean(config) && !open}
             onSeeUsage={() => {
               close.current?.();
               openCreditsUsage();

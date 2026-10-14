@@ -239,11 +239,14 @@ it('opens the Credits usage page from the small version and closes Plan & billin
   } finally { vi.unstubAllGlobals(); }
 });
 
-it('says top-ups are coming soon while checkout is closed, and not when it is open', () => {
+// F161 (owner approved 2026-10-14): top-ups are not on sale until O6, whatever the state of plan
+// checkout, so the note and the address to write to always show.
+it('says top-ups are coming soon and where to write for credits, whether checkout is open or not', () => {
   const note = config => { fake.states = []; return text(section(render(PRO, { config, credits: credits() }))); };
-  expect(note(CLOSED)).toMatch(/Top-ups coming soon/);
-  expect(note(OPEN)).not.toMatch(/coming soon/i);
-  expect(note(null)).not.toMatch(/coming soon/i);
+  for (const config of [CLOSED, OPEN, null]) {
+    expect(note(config)).toMatch(/Top-ups coming soon\. Need more credits now\? Write to/);
+    expect(note(config)).toContain('niyantranai@gmail.com');
+  }
 });
 
 it('gives a Free account with no credit lots a plain empty state', () => {

@@ -648,7 +648,7 @@ rechecked. Nothing in this check wrote to production.
   and show "updated N min ago"; live sources are touched only by the jobs. Start with live-only
   modules (Morning Brief, Statement Tracker, news wires). Needs a spec and the owner's go-ahead;
   after or alongside O6.
-- [ ] **F161. Credits wording, for the owner's approval.** From the credits audit 2026-10-14:
+- [x] **F161. Credits wording.** Done 2026-10-14 (owner: "approved, push it"): all nine approved changes — the Free card and Plan & billing no longer call AI free; model access on every plan card; "Top-ups coming soon. Need more credits now? Write to niyantranai@gmail.com." always shown until O6; the blocked chat message says to upgrade or write in; the Terms state paid-only models and no automatic renewal; the refund policy drops the mandate sentence. Guards in `publicPlans.test.js`, `legalPolicies.test.js`, `PlanBilling.test.jsx`, `CreditBalance.test.jsx`. Was: From the credits audit 2026-10-14:
   - Free is described as "every desk and the AI research assistant at no cost"
     (`src/lib/publicPlans.js:10`, `src/shell/PlanBilling.jsx:169`) although Free is 1,000 credits
     once and paid models are locked.
@@ -751,7 +751,7 @@ rechecked. Nothing in this check wrote to production.
   Built as specified: the full-screen page (activity, analytics chart, all AI activity with CSV,
   credits by expiry), the small version in Plan & billing, the profile-menu item and the chat
   chip's Usage link; the §12 amendment is in the credits spec.
-- [ ] **F155. Admin can set a model's plan.** The owner adds new models from the admin AI models
+- [x] **F155. Admin can set a model's plan.** Done 2026-10-14 (`cf5231c`; migration `20261014234500_admin_model_plan` applied; `admin-models` v15). Was: The owner adds new models from the admin AI models
   page; it needs a plan selector (`admin_models_upsert` + `admin-models` + the allowlist editor) so
   each model's `min_plan` is chosen there. New models default to paid until then. Credits audit
   2026-10-14: still missing (`admin-models/handler.ts` leaves out `min_plan`; no selector in
@@ -1840,8 +1840,8 @@ Earlier items, updated:
       until the current `plan_period_end`.
     - **Renewal dates anchored to the first paid day,** so they do not drift
       after the 31st.
-    - **No auto-renew at launch** (owner decided 2026-10-14). The Terms and refund policy still
-      describe automatic renewal: F161.
+    - **No auto-renew at launch** (owner decided 2026-10-14); the Terms and refund policy say so
+      (F161).
 - [ ] **P2.** Organisation seats, organisation billing, Razorpay
   subscriptions.
 - [x] **P3.** Metering and credits (ADR 0002); an effort column in

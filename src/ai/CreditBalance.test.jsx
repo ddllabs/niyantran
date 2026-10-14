@@ -64,6 +64,8 @@ describe('the blocked state (402 credits_exhausted)', () => {
     const out = html(props);
     expect(out).toContain('role="alert"');
     expect(out).toContain('You have no AI credits left to start an answer.');
+    // F161: until top-ups are on sale (O6), it says where to ask for credits.
+    expect(out).toContain('Upgrade your plan, or write to niyantranai@gmail.com for more credits.');
     expect(out).toContain('0 credits');
     expect(out).toContain('>Upgrade</button>');
     expect(out).toContain('>Buy credits</button>');

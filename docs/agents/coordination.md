@@ -1931,3 +1931,15 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - Rollback: revert `701e22d` (merge) and push.
   - Checks on the merged branch: 4,573 Vitest and 1,073 Deno tests, lint, build, `check:bundle`
     and the router import.
+- **Admin model plans (F155), owner: "Yes to all three, push it":**
+  - **Migration 50** `20261014234500_admin_model_plan` (commit `cf5231c`), applied with
+    `supabase db push --linked` after a dry run that listed only it. `admin_models_upsert` accepts
+    `min_plan` (free/plus/pro/max; new model defaults to plus; absent field keeps the stored plan).
+    Verified live: SECURITY DEFINER, `search_path ""`, execute for service_role only; model plans
+    unchanged (8 free, 5 plus) before and after.
+  - **`admin-models`** deployed (v15, `verify_jwt` still on); unsigned GET 401.
+  - Pushed `main` `8fb06fa..cf5231c` (the admin plan selector).
+  - Rollback: redeploy `admin-models` from `8fb06fa`; run the migration's Down block.
+- **Credits wording (F161), owner: "approved, push it":** pricing cards, Plan & billing, the chat's
+  blocked message, the Terms (paid-only models, no automatic renewal) and the refund policy. Code
+  only; no database or function change. Rollback: revert the commit and push.
