@@ -551,7 +551,10 @@ rechecked. Nothing in this check wrote to production.
       - the production steps in the plan, each on the owner's go-ahead:
         migration, functions in shadow mode, push, a shadow week, then
         enforcement.
-  - 2026-10-14: **live in shadow mode.**
+  - 2026-10-14, later: **enforced for everyone** (owner: "remove the entire shadow concept"):
+    the secret `CREDITS_ENFORCED=1` and research-chat v56, then the shadow code removed in
+    `787bced`.
+  - 2026-10-14: **live in shadow mode** (superseded the same day).
     - Shipped: migration 47, research-chat v54, transcribe-audio v2, and the
       push `2a85579..80aeaa6`. Task 7's wording is live.
     - Remaining:
@@ -559,21 +562,28 @@ rechecked. Nothing in this check wrote to production.
       - then enforcement for everyone (owner: "we should enforce it").
     - The steps and the check queries are in the plan's "After launch"
       section.
-- [ ] **F147. Admin user list paging.** The directory reads every profile in
+- [x] **F147. Admin user list paging.** Done 2026-10-14 (`1336047`): pages of 100, search by email or name, the header shows the directory total. The directory reads every profile in
   one request (and every wallet, in pages). Recommended: page it 100 at a
   time with search, once there are more than 300 users.
-- [ ] **F148. Plan & billing dark mode.** The panel, its credits section
+- [x] **F148. Plan & billing dark mode.** Done 2026-10-14 (`a964eb4`): dark styles from the app's tokens, contrast ≥ 4.5:1 tested. The panel, its credits section
   included, has light styles only. A small CSS task for the next UI polish
   pass.
-- [ ] **F149. Open an answer from Plan & billing.** Recent answers are plain
+- [x] **F149. Open an answer from Plan & billing.** Done 2026-10-14 (`a964eb4`): rows open the chat in the AI panel (`niy-open-conversation`). Recent answers are plain
   text, because no route selects a conversation. Recommended: a
   `niy-open-conversation` event, like `niy-open-billing`.
-- [ ] **F150. Expensive models on Free (owner decision).** One Claude Sonnet
+- [x] **F150. Model access by plan.** Done 2026-10-14 (`787bced`). Owner: Free gets Gemini Flash-class, DeepSeek, GPT Luna and Claude Haiku; GPT Terra, Sol, Astra and Claude Sonnet and Opus need a paid plan; new models default to paid; Gemma is off. `ai_models.min_plan`, enforced by research-chat (403, including the failover chain) and shown in the picker. Was: One Claude Sonnet
   answer costs about 170 credits, and a Free account can leave one answer
   of debt unpaid. Recommended: tier-3 models on paid plans only.
-- [ ] **F151. Credit estimate in the model picker.** Show "≈ N credits a
+- [x] **F151. Credit estimate in the model picker.** Done 2026-10-14 (`787bced`, `a964eb4`): `model_credit_estimates()`, measured median or list price. Was: Show "≈ N credits a
   typical answer" per model beside the cost diamonds. After enforcement.
-- [ ] **F152. Leaked-password protection (owner's dashboard action).** The
+- [ ] **F152. Leaked-password protection (owner's dashboard action).** Owner 2026-10-14: will switch it on.
+- [ ] **F153. Credits usage page.** Owner 2026-10-14: a separate page like TenderBase's (AI
+  activity card, AI analytics with charts and legends, all AI activity, credits by expiry) plus a
+  small version in Plan & billing; built from the owner's screenshots.
+  [Spec](../specs/2026-10-14-credits-usage-page.md). Next after the speed work.
+- [ ] **F155. Admin can set a model's plan.** The owner adds new models from the admin AI models
+  page; it needs a plan selector (`admin_models_upsert` + `admin-models` + the allowlist editor) so
+  each model's `min_plan` is chosen there. New models default to paid until then. The
   Supabase security advisor flags it as off. Recommended: turn it on
   (Auth → Passwords).
     - 1 credit = 10 paise of AI cost.
@@ -1631,16 +1641,15 @@ Earlier items, updated:
 
 ## 4. Payments
 
-- [ ] **F6.** Plan gating on the server, before real payments. Desk data is
+- [x] **F6.** Plan gating on the server, before real payments (closed 2026-10-14, superseded; see below). Desk data is
   public (static files, and `desk_rows` is readable by any signed-in user).
   Locks, row caps and export limits run only in the browser. The spec must
   settle which data is premium, how premium desks are served (an API behind
   `my_entitlement`, or RLS), server-side exports and API row caps.
   - **Parked by the owner (2026-10-02)** until payments are integrated: "when the payment plan
     is actually integrated, we might have to make changes again."
-  - **Recommended 2026-10-14: close as superseded.** Since 2026-10-12, plans differ only in AI
-    credits and storage, and every desk is free to signed-in users. Credits are enforced on the
-    server (F111). Awaiting the owner's confirmation.
+  - **Closed 2026-10-14 as superseded (owner).** There are no paid desk tiers: plans differ in
+    AI credits and in which models they may use (F150). Credits are enforced on the server.
   - **Decisions recorded for then:**
     - core desks stay persona-based and user-editable;
     - the AI assistant respects the same desk locks when it reads desk rows;
@@ -1663,10 +1672,10 @@ Earlier items, updated:
     - **No auto-renew mandate at launch** (recommended).
 - [ ] **P2.** Organisation seats, organisation billing, Razorpay
   subscriptions.
-- [ ] **P3.** Metering and credits (ADR 0002); an effort column in
+- [x] **P3.** Metering and credits (ADR 0002); an effort column in
   `model_call_logs`.
-  - 2026-10-14: metering and credits are delivered by F111 (live in shadow
-    mode); only the effort column remains.
+  - 2026-10-14: metering and credits are delivered by F111; the effort column
+    (`model_call_logs.reasoning_effort`) landed in `787bced`. Done.
 
 ## 5. Launch
 
