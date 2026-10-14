@@ -325,12 +325,14 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
         </header>
 
         {/* Category Filter Bar */}
-        <div className="ltv-category-bar" role="tablist" aria-label="Channel Categories">
+        {/* F61 (F171 B15): filter buttons, so pressed state, not tabs (they never behaved like tabs). */}
+        <div className="ltv-category-bar" role="group" aria-label="Channel Categories">
           {categories.map((cat) => (
             <button
               type="button"
               key={cat}
               className={`ltv-category-pill${selectedCategory === cat ? ' active' : ''}`}
+              aria-pressed={selectedCategory === cat}
               onClick={() => setSelectedCategory(cat)}
             >
               {cat}
@@ -521,39 +523,40 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
           </section>
 
           {/* Lower Section Tabs */}
-          <nav className="ltv-deck-tabs" aria-label="Live TV Modules">
-            <button
-              type="button"
-              className={`ltv-tab-btn${activeTab === 'schedule' ? ' active' : ''}`}
-              onClick={() => setActiveTab('schedule')}
-            >
-              Broadcast Schedule ({schedule.length})
-            </button>
-            <button
-              type="button"
-              className={`ltv-tab-btn${activeTab === 'videos' ? ' active' : ''}`}
-              onClick={() => setActiveTab('videos')}
-            >
-              Channel Videos ({videos.length})
-            </button>
-            <button
-              type="button"
-              className={`ltv-tab-btn${activeTab === 'archive' ? ' active' : ''}`}
-              onClick={() => setActiveTab('archive')}
-            >
-              Archived Segments ({archive.length})
-            </button>
-            <button
-              type="button"
-              className={`ltv-tab-btn${activeTab === 'transcript' ? ' active' : ''}`}
-              onClick={() => setActiveTab('transcript')}
-            >
-              Transcript
-            </button>
-          </nav>
+          {/* F61 (F171 B15): real tabs: one tab stop, arrows, Home and End move between them. */}
+          <div className="ltv-deck-tabs" role="tablist" aria-label="Live TV Modules">
+            {[
+              ['schedule', `Broadcast Schedule (${schedule.length})`],
+              ['videos', `Channel Videos (${videos.length})`],
+              ['archive', `Archived Segments (${archive.length})`],
+              ['transcript', 'Transcript'],
+            ].map(([id, label], index, all) => (
+              <button
+                type="button"
+                key={id}
+                id={`ltv-tab-${id}`}
+                role="tab"
+                aria-selected={activeTab === id}
+                aria-controls="ltv-tab-panel"
+                tabIndex={activeTab === id ? 0 : -1}
+                className={`ltv-tab-btn${activeTab === id ? ' active' : ''}`}
+                onClick={() => setActiveTab(id)}
+                onKeyDown={(e) => {
+                  const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: all.length - 1 };
+                  if (!(e.key in keys)) return;
+                  e.preventDefault();
+                  const next = all[(keys[e.key] + all.length) % all.length][0];
+                  setActiveTab(next);
+                  e.currentTarget.parentElement?.querySelector(`#ltv-tab-${next}`)?.focus();
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           {/* Tab Content */}
-          <div className="ltv-tab-content">
+          <div className="ltv-tab-content" id="ltv-tab-panel" role="tabpanel" aria-labelledby={`ltv-tab-${activeTab}`}>
             {activeTab === 'schedule' && (
               <div className="ltv-schedule-list">
                 {scheduleLoading ? (

@@ -6,6 +6,7 @@
  * the turn has finished, a marker with nothing behind it is dropped rather
  * than left as a bracket the reader cannot open.
  */
+import { tidyDocTitle } from '../lib/docTitle.js';
 import { documentRoleLabel, isTextCitation, isRowCitation } from '../types/citation.js';
 import './research.css';
 
@@ -80,7 +81,7 @@ export default function CitationBubble({ n, source: raw, onOpen, selectedSource 
     : selectedSource.row_key === source.row_key && selectedSource.feature === source.feature && selectedSource.tier === source.tier);
   const label = source.kind === 'row'
     ? `${source.title || source.row_key} — ${source.feature}`
-    : `${source.title}${source.desk_feature ? ` — ${source.desk_feature}` : ''}`;
+    : `${tidyDocTitle(source.title)}${source.desk_feature ? ` — ${source.desk_feature}` : ''}`;
   return (
     <button
       type="button"

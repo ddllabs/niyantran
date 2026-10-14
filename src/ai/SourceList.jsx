@@ -1,3 +1,4 @@
+import { tidyDocTitle } from '../lib/docTitle.js';
 import { documentRoleLabel, isTextCitation } from '../types/citation.js';
 
 const MAX_PAGES = 5;
@@ -27,7 +28,8 @@ export function documentChips(sources) {
   return chips;
 }
 
-const titleKey = (title) => String(title ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+// F52: versions whose stored titles differ only by a malformed comma or bracket share a card.
+const titleKey = (title) => tidyDocTitle(title).toLowerCase();
 
 /**
  * F118: the cited documents grouped by bill. Versions of one bill share its title and module, so they
@@ -100,10 +102,10 @@ export default function SourceList({ sources, onOpen, lang }) {
           const single = g.docs.length === 1 ? g.docs[0] : null;
           return (
             <li key={g.key}>
-              <button type="button" className="ai-source-chip" onClick={() => onOpen?.(g.first)} title={single ? single.file_name || single.title : g.title}>
+              <button type="button" className="ai-source-chip" onClick={() => onOpen?.(g.first)} title={single ? single.file_name || tidyDocTitle(single.title) : tidyDocTitle(g.title)}>
                 <DocGlyph />
                 <span className="ai-source-main">
-                  <span className="ai-source-title">{g.title}</span>
+                  <span className="ai-source-title">{tidyDocTitle(g.title)}</span>
                   <span className="ai-source-meta">
                     {single?.version ? <span className="ai-source-version">{single.version}</span> : null}
                     {g.desk_feature ? <span>{g.desk_feature}</span> : null}

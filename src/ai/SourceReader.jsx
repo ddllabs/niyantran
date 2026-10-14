@@ -1,3 +1,4 @@
+import { tidyDocTitle } from '../lib/docTitle.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
 import { documentBlocks, readerWindow, visibleBlocks, WINDOW_CHARS } from './documentBlocks.js';
@@ -95,7 +96,7 @@ export default function SourceReader({ citation, onClose, client = supabase, onD
     <section className="ai-reader" aria-label="Cited source">
       <header className="ai-reader-head">
         <div>
-          <strong>{doc?.title ?? citation.title}</strong>
+          <strong>{tidyDocTitle(doc?.title ?? citation.title)}</strong>
           <span className="ai-reader-file">
             {doc?.file_name ?? citation.file_name ?? ''}
             {fileUrl ? (

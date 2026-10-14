@@ -10,6 +10,7 @@
  * the single sanitising point). Every notice is a fixed sentence; no error text and no signed
  * URL is ever rendered or logged.
  */
+import { tidyDocTitle } from '../../lib/docTitle.js';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { defaultDocumentFileClient } from '../../lib/documentFile.js';
@@ -614,7 +615,8 @@ export default function PageViewer({
   };
   const closeFull = useCallback(() => setFull(false), []);
 
-  const title = doc?.title ?? citation.title;
+  // F52: display only; the stored title is unchanged.
+  const title = tidyDocTitle(doc?.title ?? citation.title);
   const fileUrl = safeSourceUrl(doc?.file_url) || safeSourceUrl(citation.file_url);
   const textPiece = textPieces.pieces?.get(page) ?? null;
   const textSpan = textPiece ? { status: 'exact', ...textPiece } : textPieces.status === 'changed' && page === cited ? { status: 'changed' } : null;

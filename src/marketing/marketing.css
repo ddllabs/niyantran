@@ -2316,7 +2316,10 @@ html.mkt-doc:has(.mkt-auth) #root {
 }
 
 .mkt-trivia { padding: 34px 0 0; background: #f7f6f3; }
+/* F80 (F171 B16): padding and border sit inside the band's width at every width, so it lines up
+   with the page gutter (it started at x=1 instead of 24 at 1440 px) and never pushes past it. */
 .mkt-trivia-inner {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -2338,11 +2341,6 @@ html.mkt-doc:has(.mkt-auth) #root {
   overflow: visible;
 }
 
-/* Phones and tablets: the band's padding and border sit inside its width, so it ends at the gutter
-   instead of 47px past it (the homepage scrolled sideways at 375px, 2026-10-14). */
-@media (max-width: 768px) {
-  .mkt-trivia-inner { box-sizing: border-box; }
-}
 @media (max-width: 540px) {
   .mkt-trivia-inner { align-items: flex-start; flex-direction: column; }
 }

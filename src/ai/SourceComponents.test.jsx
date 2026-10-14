@@ -69,6 +69,16 @@ describe('SourceList', () => {
       expect(groups[0].docs.map((d) => d.tag)).toEqual(['As introduced · PDF', 'As introduced', 'As passed by Lok Sabha', 'As passed by both Houses']);
     });
 
+    // F52 (F171 B14): a malformed stored title is shown tidied, and its versions still share a card.
+    it('shows a malformed title tidied and groups its versions together', () => {
+      const raw = 'The Farmers (Old Age Allowance Bill,2000';
+      const groups = sourceGroups([text(1, 'a', raw, f), text(2, 'b', 'The Farmers (Old Age Allowance) Bill, 2000', f)]);
+      expect(groups).toHaveLength(1);
+      const html = renderToStaticMarkup(<SourceList sources={[text(1, 'a', raw, f)]} />);
+      expect(html).toContain('The Farmers (Old Age Allowance) Bill, 2000');
+      expect(html).not.toContain('Allowance Bill,2000');
+    });
+
     it('does not merge the same title from different modules', () => {
       const groups = sourceGroups([text(1, 'a', BILL, f), text(2, 'b', BILL, { desk_feature: 'Policy Intelligence Graph' })]);
       expect(groups).toHaveLength(2);
