@@ -85,20 +85,18 @@ it('reads dropped text bytes once for both its fingerprint and UTF-8 content', a
  const file=new File(['नमस्ते, world'], 'notes.txt', {type:'text/plain'});
  const read=vi.spyOn(file,'arrayBuffer');const text=vi.spyOn(file,'text');
  const [chip]=await filesFromDrop({dataTransfer:{files:[file]}});
- expect(chip.files[0].text).toBe('नमस्ते, world');
+ expect(chip.text).toBe('नमस्ते, world');
  expect(read).toHaveBeenCalledOnce();expect(text).not.toHaveBeenCalled();
  expect(chip.fingerprint).toMatch(/^[0-9]+:[0-9a-f]{16}$/);
 });
-it('reads dropped binary bytes once and preserves its exact base64 payload', async () => {
- vi.stubGlobal('FileReader', class {
-  readAsDataURL(file){file.arrayBuffer().then(bytes=>{this.result=`data:${file.type};base64,${Buffer.from(bytes).toString('base64')}`;this.onload();});}
- });
+it('reads a dropped binary file once and keeps no copy of it on the chip (F62)', async () => {
  const bytes=Uint8Array.from({length:70000},(_,i)=>i%256);
  const file=new File([bytes], 'scan.pdf', {type:'application/pdf'});
  const read=vi.spyOn(file,'arrayBuffer');
  const [chip]=await filesFromDrop({dataTransfer:{files:[file]}});
- expect(chip.files[0].base64).toBe(Buffer.from(bytes).toString('base64'));
  expect(read).toHaveBeenCalledOnce();
+ expect(JSON.stringify(chip)).not.toMatch(/base64/);
+ expect(chip.error).toMatch(/could not be read|no readable text/i);
 });
 
 // panel-drag-ai (F113): the side panel switches to AI for a dragged record or file, and a drop the

@@ -10,7 +10,8 @@ export default function AttachmentTray({ attachments, indexedKeys, locked, onRem
     const cover = coverageOf(a, indexedKeys);
     return <li key={a.id} className={module ? 'module' : undefined}>
       {module ? <Layers size={15} aria-hidden="true" /> : <FileText size={15} aria-hidden="true" />}
-      <span title={a.title}>{a.title}</span>
+      <span title={a.note ? `${a.title}. ${a.note}` : a.title}>{a.title}</span>
+      {a.kind === 'file' && a.error ? <em className="ai-v2-file-cover not-sent" title={a.error}>{hi ? 'नहीं भेजा' : 'Not sent'}</em> : null}
       {a.kind === 'document' ? <em className="ai-v2-file-cover document" title={hi ? 'केवल संलग्न या चयन फोकस में खोज इस दस्तावेज़ तक सीमित है' : 'Under Attached or Selection focus, searches are limited to attached documents'}>{hi ? 'दस्तावेज़' : 'Document'}</em> : null}
       {module ? <em className="ai-v2-file-cover module" title={hi ? 'मॉड्यूल की नमूना पंक्तियाँ, पूरा दस्तावेज़ नहीं' : 'A sample of module rows, not the full document text'}>{hi ? 'मॉड्यूल' : 'Module'}</em> : null}
       {cover ? <em className={`ai-v2-file-cover${cover === 'full' ? ' full' : ''}`} title={cover === 'full' ? (hi ? 'पूरा पाठ अनुक्रमित है' : 'Full text is indexed and can be quoted') : (hi ? 'केवल तालिका पंक्ति उपलब्ध है' : 'Only the desk row is available; no indexed text')}>

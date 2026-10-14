@@ -4,6 +4,7 @@ import { githubCsvUrl } from './githubCsv.js';
 import { collectRowUrls, isHubListingUrl, rowRecordText, sourceKindHint } from './sourceUrls.js';
 import { billDocumentKey } from './deskRows.js';
 import { authHeaders } from './authHeaders.js';
+import { DROP_LIMIT_BYTES, FILE_LIMIT_BYTES, fileText } from './fileText.js';
 
 export const AI_DND = 'application/x-niyantran-ai';
 
@@ -430,18 +431,10 @@ export function catalogHint(tabId) {
     .join(', ');
 }
 
-function bytesToBase64(bytes) {
-  const view = new Uint8Array(bytes);
-  let binary = '';
-  for (let i = 0; i < view.length; i += 0x8000) {
-    binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
-}
-
 export async function filesFromDrop(e) {
   const list = [...(e.dataTransfer?.files || [])];
   const out = [];
+  let dropped = 0;
   for (const file of list) {
     const kind =
       fileKind(file.name) ||
@@ -454,35 +447,24 @@ export async function filesFromDrop(e) {
             : /sheet|excel|spreadsheet/i.test(file.type)
               ? 'sheet'
               : 'text');
-    const rec = { kind: 'file', title: file.name, urls: [], files: [] };
-    try {
-      // Share one read between content identity and the turn's payload.
-      const bytes = await file.arrayBuffer();
-      const fingerprint = await fileFingerprint(file, bytes);
-      if (fingerprint) rec.fingerprint = fingerprint;
-      if (kind === 'pdf' || kind === 'image' || kind === 'sheet') {
-        rec.files.push({
-          name: file.name,
-          kind,
-          mime:
-            file.type ||
-            (kind === 'pdf'
-              ? 'application/pdf'
-              : kind === 'sheet'
-                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                : 'image/png'),
-          base64: bytesToBase64(bytes),
-        });
-      } else {
-        rec.files.push({
-          name: file.name,
-          kind: kind || 'text',
-          mime: file.type,
-          text: new TextDecoder().decode(bytes).slice(0, 180000),
-        });
+    // F172 (F171 B2): the file's text is the chip's `text`, which is what the turn sends; the chip
+    // keeps only the file's name, kind and size, never its contents (F62: browser storage).
+    const rec = { kind: 'file', title: file.name, urls: [], files: [{ name: file.name, kind, mime: file.type || '', size: file.size }] };
+    // F62 (F171 B4): limits are checked before a byte is read.
+    if (file.size > FILE_LIMIT_BYTES) {
+      rec.error = `Larger than ${FILE_LIMIT_BYTES / 1_000_000} MB, so it was not read.`;
+    } else if (dropped + file.size > DROP_LIMIT_BYTES) {
+      rec.error = `This drop is over ${DROP_LIMIT_BYTES / 1_000_000} MB, so this file was not read.`;
+    } else {
+      dropped += file.size;
+      try {
+        const bytes = await file.arrayBuffer();
+        const fingerprint = await fileFingerprint(file, bytes);
+        if (fingerprint) rec.fingerprint = fingerprint;
+        Object.assign(rec, await fileText(kind, bytes));
+      } catch {
+        rec.error = 'Could not read this file, so it was not sent.';
       }
-    } catch {
-      rec.files.push({ name: file.name, kind, error: 'Could not read file' });
     }
     out.push(rec);
   }

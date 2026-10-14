@@ -7345,6 +7345,8 @@ tr.close-soon { color: #6d675f; }
 /* A module is not a record: amber, and a grid icon rather than a page. */
 .ai-v2-file-cover.module { border-color: #fde68a; background: #fffbeb; color: #b45309; }
 .ai-v2-files li.module svg { color: #b45309; }
+/* F172: an uploaded file that could not be read is never sent; the chip says so. */
+.ai-v2-file-cover.not-sent { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
 
 /* F91: a closed landing panel must not reserve the mobile panel row. Keep
    the mounted panel and existing ai-open layouts so chat state survives. */
