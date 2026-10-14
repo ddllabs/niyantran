@@ -4,6 +4,7 @@ import { feedOverview } from '../lib/analytics.js';
 import { fetchFeaturePage } from '../lib/featureFeed.js';
 import { relatedRowsView } from '../lib/pagedFeatures.js';
 import { resolveDataState, isTerminalState } from '../lib/dataState.js';
+import { plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
 import { LIVE_WAIT_TEXT, MODULE_UNAVAILABLE_TEXT, liveHoldState } from '../desks/moduleLiveRetry.js';
 import { BarList, Heatmap, Sparkline, VizCard } from './AnalyticsViz.jsx';
 import RecordDetail from './RecordDetail.jsx';
@@ -82,7 +83,7 @@ function isCarbonDesk(feed) {
 }
 
 /** Drop archive / data-check chrome from right-rail KPIs and notes (Local + Law + shared). */
-function sanitizeRailOverview(overview, { carbon = false } = {}) {
+function sanitizeRailOverview(overview, { carbon = false, feed = null } = {}) {
   if (!overview) return overview;
   const dropRe = /\barchiv(e|ed)|data check|last-known-good|stored snapshot|fallback|single record|one case|whole desk|verification\b/i;
   const kpis = (overview.kpis || [])
@@ -104,14 +105,21 @@ function sanitizeRailOverview(overview, { carbon = false } = {}) {
     })
     .filter(Boolean)
     .filter((k) => !/data check|verification/i.test(`${k.label} ${k.value} ${k.sub}`));
-  const note = overview.note && !dropRe.test(overview.note) ? overview.note : '';
+  // F164: the overview's note is usually the feed's own source note; a reader gets it in plain
+  // words (or a plain source line), and the original stays as the note's `title`. Board notes and
+  // other notes written for readers keep the old check.
+  const raw = String(overview.note || '');
+  const isSourceNote = Boolean(raw) && raw === String(feed?.source?.note || '');
+  const stored = feed?.fallback || feed?.served === 'archive';
+  const plain = isSourceNote ? plainNote(raw, stored ? '' : plainSourceLine(feed)) : raw;
+  const note = plain && !dropRe.test(plain) ? plain : '';
   const title = String(overview.title || '')
     .replace(/\bJudgments?\b/gi, 'Judgements')
     .replace(/\bJudgement\b/g, 'Judgements')
     .replace(/\barchiv(e|ed)\b/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
-  return { ...overview, title, kpis, note };
+  return { ...overview, title, kpis, note, noteDetail: technicalTitle(raw, note) };
 }
 
 /** The side panel's container classes for a feed's Desk and Record tabs (index.css styles them). */
@@ -134,7 +142,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
     if (terminal) return { title: feed?.feature || 'MODULE', kpis: [], charts: [] };
     try {
       // F156: a paged module's figures come with the page, worked out over the whole register.
-      return sanitizeRailOverview(feed?.paged && feed.overview ? feed.overview : feedOverview(feed), { carbon: carbonDesk });
+      return sanitizeRailOverview(feed?.paged && feed.overview ? feed.overview : feedOverview(feed), { carbon: carbonDesk, feed });
     } catch {
       return { title: feed?.feature || 'MODULE', kpis: [], charts: [], note: 'Overview could not be built for this feed.' };
     }
@@ -154,6 +162,11 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
   const dossier = alliances || sanctions || aid || nuclear;
   // A source-status row ("Source offline or empty") is not a record, so it keeps the old view.
   const panelAdapter = selected?.status === 'source_status' ? null : adapterFor(feed?.feature, feed?.tier);
+  // F164: plain words for the state banners; the original detail stays as their `title`.
+  const fallbackBanner = plainNote(dataState.detail, 'Showing the latest stored records.');
+  const terminalBanner = dataState.detail
+    ? plainNote(String(dataState.detail).replace(/\bdata check\b/gi, ''), dataState.id === 'planned' ? 'This module has no records yet.' : 'The source isn\u2019t responding right now.')
+    : 'No records were invented for this module.';
   const showFallbackBanner =
     !localDesk && !carbonDesk && feed?.fallback && dataState.id !== 'live' && !status && dataState.detail;
 
@@ -170,19 +183,16 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
           )}
           {gdelt && !terminal && <p className="banner warn">GDELT reporting search - not an official dataset.</p>}
           {showFallbackBanner ? (
-            <p className="banner">
-              {String(dataState.detail).replace(/\barchiv(e|ed)\b/gi, 'stored snapshot')}
+            <p className="banner" title={technicalTitle(dataState.detail, fallbackBanner)}>
+              {fallbackBanner}
             </p>
           ) : null}
           {terminal && liveHoldState(feed) ? (
             // F159: the module page is still asking for live data, or has stopped asking.
             <p className="banner">{liveHoldState(feed) === 'wait' ? LIVE_WAIT_TEXT : MODULE_UNAVAILABLE_TEXT}</p>
           ) : terminal && (
-            <p className="banner">
-              {String(dataState.detail || 'No records were invented for this module.')
-                .replace(/\barchiv(e|ed)\b/gi, 'stored pack')
-                .replace(/\bdata check\b/gi, '')}
-              {dataState.host ? ` Configured host: ${dataState.host}.` : ''}
+            <p className="banner" title={technicalTitle([dataState.detail, dataState.host && `Host: ${dataState.host}`].filter(Boolean).join(' · '), terminalBanner)}>
+              {terminalBanner}
             </p>
           )}
 
@@ -253,7 +263,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
                   {c.type === 'note' && <p className="viz-foot">{c.hint}</p>}
                 </VizCard>
               ))}
-              {overview.note ? <p className="desk-note">{overview.note}</p> : null}
+              {overview.note ? <p className="desk-note" title={overview.noteDetail}>{overview.note}</p> : null}
             </>
           )}
         </div>

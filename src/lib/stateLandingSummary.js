@@ -1,6 +1,7 @@
 import { STATE_PRESENTATION } from '../desks/landing/statePresentation.js';
 import { feedColumns } from './columns.js';
 import { sensitiveNoteFor } from './sensitiveData.js';
+import { plainNote } from './plainSourceNote.js';
 
 export const STATE_MODULES = STATE_PRESENTATION.groups.flatMap(group => group.modules);
 // F157: the modules /api/state-landing answers. Planned (unconfigured) modules have no source and
@@ -34,8 +35,9 @@ export function projectStateSummary(module, raw) {
   if (measured && module.feature === 'Constituency Register') for (const row of rows) {
     if (populated(row.district)) districts.set(String(row.district), (districts.get(String(row.district)) || 0) + 1);
   }
+  // F164: the card shows the source note in plain words; the original is kept as `sourceNote`.
   const limitations = [
-    source.note,
+    plainNote(source.note),
     method && `${method.title}. ${method.body}`,
     geo && 'Stored Goa coverage only; this is not a register for every Indian state.',
     news && 'Returned news coverage, not a complete official register or measured analytical result. State coverage varies.',
@@ -49,7 +51,7 @@ export function projectStateSummary(module, raw) {
     count: measured ? rows.length : null, unit,
     availability: failed ? 'error' : unavailable ? 'unavailable' : rows.length ? 'ready' : 'empty',
     sourceMode: measured ? modelled ? 'curated' : adapter === 'embedded' ? 'stored' : 'feed-backed' : 'unknown',
-    columns, sources, limitations, fallback: Boolean(raw?.fallback),
+    columns, sources, limitations, sourceNote: String(source.note || ''), fallback: Boolean(raw?.fallback),
     asOf: sourceDate(raw?.meta?.as_of) || sourceDate(raw?.meta?.asOf),
     period: raw?.meta?.vintage || raw?.meta?.profile || null,
     districts: [...districts].map(([label, count]) => ({ label, count })),

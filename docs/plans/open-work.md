@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F165 is next) and goes in the
+- A new finding gets the next free `F` number (F166 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -668,12 +668,38 @@ rechecked. Nothing in this check wrote to production.
   this archive — Has answer stays Not reported until Sansad answer fields are wired."
   (`src/lib/shapeQuestions.js:55-56`, there since 2026-09-09). Owner asked whether it was new: it
   is not. Recommended: "Answers are not yet in this dataset" or hide it until answers are loaded.
-- [ ] **F164. Live source notes are technical.** Seen 2026-10-14: Geopolitics News Wire shows
+- [ ] **F165. Technical words left on other screens.** Found while building F164 (2026-10-14), not
+  in its scope: other desks' landing card text (Global "Reporting search / RSS", Economics "PIB RSS
+  reporting" and "existing adapter", National "not a live ECI API", Carbon "The API response
+  blends…", the Sports sector card "not yet available in the existing adapter"); the module header's
+  "exhaustive · sync backup / sync present" labels; the critical-minerals board note ("unless the
+  pack supplies them"); `HomeDesk.jsx` "nter.news feed not configured on this build" and the
+  latest-news note; the record panel's `reporting_search` field ("GDELT DOC 2.0 — …").
+  Recommended: the same display-only treatment with `plainSourceNote.js`. Size S–M.
+- [x] **F164. Live source notes are technical.** Done 2026-10-14 (owner: "do F164 and push and merge"): `src/lib/plainSourceNote.js` turns technical notes into a plain source line on screen ("Live · 24 stories from BBC World"); the data and status matching are unchanged; the original note is kept as a `title`. Checked in a browser on the local copy (Geopolitics News Wire, Morning Brief). Was: Seen 2026-10-14: Geopolitics News Wire shows
   "GDELT paced ≥5s; primary DOC 2.0 search retries on the next refresh … rate limited"; Morning
   Brief and Statements show "GDELT wire unreachable…" and "PIB releases arrive through the backend
   (/api/rss)…"; landing detail cards repeat source notes; planned/offline state cards mention
   archives and hosts. Recommended: show a plain source line ("Source: BBC World") and keep the
   technical note in `source.diagnostic` (as F159 does). Size M.
+  - 2026-10-14 (task/plain-source-notes, awaiting review): the feed data is unchanged
+    (`refreshFeeds.js` and `dataState.js` read `source.note` word for word); screens pass notes
+    through `src/lib/plainSourceNote.js`. A note without technical wording (hosts, paths, files,
+    GDELT/DOC 2.0, RSS, API, proxy, backend, adapter, archive, backup, pack, fallback, pacing,
+    seconds, rate limits, error text, internal identifiers) is shown as written; from a technical one
+    only the plain sentences are kept, after a plain source line such as "Live · 24 stories from BBC
+    World", "Latest stored records" or "Stored records from the published source". The original
+    stays as the line's `title`. Used on the module page (feed-head note, strip labels such as
+    "TOP WORLD STORIES — BBC WORLD", the stored-records banner), the planned/offline state card (no
+    "Configured host"; sources listed by name as links), the side panel (source note, banners), the
+    desk landing chart source, the record panel's fallback source, Morning Brief and Statement
+    Tracker banners ("This section couldn't load right now."), and the State, Sports and
+    Entertainment landing detail cards (the summary's `limitations` uses the plain note; the
+    original is kept as `sourceNote`; four Sports and three Entertainment card texts no longer say
+    RSS, fallback or adapter). Board notes and other notes written for readers are not changed.
+    Tests: `plainSourceNote.test.js` (real notes from production answers and the code),
+    `deskViewPlainNotes.test.jsx`, `railPlainNotes.test.jsx`, `landingPlainNotes.test.jsx`,
+    `briefPlainNotes.test.jsx`, each shown to fail without its code.
 - [x] **F111. AI credits.** Done 2026-10-14: enforced for everyone (`787bced`; migrations 47–49 live). Follow-ups: F155, F160–F164, O6. Was: Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
@@ -743,7 +769,7 @@ rechecked. Nothing in this check wrote to production.
   of debt unpaid. Recommended: tier-3 models on paid plans only.
 - [x] **F151. Credit estimate in the model picker.** Done 2026-10-14 (`787bced`, `a964eb4`): `model_credit_estimates()`, measured median or list price. Was: Show "≈ N credits a
   typical answer" per model beside the cost diamonds. After enforcement.
-- [ ] **F152. Leaked-password protection (owner's dashboard action).** Owner 2026-10-14: will switch it on. The Supabase security advisor flags it as off (Auth → Passwords).
+- [x] **F152. Leaked-password protection (owner's dashboard action).** Done 2026-10-14: the owner switched it on; the Supabase security advisor no longer reports it. Owner 2026-10-14: will switch it on. The Supabase security advisor flags it as off (Auth → Passwords).
 - [x] **F153. Credits usage page.** Done 2026-10-14 (`0d5671a`; migration `20261014233000_credit_usage_reports` applied; pushed `3d0a0d8`). Owner 2026-10-14: a separate page like TenderBase's (AI
   activity card, AI analytics with charts and legends, all AI activity, credits by expiry) plus a
   small version in Plan & billing; built from the owner's screenshots.

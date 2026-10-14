@@ -6,8 +6,11 @@ import { rowDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
+import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
 
 const GDELT_GAP_MS = 5500;
+// F164: what a section says when its source could not be reached.
+const SECTION_DOWN = 'This section couldn\u2019t load right now.';
 
 function parseRssItems(xml, source = 'RSS') {
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
@@ -188,10 +191,13 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
       <section className="nat-brief-sec">
         <h2>{title}</h2>
         <p className="desk-note">{why}</p>
-        {pack.err ? <p className="banner warn">{pack.err}</p> : null}
-        {!pack.err && !rows.length ? (
-          <p className="banner">No items in this section right now. Cached/offline banners appear when a source fails.</p>
+        {pack.err ? (
+          // F164: the reason stays in the banner's title; the reader gets plain words.
+          <p className="banner warn" title={technicalTitle(pack.err, plainNote(pack.err, SECTION_DOWN))}>
+            {plainNote(pack.err, SECTION_DOWN)}
+          </p>
         ) : null}
+        {!pack.err && !rows.length ? <p className="banner">No items in this section right now.</p> : null}
         <ul>
           {rows.slice(0, 12).map((r, i) => {
             const source = r.outlet || r.source || (r.source_url ? 'Link' : '—');
@@ -252,26 +258,26 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
       </p>
       {offlineBits.length ? (
         <p className="banner warn">
-          Offline or unreachable right now: {offlineBits.join(', ')}. Other sections still show what arrived.
+          Not available right now: {offlineBits.join(', ')}. Other sections still show what arrived.
         </p>
       ) : null}
       <Block
         title="Top of the Day — India"
         section="Top of the Day"
         pack={top}
-        why="Selected from the India government / parliament GDELT window (last 3 days), with News RSS if GDELT is paced out."
+        why="Recent stories on India's government and parliament from the last 3 days."
       />
       <Block
         title="Government Wire — PIB"
         section="Government Wire"
         pack={pib}
-        why="Selected from the Press Information Bureau RSS when the proxy can reach it."
+        why="The latest releases from the Press Information Bureau."
       />
       <Block
         title="Economy — India"
         section="Economy"
         pack={eco}
-        why="Selected from the India economy / markets GDELT window (last 3 days), paced ≥5s after Top of Day."
+        why="Recent stories on India's economy and markets from the last 3 days."
       />
     </div>
   );

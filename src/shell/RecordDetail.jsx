@@ -7,6 +7,7 @@ import { formatDate, formatDateTime } from '../lib/format.js';
 import CsvTablePane from './CsvTablePane.jsx';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
 import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
+import { plainNote, plainSourceLine } from '../lib/plainSourceNote.js';
 
 const SKIP = new Set([
   'source_url',
@@ -116,7 +117,8 @@ function provenanceOf(row, feed) {
   const source =
     pickField(row, ['source_label', 'source', 'outlet', 'domain']) ||
     (row?.source_url ? { key: 'source_url', value: row.source_url } : null) ||
-    (feed?.source?.note ? { key: 'adapter', value: feed.source.note } : null);
+    // F164: with no source on the row, the feed's note in plain words (or a plain source line).
+    (feed?.source?.note ? { key: 'adapter', value: plainNote(feed.source.note) || plainSourceLine(feed) || '—' } : null);
   const sourceDate = pickField(row, [
     'source_date',
     'published',

@@ -14,6 +14,7 @@ import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
 import { prepareDeskFeed } from '../lib/prepareDeskFeed.js';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
+import { plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isAlliancesFeature } from '../lib/alliances.js';
@@ -630,6 +631,15 @@ export default function DeskView({
     /^(climate|carbon)$/i.test(String(tier || '')) ||
     /carbon|climate|cbam|ccts|ets & tax/i.test(String(featureName || ''));
   const isGlobalIntelligence = /global intelligence/i.test(String(featureName || ''));
+  // F164: notes from the feed reach the page in plain words; the original stays as a `title`.
+  const fallbackBanner = plainNote(dataState.detail, 'Showing the latest stored records.');
+  const metaNote = (() => {
+    const raw = String(feed?.meta?.note || '');
+    if (!raw) return '';
+    // A technical note is replaced by a plain source line, followed by any plain sentences it had.
+    const stored = feed?.fallback || feed?.served === 'archive';
+    return plainNote(raw, stored ? '' : plainSourceLine(feed)).replace(/\bJudgments?\b/gi, 'Judgements');
+  })();
   const coverageLabel = (() => {
     if (loading || liveWait) return 'Fetching…';
     if (shellState) return dataState.coverage || 'No live rows';
@@ -689,7 +699,8 @@ export default function DeskView({
           </p>
         ) : null}
         {feed?.fallback && dataState.id !== 'live' && !shellState && dataState.detail && tier !== 'local' && !isCarbonDesk ? (
-          <p className="banner">{String(dataState.detail).replace(/\barchiv(e|ed)\b/gi, 'stored snapshot')}</p>
+          // F164: the detail is often the archive's own note; the reader gets plain words.
+          <p className="banner" title={technicalTitle(dataState.detail, fallbackBanner)}>{fallbackBanner}</p>
         ) : null}
         {(() => {
           const note = sensitiveNoteFor(featureName);
@@ -716,18 +727,20 @@ export default function DeskView({
         {feed?.meta?.section && !shellState && (
           <div className="desk-strip">
             <span>
-              {String(feed.meta.section)
-                .replace(/\bJudgments?\b/gi, 'Judgements')
-                .replace(/\bCLIMATE NEWSWIRE\b/gi, 'Climate wire')
-                .replace(/\bREGISTRY WIRE\b/gi, 'Registry wire')
-                .replace(/\barchiv(e|ed)\b/gi, '')
-                .replace(/\s{2,}/g, ' ')
-                .trim()}
+              {plainLabel(
+                String(feed.meta.section)
+                  .replace(/\bJudgments?\b/gi, 'Judgements')
+                  .replace(/\bCLIMATE NEWSWIRE\b/gi, 'Climate wire')
+                  .replace(/\bREGISTRY WIRE\b/gi, 'Registry wire')
+                  .replace(/\barchiv(e|ed)\b/gi, '')
+                  .replace(/\s{2,}/g, ' ')
+                  .trim(),
+              )}
             </span>
             {feed.meta.status &&
-            String(feed.meta.status).trim() &&
+            plainLabel(feed.meta.status) &&
             !/\barchiv(e|ed)|data check\b/i.test(String(feed.meta.status)) ? (
-              <span>{String(feed.meta.status)}</span>
+              <span>{plainLabel(feed.meta.status)}</span>
             ) : null}
           </div>
         )}
@@ -735,8 +748,9 @@ export default function DeskView({
           !feed?.meta?.sensitive &&
           !shellState &&
           // The backup pack's own note ("Exhaustive shipped backup …") is internal; the banner above says it in plain words.
-          !/\barchiv(e|ed)|data check\b|exhaustive shipped backup/i.test(String(feed.meta.note)) && (
-          <p className="desk-note">{String(feed.meta.note).replace(/\bJudgments?\b/gi, 'Judgements')}</p>
+          !/\barchiv(e|ed)|data check\b|exhaustive shipped backup/i.test(String(feed.meta.note)) &&
+          metaNote && (
+          <p className="desk-note" title={technicalTitle(feed.meta.note, metaNote)}>{metaNote}</p>
         )}
         {isGlobalIntelligence && !shellState && (
           <p className="desk-note desk-trivia" role="note">
@@ -757,7 +771,7 @@ export default function DeskView({
               state={err && !feed ? { ...dataState, id: 'error', label: 'ERROR', detail: 'Check your connection and try again.' } : dataState}
               featureName={featureName}
               onRetry={retry}
-              expectedSources={(feed?.source?.links || []).join(', ')}
+              expectedSources={feed?.source?.links || []}
             />
           ) : (
             <table className={`feed-table${/bill passage/i.test(String(featureName || '')) ? ' feed-bills' : ''}`}>

@@ -8,8 +8,11 @@ import { rowDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { liveApiEnabled } from '../lib/apiMode.js';
+import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
 
 const GDELT_GAP_MS = 5500;
+// F164: what the page says when no mentions could be fetched.
+const MENTIONS_DOWN = 'Media mentions couldn\u2019t load right now.';
 
 function gdeltDoc(q) {
   return `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(`"${q}" sourcecountry:IN`)}&mode=artlist&format=json&sort=datedesc&timespan=3d&maxrecords=40`;
@@ -207,7 +210,12 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
           </button>
         ))}
       </div>
-      {err ? <p className="banner warn">{err}</p> : null}
+      {err ? (
+        // F164: the reason stays in the banner's title; the reader gets plain words.
+        <p className="banner warn" title={technicalTitle(err, plainNote(err, MENTIONS_DOWN))}>
+          {plainNote(err, MENTIONS_DOWN)}
+        </p>
+      ) : null}
       {vol?.length ? (
         <section className="viz-card">
           <header>
@@ -220,7 +228,7 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
             through={vol[vol.length - 1]?.year}
           />
           <p className="viz-foot">
-            {person} · media volume · 7 days · GDELT TimelineVol
+            {person} · media volume · 7 days · GDELT news search
           </p>
         </section>
       ) : null}

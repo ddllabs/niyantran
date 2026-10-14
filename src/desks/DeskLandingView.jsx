@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { fetchFeature } from '../lib/featureFeed.js';
+import { plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
 import { featureMenuLabel } from '../lib/national.js';
 import { bucketBlurb, deskIntro, moduleBlurb } from '../lib/deskGuide.js';
 import { Icon, TAB_ICON } from '../shell/Icons.jsx';
@@ -40,6 +41,11 @@ function getCategoryValue(row, preferredCol) {
   return 'General';
 }
 
+/** F164: the desk chart's source line, in plain words. */
+function deskChartSource(res, feature) {
+  return plainNote(res?.source?.note) || plainSourceLine(res) || `${feature} register`;
+}
+
 export default function DeskLandingView(props) {
   if (props.tab === 'state') return <StateLandingView {...props} />;
   if (props.tab === 'national') return <NationalLandingView {...props} />;
@@ -76,7 +82,9 @@ function StandardDeskLandingView({ tab, label, buckets = [], onFeature, lang = '
           rows,
           loading: false,
           error: null,
-          sourceNote: res?.source?.note || `${config.feature} register`,
+          // F164: the chart names its source in plain words; the feed's own note stays as a title.
+          sourceNote: deskChartSource(res, config.feature),
+          sourceDetail: technicalTitle(res?.source?.note, deskChartSource(res, config.feature)),
         });
       })
       .catch((err) => {
@@ -204,7 +212,7 @@ function StandardDeskLandingView({ tab, label, buckets = [], onFeature, lang = '
             <Icon name="chart" size={16} />
             {config.chartTitle}
           </h2>
-          <span className="desk-chart-source">{data.sourceNote}</span>
+          <span className="desk-chart-source" title={data.sourceDetail}>{data.sourceNote}</span>
         </header>
 
         {data.loading ? (

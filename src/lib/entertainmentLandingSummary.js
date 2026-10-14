@@ -1,6 +1,7 @@
 import { prepareDeskFeed } from './prepareDeskFeed.js';
 import { feedColumns } from './columns.js';
 import { entertainmentSlice } from './entertainmentPack.js';
+import { plainNote } from './plainSourceNote.js';
 export const ENTERTAINMENT_FEATURES = ['TV & Streaming Tonight','Box Office Tracker','Entertainment News Wire','Bollywood & Film Wire','Music Charts — India Top 25','Music Charts — Global Top 25','OTT & Studio Intelligence','Celebrity Influence Index'];
 const present = value => value != null && !['','—','Not reported','unknown'].includes(String(value).trim());
 const safeUrl = value => { try { const url=new URL(value);return /^https?:$/.test(url.protocol)?url.href:null; } catch { return null; } };
@@ -9,10 +10,10 @@ const UNITS = {tv:'listings',box:'films',variety:'articles',bollywood:'articles'
 const LIMITATIONS = {
  tv:'TVmaze India and United States schedule listings. No complete streaming catalogue or universal television coverage.',
  box:'Wikidata Indian film identities with release dates from 2024, including future-dated entries. Future dates do not confirm a release. Gross is shown only when supplied. Currency and reporting completeness are not established; gross values are not summed. Not weekend box-office charts.',
- variety:'Variety screen-trade RSS reporting, not a complete industry register.',
- bollywood:'NDTV Movies RSS, with declared Google News Bollywood wire fallback. Reporting is not an official film register.',
- 'music-in':'Apple Music most-played tracks for India, with iTunes Top Songs fallback. Song release dates are not chart timestamps; no chart history supplied.',
- 'music-us':'Apple Music most-played tracks for the United States, not global coverage, with iTunes Top Songs fallback. Song release dates are not chart timestamps; no chart history supplied.',
+ variety:'Variety screen-trade reporting, not a complete industry register.',
+ bollywood:'NDTV Movies stories, or Google News Bollywood stories when NDTV has none. Reporting is not an official film register.',
+ 'music-in':'Apple Music most-played tracks for India, or iTunes Top Songs when Apple Music has none. Song release dates are not chart timestamps; no chart history supplied.',
+ 'music-us':'Apple Music most-played tracks for the United States, not global coverage, or iTunes Top Songs when Apple Music has none. Song release dates are not chart timestamps; no chart history supplied.',
  ott:'Wikidata Indian service and studio owner identities. No subscriber, pricing or production slate tables.',
  celebrity:'Wikidata public follower observations for Indian actors, singers and directors. No composite influence score or endorsement/box-office measure.',
 };
@@ -36,5 +37,7 @@ export function projectEntertainmentSummary(raw, retrievedAt = new Date().toISOS
  const shown=new Set(countryDistribution.map(row=>row.label));countryUnreported += [...counts].filter(([label])=>!shown.has(label)).reduce((sum,[,count])=>sum+count,0);
  // Source notes are public adapter prose. React renders them as text; keep them bounded.
  const sourceNote=String(raw.source?.note || '').slice(0,800);
- return {ok:!failed,version:1,feature,resourceKey:feature,count:failed?null:rows.length,countBasis:'prepared-feed',availability:failed?'error':rows.length?'ready':'empty',sourceMode:adapter==='api'?'feed-backed':'unknown',sourceAdapter:adapter,fallback:Boolean(raw.fallback),unit:UNITS[slice],asOf:validDate(raw.meta?.as_of) || validDate(raw.meta?.asOf) || validDate(raw.meta?.lastupdated) || null,observationPeriod,period:observationPeriod?observationPeriod.from===observationPeriod.through?observationPeriod.from:`${observationPeriod.from}–${observationPeriod.through}`:null,retrievedAt,columns,sources,countryDistribution,countryUnreported,limitations:`${LIMITATIONS[slice]}${sourceNote?` Source context: ${sourceNote}`:''}${unsupported || invalidShape?' The returned source does not establish measured Entertainment coverage.':''}`};
+ // F164: the card shows the note in plain words; the original stays in `sourceNote`.
+ const shownNote=plainNote(sourceNote);
+ return {ok:!failed,version:1,feature,resourceKey:feature,count:failed?null:rows.length,countBasis:'prepared-feed',availability:failed?'error':rows.length?'ready':'empty',sourceMode:adapter==='api'?'feed-backed':'unknown',sourceAdapter:adapter,fallback:Boolean(raw.fallback),unit:UNITS[slice],asOf:validDate(raw.meta?.as_of) || validDate(raw.meta?.asOf) || validDate(raw.meta?.lastupdated) || null,observationPeriod,period:observationPeriod?observationPeriod.from===observationPeriod.through?observationPeriod.from:`${observationPeriod.from}–${observationPeriod.through}`:null,retrievedAt,columns,sources,countryDistribution,countryUnreported,sourceNote,limitations:`${LIMITATIONS[slice]}${shownNote?` Source context: ${shownNote}`:''}${unsupported || invalidShape?' The returned source does not establish measured Entertainment coverage.':''}`};
 }
