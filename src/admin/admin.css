@@ -632,6 +632,40 @@ input.admin-credits-field[type='number'] { width: 90px; }
   flex-basis: 100%;
   max-width: none;
 }
+/* Users: search box and page controls (F147). */
+.adm-users-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+}
+.adm-users-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+  height: 36px;
+  border: 1px solid var(--adm-line);
+  border-radius: 8px;
+  padding: 0 12px;
+  font: 500 13px var(--adm-ui);
+  background: #fff;
+  color: var(--adm-black);
+}
+.adm-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.adm-pager-range {
+  font: 600 12px var(--adm-mono);
+  color: var(--adm-black);
+  margin-right: 4px;
+}
+.adm-pager .adm-btn { height: 34px; padding: 0 14px; box-shadow: none; }
+.adm-loading .adm-table-wrap { opacity: 0.6; transition: opacity 0.15s; }
+.adm-table td.adm-empty { text-align: center; color: var(--adm-muted, var(--adm-black)); padding: 24px 12px; }
 .adm-persona-types {
   display: flex;
   flex-wrap: wrap;

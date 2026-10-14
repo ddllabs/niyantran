@@ -2,9 +2,9 @@
 // reactivate instead of remove, and every refused action shown to the admin.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const hooks = vi.hoisted(() => ({ setters: [], presets: [] }));
+const hooks = vi.hoisted(() => ({ setters: [], presets: [], initials: [] }));
 vi.mock('react', async (original) => {
   const actual = await original();
   return {
@@ -13,14 +13,26 @@ vi.mock('react', async (original) => {
       if (!hooks.capture) return actual.useState(value);
       const setter = vi.fn();
       hooks.setters.push(setter);
+      hooks.initials.push(typeof value === 'function' ? value() : value);
       if (hooks.presets.length) return [hooks.presets.shift(), setter];
       return [typeof value === 'function' ? value() : value, setter];
     },
+    // The page is called as a plain function here, outside a render: a ref is a bare box and an effect never runs.
+    useRef: (value) => (hooks.capture ? { current: value } : actual.useRef(value)),
+    useEffect: (...args) => (hooks.capture ? undefined : actual.useEffect(...args)),
   };
 });
 vi.mock('../lib/userStore.js', async () => {
   const types = await vi.importActual('../lib/userTypes.js');
-  return { USER_TYPES: types.USER_TYPES, userTypeOf: types.userTypeOf, setUserActive: vi.fn(), setUserType: vi.fn(), setUserPlan: vi.fn() };
+  return {
+    USER_TYPES: types.USER_TYPES,
+    userTypeOf: types.userTypeOf,
+    setUserActive: vi.fn(),
+    setUserType: vi.fn(),
+    setUserPlan: vi.fn(),
+    loadUsersPage: vi.fn(async () => ({ ok: true })),
+    usersPaging: vi.fn(() => ({ page: 1, pageSize: 100, total: 3, query: '' })),
+  };
 });
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: {} }));
 vi.mock('../lib/refreshFeeds.js', () => ({
@@ -34,8 +46,8 @@ vi.mock('./userCredits.js', async (original) => ({
   newRequestId: vi.fn(() => 'new-request-id'),
 }));
 
-import { UsersPage } from './AdminPages.jsx';
-import { setUserActive, setUserPlan, setUserType } from '../lib/userStore.js';
+import { OverviewPage, UsersPage } from './AdminPages.jsx';
+import { loadUsersPage, setUserActive, setUserPlan, setUserType, usersPaging } from '../lib/userStore.js';
 import { adjustUserCredits } from './userCredits.js';
 
 const USERS = [
@@ -63,6 +75,7 @@ beforeEach(() => {
   hooks.capture = false;
   hooks.setters = [];
   hooks.presets = [];
+  hooks.initials = [];
 });
 
 describe('UsersPage markup', () => {
@@ -109,6 +122,8 @@ describe('UsersPage actions', () => {
     expect(setUserActive).toHaveBeenCalledWith('u-alice', false);
     expect(hooks.setters[setBusyId].mock.calls).toEqual([['u-alice'], [null]]);
     expect(hooks.setters[setErr].mock.calls).toEqual([['']]);
+    // The page on screen is refreshed by the store; the page is not asked for again from the first.
+    expect(loadUsersPage).not.toHaveBeenCalled();
   });
 
   it('reactivates a suspended account', async () => {
@@ -148,8 +163,9 @@ describe('UsersPage actions', () => {
     hooks.capture = true;
     hooks.presets = ['', 'u-alice'];
     const markup = renderToStaticMarkup(UsersPage({ users: USERS, onChange: () => {} }));
-    // Three buttons a row: set plan, apply credits, and suspend or restore.
-    expect(markup.match(/<button[^>]*disabled=""/g)).toHaveLength(USERS.length * 3);
+    // Three buttons a row: set plan, apply credits, and suspend or restore. The two page buttons
+    // are disabled as well (one page here, and an action is saving).
+    expect(markup.match(/<button[^>]*disabled=""/g)).toHaveLength(USERS.length * 3 + 2);
     expect(markup).toContain('Saving…');
   });
 
@@ -356,5 +372,206 @@ describe('UsersPage credits', () => {
   it('shows no dollar or rupee figure anywhere on the page', () => {
     const markup = renderToStaticMarkup(createElement(UsersPage, { users: USERS, onChange: () => {} }));
     expect(markup).not.toMatch(/\$|USD|dollar|₹|rupee|INR/i);
+  });
+});
+
+
+// F147: the directory is shown 100 users at a time, with a search.
+describe('UsersPage paging and search', () => {
+  const [setErr, , , , , setSearchText, setLoading] = [0, 1, 2, 3, 4, 5, 6];
+  const MANY = (n, from = 0) => Array.from({ length: n }, (_, i) => ({ id: `m-${from + i}`, name: `m${from + i}`, email: `m${from + i}@example.test`, type: 'analyst', plan: 'free', planStatus: 'free', planEnd: null, active: true, role: 'user', creditBalance: 0, creditDebt: 0 }));
+  const paging = (page, total, query = '') => ({ page, pageSize: 100, total, query });
+  const button = (tree, name) => find(tree, (n) => n.type === 'button' && String(n.props.className).includes(name));
+  const searchBox = (tree) => find(tree, (n) => n.type === 'input' && n.props.type === 'search');
+  const render = (props, presets = []) => {
+    hooks.capture = true;
+    hooks.presets = presets;
+    return UsersPage({ onChange: vi.fn(), ...props });
+  };
+  const markupOf = (users, pagingProp) => renderToStaticMarkup(createElement(UsersPage, { users, onChange: () => {}, paging: pagingProp }));
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('shows which users are listed and how many there are', () => {
+    expect(markupOf(MANY(100), paging(1, 250))).toContain('1–100 of 250');
+    expect(markupOf(MANY(100, 100), paging(2, 250))).toContain('101–200 of 250');
+    expect(markupOf(MANY(50, 200), paging(3, 250))).toContain('201–250 of 250');
+    expect(markupOf(MANY(1), paging(1, 1))).toContain('1–1 of 1');
+  });
+
+  it('formats a large count the Indian way', () => {
+    expect(markupOf(MANY(100, 1100), paging(12, 123456))).toContain('1,101–1,200 of 1,23,456');
+  });
+
+  it('reads the page from the store when none is passed', () => {
+    expect(renderToStaticMarkup(createElement(UsersPage, { users: USERS, onChange: () => {} }))).toContain('1–3 of 3');
+  });
+
+  it('enables Previous and Next only where there is a page to go to', () => {
+    const state = (users, p) => {
+      const markup = markupOf(users, p);
+      return [/<button[^>]*adm-pager-prev[^>]*disabled=""|<button[^>]*disabled=""[^>]*adm-pager-prev/.test(markup), /<button[^>]*adm-pager-next[^>]*disabled=""|<button[^>]*disabled=""[^>]*adm-pager-next/.test(markup)];
+    };
+    expect(state(MANY(100), paging(1, 250))).toEqual([true, false]);
+    expect(state(MANY(100, 100), paging(2, 250))).toEqual([false, false]);
+    expect(state(MANY(50, 200), paging(3, 250))).toEqual([false, true]);
+    expect(state(MANY(100), paging(1, 100))).toEqual([true, true]);
+    expect(state([], paging(1, 0))).toEqual([true, true]);
+  });
+
+  it('has a labelled search box limited to the 100 characters the server takes, and no form', () => {
+    const markup = markupOf(USERS, paging(1, 3));
+    expect(markup).toMatch(/<input[^>]*type="search"/);
+    expect(markup).toContain('aria-label="Search users by name or email"');
+    expect(markup).toMatch(/<input[^>]*maxLength="100"[^>]*type="search"|<input[^>]*type="search"[^>]*maxLength="100"/);
+    expect(markup).not.toContain('<form');
+    // The range is announced as it changes, without taking the status role the credit result uses.
+    expect(markup).toMatch(/<span class="adm-pager-range" aria-live="polite">/);
+  });
+
+  it('says so when nothing is listed', () => {
+    expect(markupOf([], paging(1, 0))).toContain('No users yet');
+    expect(markupOf([], paging(1, 0, 'zzz'))).toContain('No users match');
+    expect(markupOf([], paging(1, 0, 'zzz'))).toContain('0 of 0');
+  });
+
+  it('goes to the next page, keeping the search, then refreshes the list', async () => {
+    const onChange = vi.fn();
+    const tree = render({ users: MANY(100), paging: paging(2, 250, 'ali'), onChange });
+    button(tree, 'adm-pager-next').props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(loadUsersPage).toHaveBeenCalledWith({ page: 3, q: 'ali' });
+    expect(hooks.setters[setLoading].mock.calls).toEqual([[true], [false]]);
+    expect(hooks.setters[setErr].mock.calls.at(-1)).toEqual(['']);
+  });
+
+  it('goes to the previous page, keeping the search', async () => {
+    const onChange = vi.fn();
+    const tree = render({ users: MANY(100), paging: paging(3, 250, 'ali'), onChange });
+    button(tree, 'adm-pager-prev').props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(loadUsersPage).toHaveBeenCalledWith({ page: 2, q: 'ali' });
+  });
+
+  it('shows the reason when a page could not be loaded', async () => {
+    loadUsersPage.mockResolvedValueOnce({ ok: false });
+    const onChange = vi.fn();
+    const tree = render({ users: MANY(100), paging: paging(1, 250), onChange });
+    button(tree, 'adm-pager-next').props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(hooks.setters[setErr].mock.calls.at(-1)[0]).toMatch(/could not be loaded/i);
+    expect(hooks.setters[setLoading].mock.calls.at(-1)).toEqual([false]);
+  });
+
+  it('searches from the first page, after a pause in typing, with the text typed', async () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const tree = render({ users: MANY(100, 100), paging: paging(2, 250), onChange });
+    const input = searchBox(tree);
+    input.props.onChange({ target: { value: 'a' } });
+    input.props.onChange({ target: { value: 'al' } });
+    input.props.onChange({ target: { value: ' ali ' } });
+    expect(hooks.setters[setSearchText].mock.calls.map(([v]) => v)).toEqual(['a', 'al', ' ali ']);
+    vi.advanceTimersByTime(299);
+    expect(loadUsersPage).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(loadUsersPage).toHaveBeenCalledOnce();
+    expect(loadUsersPage).toHaveBeenCalledWith({ page: 1, q: ' ali ' });
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+  });
+
+  it('searches at once on Enter, and not twice', async () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const tree = render({ users: MANY(100), paging: paging(1, 250), onChange });
+    const input = searchBox(tree);
+    input.props.onChange({ target: { value: 'ali' } });
+    input.props.onKeyDown({ key: 'Enter', preventDefault: vi.fn() });
+    expect(loadUsersPage).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1000);
+    expect(loadUsersPage).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    input.props.onKeyDown({ key: 'a', preventDefault: vi.fn() });
+    expect(loadUsersPage).toHaveBeenCalledOnce();
+  });
+
+  it('does not search again for the text it already shows', () => {
+    vi.useFakeTimers();
+    const tree = render({ users: MANY(100), paging: paging(2, 250, 'ali') });
+    searchBox(tree).props.onChange({ target: { value: ' ali' } });
+    vi.advanceTimersByTime(1000);
+    expect(loadUsersPage).not.toHaveBeenCalled();
+  });
+
+  it('shows the search text it was given back in the box', () => {
+    hooks.capture = true;
+    hooks.presets = ['', null, {}, {}, '', 'ali'];
+    const markup = renderToStaticMarkup(UsersPage({ users: MANY(1), onChange: () => {}, paging: paging(1, 1, 'ali') }));
+    expect(markup).toMatch(/<input[^>]*value="ali"/);
+  });
+
+  it('starts the search box with the search already on screen', () => {
+    hooks.capture = true;
+    UsersPage({ users: MANY(1), onChange: () => {}, paging: paging(1, 1, 'ali') });
+    // After the five states of the page (error, saving, plan and credit forms, note) come the search text and the loading flag.
+    expect(hooks.initials.slice(5)).toEqual(['ali', false]);
+  });
+
+  it('disables the page buttons and the search box while a page loads or an action saves', () => {
+    for (const presets of [['', null, {}, {}, '', '', true], ['', 'u-alice', {}, {}, '', '', false]]) {
+      hooks.capture = true;
+      hooks.presets = presets;
+      const markup = renderToStaticMarkup(UsersPage({ users: MANY(100, 100), onChange: () => {}, paging: paging(2, 250) }));
+      expect(markup).toMatch(/<button[^>]*adm-pager-prev[^>]*disabled=""|<button[^>]*disabled=""[^>]*adm-pager-prev/);
+      expect(markup).toMatch(/<button[^>]*adm-pager-next[^>]*disabled=""|<button[^>]*disabled=""[^>]*adm-pager-next/);
+    }
+  });
+
+  it('keeps the search box enabled while a page loads, so typing is not lost', () => {
+    hooks.capture = true;
+    hooks.presets = ['', null, {}, {}, '', '', true];
+    const markup = renderToStaticMarkup(UsersPage({ users: MANY(100), onChange: () => {}, paging: paging(1, 250) }));
+    expect(markup).not.toMatch(/<input[^>]*type="search"[^>]*disabled/);
+    expect(markup).not.toMatch(/<input[^>]*disabled[^>]*type="search"/);
+  });
+
+  it('leaves the page where it is after a plan grant, a credits adjustment and a suspension', async () => {
+    setUserPlan.mockResolvedValue({ ok: true });
+    adjustUserCredits.mockResolvedValue({ ok: true, repeated: false, balance: 5 });
+    setUserActive.mockResolvedValue({ ok: true });
+    const onChange = vi.fn();
+    hooks.capture = true;
+    hooks.presets = ['', null, { 'u-bob': { plan: 'pro', end: '' } }, { 'u-alice': { kind: 'add', amount: '10', reason: 'Goodwill', requestId: null } }];
+    const tree = UsersPage({ users: USERS, onChange, paging: paging(2, 250, 'ali') });
+    find(rowFor(tree, 'bob@example.test'), (n) => n.type === 'button' && String(n.props.className).includes('adm-plan-set')).props.onClick();
+    find(rowFor(tree, 'alice@example.test'), (n) => n.type === 'button' && String(n.props.className).includes('admin-credits-apply')).props.onClick();
+    stateButton(rowFor(tree, 'alice@example.test')).props.onClick();
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledTimes(3));
+    expect(setUserPlan).toHaveBeenCalled();
+    expect(adjustUserCredits).toHaveBeenCalled();
+    expect(setUserActive).toHaveBeenCalled();
+    expect(loadUsersPage).not.toHaveBeenCalled();
+  });
+});
+
+// F147: the overview counts the directory, of which it holds only the page on screen.
+describe('OverviewPage user count', () => {
+  const overview = (users, total) => {
+    usersPaging.mockReturnValueOnce({ page: 1, pageSize: 100, total, query: '' });
+    return renderToStaticMarkup(createElement(OverviewPage, { users }));
+  };
+
+  it('counts every user in the directory, not only the page listed', () => {
+    const page = Array.from({ length: 100 }, (_, i) => ({ id: `m-${i}`, active: i % 10 !== 0 }));
+    const markup = overview(page, 250);
+    expect(markup).toContain('Issued dashboard users · 250');
+    expect(markup).toContain('among the 100 listed on the Users tab');
+  });
+
+  it('gives the plain counts when the whole directory is listed', () => {
+    const markup = overview(USERS, 3);
+    expect(markup).toContain('Issued dashboard users · 3');
+    expect(markup).toContain('2 active · 1 suspended.');
+    expect(markup).not.toContain('among the');
   });
 });

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiStats, classifyApis, STATUS } from '../lib/apiStatus.js';
-import { setUserActive, setUserPlan, setUserType, USER_TYPES, userTypeOf } from '../lib/userStore.js';
+import { loadUsersPage, setUserActive, setUserPlan, setUserType, USER_TYPES, userTypeOf, usersPaging } from '../lib/userStore.js';
 import { adjustUserCredits, CREDIT_ACTIONS, creditRequest, formatBalance, newRequestId } from './userCredits.js';
 import {
   formatAgo,
@@ -135,6 +135,8 @@ function RefreshBar({ compact }) {
 
 export function OverviewPage({ users }) {
   useRefreshTick();
+  // The directory is read a page at a time (F147); the total is of all of it.
+  const directoryTotal = usersPaging().total;
 
   useEffect(() => {
     healStaticHostProbes();
@@ -200,9 +202,10 @@ export function OverviewPage({ users }) {
         </div>
       </div>
       <div className="adm-card">
-        <h2>Issued dashboard users · {users.length}</h2>
+        <h2>Issued dashboard users · {Math.max(directoryTotal, users.length)}</h2>
         <p className="adm-lede" style={{ margin: 0 }}>
-          {users.filter((u) => u.active).length} active · {users.filter((u) => !u.active).length} suspended. Create
+          {users.filter((u) => u.active).length} active · {users.filter((u) => !u.active).length} suspended
+          {directoryTotal > users.length ? ` among the ${users.length} listed on the Users tab` : ''}. Create
           accounts on the Users tab.
         </p>
       </div>
@@ -385,7 +388,21 @@ function creditNoteFor(u, request, result) {
   return `${what}. Balance ${balance}.`;
 }
 
-export function UsersPage({ users, onChange }) {
+// F147: the pause after the last keystroke before the directory is searched.
+const SEARCH_PAUSE_MS = 300;
+const SEARCH_MAX_LENGTH = 100;
+const COUNT = new Intl.NumberFormat('en-IN');
+
+/** "101–200 of 250" for the rows on screen; "0 of 0" when there are none. */
+function rangeText(paging, shown) {
+  const total = paging.total;
+  const first = shown && total ? (paging.page - 1) * paging.pageSize + 1 : 0;
+  const last = first ? first + shown - 1 : 0;
+  return `${first ? `${COUNT.format(first)}–${COUNT.format(last)}` : '0'} of ${COUNT.format(total)}`;
+}
+
+// `paging` is { page, pageSize, total, query } of the page on screen; the store keeps it.
+export function UsersPage({ users, onChange, paging = usersPaging() }) {
   const [err, setErr] = useState('');
   const [busyId, setBusyId] = useState(null);
   // Per-row plan choice before "Set plan": { [id]: { plan, end } }.
@@ -394,6 +411,33 @@ export function UsersPage({ users, onChange }) {
   // requestId names one adjustment, so a retry after a lost answer applies once.
   const [creditDrafts, setCreditDrafts] = useState({});
   const [creditNote, setCreditNote] = useState('');
+  // F147: the text in the search box (it leads the search by a pause), and whether a page is loading.
+  const [searchText, setSearchText] = useState(paging.query);
+  const [loading, setLoading] = useState(false);
+  const searchTimer = useRef(null);
+  const loads = useRef(0);
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
+
+  // Another page, or another search (from its first page). The store keeps the page it
+  // shows, so an edit below refreshes that same page.
+  async function showPage(page, q) {
+    clearTimeout(searchTimer.current);
+    loads.current += 1;
+    setLoading(true);
+    setErr('');
+    const res = await loadUsersPage({ page, q });
+    loads.current -= 1;
+    setLoading(loads.current > 0);
+    if (!res.ok) setErr('The user list could not be loaded. Check the connection and try again.');
+    onChange();
+  }
+
+  function typeSearch(value) {
+    setSearchText(value);
+    clearTimeout(searchTimer.current);
+    if (value.trim() === paging.query) return;
+    searchTimer.current = setTimeout(() => { void showPage(1, value); }, SEARCH_PAUSE_MS);
+  }
 
   function draftFor(u) {
     return planDrafts[u.id] || { plan: PLAN_NAMES[u.plan] ? u.plan : 'free', end: '' };
@@ -459,7 +503,7 @@ export function UsersPage({ users, onChange }) {
     <>
       <h1 className="adm-h1">Dashboard users</h1>
       <p className="adm-lede">
-        Every account that has signed up. Assign a user type so each seat opens the matching desks. Set a plan to grant
+        Every account that has signed up, 100 to a page; search by name or email. Assign a user type so each seat opens the matching desks. Set a plan to grant
         Plus, Pro or Max until a date (or open-ended), or Free to revoke; verified payments set plans on their
         own. Credits shows each balance (and any debt) as of their last activity: it updates when they next
         use AI. Add or remove credits, or grant a top-up, with a reason that is kept with the adjustment. Suspend to lock an account without deleting it, and restore to reopen it.
@@ -481,7 +525,45 @@ export function UsersPage({ users, onChange }) {
           </p>
         ) : null}
       </div>
-      <div className="adm-card" style={{ padding: 0 }}>
+      <div className="adm-card adm-users-bar">
+        <input
+          type="search"
+          className="adm-users-search"
+          aria-label="Search users by name or email"
+          placeholder="Search by name or email"
+          maxLength={SEARCH_MAX_LENGTH}
+          autoComplete="off"
+          value={searchText}
+          onChange={(e) => typeSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            void showPage(1, searchText);
+          }}
+        />
+        <div className="adm-pager" role="group" aria-label="Pages of users">
+          <span className="adm-pager-range" aria-live="polite">
+            {rangeText(paging, users.length)}
+          </span>
+          <button
+            type="button"
+            className="adm-btn ghost adm-pager-prev"
+            disabled={loading || busyId !== null || paging.page <= 1}
+            onClick={() => { void showPage(paging.page - 1, paging.query); }}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            className="adm-btn ghost adm-pager-next"
+            disabled={loading || busyId !== null || paging.page * paging.pageSize >= paging.total}
+            onClick={() => { void showPage(paging.page + 1, paging.query); }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+      <div className={`adm-card${loading ? ' adm-loading' : ''}`} style={{ padding: 0 }} aria-busy={loading || undefined}>
         <div className="adm-table-wrap">
           <table className="adm-table">
             <thead>
@@ -496,6 +578,13 @@ export function UsersPage({ users, onChange }) {
               </tr>
             </thead>
             <tbody>
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="adm-empty">
+                    {paging.query ? 'No users match this search.' : 'No users yet.'}
+                  </td>
+                </tr>
+              ) : null}
               {users.map((u) => {
                 const locked = u.role === 'owner';
                 const busy = busyId !== null;

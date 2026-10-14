@@ -34,6 +34,77 @@ function profileRows() {
   ];
 }
 
+/**
+ * PostgREST's `or=(...)` value, parsed as strictly as PostgREST does: top-level items are
+ * `column.operator.value`, separated by commas; a value holding a reserved character (, ( ) . :)
+ * must be double-quoted, with \" and \\ as the only escapes. Anything else throws, as PostgREST
+ * answers 400. Returns the items, so a test can prove user text never became a clause of its own.
+ */
+function parseOrFilter(text) {
+  const clauses = [];
+  let i = 0;
+  while (i <= text.length) {
+    const head = /^([a-z_]+)\.(ilike)\./.exec(text.slice(i));
+    if (!head) throw new Error(`unexpected clause at ${i}`);
+    i += head[0].length;
+    let value = '';
+    if (text[i] === '"') {
+      i += 1;
+      for (;;) {
+        if (i >= text.length) throw new Error('unterminated quote');
+        const ch = text[i];
+        if (ch === '\\') {
+          if (text[i + 1] !== '"' && text[i + 1] !== '\\') throw new Error('bad escape');
+          value += text[i + 1];
+          i += 2;
+        } else if (ch === '"') {
+          i += 1;
+          break;
+        } else {
+          value += ch;
+          i += 1;
+        }
+      }
+    } else {
+      const end = text.indexOf(',', i) === -1 ? text.length : text.indexOf(',', i);
+      value = text.slice(i, end);
+      if (/["(),:]/.test(value)) throw new Error('unquoted reserved character');
+      i = end;
+    }
+    clauses.push({ column: head[1], op: head[2], value });
+    if (i === text.length) return clauses;
+    if (text[i] !== ',') throw new Error('expected a comma');
+    i += 1;
+  }
+  throw new Error('trailing comma');
+}
+
+/** value ILIKE pattern, with PostgREST's `*` as `%` and LIKE's backslash escape. */
+function ilikeMatches(value, pattern) {
+  if (value == null) return false;
+  let source = '';
+  const wanted = pattern.replaceAll('*', '%');
+  for (let i = 0; i < wanted.length; i += 1) {
+    const ch = wanted[i];
+    if (ch === '\\' && i + 1 < wanted.length) { i += 1; source += wanted[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    else if (ch === '%') source += '[\\s\\S]*';
+    else if (ch === '_') source += '[\\s\\S]';
+    else source += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${source}$`, 'i').test(String(value));
+}
+
+/** n more users, created after the three fixtures, oldest first by number. */
+function moreProfiles(n, { prefix = 'user' } = {}) {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `p-more-${i}`,
+    user_id: `00000000-0000-4000-8000-${String(i + 1000).padStart(12, '0')}`,
+    email: `${prefix}${String(i).padStart(3, '0')}@example.test`,
+    first_name: null, last_name: null, persona: null, role: 'user', plan: 'free', plan_status: 'free', plan_period_end: null, plan_source: null, status: 'active',
+    created_at: new Date(Date.UTC(2026, 9, 1, 0, 0, i)).toISOString(),
+  }));
+}
+
 /** In-memory public.user_profiles behind a PostgREST-shaped builder. */
 function profilesAdmin(rows = profileRows()) {
   const state = { rows, calls: [], fail: null, wallets: [], adjust: null };
@@ -59,10 +130,9 @@ function profilesAdmin(rows = profileRows()) {
     }),
     from: vi.fn((table) => {
       if (table === 'credit_wallets') {
-        // public.credit_wallets (user_id, balance, debt), read whole and in pages: select(...).order(...).range(from, to).
-        // `state.walletCap` is the most rows the server returns per request (PostgREST's max rows). A per-id
-        // `.in()` filter is recorded as `ids`, so a test can prove none is sent (review R, M5).
-        const walletQuery = { columns: null, ids: null, order: null, from: 0, to: Infinity };
+        // public.credit_wallets (user_id, balance, debt), read for the page's users only: select(...).in('user_id', ids).
+        // `state.walletCap` is the most rows the server returns per request (PostgREST's max rows).
+        const walletQuery = { columns: null, ids: null, column: null, order: null, from: null, to: null };
         const walletBuilder = {
           select: (columns) => { walletQuery.columns = columns; return walletBuilder; },
           in: (column, ids) => { walletQuery.column = column; walletQuery.ids = ids; return walletBuilder; },
@@ -71,13 +141,10 @@ function profilesAdmin(rows = profileRows()) {
           then: (resolve, reject) => {
             state.calls.push({ op: 'wallets', ...walletQuery });
             let result;
-            const pageNumber = state.calls.filter((c) => c.op === 'wallets').length;
-            if (state.fail === 'wallets' || state.fail === 'all' || state.failWalletPage === pageNumber) result = { data: null, error: { message: 'private-provider-detail', code: 'XX000' } };
+            if (state.fail === 'wallets' || state.fail === 'all') result = { data: null, error: { message: 'private-provider-detail', code: 'XX000' } };
             else {
-              let rows = state.wallets.filter((w) => !walletQuery.ids || walletQuery.ids.includes(w.user_id));
-              if (walletQuery.order) rows = [...rows].sort((x, y) => String(x[walletQuery.order]).localeCompare(String(y[walletQuery.order])));
-              const size = Math.min(walletQuery.to - walletQuery.from + 1, state.walletCap || Infinity);
-              result = { data: rows.slice(walletQuery.from, walletQuery.from + size).map((w) => ({ ...w })), error: null };
+              const rows = state.wallets.filter((w) => !walletQuery.ids || walletQuery.ids.includes(w.user_id));
+              result = { data: rows.slice(0, state.walletCap || Infinity).map((w) => ({ ...w })), error: null };
             }
             return Promise.resolve(result).then(resolve, reject);
           },
@@ -85,22 +152,35 @@ function profilesAdmin(rows = profileRows()) {
         return walletBuilder;
       }
       expect(table).toBe('user_profiles');
-      const q = { op: 'select', patch: null, filters: [], order: null };
+      const q = { op: 'select', patch: null, filters: [], order: null, orders: [], count: null, head: false, or: null, from: null, to: null };
       const execute = () => {
-        state.calls.push({ op: q.op, patch: q.patch, filters: q.filters, order: q.order });
+        state.calls.push({ op: q.op, patch: q.patch, filters: q.filters, order: q.order, orders: q.orders, count: q.count, head: q.head, or: q.or, from: q.from, to: q.to });
         if (state.fail === q.op || state.fail === 'all') return { data: null, error: { message: 'private-provider-detail', code: 'XX000' } };
-        const hits = state.rows.filter((row) => matches(row, q.filters));
+        let hits = state.rows.filter((row) => matches(row, q.filters));
+        if (q.or !== null) {
+          let clauses;
+          try { clauses = parseOrFilter(q.or); } catch (e) { return { data: null, error: { message: `PostgREST could not parse the filter: ${e.message}`, code: 'PGRST100' } }; }
+          hits = hits.filter((row) => clauses.some((c) => ilikeMatches(row[c.column], c.value)));
+        }
         if (q.op === 'update') for (const row of hits) Object.assign(row, q.patch);
-        const out = hits.map((row) => ({ ...row }));
-        if (q.order) out.sort((a, b) => (q.order.ascending ? 1 : -1) * String(a[q.order.column]).localeCompare(String(b[q.order.column])));
-        return { data: out, error: null };
+        let out = hits.map((row) => ({ ...row }));
+        for (const order of [...q.orders].reverse()) out.sort((a, b) => (order.ascending ? 1 : -1) * String(a[order.column]).localeCompare(String(b[order.column])));
+        const count = q.count === 'exact' ? out.length : null;
+        if (q.from !== null) {
+          // PostgREST answers 416 (PGRST103) when the first row asked for is past the end.
+          if (out.length > 0 && q.from >= out.length) return { data: null, error: { message: 'Requested range not satisfiable', code: 'PGRST103' }, status: 416, count: null };
+          out = out.slice(q.from, q.to + 1);
+        }
+        return { data: q.head ? null : out, error: null, count };
       };
       const builder = {
-        select: () => builder,
+        select: (_columns, options = {}) => { q.count = options.count ?? null; q.head = options.head === true; return builder; },
         update: (patch) => { q.op = 'update'; q.patch = patch; return builder; },
         eq: (column, value) => { q.filters.push(['eq', column, value]); return builder; },
         neq: (column, value) => { q.filters.push(['neq', column, value]); return builder; },
-        order: (column, options = {}) => { q.order = { column, ascending: options.ascending !== false }; return builder; },
+        or: (filter) => { q.or = filter; return builder; },
+        range: (from, to) => { q.from = from; q.to = to; return builder; },
+        order: (column, options = {}) => { q.order = { column, ascending: options.ascending !== false }; q.orders.push(q.order); return builder; },
         maybeSingle: async () => {
           const result = execute();
           if (result.error) return result;
@@ -459,7 +539,7 @@ describe('PATCH /api/users/:userId plan', () => {
   });
 });
 
-// F111 task 6: the directory carries each user's credit balance, read in one query.
+// F111 task 6, paged by F147: the directory carries each listed user's credit balance.
 describe('GET /api/users credit balances', () => {
   const WALLETS = [
     { user_id: ALICE_ID, balance: '1250.5000', debt: '0.0000', created_at: 'private', updated_at: 'private' },
@@ -467,7 +547,7 @@ describe('GET /api/users credit balances', () => {
     { user_id: UNKNOWN_ID, balance: 99, debt: 0 },
   ];
 
-  it('reads the wallet table whole, with no per-user filter, and shows balance and debt, zero when there is no wallet', async () => {
+  it('reads the wallets of the listed users only, and shows balance and debt, zero when there is no wallet', async () => {
     const { admin, deps } = setup();
     admin.state.wallets = WALLETS;
     const response = await invoke(request('GET', '/api/users'), deps);
@@ -476,34 +556,13 @@ describe('GET /api/users credit balances', () => {
     expect(byId[ALICE_ID]).toMatchObject({ creditBalance: 1250.5, creditDebt: 0 });
     expect(byId[OWNER_ID]).toMatchObject({ creditBalance: 0, creditDebt: 30 });
     expect(byId[ADMIN_ID]).toMatchObject({ creditBalance: 0, creditDebt: 0 });
-    expect(admin.walletReads().length).toBeGreaterThan(0);
-    for (const read of admin.walletReads()) expect(read).toMatchObject({ columns: 'user_id, balance, debt', order: 'user_id', ids: null });
-    // A wallet of someone not listed is read but never leaves: only the listed users are returned.
+    expect(admin.walletReads()).toHaveLength(1);
+    expect(admin.walletReads()[0]).toMatchObject({ columns: 'user_id, balance, debt', column: 'user_id' });
+    expect([...admin.walletReads()[0].ids].sort()).toEqual([ADMIN_ID, ALICE_ID, OWNER_ID].sort());
+    // The wallet of someone not listed is never asked for, so it never leaves.
     expect(response.body.users.map((u) => u.id).sort()).toEqual([ADMIN_ID, ALICE_ID, OWNER_ID].sort());
     expect(JSON.stringify(response.body)).not.toContain('private');
-  });
-
-  it('reads every page when the server caps the rows per request, so a large directory keeps its balances', async () => {
-    const { admin, deps } = setup();
-    const many = Array.from({ length: 2500 }, (_, i) => ({ user_id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, balance: i + 1, debt: 0 }));
-    admin.state.wallets = [...many, { user_id: ALICE_ID, balance: '1250.5000', debt: 0 }];
-    admin.state.walletCap = 1000;
-    const response = await invoke(request('GET', '/api/users'), deps);
-    expect(response.status).toBe(200);
-    expect(response.body.users.find((u) => u.id === ALICE_ID)).toMatchObject({ creditBalance: 1250.5, creditDebt: 0 });
-    // 2,501 wallets in pages of at most 1,000, then one empty page that says there are no more.
-    expect(admin.walletReads().length).toBe(4);
-    for (const read of admin.walletReads()) expect(read.ids).toBeNull();
-  });
-
-  it('shows the balance as unknown, never zero, when a later page fails', async () => {
-    const { admin, deps } = setup();
-    admin.state.wallets = Array.from({ length: 1500 }, (_, i) => ({ user_id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, balance: 1, debt: 0 }));
-    admin.state.walletCap = 1000;
-    admin.state.failWalletPage = 2;
-    const response = await invoke(request('GET', '/api/users'), deps);
-    expect(response.status).toBe(200);
-    for (const user of response.body.users) expect(user).toMatchObject({ creditBalance: null, creditDebt: null });
+    expect(JSON.stringify(response.body)).not.toContain(UNKNOWN_ID);
   });
 
   it('keeps the directory when the balance read fails, with the balance unknown rather than zero', async () => {
@@ -514,6 +573,268 @@ describe('GET /api/users credit balances', () => {
     expect(response.body.users).toHaveLength(3);
     for (const user of response.body.users) expect(user).toMatchObject({ creditBalance: null, creditDebt: null });
     expect(JSON.stringify(response.body)).not.toContain('private-provider-detail');
+  });
+});
+
+// F147: the directory is read 100 users at a time, with an optional search.
+describe('GET /api/users paging', () => {
+  const idOf = (u) => u.id;
+
+  it('answers the first page when no page is sent, with the total from an exact count', async () => {
+    const { admin, deps } = setup({}, [...profileRows(), ...moreProfiles(247)]);
+    const response = await invoke(request('GET', '/api/users'), deps);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ ok: true, page: 1, pageSize: 100, total: 250 });
+    expect(response.body.users).toHaveLength(100);
+    const read = admin.state.calls.find((c) => c.op === 'select');
+    expect(read.count).toBe('exact');
+    expect([read.from, read.to]).toEqual([0, 99]);
+  });
+
+  it('keeps the order of the directory (oldest first) across pages, with no user twice', async () => {
+    const { deps } = setup({}, [...profileRows(), ...moreProfiles(247)]);
+    const pages = [];
+    for (const page of [1, 2, 3]) pages.push((await invoke(request('GET', `/api/users?page=${page}`), deps)).body);
+    expect(pages.map((p) => p.users.length)).toEqual([100, 100, 50]);
+    expect(pages.map((p) => p.page)).toEqual([1, 2, 3]);
+    const all = pages.flatMap((p) => p.users);
+    expect(new Set(all.map(idOf)).size).toBe(250);
+    const created = all.map((u) => u.createdAt);
+    expect(created).toEqual([...created].sort());
+    expect(all.slice(0, 3).map((u) => u.email)).toEqual(['admin@example.test', 'alice@example.test', 'owner@example.test']);
+  });
+
+  it('breaks ties in the creation time by id, so a page boundary never repeats or skips a user', async () => {
+    const rows = moreProfiles(150).map((r) => ({ ...r, created_at: '2026-10-01T00:00:00Z' }));
+    const { admin, deps } = setup({}, rows);
+    await invoke(request('GET', '/api/users?page=2'), deps);
+    expect(admin.state.calls.find((c) => c.op === 'select').orders.map((o) => o.column)).toEqual(['created_at', 'user_id']);
+  });
+
+  it('asks for exactly the rows of the page', async () => {
+    const { admin, deps } = setup({}, [...profileRows(), ...moreProfiles(247)]);
+    await invoke(request('GET', '/api/users?page=3'), deps);
+    const read = admin.state.calls.find((c) => c.op === 'select');
+    expect([read.from, read.to]).toEqual([200, 299]);
+  });
+
+  it('answers an empty list with the total for a page past the end, not an error', async () => {
+    const { deps } = setup({}, [...profileRows(), ...moreProfiles(247)]);
+    const response = await invoke(request('GET', '/api/users?page=9'), deps);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ ok: true, users: [], page: 9, pageSize: 100, total: 250 });
+  });
+
+  it('answers page 1 of an empty directory', async () => {
+    const { deps } = setup({}, []);
+    const response = await invoke(request('GET', '/api/users'), deps);
+    expect(response.body).toEqual({ ok: true, users: [], page: 1, pageSize: 100, total: 0 });
+  });
+
+  it.each(['0', '-1', '1.5', 'abc', '1e2', '', ' 2', '2 ', '0x10', '+3', '0001', '1000000'])('refuses the page %j with 400 and reads nothing', async (page) => {
+    const { admin, deps } = setup();
+    const response = await invoke(request('GET', `/api/users?page=${encodeURIComponent(page)}`), deps);
+    expect(response.status).toBe(400);
+    expect(response.body.ok).toBe(false);
+    expect(admin.state.calls).toEqual([]);
+  });
+
+  it('reads the wallets of the page only, in one request', async () => {
+    const rows = [...profileRows(), ...moreProfiles(247)];
+    const { admin, deps } = setup({}, rows);
+    admin.state.wallets = rows.map((r, i) => ({ user_id: r.user_id, balance: i + 1, debt: 0 }));
+    const response = await invoke(request('GET', '/api/users?page=2'), deps);
+    expect(admin.walletReads()).toHaveLength(1);
+    const asked = admin.walletReads()[0].ids;
+    expect(asked).toHaveLength(100);
+    expect([...asked].sort()).toEqual(response.body.users.map(idOf).sort());
+    expect(asked.length).toBeLessThanOrEqual(100);
+    // Each listed user carries their own balance.
+    for (const user of response.body.users) {
+      const index = rows.findIndex((r) => r.user_id === user.id);
+      expect(user.creditBalance).toBe(index + 1);
+    }
+  });
+
+  it('reads no wallets for an empty page', async () => {
+    const { admin, deps } = setup({}, [...profileRows(), ...moreProfiles(5)]);
+    const response = await invoke(request('GET', '/api/users?page=4'), deps);
+    expect(response.body.users).toEqual([]);
+    expect(admin.walletReads()).toEqual([]);
+  });
+
+  it('answers 503 without provider detail when the count or the page cannot be read', async () => {
+    const { admin, deps } = setup();
+    admin.state.fail = 'select';
+    const response = await invoke(request('GET', '/api/users?page=2&q=ali'), deps);
+    expect(response.status).toBe(503);
+    expect(JSON.stringify(response.body)).not.toContain('private-provider-detail');
+  });
+
+  it('keeps every authorisation check, with or without a page and a search', async () => {
+    for (const url of ['/api/users', '/api/users?page=2', '/api/users?q=ali', '/api/users?page=2&q=ali']) {
+      for (const caller of [{ role: 'user', admin: false }, { role: 'user' }, { role: 'owner' }, { admin: false }, { status: 'suspended' }]) {
+        const { deps } = setup(caller);
+        expect((await invoke(request('GET', url), deps)).status).toBe(403);
+        expect(deps.adminClient).not.toHaveBeenCalled();
+      }
+      const { deps } = setup();
+      expect((await invoke(request('GET', url, undefined, null), deps)).status).toBe(401);
+      expect((await invoke(request('GET', url, undefined, 'Basic abc'), deps)).status).toBe(401);
+      expect(deps.adminClient).not.toHaveBeenCalled();
+    }
+  });
+
+  it('checks the caller before it judges the page or the search, so a stranger learns nothing about them', async () => {
+    const { deps } = setup({ role: 'user', admin: false });
+    expect((await invoke(request('GET', '/api/users?page=zero&q=' + 'x'.repeat(500)), deps)).status).toBe(403);
+    const { deps: anonymous } = setup();
+    expect((await invoke(request('GET', '/api/users?page=zero', undefined, null), anonymous)).status).toBe(401);
+  });
+
+  it('still answers 405 to other methods on the paged path', async () => {
+    const { admin, deps } = setup();
+    expect((await invoke(request('POST', '/api/users?page=2'), deps)).status).toBe(405);
+    expect(deps.adminClient).not.toHaveBeenCalled();
+    expect(admin.writes()).toEqual([]);
+  });
+});
+
+describe('GET /api/users search', () => {
+  const SEARCHABLE = () => [
+    ...profileRows(),
+    { ...moreProfiles(1)[0], user_id: '00000000-0000-4000-8000-0000000000b1', email: 'a_b@example.test' },
+    { ...moreProfiles(1)[0], user_id: '00000000-0000-4000-8000-0000000000b2', email: 'axb@example.test', created_at: '2026-10-02T00:00:00Z' },
+    { ...moreProfiles(1)[0], user_id: '00000000-0000-4000-8000-0000000000b3', email: 'pct%sign@example.test', created_at: '2026-10-03T00:00:00Z' },
+    { ...moreProfiles(1)[0], user_id: '00000000-0000-4000-8000-0000000000b4', email: 'back\\slash@example.test', created_at: '2026-10-04T00:00:00Z' },
+    { ...moreProfiles(1)[0], user_id: '00000000-0000-4000-8000-0000000000b5', email: 'quote"mark@example.test', first_name: 'Quo,te', last_name: 'O)Brien', created_at: '2026-10-05T00:00:00Z' },
+    { ...moreProfiles(1)[0], user_id: '00000000-0000-4000-8000-0000000000b6', email: 'plain@example.test', first_name: 'Grace', last_name: 'Hopper', created_at: '2026-10-06T00:00:00Z' },
+  ];
+  const emails = (response) => response.body.users.map((u) => u.email);
+  const search = async (q, rows = SEARCHABLE()) => {
+    const ctx = setup({}, rows);
+    const response = await invoke(request('GET', `/api/users?q=${encodeURIComponent(q)}`), ctx.deps);
+    return { ...ctx, response };
+  };
+
+  it('finds a user by part of the email, ignoring case', async () => {
+    const { response } = await search('ALICE@Exam');
+    expect(response.status).toBe(200);
+    expect(emails(response)).toEqual(['alice@example.test']);
+    expect(response.body).toMatchObject({ total: 1, page: 1, pageSize: 100 });
+  });
+
+  it('finds a user by first name or last name, ignoring case', async () => {
+    expect(emails((await search('gRACE')).response)).toEqual(['plain@example.test']);
+    expect(emails((await search('hopp')).response)).toEqual(['plain@example.test']);
+  });
+
+  it('trims the text, and treats a blank search as no search', async () => {
+    expect(emails((await search('   alice  ')).response)).toEqual(['alice@example.test']);
+    const { response, admin } = await search('    ');
+    expect(response.body.total).toBe(9);
+    expect(admin.state.calls.find((c) => c.op === 'select').or).toBeNull();
+  });
+
+  it('reports the total of the matches, not of the directory', async () => {
+    const { response } = await search('example.test');
+    expect(response.body.total).toBe(9);
+    const none = (await search('nobody-by-this-name')).response;
+    expect(none.body).toEqual({ ok: true, users: [], page: 1, pageSize: 100, total: 0 });
+  });
+
+  it('pages the matches of a search', async () => {
+    const rows = [...profileRows(), ...moreProfiles(240, { prefix: 'team' })];
+    const { deps, admin } = setup({}, rows);
+    const second = await invoke(request('GET', '/api/users?page=3&q=team'), deps);
+    expect(second.body).toMatchObject({ page: 3, total: 240 });
+    expect(second.body.users).toHaveLength(40);
+    expect(second.body.users.every((u) => u.email.startsWith('team'))).toBe(true);
+    expect(admin.walletReads()[0].ids).toHaveLength(40);
+  });
+
+  it('refuses a search longer than 100 characters with 400, and accepts exactly 100', async () => {
+    const long = await search('a'.repeat(101));
+    expect(long.response.status).toBe(400);
+    expect(long.admin.state.calls).toEqual([]);
+    expect((await search('a'.repeat(100))).response.status).toBe(200);
+    // The limit is on the trimmed text.
+    expect((await search(`  ${'a'.repeat(100)}  `)).response.status).toBe(200);
+  });
+
+  it('matches a % literally, so it is not a wildcard', async () => {
+    expect(emails((await search('%')).response)).toEqual(['pct%sign@example.test']);
+    expect(emails((await search('a%')).response)).toEqual([]);
+  });
+
+  it('matches an underscore literally, so it is not a one-character wildcard', async () => {
+    expect(emails((await search('a_b')).response)).toEqual(['a_b@example.test']);
+    expect(emails((await search('_')).response)).toEqual(['a_b@example.test']);
+  });
+
+  it('matches a backslash literally', async () => {
+    expect(emails((await search('\\')).response)).toEqual(['back\\slash@example.test']);
+    expect(emails((await search('back\\s')).response)).toEqual(['back\\slash@example.test']);
+  });
+
+  it('matches a double quote, a comma and a parenthesis literally', async () => {
+    expect(emails((await search('"')).response)).toEqual(['quote"mark@example.test']);
+    expect(emails((await search('Quo,te')).response)).toEqual(['quote"mark@example.test']);
+    expect(emails((await search('O)Brien')).response)).toEqual(['quote"mark@example.test']);
+    expect(emails((await search(')')).response)).toEqual(['quote"mark@example.test']);
+  });
+
+  it('does not treat a * as a wildcard of its own; it is left out of the text', async () => {
+    // A bare * leaves nothing to search for, so it lists everyone, like an empty box.
+    expect((await search('*')).response.body.total).toBe(9);
+    expect(emails((await search('gra*')).response)).toEqual(['plain@example.test']);
+    expect(emails((await search('*g*r*a*c*e*')).response)).toEqual(['plain@example.test']);
+    expect(emails((await search('zzz*')).response)).toEqual([]);
+    // Not a wildcard in the middle either: al*ce is "alce", which no one has.
+    const middle = await search('al*ce');
+    expect(emails(middle.response)).toEqual([]);
+    expect(parseOrFilter(middle.admin.state.calls.find((c) => c.op === 'select').or)[0].value).toBe('*alce*');
+  });
+
+  it.each([
+    'x,role.eq.owner',
+    'x),(role.eq.owner',
+    'x,email.ilike.*',
+    'x,or(role.eq.admin,status.eq.active)',
+    '"),email.ilike.*,("',
+    'a.b:c',
+    '\\",email.ilike.*,\\"',
+    'x%,email.ilike.%',
+    'name;drop table user_profiles',
+  ])('keeps %j inside one value: no extra clause, no extra row', async (q) => {
+    const { response, admin } = await search(q);
+    expect(response.status).toBe(200);
+    expect(response.body.users).toEqual([]);
+    expect(response.body.total).toBe(0);
+    const sent = admin.state.calls.find((c) => c.op === 'select').or;
+    // Always the same three clauses (email, first name, last name), each one quoted whole.
+    const clauses = parseOrFilter(sent);
+    expect(clauses.map((c) => c.column)).toEqual(['email', 'first_name', 'last_name']);
+    expect(new Set(clauses.map((c) => c.value)).size).toBe(1);
+    expect(sent.startsWith('email.ilike."*')).toBe(true);
+  });
+
+  it('sends the search only as the or() filter, never in another filter or on a write', async () => {
+    const { admin } = await search('x,role.eq.owner');
+    expect(admin.state.calls.filter((c) => c.op === 'select' && c.filters.length)).toEqual([]);
+    expect(admin.writes()).toEqual([]);
+  });
+
+  it('uses the text of the first q when it is repeated', async () => {
+    const ctx = setup({}, SEARCHABLE());
+    const response = await invoke(request('GET', '/api/users?q=alice&q=grace'), ctx.deps);
+    expect(emails(response)).toEqual(['alice@example.test']);
+  });
+
+  it('counts the matches exactly, with the same filter, when the page asked for is past them', async () => {
+    const { deps } = setup({}, SEARCHABLE());
+    const response = await invoke(request('GET', '/api/users?page=5&q=example.test'), deps);
+    expect(response.body).toMatchObject({ users: [], page: 5, total: 9 });
   });
 });
 
@@ -726,6 +1047,40 @@ describe('api/router.js /api/users', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ ok: true, user: { id: ALICE_ID, active: true } });
     expect(admin.writes()[0].patch).toEqual({ status: 'active' });
+  });
+
+  // The router rewrites req.url to the bare path, so the page and the search arrive on req.query (what Vercel parsed).
+  it('passes the page and the search of GET /api/users through the router', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://auth.example.test');
+    vi.stubEnv('SUPABASE_PUBLISHABLE_KEY', 'test-public-key');
+    supabaseJs.client = callerClient();
+    const admin = profilesAdmin([...profileRows(), ...moreProfiles(240, { prefix: 'team' })]);
+    adminHolder.client = admin.client;
+    const res = vercelResponse();
+    const req = {
+      ...vercelRequest('GET', 'users', undefined, { authorization: 'Bearer verified-token' }),
+      url: '/api/router?__route=users&page=3&q=team',
+      query: { __route: 'users', page: '3', q: 'team' },
+    };
+    await routerHandler(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, page: 3, pageSize: 100, total: 240 });
+    expect(res.body.users).toHaveLength(40);
+    expect(res.body.users.every((u) => u.email.startsWith('team'))).toBe(true);
+  });
+
+  it('refuses a bad page through the router with 400 after the admin check', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://auth.example.test');
+    vi.stubEnv('SUPABASE_PUBLISHABLE_KEY', 'test-public-key');
+    supabaseJs.client = callerClient();
+    adminHolder.client = profilesAdmin().client;
+    const res = vercelResponse();
+    await routerHandler({ ...vercelRequest('GET', 'users', undefined, { authorization: 'Bearer verified-token' }), query: { __route: 'users', page: 'abc' } }, res);
+    expect(res.statusCode).toBe(400);
+    supabaseJs.client = callerClient({ role: 'user', admin: false });
+    const refused = vercelResponse();
+    await routerHandler({ ...vercelRequest('GET', 'users', undefined, { authorization: 'Bearer verified-token' }), query: { __route: 'users', page: 'abc' } }, refused);
+    expect(refused.statusCode).toBe(403);
   });
 
   it('answers 405 to PUT /api/users through the router', async () => {
