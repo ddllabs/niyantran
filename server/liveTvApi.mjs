@@ -55,7 +55,6 @@ export const YOUTUBE_SOURCES = [
     deskId: 'national',
     status: 'recent',
     viewers: null,
-    currentProgram: 'Critical Issues & Governance Analysis',
     defaultVideoId: 'RJfqzUWZ0Bw',
     embedUrl: 'https://www.youtube-nocookie.com/embed/RJfqzUWZ0Bw?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
@@ -63,16 +62,12 @@ export const YOUTUBE_SOURCES = [
         videoId: 'RJfqzUWZ0Bw',
         title: 'Electoral Bonds | The Biggest Scam in History of India? | Explained by Dhruv Rathee',
         thumbnail: 'https://i.ytimg.com/vi/RJfqzUWZ0Bw/hqdefault.jpg',
-        publishedAt: '2026-09-20T14:00:00Z',
-        duration: '24m 10s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/RJfqzUWZ0Bw?autoplay=1&mute=1&playsinline=1',
       },
       {
         videoId: '-e72F_bBcqA',
         title: 'Sad Reality of Uttarkashi Tunnel Rescue | 3D Animation | Dhruv Rathee',
         thumbnail: 'https://i.ytimg.com/vi/-e72F_bBcqA/hqdefault.jpg',
-        publishedAt: '2026-09-14T12:30:00Z',
-        duration: '21m 45s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/-e72F_bBcqA?autoplay=1&mute=1&playsinline=1',
       },
     ],
@@ -94,7 +89,6 @@ export const YOUTUBE_SOURCES = [
     deskId: 'economics',
     status: 'recent',
     viewers: null,
-    currentProgram: 'Strategic Case Studies & Macro Blueprint',
     defaultVideoId: 'UY9H83yQnzc',
     embedUrl: 'https://www.youtube-nocookie.com/embed/UY9H83yQnzc?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
@@ -102,16 +96,12 @@ export const YOUTUBE_SOURCES = [
         videoId: 'UY9H83yQnzc',
         title: 'Elon Musk & Dario’s Final Warning | Why the AI Race Is Getting Dangerously Out of Control? | Think School',
         thumbnail: 'https://i.ytimg.com/vi/UY9H83yQnzc/hqdefault.jpg',
-        publishedAt: '2026-09-18T15:00:00Z',
-        duration: '22m 15s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/UY9H83yQnzc?autoplay=1&mute=1&playsinline=1',
       },
       {
         videoId: 'ky6jesFvIqY',
         title: 'BETRAYAL OF SAUDI ARABIA? | Why America Abandoned Saudi Arabia in Its Darkest Hour? | Think School',
         thumbnail: 'https://i.ytimg.com/vi/ky6jesFvIqY/hqdefault.jpg',
-        publishedAt: '2026-09-10T11:00:00Z',
-        duration: '18m 20s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/ky6jesFvIqY?autoplay=1&mute=1&playsinline=1',
       },
     ],
@@ -131,7 +121,6 @@ export const YOUTUBE_SOURCES = [
     deskId: 'national',
     status: 'recent',
     viewers: null,
-    currentProgram: 'Constitutional & Strategic Affairs Masterclass',
     defaultVideoId: 'ECoO7eyknPs',
     embedUrl: 'https://www.youtube-nocookie.com/embed/ECoO7eyknPs?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
@@ -139,16 +128,12 @@ export const YOUTUBE_SOURCES = [
         videoId: 'ECoO7eyknPs',
         title: 'Anti Tank Missile | Javelin Anti Tank Missile | Military Tank | How Javelin Missile work | Khan GS Research Centre',
         thumbnail: 'https://i.ytimg.com/vi/ECoO7eyknPs/hqdefault.jpg',
-        publishedAt: '2026-09-21T17:00:00Z',
-        duration: '32m 40s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/ECoO7eyknPs?autoplay=1&mute=1&playsinline=1',
       },
       {
         videoId: '4SyrQHSmQlQ',
         title: 'Raksha Bandhan 2026 Full Video | Rakhi 2026 By Khan Sir | Khan GS Research Centre',
         thumbnail: 'https://i.ytimg.com/vi/4SyrQHSmQlQ/hqdefault.jpg',
-        publishedAt: '2026-09-12T13:00:00Z',
-        duration: '28m 50s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/4SyrQHSmQlQ?autoplay=1&mute=1&playsinline=1',
       },
     ],
@@ -170,7 +155,6 @@ export const YOUTUBE_SOURCES = [
     deskId: 'national',
     status: 'recent',
     viewers: null,
-    currentProgram: 'Public Administration & Civic Governance Report',
     defaultVideoId: '3MtJg5rJars',
     embedUrl: 'https://www.youtube-nocookie.com/embed/3MtJg5rJars?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
@@ -178,16 +162,12 @@ export const YOUTUBE_SOURCES = [
         videoId: '3MtJg5rJars',
         title: 'How One IAS Officer Exposed India’s Food Mafia | Mohak Mangal',
         thumbnail: 'https://i.ytimg.com/vi/3MtJg5rJars/hqdefault.jpg',
-        publishedAt: '2026-09-19T10:00:00Z',
-        duration: '17m 35s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/3MtJg5rJars?autoplay=1&mute=1&playsinline=1',
       },
       {
         videoId: 'E4tNtZO6_6M',
         title: "Inside Air India's Most Disturbing Flight Incident | Mohak Mangal",
         thumbnail: 'https://i.ytimg.com/vi/E4tNtZO6_6M/hqdefault.jpg',
-        publishedAt: '2026-09-08T09:30:00Z',
-        duration: '16m 40s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/E4tNtZO6_6M?autoplay=1&mute=1&playsinline=1',
       },
     ],
@@ -207,7 +187,6 @@ export const YOUTUBE_SOURCES = [
     deskId: 'global',
     status: 'recent',
     viewers: null,
-    currentProgram: 'Strategic Intelligence & Global Defence Briefing',
     defaultVideoId: '7ncDwpDZkho',
     embedUrl: 'https://www.youtube-nocookie.com/embed/7ncDwpDZkho?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
@@ -215,16 +194,12 @@ export const YOUTUBE_SOURCES = [
         videoId: '7ncDwpDZkho',
         title: 'Powering America: Rethinking the Economics of Transmission | Center for Strategic & International Studies',
         thumbnail: 'https://i.ytimg.com/vi/7ncDwpDZkho/hqdefault.jpg',
-        publishedAt: '2026-09-22T18:00:00Z',
-        duration: '45m 00s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/7ncDwpDZkho?autoplay=1&mute=1&playsinline=1',
       },
       {
         videoId: 'urj_IlvLo5A',
         title: "Red Lines and Reality: The West's Escalation Dilemma in Ukraine | Center for Strategic & International Studies",
         thumbnail: 'https://i.ytimg.com/vi/urj_IlvLo5A/hqdefault.jpg',
-        publishedAt: '2026-09-15T16:30:00Z',
-        duration: '38m 20s',
         embedUrl: 'https://www.youtube-nocookie.com/embed/urj_IlvLo5A?autoplay=1&mute=1&playsinline=1',
       },
     ],
@@ -244,20 +219,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 6,
     deskId: 'legislative',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'National Prime: Parliamentary & Governance Round-up',
     defaultVideoId: 'qD6GkaU2lD0',
     embedUrl: 'https://www.youtube-nocookie.com/embed/qD6GkaU2lD0?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: 'qD6GkaU2lD0',
-        title: 'National Prime: Parliamentary & Governance Round-up',
-        thumbnail: 'https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-26T18:00:00Z',
-        duration: '42m 15s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/qD6GkaU2lD0?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
   {
@@ -273,20 +239,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 7,
     deskId: 'legislative',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'Lok Sabha & Rajya Sabha Legislative Session',
     defaultVideoId: 'live_stream',
     embedUrl: 'https://www.youtube-nocookie.com/embed/live_stream?channel=UC_x5XG1OV2P6uZZ5FSM9Ttw&autoplay=1&mute=1',
     fallbackVideos: [
-      {
-        videoId: 'live_stream',
-        title: 'Standing Committee on Finance: Sovereign Green Bonds Hearing',
-        thumbnail: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-25T14:30:00Z',
-        duration: '58m 00s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/live_stream?channel=UC_x5XG1OV2P6uZZ5FSM9Ttw&autoplay=1&mute=1',
-      },
     ],
   },
   {
@@ -302,20 +259,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 8,
     deskId: 'global',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'Gravitas: Global Fronts & Multilateral Geopolitics',
     defaultVideoId: 'vfszY1JYbMc',
     embedUrl: 'https://www.youtube-nocookie.com/embed/vfszY1JYbMc?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: 'vfszY1JYbMc',
-        title: 'Gravitas: Maritime Chokepoints and Global Supply Route Realignments',
-        thumbnail: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-24T21:00:00Z',
-        duration: '28m 40s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/vfszY1JYbMc?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
   {
@@ -331,20 +279,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 9,
     deskId: 'national',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'The World 24x7: Policy & Diplomacy',
     defaultVideoId: 'I8643WY0BgA',
     embedUrl: 'https://www.youtube-nocookie.com/embed/I8643WY0BgA?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: 'I8643WY0BgA',
-        title: 'The World 24x7: Policy & Diplomacy Weekly Digest',
-        thumbnail: 'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-25T19:00:00Z',
-        duration: '40m 10s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/I8643WY0BgA?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
 
@@ -362,20 +301,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 10,
     deskId: 'economics',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'Bazaar Corporate Radar & Macro Updates',
     defaultVideoId: '1_Ih0JYmkjI',
     embedUrl: 'https://www.youtube-nocookie.com/embed/1_Ih0JYmkjI?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: '1_Ih0JYmkjI',
-        title: 'Macro Radar: Core Sector Output and Capital Formation Trends',
-        thumbnail: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-23T16:00:00Z',
-        duration: '35m 10s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/1_Ih0JYmkjI?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
   {
@@ -391,20 +321,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 11,
     deskId: 'economics',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'Markets Today & Policy Analysis',
     defaultVideoId: 'v-HldpGnVT8',
     embedUrl: 'https://www.youtube-nocookie.com/embed/v-HldpGnVT8?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: 'v-HldpGnVT8',
-        title: 'Markets Today: Credit Growth Rates and Banking Balance Sheets',
-        thumbnail: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-25T11:00:00Z',
-        duration: '30m 00s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/v-HldpGnVT8?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
 
@@ -422,20 +343,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 12,
     deskId: 'national',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'Newsroom: National & Political Focus',
     defaultVideoId: '9NH-hAV3H6M',
     embedUrl: 'https://www.youtube-nocookie.com/embed/9NH-hAV3H6M?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: '9NH-hAV3H6M',
-        title: 'Newsroom: Parliamentary Notice Debates & Ministry Responses',
-        thumbnail: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-26T12:00:00Z',
-        duration: '36m 00s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/9NH-hAV3H6M?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
   {
@@ -451,20 +363,11 @@ export const YOUTUBE_SOURCES = [
     enabled: true,
     priority: 13,
     deskId: 'media',
-    status: 'live',
+    status: 'recent',
     viewers: null,
-    currentProgram: 'Dangal: Rashtriya Mudda',
     defaultVideoId: 'ChQPEkASCb4',
     embedUrl: 'https://www.youtube-nocookie.com/embed/ChQPEkASCb4?autoplay=1&mute=1&playsinline=1',
     fallbackVideos: [
-      {
-        videoId: 'ChQPEkASCb4',
-        title: 'Special Report: Electoral Rolls and Demographic Indices',
-        thumbnail: 'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=480&auto=format&fit=crop&q=60',
-        publishedAt: '2026-09-26T15:00:00Z',
-        duration: '44m 30s',
-        embedUrl: 'https://www.youtube-nocookie.com/embed/ChQPEkASCb4?autoplay=1&mute=1&playsinline=1',
-      },
     ],
   },
 ];
@@ -472,274 +375,14 @@ export const YOUTUBE_SOURCES = [
 // Backward-compatible alias for existing tests
 export const LIVE_TV_CHANNELS = YOUTUBE_SOURCES;
 
-export const CHANNEL_SCHEDULES = {
-  'dd-news': [
-    {
-      id: 'sch-dd-1',
-      title: 'National Morning Digest',
-      category: 'Morning Briefing',
-      deskId: 'national',
-      startTime: '08:00',
-      endTime: '09:00',
-      duration: '60m',
-      isLive: false,
-      description: 'Review of overnight administrative notices, ministry releases, and official gazettes.',
-    },
-    {
-      id: 'sch-dd-2',
-      title: 'National Prime: Parliamentary & Governance Round-up',
-      category: 'Governance & Policy',
-      deskId: 'legislative',
-      startTime: '09:00',
-      endTime: '10:30',
-      duration: '90m',
-      isLive: true,
-      description: 'Comprehensive analysis of bills pending, legislative amendments, and committee testimonies.',
-    },
-    {
-      id: 'sch-dd-3',
-      title: 'Economic Frontiers: Sectoral Allocations & Trade',
-      category: 'Economy',
-      deskId: 'economics',
-      startTime: '10:30',
-      endTime: '11:30',
-      duration: '60m',
-      isLive: false,
-      description: 'Detailed briefing on infrastructure capital outlays, export orders, and industrial indices.',
-    },
-    {
-      id: 'sch-dd-4',
-      title: 'Special Report: Diplomatic & Strategic Affairs',
-      category: 'Diplomacy',
-      deskId: 'global',
-      startTime: '11:30',
-      endTime: '12:30',
-      duration: '60m',
-      isLive: false,
-      description: 'Ministry of External Affairs press readouts and bilateral agreements analysis.',
-    },
-  ],
-  'sansad-tv': [
-    {
-      id: 'sch-stv-1',
-      title: 'Question Hour: Written & Oral Answers',
-      category: 'Parliament',
-      deskId: 'legislative',
-      startTime: '11:00',
-      endTime: '12:00',
-      duration: '60m',
-      isLive: true,
-      description: 'Live floor proceedings during parliamentary Question Hour across central ministries.',
-    },
-    {
-      id: 'sch-stv-2',
-      title: 'Legislative Business & Clause-by-Clause Review',
-      category: 'Parliament',
-      deskId: 'legislative',
-      startTime: '12:00',
-      endTime: '14:00',
-      duration: '120m',
-      isLive: false,
-      description: 'Consideration and passing of statutory bills and standing committee recommendations.',
-    },
-  ],
-  'cnbc-tv18': [
-    {
-      id: 'sch-cnbc-1',
-      title: 'Bazaar Corporate Radar & Macro Updates',
-      category: 'Markets',
-      deskId: 'economics',
-      startTime: '09:15',
-      endTime: '10:30',
-      duration: '75m',
-      isLive: true,
-      description: 'Live NSE/BSE capital flow tracking, corporate announcements, and RBI monetary policy analysis.',
-    },
-    {
-      id: 'sch-cnbc-2',
-      title: 'Policy Watch: Sectoral Impact Analysis',
-      category: 'Policy & Markets',
-      deskId: 'economics',
-      startTime: '10:30',
-      endTime: '11:30',
-      duration: '60m',
-      isLive: false,
-      description: 'Dissecting tariff policies, industrial PLI updates, and macroeconomic prints.',
-    },
-  ],
-  'dhruv-rathee': [
-    {
-      id: 'sch-dr-1',
-      title: 'Weekly Ground Analysis: Electoral Architecture',
-      category: 'Research',
-      deskId: 'national',
-      startTime: '14:00',
-      endTime: '15:00',
-      duration: '60m',
-      isLive: false,
-      description: 'Comprehensive data-backed presentation on constituency delimitations and polling methodologies.',
-    },
-    {
-      id: 'sch-dr-2',
-      title: 'Public Policy Debrief: Environmental Indices',
-      category: 'Policy',
-      deskId: 'national',
-      startTime: '18:00',
-      endTime: '19:00',
-      duration: '60m',
-      isLive: false,
-      description: 'State pollution control boards audit and central budgetary allocations review.',
-    },
-  ],
-  'think-school': [
-    {
-      id: 'sch-ts-1',
-      title: 'Geoeconomic Corridors: Trade & Transit Infrastructure',
-      category: 'Case Study',
-      deskId: 'economics',
-      startTime: '16:00',
-      endTime: '17:00',
-      duration: '60m',
-      isLive: false,
-      description: 'Strategic analysis of logistics costs and freight corridor economics across India.',
-    },
-  ],
-};
+// F7 (F171 B8): no channel publishes a schedule we read, so none is shown.
+export const CHANNEL_SCHEDULES = {};
 
-export const CHANNEL_ARCHIVES = [
-  {
-    id: 'arch-dd-2026-09-26',
-    channelId: 'dd-news',
-    title: 'Parliamentary Review: Inter-State River Water Disputes Amendment',
-    segment: 'Legislative Special',
-    date: '2026-09-26T18:00:00Z',
-    duration: '42m 15s',
-    videoUrl: 'https://www.youtube-nocookie.com/embed/qD6GkaU2lD0',
-    hasTranscript: true,
-    summary: 'Debate and committee testimony on river dispute tribunals and dispute resolution timelines.',
-    topics: ['Legislation', 'Inter-State Relations', 'Water Resources'],
-    deskId: 'legislative',
-  },
-  {
-    id: 'arch-stv-2026-09-25',
-    channelId: 'sansad-tv',
-    title: 'Standing Committee on Finance: Report on Sovereign Green Bonds',
-    segment: 'Committee Proceedings',
-    date: '2026-09-25T14:30:00Z',
-    duration: '58m 00s',
-    videoUrl: 'https://www.youtube-nocookie.com/embed/live_stream?channel=UC_x5XG1OV2P6uZZ5FSM9Ttw',
-    hasTranscript: true,
-    summary: 'Presentation of sovereign green bond expenditure records and framework compliance by Ministry of Finance.',
-    topics: ['Finance', 'Parliamentary Committees', 'Green Bonds'],
-    deskId: 'economics',
-  },
-  {
-    id: 'arch-wion-2026-09-24',
-    channelId: 'wion',
-    title: 'Gravitas: Maritime Chokepoints and Global Supply Route Realignments',
-    segment: 'Strategic Analysis',
-    date: '2026-09-24T21:00:00Z',
-    duration: '28m 40s',
-    videoUrl: 'https://www.youtube-nocookie.com/embed/vfszY1JYbMc',
-    hasTranscript: true,
-    summary: 'Analysis of transit flow disruptions across the Bab-el-Mandeb and Cape of Good Hope re-routings.',
-    topics: ['Maritime Security', 'Supply Chains', 'Geopolitics'],
-    deskId: 'global',
-  },
-  {
-    id: 'arch-cnbc-2026-09-23',
-    channelId: 'cnbc-tv18',
-    title: 'Macro Radar: Core Sector Output and Capital Formation Trends',
-    segment: 'Macro Analysis',
-    date: '2026-09-23T16:00:00Z',
-    duration: '35m 10s',
-    videoUrl: 'https://www.youtube-nocookie.com/embed/1_Ih0JYmkjI',
-    hasTranscript: false,
-    summary: 'Eight core industries performance data review with MoSPI statistical commentary.',
-    topics: ['Core Industries', 'Macroeconomics', 'Capital Expenditure'],
-    deskId: 'economics',
-  },
-];
+// F7: the archive entries were invented; none is shown until a real archive is connected.
+export const CHANNEL_ARCHIVES = [];
 
-export const BROADCAST_TRANSCRIPTS = {
-  'arch-dd-2026-09-26': {
-    broadcastId: 'arch-dd-2026-09-26',
-    channelId: 'dd-news',
-    title: 'Parliamentary Review: Inter-State River Water Disputes Amendment',
-    available: true,
-    source: 'Official Parliamentary Broadcast / ASR Verified Record',
-    cues: [
-      {
-        timestamp: '00:00:15',
-        speaker: 'Anchor',
-        text: 'Welcome to this special broadcast examining the Inter-State River Water Disputes (Amendment) Bill introduced in the Lok Sabha.',
-      },
-      {
-        timestamp: '00:01:02',
-        speaker: 'Minister of Jal Shakti',
-        text: 'The intent of this legislation is to establish a standalone, permanent Dispute Resolution Committee with strict two-year resolution boundaries.',
-      },
-      {
-        timestamp: '00:03:45',
-        speaker: 'Committee Rapporteur',
-        text: 'The parliamentary committee reviewed historical tribunal adjudications spanning 1969 to 2024, noting that average dispute duration exceeded 12 years.',
-      },
-      {
-        timestamp: '00:06:20',
-        speaker: 'Anchor',
-        text: 'The bill also mandates data sharing across central hydrological stations and state riparian departments within 30 days of request.',
-      },
-      {
-        timestamp: '00:10:15',
-        speaker: 'Policy Analyst',
-        text: 'Clauses 4 through 9 streamline the appointment of technical assessors directly from the Central Water Commission.',
-      },
-    ],
-  },
-  'arch-stv-2026-09-25': {
-    broadcastId: 'arch-stv-2026-09-25',
-    channelId: 'sansad-tv',
-    title: 'Standing Committee on Finance: Report on Sovereign Green Bonds',
-    available: true,
-    source: 'Sansad TV Official Audio / Verified Record',
-    cues: [
-      {
-        timestamp: '00:00:20',
-        speaker: 'Committee Chair',
-        text: 'The Standing Committee on Finance convenes for the presentation of the audit report regarding the deployment of Sovereign Green Bond proceeds.',
-      },
-      {
-        timestamp: '00:02:10',
-        speaker: 'Secretary, Department of Economic Affairs',
-        text: 'Proceeds raised under the framework have been allocated to solar generation infrastructure, grid modernization, and railway traction electrification.',
-      },
-      {
-        timestamp: '00:05:40',
-        speaker: 'Member of Parliament',
-        text: 'We request the exact breakdown of third-party environmental auditing certifications across the 14 beneficiary public sector undertakings.',
-      },
-    ],
-  },
-  'arch-wion-2026-09-24': {
-    broadcastId: 'arch-wion-2026-09-24',
-    channelId: 'wion',
-    title: 'Gravitas: Maritime Chokepoints and Global Supply Route Realignments',
-    available: true,
-    source: 'WION Broadcast Transcript / Verified Record',
-    cues: [
-      {
-        timestamp: '00:00:10',
-        speaker: 'Anchor',
-        text: 'Tonight on Gravitas: maritime transit through critical choke points and how commercial container traffic has adapted over the past quarter.',
-      },
-      {
-        timestamp: '00:01:30',
-        speaker: 'Maritime Security Expert',
-        text: 'Over 65 percent of container ships previously transiting the Red Sea route have continued rounding the Cape of Good Hope, adding approximately 10 to 14 days transit time.',
-      },
-    ],
-  },
-};
+// F7: the transcripts were hand-written and labelled "Verified Record"; none is shown.
+export const BROADCAST_TRANSCRIPTS = {};
 
 // ── Vercel In-Memory Cache (TTL: 10 mins) ──────────────────────────────────
 const memoryCache = new Map();
@@ -802,7 +445,8 @@ export function normalizeYouTubeVideo(item, defaultChannelId) {
     thumbnails.medium?.url ||
     thumbnails.default?.url ||
     item.thumbnail ||
-    'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=480&auto=format&fit=crop&q=60';
+    // F7: the video's own YouTube thumbnail, never a stock photo.
+    (id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '');
 
   const isLive =
     snippet.liveBroadcastContent === 'live' ||
@@ -856,10 +500,10 @@ export async function fetchYouTubeChannelVideos(channel) {
         channel.status === 'live'
           ? {
               videoId: channel.defaultVideoId,
-              title: channel.currentProgram || channel.name,
+              title: channel.name,
               embedUrl: channel.embedUrl,
               thumbnail: channel.fallbackVideos?.[0]?.thumbnail,
-              publishedAt: new Date().toISOString(),
+              publishedAt: null,
               isLive: true,
             }
           : null,
@@ -1018,7 +662,6 @@ export async function getLiveTvLiveStreams() {
         id: ch.id,
         name: ch.name,
         category: ch.category,
-        currentProgram: ch.currentProgram,
         embedUrl: ch.embedUrl,
         viewers: ch.viewers,
         color: ch.color,
@@ -1035,37 +678,15 @@ export async function getLiveTvLiveStreams() {
 export function getLiveTvSchedule(channelId) {
   const chId = channelId || 'dd-news';
   const ch = YOUTUBE_SOURCES.find((c) => c.id === chId) || YOUTUBE_SOURCES[0];
-  const items = CHANNEL_SCHEDULES[ch.id] || [
-    {
-      id: `sch-${ch.id}-default`,
-      title: ch.currentProgram || `${ch.name} Continuous Broadcast`,
-      category: ch.category || 'Analysis',
-      deskId: ch.deskId || 'national',
-      startTime: '09:00',
-      endTime: '11:00',
-      duration: '120m',
-      isLive: ch.status === 'live',
-      description: `Authoritative analysis, documentary reporting, and research briefings from ${ch.name}.`,
-    },
-    {
-      id: `sch-${ch.id}-upcoming`,
-      title: `${ch.name} Intelligence & Sectoral Deep-Dive`,
-      category: 'Research',
-      deskId: ch.deskId || 'national',
-      startTime: '11:00',
-      endTime: '12:00',
-      duration: '60m',
-      isLive: false,
-      description: `In-depth reporting and desk-grounded interviews with official institutional and technical sources.`,
-    },
-  ];
-
+  // F7 (F171 B8): no invented programmes; a channel without a published schedule has none.
+  const items = CHANNEL_SCHEDULES[ch.id] || [];
   return {
     ok: true,
     channelId: ch.id,
     channelName: ch.name,
     date: new Date().toISOString().split('T')[0],
     items,
+    ...(items.length ? {} : { message: 'Schedule not published' }),
   };
 }
 
@@ -1103,7 +724,7 @@ export function getLiveTvTranscript(broadcastId) {
     ok: true,
     broadcastId,
     available: false,
-    message: 'Transcript unavailable for this broadcast. Caption extraction is not configured for this external YouTube video.',
+    message: 'No transcript available.',
     cues: [],
   };
 }

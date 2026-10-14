@@ -99,8 +99,8 @@ describe('CR-06 — End-to-End API Verification Suite', () => {
       // 4. Transcript
       const tr = getLiveTvTranscript('arch-dd-2026-09-26');
       expect(tr.ok).toBe(true);
-      expect(tr.available).toBe(true);
-      expect(Array.isArray(tr.cues)).toBe(true);
+      expect(tr.available).toBe(false);
+      expect(tr.cues).toEqual([]);
     });
 
     it('verifies /api/home/markets contract and data correctness', async () => {

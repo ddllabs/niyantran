@@ -32,63 +32,16 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     }
   });
 
-  it('retrieves structured broadcast schedule for channels with active/live indicators', () => {
-    const ddSchedule = getLiveTvSchedule('dd-news');
-    expect(ddSchedule.ok).toBe(true);
-    expect(ddSchedule.channelId).toBe('dd-news');
-    expect(Array.isArray(ddSchedule.items)).toBe(true);
-    expect(ddSchedule.items.length).toBeGreaterThan(0);
-
-    const onAirItem = ddSchedule.items.find((it) => it.isLive);
-    expect(onAirItem).toBeDefined();
-    expect(onAirItem.startTime).toBeDefined();
-    expect(onAirItem.endTime).toBeDefined();
-    expect(onAirItem.deskId).toBe('legislative');
-
-    // Default fallback schedule for other channels
-    const otherSchedule = getLiveTvSchedule('aaj-tak');
-    expect(otherSchedule.ok).toBe(true);
-    expect(otherSchedule.channelId).toBe('aaj-tak');
-    expect(otherSchedule.items.length).toBeGreaterThanOrEqual(1);
-    expect(otherSchedule.items[0].isLive).toBe(true);
-  });
-
-  it('retrieves archive items with real dates, durations, and summaries', () => {
-    const allArchive = getLiveTvArchive();
-    expect(allArchive.ok).toBe(true);
-    expect(allArchive.items.length).toBeGreaterThanOrEqual(3);
-
-    for (const item of allArchive.items) {
-      expect(item.id).toBeDefined();
-      expect(item.channelId).toBeDefined();
-      expect(item.title).toBeDefined();
-      expect(item.date).toMatch(/^\d{4}-\d{2}-\d{2}/);
-      expect(item.duration).toBeDefined();
-      expect(typeof item.hasTranscript).toBe('boolean');
-      expect(Array.isArray(item.topics)).toBe(true);
-    }
-
-    // Filter archive by channel
-    const filtered = getLiveTvArchive('dd-news');
-    expect(filtered.ok).toBe(true);
-    expect(filtered.items.every((it) => it.channelId === 'dd-news')).toBe(true);
-  });
-
-  it('retrieves authoritative transcript tied to actual broadcast with cues and speakers', () => {
-    const broadcastId = 'arch-dd-2026-09-26';
-    const transcript = getLiveTvTranscript(broadcastId);
-    expect(transcript.ok).toBe(true);
-    expect(transcript.broadcastId).toBe(broadcastId);
-    expect(transcript.available).toBe(true);
-    expect(transcript.source).toContain('Official');
-    expect(Array.isArray(transcript.cues)).toBe(true);
-    expect(transcript.cues.length).toBeGreaterThanOrEqual(3);
-
-    for (const cue of transcript.cues) {
-      expect(cue.timestamp).toMatch(/^\d{2}:\d{2}:\d{2}$/);
-      expect(cue.speaker).toBeDefined();
-      expect(cue.text.length).toBeGreaterThan(0);
-    }
+  // F7 (F171 B8): schedules, archive entries and transcripts were invented; none is shown now.
+  it('shows no invented schedule, archive or transcript', () => {
+    const dd = getLiveTvSchedule('dd-news');
+    expect(dd.ok).toBe(true);
+    expect(dd.channelId).toBe('dd-news');
+    expect(dd.items).toEqual([]);
+    expect(dd.message).toBe('Schedule not published');
+    expect(getLiveTvArchive().items).toEqual([]);
+    expect(getLiveTvArchive('dd-news').items).toEqual([]);
+    expect(getLiveTvTranscript('arch-dd-2026-09-26').available).toBe(false);
   });
 
   it('handles transcript unavailable state gracefully without generating fabricated content', () => {
@@ -101,14 +54,14 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     const noTranscript = getLiveTvTranscript('arch-cnbc-2026-09-23');
     expect(noTranscript.ok).toBe(true);
     expect(noTranscript.available).toBe(false);
-    expect(noTranscript.message).toContain('Transcript unavailable');
+    expect(noTranscript.message).toBe('No transcript available.');
     expect(noTranscript.cues).toEqual([]);
 
     // Unknown broadcast
     const unknown = getLiveTvTranscript('non-existent-id');
     expect(unknown.ok).toBe(true);
     expect(unknown.available).toBe(false);
-    expect(unknown.message).toContain('Transcript unavailable');
+    expect(unknown.message).toBe('No transcript available.');
     expect(unknown.cues).toEqual([]);
   });
 
@@ -145,16 +98,16 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
 
       const sch = await fetchLiveTvSchedule('dd-news');
       expect(sch.ok).toBe(true);
-      expect(sch.items.length).toBeGreaterThan(0);
+      expect(sch.items).toEqual([]);
 
       const arch = await fetchLiveTvArchive('dd-news');
       expect(arch.ok).toBe(true);
-      expect(arch.items.length).toBeGreaterThan(0);
+      expect(arch.items).toEqual([]);
 
       const tr = await fetchLiveTvTranscript('arch-dd-2026-09-26');
       expect(tr.ok).toBe(true);
-      expect(tr.available).toBe(true);
-      expect(tr.cues.length).toBeGreaterThan(0);
+      expect(tr.available).toBe(false);
+      expect(tr.cues).toEqual([]);
 
       // Network failure returns safe error shape
       globalThis.fetch = async () => {
@@ -188,7 +141,8 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(openHtml).toContain('ltv-video-container');
     expect(openHtml).toContain('Broadcast Schedule');
     expect(openHtml).toContain('Archived Segments');
-    expect(openHtml).toContain('Authoritative Transcript');
+    expect(openHtml).toContain('Transcript');
+    expect(openHtml).not.toContain('Authoritative');
   });
 
   it('supports curated YouTube sources across all 6 required categories', () => {
@@ -230,11 +184,10 @@ describe('CR-08 — Live TV Contracts and Data Verification', () => {
     expect(dhruvVideos.recentVideos.length).toBeGreaterThanOrEqual(1);
     expect(dhruvVideos.recentVideos[0].embedUrl).toContain('youtube-nocookie.com/embed');
 
-    // Live streams
+    // Live streams: none is claimed until liveness is checked (F7).
     const liveStreams = await getLiveTvLiveStreams();
     expect(liveStreams.ok).toBe(true);
-    expect(Array.isArray(liveStreams.liveStreams)).toBe(true);
-    expect(liveStreams.count).toBeGreaterThanOrEqual(1);
+    expect(liveStreams.liveStreams).toEqual([]);
 
     // Missing channel ID error handling
     const missing = await getLiveTvVideos('');

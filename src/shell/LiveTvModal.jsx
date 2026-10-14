@@ -36,7 +36,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
   const [archiveLoading, setArchiveLoading] = useState(true);
   const [archiveError, setArchiveError] = useState(null);
 
-  const [selectedBroadcastId, setSelectedBroadcastId] = useState('arch-dd-2026-09-26');
+  const [selectedBroadcastId, setSelectedBroadcastId] = useState(null);
   const [transcript, setTranscript] = useState(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptQuery, setTranscriptQuery] = useState('');
@@ -436,7 +436,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 <h3>
                   {playbackMode === 'archive'
                     ? selectedArchiveItem?.title || 'Archived Recording'
-                    : activeChannel?.currentProgram || 'Authoritative Live Broadcast'}
+                    : activeChannel?.name || ''}
                 </h3>
                 <p>
                   {playbackMode === 'archive' ? (
@@ -547,7 +547,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
               className={`ltv-tab-btn${activeTab === 'transcript' ? ' active' : ''}`}
               onClick={() => setActiveTab('transcript')}
             >
-              Authoritative Transcript
+              Transcript
             </button>
           </nav>
 
@@ -562,7 +562,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 ) : scheduleError ? (
                   <div className="ltv-empty-msg">Schedule error: {scheduleError}</div>
                 ) : schedule.length === 0 ? (
-                  <div className="ltv-empty-msg">No schedule items published for this channel.</div>
+                  <div className="ltv-empty-msg">Schedule not published.</div>
                 ) : (
                   schedule.map((item) => (
                     <div
@@ -677,7 +677,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                 ) : archiveError ? (
                   <div className="ltv-empty-msg">Archive error: {archiveError}</div>
                 ) : archive.length === 0 ? (
-                  <div className="ltv-empty-msg">No past broadcasts archived for this channel.</div>
+                  <div className="ltv-empty-msg">No archived broadcasts.</div>
                 ) : (
                   archive.map((item) => {
                     const isSelected =
@@ -723,7 +723,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                               setActiveTab('transcript');
                             }}
                           >
-                            {item.hasTranscript ? 'Read Transcript' : 'View Summary'}
+                            {item.hasTranscript ? 'Read Transcript' : 'No transcript'}
                           </button>
                           {item.deskId && (
                             <button
@@ -771,11 +771,8 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                   <div className="ltv-loading-spinner">
                     <span className="ltv-spinner-circle" /> Loading transcript...
                   </div>
-                ) : !transcript || transcript.available === false ? (
-                  <div className="ltv-empty-msg">
-                    {transcript?.message ||
-                      'Transcript unavailable for this broadcast. No fabricated transcript generated.'}
-                  </div>
+                ) : !transcript || !transcript.ok || transcript.available === false ? (
+                  <div className="ltv-empty-msg">{transcript?.message || 'No transcript available.'}</div>
                 ) : filteredCues.length === 0 ? (
                   <div className="ltv-empty-msg">No transcript cues match your search.</div>
                 ) : (
