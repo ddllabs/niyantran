@@ -64,7 +64,7 @@ At most three agents run at once.
 - [x] Task 6: admin (`8fef4ee`, merged `21a97b3`)
 - [ ] Task 7: copy (wording approved by the owner first)
 - [x] Review R: no critical findings; 2 important + 7 minor + nits fixed (`21d5c2d` frontend, `c035c2c` backend)
-- [ ] Checkpoint C (local run 2, screenshots to the owner)
+- [x] Checkpoint C (local run 2 in the browser, desktop and phone, $0.02; [evidence](../research/2026-10-14-ai-credits-local-run-2.md))
 - [ ] Production steps 1–5 (each on the owner's go-ahead)
 
 ## Tasks
