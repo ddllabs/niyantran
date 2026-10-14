@@ -13,6 +13,7 @@ import {
   wikidataAthleteRows,
   wikidataLeagueRows,
 } from '../src/lib/sportsPack.js';
+import { cacheFresh, cacheWritable } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Sports)';
 const FETCH_MS = 20_000;
@@ -49,7 +50,7 @@ function sportsDb(kind, id) {
 }
 
 export async function loadWorldFixtures() {
-  if (fxCache && Date.now() - fxAt < TTL) return fxCache;
+  if (fxCache && cacheFresh(fxAt, TTL)) return fxCache;
   const rows = [];
   await Promise.all(
     WORLD_LEAGUES.map(async (lg) => {
@@ -64,9 +65,13 @@ export async function loadWorldFixtures() {
     }),
   );
   rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(a.league).localeCompare(String(b.league)));
-  fxCache = { ok: true, source: 'thesportsdb', rows };
-  fxAt = Date.now();
-  return fxCache;
+  const fresh = { ok: true, source: 'thesportsdb', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    fxCache = fresh;
+    fxAt = Date.now();
+  }
+  return fresh;
 }
 
 /** Live first, then upcoming (soonest first), then results (newest first). F169 T5. */
@@ -79,7 +84,7 @@ function islOrder(a, b) {
 }
 
 export async function loadIsl() {
-  if (islCache && Date.now() - islAt < TTL) return islCache;
+  if (islCache && cacheFresh(islAt, TTL)) return islCache;
   try {
     // F169 T5: the season's two calendar years (the season runs September to April). Without a
     // date ESPN returns only today's matchday; a date range answers 400 (measured 2026-10-14).
@@ -98,9 +103,13 @@ export async function loadIsl() {
       })
       .sort(islOrder);
     if (rows.length) {
-      islCache = { ok: true, source: 'espn', rows };
-      islAt = Date.now();
-      return islCache;
+      const fresh = { ok: true, source: 'espn', rows };
+      // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+      if (cacheWritable()) {
+        islCache = fresh;
+        islAt = Date.now();
+      }
+      return fresh;
     }
   } catch {
     /* SportsDB */
@@ -115,9 +124,13 @@ export async function loadIsl() {
     }
   }
   rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  islCache = { ok: true, source: 'thesportsdb', rows };
-  islAt = Date.now();
-  return islCache;
+  const fresh = { ok: true, source: 'thesportsdb', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    islCache = fresh;
+    islAt = Date.now();
+  }
+  return fresh;
 }
 
 function wdUrl(q) {
@@ -125,19 +138,27 @@ function wdUrl(q) {
 }
 
 export async function loadSportsLeagues() {
-  if (lgCache && Date.now() - lgAt < WD_TTL) return lgCache;
+  if (lgCache && cacheFresh(lgAt, WD_TTL)) return lgCache;
   const json = await getJson(wdUrl(WD_LEAGUES_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataLeagueRows(json);
-  lgCache = { ok: true, source: 'wikidata', rows };
-  lgAt = Date.now();
-  return lgCache;
+  const fresh = { ok: true, source: 'wikidata', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    lgCache = fresh;
+    lgAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadAthletes() {
-  if (atCache && Date.now() - atAt < WD_TTL) return atCache;
+  if (atCache && cacheFresh(atAt, WD_TTL)) return atCache;
   const json = await getJson(wdUrl(WD_ATHLETES_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataAthleteRows(json);
-  atCache = { ok: true, source: 'wikidata', rows };
-  atAt = Date.now();
-  return atCache;
+  const fresh = { ok: true, source: 'wikidata', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    atCache = fresh;
+    atAt = Date.now();
+  }
+  return fresh;
 }

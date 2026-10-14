@@ -13,8 +13,9 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { feedRunsForDb, itemKeysFor } from './feedSchedule.mjs';
+import { FEED_CLASSES, FEED_SCHEDULE, feedRunsForDb, itemKeysFor } from './feedSchedule.mjs';
 import { serveFeatureFeed } from './featureFeed.mjs';
+import { withoutLoaderCaches } from './loaderCache.mjs';
 import { cutChars, safeText, supabaseRpc } from './supabaseRpc.mjs';
 
 // The database client lives in supabaseRpc.mjs so that the page server (feedServe.mjs) can use it without
@@ -45,8 +46,11 @@ export const REFRESH_DEFAULTS = Object.freeze({
   concurrency: 4,
   // Each module's own limit. A module starts only while this much time is left before the reserve.
   moduleMs: 20_000,
-  // Kept at the end of the budget for the last feed_record calls.
+  // Kept at the end of the budget for the last feed_record calls (a record and its one retry are
+  // both bounded by the end of the budget).
   reserveMs: 5_000,
+  // The longest any one database call may take; less when less time is left.
+  dbMs: 10_000,
 });
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
@@ -76,8 +80,8 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
-function errorText(err) {
-  return safeText(err?.message || err || 'unknown error');
+function errorText(err, secrets) {
+  return safeText(err?.message || err || 'unknown error', 300, secrets);
 }
 
 // ISO dates and dates with a month name ("Tue, 14 Oct 2026 10:00:00 GMT", "14 Oct 2026"). A
@@ -113,9 +117,11 @@ function urlOf(row) {
 
 /**
  * The served rows as feed_record items: status rows left out, a row over 64 KB dropped, one item
- * per key (the first kept), at most 2,000. `dropped` counts what was left out and why.
+ * per key (the first kept), at most 2,000. `dropped` counts what was left out and why. `kind` is the
+ * module's keeping kind (FEED_CLASSES); it decides how rows that share a link are keyed
+ * (itemKeysFor).
  */
-export function itemsFromRows(rows) {
+export function itemsFromRows(rows, kind) {
   const dropped = { status_rows: 0, invalid: 0, oversize: 0, duplicate: 0, over_limit: 0 };
   const items = [];
   const seen = new Set();
@@ -141,8 +147,8 @@ export function itemsFromRows(rows) {
     }
     kept.push({ row, text });
   }
-  // Keys over the whole answer: rows that share a dataset's link stay separate items.
-  const keys = itemKeysFor(kept.map((k) => k.row));
+  // For a replacing kind a shared link is a dataset's page, so its rows stay separate items.
+  const keys = itemKeysFor(kept.map((k) => k.row), kind);
   for (const [i, { row, text }] of kept.entries()) {
     let key = keys[i];
     if (bytes(key) > FEED_CAPS.itemKeyBytes) key = `k:${sha256(key)}`;
@@ -170,11 +176,20 @@ export function itemsFromRows(rows) {
 const isStatusRow = (r) => r && typeof r === 'object' && r.status === 'source_status';
 
 /**
+ * The adapters a scheduled module's live answer uses (server/featureFeed.mjs and nationalFeed.mjs;
+ * the 2026-10-15 local run's 64 live answers used only these). Anything else is refused by
+ * default: `embedded` (bundled data), `bill-history` (the archive merge), `internal` (simulators),
+ * `planned`, the registry's own names on the generic path, and anything new.
+ */
+export const LIVE_ADAPTERS = Object.freeze(new Set(['api', 'news-search', 'live']));
+
+/**
  * Whether a loader's answer is live (ok or empty) or must not be kept (failed). The envelope marks
  * a stored answer several ways (server/featureFeed.mjs): `fallback` when a live source failed and
- * stored rows stand in, `served: 'archive'` and kind `backup-pack` for the archive and backup
- * passes, adapter `embedded` for rows read from the bundled data, adapter `planned` for a module
- * with no source, and a `source_status` row when nothing could be shown.
+ * stored rows stand in (or a loader answered its stale cache), `served: 'archive'` and kind
+ * `backup-pack` for the archive and backup passes, an adapter outside LIVE_ADAPTERS, and a
+ * `source_status` row when nothing could be shown. refreshDue adds one more test the envelope
+ * cannot make: an answer for which no request reached a source is not live.
  */
 export function classifyAnswer(body) {
   if (!body || typeof body !== 'object') return { status: 'failed', reason: 'the loader gave no answer' };
@@ -189,6 +204,7 @@ export function classifyAnswer(body) {
   if (source.kind === 'backup-pack') return failed('the answer came from the backup pack');
   if (body.fallback) return failed('a live source failed and stored rows stood in');
   if (source.adapter === 'embedded') return failed('the answer is a stored copy, not a live one');
+  if (!LIVE_ADAPTERS.has(source.adapter)) return failed(`adapter "${safeText(source.adapter || 'none', 40)}" is not a live source`);
   const real = rows.filter((r) => !isStatusRow(r));
   if (rows.length && !real.length) return failed('the source was offline or empty');
   if (!real.length) return { status: 'empty', reason: 'the source answered with no items' };
@@ -305,18 +321,49 @@ async function buffered(res, host) {
 }
 
 class RunGate {
-  constructor() {
+  constructor(now) {
+    this.now = now;
     this.tails = new Map();
     this.closed = new Map();
   }
 
+  /**
+   * One module's fetch scope. `requests` counts the requests let through to a source; the time the
+   * module spends only waiting for a host's turn (`queuedMs`) does not count against its limit.
+   */
   module() {
-    return { gate: this, controller: new AbortController(), done: false, refusal: '' };
+    const gate = this;
+    return {
+      gate,
+      controller: new AbortController(),
+      done: false,
+      refusal: '',
+      startedAt: gate.now(),
+      requests: 0,
+      active: 0,
+      waiting: 0,
+      waitingFor: '',
+      queuedSince: null,
+      queuedMs: 0,
+      usedMs(t) {
+        return t - this.startedAt - this.queuedMs - (this.queuedSince == null ? 0 : t - this.queuedSince);
+      },
+    };
   }
 
-  /** fn runs with the module as the fetch scope; everything it starts keeps that scope. */
+  // A module is queued while it has a request waiting for a host and none running.
+  settle(mod) {
+    const queued = mod.waiting > 0 && mod.active === 0;
+    if (queued && mod.queuedSince == null) mod.queuedSince = this.now();
+    if (!queued && mod.queuedSince != null) {
+      mod.queuedMs += this.now() - mod.queuedSince;
+      mod.queuedSince = null;
+    }
+  }
+
+  /** fn runs with the module as the fetch scope, and the loaders' caches skipped. */
   run(mod, fn) {
-    return runScope.run(mod, async () => fn());
+    return runScope.run(mod, () => withoutLoaderCaches(async () => fn()));
   }
 
   finish(mod) {
@@ -324,11 +371,17 @@ class RunGate {
     mod.controller.abort(new Error('the module has finished'));
   }
 
+  /**
+   * A host closed earlier in the run refuses at once. `refusal` (which fails the module) is set
+   * only when another module closed it: then this module's rows are partial because of the run
+   * itself. A module whose own request was refused keeps the answer its loader made of that, so a
+   * permanent 403 on an optional extra source does not fail it every run.
+   */
   refuseIfClosed(host, mod) {
-    const why = this.closed.get(host);
-    if (!why) return;
-    if (!mod.refusal) mod.refusal = why;
-    throw new Error(why);
+    const closed = this.closed.get(host);
+    if (!closed) return;
+    if (closed.by !== mod && !mod.refusal) mod.refusal = closed.why;
+    throw new Error(closed.why);
   }
 
   async fetch(original, input, init, mod) {
@@ -343,35 +396,66 @@ class RunGate {
     });
     const tail = before.then(() => mine);
     this.tails.set(host, tail);
+    let running = false;
+    mod.waiting += 1;
+    mod.waitingFor = host;
+    this.settle(mod);
     try {
-      await waitUnlessAborted(before, mod.controller.signal);
+      try {
+        await waitUnlessAborted(before, mod.controller.signal);
+      } finally {
+        mod.waiting -= 1;
+        this.settle(mod);
+      }
       this.refuseIfClosed(host, mod);
+      mod.active += 1;
+      mod.requests += 1;
+      running = true;
+      this.settle(mod);
       const signals = [mod.controller.signal, init?.signal, input instanceof Request ? input.signal : null].filter(Boolean);
       const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
       const res = await original(input, { ...(init || {}), signal });
       if (res.status === 429 || res.status === 403) {
         const why = `${host} answered HTTP ${res.status}; closed for the rest of this run`;
-        if (!this.closed.has(host)) this.closed.set(host, why);
-        if (!mod.refusal) mod.refusal = why;
+        if (!this.closed.has(host)) this.closed.set(host, { why, by: mod });
       }
       return await buffered(res, host);
     } finally {
+      if (running) {
+        mod.active -= 1;
+        this.settle(mod);
+      }
       release();
       if (this.tails.get(host) === tail) this.tails.delete(host);
     }
   }
 }
 
-function settleWithin(promise, ms) {
+/**
+ * Resolves 'late' when the module has used its limit (time queued for a host excluded) or the
+ * hard end of the run's work time is reached, whichever is first.
+ */
+function moduleLimit(mod, moduleMs, hardEnd, now) {
   let timer;
-  const late = new Promise((resolve) => {
-    timer = setTimeout(() => resolve({ state: 'late' }), ms);
+  const promise = new Promise((resolve) => {
+    const check = () => {
+      const t = now();
+      const left = Math.min(moduleMs - mod.usedMs(t), hardEnd - t);
+      if (left <= 0) resolve({ state: 'late', queued: mod.queuedSince != null, atEnd: hardEnd - t <= 0 });
+      else timer = setTimeout(check, Math.max(1, Math.ceil(left)));
+    };
+    check();
   });
-  const settled = promise.then(
-    (value) => ({ state: 'done', value }),
-    (error) => ({ state: 'failed', error }),
-  );
-  return Promise.race([settled, late]).finally(() => clearTimeout(timer));
+  return { promise, cancel: () => clearTimeout(timer) };
+}
+
+/** A database call bounded by its own time, whether or not the rpc honours timeoutMs. */
+function withDeadline(promise, ms, what) {
+  let timer;
+  const late = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error(`${what}: no answer within ${Math.round(ms)} ms`), { code: 'timeout' })), ms);
+  });
+  return Promise.race([Promise.resolve(promise), late]).finally(() => clearTimeout(timer));
 }
 
 const runKey = (r) => `${r.tier}\u0000${r.feature}\u0000${r.variant || ''}`;
@@ -380,12 +464,19 @@ const runKey = (r) => `${r.tier}\u0000${r.feature}\u0000${r.variant || ''}`;
  * Refresh the modules that are due, within the budget. Returns a summary: claimed modules, counts
  * by recorded status, items sent, rows dropped, hosts closed, the time taken, and one line per
  * module. Throws only when the first claim fails (nothing was started).
+ *
+ * Time: modules start only while a whole module limit fits before `budgetMs - reserveMs`, and every
+ * module stops by then whatever its own limit (queue time excluded from that limit). Every database
+ * call is bounded by the time left: a claim by the work time, a record (and its one retry) by the
+ * end of the budget, so the run returns within `budgetMs` even when the database is slow. A module
+ * whose record did not complete keeps its lease until it ends; the next claim counts it as failed.
  */
 export async function refreshDue({
   budgetMs = REFRESH_DEFAULTS.budgetMs,
   concurrency = REFRESH_DEFAULTS.concurrency,
   moduleMs = REFRESH_DEFAULTS.moduleMs,
   reserveMs = REFRESH_DEFAULTS.reserveMs,
+  dbMs = REFRESH_DEFAULTS.dbMs,
   rpc = supabaseRpc(),
   load = serveFeatureFeed,
   now = Date.now,
@@ -393,14 +484,15 @@ export async function refreshDue({
   leaseSeconds,
 } = {}) {
   const t0 = now();
-  const workEnd = t0 + budgetMs - reserveMs;
+  const budgetEnd = t0 + budgetMs;
+  const workEnd = budgetEnd - reserveMs;
   const slots = Math.min(100, Math.max(1, Math.floor(concurrency)));
   // The lease outlasts the whole run, so a module is never claimed twice while this run holds it.
   const lease = Math.min(3600, Math.max(10, leaseSeconds ?? Math.ceil(budgetMs / 1000) + 30));
-  const paramsFor = new Map(runs.map((r) => [runKey(r), r.params || {}]));
+  const byKey = new Map(runs.map((r) => [runKey(r), r]));
   // The database ignores params; they stay here.
   const pRuns = runs.map(({ params: _params, ...r }) => r);
-  const gate = new RunGate();
+  const gate = new RunGate(now);
   const summary = {
     ok: true,
     claimed: 0,
@@ -414,9 +506,12 @@ export async function refreshDue({
     modules: [],
   };
 
-  async function recordModule(claim, payload) {
+  const recordWithin = () => Math.max(100, Math.min(dbMs, budgetEnd - now()));
+  const callDb = (name, args, ms) => withDeadline(rpc(name, args, { timeoutMs: ms }), ms, name);
+
+  async function recordModule(payload) {
     try {
-      return { answer: await rpc('feed_record', { p: payload }) };
+      return { answer: await callDb('feed_record', { p: payload }, recordWithin()) };
     } catch (err) {
       if (payload.status === 'ok' && err?.code === '22023') {
         // The store refused the batch (a cap): record the run as failed so the lease is released.
@@ -424,7 +519,7 @@ export async function refreshDue({
           const failed = { ...payload, status: 'failed', error: safeText(`the store refused the answer: ${err.message}`) };
           delete failed.items;
           delete failed.meta;
-          return { answer: await rpc('feed_record', { p: failed }), sent: 'failed' };
+          return { answer: await callDb('feed_record', { p: failed }, recordWithin()), sent: 'failed' };
         } catch (again) {
           return { error: errorText(again) };
         }
@@ -433,12 +528,19 @@ export async function refreshDue({
     }
   }
 
-  async function runModule(claim) {
-    const started = now();
-    const variant = claim.variant || '';
-    const params = new URLSearchParams({ tier: claim.tier, feature: claim.feature, ...(paramsFor.get(runKey(claim)) || {}) });
-    const mod = gate.module();
-    const outcome = await settleWithin(gate.run(mod, () => load(params)), moduleMs);
+  // What the module's answer earns, and the items to keep.
+  async function fetchModule(claim, mod) {
+    const run = byKey.get(runKey(claim)) || {};
+    const kind = claim.kind || run.kind || FEED_CLASSES[FEED_SCHEDULE[`${claim.tier}:${claim.feature}`]]?.kind;
+    const params = new URLSearchParams({ tier: claim.tier, feature: claim.feature, ...(run.params || {}) });
+    const limit = moduleLimit(mod, moduleMs, workEnd, now);
+    const outcome = await Promise.race([
+      gate.run(mod, () => load(params)).then(
+        (value) => ({ state: 'done', value }),
+        (error) => ({ state: 'failed', error }),
+      ),
+      limit.promise,
+    ]).finally(limit.cancel);
     gate.finish(mod);
     const fetchedAt = new Date(now()).toISOString();
 
@@ -446,20 +548,29 @@ export async function refreshDue({
     let reason = '';
     let items = [];
     let meta;
-    let droppedRows = 0;
+    let dropped = 0;
     if (outcome.state === 'late') {
       status = 'timeout';
-      reason = `no answer within the module limit of ${Math.round(moduleMs / 1000)} s`;
+      reason = outcome.queued
+        ? `still waiting for ${mod.waitingFor} when the run's time ran out`
+        : outcome.atEnd
+          ? 'no answer before the run’s time ran out'
+          : `no answer within the module limit of ${Math.round(moduleMs / 1000)} s`;
     } else if (outcome.state === 'failed') {
       status = 'failed';
       reason = `the loader failed: ${errorText(outcome.error)}`;
     } else {
       ({ status, reason } = classifyAnswer(outcome.value));
+      // Nothing reached a source: the answer came from a cache or stored data, whatever it says.
+      if (status === 'ok' && mod.requests === 0) {
+        status = 'failed';
+        reason = 'no request reached a source in this run; the answer came from a cache or stored data';
+      }
       if (status === 'ok') {
-        const built = itemsFromRows(outcome.value.rows);
+        const built = itemsFromRows(outcome.value.rows, kind);
         for (const [k, n] of Object.entries(built.dropped)) {
           summary.dropped[k] += n;
-          droppedRows += n;
+          dropped += n;
         }
         items = built.items;
         if (!items.length) {
@@ -470,24 +581,41 @@ export async function refreshDue({
         }
       }
     }
-    // A host this run closed explains the failure better than the loader's own words.
-    if (mod.refusal && (status === 'failed' || status === 'empty')) {
+    // The gate refused one of this module's requests because another module had closed the host:
+    // that outranks the loader's own words, and the partial answer is not kept.
+    if (mod.refusal && status !== 'timeout') {
       status = 'failed';
       reason = mod.refusal;
+      items = [];
+      meta = undefined;
     }
+    return { status, reason, items, meta, dropped };
+  }
 
+  async function runModule(claim) {
+    const mod = gate.module();
+    const variant = claim.variant || '';
+    let result;
+    try {
+      result = await fetchModule(claim, mod);
+    } catch (err) {
+      // Anything unexpected still releases the lease.
+      gate.finish(mod);
+      result = { status: 'failed', reason: `refresh error: ${errorText(err)}`, items: [], dropped: 0 };
+    }
+    const { status, reason, items, meta, dropped } = result;
     const payload = {
       tier: claim.tier,
       feature: claim.feature,
       variant,
       lease_token: claim.lease_token,
       status,
-      ms: Math.max(0, Math.round(now() - started)),
+      ms: Math.max(0, Math.round(now() - mod.startedAt)),
       error: status === 'ok' ? null : safeText(reason),
-      started_at: new Date(started).toISOString(),
+      started_at: new Date(mod.startedAt).toISOString(),
       ...(status === 'ok' ? { items, meta } : {}),
     };
-    const recorded = await recordModule(claim, payload);
+    const recorded = await recordModule(payload);
     const recordedStatus = recorded.answer?.status || 'unrecorded';
     summary.counts[recordedStatus] = (summary.counts[recordedStatus] || 0) + 1;
     if (recorded.sent !== 'failed') summary.items += items.length;
@@ -500,9 +628,11 @@ export async function refreshDue({
       status: recordedStatus,
       sent: recorded.sent || status,
       ms: payload.ms,
+      queued_ms: Math.round(mod.queuedMs),
+      requests: mod.requests,
       items: items.length,
       new_items: Number(recorded.answer?.new_items) || 0,
-      ...(droppedRows ? { dropped: droppedRows } : {}),
+      ...(dropped ? { dropped } : {}),
       ...(status === 'ok' ? {} : { error: payload.error }),
     });
   }
@@ -516,7 +646,8 @@ export async function refreshDue({
       if (more && free > 0 && now() + moduleMs <= workEnd) {
         let claimed;
         try {
-          claimed = await rpc('feed_claim_due', { p_runs: pRuns, p_limit: free, p_lease_seconds: lease });
+          claimed = await callDb('feed_claim_due', { p_runs: pRuns, p_limit: free, p_lease_seconds: lease },
+            Math.max(100, Math.min(dbMs, workEnd - now())));
         } catch (err) {
           if (!summary.claimed && !active.size) throw err;
           summary.errors.push(safeText(`claim: ${errorText(err)}`));
@@ -596,9 +727,8 @@ export async function handleFeedRefresh(req, res, { refresh = () => refreshDue()
       send(503, { ok: false, error: 'The feed store is not configured on this host.' });
       return;
     }
-    // Query strings are cut from the message (safeText), and the secret could never be in it, but
-    // it is masked all the same.
-    log.error(`[feed-refresh] failed: ${errorText(err).split(expected).join('[secret]')}`);
+    // The secret is masked before the message is cut (safeText), and query strings are cut out.
+    log.error(`[feed-refresh] failed: ${errorText(err, [expected])}`);
     send(502, { ok: false, error: 'Feed refresh failed' });
   }
 }

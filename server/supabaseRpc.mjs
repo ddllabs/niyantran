@@ -11,9 +11,15 @@ export function cutChars(value, n) {
   return Array.from(s).slice(0, n).join('');
 }
 
-/** Query strings can carry keys: a reason never shows one. */
-export function safeText(value, n = 300) {
-  return cutChars(String(value ?? '').replace(/(https?:\/\/[^\s?#'"]+)[?#][^\s'"]*/gi, '$1?…').replace(/\s+/g, ' ').trim(), n);
+/**
+ * Text fit for a log, a reason or an answer: the given secrets masked and query strings (which can
+ * carry keys) cut first, then the length; cutting first could leave part of a secret behind.
+ */
+export function safeText(value, n = 300, secrets = []) {
+  let s = String(value ?? '');
+  for (const secret of secrets) if (secret) s = s.split(secret).join('[secret]');
+  s = s.replace(/(https?:\/\/[^\s?#'"]+)[?#][^\s'"]*/gi, '$1?…').replace(/\s+/g, ' ').trim();
+  return cutChars(s, n);
 }
 
 /**
@@ -27,7 +33,8 @@ export function supabaseRpc({
   fetchImpl = (...args) => globalThis.fetch(...args),
   timeoutMs = 10_000,
 } = {}) {
-  return async (name, args) => {
+  // The third argument's timeoutMs, when given, shortens the call (refreshDue passes the time left).
+  return async (name, args, { timeoutMs: callMs } = {}) => {
     if (!url || !key) {
       throw Object.assign(new Error('Supabase is not configured for the feed store'), { code: 'not_configured' });
     }
@@ -40,7 +47,7 @@ export function supabaseRpc({
         Accept: 'application/json',
       },
       body: JSON.stringify(args ?? {}),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(Math.max(1, Math.min(timeoutMs, callMs ?? timeoutMs))),
     });
     const text = await res.text();
     let data = null;
@@ -50,7 +57,7 @@ export function supabaseRpc({
       data = null;
     }
     if (!res.ok) {
-      const message = safeText(data?.message || `HTTP ${res.status}`).split(key).join('[key]');
+      const message = safeText(data?.message || `HTTP ${res.status}`, 300, [key]);
       throw Object.assign(new Error(`${name}: ${message}`), { code: data?.code || `HTTP ${res.status}`, status: res.status });
     }
     return data;

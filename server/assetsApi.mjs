@@ -5,6 +5,8 @@
  * GET /api/celestrak  — CelesTrak objects catalogued in the last 30 days
  * GET /api/wb-projects — World Bank projects API (trimmed)
  */
+import { cacheFresh, cacheWritable } from './loaderCache.mjs';
+
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; StrategicAssets)';
 const FETCH_MS = 28_000;
 const TTL = 30 * 60 * 1000;
@@ -78,7 +80,7 @@ async function getJson(url) {
 }
 
 export async function loadPortwatch() {
-  if (pwCache && Date.now() - pwAt < PW_TTL) return pwCache;
+  if (pwCache && cacheFresh(pwAt, PW_TTL)) return pwCache;
   const j = await getJson(PORTWATCH);
   const attrs = (j.features || []).map((f) => f.attributes).filter((a) => a?.portname);
   const latest = attrs[0]?.date || '';
@@ -93,9 +95,13 @@ export async function loadPortwatch() {
       dryBulk: a.n_dry_bulk,
       cargo: a.n_cargo,
     }));
-  pwCache = { ok: true, source: 'imf-portwatch', date: latest, rows };
-  pwAt = Date.now();
-  return pwCache;
+  const fresh = { ok: true, source: 'imf-portwatch', date: latest, rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    pwCache = fresh;
+    pwAt = Date.now();
+  }
+  return fresh;
 }
 
 export function flattenLaunch(l) {
@@ -126,19 +132,23 @@ export function flattenLaunch(l) {
 }
 
 export async function loadLaunches() {
-  if (launchCache && Date.now() - launchAt < TTL) return launchCache;
+  if (launchCache && cacheFresh(launchAt, TTL)) return launchCache;
   const j = await getJson(LAUNCHES);
   const rows = (j.results || []).map(flattenLaunch);
-  launchCache = { ok: true, source: 'spacedevs', rows };
-  launchAt = Date.now();
-  return launchCache;
+  const fresh = { ok: true, source: 'spacedevs', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    launchCache = fresh;
+    launchAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadCelestrak() {
-  if (ctCache && Date.now() - ctAt < CT_TTL) return ctCache;
+  if (ctCache && cacheFresh(ctAt, CT_TTL)) return ctCache;
   const arr = await getJson(CELESTRAK);
   const list = Array.isArray(arr) ? arr : [];
-  ctCache = {
+  const fresh = {
     ok: true,
     source: 'celestrak',
     total: list.length,
@@ -148,15 +158,19 @@ export async function loadCelestrak() {
       epoch: String(o.EPOCH || '').slice(0, 10),
     })),
   };
-  ctAt = Date.now();
-  return ctCache;
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    ctCache = fresh;
+    ctAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadWbProjects() {
-  if (wbCache && Date.now() - wbAt < PW_TTL) return wbCache;
+  if (wbCache && cacheFresh(wbAt, PW_TTL)) return wbCache;
   const j = await getJson(WB);
   const ps = j?.projects ? Object.keys(j.projects).map((k) => j.projects[k]) : [];
-  wbCache = {
+  const fresh = {
     ok: true,
     source: 'world-bank',
     rows: ps.slice(0, 12).map((p) => ({
@@ -167,8 +181,12 @@ export async function loadWbProjects() {
       url: p.url || '',
     })),
   };
-  wbAt = Date.now();
-  return wbCache;
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    wbCache = fresh;
+    wbAt = Date.now();
+  }
+  return fresh;
 }
 
 export function handleAssetsRequest(req, res, next) {

@@ -18,6 +18,7 @@ import {
   wikidataFilmRows,
   wikidataOttRows,
 } from '../src/lib/entertainmentPack.js';
+import { cacheFresh, cacheWritable } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Entertainment)';
 const FETCH_MS = 20_000;
@@ -58,7 +59,7 @@ function wdUrl(q) {
 }
 
 export async function loadTvTonight() {
-  if (tvCache?.rows?.length && Date.now() - tvAt < TTL) return tvCache;
+  if (tvCache?.rows?.length && cacheFresh(tvAt, TTL)) return tvCache;
   const rows = [];
   for (const [cc, url] of [
     ['IN', TVMAZE_IN],
@@ -72,7 +73,7 @@ export async function loadTvTonight() {
     }
   }
   const out = { ok: true, source: 'tvmaze', rows };
-  if (rows.length) {
+  if (rows.length && cacheWritable()) {
     tvCache = out;
     tvAt = Date.now();
   }
@@ -92,9 +93,9 @@ async function loadChart(primary, fallback) {
 }
 
 export async function loadMusicIndia() {
-  if (inChart?.rows?.length && Date.now() - inAt < TTL) return inChart;
+  if (inChart?.rows?.length && cacheFresh(inAt, TTL)) return inChart;
   const got = await loadChart(APPLE_IN, ITUNES_IN);
-  if (got.rows?.length) {
+  if (got.rows?.length && cacheWritable()) {
     inChart = got;
     inAt = Date.now();
   }
@@ -102,9 +103,9 @@ export async function loadMusicIndia() {
 }
 
 export async function loadMusicUs() {
-  if (usChart?.rows?.length && Date.now() - usAt < TTL) return usChart;
+  if (usChart?.rows?.length && cacheFresh(usAt, TTL)) return usChart;
   const got = await loadChart(APPLE_US, ITUNES_US);
-  if (got.rows?.length) {
+  if (got.rows?.length && cacheWritable()) {
     usChart = got;
     usAt = Date.now();
   }
@@ -112,28 +113,40 @@ export async function loadMusicUs() {
 }
 
 export async function loadBoxOffice() {
-  if (boxCache && Date.now() - boxAt < WD_TTL) return boxCache;
+  if (boxCache && cacheFresh(boxAt, WD_TTL)) return boxCache;
   const json = await getJson(wdUrl(WD_FILMS_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataFilmRows(json);
-  boxCache = { ok: true, source: 'wikidata', rows };
-  boxAt = Date.now();
-  return boxCache;
+  const fresh = { ok: true, source: 'wikidata', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    boxCache = fresh;
+    boxAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadOtt() {
-  if (ottCache && Date.now() - ottAt < WD_TTL) return ottCache;
+  if (ottCache && cacheFresh(ottAt, WD_TTL)) return ottCache;
   const json = await getJson(wdUrl(WD_OTT_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataOttRows(json);
-  ottCache = { ok: true, source: 'wikidata', rows };
-  ottAt = Date.now();
-  return ottCache;
+  const fresh = { ok: true, source: 'wikidata', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    ottCache = fresh;
+    ottAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadCelebrities() {
-  if (celebCache && Date.now() - celebAt < WD_TTL) return celebCache;
+  if (celebCache && cacheFresh(celebAt, WD_TTL)) return celebCache;
   const json = await getJson(wdUrl(WD_CELEB_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataCelebrityRows(json);
-  celebCache = { ok: true, source: 'wikidata', rows };
-  celebAt = Date.now();
-  return celebCache;
+  const fresh = { ok: true, source: 'wikidata', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    celebCache = fresh;
+    celebAt = Date.now();
+  }
+  return fresh;
 }

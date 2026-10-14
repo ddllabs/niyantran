@@ -1812,7 +1812,9 @@ export async function serveFeatureFeed(searchParams) {
             adapter: 'api',
             links: ['https://query.wikidata.org/'],
             coverage: { from: '', through: '', exhaustive: false },
-            fallback: false,
+            // F169 C3 review: loadIndiaCeos answers its last good list, marked stale, when Wikidata
+            // fails; that is a stored copy, so the answer says so.
+            fallback: Boolean(live.stale),
             note: econNote('leaders'),
             meta: { heading: feat.htmlFeature, section: 'BUSINESS LEADERS' },
           });

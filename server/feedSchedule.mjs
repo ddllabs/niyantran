@@ -161,21 +161,36 @@ export function itemKeyFor(row) {
   return `h:${createHash('sha256').update(basis).digest('hex').slice(0, 16)}`;
 }
 
+/** Kinds whose list is replaced or updated in place each run, rather than kept item by item. */
+export const REPLACING_KINDS = Object.freeze(new Set(['latest', 'reference', 'measurement']));
+
+const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
 /**
- * Keys for one answer's rows. A link that several rows share is the dataset's page, not an item's (a
- * World Bank indicator for 186 countries, a budget statement's lines): those rows add a hash of what
- * names them within the dataset, so each stays its own item (C3 local run, 2026-10-15).
+ * Keys for one answer's rows, by the module's kind (C3 review). A key never depends on the other
+ * rows of the answer, so an item keeps its key from run to run.
+ * - Kept kinds (official, news, events): itemKeyFor alone. Rows that share a link are one item; the
+ *   caller keeps the first.
+ * - Replacing kinds (latest, reference, measurement): a link is a dataset's page (a World Bank
+ *   indicator for 186 countries, a budget statement's lines), so a link key always becomes
+ *   `url:<link>#<hash>` of the fields that name the row, and for latest and reference also its date
+ *   or year. A measurement's date is left out: an instrument is one item updated in place, its
+ *   values by day kept in feed_daily (as itemKeyFor keys a quote without a link, C2 review).
  */
-export function itemKeysFor(rows) {
-  const keys = rows.map((row) => itemKeyFor(row));
-  const count = new Map();
-  for (const k of keys) count.set(k, (count.get(k) || 0) + 1);
-  return keys.map((k, i) => {
-    if (!k.startsWith('url:') || count.get(k) < 2) return k;
-    const r = rows[i] || {};
-    const naming = [r.title || r.name || r.category || '', r.iso3 || r.country || r.state || '', r.indicator || '', r.line ?? '']
-      .map((v) => String(v).replace(/\s+/g, ' ').trim().toLowerCase())
-      .join('|');
-    return `${k}#${createHash('sha256').update(naming).digest('hex').slice(0, 16)}`;
+export function itemKeysFor(rows, kind) {
+  return rows.map((row) => {
+    const key = itemKeyFor(row);
+    if (!REPLACING_KINDS.has(kind) || !key.startsWith('url:')) return key;
+    const r = row || {};
+    const naming = [
+      r.title || r.name || r.category || r.question || '',
+      r.iso3 || r.country || r.state || '',
+      r.indicator || '',
+      r.line ?? '',
+      r.exchange || r.symbol || '',
+    ];
+    const when = kind === 'measurement' ? [] : [r.date || r.as_of || '', r.year || r.period || ''];
+    const basis = [...naming, ...when].map(norm).join('|');
+    return `${key}#${createHash('sha256').update(basis).digest('hex').slice(0, 16)}`;
   });
 }
