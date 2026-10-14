@@ -70,9 +70,16 @@ describe('classifyAnswer: only live answers are kept', () => {
 describe('itemsFromRows: caps, keys and hashes', () => {
   it('drops a row over 64 KB and counts it, and dedupes keys within the batch (first kept)', () => {
     const big = row(1, { body: 'x'.repeat(70 * 1024) });
-    const { items, dropped } = itemsFromRows([big, row(2), row(2, { title: 'Second copy' }), statusRow()]);
+    const { items, dropped } = itemsFromRows([big, row(2), row(2, { summary: 'Second copy' }), statusRow()]);
     expect(items.map((i) => i.title)).toEqual(['Item 2']);
     expect(dropped).toMatchObject({ oversize: 1, duplicate: 1, status_rows: 1 });
+  });
+
+  it('keeps rows that share a dataset link as separate items', () => {
+    const wb = 'https://data.worldbank.org/indicator/NY.GDP.MKTP.CD';
+    const { items, dropped } = itemsFromRows([{ title: 'India', source_url: wb }, { title: 'Nepal', source_url: wb }]);
+    expect(items).toHaveLength(2);
+    expect(dropped.duplicate).toBe(0);
   });
 
   it('keeps at most 2,000 items and counts the rest', () => {

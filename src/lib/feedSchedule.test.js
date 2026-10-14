@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
-import { FEED_CLASSES, FEED_SCHEDULE, FEED_VARIANTS, feedRunsForDb, itemKeyFor, scheduledRuns } from '../../server/feedSchedule.mjs';
+import { FEED_CLASSES, FEED_SCHEDULE, FEED_VARIANTS, feedRunsForDb, itemKeyFor, itemKeysFor, scheduledRuns } from '../../server/feedSchedule.mjs';
 import { PLANNED_MODULES } from './plannedModules.js';
 
 /**
@@ -87,4 +87,25 @@ describe('item keys (F170 rule 1)', () => {
     expect(itemKeyFor({ title: '  Rupee  steadies ', date: '2026-10-14' })).toBe(k);
     expect(itemKeyFor({ title: 'Rupee steadies', date: '2026-10-15' })).not.toBe(k);
   });
+
+  it('rows that share a dataset link stay separate items, the same on every run; a lone link keeps its key', () => {
+    const wb = 'https://data.worldbank.org/indicator/NY.GDP.MKTP.CD';
+    const rows = [
+      { iso3: 'USA', title: 'United States', country: 'United States', year: '2025', source_url: wb },
+      { iso3: 'IND', title: 'India', country: 'India', year: '2025', source_url: wb },
+      { title: 'A story', source_url: 'https://example.com/story/1' },
+    ];
+    const keys = itemKeysFor(rows);
+    expect(new Set(keys).size).toBe(3);
+    expect(keys[0]).toMatch(/^url:data\.worldbank\.org\/indicator\/NY\.GDP\.MKTP\.CD#[0-9a-f]{16}$/);
+    expect(keys[2]).toBe('url:example.com/story/1');
+    expect(itemKeysFor(rows.map((r) => ({ ...r, gdp_usd_bn: '1' })))).toEqual(keys);
+  });
+
+  it('the same link with the same title twice is still one item', () => {
+    const r = { title: 'A story', source_url: 'https://example.com/story/1' };
+    const keys = itemKeysFor([r, { ...r, summary: 'edited' }]);
+    expect(keys[0]).toBe(keys[1]);
+  });
 });
+

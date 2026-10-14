@@ -160,3 +160,22 @@ export function itemKeyFor(row) {
   const basis = `${String(row?.title || row?.name || '').replace(/\s+/g, ' ').trim().toLowerCase()}|${String(row?.date || row?.as_of || '').trim()}`;
   return `h:${createHash('sha256').update(basis).digest('hex').slice(0, 16)}`;
 }
+
+/**
+ * Keys for one answer's rows. A link that several rows share is the dataset's page, not an item's (a
+ * World Bank indicator for 186 countries, a budget statement's lines): those rows add a hash of what
+ * names them within the dataset, so each stays its own item (C3 local run, 2026-10-15).
+ */
+export function itemKeysFor(rows) {
+  const keys = rows.map((row) => itemKeyFor(row));
+  const count = new Map();
+  for (const k of keys) count.set(k, (count.get(k) || 0) + 1);
+  return keys.map((k, i) => {
+    if (!k.startsWith('url:') || count.get(k) < 2) return k;
+    const r = rows[i] || {};
+    const naming = [r.title || r.name || r.category || '', r.iso3 || r.country || r.state || '', r.indicator || '', r.line ?? '']
+      .map((v) => String(v).replace(/\s+/g, ' ').trim().toLowerCase())
+      .join('|');
+    return `${k}#${createHash('sha256').update(naming).digest('hex').slice(0, 16)}`;
+  });
+}

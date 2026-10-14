@@ -13,7 +13,7 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { feedRunsForDb, itemKeyFor } from './feedSchedule.mjs';
+import { feedRunsForDb, itemKeysFor } from './feedSchedule.mjs';
 import { serveFeatureFeed } from './featureFeed.mjs';
 
 /** The limits public.feed_record enforces (supabase/migrations/20261015120000_feed_records.sql). */
@@ -125,6 +125,7 @@ export function itemsFromRows(rows) {
   const dropped = { status_rows: 0, invalid: 0, oversize: 0, duplicate: 0, over_limit: 0 };
   const items = [];
   const seen = new Set();
+  const kept = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       dropped.invalid += 1;
@@ -144,7 +145,12 @@ export function itemsFromRows(rows) {
       dropped.oversize += 1;
       continue;
     }
-    let key = itemKeyFor(row);
+    kept.push({ row, text });
+  }
+  // Keys over the whole answer: rows that share a dataset's link stay separate items.
+  const keys = itemKeysFor(kept.map((k) => k.row));
+  for (const [i, { row, text }] of kept.entries()) {
+    let key = keys[i];
     if (bytes(key) > FEED_CAPS.itemKeyBytes) key = `k:${sha256(key)}`;
     if (seen.has(key)) {
       dropped.duplicate += 1;
