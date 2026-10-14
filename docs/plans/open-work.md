@@ -542,6 +542,15 @@ rechecked. Nothing in this check wrote to production.
     - The owner settled the last two questions: a failed turn that still
       showed text is charged, and credit history is deleted with the
       account.
+  - 2026-10-14: built on `task/ai-credits`, local only, nothing deployed.
+    - Tasks 1–6 are done, with two reviews (1R and R) fixed.
+    - Local runs 1 and 2 (server, then the browser at desktop and phone
+      width) both passed.
+    - Remaining:
+      - task 7 (pricing and policy wording, awaiting the owner's approval);
+      - the production steps in the plan, each on the owner's go-ahead:
+        migration, functions in shadow mode, push, a shadow week, then
+        enforcement.
     - 1 credit = 10 paise of AI cost.
     - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
       month.
