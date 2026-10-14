@@ -59,7 +59,11 @@ import {
   wikidataFilmRows,
   wikidataOttRows,
 } from './entertainmentPack.js';
-import niyGeo from '../data/niy-geo.json';
+
+// F158: the Goa geography pack (about 120 KB compressed) is fetched as its own chunk when a
+// geography module opens, not shipped with every terminal visit. A load failure rejects
+// fetchArchiveFeature, which the desk shows as its error state.
+const loadNiyGeo = () => import('../data/niy-geo.json').then((m) => m.default);
 
 async function fetchJsonOk(url, signal) {
   try {
@@ -347,6 +351,7 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
   }
 
   if (isGeoDesk(name, dataset)) {
+    const niyGeo = await loadNiyGeo();
     const rows = geoRows(niyGeo, name, dataset);
     if (rows.length) {
       return envelope({

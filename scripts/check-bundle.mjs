@@ -12,6 +12,10 @@
 //      admin and persona chooser load lazily, and a stylesheet that moved with them would load after
 //      index.css and change the cascade. Their styles are kept in the entry by
 //      src/shell/terminalStyles.js (npm run build:terminal-styles).
+//   4. the Goa geography pack (src/data/niy-geo.json, F158) is not in its own lazily loaded chunk:
+//      the pack must sit in exactly one chunk, its own (niy-geo-*.js), which no chunk imports
+//      statically (only through `import()`), so a terminal visit downloads it only when a geography
+//      module opens. The pack is recognised by its `vintage` string.
 //
 // When the main bundle is meant to grow, re-measure and update the baseline file in the same
 // change, saying why.
@@ -56,6 +60,24 @@ if (strayCss.length) {
     'index.css. Run `npm run build:terminal-styles` (and keep the import in App.jsx) so it stays in the entry.');
 }
 
+const geoMarker = JSON.parse(readFileSync(join(root, 'src', 'data', 'niy-geo.json'), 'utf8')).vintage;
+if (!geoMarker) fail('src/data/niy-geo.json has no vintage string to recognise the geography pack by.');
+const jsChunks = readdirSync(join(dist, 'assets')).filter((f) => f.endsWith('.js'));
+const chunkText = new Map(jsChunks.map((f) => [f, readFileSync(join(dist, 'assets', f), 'utf8')]));
+const geoChunks = jsChunks.filter((f) => chunkText.get(f).includes(geoMarker));
+if (geoChunks.length !== 1 || geoChunks[0] === entry || !geoChunks[0].startsWith('niy-geo-')) {
+  fail(`the Goa geography pack is in ${geoChunks.join(', ') || 'no chunk'}; it must be in one lazily loaded chunk of its ` +
+    'own, not the entry. Load src/data/niy-geo.json only through the dynamic import in src/lib/archiveFeed.js (F158).');
+}
+const geoChunk = geoChunks[0];
+const escaped = geoChunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const staticImport = new RegExp(`(?:\\bfrom|\\bimport)\\s*["']\\./${escaped}["']`);
+const staticImporters = jsChunks.filter((f) => staticImport.test(chunkText.get(f)));
+if (staticImporters.length) {
+  fail(`assets/${geoChunk} (the Goa geography pack) is imported statically by ${staticImporters.join(', ')}, so it ` +
+    'loads with them. Import it only through `import()` (F158).');
+}
+
 const { mainEntryGzipBytes: baseline } = JSON.parse(readFileSync(join(root, 'scripts', 'bundle-baseline.json'), 'utf8'));
 if (!Number.isInteger(baseline) || baseline <= 0) {
   fail('scripts/bundle-baseline.json has no valid mainEntryGzipBytes.');
@@ -68,4 +90,5 @@ if (gzipBytes > limit) {
   fail(`${summary}. The main bundle grew by more than ${TOLERANCE_BYTES} bytes gzip.`);
 }
 
-console.log(`check:bundle ok: ${summary}; no "${PDFJS_MARKER}"; no stylesheet outside the entry and the PDF viewer.`);
+console.log(`check:bundle ok: ${summary}; no "${PDFJS_MARKER}"; no stylesheet outside the entry and the PDF viewer; ` +
+  `Goa geography pack lazy in assets/${geoChunk}.`);
