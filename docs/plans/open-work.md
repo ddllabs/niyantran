@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F179 is next) and goes in the
+- A new finding gets the next free `F` number (F184 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -699,29 +699,38 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   (copyright; recommendation per chat), and the OCR cap amount.
 - **Plan for what is left (2026-10-15):** [next work](2026-10-15-next-work.md): small items (F178, F176,
   F175, local signed-in checks), measurements (F41, F35, F59), then F169 phase 4 records-first storage.
+  Progress 2026-10-15: F175, F176 and F178 done; F35 and F41 measured; C1 (schedule) and C2 (tables)
+  built on branches, C2 in review fixes.
 - [ ] **F171. The bug programme.** Owner 2026-10-14: "Regarding the bugs, I'll follow your order.
   Ideally, we need to fix all of it." [Spec](../specs/2026-10-14-bug-programme.md) and
   [plan](2026-10-14-bug-programme.md): B1 to B22 in order (source links, chat uploads, chat
   connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
   reasoning usage, log redaction, desk-filter spellings, document titles, then measurements and
   small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
+  - 2026-10-15: B19 measured (F35, next a migration); B20 measured twice (F41, owner's routing
+    choice).
   - Done 2026-10-14: B1 source links (F89), B2 chat uploads (F172), B3 dropped connection (F66), B4
     file size (F62), B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk (F44),
     B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30); 2026-10-15: B11 (F67), B12 (F36),
     B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, needs a signed-in
     phone check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
     (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
-- [ ] **F178. Chat upload follow-ups (review, 2026-10-14).** Messages on the chip are English only and
-  sit in a tooltip touch screens cannot reach; PDFs in CID fonts without cMaps, and legacy Hindi fonts
-  (Kruti Dev), extract as nothing or gibberish; one re-check loop per conversation (a second dropped
-  connection starts another).
-- [ ] **F175. Admin Website settings are per-browser.** Found 2026-10-14 (F171 B5): `src/lib/siteSettingsStore.js`
-  keeps the site name, contact email and address in the admin's `localStorage`, so other visitors
-  never see an edit (same defect class as F108). Recommended: published values in code, or a table.
-- [ ] **F176. Dead GDELT code.** After F169 T4 every GDELT request fails at once, so the GDELT URL
-  builders, `labelledGdelt`, `gdeltRows`, the home Top Stories GDELT branch and the conflict feed's
-  GDELT block in `server/featureFeed.mjs` and `server/homeApi.mjs` can never return rows (review,
-  2026-10-14). Remove them, with the stale comments about GDELT pacing.
+- [ ] **F179. Status rows still claim a GDELT search.** The generic status envelope in
+  `server/featureFeed.mjs` (`gdelt: primaryIsGdelt`) tells the client GDELT was searched when a
+  module's registry address is a GDELT one, though nothing is fetched (F176 review, 2026-10-15). The
+  client reads `source.gdelt` in `normalise.js`, `lawWire.js`, `newsWire.js` and the landing
+  summaries. Remove the flag end to end.
+- [ ] **F180. GDELT addresses in the source registry.** `src/data/source-registry.json` still carries
+  GDELT URLs as `primaryFeedUrl` or `openLiveFallback`; the generic loader uses them only to choose a
+  route. Replace them with the real route and drop `isGdelt` (a data change; F176 review).
+- [ ] **F181. Home Top Stories has no live source.** It was GDELT only and has answered its status row
+  since F169 T4. Owner decision: a source (for example Google News India) or remove it.
+- [ ] **F182. The stored conflict register is labelled an agent snapshot.** `refreshHomeSnapshots`
+  (`server/homeApi.mjs`) saves the Open Fronts register as the conflict snapshot, which is then
+  labelled "Agent snapshot" (F176 review).
+- [ ] **F183. Other PDF readers lack the character maps.** The page viewer and `corpusUpload.js` call
+  pdf.js without `pdfAssetOptions()` (F178), so CID-font PDFs can read wrong there too. Legacy Hindi
+  fonts (Kruti Dev) are not text pdf.js can map; they need OCR (F170, parked).
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
@@ -914,6 +923,23 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 ## 1. Done
+
+- [x] **F178. Chat upload follow-ups (review, 2026-10-14).** Messages on the chip were English only and
+  sat in a tooltip; CID-font PDFs read as nothing; a second dropped connection started a second
+  re-check loop. *Done 2026-10-15 (`096375d`, `35ae106`): the reason a file was not sent and what was
+  cut show as visible text, in Hindi too (joined notes sentence by sentence); pdf.js gets its character
+  maps and standard fonts from `/pdfjs/` (copied from the installed `pdfjs-dist` at build); one re-check
+  per conversation, replaced when a new turn is sent. Not checked with a real CID-font PDF in a browser
+  (local signed-in checks). Legacy Hindi fonts and the other PDF readers are F183.*
+- [x] **F175. Admin Website settings were per-browser.** *Done 2026-10-15 (A3, `1994396`, `6ff005a`):
+  the site name, contact details and search tags are published from code (`src/lib/siteSettings.js`,
+  company facts from `COMPANY`); the admin page keeps only the intro video. Visible change: the contact
+  email is `COMPANY.email`, as on the policy pages.*
+- [x] **F176. Dead GDELT code.** *Done 2026-10-15 (`ad31f52`): removed from the server loaders, the home
+  conflict feed and the browser fallback. The browser branch was live: Geopolitics News Wire asked
+  GDELT from the reader's browser; that request is gone. Every module's rows and source were recorded
+  with the old code and the new, sources up and down: identical (Top Stories drops its false GDELT
+  flag). Follow-ups F179 to F182.*
 
 - [x] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
@@ -1738,6 +1764,15 @@ Follow-ups and findings:
   Also measure lowering the feature filter's exact threshold T (15,000)
   so that Regulatory takes the index path. Its exact scan takes 733 ms on
   NTER.
+  - **Measured on the replica (2026-10-15, $0,
+    `research/2026-10-15-unscoped-search-recall.md`, `435779e`):** `ef_search` 200 finds the right
+    document in the top 10 for 170 of 184 questions, as exact search does (40: 162), at about 2 ms
+    more p50. Above about 500 the planner switches to an exact scan (11 to 57 s). Lowering T is not
+    safe: an off-topic question in Regulatory's scope returns no rows on the index path at any
+    `ef_search` up to 400, so it needs an exact fallback first.
+  - **Next:** a migration setting `ef_search` 200 in the unscoped branch of `match_documents` (the
+    `set_config` pattern of `match_documents_feature_hnsw`), tested locally, a read-only `EXPLAIN` on
+    NTER, then applied.
 - [ ] **F38.** A sweeper for `corpus/staging/` objects older than 24 h, and
   for content-addressed objects no document references after a discard
   (admin-upload spec, "Follow-ups").
@@ -1779,6 +1814,12 @@ Follow-ups and findings:
       `research-chat` v46.
     - **Still open:** the provider-routing decision. By the rule nothing ships; the owner has not
       decided.
+    - **Re-measured 2026-10-15 on v59 code (about $2.50, `589d577`)**, with the same result, then
+      **option 3** (latency routing plus the prompt's coverage check, about $0.83, `93c42b0`): the
+      check brings the depth back (brief documents 2.33, expected document 15/15, pages 7.6 against
+      8.6) but takes the speed back too (brief total 37 s, as default routing). Nothing ships. The
+      owner chooses option 1 (latency routing: briefs in about 20 s, a third cheaper, slightly less
+      depth) or option 2 (default routing).
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`

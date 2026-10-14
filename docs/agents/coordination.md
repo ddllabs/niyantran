@@ -1987,3 +1987,12 @@ recommendations … We can fix everything that is under your control."
   `9e7da8e`.
 - **Push 4** (this batch): F171 B11–B16, B18 (`de2d1b2`, `e91d959`) and these records. Rollback:
   revert and push.
+- **Push 5** (2026-10-15): F175 site settings published from code (`1994396`, `6ff005a`), F176 dead
+  GDELT code removed (`ad31f52`), F178 chat upload follow-ups (`096375d`, `35ae106`), the F35 recall
+  measurement (`435779e`), the F41 option 3 measurement (`93c42b0`), and these records with a test
+  isolation fix (the STAT-1 cache test wrote to the project's `tmp/` and fed later tests its probe
+  row). Each code change reviewed independently; review findings fixed before the push. Checks on
+  the merged `main`: lint, 4,999 Vitest tests, build, `check:bundle`, router import. No database,
+  migration or Edge Function change; the F35 migration and the F169 C1/C2 branches are not in this
+  push. `vercel.json`: `/pdfjs/` added to the SPA rewrite's exclusions (the character-map files).
+  Rollback: revert and push.
