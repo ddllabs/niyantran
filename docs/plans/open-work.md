@@ -559,6 +559,12 @@ rechecked. Nothing in this check wrote to production.
   - Not in this phase (F156): one call per desk for its counts, new-tab start-up (`App.jsx`,
     `userStore.js`), re-encoding `public/images/desks-v6`, Vite `json.stringify`.
 - [ ] **F156. Terminal speed (phase 2): paged module lists and stored copies on the server.**
+  Paging and the landing retry are live (`97828b2`, pushed `3d0a0d8`). Production, from the
+  owner's Mac: Bills page 1 is 9.4 KB compressed (was 534 KB for the whole register, plus a
+  450 KB archive), 0.82 s cold and 0.37 s from the edge; a search 0.19 s; Questions page 1
+  8.5 KB, 0.44 s. Remaining: the stored-copy (backup pack) files on the deployed function. Owner
+  asked whether they are needed; recommended including only the four packs that fill empty modules
+  (about 5 MB) instead of all 82 MB.
   Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
   costs server time; load them in pages instead.
   [Spec](../specs/2026-10-14-paged-module-lists.md), with measurements: only Bills (9,819 rows,
@@ -631,7 +637,7 @@ rechecked. Nothing in this check wrote to production.
 - [x] **F151. Credit estimate in the model picker.** Done 2026-10-14 (`787bced`, `a964eb4`): `model_credit_estimates()`, measured median or list price. Was: Show "≈ N credits a
   typical answer" per model beside the cost diamonds. After enforcement.
 - [ ] **F152. Leaked-password protection (owner's dashboard action).** Owner 2026-10-14: will switch it on.
-- [ ] **F153. Credits usage page.** Owner 2026-10-14: a separate page like TenderBase's (AI
+- [x] **F153. Credits usage page.** Done 2026-10-14 (`0d5671a`; migration `20261014233000_credit_usage_reports` applied; pushed `3d0a0d8`). Owner 2026-10-14: a separate page like TenderBase's (AI
   activity card, AI analytics with charts and legends, all AI activity, credits by expiry) plus a
   small version in Plan & billing; built from the owner's screenshots.
   [Spec](../specs/2026-10-14-credits-usage-page.md). Next after the speed work.

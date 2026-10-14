@@ -1896,3 +1896,20 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Rollback:** revert `719a7eb` and push (removes the region, the headers and the time limit).
   - **Checks on the merged branch:** 4,220 Vitest and 1,073 Deno tests, lint, build,
     `check:bundle` (+806 bytes gzip, within the limit) and the router import.
+- **Credits usage page (F153) and paged module lists (F156), owner: "Yes to all":**
+  - **Migration 49** `20261014233000_credit_usage_reports` (commit `0d5671a`), applied with
+    `supabase db push --linked` after a dry run that listed only this migration. Adds
+    `my_usage_summary`, `my_usage_timeseries`, `my_usage_activity` (authenticated only), four
+    `private.credit_usage_*` helpers (no grants), `my_credits().cycle.starts_at`, a bounded
+    `recent`, and index `research_turns_user_time`. Verified live: SECURITY DEFINER,
+    `search_path ""`, TimeZone UTC; anon cannot execute any of them; authenticated only the three
+    public reports and `my_credits`. Rollback: the migration's Down block.
+  - **Pushed** `main` `fe249d9..3d0a0d8`: the usage page, server paging for Bills and
+    Parliamentary Questions, pending landing counts retried, the shared backup fallback with
+    bounded reads. The backup packs are still not in the deployed function (`includeFiles`
+    unchanged). Verified live: `page=0` answers 400; page timings are in F156.
+  - **Incident (reported to the owner):** during the F153 browser run a task agent started the
+    main folder's dev server once (production settings) and stopped it at once, without signing
+    in; the page may have made anonymous public reads.
+  - **Checks on the merged branch:** 4,470 Vitest and 1,073 Deno tests, all 28 SQL fixtures with
+    vacuity, lint, build, `check:bundle` and the router import.
