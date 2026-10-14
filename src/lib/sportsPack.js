@@ -101,6 +101,8 @@ export function espnScoreboardRows(json, leagueName = '') {
         home_score: home?.score ?? '',
         away_score: away?.score ?? '',
         status: comp?.status?.type?.shortDetail || comp?.status?.type?.description || '',
+        // F169 T5: what the match is, from ESPN's state: pre, in or post.
+        stage: { pre: 'Upcoming', in: 'Live', post: 'Result' }[comp?.status?.type?.state] || '',
         source_url: e.links?.find((l) => l.rel?.includes('desktop') || l.href)?.href || e.links?.[0]?.href || '',
       };
     })

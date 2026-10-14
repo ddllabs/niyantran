@@ -2605,7 +2605,8 @@ export async function serveFeatureFeed(searchParams) {
   // topic search; GDELT is not asked.
   if (/^geopolitics news wire$/i.test(feat.htmlFeature || '') || dataset === 'geo_news_wire.csv') {
     const bbc = 'https://feeds.bbci.co.uk/news/world/rss.xml';
-    const rss = await rssTagged(bbc, { outlet: 'BBC World' });
+    // Both together, BBC preferred: a slow BBC must not use up the 4 s limit (review, F169 T4).
+    const [rss, got] = await Promise.all([rssTagged(bbc, { outlet: 'BBC World' }), tryUrls([GEO_NEWS_WIRE_NEWS])]);
     if (rss.length) {
       return envelope({
         tier,
@@ -2620,7 +2621,6 @@ export async function serveFeatureFeed(searchParams) {
         meta: { section: 'TOP WORLD STORIES — BBC WORLD', status: 'LIVE · BBC WORLD', note: `${rss.length} stories` },
       });
     }
-    const got = await tryUrls([GEO_NEWS_WIRE_NEWS]);
     if (got.rows.length) {
       return envelope({
         tier,
@@ -3493,7 +3493,7 @@ export async function serveFeatureFeed(searchParams) {
         coverage: { from: '', through: '7d', exhaustive: false },
         fallback: false,
         gdelt: false,
-        note: 'Google News RSS topic search. GDELT DOC 2.0 is the paced fallback — not an official dataset.',
+        note: 'Google News topic search. Reporting, not an official dataset.',
         meta: { heading: feat.htmlFeature, status: 'LIVE · NEWS RSS' },
       });
     }
@@ -3534,7 +3534,7 @@ export async function serveFeatureFeed(searchParams) {
     fallback: false,
     gdelt: primaryIsGdelt,
     note: primaryIsGdelt
-      ? 'GDELT DOC 2.0 reporting search is unavailable. Status row only — not an official dataset, and no records were invented.'
+      ? 'The news search returned nothing. No records were invented.'
       : 'No live rows and no last-known-good archive. Status row only — no records invented.',
   });
 }

@@ -36,7 +36,12 @@ describe('ISL Tracker season (F169 T5)', () => {
     const out = await loadIsl();
     expect(seen.some((u) => /dates=2026\b/.test(u) && /limit=400/.test(u))).toBe(true);
     expect(seen.some((u) => /dates=2027\b/.test(u))).toBe(true);
-    expect(out.rows.map((r) => r.title).sort()).toEqual(['Team 1A at Team 1B', 'Team 2A at Team 2B', 'Team 3A at Team 3B']);
+    // Upcoming first (soonest first), then results; each marked.
+    expect(out.rows.map((r) => [r.title, r.stage])).toEqual([
+      ['Team 2A at Team 2B', 'Upcoming'],
+      ['Team 3A at Team 3B', 'Upcoming'],
+      ['Team 1A at Team 1B', 'Result'],
+    ]);
   });
 
   it('early in a year asks for the previous year as well', async () => {

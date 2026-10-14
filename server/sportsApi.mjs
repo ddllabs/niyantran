@@ -69,6 +69,15 @@ export async function loadWorldFixtures() {
   return fxCache;
 }
 
+/** Live first, then upcoming (soonest first), then results (newest first). F169 T5. */
+const STAGE_RANK = { Live: 0, Upcoming: 1, Result: 2 };
+function islOrder(a, b) {
+  const ra = STAGE_RANK[a.stage] ?? 3;
+  const rb = STAGE_RANK[b.stage] ?? 3;
+  if (ra !== rb) return ra - rb;
+  return a.stage === 'Upcoming' ? String(a.date).localeCompare(String(b.date)) : String(b.date).localeCompare(String(a.date));
+}
+
 export async function loadIsl() {
   if (islCache && Date.now() - islAt < TTL) return islCache;
   try {
@@ -87,7 +96,7 @@ export async function loadIsl() {
         seen.add(key);
         return true;
       })
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      .sort(islOrder);
     if (rows.length) {
       islCache = { ok: true, source: 'espn', rows };
       islAt = Date.now();

@@ -8,7 +8,7 @@ import { rowDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { fetchFeature } from '../lib/featureFeed.js';
-import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
+import { technicalTitle } from '../lib/plainSourceNote.js';
 
 // F164: what the page says when no mentions could be fetched.
 const MENTIONS_DOWN = 'Media mentions couldn\u2019t load right now.';
@@ -117,8 +117,9 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
       </div>
       {err ? (
         // F164: the reason stays in the banner's title; the reader gets plain words.
-        <p className="banner warn" title={technicalTitle(err, plainNote(err, MENTIONS_DOWN))}>
-          {plainNote(err, MENTIONS_DOWN)}
+        // F169 T3 review: the reader sees only the plain sentence; the reason stays in the title.
+        <p className="banner warn" title={technicalTitle(err, MENTIONS_DOWN)}>
+          {MENTIONS_DOWN}
         </p>
       ) : null}
       {vol?.length ? (

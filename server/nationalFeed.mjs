@@ -509,8 +509,6 @@ export async function serveNational(ctx) {
       'https://news.google.com/rss/search?q=' +
       encodeURIComponent('India (RBI OR economy OR markets OR rupee) when:3d') +
       '&hl=en-IN&gl=IN&ceid=IN:en';
-    const topUrl = topNews;
-    const ecoUrl = ecoNews;
 
     const [pibLive, topLive, ecoLive] = await Promise.all([tryUrls([PIB_PRESS]), tryUrls([topNews]), tryUrls([ecoNews])]);
     const pibRows = await enrichPibEnglish(pibLive.rows || []);
@@ -528,7 +526,7 @@ export async function serveNational(ctx) {
         feature: feat,
         rows: tagged,
         adapter: 'news-search',
-        links: [PIB_PRESS, topUrl, ecoUrl],
+        links: [PIB_PRESS, topNews, ecoNews],
         coverage: { from: '', through: '3d', exhaustive: false },
         fallback: false,
         gdelt: false,
@@ -548,12 +546,12 @@ export async function serveNational(ctx) {
       feature: feat,
       rows: statusRow({
         adapter: 'news-search',
-        url: topUrl,
+        url: topNews,
         reason: [pibLive.error, topLive.error, ecoLive.error].filter(Boolean).join(' | ') || 'all wires empty',
         featureName: name,
       }),
       adapter: 'news-search',
-      links: [PIB_PRESS, topUrl, ecoUrl],
+      links: [PIB_PRESS, topNews, ecoNews],
       coverage: { through: '3d' },
       fallback: false,
       gdelt: false,

@@ -27,7 +27,7 @@ export function isCabinetDecision(row) {
   if (isCabinetBody(row?.ministry)) return true;
   const title = String(row?.title ?? row?.topic ?? '').replace(/\s+/g, ' ').trim();
   const link = String(row?.source_url || row?.link || row?.url || '');
-  return /^https:\/\/(?:www\.)?pib\.gov\.in\//i.test(link) && /^(?:union )?cabinet (?:approves|apprises|apprised)\b/i.test(title);
+  return /^https?:\/\/(?:www\.)?pib\.gov\.in\//i.test(link) && /^(?:union )?cabinet (?:approves|apprises|apprised)\b/i.test(title);
 }
 
 /** Lok Sabha or Rajya Sabha from a member's own sansad.in profile link; '' for anything else. */

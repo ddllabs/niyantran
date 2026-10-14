@@ -6,7 +6,7 @@ import { rowDragProps } from '../lib/aiDrop.js';
 import { dedupeNewsRows } from '../lib/newsDedup.js';
 import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { fetchFeature } from '../lib/featureFeed.js';
-import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
+import { technicalTitle } from '../lib/plainSourceNote.js';
 
 // F164: what a section says when its source could not be reached.
 const SECTION_DOWN = 'This section couldn\u2019t load right now.';
@@ -90,8 +90,9 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
         <p className="desk-note">{why}</p>
         {pack.err ? (
           // F164: the reason stays in the banner's title; the reader gets plain words.
-          <p className="banner warn" title={technicalTitle(pack.err, plainNote(pack.err, SECTION_DOWN))}>
-            {plainNote(pack.err, SECTION_DOWN)}
+          // F169 T3 review: the reader sees only the plain sentence; the reason stays in the title.
+          <p className="banner warn" title={technicalTitle(pack.err, SECTION_DOWN)}>
+            {SECTION_DOWN}
           </p>
         ) : null}
         {!pack.err && !rows.length ? <p className="banner">No items in this section right now.</p> : null}

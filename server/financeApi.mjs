@@ -15,7 +15,7 @@ const MANIFOLD_TTL = 15 * 60 * 1000;
 // company, multinational) with a chief executive. The earlier `wdt:P31/wdt:P279*` subclass walk
 // timed out at Wikidata (HTTP 504 after 67 s); this answers in about 3.3 s uncached (2026-10-14).
 const WD_Q =
-  'SELECT ?person ?personLabel ?company ?companyLabel WHERE { ' +
+  'SELECT DISTINCT ?person ?personLabel ?company ?companyLabel WHERE { ' +
   '?company wdt:P17 wd:Q668; wdt:P169 ?person; wdt:P31 ?type. ' +
   'VALUES ?type { wd:Q4830453 wd:Q891723 wd:Q6881511 wd:Q783794 wd:Q161726 } ' +
   'SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 500';
@@ -247,8 +247,9 @@ export async function loadManifoldPolitical() {
   const seen = new Set();
   const merged = [];
   // F169 T7: the searches run together (one after another took 4.3-5 s, over the 4 s limit).
-  const answers = await Promise.all(MANIFOLD_SEARCH.map((url) => getJson(url)));
-  for (const json of answers) {
+  const answers = await Promise.allSettled(MANIFOLD_SEARCH.map((url) => getJson(url)));
+  if (answers.every((a) => a.status === 'rejected')) throw answers[0].reason;
+  for (const json of answers.map((a) => (a.status === 'fulfilled' ? a.value : null))) {
     const arr = Array.isArray(json) ? json : [];
     for (const m of arr) {
       if (!m?.id || seen.has(m.id)) continue;
@@ -264,9 +265,16 @@ export async function loadManifoldPolitical() {
 
 export async function loadIndiaCeos() {
   if (ceoCache && Date.now() - ceoAt < TTL) return ceoCache;
-  const json = await getJson(WIKIDATA, { Accept: 'application/sparql-results+json' }, SPARQL_MS);
-  const rows = mapWikidataCeos(json);
-  ceoCache = { ok: true, source: 'wikidata', rows };
-  ceoAt = Date.now();
-  return ceoCache;
+  try {
+    const json = await getJson(WIKIDATA, { Accept: 'application/sparql-results+json' }, SPARQL_MS);
+    const rows = mapWikidataCeos(json);
+    if (!rows.length && ceoCache) return { ...ceoCache, stale: true };
+    ceoCache = { ok: true, source: 'wikidata', rows };
+    ceoAt = Date.now();
+    return ceoCache;
+  } catch (err) {
+    // F169 T7: the last good answer, marked stale, when Wikidata does not answer.
+    if (ceoCache) return { ...ceoCache, stale: true };
+    throw err;
+  }
 }

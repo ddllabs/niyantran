@@ -43,6 +43,16 @@ describe('Morning Brief (F164)', () => {
     expect(html).toContain('title="PIB releases arrive through the backend (/api/rss) and it is not reachable."');
   });
 
+  it('a stored fallback note never reaches the reader (F169 T3 review)', () => {
+    const note = 'Discovery source only (news search). No primary-of-record dataset is wired for this module.';
+    const html = render(MorningBriefDesk, { 0: { rows: [], err: note }, 1: { rows: [], err: note }, 2: { rows: [], err: note }, 4: false });
+    expect(shown(html)).toContain('This section couldn’t load right now.');
+    expect(shown(html)).not.toMatch(/Discovery source|primary-of-record/);
+    const statements = render(StatementsDesk, { 3: note, 4: false });
+    expect(shown(statements)).toContain('Media mentions couldn’t load right now.');
+    expect(shown(statements)).not.toMatch(/Discovery source|primary-of-record/);
+  });
+
   it('with no live API on the build', () => {
     const msg = 'Live RSS proxy is not deployed on this host.';
     expect(shown(render(MorningBriefDesk, { 0: { rows: [], err: msg }, 1: { rows: [], err: msg }, 2: { rows: [], err: msg }, 4: false })).match(DEVELOPER)?.[0] ?? null).toBeNull();

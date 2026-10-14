@@ -247,7 +247,9 @@ export async function fetchFeature({ tier, feature, signal, onUpdate, params } =
   if (tier) q.set('tier', tier);
   if (feature) q.set('feature', feature);
   // F169 T3: extra inputs a module's server loader reads (the Statement Tracker's `person`).
-  for (const [k, v] of Object.entries(params || {})) if (v != null && v !== '') q.set(k, String(v));
+  for (const [k, v] of Object.entries(params || {})) {
+    if (k !== 'tier' && k !== 'feature' && v != null && v !== '') q.set(k, String(v));
+  }
   const url = `/api/feature-feed?${q.toString()}`;
 
   if (onUpdate) return archiveFirst({ tier, feature, signal, url, onUpdate });
