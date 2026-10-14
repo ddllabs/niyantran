@@ -48,19 +48,11 @@ const TICKERS = [
 
 const SNAPSHOT_MAX_AGE_H = 24;
 const DEFAULT_HOME_MAX_AGE_H = 6;
-const GDELT_GAP_MS = 5_500;
-const GDELT_CACHE_MS = 10 * 60_000;
-let gdeltNextAt = 0;
-const gdeltCache = new Map();
 
 let ohlcCache = null;
 const homeRefreshInflight = Object.create(null);
 let marketFeedCache = null;
 let warCache = null;
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 function json(res, body, status = 200) {
   res.statusCode = status;
@@ -97,14 +89,8 @@ async function fetchText(url, ms = 12000) {
   if (/^https:\/\/pib\.gov\.in\//i.test(url || '')) {
     url = url.replace(/^https:\/\/pib\.gov\.in\//i, 'https://www.pib.gov.in/');
   }
-  const gdelt = /gdeltproject\.org/i.test(url || '');
-  if (gdelt) {
-    const hit = gdeltCache.get(url);
-    if (hit && Date.now() - hit.at < GDELT_CACHE_MS) return hit.value;
-    const wait = gdeltNextAt - Date.now();
-    if (wait > 0) await sleep(wait);
-    gdeltNextAt = Date.now() + GDELT_GAP_MS;
-  }
+  // F169 T4: GDELT refuses every request, so it is not asked; callers fall back at once.
+  if (/gdeltproject\.org/i.test(url || '')) throw new Error('GDELT is not asked (F169 T4)');
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
   try {
@@ -118,7 +104,6 @@ async function fetchText(url, ms = 12000) {
       throw new Error('GDELT rate limited');
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    if (gdelt) gdeltCache.set(url, { at: Date.now(), value: text });
     return text;
   } finally {
     clearTimeout(t);

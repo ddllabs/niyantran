@@ -126,14 +126,12 @@ const EMBEDDED_DIR = EMBEDDED_DIRS.find((d) => fs.existsSync(d)) || EMBEDDED_DIR
 const FETCH_MS = 12_000;
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_ROWS = 500;
-const GDELT_GAP_MS = 5_500;
-const GDELT_CACHE_MS = 10 * 60_000;
 
 /** Real topic query — never search the product name "Geopolitics News Wire". */
-const GEO_NEWS_WIRE_GDELT =
-  'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
-  encodeURIComponent('(geopolitics OR diplomacy OR "foreign policy" OR "United Nations") sourcelang:english') +
-  '&mode=artlist&format=json&sort=datedesc&timespan=3d&maxrecords=40';
+const GEO_NEWS_WIRE_NEWS =
+  'https://news.google.com/rss/search?q=' +
+  encodeURIComponent('(geopolitics OR diplomacy OR "foreign policy" OR "United Nations") when:3d') +
+  '&hl=en-IN&gl=IN&ceid=IN:en';
 
 /** Indian state legislators via Wikidata (not US House Q13218630). */
 function indiaMlaWikidataUrl() {
@@ -227,19 +225,7 @@ function aiTechNewsRssUrl() {
 /** `reg=3` is required: without it PIB answers 302 to the Hindi feed (measured 2026-10-14, F169 T2). */
 const PIB_PRESS_RSS = 'https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3&reg=3';
 
-let gdeltNextAt = 0;
-const gdeltCache = new Map();
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function paceGdelt(url) {
-  if (!isGdelt(url)) return;
-  const wait = gdeltNextAt - Date.now();
-  if (wait > 0) await sleep(wait);
-  gdeltNextAt = Date.now() + GDELT_GAP_MS;
-}
+const GDELT_OFF = 'GDELT is not asked (it refuses every request; F169 T4)';
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const USER_AGENT_BOT =
@@ -914,14 +900,11 @@ async function fetchText(url) {
   if (/^https:\/\/pib\.gov\.in\//i.test(url)) {
     url = url.replace(/^https:\/\/pib\.gov\.in\//i, 'https://www.pib.gov.in/');
   }
-  const gdelt = isGdelt(url);
-  if (gdelt) {
-    const hit = gdeltCache.get(url);
-    if (hit && Date.now() - hit.at < GDELT_CACHE_MS) return hit.value;
-  }
+  // F169 T4 (owner, 2026-10-14): GDELT refuses every request and each try waited up to 11 s, so it
+  // is not asked; callers move on to their next source at once.
+  if (isGdelt(url)) throw new Error(GDELT_OFF);
 
   const attempt = async () => {
-    await paceGdelt(url);
     const ac = new AbortController();
     const wikidata = /query\.wikidata\.org/i.test(url);
     const timeoutMs = wikidata ? Math.max(FETCH_MS, 45_000) : FETCH_MS;
@@ -946,7 +929,7 @@ async function fetchText(url) {
       if (buf.length > MAX_BYTES) throw new Error('response too large');
       const text = buf.toString('utf8');
       if (res.status === 429 || /please limit requests|too many requests/i.test(text)) {
-        throw new Error('GDELT rate limited (need ≥5s between calls)');
+        throw new Error('rate limited');
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const ct = res.headers.get('content-type') || '';
@@ -956,19 +939,7 @@ async function fetchText(url) {
     }
   };
 
-  try {
-    const got = await attempt();
-    if (gdelt) gdeltCache.set(url, { at: Date.now(), value: got });
-    return got;
-  } catch (err) {
-    if (gdelt && /rate limited/i.test(err.message || '')) {
-      await sleep(GDELT_GAP_MS);
-      const got = await attempt();
-      gdeltCache.set(url, { at: Date.now(), value: got });
-      return got;
-    }
-    throw err;
-  }
+  return attempt();
 }
 
 function datasetFile(dataset) {
@@ -2630,69 +2601,55 @@ export async function serveFeatureFeed(searchParams) {
     }
   }
 
-  // Global Resources — Geopolitics News Wire: real GDELT topic search (not the product name).
+  // Global Resources — Geopolitics News Wire. F169 T4: BBC World first (0.3 s), then a Google News
+  // topic search; GDELT is not asked.
   if (/^geopolitics news wire$/i.test(feat.htmlFeature || '') || dataset === 'geo_news_wire.csv') {
-    const nws = GEO_NEWS_WIRE_GDELT;
-    const got = await tryUrls([nws]);
-    const labelled = labelledGdelt(got.rows, nws);
-    if (labelled.rows.length) {
+    const bbc = 'https://feeds.bbci.co.uk/news/world/rss.xml';
+    const rss = await rssTagged(bbc, { outlet: 'BBC World' });
+    if (rss.length) {
       return envelope({
         tier,
         feature: feat,
-        rows: capRows(labelled.rows, false),
+        rows: capRows(rss, false),
         adapter: 'news-search',
-        links: [nws],
-        coverage: { from: '', through: '3d', exhaustive: false },
+        links: [bbc, GEO_NEWS_WIRE_NEWS],
+        coverage: { from: '', through: 'present', exhaustive: false },
         fallback: false,
-        gdelt: true,
-        note: 'GDELT DOC 2.0 reporting search (geopolitics / diplomacy / UN) — not an official government dataset.',
-        meta: {
-          section: 'TOP WORLD STORIES — GDELT 2.0',
-          status: 'GDELT 2.0 · 3-DAY WINDOW',
-          note: `${labelled.rows.length} articles · reporting search, not an official feed`,
-        },
+        gdelt: false,
+        note: 'BBC World news feed. Reporting, not an official government dataset.',
+        meta: { section: 'TOP WORLD STORIES — BBC WORLD', status: 'LIVE · BBC WORLD', note: `${rss.length} stories` },
       });
     }
-    // GDELT often 429s under sweeps — BBC World RSS is still a live feed (not an archive pack).
-    const bbc = 'https://feeds.bbci.co.uk/news/world/rss.xml';
-    try {
-      const rss = await rssTagged(bbc, { outlet: 'BBC World' });
-      if (rss.length) {
-        return envelope({
-          tier,
-          feature: feat,
-          rows: capRows(rss, false),
-          adapter: 'news-search',
-          links: [bbc, nws],
-          coverage: { from: '', through: 'present', exhaustive: false },
-          fallback: false,
-          gdelt: false,
-          note: `Live BBC World RSS (GDELT DOC 2.0 unavailable: ${got.error || 'empty/rate-limited'}).`,
-          meta: {
-            section: 'TOP WORLD STORIES — BBC WORLD RSS',
-            status: 'LIVE · BBC WORLD',
-            note: `${rss.length} stories · GDELT paced ≥5s; primary DOC 2.0 search retries on the next refresh`,
-          },
-        });
-      }
-    } catch {
-      /* keep GDELT status below */
+    const got = await tryUrls([GEO_NEWS_WIRE_NEWS]);
+    if (got.rows.length) {
+      return envelope({
+        tier,
+        feature: feat,
+        rows: capRows(got.rows, false),
+        adapter: 'news-search',
+        links: [GEO_NEWS_WIRE_NEWS, bbc],
+        coverage: { from: '', through: '3d', exhaustive: false },
+        fallback: false,
+        gdelt: false,
+        note: 'Google News search for geopolitics and diplomacy (BBC World did not answer). Reporting, not an official government dataset.',
+        meta: { section: 'TOP WORLD STORIES — NEWS SEARCH', status: 'LIVE · NEWS SEARCH', note: `${got.rows.length} stories` },
+      });
     }
     return envelope({
       tier,
       feature: feat,
       rows: statusRow({
         adapter: 'news-search',
-        url: nws,
-        reason: got.error || 'empty GDELT wire',
+        url: bbc,
+        reason: got.error || 'BBC World and the news search returned no stories',
         featureName: feat.htmlFeature,
       }),
       adapter: 'news-search',
-      links: [nws, bbc],
+      links: [bbc, GEO_NEWS_WIRE_NEWS],
       coverage: { from: '', through: '3d', exhaustive: false },
       fallback: false,
-      gdelt: true,
-      note: 'GDELT DOC 2.0 reporting search did not return rows (rate limit or empty). No stories were invented.',
+      gdelt: false,
+      note: 'BBC World and the news search returned no stories. No stories were invented.',
     });
   }
 
