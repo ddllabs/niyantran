@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F184 is next) and goes in the
+- A new finding gets the next free `F` number (F188 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -659,6 +659,23 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     from T10: the registry's "Direct feed configured" labels (data file) and the database-size line
     (moves to phase 4, which adds a server route for it). Still to do: phase 4 (needs the Vercel
     upgrade to go live).
+  - **Phase 4 built 2026-10-15** (C1–C6, each reviewed independently, review findings fixed): C1
+    schedule and item keys (`server/feedSchedule.mjs`, ADR 0012); C2 tables and functions
+    (`20261015150000_feed_records`: lease token, kind from the schedule, caps, shrink rule, source
+    order); C3 store writer and `POST /api/feeds/refresh` (55 s, four at a time, one request per host,
+    live answers only, dormant until `FEED_REFRESH_SECRET` is set); C4 pages from the store while
+    fresh, labelled "updated N min ago", live path otherwise; C5 admin "Scheduled feeds" health and
+    database size (`20261015160000_feed_admin`); C6 `scripts/load-feed-register.mjs` for Cabinet's
+    register (79 decisions, one per decision). Local run against the real sources: 64 of 65 modules
+    stored (NSE has no live source), 7,000 items, a second run rewrote nothing. C7 go-live: steps 1–2
+    (migrations, dormant code) done with Push 7; step 3 (secret) and step 4 (timer, after the Vercel
+    upgrade) are the owner's; then the Cabinet register load, a day with `serve` off, and `serve` on
+    class by class.
+  - **Owner decision (C6): MLA Directory's 4,104-MLA register.** Its class replaces the list each
+    run, so a loaded register would be pruned. Options: (1, recommended) the register as 31 per-state
+    store variants, kept, off the refresh schedule; (2) take MLA Directory off the schedule and load
+    nothing (today's behaviour); (3) a kept kind, still refreshed (members who leave never drop off).
+    Keep `serve` off for MLA Directory until decided.
     Whether Vercel left `backup/` out of the package can't be read with the available tools; the
     code refuses pack reads on Vercel either way.
   - [x] T0 probe, built 2026-10-14 on `task/f169-phase1`, committed `d70d753`:
@@ -731,6 +748,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 - [ ] **F183. Other PDF readers lack the character maps.** The page viewer and `corpusUpload.js` call
   pdf.js without `pdfAssetOptions()` (F178), so CID-font PDFs can read wrong there too. Legacy Hindi
   fonts (Kruti Dev) are not text pdf.js can map; they need OCR (F170, parked).
+- [ ] **F185. District Performance Tracker stores malformed rows.** Its loader reads a JSON source as
+  lines of text, giving rows like `{"{": "value : Bhojpur district"}` (C3 local run, 2026-10-15).
+- [ ] **F186. NSE/BSE Delayed Market Feed is scheduled with no live source.** It answers the stored
+  snapshot, which the store refuses, so it fails every 15 minutes (with backoff) until it gets a live
+  source (a licence, owner's step) or comes off the schedule.
+- [ ] **F187. Cabinet Decisions lists a decision twice when PIB releases it twice.** The ministry's
+  "Cabinet approves…" release and the Cabinet's own pass `isCabinetDecision` (62 such pairs in the
+  register, which the C6 load keeps once). Keep one per title and day in the live loader too.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4

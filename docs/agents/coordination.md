@@ -2008,3 +2008,9 @@ recommendations … We can fix everything that is under your control."
   Production check after Push 5: `/pdfjs/` character maps and standard fonts served (200,
   `application/octet-stream`; a missing file 404, not the app page); Geopolitics News Wire 26 live
   rows (news search).
+- **Push 7** (2026-10-15): F169 phase 4, C1–C6 (branches `task/feed-design` … `task/feed-registers`,
+  integrated on `task/feed-admin`). Each part reviewed independently, findings fixed before the
+  push. Checks on the integrated branch: all SQL fixtures (with vacuity and Down checks), 5,228 Vitest
+  tests, lint, build, `check:bundle`, router import. The code is dormant: `POST /api/feeds/refresh`
+  answers 503 until `FEED_REFRESH_SECRET` is set, nothing is scheduled, and pages fall back to the
+  live path while the store is empty or `serve` is off. Rollback: revert and push.
