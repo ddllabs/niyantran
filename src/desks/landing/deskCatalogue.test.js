@@ -1,3 +1,4 @@
+import { PLANNED_MODULES } from '../../lib/plannedModules.js';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import features from '../../data/html-feature-map.json';
 import { DESK_CATALOGUE, searchDeskCatalogue } from './deskCatalogue.js';
@@ -40,7 +41,9 @@ describe('desk discovery catalogue identity', () => {
     for (const entry of DESK_CATALOGUE) {
       expect(features.some(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature)).toBe(true);
       expect(entry.id).toBe(`${entry.tier}:${entry.feature}`);
-      expect(entry.configured).toBe(features.find(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature)?.mapping !== 'HTML-ONLY');
+      // F173: not configured exactly when planned; every HTML-ONLY module is planned.
+      expect(entry.configured).toBe(!PLANNED_MODULES.has(entry.id));
+      if (features.find(module => module.htmlTier === entry.tier && module.htmlFeature === entry.feature)?.mapping === 'HTML-ONLY') expect(entry.configured).toBe(false);
       expect(entry).not.toHaveProperty('count');
       expect(entry).not.toHaveProperty('availability');
     }

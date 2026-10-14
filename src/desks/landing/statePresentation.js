@@ -26,7 +26,7 @@ const groups = [
     module("MLA Directory", {"existingOnly": true}),
     module("Municipal Watch", {"tier": "local", "existingOnly": true}),
     module("Panchayat Watch", {"tier": "local", "existingOnly": true}),
-    module("Municipal & Panchayat Tender Aggregator", {"tier": "local", "existingOnly": true}),
+    module("Municipal & Panchayat Tender Aggregator", {"tier": "local", "existingOnly": true, "configured": false}),
     module("Local Governance Brief", {"tier": "local", "existingOnly": true}),
   ] },
   { id: "finance", name: "Public Finance & Operations", short: "Finance & Operations", modules: [
@@ -35,7 +35,7 @@ const groups = [
     module("Centre-State Fund Flow Tracker"),
     module("Cabinet Decisions"),
     module("State Economic Data (GSDP, sectors)", {"configured": false}),
-    module("State Fiscal Deep-Dive"),
+    module("State Fiscal Deep-Dive", {"configured": false}),
     module("SDL Auction & Borrowing Tracker", {"configured": false}),
     module("CAG Audit Tracker"),
   ] },

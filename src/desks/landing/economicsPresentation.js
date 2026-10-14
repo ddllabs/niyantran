@@ -19,7 +19,7 @@ const groups = [
     module('AI & the Tech Industry', 'PIB technology reporting'),
   ] },
   { id: 'predictions', name: 'Prediction Markets', short: 'Prediction Markets', description: 'Manifold political markets, live or stored according to source availability. A separate election-forecast table is not supplied.', modules: [
-    module('Prediction Market Political Odds'), module('Election Forecast Aggregator'),
+    module('Prediction Market Political Odds'), { ...module('Election Forecast Aggregator'), configured: false },
   ] },
 ];
 

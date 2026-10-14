@@ -1,3 +1,4 @@
+import { PLANNED_NOTE, isPlannedModule } from './plannedModules.js';
 import { featureFeedApiEnabled, liveApiEnabled } from './apiMode.js';
 import { isHtmlOnlyModule } from '../desks/catalog.js';
 import features from '../data/html-feature-map.json';
@@ -178,6 +179,14 @@ async function archiveFirst({ tier, feature, signal, url, onUpdate }) {
 }
 
 export async function fetchFeature({ tier, feature, signal, onUpdate, params } = {}) {
+  // F173 (F171 B9): no data source yet, so nothing to ask for.
+  if (isPlannedModule(tier, feature)) {
+    return {
+      ok: true, tier, feature, rows: [], fallback: false,
+      source: { adapter: 'planned', links: [], note: PLANNED_NOTE },
+      coverage: { from: '', through: '', exhaustive: false },
+    };
+  }
   const mapRow = featureMapRow(tier, feature);
   // HTML-ONLY: own title, zero rows, no live GDELT stand-in and no sibling archive.
   if (isHtmlOnlyModule(mapRow)) {

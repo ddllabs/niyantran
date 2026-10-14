@@ -64,6 +64,7 @@ import {
   entertainmentSlice,
   rssWireRows as entRssRows,
 } from '../src/lib/entertainmentPack.js';
+import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
 import { serveNational, statementLeader } from './nationalFeed.mjs';
 import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
 import * as assetsLive from './assetsApi.mjs';
@@ -1087,6 +1088,12 @@ function sourceLinks(entry, feature) {
   return [...urls];
 }
 
+/**
+ * F89 (F171 B1): source links never shown to readers: GDELT's raw API (it refuses every request;
+ * F169 T4) and MoSPI's IPM site (expired certificate, checked 2026-10-14; restore when renewed).
+ */
+const HIDDEN_SOURCE_LINK = /^https?:\/\/(?:api\.gdeltproject\.org\/|ipm\.mospi\.gov\.in\b)/i;
+
 function envelope({ tier, feature, rows, adapter, links, coverage, fallback, note, gdelt, kind, timeline, meta }) {
   return {
     ok: true,
@@ -1095,7 +1102,7 @@ function envelope({ tier, feature, rows, adapter, links, coverage, fallback, not
     rows,
     source: {
       adapter,
-      links,
+      links: Array.isArray(links) ? links.filter((l) => !HIDDEN_SOURCE_LINK.test(String(l || ''))) : links,
       note: note || '',
       gdelt: Boolean(gdelt),
       kind: kind || '',
@@ -1361,6 +1368,20 @@ export async function serveFeatureFeed(searchParams) {
       coverage: { from: '', through: '', exhaustive: false },
       fallback: false,
     };
+  }
+
+  // F173 (F171 B9): a module with no data source yet answers its planned state; nothing is fetched.
+  if (isPlannedModule(tier, feat.htmlFeature)) {
+    return envelope({
+      tier,
+      feature: feat,
+      rows: [],
+      adapter: 'planned',
+      links: [],
+      coverage: { from: '', through: '', exhaustive: false },
+      fallback: false,
+      note: PLANNED_NOTE,
+    });
   }
 
   const entry = entries[0] || null;
