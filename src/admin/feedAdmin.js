@@ -2,8 +2,8 @@
 //
 // The data comes from two admin-only database functions, called with the signed-in admin's own
 // session: feed_admin_status() (one row per module and variant, with the stale rule applied in SQL
-// so the page server and this screen share it; supabase/migrations/20261015140000_feed_admin.sql)
-// and db_size() (20261015120000_feed_records.sql). Nothing here writes.
+// so the page server and this screen share it; supabase/migrations/20261015160000_feed_admin.sql)
+// and db_size() (20261015150000_feed_records.sql). Nothing here writes.
 //
 // "Failing" means the module's last two attempts or more failed (consecutive_failures resets on the next
 // success): one timeout among dozens of runs a day is noise, not a failing module. "Stale" is the SQL rule: not fetched within three of its intervals or

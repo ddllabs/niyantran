@@ -22,7 +22,7 @@ import { cutChars, safeText, supabaseRpc } from './supabaseRpc.mjs';
 // importing this file, which imports the loaders.
 export { supabaseRpc };
 
-/** The limits public.feed_record enforces (supabase/migrations/20261015120000_feed_records.sql). */
+/** The limits public.feed_record enforces (supabase/migrations/20261015150000_feed_records.sql). */
 export const FEED_CAPS = Object.freeze({
   items: 2000,
   rowBytes: 64 * 1024,

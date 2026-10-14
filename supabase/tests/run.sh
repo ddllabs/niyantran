@@ -149,10 +149,10 @@ chain() {
         site_figures) FILES+=("$(as_non_superuser 20261014120000_site_figures.sql)") ;;
         # Scheduled module records (F169 phase 4), applied as a non-superuser; they need only
         # is_platform_admin() and user_profiles (auth_schema.sql) for db_size().
-        feed_records) FILES+=("$(as_non_superuser 20261015120000_feed_records.sql)") ;;
+        feed_records) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)") ;;
         # The admin's view of the feed store (F169 phase 4, C5): feed_records' chain plus
         # feed_admin_status(), applied as a non-superuser. The vacuity check drops the last.
-        feed_admin) FILES+=("$(as_non_superuser 20261015120000_feed_records.sql)" "$(as_non_superuser 20261015140000_feed_admin.sql)") ;;
+        feed_admin) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)") ;;
         # plan_entitlements' chain plus the INR plan set, applied as a non-superuser.
         inr_plans)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)") ;;
@@ -318,7 +318,7 @@ feed_records_checks() {
   q "create database $up template $base" >/dev/null
   sed '/^SET ROLE nter_migrator;$/q' "$guard" | psql_in $base >/dev/null 2>&1
 
-  local mig="$MIG/20261015120000_feed_records.sql"
+  local mig="$MIG/20261015150000_feed_records.sql"
   {
     echo 'SET ROLE nter_migrator;'
     sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' | sed 's/^--   //'
@@ -358,7 +358,7 @@ feed_admin_checks() {
     psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
   done
   q "create database $up template $base" >/dev/null
-  local mig="$MIG/20261015140000_feed_admin.sql"
+  local mig="$MIG/20261015160000_feed_admin.sql"
   {
     echo 'SET ROLE nter_migrator;'
     sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' | sed 's/^--   //'

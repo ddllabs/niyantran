@@ -3,7 +3,7 @@
 --
 -- feed_state and feed_runs are service-role only (RLS on, no policies, nothing granted to
 -- authenticated), so the admin app cannot read them. This adds one read-only function the admin's
--- own session may call, the way db_size() (20261015120000_feed_records.sql) already is:
+-- own session may call, the way db_size() (20261015150000_feed_records.sql) already is:
 --
 --   * feed_admin_status()                                     authenticated, admins only
 --       One row per module and variant in feed_state (about 65), ordered by tier, feature,

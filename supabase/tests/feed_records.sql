@@ -1,8 +1,8 @@
--- Scheduled module records (migration 20261015120000; open-work F169 phase 4;
+-- Scheduled module records (migration 20261015150000; open-work F169 phase 4;
 -- docs/decisions/0012-scheduled-feeds-records-first.md). PostgreSQL assertions, no pgTAP.
 -- Run only in a disposable database, through run.sh.
 -- Bootstrap: the least_privilege chain plus research_turn_persistence, then
--- 20261015120000_feed_records.sql applied as a non-superuser (nter_migrator, whose default
+-- 20261015150000_feed_records.sql applied as a non-superuser (nter_migrator, whose default
 -- privileges grant everything to anon and authenticated, so a missing revoke shows). The
 -- vacuity check drops the last: feed_items is then missing, so the first assertion fails.
 -- run.sh also executes the migration's Down block, compares the schema with the chain

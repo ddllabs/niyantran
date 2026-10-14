@@ -1,8 +1,8 @@
--- The admin screen's view of the scheduled feed store (migration 20261015140000;
+-- The admin screen's view of the scheduled feed store (migration 20261015160000;
 -- open-work F169 phase 4, C5). PostgreSQL assertions, no pgTAP. Run only in a disposable database,
 -- through run.sh.
 -- Bootstrap: the feed_records chain (the least_privilege chain plus research_turn_persistence, then
--- 20261015120000_feed_records.sql), then 20261015140000_feed_admin.sql, both applied as a
+-- 20261015150000_feed_records.sql), then 20261015160000_feed_admin.sql, both applied as a
 -- non-superuser (nter_migrator, whose default privileges grant everything to anon and
 -- authenticated, so a missing revoke shows). The vacuity check drops the last: feed_admin_status()
 -- is then missing, so the first assertion fails. run.sh also executes the migration's Down block

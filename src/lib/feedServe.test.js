@@ -17,7 +17,7 @@ const NEWS_PARAMS = new URLSearchParams({ tier: 'finance', feature: 'AI & the Te
 const STATEMENTS = 'national:Statement & Quote Tracker with Contradiction Detection';
 const SECRET = 'sb_secret_c4-test-key-5d1f';
 
-/** What public.feed_page returns for a module (supabase/migrations/20261015120000_feed_records.sql). */
+/** What public.feed_page returns for a module (supabase/migrations/20261015150000_feed_records.sql). */
 function page(over = {}) {
   return {
     tier: 'finance',
