@@ -48,9 +48,10 @@ ANALYZE document_chunks;
 -- The index must be used, as on NTER, or the test proves nothing.
 SET LOCAL enable_seqscan = off;
 SET LOCAL enable_sort = off;
--- Load pgvector's library so hnsw.ef_search is a real setting, then set a caller value.
+-- Load pgvector's library so hnsw.ef_search is a real setting, then set the caller's value to the
+-- default, 40, so the vacuity run is the search as it was before the migration.
 SELECT pg_temp.v(1) <=> pg_temp.v(2);
-SET LOCAL hnsw.ef_search = 10;
+SET LOCAL hnsw.ef_search = 40;
 
 DO $$ DECLARE r text; plan text := ''; BEGIN
   FOR r IN EXECUTE 'EXPLAIN (COSTS OFF) SELECT c.id FROM public.document_chunks c JOIN public.documents d ON d.id = c.document_id WHERE c.embedding IS NOT NULL AND d.indexed_at IS NOT NULL ORDER BY (c.embedding::extensions.halfvec(1536)) <=> (pg_temp.v(1)::extensions.halfvec(1536)) LIMIT 10' LOOP plan := plan || r || ' '; END LOOP;
@@ -64,12 +65,12 @@ RESET ROLE;
 SELECT pg_temp.assert_true((SELECT count(*) FROM got) = 5, 'unscoped search past 100 nearer unindexed chunks returns all 5 indexed ones (ef_search 200)');
 SELECT pg_temp.assert_true((SELECT array_agg(chunk_index ORDER BY rn) FROM got) = array[101, 102, 103, 104, 105], 'in exact distance order');
 SELECT pg_temp.assert_true((SELECT bool_and(document_id = 'f3500000-0000-0000-0000-000000000002') FROM got), 'no unindexed document is returned');
-SELECT pg_temp.assert_true(current_setting('hnsw.ef_search') = '10', 'the caller''s ef_search is restored after the call');
+SELECT pg_temp.assert_true(current_setting('hnsw.ef_search') = '40', 'the caller''s ef_search is restored after the call');
 
 -- The scoped branch is untouched: it never sets ef_search.
 SET LOCAL ROLE authenticated;
 SELECT count(*) FROM public.match_documents(pg_temp.v(1), 10, array['f3500000-0000-0000-0000-000000000002'::uuid]);
 RESET ROLE;
-SELECT pg_temp.assert_true(current_setting('hnsw.ef_search') = '10', 'the scoped branch leaves ef_search alone');
+SELECT pg_temp.assert_true(current_setting('hnsw.ef_search') = '40', 'the scoped branch leaves ef_search alone');
 
 ROLLBACK;

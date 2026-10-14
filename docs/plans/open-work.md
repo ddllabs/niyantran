@@ -1770,9 +1770,13 @@ Follow-ups and findings:
     more p50. Above about 500 the planner switches to an exact scan (11 to 57 s). Lowering T is not
     safe: an off-topic question in Regulatory's scope returns no rows on the index path at any
     `ef_search` up to 400, so it needs an exact fallback first.
-  - **Next:** a migration setting `ef_search` 200 in the unscoped branch of `match_documents` (the
-    `set_config` pattern of `match_documents_feature_hnsw`), tested locally, a read-only `EXPLAIN` on
-    NTER, then applied.
+  - **Migration `20261015130000_unscoped_ef_search`** (`task/ef-search`): `ef_search` 200 in the
+    unscoped branch only, set and restored with `set_config`. Fixture `unscoped_ef_search` (index plan
+    asserted; fails at 40 and without the restore). Read-only checks on NTER, 2026-10-15: the live
+    body is the repository's apart from comments; at 200 the plan stays on the HNSW index; warm index
+    scan 10.0 ms against 7.6 ms at 40. Side effect (review): pgvector returns at most `ef_search`
+    candidates, so an unscoped call that lost rows to the `indexed_at` or tier filter now fills its
+    40; prompt size per turn can rise slightly against the F41 baselines.
 - [ ] **F38.** A sweeper for `corpus/staging/` objects older than 24 h, and
   for content-addressed objects no document references after a discard
   (admin-upload spec, "Follow-ups").

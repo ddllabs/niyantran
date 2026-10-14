@@ -127,10 +127,10 @@ chain() {
         page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|unscoped_ef_search)
           FILES+=("$(m 20260922104646_match_documents_prefilter_and_quota.sql)" "$(m 20260929120000_halfvec_index.sql)" "$(m 20260929120100_match_documents_halfvec.sql)"
                   "$(m 20261001100000_match_documents_feature.sql)" "$(as_non_superuser 20261001120000_page_contract.sql)")
-          # page_contract's chain plus the Storage stub and ingestion-v2, also
-          # applied as a non-superuser; the chain ends with the migration it proves.
           # F35: page_contract's chain plus the unscoped ef_search, as a non-superuser.
           [ "$1" = unscoped_ef_search ] && FILES+=("$(as_non_superuser 20261015130000_unscoped_ef_search.sql)")
+          # page_contract's chain plus the Storage stub and ingestion-v2, also
+          # applied as a non-superuser; the chain ends with the migration it proves.
           case "$1" in page_contract|unscoped_ef_search) ;; *) FILES+=("$TESTS/bootstrap_storage.sql" "$(as_non_superuser 20261001140000_ingestion_v2.sql)") ;; esac
           # ingestion_v2's chain plus ingest_discard (admin-upload), as a non-superuser.
           case "$1" in ingest_discard|corpus_records|search_document_pages) FILES+=("$(as_non_superuser 20261001160000_ingest_discard.sql)") ;; esac
