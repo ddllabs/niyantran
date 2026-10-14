@@ -17,7 +17,8 @@ vi.mock('./supabaseClient.js', () => ({
 }));
 
 import {
-  clearCredits, conversationCredits, creditsText, formatCredits, lowBalance, refreshCredits, rupeeHint, serverCredits, shapeCredits,
+  OPEN_CONVERSATION_EVENT, clearCredits, conversationCredits, creditEstimateText, creditsText, formatCredits, loadCreditEstimates,
+  lowBalance, openConversation, refreshCredits, rupeeHint, serverCredits, shapeCredits, takeWantedConversation,
 } from './creditsStore.js';
 
 const SERVER = {
@@ -259,5 +260,102 @@ describe('lowBalance', () => {
   it('is false without an allowance', () => {
     expect(lowBalance({ balance: 5, allowance: null })).toBe(false);
     expect(lowBalance(null)).toBe(false);
+  });
+});
+
+// F149: Plan & billing asks the AI panel to open a saved conversation.
+describe('openConversation (F149)', () => {
+  it('announces the conversation id on window and remembers it until a panel takes it, once', () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    try {
+      const seen = vi.fn();
+      target.addEventListener(OPEN_CONVERSATION_EVENT, seen);
+      expect(OPEN_CONVERSATION_EVENT).toBe('niy-open-conversation');
+      openConversation('c1');
+      expect(seen).toHaveBeenCalledOnce();
+      expect(seen.mock.calls[0][0].detail).toEqual({ conversationId: 'c1' });
+      expect(takeWantedConversation()).toBe('c1');
+      expect(takeWantedConversation()).toBe('');
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('ignores an empty id and a missing window', () => {
+    expect(() => openConversation('c1')).not.toThrow();
+    takeWantedConversation();
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    try {
+      const seen = vi.fn();
+      target.addEventListener(OPEN_CONVERSATION_EVENT, seen);
+      openConversation('');
+      openConversation(null);
+      expect(seen).not.toHaveBeenCalled();
+      expect(takeWantedConversation()).toBe('');
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+// F151: what a typical answer costs, per model, in credits only.
+describe('loadCreditEstimates (F151)', () => {
+  const ROWS = [
+    { model_id: 'google/gemini-3.5-flash-lite', credits: 4, basis: 'measured' },
+    { model_id: 'anthropic/claude-sonnet-5', credits: 170.4, basis: 'list_price' },
+  ];
+  beforeEach(() => { state.rpc = vi.fn(async () => ({ data: ROWS, error: null })); });
+
+  it('reads model_credit_estimates and keys whole credits by model id', async () => {
+    expect(await loadCreditEstimates()).toEqual({ 'google/gemini-3.5-flash-lite': 4, 'anthropic/claude-sonnet-5': 170.4 });
+    expect(state.rpc).toHaveBeenCalledWith('model_credit_estimates');
+  });
+
+  it('asks the server once per session, even for concurrent callers', async () => {
+    const [a, b] = await Promise.all([loadCreditEstimates(), loadCreditEstimates()]);
+    await loadCreditEstimates();
+    expect(a).toBe(b);
+    expect(state.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps nothing for a row without a usable number, and no dollars or basis', async () => {
+    state.rpc = vi.fn(async () => ({
+      data: [{ model_id: 'a', credits: null }, { model_id: 'b', credits: 'x' }, { model_id: 'c', credits: 0 }, { model_id: 'd', credits: -3 },
+        { model_id: '', credits: 5 }, { model_id: 'e', credits: 9, basis: 'measured', usd: 0.9 }, null],
+      error: null,
+    }));
+    const found = await loadCreditEstimates();
+    expect(found).toEqual({ e: 9 });
+    expect(JSON.stringify(found)).not.toMatch(/usd|basis/i);
+  });
+
+  it('is empty on an error and tries again next time, because a failure is not kept', async () => {
+    state.rpc = vi.fn(async () => ({ data: null, error: { message: 'down' } }));
+    expect(await loadCreditEstimates()).toEqual({});
+    state.rpc = vi.fn(async () => { throw new Error('offline'); });
+    expect(await loadCreditEstimates()).toEqual({});
+    state.rpc = vi.fn(async () => ({ data: ROWS, error: null }));
+    expect(Object.keys(await loadCreditEstimates())).toHaveLength(2);
+  });
+
+  it('is forgotten on sign-out, so another account asks again', async () => {
+    await loadCreditEstimates();
+    clearCredits();
+    await loadCreditEstimates();
+    expect(state.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not ask the server when nobody is signed in', async () => {
+    state.userId = null;
+    expect(await loadCreditEstimates()).toEqual({});
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('creditEstimateText (F151)', () => {
+  it('writes "≈ N credits" in the credit formatting, and nothing without a number', () => {
+    expect(creditEstimateText(170.4)).toBe('≈ 170 credits');
+    expect(creditEstimateText(4)).toBe('≈ 4 credits');
+    expect(creditEstimateText(1)).toBe('≈ 1 credit');
+    expect(creditEstimateText(0.5)).toBe('≈ 0.5 credits');
+    for (const v of [undefined, null, NaN, 0, -2, 'x']) expect(creditEstimateText(v)).toBe('');
   });
 });

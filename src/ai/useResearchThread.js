@@ -5,7 +5,7 @@ import * as identity from '../lib/userStore.js';
 import * as registry from '../lib/aiRegistry.js';
 import { partitionAttachments } from '../lib/aiDrop.js';
 import { setChatWebSearch } from '../lib/aiConversations.js';
-import { conversationCredits, refreshCredits } from '../lib/creditsStore.js';
+import { OPEN_CONVERSATION_EVENT, conversationCredits, loadCreditEstimates, refreshCredits, takeWantedConversation } from '../lib/creditsStore.js';
 import { defaultEffortFor, effortsFor } from './ModelPicker.jsx';
 
 export function normalizeResearchChoice(models, value = {}) {
@@ -45,7 +45,7 @@ function saveChoice(storage, choice) {
 // the same B4 identity and D7/D8 store interfaces as the production defaults.
 export function createResearchThread(overrides = {}) {
   // setChatWebSearch is imported from the store itself: lib/aiThreads.js is outside F130 T4a's scope.
-  const deps = { setChatWebSearch, conversationCredits, refreshCredits, ...threads, ...streaming, ...identity, ...registry, ...overrides };
+  const deps = { setChatWebSearch, conversationCredits, loadCreditEstimates, refreshCredits, ...threads, ...streaming, ...identity, ...registry, ...overrides };
   const storage = 'choiceStorage' in overrides ? overrides.choiceStorage
     : (() => { try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; } })();
   const emptyStore = () => ({ chats: [], activeId: '', loaded: false, persistenceError: '' });
@@ -61,11 +61,17 @@ export function createResearchThread(overrides = {}) {
     // F111 review R: the refusal's own message, so the panel hides that error and no other, and whether the
     // refusal said the balance is held by answers still running (the 402 body's `held`).
     creditError: '', creditHeld: false,
+    // F150: set when research-chat refused the chosen model for the plan (403 model_requires_plan).
+    planBlock: '',
+    // F151: credits a typical answer costs, by model id; what the server has said, nothing guessed.
+    estimates: {},
     // F111 §8: credits charged per answer, by message id. Only what the server has said; an answer it has
     // not (yet) charged has no entry, so nothing is ever shown as 0 by guess.
     answerCredits: {} };
   let view = data;
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
+  // F149: a conversation asked for before the thread was ready to show it.
+  let wanted = '';
   let rechecking = null, recheckSequence = 0;
   let subscriptions = [];
   const listeners = new Set();
@@ -133,15 +139,17 @@ export function createResearchThread(overrides = {}) {
       const hydrated = store.chats.length ? store : deps.createAiChat();
       emit({ store: hydrated, registry: choices, ready: true, loading: false });
       void loadAnswerCredits(hydrated.activeId, t);
+      void loadEstimates(t);
+      if (wanted) { const id = wanted; wanted = ''; void api.openConversation(id); }
     } catch {
       if (active && seq === sequence && version === generation) emit({ loading: false, error: 'Research could not be loaded. Try Reload.' });
     }
   }
   function invalidate(id, event) {
-    generation++; sequence++; owner = null; operation = null;
+    generation++; sequence++; owner = null; operation = null; wanted = '';
     emit({ ready: false, loading: Boolean(id), error: id ? '' : 'Sign in to use AI research.', store: emptyStore(),
       draft: '', viewer: null, submitting: false, attaching: false, attachNotice: '', cancelRequested: false, cancelPending: false, cancelError: '',
-      creditBlock: '', creditError: '', creditHeld: false, answerCredits: {}, identityVersion: data.identityVersion + 1 });
+      creditBlock: '', creditError: '', creditHeld: false, planBlock: '', estimates: {}, answerCredits: {}, identityVersion: data.identityVersion + 1 });
     // Never invoke another Auth method inside its synchronous event callback.
     if (id) queueMicrotask(() => { if (active) void hydrate(); });
   }
@@ -209,6 +217,14 @@ export function createResearchThread(overrides = {}) {
       emit({ answerCredits: { ...data.answerCredits, ...Object.fromEntries(found) } });
     } catch { /* an unread charge simply shows nothing */ }
   }
+  // What a typical answer costs per model (F151). Never blocks or fails a load; no entry shows nothing.
+  async function loadEstimates(t) {
+    try {
+      const found = await deps.loadCreditEstimates();
+      if (!found || !await current(t)) return;
+      emit({ estimates: found });
+    } catch { /* the picker simply shows no estimate */ }
+  }
   // The balance is read by the credits store; a failed read changes nothing and never fails a turn.
   async function refreshWallet() {
     try { await deps.refreshCredits(); } catch { /* the chip keeps its last balance */ }
@@ -219,6 +235,13 @@ export function createResearchThread(overrides = {}) {
     // F111 §3: a turn refused for credits never started. Say which refusal it was.
     if (result.errorCode === 'credits_exhausted' || result.errorCode === 'credits_unavailable') {
       emit({ creditBlock: result.errorCode, creditError: result.error || '', creditHeld: result.errorCode === 'credits_exhausted' && result.held === true });
+    }
+    // F150: the plan no longer allows the chosen model (a stale plan in the picker). Say so as it was said, and
+    // go back to the default model so the next send is one the plan allows.
+    if (result.errorCode === 'model_requires_plan') {
+      const next = normalizeResearchChoice(data.registry.models, { modelId: '', effort: '' });
+      emit({ planBlock: 'model_requires_plan', choice: next });
+      saveChoice(storage, next);
     }
     if (['complete', 'cancelled', 'truncated', 'interrupted', 'error'].includes(result.status) && !result.isPending) {
       emit({ cancelRequested: false, cancelPending: false });
@@ -247,7 +270,7 @@ export function createResearchThread(overrides = {}) {
     const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
     if (!context) return false;
     const op = { context }; operation = op;
-    emit({ submitting: true, error: '', cancelError: '', attachNotice: '', creditBlock: '', creditError: '', creditHeld: false });
+    emit({ submitting: true, error: '', cancelError: '', attachNotice: '', creditBlock: '', creditError: '', creditHeld: false, planBlock: '' });
     try {
       if (!await current(t)) return false;
       if (!replay) {
@@ -337,6 +360,19 @@ export function createResearchThread(overrides = {}) {
       catch { if (valid(t)) emit({ error: 'Conversation messages could not be loaded. Try Reload.' }); }
       finally { if (valid(t)) emit({ loading: false }); }
     },
+    /**
+     * F149: show one of the caller's saved conversations (asked for by Plan & billing). Before the thread is
+     * ready the request waits for it. Only the chats the panel lists (the 40 most recent) can be shown; any
+     * other says so rather than doing nothing, and an answer in progress is never interrupted.
+     */
+    async openConversation(id) {
+      if (typeof id !== 'string' || !id) return false;
+      if (!data.ready) { wanted = id; return false; }
+      if (!data.store.chats.some(c => c.id === id)) { emit({ error: 'That conversation is not in your recent chats.' }); return false; }
+      if (view.locked) { emit({ error: 'Wait for the current answer to finish, then open that conversation.' }); return false; }
+      if (view.chat?.id !== id) await api.selectChat(id);
+      return true;
+    },
     deleteChat(id) { if (data.ready && !view.locked) { deps.deleteAiChat(id); emit({ store: deps.loadAiState(), viewer: null }); } },
     async attach(materialize) {
       if (!data.ready || view.locked) return false;
@@ -394,10 +430,27 @@ export function createResearchThread(overrides = {}) {
   emit();
   return api;
 }
+/**
+ * F149: hand the thread the conversation Plan & billing asked for. A request made before the thread existed is
+ * taken at once (the shell shows the AI panel, and this thread is created as it mounts); later ones follow the
+ * event. Returns the function that stops listening.
+ */
+export function bindOpenConversation(actions, { target = typeof window === 'undefined' ? null : window, take = takeWantedConversation } = {}) {
+  const early = take();
+  if (early) void actions.openConversation(early);
+  if (!target) return () => {};
+  const onOpen = event => {
+    take();
+    const id = event?.detail?.conversationId;
+    if (typeof id === 'string' && id) void actions.openConversation(id);
+  };
+  target.addEventListener(OPEN_CONVERSATION_EVENT, onOpen);
+  return () => target.removeEventListener(OPEN_CONVERSATION_EVENT, onOpen);
+}
 export default function useResearchThread(enabled) {
   const controller = useRef(null);
   controller.current ??= createResearchThread();
   const view = useSyncExternalStore(controller.current.subscribe,controller.current.getSnapshot,controller.current.getSnapshot);
-  useEffect(()=>{if(!enabled)return;void controller.current.start();return()=>controller.current.dispose()},[enabled]);
+  useEffect(()=>{if(!enabled)return;void controller.current.start();const unbind=bindOpenConversation(controller.current);return()=>{unbind();controller.current.dispose()}},[enabled]);
   return { ...view, actions:controller.current };
 }

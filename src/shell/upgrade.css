@@ -378,8 +378,45 @@
 .plan-credits-when { color: #6f695f; font-size: 12px; white-space: nowrap; }
 .plan-credits-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-credits-note { margin-top: 12px; }
+/* F149: a saved conversation's row is one button that opens it in the AI panel. */
+.plan-credits-link { display: block; padding: 0; }
+.plan-credits-open { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; font-variant-numeric: tabular-nums; }
+.plan-credits-open:hover { background: var(--accent-soft); }
+.plan-credits-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 560px) {
   .plan-credits-lot, .plan-credits-answer { grid-template-columns: minmax(0, 1fr) auto; }
   .plan-credits-lot .plan-credits-when { grid-column: 1 / -1; }
   .plan-credits-answer .plan-credits-when { grid-column: 1 / -1; }
+  .plan-credits-open { grid-template-columns: minmax(0, 1fr) auto; }
+  .plan-credits-open .plan-credits-when { grid-column: 1 / -1; }
 }
+
+/* Dark theme (F148): the terminal root carries .theme-dark, which re-defines the tokens below
+   (src/index.css). Text on every surface here keeps at least 4.5:1, which planBillingDark.test.js measures. */
+.theme-dark .plan-up-scrim { background: rgba(0, 0, 0, 0.62); }
+.theme-dark .plan-up-card { background: var(--panel); border-color: var(--line); color: var(--text); box-shadow: 0 28px 64px rgba(0, 0, 0, 0.6); color-scheme: dark; }
+.theme-dark .plan-up-kicker { color: var(--accent); }
+.theme-dark .plan-up-head h2 { color: var(--fg); }
+.theme-dark .plan-up-x { background: var(--bg); color: var(--text); }
+.theme-dark .plan-up-lead { color: var(--muted); }
+.theme-dark .plan-up-plan { background: var(--bg); border-color: var(--line); color: var(--fg); }
+.theme-dark .plan-up-plan.on { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 0 0 2px rgba(123, 163, 255, 0.25); color: var(--fg); }
+.theme-dark .plan-up-plan em { background: #34244d; color: #d7b8ff; }
+.theme-dark .plan-up-plan .amt small, .theme-dark .plan-up-plan .who { color: var(--muted); }
+.theme-dark .plan-up-plan.on .who { color: var(--text); }
+.theme-dark .plan-up-pay { background: var(--accent); color: #0b1020; }
+.theme-dark .plan-up-renew { background: var(--warn-bg); color: var(--warn); }
+.theme-dark .plan-up-selnote { color: var(--text); }
+.theme-dark .plan-up-sub { color: var(--muted); }
+.theme-dark .plan-up-ok { color: var(--live); }
+.theme-dark .plan-up-err { color: #f87171; }
+.theme-dark .plan-up-note { color: var(--muted); }
+.theme-dark .plan-up-note a, .theme-dark .plan-up-inv-link { color: var(--accent); }
+.theme-dark .plan-up-invoices li { border-color: var(--line); color: var(--text); }
+.theme-dark .plan-credits-balance strong { color: var(--fg); }
+.theme-dark .plan-credits-negative strong, .theme-dark .plan-credits-owed { color: #f87171; }
+.theme-dark .plan-credits-inr, .theme-dark .plan-credits-until, .theme-dark .plan-credits-when, .theme-dark .plan-credits-sub { color: var(--muted); }
+.theme-dark .plan-credits-cycle { color: var(--text); }
+.theme-dark .plan-credits-lot, .theme-dark .plan-credits-answer { border-color: var(--line); color: var(--text); }
+.theme-dark .plan-credits-open { color: var(--text); }
+.theme-dark .plan-credits-open:hover { background: var(--accent-soft); color: var(--fg); }
