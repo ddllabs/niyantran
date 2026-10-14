@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deskRowKey } from '../lib/deskRows.js';
-import { openInDesk, pendingDeskRow, takePendingDeskRow } from './openRowSource.js';
+import { fetchPendingDeskRow, openInDesk, pendingDeskRow, takePendingDeskRow } from './openRowSource.js';
 
 const BILL = {
   id: '156-Lok Sabha-2026-08-09-THE NATIONAL CO-OPERATIVE DEVELOPMENT CO',
@@ -56,5 +56,42 @@ describe('openInDesk / takePendingDeskRow', () => {
     expect(pendingDeskRow()).not.toBeNull();
     expect(takePendingDeskRow(null, 'national')).toBeNull();
     expect(takePendingDeskRow({ feature: 'Bill Passage Probability Index', rows: [BILL] }, 'national')).toBe(BILL);
+  });
+});
+
+// F156: Bills and Questions hold one page from the server, so a cited row may be on another page.
+describe('a cited row on a paged module', () => {
+  const FEATURE = 'Bill Passage Probability Index';
+  beforeEach(() => {
+    takePendingDeskRow({ feature: pendingDeskRow()?.feature, rows: [] }, pendingDeskRow()?.tab);
+  });
+
+  it('is selected from the page when it is there', async () => {
+    openInDesk(citation);
+    const feed = { feature: FEATURE, paged: true, rows: [BILL] };
+    const fetchByKey = vi.fn();
+    expect(await fetchPendingDeskRow(feed, fetchByKey)).toBeNull();
+    expect(fetchByKey).not.toHaveBeenCalled();
+    expect(takePendingDeskRow(feed, 'national')).toBe(BILL);
+  });
+
+  it('is asked of the server by its key when it is on another page', async () => {
+    openInDesk(citation);
+    const feed = { feature: FEATURE, paged: true, rows: [{ ...BILL, id: 'other', bill_name: 'Another bill' }] };
+    expect(takePendingDeskRow(feed, 'national')).toBeNull();
+    expect(pendingDeskRow()).not.toBeNull();
+    const fetchByKey = vi.fn(async () => [{ ...BILL, extra: 'from the server' }]);
+    const row = await fetchPendingDeskRow(feed, fetchByKey);
+    expect(fetchByKey).toHaveBeenCalledWith(citation.row_key);
+    expect(row?.extra).toBe('from the server');
+    expect(pendingDeskRow()).toBeNull();
+  });
+
+  it('is null when the server has no such row, and only for the cited module', async () => {
+    openInDesk(citation);
+    expect(await fetchPendingDeskRow({ feature: 'Parliamentary Question Database', paged: true, rows: [] }, vi.fn())).toBeNull();
+    expect(pendingDeskRow()).not.toBeNull();
+    expect(await fetchPendingDeskRow({ feature: FEATURE, paged: true, rows: [] }, async () => null)).toBeNull();
+    expect(pendingDeskRow()).toBeNull();
   });
 });

@@ -1,6 +1,9 @@
 import { rowSelectionProps } from '../shell/rowSelection.js';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { fetchFeature } from '../lib/featureFeed.js';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { fetchFeature, fetchFeaturePage } from '../lib/featureFeed.js';
+import { featureFeedApiEnabled } from '../lib/apiMode.js';
+import { canonicalQ, isPagedFeature } from '../lib/pagedFeatures.js';
+import { fetchPendingDeskRow } from '../ai/openRowSource.js';
 import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.js';
 import { buildTableSearchIndex, searchTableRows, shouldIndexSearch } from '../lib/tableSearch.js';
@@ -59,6 +62,8 @@ import CommoditiesDesk from './CommoditiesDesk.jsx';
 import EnergyDesk from './EnergyDesk.jsx';
 
 const LARGE_PAGE = 100;
+// F156: on a paged module the search box asks the server once typing has stopped this long.
+const SEARCH_WAIT_MS = 300;
 
 /** F154: names stored rows shown while live data loads, and the moment live rows replace them. */
 export function liveRefreshNote(feed) {
@@ -90,15 +95,21 @@ export default function DeskView({
   const [loading, setLoading] = useState(true);
   const [visibleKeys, setVisibleKeys] = useState(null);
   const [reloadTick, setReloadTick] = useState(0);
-  const [page, setPage] = useState(0);
+  const [pageAt, setPageAt] = useState({ view: '', n: 0 });
   const [hasAnswerFilter, setHasAnswerFilter] = useState('');
+  // F156: Bills and Questions ask the server for one page at a time; after a failed page they load
+  // the whole module as before (pagedMode false).
+  const [pagedMode, setPagedMode] = useState(() => isPagedFeature(featureName) && featureFeedApiEnabled());
+  const [pagedQ, setPagedQ] = useState('');
+  const [paging, setPaging] = useState(false);
+  const loadedFor = useRef('');
+  const mounted = useRef(true);
   const colsKey = featureName ? `niy-cols:${tier || ''}:${featureName}` : '';
   const filtersKey = featureName ? `niy-filters:${tier || ''}:${featureName}` : '';
   const questionsDesk = isParliamentaryQuestions(featureName);
 
   useEffect(() => {
     setQ('');
-    setPage(0);
     setHasAnswerFilter('');
     onSelect(null);
     if (!colsKey) {
@@ -159,6 +170,7 @@ export default function DeskView({
       onLoading?.(false);
       return undefined;
     }
+    if (pagedMode) return undefined;
     const ac = new AbortController();
     setLoading(true);
     onLoading?.(true);
@@ -190,7 +202,70 @@ export default function DeskView({
         onLoading?.(false);
       });
     return () => ac.abort();
-  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick]);
+  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pagedMode) return undefined;
+    const timer = setTimeout(() => setPagedQ(canonicalQ(q)), SEARCH_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [q, pagedMode]);
+
+  // One page per view: a new search, sort or filter starts again at its first page.
+  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter]);
+  const page = pageAt.view === viewKey ? pageAt.n : 0;
+  const setPage = (next) =>
+    setPageAt((at) => ({ view: viewKey, n: typeof next === 'function' ? next(at.view === viewKey ? at.n : 0) : next }));
+
+  // F156: the page on screen, asked of the server; the first answer of a load stands in for the
+  // whole-module load above (loading state, onFeed, a cleared selection, a cited row).
+  useEffect(() => {
+    if (!pagedMode || !featureName) return undefined;
+    const ac = new AbortController();
+    const loadKey = `${reload}|${reloadTick}`;
+    const fresh = loadedFor.current !== loadKey;
+    if (fresh) {
+      setLoading(true);
+      onLoading?.(true);
+      setErr('');
+    } else {
+      setPaging(true);
+    }
+    const view = { tier, feature: featureName, q: pagedQ, sort: sort.key, dir: sort.dir, filter: vizFilter, answer: questionsDesk ? hasAnswerFilter : '' };
+    fetchFeaturePage({ ...view, page: page + 1, signal: ac.signal })
+      .catch((e) => {
+        if (e?.name === 'AbortError') throw e;
+        return null;
+      })
+      .then((body) => {
+        if (ac.signal.aborted) return;
+        setPaging(false);
+        if (!body) {
+          // The API is not on this host or failed: the whole module, browsed here, as before.
+          setPagedMode(false);
+          return;
+        }
+        loadedFor.current = loadKey;
+        setFeed(body);
+        onFeed(body);
+        if (!fresh) return;
+        onSelect(null);
+        setLoading(false);
+        onLoading?.(false);
+        fetchPendingDeskRow(body, (key) => fetchFeaturePage({ tier, feature: featureName, key }).then((b) => b?.rows))
+          .then((row) => {
+            if (row && mounted.current) onSelect(row);
+          })
+          .catch(() => {});
+      }, () => {});
+    return () => ac.abort();
+  }, [pagedMode, tier, featureName, page, pagedQ, sort, vizFilter, hasAnswerFilter, questionsDesk, onFeed, onSelect, onLoading, reload, reloadTick]);
 
   const searchIndex = useMemo(() => {
     const rows = feed?.rows || [];
@@ -199,6 +274,8 @@ export default function DeskView({
   }, [feed]);
 
   const filtered = useMemo(() => {
+    // A paged answer is already searched, filtered and sorted by the server.
+    if (feed?.paged) return feed.rows || [];
     const base = feed?.rows || [];
     let rows = shouldIndexSearch(base.length)
       ? searchTableRows(base, searchIndex, deferredQ)
@@ -210,20 +287,22 @@ export default function DeskView({
     return sortRows(rows, sort.key || undefined, sort.dir);
   }, [feed, deferredQ, sort, vizFilter, searchIndex, questionsDesk, hasAnswerFilter]);
 
-  useEffect(() => {
-    setPage(0);
-  }, [deferredQ, sort, vizFilter, hasAnswerFilter, featureName]);
-
-  const usePaging = filtered.length > LARGE_PAGE;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / LARGE_PAGE));
+  // Rows matching the view, and in the register: the server counts them for a paged answer.
+  const matchCount = feed?.paged ? feed.total : filtered.length;
+  const registerCount = feed?.paged ? feed.totalAll : feed?.rows?.length;
+  const usePaging = matchCount > LARGE_PAGE;
+  const pageCount = Math.max(1, Math.ceil(matchCount / LARGE_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = useMemo(() => {
-    if (!usePaging) return filtered;
+    if (!usePaging || feed?.paged) return filtered;
     const start = safePage * LARGE_PAGE;
     return filtered.slice(start, start + LARGE_PAGE);
-  }, [filtered, usePaging, safePage]);
+  }, [filtered, usePaging, safePage, feed]);
 
-  const allCols = useMemo(() => feedColumns(feed?.feature || featureName, filtered), [feed, featureName, filtered]);
+  const allCols = useMemo(
+    () => (feed?.paged && Array.isArray(feed.columns) ? feed.columns : feedColumns(feed?.feature || featureName, filtered)),
+    [feed, featureName, filtered],
+  );
   const cols = useMemo(() => {
     if (!allCols.length) return allCols;
     const defaults = allCols.filter((c) => c.default !== false).slice(0, 7).map((c) => c.key);
@@ -528,8 +607,8 @@ export default function DeskView({
   const coverageLabel = (() => {
     if (loading) return 'Fetching…';
     if (shellState) return dataState.coverage || 'No live rows';
-    const n = filtered.length;
-    const total = feed?.rows?.length;
+    const n = matchCount;
+    const total = registerCount;
     if (/open fronts/i.test(featureName || '')) {
       const through = formatDate(feed?.coverage?.through) || feed?.coverage?.through || '';
       return `${n} conflict${n === 1 ? '' : 's'}${through ? ` · through ${through}` : ''}`;
@@ -637,7 +716,7 @@ export default function DeskView({
             Field note: intelligence rows are reporting context, not threat ratings. Open a record to inspect its source and date.
           </p>
         )}
-        <div className={`table-wrap${loading ? ' is-loading' : ''}`}>
+        <div className={`table-wrap${loading || paging ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label={`Loading ${featureName || 'feed'}…`} />}
           {!loading && shellState ? (
             <DeskStateShell
@@ -773,9 +852,9 @@ export default function DeskView({
                 Previous
               </button>
               <span className="muted">
-                {safePage * LARGE_PAGE + 1}-{Math.min(filtered.length, (safePage + 1) * LARGE_PAGE)} of{' '}
-                {filtered.length.toLocaleString('en-IN')}
-                {shouldIndexSearch(feed?.rows?.length) ? ' · search index' : ''}
+                {safePage * LARGE_PAGE + 1}-{Math.min(matchCount, (safePage + 1) * LARGE_PAGE)} of{' '}
+                {matchCount.toLocaleString('en-IN')}
+                {shouldIndexSearch(registerCount) ? ' · search index' : ''}
               </span>
               <button
                 type="button"

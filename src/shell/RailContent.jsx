@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import FeedLoader from './FeedLoader.jsx';
 import { feedOverview } from '../lib/analytics.js';
+import { fetchFeaturePage } from '../lib/featureFeed.js';
+import { relatedRowsView } from '../lib/pagedFeatures.js';
 import { resolveDataState, isTerminalState } from '../lib/dataState.js';
 import { BarList, Heatmap, Sparkline, VizCard } from './AnalyticsViz.jsx';
 import RecordDetail from './RecordDetail.jsx';
@@ -25,13 +27,37 @@ import { todayInIndia } from './record/adapters/common.js';
  * button (F128) only drafts its request in AI Research, with the record attached; nothing runs
  * until the reader sends it. `today` lets an adapter mark a stated deadline as passed.
  */
+/**
+ * The rows an adapter lists beside the selected record. A paged module (F156) holds one page, so its
+ * related rows (same sector or member) are asked for as one filtered page; others use the feed's rows.
+ */
+export function useRelatedRows(feed, selected) {
+  const [related, setRelated] = useState({ key: '', rows: [] });
+  const view = feed?.paged && selected ? relatedRowsView(feed.feature, selected) : null;
+  const key = view ? JSON.stringify([feed.tier, feed.feature, view]) : '';
+  useEffect(() => {
+    if (!key) return undefined;
+    const [tier, feature, wanted] = JSON.parse(key);
+    const ac = new AbortController();
+    fetchFeaturePage({ tier, feature, ...wanted, signal: ac.signal })
+      .then((body) => {
+        if (!ac.signal.aborted) setRelated({ key, rows: body?.rows || [] });
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [key]);
+  if (!feed?.paged) return feed?.rows || [];
+  return related.key === key ? related.rows : [];
+}
+
 function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
   const { brief, busy, err } = useEntryBrief({ feed, selected, loading });
   const packs = useRecordPacks(feed?.feature);
+  const rows = useRelatedRows(feed, selected);
   const today = todayInIndia();
   return (
     <RecordPanel
-      model={adapter(selected, { rows: feed?.rows || [], feed, packs, today })}
+      model={adapter(selected, { rows, feed, packs, today })}
       brief={{ busy, err: Boolean(err), lines: briefPlainLines(brief).slice(0, 4) }}
       onClose={() => onSelect?.(null)}
       onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
@@ -106,7 +132,8 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
   const overview = (() => {
     if (terminal) return { title: feed?.feature || 'MODULE', kpis: [], charts: [] };
     try {
-      return sanitizeRailOverview(feedOverview(feed), { carbon: carbonDesk });
+      // F156: a paged module's figures come with the page, worked out over the whole register.
+      return sanitizeRailOverview(feed?.paged && feed.overview ? feed.overview : feedOverview(feed), { carbon: carbonDesk });
     } catch {
       return { title: feed?.feature || 'MODULE', kpis: [], charts: [], note: 'Overview could not be built for this feed.' };
     }

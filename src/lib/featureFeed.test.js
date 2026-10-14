@@ -14,7 +14,7 @@ vi.mock('./archiveFeed.js', async (importOriginal) => ({
   }),
 }));
 
-import { fetchFeature } from './featureFeed.js';
+import { fetchFeature, fetchFeaturePage } from './featureFeed.js';
 
 const TIER = 'national';
 const FEATURE = 'Cabinet Decisions';
@@ -125,5 +125,42 @@ describe('fetchFeature archive first (F154)', () => {
     api.resolve(response(LIVE));
     await tick();
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// F156: Bills and Questions ask for one page instead of the whole register (0.9 MB and 0.6 MB as sent).
+describe('fetchFeaturePage (F156)', () => {
+  const originalFetch = globalThis.fetch;
+  const BILLS = 'Bill Passage Probability Index';
+  const PAGE = { ok: true, paged: true, prepared: true, feature: BILLS, rows: [{ bill_name: 'A bill' }], total: 1, totalAll: 9819 };
+  beforeEach(() => {
+    archive.fetch = vi.fn(async () => STORED);
+  });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('asks for one page with its view in the fixed URL form, and never for the shipped register', async () => {
+    globalThis.fetch = vi.fn(async () => response(PAGE));
+    const body = await fetchFeaturePage({ tier: TIER, feature: BILLS, page: 2, q: ' Finance ', sort: 'house', dir: 'desc', filter: [{ col: 'sector', value: 'FINANCE' }] });
+    expect(body).toEqual(PAGE);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch.mock.calls[0][0]).toBe(
+      `/api/feature-feed?tier=national&feature=Bill+Passage+Probability+Index&page=2&q=finance&sort=house&dir=desc&filter=${encodeURIComponent('[{"col":"sector","value":"FINANCE"}]')}`,
+    );
+    expect(archive.fetch).not.toHaveBeenCalled();
+  });
+
+  it('is null, so the desk loads the whole module as before, when the API fails or answers whole', async () => {
+    for (const answer of [response({ ok: false, error: 'Bad parameter: q' }, 400), response(STORED), response(null, 502)]) {
+      globalThis.fetch = vi.fn(async () => answer);
+      expect(await fetchFeaturePage({ tier: TIER, feature: BILLS, page: 1 })).toBeNull();
+    }
+    globalThis.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+    expect(await fetchFeaturePage({ tier: TIER, feature: BILLS, page: 1 })).toBeNull();
+  });
+
+  it('asks nothing for a module that is not paged', async () => {
+    globalThis.fetch = vi.fn();
+    expect(await fetchFeaturePage({ tier: TIER, feature: FEATURE, page: 1 })).toBeNull();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

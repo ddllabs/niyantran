@@ -191,7 +191,7 @@ export function summarizeModules(modules, summaries) {
   let pending = 0, knownModules = 0;
   for (const module of modules) {
     const summary = summaries[module.feature];
-    if (!summary) pending++;
+    if (!summary || summary.pending) pending++;
     if (Number.isInteger(summary?.count) && summary.count >= 0) {
       knownModules++;
       resources.set(summary.resourceKey || `${module.tier}:${module.feature}`, summary.count);
@@ -202,6 +202,8 @@ export function summarizeModules(modules, summaries) {
 
 export function moduleAvailability(module, summary) {
   if (!summary) return 'Loading summary';
+  // F156: a count served from the archive after the live time limit is asked for again.
+  if (summary.pending) return 'Loading live count…';
   if (summary.availability === 'error') return 'Summary unavailable';
   if (summary.availability === 'unavailable') return 'Measured data unavailable';
   if (module.feature === 'Parliamentary Question Database' && summary.sourceMode === 'stored') return 'Stored · Sampled questions';
