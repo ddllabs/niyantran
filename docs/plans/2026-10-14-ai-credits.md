@@ -58,10 +58,10 @@ At most three agents run at once.
 - [x] Task 2b: settle and frames, Stop-round cost in the background (`8a2cec2`)
 - [x] Task 3: dictation log (`bb3004d`, merged `3c6c9af`)
 - [x] Checkpoint B (local run 1): every case as expected, $0.03 spent ([evidence](../research/2026-10-14-ai-credits-local-run-1.md))
-- [ ] Task 4a: credits library and composer
-- [ ] Task 4b: per-answer credits
-- [ ] Task 5: Plan & billing
-- [ ] Task 6: admin
+- [x] Task 4a: credits library and composer (`5b48a3d` store, `f4e25bd`)
+- [x] Task 4b: per-answer credits (`f4e25bd`; shell listener by the supervisor)
+- [x] Task 5: Plan & billing (`ccbefa2`, merged `87552f9`)
+- [x] Task 6: admin (`8fef4ee`, merged `21a97b3`)
 - [ ] Task 7: copy (wording approved by the owner first)
 - [ ] Review R
 - [ ] Checkpoint C (local run 2, screenshots to the owner)
