@@ -541,3 +541,37 @@ is too much"); the other recommendations below are adopted. F160 is now phase 4 
    for non-commercial use only, which matters for a site selling paid plans regardless of F160.
    - **Recommendation:** confirm the plan in the Vercel dashboard (Settings → Billing); move the
      DDL Labs team to Pro before paid plans go on sale (O6), if it is not already.
+
+## Amendment A: records-first storage (2026-10-15)
+
+Owner decisions of 2026-10-14 and 2026-10-15, recorded in
+[ADR 0012](../decisions/0012-scheduled-feeds-records-first.md). This replaces section 4.2's
+one-snapshot-per-module table. Sections 4.1 (where the jobs run), 4.4 (a refresh run), 4.5
+(serving) and 4.8 (security) stand, read with "items" for "snapshot".
+
+- **Tables:**
+  - `feed_items` (one row per item: `tier`, `feature`, `variant`, `item_key`, the served `row`,
+    `title`, `url`, `published_at`, `first_seen`, `last_seen`, `kind`, `content_hash`; unique on
+    module, variant and item key);
+  - `feed_state` (per module and variant: class, interval, `next_due_at`, lease, failures, last
+    error, `fetched_at`, `checked_at`, the answer's note, links and coverage, `serve`);
+  - `feed_runs` (30 days);
+  - `feed_daily` (measurement summaries).
+- **Which modules, how often:**
+  - `server/feedSchedule.mjs` lists the 58 modules whose loaders call an outside source (measured
+    2026-10-15), with seven classes: markets 15 min, news 30, official, events and charts 60,
+    Statement Tracker leaders 6 h, reference daily.
+  - A test keeps the list equal to what the loaders call.
+  - This replaces the class table in section 4.3, whose counts came from a different measure.
+- **Item keys:** `itemKeyFor` (bills by `bill:<year>:<number>`, else the link without tracking
+  parameters, else a hash of title and date).
+- **Keeping rules:** by class kind, run daily by `pg_cron` (ADR 0012, decision 3).
+- **Serving:** newest items first, paged like Bills (F156), with "Updated N min ago" from
+  `fetched_at`.
+- **Go-live order:**
+  1. Migration.
+  2. Code pushed, switched off.
+  3. Secret set.
+  4. Timer on after the Vercel upgrade.
+  5. One day storing without serving.
+  6. Serving switched on class by class.
