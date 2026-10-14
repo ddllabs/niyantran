@@ -7,6 +7,12 @@
  * stored register (a backup workbook) as that module's first items, so the module shows the register
  * with each live refresh's new decisions on top.
  *
+ * ORDER: run the production load BEFORE the 5-minute refresh job is switched on (go-live, step 4 of
+ * docs/plans/2026-10-15-next-work.md). A load records the module as just fetched, so its first
+ * refresh is an interval (60 min) later; once the job has run, a load usually reports NOT DUE, and a
+ * load made after a refresh puts the register's copy back over the live row of any release both hold
+ * (the register's fields come back and the live row's come off until the next refresh).
+ *
  *   node scripts/load-feed-register.mjs                       # dry run for Cabinet Decisions (default)
  *   node scripts/load-feed-register.mjs --live-sample         # also fetch today's live answer and compare keys
  *   node scripts/load-feed-register.mjs --apply --target local --db niyantran_feed_register_load_test
@@ -14,7 +20,8 @@
  *   SUPABASE_URL=… SUPABASE_SECRET_KEY=… node scripts/load-feed-register.mjs --apply --target prod --confirm-prod
  *
  * Options: --module <tier:Feature> (default national:Cabinet Decisions), --file <workbook, relative to
- * the repository> (default: the module's register), --dry-run (the default), --apply, --target
+ * the repository> (default: the module's register; the stored note names it relative to the
+ * repository, or by file name only when it is outside), --dry-run (the default), --apply, --target
  * local|prod, --db <name> and --container <name> (local; the container defaults to
  * niyantran-corpus-test-db and the database must be named niyantran_*_test), --confirm-prod,
  * --force (local only), --live-sample.
@@ -23,22 +30,33 @@
  *  1. Reads the workbook with the rules of server/backupFeed.mjs (the header block above the real
  *     header row, formula and chart cells skipped) and maps every register row to the module's live
  *     row shape (REGISTERS below; only Cabinet Decisions has a mapping).
- *  2. Builds the items exactly as a refresh does (server/feedStore.mjs itemsFromRows), then sets
- *     each item's key to the key the live refresh would give the same release (see "Item keys").
+ *  2. Keeps one row per decision (see "Release pairs"), builds the items exactly as a refresh does
+ *     (server/feedStore.mjs itemsFromRows), then sets each item's key to the key the live refresh
+ *     gives the same release (see "Item keys").
  *  3. --apply: claims only this module (public.feed_claim_due with just its run from
  *     server/feedSchedule.mjs feedRunsForDb) and records the items with the lease token
  *     (public.feed_record). Nothing else is written. Run it again and the second load is `unchanged`.
  *
- * A register is loaded for a module that keeps its items (official, news, events). A module whose
- * kind replaces its list on each run (latest, reference, measurement) would lose the register at the
- * next live refresh, so the script refuses it (the MLA Directory case, see the C6 report).
+ * A register is loaded only for a module of kind `official` (kept forever, never pruned). Every other
+ * kind is refused: a module that replaces its list on each run (latest, reference, measurement) would
+ * lose the register at the next refresh (the MLA Directory case, see the C6 report), and a news
+ * register is not built yet.
+ *
+ * Release pairs. PIB often publishes one decision twice on one day, as the ministry's release and as
+ * the Cabinet's or the CCEA's (the register marks them is_language_or_release_variant). One row per
+ * decision is loaded: the release whose issuing body is the Cabinet or a Cabinet committee
+ * (isCabinetBody), else the lower PRID. The report counts the releases left out. The live loader shows
+ * both releases of a pair when both are in the RSS window (isCabinetDecision accepts a ministry
+ * release whose title starts "Cabinet approves"), so a decision published after the register can
+ * appear twice.
  *
  * Item keys. A live Cabinet row links to https://pib.gov.in/PressReleaseIframePage.aspx?PRID=N (PIB's
  * RSS), the register to https://www.pib.gov.in/PressReleasePage.aspx?PRID=N&lang=1&reg=3. itemKeyFor
- * keeps the path and the query, so the same release gets two keys and a refresh would add a copy of
- * every register item it lists. Until itemKeyFor treats the two PIB pages as one, the register item's
- * key is itemKeyFor of the live link for the same PRID; its row keeps the register's own link. After a
- * fix in itemKeyFor the same line stays right, because it asks itemKeyFor.
+ * (linkKey, server/feedSchedule.mjs) keys a pib.gov.in release by its PRID whichever page links it, so
+ * both get url:pib.gov.in/PressRelease?PRID=N and a refresh updates the register's item instead of
+ * adding a copy. The register item's key is still taken from itemKeyFor of the link PIB's RSS gives
+ * for the PRID (cabinetLiveKey), so it stays the live key if linkKey changes; the row keeps the
+ * register's own link.
  *
  * Not due. A claim returns nothing when the module is not due (its next refresh is in the future) or
  * another run holds it. A module the store has not seen is added due now, so the first load always
@@ -52,19 +70,25 @@
  */
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { resolve } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readBackupRows } from '../server/backupFeed.mjs';
 import { feedRunsForDb, itemKeyFor } from '../server/feedSchedule.mjs';
 import { itemsFromRows, metaFor, supabaseRpc } from '../server/feedStore.mjs';
-import { isCabinetDecision } from '../src/lib/parliament.js';
+import { isCabinetBody, isCabinetDecision } from '../src/lib/parliament.js';
 
-const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
+export const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
+
+/** The workbook as the stored note names it: relative to the repository, or its file name when it lies outside (never a local path). */
+export function displayFile(file) {
+  const rel = relative(ROOT, resolve(ROOT, file));
+  return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : basename(file);
+}
 export const DEFAULT_MODULE = 'national:Cabinet Decisions';
 export const DEFAULT_CONTAINER = 'niyantran-corpus-test-db';
-/** Kinds that keep items a refresh does not list, so a register survives the next refresh. */
-export const KEPT_KINDS = Object.freeze(['official', 'news', 'events']);
+/** Kinds a register may be loaded into: items kept forever and never pruned by a refresh. */
+export const KEPT_KINDS = Object.freeze(['official']);
 // A lease long enough for one load; it ends by itself if the script dies.
 const LEASE_SECONDS = 120;
 const MAX_ITEMS = 2000;
@@ -124,7 +148,7 @@ function pridOf(raw) {
  *   (none)                                   summary           ''  (the live row has none either)
  *   (none)                                   stage, source     'PIB release', 'Press Information Bureau'
  *   language 'English'                       language          'en'
- *   prid                                     id, prid          id 'pib-<PRID>' (the live id is a list index)
+ *   prid                                     id, prid          id 'pib-<PRID>' (the live row's id is the same since C6)
  *   record_id                                register_id
  *   sector, states_ut, decision_type         same names        kept when not empty
  *   financial_outlay_text                    same name         cleaned (cleanOutlay)
@@ -133,7 +157,8 @@ function pridOf(raw) {
  * and the sheet's formula columns (record_age_days, record_completeness_pct, source_retrieved_at):
  * they change with the day and would make a repeat load look like an update.
  *
- * Returns { row } or { drop: reason }. Reasons: no_title, no_date (the 16 placeholder rows titled
+ * Returns { row } or { drop: reason }. Rows that are the second release of a decision are dropped later
+ * (buildRegisterItems). Reasons: no_title, no_date (the 16 placeholder rows titled
  * "Cabinet Decisions source coverage" have none), bad_date, not_module (the live loader's own filter,
  * isCabinetDecision, would not show it).
  */
@@ -170,16 +195,31 @@ export function mapCabinetRegisterRow(raw) {
 /** The key a live refresh gives the same release (itemKeyFor of the link PIB's RSS gives for the PRID). */
 export const cabinetLiveKey = (row) => (row?.prid ? itemKeyFor({ source_url: liveLink(row.prid) }) : null);
 
+/** Releases of one decision share a title and a day. */
+export const cabinetReleaseGroup = (row) => `${row.title.toLowerCase()}|${row.date}`;
+
+/** Of two releases of one decision, whether `a` is the one to keep: the Cabinet's or a committee's, else the lower PRID. */
+export function cabinetPrefers(a, b) {
+  const bodyA = isCabinetBody(a.ministry);
+  const bodyB = isCabinetBody(b.ministry);
+  if (bodyA !== bodyB) return bodyA;
+  return Number(a.prid || Infinity) < Number(b.prid || Infinity);
+}
+
 /**
  * The registers this script knows. file: the workbook, relative to the repository. map: a register
  * row to { row } or { drop }. liveKey: the key a live refresh gives the row's item (null: itemKeyFor
- * of the row, as built). note: the module's stored-answer note.
+ * of the row, as built). releaseGroup and prefers: rows that share a group are releases of one decision,
+ * and `prefers(a, b)` says whether a is the one kept. links and noun: the stored answer's links and what
+ * its records are called.
  */
 export const REGISTERS = Object.freeze({
   'national:Cabinet Decisions': {
     file: 'backup/NATIONAL/F25_Cabinet_Decisions.xlsx',
     map: mapCabinetRegisterRow,
     liveKey: cabinetLiveKey,
+    releaseGroup: cabinetReleaseGroup,
+    prefers: cabinetPrefers,
     links: ['https://www.pib.gov.in/'],
     noun: 'PIB Cabinet decisions',
   },
@@ -193,18 +233,18 @@ const byNewest = (a, b) =>
 
 /**
  * The register as feed items. `rawRows` are the workbook's rows (readBackupRows); `register` is an
- * entry of REGISTERS; `kind` is the module's keeping kind. The rows are put newest first (date, then
- * PRID) so a load is the same whatever order the sheet was saved in, mapped, built with itemsFromRows
- * (as a refresh builds them), then keyed as the live refresh keys the same release.
- * `report` counts every row read and every row left out, with the reason.
+ * entry of REGISTERS; `kind` is the module's keeping kind. The rows are mapped, put newest first (date,
+ * then PRID) so a load is the same whatever order the sheet was saved in, reduced to one release per
+ * decision, built with itemsFromRows (as a refresh builds them), then keyed as the live refresh keys the
+ * same release. `report` counts every row read and every row left out, with the reason.
  */
 export function buildRegisterItems(rawRows, register, kind) {
   const report = {
     read: rawRows.length,
     dropped: { no_title: 0, no_date: 0, bad_date: 0, not_module: 0 },
     store_dropped: { status_rows: 0, invalid: 0, oversize: 0, duplicate: 0, over_limit: 0 },
+    release_variants: 0,
     key_duplicates: 0,
-    same_title_and_date: 0,
     kept: 0,
     oldest: '',
     newest: '',
@@ -216,7 +256,23 @@ export function buildRegisterItems(rawRows, register, kind) {
     else mapped.push(out.row);
   }
   mapped.sort(byNewest);
-  const built = itemsFromRows(mapped, kind);
+  let rows = mapped;
+  if (register.releaseGroup) {
+    const kept = new Map();
+    for (const row of mapped) {
+      const group = register.releaseGroup(row);
+      const held = kept.get(group);
+      if (!held) {
+        kept.set(group, row);
+        continue;
+      }
+      report.release_variants += 1;
+      if (register.prefers(row, held)) kept.set(group, row);
+    }
+    const keep = new Set(kept.values());
+    rows = mapped.filter((row) => keep.has(row));
+  }
+  const built = itemsFromRows(rows, kind);
   report.store_dropped = built.dropped;
 
   const seen = new Set();
@@ -230,14 +286,6 @@ export function buildRegisterItems(rawRows, register, kind) {
     seen.add(key);
     items.push({ ...item, item_key: key });
   }
-  const pairs = new Map();
-  for (const { row } of items) {
-    const k = `${row.title.toLowerCase()}|${row.date}`;
-    pairs.set(k, (pairs.get(k) || 0) + 1);
-  }
-  // Releases that share a title and a day but have their own PRID (a ministry's and the Cabinet's
-  // release of one decision). They are separate PIB pages, so they stay separate items.
-  report.same_title_and_date = [...pairs.values()].filter((n) => n > 1).reduce((a, b) => a + b, 0);
   report.kept = items.length;
   const dates = items.map((i) => i.row.date).sort();
   report.oldest = dates[0] || '';
@@ -320,6 +368,10 @@ export async function readBack(rpc, run, limit = 3) {
 // Local database adapter: docker exec psql, as service_role.
 
 const LOCAL_DB = /^niyantran_[a-z0-9_]+_test$/;
+/** Throws unless `db` names a local test database. */
+export function assertLocalDb(db) {
+  if (!LOCAL_DB.test(String(db || ''))) throw new Error('--db must name a local test database (niyantran_<name>_test)');
+}
 const RPC_FUNCTIONS = new Set(['feed_claim_due', 'feed_record', 'feed_page']);
 const SET_RETURNING = new Set(['feed_claim_due']);
 
@@ -381,7 +433,7 @@ export function dockerPsql({ container, db, sql, spawnImpl = spawn }) {
  * also applies, so this cannot be pointed at a real project.
  */
 export function localRpc({ container = DEFAULT_CONTAINER, db, exec = dockerPsql } = {}) {
-  if (!LOCAL_DB.test(String(db || ''))) throw new Error('--db must name a local test database (niyantran_<name>_test)');
+  assertLocalDb(db);
   if (!/^[A-Za-z0-9_.-]+$/.test(container)) throw new Error('bad container name');
   return async (name, args) => {
     let text;
@@ -399,7 +451,7 @@ export function localRpc({ container = DEFAULT_CONTAINER, db, exec = dockerPsql 
 
 /** Local test only: make the module due now, as the database owner (no service_role function does). */
 export async function forceDueLocal({ container = DEFAULT_CONTAINER, db, run, exec = dockerPsql }) {
-  if (!LOCAL_DB.test(String(db || ''))) throw new Error('--db must name a local test database (niyantran_<name>_test)');
+  assertLocalDb(db);
   const sql = `update public.feed_state set next_due_at = now() where tier = ${dollarQuote(run.tier)} and feature = ${dollarQuote(run.feature)} and variant = ${dollarQuote(run.variant || '')};`;
   await exec({ container, db, sql });
 }
@@ -459,17 +511,17 @@ const OPTIONS = {
   help: { type: 'boolean', default: false },
 };
 
-const line = (label, value) => console.log(`  ${label.padEnd(34)} ${value}`);
+const line = (label, value) => console.log(`  ${label.padEnd(40)} ${value}`);
 
 function printReport(report) {
   console.log('Register rows');
   line('read from the workbook', report.read);
   for (const [reason, n] of Object.entries(report.dropped)) line(`left out: ${reason}`, n);
+  line('left out: second release of a decision', report.release_variants);
   for (const [reason, n] of Object.entries(report.store_dropped)) if (n) line(`left out by the store: ${reason}`, n);
   line('duplicate keys (first kept)', report.key_duplicates);
   line('kept', report.kept);
   line('dates', `${report.oldest} to ${report.newest}`);
-  line('rows sharing a title and a day', `${report.same_title_and_date} (separate PIB releases, all kept)`);
 }
 
 function hostOf(url) {
@@ -480,24 +532,74 @@ function hostOf(url) {
   }
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export const USAGE = `Usage: node scripts/load-feed-register.mjs [--module "tier:Feature"] [--file path] [--live-sample]
+       [--apply --target local --db niyantran_<name>_test [--force]]
+       [--apply --target prod --confirm-prod]      (SUPABASE_URL and SUPABASE_SECRET_KEY in the environment)
+
+A dry run is the default: it reads the register, prints the counts and a sample, and never calls a database.
+Only a module of kind "official" can be loaded (Cabinet Decisions).
+
+ORDER: run the production load BEFORE the 5-minute refresh job is switched on. A load makes the module's
+first refresh an interval (60 min) away; after the job has run, a load usually reports NOT DUE, and one
+made after a refresh puts the register's copy over the live row of any release both hold.`;
+
+/**
+ * The refusals, all before anything is read or any database client is made. Returns the production
+ * URL when the target is prod. Throws for: --dry-run with --apply; --apply without --target local|prod;
+ * a local database that is not niyantran_*_test; for prod, --force, a missing SUPABASE_URL or
+ * SUPABASE_SECRET_KEY, and a missing --confirm-prod.
+ */
+export function checkOptions(o, env = process.env) {
+  if (o['dry-run'] && o.apply) throw new Error('--dry-run and --apply cannot be used together');
+  if (!o.apply) return { url: '' };
+  if (o.target === 'local') {
+    assertLocalDb(o.db);
+    return { url: '' };
+  }
+  if (o.target === 'prod') {
+    if (o.force) throw new Error('--force is for a local test database only; no database function makes a module due');
+    const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL || '';
+    if (!url || !env.SUPABASE_SECRET_KEY) throw new Error('--target prod needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment');
+    if (!o['confirm-prod']) throw new Error(`--target prod would write to ${hostOf(url)}; add --confirm-prod`);
+    return { url };
+  }
+  throw new Error('--apply needs --target local or --target prod');
+}
+
+/**
+ * The command. `deps` is for tests: env (default process.env), registers, readRows (the workbook
+ * reader), makeLocalRpc and makeProdRpc (database client factories, called only after a successful
+ * --apply check, never in a dry run), forceDue, fetchLive. Returns the exit code: 0 done, 1 the store
+ * did not accept the load, 3 not due. A refusal throws.
+ */
+export async function main(argv = process.argv.slice(2), deps = {}) {
+  const {
+    env = process.env,
+    registers = REGISTERS,
+    readRows = readBackupRows,
+    makeLocalRpc = localRpc,
+    makeProdRpc = supabaseRpc,
+    forceDue = forceDueLocal,
+    fetchLive = fetchLiveRows,
+  } = deps;
   const { values: o } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: false });
   if (o.help) {
-    console.log(`Usage: node scripts/load-feed-register.mjs [--module "tier:Feature"] [--file path] [--live-sample]\n       [--apply --target local --db niyantran_<name>_test [--force] | --apply --target prod --confirm-prod]`);
+    console.log(USAGE);
     return 0;
   }
-  if (o['dry-run'] && o.apply) throw new Error('--dry-run and --apply cannot be used together');
-  const register = REGISTERS[o.module];
-  if (!register) throw new Error(`no register mapping for ${o.module}; the mapped modules are: ${Object.keys(REGISTERS).join(', ')}`);
+  const { url } = checkOptions(o, env);
+  const register = registers[o.module];
+  if (!register) throw new Error(`no register mapping for ${o.module}; the mapped modules are: ${Object.keys(registers).join(', ')}`);
   const run = runFor(o.module);
   const file = o.file || register.file;
-  const rawRows = readBackupRows(resolve(ROOT, file), 5000);
+  const shownFile = displayFile(file);
+  const rawRows = readRows(resolve(ROOT, file), 5000);
   const { items, report } = buildRegisterItems(rawRows, register, run.kind);
   if (!items.length) throw new Error('no item to load');
   if (items.length > MAX_ITEMS) throw new Error(`${items.length} items; one record holds at most ${MAX_ITEMS}`);
-  const meta = registerMeta(register, report, file, new Date().toISOString());
+  const meta = registerMeta(register, report, shownFile, new Date().toISOString());
 
-  console.log(`${o.apply ? 'APPLY' : 'DRY RUN'}: ${o.module} (${run.kind}, refreshed every ${run.interval_minutes} min) from ${file}`);
+  console.log(`${o.apply ? 'APPLY' : 'DRY RUN'}: ${o.module} (${run.kind}, refreshed every ${run.interval_minutes} min) from ${shownFile}`);
   printReport(report);
   const bytes = Buffer.byteLength(JSON.stringify({ items, meta }));
   console.log(o.apply ? 'Recording' : 'Would record');
@@ -512,7 +614,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (o['live-sample']) {
     console.log("Today's live answer");
     try {
-      const live = await fetchLiveRows(o.module);
+      const live = await fetchLive(o.module);
       line('verdict', `${live.verdict.status}${live.verdict.reason ? `: ${live.verdict.reason}` : ''}`);
       console.log(JSON.stringify(compareWithLive(items, live.rows, { kind: run.kind }), null, 2));
     } catch (err) {
@@ -527,20 +629,14 @@ export async function main(argv = process.argv.slice(2)) {
 
   let rpc;
   if (o.target === 'local') {
-    rpc = localRpc({ container: o.container, db: o.db });
+    rpc = makeLocalRpc({ container: o.container, db: o.db });
     if (o.force) {
-      await forceDueLocal({ container: o.container, db: o.db, run });
+      await forceDue({ container: o.container, db: o.db, run });
       console.log(`--force: ${o.module} set due in ${o.db} (local test only)`);
     }
-  } else if (o.target === 'prod') {
-    if (o.force) throw new Error('--force is for a local test database only; no database function makes a module due');
-    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    if (!url || !process.env.SUPABASE_SECRET_KEY) throw new Error('--target prod needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment');
-    if (!o['confirm-prod']) throw new Error(`--target prod would write to ${hostOf(url)}; add --confirm-prod`);
-    console.log(`Target: ${hostOf(url)}`);
-    rpc = supabaseRpc({ timeoutMs: 60_000 });
   } else {
-    throw new Error('--apply needs --target local or --target prod');
+    console.log(`Target: ${hostOf(url)}`);
+    rpc = makeProdRpc({ url, key: env.SUPABASE_SECRET_KEY, timeoutMs: 60_000 });
   }
 
   const before = await readBack(rpc, run, 1);

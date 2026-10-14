@@ -211,8 +211,12 @@ async function enrichPibEnglish(rows, opts = {}) {
     if (!en) {
       return { ...base, title, topic: base.topic || title };
     }
+    // A Hindi item resolves to its English sibling, a different PRID: the id follows the page the row
+    // now links to (the item key and the register use that PRID), unless the source gave an id.
+    const englishPrid = pridOf({ source_url: en.source_url });
     return {
       ...base,
+      ...(row.id == null && englishPrid ? { id: `pib-${englishPrid}` } : {}),
       title: en.title,
       topic: en.title,
       date: en.date || base.date || '',
@@ -221,9 +225,17 @@ async function enrichPibEnglish(rows, opts = {}) {
       ...(en.ministry ? { ministry: en.ministry } : {}),
     };
   });
+  // One row per release: when an answer lists a PRID twice (a Hindi item and its English sibling, or a
+  // repeated item) the first stays, so row ids stay unique.
+  const seen = new Set();
   const english = enriched.filter((r) => {
     const t = r?.title || r?.topic || '';
-    return t && !isHindiText(t);
+    if (!t || isHindiText(t)) return false;
+    const release = pridOf({ source_url: r.source_url, link: r.link, url: r.url });
+    if (!release) return true;
+    if (seen.has(release)) return false;
+    seen.add(release);
+    return true;
   });
   return english.length ? english : [];
 }

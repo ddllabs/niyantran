@@ -1,14 +1,19 @@
 // F169 phase 4 (C6): scripts/load-feed-register.mjs loads a module's stored register into the feed
 // store. The fixture is five real rows of backup/NATIONAL/F25_Cabinet_Decisions.xlsx, as
 // server/backupFeed.mjs reads them (the sheet's columns), copied here so no test reads backup/.
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { itemsFromRows } from '../../server/feedStore.mjs';
 import {
   KEPT_KINDS,
   REGISTERS,
   buildRegisterItems,
   cleanOutlay,
+  ROOT,
+  checkOptions,
   compareWithLive,
+  displayFile,
+  main,
+  registerMeta,
   dollarQuote,
   liveLink,
   loadRegister,
@@ -162,35 +167,34 @@ describe('buildRegisterItems', () => {
   it('counts every row read and every row left out, with the reason', () => {
     expect(built.report).toMatchObject({
       read: 5,
-      kept: 3,
+      kept: 2,
       dropped: { no_title: 0, no_date: 1, bad_date: 0, not_module: 1 },
+      release_variants: 1,
       key_duplicates: 0,
-      same_title_and_date: 2,
       oldest: '2026-04-18',
       newest: '2026-08-19',
     });
-    expect(built.items).toHaveLength(3);
+    expect(built.items).toHaveLength(2);
   });
 
   it('puts the items newest first (date, then PRID), whatever order the sheet was in', () => {
-    expect(built.items.map((i) => i.row.prid)).toEqual(['2301145', '2301144', '2253247']);
+    expect(built.items.map((i) => i.row.prid)).toEqual(['2301144', '2253247']);
     const reversed = buildRegisterItems([...FIXTURE].reverse(), REGISTER, 'official');
     expect(reversed.items).toEqual(built.items);
   });
 
   it('gives a register item the key a live refresh gives the same release', () => {
     // The live feed links a release as PIB's RSS does (PressReleaseIframePage, no www, no lang/reg).
-    const liveRow = { date: '2026-08-19', title: TITLE_NH22, source_url: liveLink('2301145'), summary: '', id: 'pib-16', stage: 'PIB release', source: 'Press Information Bureau', topic: TITLE_NH22, language: 'en', ministry: 'Cabinet' };
+    const liveRow = { date: '2026-08-19', title: TITLE_NH22, source_url: liveLink('2301144'), summary: '', id: 'pib-2301144', stage: 'PIB release', source: 'Press Information Bureau', topic: TITLE_NH22, language: 'en', ministry: 'Cabinet' };
     const [liveItem] = itemsFromRows([liveRow], 'official').items;
-    const registerItem = built.items.find((i) => i.row.prid === '2301145');
+    const registerItem = built.items.find((i) => i.row.prid === '2301144');
     expect(registerItem.item_key).toBe(liveItem.item_key);
-    // The two releases of one decision are separate items (separate PRIDs).
-    expect(new Set(built.items.map((i) => i.item_key)).size).toBe(3);
+    expect(new Set(built.items.map((i) => i.item_key)).size).toBe(2);
   });
 
   it('keeps the register\'s own link in the row, not the live one', () => {
-    expect(built.items[0].url).toBe(registerLink('2301145'));
-    expect(built.items[0].row.source_url).toBe(registerLink('2301145'));
+    expect(built.items[0].url).toBe(registerLink('2301144'));
+    expect(built.items[0].row.source_url).toBe(registerLink('2301144'));
   });
 
   it('is the same on every load: same keys and hashes, and a changed formula column changes nothing', () => {
@@ -199,9 +203,34 @@ describe('buildRegisterItems', () => {
   });
 
   it('keeps the first of two rows for one release', () => {
-    const twice = buildRegisterItems([MINISTRY_RELEASE, { ...MINISTRY_RELEASE, record_id: 'other', sector: 'x' }], REGISTER, 'official');
+    const other = { ...MINISTRY_RELEASE, record_id: 'other', sector: 'x', title: 'Cabinet approves another title', record_title: 'Cabinet approves another title' };
+    const twice = buildRegisterItems([MINISTRY_RELEASE, other], REGISTER, 'official');
     expect(twice.items).toHaveLength(1);
+    expect(twice.report.release_variants).toBe(0);
     expect(twice.report.key_duplicates + twice.report.store_dropped.duplicate).toBe(1);
+  });
+
+  describe('release pairs: one row per decision', () => {
+    const ministry = (prid) => ({ ...MINISTRY_RELEASE, prid: String(prid), source_url: registerLink(prid), official_document_url: registerLink(prid) });
+    const cabinet = (prid, name = 'Cabinet') => ({ ...ministry(prid), ministry: name });
+    const prids = (rows) => buildRegisterItems(rows, REGISTER, 'official').items.map((i) => i.row.prid);
+
+    it('keeps the Cabinet\'s or a committee\'s release, whichever PRID it has, and counts the other', () => {
+      expect(prids([ministry(100), cabinet(200)])).toEqual(['200']);
+      expect(prids([cabinet(200), ministry(100)])).toEqual(['200']);
+      expect(prids([ministry(100), cabinet(300, 'Cabinet Committee on Economic Affairs (CCEA)')])).toEqual(['300']);
+      expect(buildRegisterItems([ministry(100), cabinet(200)], REGISTER, 'official').report.release_variants).toBe(1);
+    });
+
+    it('otherwise keeps the lower PRID, also when both are the Cabinet\'s', () => {
+      expect(prids([ministry(300), ministry(100)])).toEqual(['100']);
+      expect(prids([cabinet(300), cabinet(100, 'Cabinet Committee on Economic Affairs (CCEA)')])).toEqual(['100']);
+    });
+
+    it('leaves decisions with different titles or days alone', () => {
+      const otherDay = { ...cabinet(200), date: '2026-08-18', record_date: '2026-08-18' };
+      expect(prids([ministry(100), otherDay])).toEqual(['100', '200']);
+    });
   });
 
 });
@@ -211,7 +240,7 @@ describe('compareWithLive', () => {
   const liveRow = (prid, date) => ({ date, title: `Cabinet approves ${prid}`, source_url: liveLink(prid), id: 'pib-0', ministry: 'Cabinet' });
 
   it('counts the live rows that are register releases, by key and by PRID', () => {
-    const r = compareWithLive(items, [liveRow('2301145', '2026-08-19'), liveRow('2323468', '2026-10-14')]);
+    const r = compareWithLive(items, [liveRow('2301144', '2026-08-19'), liveRow('2323468', '2026-10-14')]);
     expect(r).toMatchObject({ live_rows: 2, live_newest: '2026-10-14', same_release: 1, key_collisions_with_live_keys: 1 });
     // itemKeyFor keys a PIB release by its PRID, so the register's own link matches as well.
     expect(r.key_collisions_if_register_keyed_by_its_own_link).toBe(1);
@@ -247,7 +276,9 @@ describe('loadRegister', () => {
   it('refuses a module whose refresh replaces its list, and a module that is not scheduled', () => {
     expect(() => runFor('state:MLA Directory')).toThrow(/reference.*pruned/s);
     expect(() => runFor('national:No Such Module')).toThrow(/not a scheduled module/);
-    expect(KEPT_KINDS).toEqual(['official', 'news', 'events']);
+    expect(KEPT_KINDS).toEqual(['official']);
+    // A news module keeps its items too, but a news register is not built: only official is loaded.
+    expect(() => runFor('state:Cabinet Decisions')).toThrow(/"news"/);
   });
 });
 
@@ -283,5 +314,158 @@ describe('local database adapter', () => {
     expect(exec.mock.calls[0][0].sql).toMatch(/^set role service_role;/);
     const failing = localRpc({ db: 'niyantran_x_test', exec: async () => { throw Object.assign(new Error('psql'), { stderr: 'ERROR:  22023: feed_record: 3000 items\nLINE 1' }); } });
     await expect(failing('feed_record', { p: {} })).rejects.toMatchObject({ code: '22023', message: 'feed_record: feed_record: 3000 items' });
+  });
+});
+
+describe('the stored note never names a local path', () => {
+  it('names the workbook relative to the repository, or by file name when it lies outside', () => {
+    expect(displayFile(`${ROOT}/backup/NATIONAL/F25_Cabinet_Decisions.xlsx`)).toBe('backup/NATIONAL/F25_Cabinet_Decisions.xlsx');
+    expect(displayFile('backup/NATIONAL/F25_Cabinet_Decisions.xlsx')).toBe('backup/NATIONAL/F25_Cabinet_Decisions.xlsx');
+    expect(displayFile('/Users/someone/Downloads/Cabinet.xlsx')).toBe('Cabinet.xlsx');
+    expect(displayFile('../../elsewhere/Cabinet.xlsx')).toBe('Cabinet.xlsx');
+    const { items, report } = buildRegisterItems(FIXTURE, REGISTER, 'official');
+    expect(items.length).toBeGreaterThan(0);
+    expect(registerMeta(REGISTER, report, displayFile('/Users/someone/Downloads/Cabinet.xlsx'), '2026-10-15T00:00:00Z').note).not.toMatch(/\/Users|Downloads/);
+  });
+});
+
+describe('main: the gate before anything is written', () => {
+  const ENV = { SUPABASE_URL: 'https://example-project.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_TESTKEY' };
+  const TOKEN = '22222222-2222-4222-8222-222222222222';
+  let out;
+
+  function setup({ claim = 'due' } = {}) {
+    const calls = [];
+    const rpc = vi.fn(async (name, args) => {
+      calls.push([name, args]);
+      if (name === 'feed_claim_due') return claim === 'due' ? [{ ...runFor('national:Cabinet Decisions'), lease_token: TOKEN }] : [];
+      if (name === 'feed_record') return { status: 'ok', items: args.p.items.length };
+      return null;
+    });
+    const deps = {
+      env: ENV,
+      readRows: vi.fn(() => FIXTURE),
+      makeLocalRpc: vi.fn(() => rpc),
+      makeProdRpc: vi.fn(() => rpc),
+      forceDue: vi.fn(async () => {}),
+      fetchLive: vi.fn(async () => ({ verdict: { status: 'ok', reason: '' }, rows: [] })),
+    };
+    return { deps, rpc, calls };
+  }
+  const noClient = (deps) => {
+    expect(deps.makeLocalRpc).not.toHaveBeenCalled();
+    expect(deps.makeProdRpc).not.toHaveBeenCalled();
+    expect(deps.forceDue).not.toHaveBeenCalled();
+  };
+
+  beforeEach(() => {
+    out = [];
+    vi.spyOn(console, 'log').mockImplementation((...a) => out.push(a.join(' ')));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('a dry run is the default and never makes a database client', async () => {
+    const { deps } = setup();
+    await expect(main([], deps)).resolves.toBe(0);
+    expect(deps.readRows).toHaveBeenCalledTimes(1);
+    noClient(deps);
+    expect(out.join('\n')).toMatch(/DRY RUN/);
+    // even with a target, its flags and the production environment present, without --apply
+    const again = setup();
+    await expect(main(['--dry-run', '--target', 'prod', '--confirm-prod'], again.deps)).resolves.toBe(0);
+    await expect(main(['--target', 'local', '--db', 'niyantran_x_test'], again.deps)).resolves.toBe(0);
+    noClient(again.deps);
+  });
+
+  it('--apply needs a target, and the target must be local or prod', async () => {
+    for (const argv of [['--apply'], ['--apply', '--target', 'staging', '--confirm-prod']]) {
+      const { deps } = setup();
+      await expect(main(argv, deps)).rejects.toThrow(/needs --target local or --target prod/);
+      expect(deps.readRows).not.toHaveBeenCalled();
+      noClient(deps);
+    }
+  });
+
+  it('--dry-run and --apply together are refused', async () => {
+    const { deps } = setup();
+    await expect(main(['--dry-run', '--apply', '--target', 'local', '--db', 'niyantran_x_test'], deps)).rejects.toThrow(/cannot be used together/);
+    noClient(deps);
+  });
+
+  it('prod needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment', async () => {
+    for (const env of [{}, { SUPABASE_URL: ENV.SUPABASE_URL }, { SUPABASE_SECRET_KEY: ENV.SUPABASE_SECRET_KEY }]) {
+      const { deps } = setup();
+      await expect(main(['--apply', '--target', 'prod', '--confirm-prod'], { ...deps, env })).rejects.toThrow(/needs SUPABASE_URL and SUPABASE_SECRET_KEY/);
+      noClient(deps);
+    }
+  });
+
+  it('prod needs --confirm-prod, names only the host, and never the key', async () => {
+    const { deps } = setup();
+    const err = await main(['--apply', '--target', 'prod'], deps).catch((e) => e);
+    expect(err.message).toMatch(/add --confirm-prod/);
+    expect(err.message).toContain('example-project.supabase.co');
+    expect(err.message).not.toContain('sb_secret_TESTKEY');
+    expect(deps.readRows).not.toHaveBeenCalled();
+    noClient(deps);
+  });
+
+  it('--force is refused on prod', async () => {
+    const { deps } = setup();
+    await expect(main(['--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).rejects.toThrow(/--force is for a local test database only/);
+    noClient(deps);
+  });
+
+  it('local needs a niyantran_*_test database', async () => {
+    for (const db of [undefined, 'postgres', 'nter_production']) {
+      const { deps } = setup();
+      await expect(main(['--apply', '--target', 'local', ...(db ? ['--db', db] : [])], deps)).rejects.toThrow(/local test database/);
+      noClient(deps);
+    }
+  });
+
+  it('only a module of kind official is loaded', async () => {
+    const registers = { 'state:MLA Directory': REGISTER, 'state:Cabinet Decisions': REGISTER };
+    for (const [module, kind] of [['state:MLA Directory', 'reference'], ['state:Cabinet Decisions', 'news']]) {
+      const { deps } = setup();
+      await expect(main(['--module', module, '--apply', '--target', 'prod', '--confirm-prod'], { ...deps, registers })).rejects.toThrow(new RegExp(`"${kind}"`));
+      expect(deps.readRows).not.toHaveBeenCalled();
+      noClient(deps);
+    }
+    const { deps } = setup();
+    await expect(main(['--module', 'national:No Such Register'], deps)).rejects.toThrow(/no register mapping/);
+  });
+
+  it('a prod load that passes every check makes the client once, with the environment\'s URL and key, and records the register', async () => {
+    const { deps, calls } = setup();
+    await expect(main(['--apply', '--target', 'prod', '--confirm-prod', '--file', '/Users/someone/Downloads/Cabinet.xlsx'], deps)).resolves.toBe(0);
+    expect(deps.makeProdRpc).toHaveBeenCalledTimes(1);
+    expect(deps.makeProdRpc).toHaveBeenCalledWith({ url: ENV.SUPABASE_URL, key: ENV.SUPABASE_SECRET_KEY, timeoutMs: 60_000 });
+    expect(deps.makeLocalRpc).not.toHaveBeenCalled();
+    const record = calls.find(([name]) => name === 'feed_record')[1].p;
+    expect(record).toMatchObject({ lease_token: TOKEN, status: 'ok' });
+    expect(record.meta.note).not.toMatch(/\/Users|Downloads/);
+    expect(out.join('\n')).not.toContain('sb_secret_TESTKEY');
+    expect(out.join('\n')).toContain('Target: example-project.supabase.co');
+  });
+
+  it('a module that is not due exits 3 and records nothing', async () => {
+    const { deps, calls } = setup({ claim: 'held' });
+    await expect(main(['--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(3);
+    expect(calls.some(([name]) => name === 'feed_record')).toBe(false);
+  });
+
+  it('--force on a local test database makes the module due before the claim', async () => {
+    const { deps, calls } = setup();
+    await expect(main(['--apply', '--target', 'local', '--db', 'niyantran_x_test', '--force'], deps)).resolves.toBe(0);
+    expect(deps.forceDue).toHaveBeenCalledTimes(1);
+    expect(deps.makeLocalRpc).toHaveBeenCalledWith({ container: 'niyantran-corpus-test-db', db: 'niyantran_x_test' });
+    expect(calls.map(([n]) => n)).toContain('feed_claim_due');
+  });
+
+  it('checkOptions is the same gate for the command line', () => {
+    expect(() => checkOptions({ apply: true, target: 'prod', 'confirm-prod': true }, ENV)).not.toThrow();
+    expect(checkOptions({ apply: true, target: 'prod', 'confirm-prod': true }, ENV).url).toBe(ENV.SUPABASE_URL);
+    expect(checkOptions({}, {})).toEqual({ url: '' });
   });
 });
