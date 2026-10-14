@@ -125,3 +125,96 @@ describe('file text is not kept in browser storage (F62 review)', () => {
     expect(requestAttachments(stored.c1).map((a) => a.title)).toEqual(['Row']);
   });
 });
+
+// F178 (F171 review): upload follow-ups. The messages a chip shows are plain text in Hindi too, and
+// PDFs with CID-keyed fonts are read with the character maps and standard fonts pdf.js needs.
+describe('messages a file chip shows, in Hindi too (F178)', () => {
+  const DEVANAGARI = /[ऀ-ॿ]/;
+  const fakePdf = (seen, items = [{ str: 'Clause 1. The Board shall consist of a Chairperson.' }]) => async () => ({
+    getDocument: (options) => {
+      seen.push(options);
+      const page = { getTextContent: async () => ({ items }), cleanup() {} };
+      return { promise: Promise.resolve({ numPages: 1, getPage: async () => page }), destroy: async () => {} };
+    },
+  });
+
+  it('every fixed message and note the upload code produces has a Hindi text; English and unknown text pass through', async () => {
+    const { fileText, fileMessage } = await import('./fileText.js');
+    const { storablePins } = await import('./aiConversations.js');
+    const failing = (name) => async () => ({ getDocument: () => ({ promise: Promise.reject(Object.assign(new Error('x'), { name })), destroy: async () => {} }) });
+    const bytes = new Uint8Array([1, 2, 3]).buffer;
+    const sheets = { read: () => ({ SheetNames: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], Sheets: {} }), utils: { sheet_to_csv: () => 'x,y' } };
+    const produced = [
+      (await fileText('image', bytes)).error,
+      (await fileText('doc', bytes)).error,
+      (await fileText('pdf', bytes, { loadPdf: failing('PasswordException') })).error,
+      (await fileText('pdf', bytes, { loadPdf: failing('InvalidPDFException') })).error,
+      (await fileText('pdf', bytes, { loadPdf: fakePdf([], [{ str: '' }]) })).error,
+      (await fileText('sheet', bytes, { loadXlsx: async () => { throw new Error('bad'); } })).error,
+      (await fileText('sheet', bytes, { loadXlsx: async () => sheets })).note,
+      (await fileText('text', new Uint8Array([0x7f, 0, 1, 2]).buffer)).error,
+      (await fileText('text', new Uint8Array([0xff, 0xfe, 0x41]).buffer)).error,
+      (await fileText('text', new TextEncoder().encode('   ').buffer)).error,
+      (await fileText('text', new TextEncoder().encode('x'.repeat(50_000)).buffer)).note,
+      (await drop(await pdfWith(['Clause 1. Short title.', '', '']))).at(0).note,
+      (await drop(await pdfWith(['Clause 1. Short title.', '']))).at(0).note,
+      ...(await (async () => {
+        const big = (n, size) => { const f = new File(['x'], n, { type: 'text/plain' }); Object.defineProperty(f, 'size', { value: size }); return f; };
+        const unreadable = new File(['x'], 'u.txt', { type: 'text/plain' });
+        unreadable.arrayBuffer = async () => { throw new Error('gone'); };
+        return (await drop(big('a.txt', 26_000_000), big('b.txt', 20_000_000), big('c.txt', 20_000_000), big('d.txt', 20_000_000), unreadable)).map((c) => c.error);
+      })()),
+      storablePins({ c: [{ kind: 'file', text: 'x' }] }).c[0].error,
+    ].filter(Boolean);
+    expect(produced.length).toBeGreaterThanOrEqual(17);
+    for (const english of produced) {
+      expect(fileMessage(english, 'en')).toBe(english);
+      const hindi = fileMessage(english, 'hi');
+      expect(hindi, english).not.toBe(english);
+      expect(hindi, english).toMatch(DEVANAGARI);
+    }
+    expect(fileMessage('Something else entirely.', 'hi')).toBe('Something else entirely.');
+    expect(fileMessage(undefined, 'hi')).toBe('');
+  });
+
+  it('numbers and page lists in the Hindi text are the same as in the English', async () => {
+    const { fileMessage } = await import('./fileText.js');
+    expect(fileMessage('Pages 2, 3 and 5 have no readable text (scanned) and were not read.', 'hi')).toMatch(/2, 3 और 5/);
+    expect(fileMessage('Only the first 6 of 9 sheets are read.', 'hi')).toMatch(/9.*6/);
+    expect(fileMessage('The AI reads the first 12,000 characters.', 'hi')).toContain('12,000');
+    expect(fileMessage('Larger than 25 MB, so it was not read.', 'hi')).toContain('25 MB');
+  });
+});
+
+describe('PDFs are read with pdf.js character maps and standard fonts (F178)', () => {
+  const seen = [];
+  const loadPdf = async () => ({
+    getDocument: (options) => {
+      seen.push(options);
+      const page = { getTextContent: async () => ({ items: [{ str: 'Clause 1. The Board.' }] }), cleanup() {} };
+      return { promise: Promise.resolve({ numPages: 1, getPage: async () => page }), destroy: async () => {} };
+    },
+  });
+
+  it('in the browser, getDocument gets the packed cmaps and the standard fonts that Vite serves', async () => {
+    const { fileText } = await import('./fileText.js');
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('Worker', class {});
+    try {
+      seen.length = 0;
+      await fileText('pdf', new Uint8Array([1]).buffer, { loadPdf });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(seen[0]).toMatchObject({ cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/' });
+  });
+
+  it('outside a browser (Node, tests) no asset URLs are passed, so pdf.js reads its own files', async () => {
+    const { fileText } = await import('./fileText.js');
+    seen.length = 0;
+    await fileText('pdf', new Uint8Array([1]).buffer, { loadPdf });
+    expect(seen[0]).not.toHaveProperty('cMapUrl');
+    expect(seen[0]).not.toHaveProperty('standardFontDataUrl');
+    expect(seen[0]).toMatchObject({ isEvalSupported: false });
+  });
+});
