@@ -707,7 +707,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
   reasoning usage, log redaction, desk-filter spellings, document titles, then measurements and
   small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
-  - 2026-10-15: B19 measured (F35, next a migration); B20 measured twice (F41, owner's routing
+  - 2026-10-15: B19 done (F35, migration 51 live); B20 measured twice (F41, owner's routing
     choice).
   - Done 2026-10-14: B1 source links (F89), B2 chat uploads (F172), B3 dropped connection (F66), B4
     file size (F62), B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk (F44),
@@ -923,6 +923,36 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 ## 1. Done
+
+- [x] **F35.** NTER's unscoped search loses results to its HNSW index.
+  Measured 2026-10-01 in `research/2026-10-01-feature-filter-measurements.md`:
+  - against an exact search, NTER's top 40 has a recall of 0.913;
+  - exact search finds the right document in the top 10 for 170 of 184
+    questions, NTER's index for 157;
+  - Budget and Industry are lost on NTER's index build.
+
+  Next: measure raising `hnsw.ef_search` for the unscoped branch (100–200)
+  with the `eval` harness, on the replica and then live.
+  Also measure lowering the feature filter's exact threshold T (15,000)
+  so that Regulatory takes the index path. Its exact scan takes 733 ms on
+  NTER.
+  - **Measured on the replica (2026-10-15, $0,
+    `research/2026-10-15-unscoped-search-recall.md`, `435779e`):** `ef_search` 200 finds the right
+    document in the top 10 for 170 of 184 questions, as exact search does (40: 162), at about 2 ms
+    more p50. Above about 500 the planner switches to an exact scan (11 to 57 s). Lowering T is not
+    safe: an off-topic question in Regulatory's scope returns no rows on the index path at any
+    `ef_search` up to 400, so it needs an exact fallback first.
+  - **Migration `20261015130000_unscoped_ef_search`** (`task/ef-search`): `ef_search` 200 in the
+    unscoped branch only, set and restored with `set_config`. Fixture `unscoped_ef_search` (index plan
+    asserted; fails at 40 and without the restore). Read-only checks on NTER, 2026-10-15: the live
+    body is the repository's apart from comments; at 200 the plan stays on the HNSW index; warm index
+    scan 10.0 ms against 7.6 ms at 40. Side effect (review): pgvector returns at most `ef_search`
+    candidates, so an unscoped call that lost rows to the `indexed_at` or tier filter now fills its
+    40; prompt size per turn can rise slightly against the F41 baselines.
+  *Done 2026-10-15: migration 51 `20261015130000_unscoped_ef_search` (`9bafdc1`, `74e6d66`) applied to
+  NTER with `supabase db push --linked` after a dry run that listed only it; live check: one overload,
+  the 200 constant in the body, grants unchanged, an authenticated call returns 40 rows and leaves
+  `ef_search` at 40. Lowering T stays open (needs an exact fallback; not scheduled).*
 
 - [x] **F178. Chat upload follow-ups (review, 2026-10-14).** Messages on the chip were English only and
   sat in a tooltip; CID-font PDFs read as nothing; a second dropped connection started a second
@@ -1752,31 +1782,6 @@ Follow-ups and findings:
   answer has cited yet.
 - [ ] **F34.** Let the model choose a desk filter itself. It needs an
   answer-level evaluation first.
-- [ ] **F35.** NTER's unscoped search loses results to its HNSW index.
-  Measured 2026-10-01 in `research/2026-10-01-feature-filter-measurements.md`:
-  - against an exact search, NTER's top 40 has a recall of 0.913;
-  - exact search finds the right document in the top 10 for 170 of 184
-    questions, NTER's index for 157;
-  - Budget and Industry are lost on NTER's index build.
-
-  Next: measure raising `hnsw.ef_search` for the unscoped branch (100–200)
-  with the `eval` harness, on the replica and then live.
-  Also measure lowering the feature filter's exact threshold T (15,000)
-  so that Regulatory takes the index path. Its exact scan takes 733 ms on
-  NTER.
-  - **Measured on the replica (2026-10-15, $0,
-    `research/2026-10-15-unscoped-search-recall.md`, `435779e`):** `ef_search` 200 finds the right
-    document in the top 10 for 170 of 184 questions, as exact search does (40: 162), at about 2 ms
-    more p50. Above about 500 the planner switches to an exact scan (11 to 57 s). Lowering T is not
-    safe: an off-topic question in Regulatory's scope returns no rows on the index path at any
-    `ef_search` up to 400, so it needs an exact fallback first.
-  - **Migration `20261015130000_unscoped_ef_search`** (`task/ef-search`): `ef_search` 200 in the
-    unscoped branch only, set and restored with `set_config`. Fixture `unscoped_ef_search` (index plan
-    asserted; fails at 40 and without the restore). Read-only checks on NTER, 2026-10-15: the live
-    body is the repository's apart from comments; at 200 the plan stays on the HNSW index; warm index
-    scan 10.0 ms against 7.6 ms at 40. Side effect (review): pgvector returns at most `ef_search`
-    candidates, so an unscoped call that lost rows to the `indexed_at` or tier filter now fills its
-    40; prompt size per turn can rise slightly against the F41 baselines.
 - [ ] **F38.** A sweeper for `corpus/staging/` objects older than 24 h, and
   for content-addressed objects no document references after a discard
   (admin-upload spec, "Follow-ups").

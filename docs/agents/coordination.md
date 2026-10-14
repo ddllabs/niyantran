@@ -1996,3 +1996,15 @@ recommendations … We can fix everything that is under your control."
   migration or Edge Function change; the F35 migration and the F169 C1/C2 branches are not in this
   push. `vercel.json`: `/pdfjs/` added to the SPA rewrite's exclusions (the character-map files).
   Rollback: revert and push.
+- **2026-10-15: migration 51 `20261015130000_unscoped_ef_search` applied to NTER** (F35, F171 B19;
+  owner's standing authority for recommendations, 2026-10-14). Before: the live `match_documents`
+  body read back equal to `20261001120000_page_contract.sql` apart from comments; read-only `EXPLAIN
+  ANALYZE` with `ef_search` 200 kept the HNSW plan (warm index scan 10.0 ms against 7.6 ms at 40).
+  Applied with `supabase db push --linked` from `main` at `74e6d66` after a dry run that listed only
+  this migration. After: one overload, the 200 constant present, `search_path` only, anon cannot
+  execute, an authenticated call returned 40 rows and left `ef_search` at 40. Rollback: re-run the
+  `match_documents` block of `20261001120000_page_contract.sql` with `create or replace`.
+- **Push 6** (2026-10-15): F35 migration and fixture (`9bafdc1`, `74e6d66`) and these records.
+  Production check after Push 5: `/pdfjs/` character maps and standard fonts served (200,
+  `application/octet-stream`; a missing file 404, not the app page); Geopolitics News Wire 26 live
+  rows (news search).
