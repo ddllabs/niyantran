@@ -80,7 +80,6 @@
 --   grant select on public.model_call_logs, public.chat_turn_traces to authenticated;
 --   commit;
 
-BEGIN;
 
 -- 0. Private schema: only its owner may use it ------------------------------------------
 CREATE SCHEMA IF NOT EXISTS private;
@@ -1022,4 +1021,3 @@ $$;
 SELECT private.credit_launch_backfill();
 SELECT private.credit_scrub_usage();
 
-COMMIT;
