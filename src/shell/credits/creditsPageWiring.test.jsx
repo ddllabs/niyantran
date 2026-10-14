@@ -10,12 +10,17 @@ import { OPEN_USAGE_EVENT, openCreditsUsage } from '../../lib/creditsStore.js';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const shell = read('../TerminalShell.jsx');
 
-it('renders the page for #/account/<section> inside the themed terminal root, in place of the desk', () => {
+it('renders the page for #/account/<section> inside the themed terminal root, over a desk kept mounted and hidden', () => {
   expect(shell).toContain("import CreditsPage from './credits/CreditsPage.jsx'");
   expect(shell).toContain('const [account, setAccount] = useState(() => parseAccountHash());');
-  expect(shell).toMatch(/\{account \? \(\s*<CreditsPage section=\{account\} user=\{user\} ent=\{ent\} \/>\s*\) : \(/);
+  expect(shell).toContain('{account ? <CreditsPage section={account} user={user} ent={ent} /> : null}');
   expect(shell.indexOf('<CreditsPage')).toBeGreaterThan(shell.indexOf('theme-${theme}'));
-  expect(shell.indexOf('<CreditsPage')).toBeLessThan(shell.indexOf('<DeskNav'));
+  // Review (2026-10-15): the desk, and the AI panel in it, stay mounted so a draft or a running answer
+  // survives a visit to the credits page; the workspace is hidden, not removed.
+  expect(shell).toMatch(/<div className=\{`workspace[^\n]*hidden=\{account \? true : undefined\}>/);
+  expect(shell).toContain('{moduleNavigation && !account && <DeskNav');
+  expect(shell).not.toMatch(/\{account \? \(\s*<CreditsPage[^]*?\) : \(/);
+  expect(read('./creditsPage.css')).toContain('.with-credits-page > .workspace[hidden] { display: none; }');
   expect(read('./CreditsPage.jsx')).not.toMatch(/createPortal|role="dialog"|aria-modal/);
   expect(shell).not.toMatch(/<CreditsUsage|<PlanBilling|setUsageOpen|setBilling/);
 });
@@ -29,8 +34,10 @@ it('follows the address both ways: back and forward set the section, and a desk 
     expect(at, fn).toBeGreaterThan(-1);
     expect(shell.slice(at, at + 80), fn).toContain('setAccount(null);');
   }
-  // Loading the terminal on a credits address keeps it, rather than rewriting it to a desk.
+  // Loading the terminal on a credits address keeps it, rather than rewriting it to a desk; back and
+  // forward on a credits address leave the desk underneath as it was (deskRouteFor, tested in accountRoute).
   expect(shell).toMatch(/if \(parseAccountHash\(hash\)\) return;\s*if \(r\.tab === 'home' && emptyHash/);
+  expect(shell).toMatch(/function onPop\(\) \{[^}]*const r = deskRouteFor\(\);\s*if \(!r\) return;/);
 });
 
 it('opens from the profile menu, the chat and the pricing page, and puts the pill in the header', () => {

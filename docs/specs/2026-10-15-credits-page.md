@@ -296,15 +296,54 @@ the separate segment drawn on the canvas, which would count them twice.
 **"Group by chat"** totals every matching answer, up to 2,000 (the export's cap), on the client.
 There is no per-chat report.
 
-**Desks keep their header.** The desk module bar (DeskNav) and the side panel do not show on the
-credits page. Opening a chat from it returns to the desk that was open, where the chat panel lives.
+**The desk stays mounted underneath.** While the page is open, the desk module bar (DeskNav) is
+hidden and the workspace is hidden (`hidden`, not removed), so the AI panel keeps its thread, draft
+and any answer still streaming. Back and forward on a credits address leave the desk as it was
+(`deskRouteFor`). Opening a chat from the page returns to that desk.
+
+**Independent review (2026-10-15).** The verdict was "request changes". Fixed:
+- **Critical: the chat panel was unmounted** by the page. The desk now stays mounted, hidden.
+- **Required:**
+  - Back and forward reset the desk to Home.
+  - The pace card stayed on "Loading…" with no open period: reports are now idle when not needed.
+  - Free accounts were told their credits "renew"; they now "expire".
+  - The renewal message had new wording; it now uses Plan and invoices' own, and is not repeated on
+    that section.
+  - An estimate appeared when overdrawn or with nothing left; there is none now.
+  - The activity model filter covered only this period; it now covers every model ever used.
+  - Two lots of one kind gave duplicate keys.
+  - The lifetime label for no open period was missing.
+  - The heat map was invalid as a grid: it now has real rows; left and right move a day, up and down
+    a row; 2 × 45 on wide screens and 3 × 30 on phones; announced on key moves only.
+  - Behaviour tests were missing for the popover, the ring and routing.
+- **Optional, also done:**
+  - The chosen plan now rides in the address (`#/account/billing?plan=pro`); the in-memory hand-off
+    is gone.
+  - The ring is a small module of its own, so the chat no longer pulls in the page.
+  - The popover closes when focus leaves it, has `aria-haspopup`, and says "Loading" until the
+    balance is read.
+  - The heading takes focus when the page or a section opens.
+  - Menu jumps follow reduced motion.
+  - A period that starts mid-day counts every IST date.
+  - Group by chat keeps deleted chats and dictation apart, and skips the unused paged request.
+  - "All held" shows the held message rather than "running low".
+  - The breakpoint is 900 px, matching the top bar.
+- **Changed from the spec, not built:**
+  - **The chat ring opens the credits page**, not the popover (§4). The page is one click and keeps
+    the chat mounted.
+  - **The sections are navigation links** with `aria-current="page"`, not WAI-ARIA tabs, because each
+    has its own address (§6).
+  - **The ring's fill-on-open animation** (§6) is not built. The bars animate.
+  - **No contrast test yet for `creditsPage.css`.** Its colours are app tokens, or mixes of them.
+  - **The pill and the page show credits left (balance minus held). The chat line shows the balance**
+    with "N held" beside it, as before.
 
 **Verification.**
 - `npm run lint`: clean.
-- `npm test`: 329 files, 5,015 tests.
+- `npm test`: 330 files, 5,032 tests (after the review fixes).
 - `npm run build`: passes.
-- `node scripts/check-bundle.mjs`: the entry script is 220,102 B gzip, +157 B, because the page
-  sits in the lazy terminal chunk.
+- `node scripts/check-bundle.mjs`: the entry script is 220,105 B gzip, +160 B, because the page sits
+  in the lazy terminal chunk.
 - Mutation checks, each caught by its test: a desk click that keeps the page; a credits address
   rewritten on load; held credits not taken from a lot; no three-day guard on the estimate; a chat
   opened without leaving the page.
@@ -314,7 +353,9 @@ credits page. Opening a chat from it returns to the desk that was open, where th
   - at 1440×1000 in light and dark: all four sections; an opened answer; group by chat; the
     popover (focus moves in, Escape closes and returns focus to the pill);
   - the low and overdrawn states;
-  - 390×844: the side menu becomes tabs, with no horizontal scroll.
+  - 390×844: the side menu becomes tabs, the heat map is 3 × 30, and nothing scrolls sideways.
+  - After the review: the heat map's keys (up a row, left three days, each announced) and the
+    free-plan wording ("18 days until they expire").
 - **Not verified:** the terminal shell itself in a browser (the header pill, the profile menu, desk
   switching). The local app needs a real session, and no password is entered. Tests cover the
   wiring. To check it, open the local preview and sign in.

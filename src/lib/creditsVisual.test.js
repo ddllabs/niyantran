@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { groupByChat, heatmapCells, paceModel, periodBar, roleSegments, statusMessages } from './creditsVisual.js';
 
 // F184 (owner 2026-10-15): the credits page's pictures, as pure functions of data the client
@@ -36,6 +36,15 @@ describe('periodBar', () => {
   });
 });
 
+describe('periodBar keys', () => {
+  it('gives every segment its own id, even two lots of one kind (review)', () => {
+    const bar = periodBar({ ...CREDITS, balance: 300, held: 0, lots: [{ kind: 'adjustment', remaining: 100, expiresAt: '2026-11-01T00:00:00Z' }, { kind: 'adjustment', remaining: 200, expiresAt: '2026-11-05T00:00:00Z' }] });
+    const ids = bar.segments.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(bar.segments.map((s) => s.key)).toEqual(['used', 'adjustment', 'adjustment']);
+  });
+});
+
 describe('paceModel', () => {
   const now = Date.parse('2026-10-24T12:00:00Z');
   const points = [
@@ -64,6 +73,19 @@ describe('paceModel', () => {
     const m = paceModel({ credits: { ...CREDITS, usedThisCycle: 240, balance: 1880, available: 1860 }, points: [{ bucket: '2026-10-20', credits: 240 }], now });
     expect(m.projection.runOutAt).toBeNull();
     expect(m.projection.leftAtRenewal).toBeGreaterThan(1000);
+  });
+
+  it('counts every IST date a mid-day period spans, so the last day is not dropped (review)', () => {
+    const midDay = { ...CREDITS, cycleStartsAt: '2026-10-14T05:46:00Z', cycleEndsAt: '2026-11-13T05:46:00Z' };
+    expect(paceModel({ credits: midDay, points: [], now: Date.parse('2026-11-13T04:00:00Z') }).totalDays).toBe(31);
+    expect(paceModel({ credits: midDay, points: [{ bucket: '2026-11-13', credits: 9 }], now: Date.parse('2026-11-13T04:00:00Z') }).days.at(-1)).toMatchObject({ date: '2026-11-13', cumulative: 9 });
+  });
+
+  it('makes no estimate with nothing left, and marks sign-up credits as expiring rather than renewing (review)', () => {
+    expect(paceModel({ credits: { ...CREDITS, balance: -40, available: -40, held: 0 }, points, now }).projection).toBeNull();
+    expect(paceModel({ credits: { ...CREDITS, balance: 20, available: 0, held: 20 }, points, now }).projection).toBeNull();
+    expect(paceModel({ credits: { ...CREDITS, plan: 'free' }, points, now }).expires).toBe(true);
+    expect(paceModel({ credits: CREDITS, points, now }).expires).toBe(false);
   });
 
   it('makes no estimate before three days or without a period', () => {
@@ -95,7 +117,7 @@ describe('groupByChat', () => {
     expect(groupByChat(rows).map((c) => [c.key, c.credits, c.answers, c.calls, c.latest])).toEqual([
       ['a', 45, 2, 3, '2026-10-22T10:00:00Z'],
       ['b', 40, 1, 3, '2026-10-21T10:00:00Z'],
-      ['none', 0, 1, 1, '2026-10-23T10:00:00Z'],
+      ['dictation', 0, 1, 1, '2026-10-23T10:00:00Z'],
     ]);
   });
 });
@@ -126,6 +148,15 @@ describe('statusMessages', () => {
     expect(keys(CREDITS, { now: Date.parse('2026-11-08T12:00:00Z') })).toEqual(['held', 'renews']);
     expect(keys(null, { failed: true })).toEqual(['unchecked']);
   });
+  it('words the month ending as Plan and invoices does, and leaves out what a section says itself', () => {
+    const late = statusMessages({ credits: { ...CREDITS, held: 0 }, now: Date.parse('2026-11-08T12:00:00Z') });
+    expect(late.map((m) => m.text)).toEqual(['Your Plus month ends on 12 Nov. Renew to keep it.']);
+    expect(statusMessages({ credits: { ...CREDITS, held: 0 }, now: Date.parse('2026-11-08T12:00:00Z'), skip: ['renews'] })).toEqual([]);
+    expect(statusMessages({ credits: { ...CREDITS, plan: 'free', held: 0 }, now: Date.parse('2026-11-08T12:00:00Z') })).toEqual([]);
+  });
+  it('says credits are held, not running low, when a running answer holds all of them', () => {
+    expect(statusMessages({ credits: { ...CREDITS, balance: 50, held: 50, available: 0 }, now }).map((m) => m.key)).toEqual(['held']);
+  });
 });
 
 describe('modelLabel', () => {
@@ -137,5 +168,21 @@ describe('modelLabel', () => {
     expect(modelLabel('openai/gpt-5-mini')).toBe('GPT-5 Mini');
     expect(modelLabel('openai/whisper-large-v3-turbo')).toBe('Whisper Large V3 Turbo');
     expect(modelLabel(null)).toBe('Unknown model');
+  });
+});
+
+describe('the heat map keys', () => {
+  it('moves one day across and one row down, never off the grid or across a row edge vertically', async () => {
+    vi.doMock('./supabaseClient.js', () => ({ supabase: {} }));
+    const { heatStep } = await import('../shell/credits/CreditsVisuals.jsx');
+    expect(heatStep('ArrowRight', 10, 90, 45)).toBe(11);
+    expect(heatStep('ArrowLeft', 0, 90, 45)).toBe(0);
+    expect(heatStep('ArrowDown', 10, 90, 45)).toBe(55);
+    expect(heatStep('ArrowDown', 55, 90, 45)).toBe(55);
+    expect(heatStep('ArrowUp', 10, 90, 30)).toBe(10);
+    expect(heatStep('ArrowUp', 40, 90, 30)).toBe(10);
+    expect(heatStep('End', 3, 90, 45)).toBe(89);
+    expect(heatStep('Home', 50, 90, 45)).toBe(0);
+    expect(heatStep('a', 5, 90, 45)).toBeNull();
   });
 });

@@ -11,10 +11,10 @@ import { buildChart } from '../../lib/usageChart.js';
 import UsageAnalytics from '../usage/UsageAnalytics.jsx';
 import PlanBilling from '../PlanBilling.jsx';
 import ActivitySection from './ActivitySection.jsx';
-import { BalanceRing } from './BalancePill.jsx';
+import { BalanceRing } from './BalanceRing.jsx';
 import { StatusBar, UsageHeatmap } from './CreditsVisuals.jsx';
 import OverviewSection from './OverviewSection.jsx';
-import { ACCOUNT_SECTIONS, accountHash, takeAccountPlan } from './accountRoute.js';
+import { ACCOUNT_SECTIONS, accountHash, accountPlan } from './accountRoute.js';
 import '../usage/creditsUsage.css';
 import './creditsPage.css';
 
@@ -33,10 +33,14 @@ export const SECTION_PARTS = {
   billing: [['plan-billing-title', 'Your plan'], ['plan-change-title', 'Change plan'], ['plan-invoices-title', 'Invoices']],
 };
 
+/** One report while `enabled`: loading, then ready with its value, or error. Idle while not enabled. */
 function useReport(enabled, load, deps) {
-  const [state, setState] = useState({ status: 'loading' });
+  const [state, setState] = useState({ status: enabled ? 'loading' : 'idle' });
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled) {
+      setState((s) => (s.status === 'loading' ? { status: 'idle' } : s));
+      return undefined;
+    }
     let live = true;
     setState((s) => ({ ...s, status: 'loading' }));
     Promise.resolve(load()).then((value) => { if (live) setState(value ? { status: 'ready', value } : { status: 'error' }); });
@@ -54,9 +58,8 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
   const [measure, setMeasure] = useState('credits');
   const [groupBy, setGroupBy] = useState('model');
   const [hidden, setHidden] = useState(() => new Set());
-  const [plan, setPlan] = useState(() => (section === 'billing' ? takeAccountPlan() : null));
+  const plan = section === 'billing' ? accountPlan() : null;
   const heading = useRef(null);
-  const first = useRef(true);
 
   useEffect(() => {
     if (!userId) return undefined;
@@ -67,27 +70,28 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
     return () => { live = false; off(); };
   }, [userId]);
 
-  // A section change moves focus to its heading, as a page change would; the first render does not.
-  // A plan handed over on the way to Plan and invoices (the chat's Upgrade) is picked up then.
+  // Opening the page or a section moves focus to its heading, as a page change would.
   useEffect(() => {
-    if (section === 'billing') {
-      const handed = takeAccountPlan();
-      if (handed !== null) setPlan(handed);
-    }
-    if (first.current) { first.current = false; return; }
-    heading.current?.focus();
+    heading.current?.focus({ preventScroll: true });
   }, [section]);
 
   const cycleStart = credits?.cycleStartsAt || null;
   const ready = Boolean(userId && credits);
   const overview = section === 'credits';
   const usage = section === 'usage';
-  const cycle = useReport(ready, () => loadUsageSummary(cycleStart, new Date().toISOString()), [cycleStart]);
+  const activity = section === 'activity';
+  const cycle = useReport(ready && overview, () => loadUsageSummary(cycleStart, new Date().toISOString()), [cycleStart]);
+  // The activity filter offers every model ever used, so last month's answers can still be filtered.
+  const lifetime = useReport(Boolean(userId) && activity, () => loadUsageSummary(null, new Date().toISOString()), []);
   const series = useReport(ready && overview && Boolean(cycleStart), () => loadUsageSeries(cycleStart, new Date().toISOString(), 'day'), [cycleStart]);
   const recent = useReport(Boolean(userId) && overview, () => loadUsageActivity({ offset: 0, limit: 5, grouped: true }), []);
-  const win = useMemo(() => rangeWindow(range), [range]);
-  const analytics = useReport(Boolean(userId) && usage, () => Promise.all([loadUsageSummary(win.from, win.to), loadUsageSeries(win.from, win.to, win.bucket)])
-    .then(([summary, s]) => (summary && s ? { summary, series: s } : null)), [win.from, win.to, win.bucket]);
+  // The window is taken when the report is read, so opening Usage again reads up to now.
+  const analytics = useReport(Boolean(userId) && usage, () => {
+    const w = rangeWindow(range);
+    return Promise.all([loadUsageSummary(w.from, w.to), loadUsageSeries(w.from, w.to, w.bucket)])
+      .then(([summary, s]) => (summary && s ? { summary, series: s, window: w } : null));
+  }, [range]);
+  const win = analytics.value?.window?.range === range ? analytics.value.window : rangeWindow(range);
   const heat = useReport(Boolean(userId) && usage, () => { const w = rangeWindow('90d'); return loadUsageSeries(w.from, w.to, 'day'); }, []);
 
   const analyticsState = analytics.status === 'ready'
@@ -100,7 +104,10 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
   const failed = creditsTried && !credits;
   const meta = ACCOUNT_SECTIONS.find((s) => s.id === section) || ACCOUNT_SECTIONS[0];
   const openChat = (id) => openConversation(id);
-  const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const jump = (id) => {
+    const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(id)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+  };
 
   if (!userId) return <main className="cp-page"><p className="cu-note">Sign in to see your credits.</p></main>;
 
@@ -132,11 +139,12 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
         <p className="cp-crumb">Credits</p>
         <h2 id="cp-section-title" className="cp-title" ref={heading} tabIndex={-1}>{meta.label}</h2>
         <p className="cp-question">{meta.question}</p>
-        <StatusBar credits={credits} failed={failed} />
+        {/* Plan and invoices says when the month ends itself. */}
+        <StatusBar credits={credits} failed={failed} skip={section === 'billing' ? ['renews'] : []} />
 
         {overview ? (
           <OverviewSection credits={credits} creditsFailed={failed} cycle={{ status: cycle.status, summary: cycle.value || null }}
-            series={{ status: series.status, points: series.value?.points || [] }}
+            series={{ status: cycleStart ? series.status : 'ready', points: series.value?.points || [] }}
             recent={{ status: recent.status, rows: recent.value?.rows || [] }} onOpenChat={openChat} />
         ) : null}
 
@@ -161,7 +169,7 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
           />
         ) : null}
 
-        {section === 'activity' ? <ActivitySection models={filterModels(cycle.value)} onOpenChat={openChat} /> : null}
+        {activity ? <ActivitySection models={filterModels(lifetime.value)} onOpenChat={openChat} /> : null}
 
         {section === 'billing' ? <PlanBilling key={plan || 'none'} ent={ent} user={user} initialPlan={plan} /> : null}
       </main>

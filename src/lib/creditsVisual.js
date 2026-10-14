@@ -25,8 +25,8 @@ export function periodBar(credits) {
   const balance = n(credits?.balance);
   const held = Math.min(Math.max(n(credits?.held), 0), Math.max(balance, 0));
   const segments = [];
-  if (used > 0) segments.push({ key: 'used', value: used });
-  if (held > 0) segments.push({ key: 'held', value: held });
+  if (used > 0) segments.push({ key: 'used', id: 'used', value: used });
+  if (held > 0) segments.push({ key: 'held', id: 'held', value: held });
   let toTake = held;
   const lots = [...(credits?.lots || [])].sort((a, b) => (Date.parse(a.expiresAt) || Infinity) - (Date.parse(b.expiresAt) || Infinity));
   for (const lot of balance > 0 ? lots : []) {
@@ -34,7 +34,7 @@ export function periodBar(credits) {
     const taken = Math.min(value, toTake);
     value -= taken;
     toTake -= taken;
-    if (value > 0) segments.push({ key: lot.kind || 'other', value, expiresAt: lot.expiresAt || null });
+    if (value > 0) segments.push({ key: lot.kind || 'other', id: `${lot.kind || 'other'}:${lot.expiresAt || ''}:${segments.length}`, value, expiresAt: lot.expiresAt || null });
   }
   const left = Math.max(balance - held, 0);
   return { segments, used, held, left, total: used + Math.max(balance, 0), overdrawn: balance < 0 ? -balance : 0 };
@@ -50,7 +50,8 @@ export function paceModel({ credits, points, now = Date.now() }) {
   const end = Date.parse(credits?.cycleEndsAt || '');
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
   const startDay = istDayStart(start);
-  const totalDays = Math.max(1, Math.round((end - start) / DAY_MS));
+  // A period starts at the payment time, not at midnight, so it can span one more IST date than its length.
+  const totalDays = Math.max(1, Math.floor((istDayStart(end - 1) - startDay) / DAY_MS) + 1);
   const today = Math.min(Math.floor((istDayStart(now) - startDay) / DAY_MS), totalDays - 1);
   if (today < 0) return null;
   const perDay = new Array(today + 1).fill(0);
@@ -65,14 +66,14 @@ export function paceModel({ credits, points, now = Date.now() }) {
   const evenToday = (bar.total * elapsed) / totalDays;
   let projection = null;
   const rate = bar.used / elapsed;
-  if (elapsed >= 3 && rate > 0) {
-    const left = n(credits?.available ?? bar.left);
-    const runOut = now + (Math.max(left, 0) / rate) * DAY_MS;
+  const left = n(credits?.available ?? bar.left);
+  if (elapsed >= 3 && rate > 0 && left > 0) {
+    const runOut = now + (left / rate) * DAY_MS;
     projection = runOut < end
       ? { runOutAt: new Date(runOut).toISOString(), leftAtRenewal: null, rate }
       : { runOutAt: null, leftAtRenewal: Math.max(left - rate * ((end - now) / DAY_MS), 0), rate };
   }
-  return { days, totalDays, total: bar.total, used: bar.used, evenToday, projection };
+  return { days, totalDays, total: bar.total, used: bar.used, evenToday, projection, expires: credits?.plan === 'free' };
 }
 
 /** One cell per IST day for the last `count` days, oldest first, at five levels against the busiest. */
@@ -93,7 +94,7 @@ export function heatmapCells(points, now = Date.now(), count = 90) {
 export function groupByChat(rows) {
   const groups = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
-    const key = row.conversationId || 'none';
+    const key = row.conversationId || (row.turnKey ? 'deleted' : 'dictation');
     const g = groups.get(key) || { key, conversationId: row.conversationId || null, title: null, credits: 0, calls: 0, answers: 0, latest: null, sample: row };
     g.title = g.title || row.title || null;
     g.credits += n(row.credits);
@@ -131,24 +132,28 @@ function dayText(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
 }
 
+const PLAN_NAMES = { plus: 'Plus', pro: 'Pro', max: 'Max' };
+
 /**
  * The status bar's messages (spec §1): every state the app already tells the user about, in the same
- * words as the chat. `failed` means the balance could not be read.
+ * words as the chat and Plan and invoices. `failed` means the balance could not be read; `skip` drops
+ * keys a section already says itself.
  */
-export function statusMessages({ credits, failed = false, now = Date.now() }) {
+export function statusMessages({ credits, failed = false, now = Date.now(), skip = [] }) {
   if (!credits) return failed ? [{ key: 'unchecked', tone: 'warn', text: 'AI credits could not be checked right now. Try again in a moment.' }] : [];
   const out = [];
   const balance = n(credits.balance);
   const held = n(credits.held);
+  const free = credits.plan === 'free';
   if (balance < 0) out.push({ key: 'overdrawn', tone: 'danger', text: `${creditsText(-balance)} beyond your balance will be taken from your next credits.` });
-  else if (balance - held <= 0 && held <= 0) out.push({ key: 'empty', tone: 'danger', text: 'You have no AI credits left to start an answer. Upgrade your plan, or write to niyantranai@gmail.com for more credits.' });
-  else if (lowBalance(credits)) out.push({ key: 'low', tone: 'warn', text: `Running low: ${creditsText(balance)} left this cycle.` });
+  else if (balance <= 0) out.push({ key: 'empty', tone: 'danger', text: 'You have no AI credits left to start an answer. Upgrade your plan, or write to niyantranai@gmail.com for more credits.' });
+  else if (balance - held > 0 && lowBalance(credits)) out.push({ key: 'low', tone: 'warn', text: `Running low: ${creditsText(balance)} left${!free && n(credits.allowance) > 0 ? ' this cycle' : ''}.` });
   if (held > 0) out.push({ key: 'held', tone: 'info', text: `${creditsText(held)} held for a running answer. They are released or charged when it finishes.` });
   const end = Date.parse(credits.cycleEndsAt || '');
-  if (credits.plan !== 'free' && Number.isFinite(end) && end > now && end - now <= RENEW_SOON_MS) {
-    out.push({ key: 'renews', tone: 'info', text: `Your plan renews on ${dayText(end)}. Monthly credits left then expire; 10% of unused credits roll over.` });
+  if (!free && Number.isFinite(end) && end > now && end - now <= RENEW_SOON_MS) {
+    out.push({ key: 'renews', tone: 'info', text: `Your ${PLAN_NAMES[credits.plan] || 'plan'} month ends on ${dayText(end)}. Renew to keep it.` });
   }
-  return out;
+  return out.filter((m) => !skip.includes(m.key));
 }
 
 /** The period in words, for when no day count fits: "Billing period · 13 Oct 2026 – 12 Nov 2026 · renews 12 Nov 2026". */

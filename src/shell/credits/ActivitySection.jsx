@@ -47,6 +47,8 @@ export default function ActivitySection({
   const [exportError, setExportError] = useState('');
 
   useEffect(() => {
+    // Grouped by chat, the list comes from every matching answer below; the page of 50 is not needed.
+    if (filters.byChat) return undefined;
     let live = true;
     setState((s) => ({ ...s, status: 'loading' }));
     Promise.resolve(load({ ...reportFilters(filters), offset, limit: ACTIVITY_PAGE })).then((page) => {

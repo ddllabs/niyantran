@@ -8,6 +8,7 @@ import { indianNumber, modelLabel, rowChat, whenText } from '../../lib/creditUsa
 import { periodLine } from '../../lib/creditsVisual.js';
 import CreditLots from '../CreditLots.jsx';
 import { Tokens } from '../usage/usageParts.jsx';
+import { daysLeftText } from './BalancePill.jsx';
 import { PaceChart, PeriodBar, WhereCreditsWent } from './CreditsVisuals.jsx';
 import { goAccount } from './accountRoute.js';
 
@@ -43,20 +44,22 @@ export default function OverviewSection({ credits, creditsFailed, cycle, series,
   const summary = cycle.summary;
   const left = Math.max(credits.balance - (credits.held || 0), 0);
   const ofTotal = Math.max((credits.usedThisCycle || 0) + Math.max(credits.balance, 0), 0);
-  const ends = Date.parse(credits.cycleEndsAt || '');
-  const daysLeft = Number.isFinite(ends) && ends > now ? Math.ceil((ends - now) / 86400000) : null;
+  const days = daysLeftText(credits, now);
+  // With no open period the summary covers everything so far, and says so (F153's lifetime label).
+  const noCycle = !credits.cycleStartsAt;
+  const span = noCycle ? 'so far' : 'this period';
   return (
     <div className="cp-stack">
       <section className="cp-card cp-hero" aria-labelledby="cp-left-title">
         <div className="cp-hero-head">
           <h3 id="cp-left-title" className="cp-big">{formatCredits(left)}<span className="cu-sr"> credits left</span></h3>
-          <p className="cp-hero-sub">credits left{ofTotal ? ` of ${formatCredits(ofTotal)} this period` : ''}</p>
-          <p className="cp-hero-when">{daysLeft !== null ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} to renewal` : periodLine(credits)}</p>
+          <p className="cp-hero-sub">credits left{ofTotal && !noCycle ? ` of ${formatCredits(ofTotal)} this period` : ''}</p>
+          <p className="cp-hero-when">{noCycle ? 'No credits period is open · lifetime figures' : days || periodLine(credits)}</p>
         </div>
         <PeriodBar credits={credits} />
         <dl className="cp-facts">
-          <div><dt>Model calls this period</dt><dd>{summary ? indianNumber(summary.calls) : '—'}{summary?.failedCalls ? <span className="cp-dim"> · {summary.failedCalls} failed</span> : null}</dd></div>
-          <div><dt>Tokens this period</dt><dd>{summary ? <Tokens value={summary.tokens} /> : '—'}</dd></div>
+          <div><dt>Model calls {span}</dt><dd>{summary ? indianNumber(summary.calls) : '—'}{summary?.failedCalls ? <span className="cp-dim"> · {summary.failedCalls} failed</span> : null}</dd></div>
+          <div><dt>Tokens {span}</dt><dd>{summary ? <Tokens value={summary.tokens} /> : '—'}</dd></div>
           <div><dt>Lifetime spend</dt><dd>{summary ? creditsText(summary.lifetimeCredits) : '—'}</dd></div>
         </dl>
       </section>
@@ -65,11 +68,11 @@ export default function OverviewSection({ credits, creditsFailed, cycle, series,
         <section className="cp-card" aria-labelledby="cp-pace-title">
           <div className="cp-card-head"><h3 id="cp-pace-title" className="cp-card-title">Pace this period</h3><p className="cp-dim">Used so far, against an even pace</p></div>
           {series.status === 'error' ? <p className="cu-note cu-error" role="alert">The pace could not be loaded just now.</p>
-            : series.status === 'loading' ? <p className="cu-note" role="status">Loading the pace…</p>
+            : series.status === 'loading' && !noCycle ? <p className="cu-note" role="status">Loading the pace…</p>
               : <PaceChart credits={credits} points={series.points} now={now} />}
         </section>
         <section className="cp-card" aria-labelledby="cp-where-title">
-          <div className="cp-card-head"><h3 id="cp-where-title" className="cp-card-title">Where your credits went</h3><button type="button" className="cp-link" onClick={() => goAccount('usage')}>Full breakdown</button></div>
+          <div className="cp-card-head"><h3 id="cp-where-title" className="cp-card-title">Where your credits went{noCycle ? ' so far' : ''}</h3><button type="button" className="cp-link" onClick={() => goAccount('usage')}>Full breakdown</button></div>
           {cycle.status === 'error' ? <p className="cu-note cu-error" role="alert">This period's usage could not be loaded just now.</p>
             : !summary ? <p className="cu-note" role="status">Loading this period…</p>
               : <WhereCreditsWent summary={summary} />}

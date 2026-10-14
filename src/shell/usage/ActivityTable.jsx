@@ -50,7 +50,7 @@ function Filters({ filters, models, onFilter, onExport, exporting, disabled }) {
           <option value="dictation">Dictation</option>
         </select>
       </label>
-      <Switch label="Group by question" on={filters.grouped} onChange={(grouped) => onFilter({ grouped })} disabled={filters.byChat} />
+      <Switch label="Group by question" on={filters.grouped && !filters.byChat} onChange={(grouped) => onFilter({ grouped })} disabled={filters.byChat} />
       <Switch label="Group by chat" on={Boolean(filters.byChat)} onChange={(byChat) => onFilter({ byChat })} />
       <Switch label="Failures only" on={filters.status === 'failed'} onChange={(on) => onFilter({ status: on ? 'failed' : 'all' })} />
       <button type="button" className="cu-btn" onClick={() => onExport()} disabled={disabled || exporting}>

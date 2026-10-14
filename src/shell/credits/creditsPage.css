@@ -26,6 +26,9 @@
 
 /* —— Page layout: a side menu beside the section —— */
 .with-credits-page > .cp-page { grid-area: work; }
+/* The desk stays mounted under the page so the AI panel keeps its work; .workspace's display:grid would
+   otherwise beat the hidden attribute. */
+.with-credits-page > .workspace[hidden] { display: none; }
 .cp-page {
   min-height: 0; overflow: auto; display: flex; gap: 28px; align-items: flex-start;
   padding: 24px 28px 56px; background: var(--bg); color: var(--fg); font-family: var(--font-ui);
@@ -139,7 +142,9 @@
 .cp-heat { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .cp-heat-head, .cp-heat-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .cp-heat-busiest, .cp-heat-readout, .cp-heat-scale { margin: 0; font-size: 12px; color: var(--muted); }
-.cp-heat-grid { display: grid; grid-template-columns: repeat(45, minmax(0, 1fr)); grid-template-rows: repeat(2, 16px); grid-auto-flow: column; gap: 3px; margin-top: 10px; border-radius: 4px; }
+.cp-heat-grid { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; border-radius: 4px; }
+.cp-heat-row { display: grid; grid-template-columns: repeat(var(--cp-heat-cols, 45), minmax(0, 1fr)); gap: 3px; }
+.cp-heat-row .cp-heat-cell { height: 16px; }
 .cp-heat-cell { display: block; border-radius: 3px; }
 .cp-heat-cell.on { outline: 2px solid var(--fg); outline-offset: 1px; }
 .cp-heat-scale { display: inline-flex; gap: 4px; align-items: center; }
@@ -217,7 +222,7 @@
 .theme-dark .cp-pop-open { color: #131313; }
 
 /* —— Narrow screens: the menu becomes a row of tabs —— */
-@media (max-width: 899px) {
+@media (max-width: 900px) {
   .cp-page { flex-direction: column; gap: 12px; padding: 14px 14px 40px; }
   .cp-menu { position: static; flex: none; width: 100%; }
   .cp-balance, .cp-menu-parts { display: none; }
@@ -235,7 +240,7 @@
 @media (max-width: 560px) {
   .cp-big { font-size: 36px; }
   .cp-hero-when { margin-left: 0; width: 100%; }
-  .cp-heat-grid { grid-template-columns: repeat(30, minmax(0, 1fr)); grid-template-rows: repeat(3, 14px); }
+  .cp-heat-row .cp-heat-cell { height: 14px; }
   .cp-where-list li { grid-template-columns: 12px minmax(0, 1fr) auto 36px; }
   .cp-where-list .cp-mini { display: none; }
 }

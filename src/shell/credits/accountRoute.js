@@ -1,9 +1,10 @@
 /**
  * The credits page's address in the terminal (F184, docs/specs/2026-10-15-credits-page.md §1):
  * #/account/<section>, one per section, so back, forward and bookmarks work as they do for desks.
- * A plan chosen elsewhere (the public pricing page, the chat's Upgrade) is handed to the Plan and
- * invoices section once, in memory.
+ * A plan chosen elsewhere (the public pricing page) rides in the address: #/account/billing?plan=pro.
  */
+import { parseDeskHash } from '../../lib/deskRoute.js';
+
 export const ACCOUNT_SECTIONS = [
   { id: 'credits', label: 'Overview', question: 'How much do I have, and how fast am I using it?' },
   { id: 'usage', label: 'Usage', question: 'Where did my credits go?' },
@@ -20,21 +21,28 @@ export function parseAccountHash(hash = typeof location !== 'undefined' ? locati
   return IDS.has(section) ? section : 'credits';
 }
 
+/**
+ * The desk an address names, or null for the credits page, whose address leaves the desk underneath
+ * as it was (TerminalShell's back and forward handling).
+ */
+export function deskRouteFor(hash = typeof location !== 'undefined' ? location.hash : '') {
+  return parseAccountHash(hash) ? null : parseDeskHash(hash);
+}
+
 export function accountHash(section) {
   return `#/account/${IDS.has(section) ? section : 'credits'}`;
 }
 
-let wantedPlan = null;
+/** The plan an address hands to Plan and invoices (#/account/billing?plan=pro), or null. */
+export function accountPlan(hash = typeof location !== 'undefined' ? location.hash : '') {
+  const query = String(hash || '').split('?')[1] || '';
+  const plan = new URLSearchParams(query).get('plan');
+  return plan && /^[a-z]{2,20}$/.test(plan) ? plan : null;
+}
 
 /** Opens a section of the credits page, optionally with a plan to preselect on Plan and invoices. */
 export function goAccount(section, { plan = null } = {}) {
-  if (plan !== null && plan !== undefined) wantedPlan = String(plan);
-  if (typeof location !== 'undefined') location.hash = accountHash(section);
-}
-
-/** The plan handed over by goAccount, once. */
-export function takeAccountPlan() {
-  const plan = wantedPlan;
-  wantedPlan = null;
-  return plan;
+  if (typeof location === 'undefined') return;
+  const chosen = section === 'billing' && plan ? `?plan=${encodeURIComponent(plan)}` : '';
+  location.hash = `${accountHash(section)}${chosen}`;
 }

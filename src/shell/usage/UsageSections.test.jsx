@@ -16,6 +16,7 @@ import { buildChart } from '../../lib/usageChart.js';
 import { periodLine } from '../../lib/creditsVisual.js';
 import CreditsPage, { SECTION_PARTS, filterModels } from '../credits/CreditsPage.jsx';
 import OverviewSection from '../credits/OverviewSection.jsx';
+import { UsageHeatmap } from '../credits/CreditsVisuals.jsx';
 import UsageAnalytics from './UsageAnalytics.jsx';
 
 const CREDITS = {
@@ -74,6 +75,21 @@ describe('the Overview', () => {
     expect(out).toContain('Including 35 credits for 7 web searches.');
     expect(out).toContain('>What did the RBI do?</button>');
     expect(out).toMatch(/Monthly[\s\S]*1,500 credits[\s\S]*Expires 14 Nov 2026/);
+  });
+
+  it('labels lifetime figures as such when no period is open, and shows the pace note instead of loading (review)', () => {
+    const out = html({ credits: { ...CREDITS, cycleStartsAt: null, cycleEndsAt: null }, series: { status: 'idle', points: [] } });
+    expect(out).toContain('No credits period is open · lifetime figures');
+    expect(out).toContain('Model calls so far</dt>');
+    expect(out).toContain('Where your credits went so far');
+    expect(out).not.toContain('Loading the pace');
+    expect(out).toContain('The pace appears once a billing period is open.');
+  });
+
+  it('says sign-up credits expire rather than renew (review)', () => {
+    const out = html({ credits: { ...CREDITS, plan: 'free' } });
+    expect(out).toContain('25 days until they expire');
+    expect(out).not.toContain('renewal');
   });
 
   it('says when its parts are loading or could not load', () => {
@@ -169,5 +185,18 @@ describe('the page', () => {
   it('offers every model either summary has seen in the activity filter, most credits first', () => {
     expect(filterModels({ byModel: [{ model: 'a/x', credits: 1 }, { model: 'unknown', credits: 9 }] }, { byModel: [{ model: 'b/y', credits: 5 }, { model: 'a/x', credits: 1 }] }, null))
       .toEqual(['b/y', 'a/x']);
+  });
+});
+
+describe('the 90-day heat map', () => {
+  it('draws real grid rows, oldest day first, with each day named, and five shades', () => {
+    const now = Date.parse('2026-10-24T12:00:00Z');
+    const out = renderToStaticMarkup(<UsageHeatmap points={[{ bucket: '2026-10-24', credits: 160 }, { bucket: '2026-10-20', credits: 40 }]} now={now} columns={45} />);
+    expect(out.match(/role="row"/g)).toHaveLength(2);
+    expect(out.match(/role="gridcell"/g)).toHaveLength(90);
+    expect(out).toMatch(/<div role="row" class="cp-heat-row"><span id="cp-heat-0" role="gridcell" class="cp-heat-cell cp-lv0" aria-label="27 Jul: 0 credits, no use"/);
+    expect(out).toContain('id="cp-heat-89" role="gridcell" class="cp-heat-cell cp-lv4 on" aria-label="24 Oct: 160 credits, busiest"');
+    expect(out).toContain('Busiest: 24 Oct, 160 credits');
+    expect(renderToStaticMarkup(<UsageHeatmap points={[]} now={now} columns={30} />).match(/role="row"/g)).toHaveLength(3);
   });
 });

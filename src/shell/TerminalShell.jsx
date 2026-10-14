@@ -32,7 +32,7 @@ import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 import CreditsPage from './credits/CreditsPage.jsx';
 import BalancePill from './credits/BalancePill.jsx';
-import { goAccount, parseAccountHash } from './credits/accountRoute.js';
+import { ACCOUNT_SECTIONS, deskRouteFor, goAccount, parseAccountHash } from './credits/accountRoute.js';
 import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
@@ -211,10 +211,14 @@ export default function TerminalShell({ onLogout }) {
   }, []);
 
   useEffect(() => {
+    if (account) {
+      setPageTitle(`${ACCOUNT_SECTIONS.find((s) => s.id === account)?.label || 'Overview'} · Credits`);
+      return;
+    }
     const desk = active?.label || tab || 'Terminal';
     const feat = String(featureName || '').trim();
     setPageTitle(feat ? `${feat} · ${desk}` : desk === 'Home' ? 'Terminal' : desk);
-  }, [tab, featureName, active?.label]);
+  }, [account, tab, featureName, active?.label]);
 
   useEffect(() => {
     function onOpenLiveTv() {
@@ -272,7 +276,9 @@ export default function TerminalShell({ onLogout }) {
 
   useEffect(() => {
     function onPop() {
-      const r = parseDeskHash();
+      // The credits page has its own address; the desk underneath keeps what it had (F184).
+      const r = deskRouteFor();
+      if (!r) return;
       setTab(r.tab);
       setFeatureName(r.feature);
       setSelected(null);
@@ -498,67 +504,64 @@ export default function TerminalShell({ onLogout }) {
         </div>
         </div>
       </header>
-      {account ? (
-        <CreditsPage section={account} user={user} ent={ent} />
-      ) : (
-        <>
-        {moduleNavigation && <DeskNav
+      {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
+          AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
+      {account ? <CreditsPage section={account} user={user} ent={ent} /> : null}
+      {moduleNavigation && !account && <DeskNav
+        tab={tab}
+        featureName={featureName}
+        lang={lang}
+        onDesk={onDesk}
+        onFeature={onFeature}
+        tabs={deskTabs}
+        lockedIds={lockedIds}
+      />}
+      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined} hidden={account ? true : undefined}>
+        <main className="main-col">
+          {restricted ? (
+            <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
+              onAccess={doLogout}
+              onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
+          ) : tab === 'home' ? (
+            <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
+          ) : guideMode ? (
+            <DeskLandingView
+              key={`${tab}:${reload}`}
+              tab={tab}
+              label={hi ? active.labelHi : active.label}
+              buckets={deskBuckets}
+              onFeature={onFeature}
+              lang={lang}
+            />
+          ) : (
+            <DeskView
+              key={`${feedTier}:${featureName}`}
+              tier={feedTier}
+              featureName={featureName}
+              onFeed={onFeed}
+              selected={selected}
+              onSelect={onSelect}
+              onLoading={onLoading}
+              reload={reload}
+              vizFilter={vizFilter}
+              onClearViz={onClearViz}
+            />
+          )}
+        </main>
+        {!restricted && <SidePanel
+          panel={panel}
+          hasRail={hasRail}
+          feed={feed}
+          selected={selected}
+          onSelect={onSelect}
+          lang={lang}
+          loading={loading}
+          vizFilter={vizFilter}
           tab={tab}
           featureName={featureName}
-          lang={lang}
-          onDesk={onDesk}
-          onFeature={onFeature}
-          tabs={deskTabs}
-          lockedIds={lockedIds}
         />}
-        <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
-          <main className="main-col">
-            {restricted ? (
-              <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
-                onAccess={doLogout}
-                onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
-            ) : tab === 'home' ? (
-              <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
-            ) : guideMode ? (
-              <DeskLandingView
-                key={`${tab}:${reload}`}
-                tab={tab}
-                label={hi ? active.labelHi : active.label}
-                buckets={deskBuckets}
-                onFeature={onFeature}
-                lang={lang}
-              />
-            ) : (
-              <DeskView
-                key={`${feedTier}:${featureName}`}
-                tier={feedTier}
-                featureName={featureName}
-                onFeed={onFeed}
-                selected={selected}
-                onSelect={onSelect}
-                onLoading={onLoading}
-                reload={reload}
-                vizFilter={vizFilter}
-                onClearViz={onClearViz}
-              />
-            )}
-          </main>
-          {!restricted && <SidePanel
-            panel={panel}
-            hasRail={hasRail}
-            feed={feed}
-            selected={selected}
-            onSelect={onSelect}
-            lang={lang}
-            loading={loading}
-            vizFilter={vizFilter}
-            tab={tab}
-            featureName={featureName}
-          />}
-        </div>
-        {!restricted && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
-        </>
-      )}
+      </div>
+      {!restricted && !account && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}

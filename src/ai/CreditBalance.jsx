@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import { creditsText, lowBalance, openCreditsUsage, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
-import { BalanceRing } from '../shell/credits/BalancePill.jsx';
+import { BalanceRing } from '../shell/credits/BalanceRing.jsx';
 
 /**
  * Plan and invoices is a section of the credits page (F184), which the terminal shell owns; the chat

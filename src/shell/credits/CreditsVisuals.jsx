@@ -3,7 +3,7 @@
  * where credits went, and the status bar. Data shaping lives in src/lib/creditsVisual.js; these draw
  * it. Hook-free except the heat map's keyboard cursor. Credits only.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { creditsText, formatCredits, refreshCredits } from '../../lib/creditsStore.js';
 import { modelLabel, providerOf } from '../../lib/creditUsage.js';
 import { heatmapCells, paceModel, periodBar, statusMessages } from '../../lib/creditsVisual.js';
@@ -28,14 +28,14 @@ export function PeriodBar({ credits, compact = false }) {
     <div className={`cp-period${compact ? ' cp-period-compact' : ''}`}>
       <div className="cp-bar" role="img" aria-label={bar.overdrawn ? `Overdrawn by ${creditsText(bar.overdrawn)}` : summary}>
         {bar.segments.map((s) => (
-          <span key={s.key} className={`cp-seg cp-seg-${s.key}`} style={{ flexGrow: s.value }} title={`${segmentLabel(s)}: ${creditsText(s.value)}`} />
+          <span key={s.id} className={`cp-seg cp-seg-${s.key}`} style={{ flexGrow: s.value }} title={`${segmentLabel(s)}: ${creditsText(s.value)}`} />
         ))}
         {bar.overdrawn ? <span className="cp-seg cp-seg-over" style={{ flexGrow: Math.max(bar.overdrawn, bar.used * 0.04) }} /> : null}
       </div>
       {compact ? null : (
         <ul className="cp-legend">
           {bar.segments.map((s) => (
-            <li key={s.key}>
+            <li key={s.id}>
               <span className={`cp-swatch cp-seg-${s.key}`} aria-hidden="true" />
               <span className="cp-legend-label">{segmentLabel(s)}</span>
               <strong>{formatCredits(s.value)}</strong>
@@ -58,7 +58,7 @@ export function paceSentence(model) {
   const p = model?.projection;
   if (!p) return null;
   if (p.runOutAt) return { tone: 'warn', text: `At this pace you would run out around ${day(p.runOutAt)}.` };
-  return { tone: 'ok', text: `At this pace about ${creditsText(Math.round(p.leftAtRenewal))} would be left at renewal.` };
+  return { tone: 'ok', text: `At this pace about ${creditsText(Math.round(p.leftAtRenewal))} would be left ${model.expires ? 'when they expire' : 'at renewal'}.` };
 }
 
 const W = 640;
@@ -112,18 +112,48 @@ export function PaceChart({ credits, points, now = Date.now() }) {
 }
 
 const LEVEL_TEXT = ['no use', 'light', 'moderate', 'heavy', 'busiest'];
+const NARROW = '(max-width: 560px)';
 
-/** The last 90 days, two rows of 45 days, with a keyboard cursor and a readout. */
-export function UsageHeatmap({ points, now = Date.now() }) {
+/** Days per row: 45 (two rows) on wide screens, 30 (three rows) on phones. */
+function useHeatColumns() {
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.(NARROW).matches));
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const query = window.matchMedia(NARROW);
+    const on = () => setNarrow(query.matches);
+    query.addEventListener('change', on);
+    return () => query.removeEventListener('change', on);
+  }, []);
+  return narrow ? 30 : 45;
+}
+
+/** The arrow keys on a grid of `count` cells, `columns` a row: one day across, one row down. */
+export function heatStep(key, cursor, count, columns) {
+  const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: columns, ArrowUp: -columns, Home: -Infinity, End: Infinity }[key];
+  if (step === undefined) return null;
+  const next = cursor + step;
+  if (key === 'ArrowDown' || key === 'ArrowUp') return next < 0 || next >= count ? cursor : next;
+  return Math.max(0, Math.min(count - 1, next));
+}
+
+/** The last 90 days, oldest first, in rows; arrow keys move between days and say each one. */
+export function UsageHeatmap({ points, now = Date.now(), columns: fixed = null }) {
   const cells = heatmapCells(points, now, 90);
+  const auto = useHeatColumns();
+  const columns = fixed || auto;
   const [cursor, setCursor] = useState(cells.length - 1);
+  const [spoken, setSpoken] = useState('');
   const busiest = cells.reduce((b, c) => (c.value > (b?.value || 0) ? c : b), null);
   const at = cells[Math.min(cursor, cells.length - 1)];
-  const move = (e) => {
-    const step = { ArrowRight: 2, ArrowLeft: -2, ArrowDown: 1, ArrowUp: -1, Home: -cells.length, End: cells.length }[e.key];
-    if (step === undefined) return;
+  const describe = (c) => `${day(c.date)}: ${creditsText(Math.round(c.value))}`;
+  const rows = [];
+  for (let i = 0; i < cells.length; i += columns) rows.push(cells.slice(i, i + columns).map((c, j) => ({ ...c, index: i + j })));
+  const onKey = (e) => {
+    const next = heatStep(e.key, cursor, cells.length, columns);
+    if (next === null) return;
     e.preventDefault();
-    setCursor((c) => Math.max(0, Math.min(cells.length - 1, c + step)));
+    setCursor(next);
+    setSpoken(describe(cells[next]));
   };
   return (
     <div className="cp-heat">
@@ -131,16 +161,20 @@ export function UsageHeatmap({ points, now = Date.now() }) {
         <h4 className="cu-h4">Daily use · last 90 days</h4>
         <p className="cp-heat-busiest">{busiest ? `Busiest: ${day(busiest.date)}, ${creditsText(Math.round(busiest.value))}` : 'No credits used in the last 90 days'}</p>
       </div>
-      <div className="cp-heat-grid" role="grid" aria-label="Credits used each day for the last 90 days. Use the arrow keys to move between days."
-        tabIndex={0} onKeyDown={move} aria-activedescendant={`cp-heat-${cursor}`}>
-        {cells.map((c, i) => (
-          <span key={c.date} id={`cp-heat-${i}`} role="gridcell" className={`cp-heat-cell cp-lv${c.level}${i === cursor ? ' on' : ''}`}
-            aria-label={`${day(c.date)}: ${creditsText(Math.round(c.value))}, ${LEVEL_TEXT[c.level]}`}
-            title={`${day(c.date)}: ${creditsText(Math.round(c.value))}`} onMouseEnter={() => setCursor(i)} />
+      <div className="cp-heat-grid" role="grid" aria-label="Credits used each day for the last 90 days, oldest first. Use the arrow keys to move between days."
+        tabIndex={0} onKeyDown={onKey} aria-activedescendant={`cp-heat-${cursor}`} style={{ '--cp-heat-cols': columns }}>
+        {rows.map((row, r) => (
+          <div key={r} role="row" className="cp-heat-row">
+            {row.map((c) => (
+              <span key={c.date} id={`cp-heat-${c.index}`} role="gridcell" className={`cp-heat-cell cp-lv${c.level}${c.index === cursor ? ' on' : ''}`}
+                aria-label={`${describe(c)}, ${LEVEL_TEXT[c.level]}`} title={describe(c)} onMouseEnter={() => setCursor(c.index)} />
+            ))}
+          </div>
         ))}
       </div>
       <div className="cp-heat-foot">
-        <p className="cp-heat-readout" aria-live="polite">{at ? `${day(at.date)}: ${creditsText(Math.round(at.value))}` : ''}</p>
+        <p className="cp-heat-readout">{at ? describe(at) : ''}</p>
+        <p className="cu-sr" aria-live="polite">{spoken}</p>
         <p className="cp-heat-scale" aria-hidden="true">Less{[0, 1, 2, 3, 4].map((l) => <span key={l} className={`cp-heat-cell cp-lv${l}`} />)}More</p>
       </div>
     </div>
@@ -178,15 +212,16 @@ export function WhereCreditsWent({ summary }) {
 }
 
 /** Every state the app tells the user about, at the top of each section (spec §1). */
-export function StatusBar({ credits, failed, now = Date.now() }) {
-  const messages = statusMessages({ credits, failed, now });
+export function StatusBar({ credits, failed, now = Date.now(), skip = [] }) {
+  const messages = statusMessages({ credits, failed, now, skip });
   if (!messages.length) return null;
   return (
     <div className="cp-status">
       {messages.map((m) => (
         <p key={m.key} className={`cp-status-msg cp-tone-${m.tone}`} role={m.tone === 'danger' ? 'alert' : 'status'}>
           <span>{m.text}</span>
-          {m.key === 'low' || m.key === 'empty' ? <button type="button" className="cp-link" onClick={() => goAccount('billing')}>See plans</button> : null}
+          {m.key === 'low' ? <button type="button" className="cp-link" onClick={() => goAccount('billing')}>See plans</button> : null}
+          {m.key === 'empty' || m.key === 'overdrawn' ? <button type="button" className="cp-link" onClick={() => goAccount('billing')}>Upgrade</button> : null}
           {m.key === 'unchecked' ? <button type="button" className="cp-link" onClick={() => refreshCredits()}>Retry</button> : null}
         </p>
       ))}
