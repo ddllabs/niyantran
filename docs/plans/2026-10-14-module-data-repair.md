@@ -184,13 +184,33 @@ with the owner's decisions of 2026-10-14: the timer runs every 5 minutes (not ev
 the other section 11 recommendations are adopted. The admin screen from T10 becomes F160's
 "Feeds" view; no second screen is built.
 
+### Records-first revision (owner, 2026-10-14)
+F160's spec stores one snapshot per module, overwritten on each run (its section 4.2). Phase 4
+instead keeps every listed item as its own record, under rules 1 to 3 of the
+[F170 spec](../specs/2026-10-14-document-text-rules.md):
+- one copy per item, updated in place;
+- documents the corpus also holds (bills first) keyed by the corpus identity, so R7's mapping links
+  up later;
+- kept by kind (forever, daily summary, latest only);
+- run logs kept 30 days;
+- the database size shown on T10's screen.
+
+What stays as F160 wrote it:
+- the 5-minute timer;
+- pages read from the database, with a live fallback;
+- the run log and the health view.
+
+What phase 4 does **not** do: chunking, OCR, full-text fetching or embeddings (F170 rules 4
+to 9, after R7). Drag-to-chat is unchanged. F160's snapshot table design is reworked into a record
+table before its T1; that rework is part of phase 4's first task.
+
 ### Phase 4 prerequisites and overlaps with the F160 spec
 Carried over from the F160 spec so nothing it left open is lost:
 
 - **Unverified limits, checked before F160's T1:**
   - the Vercel plan (F160 question 8; the records say Hobby, which Vercel limits to non-commercial
     use, and about 2.8 h of function time a day must fit it);
-  - NTER's Supabase plan and compute size;
+  - NTER's compute size (the plan is Pro, owner 2026-10-14);
   - the `pg_net` request timeout ceiling against a refresh run of up to 60 s;
   - the current `desk_rows` row count on production (the spec used the 2026-09-28 record of
     34,184).

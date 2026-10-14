@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F170 is next) and goes in the
+- A new finding gets the next free `F` number (F171 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -653,8 +653,9 @@ rechecked. Nothing in this check wrote to production.
   repair broken and thin sources (PIB, briefs, Geopolitics, ISL, Regulatory, Manifold, Wikidata,
   F166–F168), phase 3 "As of" dates and an honest admin status screen, phase 4 F160 seeded with the
   larger registers. Approved 2026-10-14 with all five recommendations; Supabase is on Pro;
-  Vercel upgrade later; O6 after this work. Phase 4's storage design is being revised to
-  records-first (every listed item stored and kept), per the owner's research-platform question.
+  Vercel upgrade later; O6 after this work. Phase 4 is records-first (owner 2026-10-14): every
+  listed item kept as its own record under rules 1 to 3 of the F170 spec, keyed by the corpus
+  identity where the corpus holds the document; no chunking, OCR or full-text fetching in F169.
   - [ ] T0 probe, built 2026-10-14 on `task/f169-phase1`, not yet committed:
     `scripts/module-probe.mjs` (`npm run probe:modules -- --desk national`), module list from
     `DESK_CATALOGUE` (120 desk modules; the audit's 3 off-desk Global entries are not in it),
@@ -677,6 +678,20 @@ rechecked. Nothing in this check wrote to production.
     their live source and archive are empty. 69 desk modules have a pack, so any of them that
     misses its live source with an empty archive now shows the empty state instead of pack rows.
     After deploy: re-run the probe over all desks and confirm no `backup-pack` answer.
+- [ ] **F170. Storage, chunking and OCR rules (recorded, not scheduled).** Owner 2026-10-14:
+  "record all this as a plan and not do the OCR and chunking bit, because I still have a 10 GB
+  corpus and a corpus linking file with pre-contained OCR within it." [Spec](../specs/2026-10-14-document-text-rules.md):
+  - rules 1 to 3 (one record per item, keep by kind, files in the bucket) feed F169 phase 4;
+  - rules 4 to 9 wait for R7's corpus mapping:
+    - chunk any item with a body of text, whatever its length;
+    - a background queue; one shared chunking per document, with a lock;
+    - chunk on demand at drag time; the platform pays for indexing;
+    - for leftovers only, a free page-by-page triage before Mistral OCR; Hindi pages go to OCR
+      (owner); a cost estimate and a daily cap before any paid run.
+  Read 2026-10-14: the ingest worker OCRs every page today (USD 4 per 1,000) and never checks the
+  text layer; chat uploads check the text layer for the whole file only, so a scanned PDF with one
+  typed page passes with empty scanned pages. Open: news full text kept per chat or shared
+  (copyright; recommendation per chat), and the OCR cap amount.
 - [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
   research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
   `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);

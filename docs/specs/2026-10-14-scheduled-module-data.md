@@ -7,6 +7,11 @@
 > suggestion?" Then: "write the F160 spec". Follows F154, F156, F157, F159 and F164. **Not approved
 > yet:** see section 11.
 >
+> **Revised 2026-10-14:** the owner's answers to section 11 are recorded in the
+> [F169 plan](../plans/2026-10-14-module-data-repair.md), phase 4. Section 4.2's one-snapshot-per-module
+> storage is replaced there by records-first storage (every item kept, rules 1 to 3 of the
+> [F170 spec](2026-10-14-document-text-rules.md)); the rest of this design stands.
+>
 > **Evidence.** "Measured" means a command was run on 2026-10-14: scripts run with Node against this
 > checkout at `11cc881` (the real `server/featureFeed.mjs`, every live source called once, one after
 > another, from the owner's Mac), and a few read-only GET requests to production
