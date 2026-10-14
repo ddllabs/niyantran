@@ -3,7 +3,7 @@
  * No GDELT. No market cap. PMI is licensed and is not fetched.
  */
 import { mapManifoldLive, mapWikidataCeos, WORLD_BOARD, yahooQuoteRow } from '../src/lib/econPack.js';
-import { cacheFresh } from './loaderCache.mjs';
+import { cacheFresh, cacheWritable } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Economics)';
 const FETCH_MS = 25_000;
@@ -128,9 +128,13 @@ export async function loadCountryEconomies() {
     }))
     .filter((r) => r.country)
     .sort((a, b) => (b.gdp_raw || 0) - (a.gdp_raw || 0));
-  gdpCache = { ok: true, source: 'world-bank', rows };
-  gdpAt = Date.now();
-  return gdpCache;
+  const fresh = { ok: true, source: 'world-bank', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    gdpCache = fresh;
+    gdpAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadKeyIndicators() {
@@ -154,9 +158,13 @@ export async function loadKeyIndicators() {
       source_url: 'https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG',
     }))
     .sort((a, b) => Number(b.gdp_growth) - Number(a.gdp_growth));
-  keyCache = { ok: true, source: 'world-bank', rows };
-  keyAt = Date.now();
-  return keyCache;
+  const fresh = { ok: true, source: 'world-bank', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    keyCache = fresh;
+    keyAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadIndiaEnergy() {
@@ -176,9 +184,13 @@ export async function loadIndiaEnergy() {
       source_url: 'https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS',
     }))
     .sort((a, b) => String(b.year).localeCompare(String(a.year)));
-  energyCache = { ok: true, source: 'world-bank', rows };
-  energyAt = Date.now();
-  return energyCache;
+  const fresh = { ok: true, source: 'world-bank', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    energyCache = fresh;
+    energyAt = Date.now();
+  }
+  return fresh;
 }
 
 let indiaGdpCache = null;
@@ -211,9 +223,13 @@ export async function loadIndiaGdpGrowth() {
       };
     })
     .sort((a, b) => String(b.year).localeCompare(String(a.year)));
-  indiaGdpCache = { ok: true, source: 'world-bank', rows, lastupdated: rows[0]?.lastupdated || '' };
-  indiaGdpAt = Date.now();
-  return indiaGdpCache;
+  const fresh = { ok: true, source: 'world-bank', rows, lastupdated: rows[0]?.lastupdated || '' };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    indiaGdpCache = fresh;
+    indiaGdpAt = Date.now();
+  }
+  return fresh;
 }
 
 function yahooChartUrl(symbol) {
@@ -232,9 +248,13 @@ export async function loadWorldExchanges() {
       /* skip a venue that did not return a last quote */
     }
   }
-  stooqCache = { ok: true, source: 'yahoo', rows };
-  stooqAt = Date.now();
-  return stooqCache;
+  const fresh = { ok: true, source: 'yahoo', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    stooqCache = fresh;
+    stooqAt = Date.now();
+  }
+  return fresh;
 }
 
 const MANIFOLD_SEARCH = [
@@ -259,9 +279,13 @@ export async function loadManifoldPolitical() {
     }
   }
   const rows = mapManifoldLive(merged, { allPolitical: true });
-  manCache = { ok: true, source: 'manifold', rows };
-  manAt = Date.now();
-  return manCache;
+  const fresh = { ok: true, source: 'manifold', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    manCache = fresh;
+    manAt = Date.now();
+  }
+  return fresh;
 }
 
 export async function loadIndiaCeos() {
@@ -270,9 +294,13 @@ export async function loadIndiaCeos() {
     const json = await getJson(WIKIDATA, { Accept: 'application/sparql-results+json' }, SPARQL_MS);
     const rows = mapWikidataCeos(json);
     if (!rows.length && ceoCache) return { ...ceoCache, stale: true };
-    ceoCache = { ok: true, source: 'wikidata', rows };
-    ceoAt = Date.now();
-    return ceoCache;
+    const fresh = { ok: true, source: 'wikidata', rows };
+    // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+    if (cacheWritable()) {
+      ceoCache = fresh;
+      ceoAt = Date.now();
+    }
+    return fresh;
   } catch (err) {
     // F169 T7: the last good answer, marked stale, when Wikidata does not answer.
     if (ceoCache) return { ...ceoCache, stale: true };

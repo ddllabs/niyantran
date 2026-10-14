@@ -4,7 +4,7 @@
  * GET /api/growth         — G20-set GDP / CPI / unemployment
  * GET /api/leaders        — UN member heads of state / government
  */
-import { cacheFresh } from './loaderCache.mjs';
+import { cacheFresh, cacheWritable } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; GlobalResources)';
 const FETCH_MS = 25_000;
@@ -77,9 +77,13 @@ export async function loadConstitutions() {
     })
     .filter((r) => r.country)
     .sort((a, b) => (a.country < b.country ? -1 : 1));
-  wcCache = { ok: true, source: 'constitute', rows };
-  wcAt = Date.now();
-  return wcCache;
+  const fresh = { ok: true, source: 'constitute', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    wcCache = fresh;
+    wcAt = Date.now();
+  }
+  return fresh;
 }
 
 function wbMap(payload) {
@@ -114,9 +118,13 @@ export async function loadGrowth() {
       source_url: 'https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG',
     }))
     .sort((a, b) => Number(b.gdp_growth) - Number(a.gdp_growth));
-  grCache = { ok: true, source: 'world-bank', rows };
-  grAt = Date.now();
-  return grCache;
+  const fresh = { ok: true, source: 'world-bank', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    grCache = fresh;
+    grAt = Date.now();
+  }
+  return fresh;
 }
 
 let gtCache = null;
@@ -141,9 +149,13 @@ export async function loadTrade() {
       };
     })
     .sort((a, b) => (b.exports_raw || 0) - (a.exports_raw || 0));
-  gtCache = { ok: true, source: 'world-bank', rows };
-  gtAt = Date.now();
-  return gtCache;
+  const fresh = { ok: true, source: 'world-bank', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    gtCache = fresh;
+    gtAt = Date.now();
+  }
+  return fresh;
 }
 
 function wdLabel(cell) {
@@ -170,9 +182,13 @@ export async function loadLeaders() {
     });
   }
   rows.sort((a, b) => (a.country < b.country ? -1 : 1));
-  hsCache = { ok: true, source: 'wikidata', rows };
-  hsAt = Date.now();
-  return hsCache;
+  const fresh = { ok: true, source: 'wikidata', rows };
+  // F169 C3 review: a refresh never writes the cache (its answer may be partial).
+  if (cacheWritable()) {
+    hsCache = fresh;
+    hsAt = Date.now();
+  }
+  return fresh;
 }
 
 function handleResourcesRequest(req, res, next) {

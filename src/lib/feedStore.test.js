@@ -365,7 +365,9 @@ describe('refreshDue', () => {
       });
       expect(calls.filter((c) => c.includes('busy.example'))).toHaveLength(1);
       const got = byFeature(db.records);
-      for (const f of ['first', 'second', 'third']) {
+      // "first" got the 429 itself: its answer is what its loader made of it (here a status row).
+      expect(got.first).toMatchObject({ status: 'failed', error: expect.stringMatching(/429/) });
+      for (const f of ['second', 'third']) {
         expect(got[f].status, f).toBe('failed');
         expect(got[f].error, f).toMatch(/busy\.example.*429.*closed/i);
       }
@@ -676,5 +678,70 @@ describe('masking', () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ code: 'XX000', message: `${'m'.repeat(290)} ${key}` }), { status: 500 }));
     const err = await supabaseRpc({ url: 'https://db.example', key, fetchImpl })('feed_record', {}).catch((e) => e);
     expect(err.message).not.toContain('sb_secre');
+  });
+});
+
+describe('closed hosts and loader caches (C3 re-review)', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('a 403 on a module\'s own optional request leaves its complete answer standing; later modules on that host are refused', async () => {
+    globalThis.fetch = vi.fn(async (input) => new Response('x', { status: String(input).includes('titles.example') ? 403 : 200 }));
+    const db = fakeDb(['main', 'later']);
+    const load = async (params) => {
+      if (params.get('feature') === 'main') {
+        await (await fetch('https://wire.example/feed')).text();
+        await fetch('https://titles.example/english').catch(() => null); // optional: titles in English
+        return live([row(1), row(2)]);
+      }
+      try {
+        await fetch('https://titles.example/other');
+        return live([row(3)]);
+      } catch (err) {
+        return live([statusRow(err.message)]);
+      }
+    };
+    const summary = await refreshDue({ rpc: db.rpc, concurrency: 1, load });
+    const got = byFeature(db.records);
+    expect(got.main).toMatchObject({ status: 'ok' });
+    expect(got.main.items).toHaveLength(2);
+    expect(got.later).toMatchObject({ status: 'failed', error: expect.stringMatching(/titles\.example.*403.*closed/) });
+    expect(summary.closed_hosts).toEqual(['titles.example']);
+    expect(globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('titles.example'))).toHaveLength(1);
+  });
+
+  it('a refresh with a closed host leaves a loader\'s cache exactly as it was for ordinary requests', async () => {
+    const { loadWorldFixtures } = await import('../../server/sportsApi.mjs');
+    const events = (name, id) => new Response(JSON.stringify({ events: [{ idEvent: id, strEvent: name, dateEvent: '2026-10-14', strLeague: 'League' }] }));
+    // An ordinary request fills the cache.
+    globalThis.fetch = vi.fn(async () => events('Earlier Match', '1'));
+    const before = await loadWorldFixtures();
+    expect(before.rows.length).toBeGreaterThan(0);
+    const snapshot = structuredClone(before);
+
+    // In the refresh another module closes thesportsdb.com; the fixtures loader swallows the
+    // refusals and answers what is left (nothing).
+    globalThis.fetch = vi.fn(async () => new Response('slow down', { status: 429 }));
+    const db = fakeDb(['closer', 'fixtures']);
+    await refreshDue({
+      rpc: db.rpc,
+      concurrency: 1,
+      load: async (params) => {
+        if (params.get('feature') === 'closer') {
+          await fetch('https://www.thesportsdb.com/api/v1/json/3/x.php');
+          return live([statusRow('HTTP 429')]);
+        }
+        return live((await loadWorldFixtures()).rows);
+      },
+    });
+    expect(byFeature(db.records).fixtures).toMatchObject({ status: 'failed', error: expect.stringMatching(/thesportsdb\.com.*429.*closed/) });
+
+    // Ordinary requests still read the earlier cache, untouched, without asking the source.
+    globalThis.fetch = vi.fn(async () => events('Later Match', '2'));
+    const after = await loadWorldFixtures();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(after).toEqual(snapshot);
   });
 });

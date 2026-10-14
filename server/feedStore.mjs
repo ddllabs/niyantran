@@ -379,11 +379,17 @@ class RunGate {
     mod.controller.abort(new Error('the module has finished'));
   }
 
+  /**
+   * A host closed earlier in the run refuses at once. `refusal` (which fails the module) is set
+   * only when another module closed it: then this module's rows are partial because of the run
+   * itself. A module whose own request was refused keeps the answer its loader made of that, so a
+   * permanent 403 on an optional extra source does not fail it every run.
+   */
   refuseIfClosed(host, mod) {
-    const why = this.closed.get(host);
-    if (!why) return;
-    if (!mod.refusal) mod.refusal = why;
-    throw new Error(why);
+    const closed = this.closed.get(host);
+    if (!closed) return;
+    if (closed.by !== mod && !mod.refusal) mod.refusal = closed.why;
+    throw new Error(closed.why);
   }
 
   async fetch(original, input, init, mod) {
@@ -419,8 +425,7 @@ class RunGate {
       const res = await original(input, { ...(init || {}), signal });
       if (res.status === 429 || res.status === 403) {
         const why = `${host} answered HTTP ${res.status}; closed for the rest of this run`;
-        if (!this.closed.has(host)) this.closed.set(host, why);
-        if (!mod.refusal) mod.refusal = why;
+        if (!this.closed.has(host)) this.closed.set(host, { why, by: mod });
       }
       return await buffered(res, host);
     } finally {
@@ -584,8 +589,8 @@ export async function refreshDue({
         }
       }
     }
-    // A host this run closed outranks the loader's own words, and a partial answer from the
-    // module's other sources is not kept.
+    // The gate refused one of this module's requests because another module had closed the host:
+    // that outranks the loader's own words, and the partial answer is not kept.
     if (mod.refusal && status !== 'timeout') {
       status = 'failed';
       reason = mod.refusal;
