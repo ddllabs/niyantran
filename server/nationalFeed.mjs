@@ -174,9 +174,12 @@ async function mapPool(items, limit, fn) {
 async function enrichPibEnglish(rows, opts = {}) {
   const list = (Array.isArray(rows) ? rows : []).slice(0, 40);
   const enriched = await mapPool(list, 8, async (row, idx) => {
+    // A release's id is its PRID when it has one, so the same release has the same row on every
+    // refresh (the feed store hashes rows); the list position only when there is no PRID.
+    const releaseId = pridOf(row);
     const base = {
       ...row,
-      id: row.id != null ? row.id : `pib-${idx}`,
+      id: row.id != null ? row.id : releaseId ? `pib-${releaseId}` : `pib-${idx}`,
       stage: row.stage || 'PIB release',
       source: row.source || 'Press Information Bureau',
     };
