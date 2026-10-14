@@ -193,6 +193,18 @@ SELECT pg_temp.assert_true((SELECT kind = 'news' FROM public.feed_state WHERE fe
 SELECT pg_temp.claim(pg_temp.schedule(45), 10);
 SELECT pg_temp.assert_true((SELECT kind = 'latest' FROM public.feed_state WHERE feature = 'Charts'), 'and copied back');
 
+-- A lease taken 30 days ago: its duration does not fit an integer of milliseconds.
+RESET ROLE;
+UPDATE public.feed_state SET leased_at = now() - interval '30 days', lease_until = now() - interval '30 days' + interval '90 seconds',
+       lease_token = gen_random_uuid() WHERE feature = 'Cabinet';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.assert_true(cardinality(pg_temp.claim(pg_temp.schedule(45), 10)) = 0, 'a claim over a 30-day-old lease does not overflow');
+SELECT pg_temp.assert_true((SELECT consecutive_failures = 1 AND lease_token IS NULL FROM public.feed_state WHERE feature = 'Cabinet')
+    AND (SELECT ms IS NULL AND started_at = now() - interval '30 days' AND status = 'timeout'
+           FROM public.feed_runs WHERE feature = 'Cabinet' ORDER BY id DESC LIMIT 1),
+  'the 30-day-old lease is counted as a failure; its run is logged with ms null');
+RESET ROLE;
+
 -- 3. Recording outcomes ------------------------------------------------------------------------
 CREATE FUNCTION pg_temp.item(k text, hash text, extra jsonb DEFAULT '{}', pub text DEFAULT NULL) RETURNS jsonb
 LANGUAGE sql AS $$
@@ -358,8 +370,8 @@ SELECT pg_temp.assert_true((SELECT to_jsonb(s) FROM public.feed_state s WHERE fe
 SELECT pg_temp.assert_true((SELECT count(*) = 2 AND bool_and(items = 1 AND error = 'the lease was no longer held; nothing was recorded')
     FROM public.feed_runs WHERE feature = 'Charts' AND status = 'stale'), 'each stale record is logged as a stale run');
 SELECT pg_temp.assert_true(public.feed_record(jsonb_build_object('tier', 'ent', 'feature', 'Charts', 'status', 'failed',
-    'lease_token', gen_random_uuid())) = '{"status": "stale"}'
-    AND (SELECT consecutive_failures = 0 FROM public.feed_state WHERE feature = 'Charts'),
+    'lease_token', gen_random_uuid())) = '{"status": "stale"}', 'a failure with a stale token is stale');
+SELECT pg_temp.assert_true((SELECT consecutive_failures = 0 AND last_error IS NULL FROM public.feed_state WHERE feature = 'Charts'),
   'a stale failure does not count against the module either');
 
 -- 5. Failures back off and keep items ----------------------------------------------------------
@@ -413,6 +425,47 @@ SELECT pg_temp.assert_true((pg_temp.rec('ent', 'Charts', '', 'ok', pg_temp.items
 SELECT pg_temp.rec('national', 'Cabinet', '', 'ok', pg_temp.items(12));
 SELECT pg_temp.assert_true((pg_temp.rec('national', 'Cabinet', '', 'ok', pg_temp.items(1)) ->> 'status') = 'unchanged',
   'the shrink rule applies only to latest and reference');
+
+-- A list that really shrinks: the third shrunk answer in a row is accepted.
+-- Records the same answer n times, one run after another; returns each run's status.
+CREATE FUNCTION pg_temp.rec_times(n integer, t text, f text, items jsonb) RETURNS text[] LANGUAGE plpgsql AS $$
+DECLARE out text[] := '{}';
+BEGIN
+  FOR i IN 1..n LOOP
+    out := out || (pg_temp.rec(t, f, '', 'ok', items) ->> 'status');
+  END LOOP;
+  RETURN out;
+END;
+$$;
+SELECT pg_temp.rec('geo', 'Constitutions', '', 'ok', pg_temp.items(20));
+SELECT pg_temp.assert_true(cardinality(pg_temp.keys('geo', 'Constitutions')) = 20, 'the reference set holds 20');
+SELECT pg_temp.assert_true(pg_temp.rec_times(2, 'geo', 'Constitutions', pg_temp.items(8, 'h8')) = ARRAY['shrunk', 'shrunk'],
+  'two answers of 8 against 20 are shrunk');
+SELECT pg_temp.assert_true((SELECT shrunk_runs = 2 AND consecutive_failures = 2 FROM public.feed_state WHERE feature = 'Constitutions'),
+  'the shrunk streak is 2');
+SELECT pg_temp.assert_true((pg_temp.rec('geo', 'Constitutions', '', 'ok', pg_temp.items(20)) ->> 'status') = 'unchanged',
+  'a full-sized answer after two shrunk ones is accepted');
+SELECT pg_temp.assert_true((SELECT shrunk_runs = 0 AND consecutive_failures = 0 FROM public.feed_state WHERE feature = 'Constitutions'),
+  'and resets the streak');
+SELECT pg_temp.assert_true(pg_temp.rec_times(2, 'geo', 'Constitutions', pg_temp.items(8, 'h8')) = ARRAY['shrunk', 'shrunk'],
+  'after the reset, two more shrunk answers are refused again');
+SELECT pg_temp.assert_true(cardinality(pg_temp.keys('geo', 'Constitutions')) = 20, 'and the 20 are still held');
+SELECT pg_temp.assert_true((r ->> 'status') = 'ok' AND (r ->> 'removed_items')::int = 12 AND (r ->> 'changed_items')::int = 8
+    AND (r ->> 'item_count')::int = 8 AND (r ->> 'consecutive_failures')::int = 0,
+  'the third shrunk answer in a row is accepted: pruned and replaced as an ok run')
+  FROM pg_temp.rec('geo', 'Constitutions', '', 'ok', pg_temp.items(8, 'h8')) AS r;
+SELECT pg_temp.assert_true(pg_temp.keys('geo', 'Constitutions') = (SELECT array_agg('k' || lpad(i::text, 4, '0') ORDER BY i) FROM generate_series(1, 8) AS i)
+    AND NOT EXISTS (SELECT FROM public.feed_items WHERE feature = 'Constitutions' AND content_hash <> 'h8'),
+  'the set is the 8 sent, with their new content');
+SELECT pg_temp.assert_true(shrunk_runs = 0 AND consecutive_failures = 0 AND item_count = 8
+    AND last_error = 'the list shrank from 20 to 8 items; accepted after 3 answers in a row',
+  'the streak and failures reset, and last_error notes the shrink')
+  FROM public.feed_state WHERE feature = 'Constitutions';
+SELECT pg_temp.assert_true((SELECT status = 'ok' AND error = 'the list shrank from 20 to 8 items; accepted after 3 answers in a row'
+    FROM public.feed_runs WHERE feature = 'Constitutions' ORDER BY id DESC LIMIT 1), 'the accepted run is logged ok with the note');
+SELECT pg_temp.rec('geo', 'Constitutions', '', 'ok', pg_temp.items(8, 'h8'));
+SELECT pg_temp.assert_true((SELECT last_error IS NULL FROM public.feed_state WHERE feature = 'Constitutions'),
+  'the next ok run clears the note');
 
 -- 7. Bad input and caps are refused and change nothing -----------------------------------------
 SELECT count(*) AS runs_before FROM public.feed_runs \gset
@@ -514,7 +567,7 @@ UPDATE public.feed_items SET last_seen = now() - interval '40 days' WHERE featur
 SET LOCAL ROLE service_role;
 SELECT pg_temp.assert_true(public.feed_purge() = '{"feed_runs": 1, "feed_items": 1}',
   'the purge deletes runs older than 30 days and measurement items not seen for 30 days');
-SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.feed_runs WHERE started_at < now() - interval '28 days'),
+SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.feed_runs WHERE started_at < now() - interval '28 days' AND status = 'ok'),
   'a run 29 days old is kept');
 SELECT pg_temp.assert_true(pg_temp.keys('finance', 'NSE') = ARRAY['nifty', 'recent']
     AND (SELECT item_count = 2 FROM public.feed_state WHERE feature = 'NSE'),

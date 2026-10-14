@@ -41,7 +41,9 @@
 --                    state are unchanged.
 --         empty      ok with no items: a failure.
 --         shrunk     a latest or reference module holding 10 or more items gets fewer than
---                    half of them: a failure, nothing pruned or replaced.
+--                    half of them: a failure, nothing pruned or replaced. The third shrunk
+--                    answer in a row is accepted as the list's real size: it prunes and
+--                    replaces as ok does, and last_error notes the shrink.
 --         ok         items upserted (new inserted; a changed hash rewrites row, title, url,
 --                    published_at; an unchanged one touches last_seen only); kinds latest and
 --                    reference drop the module's items missing from the batch; kind
@@ -97,6 +99,7 @@ create table public.feed_state (
   lease_until          timestamptz,
   lease_token          uuid,
   consecutive_failures integer     not null default 0 check (consecutive_failures >= 0),
+  shrunk_runs          integer     not null default 0 check (shrunk_runs >= 0),
   last_error           text        check (length(last_error) <= 300),
   fetched_at           timestamptz,
   checked_at           timestamptz,
@@ -241,6 +244,9 @@ begin
                         and s.variant = coalesce(r ->> 'variant', ''))
   on conflict on constraint feed_state_pkey do nothing;
 
+  -- A kind changed in code from a kept kind (official, news, events) to a replacing kind (latest,
+  -- reference) makes the module's next ok run prune every item missing from that answer: such a
+  -- change needs a deliberate data step first (copy or re-key the kept items), not just a deploy.
   update public.feed_state s
      set class = n.class,
          kind = n.kind,
@@ -265,6 +271,7 @@ begin
     update public.feed_state s
        set consecutive_failures = s.consecutive_failures + 1,
            last_error = 'no result before the lease ended',
+           shrunk_runs = 0,
            checked_at = now(),
            next_due_at = now() + make_interval(mins => least(s.interval_minutes,
                                                              power(2, least(s.consecutive_failures + 1, 20))::integer)),
@@ -275,7 +282,9 @@ begin
   )
   insert into public.feed_runs (tier, feature, variant, started_at, ms, status, error)
   select f.tier, f.feature, f.variant, coalesce(f.leased_at, now()),
-         (extract(epoch from now() - coalesce(f.leased_at, now())) * 1000)::integer,
+         -- null, not an overflow, when the lease began more than about 24.8 days ago
+         case when extract(epoch from now() - coalesce(f.leased_at, now())) * 1000 <= 2147483647
+              then (extract(epoch from now() - coalesce(f.leased_at, now())) * 1000)::integer end,
          'timeout', 'no result before the lease ended'
     from failed f;
 
@@ -333,6 +342,7 @@ declare
   v_meta     jsonb;
   v_state    public.feed_state;
   v_bad      text;
+  v_note     text;
   v_keys     text[];
   v_batch    integer := 0;
   v_new      integer := 0;
@@ -459,8 +469,13 @@ begin
     select count(*)::integer into v_count from public.feed_items f
      where f.tier = v_tier and f.feature = v_feature and f.variant = v_variant;
     if v_count >= 10 and v_batch * 2 < v_count then
-      v_status := 'shrunk';
-      v_error := format('%s items arrived and %s are held; kept the held list', v_batch, v_count);
+      if v_state.shrunk_runs >= 2 then
+        -- The third shrunk answer in a row: the list really is smaller now.
+        v_note := format('the list shrank from %s to %s items; accepted after 3 answers in a row', v_count, v_batch);
+      else
+        v_status := 'shrunk';
+        v_error := format('%s items arrived and %s are held; kept the held list', v_batch, v_count);
+      end if;
     end if;
   end if;
 
@@ -527,7 +542,8 @@ begin
            item_count = v_count,
            meta = coalesce(v_meta, s.meta),
            consecutive_failures = 0,
-           last_error = null,
+           shrunk_runs = 0,
+           last_error = v_note,
            next_due_at = v_next,
            leased_at = null, lease_until = null, lease_token = null
      where s.tier = v_tier and s.feature = v_feature and s.variant = v_variant;
@@ -541,6 +557,7 @@ begin
     update public.feed_state s
        set checked_at = now(),
            consecutive_failures = v_failures,
+           shrunk_runs = case when v_logged = 'shrunk' then s.shrunk_runs + 1 else 0 end,
            last_error = v_error,
            next_due_at = v_next,
            leased_at = null, lease_until = null, lease_token = null
@@ -549,7 +566,7 @@ begin
 
   insert into public.feed_runs (tier, feature, variant, started_at, ms, status, items, new_items, error)
   values (v_tier, v_feature, v_variant, v_started, v_ms, v_logged, v_batch, v_new,
-          case when v_logged in ('ok', 'unchanged') then null else v_error end);
+          case when v_logged in ('ok', 'unchanged') then v_note else v_error end);
 
   return jsonb_build_object(
     'status', v_logged, 'items', v_batch, 'new_items', v_new, 'changed_items', v_changed,
