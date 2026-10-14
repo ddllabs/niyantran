@@ -74,6 +74,13 @@ describe('item keys (F170 rule 1)', () => {
     expect(a).toBe('url:example.com/news/item?id=7');
   });
 
+  it('a market quote without a link is one item per instrument, whatever its time', () => {
+    const live = itemKeyFor({ title: 'NIFTY 50', name: 'NIFTY 50', exchange: 'NSE', last: 25000, source_url: '' });
+    const stored = itemKeyFor({ title: 'NIFTY 50', name: 'NIFTY 50', exchange: 'NSE', last: 24900, as_of: '2026-10-14T10:00:00Z' });
+    expect(live).toBe('q:nse:nifty 50');
+    expect(stored).toBe(live);
+  });
+
   it('otherwise a hash of the title and date, the same on every run', () => {
     const k = itemKeyFor({ title: 'Rupee steadies', date: '2026-10-14' });
     expect(k).toMatch(/^h:[0-9a-f]{16}$/);

@@ -152,6 +152,11 @@ export function itemKeyFor(row) {
   if (bill) return bill;
   const link = linkKey(row?.source_url || row?.link || row?.url || row?.detail_url);
   if (link) return `url:${link}`;
+  // A market quote with no link is one instrument whatever its time: keyed by exchange and name, never
+  // by its date or as_of, so each refresh updates it instead of adding a copy (C2 review).
+  const exchange = String(row?.exchange || '').trim().toLowerCase();
+  const name = String(row?.name || row?.title || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (exchange && name) return `q:${exchange}:${name}`;
   const basis = `${String(row?.title || row?.name || '').replace(/\s+/g, ' ').trim().toLowerCase()}|${String(row?.date || row?.as_of || '').trim()}`;
   return `h:${createHash('sha256').update(basis).digest('hex').slice(0, 16)}`;
 }
