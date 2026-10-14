@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F156 is next) and goes in the
+- A new finding gets the next free `F` number (F157 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -519,7 +519,7 @@ rechecked. Nothing in this check wrote to production.
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F154. Terminal page speed (phase 1).** Owner request 2026-10-14: opening a terminal link
+- [x] **F154. Terminal page speed (phase 1).** Done 2026-10-14 (`719a7eb`, pushed `1e5d065`). Owner request 2026-10-14: opening a terminal link
   takes 5–7 s; the owner asked for caching. A read-only audit on production found the page files
   fast (0.12–0.19 s) and the API slow: every `/api/*` answer was `no-store`, the function ran in
   `iad1` (US East) while users and Supabase are in India, and desk landing counts and module pages
@@ -548,10 +548,23 @@ rechecked. Nothing in this check wrote to production.
     are unchanged.
   - **Region and data files.** `vercel.json`: `"regions": ["bom1"]` (Mumbai, next to Supabase
     ap-south-1), and `/data/(.*)` cached `public, max-age=300, stale-while-revalidate=86400`.
-  - Remaining: supervisor review and merge; after the owner's push, check `x-vercel-cache` and the
-    headers on a landing route and on `/data/`, that the function runs in `bom1`, and the desk
-    timings. Not in this phase (reported): one call per desk for its counts, new-tab start-up
-    (`App.jsx`, `userStore.js`), re-encoding `public/images/desks-v6`, Vite `json.stringify`.
+  - Checked on production after the push (repeat requests, from the owner's Mac): the function
+    runs in `bom1`; `/data/` carries the new header; Cabinet Decisions landing 9–21 s → 0.13 s
+    (edge `STALE`/`HIT`); NSE/BSE landing 4.2 s cold, 0.16 s `HIT`; Cabinet Decisions module page
+    0.72 s cold, 0.12 s `HIT`; Morning Brief module page 28 s/504 → 4.2 s from stored rows.
+    Morning Brief, Statement Tracker and Economic Overview landing counts now answer 502
+    "unavailable" in 4.2 s (never cached), because the deployed server has no stored copy of
+    those modules: F156.
+  - Not in this phase (F156): one call per desk for its counts, new-tab start-up (`App.jsx`,
+    `userStore.js`), re-encoding `public/images/desks-v6`, Vite `json.stringify`.
+- [ ] **F156. Terminal speed (phase 2): paged module lists and stored copies on the server.**
+  Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
+  costs server time; load them in pages instead. Also from F154: the deployed `/api/feature-feed`
+  never reads the backup packs (the local dev server does), so modules whose live source is slow
+  show "unavailable" counts after 4 s (Morning Brief, Statement Tracker, Economic Overview).
+  Scope to be specced on `task/speed-paging`: server pages of about 100 rows with search, filter,
+  sort and a total count, edge-cached; stored copies readable by the deployed function; then the
+  other F154 leftovers if measured worth it.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

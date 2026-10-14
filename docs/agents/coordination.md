@@ -1881,3 +1881,16 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     Unsigned POST 401, preflight 204. Rollback: redeploy from `9feed83` with the secret set.
   - **Checks on the merged branch:** 4,143 Vitest and 1,073 Deno tests, all SQL fixtures, lint,
     build and the router import.
+- **Terminal speed phase 1 (F154), owner: "page load is a little slow … Can we do caching or something?" with "just push everything to main":**
+  - Pushed `main` `3c56f5a..1e5d065` (commit `719a7eb`); Vercel deployed it automatically.
+  - **Deployment config changed:** `vercel.json` `"regions": ["bom1"]` (was the default `iad1`)
+    and `/data/(.*)` cached `public, max-age=300, stale-while-revalidate=86400`.
+  - **API caching:** the allow-list in `api/router.js` lets Vercel's CDN keep successful answers
+    of the seven desk landing routes, `/api/feature-feed`, `/api/home/segments`,
+    `/api/constitutions` and `/api/growth` for 300 s (60 s for stored-copy answers), stale up to
+    a day while it refreshes. Everything else stays `no-store`.
+  - **Verified live:** `x-vercel-id` shows `bom1`; `/data/` carries the header; landing and
+    module routes return `x-vercel-cache: HIT`/`STALE` on repeat; timings are in F154.
+  - **Rollback:** revert `719a7eb` and push (removes the region, the headers and the time limit).
+  - **Checks on the merged branch:** 4,220 Vitest and 1,073 Deno tests, lint, build,
+    `check:bundle` (+806 bytes gzip, within the limit) and the router import.
