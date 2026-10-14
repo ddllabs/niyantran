@@ -57,6 +57,7 @@ const ROUTES = {
   '/api/wb-projects': 'no-store',
   '/api/ai/desk-brief': 'no-store',
   '/api/ai/source-extract': 'no-store',
+  '/api/feeds/refresh': 'no-store',
 };
 // Literals in routePath() that name the router itself, not a route.
 const NOT_ROUTES = new Set(['/api', '/api/', '/api/router', '/api/router.js']);

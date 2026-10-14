@@ -35,6 +35,7 @@ import { handleTransitApi } from '../server/transitApi.mjs';
 import { handleDiplomacyRequest } from '../server/diplomacyApi.mjs';
 import { handleAssetsRequest } from '../server/assetsApi.mjs';
 import { handleSiteIconRequest } from '../server/siteIconApi.mjs';
+import { handleFeedRefresh } from '../server/feedStore.mjs';
 
 export const config = {
   maxDuration: 60,
@@ -342,6 +343,28 @@ export default async function handler(req, res) {
       }
       const out = await ingestNterArticle(parseBody(req), { sourceHeader: auth.sourceHeader });
       res.status(out.status || (out.ok ? 200 : 400)).json(out);
+      return;
+    }
+
+    // F169 phase 4 (C3, ADR 0012): the 5-minute pg_cron job posts here through pg_net with the
+    // shared secret in x-feed-refresh-secret. Dormant (503) until FEED_REFRESH_SECRET is set.
+    //
+    // pg_net time limit (checked 2026-10-15): net.http_post takes timeout_milliseconds as a plain
+    // int (default 5000 in pg_net 0.20.x; the Supabase guide still shows 2000) and passes it to
+    // libcurl's CURLOPT_TIMEOUT_MS with no upper bound in released versions (src/core.c, v0.20.4,
+    // which Supabase Postgres 17.6.1.167 ships); unreleased master adds pg_net.max_timeout_ms,
+    // default 600000. So the job can wait 60 s: call it with timeout_milliseconds => 60000.
+    // Requests run concurrently in pg_net's curl multi handle, so a 60 s wait blocks no other
+    // request. If pg_net stops waiting first, curl drops the connection and records
+    // timed_out = true in net._http_response; the function is NOT stopped, because Vercel
+    // cancels a Node.js function on client disconnect only when "supportsCancellation" is set
+    // (vercel.json does not set it). The run finishes within its 55 s budget and records every
+    // module; only its summary is lost.
+    // Sources: https://github.com/supabase/pg_net (README, src/core.c at v0.20.4),
+    // https://supabase.com/docs/guides/database/extensions/pg_net,
+    // https://vercel.com/docs/functions/functions-api-reference#cancel-requests
+    if (path === '/api/feeds/refresh') {
+      await handleFeedRefresh(req, res);
       return;
     }
 
