@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F159 is next) and goes in the
+- A new finding gets the next free `F` number (F165 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -619,7 +619,62 @@ rechecked. Nothing in this check wrote to production.
     its error state. `npm run check:bundle` now fails when the pack is not in its own chunk or a
     chunk imports it statically; tests in `src/lib/archiveFeedGeoLazy.test.js`. The server copy
     (`server/featureFeed.mjs`) is unchanged.
-- [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
+- [ ] **F159. Module pages show developer wording when live data is slow or fails.** Owner,
+  2026-10-14: "On a couple of modules in national, it's showing that the 4-second limit has passed
+  ... This kind of error is not very user-friendly." Also an error card "Something went wrong ·
+  feature-feed HTTP 404 · Retry" (Policy Pipeline Tracker, local server stopped). Cause: F154's
+  archive answer put its reason in `source.note`, which the module banner, the side panel and the
+  State/Sports/Entertainment landing details show, and a module page did not retry the way F156's
+  landing counts do.
+  - 2026-10-14 (task/friendly-feed-errors, awaiting review): the server's archive answer says
+    "Showing the latest stored records. Live data is still loading." / "The live source isn't
+    responding. Showing the latest stored records." / "Live data is taking longer than usual." and
+    keeps the reason in `source.diagnostic` (`server/featureFeed.mjs`). A module page with nothing
+    stored shows "Live data is taking longer than usual. Retrying…", asks again at 6 s and 15 s (the
+    landing schedule), then "This module couldn't load right now." with Retry; with stored records
+    on screen it asks once after 8 s and swaps in live rows ("Updated live.")
+    (`src/desks/moduleLiveRetry.js`, `DeskView.jsx`). Retries stop when the reader leaves; paged
+    modules and genuine failures are not retried. The error card and the desk landing chart show
+    plain words and log the reason with `console.warn`; a backup pack is described as stored
+    records. Tests: `moduleLiveRetry.test.js`, `deskViewLiveWait.test.jsx`,
+    `railLiveWait.test.jsx`, `deskLandingError.test.jsx`, additions to `featureFeed.test.js` and
+    `featureFeedTimeLimit.test.js`, each shown to fail without its code.
+- [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
+  Owner 2026-10-14: "eventually we would keep this as part of our database … a combination of both
+  live pull and data-backed entries." Today a visitor's request pulls the live source (4 s limit),
+  the edge keeps the answer 5 minutes (stale up to a day), and the shipped archive is a fixed
+  snapshot. Recommended: background jobs fetch each source on a schedule (15 minutes to daily) into
+  `desk_rows` (34 modules, about 34,000 rows there today for AI search); pages read the database
+  and show "updated N min ago"; live sources are touched only by the jobs. Start with live-only
+  modules (Morning Brief, Statement Tracker, news wires). Needs a spec and the owner's go-ahead;
+  after or alongside O6.
+- [ ] **F161. Credits wording, for the owner's approval.** From the credits audit 2026-10-14:
+  - Free is described as "every desk and the AI research assistant at no cost"
+    (`src/lib/publicPlans.js:10`, `src/shell/PlanBilling.jsx:169`) although Free is 1,000 credits
+    once and paid models are locked.
+  - A user who runs out is not told how to get credits before O6: add "write to us for more
+    credits" beside "Top-ups coming soon" and on the blocked state (`CreditBalance.jsx:66`).
+  - "Top-ups coming soon" shows only while plan checkout is closed (`PlanBilling.jsx:71`); it should
+    depend on top-ups being on sale.
+  - Terms and refund policy describe automatic renewal and a payment mandate
+    (`legalPolicies.js:123,155`), against the no-auto-renew decision; the Terms say "Other models use
+    credits on every plan" (`legalPolicies.js:120`) although paid-only models exist (F150), and
+    pricing never mentions model access.
+- [ ] **F162. Credits clarity.** From the credits audit: credits held by a running answer are not
+  shown; the low-balance warning never shows without a monthly allowance (top-up-only users,
+  `creditsStore.js:258-263`). The word "wallet" is internal only; users see "AI credits", the
+  balance, "Credits by expiry" and "Credits usage". Size S.
+- [ ] **F163. Questions note reads like an internal note.** "Answer text is missing on every row in
+  this archive — Has answer stays Not reported until Sansad answer fields are wired."
+  (`src/lib/shapeQuestions.js:55-56`, there since 2026-09-09). Owner asked whether it was new: it
+  is not. Recommended: "Answers are not yet in this dataset" or hide it until answers are loaded.
+- [ ] **F164. Live source notes are technical.** Seen 2026-10-14: Geopolitics News Wire shows
+  "GDELT paced ≥5s; primary DOC 2.0 search retries on the next refresh … rate limited"; Morning
+  Brief and Statements show "GDELT wire unreachable…" and "PIB releases arrive through the backend
+  (/api/rss)…"; landing detail cards repeat source notes; planned/offline state cards mention
+  archives and hosts. Recommended: show a plain source line ("Source: BBC World") and keep the
+  technical note in `source.diagnostic` (as F159 does). Size M.
+- [x] **F111. AI credits.** Done 2026-10-14: enforced for everyone (`787bced`; migrations 47–49 live). Follow-ups: F155, F160–F164, O6. Was: Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
   credits carried forward, enforcement in research-chat, NYAI gating to
@@ -662,6 +717,18 @@ rechecked. Nothing in this check wrote to production.
       - then enforcement for everyone (owner: "we should enforce it").
     - The steps and the check queries are in the plan's "After launch"
       section.
+  - Owner decisions (summary):
+    - 1 credit = 10 paise of AI cost.
+    - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
+      month.
+    - 10% of unused credits roll over for one cycle.
+    - Top-ups are valid 12 months.
+    - Failed turns are free, and Stop charges the part used.
+    - Briefs and dictation are free.
+  - transcribe-audio calls a paid model with no `model_call_logs` row (plan
+    task 3).
+  - For O6: a downgrade must start at the next cycle, but `grant_paid_plan`
+    starts a different plan at once.
 - [x] **F147. Admin user list paging.** Done 2026-10-14 (`1336047`): pages of 100, search by email or name, the header shows the directory total. The directory reads every profile in
   one request (and every wallet, in pages). Recommended: page it 100 at a
   time with search, once there are more than 300 users.
@@ -676,40 +743,19 @@ rechecked. Nothing in this check wrote to production.
   of debt unpaid. Recommended: tier-3 models on paid plans only.
 - [x] **F151. Credit estimate in the model picker.** Done 2026-10-14 (`787bced`, `a964eb4`): `model_credit_estimates()`, measured median or list price. Was: Show "≈ N credits a
   typical answer" per model beside the cost diamonds. After enforcement.
-- [ ] **F152. Leaked-password protection (owner's dashboard action).** Owner 2026-10-14: will switch it on.
+- [ ] **F152. Leaked-password protection (owner's dashboard action).** Owner 2026-10-14: will switch it on. The Supabase security advisor flags it as off (Auth → Passwords).
 - [x] **F153. Credits usage page.** Done 2026-10-14 (`0d5671a`; migration `20261014233000_credit_usage_reports` applied; pushed `3d0a0d8`). Owner 2026-10-14: a separate page like TenderBase's (AI
   activity card, AI analytics with charts and legends, all AI activity, credits by expiry) plus a
   small version in Plan & billing; built from the owner's screenshots.
   [Spec](../specs/2026-10-14-credits-usage-page.md). Next after the speed work.
-  **Built on `task/credits-usage-page` (2026-10-14), awaiting review; not applied to production.**
-  Migration `20261014233000_credit_usage_reports.sql`: `my_usage_summary`, `my_usage_timeseries`
-  (IST days or months, empty buckets filled) and `my_usage_activity` (grouped by question from
-  `research_turns`, deleted chats through `private.credit_turn_messages`, dictation from
-  `transcribe-audio` rows), credits only, authenticated only; index `research_turns (user_id,
-  created_at DESC)`; `my_credits()` bounds `recent` before aggregating and gains `cycle.starts_at`
-  (needs a §12 amendment, with the three functions). Fixture `supabase/tests/credit_usage_reports.sql`
-  (non-vacuous). UI in `src/shell/usage/`: the full-screen page (A activity, B analytics with a
-  hand-built SVG chart, legend toggles and table fallback, C All AI activity with paging, expand and CSV,
-  D credits by expiry), the small version replacing Plan & billing's Recent answers, a profile-menu
-  item and a Usage link on the chat's credit chip (`niy-open-usage`). Run locally on seeded usage
-  (desktop and 375 px, light and dark; screenshots for the owner). Left: the §12 amendment, review,
-  and the owner's go-ahead to apply the migration.
+  Built as specified: the full-screen page (activity, analytics chart, all AI activity with CSV,
+  credits by expiry), the small version in Plan & billing, the profile-menu item and the chat
+  chip's Usage link; the §12 amendment is in the credits spec.
 - [ ] **F155. Admin can set a model's plan.** The owner adds new models from the admin AI models
   page; it needs a plan selector (`admin_models_upsert` + `admin-models` + the allowlist editor) so
-  each model's `min_plan` is chosen there. New models default to paid until then. The
-  Supabase security advisor flags it as off. Recommended: turn it on
-  (Auth → Passwords).
-    - 1 credit = 10 paise of AI cost.
-    - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
-      month.
-    - 10% of unused credits roll over for one cycle.
-    - Top-ups are valid 12 months.
-    - Failed turns are free, and Stop charges the part used.
-    - Briefs and dictation are free.
-  - transcribe-audio calls a paid model with no `model_call_logs` row (plan
-    task 3).
-  - For O6: a downgrade must start at the next cycle, but `grant_paid_plan`
-    starts a different plan at once.
+  each model's `min_plan` is chosen there. New models default to paid until then. Credits audit
+  2026-10-14: still missing (`admin-models/handler.ts` leaves out `min_plan`; no selector in
+  `AllowlistEditor.jsx`). Size S; deploys the `admin-models` function.
 
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
@@ -1776,13 +1822,15 @@ Earlier items, updated:
   end to end.
   - Added by F111 (2026-10-14; recommendations in the
     [credits plan](2026-10-14-ai-credits.md), "After launch"):
-    - **Top-up packs:** 1,000 for ₹249, 5,000 for ₹1,149 and 20,000 for
-      ₹4,299, valid 12 months (the owner to confirm the prices).
+    - **Top-up packs (owner, 2026-10-14):** 2,000, 5,000, 10,000, 20,000 and 50,000 credits,
+      valid 12 months. Prices set with Razorpay (suggested ₹499 / 1,199 / 2,299 / 4,399 /
+      10,499). Until then there is no way to buy credits in the app; an admin can grant a top-up.
     - **Downgrade at the next cycle:** `grant_paid_plan` queues a lower plan
       until the current `plan_period_end`.
     - **Renewal dates anchored to the first paid day,** so they do not drift
       after the 31st.
-    - **No auto-renew mandate at launch** (recommended).
+    - **No auto-renew at launch** (owner decided 2026-10-14). The Terms and refund policy still
+      describe automatic renewal: F161.
 - [ ] **P2.** Organisation seats, organisation billing, Razorpay
   subscriptions.
 - [x] **P3.** Metering and credits (ADR 0002); an effort column in

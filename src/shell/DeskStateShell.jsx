@@ -1,3 +1,5 @@
+import { MODULE_UNAVAILABLE_TEXT } from '../desks/moduleLiveRetry.js';
+
 /**
  * Honest Planned / Offline / Empty / Error shells.
  * Never invents a DATE/TITLE table or zero KPIs.
@@ -15,7 +17,7 @@ export default function DeskStateShell({
     id === 'offline'
       ? 'Source offline'
       : id === 'error'
-        ? 'Something went wrong'
+        ? MODULE_UNAVAILABLE_TEXT
         : id === 'empty'
           ? 'No matching rows'
           : 'Module planned';

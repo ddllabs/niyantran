@@ -70,7 +70,7 @@ At most three agents run at once.
 - [x] Production 3: `main` pushed (`2a85579..80aeaa6`); the site serves credits
 - [x] Production 4: shadow week, removed by the owner (2026-10-14: "remove the entire shadow concept")
 - [x] Production 5: enforcement for everyone (secret `CREDITS_ENFORCED=1` set 2026-10-14, research-chat v56)
-- [ ] Follow-ups F150, F151 (backend), P3: research-chat always enforces and checks `ai_models.min_plan`;
+- [x] Follow-ups F150, F151 (backend), P3 (done 2026-10-14, `787bced`, `a964eb4`): research-chat always enforces and checks `ai_models.min_plan`;
   migration `20261014230000_credit_estimates_and_effort.sql` (task `credits-always`, awaiting review)
 
 ## Tasks
@@ -413,6 +413,6 @@ redeploy. The build that removes shadow mode always enforces.
 | F147 admin user list paging | Page the directory 100 at a time with search, when there are more than 300 users | None; later |
 | F148 Plan & billing dark mode | A small CSS task for the next UI polish pass | None |
 | F149 open an answer from Plan & billing | A `niy-open-conversation` event, like the billing one, selects the chat and opens the AI panel | None |
-| F150 expensive models on Free | Owner, 2026-10-14: per model, `ai_models.min_plan` (spec §6.1); Gemini Flash, DeepSeek, Luna and Haiku free, everything else paid. Backend built (migration `20261014230000`, research-chat 403); admin editing of `min_plan` and the picker's lock are still to do | Plan-by-plan access per model, later |
-| F151 credit estimate in the model picker | `model_credit_estimates()` (spec §12): 30-day median per answer when a model has ≥ 10 charged answers, else a 30k + 2k token list-price estimate. Backend built; the picker UI is still to do | None |
+| F150 expensive models on Free | Owner, 2026-10-14: per model, `ai_models.min_plan` (spec §6.1); Gemini Flash, DeepSeek, Luna and Haiku free, everything else paid. Backend built (migration `20261014230000`, research-chat 403); the picker's lock is done (`a964eb4`); admin editing of `min_plan` is F155 | Plan-by-plan access per model, later |
+| F151 credit estimate in the model picker | `model_credit_estimates()` (spec §12): 30-day median per answer when a model has ≥ 10 charged answers, else a 30k + 2k token list-price estimate. Backend and picker done (`a964eb4`) | None |
 | F152 leaked-password protection | Turn on Supabase Auth's HaveIBeenPwned check (Dashboard → Auth → Passwords; the security advisor flags it) | Owner's dashboard action |

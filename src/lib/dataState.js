@@ -100,15 +100,16 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
     const recent = Number.isFinite(ageH) && ageH <= 24;
     const isBackup = /backup-pack/i.test(kind) || /exhaustive shipped backup/i.test(blob);
     const state = isBackup ? DATA_STATE.archived : recent ? DATA_STATE.cached : DATA_STATE.archived;
+    // F159: a backup pack's own note describes the pack file; the reader is told what they see.
     return {
       ...state,
-      detail:
-        feed?.source?.note ||
-        (isBackup
-          ? 'Exhaustive shipped backup. Live and archive returned no rows.'
-          : recent
-            ? 'Live source failed. Showing a recent cache.'
+      detail: isBackup
+        ? 'Showing the latest stored records.'
+        : feed?.source?.note ||
+          (recent
+            ? 'The live source isn\u2019t responding. Showing the latest stored records.'
             : 'Dated historical snapshot. Not a live feed.'),
+      sourceNote: feed?.source?.note || '',
       coverage: coverageText(feed, count),
       lastSync: lastSyncText(feed),
       fallback: true,

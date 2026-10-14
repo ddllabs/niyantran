@@ -95,15 +95,23 @@ function archiveAsFallback(archive, note) {
   };
 }
 
-// What the page shows when the API has no rows for it.
+// F159: notes a reader sees over stored rows; the server's own are in server/featureFeed.mjs.
+const STORED_NOTE = 'Showing the latest stored records.';
+const STORED_LOADING_NOTE = 'Showing the latest stored records. Live data is still loading.';
+
+// What the page shows when the API has no rows for it. When the server answered from its stored
+// records because live data is still loading (`served: 'archive'`), the answer keeps saying so,
+// so that the page asks again (src/desks/moduleLiveRetry.js).
 function withoutLive(archive, api) {
+  const pending = api.body?.served === 'archive' ? { served: 'archive' } : {};
   if (hasRealRows(archive)) {
-    return archiveAsFallback(archive, 'Live API is not on this host. Showing the last-known-good archive.');
+    return { ...archiveAsFallback(archive, STORED_NOTE), ...pending };
   }
   if (archive && Array.isArray(archive.rows)) {
-    return { ...archive, ok: true, fallback: false };
+    return { ...archive, ok: true, fallback: false, ...pending };
   }
   if (api.body) return api.body;
+  // The message is matched by src/lib/refreshFeeds.js; DeskView shows its own words instead.
   throw new Error(api.body?.error || `feature-feed HTTP ${api.status || 404}`);
 }
 
@@ -153,14 +161,16 @@ async function archiveFirst({ tier, feature, signal, url, onUpdate }) {
     return withoutLive(first.archive, api);
   }
   const shown = {
-    ...archiveAsFallback(first.archive, 'Stored snapshot. Live data is still loading.'),
+    ...archiveAsFallback(first.archive, STORED_LOADING_NOTE),
     refreshing: true,
   };
   apiRequest.then(
     (api) => {
       if (signal?.aborted) return;
-      if (api.ok && hasRealRows(api.body)) onUpdate({ ...api.body, refreshing: false, updatedLive: true });
-      else onUpdate({ ...shown, refreshing: false });
+      // F159: stored records from the server (`served: 'archive'`) are not a live update.
+      const servedArchive = api.body?.served === 'archive';
+      if (api.ok && hasRealRows(api.body)) onUpdate({ ...api.body, refreshing: false, ...(servedArchive ? {} : { updatedLive: true }) });
+      else onUpdate({ ...shown, refreshing: false, ...(servedArchive ? { served: 'archive' } : {}) });
     },
     () => {},
   );

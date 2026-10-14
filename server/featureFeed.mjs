@@ -3606,15 +3606,16 @@ function applyBackupFallback(body, searchParams) {
       ...body,
       source: {
         ...(body?.source || {}),
-        note:
-          (body?.source?.note ? `${body.source.note} · ` : '') +
+        // F159: kept out of the note a reader sees.
+        diagnostic:
+          (body?.source?.diagnostic ? `${body.source.diagnostic} · ` : '') +
           `Backup pack failed to load (${err.message || err}).`,
       },
     };
   }
   if (!pack?.rows?.length) return body;
   // Stored rows: the edge keeps this answer as briefly as any other archive answer (F156).
-  return { ...envelope({
+  const backup = envelope({
     tier,
     feature: featureName,
     rows: pack.rows,
@@ -3629,7 +3630,10 @@ function applyBackupFallback(body, searchParams) {
     kind: 'backup-pack',
     note: pack.note,
     meta: pack.meta,
-  }), served: 'archive' };
+  });
+  // F159: why live and archive had no rows stays available for debugging.
+  const diagnostic = body?.source?.diagnostic;
+  return { ...backup, source: diagnostic ? { ...backup.source, diagnostic } : backup.source, served: 'archive' };
 }
 
 // F154: the whole live attempt for one request, across every source it tries. Past it the
@@ -3678,7 +3682,16 @@ function startLive(key, searchParams, live) {
   return attempt;
 }
 
-async function serveArchiveFor(searchParams, reason) {
+// F159: what a reader sees when the request answers from stored records (`source.note`). The
+// technical reason stays in `source.diagnostic`, which no screen shows.
+export const ARCHIVE_NOTES = {
+  slowStored: 'Showing the latest stored records. Live data is still loading.',
+  failedStored: 'The live source isn\u2019t responding. Showing the latest stored records.',
+  slowEmpty: 'Live data is taking longer than usual.',
+  failedEmpty: 'The live source isn\u2019t responding.',
+};
+
+async function serveArchiveFor(searchParams, reason, failed) {
   const archived = await settleWithin(
     archivePass.run(true, () => serveFeatureFeed(searchParams)),
     ARCHIVE_TIME_LIMIT_MS,
@@ -3690,19 +3703,31 @@ async function serveArchiveFor(searchParams, reason) {
       tier: resolveTier(searchParams.get('tier') || ''),
       feature,
       rows: statusRow({ adapter: 'api', url: '', reason, featureName: feature }),
-      source: { adapter: 'api', links: [], note: `${reason}. No stored archive could be read in time.` },
+      source: {
+        adapter: 'api',
+        links: [],
+        note: failed ? ARCHIVE_NOTES.failedEmpty : ARCHIVE_NOTES.slowEmpty,
+        diagnostic: `${reason}. No stored archive could be read in time.`,
+      },
       coverage: { from: '', through: '', exhaustive: false },
       fallback: false,
       served: 'archive',
     };
   }
   const body = archived.value;
+  const stored = bodyHasRealRows(body);
   const note = body?.source?.note ? ` ${body.source.note}` : '';
   return {
     ...body,
     served: 'archive',
-    fallback: bodyHasRealRows(body) ? true : Boolean(body?.fallback),
-    source: { ...(body?.source || {}), note: `${reason}; showing stored records.${note}` },
+    fallback: stored ? true : Boolean(body?.fallback),
+    source: {
+      ...(body?.source || {}),
+      note: stored
+        ? failed ? ARCHIVE_NOTES.failedStored : ARCHIVE_NOTES.slowStored
+        : failed ? ARCHIVE_NOTES.failedEmpty : ARCHIVE_NOTES.slowEmpty,
+      diagnostic: `${reason}; showing stored records.${note}`,
+    },
   };
 }
 
@@ -3723,11 +3748,11 @@ export async function serveFeatureFeedWithinLimit(
   if (kept && Date.now() - kept.at < LATE_LIVE_MS) {
     return { ...kept.body, served: 'live', liveAt: new Date(kept.at).toISOString() };
   }
-  const reason =
-    outcome.state === 'failed'
-      ? `Live source failed (${shortFail(outcome.error?.message || String(outcome.error))})`
-      : `Live sources passed the ${limitMs / 1000} s time limit`;
-  return serveArchiveFor(searchParams, reason);
+  const failed = outcome.state === 'failed';
+  const reason = failed
+    ? `Live source failed (${shortFail(outcome.error?.message || String(outcome.error))})`
+    : `Live sources passed the ${limitMs / 1000} s time limit`;
+  return serveArchiveFor(searchParams, reason, failed);
 }
 
 /**

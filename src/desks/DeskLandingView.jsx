@@ -81,10 +81,12 @@ function StandardDeskLandingView({ tab, label, buckets = [], onFeature, lang = '
       })
       .catch((err) => {
         if (cancelled || err?.name === 'AbortError') return;
+        // F159: the reason is for debugging; the chart says it in plain words.
+        console.warn(`[${config.feature}] desk records failed to load:`, err.message || String(err));
         setData({
           rows: [],
           loading: false,
-          error: err.message || 'Could not load desk records',
+          error: 'These records couldn\u2019t load right now.',
           sourceNote: '',
         });
       });

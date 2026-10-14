@@ -4,6 +4,7 @@ import { feedOverview } from '../lib/analytics.js';
 import { fetchFeaturePage } from '../lib/featureFeed.js';
 import { relatedRowsView } from '../lib/pagedFeatures.js';
 import { resolveDataState, isTerminalState } from '../lib/dataState.js';
+import { LIVE_WAIT_TEXT, MODULE_UNAVAILABLE_TEXT, liveHoldState } from '../desks/moduleLiveRetry.js';
 import { BarList, Heatmap, Sparkline, VizCard } from './AnalyticsViz.jsx';
 import RecordDetail from './RecordDetail.jsx';
 import { openAiResearch } from '../lib/aiDrop.js';
@@ -173,7 +174,10 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
               {String(dataState.detail).replace(/\barchiv(e|ed)\b/gi, 'stored snapshot')}
             </p>
           ) : null}
-          {terminal && (
+          {terminal && liveHoldState(feed) ? (
+            // F159: the module page is still asking for live data, or has stopped asking.
+            <p className="banner">{liveHoldState(feed) === 'wait' ? LIVE_WAIT_TEXT : MODULE_UNAVAILABLE_TEXT}</p>
+          ) : terminal && (
             <p className="banner">
               {String(dataState.detail || 'No records were invented for this module.')
                 .replace(/\barchiv(e|ed)\b/gi, 'stored pack')

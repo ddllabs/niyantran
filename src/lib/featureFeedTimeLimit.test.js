@@ -3,12 +3,15 @@
 // live sources a fixed time and then answers from the stored archive, saying which it served.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ARCHIVE_NOTES,
   LIVE_TIME_LIMIT_MS,
   resetFeedCache,
+  serveFeatureFeedWithBackup,
   serveFeatureFeedWithinLimit,
 } from '../../server/featureFeed.mjs';
 import { serveNationalLanding } from '../../server/nationalLandingSummary.mjs';
 import { serveEconomicsLanding } from '../../server/economicsLandingSummary.mjs';
+import { serveStateLanding } from '../../server/stateLandingSummary.mjs';
 
 const CABINET = new URLSearchParams({ tier: 'national', feature: 'Cabinet Decisions' });
 
@@ -50,7 +53,9 @@ describe('serveFeatureFeedWithinLimit (F154)', () => {
     expect(body.served).toBe('archive');
     expect(body.fallback).toBe(true);
     expect(realRows(body).length).toBeGreaterThan(0);
-    expect(body.source.note).toMatch(/time limit/i);
+    // F159: the reader is told in plain words; the reason stays in the diagnostic.
+    expect(body.source.note).toBe(ARCHIVE_NOTES.slowStored);
+    expect(body.source.diagnostic).toMatch(/time limit/i);
     // The archive pass itself reaches no live source: only the live attempt's first request was made.
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
@@ -129,5 +134,68 @@ describe('landing summaries within the limit (F154)', () => {
     const load = async (params) => ({ ok: true, feature: params.get('feature'), rows: [{ title: 'Quote', exchange: 'NSE' }], source: { adapter: 'api', links: [] }, served: 'live' });
     const summary = await serveEconomicsLanding(new URLSearchParams({ feature: 'NSE/BSE Delayed Market Feed' }), load);
     expect(summary.served).toBe('live');
+  });
+});
+
+// F159 (owner, 2026-10-14): "it's showing that the 4-second limit has passed ... This kind of error
+// is not very user-friendly." What a reader sees of an archive answer is plain English; the
+// technical reason is kept in `source.diagnostic`, which no screen shows.
+describe('archive answers in plain words (F159)', () => {
+  const originalFetch = globalThis.fetch;
+  const DEVELOPER = /\b\d+\s*s\b|time limit|HTTP|feature-feed|archive|adapter|ECONN|host did not respond|Live source failed/i;
+  beforeEach(() => resetFeedCache());
+  afterEach(() => { globalThis.fetch = originalFetch; });
+  const failing = vi.fn(async () => { throw new Error('ECONNRESET'); });
+
+  it('stored records after a slow live source', async () => {
+    globalThis.fetch = hangingFetch();
+    const body = await serveFeatureFeedWithinLimit(CABINET, { limitMs: 50 });
+    expect(realRows(body).length).toBeGreaterThan(0);
+    expect(body.source.note).toBe('Showing the latest stored records. Live data is still loading.');
+    expect(body.source.note).not.toMatch(DEVELOPER);
+    expect(body.source.diagnostic).toMatch(/passed the 0.05 s time limit/);
+  });
+
+  it('stored records after a failed live source', async () => {
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network off')));
+    const body = await serveFeatureFeedWithinLimit(CABINET, { live: failing });
+    expect(realRows(body).length).toBeGreaterThan(0);
+    expect(body.source.note).toBe('The live source isn\u2019t responding. Showing the latest stored records.');
+    expect(body.source.note).not.toMatch(DEVELOPER);
+    expect(body.source.diagnostic).toMatch(/Live source failed \(host did not respond\)/);
+  });
+
+  it('nothing stored while a slow live source is still loading', async () => {
+    globalThis.fetch = hangingFetch();
+    const body = await serveFeatureFeedWithinLimit(new URLSearchParams({ tier: 'national', feature: 'National Morning Brief (Auto-digest)' }), { limitMs: 50 });
+    expect(body.served).toBe('archive');
+    expect(realRows(body)).toHaveLength(0);
+    expect(body.source.note).toBe('Live data is taking longer than usual.');
+    expect(body.source.diagnostic).toMatch(/time limit/);
+  });
+
+  it('nothing stored after a failed live source', async () => {
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network off')));
+    const body = await serveFeatureFeedWithinLimit(new URLSearchParams({ tier: 'national', feature: 'National Morning Brief (Auto-digest)' }), { live: failing });
+    expect(body.source.note).toBe('The live source isn\u2019t responding.');
+    expect(body.source.note).not.toMatch(DEVELOPER);
+  });
+
+  it('a State landing card that quotes the source note quotes the plain words', async () => {
+    globalThis.fetch = hangingFetch();
+    const load = (params) => serveFeatureFeedWithBackup(params, { live: () => new Promise(() => {}), limitMs: 50 });
+    const summary = await serveStateLanding(new URLSearchParams({ feature: 'Constituency Register' }), load);
+    expect(summary.served).toBe('archive');
+    expect(summary.count).toBeGreaterThan(0);
+    expect(summary.limitations).toMatch(/^Showing the latest stored records\./);
+    expect(summary.limitations).not.toMatch(/time limit|\b4 s\b/i);
+  });
+
+  it('a backup pack served after a failed live source keeps the reason for debugging', async () => {
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network off')));
+    const body = await serveFeatureFeedWithBackup(new URLSearchParams({ tier: 'sports', feature: 'Athlete Index' }), { live: failing });
+    expect(body.source.kind).toBe('backup-pack');
+    expect(body.served).toBe('archive');
+    expect(body.source.diagnostic).toMatch(/Live source failed/);
   });
 });

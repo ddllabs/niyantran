@@ -164,3 +164,63 @@ describe('fetchFeaturePage (F156)', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });
+
+// F159: an answer the server gave from stored records while live data loads (`served: 'archive'`)
+// is not a live update, and keeps saying so, so that the page asks again (moduleLiveRetry.js).
+describe('stored answers while live data loads (F159)', () => {
+  const originalFetch = globalThis.fetch;
+  const SERVED_STORED = { ...STORED, rows: [{ title: 'Server stored decision' }], fallback: true, served: 'archive', source: { adapter: 'embedded', note: 'Showing the latest stored records. Live data is still loading.' } };
+  const SERVED_PENDING = { ok: false, feature: FEATURE, rows: [{ status: 'source_status', title: 'Source offline or empty' }], source: { adapter: 'api', note: 'Live data is taking longer than usual.' }, served: 'archive' };
+  let api;
+  beforeEach(() => {
+    api = deferred();
+    globalThis.fetch = vi.fn(() => api.promise);
+  });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('stored records from the server replace the shipped ones without being called live', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    api.resolve(response(SERVED_STORED));
+    await tick();
+    const next = onUpdate.mock.calls[0][0];
+    expect(next.rows).toEqual(SERVED_STORED.rows);
+    expect(next.served).toBe('archive');
+    expect(next.updatedLive).toBeUndefined();
+  });
+
+  it('the shipped records stay, marked as served from storage, when the server has none yet', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    api.resolve(response(SERVED_PENDING));
+    await tick();
+    const kept = onUpdate.mock.calls[0][0];
+    expect(kept.rows).toEqual(STORED.rows);
+    expect(kept.served).toBe('archive');
+    expect(kept.refreshing).toBe(false);
+  });
+
+  it('with nothing stored anywhere, the answer stays pending instead of looking empty', async () => {
+    archive.fetch = async () => ({ ...STORED, rows: [] });
+    api.resolve(response(SERVED_PENDING));
+    const body = await fetchFeature({ tier: TIER, feature: FEATURE });
+    expect(body.rows).toEqual([]);
+    expect(body.served).toBe('archive');
+  });
+
+  it('a failure that is not a stored answer is not marked', async () => {
+    archive.fetch = async () => ({ ...STORED, rows: [] });
+    api.resolve(response({ ok: false, error: 'upstream' }, 502));
+    const body = await fetchFeature({ tier: TIER, feature: FEATURE });
+    expect(body.served).toBeUndefined();
+  });
+
+  it('stored records without a note of their own are described in plain words', async () => {
+    archive.fetch = async () => ({ ...STORED, source: { adapter: 'embedded' } });
+    api.resolve(response({ ok: false, error: 'upstream' }, 502));
+    const body = await fetchFeature({ tier: TIER, feature: FEATURE });
+    expect(body.source.note).toBe('Showing the latest stored records.');
+  });
+});

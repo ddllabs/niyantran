@@ -8,7 +8,8 @@ import { openAiResearch, rowDragProps } from '../lib/aiDrop.js';
 import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.js';
 import { buildTableSearchIndex, searchTableRows, shouldIndexSearch } from '../lib/tableSearch.js';
 import { formatCell, formatDate, formatStatus, getStatusToneClass, truncateTwoLines } from '../lib/format.js';
-import { isTerminalState, resolveDataState } from '../lib/dataState.js';
+import { DATA_STATE, isTerminalState, resolveDataState } from '../lib/dataState.js';
+import { LIVE_WAIT_TEXT, MODULE_UNAVAILABLE_TEXT, followUpLive, liveFollowUpKind, liveHoldState } from './moduleLiveRetry.js';
 import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
 import { prepareDeskFeed } from '../lib/prepareDeskFeed.js';
@@ -175,24 +176,42 @@ export default function DeskView({
     setLoading(true);
     onLoading?.(true);
     setErr('');
-    // F154: the stored archive shows as soon as it is in; live rows replace it when they arrive.
-    const onUpdate = (body) => {
+    const show = (body) => {
       if (ac.signal.aborted) return;
       const prepared = prepareDeskFeed(body);
       setFeed(prepared);
       onFeed(prepared);
     };
+    // F159: an answer from stored records while live data loads is asked for again; leaving the
+    // module aborts `ac`, which stops it.
+    let following = false;
+    const follow = (body) => {
+      if (following || ac.signal.aborted || !liveFollowUpKind(body)) return;
+      following = true;
+      followUpLive({
+        first: body,
+        signal: ac.signal,
+        publish: show,
+        refetch: () => fetchFeature({ tier, feature: featureName, signal: ac.signal }),
+      });
+    };
+    // F154: the stored archive shows as soon as it is in; live rows replace it when they arrive.
+    const onUpdate = (body) => {
+      show(body);
+      follow(body);
+    };
     fetchFeature({ tier, feature: featureName, signal: ac.signal, onUpdate })
       .then((body) => {
         if (ac.signal.aborted) return;
-        const prepared = prepareDeskFeed(body);
-        setFeed(prepared);
-        onFeed(prepared);
+        show(body);
         onSelect(null);
+        follow(body);
       })
       .catch((e) => {
         if (e.name === 'AbortError' || ac.signal.aborted) return;
-        setErr(e.message || String(e));
+        // F159: the reason is for debugging; the page says it in plain words.
+        console.warn(`[${featureName}] module failed to load:`, e.message || String(e));
+        setErr(MODULE_UNAVAILABLE_TEXT);
         setFeed(null);
         onFeed(null);
       })
@@ -328,9 +347,16 @@ export default function DeskView({
   }, [questionsDesk, hasAnswerFilter]);
 
   const statusRow = !loading && feed?.rows?.length === 1 && feed.rows[0]?.status === 'source_status' ? feed.rows[0] : null;
-  const dataState = resolveDataState(feed, { loading, error: err });
+  // F159: no records yet because live data is still loading on the server (retried), or given up.
+  const hold = loading ? null : liveHoldState(feed);
+  const liveWait = hold === 'wait';
+  const liveGaveUp = hold === 'gaveUp';
+  const liveHold = liveWait || liveGaveUp;
+  const dataState = liveGaveUp
+    ? { ...DATA_STATE.error, detail: 'Live data is taking longer than usual. Try again in a moment.' }
+    : resolveDataState(feed, { loading: loading || liveWait, error: err });
   const liveOn = dataState.id === 'live';
-  const shellState = isTerminalState(dataState) || (err && !feed) || statusRow;
+  const shellState = isTerminalState(dataState) || (err && !feed) || statusRow || liveHold;
 
   function toggleSort(key) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
@@ -344,7 +370,7 @@ export default function DeskView({
     return <TransitDesk onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />;
   }
 
-  if (isAlliancesFeature(featureName) && !statusRow) {
+  if (isAlliancesFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide alliances-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -365,7 +391,7 @@ export default function DeskView({
     );
   }
 
-  if (isSanctionsFeature(featureName) && !statusRow) {
+  if (isSanctionsFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide alliances-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -377,7 +403,7 @@ export default function DeskView({
     );
   }
 
-  if (isGlobalAidFeature(featureName) && !statusRow) {
+  if (isGlobalAidFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide alliances-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -389,7 +415,7 @@ export default function DeskView({
     );
   }
 
-  if (isNuclearWatchFeature(featureName) && !statusRow) {
+  if (isNuclearWatchFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide nww-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -401,7 +427,7 @@ export default function DeskView({
     );
   }
 
-  if (isChokepointsFeature(featureName) && !statusRow) {
+  if (isChokepointsFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide cpd-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -413,7 +439,7 @@ export default function DeskView({
     );
   }
 
-  if (isEnergyFeature(featureName) && !statusRow) {
+  if (isEnergyFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide cpd-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -425,7 +451,7 @@ export default function DeskView({
     );
   }
 
-  if (isPolicyGraphFeature(featureName) && !statusRow) {
+  if (isPolicyGraphFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res pig-host">
         {err && <p className="banner warn">{err}</p>}
@@ -453,7 +479,7 @@ export default function DeskView({
     );
   }
 
-  if (isFundFlowFeature(featureName) && !statusRow) {
+  if (isFundFlowFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
@@ -473,7 +499,7 @@ export default function DeskView({
     );
   }
 
-  if (isBudgetFeature(featureName) && !statusRow) {
+  if (isBudgetFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
@@ -493,7 +519,7 @@ export default function DeskView({
     );
   }
 
-  if (isProjectsFeature(featureName) && !statusRow) {
+  if (isProjectsFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
@@ -521,7 +547,7 @@ export default function DeskView({
     );
   }
 
-  if (isMpCardsFeature(featureName) && !statusRow) {
+  if (isMpCardsFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
@@ -533,7 +559,7 @@ export default function DeskView({
     );
   }
 
-  if (isIndustryFeature(featureName) && !statusRow) {
+  if (isIndustryFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
@@ -545,7 +571,7 @@ export default function DeskView({
     );
   }
 
-  if (isIndustryFeature(featureName) && statusRow) {
+  if (isIndustryFeature(featureName) && statusRow && !liveHold) {
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
@@ -554,7 +580,7 @@ export default function DeskView({
     );
   }
 
-  if (isHeadsOfStateFeature(featureName) && !statusRow) {
+  if (isHeadsOfStateFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide gld-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -566,7 +592,7 @@ export default function DeskView({
     );
   }
 
-  if (isGlobalCommoditiesFeature(featureName) && !statusRow) {
+  if (isGlobalCommoditiesFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide gld-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -578,7 +604,7 @@ export default function DeskView({
     );
   }
 
-  if (isConflictsFeature(featureName) && !statusRow) {
+  if (isConflictsFeature(featureName) && !statusRow && !liveHold) {
     return (
       <div className="desk desk-wide conflicts-desk">
         {err && <p className="banner warn">{err}</p>}
@@ -605,7 +631,7 @@ export default function DeskView({
     /carbon|climate|cbam|ccts|ets & tax/i.test(String(featureName || ''));
   const isGlobalIntelligence = /global intelligence/i.test(String(featureName || ''));
   const coverageLabel = (() => {
-    if (loading) return 'Fetching…';
+    if (loading || liveWait) return 'Fetching…';
     if (shellState) return dataState.coverage || 'No live rows';
     const n = matchCount;
     const total = registerCount;
@@ -708,7 +734,8 @@ export default function DeskView({
         {feed?.meta?.note &&
           !feed?.meta?.sensitive &&
           !shellState &&
-          !/\barchiv(e|ed)|data check\b/i.test(String(feed.meta.note)) && (
+          // The backup pack's own note ("Exhaustive shipped backup …") is internal; the banner above says it in plain words.
+          !/\barchiv(e|ed)|data check\b|exhaustive shipped backup/i.test(String(feed.meta.note)) && (
           <p className="desk-note">{String(feed.meta.note).replace(/\bJudgments?\b/gi, 'Judgements')}</p>
         )}
         {isGlobalIntelligence && !shellState && (
@@ -718,9 +745,16 @@ export default function DeskView({
         )}
         <div className={`table-wrap${loading || paging ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label={`Loading ${featureName || 'feed'}…`} />}
-          {!loading && shellState ? (
+          {liveWait ? (
+            <div className="feed-loader" role="status" aria-live="polite">
+              <i className="spinner" />
+              <div className="feed-loader-copy">
+                <span>{LIVE_WAIT_TEXT}</span>
+              </div>
+            </div>
+          ) : !loading && shellState ? (
             <DeskStateShell
-              state={err && !feed ? { ...dataState, id: 'error', label: 'ERROR', detail: err } : dataState}
+              state={err && !feed ? { ...dataState, id: 'error', label: 'ERROR', detail: 'Check your connection and try again.' } : dataState}
               featureName={featureName}
               onRetry={retry}
               expectedSources={(feed?.source?.links || []).join(', ')}
@@ -749,7 +783,7 @@ export default function DeskView({
                 {loading && !filtered.length ? (
                   <tr>
                     <td colSpan={Math.max(cols.length, 1)} className="load-cell">
-                      Fetching rows from the feature feed…
+                      Fetching rows…
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (

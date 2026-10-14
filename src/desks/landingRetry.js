@@ -12,7 +12,7 @@ export function isPendingCount(summary) {
   return summary?.availability === 'error' && summary?.served === 'archive';
 }
 
-function wait(ms, signal) {
+export function wait(ms, signal) {
   return new Promise((resolve) => {
     if (signal?.aborted) return resolve();
     const timer = setTimeout(done, ms);
