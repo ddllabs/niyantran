@@ -184,6 +184,24 @@ with the owner's decisions of 2026-10-14: the timer runs every 5 minutes (not ev
 the other section 11 recommendations are adopted. The admin screen from T10 becomes F160's
 "Feeds" view; no second screen is built.
 
+### Phase 4 prerequisites and overlaps with the F160 spec
+Carried over from the F160 spec so nothing it left open is lost:
+
+- **Unverified limits, checked before F160's T1:**
+  - the Vercel plan (F160 question 8; the records say Hobby, which Vercel limits to non-commercial
+    use, and about 2.8 h of function time a day must fit it);
+  - NTER's Supabase plan and compute size;
+  - the `pg_net` request timeout ceiling against a refresh run of up to 60 s;
+  - the current `desk_rows` row count on production (the spec used the 2026-09-28 record of
+    34,184).
+- **Already moved into this plan:** F166 (Morning Brief and Statement Tracker) is T3, F167 and
+  F168 are T8, and the optional admin "Feeds" tab is T10's screen.
+- **Overlap with F160's T5:** T3 already moves both brief pages onto `/api/feature-feed`, and its
+  leader parameter is the `person` parameter F160's T2 adds to the refresh; F160's T5 then only
+  changes where the server reads the answer from, not the pages.
+- **Overlap with F160's T2:** T4 has already removed GDELT from the request path; F160's schedule
+  has no GDELT class.
+
 ### T11. Seed stored copies from the registers
 **Description:** a one-off, reviewed load of the chosen registers (spec question 4) from
 `backup/` into F160's stored copies, each with its source and date: Cabinet's 158 decisions
