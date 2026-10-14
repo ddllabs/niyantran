@@ -75,7 +75,98 @@ async function fetchTransitLive(signal) {
   };
 }
 
-export async function fetchFeature({ tier, feature, signal } = {}) {
+async function requestFeatureFeed(url, signal) {
+  try {
+    const res = await fetch(url, { signal });
+    const body = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, body };
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+    return { ok: false, status: 0, body: null };
+  }
+}
+
+function archiveAsFallback(archive, note) {
+  return {
+    ...archive,
+    fallback: true,
+    source: { ...(archive.source || {}), note: archive.source?.note || note },
+  };
+}
+
+// What the page shows when the API has no rows for it.
+function withoutLive(archive, api) {
+  if (hasRealRows(archive)) {
+    return archiveAsFallback(archive, 'Live API is not on this host. Showing the last-known-good archive.');
+  }
+  if (archive && Array.isArray(archive.rows)) {
+    return { ...archive, ok: true, fallback: false };
+  }
+  if (api.body) return api.body;
+  throw new Error(api.body?.error || `feature-feed HTTP ${api.status || 404}`);
+}
+
+// An API answer this quick is shown directly, so a cached (edge) answer does not flash the archive.
+const ARCHIVE_GRACE_MS = 500;
+
+function abortError() {
+  return Object.assign(new Error('Aborted'), { name: 'AbortError' });
+}
+
+/**
+ * F154: with onUpdate, the shipped archive and /api/feature-feed start together. When the archive
+ * has rows and the API has not answered within ARCHIVE_GRACE_MS, the archive is returned
+ * (`fallback`, `refreshing: true`); onUpdate later receives the live rows (`updatedLive: true`)
+ * or, if the API has none, the archive with `refreshing: false`.
+ * A quicker API answer is returned as before. Without onUpdate the API is awaited first, as before.
+ */
+async function archiveFirst({ tier, feature, signal, url, onUpdate }) {
+  const archiveAc = new AbortController();
+  const stopArchive = () => archiveAc.abort();
+  signal?.addEventListener('abort', stopArchive, { once: true });
+  const apiRequest = requestFeatureFeed(url, signal);
+  const archiveRequest = fetchArchiveFeature({ tier, feature, signal: archiveAc.signal })
+    .catch(() => null)
+    .finally(() => signal?.removeEventListener('abort', stopArchive));
+
+  let graceTimer;
+  const grace = new Promise((resolve) => {
+    graceTimer = setTimeout(resolve, ARCHIVE_GRACE_MS);
+  });
+  const first = await Promise.race([
+    apiRequest.then((api) => ({ api })),
+    Promise.all([archiveRequest, grace]).then(([archive]) => ({ archive })),
+  ]).finally(() => clearTimeout(graceTimer));
+  if (first.api) {
+    if (first.api.ok && hasRealRows(first.api.body)) {
+      archiveAc.abort();
+      return first.api.body;
+    }
+    const archive = await archiveRequest;
+    if (signal?.aborted) throw abortError();
+    return withoutLive(archive, first.api);
+  }
+  if (!hasRealRows(first.archive)) {
+    const api = await apiRequest;
+    if (api.ok && hasRealRows(api.body)) return api.body;
+    return withoutLive(first.archive, api);
+  }
+  const shown = {
+    ...archiveAsFallback(first.archive, 'Stored snapshot. Live data is still loading.'),
+    refreshing: true,
+  };
+  apiRequest.then(
+    (api) => {
+      if (signal?.aborted) return;
+      if (api.ok && hasRealRows(api.body)) onUpdate({ ...api.body, refreshing: false, updatedLive: true });
+      else onUpdate({ ...shown, refreshing: false });
+    },
+    () => {},
+  );
+  return shown;
+}
+
+export async function fetchFeature({ tier, feature, signal, onUpdate } = {}) {
   const mapRow = featureMapRow(tier, feature);
   // HTML-ONLY: own title, zero rows, no live GDELT stand-in and no sibling archive.
   if (isHtmlOnlyModule(mapRow)) {
@@ -146,35 +237,10 @@ export async function fetchFeature({ tier, feature, signal } = {}) {
   if (feature) q.set('feature', feature);
   const url = `/api/feature-feed?${q.toString()}`;
 
-  let apiBody = null;
-  let apiStatus = 0;
-  try {
-    const res = await fetch(url, { signal });
-    apiStatus = res.status;
-    apiBody = await res.json().catch(() => null);
-    if (res.ok && hasRealRows(apiBody)) return apiBody;
-  } catch (err) {
-    if (err?.name === 'AbortError') throw err;
-  }
+  if (onUpdate) return archiveFirst({ tier, feature, signal, url, onUpdate });
 
+  const api = await requestFeatureFeed(url, signal);
+  if (api.ok && hasRealRows(api.body)) return api.body;
   const archive = await fetchArchiveFeature({ tier, feature, signal });
-  if (hasRealRows(archive)) {
-    return {
-      ...archive,
-      fallback: true,
-      source: {
-        ...(archive.source || {}),
-        note:
-          archive.source?.note ||
-          'Live API is not on this host. Showing the last-known-good archive.',
-      },
-    };
-  }
-
-  if (archive && Array.isArray(archive.rows)) {
-    return { ...archive, ok: true, fallback: false };
-  }
-
-  if (apiBody) return apiBody;
-  throw new Error(apiBody?.error || `feature-feed HTTP ${apiStatus || 404}`);
+  return withoutLive(archive, api);
 }

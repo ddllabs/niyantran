@@ -23,7 +23,18 @@ describe('deploy caching', () => {
     expect(cacheFor('/brand/(.*)')).toBe('public, max-age=86400, stale-while-revalidate=604800');
   });
 
-  it('caches nothing else this way: pages, data and the API keep their own rules', () => {
-    expect(vercel.headers.map((h) => h.source).sort()).toEqual(['/assets/([^/]+)', '/brand/(.*)']);
+  // F154 (owner approved 2026-10-14): shipped data files revalidated on every visit; a returning
+  // visitor now reuses them for five minutes and gets a stale copy at once while one is fetched.
+  it('keeps shipped data files for five minutes, refreshing in the background for a day', () => {
+    expect(cacheFor('/data/(.*)')).toBe('public, max-age=300, stale-while-revalidate=86400');
+  });
+
+  it('caches nothing else this way: pages and the API keep their own rules', () => {
+    expect(vercel.headers.map((h) => h.source).sort()).toEqual(['/assets/([^/]+)', '/brand/(.*)', '/data/(.*)']);
+  });
+
+  // F154: the function ran in iad1 (US East) while users and Supabase (ap-south-1) are in India.
+  it('runs the API in Mumbai, next to the database', () => {
+    expect(vercel.regions).toEqual(['bom1']);
   });
 });

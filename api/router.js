@@ -3,7 +3,7 @@
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
-import { serveFeatureFeed } from '../server/featureFeed.mjs';
+import { serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
 import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
 import { serveLawLanding } from '../server/lawLandingSummary.mjs';
 import { serveEconomicsLanding } from '../server/economicsLandingSummary.mjs';
@@ -39,6 +39,66 @@ export const config = {
   maxDuration: 60,
   includeFiles: ['{src/data/**,public/data/**}'],
 };
+
+// F154: the only routes Vercel's CDN may keep. Each is public, needs no sign-in, and its answer
+// depends only on the path and query string. Any route not listed here stays `no-store`.
+const EDGE_CACHED_ROUTES = new Set([
+  '/api/national-landing',
+  '/api/global-landing',
+  '/api/law-landing',
+  '/api/economics-landing',
+  '/api/carbon-landing',
+  '/api/sports-landing',
+  '/api/entertainment-landing',
+  '/api/feature-feed',
+  '/api/home/segments',
+  '/api/constitutions',
+  '/api/growth',
+]);
+// These set their own Cache-Control over the router's `no-store`; the router leaves them alone.
+const OWN_CACHE_ROUTES = new Set(['/api/site-figures', '/api/site-icon']);
+
+// Vercel-CDN-Cache-Control is read by Vercel's CDN only and is not passed on, so the browser
+// sees Cache-Control alone and checks back every time (Vercel docs, "Cache-Control headers").
+export const API_CACHE = {
+  browser: 'public, max-age=0, must-revalidate',
+  cdn: 'public, s-maxage=300, stale-while-revalidate=86400',
+  // An archive answer given because the live source passed its time limit: re-checked sooner.
+  cdnArchive: 'public, s-maxage=60, stale-while-revalidate=86400',
+};
+
+/** 'edge', 'own' or 'no-store' for one request. */
+export function cachePolicyFor(path, method) {
+  if (OWN_CACHE_ROUTES.has(path)) return 'own';
+  if ((method === 'GET' || method === 'HEAD') && EDGE_CACHED_ROUTES.has(path)) return 'edge';
+  return 'no-store';
+}
+
+// Decides the headers when the answer is written, once its status is known: only a 2xx answer
+// may be kept; an error, a refusal or a timeout keeps `no-store`.
+function cacheAtEdgeOnSuccess(res) {
+  let body;
+  const apply = () => {
+    const status = Number(res.statusCode) || 200;
+    if (status < 200 || status >= 300) {
+      res.setHeader('Cache-Control', 'no-store');
+      return;
+    }
+    res.setHeader('Cache-Control', API_CACHE.browser);
+    res.setHeader('Vercel-CDN-Cache-Control', body?.served === 'archive' ? API_CACHE.cdnArchive : API_CACHE.cdn);
+  };
+  const json = res.json.bind(res);
+  const end = res.end.bind(res);
+  res.json = (value) => {
+    body = value;
+    apply();
+    return json(value);
+  };
+  res.end = (...args) => {
+    apply();
+    return end(...args);
+  };
+}
 
 function routePath(req) {
   // Prefer explicit rewrite param from vercel.json (via req.query or req.url)
@@ -98,6 +158,7 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const path = routePath(req);
   const method = String(req.method || 'GET').toUpperCase();
+  if (cachePolicyFor(path, method) === 'edge') cacheAtEdgeOnSuccess(res);
 
   try {
     if (path === '/api/national-landing' || path === '/api/global-landing' || path === '/api/law-landing' || path === '/api/economics-landing' || path === '/api/carbon-landing' || path === '/api/sports-landing' || path === '/api/entertainment-landing') {
@@ -109,7 +170,7 @@ export default async function handler(req, res) {
       const entertainment = path === '/api/entertainment-landing';
       if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
       try {
-        const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), serveFeatureFeed);
+        const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), serveFeatureFeedWithinLimit);
         res.status(body.ok ? 200 : 502).json(body);
       } catch (err) {
         res.status(err.message === `Unknown ${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });
@@ -121,7 +182,7 @@ export default async function handler(req, res) {
         res.status(405).json({ ok: false, error: 'GET /api/feature-feed only' });
         return;
       }
-      const body = await serveFeatureFeed(q(req));
+      const body = await serveFeatureFeedWithinLimit(q(req));
       if (method === 'HEAD') {
         res.status(200).end();
         return;

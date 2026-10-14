@@ -15,7 +15,9 @@ export async function serveNationalLanding(searchParams, loadFeed) {
   const request = pending.get(resourceKey);
   try {
     const raw = await request;
-    return projectNationalSummary({ ...raw, feature, tier: 'national' });
+    const summary = projectNationalSummary({ ...raw, feature, tier: 'national' });
+    // F154: whether the count came from the live source or, past its time limit, the archive.
+    return raw?.served ? { ...summary, served: raw.served } : summary;
   } finally {
     if (pending.get(resourceKey) === request) pending.delete(resourceKey);
   }

@@ -60,6 +60,13 @@ import EnergyDesk from './EnergyDesk.jsx';
 
 const LARGE_PAGE = 100;
 
+/** F154: names stored rows shown while live data loads, and the moment live rows replace them. */
+export function liveRefreshNote(feed) {
+  if (feed?.refreshing) return 'Showing stored rows. Refreshing live data…';
+  if (feed?.updatedLive) return 'Updated live.';
+  return null;
+}
+
 function isParliamentaryQuestions(name) {
   return /parliamentary question/i.test(String(name || ''));
 }
@@ -156,7 +163,14 @@ export default function DeskView({
     setLoading(true);
     onLoading?.(true);
     setErr('');
-    fetchFeature({ tier, feature: featureName, signal: ac.signal })
+    // F154: the stored archive shows as soon as it is in; live rows replace it when they arrive.
+    const onUpdate = (body) => {
+      if (ac.signal.aborted) return;
+      const prepared = prepareDeskFeed(body);
+      setFeed(prepared);
+      onFeed(prepared);
+    };
+    fetchFeature({ tier, feature: featureName, signal: ac.signal, onUpdate })
       .then((body) => {
         if (ac.signal.aborted) return;
         const prepared = prepareDeskFeed(body);
@@ -564,6 +578,11 @@ export default function DeskView({
           )}
           <span className="muted">{coverageLabel}</span>
         </div>
+        {!shellState && liveRefreshNote(feed) ? (
+          <p className="desk-note" role="status">
+            {liveRefreshNote(feed)}
+          </p>
+        ) : null}
         {feed?.fallback && dataState.id !== 'live' && !shellState && dataState.detail && tier !== 'local' && !isCarbonDesk ? (
           <p className="banner">{String(dataState.detail).replace(/\barchiv(e|ed)\b/gi, 'stored snapshot')}</p>
         ) : null}

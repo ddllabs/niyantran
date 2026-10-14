@@ -36,7 +36,7 @@ import {
   marketQuoteRows,
   nseLiveRows,
 } from '../src/lib/econPack.js';
-import { serveAir } from './transitApi.mjs';
+import { serveAir as serveAirLive } from './transitApi.mjs';
 import {
   NEWS_FEEDS,
   REGISTRY_FEEDS,
@@ -64,28 +64,49 @@ import {
   rssWireRows as entRssRows,
 } from '../src/lib/entertainmentPack.js';
 import { serveNational } from './nationalFeed.mjs';
-import { loadCentreStateFundFlow, STAT1_URL } from './budgetStat1.mjs';
-import { loadLaunches } from './assetsApi.mjs';
-import { loadConstitutions, loadGrowth, loadTrade } from './resourcesApi.mjs';
-import {
-  loadCountryEconomies,
-  loadIndiaCeos,
-  loadIndiaEnergy,
-  loadIndiaGdpGrowth,
-  loadKeyIndicators,
-  loadManifoldPolitical,
-  loadWorldExchanges,
-} from './financeApi.mjs';
-import { loadAthletes, loadIsl, loadSportsLeagues, loadWorldFixtures } from './sportsApi.mjs';
+import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
+import * as assetsLive from './assetsApi.mjs';
+import * as resourcesLive from './resourcesApi.mjs';
+import * as financeLive from './financeApi.mjs';
+import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
-import {
-  loadBoxOffice,
-  loadCelebrities,
-  loadMusicIndia,
-  loadMusicUs,
-  loadOtt,
-  loadTvTonight,
-} from './entertainmentApi.mjs';
+import * as entertainmentLive from './entertainmentApi.mjs';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// F154: a request that has used up its live time answers from the stored archive. Inside that
+// archive pass every live source below refuses at once, so each branch takes the fallback it
+// already has for a failed source. Only these loaders and fetchText() reach the network here.
+const archivePass = new AsyncLocalStorage();
+const ARCHIVE_ONLY = 'live time limit reached; archive only';
+function archiveOnly() {
+  return archivePass.getStore() === true;
+}
+function liveOnly(load) {
+  return (...args) => (archiveOnly() ? Promise.reject(new Error(ARCHIVE_ONLY)) : load(...args));
+}
+const serveAir = liveOnly(serveAirLive);
+const loadCentreStateFundFlow = liveOnly(loadCentreStateFundFlowLive);
+const loadLaunches = liveOnly(assetsLive.loadLaunches);
+const loadConstitutions = liveOnly(resourcesLive.loadConstitutions);
+const loadGrowth = liveOnly(resourcesLive.loadGrowth);
+const loadTrade = liveOnly(resourcesLive.loadTrade);
+const loadCountryEconomies = liveOnly(financeLive.loadCountryEconomies);
+const loadIndiaCeos = liveOnly(financeLive.loadIndiaCeos);
+const loadIndiaEnergy = liveOnly(financeLive.loadIndiaEnergy);
+const loadIndiaGdpGrowth = liveOnly(financeLive.loadIndiaGdpGrowth);
+const loadKeyIndicators = liveOnly(financeLive.loadKeyIndicators);
+const loadManifoldPolitical = liveOnly(financeLive.loadManifoldPolitical);
+const loadWorldExchanges = liveOnly(financeLive.loadWorldExchanges);
+const loadAthletes = liveOnly(sportsLive.loadAthletes);
+const loadIsl = liveOnly(sportsLive.loadIsl);
+const loadSportsLeagues = liveOnly(sportsLive.loadSportsLeagues);
+const loadWorldFixtures = liveOnly(sportsLive.loadWorldFixtures);
+const loadBoxOffice = liveOnly(entertainmentLive.loadBoxOffice);
+const loadCelebrities = liveOnly(entertainmentLive.loadCelebrities);
+const loadMusicIndia = liveOnly(entertainmentLive.loadMusicIndia);
+const loadMusicUs = liveOnly(entertainmentLive.loadMusicUs);
+const loadOtt = liveOnly(entertainmentLive.loadOtt);
+const loadTvTonight = liveOnly(entertainmentLive.loadTvTonight);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -264,6 +285,8 @@ export function resetFeedCache() {
   cache = null;
   cacheMtime = 0;
   embeddedCache.clear();
+  liveInFlight.clear();
+  lateLive.clear();
 }
 
 function norm(s) {
@@ -866,6 +889,7 @@ function rowsFromPayload(raw, contentType, url) {
 }
 
 async function fetchText(url) {
+  if (archiveOnly()) throw new Error(ARCHIVE_ONLY);
   if (!isHttpsUrl(url)) {
     throw new Error('HTTPS only');
   }
@@ -3605,8 +3629,106 @@ function applyBackupFallback(body, searchParams) {
   });
 }
 
+// F154: the whole live attempt for one request, across every source it tries. Past it the
+// request answers from the stored archive instead of waiting (measured 2026-10-14: 9-60 s).
+export const LIVE_TIME_LIMIT_MS = 4000;
+// The archive pass reads files only; this bounds it in case a branch still waits on something.
+const ARCHIVE_TIME_LIMIT_MS = 3000;
+// A live answer that arrived after its request gave up is served to later requests this long.
+const LATE_LIVE_MS = 10 * 60_000;
+// Per instance; keyed by the only two inputs serveFeatureFeed reads.
+const liveInFlight = new Map();
+const lateLive = new Map();
+
+function liveKey(searchParams) {
+  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}`;
+}
+
+function settleWithin(promise, ms) {
+  let timer;
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ state: 'late' }), ms);
+  });
+  const settled = promise.then(
+    (value) => ({ state: 'done', value }),
+    (error) => ({ state: 'failed', error }),
+  );
+  return Promise.race([settled, late]).finally(() => clearTimeout(timer));
+}
+
+// One live attempt per feed at a time: a caller that arrives while it runs shares it.
+function startLive(key, searchParams, live) {
+  const running = liveInFlight.get(key);
+  if (running) return running;
+  const attempt = Promise.resolve().then(() => live(searchParams));
+  liveInFlight.set(key, attempt);
+  attempt
+    .then(
+      (body) => {
+        if (bodyHasRealRows(body)) lateLive.set(key, { at: Date.now(), body });
+      },
+      () => {},
+    )
+    .finally(() => {
+      if (liveInFlight.get(key) === attempt) liveInFlight.delete(key);
+    });
+  return attempt;
+}
+
+async function serveArchiveFor(searchParams, reason) {
+  const archived = await settleWithin(
+    archivePass.run(true, () => serveFeatureFeed(searchParams)),
+    ARCHIVE_TIME_LIMIT_MS,
+  );
+  if (archived.state !== 'done') {
+    const feature = searchParams.get('feature') || '';
+    return {
+      ok: false,
+      tier: resolveTier(searchParams.get('tier') || ''),
+      feature,
+      rows: statusRow({ adapter: 'api', url: '', reason, featureName: feature }),
+      source: { adapter: 'api', links: [], note: `${reason}. No stored archive could be read in time.` },
+      coverage: { from: '', through: '', exhaustive: false },
+      fallback: false,
+      served: 'archive',
+    };
+  }
+  const body = archived.value;
+  const note = body?.source?.note ? ` ${body.source.note}` : '';
+  return {
+    ...body,
+    served: 'archive',
+    fallback: bodyHasRealRows(body) ? true : Boolean(body?.fallback),
+    source: { ...(body?.source || {}), note: `${reason}; showing stored records.${note}` },
+  };
+}
+
+/**
+ * serveFeatureFeed with a time limit (F154). Answers `served: 'live'` when the live attempt
+ * finished in time (its own `fallback` still says whether a live source failed inside it), and
+ * `served: 'archive'` when the limit passed or the attempt threw; the attempt keeps running and
+ * a later request can use its answer.
+ */
+export async function serveFeatureFeedWithinLimit(
+  searchParams,
+  { limitMs = LIVE_TIME_LIMIT_MS, live = serveFeatureFeed } = {},
+) {
+  const key = liveKey(searchParams);
+  const outcome = await settleWithin(startLive(key, searchParams, live), limitMs);
+  if (outcome.state === 'done') return { ...outcome.value, served: 'live' };
+  const kept = lateLive.get(key);
+  if (kept && Date.now() - kept.at < LATE_LIVE_MS) {
+    return { ...kept.body, served: 'live', liveAt: new Date(kept.at).toISOString() };
+  }
+  const reason =
+    outcome.state === 'failed'
+      ? `Live source failed (${shortFail(outcome.error?.message || String(outcome.error))})`
+      : `Live sources passed the ${limitMs / 1000} s time limit`;
+  return serveArchiveFor(searchParams, reason);
+}
+
 async function loadLandingFeed(params) {
-  return applyBackupFallback(await serveFeatureFeed(params), params);
+  return applyBackupFallback(await serveFeatureFeedWithinLimit(params), params);
 }
 
 export async function handleFeatureFeedRequest(req, res, next) {
@@ -3627,7 +3749,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeed : loadLandingFeed);
+      const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : loadLandingFeed);
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
@@ -3669,7 +3791,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
     return;
   }
   try {
-    const raw = await serveFeatureFeed(url.searchParams);
+    const raw = await serveFeatureFeedWithinLimit(url.searchParams);
     const body = applyBackupFallback(raw, url.searchParams);
     const json = JSON.stringify(body);
     res.statusCode = 200;

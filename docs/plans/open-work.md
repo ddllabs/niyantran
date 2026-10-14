@@ -519,6 +519,39 @@ rechecked. Nothing in this check wrote to production.
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F154. Terminal page speed (phase 1).** Owner request 2026-10-14: opening a terminal link
+  takes 5–7 s; the owner asked for caching. A read-only audit on production found the page files
+  fast (0.12–0.19 s) and the API slow: every `/api/*` answer was `no-store`, the function ran in
+  `iad1` (US East) while users and Supabase are in India, and desk landing counts and module pages
+  waited for the full live scrape (Cabinet Decisions 9–21 s, Morning Brief 28 s or a 504, Athlete
+  Index 7 s). Built on `task/terminal-speed` (uncommitted, for the supervisor):
+  - **Edge caching.** One allow-list in `api/router.js` (`cachePolicyFor`): the seven
+    `/api/*-landing` routes, `/api/feature-feed`, `/api/home/segments`, `/api/constitutions` and
+    `/api/growth`, GET or HEAD only. A 2xx answer gets `Cache-Control: public, max-age=0,
+    must-revalidate` (the browser re-checks) and `Vercel-CDN-Cache-Control: public, s-maxage=300,
+    stale-while-revalidate=86400` (Vercel's CDN only, not passed on; 60 s when the answer is the
+    archive). Every other route, and every error, refusal or timeout, keeps `no-store`;
+    `site-figures` and `site-icon` keep their own rules. `/api/home/markets|latest|pulse` stay
+    `no-store` because `fresh=1` is the refresh button.
+  - **Live time limit.** `serveFeatureFeedWithinLimit` (`server/featureFeed.mjs`) gives a request's
+    live sources 4 s in all (`LIVE_TIME_LIMIT_MS`), then answers from the stored archive: the same
+    feed code runs again with every live source refusing at once, so each module takes the fallback
+    it already has. The answer carries `served: 'live' | 'archive'` (landing summaries pass it on).
+    One live attempt per feed runs at a time, and a late live answer is used by later requests on
+    the same instance for 10 minutes. Measured from the owner's Mac against the real sources
+    (unbounded → bounded): Morning Brief 41.9 → 4.0 s, NSE/BSE 12.0 → 4.0 s (144 stored quotes),
+    Athlete Index 45.0 → 4.0 s, Geopolitics News Wire 26.3 → 4.0 s.
+  - **Archive first on module pages.** `fetchFeature` with `onUpdate` (used by `DeskView`) starts
+    the shipped archive and the API together. If the API has not answered within 0.5 s, the
+    archive shows with the note "Showing stored rows. Refreshing live data…", and live rows replace
+    it when they arrive ("Updated live."). A quicker API answer is shown as before; other callers
+    are unchanged.
+  - **Region and data files.** `vercel.json`: `"regions": ["bom1"]` (Mumbai, next to Supabase
+    ap-south-1), and `/data/(.*)` cached `public, max-age=300, stale-while-revalidate=86400`.
+  - Remaining: supervisor review and merge; after the owner's push, check `x-vercel-cache` and the
+    headers on a landing route and on `/data/`, that the function runs in `bom1`, and the desk
+    timings. Not in this phase (reported): one call per desk for its counts, new-tab start-up
+    (`App.jsx`, `userStore.js`), re-encoding `public/images/desks-v6`, Vite `json.stringify`.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

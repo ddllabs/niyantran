@@ -1,0 +1,129 @@
+// F154 (owner request 2026-10-14): a module page waited for /api/feature-feed before it looked at
+// the shipped archive, so Cabinet Decisions spun about 8 s although its archive loads in 0.15 s.
+// With onUpdate, fetchFeature shows the archive as soon as it is in, then swaps in live rows.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const archive = vi.hoisted(() => ({ fetch: null, signals: [] }));
+
+vi.mock('./apiMode.js', () => ({ featureFeedApiEnabled: () => true, liveApiEnabled: () => true }));
+vi.mock('./archiveFeed.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchArchiveFeature: vi.fn((opts) => {
+    archive.signals.push(opts.signal);
+    return archive.fetch(opts);
+  }),
+}));
+
+import { fetchFeature } from './featureFeed.js';
+
+const TIER = 'national';
+const FEATURE = 'Cabinet Decisions';
+const LIVE = { ok: true, feature: FEATURE, rows: [{ title: 'Live decision' }], source: { adapter: 'api', note: 'Live PIB' }, fallback: false };
+const STORED = { ok: true, feature: FEATURE, rows: [{ title: 'Stored decision' }], source: { adapter: 'embedded', note: 'Stored Cabinet decisions.' }, fallback: false };
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((r) => { resolve = r; });
+  return { promise, resolve };
+}
+const response = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+describe('fetchFeature archive first (F154)', () => {
+  const originalFetch = globalThis.fetch;
+  let api;
+  beforeEach(() => {
+    api = deferred();
+    archive.signals = [];
+    globalThis.fetch = vi.fn(() => api.promise);
+  });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('shows the archive within half a second when the API is slower, marked as refreshing', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    const shown = await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    expect(shown.rows).toEqual(STORED.rows);
+    expect(shown.fallback).toBe(true);
+    expect(shown.refreshing).toBe(true);
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('then swaps in the live rows when the API answers', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    api.resolve(response(LIVE));
+    await tick();
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const live = onUpdate.mock.calls[0][0];
+    expect(live.rows).toEqual(LIVE.rows);
+    expect(live.fallback).toBe(false);
+    expect(live.refreshing).toBeFalsy();
+    expect(live.updatedLive).toBe(true);
+  });
+
+  it('keeps the archive, no longer refreshing, when the API answers with nothing', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    api.resolve(response({ ok: false, error: 'upstream' }, 502));
+    await tick();
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const kept = onUpdate.mock.calls[0][0];
+    expect(kept.rows).toEqual(STORED.rows);
+    expect(kept.refreshing).toBe(false);
+    expect(kept.fallback).toBe(true);
+    expect(kept.updatedLive).toBeFalsy();
+  });
+
+  it('keeps the old behaviour when the API is quicker: live rows, no archive note', async () => {
+    const slowArchive = deferred();
+    archive.fetch = () => slowArchive.promise;
+    api.resolve(response(LIVE));
+    const onUpdate = vi.fn();
+    const shown = await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    expect(shown).toEqual(LIVE);
+    expect(archive.signals[0].aborted).toBe(true);
+    slowArchive.resolve(STORED);
+    await tick();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the old behaviour when the API answers within a moment, even if the archive was quicker', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    setTimeout(() => api.resolve(response(LIVE)), 100);
+    const shown = await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    expect(shown).toEqual(LIVE);
+    await tick();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('waits for the API when the archive is quicker but empty', async () => {
+    archive.fetch = async () => ({ ...STORED, rows: [] });
+    const pending = fetchFeature({ tier: TIER, feature: FEATURE, onUpdate: vi.fn() });
+    await tick();
+    api.resolve(response(LIVE));
+    expect(await pending).toEqual(LIVE);
+  });
+
+  it('a caller without onUpdate still waits for the API first, as before', async () => {
+    archive.fetch = async () => STORED;
+    const pending = fetchFeature({ tier: TIER, feature: FEATURE });
+    await tick();
+    api.resolve(response(LIVE));
+    expect(await pending).toEqual(LIVE);
+  });
+
+  it('sends no update after the page has moved on', async () => {
+    archive.fetch = async () => STORED;
+    const ac = new AbortController();
+    const onUpdate = vi.fn();
+    await fetchFeature({ tier: TIER, feature: FEATURE, signal: ac.signal, onUpdate });
+    ac.abort();
+    api.resolve(response(LIVE));
+    await tick();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
