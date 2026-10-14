@@ -2,6 +2,7 @@ import { parseINR, tenderCloseBand } from '../lib/nationalKpi.js';
 import BillRecordPane from './BillRecordPane.jsx';
 import { AffidavitRecord, DelimitationRecord, ManifestoRecord } from './ElectoralRecords.jsx';
 import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
+import { plainReportingNote } from '../lib/plainSourceNote.js';
 
 function field(row, keys) {
   for (const k of keys) {
@@ -146,7 +147,7 @@ function TenderRecord({ row, onClear }) {
         </article>
         <article>
           <h4>GeM BidPlus</h4>
-          <p>Would add value. robots.txt bars automated retrieval — not wired.</p>
+          <p>Would add value. The site does not allow automated collection, so it is not connected.</p>
         </article>
         <article>
           <h4>BidAssist</h4>
@@ -191,8 +192,11 @@ function TransferRecord({ row, onClear }) {
 
 function GenericRecord({ row, onClear, noun, feed, loading }) {
   const title = field(row, ['policy_name', 'topic', 'title', 'name', 'promise', 'programme']);
-  const skip = new Set(['source_url', 'status', 'pdf_url', 'id']);
+  // F165: fields for the platform, not the reader, stay off the tiles; how an item was found is
+  // said in plain words below.
+  const skip = new Set(['source_url', 'status', 'pdf_url', 'id', 'reporting_search', 'adapter', 'host', 'fail_reason', 'backup_part', 'backup_function']);
   const tiles = Object.entries(row || {}).filter(([k, v]) => !skip.has(k) && v && String(v).length < 80);
+  const foundBy = plainReportingNote(row?.reporting_search);
   const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
   const intelLines = briefPlainLines(intel);
   const note = mergeBriefText('', intelLines, { maxExtra: 4 });
@@ -209,11 +213,12 @@ function GenericRecord({ row, onClear, noun, feed, loading }) {
           <Tile key={k} k={k.replace(/_/g, ' ')} v={String(v)} />
         ))}
       </div>
+      {foundBy ? <p className="desk-note">{foundBy}</p> : null}
       {note ? <p className="desk-note">{note}</p> : null}
       {/news\.google\.com/i.test(row.source_url || '') ? (
         <p className="desk-note">
-          This row’s source_url is news.google.com. Google News ToS restricts commercial use — the link is shown as provenance, not as a
-          feed to extend.
+          This item links to Google News. Google News limits commercial use of its links, so the link shows where the item came from
+          and is not used to collect more.
         </p>
       ) : null}
       <div className="nat-rec-actions">
@@ -245,7 +250,7 @@ export default function NationalRecord({ row, feature, onClear, onAskAi, liveCou
         </header>
         <div className="nat-tiles">
           <Tile k="Seen" v={field(row, ['date'])} />
-          <Tile k="Source" v={field(row, ['source']) || 'GDELT'} />
+          <Tile k="Source" v={field(row, ['source']).replace(/^GDELT$/i, '') || 'News search'} />
         </div>
         <p className="desk-note">
           This is a news-search hit, not a statement. Document-diff (two dated primary documents side by side) is not built. No

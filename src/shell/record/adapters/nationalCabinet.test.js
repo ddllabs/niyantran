@@ -199,7 +199,7 @@ describe('National cabinet adapter', () => {
       expect(feedAlone.footer.provenance.source).toBe('PIB press releases (stored register)');
       expect(feedAlone.glance.visual.title).toBe('What the stored register holds');
       const liveOnly = nationalCabinet(L.msp, ctx([L.msp]));
-      expect(liveOnly.footer.provenance.source).toBe('PIB press releases (RSS)');
+      expect(liveOnly.footer.provenance.source).toBe('PIB press releases (live feed)');
       expect(liveOnly.glance.visual.title).toBe('What the feed served today');
     });
   });
@@ -442,7 +442,7 @@ describe('National cabinet adapter', () => {
       expect(f.ask).toBe('Ask AI about this release');
       expect(f.provenance).toEqual({ source: 'PIB press releases (stored register)', asOf: '07 Sep 2026', flags: ['stored copy, not the live feed'] });
       const l = nationalCabinet(L.msp, ctx(LIVE)).footer;
-      expect(l.provenance).toEqual({ source: 'PIB press releases (RSS)', asOf: '', flags: ['as-of not on record'] });
+      expect(l.provenance).toEqual({ source: 'PIB press releases (live feed)', asOf: '', flags: ['as-of not on record'] });
       for (const r of STORED) expect(nationalCabinet(r, storedCtx()).footer.provenance.asOf, r.id).toBe('07 Sep 2026');
     });
 

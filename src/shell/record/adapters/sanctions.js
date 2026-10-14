@@ -172,7 +172,7 @@ export default function sanctions(row, ctx = {}) {
     footer: {
       ask: 'Ask AI about this programme',
       provenance: {
-        source: 'Sanctions programme register (embedded pack)',
+        source: 'Sanctions programme register (stored on the platform)',
         asOf: asOf || undefined,
         flags: ['issuing lists not read', ...(links.length ? [] : ['no issuing list linked']), ...(asOf ? [] : ['as-of not on record'])],
       },

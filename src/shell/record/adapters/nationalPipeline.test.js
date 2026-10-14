@@ -327,7 +327,7 @@ describe('National policy pipeline adapter', () => {
 
     const l = nationalPipeline(liveRows[0], ctx(liveRows));
     expect(l.footer.ask).toBe('Ask AI about this release');
-    expect(l.footer.provenance.source).toMatch(/pib rss/i);
+    expect(l.footer.provenance.source).toMatch(/pib press release feed/i);
     expect(l.footer.provenance.asOf).toBe('12 Oct 2026');
     expect(l.footer.note).toMatch(/press release is not a stage/i);
     expect(l.footer.note).toMatch(/draft-to-gazette/i);

@@ -7,6 +7,27 @@ import { ModuleDetail } from './DeskLandingFrame.jsx';
 import { STATE_MODULES, stateLandingAnswer } from '../../lib/stateLandingSummary.js';
 import { SPORTS_FEATURES, projectSportsSummary } from '../../lib/sportsLandingSummary.js';
 import { ENTERTAINMENT_FEATURES, projectEntertainmentSummary } from '../../lib/entertainmentLandingSummary.js';
+import { projectNationalSummary } from '../../lib/nationalLandingSummary.js';
+import { projectGlobalSummary } from '../../lib/globalLandingSummary.js';
+import { projectLawSummary } from '../../lib/lawLandingSummary.js';
+import { projectEconomicsSummary } from '../../lib/economicsLandingSummary.js';
+import { projectCarbonSummary } from '../../lib/carbonLandingSummary.js';
+import { NATIONAL_PRESENTATION } from './deskPresentation.js';
+import { GLOBAL_PRESENTATION } from './globalPresentation.js';
+import { LAW_PRESENTATION } from './lawPresentation.js';
+import { ECONOMICS_PRESENTATION } from './economicsPresentation.js';
+import { CARBON_PRESENTATION } from './carbonPresentation.js';
+import { SPORTS_PRESENTATION } from './sportsPresentation.js';
+import { ENTERTAINMENT_PRESENTATION } from './entertainmentPresentation.js';
+import { STATE_PRESENTATION } from './statePresentation.js';
+import { NationalLandingContent } from '../NationalLandingView.jsx';
+import { GlobalLandingContent } from '../GlobalLandingView.jsx';
+import { LawLandingContent } from '../LawLandingView.jsx';
+import { EconomicsLandingContent } from '../EconomicsLandingView.jsx';
+import { CarbonLandingContent } from '../CarbonLandingView.jsx';
+import { SportsLandingContent } from '../SportsLandingView.jsx';
+import { EntertainmentLandingContent } from '../EntertainmentLandingView.jsx';
+import { StateLandingContent } from '../StateLandingView.jsx';
 
 const DEVELOPER =
   /GDELT|DOC 2\.0|rate.?limit|≥|paced|\barchives?\b|\bhost\b|backend|adapter|\/api\/|\bRSS\b|unavailable:|HTTP \d|SPARQL|proxy|last-known-good|shipped backup|feature map|fallback|workbook|\bpack\b/i;
@@ -55,5 +76,50 @@ describe('landing detail cards (F164)', () => {
     const summary = projectSportsSummary({ ok: true, tier: 'sports', feature: 'ISL Tracker', rows: [{ title: 'A', home: 'H', away: 'W', league: 'ISL' }],
       source: { adapter: 'api', links: [], note: 'ESPN empty; TheSportsDB ISL.' } });
     expect(shown(module, summary)).toContain('ESPN empty; TheSportsDB ISL.');
+  });
+});
+
+// F165: the other desks' cards still spoke of "Reporting search / RSS", "PIB RSS reporting", "the
+// existing adapter", "not a live ECI API", "The API response blends…", "workspace overlays" and
+// "fallback". Every desk's landing (hero, sector cards, explorer, stat tiles) and every module's detail
+// card, for each kind of source a module can answer from, is checked against this list.
+const FORBIDDEN =
+  /GDELT|DOC 2\.0|\bRSS\b|adapter|archive|\bhosts?\b|backend|\bAPI\b|endpoint|\bpacks?\b|fallback|\/api\/|\bsync\b|embedded|proxy|overlay|ingest|shipped/i;
+const DESKS = {
+  national: [NATIONAL_PRESENTATION, projectNationalSummary, NationalLandingContent],
+  global: [GLOBAL_PRESENTATION, projectGlobalSummary, GlobalLandingContent],
+  law: [LAW_PRESENTATION, projectLawSummary, LawLandingContent],
+  economics: [ECONOMICS_PRESENTATION, projectEconomicsSummary, EconomicsLandingContent],
+  carbon: [CARBON_PRESENTATION, projectCarbonSummary, CarbonLandingContent],
+  sports: [SPORTS_PRESENTATION, projectSportsSummary, SportsLandingContent],
+  entertainment: [ENTERTAINMENT_PRESENTATION, projectEntertainmentSummary, EntertainmentLandingContent],
+  state: [STATE_PRESENTATION, (raw, module) => stateLandingAnswer(module, raw), StateLandingContent],
+};
+const LIVE_ROWS = [{ title: 'Item', date: '2026-01-01', year: 2024, value: 1, weighted_price_usd: 3, jurisdiction: 'X', home: 'H', away: 'W', league: 'L', source_url: 'https://example.org/a' }];
+// The kinds of answer the landing summaries tell apart (src/lib/*LandingSummary.js).
+const ANSWERS = ['embedded', 'api', 'news-search', 'live'].map((adapter) => ({ adapter }));
+const lines = (html) => html.replace(/<[^>]+>/g, '\n').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').split('\n').map((t) => t.trim()).filter(Boolean);
+
+describe.each(Object.entries(DESKS))('%s landing (F165)', (desk, [presentation, project, Content]) => {
+  const modules = presentation.groups.flatMap((group) => group.modules);
+  const summariesFor = ({ adapter }) => Object.fromEntries(modules.map((module) => {
+    const raw = { ok: true, tier: module.tier, feature: module.feature, rows: LIVE_ROWS, source: { adapter, links: ['https://example.org/'], note: 'Source note.' } };
+    try { return [module.feature, project(raw, module)]; } catch { return [module.feature, undefined]; }
+  }));
+
+  it('hero, sector cards and explorer text', () => {
+    const texts = [presentation.description, ...presentation.groups.flatMap((group) => [group.name, group.description, group.cardDescription])].filter(Boolean);
+    expect(texts.filter((t) => FORBIDDEN.test(t))).toEqual([]);
+    for (const answer of ANSWERS) {
+      const page = lines(renderToStaticMarkup(<Content summaries={summariesFor(answer)} onFeature={() => {}} />));
+      expect(page.filter((t) => FORBIDDEN.test(t)), answer.adapter).toEqual([]);
+    }
+  });
+
+  it.each(ANSWERS.map((answer) => [answer.adapter, answer]))('every module detail card, answered by %s', (_, answer) => {
+    const summaries = summariesFor(answer);
+    const found = modules.flatMap((module) => lines(renderToStaticMarkup(<ModuleDetail module={module} summary={summaries[module.feature]} tab={module.tier} onOpen={() => {}} />))
+      .filter((t) => FORBIDDEN.test(t)).map((t) => `${module.feature}: ${t}`));
+    expect(found).toEqual([]);
   });
 });

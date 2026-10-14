@@ -17,6 +17,7 @@ import { applyRecordChecklistToFeed } from '../lib/recordChecklist.js';
 import { prepareHomeMarketQuotes } from '../lib/homeMarkets.js';
 import { loadHomeTickerItems } from '../lib/homeTicker.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
+import { plainNote, technicalTitle } from '../lib/plainSourceNote.js';
 import { loadWatchlist, subscribeWatchlist } from '../lib/watchlistStore.js';
 
 async function getJson(path, signal) {
@@ -82,11 +83,16 @@ function Spark({ values, up }) {
   );
 }
 
-function SnapshotBadge({ ageH, archive, waiting, source }) {
+/** F165: the note shown when no nter.news headlines are on screen, in plain words. */
+export function latestNewsNote(note, fallback) {
+  return plainNote(note, 'No nter.news headlines yet.') || fallback;
+}
+
+export function SnapshotBadge({ ageH, archive, waiting, source }) {
   if (waiting) {
     return (
-      <span className="nh-agent" title="nter.news has not pushed any articles to this host yet">
-        waiting for ingest
+      <span className="nh-agent" title="nter.news has not sent any stories yet">
+        waiting for stories
       </span>
     );
   }
@@ -95,14 +101,14 @@ function SnapshotBadge({ ageH, archive, waiting, source }) {
   }
   if (ageH == null || !Number.isFinite(Number(ageH))) {
     return (
-      <span className="nh-agent" title={source === 'nter.news' ? 'Live ingest path · no as-of stamp yet' : 'Delayed / snapshot quotes'}>
-        {source === 'nter.news' ? 'live path' : 'snapshot'}
+      <span className="nh-agent" title={source === 'nter.news' ? 'Live · no time stamp yet' : 'Delayed / snapshot quotes'}>
+        {source === 'nter.news' ? 'live' : 'snapshot'}
       </span>
     );
   }
   const label = ageH < 1 ? '<1h' : `${Math.round(ageH)}h`;
   return (
-    <span className="nh-agent" title={source === 'nter.news' ? 'Age of last nter.news ingest' : 'Quote age from last successful pull'}>
+    <span className="nh-agent" title={source === 'nter.news' ? 'Time since the latest nter.news story' : 'Quote age from last successful pull'}>
       {source === 'nter.news' ? `live · ${label} ago` : `snapshot · ${label} ago`}
     </span>
   );
@@ -154,6 +160,10 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
     related_count: r.related_count,
   }));
   const newsLead = latestShown[0] || null;
+  // F165: the latest-news note can describe the ingest route ("POST /api/news/ingest"); a reader sees
+  // plain words, and the original stays as the line's title.
+  const newsEmptyNote = latestNewsNote(meta.latest?.note, 'nter.news headlines aren\u2019t available right now. No headlines were invented.');
+  const railEmptyNote = latestNewsNote(meta.latest?.note, 'Waiting for nter.news stories.');
   const newsRest = latestShown.slice(1, 13);
   const pulseShown = dedupeNewsRows(
     (pulse || []).map((r) => ({
@@ -430,8 +440,8 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
 
             {loading && !latest.length && <p className="muted nh-news-empty">Loading…</p>}
             {!loading && !latestShown.length && (
-              <p className="muted nh-news-empty">
-                {meta.latest?.note || 'nter.news feed not configured on this build. No headlines were invented.'}
+              <p className="muted nh-news-empty" title={technicalTitle(meta.latest?.note, newsEmptyNote)}>
+                {newsEmptyNote}
               </p>
             )}
 
@@ -532,8 +542,8 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                 </li>
               ))}
               {!latestShown.length && (
-                <li className="muted" style={{ padding: '0.5rem 0', fontSize: '0.8rem' }}>
-                  {meta.latest?.note || 'Waiting for live nter.news ingest...'}
+                <li className="muted" style={{ padding: '0.5rem 0', fontSize: '0.8rem' }} title={technicalTitle(meta.latest?.note, railEmptyNote)}>
+                  {railEmptyNote}
                 </li>
               )}
             </ul>
@@ -600,7 +610,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                 </>
               )}
               {!meta.markets?.as_of && !meta.markets?.updated && !quotes.find((q) => q.asOf || q.as_of) && (
-                <span>As-of stamp missing on this pull — treat as archive.</span>
+                <span>No time stamp on these quotes, so treat them as a stored snapshot.</span>
               )}
             </p>
             <table className="nh-moves">
@@ -624,7 +634,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           <section className="nh-box">
             <div className="bh">
               CONFLICT PULSE{' '}
-              <small>{meta.pulse?.gdelt ? 'GDELT · LIVE' : meta.pulse?.rows?.length ? 'OPEN FRONTS' : ''}</small>
+              <small>{meta.pulse?.gdelt ? 'NEWS SEARCH · LIVE' : meta.pulse?.rows?.length ? 'OPEN FRONTS' : ''}</small>
               <SnapshotBadge ageH={meta.pulse?.ageH} archive={Boolean(meta.pulse?.archive)} />
             </div>
             <ul className="nh-pulse">

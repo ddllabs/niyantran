@@ -144,13 +144,13 @@ export default function nationalPipeline(row, ctx = {}) {
     footer: {
       ask: `Ask AI about this ${noun}`,
       provenance: {
-        source: press ? 'PIB RSS feed (pib.gov.in)' : 'Policy pipeline register (items reported in the press)',
+        source: press ? 'PIB press release feed (pib.gov.in)' : 'Policy pipeline register (items reported in the press)',
         asOf: date || undefined,
         flags: date ? [] : ['as-of not on record'],
       },
       note: press
         ? 'A PIB press release is not a stage in the draft-to-gazette pipeline: the feed carries no stages. This feed is shared with Cabinet Decisions. Sectors are matched from the title.'
-        : 'Stages are as reported in the press and are not confirmed against the Gazette of India. This register is the last-known-good set shown while the PIB feed is unavailable; the live PIB feed carries press releases, not pipeline stages, and is shared with Cabinet Decisions. Sectors are matched from the title, tags and the ministry on record.',
+        : 'Stages are as reported in the press and are not confirmed against the Gazette of India. This register is the latest stored set shown while the PIB feed is unavailable; the live PIB feed carries press releases, not pipeline stages, and is shared with Cabinet Decisions. Sectors are matched from the title, tags and the ministry on record.',
     },
   };
 }

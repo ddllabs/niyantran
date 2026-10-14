@@ -87,7 +87,7 @@ export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, o
           [stats.losers ?? 0, 'Losers', 'bad'],
           [groups.length || 4, 'Complexes'],
           [stats.riskPremium || '—', 'Risk premium', 'warn'],
-          ['Illustrative', 'Pack levels', 'warn'],
+          ['Illustrative', 'Benchmark levels', 'warn'],
         ]}
         tab={tab}
         onTab={(t) => {
@@ -124,7 +124,7 @@ export default function CommoditiesDesk({ feed, selected, onSelect, vizFilter, o
               {groups.slice(2).map((g) => (
                 <GroupPanel key={g.g} title={g.g} items={g.items || []} rowFor={rowFor} selected={selected} onSelect={onSelect} />
               ))}
-              <GeoSources links={SOURCES} asOf={asOfLabel} note={`Levels are illustrative values in the terminal's pack, as of ${asOfLabel}; no live price feed is connected.`} />
+              <GeoSources links={SOURCES} asOf={asOfLabel} note={`Levels are illustrative benchmark values, as of ${asOfLabel}; no live price feed is connected.`} />
             </div>
           </div>
       </GeoDossierChrome>

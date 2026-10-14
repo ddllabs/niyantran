@@ -668,7 +668,7 @@ rechecked. Nothing in this check wrote to production.
   this archive — Has answer stays Not reported until Sansad answer fields are wired."
   (`src/lib/shapeQuestions.js:55-56`, there since 2026-09-09). Owner asked whether it was new: it
   is not. Recommended: "Answers are not yet in this dataset" or hide it until answers are loaded.
-- [ ] **F165. Technical words left on other screens.** Found while building F164 (2026-10-14), not
+- [x] **F165. Technical words left on other screens.** Done 2026-10-14 (owner: "do F165 and push"): every desk's landing cards, the module header ("complete list · stored copy" instead of "exhaustive · sync backup"), Home, the record panels, the critical-minerals note and the side-panel overview tiles (`src/lib/analytics.js`) now use plain words; data and status matching unchanged. Browser check on the local copy: Global, Economics, Carbon, Sports, Home and a module page show no developer terms. Was: Found while building F164 (2026-10-14), not
   in its scope: other desks' landing card text (Global "Reporting search / RSS", Economics "PIB RSS
   reporting" and "existing adapter", National "not a live ECI API", Carbon "The API response
   blends…", the Sports sector card "not yet available in the existing adapter"); the module header's
@@ -676,6 +676,28 @@ rechecked. Nothing in this check wrote to production.
   pack supplies them"); `HomeDesk.jsx` "nter.news feed not configured on this build" and the
   latest-news note; the record panel's `reporting_search` field ("GDELT DOC 2.0 — …").
   Recommended: the same display-only treatment with `plainSourceNote.js`. Size S–M.
+  - 2026-10-14 (task/plain-words-rest, awaiting review): status matching is unchanged (`dataState.js`
+    and `refreshFeeds.js` read the same notes). Landing cards in plain words on every desk ("News
+    stories found by a news search and outlet feeds…", "Press Information Bureau releases…", "not
+    live Election Commission data", "This source mixes live Verra publications with stored
+    entries…", "the governance register is not available yet"; "workspace overlays" and "fallback"
+    gone). The module header reads "500 rows · 4,104 in the full list · stored copy" or
+    "2 rows · complete list · to the present" (`completenessLabel`, `freshnessLabel`; a capped stored
+    copy is no longer called complete). The Critical Minerals note says "when the source does not
+    give them". Home shows "No nter.news headlines yet" / "nter.news headlines aren't available right
+    now" (the server's note kept as the title) and "waiting for stories", "NEWS SEARCH · LIVE". The
+    National record panel says "Found by a news search, not an official dataset." instead of the
+    `reporting_search` tile (`plainReportingNote`). Sweep: the record panels name sources plainly
+    ("News search", "BBC World feed", "PIB release feed", "Website", "stored on the platform",
+    "benchmark set", "latest stored copy", "not a full history"), the side-panel warning, Transit,
+    Industry, Commodities, Global Aid, Policy Graph, the bill and manifesto panels and the loader.
+    Left: the side panel's overview tiles from `src/lib/analytics.js` ("GDELT" source tile, "outlet
+    RSS", "extracted pack"), outside this sweep; module names ("Order Archive by Topic",
+    "Candidate Affidavit Database (Structured + API)" as an id); Live TV "archive"; admin and legal
+    pages. Tests: `landingPlainNotes.test.jsx` (every desk), `deskViewPlainNotes.test.jsx`,
+    `homePlainNotes.test.jsx`, `recordPlainNotes.test.jsx`, `railPlainNotes.test.jsx`,
+    `plainSourceNote.test.js`, each shown to fail without its code; adapter tests that pinned the
+    old wording updated.
 - [x] **F164. Live source notes are technical.** Done 2026-10-14 (owner: "do F164 and push and merge"): `src/lib/plainSourceNote.js` turns technical notes into a plain source line on screen ("Live · 24 stories from BBC World"); the data and status matching are unchanged; the original note is kept as a `title`. Checked in a browser on the local copy (Geopolitics News Wire, Morning Brief). Was: Seen 2026-10-14: Geopolitics News Wire shows
   "GDELT paced ≥5s; primary DOC 2.0 search retries on the next refresh … rate limited"; Morning
   Brief and Statements show "GDELT wire unreachable…" and "PIB releases arrive through the backend

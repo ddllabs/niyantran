@@ -145,13 +145,13 @@ const BADGE = {
   [GOOGLE]: { text: 'News search', tone: 'grey' },
 };
 const DATE_SUB = {
-  [PIB]: 'India date; PIB RSS publication date',
-  [GDELT]: 'India date; first seen by GDELT',
+  [PIB]: 'India date; PIB publication date',
+  [GDELT]: 'India date; first seen by the news search',
   [GOOGLE]: 'India date; feed publication date',
 };
 const DATE_NOTE = {
-  [PIB]: ' The date is the publication date in the PIB RSS feed.',
-  [GDELT]: ' The date is when GDELT first saw the article.',
+  [PIB]: ' The date is the publication date in the PIB release feed.',
+  [GDELT]: ' The date is when the news search first saw the article.',
   [GOOGLE]: " The date is the feed's publication date.",
 };
 
@@ -159,17 +159,17 @@ function sourceSub(kind, publisher) {
   if (kind === PIB) return 'Press Information Bureau release feed';
   if (kind === GOOGLE) return 'Google News search result; the outlet is not named in the item';
   if (kind === GDELT) {
-    if (publisher.fromLink) return 'taken from the article link; GDELT gave no domain';
-    return publisher.named ? 'publisher domain, per GDELT' : 'GDELT reporting search; the publisher is not named';
+    if (publisher.fromLink) return 'taken from the article link; the news search named no publisher';
+    return publisher.named ? 'publisher domain, per the news search' : 'news search result; the publisher is not named';
   }
   return undefined;
 }
 
 function provenanceSource(kind, section) {
   const wire = WIRE[section];
-  if (kind === PIB) return 'Press Information Bureau RSS (Government Wire)';
-  if (kind === GDELT) return `GDELT DOC 2.0 reporting search${wire ? `, ${wire}` : ''} (not an official dataset)`;
-  if (kind === GOOGLE) return `Google News RSS search${wire ? `, ${wire}` : ''} (not an official dataset)`;
+  if (kind === PIB) return 'Press Information Bureau release feed (Government Wire)';
+  if (kind === GDELT) return `News search${wire ? `, ${wire}` : ''} (not an official dataset)`;
+  if (kind === GOOGLE) return `Google News search${wire ? `, ${wire}` : ''} (not an official dataset)`;
   return 'National Morning Brief wire';
 }
 
@@ -284,7 +284,7 @@ export default function nationalMorningBrief(selection, ctx = {}) {
     },
     about: {
       label: '02 · What the item says',
-      rows: presentRows([['Section', section], ['Source', publisher.name], ['Published', published], ['Link host', host]]),
+      rows: presentRows([['Section', section], ['Source', publisher.name], ['Published', published], ['Website', host]]),
       cards: summary ? [{ heading: 'Summary as published', body: summary }] : [],
     },
     touches: {

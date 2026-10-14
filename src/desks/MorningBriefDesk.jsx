@@ -200,7 +200,8 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
         {!pack.err && !rows.length ? <p className="banner">No items in this section right now.</p> : null}
         <ul>
           {rows.slice(0, 12).map((r, i) => {
-            const source = r.outlet || r.source || (r.source_url ? 'Link' : '—');
+            // F165: "GDELT" names the search, not an outlet; the reader sees "News search".
+            const source = String(r.outlet || r.source || '').replace(/^GDELT$/i, 'News search') || (r.source_url ? 'Link' : '—');
             const published = r.published || r.date || '—';
             return (
               <li key={r.source_url || i}>

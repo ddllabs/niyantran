@@ -56,21 +56,21 @@ export default function commodities(row, ctx = {}) {
     links: sourceLinks(row, 'Background: World Bank commodity markets'),
     glance: {
       tiles: [
-        { label: 'Level (illustrative)', value: level || 'Not on record', sub: 'pack value' },
+        { label: 'Level (illustrative)', value: level || 'Not on record', sub: 'benchmark value' },
         ...(change ? [{ label: 'Change', value: change, tone }] : []),
         { label: 'Group', value: group || 'Not on record' },
-        { label: 'As of', value: asOf || 'Not on record', sub: 'pack month' },
+        { label: 'As of', value: asOf || 'Not on record', sub: 'benchmark month' },
       ],
       visual: mates.length ? {
         type: 'board',
         title: 'Benchmark board',
         right: asOf || undefined,
         rows: [boardRow(row, true), ...mates.map((r) => boardRow(r, false))],
-        caption: `Illustrative pack levels${asOf ? ` as of ${asOf}` : ''}, not market quotes. Levels and units are shown as the pack states them.`,
+        caption: `Illustrative benchmark levels${asOf ? ` as of ${asOf}` : ''}, not market quotes. Levels and units are shown as the benchmark set states them.`,
       } : undefined,
       callout: {
         tone: 'amber',
-        text: `Illustrative levels from the platform's benchmark pack${asOf ? ` as of ${asOf}` : ''}. They are not market quotes, and no market data feed is connected.`,
+        text: `Illustrative levels from the platform's benchmark set${asOf ? ` as of ${asOf}` : ''}. They are not market quotes, and no market data feed is connected.`,
       },
     },
     about: {
@@ -86,16 +86,16 @@ export default function commodities(row, ctx = {}) {
         right: change ? { l1: change } : undefined,
         far: sameGroup ? { l1: plural(sameGroup, 'other benchmark'), l2: `in ${group}` } : undefined,
       },
-      links: sameGroup ? [{ title: `Other ${group} benchmarks`, detail: `${sameGroup} more in the benchmark pack` }] : [],
+      links: sameGroup ? [{ title: `Other ${group} benchmarks`, detail: `${sameGroup} more in the benchmark set` }] : [],
     },
     footer: {
       ask: 'Ask AI about this benchmark',
       provenance: {
-        source: 'Niyantran commodity benchmark pack (illustrative levels)',
+        source: 'Niyantran commodity benchmark set (illustrative levels)',
         asOf,
         flags: ['illustrative levels', ...(asOf ? [] : ['as-of not on record'])],
       },
-      note: 'Illustrative pack levels for orientation, not market quotes. Units are shown as the pack writes them.',
+      note: 'Illustrative benchmark levels for orientation, not market quotes. Units are shown as the benchmark set writes them.',
     },
   };
 }

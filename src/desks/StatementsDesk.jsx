@@ -200,7 +200,7 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
         />
       </div>
       <p className="desk-note">
-        Media mention volume for named public figures — not a statement archive and not a contradiction detector. No TRUE / FALSE /
+        Media mention volume for named public figures — not a record of statements and not a contradiction detector. No TRUE / FALSE /
         MISLEADING badges. {STATEMENT_LEADERS.length} personas tracked.
       </p>
       <div className="nls-chips">

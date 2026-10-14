@@ -20,7 +20,7 @@ const LIMITS = [
   'A graph of the bill register; not an additional record collection.',
   'Sampled questions; substantive answer text is not available for all records.',
   'Source coverage varies; not all advertised regulators are connected.',
-  'Stored MyNeta/ADR-linked records; not a live ECI API.',
+  'Stored records linked to MyNeta/ADR; not live Election Commission data.',
   'Stored member profiles; attendance is not populated.',
   'Only unexpired tenders are counted; live procurement coverage is limited.',
   'Stored posting orders; continuous refresh is not connected.',

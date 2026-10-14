@@ -103,7 +103,7 @@ export default function headsOfState(row, ctx = {}) {
     },
     footer: {
       ask: 'Ask AI about this leader',
-      provenance: { source: 'World leaders register (embedded pack)', asOf, flags: unverified ? ['name not verified'] : [] },
+      provenance: { source: 'World leaders register (stored on the platform)', asOf, flags: unverified ? ['name not verified'] : [] },
       note: `This is the platform's register of office-holders as of ${asOf}. Office-holders change, and this is a register, not a live feed.`,
     },
   };

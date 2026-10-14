@@ -73,16 +73,17 @@ function windowOf(feed) {
   return days > 0 ? `Last ${plural(days, 'day')}` : '';
 }
 
-const FEED_NAME = { [GDELT]: 'GDELT DOC 2.0', [RSS]: 'BBC World RSS' };
-const SOURCE = { [GDELT]: 'GDELT DOC 2.0 reporting search (not an official dataset)', [RSS]: 'BBC World RSS' };
+// F165: the reader sees what the feed is, not its protocol or product name.
+const FEED_NAME = { [GDELT]: 'News search', [RSS]: 'BBC World feed' };
+const SOURCE = { [GDELT]: 'News search (not an official dataset)', [RSS]: 'BBC World feed' };
 const NOTE = {
-  [GDELT]: 'A news report fetched live from a reporting search, not a verified record. The headline is what an outlet reported, not established fact. The date is when GDELT first saw the article. Nothing here says where the story took place.',
-  [RSS]: "A news report fetched live from the BBC World RSS feed, not a verified record. The headline and summary are what the outlet reported, not established fact. The date is the feed's publication date. Nothing here says where the story took place.",
+  [GDELT]: 'A news report fetched live from a reporting search, not a verified record. The headline is what an outlet reported, not established fact. The date is when the news search first saw the article. Nothing here says where the story took place.',
+  [RSS]: "A news report fetched live from the BBC World news feed, not a verified record. The headline and summary are what the outlet reported, not established fact. The date is the feed's publication date. Nothing here says where the story took place.",
   none: 'A news report fetched live, not a verified record. The headline is what an outlet reported, not established fact. Nothing here says where the story took place.',
 };
 const CAPTION = {
-  [GDELT]: 'GDELT DOC 2.0 reporting search results, not an official dataset. Counts describe this list only, not all coverage of any story.',
-  [RSS]: 'BBC World RSS items, not an official dataset. Counts describe this list only, not all coverage of any story.',
+  [GDELT]: 'News search results, not an official dataset. Counts describe this list only, not all coverage of any story.',
+  [RSS]: 'BBC World feed items, not an official dataset. Counts describe this list only, not all coverage of any story.',
   none: 'News wire items, not an official dataset. Counts describe this list only.',
 };
 
@@ -112,14 +113,14 @@ export default function newsWire(row, ctx = {}) {
   return {
     title,
     meta: ['News wire', publisher].filter(Boolean),
-    badge: kind === GDELT ? { text: 'Reporting search', tone: 'grey' } : kind === RSS ? { text: 'RSS', tone: 'grey' } : undefined,
+    badge: kind === GDELT ? { text: 'Reporting search', tone: 'grey' } : kind === RSS ? { text: 'News feed', tone: 'grey' } : undefined,
     links: host ? sourceLinks(row, 'Read the article') : [],
     glance: {
       tiles: [
-        { label: 'Published', value: published || NOT_ON_RECORD, sub: kind === GDELT ? 'India date; first seen by GDELT' : kind === RSS ? 'India date; feed publication date' : 'India date' },
+        { label: 'Published', value: published || NOT_ON_RECORD, sub: kind === GDELT ? 'India date; first seen by the news search' : kind === RSS ? 'India date; feed publication date' : 'India date' },
         { label: 'Publisher', value: publisher || NOT_ON_RECORD, sub: kind === GDELT ? 'publisher domain' : kind === RSS ? 'outlet' : undefined },
-        { label: 'Feed', value: FEED_NAME[kind] || NOT_ON_RECORD, sub: kind === GDELT ? 'reporting search, not an official dataset' : kind === RSS ? 'live RSS feed' : undefined },
-        ...(language ? [{ label: 'Language', value: language, sub: 'as tagged by GDELT' }] : []),
+        { label: 'Feed', value: FEED_NAME[kind] || NOT_ON_RECORD, sub: kind === GDELT ? 'reporting search, not an official dataset' : kind === RSS ? 'live news feed' : undefined },
+        ...(language ? [{ label: 'Language', value: language, sub: 'as tagged by the news search' }] : []),
       ],
       visual: {
         type: 'board',
@@ -130,7 +131,7 @@ export default function newsWire(row, ctx = {}) {
     },
     about: {
       label: '02 · What the item says',
-      rows: presentRows([['Publisher', publisher], ['Published', published], ['Link host', host]]),
+      rows: presentRows([['Publisher', publisher], ['Published', published], ['Website', host]]),
       cards: summary ? [{ heading: `Summary as published by ${plainText(row.outlet) || 'the feed'}`, body: summary }] : [],
     },
     touches: {

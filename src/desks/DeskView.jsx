@@ -14,7 +14,7 @@ import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
 import { prepareDeskFeed } from '../lib/prepareDeskFeed.js';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
-import { plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
+import { completenessLabel, freshnessLabel, plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isAlliancesFeature } from '../lib/alliances.js';
@@ -649,9 +649,12 @@ export default function DeskView({
       const through = formatDate(feed?.coverage?.through) || feed?.coverage?.through || '';
       return `${n} conflict${n === 1 ? '' : 's'}${through ? ` · through ${through}` : ''}`;
     }
-    return `${n}${total && n !== total ? ` / ${total}` : ''} rows${feed?.coverage?.exhaustive ? ' · exhaustive' : ''}${
+    // F165: "complete list" and "updated …" / "stored copy" in place of "exhaustive" and "sync …".
+    const complete = completenessLabel(feed, total || n);
+    const fresh = dataState.lastSync ? freshnessLabel(feed) : '';
+    return `${n}${total && n !== total ? ` / ${total}` : ''} rows${complete ? ` · ${complete}` : ''}${
       usePaging ? ` · page ${safePage + 1}/${pageCount}` : ''
-    }${dataState.lastSync ? ` · sync ${dataState.lastSync}` : ''}`;
+    }${fresh ? ` · ${fresh}` : ''}`;
   })();
 
   return (

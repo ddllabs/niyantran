@@ -14,6 +14,7 @@ vi.mock('../lib/featureFeed.js', () => ({ fetchFeaturePage: vi.fn(), fetchFeatur
 vi.mock('../lib/apiMode.js', () => ({ featureFeedApiEnabled: () => true, liveApiEnabled: () => true }));
 import DeskView from './DeskView.jsx';
 import DeskStateShell from '../shell/DeskStateShell.jsx';
+import { applyGlobalBoardShapingToFeed } from '../lib/shapeGlobalBoards.js';
 
 const DEVELOPER =
   /GDELT DOC|DOC 2\.0|TimelineVol|rate.?limit|≥|paced|\barchives?\b|\bhost\b|backend|adapter|\/api\/|\bRSS\b|https?:|unavailable:|HTTP \d|SPARQL|proxy|last-known-good|shipped backup|feature map|\bPACK\b|BACKUP/i;
@@ -92,5 +93,43 @@ describe('a module page shows source notes in plain words (F164)', () => {
     const links = nodes(shellTree).filter((n) => n.type === 'a');
     expect(links.map((a) => [a.props.children, a.props.href])).toEqual([['GDELT news search', GDELT], ['BBC World', BBC]]);
     expect(shellTree.props.title).toMatch(/Host: api\.gdeltproject\.org/);
+  });
+});
+
+// F165: the header beside the row count read "500 rows · exhaustive · sync backup" or "· sync present",
+// and the Critical Minerals board said values are Not reported "unless the pack supplies them".
+const HEADER_DEVELOPER = /exhaustive|\bsync\b|backup|archive|\bpack\b|\bpresent\b(?<!the present)|GDELT|adapter|\bhost\b|\bAPI\b|\bRSS\b|fallback|endpoint|\/api\//i;
+const headerOf = (all) => all.find((t) => / rows\b/.test(t));
+
+describe('the module header and board notes in plain words (F165)', () => {
+  it('a stored copy of an exhaustive register capped for display: how many the full list holds, and that it is a stored copy', () => {
+    // The production backup answer (server/featureFeed.mjs withBackup, server/backupFeed.mjs).
+    const rows = Array.from({ length: 500 }, (_, i) => ({ title: `Row ${i}`, backup_part: 'FULL' }));
+    const { all } = page({ ok: true, tier: 'global', feature: 'Test feed', rows, fallback: true, served: 'archive',
+      coverage: { from: '', through: 'backup', exhaustive: true },
+      source: { adapter: 'embedded', kind: 'backup-pack', links: ['/backup/global/x.xlsx'], note: 'Exhaustive shipped backup · 500 rows (pack has 4,104; capped for display). Live and archive returned no rows.' },
+      meta: { backup: true, exhaustive: true, declaredRecords: 4104, status: 'BACKUP · EXHAUSTIVE PACK' } });
+    expect(headerOf(all)).toBe('500 rows · 4,104 in the full list · page 1/5 · stored copy');
+    expect(headerOf(all)).not.toMatch(HEADER_DEVELOPER);
+  });
+
+  it('a complete register that runs to the present', () => {
+    const { all } = page({ ok: true, tier: 'global', feature: 'Test feed', rows: [{ title: 'A' }, { title: 'B' }], fallback: false,
+      coverage: { from: '1952-01-01', through: 'present', exhaustive: true }, source: { adapter: 'bill-history', links: [], note: 'Register.' } });
+    expect(headerOf(all)).toBe('2 rows · complete list · to the present');
+  });
+
+  it('a news window and an update time', () => {
+    expect(headerOf(page({ ...geoNewsOnBbc, coverage: { from: '', through: '7d', exhaustive: false } }).all)).toBe('24 rows · last 7 days');
+    expect(headerOf(page({ ...geoNewsOnBbc, updated: '2026-10-14T05:30:00Z', coverage: { through: '3d' } }).all)).toBe('24 rows · updated 14 Oct 2026');
+  });
+
+  it('Critical Minerals: the board note does not mention a pack', () => {
+    const feed = applyGlobalBoardShapingToFeed({ ok: true, tier: 'global', feature: 'Critical Minerals', rows: [{ name: 'Lithium', topProducers: 'Australia, Chile' }],
+      source: { adapter: 'embedded', links: [], note: 'Curated.' } });
+    const { all } = page(feed);
+    const note = all.find((t) => /Not reported/.test(t));
+    expect(note).toMatch(/when the source does not give them; nothing is invented/);
+    expect(note).not.toMatch(/\bpacks?\b|archive|adapter/i);
   });
 });

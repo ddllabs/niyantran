@@ -4,6 +4,7 @@ import { applyVizFilter } from '../lib/nationalKpi.js';
 import { VizFilterChip } from '../shell/AnalyticsViz.jsx';
 import TableFilterPop from '../shell/TableFilterPop.jsx';
 import { rowDragProps } from '../lib/aiDrop.js';
+import { plainNote } from '../lib/plainSourceNote.js';
 
 export default function IndustryDesk({ feed, statusRow, selected, onSelect, vizFilter, onClearViz }) {
   const rows = (feed?.rows || []).filter((r) => r.status !== 'source_status').filter((r) => applyVizFilter(r, vizFilter));
@@ -18,18 +19,18 @@ export default function IndustryDesk({ feed, statusRow, selected, onSelect, vizF
       </div>
       <div className="desk-strip">
         <span>INDUSTRY MONITOR · WORLD BANK WDI</span>
-        <span>V1 SERIES ONLY · NO MOODY’S</span>
+        <span>SELECTED SERIES ONLY · NO MOODY’S</span>
       </div>
       {statusRow ? (
         <div className="source-status-card">
           <p className="source-status-kicker">Source status</p>
           <h2>{statusRow.title || 'World Bank unreachable'}</h2>
-          <p>{statusRow.detail || statusRow.fail_reason || 'World Bank open-data API unreachable from this network — it will retry automatically.'}</p>
+          <p>{plainNote(statusRow.detail || statusRow.fail_reason, 'World Bank data isn\u2019t available right now. It will retry automatically.') || 'World Bank data isn\u2019t available right now. It will retry automatically.'}</p>
         </div>
       ) : null}
       <p className="desk-note">
-        v1 list is fixed because each indicator is a separate ingester with its own licence. Fiscal deficit, forex, IIP and WPI are named
-        not-wired. Implications of a move are not asserted.
+        The list is fixed because each indicator comes from its own source with its own licence. Fiscal deficit, forex, IIP and WPI are
+        not included yet. Implications of a move are not asserted.
       </p>
       <div className="table-wrap">
         <table className="feed-table">

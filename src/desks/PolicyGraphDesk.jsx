@@ -337,7 +337,7 @@ function PigPanel({ node, model, onGo }) {
             <div className="v">{String(node.raw.date_introduced || '').slice(0, 10) || '—'}</div>
           </div>
         </div>
-        <p className="desk-note">Stored column, not a live model. AI briefing needs /api/askai — degrades without a backend.</p>
+        <p className="desk-note">Stored column, not a live model. The AI briefing is available when the AI service is reachable.</p>
       </div>
     );
   }

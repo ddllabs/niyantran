@@ -189,7 +189,7 @@ function announcement(row, ctx) {
     footer: {
       ask: 'Ask AI about this matter',
       // The pack holds no snapshot date; the announcement date is the record's own, shown above.
-      provenance: { source: 'IBBI public announcements (stored pack)', flags: ['as-of not on record'] },
+      provenance: { source: 'IBBI public announcements (stored copy)', flags: ['as-of not on record'] },
       health: health(ctx.rows || []),
       note: NOTE,
     },
@@ -223,7 +223,7 @@ function order(row, ctx) {
         need('CIN', false),
         need('NCLAT appeal', false),
       ]),
-      callout: { tone: 'amber', text: 'These are NCLT orders as IBBI republishes them. NCLAT appeals are not in this pack.' },
+      callout: { tone: 'amber', text: 'These are NCLT orders as IBBI republishes them. NCLAT appeals are not in this register.' },
     },
     about: {
       label: '02 · The pointers',
@@ -252,7 +252,7 @@ function order(row, ctx) {
     },
     footer: {
       ask: 'Ask AI about this order',
-      provenance: { source: 'NCLT orders as republished on ibbi.gov.in (stored pack)', flags: ['as-of not on record'] },
+      provenance: { source: 'NCLT orders as republished on ibbi.gov.in (stored copy)', flags: ['as-of not on record'] },
       health: health(ctx.rows || []),
       note: NOTE,
     },

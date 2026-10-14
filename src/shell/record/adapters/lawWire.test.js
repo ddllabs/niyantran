@@ -198,7 +198,7 @@ describe('Law wire modules (F128 L4)', () => {
       expect(m.touches.lanes).toEqual(['PUBLISHER', 'ITEM', c.lane3, 'ENTITIES']);
       expect(m.footer.provenance.source).toBe(`Google News search results (live); not a record from ${c.pub}`);
       const g = build(gdelt(), c.feature);
-      expect(g.footer.provenance.source).toBe(`GDELT DOC 2.0 reporting search (live); not a record from ${c.pub}`);
+      expect(g.footer.provenance.source).toBe(`News search results (live); not a record from ${c.pub}`);
     });
   });
 
@@ -262,7 +262,7 @@ describe('Law wire modules (F128 L4)', () => {
         ['Headline', 'High Court stays eviction drive near the river - The Hindu'],
         ['Publisher', 'The Hindu'],
         ['Published', '12 Oct 2026'],
-        ['Section', 'COVERAGE — GOOGLE NEWS RSS'],
+        ['Section', 'COVERAGE — GOOGLE NEWS'],
       ]);
       const shown = JSON.stringify(m);
       expect(shown).not.toContain('DERIVED-ENTITY-MARK');
@@ -308,7 +308,7 @@ describe('Law wire modules (F128 L4)', () => {
 
     it('states how the date was known', () => {
       expect(published(google()).sub).toBe('India date; feed publication date');
-      expect(published(gdelt()).sub).toBe('India date; first seen by GDELT');
+      expect(published(gdelt()).sub).toBe('India date; first seen by the news search');
     });
 
     it('uses the date as the footer as-of and in the meta', () => {
@@ -436,7 +436,9 @@ describe('Law wire modules (F128 L4)', () => {
     });
 
     it('tells a GDELT row from a Google News row by its section and fields when the envelope is silent', () => {
-      expect(lawWire(gdelt(), { rows: [], feed: { feature: CASES[0].feature } }).footer.provenance.source).toMatch(/^GDELT DOC 2\.0 reporting search/);
+      // F165: both are named plainly now; a GDELT row is still told apart by what its date means.
+      expect(lawWire(gdelt(), { rows: [], feed: { feature: CASES[0].feature } }).glance.tiles[0].sub).toBe('India date; first seen by the news search');
+      expect(lawWire(gdelt(), { rows: [], feed: { feature: CASES[0].feature } }).footer.provenance.source).toMatch(/^News search results/);
       expect(lawWire(google(), { rows: [], feed: { feature: CASES[0].feature } }).footer.provenance.source).toMatch(/^Google News search results/);
     });
   });

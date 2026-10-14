@@ -181,11 +181,11 @@ export default function alliances(row, ctx = {}) {
     footer: {
       ask: 'Ask AI about this alliance',
       provenance: {
-        source: text(p.sourceLabel) ? `${text(p.sourceLabel)}, as listed in the alliance and bloc register` : 'Alliance and bloc register (embedded pack)',
+        source: text(p.sourceLabel) ? `${text(p.sourceLabel)}, as listed in the alliance and bloc register` : 'Alliance and bloc register (stored on the platform)',
         asOf: asOf || undefined,
         flags: asOf ? [] : ['as-of not on record'],
       },
-      note: `This is the platform's embedded alliance and bloc register${asOf ? `, verified ${asOf}` : ''}, not a live feed. Rosters change${flags ? '; roster standing is categorical, from the register\'s member flags, and is not a score' : ''}.`,
+      note: `This is the platform's stored alliance and bloc register${asOf ? `, verified ${asOf}` : ''}, not a live feed. Rosters change${flags ? '; roster standing is categorical, from the register\'s member flags, and is not a score' : ''}.`,
     },
   };
 }

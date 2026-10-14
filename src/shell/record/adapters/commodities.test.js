@@ -123,7 +123,7 @@ describe('Global Commodities adapter', () => {
   it('does not credit the World Bank as the source of the levels', () => {
     const model = commodities(byName('Brent crude'), withMeta);
     expect(model.footer.provenance.source).not.toMatch(/world bank/i);
-    expect(model.footer.provenance.source).toMatch(/benchmark pack/i);
+    expect(model.footer.provenance.source).toMatch(/benchmark set/i);
     // The row's own https link stays available as a reference, labelled as one.
     expect(model.links).toEqual([{ label: 'Background: World Bank commodity markets', href: 'https://www.worldbank.org/en/research/commodity-markets' }]);
     expect(commodities({ ...byName('Brent crude'), source_url: 'http://example.org' }, withMeta).links).toEqual([]);
@@ -193,7 +193,7 @@ describe('Global Commodities adapter', () => {
   it('closes with Ask AI, a pack source and a note that the levels are illustrative', () => {
     const model = commodities(byName('Copper'), withMeta);
     expect(model.footer.ask).toBe('Ask AI about this benchmark');
-    expect(model.footer.provenance.source).toMatch(/benchmark pack/i);
+    expect(model.footer.provenance.source).toMatch(/benchmark set/i);
     expect(model.footer.note).toMatch(/illustrative/i);
     expect(model.about.label).toBe('02 · About this benchmark');
     expect(model.about.rows).toEqual([['Group', 'Base metals'], ['Level', '$9,850/t'], ['Change', '+1.9%']]);

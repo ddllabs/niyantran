@@ -260,8 +260,8 @@ describe('01 at a glance: tiles', () => {
 
   it('says what the section, the date and the source are', () => {
     expect(tile(brief(t1), 'Published').sub).toMatch(/India/);
-    expect(tile(brief(t1), 'Published').sub).toMatch(/first seen by GDELT/i);
-    expect(tile(brief(p1), 'Published').sub).toMatch(/RSS/);
+    expect(tile(brief(t1), 'Published').sub).toMatch(/first seen by the news search/i);
+    expect(tile(brief(p1), 'Published').sub).toMatch(/PIB publication date/);
     expect(tile(brief(t1), 'Source').sub).toMatch(/publisher domain/i);
     expect(tile(brief(p1), 'Source').sub).toMatch(/Press Information Bureau/);
     expect(tile(brief(g1), 'Source').sub).toMatch(/outlet is not named/i);
@@ -464,8 +464,8 @@ describe('02 what the item says', () => {
   it('lists the section, source, published date and link host, and omits what is absent', () => {
     const about = brief(t1).about;
     expect(about.label).toBe('02 · What the item says');
-    expect(about.rows).toEqual([['Section', TOP], ['Source', 'reuters.com'], ['Published', '12 Oct 2026'], ['Link host', 'www.reuters.com']]);
-    expect(brief(p1).about.rows).toEqual([['Section', GOV], ['Source', 'PIB'], ['Published', '12 Oct 2026'], ['Link host', 'www.pib.gov.in']]);
+    expect(about.rows).toEqual([['Section', TOP], ['Source', 'reuters.com'], ['Published', '12 Oct 2026'], ['Website', 'www.reuters.com']]);
+    expect(brief(p1).about.rows).toEqual([['Section', GOV], ['Source', 'PIB'], ['Published', '12 Oct 2026'], ['Website', 'www.pib.gov.in']]);
     expect(brief(p4).about.rows.map(([k]) => k)).toEqual(['Section', 'Source']);
     expect(nationalMorningBrief({}).about.rows).toEqual([]);
     expect(brief({ ...t1, source_url: 'https://' }).about.rows.map(([k]) => k)).toEqual(['Section', 'Source', 'Published']);
@@ -613,18 +613,18 @@ describe('footer and provenance', () => {
   });
 
   it('names the wire the item came from', () => {
-    expect(brief(t1).footer.provenance.source).toBe('GDELT DOC 2.0 reporting search, India government and parliament wire (not an official dataset)');
-    expect(brief(e1).footer.provenance.source).toBe('GDELT DOC 2.0 reporting search, India economy and markets wire (not an official dataset)');
-    expect(brief(p1).footer.provenance.source).toBe('Press Information Bureau RSS (Government Wire)');
-    expect(brief(g2, ctxOf(FALLBACK_FEED)).footer.provenance.source).toBe('Google News RSS search, India government and parliament wire (not an official dataset)');
-    expect(brief({ ...g1, section: ECO }).footer.provenance.source).toBe('Google News RSS search, India economy and markets wire (not an official dataset)');
+    expect(brief(t1).footer.provenance.source).toBe('News search, India government and parliament wire (not an official dataset)');
+    expect(brief(e1).footer.provenance.source).toBe('News search, India economy and markets wire (not an official dataset)');
+    expect(brief(p1).footer.provenance.source).toBe('Press Information Bureau release feed (Government Wire)');
+    expect(brief(g2, ctxOf(FALLBACK_FEED)).footer.provenance.source).toBe('Google News search, India government and parliament wire (not an official dataset)');
+    expect(brief({ ...g1, section: ECO }).footer.provenance.source).toBe('Google News search, India economy and markets wire (not an official dataset)');
     for (const row of [p1, p2, p3]) expect(brief(row).footer.provenance.source).not.toMatch(/gdelt|google/i);
     for (const row of [t1, e1]) expect(brief(row).footer.provenance.source).not.toMatch(/PIB|Press Information/);
   });
 
   it('does not claim a section it cannot tell, and does not guess a wire for an unknown item', () => {
     const feedRow = FEED.rows.find((r) => r.source_url === t1.source_url);
-    expect(brief(feedRow).footer.provenance.source).toBe('GDELT DOC 2.0 reporting search (not an official dataset)');
+    expect(brief(feedRow).footer.provenance.source).toBe('News search (not an official dataset)');
     expect(nationalMorningBrief({ title: 'Only a headline' }).footer.provenance.source).toBe('National Morning Brief wire');
     expect(nationalMorningBrief({ title: 'Only a headline' }).badge).toBeUndefined();
   });
@@ -647,7 +647,7 @@ describe('footer and provenance', () => {
 
   it('says what the date means for each wire', () => {
     expect(brief(t1).footer.note).toMatch(/first saw the article/i);
-    expect(brief(p1).footer.note).toMatch(/PIB RSS/);
+    expect(brief(p1).footer.note).toMatch(/PIB release feed/);
     expect(brief(g1).footer.note).toMatch(/feed/i);
     expect(brief(p1).footer.note).not.toMatch(/GDELT/);
   });

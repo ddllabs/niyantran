@@ -876,12 +876,11 @@ export default function TransitDesk({ onFeed, onSelect, onLoading, reload }) {
         )}
         {alert && (wsState === 'offline' || (mode === 'sea' && count === 0)) && (
           <div className="sb-alert">
-            <span className="sb-alert-msg">
+            <span className="sb-alert-msg" title={alert}>
+              {/* F165: plain words on screen; the source's own message stays as the title. */}
               {mode === 'air'
-                ? `Air feed unavailable: ${alert}. OpenSky / adsb.fi / adsb.lol all failed from this network.`
-                : alert.includes('Baltic') || alert.includes('AISSTREAM')
-                  ? alert
-                  : `Live vessel AIS is unavailable (${alert}). Baltic coverage is open via Digitraffic; India & chokepoints need an AISStream key on the server.`}
+                ? 'Live aircraft positions aren\u2019t available right now.'
+                : `Live ship positions aren\u2019t available for this area right now.${regionId !== 'baltic' ? ' The Baltic Sea has open coverage.' : ''}`}
             </span>
             <button
               className="sb-retry"

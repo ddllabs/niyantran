@@ -407,7 +407,7 @@ describe('footer and provenance', () => {
 
   it('names the platform\'s register as the source, with the feed\'s as-of date', () => {
     const p = model(ru).footer.provenance;
-    expect(p.source).toBe('Sanctions programme register (embedded pack)');
+    expect(p.source).toBe('Sanctions programme register (stored on the platform)');
     expect(p.asOf).toBe('Jul 2026');
     expect(p.flags).toEqual(['issuing lists not read']);
   });

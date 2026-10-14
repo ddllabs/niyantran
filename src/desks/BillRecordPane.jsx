@@ -321,8 +321,8 @@ export default function BillRecordPane({ row, onClear, onAskAi, liveCount, desk,
           )}
           {model.blockedNews ? (
             <p className="brec-p muted">
-              This row’s source_url is news.google.com. Google News ToS restricts commercial use — the Gazette of India is the correct
-              source and is not wired. The link is not opened from here.
+              This item links to Google News, which limits commercial use of its links. The Gazette of India is the right source and
+              is not connected yet. The link is not opened from here.
             </p>
           ) : null}
           <div className="brec-actions">

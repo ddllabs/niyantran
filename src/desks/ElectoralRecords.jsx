@@ -216,7 +216,7 @@ export function ManifestoRecord({ row, onClear, onAskAi }) {
         <p className="muted">{field(row, ['verified']) || 'Curated status only'}</p>
       </section>
       <p className="brec-p muted">
-        Per-promise primary evidence URLs and state manifesto cycles are not ingested in this build.
+        Links to primary evidence for each promise, and state manifesto cycles, are not included yet.
       </p>
       <div className="brec-actions">
         <button type="button" onClick={onClear}>

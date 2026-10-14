@@ -275,7 +275,7 @@ describe('National regulatory adapter', () => {
     it('says it is a rolling window of N notices, not an archive', () => {
       const v = model(middle).glance.visual;
       expect(v.caption).toMatch(/rolling window of 121 notices/i);
-      expect(v.caption).toMatch(/not an archive/i);
+      expect(v.caption).toMatch(/not a full history/i);
       expect(v.right).toBe('121 notices');
       expect(model(live(), { rows: liveRows }).glance.visual.caption).toMatch(/rolling window of 4 notices/i);
     });
@@ -472,11 +472,11 @@ describe('National regulatory adapter', () => {
 
     it('names the regulator RSS feed for a live row without claiming which regulator', () => {
       const f = model(live()).footer;
-      expect(f.provenance.source).toMatch(/RSS/);
+      expect(f.provenance.source).toMatch(/news feed/);
       expect(f.provenance.source).toContain('www.rbi.org.in');
       expect(f.provenance.asOf).toBe('13 Oct 2026');
       const noLink = model(live({ source_url: '' })).footer.provenance.source;
-      expect(noLink).toMatch(/RSS/);
+      expect(noLink).toMatch(/news feed/);
       expect(noLink).not.toMatch(/rbi\.org|sebi\.gov/i);
     });
 
@@ -484,7 +484,7 @@ describe('National regulatory adapter', () => {
       for (const r of [penalty, ...liveRows]) {
         const note = model(r).footer.note;
         expect(note, r.title).toMatch(/rolling window/i);
-        expect(note, r.title).toMatch(/not an archive/i);
+        expect(note, r.title).toMatch(/not a full history/i);
         expect(note, r.title).toMatch(/what applies/i);
         expect(note, r.title).toMatch(/TRAI and CCI/);
       }

@@ -1,4 +1,5 @@
 import { nationalOverview } from './nationalKpi.js';
+import { sourceNames } from './plainSourceNote.js';
 
 const SKIP = new Set([
   'date',
@@ -414,12 +415,12 @@ function lawOverview(feature, rows, base) {
     const nclt = rows.filter((r) => /nclt/i.test(val(r, 'court'))).length;
     const ibbi = rows.filter((r) => /ibbi/i.test(val(r, 'court'))).length;
     base.title = 'INSOLVENCY';
-    base.note = 'Extracted NCLT orders and IBBI announcements. Not a GDELT news search.';
+    base.note = 'NCLT orders and IBBI announcements from the published sources. Not a news search.';
     base.kpis = [
       { label: 'ROWS', value: inr(rows.length), sub: 'orders + announcements' },
       { label: 'NCLT', value: inr(nclt), sub: 'tribunal orders' },
       { label: 'IBBI', value: inr(ibbi), sub: 'public announcements' },
-      { label: 'SOURCE', value: 'INGESTED', sub: 'extracted pack' },
+      { label: 'SOURCE', value: 'STORED', sub: 'from the published sources' },
     ];
     base.charts = [
       {
@@ -612,7 +613,7 @@ function carbonOverview(feature, rows, base, feed) {
     base.kpis = [
       { label: 'Points', value: inr(rows.length), sub: 'jurisdiction-years' },
       { label: 'Jurisdictions', value: inr(jus), sub: 'in this series' },
-      { label: 'Years', value: inr(years), sub: 'span of the pack' },
+      { label: 'Years', value: inr(years), sub: 'span of the records' },
       { label: 'Source', value: 'Register', sub: 'not a live ticker' },
     ];
     return base;
@@ -657,9 +658,9 @@ function carbonOverview(feature, rows, base, feed) {
       {
         label: 'Source',
         value: feed?.source?.kind === 'carbon-pack' ? 'Register' : 'Live',
-        sub: feed?.source?.kind === 'carbon-pack' ? 'snapshot' : 'Verra RSS + snapshot',
+        sub: feed?.source?.kind === 'carbon-pack' ? 'snapshot' : 'Verra feed + snapshot',
       },
-      { label: 'Puro', value: 'Not listed', sub: 'no public RSS' },
+      { label: 'Puro', value: 'Not listed', sub: 'no public feed' },
     ];
     base.charts = [
       {
@@ -680,9 +681,9 @@ function carbonOverview(feature, rows, base, feed) {
       {
         label: 'Source',
         value: feed?.source?.kind === 'carbon-pack' ? 'Register' : 'Live',
-        sub: feed?.source?.kind === 'carbon-pack' ? 'snapshot' : 'outlet RSS',
+        sub: feed?.source?.kind === 'carbon-pack' ? 'snapshot' : 'outlet feeds',
       },
-      { label: 'Coverage', value: 'Outlet RSS', sub: 'not a generic search' },
+      { label: 'Coverage', value: 'Outlet feeds', sub: 'not a generic search' },
     ];
     base.charts = [
       {
@@ -701,12 +702,12 @@ function sportsOverview(feature, rows, base, feed) {
   if (/^cricket wire$|^football wire$|^indian sports wire$/i.test(f)) {
     const outlets = new Set(rows.map((r) => val(r, 'outlet')).filter(Boolean)).size;
     base.title = 'SPORTS WIRE';
-    base.note = feed?.source?.note || 'Live outlet RSS.';
+    base.note = feed?.source?.note || 'Live outlet feeds.';
     base.kpis = [
       { label: 'HEADLINES', value: inr(rows.length), sub: 'in this pull' },
       { label: 'OUTLETS', value: inr(outlets), sub: 'named in the table' },
-      { label: 'SOURCE', value: 'LIVE', sub: 'RSS' },
-      { label: 'GDELT', value: 'UNUSED', sub: 'not a news-search stand-in' },
+      { label: 'SOURCE', value: 'LIVE', sub: 'outlet feeds' },
+      { label: 'NEWS SEARCH', value: 'NOT USED', sub: 'straight from the outlets' },
     ];
     return base;
   }
@@ -775,7 +776,7 @@ function entertainmentOverview(feature, rows, base, feed) {
       { label: 'LISTINGS', value: inr(rows.length), sub: 'in this pull' },
       { label: 'NETWORKS', value: inr(nets), sub: 'named in the table' },
       { label: 'COUNTRIES', value: inr(countries), sub: 'IN + US' },
-      { label: 'GDELT', value: 'UNUSED', sub: 'not a news-search stand-in' },
+      { label: 'NEWS SEARCH', value: 'NOT USED', sub: 'straight from the outlets' },
     ];
     base.charts = [
       {
@@ -804,12 +805,12 @@ function entertainmentOverview(feature, rows, base, feed) {
   if (/^entertainment news wire$|^bollywood & film wire$/i.test(f)) {
     const outlets = new Set(rows.map((r) => val(r, 'outlet')).filter(Boolean)).size;
     base.title = /^bollywood/i.test(f) ? 'BOLLYWOOD WIRE' : 'SCREEN TRADE';
-    base.note = feed?.source?.note || 'Live outlet RSS.';
+    base.note = feed?.source?.note || 'Live outlet feeds.';
     base.kpis = [
       { label: 'HEADLINES', value: inr(rows.length), sub: 'in this pull' },
       { label: 'OUTLETS', value: inr(outlets), sub: 'named in the table' },
-      { label: 'SOURCE', value: 'LIVE', sub: 'RSS' },
-      { label: 'GDELT', value: 'UNUSED', sub: 'not a news-search stand-in' },
+      { label: 'SOURCE', value: 'LIVE', sub: 'outlet feeds' },
+      { label: 'NEWS SEARCH', value: 'NOT USED', sub: 'straight from the outlets' },
     ];
     return base;
   }
@@ -821,7 +822,7 @@ function entertainmentOverview(feature, rows, base, feed) {
       { label: 'TRACKS', value: inr(rows.length), sub: 'chart positions' },
       { label: 'ARTISTS', value: inr(artists), sub: 'named in the table' },
       { label: 'SOURCE', value: 'LIVE', sub: 'Apple Music / iTunes' },
-      { label: 'GDELT', value: 'UNUSED', sub: 'not a news-search stand-in' },
+      { label: 'NEWS SEARCH', value: 'NOT USED', sub: 'straight from the outlets' },
     ];
     return base;
   }
@@ -1105,7 +1106,7 @@ function computeFeedOverview(feed) {
     base.kpis = [
       { label: 'STATES', value: n, sub: 'in this table' },
       { label: 'NAMED', value: verified || withHog || n, sub: 'verified display names' },
-      { label: 'SOURCE', value: feed?.fallback ? 'REGISTER' : 'LIVE', sub: feed?.fallback ? 'curated pack' : 'Wikidata' },
+      { label: 'SOURCE', value: feed?.fallback ? 'REGISTER' : 'LIVE', sub: feed?.fallback ? 'curated list' : 'Wikidata' },
       { label: 'COVERAGE', value: feed?.fallback ? (feed?.meta?.asOf || '—') : 'UN', sub: feed?.fallback ? 'as of' : 'member states' },
     ];
     return base;
@@ -1247,7 +1248,7 @@ function computeFeedOverview(feed) {
     const col = cats.find((k) => k !== houseKey) || 'current_stage';
     base.title = 'BILLS OVERVIEW';
     base.kpis = [
-      { label: 'BILLS IN VIEW', value: n, sub: feed?.coverage?.exhaustive ? 'exhaustive archive + live' : 'rows loaded' },
+      { label: 'BILLS IN VIEW', value: n, sub: feed?.coverage?.exhaustive ? 'full list + live' : 'rows loaded' },
       { label: 'LOK SABHA', value: ls, sub: `${n - ls} other house / unmarked` },
       { label: 'PASSED / ENACTED', value: passed, sub: 'stage label in the table' },
       { label: 'FROM', value: (feed?.coverage?.from || '—').slice(0, 4) || '—', sub: feed?.coverage?.through || '' },
@@ -1307,7 +1308,7 @@ function computeFeedOverview(feed) {
     base.kpis = [
       { label: 'ITEMS', value: n, sub: 'circulars / notices' },
       { label: 'REGULATORS', value: new Set(rows.map((r) => val(r, 'regulator')).filter(Boolean)).size, sub: 'in this view' },
-      { label: 'SOURCE', value: feed?.fallback ? 'STORED' : 'LIVE', sub: 'RSS or register' },
+      { label: 'SOURCE', value: feed?.fallback ? 'STORED' : 'LIVE', sub: 'feeds or register' },
       { label: 'FEED', value: 'WATCH', sub: 'not an enforcement score' },
     ];
     base.charts = [{ type: 'bars', title: 'BY REGULATOR', filterCol: 'regulator', items: withTones(countBy(rows, 'regulator'), 'infra'), hint: 'Row counts by issuing regulator.' }];
@@ -1348,8 +1349,9 @@ function computeFeedOverview(feed) {
     { label: 'LARGEST GROUP', value: top ? pct(top.value, n) : '—', sub: top ? String(top.label).slice(0, 42) : 'no category field' },
     {
       label: 'SOURCE',
-      value: feed?.tier === 'local' ? 'REGISTER' : feed?.fallback ? 'REGISTER' : feed?.source?.gdelt ? 'GDELT' : 'LIVE',
-      sub: feed?.tier === 'local' ? 'local desk pack' : feed?.source?.adapter || '',
+      value: feed?.tier === 'local' ? 'REGISTER' : feed?.fallback ? 'REGISTER' : feed?.source?.gdelt ? 'NEWS SEARCH' : 'LIVE',
+      // F165: readable source names, never the internal adapter id.
+      sub: feed?.tier === 'local' ? 'stored for this desk' : sourceNames(feed?.source?.links).slice(0, 2).join(', '),
     },
   ];
   if (a && b && a !== b) {

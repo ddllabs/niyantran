@@ -8,6 +8,8 @@
  * example `plainSourceLine(feed)`) for what was dropped. The original stays reachable as a `title`.
  */
 
+import { formatDate } from './format.js';
+
 // Wording a reader should not have to decode: hosts, paths, files, protocols, pacing, archives,
 // internal identifiers and error text.
 const TECHNICAL = [
@@ -231,4 +233,58 @@ export function plainSourceLine(feed) {
 export function technicalTitle(original, shown) {
   const s = String(original ?? '').trim();
   return s && s !== String(shown ?? '').trim() ? s : undefined;
+}
+
+const YEARS = /^\d{4}(-\d{2,4})?$/; // "2024", "2026-27"
+const whenText = (value) => (YEARS.test(String(value).trim()) ? String(value).trim() : formatDate(value) || '');
+
+/**
+ * F165: the "complete list" part of a module header ("500 rows · complete list"), for a register the
+ * feed marks `coverage.exhaustive`. When fewer rows are shown than the register holds (a stored copy
+ * capped for display), it says how many the full list has instead of calling the rows complete.
+ */
+export function completenessLabel(feed, shown) {
+  if (!feed?.coverage?.exhaustive) return '';
+  const declared = Number(feed?.meta?.declaredRecords);
+  return Number.isFinite(declared) && declared > Number(shown || 0)
+    ? `${declared.toLocaleString('en-IN')} in the full list`
+    : 'complete list';
+}
+
+/**
+ * F165: how current a module's records are, in place of the header's "sync <value>". The value comes
+ * from the same fields, in the same order, as dataState.js's `lastSync`: an update time, then how far
+ * the records run (`coverage.through`: a date, a year, "present", "7d", or "backup"/"archive" for a
+ * stored copy), then when the source was checked. '' when there is nothing a reader can use.
+ */
+export function freshnessLabel(feed) {
+  const updated = feed?.updated || feed?.meta?.updated || feed?.meta?.lastSync;
+  if (updated) {
+    const when = whenText(updated);
+    return when ? `updated ${when}` : '';
+  }
+  const through = String(feed?.coverage?.through || '').trim();
+  if (through) {
+    if (/^(backup|archive)$/i.test(through)) return 'stored copy';
+    if (/^present$/i.test(through)) return 'to the present';
+    const days = /^(\d+)\s*d$/i.exec(through);
+    if (days) return `last ${days[1]} day${days[1] === '1' ? '' : 's'}`;
+    const when = whenText(through);
+    return when ? `through ${when}` : '';
+  }
+  const checked = feed?.source?.verifiedAt ? whenText(feed.source.verifiedAt) : '';
+  return checked ? `checked ${checked}` : '';
+}
+
+/**
+ * F165: a row's `reporting_search` field ("GDELT DOC 2.0 — news reporting search, not an official
+ * dataset", "Google News RSS — media mentions, not an official statement archive") as a reader sees
+ * it: how the item was found, and the field's own caveat. The row keeps the original.
+ */
+export function plainReportingNote(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  const caveat = /\bnot an? official [^.;,]+/i.exec(s)?.[0]?.replace(/\barchive\b/i, 'record').trim();
+  const how = /google news/i.test(s) ? 'Found by a Google News search' : 'Found by a news search';
+  return caveat ? `${how}, ${caveat}.` : `${how}.`;
 }

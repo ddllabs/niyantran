@@ -244,7 +244,7 @@ export default function nationalCabinet(row, ctx = {}) {
     footer: {
       ask: 'Ask AI about this release',
       provenance: {
-        source: stored ? 'PIB press releases (stored register)' : 'PIB press releases (RSS)',
+        source: stored ? 'PIB press releases (stored register)' : 'PIB press releases (live feed)',
         asOf,
         flags: [...(stored ? ['stored copy, not the live feed'] : []), ...(asOf ? [] : ['as-of not on record'])],
       },

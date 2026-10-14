@@ -155,7 +155,7 @@ export default function GlobalAidMonitor({ feed, selected, onSelect, vizFilter, 
           <p className="alw-live-foot">
             {liveErr
               ? 'FTS did not return plans from this network. The appeal register below remains available.'
-              : 'Live receipts from api.hpc.tools. Requirements and receipts are separate instruments and are not summed.'}
+              : 'Live receipts from the UN OCHA Financial Tracking Service. Requirements and receipts are separate instruments and are not summed.'}
           </p>
         </aside>
       )}

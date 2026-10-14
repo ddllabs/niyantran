@@ -16,7 +16,7 @@ export function projectLawSummary(raw, retrievedAt = new Date().toISOString()) {
   const sourceMode = failed ? 'unknown' : stored ? 'stored' : ['news-search', 'api', 'live'].includes(adapter) ? 'feed-backed' : 'unknown';
   const shared = stored && LAW_FEATURES.slice(0, 2).includes(feature);
   const limitations = reporting
-    ? 'Reporting search / RSS coverage, not an official docket, cause list, judge directory or bench analytics. Broad provider queries do not establish topic-specific completeness.'
+    ? 'News reports found by a news search and outlet feeds, not an official docket, cause list, judge directory or bench analytics. Broad searches do not establish topic-specific completeness.'
     : shared ? 'Stored Supreme Court order table shared by both order views; topic labels are classifiers. Cross-court coverage is not established. SCI PDF links may require a live court session.'
       : feature === LAW_FEATURES[10] ? 'Stored NCLT orders and IBBI public announcements; entries are not all court orders. NCLAT coverage and completeness are not established.'
         : 'Available source entries; court coverage and completeness are not established.';

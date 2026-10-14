@@ -35,7 +35,7 @@ export function applyOpenTenderFilterToFeed(feed) {
       tenderExpiredHidden: expired,
       boardNote:
         open.length === 0
-          ? `All ${expired} archived tenders have passed their deadline. The board stays empty rather than listing expired notices.`
+          ? `All ${expired} stored tenders have passed their deadline. The board stays empty rather than listing expired notices.`
           : `Hidden ${expired} expired tender${expired === 1 ? '' : 's'}; showing ${open.length} still open.`,
     },
     source: {

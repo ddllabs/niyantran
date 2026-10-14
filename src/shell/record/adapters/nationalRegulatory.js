@@ -96,7 +96,7 @@ function windowVisual(here, all) {
     title: 'The rolling window',
     right: plural(all.length, 'notice'),
     steps,
-    caption: `A rolling window of ${plural(all.length, 'notice')} on hand, not an archive: notices outside it are not held, so this notice's place says nothing about what came before or after.${undated ? ` ${undated === 1 ? '1 has no readable date and is not placed' : `${undated} have no readable date and are not placed`}.` : ''}`,
+    caption: `A rolling window of ${plural(all.length, 'notice')} on hand, not a full history: notices outside it are not held, so this notice's place says nothing about what came before or after.${undated ? ` ${undated === 1 ? '1 has no readable date and is not placed' : `${undated} have no readable date and are not placed`}.` : ''}`,
   };
 }
 
@@ -207,12 +207,12 @@ export default function nationalRegulatory(row, ctx = {}) {
       ask: 'Ask AI about this instrument',
       provenance: {
         source: embedded
-          ? `${regulator || 'RBI and SEBI'} notice register (last-known-good archive)`
-          : `Regulator RSS feed${feedHost ? ` (${feedHost})` : ''}`,
+          ? `${regulator || 'RBI and SEBI'} notice register (latest stored copy)`
+          : `Regulator news feed${feedHost ? ` (${feedHost})` : ''}`,
         asOf,
         flags: asOf ? [] : ['as-of not on record'],
       },
-      note: `A rolling window, not an archive: it holds only the ${plural(onHand.length, 'notice')} on hand (RBI and SEBI; TRAI and CCI are not held), so it cannot answer what applies to a given firm or whether an earlier rule still stands. Entity classes come from the regulator's entry in the ontology and sector tags from keyword matches on the title and register summary; neither is an assessed impact. A company appears only when its full name is in the title.`,
+      note: `A rolling window, not a full history: it holds only the ${plural(onHand.length, 'notice')} on hand (RBI and SEBI; TRAI and CCI are not held), so it cannot answer what applies to a given firm or whether an earlier rule still stands. Entity classes come from the regulator's entry in the platform's reference list, and sector tags from keyword matches on the title and register summary; neither is an assessed impact. A company appears only when its full name is in the title.`,
     },
   };
 }

@@ -181,7 +181,7 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
           {!feed && !loading && (
             <p className="banner">Select a module. Overview clears on every route change.</p>
           )}
-          {gdelt && !terminal && <p className="banner warn">GDELT reporting search - not an official dataset.</p>}
+          {gdelt && !terminal && <p className="banner warn">News search results, not an official dataset.</p>}
           {showFallbackBanner ? (
             <p className="banner" title={technicalTitle(dataState.detail, fallbackBanner)}>
               {fallbackBanner}

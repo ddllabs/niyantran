@@ -348,7 +348,7 @@ describe('footer and provenance', () => {
   it('names the platform\'s leaders register as the source, not Wikidata or the World Factbook', () => {
     const p = model(modi).footer.provenance;
     expect(p.source).toMatch(/leaders register/i);
-    expect(p.source).toMatch(/pack/i);
+    expect(p.source).toMatch(/stored on the platform/i);
     expect(p.source).not.toMatch(/wikidata|factbook|cia/i);
     expect(p.flags).toEqual([]);
   });

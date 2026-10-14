@@ -19,7 +19,7 @@ export default function FeedLoader({ label = 'Loading feed…', sourceHint = '' 
         <span>{slow ? 'Still loading…' : label}</span>
         {slow && (
           <small className="feed-loader-hint">
-            {sourceHint || 'Checking source health. Large archives can take longer than usual.'}
+            {sourceHint || 'Checking source health. Large registers can take longer than usual.'}
           </small>
         )}
       </div>

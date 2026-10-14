@@ -1,7 +1,7 @@
 // F164: technical source notes ("GDELT paced ≥5s; primary DOC 2.0 search retries…") reached the
 // screen. The helper turns a feed's note into plain words for readers without changing the feed.
 import { describe, expect, it } from 'vitest';
-import { isTechnicalNote, plainLabel, plainNote, plainSourceLine, sourceLinks, sourceName, sourceNames, technicalTitle } from './plainSourceNote.js';
+import { completenessLabel, freshnessLabel, isTechnicalNote, plainLabel, plainNote, plainReportingNote, plainSourceLine, sourceLinks, sourceName, sourceNames, technicalTitle } from './plainSourceNote.js';
 
 // Wording a reader must never see in what the helper produces.
 const DEVELOPER_WORDING =
@@ -141,4 +141,53 @@ it('keeps the original as a title only when what is shown differs', () => {
   expect(technicalTitle('No live rows and no archive on this host.', 'This module has no records yet.')).toBe('No live rows and no archive on this host.');
   expect(technicalTitle('Live data is taking longer than usual.', 'Live data is taking longer than usual.')).toBeUndefined();
   expect(technicalTitle('', 'x')).toBeUndefined();
+});
+
+// F165: the module header said "500 rows · exhaustive · sync backup" and "· sync present"; the
+// record panel showed a row's "GDELT DOC 2.0 — news reporting search …" field.
+describe('module header labels (F165)', () => {
+  const HEADER_WORDING = /exhaustive|\bsync\b|backup|archive|\bpack\b|^present$/i;
+
+  it('calls an exhaustive register a complete list, unless fewer rows are shown than it holds', () => {
+    expect(completenessLabel({ coverage: { exhaustive: true } }, 220)).toBe('complete list');
+    // The backup pack is exhaustive but capped for display (server/backupFeed.mjs).
+    expect(completenessLabel({ coverage: { exhaustive: true }, meta: { declaredRecords: 4104 } }, 500)).toBe('4,104 in the full list');
+    expect(completenessLabel({ coverage: { exhaustive: true }, meta: { declaredRecords: 500 } }, 500)).toBe('complete list');
+    expect(completenessLabel({ coverage: { exhaustive: false } }, 10)).toBe('');
+    expect(completenessLabel(null, 10)).toBe('');
+  });
+
+  it.each([
+    // [feed, label]: each value `lastSync` can take, in dataState.js's order.
+    [{ coverage: { through: 'backup' } }, 'stored copy'],
+    [{ coverage: { through: 'archive' } }, 'stored copy'],
+    [{ coverage: { through: 'present' } }, 'to the present'],
+    [{ coverage: { through: '7d' } }, 'last 7 days'],
+    [{ coverage: { through: '1d' } }, 'last 1 day'],
+    [{ coverage: { through: '2024' } }, 'through 2024'],
+    [{ coverage: { through: '2026-27' } }, 'through 2026-27'],
+    [{ coverage: { through: '2026-09-30' } }, 'through 30 Sep 2026'],
+    [{ updated: '2026-09-21T16:31:22.924Z', coverage: { through: 'backup' } }, 'updated 21 Sep 2026'],
+    [{ meta: { updated: '2026-08-08' } }, 'updated 08 Aug 2026'],
+    [{ meta: { lastSync: 'not a date' } }, ''],
+    [{ source: { verifiedAt: '2026-10-01' } }, 'checked 01 Oct 2026'],
+    [{ coverage: { through: 'api.example.org' } }, ''],
+    [{}, ''],
+  ])('%#: %j reads "%s"', (feed, label) => {
+    expect(freshnessLabel(feed)).toBe(label);
+    expect(freshnessLabel(feed)).not.toMatch(HEADER_WORDING);
+  });
+});
+
+describe('a row\'s reporting_search field (F165)', () => {
+  it.each([
+    ['GDELT DOC 2.0 — news reporting search, not an official dataset', 'Found by a news search, not an official dataset.'],
+    ['GDELT DOC 2.0 — news reporting search, not an official scorecard', 'Found by a news search, not an official scorecard.'],
+    ['Google News RSS — media mentions, not an official statement archive', 'Found by a Google News search, not an official statement record.'],
+    ['GDELT DOC 2.0 — news reporting search', 'Found by a news search.'],
+    ['', ''],
+  ])('%s', (value, shown) => {
+    expect(plainReportingNote(value)).toBe(shown);
+    expect(plainReportingNote(value)).not.toMatch(DEVELOPER_WORDING);
+  });
 });

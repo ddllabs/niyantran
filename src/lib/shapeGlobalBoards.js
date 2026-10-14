@@ -87,7 +87,7 @@ export function applyGlobalBoardShapingToFeed(feed) {
       meta: {
         ...(feed.meta || {}),
         boardNote:
-          'Leading producers stay as text when that is all we have. Top-3 share, processor, import dependency, risk, and data year are Not reported unless the pack supplies them — not invented.',
+          'Leading producers stay as text when that is all we have. Top-3 share, processor, import dependency, risk, and data year show Not reported when the source does not give them; nothing is invented.',
         sensitiveTitle: 'Concentration register — structured shares incomplete',
       },
     };

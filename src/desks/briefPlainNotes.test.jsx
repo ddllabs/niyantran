@@ -16,7 +16,7 @@ import StatementsDesk from './StatementsDesk.jsx';
 
 const DEVELOPER =
   /GDELT DOC|DOC 2\.0|TimelineVol|rate.?limit|≥|paced|no archive|static archive|archive (on|returned|is|was)\b|\bhost\b|backend|adapter|\/api\/|\bRSS\b|https?:|unreachable|HTTP \d|proxy|last-known-good|from this network/i;
-// ("not a statement archive" is the Statement Tracker's own plain description and stays.)
+// (F165: the Statement Tracker now says "not a record of statements" rather than "not a statement archive".)
 // What a reader sees: the page's text, without its markup or attributes.
 const shown = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&amp;/g, '&');
 const render = (Component, overrides) => {

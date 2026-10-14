@@ -43,7 +43,7 @@ export function projectCarbonSummary(raw, retrievedAt = new Date().toISOString()
   const jurisdictionDistribution = [...jurisdictions].sort(([a], [b]) => a.localeCompare(b)).slice(0, 12).map(([label, count]) => ({ label, count }));
   const shown = new Set(jurisdictionDistribution.map(item => item.label));
   jurisdictionUnreported += [...jurisdictions].filter(([label]) => !shown.has(label)).reduce((sum, [, count]) => sum + count, 0);
-  const blend = slice === 'registry' && adapter === 'api' ? ' The API response blends live Verra publications with stored entries for other registries; it is not wholly live.' : '';
+  const blend = slice === 'registry' && adapter === 'api' ? ' This source mixes live Verra publications with stored entries for other registries; it is not wholly live.' : '';
   return {
     ok: !failed, version: 1, feature, resourceKey: feature, count: failed ? null : rows.length, countBasis: 'prepared-feed',
     availability: failed ? 'error' : rows.length ? 'ready' : 'empty',

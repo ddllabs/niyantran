@@ -173,7 +173,7 @@ describe('header, badge and links', () => {
 
   it('badges the feed in grey, and only when the feed is known', () => {
     expect(gm(g1).badge).toEqual({ text: 'Reporting search', tone: 'grey' });
-    expect(rm(r1).badge).toEqual({ text: 'RSS', tone: 'grey' });
+    expect(rm(r1).badge).toEqual({ text: 'News feed', tone: 'grey' });
     expect(newsWire({}).badge).toBeUndefined();
   });
 
@@ -208,7 +208,7 @@ describe('01 at a glance: tiles', () => {
   it('shows Published, Publisher, Feed and Language for a GDELT story', () => {
     const t = gm(g1).glance.tiles;
     expect(t.map((x) => x.label)).toEqual(['Published', 'Publisher', 'Feed', 'Language']);
-    expect(t.map((x) => x.value)).toEqual(['12 Oct 2026', 'reuters.com', 'GDELT DOC 2.0', 'English']);
+    expect(t.map((x) => x.value)).toEqual(['12 Oct 2026', 'reuters.com', 'News search', 'English']);
   });
 
   it('omits Language when GDELT gives none, and for RSS even if a row carries one', () => {
@@ -217,11 +217,11 @@ describe('01 at a glance: tiles', () => {
     expect(gm(g6).glance.tiles.map((x) => x.label)).toEqual(['Published', 'Publisher', 'Feed']);
     expect(gm({ ...g1, language: '  ' }).glance.tiles.map((x) => x.label)).not.toContain('Language');
     expect(rm(r1).glance.tiles.map((x) => x.label)).toEqual(['Published', 'Publisher', 'Feed']);
-    expect(rm(r1).glance.tiles.map((x) => x.value)).toEqual(['12 Oct 2026', 'BBC World', 'BBC World RSS']);
+    expect(rm(r1).glance.tiles.map((x) => x.value)).toEqual(['12 Oct 2026', 'BBC World', 'BBC World feed']);
   });
 
   it('says what the date and the publisher are, so a GDELT first-seen date is not read as a publication date', () => {
-    expect(tile(gm(g1), 'Published').sub).toMatch(/first seen by GDELT/i);
+    expect(tile(gm(g1), 'Published').sub).toMatch(/first seen by the news search/i);
     expect(tile(rm(r1), 'Published').sub).toMatch(/feed/i);
     expect(tile(gm(g1), 'Published').sub).toMatch(/India/i);
     expect(tile(gm(g1), 'Feed').sub).toMatch(/not an official dataset/i);
@@ -320,8 +320,8 @@ describe('01 at a glance: Feed state board', () => {
       expect(v.title, row.title).toBe('Feed state');
       expect(v.caption, row.title).toMatch(/not an official dataset/i);
     }
-    expect(gm(g1).glance.visual.caption).toMatch(/reporting search/i);
-    expect(rm(r1).glance.visual.caption).toMatch(/RSS/);
+    expect(gm(g1).glance.visual.caption).toMatch(/news search/i);
+    expect(rm(r1).glance.visual.caption).toMatch(/BBC World feed/);
   });
 
   it('describes the wire and never repeats a tile label', () => {
@@ -385,26 +385,26 @@ describe('01 at a glance: Feed state board', () => {
 });
 
 describe('02 what the item says', () => {
-  it('shows the RSS summary as a plain-text card, then Publisher, Published and Link host', () => {
+  it('shows the RSS summary as a plain-text card, then Publisher, Published and Website', () => {
     const about = rm(r1).about;
     expect(about.label).toBe('02 · What the item says');
     expect(about.cards).toHaveLength(1);
     expect(about.cards[0].heading).toMatch(/BBC World/);
     expect(about.cards[0].body).toBe('Rescuers search the rubble & hospitals fill. Officials gave no toll.');
-    expect(about.rows).toEqual([['Publisher', 'BBC World'], ['Published', '12 Oct 2026'], ['Link host', 'www.bbc.co.uk']]);
+    expect(about.rows).toEqual([['Publisher', 'BBC World'], ['Published', '12 Oct 2026'], ['Website', 'www.bbc.co.uk']]);
   });
 
   it('says nothing for a GDELT story, which has no summary, rather than inventing one', () => {
     const about = gm(g1).about;
     expect(about.label).toBe('02 · What the item says');
     expect(about.cards || []).toEqual([]);
-    expect(about.rows).toEqual([['Publisher', 'reuters.com'], ['Published', '12 Oct 2026'], ['Link host', 'www.reuters.com']]);
+    expect(about.rows).toEqual([['Publisher', 'reuters.com'], ['Published', '12 Oct 2026'], ['Website', 'www.reuters.com']]);
     expect(rm(r4).about.cards || []).toEqual([]);
     expect(rm({ ...r1, summary: '   ' }).about.cards || []).toEqual([]);
   });
 
   it('omits rows whose facts are absent', () => {
-    expect(rm(r2).about.rows).toEqual([['Publisher', 'BBC World'], ['Link host', 'www.bbc.co.uk']]);
+    expect(rm(r2).about.rows).toEqual([['Publisher', 'BBC World'], ['Website', 'www.bbc.co.uk']]);
     expect(newsWire({}).about.rows).toEqual([]);
     expect(gm({ ...g1, source_url: 'http://www.reuters.com/x' }).about.rows.map(([k]) => k)).toEqual(['Publisher', 'Published']);
     expect(gm({ ...g1, source_url: 'https://' }).about.rows.map(([k]) => k)).toEqual(['Publisher', 'Published']);
@@ -516,26 +516,26 @@ describe('footer and provenance', () => {
   });
 
   it('names the GDELT reporting search, not an official dataset, for GDELT stories', () => {
-    expect(gm(g1).footer.provenance.source).toBe('GDELT DOC 2.0 reporting search (not an official dataset)');
-    expect(gm(g1, {}).footer.provenance.source).toBe('GDELT DOC 2.0 reporting search (not an official dataset)');
+    expect(gm(g1).footer.provenance.source).toBe('News search (not an official dataset)');
+    expect(gm(g1, {}).footer.provenance.source).toBe('News search (not an official dataset)');
   });
 
-  it('names BBC World RSS for RSS stories', () => {
-    expect(rm(r1).footer.provenance.source).toBe('BBC World RSS');
-    expect(rm(r1, {}).footer.provenance.source).toBe('BBC World RSS');
+  it('names the BBC World feed for RSS stories', () => {
+    expect(rm(r1).footer.provenance.source).toBe('BBC World feed');
+    expect(rm(r1, {}).footer.provenance.source).toBe('BBC World feed');
     expect(rm(r1).footer.provenance.source).not.toMatch(/gdelt/i);
     expect(gm(g1).footer.provenance.source).not.toMatch(/BBC/);
   });
 
   it('follows the feed flag when it is given, and the row shape when it is not', () => {
-    expect(newsWire({ ...r1 }, { feed: { source: { gdelt: false } } }).footer.provenance.source).toBe('BBC World RSS');
-    expect(newsWire({ ...g1 }, { feed: { source: { gdelt: true } } }).footer.provenance.source).toMatch(/^GDELT/);
+    expect(newsWire({ ...r1 }, { feed: { source: { gdelt: false } } }).footer.provenance.source).toBe('BBC World feed');
+    expect(newsWire({ ...g1 }, { feed: { source: { gdelt: true } } }).footer.provenance.source).toMatch(/^News search/);
     // A row with no identifying fields takes its feed from the envelope's flag.
     const bareRow = { title: 'Headline only', date: 'Mon, 12 Oct 2026 14:30:00 GMT' };
-    expect(newsWire(bareRow, { feed: { source: { gdelt: true } } }).footer.provenance.source).toMatch(/^GDELT/);
+    expect(newsWire(bareRow, { feed: { source: { gdelt: true } } }).footer.provenance.source).toMatch(/^News search/);
     expect(newsWire(bareRow, { feed: { source: { gdelt: true } } }).badge.text).toBe('Reporting search');
-    expect(newsWire(bareRow, { feed: { source: { gdelt: false } } }).footer.provenance.source).toBe('BBC World RSS');
-    expect(newsWire(bareRow, { feed: { source: { gdelt: false } } }).glance.tiles.map((t) => t.value)).toContain('BBC World RSS');
+    expect(newsWire(bareRow, { feed: { source: { gdelt: false } } }).footer.provenance.source).toBe('BBC World feed');
+    expect(newsWire(bareRow, { feed: { source: { gdelt: false } } }).glance.tiles.map((t) => t.value)).toContain('BBC World feed');
     const unknown = newsWire({ title: 'Headline only' });
     expect(unknown.footer.provenance.source).toBe('Geopolitics News Wire feed');
     expect(unknown.footer.provenance.source).not.toMatch(/GDELT|BBC/);
@@ -560,7 +560,7 @@ describe('footer and provenance', () => {
 
   it('says it is a news report fetched live, and what the date means', () => {
     expect(gm(g1).footer.note).toMatch(/first saw the article/i);
-    expect(rm(r1).footer.note).toMatch(/BBC World RSS/);
+    expect(rm(r1).footer.note).toMatch(/BBC World news feed/);
     expect(rm(r1).footer.note).toMatch(/feed/i);
     expect(gm(g1).footer.note).toMatch(/where the story/i);
   });

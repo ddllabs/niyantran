@@ -1,6 +1,7 @@
 import { dateLabel, presentRows, sourceLinks } from './common.js';
 import { parseFeedDate } from './feedDate.js';
 import { plainText, text } from './feedText.js';
+import { plainLabel } from '../../../lib/plainSourceNote.js';
 
 /**
  * The nine Law wire modules → record panel (F128 L4; docs/specs/2026-10-13-law-record-panels.md,
@@ -253,9 +254,9 @@ export default function lawWire(row, ctx = {}) {
   const section = plainText(item.section);
   const rows = Array.isArray(ctx?.rows) ? ctx.rows : [];
 
-  const source = kind === GDELT ? 'GDELT DOC 2.0 reporting search (live)' : kind === GOOGLE ? 'Google News search results (live)' : 'News search results (live)';
+  const source = kind === GDELT ? 'News search results (live)' : kind === GOOGLE ? 'Google News search results (live)' : 'News search results (live)';
   const publisherSub = publisherField(item) ? 'as Google News names it' : publisher ? 'publisher domain' : 'the item does not name one';
-  const publishedSub = !published ? 'the item carries no usable date' : kind === GDELT ? 'India date; first seen by GDELT' : 'India date; feed publication date';
+  const publishedSub = !published ? 'the item carries no usable date' : kind === GDELT ? 'India date; first seen by the news search' : 'India date; feed publication date';
 
   return {
     title,
@@ -278,7 +279,8 @@ export default function lawWire(row, ctx = {}) {
         ['Headline', headline],
         ['Publisher', publisher],
         ['Published', published],
-        ['Section', section],
+        // F165: the server's section names its feed ("COVERAGE — GOOGLE NEWS RSS"); shown plainly.
+        ['Section', plainLabel(section)],
       ]),
       cards: [
         ...(summary && !repeatsHeadline(summary, item) ? [{ heading: 'Summary as published', body: summary }] : []),

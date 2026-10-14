@@ -60,3 +60,14 @@ it("stored records with the archive's own note: a plain banner", () => {
   expect(all).toContain('Showing the latest stored records.');
   expect(all.filter((t) => DEVELOPER.test(t))).toEqual([]);
 });
+
+// F165: a news-search module's side panel warned "GDELT reporting search - not an official dataset."
+it('a news-search module: the warning names a news search, not GDELT, and keeps its caveat', () => {
+  const feed = { ok: true, tier: 'global', feature: 'Test feed', served: 'live', fallback: false,
+    rows: [{ title: 'Story', source_url: 'https://www.reuters.com/x' }],
+    source: { adapter: 'news-search', links: [GDELT], gdelt: true, note: 'Reporting search, not an official dataset.' }, meta: {} };
+  const all = strings(panel(feed));
+  expect(all).toContain('News search results, not an official dataset.');
+  // The overview tiles from src/lib/analytics.js (a "GDELT" source tile) are outside F165's sweep.
+  expect(all.filter((t) => /GDELT reporting search/.test(t))).toEqual([]);
+});

@@ -12,17 +12,17 @@ const present = value => value != null && !['', '—', 'Not reported', 'unknown'
 const safeUrl = value => { try { const url = new URL(value); return /^https?:$/.test(url.protocol) ? url.href : null; } catch { return null; } };
 const validDate = value => /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(String(value || '')) && Number.isFinite(Date.parse(value)) ? value : null;
 const LIMITATIONS = {
-  nse: 'Delayed NSE quotes or a frozen embedded quote snapshot. No live ticks or sector coverage is established; a missing quote date remains unreported.',
+  nse: 'Delayed NSE quotes or a frozen stored quote snapshot. No live ticks or sector coverage is established; a missing quote date remains unreported.',
   world: 'Last index quotes for configured Yahoo venues, not a licensed tick stream or universal exchange coverage.',
   countries: 'Latest non-empty World Bank GDP observations per country, in current US$ billions. Aggregates excluded; no trade-balance table.',
-  indicators: 'World Bank GDP growth, CPI and employment-to-population observations. PMI is not in this table. The row year belongs to GDP growth; CPI and employment observation years are not separately reported by this adapter.',
+  indicators: 'World Bank GDP growth, CPI and employment-to-population observations. PMI is not in this table. The row year belongs to GDP growth; CPI and employment observation years are not reported separately.',
   simulator: 'Historical India GDP growth baseline, annual %. No what-if engine or generated scenario outcomes.',
   sector: 'India electricity-access observations, % of population. No full policy, ministry or critical-mineral register.',
   trade: 'Stored DGFT notifications. No complete sanctions, WTO tariff or agreement inventory.',
   leaders: 'Wikidata Indian enterprise chief-executive identities. No ranking, financials or market capitalization.',
-  ai: 'PIB RSS reporting; topic-specific completeness is not established and not every release is necessarily about AI. No investment database.',
+  ai: 'Press Information Bureau releases; topic-specific completeness is not established and not every release is necessarily about AI. No investment database.',
   manifold: 'Political Manifold markets ranked by recent volume, from polling or a stored snapshot. Market probabilities are not NTER forecasts. Close dates are not quote-update dates.',
-  elections: 'No election-forecast table is available in the existing adapter. No forecasts or consensus values are supplied.',
+  elections: 'No election-forecast table is available yet. No forecasts or consensus values are supplied.',
 };
 const UNITS = { nse: 'quotes', world: 'quotes', countries: 'countries', indicators: 'countries', simulator: 'observations', sector: 'observations', trade: 'notifications', leaders: 'identities', ai: 'reports', manifold: 'markets', elections: 'forecasts' };
 

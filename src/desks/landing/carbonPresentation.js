@@ -6,7 +6,7 @@ const groups = [
   { id: 'markets', name: 'Carbon Markets', short: 'Carbon Markets', description: 'Stored jurisdiction pricing, annual observations and adoption years. These are not live market ticks.', modules: [module('Global Carbon Pricing Tracker'), module('Carbon Price Monitor'), module('ETS & Tax Adoption Timeline')] },
   { id: 'border', name: 'Border Mechanisms', short: 'Border Mechanisms', description: 'Extracted EU and UK carbon-border milestones with official source links. Effective dates are not retrieval dates.', modules: [module('Carbon Border (CBAM) Watch')] },
   { id: 'india', name: 'India Carbon Market', short: 'India Carbon Market', description: 'Stored CCTS and Green Credit Programme milestones with Ministry of Power, BEE and MoEFCC sources.', modules: [module('India CCTS & Green Credits')] },
-  { id: 'wire', name: 'Registries & Wire', short: 'Registries & Wire', description: 'Registry publications and outlet climate reporting. Live feeds, mixed publications and snapshot fallbacks are identified per module.', modules: [module('Carbon Registry Wire'), module('Climate Newswire')] },
+  { id: 'wire', name: 'Registries & Wire', short: 'Registries & Wire', description: 'Registry publications and outlet climate reporting. Each module says whether its records are live, mixed or a stored snapshot.', modules: [module('Carbon Registry Wire'), module('Climate Newswire')] },
 ];
 export const CARBON_PRESENTATION = {
   id: 'carbon', name: 'Carbon', title: lines(visual.title), description: visual.desc,
