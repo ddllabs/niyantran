@@ -142,12 +142,30 @@ it('omits the rupee hint when the server did not publish a rate', () => {
   expect(t).not.toContain('₹');
 });
 
-it('shows this cycle as the allowance and the cycle end date, not a derived use figure', () => {
+it('shows this cycle as the allowance and the cycle end date', () => {
   const t = text(section(render(PRO, { credits: credits() })));
   expect(t).toMatch(/Monthly allowance/);
   expect(t).toContain('2,000 credits');
   expect(t).toContain('12 Nov 2026');
-  expect(t).not.toMatch(/used this cycle/i);
+});
+
+it('shows the credits used this cycle as the server counted them (review R, I2)', () => {
+  expect(text(section(render(PRO, { credits: credits({ usedThisCycle: 479.5433 }) })))).toContain('Used this cycle: 480 credits');
+  fake.states = [];
+  expect(text(section(render(PRO, { credits: credits({ usedThisCycle: 38.25 }) })))).toContain('Used this cycle: 38.3 credits');
+  fake.states = [];
+  expect(text(section(render(PRO, { credits: credits({ usedThisCycle: 0 }) })))).toContain('Used this cycle: 0 credits');
+  fake.states = [];
+  expect(text(section(render(PRO, { credits: credits({ usedThisCycle: 1.004 }) })))).toContain('Used this cycle: 1 credit');
+  fake.states = [];
+  expect(text(section(render(PRO, { credits: credits({ usedThisCycle: 1.004 }) })))).not.toContain('1 credits');
+});
+
+it('leaves the used line out when the server counted no cycle', () => {
+  for (const usedThisCycle of [null, undefined]) {
+    fake.states = [];
+    expect(text(section(render(PRO, { credits: credits({ usedThisCycle }) })))).not.toMatch(/used this cycle/i);
+  }
 });
 
 it('describes the Free allowance as the sign-up credits and when they end', () => {

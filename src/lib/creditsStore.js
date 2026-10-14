@@ -10,7 +10,11 @@ import { supabase } from './supabaseClient.js';
 
 const EVENT = 'niy-credits';
 let current = null;
+// The read running now, and the one read queued behind it (review R, M3).
 let inflight = null;
+let queued = null;
+// Bumped by clearCredits(), so a read begun before a sign-out cannot publish after it.
+let epoch = 0;
 
 function publish(next) {
   current = next;
@@ -38,6 +42,8 @@ export function shapeCredits(userId, data) {
     inrPerCredit: num(data.inr_per_credit),
     allowance: num(data.cycle?.allowance),
     cycleEndsAt: data.cycle?.ends_at || null,
+    // Credits charged to answers since this cycle began; null when there is no cycle (F111 review R, I2).
+    usedThisCycle: num(data.used_this_cycle),
     lots: Array.isArray(data.lots)
       ? data.lots.map((l) => ({ kind: String(l.kind), remaining: num(l.remaining) ?? 0, expiresAt: l.expires_at || null }))
       : [],
@@ -57,30 +63,55 @@ export function serverCredits(userId) {
   return current && userId && current.userId === userId ? current : null;
 }
 
-/** Re-read the credits for the current session. Resolves to them or null. */
-export function refreshCredits() {
-  if (inflight) return inflight;
-  inflight = (async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      const userId = data?.session?.user?.id;
-      if (!userId) return publish(null);
-      const result = await supabase.rpc('my_credits');
-      if (result.error) return current && current.userId === userId ? current : null;
-      // A session that changed while the read was in flight is not this answer's owner.
-      const after = await supabase.auth.getSession();
-      if (after.data?.session?.user?.id !== userId) return null;
-      return publish(shapeCredits(userId, result.data));
-    } catch {
-      return null;
-    } finally {
-      inflight = null;
-    }
-  })();
-  return inflight;
+/** One read of my_credits() for whoever is signed in now. Never rejects. */
+async function readOnce() {
+  const started = epoch;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const userId = data?.session?.user?.id;
+    if (!userId) return publish(null);
+    const result = await supabase.rpc('my_credits');
+    if (started !== epoch) return null;
+    if (result.error) return current && current.userId === userId ? current : null;
+    // A session that changed while the read was in flight is not this answer's owner.
+    const after = await supabase.auth.getSession();
+    if (after.data?.session?.user?.id !== userId || started !== epoch) return null;
+    return publish(shapeCredits(userId, result.data));
+  } catch {
+    return null;
+  }
 }
 
+function start() {
+  const read = readOnce().finally(() => {
+    if (inflight === read && !queued) inflight = null;
+  });
+  inflight = read;
+  return read;
+}
+
+/**
+ * Re-read the credits for the current session. Resolves to them or null.
+ *
+ * A call made while a read is in flight is not answered by it: that read may have been sent before
+ * the charge the caller is refreshing for. It gets one more read, started when the running one ends,
+ * and every further call made meanwhile shares that same follow-up. The follow-up looks the session
+ * up afresh, so a read for one account never answers a call made for another.
+ */
+export function refreshCredits() {
+  if (!inflight) return start();
+  if (!queued) {
+    queued = inflight.then(() => {
+      queued = null;
+      return start();
+    });
+  }
+  return queued;
+}
+
+/** Forget the cached balance (sign-out), and discard any read still in flight. */
 export function clearCredits() {
+  epoch += 1;
   publish(null);
 }
 
@@ -120,6 +151,12 @@ export function formatCredits(value) {
   const abs = Math.abs(n);
   const text = abs >= 100 ? GROUPED.format(Math.round(abs)) : abs >= 10 ? trimmed(abs, 1) : trimmed(abs, 2);
   return n < 0 && text !== '0' ? `−${text}` : text;
+}
+
+/** An amount of credits in words, as it is shown: "1,520 credits", "1 credit", "−50 credits". */
+export function creditsText(value) {
+  const text = formatCredits(value);
+  return `${text} ${text === '1' || text === '−1' ? 'credit' : 'credits'}`;
 }
 
 /** The rupee value of an amount of credits, e.g. "≈ ₹200". Empty without the published rate. */

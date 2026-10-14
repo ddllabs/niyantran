@@ -529,15 +529,37 @@ describe('AI credits in the composer',()=>{
  });
  it('a 402 refusal becomes the blocked state, with the message once',()=>{
   fake.credits=wallet({balance:0,available:0});
-  fake.research={...ready(),creditBlock:'credits_exhausted',error:'You have no AI credits left to start an answer.'};
+  const refusal='You have no AI credits left to start an answer.';
+  fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:refusal};
   const html=renderToStaticMarkup(<AiPanel lang="en"/>);
   expect(html).toContain('>Upgrade</button>');expect(html).toContain('>Buy credits</button>');
   expect(html.match(/You have no AI credits left to start an answer\./g)).toHaveLength(1);
  });
+ it('a refusal for held credits says so and offers no way to buy',()=>{
+  fake.credits=null;
+  const refusal='Your credits are in use by an answer that is still running. Try again when it finishes.';
+  fake.research={...ready(),creditBlock:'credits_exhausted',creditHeld:true,creditError:refusal,error:refusal};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html.match(/in use by an answer that is still running/g)).toHaveLength(1);
+  expect(html).not.toContain('Upgrade');expect(html).not.toContain('Buy credits');
+ });
+ it('hides only the credits refusal, never another error while a credit block is shown (review R, M4)',()=>{
+  fake.credits=wallet({balance:0,available:0});
+  const refusal='You have no AI credits left to start an answer.';
+  fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:'The saved result could not be loaded. Try Reload.'};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html).toContain('<p class="ai-foot warn" role="alert">The saved result could not be loaded. Try Reload.</p>');
+  expect(html).toContain('>Upgrade</button>');
+  // The stream's own copy of the refusal stays hidden; a different stream error shows.
+  fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:'',stream:{status:'error',error:refusal}};
+  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('class="ai-foot warn"');
+  fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:'',stream:{status:'error',error:'The connection failed.'}};
+  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toContain('role="alert">The connection failed.</p>');
+ });
  it('a 503 refusal is a retry message that replays the turn, with one retry button',()=>{
   const recover=vi.fn();
   fake.credits=wallet();
-  fake.research={...ready(),creditBlock:'credits_unavailable',error:'AI credits could not be checked.',recoverable:true,actions:{recover}};
+  fake.research={...ready(),creditBlock:'credits_unavailable',creditError:'AI credits could not be checked.',error:'AI credits could not be checked.',recoverable:true,actions:{recover}};
   const html=renderToStaticMarkup(<AiPanel lang="en"/>);
   expect(html).toContain('>Try again</button>');expect(html).not.toContain('Upgrade');
   expect(html).not.toContain('Recover answer');expect(html).not.toContain('AI credits could not be checked.<');

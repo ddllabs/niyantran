@@ -128,7 +128,7 @@ function mergeWebPages(current, pages) {
 
 function blankState() {
   return { isStreaming: false, isPending: false, status: 'idle', streamingText: '', activity: [], sources: [],
-    followUps: [], web: null, webSources: [], webLive: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '',
+    followUps: [], web: null, webSources: [], webLive: [], model: null, timing: null, usage: null, truncated: null, notice: null, error: '', errorCode: '', held: false,
     conversationId: '', messageId: '', executionExpiresAt: null, retryable: false, retryCount: 0,
     cancelRequested: false, cancelPending: false, cancelError: '', stopQueued: false };
 }
@@ -219,7 +219,7 @@ function result(entry) {
     ? { ...blankState(), status: 'reconciled', aborted: true, endReason: 'reconciled' }
     : { ...blankState(), error: 'Your research session changed.', errorCode: 'identity_changed', aborted: true, endReason: 'identity_changed' };
   const s = visibleState(entry);
-  return { conversationId: s.conversationId, messageId: s.messageId, error: s.error, errorCode: s.errorCode,
+  return { conversationId: s.conversationId, messageId: s.messageId, error: s.error, errorCode: s.errorCode, held: s.held === true,
     status: s.status, isPending: s.isPending, retryable: s.retryable, aborted: Boolean(entry.endReason), endReason: entry.endReason || '' };
 }
 // Transport bookkeeping is separate from protected frame publication. If an
@@ -532,7 +532,7 @@ async function run(entry, opts) {
         || ![...operations.values()].includes(entry) || controller.signal.aborted) throw new Error('Your research session changed.');
     entry.identity = identity;
     entry.generation = version;
-    await publish(entry, { isStreaming: true, isPending: true, status: 'connecting', error: '', errorCode: '',
+    await publish(entry, { isStreaming: true, isPending: true, status: 'connecting', error: '', errorCode: '', held: false,
       retryable: false, retryCount: entry.retryCount, streamingText: '', sources: [], followUps: [], web: null, webSources: [], webLive: [], truncated: null,
       activity: [], timing: null, usage: null, messageId: '', cancelPending: false }, attempt);
     if (!bound(entry, attempt) || controller.signal.aborted) throw new Error('Your research session changed.');
@@ -561,6 +561,8 @@ async function run(entry, opts) {
       const unchecked = response.status === 503 && detail?.code === 'credits_unavailable';
       await publish(entry, { isStreaming: false, status: rejected || unchecked ? 'error' : 'unknown', isPending: !rejected && !unchecked,
         error: detail?.error || `research-chat HTTP ${response.status}`, errorCode: detail?.code || `http_${response.status}`,
+        // F111: credits exist but are held by answers still running (the 402 says so).
+        held: response.status === 402 && detail?.held === true,
         retryable: !rejected }, attempt);
       return result(entry);
     }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
-import { formatCredits, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 
@@ -36,10 +36,6 @@ function dayOrNull(iso) {
   return iso && !Number.isNaN(Date.parse(iso)) ? day(iso) : null;
 }
 
-function creditsText(n) {
-  return `${formatCredits(n)} ${Math.abs(Number(n)) === 1 ? 'credit' : 'credits'}`;
-}
-
 /** Earliest expiry first; a lot with no expiry goes last. */
 function byExpiry(lots) {
   const at = (l) => (dayOrNull(l.expiresAt) ? Date.parse(l.expiresAt) : Infinity);
@@ -49,10 +45,9 @@ function byExpiry(lots) {
 /**
  * The AI credits section (F111, docs/specs/2026-10-14-ai-credits.md §8). Credits
  * first, the rupee value second and muted; the server sends only credits. "Used
- * this cycle" is not shown: my_credits() returns the plan's allowance and the
- * lots' remainders, but spending draws the earliest-expiring lot first and
- * admin removals draw lots too, so allowance minus the monthly lot would be a
- * guess, not a count.
+ * this cycle" is the server's own count of credits charged to answers since the
+ * cycle began (my_credits().used_this_cycle), never derived here from the
+ * allowance and the lots; it is left out when there is no cycle (null).
  */
 function CreditsSection({ credits, tried, checkoutClosed }) {
   if (!credits) {
@@ -85,6 +80,10 @@ function CreditsSection({ credits, tried, checkoutClosed }) {
           {hint(credits.allowance) ? <span className="plan-credits-inr">{hint(credits.allowance)}</span> : null}
           {endsOn ? <span className="plan-credits-until">{free ? `valid until ${endsOn}` : `this month ends ${endsOn}`}</span> : null}
         </p>
+      ) : null}
+
+      {credits.usedThisCycle !== null && credits.usedThisCycle !== undefined ? (
+        <p className="plan-credits-cycle plan-credits-used">Used this cycle: <strong>{creditsText(credits.usedThisCycle)}</strong></p>
       ) : null}
 
       <h4 className="plan-credits-sub">Credits by expiry</h4>

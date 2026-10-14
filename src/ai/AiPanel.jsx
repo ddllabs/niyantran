@@ -384,7 +384,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // F111 §8: a turn refused for credits says so in the credits notice by the composer, once.
   const creditBlock = research.creditBlock || '';
   const credits = useCredits(research.ownerId);
-  const err = creditBlock ? '' : research.error;
+  // Only the refusal itself is hidden (the notice replaces it); any other error still shows (review R, M4).
+  const creditError = creditBlock ? research.creditError || '' : '';
+  const err = creditError && research.error === creditError ? '' : research.error;
   const [dragOver, setDragOver] = useState(false);
   const [dictationActive, setDictationActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -719,7 +721,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const connectionLost = stream?.status === 'unknown';
   const running = Boolean(research.storedRunning || (stream?.status === 'running' && !streaming));
   const stopping = Boolean(research.cancelRequested || stream?.cancelRequested);
-  const shownError = err || (creditBlock ? '' : stream?.error);
+  const shownError = err || (creditError && stream?.error === creditError ? '' : stream?.error);
   const needsReload = connectionLost || running || stopping || Boolean(shownError || state.persistenceError)
     || messages.some((m) => m.status === 'running');
   // The credits notice carries its own "Try again" for an unchecked balance; Recover would be a second one.
@@ -1189,7 +1191,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         </form>
         </div>
-        <CreditBalance credits={credits} block={creditBlock}
+        <CreditBalance credits={credits} block={creditBlock} held={Boolean(research.creditHeld)}
           onRetry={research.recoverable && creditBlock === 'credits_unavailable' ? () => research.actions.recover() : undefined} />
       </div>
       </div>

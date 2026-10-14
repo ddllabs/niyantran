@@ -32,6 +32,8 @@ describe('the balance by the chat box', () => {
   it('says "1 credit" for exactly one, and never invents a hint without the published rate', () => {
     expect(html({ credits: credits({ balance: 1 }) })).toContain('1 credit<');
     expect(html({ credits: credits({ inrPerCredit: null }) })).not.toContain('₹');
+    // Anything that shows as "1" is singular too (review R, nits).
+    expect(html({ credits: credits({ balance: 1.004 }) })).toContain('1 credit<');
   });
 
   it('shows a negative balance as taken from the next credits', () => {
@@ -79,6 +81,45 @@ describe('the blocked state (402 credits_exhausted)', () => {
     buttonLabelled(tree, 'Upgrade').props.onClick();
     buttonLabelled(tree, 'Buy credits').props.onClick();
     expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it('says the credits are in use by a running answer, and offers no way to buy, when the refusal says held (review R, M2)', () => {
+    const out = html({ credits: credits({ balance: 500, held: 500, available: 0 }), block: 'credits_exhausted', held: true });
+    expect(out).toContain('role="alert"');
+    expect(out).toContain('Your credits are in use by an answer that is still running. Try again when it finishes.');
+    expect(out).toContain('500 credits');
+    expect(out).not.toContain('You have no AI credits left');
+    expect(out).not.toContain('Upgrade');
+    expect(out).not.toContain('Buy credits');
+  });
+
+  it('says the same when the balance is positive but all of it is held, even if the refusal did not say so', () => {
+    const out = html({ credits: credits({ balance: 500, held: 500, available: 0 }), block: 'credits_exhausted' });
+    expect(out).toContain('in use by an answer that is still running');
+    expect(out).not.toContain('Upgrade');
+    expect(out).not.toContain('Buy credits');
+  });
+
+  it('trusts held even before the balance is known', () => {
+    const out = html({ credits: null, block: 'credits_exhausted', held: true });
+    expect(out).toContain('in use by an answer that is still running');
+    expect(out).not.toContain('Upgrade');
+  });
+
+  it('keeps today\'s blocked state when nothing is held: a zero balance, held not set', () => {
+    for (const props of [{ held: false }, {}]) {
+      const out = html({ credits: credits({ balance: 0, available: 0 }), block: 'credits_exhausted', ...props });
+      expect(out).toContain('You have no AI credits left to start an answer.');
+      expect(out).toContain('>Upgrade</button>');
+      expect(out).toContain('>Buy credits</button>');
+      expect(out).not.toContain('in use by an answer');
+    }
+  });
+
+  it('keeps the Upgrade and Buy credits actions when the balance is negative', () => {
+    const out = html({ credits: credits({ balance: -50, available: -50, debt: 50 }), block: 'credits_exhausted' });
+    expect(out).toContain('>Upgrade</button>');
+    expect(out).not.toContain('in use by an answer');
   });
 
   it('is gone once credits are available again, so the next question is not discouraged', () => {

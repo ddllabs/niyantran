@@ -433,9 +433,42 @@ it('another error leaves the credit state alone, and an account change clears it
  await f.controller.send({message:'Q2',turn_key:'k2'});expect(f.controller.getSnapshot().creditBlock).toBe('credits_exhausted');
  f.changeOwner();expect(f.controller.getSnapshot().creditBlock).toBe('');
 });
-it('re-reads the balance after each finished turn, and not before one',async()=>{
+it('re-reads the balance after a turn that ends with no credits frame to come, and not before one',async()=>{
  const f=fixture();await f.controller.start();expect(f.deps.refreshCredits).not.toHaveBeenCalled();
- await f.controller.send({message:'Q',turn_key:'k'});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(1);
+ // A failed or interrupted turn may never reach `done`, so no frame will refresh the balance for it.
+ for(const[i,status]of['error','interrupted'].entries()){
+  f.deps.sendTurn.mockImplementationOnce(async()=>({conversationId:'server-c',isPending:false,status,retryable:false,error:'x',errorCode:status,messageId:''}));
+  await f.controller.send({message:'Q'+i,turn_key:'k'+i});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(i+1);
+ }
+});
+it('leaves the re-read to the credits frame for a turn that ended at done (complete, stopped, truncated), review R M3',async()=>{
+ const f=fixture();await f.controller.start();
+ for(const[i,status]of['complete','cancelled','truncated'].entries()){
+  f.deps.sendTurn.mockImplementationOnce(async()=>({conversationId:'server-c',isPending:false,status,retryable:false,error:'',errorCode:'',messageId:'m'+i}));
+  await f.controller.send({message:'Q'+i,turn_key:'k'+i});
+ }
+ expect(f.deps.refreshCredits).not.toHaveBeenCalled();
+});
+it('a refusal records which error it was, and whether the credits are held by a running answer, until the next send',async()=>{
+ const f=fixture();await f.controller.start();
+ f.deps.sendTurn.mockImplementationOnce(async()=>({...refusal('credits_exhausted','Your credits are in use by an answer that is still running. Try again when it finishes.'),held:true}));
+ await f.controller.send({message:'Q1',turn_key:'k1'});
+ expect(f.controller.getSnapshot()).toMatchObject({creditBlock:'credits_exhausted',creditHeld:true,creditError:'Your credits are in use by an answer that is still running. Try again when it finishes.'});
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('credits_exhausted','You have no AI credits left to start an answer.'));
+ await f.controller.send({message:'Q2',turn_key:'k2'});
+ expect(f.controller.getSnapshot()).toMatchObject({creditBlock:'credits_exhausted',creditHeld:false,creditError:'You have no AI credits left to start an answer.'});
+ let release;f.deps.sendTurn.mockImplementationOnce(()=>new Promise(r=>release=r));
+ const third=f.controller.send({message:'Q3',turn_key:'k3'});await vi.waitFor(()=>expect(f.deps.sendTurn).toHaveBeenCalledTimes(3));
+ expect(f.controller.getSnapshot()).toMatchObject({creditBlock:'',creditHeld:false,creditError:''});
+ release({conversationId:'server-c',isPending:false,status:'complete',messageId:'m'});await third;
+});
+it('another error never becomes the credits error, and an account change clears it',async()=>{
+ const f=fixture();await f.controller.start();
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('turn_conflict','Conflicting'));
+ await f.controller.send({message:'Q1',turn_key:'k1'});expect(f.controller.getSnapshot().creditError).toBe('');
+ f.deps.sendTurn.mockImplementationOnce(async()=>refusal('credits_exhausted','none'));
+ await f.controller.send({message:'Q2',turn_key:'k2'});expect(f.controller.getSnapshot().creditError).toBe('none');
+ f.changeOwner();expect(f.controller.getSnapshot()).toMatchObject({creditError:'',creditHeld:false});
 });
 it('a balance read that fails never fails the turn',async()=>{
  const f=fixture();await f.controller.start();f.deps.refreshCredits.mockRejectedValue(new Error('offline'));
@@ -446,12 +479,12 @@ it('a balance read that fails never fails the turn',async()=>{
 describe('credits on each answer',()=>{
  const savedState=()=>({chats:[{id:'saved',messages:[{id:'m1',role:'assistant',content:'A',status:'complete'}],attachments:[]}],activeId:'saved',loaded:true});
  function withCallback(f){let opts;f.deps.sendTurn.mockImplementation(async(_b,o)=>{opts=o;await o.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:false,status:'complete',messageId:'m'}});return()=>opts}
- it('records the credits of the frame against the answer, and re-reads the balance once more',async()=>{
+ it('records the credits of the frame against the answer, and re-reads the balance there, once',async()=>{
   const f=fixture();await f.controller.start();const opts=withCallback(f);
-  await f.controller.send({message:'Q',turn_key:'k'});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(1);
+  await f.controller.send({message:'Q',turn_key:'k'});expect(f.deps.refreshCredits).not.toHaveBeenCalled();
   expect(f.controller.getSnapshot().answerCredits).toEqual({});
   await opts().onCredits({conversationId:'server-c',messageId:'m',credits:38.25});
-  expect(f.controller.getSnapshot().answerCredits).toEqual({m:38.25});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(2);
+  expect(f.controller.getSnapshot().answerCredits).toEqual({m:38.25});expect(f.deps.refreshCredits).toHaveBeenCalledTimes(1);
  });
  it('with no credits in the frame, asks the record once and shows nothing for what it does not hold',async()=>{
   const f=fixture();await f.controller.start();const opts=withCallback(f);await f.controller.send({message:'Q',turn_key:'k'});

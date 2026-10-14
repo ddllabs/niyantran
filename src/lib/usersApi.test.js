@@ -59,16 +59,26 @@ function profilesAdmin(rows = profileRows()) {
     }),
     from: vi.fn((table) => {
       if (table === 'credit_wallets') {
-        // public.credit_wallets (user_id, balance, debt): select(...).in('user_id', ids).
-        const walletQuery = { columns: null, ids: null };
+        // public.credit_wallets (user_id, balance, debt), read whole and in pages: select(...).order(...).range(from, to).
+        // `state.walletCap` is the most rows the server returns per request (PostgREST's max rows). A per-id
+        // `.in()` filter is recorded as `ids`, so a test can prove none is sent (review R, M5).
+        const walletQuery = { columns: null, ids: null, order: null, from: 0, to: Infinity };
         const walletBuilder = {
           select: (columns) => { walletQuery.columns = columns; return walletBuilder; },
           in: (column, ids) => { walletQuery.column = column; walletQuery.ids = ids; return walletBuilder; },
+          order: (column) => { walletQuery.order = column; return walletBuilder; },
+          range: (from, to) => { walletQuery.from = from; walletQuery.to = to; return walletBuilder; },
           then: (resolve, reject) => {
             state.calls.push({ op: 'wallets', ...walletQuery });
-            const result = state.fail === 'wallets' || state.fail === 'all'
-              ? { data: null, error: { message: 'private-provider-detail', code: 'XX000' } }
-              : { data: state.wallets.filter((w) => walletQuery.ids.includes(w.user_id)).map((w) => ({ ...w })), error: null };
+            let result;
+            const pageNumber = state.calls.filter((c) => c.op === 'wallets').length;
+            if (state.fail === 'wallets' || state.fail === 'all' || state.failWalletPage === pageNumber) result = { data: null, error: { message: 'private-provider-detail', code: 'XX000' } };
+            else {
+              let rows = state.wallets.filter((w) => !walletQuery.ids || walletQuery.ids.includes(w.user_id));
+              if (walletQuery.order) rows = [...rows].sort((x, y) => String(x[walletQuery.order]).localeCompare(String(y[walletQuery.order])));
+              const size = Math.min(walletQuery.to - walletQuery.from + 1, state.walletCap || Infinity);
+              result = { data: rows.slice(walletQuery.from, walletQuery.from + size).map((w) => ({ ...w })), error: null };
+            }
             return Promise.resolve(result).then(resolve, reject);
           },
         };
@@ -457,7 +467,7 @@ describe('GET /api/users credit balances', () => {
     { user_id: UNKNOWN_ID, balance: 99, debt: 0 },
   ];
 
-  it('reads every wallet in one query and shows balance and debt, zero when there is no wallet', async () => {
+  it('reads the wallet table whole, with no per-user filter, and shows balance and debt, zero when there is no wallet', async () => {
     const { admin, deps } = setup();
     admin.state.wallets = WALLETS;
     const response = await invoke(request('GET', '/api/users'), deps);
@@ -466,10 +476,34 @@ describe('GET /api/users credit balances', () => {
     expect(byId[ALICE_ID]).toMatchObject({ creditBalance: 1250.5, creditDebt: 0 });
     expect(byId[OWNER_ID]).toMatchObject({ creditBalance: 0, creditDebt: 30 });
     expect(byId[ADMIN_ID]).toMatchObject({ creditBalance: 0, creditDebt: 0 });
-    expect(admin.walletReads()).toHaveLength(1);
-    expect(admin.walletReads()[0]).toMatchObject({ columns: 'user_id, balance, debt', column: 'user_id' });
-    expect(admin.walletReads()[0].ids.sort()).toEqual([ADMIN_ID, ALICE_ID, OWNER_ID].sort());
+    expect(admin.walletReads().length).toBeGreaterThan(0);
+    for (const read of admin.walletReads()) expect(read).toMatchObject({ columns: 'user_id, balance, debt', order: 'user_id', ids: null });
+    // A wallet of someone not listed is read but never leaves: only the listed users are returned.
+    expect(response.body.users.map((u) => u.id).sort()).toEqual([ADMIN_ID, ALICE_ID, OWNER_ID].sort());
     expect(JSON.stringify(response.body)).not.toContain('private');
+  });
+
+  it('reads every page when the server caps the rows per request, so a large directory keeps its balances', async () => {
+    const { admin, deps } = setup();
+    const many = Array.from({ length: 2500 }, (_, i) => ({ user_id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, balance: i + 1, debt: 0 }));
+    admin.state.wallets = [...many, { user_id: ALICE_ID, balance: '1250.5000', debt: 0 }];
+    admin.state.walletCap = 1000;
+    const response = await invoke(request('GET', '/api/users'), deps);
+    expect(response.status).toBe(200);
+    expect(response.body.users.find((u) => u.id === ALICE_ID)).toMatchObject({ creditBalance: 1250.5, creditDebt: 0 });
+    // 2,501 wallets in pages of at most 1,000, then one empty page that says there are no more.
+    expect(admin.walletReads().length).toBe(4);
+    for (const read of admin.walletReads()) expect(read.ids).toBeNull();
+  });
+
+  it('shows the balance as unknown, never zero, when a later page fails', async () => {
+    const { admin, deps } = setup();
+    admin.state.wallets = Array.from({ length: 1500 }, (_, i) => ({ user_id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, balance: 1, debt: 0 }));
+    admin.state.walletCap = 1000;
+    admin.state.failWalletPage = 2;
+    const response = await invoke(request('GET', '/api/users'), deps);
+    expect(response.status).toBe(200);
+    for (const user of response.body.users) expect(user).toMatchObject({ creditBalance: null, creditDebt: null });
   });
 
   it('keeps the directory when the balance read fails, with the balance unknown rather than zero', async () => {

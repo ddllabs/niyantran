@@ -143,6 +143,15 @@ describe('credits used by an answer', () => {
     expect(out({ m: done, credits: 0 })).toContain('>No credits used<');
   });
 
+  it('never says "No credits used" for a stopped answer: unknown shows nothing, known shows the number (review R, I1)', () => {
+    const stopped = { ...done, status: 'cancelled' };
+    for (const credits of [undefined, null, NaN]) expect(out({ m: stopped, credits })).not.toContain('ai-credit-used');
+    expect(out({ m: stopped, credits: 7.5 })).toContain('>7.5 credits<');
+    expect(out({ m: stopped, credits: 0 })).toContain('>0 credits<');
+    expect(out({ m: { ...stopped, content: '' } })).not.toContain('No credits used');
+    expect(out({ m: { ...stopped, content: '' }, credits: null })).not.toContain('ai-credit-used');
+  });
+
   it('a failed answer that still showed text is charged like any other', () => {
     const partial = { ...done, status: 'error', content: 'Half an answer' };
     expect(out({ m: partial, credits: 9 })).toContain('>9 credits<');

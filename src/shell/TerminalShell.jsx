@@ -25,6 +25,7 @@ import {
   planOf,
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
+import { clearCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
@@ -303,6 +304,8 @@ export default function TerminalShell({ onLogout }) {
 
   function doLogout() {
     clearSessionUser();
+    // The AI credit balance is this account's alone; nothing of it outlives the sign-out (F111 review R).
+    clearCredits();
     clearPersonaPrefs();
     if (typeof location !== 'undefined') location.hash = '#/';
     onLogout?.();

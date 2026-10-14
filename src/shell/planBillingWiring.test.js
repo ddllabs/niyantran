@@ -27,7 +27,7 @@ it("sends a signed-in visitor's pricing choice to the panel instead of signup", 
 it('reads credits from the shared store and keeps the panel free of dollars', () => {
   const panel = read('./PlanBilling.jsx');
   expect(panel).toMatch(/from '\.\.\/lib\/creditsStore\.js'/);
-  for (const name of ['refreshCredits', 'serverCredits', 'subscribeCredits', 'formatCredits', 'rupeeHint']) expect(panel).toContain(name);
+  for (const name of ['refreshCredits', 'serverCredits', 'subscribeCredits', 'creditsText', 'rupeeHint']) expect(panel).toContain(name);
   expect(panel).not.toMatch(/USD|dollar|\$\d/i);
 });
 
@@ -40,4 +40,12 @@ it('prefixes every new credits style with plan-credits and adds no dollar', () =
   const selectors = block.match(/\.[a-z][\w-]*/g) || [];
   expect(selectors.filter(s => !s.startsWith('.plan-credits') && !/^\.\d/.test(s))).toEqual([]);
   expect(block).not.toMatch(/USD|dollar|\$/i);
+});
+
+it('forgets the cached credits when the user signs out, so another account never sees them (review R)', () => {
+  const shell = read('./TerminalShell.jsx');
+  expect(shell).toMatch(/import \{[^}]*\bclearCredits\b[^}]*\} from '\.\.\/lib\/creditsStore\.js'/);
+  const logout = shell.slice(shell.indexOf('function doLogout()'), shell.indexOf('return (', shell.indexOf('function doLogout()')));
+  expect(logout).toContain('clearSessionUser()');
+  expect(logout).toContain('clearCredits()');
 });

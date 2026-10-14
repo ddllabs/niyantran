@@ -1044,6 +1044,16 @@ describe('credit refusals before the stream', () => {
     clearStream('new');
   });
 
+  it('a 402 for credits held by a running answer says so (held), and a plain 402 does not', async () => {
+    const held = { error: 'Your credits are in use by an answer that is still running. Try again when it finishes.',
+      code: 'credits_exhausted', balance: 50, held: true };
+    expect(await sendTurn({ ...turn, turn_key: 'credits-held' }, { send: refuse(402, held) })).toMatchObject({ held: true });
+    clearStream('new');
+    const plain = { error: 'You have no AI credits left to start an answer.', code: 'credits_exhausted', balance: 0 };
+    expect((await sendTurn({ ...turn, turn_key: 'credits-plain' }, { send: refuse(402, plain) })).held).toBe(false);
+    clearStream('new');
+  });
+
   it('503 credits_unavailable is also definite (the turn never started) and can be sent again as it was', async () => {
     const body = { error: 'AI credits could not be checked.', code: 'credits_unavailable' };
     const result = await sendTurn({ ...turn, turn_key: 'credits-503' }, { send: refuse(503, body) });

@@ -10,7 +10,7 @@ import SourceList from './SourceList.jsx';
 import WebSourceStrip, { webSearchCount } from './WebSourceStrip.jsx';
 import MessageActions from './MessageActions.jsx';
 import { isReadableCitation } from './CitationBubble.jsx';
-import { creditsText } from './CreditBalance.jsx';
+import { creditsText } from '../lib/creditsStore.js';
 
 /** Props equal for rendering: the same message object, label source, handler, language and credits. */
 export function sameRow(a, b) {
@@ -29,10 +29,14 @@ function linksOf(m) {
  * What an answer cost, in words, or '' when nothing is known (F111 §8). `credits` is only what the server
  * has said. A failed answer that saved no text is never charged (§3.1), so it says so without waiting for
  * the server; a known charge of nothing says the same. An unknown charge on any other answer says nothing.
+ * A stopped answer is the exception to "no text means no cost": the round it was cut off in is still billed,
+ * and its credits can arrive late (a null frame), so it shows its number when known and otherwise nothing,
+ * never "No credits used" (review R, I1).
  */
 export function creditsLine(m, credits) {
   if (m.role !== 'assistant' || m.status === 'running') return '';
   const known = typeof credits === 'number' && Number.isFinite(credits) && credits >= 0;
+  if (m.status === 'cancelled') return known ? creditsText(credits) : '';
   if (known && credits > 0) return creditsText(credits);
   const failedEmpty = (m.status === 'error' || m.status === 'interrupted') && !String(m.content || '').trim();
   return known || failedEmpty ? 'No credits used' : '';

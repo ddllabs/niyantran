@@ -58,6 +58,9 @@ export function createResearchThread(overrides = {}) {
     cancelRequested: false, cancelPending: false, cancelError: '', attaching: false, attachNotice: '', identityVersion: 0,
     // F111 §8: why the last turn was refused for credits: '' | 'credits_exhausted' | 'credits_unavailable'.
     creditBlock: '',
+    // F111 review R: the refusal's own message, so the panel hides that error and no other, and whether the
+    // refusal said the balance is held by answers still running (the 402 body's `held`).
+    creditError: '', creditHeld: false,
     // F111 §8: credits charged per answer, by message id. Only what the server has said; an answer it has
     // not (yet) charged has no entry, so nothing is ever shown as 0 by guess.
     answerCredits: {} };
@@ -138,7 +141,7 @@ export function createResearchThread(overrides = {}) {
     generation++; sequence++; owner = null; operation = null;
     emit({ ready: false, loading: Boolean(id), error: id ? '' : 'Sign in to use AI research.', store: emptyStore(),
       draft: '', viewer: null, submitting: false, attaching: false, attachNotice: '', cancelRequested: false, cancelPending: false, cancelError: '',
-      creditBlock: '', answerCredits: {}, identityVersion: data.identityVersion + 1 });
+      creditBlock: '', creditError: '', creditHeld: false, answerCredits: {}, identityVersion: data.identityVersion + 1 });
     // Never invoke another Auth method inside its synchronous event callback.
     if (id) queueMicrotask(() => { if (active) void hydrate(); });
   }
@@ -214,11 +217,16 @@ export function createResearchThread(overrides = {}) {
     if (!valid(t)) return;
     if (result.error) emit({ error: result.error });
     // F111 §3: a turn refused for credits never started. Say which refusal it was.
-    if (result.errorCode === 'credits_exhausted' || result.errorCode === 'credits_unavailable') emit({ creditBlock: result.errorCode });
+    if (result.errorCode === 'credits_exhausted' || result.errorCode === 'credits_unavailable') {
+      emit({ creditBlock: result.errorCode, creditError: result.error || '', creditHeld: result.errorCode === 'credits_exhausted' && result.held === true });
+    }
     if (['complete', 'cancelled', 'truncated', 'interrupted', 'error'].includes(result.status) && !result.isPending) {
       emit({ cancelRequested: false, cancelPending: false });
       // F111 §8: a finished turn (answered, stopped, failed or refused) has changed the balance, or been refused by it.
-      void refreshWallet();
+      // A turn that ended at `done` is followed by a credits frame whose handler (onCredits) re-reads the balance
+      // once the charge has settled; a read here would run before it and be answered with the old balance
+      // (review R, M3). Failed, interrupted and refused turns get no such frame, so they re-read here.
+      if (!['complete', 'cancelled', 'truncated'].includes(result.status)) void refreshWallet();
     }
     if (result.conversationId) {
       try {
@@ -239,7 +247,7 @@ export function createResearchThread(overrides = {}) {
     const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
     if (!context) return false;
     const op = { context }; operation = op;
-    emit({ submitting: true, error: '', cancelError: '', attachNotice: '', creditBlock: '' });
+    emit({ submitting: true, error: '', cancelError: '', attachNotice: '', creditBlock: '', creditError: '', creditHeld: false });
     try {
       if (!await current(t)) return false;
       if (!replay) {

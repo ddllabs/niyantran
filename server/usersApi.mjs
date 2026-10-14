@@ -131,17 +131,39 @@ function creditAmount(value) {
 }
 
 /**
- * Each listed user's wallet in one query. A user with no wallet row yet has
- * nothing (balance 0). If the read fails the list still answers, with the
- * balance unknown (null), never a made-up 0.
+ * Every wallet, keyed by user. A user with no wallet row yet has nothing
+ * (balance 0). If any read fails the list still answers, with the balance
+ * unknown (null), never a made-up 0.
+ *
+ * The whole table is read (an admin-only call, after the admin check) rather
+ * than filtered with `.in('user_id', ids)`: a filter of every listed user is a
+ * URL that grows with the directory and is refused past a few hundred users,
+ * which would blank every balance. The table has at most one small row per
+ * user, so it is read in ordered pages; the server caps rows per request, so a
+ * page's length is never taken as a sign of the end, only an empty page is.
+ * The caller then looks up the users it lists, so a wallet of anyone not
+ * listed never leaves.
  */
-async function walletsFor(client, ids) {
+const WALLET_PAGE = 1000;
+const MAX_WALLET_PAGES = 1000;
+
+async function walletsFor(client) {
   const unknown = { balance: null, debt: null };
-  if (!ids.length) return () => unknown;
   try {
-    const { data, error } = await client.from('credit_wallets').select('user_id, balance, debt').in('user_id', ids);
-    if (error || !Array.isArray(data)) return () => unknown;
-    const byUser = new Map(data.map((w) => [w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0 }]));
+    const byUser = new Map();
+    let from = 0;
+    for (let page = 0; ; page += 1) {
+      if (page >= MAX_WALLET_PAGES) return () => unknown;
+      const { data, error } = await client
+        .from('credit_wallets')
+        .select('user_id, balance, debt')
+        .order('user_id', { ascending: true })
+        .range(from, from + WALLET_PAGE - 1);
+      if (error || !Array.isArray(data)) return () => unknown;
+      if (!data.length) break;
+      for (const w of data) byUser.set(w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0 });
+      from += data.length;
+    }
     return (id) => byUser.get(id) || { balance: 0, debt: 0 };
   } catch {
     return () => unknown;
@@ -206,7 +228,7 @@ async function listUsers(res, deps) {
       .select(PROFILE_COLUMNS)
       .order('created_at', { ascending: true });
     if (error || !Array.isArray(data)) throw new Error('Directory read failed');
-    const walletOf = await walletsFor(client, data.map((row) => row.user_id));
+    const walletOf = await walletsFor(client);
     return json(res, { ok: true, users: data.map((row) => directoryUser(row, walletOf(row.user_id))) });
   } catch {
     return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);

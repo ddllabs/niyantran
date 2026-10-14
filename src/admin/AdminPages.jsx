@@ -461,8 +461,8 @@ export function UsersPage({ users, onChange }) {
       <p className="adm-lede">
         Every account that has signed up. Assign a user type so each seat opens the matching desks. Set a plan to grant
         Plus, Pro or Max until a date (or open-ended), or Free to revoke; verified payments set plans on their
-        own. Credits shows each balance (and any debt); add or remove credits, or grant a top-up, with a reason that
-        is kept with the adjustment. Suspend to lock an account without deleting it, and restore to reopen it.
+        own. Credits shows each balance (and any debt) as of their last activity: it updates when they next
+        use AI. Add or remove credits, or grant a top-up, with a reason that is kept with the adjustment. Suspend to lock an account without deleting it, and restore to reopen it.
       </p>
       <div className="adm-card">
         <h2>Adding people</h2>
@@ -557,7 +557,7 @@ export function UsersPage({ users, onChange }) {
                     </td>
                     <td className="admin-credits">
                       <div className="admin-credits-cell" role="group" aria-label={`Credits for ${u.email}`}>
-                        <span className="admin-credits-balance">{formatBalance(u.creditBalance)}</span>
+                        <span className="admin-credits-balance" title="As of the last activity of this user, until they next use AI">{formatBalance(u.creditBalance)}</span>
                         {u.creditDebt > 0 ? (
                           <span className="admin-credits-debt">{`Owes ${formatBalance(u.creditDebt)}`}</span>
                         ) : null}

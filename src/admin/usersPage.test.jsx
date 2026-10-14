@@ -209,6 +209,13 @@ describe('UsersPage credits', () => {
     expect(markup).not.toMatch(/\$|USD|dollar|₹|rupee/i);
   });
 
+  it('says the balances are as of each user\'s last activity, because they update when the user next uses AI (review R, M5)', () => {
+    const markup = renderToStaticMarkup(createElement(UsersPage, { users: USERS, onChange: () => {} }));
+    expect(markup).toContain('as of their last activity');
+    expect(markup).toContain('when they next use AI');
+    expect(markup).toContain('class="admin-credits-balance" title="As of the last activity of this user, until they next use AI"');
+  });
+
   it('shows a dash, never zero, when the balance could not be read', () => {
     const unknown = [{ ...USERS[1], creditBalance: null, creditDebt: null }];
     const markup = renderToStaticMarkup(createElement(UsersPage, { users: unknown, onChange: () => {} }));

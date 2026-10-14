@@ -6,11 +6,12 @@
  * only shows it. Three things can replace the quiet balance line:
  *   - a warning, when the balance is at most 10% of the cycle allowance;
  *   - the blocked state, when research-chat refused the turn with 402 credits_exhausted, offering
- *     Upgrade and Buy credits (both open Plan & billing);
+ *     Upgrade and Buy credits (both open Plan & billing). When the refusal says `held` (the balance is
+ *     positive but answers still running hold it), buying would not help, so it says to wait instead;
  *   - a plain retry message, when it answered 503 credits_unavailable (the turn never started).
  */
 import { useEffect, useState } from 'react';
-import { formatCredits, lowBalance, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, lowBalance, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 
 /**
  * Plan & billing is owned by the terminal shell (TerminalShell.jsx holds its open state), and the
@@ -45,14 +46,13 @@ export function useCredits(ownerId) {
   return ownerId ? credits : null;
 }
 
-/** An amount of credits in words: "1,520 credits", "1 credit", "−50 credits". */
-export const creditsText = (n) => `${formatCredits(n)} ${Math.abs(n) === 1 ? 'credit' : 'credits'}`;
-
-export default function CreditBalance({ credits, block = '', onOpenBilling = openPlanBilling, onRetry }) {
+export default function CreditBalance({ credits, block = '', held = false, onOpenBilling = openPlanBilling, onRetry }) {
   const known = credits && Number.isFinite(credits.balance) ? credits : null;
   // A refusal for credits no longer applies once credits are available again.
   const blocked = block === 'credits_exhausted' && !(known && known.available > 0);
   const unchecked = block === 'credits_unavailable';
+  // A positive balance that still blocks a turn is held by answers in progress (F111 review R, M2).
+  const inUse = blocked && (held === true || Boolean(known && known.balance > 0));
   if (!known && !blocked && !unchecked) return null;
 
   const negative = Boolean(known && known.balance < 0);
@@ -61,7 +61,11 @@ export default function CreditBalance({ credits, block = '', onOpenBilling = ope
   const state = blocked ? 'blocked' : unchecked ? 'unchecked' : negative ? 'negative' : low ? 'low' : 'ok';
   return (
     <div className="ai-credit" data-state={state}>
-      {blocked ? <p className="ai-credit-msg" role="alert">You have no AI credits left to start an answer.</p> : null}
+      {blocked ? (
+        <p className="ai-credit-msg" role="alert">
+          {inUse ? 'Your credits are in use by an answer that is still running. Try again when it finishes.' : 'You have no AI credits left to start an answer.'}
+        </p>
+      ) : null}
       {unchecked ? <p className="ai-credit-msg" role="alert">AI credits could not be checked right now. Try again in a moment.</p> : null}
       {known ? (
         <p className="ai-credit-line">
@@ -74,7 +78,7 @@ export default function CreditBalance({ credits, block = '', onOpenBilling = ope
       <p className="ai-credit-warn" role="status">
         {low && !blocked ? `Running low: ${creditsText(known.balance)} left${known.plan === 'free' ? '' : ' this cycle'}` : ''}
       </p>
-      {blocked ? (
+      {blocked && !inUse ? (
         <div className="ai-credit-actions">
           <button type="button" onClick={() => onOpenBilling()}>Upgrade</button>
           <button type="button" onClick={() => onOpenBilling()}>Buy credits</button>
