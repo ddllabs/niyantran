@@ -2014,3 +2014,10 @@ recommendations … We can fix everything that is under your control."
   tests, lint, build, `check:bundle`, router import. The code is dormant: `POST /api/feeds/refresh`
   answers 503 until `FEED_REFRESH_SECRET` is set, nothing is scheduled, and pages fall back to the
   live path while the store is empty or `serve` is off. Rollback: revert and push.
+- **2026-10-15: migrations 52 `20261015150000_feed_records` and 53 `20261015160000_feed_admin` applied
+  to NTER** (F169 C7 step 1; owner's standing authority, 2026-10-14). Applied with `supabase db push
+  --linked` from `main` at `0d67409` after a dry run that listed only these two. After: four tables
+  with RLS on and no policies, 0 rows; anon and authenticated cannot read them or call the store
+  functions; `service_role` can record; `feed_admin_status()` callable by authenticated (admin-only
+  inside); `db_size()` not by anon; `pg_net` 0.20.4 (60 s timeout possible); no cron job for
+  `/api/feeds/refresh`. Rollback: the Down blocks in each migration's header (tables are empty).
