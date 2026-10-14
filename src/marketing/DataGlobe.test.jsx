@@ -67,3 +67,39 @@ describe('globe slot styles', () => {
     expect(css).toContain("@media (max-width: 1024px) {\n  .mkt-pr-earth { display: none; }");
   });
 });
+
+// F177 (owner 2026-10-14): Pricing's globe 10% larger and clear of the right edge; the homepage globe 5% larger;
+// sign-in 10% and sign-up 5% smaller. "The globe" is the whole box: Earth, orbits, labels, pause control.
+describe('globe position and sizes', () => {
+  const css = readFileSync(new URL('./marketing.css', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('./homeHero.css', import.meta.url), 'utf8');
+  const block = (source, start) => {
+    const at = source.indexOf(start);
+    return at < 0 ? '' : source.slice(at, source.indexOf('}', at) + 1);
+  };
+
+  it('makes the Pricing globe 10% larger and keeps it clear of the right edge where it shows', () => {
+    const hero = block(css, '@media (min-width: 1025px) {\n  .mkt-pr-hero {');
+    expect(hero).toContain('grid-template-columns: minmax(0, 1fr) calc(min(400px, 34vw) * 1.1);');
+    expect(hero).toContain('box-sizing: border-box;\n    padding-inline-end: clamp(32px, 5vw, 96px);');
+  });
+
+  it('makes the homepage globe 5% larger at every width, centred on its column', () => {
+    const column = block(home, '\n.nd-globe-column {');
+    expect(column).toContain('width: 105%;');
+    expect(column).toContain('max-width: calc(min(756px, 100svh - 144px) * 1.05);');
+    expect(column).toContain('justify-self: center;');
+    expect(column).not.toContain('margin-inline: auto');
+    expect(home).toMatch(/@media \(max-width: 650px\) \{[^@]*\n {2}\.nd-globe-column \{ max-width: none; \}/);
+  });
+
+  it('makes the sign-in globe 10% and the sign-up globe 5% smaller in every layout, and leaves Pricing unscaled', () => {
+    expect(css).toContain('.mkt-login-earth-visual{--globe-scale:.9}\n.mkt-signup-illustration{--globe-scale:.95}');
+    expect(css).toContain('.mkt-globe-slot>.nter-globe-scene{flex:none;width:calc(93.75% * var(--globe-scale, 1));');
+    expect(css).toContain('@container (max-width:439px){.mkt-globe-slot>.nter-globe-scene{width:calc(100% * var(--globe-scale, 1))}}');
+    expect(css).toContain('.mkt-login-earth-visual.mkt-globe-slot>.nter-globe-scene{width:calc(min(156.25%, 100vw - 24px) * var(--globe-scale, 1))}');
+    expect(css).toContain('.mkt-signup-illustration.mkt-globe-slot>.nter-globe-scene{width:calc(min(156.25%, 100vw - 24px) * var(--globe-scale, 1))}');
+    expect(css).toContain('.mkt-pr-earth.mkt-globe-slot>.nter-globe-scene{width:100%}');
+    expect(css.match(/--globe-scale:/g)).toHaveLength(2);
+  });
+});
