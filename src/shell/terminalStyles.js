@@ -14,6 +14,7 @@ import '../ai/chat-presentation.css';
 import '../ai/reader.css';
 import './panel-overlay.css';
 import './record/recordPanel.css';
+import './usage/creditsUsage.css';
 import './liveTv.css';
 import './upgrade.css';
 import './command-search.css';

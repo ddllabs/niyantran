@@ -710,6 +710,19 @@ to `authenticated`; nothing is granted to `anon`.
   - Holds keyed by turn, which also fixes a retry getting 402.
   - The settings history table was dropped.
 
+#### 12.x Amendment, 2026-10-14: usage reports (F153)
+
+Added by migration `20261014233000_credit_usage_reports`, per
+[the usage page spec](2026-10-14-credits-usage-page.md) (Decision 1):
+
+- `my_usage_summary(p_from, p_to)`, `my_usage_timeseries(p_from, p_to, p_bucket)` and
+  `my_usage_activity(p_offset, p_limit, p_grouped, p_model, p_status, p_kind)`: SECURITY
+  DEFINER, `search_path ''`, TimeZone UTC, STABLE, `authenticated` only, scoped to `auth.uid()`,
+  IST buckets, clamped inputs, credits only (no USD key).
+- `my_credits()` gains `cycle.starts_at` (the start `used_this_cycle` counts from), and `recent`
+  reads the latest 200 charge entries before it aggregates.
+- Index `research_turns (user_id, created_at DESC)`.
+
 ## Implementation notes (task 1, accepted 2026-10-14)
 
 Choices made in `20261014200000_ai_credits.sql` where this spec was silent;

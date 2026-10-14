@@ -627,6 +627,19 @@ rechecked. Nothing in this check wrote to production.
   activity card, AI analytics with charts and legends, all AI activity, credits by expiry) plus a
   small version in Plan & billing; built from the owner's screenshots.
   [Spec](../specs/2026-10-14-credits-usage-page.md). Next after the speed work.
+  **Built on `task/credits-usage-page` (2026-10-14), awaiting review; not applied to production.**
+  Migration `20261014233000_credit_usage_reports.sql`: `my_usage_summary`, `my_usage_timeseries`
+  (IST days or months, empty buckets filled) and `my_usage_activity` (grouped by question from
+  `research_turns`, deleted chats through `private.credit_turn_messages`, dictation from
+  `transcribe-audio` rows), credits only, authenticated only; index `research_turns (user_id,
+  created_at DESC)`; `my_credits()` bounds `recent` before aggregating and gains `cycle.starts_at`
+  (needs a §12 amendment, with the three functions). Fixture `supabase/tests/credit_usage_reports.sql`
+  (non-vacuous). UI in `src/shell/usage/`: the full-screen page (A activity, B analytics with a
+  hand-built SVG chart, legend toggles and table fallback, C All AI activity with paging, expand and CSV,
+  D credits by expiry), the small version replacing Plan & billing's Recent answers, a profile-menu
+  item and a Usage link on the chat's credit chip (`niy-open-usage`). Run locally on seeded usage
+  (desktop and 375 px, light and dark; screenshots for the owner). Left: the §12 amendment, review,
+  and the owner's go-ahead to apply the migration.
 - [ ] **F155. Admin can set a model's plan.** The owner adds new models from the admin AI models
   page; it needs a plan selector (`admin_models_upsert` + `admin-models` + the allowlist editor) so
   each model's `min_plan` is chosen there. New models default to paid until then. The

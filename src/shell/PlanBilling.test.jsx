@@ -22,7 +22,7 @@ vi.mock('../lib/creditsStore.js', async original => ({
   serverCredits: (...args) => fake.serverCredits(...args),
 }));
 import PlanBilling from './PlanBilling.jsx';
-import { OPEN_CONVERSATION_EVENT } from '../lib/creditsStore.js';
+import { OPEN_USAGE_EVENT } from '../lib/creditsStore.js';
 
 const DAY = 86400000;
 const FREE = { plan: 'free', status: 'free', loaded: true };
@@ -37,14 +37,18 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 const USER = { id: 'u1', email: 'a@example.test', name: 'A' };
-// state order in PlanBilling: config, invoices, selected, busy, result, credits, creditsTried
+// state order in PlanBilling: config, invoices, selected, busy, result, credits, creditsTried; then, once the
+// credits section is expanded, the small usage version's reports (UsageMiniCard, F153) at index 7
 function render(ent, { config = CLOSED, invoices = [], selected = null, busy = false, result = null, credits = null, tried = false, user = USER, onClose = vi.fn() } = {}) {
   fake.cursor = 0;
   if (!fake.states.length) fake.states = [config, invoices, selected, busy, result, credits, tried];
   return PlanBilling({ ent, user, onClose });
 }
 // Hook-free function components (the credits section) are expanded in place.
-const expand = node => (node && typeof node === 'object' && typeof node.type === 'function' ? node.type(node.props) : node);
+const expand = node => {
+  while (node && typeof node === 'object' && typeof node.type === 'function') node = node.type(node.props);
+  return node;
+};
 function all(node, predicate, found = []) {
   node = expand(node);
   if (!node || typeof node !== 'object') return found;
@@ -193,56 +197,46 @@ it('lists the lots in plain words, earliest expiry first, with remaining and exp
   expect(items[4]).toMatch(/Top-up.*500 credits.*1 Sept? 2027/);
 });
 
-it('lists up to 20 recent answers with date, title and credits', () => {
-  const recent = Array.from({ length: 25 }, (_, i) => ({ conversationId: `c${i}`, title: `Chat ${i}`, credits: 38, createdAt: '2026-10-13T12:00:00Z' }));
-  const items = rows(render(PRO, { credits: credits({ recent }) }), 'plan-credits-answer');
-  expect(items).toHaveLength(20);
-  expect(text(items[0])).toContain('13 Oct 2026');
-  expect(text(items[0])).toContain('Chat 0');
-  expect(text(items[0])).toContain('38 credits');
-});
-
-it('names an untitled conversation and a deleted one', () => {
-  const recent = [
-    { conversationId: 'c1', title: null, credits: 12.5, createdAt: '2026-10-13T12:00:00Z' },
-    { conversationId: null, title: null, credits: 1, createdAt: '2026-10-12T12:00:00Z' },
-  ];
-  const items = rows(render(PRO, { credits: credits({ recent }) }), 'plan-credits-answer').map(text);
-  expect(items[0]).toContain('Untitled');
-  expect(items[0]).toContain('12.5 credits');
-  expect(items[1]).toContain('Deleted conversation');
-  expect(items[1]).toContain('1 credit');
-  expect(items[1]).not.toContain('1 credits');
-});
-
-// F149: an answer's row opens that conversation in the AI panel; a deleted conversation stays text.
-const answerRows = recent => rows(render(PRO, { credits: credits({ recent }), onClose: closed }), 'plan-credits-answer');
+// F153: the 20-row "Recent answers" list moved to the Credits usage page's All AI activity; in its
+// place is the small version of that page, which opens it.
 const closed = vi.fn();
-const buttonOf = row => all(row, n => n.type === 'button')[0];
+const mini = tree => all(tree, n => String(n.props?.className || '').split(' ').includes('cu-mini'))[0];
 
-it('turns a saved conversation\'s answer row into a button that opens it and closes Plan & billing', () => {
+it('shows the small usage version in place of the recent answers list', () => {
+  const recent = [{ conversationId: 'c1', title: 'Rate cut', credits: 38, createdAt: '2026-10-13T12:00:00Z' }];
+  const tree = render(PRO, { credits: credits({ recent }) });
+  expect(rows(tree, 'plan-credits-answer')).toHaveLength(0);
+  expect(text(section(tree))).not.toMatch(/Recent answers|No answers yet/);
+  expect(text(section(tree))).toContain('Usage this period');
+  expect(mini(tree)).toBeTruthy();
+  expect(text(mini(tree))).toMatch(/Loading usage/);
+});
+
+it('fills the small version once its reports arrive: four figures, top models and a 30-day sparkline', () => {
+  fake.states = [CLOSED, [], null, false, null, credits({ balance: 1500, allowance: 2000 }), true, {
+    status: 'ready', points: [{ bucket: '2026-10-13', model: 'google/gemini-3.7-flash', credits: 30, calls: 2, tokens: 900 }],
+    summary: { credits: 500, calls: 42, tokens: 2270000, byModel: [{ model: 'google/gemini-3.7-flash', provider: 'google', credits: 480, calls: 40, tokens: 2200000 }] },
+  }];
+  const t = text(mini(render(PRO)));
+  expect(t).toMatch(/Credits used.*500.*Credits left.*1,500.*of 2,000 this period.*Model calls.*42.*Tokens.*2\.27M/);
+  expect(t).toContain('gemini-3.7-flash');
+  expect(t).toContain('40 calls · 480 credits');
+  expect(t).toMatch(/See credits usage/);
+});
+
+it('opens the Credits usage page from the small version and closes Plan & billing', () => {
   const target = new EventTarget();
   vi.stubGlobal('window', target);
   try {
     closed.mockReset();
     const seen = vi.fn();
-    target.addEventListener(OPEN_CONVERSATION_EVENT, seen);
-    const [row] = answerRows([{ conversationId: 'c1', title: 'Rate cut', credits: 3, createdAt: '2026-10-13T12:00:00Z' }]);
-    const button = buttonOf(row);
-    expect(button.props.type).toBe('button');
-    expect(text(button)).toContain('Rate cut');
-    expect(button.props['aria-label']).toMatch(/Open conversation.*Rate cut/);
-    button.props.onClick();
-    expect(seen).toHaveBeenCalledOnce();
-    expect(seen.mock.calls[0][0].detail).toEqual({ conversationId: 'c1' });
+    target.addEventListener(OPEN_USAGE_EVENT, seen);
+    const see = all(mini(render(PRO, { credits: credits(), onClose: closed })), n => n.type === 'button' && /See credits usage/.test(text(n)))[0];
+    see.props.onClick();
     expect(closed).toHaveBeenCalledOnce();
+    expect(seen).toHaveBeenCalledOnce();
+    expect(OPEN_USAGE_EVENT).toBe('niy-open-usage');
   } finally { vi.unstubAllGlobals(); }
-});
-
-it('keeps a deleted conversation\'s answer row as plain text', () => {
-  const [row] = answerRows([{ conversationId: null, title: null, credits: 3, createdAt: '2026-10-13T12:00:00Z' }]);
-  expect(text(row)).toContain('Deleted conversation');
-  expect(all(row, n => n.type === 'a' || n.type === 'button')).toHaveLength(0);
 });
 
 it('says top-ups are coming soon while checkout is closed, and not when it is open', () => {
@@ -258,10 +252,6 @@ it('gives a Free account with no credit lots a plain empty state', () => {
   expect(t).toMatch(/no credits right now/i);
   expect(t).not.toMatch(/Monthly allowance|Sign-up credits/);
   expect(rows(render(FREE, { credits: credits({ lots: [] }) }), 'plan-credits-lot')).toHaveLength(0);
-});
-
-it('says there are no answers yet when nothing was charged', () => {
-  expect(text(section(render(PRO, { credits: credits({ recent: [] }) })))).toMatch(/No answers yet/);
 });
 
 it('renders nothing new when signed out', () => {

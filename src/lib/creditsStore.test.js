@@ -23,7 +23,7 @@ import {
 
 const SERVER = {
   balance: 1520.4567, held: 300, debt: 0, plan: 'plus', inr_per_credit: 0.1,
-  cycle: { allowance: 2000, ends_at: '2026-11-14T00:00:00Z' }, used_this_cycle: 479.5433,
+  cycle: { allowance: 2000, starts_at: '2026-10-14T00:00:00Z', ends_at: '2026-11-14T00:00:00Z' }, used_this_cycle: 479.5433,
   lots: [{ kind: 'monthly', remaining: 1520.4567, expires_at: '2026-11-14T00:00:00Z' }],
   recent: [{ conversation_id: 'c1', title: 'Budget scrutiny', credits: 38.25, created_at: '2026-10-14T10:00:00Z' }],
 };
@@ -43,7 +43,7 @@ describe('shapeCredits', () => {
     const c = shapeCredits('u1', SERVER);
     expect(c).toEqual({
       userId: 'u1', balance: 1520.4567, held: 300, available: 1220.4567, debt: 0, plan: 'plus', inrPerCredit: 0.1,
-      allowance: 2000, cycleEndsAt: '2026-11-14T00:00:00Z', usedThisCycle: 479.5433,
+      allowance: 2000, cycleStartsAt: '2026-10-14T00:00:00Z', cycleEndsAt: '2026-11-14T00:00:00Z', usedThisCycle: 479.5433,
       lots: [{ kind: 'monthly', remaining: 1520.4567, expiresAt: '2026-11-14T00:00:00Z' }],
       recent: [{ conversationId: 'c1', title: 'Budget scrutiny', credits: 38.25, createdAt: '2026-10-14T10:00:00Z' }],
     });
@@ -242,6 +242,9 @@ describe('rupeeHint', () => {
     expect(rupeeHint(2000, 0.1)).toBe('≈ ₹200');
     expect(rupeeHint(38.25, 0.1)).toBe('≈ ₹3.83');
     expect(rupeeHint(75000, 0.1)).toBe('≈ ₹7,500');
+    // Less than a paisa is said as such (F153), and zero stays zero.
+    expect(rupeeHint(0.02, 0.1)).toBe('< ₹0.01');
+    expect(rupeeHint(0, 0.1)).toBe('≈ ₹0');
   });
 
   it('is empty without a rate or an amount', () => {

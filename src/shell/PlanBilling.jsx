@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
-import { creditsText, openConversation, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, openCreditsUsage, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
+import CreditLots, { dayOrNull } from './CreditLots.jsx';
+import UsageMiniCard from './usage/UsageMini.jsx';
 
 const PAID = PUBLIC_PLANS.filter((p) => p.monthly > 0);
 const RENEW_WINDOW_MS = 7 * 86400000;
@@ -16,40 +18,16 @@ function day(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-const LOT_KINDS = {
-  monthly: 'Monthly',
-  rollover: 'Rolled over',
-  signup: 'Sign-up',
-  topup: 'Top-up',
-  adjustment: 'Adjustment',
-};
-
-function lotLabel(kind) {
-  const known = LOT_KINDS[kind];
-  if (known) return known;
-  const text = String(kind || 'Other').replace(/[_-]+/g, ' ');
-  return text[0].toUpperCase() + text.slice(1);
-}
-
-/** A date for display, or null when the server sent none or something unreadable. */
-function dayOrNull(iso) {
-  return iso && !Number.isNaN(Date.parse(iso)) ? day(iso) : null;
-}
-
-/** Earliest expiry first; a lot with no expiry goes last. */
-function byExpiry(lots) {
-  const at = (l) => (dayOrNull(l.expiresAt) ? Date.parse(l.expiresAt) : Infinity);
-  return [...lots].sort((a, b) => at(a) - at(b));
-}
-
 /**
  * The AI credits section (F111, docs/specs/2026-10-14-ai-credits.md §8). Credits
  * first, the rupee value second and muted; the server sends only credits. "Used
  * this cycle" is the server's own count of credits charged to answers since the
  * cycle began (my_credits().used_this_cycle), never derived here from the
- * allowance and the lots; it is left out when there is no cycle (null).
+ * allowance and the lots; it is left out when there is no cycle (null). Below the lots sits the small
+ * version of the Credits usage page (F153), which replaced the "Recent answers" list: those rows are
+ * now the page's All AI activity.
  */
-function CreditsSection({ credits, tried, checkoutClosed, onOpenConversation }) {
+function CreditsSection({ credits, tried, checkoutClosed, onSeeUsage }) {
   if (!credits) {
     return (
       <section className="plan-credits" aria-labelledby="plan-credits-title">
@@ -63,8 +41,6 @@ function CreditsSection({ credits, tried, checkoutClosed, onOpenConversation }) 
   const hint = (n) => (rupeeHint(n, rate) ? `${rupeeHint(n, rate)} of AI` : '');
   const free = credits.plan === 'free';
   const endsOn = dayOrNull(credits.cycleEndsAt);
-  const lots = byExpiry(credits.lots);
-  const answers = credits.recent.slice(0, 20);
   return (
     <section className="plan-credits" aria-labelledby="plan-credits-title">
       <h3 className="plan-up-sub" id="plan-credits-title">AI credits</h3>
@@ -87,53 +63,10 @@ function CreditsSection({ credits, tried, checkoutClosed, onOpenConversation }) 
       ) : null}
 
       <h4 className="plan-credits-sub">Credits by expiry</h4>
-      {lots.length ? (
-        <ul className="plan-credits-lots">
-          {lots.map((l, i) => (
-            <li key={`${l.kind}-${l.expiresAt}-${i}`} className="plan-credits-lot">
-              <span className="plan-credits-kind">{lotLabel(l.kind)}</span>
-              <span className="plan-credits-num">{creditsText(l.remaining)}</span>
-              <span className="plan-credits-when">{dayOrNull(l.expiresAt) ? `Expires ${dayOrNull(l.expiresAt)}` : 'No expiry'}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="plan-up-note">You have no credits right now.</p>
-      )}
+      <CreditLots lots={credits.lots} />
 
-      <h4 className="plan-credits-sub">Recent answers</h4>
-      {answers.length ? (
-        <ul className="plan-credits-answers">
-          {answers.map((r, i) => {
-            const title = r.title || (r.conversationId ? 'Untitled' : 'Deleted conversation');
-            const when = dayOrNull(r.createdAt) || '';
-            const cells = (
-              <>
-                <span className="plan-credits-when">{when}</span>
-                <span className="plan-credits-title" title={title}>{title}</span>
-                <span className="plan-credits-num">{creditsText(r.credits)}</span>
-              </>
-            );
-            // F149: a saved conversation opens in the AI panel; a deleted one has nothing to open.
-            return (
-              <li key={`${r.conversationId}-${r.createdAt}-${i}`} className={`plan-credits-answer${r.conversationId ? ' plan-credits-link' : ''}`}>
-                {r.conversationId ? (
-                  <button
-                    type="button"
-                    className="plan-credits-open"
-                    aria-label={`Open conversation ${title}${when ? `, ${when}` : ''}, ${creditsText(r.credits)}`}
-                    onClick={() => onOpenConversation(r.conversationId)}
-                  >
-                    {cells}
-                  </button>
-                ) : cells}
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="plan-up-note">No answers yet.</p>
-      )}
+      <h4 className="plan-credits-sub">Usage this period</h4>
+      <UsageMiniCard credits={credits} onSeeUsage={onSeeUsage} />
 
       {checkoutClosed ? <p className="plan-up-note plan-credits-note">Top-ups coming soon.</p> : null}
     </section>
@@ -305,9 +238,9 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
             credits={credits}
             tried={creditsTried}
             checkoutClosed={Boolean(config) && !open}
-            onOpenConversation={(id) => {
-              openConversation(id);
+            onSeeUsage={() => {
               close.current?.();
+              openCreditsUsage();
             }}
           />
         ) : null}

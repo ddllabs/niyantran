@@ -1,0 +1,208 @@
+/* Credits usage page (F153). The series colours start from AnalyticsViz's palette (navy, red, purple,
+   teal, amber, slate) with its second blue and second red swapped for pink and green, so no two
+   series read as the same colour.
+   Surfaces and words use the app tokens (src/index.css), which the terminal
+   root's .theme-dark redefines, so the page and its dialog follow the theme; the chart series and the
+   status pills have dark values of their own at the end. creditsUsageCss.test.js measures contrast in
+   both themes. Every class here starts with cu-. */
+
+.cu-root, .cu-dialog-root, .cu-mini {
+  --cu-s0: #012ea1; --cu-s1: #c81322; --cu-s2: #4f1d90; --cu-s3: #0f766e;
+  --cu-s4: #b45309; --cu-s5: #be185d; --cu-s6: #4d7c0f; --cu-s7: #64748b;
+}
+/* Above the terminal's top bar (z-index 200), which would otherwise cover the page's own header. */
+.cu-root { position: fixed; inset: 0; z-index: 210; display: grid; place-items: center; padding: 20px; }
+.cu-dialog-root { position: fixed; inset: 0; z-index: 220; display: grid; place-items: center; padding: 20px; }
+.cu-scrim { position: absolute; inset: 0; border: 0; background: rgba(12, 18, 32, 0.48); cursor: pointer; }
+.cu-page, .cu-dialog {
+  position: relative; z-index: 1; width: min(1080px, 100%); max-height: min(94vh, 1000px); overflow: auto;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 28px 64px rgba(12, 18, 32, 0.28); padding: 22px 22px 24px; box-sizing: border-box;
+}
+.cu-dialog { width: min(1000px, 100%); max-height: min(90vh, 900px); }
+.cu-page:focus, .cu-dialog:focus { outline: none; }
+.cu-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.cu-kicker { margin: 0 0 4px; font-size: 10px; font-weight: 750; letter-spacing: 0.14em; color: var(--accent); }
+.cu-head h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; color: var(--fg); }
+.cu-x { flex: none; width: 32px; height: 32px; border: 0; border-radius: 10px; background: var(--bg); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer; }
+.cu-sections { display: grid; gap: 14px; }
+.cu-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.cu-card-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--fg); }
+.cu-icon { flex: none; color: var(--accent); }
+.cu-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.cu-h4 { margin: 18px 0 8px; font-size: 11px; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.cu-h5 { margin: 0 0 6px; font-size: 11px; font-weight: 650; color: var(--muted); }
+.cu-note { margin: 12px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.cu-error { color: #a3101d; }
+.cu-caption { margin: 10px 0 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
+.cu-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Figures */
+.cu-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.cu-figs-five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.cu-highs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cu-fig { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.cu-fig-label { font-size: 11px; font-weight: 650; color: var(--muted); }
+.cu-fig-value { font-size: 20px; font-weight: 750; letter-spacing: -0.01em; color: var(--fg); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cu-highs .cu-fig-value { font-size: 15px; }
+.cu-fig-sub { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cu-credits { display: inline-flex; flex-direction: column; gap: 1px; }
+.cu-inr { font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cu-owed { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #a3101d; }
+.cu-tokens { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.cu-tokens:focus-visible, .cu-link:focus-visible, .cu-btn:focus-visible, .cu-x:focus-visible, .cu-expand:focus-visible,
+.cu-chat-open:focus-visible, .cu-leg-row:focus-visible, .cu-seg-ctl button:focus-visible, .cu-switch:focus-visible,
+.cu-disclose:focus-visible, .cu-select select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cu-lifetime { margin: 12px 0 0; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
+.cu-lifetime strong { color: var(--fg); }
+
+/* Top models */
+.cu-top { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cu-top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.cu-top-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--fg); font-weight: 600; overflow-wrap: anywhere; }
+.cu-top-num { color: var(--text); font-variant-numeric: tabular-nums; }
+.cu-mark { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 750; }
+.cu-dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; }
+
+/* Links, buttons, controls */
+.cu-link { margin-top: 14px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cu-btn { min-height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.cu-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.cu-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.cu-seg-ctl { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg); }
+.cu-seg-ctl button { min-height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.cu-seg-ctl button.on { background: var(--panel); color: var(--fg); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.cu-seg-small button { min-height: 26px; padding: 0 10px; font-size: 11px; }
+.cu-select { display: inline-flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.cu-select select { height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font: inherit; font-size: 13px; font-weight: 500; }
+.cu-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.cu-switch-track { position: relative; width: 30px; height: 18px; border-radius: 999px; background: var(--line); }
+.cu-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
+.cu-switch.on .cu-switch-track { background: var(--accent); }
+.cu-switch.on .cu-switch-knob { left: 14px; }
+
+/* Chart and legend */
+.cu-chart-row { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; margin-top: 12px; }
+.cu-chart-measure { min-width: 0; }
+.cu-chart-box { position: relative; }
+.cu-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.cu-grid { stroke: var(--line); stroke-dasharray: 3 3; }
+.cu-axis { stroke: var(--muted); stroke-opacity: 0.5; }
+.cu-tick { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.cu-hit { fill: transparent; }
+.cu-bar { cursor: pointer; outline: none; }
+.cu-bar.on .cu-hit, .cu-bar:focus-visible .cu-hit { fill: var(--accent-soft); }
+.cu-bar:focus-visible .cu-hit { stroke: var(--accent); stroke-width: 1.5; }
+@media (prefers-reduced-motion: no-preference) {
+  .cu-seg { transition: y 0.2s ease, height 0.2s ease; }
+  .cu-switch-knob { transition: left 0.15s ease; }
+}
+.cu-tip { position: absolute; top: 4px; width: 180px; display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); box-shadow: 0 8px 24px rgba(12, 18, 32, 0.18); font-size: 12px; pointer-events: none; }
+.cu-tip strong { color: var(--fg); }
+.cu-tip-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.cu-tip-row b { font-weight: 650; color: var(--fg); }
+.cu-tip-total { grid-template-columns: minmax(0, 1fr) auto; margin-top: 2px; padding-top: 4px; border-top: 1px solid var(--line); font-weight: 650; }
+.cu-chart-state { min-height: 120px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 10px; margin: 0; }
+.cu-disclose { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.cu-legend { min-width: 0; }
+.cu-legend-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cu-legend-head .cu-h4 { margin: 0; }
+.cu-legend-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.cu-leg-row { display: grid; grid-template-columns: 10px 18px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 4px 8px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; font-variant-numeric: tabular-nums; }
+.cu-leg-row:hover { background: var(--bg); }
+.cu-leg-row.off { opacity: 0.55; }
+.cu-leg-row.off .cu-leg-name { text-decoration: line-through; }
+.cu-leg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+.cu-leg-share { min-width: 34px; text-align: right; color: var(--muted); }
+
+/* By feature */
+.cu-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cu-feature { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.cu-feature-name { font-weight: 650; color: var(--fg); }
+.cu-feature-num { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Tables */
+.cu-table-wrap { max-width: 100%; overflow-x: auto; margin-top: 10px; }
+.cu-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cu-table th, .cu-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; color: var(--text); }
+.cu-table thead th { font-size: 10px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.cu-table tbody th { font-weight: 600; color: var(--fg); white-space: nowrap; }
+.cu-chart-table td { text-align: right; }
+.cu-table .cu-num { text-align: right; white-space: nowrap; }
+.cu-table .cu-num .cu-credits { align-items: flex-end; }
+.cu-when { white-space: nowrap; }
+.cu-expand { width: 24px; height: 24px; margin-right: 4px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; line-height: 1; cursor: pointer; }
+.cu-expand-gap { display: inline-block; width: 28px; }
+.cu-chat { min-width: 180px; max-width: 360px; }
+.cu-chat-open { display: block; max-width: 100%; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cu-chat > span:first-child { display: block; font-weight: 600; color: var(--fg); }
+.cu-chat-gone { font-style: italic; }
+.cu-chat-model { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.cu-row.on td { background: var(--bg); }
+.cu-detail > td { padding: 4px 8px 12px 36px; background: var(--bg); }
+.cu-question { margin: 6px 0 4px; font-size: 13px; line-height: 1.45; color: var(--fg); white-space: pre-wrap; }
+.cu-calls { margin-top: 4px; }
+.cu-calls td, .cu-calls th { padding: 6px 8px; }
+.cu-call-status { color: var(--muted); }
+.cu-free { color: var(--muted); font-style: italic; }
+.cu-total th, .cu-total td { font-weight: 750; color: var(--fg); border-bottom: 0; }
+.cu-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; white-space: nowrap; }
+.cu-pill-succeeded { background: #e4f3ef; color: #176b55; }
+.cu-pill-failed { background: #fbe4e6; color: #a3101d; }
+.cu-pill-stopped { background: #f3e6d0; color: #7a4f0f; }
+.cu-pill-running { background: #e8eef8; color: #012ea1; }
+.cu-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+.cu-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.cu-pager span { margin-right: auto; }
+
+/* The small version, inside Plan & billing */
+.cu-mini { display: grid; gap: 10px; }
+.cu-mini .cu-link { margin-top: 0; justify-self: start; }
+.cu-figs-compact { gap: 6px; margin-top: 0; }
+.cu-figs-compact .cu-fig { padding: 8px; }
+.cu-figs-compact .cu-fig-value { font-size: 15px; }
+.cu-mini-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+.cu-mini-col { min-width: 0; }
+.cu-mini .cu-top-row { padding: 6px 8px; font-size: 12px; }
+.cu-spark { display: block; max-width: 100%; height: auto; }
+.cu-spark-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+
+@media (max-width: 900px) {
+  .cu-chart-row { grid-template-columns: minmax(0, 1fr); }
+  .cu-figs-five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .cu-root, .cu-dialog-root { padding: 0; }
+  .cu-page, .cu-dialog { width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0; padding: 16px 16px 24px; }
+  .cu-card { padding: 12px; }
+  .cu-figs, .cu-figs-five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cu-highs { grid-template-columns: minmax(0, 1fr); }
+  .cu-fig-value { font-size: 17px; }
+  .cu-mini-row { grid-template-columns: minmax(0, 1fr); }
+  .cu-controls { align-items: stretch; }
+  /* On a phone the activity table keeps when, chat, credits and status; calls and tokens are in the
+     expanded rows and the export. */
+  .cu-activity-table > thead > tr > :nth-child(3), .cu-activity-table > thead > tr > :nth-child(4),
+  .cu-activity-table > tbody > .cu-row > :nth-child(3), .cu-activity-table > tbody > .cu-row > :nth-child(4) { display: none; }
+  .cu-activity-table th, .cu-activity-table td { padding: 8px 4px; }
+  .cu-chat { min-width: 0; max-width: none; }
+  .cu-chat-open { white-space: normal; overflow-wrap: anywhere; }
+  .cu-when { white-space: normal; }
+  .cu-expand-gap { width: 0; }
+  .cu-detail > td { padding: 4px 4px 12px; }
+}
+
+/* Dark theme: the terminal root carries .theme-dark (src/index.css), which redefines the tokens used
+   above. Only what is not a token needs its own value here. */
+.theme-dark .cu-root, .theme-dark .cu-dialog-root, .theme-dark .cu-mini {
+  --cu-s0: #7ba3ff; --cu-s1: #f87171; --cu-s2: #b57cff; --cu-s3: #2dd4bf;
+  --cu-s4: #f59e0b; --cu-s5: #f472b6; --cu-s6: #a3e635; --cu-s7: #94a3b8;
+}
+.theme-dark .cu-scrim { background: rgba(0, 0, 0, 0.62); }
+.theme-dark .cu-page, .theme-dark .cu-dialog { box-shadow: 0 28px 64px rgba(0, 0, 0, 0.6); color-scheme: dark; }
+.theme-dark .cu-error, .theme-dark .cu-owed { color: #f87171; }
+.theme-dark .cu-pill-succeeded { background: #1f3a2a; color: #7fd8ad; }
+.theme-dark .cu-pill-failed { background: #4a2428; color: #ffb4b4; }
+.theme-dark .cu-pill-stopped { background: #3a342c; color: #ead0af; }
+.theme-dark .cu-pill-running { background: #1c2744; color: #a9c1ff; }
+.theme-dark .cu-tip { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }

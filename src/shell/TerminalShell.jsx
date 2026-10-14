@@ -25,12 +25,13 @@ import {
   planOf,
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
-import { OPEN_CONVERSATION_EVENT, clearCredits } from '../lib/creditsStore.js';
+import { OPEN_CONVERSATION_EVENT, OPEN_USAGE_EVENT, clearCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 import PlanBilling from './PlanBilling.jsx';
+import CreditsUsage from './usage/CreditsUsage.jsx';
 import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
@@ -56,6 +57,8 @@ export default function TerminalShell({ onLogout }) {
   const [personaOpen, setPersonaOpen] = useState(false);
   // Plan & billing panel (F110): null when closed, else { plan } to preselect.
   const [billing, setBilling] = useState(null);
+  // Credits usage page (F153): open or closed.
+  const [usageOpen, setUsageOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
   const profileRef = useRef(null);
   const user = sessionUser();
@@ -105,6 +108,13 @@ export default function TerminalShell({ onLogout }) {
     const onOpenBilling = (event) => setBilling({ plan: event.detail?.plan ?? null });
     window.addEventListener(OPEN_BILLING_EVENT, onOpenBilling);
     return () => window.removeEventListener(OPEN_BILLING_EVENT, onOpenBilling);
+  }, []);
+
+  // Plan & billing and the chat's credit chip open the Credits usage page (F153).
+  useEffect(() => {
+    const onOpenUsage = () => setUsageOpen(true);
+    window.addEventListener(OPEN_USAGE_EVENT, onOpenUsage);
+    return () => window.removeEventListener(OPEN_USAGE_EVENT, onOpenUsage);
   }, []);
 
   // The plan comes from the server (F2). Re-read it when the terminal opens,
@@ -448,6 +458,16 @@ export default function TerminalShell({ onLogout }) {
                     className="profile-pop-persona"
                     onClick={() => {
                       setProfileOpen(false);
+                      setUsageOpen(true);
+                    }}
+                  >
+                    Credits usage
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-pop-persona"
+                    onClick={() => {
+                      setProfileOpen(false);
                       setPersonaOpen(true);
                     }}
                   >
@@ -524,6 +544,7 @@ export default function TerminalShell({ onLogout }) {
       {billing ? (
         <PlanBilling ent={ent} user={user} initialPlan={billing.plan} onClose={() => setBilling(null)} />
       ) : null}
+      {usageOpen && user ? <CreditsUsage user={user} onClose={() => setUsageOpen(false)} /> : null}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}

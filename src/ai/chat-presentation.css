@@ -134,6 +134,8 @@
 .ai-shell.ai-shell-research .ai-credit { display: grid; gap: 4px; padding: 0 2px; font-size: 12px; line-height: 1.4; color: var(--ai-muted); }
 .ai-shell.ai-shell-research .ai-credit-line { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 0; font-variant-numeric: tabular-nums; }
 .ai-shell.ai-shell-research .ai-credit-hint::before { content: '·'; margin-right: 6px; }
+.ai-shell.ai-shell-research .ai-credit-usage { margin-left: auto; padding: 0; border: 0; background: none; color: var(--ai-blue); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.ai-shell.ai-shell-research .ai-credit-usage:focus-visible { outline: 2px solid var(--ai-blue); outline-offset: 2px; border-radius: 2px; }
 .ai-shell.ai-shell-research .ai-credit-warn, .ai-shell.ai-shell-research .ai-credit-msg { margin: 0; color: var(--ai-text); font-variant-numeric: tabular-nums; }
 .ai-shell.ai-shell-research .ai-credit-warn:empty { display: none; }
 .ai-shell.ai-shell-research .ai-credit-msg { font-weight: 500; }

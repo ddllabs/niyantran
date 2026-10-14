@@ -44,6 +44,8 @@ export function shapeCredits(userId, data) {
     plan: String(data.plan || 'free'),
     inrPerCredit: num(data.inr_per_credit),
     allowance: num(data.cycle?.allowance),
+    // Where used_this_cycle counts from (F153); null when there is no cycle.
+    cycleStartsAt: data.cycle?.starts_at || null,
     cycleEndsAt: data.cycle?.ends_at || null,
     // Credits charged to answers since this cycle began; null when there is no cycle (F111 review R, I2).
     usedThisCycle: num(data.used_this_cycle),
@@ -208,6 +210,17 @@ export function takeWantedConversation() {
   return id;
 }
 
+/**
+ * Plan & billing, the profile menu and the chat's credit chip ask the shell for the Credits usage page
+ * (F153), the way they ask for Plan & billing. The shell holds the page's open state.
+ */
+export const OPEN_USAGE_EVENT = 'niy-open-usage';
+
+export function openCreditsUsage() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(OPEN_USAGE_EVENT));
+}
+
 const GROUPED = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 
 function trimmed(value, digits) {
@@ -235,6 +248,8 @@ export function rupeeHint(credits, inrPerCredit) {
   const rate = num(inrPerCredit);
   if (c === null || rate === null || rate <= 0) return '';
   const inr = Math.abs(c * rate);
+  // A share of a call can be worth less than a paisa (F153's per-call credits): say so, not "₹0".
+  if (inr > 0 && inr < 0.005) return '< ₹0.01';
   const text = inr >= 100 ? GROUPED.format(Math.round(inr)) : trimmed(inr, 2);
   return `≈ ${c < 0 ? '−' : ''}₹${text}`;
 }

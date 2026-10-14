@@ -11,7 +11,7 @@
  *   - a plain retry message, when it answered 503 credits_unavailable (the turn never started).
  */
 import { useEffect, useState } from 'react';
-import { creditsText, lowBalance, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, lowBalance, openCreditsUsage, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 
 /**
  * Plan & billing is owned by the terminal shell (TerminalShell.jsx holds its open state), and the
@@ -46,7 +46,7 @@ export function useCredits(ownerId) {
   return ownerId ? credits : null;
 }
 
-export default function CreditBalance({ credits, block = '', held = false, onOpenBilling = openPlanBilling, onRetry }) {
+export default function CreditBalance({ credits, block = '', held = false, onOpenBilling = openPlanBilling, onOpenUsage = openCreditsUsage, onRetry }) {
   const known = credits && Number.isFinite(credits.balance) ? credits : null;
   // A refusal for credits no longer applies once credits are available again.
   const blocked = block === 'credits_exhausted' && !(known && known.available > 0);
@@ -72,6 +72,8 @@ export default function CreditBalance({ credits, block = '', held = false, onOpe
           <span className="ai-credit-amount">{creditsText(known.balance)}</span>
           {hint ? <span className="ai-credit-hint">{hint}</span> : null}
           {negative ? <span className="ai-credit-hint">taken from your next credits</span> : null}
+          {/* F153: where the credits went, on the Credits usage page. */}
+          <button type="button" className="ai-credit-usage" onClick={() => onOpenUsage()}>Usage</button>
         </p>
       ) : null}
       {/* Always present, so a warning that appears after a turn is announced; empty it takes no room. */}
