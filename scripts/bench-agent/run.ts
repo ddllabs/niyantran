@@ -131,12 +131,14 @@ if (!baseSystem.includes(SWEEP)) throw new Error('the sweep sentence moved; upda
 // research-coverage: `v46` is the deployed code (40 passages everywhere, default routing); `check`
 // adds the prompt's coverage check (fix A), `nudge` the dig nudge (fix B), `both` the two.
 const V46 = new Set(['v46', 'check', 'nudge', 'both']);
-const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly', 'v45', 'thru', 'lat', ...V46]);
+const AMENDMENT_1 = new Set(['presearch2', 'v44', 'capped', 'wideonly', 'v45', 'thru', 'lat', 'latcheck', ...V46]);
 // chat-turn-cost amendment 1: OpenRouter provider routing. `v45` is the deployed code (widened limit
 // on, reply cap off, default routing); `thru` and `lat` add provider.sort. Every one sends a
 // session_id, as the handler does, so sticky routing is part of what is measured.
-const ROUTING: Record<string, 'throughput' | 'latency'> = { thru: 'throughput', lat: 'latency' };
-const DEPLOYED = new Set(['v45', 'thru', 'lat']);
+// F41 option 3 (owner, 2026-10-15): `latcheck` is `lat` with the prompt's coverage check, to see
+// whether the check keeps the depth that sorted routing loses.
+const ROUTING: Record<string, 'throughput' | 'latency'> = { thru: 'throughput', lat: 'latency', latcheck: 'latency' };
+const DEPLOYED = new Set(['v45', 'thru', 'lat', 'latcheck']);
 // The prompt limits (chat-turn-cost): on only for `capped`; every earlier variant predates them.
 // `wideonly`: the widened-search limit alone (the reply cap off), as shipped once the reply cap
 // missed the depth pass mark on narrow questions.
@@ -152,7 +154,7 @@ async function runOne(q: Q, variant: string, history: Message[] = []) {
   const handles = createHandleAssigner();
   const chunkOf = new Map<string, { doc: string; page: string }>();
   const input: AgentInput = {
-    system: variant === 'batch' ? baseSystem.replace(SWEEP, BATCH) : variant === 'check' || variant === 'both' ? checkSystem : baseSystem,
+    system: variant === 'batch' ? baseSystem.replace(SWEEP, BATCH) : variant === 'check' || variant === 'both' || variant === 'latcheck' ? checkSystem : baseSystem,
     window: history,
     userTurn: buildUserTurn(q.question),
     scopedDocumentIds: [],

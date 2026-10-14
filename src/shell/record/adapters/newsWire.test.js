@@ -11,8 +11,8 @@ import newsWire from './newsWire.js';
  * with the output of the real serveFeatureFeed under a stubbed fetch; the key sets are asserted in
  * the first describe block).
  *
- *  - GDELT DOC 2.0 rows: `gdeltRows` (lines 541-552) calls `flattenRow` (lines 435-501) on each GDELT
- *    article. The article's own fields survive (url, url_mobile, title, seendate like
+ *  - GDELT DOC 2.0 rows (the loader that made them, `gdeltRows`, was removed in F176; stored rows keep
+ *    the shape): `flattenRow` was called on each GDELT article. The article's own fields survive (url, url_mobile, title, seendate like
  *    "20261012T143000Z", socialimage, domain, language, sourcecountry; a key GDELT omits is absent),
  *    and the row gains `date` (= seendate), `title`, `source_url` (= url) and `reporting_search`.
  *    `sourcecountry` is the PUBLISHER's country, not where a story happened.

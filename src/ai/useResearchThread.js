@@ -234,18 +234,37 @@ export function createResearchThread(overrides = {}) {
   async function refreshWallet() {
     try { await deps.refreshCredits(); } catch { /* the chip keeps its last balance */ }
   }
-  function recheckSaved(conversationId, t, tries = 24) {
+  // F178: one re-check loop per conversation. A new loop, a new turn in the conversation or a dispose
+  // cancels the one that is there, so no earlier loop keeps polling beside it.
+  const savedRechecks = new Map();
+  function cancelRecheck(conversationId) {
+    const loop = savedRechecks.get(conversationId);
+    if (!loop) return;
+    clearTimeout(loop.timer);
+    savedRechecks.delete(conversationId);
+  }
+  function recheckSaved(conversationId, t, tries = 24, loop = null) {
+    if (!loop) {
+      cancelRecheck(conversationId);
+      loop = { timer: null };
+      savedRechecks.set(conversationId, loop);
+    }
+    const mine = () => savedRechecks.get(conversationId) === loop;
     if (tries <= 0) {
+      if (mine()) savedRechecks.delete(conversationId);
       if (valid(t) && view.chat?.id === conversationId) emit({ error: 'Still not saved. Use Recover answer or Reload.' });
       return;
     }
-    setTimeout(async () => {
-      if (!valid(t)) return;
+    loop.timer = setTimeout(async () => {
+      if (!mine()) return;
+      if (!valid(t)) { savedRechecks.delete(conversationId); return; }
       try {
         const done = await settleSaved(conversationId, t);
-        if (!done) recheckSaved(conversationId, t, tries - 1);
+        if (!mine()) return;
+        if (done) savedRechecks.delete(conversationId);
+        else recheckSaved(conversationId, t, tries - 1, loop);
       } catch {
-        recheckSaved(conversationId, t, tries - 1);
+        if (mine()) recheckSaved(conversationId, t, tries - 1, loop);
       }
     }, 5000);
   }
@@ -326,6 +345,8 @@ export function createResearchThread(overrides = {}) {
           else await loadAnswerCredits(conversationId, t);
         },
       };
+      // F178: a new turn replaces the conversation's re-check, only once the turn is really sent.
+      cancelRecheck(view.chat?.id || '');
       op.dispatched = true;
       const pending = replay ? deps.retryTurn(view.chat?.id || '', options) : deps.sendTurn(body, options);
       if (op.stopQueued) void api.stop();
@@ -354,7 +375,7 @@ export function createResearchThread(overrides = {}) {
         deps.subscribeRegistry(choices => { if (owner) emit({ registry: choices }); })];
       await hydrate();
     },
-    dispose() { active = false; subscriptions.forEach(fn => fn()); subscriptions = []; invalidate(null); },
+    dispose() { active = false; subscriptions.forEach(fn => fn()); subscriptions = []; [...savedRechecks.keys()].forEach(cancelRecheck); invalidate(null); },
     reportError(error) { if (data.ready) emit({ error }); },
     setDraft(draft) { if (data.ready) emit({ draft }); },
     setChoice(choice) {

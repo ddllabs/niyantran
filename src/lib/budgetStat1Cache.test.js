@@ -4,10 +4,11 @@
 // the committed file is only the last-resort seed.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const SEED = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public/data/centre_state_fund_flow.json');
 const sha = () => crypto.createHash('sha256').update(fs.readFileSync(SEED)).digest('hex');
@@ -23,7 +24,21 @@ function stat1Workbook(label) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+// The cache goes to a throwaway directory (the serverless root under a temp TMPDIR), never the
+// project's tmp/, where it outlived the test and fed its probe row to every later Centre-State Fund
+// Flow call in the same checkout.
+let tmp;
+beforeEach(() => {
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stat1-cache-'));
+  vi.stubEnv('VERCEL', '1');
+  vi.stubEnv('TMPDIR', tmp);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.resetModules();
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
 
 describe('STAT-1 cache', () => {
   it('writes the parsed pack outside public/ and serves it after a cold start', async () => {

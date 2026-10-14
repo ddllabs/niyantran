@@ -1987,3 +1987,24 @@ recommendations … We can fix everything that is under your control."
   `9e7da8e`.
 - **Push 4** (this batch): F171 B11–B16, B18 (`de2d1b2`, `e91d959`) and these records. Rollback:
   revert and push.
+- **Push 5** (2026-10-15): F175 site settings published from code (`1994396`, `6ff005a`), F176 dead
+  GDELT code removed (`ad31f52`), F178 chat upload follow-ups (`096375d`, `35ae106`), the F35 recall
+  measurement (`435779e`), the F41 option 3 measurement (`93c42b0`), and these records with a test
+  isolation fix (the STAT-1 cache test wrote to the project's `tmp/` and fed later tests its probe
+  row). Each code change reviewed independently; review findings fixed before the push. Checks on
+  the merged `main`: lint, 4,999 Vitest tests, build, `check:bundle`, router import. No database,
+  migration or Edge Function change; the F35 migration and the F169 C1/C2 branches are not in this
+  push. `vercel.json`: `/pdfjs/` added to the SPA rewrite's exclusions (the character-map files).
+  Rollback: revert and push.
+- **2026-10-15: migration 51 `20261015130000_unscoped_ef_search` applied to NTER** (F35, F171 B19;
+  owner's standing authority for recommendations, 2026-10-14). Before: the live `match_documents`
+  body read back equal to `20261001120000_page_contract.sql` apart from comments; read-only `EXPLAIN
+  ANALYZE` with `ef_search` 200 kept the HNSW plan (warm index scan 10.0 ms against 7.6 ms at 40).
+  Applied with `supabase db push --linked` from `main` at `74e6d66` after a dry run that listed only
+  this migration. After: one overload, the 200 constant present, `search_path` only, anon cannot
+  execute, an authenticated call returned 40 rows and left `ef_search` at 40. Rollback: re-run the
+  `match_documents` block of `20261001120000_page_contract.sql` with `create or replace`.
+- **Push 6** (2026-10-15): F35 migration and fixture (`9bafdc1`, `74e6d66`) and these records.
+  Production check after Push 5: `/pdfjs/` character maps and standard fonts served (200,
+  `application/octet-stream`; a missing file 404, not the app page); Geopolitics News Wire 26 live
+  rows (news search).

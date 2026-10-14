@@ -6,9 +6,9 @@ import { plainText, text } from './feedText.js';
  * Geopolitics News Wire → record panel (F121). A wire item is a news report, not a verified
  * record: the headline is what an outlet reported, never a fact the platform vouches for.
  *
- * Rows come in two live shapes (server/featureFeed.mjs): GDELT DOC 2.0 article rows (`gdeltRows`,
- * with `domain`, `language`, `sourcecountry`, `seendate`) and the BBC World RSS fallback
- * (`parseRssOrXml` + `outlet`, with a plain-text `summary`). `sourcecountry` is the publisher's
+ * Rows come in two shapes: the BBC World RSS wire (server/featureFeed.mjs, `parseRssOrXml` +
+ * `outlet`, with a plain-text `summary`), and GDELT DOC 2.0 article rows (`domain`, `language`,
+ * `sourcecountry`, `seendate`), which are no longer fetched (F169 T4, F176) but may still be stored. `sourcecountry` is the publisher's
  * country, not where a story happened, so the panel draws no map. Article text is untrusted
  * third-party data: it is passed through as plain strings (the renderer escapes them), never as
  * markup, a link or an instruction. The feed carries no fetch time, so the only as-of date is the

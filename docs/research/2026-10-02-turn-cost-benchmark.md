@@ -229,3 +229,31 @@ whole answer 37 s → 20 s) and costs a third less, but briefs search less (abou
 5), cite fewer pages (7.4 against 8.6) and missed the expected document once in 15. On narrow
 questions the time gain is small and pages drop (3.8 and 4.5 against 5.9). By the amendment's
 rule nothing ships; the decision is the owner's (speed against depth).
+
+### Option 3: latency routing with the coverage check (2026-10-15)
+
+The owner chose to test one more variant: `latcheck`, latency routing plus the prompt's coverage
+check (the `check` prompt from the research-coverage amendment), to see whether the check restores
+the depth that sorted routing loses. Same questions, model and replica; one variant, run straight
+after the table above. Raw results: `eval/agent/results/2026-10-14T19-22-36-818Z.json`, about $0.83,
+no errors.
+
+| | Narrow v45 | lat | **latcheck** | Brief v45 | lat | **latcheck** |
+| --- | --- | --- | --- | --- | --- | --- |
+| Searches | 1.20 | 1.20 | 1.30 | 4.93 | 3.07 | 3.53 |
+| Documents cited | 1.40 | 1.30 | 1.60 | 2.27 | 2.00 | 2.33 |
+| Pages cited | 5.90 | 4.50 | 6.00 | 8.60 | 7.40 | 7.60 |
+| Expected document | 10/10 | 10/10 | 10/10 | 15/15 | 14/15 | 15/15 |
+| Valid citations | 10/10 | 10/10 | 10/10 | 15/15 | 15/15 | 15/15 |
+| First word p50 | 4.9 s | 4.4 s | 11.2 s | 24.4 s | 9.8 s | 26.8 s |
+| Total p50 | 10.6 s | 10.4 s | 16.0 s | 37.5 s | 20.5 s | 37.2 s |
+| Cost per answer | $0.015 | $0.016 | $0.018 | $0.058 | $0.038 | $0.043 |
+
+**The check brings back most of the depth, but it takes back the speed.** Documents and the
+expected document return to v45's level, and narrow pages too; brief pages stay a page short (7.6
+against 8.6). But the check makes the model search again before it writes, so a brief takes as
+long as on default routing (37 s), and a narrow answer is slower than before (16 s against 11 s).
+Times are from a separate run, so they carry time-of-day noise, but the extra searches explain the
+gap. **Option 3 does not give both, so nothing ships.** The owner's choice remains option 1
+(latency routing: briefs in about 20 s, a third cheaper, slightly less depth) or option 2 (keep
+default routing).

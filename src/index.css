@@ -7347,6 +7347,15 @@ tr.close-soon { color: #6d675f; }
 .ai-v2-files li.module svg { color: #b45309; }
 /* F172: an uploaded file that could not be read is never sent; the chip says so. */
 .ai-v2-file-cover.not-sent { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+/* F178: the reason a file was not sent, or what was cut, as text under the name (a tooltip is not
+   reachable by touch). */
+.ai-v2-file-main { display: grid; gap: 2px; min-width: 0; }
+.ai-v2-files .ai-v2-file-msg {
+  font: 400 11.5px/1.35 var(--font-ui);
+  color: var(--ai-muted);
+  overflow-wrap: anywhere;
+}
+.ai-v2-files .ai-v2-file-msg.not-sent { color: #b91c1c; }
 
 /* F91: a closed landing panel must not reserve the mobile panel row. Keep
    the mounted panel and existing ai-open layouts so chat state survives. */

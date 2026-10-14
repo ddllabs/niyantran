@@ -630,36 +630,6 @@ export async function fetchArchiveFeature({ tier, feature, signal } = {}) {
     }
   }
 
-  if (/^geopolitics news wire$/i.test(name) || dataset === 'geo_news_wire.csv') {
-    try {
-      const gdelt =
-        'https://api.gdeltproject.org/api/v2/doc/doc?query=(geopolitics+OR+diplomacy+OR+%22foreign+policy%22)+sourcelang:eng&mode=ArtList&format=json&maxrecords=40&sort=DateDesc';
-      const res = await fetch(gdelt, { signal });
-      const body = await res.json().catch(() => null);
-      const arts = Array.isArray(body?.articles) ? body.articles : [];
-      const rows = arts
-        .map((a) => ({
-          title: a.title || a.seendate || '',
-          date: a.seendate || '',
-          source_url: a.url || '',
-          domain: a.domain || '',
-          language: a.language || '',
-        }))
-        .filter((r) => r.title);
-      if (rows.length) {
-        return envelope({
-          feature: feat,
-          rows,
-          adapter: 'news-search',
-          kind: 'table',
-          note: 'GDELT DOC 2.0 reporting search — not an official dataset.',
-        });
-      }
-    } catch (err) {
-      if (err?.name === 'AbortError') throw err;
-    }
-  }
-
   if (/^global commodities$/i.test(name) || dataset === 'geo_commodities') {
     const rows = commoditiesFromPack(commodities);
     if (rows.length) {

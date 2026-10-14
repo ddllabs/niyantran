@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { parsePolicyBody } from '../lib/policyBody.js';
-import { loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
+import { loadSiteSettings } from '../lib/siteSettings.js';
 
 function websiteHref(doc, site) {
   const raw = String(doc.website || site.contactWebsite || site.canonicalUrl || '').trim();
@@ -54,11 +54,10 @@ export default function LegalDocPage({
   showLaw = false,
 }) {
   const [doc, setDoc] = useState(() => load());
-  const [site, setSite] = useState(() => loadSiteSettings());
+  const site = loadSiteSettings();
   const [active, setActive] = useState(doc.sections[0]?.id || '');
 
   useEffect(() => subscribe(setDoc), [subscribe]);
-  useEffect(() => subscribeSiteSettings(setSite), []);
 
   const href = websiteHref(doc, site);
   const email = doc.email || site.contactEmail;
