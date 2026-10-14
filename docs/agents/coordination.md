@@ -1864,3 +1864,20 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     router import, on the branch after merging `main`.
   - **Next:** the shadow week (compare each answer's credits with its logged cost × 950, over at
     least 50 turns), then the owner sets `CREDITS_ENFORCED=1` and `research-chat` is redeployed.
+- **Credits enforced, model plans, follow-ups (F111/F147–F151/P3), owner: "remove the entire shadow concept … just push everything to main … enable everything":**
+  - **Enforcement:** the secret `CREDITS_ENFORCED=1` was set and research-chat redeployed (v56)
+    at once; the shadow code was then removed (credits always enforced) and the secret unset.
+    The 2026-10-21 shadow-week check task was disabled.
+  - **Migration 48** `20261014230000_credit_estimates_and_effort` (commit `787bced`), applied with
+    `supabase db push --linked` after a dry run:
+    - `ai_models.min_plan` (default `plus`): free = Gemini Flash/Flash-Lite, DeepSeek, GPT Luna,
+      Claude Haiku; paid = Claude Sonnet/Opus, GPT Astra and any new model.
+    - Added Claude Haiku 5.5 (free), Sonnet 5.5 and Opus 5.5 (paid); Gemma disabled.
+    - `model_call_logs.reasoning_effort`; `model_credit_estimates()` (authenticated only).
+    - Verified live: the model list and plans above, the column, and the function's privileges.
+    - Rollback: the migration's Down block.
+  - **research-chat** redeployed from `task/credits-always` (always enforced; 403
+    `model_requires_plan` below a model's plan, including the failover chain; effort logged).
+    Unsigned POST 401, preflight 204. Rollback: redeploy from `9feed83` with the secret set.
+  - **Checks on the merged branch:** 4,143 Vitest and 1,073 Deno tests, all SQL fixtures, lint,
+    build and the router import.
