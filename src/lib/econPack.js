@@ -63,7 +63,7 @@ export function econNote(slice, extra = '') {
       'World Bank India electricity-access series. Not a ministry gazette. CEA/Grid India/PPAC are not in this pack. The 8-row policy pipeline links to Google News and is not used here.',
     leaders:
       'Wikidata chief-executive identity for Indian enterprises. No rankings, no financials, no market cap (market cap is price).',
-    ai: 'PIB technology RSS. Private investment databases are licensed and are not substituted. GDELT was not used as a stand-in.',
+    ai: 'PIB press releases about technology, plus a Google News search for Indian AI and technology news. Private investment databases are licensed and are not substituted.',
     manifold:
       'Manifold markets flagged political, ranked by recent volume. Snapshot if live polling is down. Not an Indian-election board.',
     elections:

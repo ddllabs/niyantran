@@ -18,6 +18,18 @@ export function isCabinetBody(name) {
   return /^cabinet$/i.test(s) || /^cabinet committee\b/i.test(s) || /\bcommittee of the cabinet$/i.test(s) || /मंत्रिमंडल/.test(s);
 }
 
+/**
+ * A Cabinet decision on PIB: the issuing body is the Cabinet or a Cabinet committee (F125), or the
+ * release is on pib.gov.in and its title starts "Cabinet approves" or "Cabinet apprises" (owner,
+ * 2026-10-14: PIB files many decisions under the ministry concerned). General news is still left out.
+ */
+export function isCabinetDecision(row) {
+  if (isCabinetBody(row?.ministry)) return true;
+  const title = String(row?.title ?? row?.topic ?? '').replace(/\s+/g, ' ').trim();
+  const link = String(row?.source_url || row?.link || row?.url || '');
+  return /^https:\/\/(?:www\.)?pib\.gov\.in\//i.test(link) && /^(?:union )?cabinet (?:approves|apprises|apprised)\b/i.test(title);
+}
+
 /** Lok Sabha or Rajya Sabha from a member's own sansad.in profile link; '' for anything else. */
 export function mpHouseOf(url) {
   const m = /^https:\/\/sansad\.in\/(ls|rs)\//i.exec(String(url ?? '').trim());

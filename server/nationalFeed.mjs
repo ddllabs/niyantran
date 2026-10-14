@@ -11,7 +11,7 @@ import {
   UNION_PROMISES,
 } from '../src/data/nationalCurated.js';
 import { allocateSeats } from '../src/lib/nationalKpi.js';
-import { isCabinetBody } from '../src/lib/parliament.js';
+import { isCabinetDecision } from '../src/lib/parliament.js';
 
 const WB_MANF = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.MANF.ZS?format=json&date=2000:2030&per_page=100';
 const WB_IND = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.TOTL.ZS?format=json&date=2000:2030&per_page=100';
@@ -34,9 +34,12 @@ function statementsNewsRss(person = STATEMENT_LEADERS[0]) {
     '&hl=en-IN&gl=IN&ceid=IN:en'
   );
 }
-/** Use www — bare pib.gov.in often ECONNRESET from Node. ViewRss.aspx is an index, not the feed. */
-const PIB_PRESS = 'https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3';
-const PIB_FEATURES = 'https://www.pib.gov.in/RssMain.aspx?ModId=18&Lang=1&Regid=3';
+/**
+ * Use www — bare pib.gov.in often ECONNRESET from Node. ViewRss.aspx is an index, not the feed.
+ * `reg=3` is required: without it PIB answers 302 to the Hindi feed (measured 2026-10-14, F169 T2).
+ */
+const PIB_PRESS = 'https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3&reg=3';
+const PIB_FEATURES = 'https://www.pib.gov.in/RssMain.aspx?ModId=18&Lang=1&Regid=3&reg=3';
 const PIB_RSS = PIB_PRESS;
 const PIB_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -602,8 +605,9 @@ export async function serveNational(ctx) {
 
   if (/cabinet decisions/i.test(name)) {
     const live = await tryUrls([PIB_RSS, primary].filter(Boolean));
-    // F125: only releases whose issuing body, as PIB's own release page names it, is the Cabinet or
-    // one of its committees. Nothing is inferred from a title.
+    // F125: releases whose issuing body, as PIB's own release page names it, is the Cabinet or one
+    // of its committees; plus, by the owner's rule of 2026-10-14, PIB releases titled "Cabinet
+    // approves…" or "Cabinet apprises…" that PIB files under a ministry.
     const liveEn = await enrichPibEnglish(live.rows || [], { ministry: true });
     const shaped = (rows) =>
       (rows || []).map((r, i) => ({
@@ -613,8 +617,8 @@ export async function serveNational(ctx) {
         title: r.title || r.topic || '',
         ministry: r.ministry || '',
       }));
-    const archiveRows = shaped(archive || []).filter((r) => isCabinetBody(r.ministry));
-    const liveRows = shaped(liveEn).filter((r) => isCabinetBody(r.ministry));
+    const archiveRows = shaped(archive || []).filter(isCabinetDecision);
+    const liveRows = shaped(liveEn).filter(isCabinetDecision);
     const rows = liveRows.length ? liveRows : archiveRows;
     if (!rows.length) return null;
     const checked = liveEn.length;
@@ -627,7 +631,7 @@ export async function serveNational(ctx) {
       coverage,
       fallback: !liveRows.length,
       note: liveRows.length
-        ? `PIB RSS filtered to releases issued by the Cabinet or its committees (${liveRows.length} of ${checked} latest releases).`
+        ? `PIB RSS filtered to Cabinet decisions (${liveRows.length} of ${checked} latest releases).`
         : checked
           ? `No Cabinet decision in the latest PIB window (${checked} releases checked). Showing the stored Cabinet decisions.`
           : 'PIB RSS returned no readable releases. Showing the stored Cabinet decisions.',

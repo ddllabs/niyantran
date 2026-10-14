@@ -210,7 +210,22 @@ function stateGovernanceNewsRssUrl() {
   );
 }
 
-const PIB_PRESS_RSS = 'https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3';
+/** Technology titles: AI, chips, digital public infrastructure, telecom, cyber, data, startups. */
+const TECH_TITLE = /\b(?:AI|IndiaAI|MeitY|UPI|5G|6G)\b|artificial intelligence|semiconductor|\bchips?\b|digital|technolog|electronics|telecom|cyber|data cent(?:re|er)|quantum|supercomput|startup|software|internet|machine learning|robot/i;
+function isTechTitle(title) {
+  return TECH_TITLE.test(String(title || ''));
+}
+
+function aiTechNewsRssUrl() {
+  return (
+    'https://news.google.com/rss/search?q=' +
+    encodeURIComponent('India ("artificial intelligence" OR AI OR semiconductor OR "tech industry" OR IndiaAI OR MeitY) when:7d') +
+    '&hl=en-IN&gl=IN&ceid=IN:en'
+  );
+}
+
+/** `reg=3` is required: without it PIB answers 302 to the Hindi feed (measured 2026-10-14, F169 T2). */
+const PIB_PRESS_RSS = 'https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3&reg=3';
 
 let gdeltNextAt = 0;
 const gdeltCache = new Map();
@@ -1815,26 +1830,36 @@ export async function serveFeatureFeed(searchParams) {
     }
 
     if (slice === 'ai') {
-      const pib = 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3';
-      const got = await tryUrls([pib]);
-      const english = (got.rows || []).filter((r) => {
-        const t = String(r.title || '');
-        return t && !/[\u0900-\u097F]/.test(t);
-      });
-      if (english.length) {
+      // F169 T2: PIB's English press releases about technology, plus a technology news search.
+      // The PIB feed is every ministry's releases, so it is filtered to technology titles.
+      const news = aiTechNewsRssUrl();
+      const [pibGot, newsGot] = await Promise.all([tryUrls([PIB_PRESS_RSS]), tryUrls([news])]);
+      const pibRows = (pibGot.rows || [])
+        .filter((r) => isTechTitle(r.title) && !/[\u0900-\u097F]/.test(String(r.title || '')))
+        .map((r) => ({ ...r, publisher: r.publisher || 'Press Information Bureau' }));
+      const seen = new Set();
+      const rows = [...pibRows, ...(newsGot.rows || [])]
+        .filter((r) => {
+          const key = String(r.title || '').toLowerCase().replace(/\s+-\s+[^-]+$/, '').trim();
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+      if (rows.length) {
         return envelope({
           tier,
           feature: feat,
-          rows: english,
+          rows,
           adapter: 'api',
-          links: [pib],
+          links: [PIB_PRESS_RSS, news],
           coverage: { from: '', through: '', exhaustive: false },
           fallback: false,
           note: econNote('ai'),
           meta: { heading: feat.htmlFeature, section: 'AI & TECH' },
         });
       }
-      return econStatus('PIB technology RSS empty or Hindi-only; licensed investment data not substituted');
+      return econStatus('PIB and the technology news search returned no technology items');
     }
 
     if (slice === 'manifold') {
