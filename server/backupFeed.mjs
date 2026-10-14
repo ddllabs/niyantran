@@ -1,6 +1,10 @@
 /**
  * Exhaustive desk backup packs under backup/{DESK}/*.xlsx
  * Used only when live + archive return no real rows.
+ *
+ * F169 (owner, 2026-10-14): on the live site (Vercel sets VERCEL) a pack is read only for a module
+ * on LIVE_BACKUP_PACKS, because several packs hold a different kind of record from their module
+ * (Box Office showed news headlines). The local dev server still reads every pack.
  */
 import fs from 'fs';
 import path from 'path';
@@ -41,6 +45,20 @@ const FEATURE_ALIASES = {
   'sector policy power energy green critical minerals':
     'sector policy power energy green critical minerals',
 };
+
+/**
+ * Modules whose backup pack may be served on the live site. Empty: no pack has been shown to hold
+ * its module's kind of record. A module added here needs a test proving that, and its pack must
+ * still reach the function bundle (vercel.json excludes backup/**).
+ */
+export const LIVE_BACKUP_PACKS = Object.freeze([]);
+
+/** Whether a backup pack may be read for this module here: always locally, on Vercel only when listed. */
+export function backupPackAllowed(featureName, { env = process.env, allowList = LIVE_BACKUP_PACKS } = {}) {
+  if (!env.VERCEL) return true;
+  const want = norm(featureName);
+  return allowList.some((name) => norm(name) === want);
+}
 
 let indexCache = null;
 const fileRowCache = new Map();
@@ -303,6 +321,7 @@ function parseXlsxRows(filePath, cap) {
  * @returns {{ rows: object[], meta: object } | null}
  */
 export function loadBackupForFeature(featureName, tier = '', { cap = DEFAULT_CAP } = {}) {
+  if (!backupPackAllowed(featureName)) return null;
   const resolved = resolveParts(featureName, tier);
   if (!resolved?.parts?.length) return null;
 
@@ -351,7 +370,7 @@ export function loadBackupForFeature(featureName, tier = '', { cap = DEFAULT_CAP
 }
 
 export function backupHasFeature(featureName, tier = '') {
-  return Boolean(resolveParts(featureName, tier));
+  return backupPackAllowed(featureName) && Boolean(resolveParts(featureName, tier));
 }
 
 /** Test helper / admin: list indexed backup functions. */

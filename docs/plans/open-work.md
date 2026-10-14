@@ -577,8 +577,9 @@ rechecked. Nothing in this check wrote to production.
     of record from their module (Box Office → headlines, OTT → a TV schedule), and none of the four
     chosen here matches its module. Fixed by F169 phase 1 (T1).
     The other 95 workbooks stay in the repository for the local dev server and must not be deleted
-    without an approved data task. If another module starts showing empty on the live site, add its
-    pack and manifest to that list. Refreshing or converting the packs is a separate data task.
+    without an approved data task. (Superseded by F169 T1: backup packs are off on the live
+    site; a module is added to `LIVE_BACKUP_PACKS` only with a test proving its pack holds the
+    module's kind of record.) Refreshing or converting the packs is a separate data task.
   Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
   costs server time; load them in pages instead.
   [Spec](../specs/2026-10-14-paged-module-lists.md), with measurements: only Bills (9,819 rows,
@@ -654,6 +655,28 @@ rechecked. Nothing in this check wrote to production.
   larger registers. Approved 2026-10-14 with all five recommendations; Supabase is on Pro;
   Vercel upgrade later; O6 after this work. Phase 4's storage design is being revised to
   records-first (every listed item stored and kept), per the owner's research-platform question.
+  - [ ] T0 probe, built 2026-10-14 on `task/f169-phase1`, not yet committed:
+    `scripts/module-probe.mjs` (`npm run probe:modules -- --desk national`), module list from
+    `DESK_CATALOGUE` (120 desk modules; the audit's 3 off-desk Global entries are not in it),
+    records in `modules.json` fields plus adapter, kind and fallback, `--compare <file>`. Unit
+    test `src/lib/moduleProbe.test.js`. Before-run on production (all desks, 2026-10-14 15:42 UTC;
+    deployment not identified): `docs/research/2026-10-14-module-audit/probe-before-t1.json`, 120
+    of 120 answered 200; National rows and `served` equal the audit's for 15 of 17 (Morning Brief and
+    Statement Tracker answered 220 and 104 live this time, 0 in the audit). Newest dates differ
+    where the audit counted bare years; the probe does not.
+  - [ ] T1 backup files off the live site, built 2026-10-14, not yet committed or deployed:
+    `server/backupFeed.mjs` reads a pack on Vercel only for a module on `LIVE_BACKUP_PACKS`
+    (empty); `vercel.json` and the router `config` exclude `backup/**` and include only
+    `{src/data/**,public/data/**}`; `src/backupPacksDeploy.test.js` rewritten. The F156 advice
+    above to add packs to `includeFiles` no longer applies.
+    **Checkpoint 1 owner list (modules seen answering from a pack on production, 2026-10-14):**
+    AI & the Tech Industry 67 rows, Sports Governance & Policy 34, State Tender Aggregator 25 (in
+    both probe runs); Geopolitics News Wire 38 and Music Charts — India Top 25 100 (first run only,
+    when the live source missed 4 s; live 24 and 25 rows on the second); Box Office Tracker (in the
+    audit only; live 245 rows in both runs). After T1 these show the plain empty state whenever
+    their live source and archive are empty. 69 desk modules have a pack, so any of them that
+    misses its live source with an empty archive now shows the empty state instead of pack rows.
+    After deploy: re-run the probe over all desks and confirm no `backup-pack` answer.
 - [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
   research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
   `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);

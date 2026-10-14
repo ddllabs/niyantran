@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "probe:modules": "node scripts/module-probe.mjs",
     "build:terminal-styles": "node scripts/build-terminal-styles.mjs",
     "preview": "vite preview",
     "test": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run",
