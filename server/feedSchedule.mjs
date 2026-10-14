@@ -108,6 +108,23 @@ export function scheduledRuns() {
   });
 }
 
+/**
+ * The schedule as public.feed_claim_due takes it (p_runs). The database stores class, kind and
+ * interval from this list, and feed_record keeps items by the stored kind, so the refresh route
+ * never chooses a module's keeping rule itself. params is ignored by the database.
+ */
+export function feedRunsForDb() {
+  return scheduledRuns().map((r) => ({
+    tier: r.tier,
+    feature: r.feature,
+    variant: r.variant,
+    class: r.cls,
+    kind: r.kind,
+    interval_minutes: r.every,
+    params: r.params,
+  }));
+}
+
 const TRACKING = /^(utm_\w+|fbclid|gclid|mc_cid|mc_eid|ref|cmpid)$/i;
 
 function linkKey(url) {

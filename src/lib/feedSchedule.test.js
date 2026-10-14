@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
-import { FEED_CLASSES, FEED_SCHEDULE, FEED_VARIANTS, itemKeyFor, scheduledRuns } from '../../server/feedSchedule.mjs';
+import { FEED_CLASSES, FEED_SCHEDULE, FEED_VARIANTS, feedRunsForDb, itemKeyFor, scheduledRuns } from '../../server/feedSchedule.mjs';
 import { PLANNED_MODULES } from './plannedModules.js';
 
 /**
@@ -40,6 +40,25 @@ describe('the refresh schedule (F169 C1)', () => {
     const runs = scheduledRuns().filter((r) => r.feature.startsWith('Statement & Quote Tracker'));
     expect(runs.map((r) => r.variant).sort()).toEqual([...FEED_VARIANTS['national:Statement & Quote Tracker with Contradiction Detection'].values].sort());
     expect(runs.every((r) => r.params.person === r.variant)).toBe(true);
+  });
+
+  it('gives feed_claim_due the schedule in its own field names, with the kind from the class (C2)', () => {
+    const runs = feedRunsForDb();
+    expect(runs).toHaveLength(scheduledRuns().length);
+    for (const r of runs) {
+      expect(Object.keys(r).sort()).toEqual(['class', 'feature', 'interval_minutes', 'kind', 'params', 'tier', 'variant']);
+      expect(r.kind, r.feature).toBe(FEED_CLASSES[r.class].kind);
+      expect(r.interval_minutes, r.feature).toBe(FEED_CLASSES[r.class].every);
+      // What the database accepts (feed_claim_due's validation).
+      expect(r.class).toMatch(/^[a-z][a-z_]{0,39}$/);
+      expect(Number.isInteger(r.interval_minutes) && r.interval_minutes >= 15 && r.interval_minutes <= 43200).toBe(true);
+      expect(typeof r.variant).toBe('string');
+    }
+    expect(new Set(runs.map((r) => `${r.tier}\u0000${r.feature}\u0000${r.variant}`)).size).toBe(runs.length);
+    expect(runs.find((r) => r.feature === 'NSE/BSE Delayed Market Feed')).toMatchObject({
+      tier: 'finance', variant: '', class: 'markets', kind: 'measurement', interval_minutes: 15, params: {},
+    });
+    expect(runs.find((r) => r.feature === 'Music Charts — India Top 25')).toMatchObject({ class: 'charts', kind: 'latest', interval_minutes: 60 });
   });
 });
 

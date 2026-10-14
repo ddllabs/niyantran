@@ -295,6 +295,50 @@ SQL
   return $rc
 }
 
+# feed_records only: the migration's Down section, executed. Two databases from the chain
+# without the migration: "base" gets only the non-superuser prelude (the role and its default
+# privileges, which the migration file carries), "up" the migration and then its Down block as
+# written, as the migrating role. The schemas must dump identically; then the migration must
+# apply again on "up" and the fixture pass there.
+feed_records_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_feed_records_base_test up=niyantran_feed_records_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  sed '/^SET ROLE nter_migrator;$/q' "$guard" | psql_in $base >/dev/null 2>&1
+
+  local mig="$MIG/20261015120000_feed_records.sql"
+  {
+    echo 'SET ROLE nter_migrator;'
+    sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' | sed 's/^--   //'
+  } > "$WORK/feed_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/feed_down.sql" > "$WORK/feed_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/feed_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/feed_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/feed_up.dump"
+    if ! diff -q "$WORK/feed_base.dump" "$WORK/feed_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/feed_base.dump" "$WORK/feed_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/feed_records.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -315,6 +359,7 @@ run_fixture() {
     echo "  PASS  ($(grep -c . "$WORK/out.txt") lines of output)"
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
+    [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"
