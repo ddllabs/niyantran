@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F178 is next) and goes in the
+- A new finding gets the next free `F` number (F179 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -651,8 +651,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     while the new deployment warmed up (all four live on the next run); no backup-pack answer.
     Regulatory Body Watch 10 → 171 rows, AI & Tech 67 stored → 104 live, Top Business Players 0 → 84,
     ISL 1 → 169, Geopolitics newest story 0.5 h old, Morning Brief 220 and Statement Tracker 100
-    live. Sports Governance and State Tenders now show the empty state (no pack). Still to do: phase 3
-    (T9 "As of" dates, T10 admin status screen), phase 4 (needs the Vercel upgrade to go live).
+    live. Sports Governance and State Tenders now show the empty state (no pack).
+  - **Phase 3 done 2026-10-14:** T9 (`8109eff`) stored modules say "stored copy · as of <newest record
+    date>" or "date not recorded" (NSE/BSE "as of 15 Jul 2026"); Energy no longer promises a live feed.
+    T10 (`fce768b`) the admin API status screen shows only what checks found ("Not checked" until a
+    sweep; stored answers "Stored"); the hand-written list and every promotion rule are gone. Not done
+    from T10: the registry's "Direct feed configured" labels (data file) and the database-size line
+    (moves to phase 4, which adds a server route for it). Still to do: phase 4 (needs the Vercel
+    upgrade to go live).
     Whether Vercel left `backup/` out of the package can't be read with the available tools; the
     code refuses pack reads on Vercel either way.
   - [x] T0 probe, built 2026-10-14 on `task/f169-phase1`, committed `d70d753`:
@@ -697,11 +703,13 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
   reasoning usage, log redaction, desk-filter spellings, document titles, then measurements and
   small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
-  - Done 2026-10-14: B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk
-    (F44), B8 Live TV (F7), B10 desk count (F30). Next: B1, B2 (F172), B4, B3, B9, then the rest.
-- [ ] **F174. A timing test fails when the machine is busy.** `src/lib/backupFallbackRoute.test.js`
-  "reads the largest pack (5.9 MB) in under a second" failed once in a full run on 2026-10-14 and
-  passed three times alone. Make the bound relative or skip it in the full suite.
+  - Done 2026-10-14: B1 source links (F89), B2 chat uploads (F172), B3 dropped connection (F66), B4
+    file size (F62), B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk (F44),
+    B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30). Next: B11 to B22.
+- [ ] **F178. Chat upload follow-ups (review, 2026-10-14).** Messages on the chip are English only and
+  sit in a tooltip touch screens cannot reach; PDFs in CID fonts without cMaps, and legacy Hindi fonts
+  (Kruti Dev), extract as nothing or gibberish; one re-check loop per conversation (a second dropped
+  connection starts another).
 - [ ] **F175. Admin Website settings are per-browser.** Found 2026-10-14 (F171 B5): `src/lib/siteSettingsStore.js`
   keeps the site name, contact email and address in the admin's `localStorage`, so other visitors
   never see an edit (same defect class as F108). Recommended: published values in code, or a table.
@@ -709,15 +717,6 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   builders, `labelledGdelt`, `gdeltRows`, the home Top Stories GDELT branch and the conflict feed's
   GDELT block in `server/featureFeed.mjs` and `server/homeApi.mjs` can never return rows (review,
   2026-10-14). Remove them, with the stale comments about GDELT pacing.
-- [ ] **F172. Files uploaded into AI chat never reach the AI.** Found 2026-10-14 (F171 research,
-  read): `requestAttachments` (`src/ai/AiPanel.jsx:171-186`) keeps only attachments with a top-level
-  `text`; an uploaded file's text sits under `files[]`, so every uploaded file is dropped without a
-  word while its chip shows it as attached. The server's file extraction (`extractBuffer`) lost its
-  only caller in `def5f71`. F171 B2.
-- [ ] **F173. Four unbuilt modules are not marked planned.** Found 2026-10-14 (read): Sports
-  Governance & Policy, Election Forecast Aggregator, State Fiscal Deep-Dive and Municipal &
-  Panchayat Tender Aggregator show news rows or an empty state instead of "Module planned", unlike
-  the other 15 unbuilt modules. F171 B9.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
@@ -904,15 +903,6 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 
-- [ ] **F89. National external source-link reliability.** V6 popup audit executed18 unique public targets:15 responded200; eprocure link returned500, GDELT returned429, and `https://ipm.mospi.gov.in/` has an expired TLS certificate. Do not bypass TLS or guess replacement sources. [Exact targets/evidence](../specs/2026-10-07-national-v6-link-audit.md). Existing source/feed integrations unchanged; refresh/replacement requires a scoped source task.
-
-
-
-
-
-
-
-
 - [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
 
 
@@ -926,17 +916,32 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   stream/persisted parity guards before changing this. Read-only finding from
   the owner's F65 annotation; the displayed turn's actual provider usage has
   not been inspected. No backend change or deployment in the styling amendment.
-- [ ] **F66. Connection recovery state.** Owner screenshots show Failed to
-  fetch, an unknown saved outcome, excess empty space and a remaining Stop
-  button. Root cause unverified; investigate separately without using live
-  conversations as test fixtures. Outside F65 visual scope.
-
-
-
 - [ ] **F61. Broader tab keyboard audit.** *2026-10-14 (F171 B15): the Nuclear tab component no longer exists (`d25eb24`); Live TV remains.* Review the remaining Live TV and
   Nuclear analytics tab patterns for consistent roles and keyboard behavior.
   Outside the concrete F60 repair scope; coordinate with the next UI brief.
-- [ ] **F62. File admission policy.** File attachment materialization still reads
+## 1. Done
+
+- [x] **F172. Files uploaded into AI chat never reach the AI.** Found 2026-10-14 (F171 research,
+  read): `requestAttachments` (`src/ai/AiPanel.jsx:171-186`) keeps only attachments with a top-level
+  `text`; an uploaded file's text sits under `files[]`, so every uploaded file is dropped without a
+  word while its chip shows it as attached. The server's file extraction (`extractBuffer`) lost its
+  only caller in `def5f71`. F171 B2.
+  *Done 2026-10-14 (F171 B2): text, CSV, spreadsheets and PDFs (page by page) are read in the browser and sent; the AI reads 12,000 characters a file (the prompt's limit, tied by a test) and the chip says so; scanned pages, images, Word and binary files say "Not sent". Commits `7f28aeb`, `7d432c5`. Follow-ups are F178.*
+- [x] **F173. Four unbuilt modules are not marked planned.** Found 2026-10-14 (read): Sports
+  Governance & Policy, Election Forecast Aggregator, State Fiscal Deep-Dive and Municipal &
+  Panchayat Tender Aggregator show news rows or an empty state instead of "Module planned", unlike
+  the other 15 unbuilt modules. F171 B9.
+  *Done 2026-10-14 (F171 B9, `402622d`, `7fbc3b1`): all 19 show "Module planned"; the server fetches nothing for them and borrows no stored rows; the record loader skips them (none in `desk_rows`, checked).*
+- [x] **F174. A timing test fails when the machine is busy.** `src/lib/backupFallbackRoute.test.js`
+  "reads the largest pack (5.9 MB) in under a second" failed once in a full run on 2026-10-14 and
+  passed three times alone. Make the bound relative or skip it in the full suite.
+  *Done 2026-10-14 (`8109eff`): the bound is 2.5 s, which still catches an unbounded read.*
+- [x] **F66. Connection recovery state.** Owner screenshots show Failed to
+  fetch, an unknown saved outcome, excess empty space and a remaining Stop
+  button. Root cause unverified; investigate separately without using live
+  conversations as test fixtures. Outside F65 visual scope.
+  *Done 2026-10-14 (F171 B3, `9763250`, `7d432c5`): plain message; the partial answer stays; the saved answer is re-checked every 5 s for two minutes, then "Still not saved. Use Recover answer or Reload."; Stop stays only for a turn the server acknowledged.*
+- [x] **F62. File admission policy.** File attachment materialization still reads
   whole files before admission. F60 reuses those bytes and shows processing/overflow;
   choose a file-size/total-byte policy before supporting large user uploads. No
   arbitrary new size cap was introduced in the defect fixes.
@@ -965,10 +970,9 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 - GitHub authenticated as `ddllabs`; repository read access and Supabase
   SELECTs/function metadata were verified. Vercel READY states below are
   dated operations records, not an independent October 3 Vercel probe.
-
-
-## 1. Done
-
+  *Done 2026-10-14 (F171 B4, owner decision taken as recommended): 25 MB a file, 50 MB a drop, refused before reading; no file contents or file text in browser storage.*
+- [x] **F89. National external source-link reliability.** V6 popup audit executed18 unique public targets:15 responded200; eprocure link returned500, GDELT returned429, and `https://ipm.mospi.gov.in/` has an expired TLS certificate. Do not bypass TLS or guess replacement sources. [Exact targets/evidence](../specs/2026-10-07-national-v6-link-audit.md). Existing source/feed integrations unchanged; refresh/replacement requires a scoped source task.
+  *Done 2026-10-14 (F171 B1, `402622d`, `7fbc3b1`): GDELT API addresses are never listed as sources; Centre-sanctioned Projects links MoSPI's main site while ipm.mospi.gov.in's certificate is expired; eProcure answers again.*
 - [x] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
   research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
   `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);

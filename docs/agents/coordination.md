@@ -1975,3 +1975,7 @@ recommendations … We can fix everything that is under your control."
   0.20.3 from the vendor's distribution with parse caps (`28c8fc6`, `eeb9ccd`; P12); Live TV shows
   only real content, five channel IDs corrected (`43cf837`, `8990ef9`; F7/O7). Both reviewed
   independently. No database, migration or Edge Function change. Rollback: revert and push.
+- **Push 3** (this batch): F171 B1, B2, B3, B4, B9 and F169 phase 3 (T9, T10), with review fixes
+  (`7f28aeb` … `fce768b`). Two independent reviews (no critical findings; all important ones fixed
+  before the push). Read-only check: `desk_rows` holds no rows for the four newly planned modules.
+  No database, migration or Edge Function change. Rollback: revert and push.
