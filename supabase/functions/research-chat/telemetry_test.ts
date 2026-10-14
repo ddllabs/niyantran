@@ -607,3 +607,37 @@ Deno.test('credits: the whole job stops at its deadline, however the lookups beh
   assertEquals(lines.filter((l) => l.includes('research_chat.aborted_cost_unknown')).length, 1);
   assertEquals(LATE_COST_JOB_MS, 30_000);
 });
+
+// ---- P3: the turn's requested reasoning effort on every row ----
+
+Deno.test('a model call row carries the requested reasoning effort, null when none is given', () => {
+  assertEquals(modelCallRow({ ...baseAttempt, reasoningEffort: 'high' }).reasoning_effort, 'high');
+  assertEquals(modelCallRow({ ...baseAttempt }).reasoning_effort, null);
+});
+
+Deno.test('the recorder writes the turn\'s reasoning effort on answer and embedding rows alike', async () => {
+  const rows: ReturnType<typeof modelCallRow>[] = [];
+  const recorder = createAttemptRecorder({
+    userId: 'u',
+    conversationId: 'c',
+    messageId: 'm',
+    reasoningEffort: 'medium',
+    pricing: () => Promise.resolve(null),
+    db: {
+      logModelCall: (row) => {
+        rows.push(row);
+        return Promise.resolve('id');
+      },
+      logTurnTraces: () => Promise.resolve(),
+    },
+  });
+  for await (
+    const _event of recorder.wrap(async function* () {
+      yield { type: 'finish', reason: 'stop', served: 'm', generationId: null, usage: null };
+    }, 'chat_answer')({ model: 'm', messages: [] })
+  ) { /* consume */ }
+  recorder.beginEmbeddingAttempt('e').finish('success');
+  await recorder.flush();
+  assert(rows.length >= 2);
+  assertEquals(rows.map((r) => r.reasoning_effort), rows.map(() => 'medium'));
+});

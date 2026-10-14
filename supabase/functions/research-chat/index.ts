@@ -257,10 +257,11 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     if (!owner || userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
     return query<unknown>((signal) => service().rpc(fn, { p_user: userId, ...args }).abortSignal(signal), undefined, ms);
   };
+  // Enforced for everyone (owner, 2026-10-14): p_enforced is always true, so a blocked reserve
+  // creates no hold and the handler answers 402.
   const creditsGate: CreditsGate = {
-    enforced: r.env('CREDITS_ENFORCED') === '1',
-    reserve: async (userId, turnKey, enforced) => {
-      const data = await creditRpc('reserve_turn_credits', userId, { p_turn_key: turnKey, p_enforced: enforced }, r.timeoutMs);
+    reserve: async (userId, turnKey) => {
+      const data = await creditRpc('reserve_turn_credits', userId, { p_turn_key: turnKey, p_enforced: true }, r.timeoutMs);
       const answer = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
       if (typeof answer?.ok !== 'boolean') throw new Error('Invalid credit reservation');
       return { ok: answer.ok, balance: credits(answer.balance) };
@@ -289,11 +290,19 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     persistence,
     models: async () =>
       await query((signal) =>
-        caller().from('ai_models').select('model_id,label,efforts,is_default,tier,params').eq('enabled', true).order(
+        caller().from('ai_models').select('model_id,label,efforts,is_default,tier,min_plan,params').eq('enabled', true).order(
           'sort_order',
           { ascending: true },
         ).abortSignal(signal)
       ) ?? [],
+    // F150: the plan comes from the database with the service client, for the verified owner only.
+    plan: async (userId) => {
+      if (!owner || userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
+      return await query((signal) =>
+        service().from('user_profiles').select('plan,plan_status,plan_period_end,status').eq('user_id', userId)
+          .abortSignal(signal).maybeSingle()
+      );
+    },
     pricing: async (model) => {
       const row = await query((signal) =>
         service().from('model_pricing').select('prompt_usd,completion_usd').eq('model_id', model).abortSignal(signal)

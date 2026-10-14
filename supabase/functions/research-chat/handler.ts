@@ -92,7 +92,39 @@ export interface AiModelLike {
   efforts: string[];
   is_default: boolean;
   tier: number;
+  /** The lowest plan that may use the model (F150); a row without one needs a paid plan. */
+  min_plan?: string;
   params?: Record<string, unknown>;
+}
+
+/** The plan columns of the caller's user_profiles row, read with the service client (F150). */
+export interface ProfilePlan {
+  plan: string;
+  plan_status: string;
+  plan_period_end: string | null;
+  /** The account status: my_entitlement() reports nothing for an account that is not active. */
+  status: string;
+}
+
+/** Plans in ascending order (F150). */
+export const PLAN_RANK: Record<string, number> = { free: 0, plus: 1, pro: 2, max: 3 };
+
+/**
+ * The plan the caller may use now, as public.my_entitlement() reports it through
+ * public.entitlement_from(): a paid plan whose period has ended is free, and an account
+ * without an active profile has no entitlement, so it is treated as free.
+ */
+export function effectivePlanRank(row: ProfilePlan | null, now: number): number {
+  if (!row || row.status !== 'active') return PLAN_RANK.free;
+  if (row.plan_status !== 'free' && row.plan_period_end !== null && Date.parse(row.plan_period_end) <= now) {
+    return PLAN_RANK.free;
+  }
+  return PLAN_RANK[row.plan] ?? PLAN_RANK.free;
+}
+
+/** The rank a model requires: the database default (plus) when unset, beyond every plan when unknown. */
+function requiredPlanRank(model: AiModelLike): number {
+  return PLAN_RANK[model.min_plan ?? 'plus'] ?? Number.POSITIVE_INFINITY;
 }
 
 export interface ConversationRow {
@@ -167,7 +199,7 @@ export interface RetrievalContext {
 
 /** What reserve_turn_credits answered (AI credits spec §3, §12), as far as the handler needs it. */
 export interface CreditReservation {
-  /** False when the user had nothing available: under enforcement no hold was made; in shadow one was. */
+  /** False when the user had nothing available: no hold was made and the turn does not start. */
   ok: boolean;
   /** The wallet balance in credits, for the 402 body. */
   balance: number | null;
@@ -180,11 +212,10 @@ export interface CreditSettlement {
   credits: number | null;
 }
 
-/** The credit gate (AI credits spec §3). Both calls are bounded by the wiring and reject on any failure. */
+/** The credit gate (AI credits spec §3), enforced for everyone. Both calls are bounded by the wiring
+ * and reject on any failure. */
 export interface CreditsGate {
-  /** CREDITS_ENFORCED === '1', read by index.ts; false is shadow mode (spec §11). */
-  enforced: boolean;
-  reserve(userId: string, turnKey: string, enforced: boolean): Promise<CreditReservation>;
+  reserve(userId: string, turnKey: string): Promise<CreditReservation>;
   settle(userId: string, turnKey: string): Promise<CreditSettlement>;
 }
 
@@ -192,6 +223,8 @@ export interface HandlerDeps {
   requireUser(req: Request): Promise<{ userId: string; token: string }>;
   credits: CreditsGate;
   models(): Promise<AiModelLike[]>;
+  /** The caller's plan columns, or null without a profile (F150). Read only for a model above Free. */
+  plan(userId: string): Promise<ProfilePlan | null>;
   pricing(modelId: string): Promise<Pricing | null>;
   /** The system persona prompt; `probe` is the admin persona probe, honoured only for admins. */
   persona(userId: string, probe?: string): Promise<string>;
@@ -378,40 +411,56 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     );
   }
 
-  // AI credits (spec §3): reserve before the claim, so a blocked turn creates no message. A replay
-  // was answered above and never reserves; a retry of this turn key gets its own hold back. Any
-  // failure fails closed: the turn does not start.
-  const enforced = deps.credits.enforced;
+  // F150: model access is per model. The caller's effective plan is read from the database for the
+  // verified caller, never from the request, whenever the chosen model or any failover the chain
+  // could reach is above Free; a chain of Free models never reads it. The chosen model is checked
+  // before reserve, so a refused turn holds and creates nothing, and the failover chain is built
+  // only from the models the plan allows, so a paid model never answers for a Free caller.
+  let allowedModels = models;
+  if (failoverChain(models, chosen.model_id).some((id) => requiredPlanRank(models.find((m) => m.model_id === id)!) > PLAN_RANK.free)) {
+    let rank: number;
+    try {
+      // Wall-clock time: deps.now is the turn's timing clock, not the date a plan lapses on.
+      rank = effectivePlanRank(await deps.plan(caller.userId), Date.now());
+    } catch {
+      log('research_chat.plan_unavailable');
+      return json({ error: 'Your plan could not be checked.', code: 'plan_unavailable' }, 503, headers);
+    }
+    if (rank < requiredPlanRank(chosen)) {
+      return json({ error: 'This model is available on paid plans.', code: 'model_requires_plan' }, 403, headers);
+    }
+    allowedModels = models.filter((m) => requiredPlanRank(m) <= rank);
+  }
+
+  // AI credits (spec §3), enforced for everyone: reserve before the claim, so a blocked turn creates
+  // no message. A replay was answered above and never reserves; a retry of this turn key gets its
+  // own hold back. Any failure fails closed: the turn does not start.
   let reservation: CreditReservation;
   try {
-    reservation = await deps.credits.reserve(caller.userId, request.turn_key, enforced);
+    reservation = await deps.credits.reserve(caller.userId, request.turn_key);
   } catch {
     log('research_chat.credits_unavailable', { stage: 'reserve' });
     return json({ error: 'AI credits could not be checked.', code: 'credits_unavailable' }, 503, headers);
   }
   if (!reservation.ok) {
-    if (enforced) {
-      // Blocked with a positive balance means answers still running hold it (spec §3 step 1).
-      const held = reservation.balance !== null && reservation.balance > 0;
-      return json(
-        held
-          ? {
-            error: 'Your credits are in use by an answer that is still running. Try again when it finishes.',
-            code: 'credits_exhausted',
-            balance: reservation.balance,
-            held: true,
-          }
-          : {
-            error: 'You have no AI credits left to start an answer.',
-            code: 'credits_exhausted',
-            balance: reservation.balance,
-          },
-        402,
-        headers,
-      );
-    }
-    // Shadow mode (spec §11): the hold was still made and the turn is charged like any other.
-    log('research_chat.credits_shadow_blocked');
+    // Blocked with a positive balance means answers still running hold it (spec §3 step 1).
+    const held = reservation.balance !== null && reservation.balance > 0;
+    return json(
+      held
+        ? {
+          error: 'Your credits are in use by an answer that is still running. Try again when it finishes.',
+          code: 'credits_exhausted',
+          balance: reservation.balance,
+          held: true,
+        }
+        : {
+          error: 'You have no AI credits left to start an answer.',
+          code: 'credits_exhausted',
+          balance: reservation.balance,
+        },
+      402,
+      headers,
+    );
   }
 
   let claim: ClaimedTurn | TurnState;
@@ -460,6 +509,8 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     userId: caller.userId,
     conversationId: claimed.conversation.id,
     messageId: claimed.assistant.id,
+    // P3: the effort this turn asked for, on every row; 'off' when it asked for none.
+    reasoningEffort: effort ?? 'off',
     pricing: deps.pricing,
     db: deps.telemetry,
     now: deps.now,
@@ -470,7 +521,7 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
     turnKey: request.turn_key,
     claim: claimed,
     execute: deps.executeTurn ??
-      ((context) => runTurn(deps, { request, caller, chosen, effort, models }, liveSender, context, attempts)),
+      ((context) => runTurn(deps, { request, caller, chosen, effort, models: allowedModels }, liveSender, context, attempts)),
   }).then((saved) => {
     if (saved.kind !== 'terminal') throw new Error('Terminal result not saved');
     sendTerminal(sender, saved, visible);

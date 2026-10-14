@@ -68,8 +68,10 @@ At most three agents run at once.
 - [x] Production 1: migration 47 applied (2026-10-14, `supabase db push`)
 - [x] Production 2: research-chat v54 and transcribe-audio v2 in shadow mode
 - [x] Production 3: `main` pushed (`2a85579..80aeaa6`); the site serves credits
-- [ ] Production 4: shadow week, 2026-10-14 05:46 UTC to 2026-10-21 (check below)
-- [ ] Production 5: enforcement for everyone (owner, 2026-10-14: "we should enforce it")
+- [x] Production 4: shadow week, removed by the owner (2026-10-14: "remove the entire shadow concept")
+- [x] Production 5: enforcement for everyone (secret `CREDITS_ENFORCED=1` set 2026-10-14, research-chat v56)
+- [ ] Follow-ups F150, F151 (backend), P3: research-chat always enforces and checks `ai_models.min_plan`;
+  migration `20261014230000_credit_estimates_and_effort.sql` (task `credits-always`, awaiting review)
 
 ## Tasks
 
@@ -145,8 +147,9 @@ At most three agents run at once.
 - **Blocked.** A blocked reserve returns 402
   `{error, code:'credits_exhausted', balance}` and creates no message.
 - **Error.** A reserve error returns 503, so the gate never fails open.
-- **Shadow.** `CREDITS_ENFORCED` unset means shadow: a blocked reserve still
-  holds, is logged, and the turn runs.
+- **Shadow.** (Removed 2026-10-14: enforced for everyone, owner: remove the
+  shadow concept. research-chat passes `p_enforced = true` and no longer
+  reads `CREDITS_ENFORCED`.)
 - **Retry.** A retry of the same `turn_key` gets its own hold back, not a 402.
 
 **Verify**
@@ -316,12 +319,12 @@ At most three agents run at once.
 1. Apply the migration.
 2. Deploy `research-chat` and `transcribe-audio` in shadow mode.
 3. Push `main` (Vercel).
-4. Shadow week: each answer's charge matches its logged cost. Record this in
-   `docs/agents/coordination.md`.
-5. The owner sets `CREDITS_ENFORCED=1`, and `research-chat` is redeployed.
+4. Shadow week: removed by the owner (2026-10-14).
+5. Enforced for everyone from 2026-10-14 (secret set, research-chat v56).
 
 **Rollback**
-- Unset `CREDITS_ENFORCED`. Turns then run unblocked, and no migration is
+- The build that removes shadow mode always enforces. To stop blocking,
+  redeploy research-chat v56 and unset `CREDITS_ENFORCED`; no migration is
   undone.
 - The migration's Down block drops only the new objects.
 
@@ -339,7 +342,9 @@ At most three agents run at once.
 
 ## After launch (2026-10-14)
 
-### Shadow-week check (production 4, read-only, on or after 2026-10-21)
+### Shadow-week check (production 4: removed by the owner, 2026-10-14)
+
+The queries below stay useful as a read-only charge audit at any time.
 
 Run on NTER through the Supabase MCP `execute_sql`, read-only. It reads no
 personal data.
@@ -380,7 +385,7 @@ select (select count(*) from public.credit_holds where shadow_blocked) as shadow
 Also check the Edge logs for `credits_settle_failed` and
 `credits_unavailable`.
 
-### Enforcement (production 5)
+### Enforcement (production 5: done 2026-10-14, secret set, research-chat v56)
 
 1. Show the owner the check above. The owner approved enforcement in
    principle on 2026-10-14; confirm in the session before the change.
@@ -392,8 +397,8 @@ Also check the Edge logs for `credits_settle_failed` and
 4. Record it in `docs/agents/coordination.md`; tick production 5; move F111
    to Done.
 
-**Rollback:** `supabase secrets unset CREDITS_ENFORCED`, then redeploy. No
-database change is needed.
+**Rollback (v56 only):** `supabase secrets unset CREDITS_ENFORCED`, then
+redeploy. The build that removes shadow mode always enforces.
 
 ### Follow-ups and recommendations (tracked in `open-work.md`)
 
@@ -404,10 +409,10 @@ database change is needed.
 | O6: downgrade at the next cycle | `grant_paid_plan` queues a lower plan from the current `plan_period_end` (needs a pending-plan column); the credits trigger then mints at the new cycle | None (already decided) |
 | O6: renewal-date drift | Compute each renewal end from the first paid day, clamped to the month's last day (31 Jan → 28 Feb → 31 Mar), not from the previous end | None |
 | F6 server plan gating | Close as superseded: plans now differ only in credits and storage, and desks are free to signed-in users (owner, 2026-10-12). Credits are already enforced on the server | Confirm closing |
-| P3 metering and credits | Done by F111; move it to Done | None |
+| P3 metering and credits | Done by F111; the effort column `model_call_logs.reasoning_effort` is built (migration `20261014230000`), so P3 can move to Done when it lands | None |
 | F147 admin user list paging | Page the directory 100 at a time with search, when there are more than 300 users | None; later |
 | F148 Plan & billing dark mode | A small CSS task for the next UI polish pass | None |
 | F149 open an answer from Plan & billing | A `niy-open-conversation` event, like the billing one, selects the chat and opens the AI panel | None |
-| F150 expensive models on Free | Tier-3 models (Claude Sonnet: about 170 credits an answer) only on paid plans; this caps a Free account's unpaid debt and makes paid plans more attractive | Approve the rule |
-| F151 credit estimate in the model picker | Show "≈ N credits a typical answer" per model, from `model_pricing` and the last 30 days' medians, next to the cost diamonds | None; after enforcement |
+| F150 expensive models on Free | Owner, 2026-10-14: per model, `ai_models.min_plan` (spec §6.1); Gemini Flash, DeepSeek, Luna and Haiku free, everything else paid. Backend built (migration `20261014230000`, research-chat 403); admin editing of `min_plan` and the picker's lock are still to do | Plan-by-plan access per model, later |
+| F151 credit estimate in the model picker | `model_credit_estimates()` (spec §12): 30-day median per answer when a model has ≥ 10 charged answers, else a 30k + 2k token list-price estimate. Backend built; the picker UI is still to do | None |
 | F152 leaked-password protection | Turn on Supabase Auth's HaveIBeenPwned check (Dashboard → Auth → Passwords; the security advisor flags it) | Owner's dashboard action |

@@ -27,7 +27,7 @@ function fixture() {
     if (table === 'settle_turn_credits') return { data: SETTLED, error: null };
     if (table === 'claim_research_turn') return { data: { kind: 'forbidden' }, error: null };
     if (table === 'ai_models') {
-      return { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }], error: null };
+      return { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }], error: null };
     }
     if (table === 'user_profiles') return { data: { persona: 'analyst' }, error: null };
     return { data: [], error: null };
@@ -450,7 +450,7 @@ Deno.test('D6: real wiring finalizes through service RPC before server-only atte
     }
     return {
       data: table === 'ai_models'
-        ? [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }]
+        ? [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }]
         : table === 'user_profiles'
         ? { persona: 'analyst' }
         : [],
@@ -511,7 +511,7 @@ Deno.test('D6: import performs no env/network/serve work and modern keys use the
         ? RESERVED
         : url.includes('claim_research_turn')
         ? { kind: 'forbidden' }
-        : [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }];
+        : [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }];
       return new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } });
     };
     const response = await imported.createResearchHandler()(request());
@@ -723,41 +723,35 @@ Deno.test('version metadata hydration uses caller permissions, retrieved IDs and
 });
 
 // AI credits (F111, spec §3, §11): the gate's wiring.
-Deno.test('credits: reserve runs on the service client for the verified owner, enforced only when CREDITS_ENFORCED is 1', async () => {
-  for (const [value, enforced] of [['1', true], [undefined, false], ['0', false], ['true', false]] as const) {
+Deno.test('credits: reserve runs on the service client for the verified owner, always enforced, whatever CREDITS_ENFORCED says', async () => {
+  for (const value of ['1', undefined, '0']) {
     const f = fixture();
-    f.runtime.env = (key: string) => (key === 'CREDITS_ENFORCED' ? value : 'fake-config');
+    const read: string[] = [];
+    f.runtime.env = (key: string) => {
+      read.push(key);
+      return key === 'CREDITS_ENFORCED' ? value : 'fake-config';
+    };
     f.setReply((_side, table) =>
       table === 'lookup_research_turn'
         ? { data: { kind: 'missing' }, error: null }
         : table === 'reserve_turn_credits'
-        ? {
-          data: enforced
-            ? { ok: false, reason: 'credits_exhausted', hold: null, available: -180, balance: -180 }
-            : { ok: false, reason: 'credits_exhausted', hold: { credits: 300, expires_at: 'x' }, available: 0, balance: 0 },
-          error: null,
-        }
+        ? { data: { ok: false, reason: 'credits_exhausted', hold: null, available: -180, balance: -180 }, error: null }
         : table === 'claim_research_turn'
         ? { data: { kind: 'forbidden' }, error: null }
         : table === 'ai_models'
-        ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }], error: null }
+        ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }], error: null }
         : { data: [], error: null }
     );
     const response = await createResearchHandler(f.runtime)(request());
     const reserve = f.calls.find((c) => c.table === 'reserve_turn_credits');
     assert(reserve, `reserve called (${value})`);
     assertEquals(reserve.side, 'service');
-    assertEquals(reserve.value, { p_user: 'verified-owner', p_turn_key: 'stable-key', p_enforced: enforced });
+    assertEquals(reserve.value, { p_user: 'verified-owner', p_turn_key: 'stable-key', p_enforced: true });
+    assertEquals(response.status, 402);
+    assertEquals((await response.json()).balance, -180);
     const order = f.calls.map((c) => c.table).filter((t) => t.endsWith('_research_turn') || t === 'reserve_turn_credits');
-    if (enforced) {
-      assertEquals(response.status, 402);
-      assertEquals((await response.json()).balance, -180);
-      assertEquals(order, ['lookup_research_turn', 'reserve_turn_credits']);
-    } else {
-      // Shadow: the turn goes on to its claim (which this fixture refuses).
-      assertEquals(response.status, 403);
-      assertEquals(order, ['lookup_research_turn', 'reserve_turn_credits', 'claim_research_turn']);
-    }
+    assertEquals(order, ['lookup_research_turn', 'reserve_turn_credits']);
+    assertEquals(read.includes('CREDITS_ENFORCED'), false, 'the switch is not read');
     assertEquals(f.sent.length, 0);
   }
 });
@@ -777,7 +771,7 @@ Deno.test('credits: a reserve that errors, hangs or answers malformed data fails
         : table === 'reserve_turn_credits'
         ? answer
         : table === 'ai_models'
-        ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1 }], error: null }
+        ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }], error: null }
         : { data: [], error: null }
     );
     const response = await createResearchHandler(f.runtime)(request());
@@ -792,8 +786,9 @@ Deno.test('credits: a foreign owner never reaches the credit RPCs', async () => 
   const f = fixture();
   const d = createDependencies(request(), f.runtime);
   await d.requireUser(request());
-  await assertRejects(() => d.credits.reserve('foreign', 'key', false));
+  await assertRejects(() => d.credits.reserve('foreign', 'key'));
   await assertRejects(() => d.credits.settle('foreign', 'key'));
+  await assertRejects(() => d.plan('foreign'));
   assertEquals(f.calls.length, 0);
 });
 Deno.test('credits: settle runs on the service client, reads its three states, and has its own bound', async () => {
@@ -881,4 +876,29 @@ Deno.test('credits: a late cost updates its own uncosted log row on the service 
   assertEquals(update.filters, [['eq', 'id', 'row-1'], ['eq', 'user_id', 'verified-owner'], ['is', 'cost_usd', null]]);
   f.setReply(() => ({ data: null, error: { message: 'denied' } }));
   await assertRejects(() => d.telemetry.saveGenerationCost('row-1', 0.1, {}));
+});
+
+// F150: the plan is read with the service client for the verified owner; the model rows carry min_plan.
+Deno.test('plans: the plan columns are read with the service client for the verified owner only', async () => {
+  const f = fixture();
+  f.setReply((_side, table) =>
+    table === 'user_profiles'
+      ? { data: { plan: 'plus', plan_status: 'active', plan_period_end: null, status: 'active' }, error: null }
+      : table === 'ai_models'
+      ? { data: [{ model_id: 'test/model', efforts: [], is_default: true, tier: 1, min_plan: 'free' }], error: null }
+      : { data: [], error: null }
+  );
+  const d = createDependencies(request(), f.runtime);
+  await assertRejects(() => d.plan('verified-owner'), Error, 'Turn owner mismatch');
+  await d.requireUser(request());
+  assertEquals(await d.plan('verified-owner'), { plan: 'plus', plan_status: 'active', plan_period_end: null, status: 'active' });
+  const read = f.calls.find((c) => c.table === 'user_profiles');
+  assert(read);
+  assertEquals(read.side, 'service');
+  assertEquals(read.columns, 'plan,plan_status,plan_period_end,status');
+  assertEquals(read.filters.find((x) => x[0] === 'eq'), ['eq', 'user_id', 'verified-owner']);
+  assert(read.signal, 'bounded');
+  await d.models();
+  const models = f.calls.find((c) => c.table === 'ai_models');
+  assert(models?.columns?.split(',').includes('min_plan'), 'min_plan is selected');
 });
