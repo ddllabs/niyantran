@@ -338,9 +338,20 @@ and any answer still streaming. Back and forward on a credits address leave the 
   - **The pill and the page show credits left (balance minus held). The chat line shows the balance**
     with "N held" beside it, as before.
 
+**Re-review (2026-10-15).** Ten of the 11 items were confirmed fixed. The rest of the desk reset is
+now fixed too. The start-up effect re-runs on every entitlement refresh, and opening Plan and
+invoices triggers one; it now returns before touching the desk on a credits address. Also fixed:
+- Escape no longer reaches the hidden AI panel (`panelHidden`).
+- Export under Group by chat follows the chats shown.
+
+Left as nits:
+- The header's Refresh still reloads the hidden desk, and its load bar shows on the credits page.
+- A plan put in the address while Plan and invoices is already open is not picked up. Nothing can
+  do that today: the chat is hidden while the page is open.
+
 **Verification.**
 - `npm run lint`: clean.
-- `npm test`: 330 files, 5,032 tests (after the review fixes).
+- `npm test`: 330 files, 5,033 tests (after the re-review fixes).
 - `npm run build`: passes.
 - `node scripts/check-bundle.mjs`: the entry script is 220,105 B gzip, +160 B, because the page sits
   in the lazy terminal chunk.

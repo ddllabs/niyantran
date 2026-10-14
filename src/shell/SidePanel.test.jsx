@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../ai/AiPanel.jsx', () => ({ default: (p) => <div data-ai-panel={p.open ? 'open' : 'hidden'} data-embedded={String(p.embedded)} data-actions-slot={String(p.actionsSlot)} /> }));
 vi.mock('./RailContent.jsx', () => ({ default: (p) => <div data-rail={p.view} />, railClasses: () => 'right-rail' }));
-import SidePanel, { attachRailDismiss, dragOpensAi, escapeAction, escapeOwnerOpen, panelDragProps, railDismissible } from './SidePanel.jsx';
+import SidePanel, { attachRailDismiss, dragOpensAi, escapeAction, escapeOwnerOpen, panelDragProps, panelHidden, railDismissible } from './SidePanel.jsx';
 import { panelReducer, pickIntent, rowPicker } from './sidePanelModel.js';
 
 const panel = (state, extra = {}) => ({
@@ -305,5 +305,15 @@ describe('the row picker', () => {
     pick(other);
     expect(calls.set).toEqual([null, other]);
     expect(calls.act).toEqual([]);
+  });
+});
+
+// F184 review: hidden under the credits page, the panel leaves Escape to the page.
+describe('panelHidden', () => {
+  const doc = (aside) => ({ querySelector: () => aside });
+  it('is true only while the side panel sits inside a hidden element', () => {
+    expect(panelHidden(doc(null))).toBe(false);
+    expect(panelHidden(doc({ closest: () => null }))).toBe(false);
+    expect(panelHidden(doc({ closest: (sel) => (sel === '[hidden]' ? {} : null) }))).toBe(true);
   });
 });

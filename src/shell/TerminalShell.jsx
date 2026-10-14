@@ -261,6 +261,8 @@ export default function TerminalShell({ onLogout }) {
     if (land) sessionStorage.removeItem('niyantranLand');
     if (intendedFeat) sessionStorage.removeItem('niyantranFeature');
     const hash = typeof location !== 'undefined' ? location.hash : '';
+    // On the credits page the desk underneath keeps what it had, whatever re-runs this (F184 review).
+    if (parseAccountHash(hash)) return;
     const emptyHash = !hash || hash === '#' || hash === '#/';
     let r = parseDeskHash();
     if (land && canAccessDesk(user, land) && emptyHash) {
@@ -268,7 +270,6 @@ export default function TerminalShell({ onLogout }) {
     }
     setTab(r.tab);
     setFeatureName(r.feature);
-    if (parseAccountHash(hash)) return;
     if (r.tab === 'home' && emptyHash && r.tab === parseDeskHash().tab) return;
     writeDeskHash(r.tab, r.feature, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps

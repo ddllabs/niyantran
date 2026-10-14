@@ -114,6 +114,8 @@ export function useSidePanel({ hasRail, selected, featureName, tab, landing = fa
     }
     function onKey(e) {
       if (e.key !== 'Escape') return;
+      // Hidden under the credits page (F184), the panel leaves Escape to what is on screen.
+      if (panelHidden(document)) { ownerOpen = false; return; }
       const modalOpen = ownerOpen || e.defaultPrevented;
       ownerOpen = false;
       const step = escapeAction({ ...keyState.current, modalOpen });
@@ -168,6 +170,11 @@ export function attachRailDismiss(doc, { aside, act }) {
  * an expanded panel, then on AI closes it as the dock's Esc did, and on Desk or Record collapses it,
  * unless a dialog is open (its Esc is its own).
  */
+/** True while the side panel sits inside a hidden workspace (the credits page is open over it). */
+export function panelHidden(doc) {
+  return Boolean(doc.querySelector('aside.side-panel')?.closest('[hidden]'));
+}
+
 export function escapeAction({ userExpanded, citationExpanded, aiActive, railOpen, modalOpen }) {
   if (userExpanded && !citationExpanded) return 'restore';
   if (aiActive) return 'close-ai';

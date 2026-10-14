@@ -190,7 +190,8 @@ export default function ActivityTable({
   const max = Math.max(0, ...rows.map((r) => r.credits || 0));
   return (
     <div className="cu-activity">
-      <Filters filters={filters} models={models} onFilter={onFilter} onExport={onExport} exporting={exporting} disabled={!total} />
+      <Filters filters={filters} models={models} onFilter={onFilter} onExport={onExport} exporting={exporting}
+        disabled={filters.byChat ? !chats?.groups?.length : !total} />
       {exportError ? <p className="cu-note cu-error" role="alert">{exportError}</p> : null}
       {filters.byChat ? (
         !chats || chats.status === 'loading' ? <p className="cu-note" role="status">Totalling your chats…</p>

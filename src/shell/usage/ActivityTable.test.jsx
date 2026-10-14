@@ -204,5 +204,8 @@ describe('grouped by chat', () => {
     expect(html({ filters: byChat, chats: { status: 'loading', groups: [] } })).toContain('Totalling your chats');
     expect(html({ filters: byChat, chats: { status: 'error', groups: [] } })).toContain('Chat totals could not be loaded just now.');
     expect(html({ filters: byChat, chats: { status: 'ready', groups, capped: true } })).toContain('2 chats, most credits first, from your latest 2,000 answers.');
+    // Export follows the chats shown, not a count left from the previous filters (review).
+    expect(labelled(props({ filters: byChat, state: { status: 'ready', total: 0, rows: [] }, chats: { status: 'ready', groups } }), /Export CSV/).props.disabled).toBe(false);
+    expect(labelled(props({ filters: byChat, chats: { status: 'ready', groups: [] } }), /Export CSV/).props.disabled).toBe(true);
   });
 });

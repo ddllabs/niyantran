@@ -36,8 +36,11 @@ it('follows the address both ways: back and forward set the section, and a desk 
   }
   // Loading the terminal on a credits address keeps it, rather than rewriting it to a desk; back and
   // forward on a credits address leave the desk underneath as it was (deskRouteFor, tested in accountRoute).
-  expect(shell).toMatch(/if \(parseAccountHash\(hash\)\) return;\s*if \(r\.tab === 'home' && emptyHash/);
   expect(shell).toMatch(/function onPop\(\) \{[^}]*const r = deskRouteFor\(\);\s*if \(!r\) return;/);
+  // Review: the start-up effect re-runs on every entitlement refresh (Plan and invoices triggers one);
+  // on a credits address it must leave the desk before touching it.
+  expect(shell).toMatch(/const hash = typeof location !== 'undefined' \? location\.hash : '';\s*\/\/[^\n]*\n\s*if \(parseAccountHash\(hash\)\) return;\s*const emptyHash/);
+  expect(read('../SidePanel.jsx')).toMatch(/if \(e\.key !== 'Escape'\) return;\s*\/\/[^\n]*\n\s*if \(panelHidden\(document\)\)/);
 });
 
 it('opens from the profile menu, the chat and the pricing page, and puts the pill in the header', () => {
