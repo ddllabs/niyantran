@@ -1833,3 +1833,34 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   - **Endpoint:** `/api/site-figures` on `task/live-figures` answered `source: live` with those
     counts through the local dev server (secret-key client). Production serves it after the push.
 
+- **AI credits (F111), owner: "Approved as written" (wording) and "Migration + shadow + push":**
+  - **Migration 47** `20261014200000_ai_credits` (file SHA-256 `716afffe…`, commit `8e60671`):
+    - **Before** (read-only): last migration `20261014120000`; no `private` schema and no
+      credit tables; 13 of 26 saved answers carried dollar keys in `usage`; `authenticated`
+      could read `model_call_logs`; 0 active paid profiles, 0 `plan_grants` rows; 4,040 call logs.
+    - Applied with `supabase db push --linked` from `task/ai-credits` (dry run first: only this
+      file pending), so the version is the file name and the file ran byte for byte in one
+      transaction. All SQL fixtures passed locally first, including vacuity.
+    - **Verified live:** 47 migrations; 8 credit tables and 19 `private` functions (all SECURITY
+      DEFINER, fixed `search_path`, none executable by `anon`, `authenticated` or `service_role`);
+      settings 95 / 0.10 / 10% / 1,000 / hold 300 for 5 min, `launch_at` 2026-10-14 05:46 UTC
+      (the shadow week starts here); allowances plus 2,000, pro 6,500, max 75,000; 0 of 26
+      answers keep a cost key; `authenticated` cannot read `model_call_logs` or any credit table
+      and can execute only `my_credits` and `my_conversation_credits`; `service_role` cannot
+      update the ledger; the four triggers are enabled; row counts unchanged.
+    - Security advisor: only the expected new entries (credit tables with RLS and no policies;
+      the two `my_` functions signed-in executable, like `my_entitlement`).
+    - Rollback: the migration header's Down block (drops only the new objects and restores the
+      `authenticated` SELECT on `model_call_logs` and `chat_turn_traces`; the usage scrub is not
+      reversible), then delete its `schema_migrations` row.
+  - **research-chat v54 and transcribe-audio v2,** deployed with `supabase functions deploy
+    <name> --use-api --project-ref vfgcppstyzjarlzyqdac` from `task/ai-credits` at `8e60671`.
+    - `CREDITS_ENFORCED` is not set, so credits run in **shadow mode**: holds and charges are
+      real, nobody is blocked; a would-be block logs `research_chat.credits_shadow_blocked`.
+    - Rollback: redeploy `research-chat` v53 (from `6706838`) and `transcribe-audio` from `main`
+      before this merge. Without the migration rolled back, the old research-chat still works:
+      it never calls the credit functions.
+  - **Checks:** 3,985 Vitest and 1,060 Deno tests, all SQL fixtures, lint 0, the build and the
+    router import, on the branch after merging `main`.
+  - **Next:** the shadow week (compare each answer's credits with its logged cost × 950, over at
+    least 50 turns), then the owner sets `CREDITS_ENFORCED=1` and `research-chat` is redeployed.
