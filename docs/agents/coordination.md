@@ -1948,3 +1948,30 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
   because `server/backupFeed.mjs` reads it at run time. Production served packs that are not on the
   list (Box Office, OTT, Sports Governance, State Tender, High Court tracker). No change made yet;
   the fix is F169 phase 1 (T1).
+
+### Operations — 2026-10-14, night (F169 phases 1–2 and the first F171 fixes)
+
+Owner, 2026-10-14: "You have complete authority, and you can proceed ahead with all your
+recommendations … We can fix everything that is under your control."
+
+- **Push 1, `11cc881..df556a4`** (Vercel deployment `dpl_9RwuYjhX2iKqExPiDRNuLTeR8zgD`, `bom1`, READY):
+  - F169 T0/T1 (`d70d753`): backup packs refused on Vercel (`LIVE_BACKUP_PACKS` empty; `backup/**`
+    excluded); read-only module probe.
+  - F169 T2–T8 and review fixes (`2f0cf8b` … `8487c4c`): PIB English feed (`reg=3`), AI & Tech
+    technology filter and news search, Cabinet rule, Morning Brief and Statement Tracker on
+    `/api/feature-feed` (F166), GDELT out of every request path, Geopolitics BBC and Google News,
+    ISL season, Regulatory Watch three feeds, Manifold in parallel, business-leaders query,
+    `/api/home/refresh` off the live function (F167), pending answers `no-store` (F168).
+  - F171 B5 legal pages (F108), B10 desk count (F30); docs: bug programme spec and plan, open-work
+    tidy, seven stale Historical documents removed.
+  - Checks before the push: 4,915 Vitest and 1,078 Deno tests, lint, build, `check:bundle`, router
+    import. Independent review of T2–T8 (no critical findings; three important ones fixed in `8487c4c`).
+  - After the deploy: `/api/home/refresh` answers 404; the module probe over all 120 desk modules
+    (`--compare probe-before-t1.json`) found 116 live and 4 stored while the deployment warmed up
+    (all four live on two further runs), and no backup-pack answer. Whether Vercel's package left
+    out `backup/` cannot be read with the available tools; the code refuses pack reads either way.
+  - Rollback: revert the commits and push; the backup packs return with a revert of `d70d753`.
+- **Push 2** (this batch): PIB release dates from their pages and read as UTC (`c5e4bf2`); SheetJS
+  0.20.3 from the vendor's distribution with parse caps (`28c8fc6`, `eeb9ccd`; P12); Live TV shows
+  only real content, five channel IDs corrected (`43cf837`, `8990ef9`; F7/O7). Both reviewed
+  independently. No database, migration or Edge Function change. Rollback: revert and push.

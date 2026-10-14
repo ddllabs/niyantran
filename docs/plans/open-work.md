@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F174 is next) and goes in the
+- A new finding gets the next free `F` number (F177 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -112,10 +112,6 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   clean paths, footer company line and links, signup notice; 2,533 Vitest /
   881 Deno tests, lint, build. Open: full registered address, the eight drafted
   assumptions in the spec, lawyer review, pricing page (F99 with F109).
-- [ ] **F108. Legal page content is per-browser.** `privacyStore.js` and
-  `termsStore.js` keep edited content in `localStorage`, so an admin edit is
-  not seen by other visitors. Make published legal content shared (part of
-  F107).
 - [ ] **F109. INR billing.** Code converted on `task/inr-billing`
   (2026-10-12): four monthly INR plans from `src/lib/publicPlans.js`, no GST
   (plain invoices), no trials, database values free/plus/pro/max via migration
@@ -573,36 +569,6 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     219 reports about 24 s later). Corrected 2026-10-14 by the F156 measurements; the retry is F156.
   - Not in this phase (F156): one call per desk for its counts, new-tab start-up (`App.jsx`,
     `userStore.js`), re-encoding `public/images/desks-v6`, Vite `json.stringify`.
-- [ ] **F156. Terminal speed (phase 2): paged module lists and stored copies on the server.**
-  Paging and the landing retry are live (`97828b2`, pushed `3d0a0d8`). Production, from the
-  owner's Mac: Bills page 1 is 9.4 KB compressed (was 534 KB for the whole register, plus a
-  450 KB archive), 0.82 s cold and 0.37 s from the edge; a search 0.19 s; Questions page 1
-  8.5 KB, 0.44 s.
-  - **Backup packs, decided 2026-10-14 (owner: "go with your recommendation … make a note"):**
-    `backup/` holds 99 Excel workbooks and 8 manifests (82 MB), a one-time snapshot from
-    2026-09-11 (`c83fabe`), never refreshed and not in Supabase (`desk_rows` holds none of them).
-    They are a last resort, read only when a module's live source and its shipped archive are both
-    empty. Only four modules reach that point on the live site, so the live function carries only
-    their packs and manifests (about 5 MB): Satellite Infrastructure, Growth Indicators and
-    Global Trade (`backup/GLOBAL`) and Athlete Index (`backup/SPORTS`), listed by name in
-    `vercel.json` and `api/router.js` `config.includeFiles` (test: `src/backupPacksDeploy.test.js`).
-    **Correction 2026-10-14 (module audit):** this list restricts nothing. Vercel's file tracing
-    packages the whole `backup/` folder because `server/backupFeed.mjs` reads it at run time, so
-    every pack is on the live function and in use since F156. Several packs hold a different kind
-    of record from their module (Box Office → headlines, OTT → a TV schedule), and none of the four
-    chosen here matches its module. Fixed by F169 phase 1 (T1).
-    The other 95 workbooks stay in the repository for the local dev server and must not be deleted
-    without an approved data task. (Superseded by F169 T1: backup packs are off on the live
-    site; a module is added to `LIVE_BACKUP_PACKS` only with a test proving its pack holds the
-    module's kind of record.) Refreshing or converting the packs is a separate data task.
-  Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
-  costs server time; load them in pages instead.
-  [Spec](../specs/2026-10-14-paged-module-lists.md), with measurements: only Bills (9,819 rows,
-  about 0.9 MB per cold open) and Parliamentary Questions (8,000 rows, about 0.6 MB) are large;
-  every other module is at most about 60 KB compressed. Planned: server pages of 100 rows for those
-  two (search, sort, filters and counts on the server, edge-cached); pending landing counts retried
-  instead of shown as "unavailable"; the deployed site reading the backup packs with a bounded
-  read (the `includeFiles` line awaits the owner's approval).
 - [x] **F157. State desk landing downloads 26 whole modules to count them.** Done 2026-10-14 (`791b01e`, pushed `701e22d`). Live: `/api/state-landing` answers 0.7–0.9 KB per module (booth modules were about 110 KB each), 0.15–0.37 s, edge `HIT` on repeat; browser check on the local copy: 26 count requests, 29 KB raw in all, no whole-module downloads. Found by the F156
   measurements: at least about 440 KB compressed per State landing visit; the other seven desks
   have count-only routes. Recommended: a count-only `/api/state-landing` like the others.
@@ -671,7 +637,16 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   Vercel upgrade later; O6 after this work. Phase 4 is records-first (owner 2026-10-14): every
   listed item kept as its own record under rules 1 to 3 of the F170 spec, keyed by the corpus
   identity where the corpus holds the document; no chunking, OCR or full-text fetching in F169.
-  - [ ] T0 probe, built 2026-10-14 on `task/f169-phase1`, not yet committed:
+  - **Phases 1 and 2 live, 2026-10-14** (pushed `11cc881..df556a4`, deployment in `bom1`; PIB dates
+    follow-up `c5e4bf2`). Production probe after the deploy, all 120 desk modules: 116 live, 4 stored
+    while the new deployment warmed up (all four live on the next run); no backup-pack answer.
+    Regulatory Body Watch 10 → 171 rows, AI & Tech 67 stored → 104 live, Top Business Players 0 → 84,
+    ISL 1 → 169, Geopolitics newest story 0.5 h old, Morning Brief 220 and Statement Tracker 100
+    live. Sports Governance and State Tenders now show the empty state (no pack). Still to do: phase 3
+    (T9 "As of" dates, T10 admin status screen), phase 4 (needs the Vercel upgrade to go live).
+    Whether Vercel left `backup/` out of the package can't be read with the available tools; the
+    code refuses pack reads on Vercel either way.
+  - [x] T0 probe, built 2026-10-14 on `task/f169-phase1`, committed `d70d753`:
     `scripts/module-probe.mjs` (`npm run probe:modules -- --desk national`), module list from
     `DESK_CATALOGUE` (120 desk modules; the audit's 3 off-desk Global entries are not in it),
     records in `modules.json` fields plus adapter, kind and fallback, `--compare <file>`. Unit
@@ -680,7 +655,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     of 120 answered 200; National rows and `served` equal the audit's for 15 of 17 (Morning Brief and
     Statement Tracker answered 220 and 104 live this time, 0 in the audit). Newest dates differ
     where the audit counted bare years; the probe does not.
-  - [ ] T1 backup files off the live site, built 2026-10-14, not yet committed or deployed:
+  - [x] T1 backup files off the live site, `d70d753`, live 2026-10-14:
     `server/backupFeed.mjs` reads a pack on Vercel only for a module on `LIVE_BACKUP_PACKS`
     (empty); `vercel.json` and the router `config` exclude `backup/**` and include only
     `{src/data/**,public/data/**}`; `src/backupPacksDeploy.test.js` rewritten. The F156 advice
@@ -713,6 +688,18 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
   reasoning usage, log redaction, desk-filter spellings, document titles, then measurements and
   small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
+  - Done 2026-10-14: B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk
+    (F44), B8 Live TV (F7), B10 desk count (F30). Next: B1, B2 (F172), B4, B3, B9, then the rest.
+- [ ] **F174. A timing test fails when the machine is busy.** `src/lib/backupFallbackRoute.test.js`
+  "reads the largest pack (5.9 MB) in under a second" failed once in a full run on 2026-10-14 and
+  passed three times alone. Make the bound relative or skip it in the full suite.
+- [ ] **F175. Admin Website settings are per-browser.** Found 2026-10-14 (F171 B5): `src/lib/siteSettingsStore.js`
+  keeps the site name, contact email and address in the admin's `localStorage`, so other visitors
+  never see an edit (same defect class as F108). Recommended: published values in code, or a table.
+- [ ] **F176. Dead GDELT code.** After F169 T4 every GDELT request fails at once, so the GDELT URL
+  builders, `labelledGdelt`, `gdeltRows`, the home Top Stories GDELT branch and the conflict feed's
+  GDELT block in `server/featureFeed.mjs` and `server/homeApi.mjs` can never return rows (review,
+  2026-10-14). Remove them, with the stale comments about GDELT pacing.
 - [ ] **F172. Files uploaded into AI chat never reach the AI.** Found 2026-10-14 (F171 research,
   read): `requestAttachments` (`src/ai/AiPanel.jsx:171-186`) keeps only attachments with a top-level
   `text`; an uploaded file's text sits under `files[]`, so every uploaded file is dropped without a
@@ -722,21 +709,6 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   Governance & Policy, Election Forecast Aggregator, State Fiscal Deep-Dive and Municipal &
   Panchayat Tender Aggregator show news rows or an empty state instead of "Module planned", unlike
   the other 15 unbuilt modules. F171 B9.
-- [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
-  research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
-  `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);
-  production answers 404 (checked), and the pages are also gated on `VITE_LIVE_API`. Readers see a
-  plain "not available" message. The server already builds the same content (`server/nationalFeed.mjs`
-  :504 Morning Brief, :439 Statement Tracker for the first leader). Recommended: switch both pages to
-  `/api/feature-feed` now (small), rather than adding an open `/api/rss?url=` proxy to the live
-  function (it would fetch any URL it is given). F160 phase 1 then serves them from the database.
-- [ ] **F167. `/api/home/refresh` is public and makes outside fetches.** Found by the F160 research:
-  anyone can call it (GET or POST) and trigger fetches of every home source. Recommended: require
-  the same secret as F160's refresh route, or remove it from the live router. Size S.
-- [ ] **F168. An empty "taking longer than usual" answer is edge-cached for 60 s.** Found by the F160
-  research: a pending module answer (`served: 'archive'` with no rows) is a 200, so the edge keeps
-  it, and the F159 retries can be served the same empty answer. Recommended: send pending answers
-  with `no-store`. Size S.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
@@ -988,6 +960,65 @@ Historical baseline (read-only observations, 2026-10-03; superseded by
 
 ## 1. Done
 
+- [x] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
+  research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
+  `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);
+  production answers 404 (checked), and the pages are also gated on `VITE_LIVE_API`. Readers see a
+  plain "not available" message. The server already builds the same content (`server/nationalFeed.mjs`
+  :504 Morning Brief, :439 Statement Tracker for the first leader). Recommended: switch both pages to
+  `/api/feature-feed` now (small), rather than adding an open `/api/rss?url=` proxy to the live
+  function (it would fetch any URL it is given). F160 phase 1 then serves them from the database.
+  *Done 2026-10-14 (F169 T3, `afcd931`, pushed `df556a4`): both pages read `/api/feature-feed`; production probe: Morning Brief 220 items, Statement Tracker 100 per leader.*
+- [x] **F167. `/api/home/refresh` is public and makes outside fetches.** Found by the F160 research:
+  anyone can call it (GET or POST) and trigger fetches of every home source. Recommended: require
+  the same secret as F160's refresh route, or remove it from the live router. Size S.
+  *Done 2026-10-14 (F169 T8, `7bff816`, pushed `df556a4`): the route is off the live function; production answers 404 (checked).*
+- [x] **F168. An empty "taking longer than usual" answer is edge-cached for 60 s.** Found by the F160
+  research: a pending module answer (`served: 'archive'` with no rows) is a 200, so the edge keeps
+  it, and the F159 retries can be served the same empty answer. Recommended: send pending answers
+  with `no-store`. Size S.
+  *Done 2026-10-14 (F169 T8, `7bff816`, pushed `df556a4`): a pending answer is `no-store` (router test).*
+- [x] **F108. Legal page content is per-browser.** `privacyStore.js` and
+  `termsStore.js` keep edited content in `localStorage`, so an admin edit is
+  not seen by other visitors. Make published legal content shared (part of
+  F107).
+  *Done 2026-10-14 (F171 B5, `4efa9ce`, pushed `df556a4`): Privacy and Terms show the published text; the per-browser editors are removed. The same per-browser problem in the admin Website settings is F175.*
+- [x] **F7 / O7.** Live TV content is partly invented. `server/liveTvApi.mjs:664`
+  serves a hand-written transcript labelled "ASR Verified Record"; `:609` is
+  an invented archive entry; channels without a schedule get placeholder
+  programmes. It needs the new Live TV sources, UI and sample codebase.
+  *Done 2026-10-14 (F171 B8, `43cf837`, `8990ef9`): invented schedules, archive, transcripts, programmes, stock photos, dates and live status removed; five wrong channel IDs corrected (Sansad TV was Google for Developers); swapped titles set from YouTube. Left for a real Live TV source: schedules, archive, transcripts, checked live status.*
+- [x] **F156. Terminal speed (phase 2): paged module lists and stored copies on the server.**
+  Paging and the landing retry are live (`97828b2`, pushed `3d0a0d8`). Production, from the
+  owner's Mac: Bills page 1 is 9.4 KB compressed (was 534 KB for the whole register, plus a
+  450 KB archive), 0.82 s cold and 0.37 s from the edge; a search 0.19 s; Questions page 1
+  8.5 KB, 0.44 s.
+  - **Backup packs, decided 2026-10-14 (owner: "go with your recommendation … make a note"):**
+    `backup/` holds 99 Excel workbooks and 8 manifests (82 MB), a one-time snapshot from
+    2026-09-11 (`c83fabe`), never refreshed and not in Supabase (`desk_rows` holds none of them).
+    They are a last resort, read only when a module's live source and its shipped archive are both
+    empty. Only four modules reach that point on the live site, so the live function carries only
+    their packs and manifests (about 5 MB): Satellite Infrastructure, Growth Indicators and
+    Global Trade (`backup/GLOBAL`) and Athlete Index (`backup/SPORTS`), listed by name in
+    `vercel.json` and `api/router.js` `config.includeFiles` (test: `src/backupPacksDeploy.test.js`).
+    **Correction 2026-10-14 (module audit):** this list restricts nothing. Vercel's file tracing
+    packages the whole `backup/` folder because `server/backupFeed.mjs` reads it at run time, so
+    every pack is on the live function and in use since F156. Several packs hold a different kind
+    of record from their module (Box Office → headlines, OTT → a TV schedule), and none of the four
+    chosen here matches its module. Fixed by F169 phase 1 (T1).
+    The other 95 workbooks stay in the repository for the local dev server and must not be deleted
+    without an approved data task. (Superseded by F169 T1: backup packs are off on the live
+    site; a module is added to `LIVE_BACKUP_PACKS` only with a test proving its pack holds the
+    module's kind of record.) Refreshing or converting the packs is a separate data task.
+  Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
+  costs server time; load them in pages instead.
+  [Spec](../specs/2026-10-14-paged-module-lists.md), with measurements: only Bills (9,819 rows,
+  about 0.9 MB per cold open) and Parliamentary Questions (8,000 rows, about 0.6 MB) are large;
+  every other module is at most about 60 KB compressed. Planned: server pages of 100 rows for those
+  two (search, sort, filters and counts on the server, edge-cached); pending landing counts retried
+  instead of shown as "unavailable"; the deployed site reading the backup packs with a bounded
+  read (the `includeFiles` line awaits the owner's approval).
+  *Closed 2026-10-14: paging is live; the backup-pack part is superseded by F169 T1 (no backup-pack answer on production in the post-deploy probe).*
 - [x] **Homepage sideways scroll at phone width.** Fixed on `task/mobile-overflow` (2026-10-14). The
   trivia band is a `.mkt-wrap` with its own padding and border added on top, so on phones and tablets
   (to 768 px) it was 47 px wider than the page (scrollWidth 390 at 375). Its padding and border now
@@ -1455,7 +1486,7 @@ Newest first. Detail is in `git log`, the linked documents and the
 
 Each needs one answer, then an agent can finish it.
 
-- [ ] **P12. Advisor findings and the dependency audit** (checked 2026-09-29):
+- [ ] **P12. Advisor findings and the dependency audit** (checked 2026-09-29): *2026-10-14 (F171 B6, `28c8fc6`, `eeb9ccd`): `xlsx` is SheetJS 0.20.3 from the vendor's distribution, `npm audit --omit=dev` clean; parsing capped at 10 MB and 5,000 rows a sheet. npm audit no longer tracks SheetJS (URL dependency): check https://cdn.sheetjs.com for releases when touching it. Still open: the Vite/Vitest majors and the RLS advisor items below.*
   - **`xlsx` 0.18.5: high severity, and no npm fix** (prototype pollution
     and ReDoS). `server/sourceExtract.mjs` parses fetched source documents
     and chat uploads with it, so the input is untrusted. The fix is SheetJS's
@@ -1475,7 +1506,7 @@ Each needs one answer, then an agent can finish it.
     - three sets of multiple permissive policies.
   - Leaked-password protection and the Auth connection strategy are
     dashboard settings (D1).
-- [ ] **F30. The other hand-written marketing figures** (found while doing
+- [ ] **F30. The other hand-written marketing figures** *(2026-10-14: "9,819", "211+" and "99.9%" are gone (F142); "12 Desks" fixed to 8 and tied to the desk list (F171 B10, `df556a4`). The homepage preview cards' sample figures are on the client's list, F144.)* (found while doing
   P16). They weren't part of P16's approval:
   - `src/marketing/HomePage.jsx` shows "9,819" bills in four places (lines
     36, 290, 584 and 736); the carousel now says 9,817 unique bills;
@@ -2039,10 +2070,6 @@ Earlier items, updated:
 
 ## 6. Waiting on owner assets
 
-- [ ] **F7 / O7.** Live TV content is partly invented. `server/liveTvApi.mjs:664`
-  serves a hand-written transcript labelled "ASR Verified Record"; `:609` is
-  an invented archive entry; channels without a schedule get placeholder
-  programmes. It needs the new Live TV sources, UI and sample codebase.
 - [ ] **O9.** Desk-landing visual inputs: National mockup received on 2026-10-04 and tracked by F81. The supplied HTML also includes Global/Law references; State and other desk visual scope remain unapproved. The National plan replaces the older spec's waiting-for-mockup assumption for National. Global implementation was authorized on2026-10-05 and is tracked in F82.
 - [ ] **O1.** `NTER_TERMINAL_API_KEY` on Vercel, and nter.news pointed at
   production. Until then every nter.news push is refused.
