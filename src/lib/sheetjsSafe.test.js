@@ -20,6 +20,15 @@ describe('SheetJS (P12)', () => {
     expect(out.text).toBeUndefined();
   });
 
+  it('reads at most 5,000 rows of a sheet', async () => {
+    const XLSX = require('xlsx');
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(Array.from({ length: 6000 }, (_, i) => [`r${i}`])), 'Big');
+    const out = await extractBuffer(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }), { kind: 'sheet', name: 'big.xlsx' });
+    expect(out.text).toContain('r4999');
+    expect(out.text).not.toContain('r5000');
+  });
+
   it('still reads a small spreadsheet', async () => {
     const XLSX = require('xlsx');
     const wb = XLSX.utils.book_new();

@@ -13,6 +13,8 @@ const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; source-extract)';
 const FETCH_MS = 28_000;
 const MAX_BIN = 10 * 1024 * 1024;
 const MAX_TEXT = 120_000;
+/** Rows read per sheet; the text is capped at MAX_TEXT anyway. */
+const SHEET_ROWS = 5000;
 
 const require = createRequire(import.meta.url);
 
@@ -154,7 +156,8 @@ function sheetToText(buf) {
   if (buf.length > MAX_BIN) return { error: `Spreadsheet too large (over ${MAX_BIN / 1024 / 1024} MB)` };
   try {
     const XLSX = require('xlsx');
-    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
+    // Review (F171 B6): a 10 MB zipped workbook can expand far larger, so the parse is capped too.
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, sheetRows: SHEET_ROWS, dense: true });
     const parts = [];
     for (const name of (wb.SheetNames || []).slice(0, 6)) {
       const sheet = wb.Sheets[name];
