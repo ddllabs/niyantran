@@ -1,4 +1,4 @@
-import { loadSiteSettings, subscribeSiteSettings } from './siteSettingsStore.js';
+import { loadSiteSettings } from './siteSettings.js';
 
 const MARK = 'data-niy-site';
 
@@ -155,13 +155,10 @@ export function applySiteHead(settings) {
   injectCustomHtml(s.customHeadHtml);
 }
 
-let started = false;
-
+// The published values never change while the page is open, so one application is enough.
 export function startSiteHead() {
   applySiteHead();
-  if (started) return () => {};
-  started = true;
-  return subscribeSiteSettings(() => applySiteHead());
+  return () => {};
 }
 
 export function setPageTitle(pageTitle) {
