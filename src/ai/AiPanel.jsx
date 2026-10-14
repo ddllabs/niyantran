@@ -949,7 +949,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
             type="file"
             multiple
             hidden
-            accept=".pdf,.csv,.txt,.json,.png,.jpg,.jpeg,.webp"
+            accept=".pdf,.csv,.txt,.md,.json,.xlsx,.xls,.ods,.png,.jpg,.jpeg,.webp"
             onChange={onPickFiles}
           />
           <div className="ai-v2-focus" ref={focusRef}>
@@ -1048,7 +1048,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
                   the client's identity re-check before a differently sized ticker took over. */}
               <ActivityTicker
                 activity={stream?.activity || []}
-                active={Boolean(research.submitting || streaming || stream?.isPending)}
+                active={Boolean(research.submitting || streaming || (stream?.isPending && stream?.errorCode !== 'connection_lost'))}
                 startedAt={turnStartedAt}
                 model={stream?.model || { requested: modelChoice.modelId }}
                 timing={stream?.timing}

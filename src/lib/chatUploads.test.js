@@ -60,10 +60,32 @@ describe('uploaded files reach the AI (F172)', () => {
     expect(requestAttachments([chip])).toEqual([]);
   });
 
-  it('text longer than the server takes is cut to its limit and says so', async () => {
+  it('text longer than the AI reads is cut to that and says so', async () => {
     const [chip] = await drop(new File(['x'.repeat(50_000)], 'long.txt', { type: 'text/plain' }));
-    expect(chip.text).toHaveLength(40_000);
-    expect(chip.note).toMatch(/first 40,000 characters/);
+    expect(chip.text).toHaveLength(12_000);
+    expect(chip.note).toBe('The AI reads the first 12,000 characters.');
+  });
+
+  it('the limit is what the research chat prompt keeps (review)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const prompt = readFileSync(new URL('../../supabase/functions/research-chat/prompt.ts', import.meta.url), 'utf8');
+    const { SENT_TEXT_LIMIT } = await import('./fileText.js');
+    expect(Number(/MAX_ATTACHMENT_CHARS = ([\d_]+)/.exec(prompt)?.[1].replace(/_/g, ''))).toBe(SENT_TEXT_LIMIT);
+  });
+
+  it('a short title page counts as text (review)', async () => {
+    const [chip] = await drop(await pdfWith(['THE DATA BILL, 2026', 'Clause 1. Short title.']));
+    expect(chip.error).toBeUndefined();
+    expect(chip.note).toBeUndefined();
+    expect(chip.text).toContain('THE DATA BILL, 2026');
+  });
+
+  it('Word files and other binary files are not sent as text (review)', async () => {
+    const [doc] = await drop(new File([new Uint8Array([0x50, 0x4b, 3, 4, 0, 0, 1, 2])], 'bill.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+    expect(doc.error).toMatch(/Word files/);
+    const [bin] = await drop(new File([new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0, 1, 2, 3])], 'tool.bin', { type: '' }));
+    expect(bin.error).toMatch(/not text/);
+    expect(requestAttachments([doc, bin])).toEqual([]);
   });
 });
 
@@ -89,5 +111,17 @@ describe('file size and storage (F62)', () => {
   it('a chip keeps no file contents (no base64), only what is sent', async () => {
     const [chip] = await drop(await pdfWith(['Clause 1.']));
     expect(JSON.stringify(chip)).not.toMatch(/base64/);
+  });
+});
+
+describe('file text is not kept in browser storage (F62 review)', () => {
+  it('a stored file chip keeps no text and asks for the file again', async () => {
+    const { storablePins } = await import('./aiConversations.js');
+    const [chip] = await drop(new File(['The Data Bill, 2026 sets up a board.'], 'notes.txt', { type: 'text/plain' }));
+    const stored = storablePins({ c1: [{ ...chip, id: 'a1' }, { id: 'r1', kind: 'row', title: 'Row', text: 'row text' }] });
+    expect(stored.c1[0].text).toBeUndefined();
+    expect(stored.c1[0].error).toMatch(/Attach this file again/);
+    expect(stored.c1[1].text).toBe('row text');
+    expect(requestAttachments(stored.c1).map((a) => a.title)).toEqual(['Row']);
   });
 });

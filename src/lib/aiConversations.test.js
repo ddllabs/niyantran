@@ -236,6 +236,21 @@ describe('aiConversations (server-backed thread store)', () => {
     expect(activeAiChat().attachments.filter((a) => a.title === 'Open Fronts')).toHaveLength(1);
   });
 
+  // F62 review: an uploaded file's text is not written to browser storage; the live chip keeps it.
+  it('an uploaded file keeps its text for this session but not in browser storage', async () => {
+    await hydrateConversations();
+    const written = [];
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation((k, v) => { written.push(String(v)); });
+    try {
+      addChatAttachments('c-1', [{ kind: 'file', title: 'notes.txt', text: 'SECRET_FILE_TEXT', fingerprint: '36:abc' }]);
+    } finally {
+      setItem.mockRestore();
+    }
+    expect(activeAiChat().attachments[0].text).toBe('SECRET_FILE_TEXT');
+    expect(written.length).toBeGreaterThan(0);
+    expect(written.join('')).not.toContain('SECRET_FILE_TEXT');
+  });
+
   it('attachments live in the browser, per conversation, and survive a reload', async () => {
     await hydrateConversations();
     addChatAttachments('c-1', [{ kind: 'row', title: 'A bill' }]);

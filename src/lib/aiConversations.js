@@ -143,10 +143,24 @@ function readPins() {
   }
 }
 
+/**
+ * F62 review: an uploaded file's text is not kept in browser storage (it can be 12,000 characters a
+ * file); after a reload its chip asks for the file again rather than being sent empty.
+ */
+export function storablePins(pins) {
+  const out = {};
+  for (const [id, list] of Object.entries(pins || {})) {
+    out[id] = Array.isArray(list)
+      ? list.map((a) => (a?.kind === 'file' && a.text ? { ...a, text: undefined, note: undefined, error: 'Attach this file again to send it; file text is not kept after a reload.' } : a))
+      : list;
+  }
+  return out;
+}
+
 function writePins(pins) {
   try {
     const key = pinsKey();
-    if (key) localStorage.setItem(key, JSON.stringify(pins));
+    if (key) localStorage.setItem(key, JSON.stringify(storablePins(pins)));
   } catch {
     /* a private window simply keeps no pins */
   }

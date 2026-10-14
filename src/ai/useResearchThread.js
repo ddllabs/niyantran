@@ -108,8 +108,10 @@ export function createResearchThread(overrides = {}) {
       ownerId: owner?.id || '',
       // F66: after a dropped connection (outcome unknown) nothing here is running, so there is
       // nothing to stop; the turn stays pending (no duplicate send) until its saved result is read.
+      // The server may still be writing an answer it acknowledged, so Stop (a server cancel) stays
+      // for an acknowledged turn; a turn the server never acknowledged has nothing to stop.
       canStop: data.ready && Boolean(data.submitting || stream?.isStreaming || storedRunning
-        || (stream?.isPending && stream?.errorCode !== 'connection_lost')),
+        || (stream?.isPending && (stream?.errorCode !== 'connection_lost' || Boolean(stream?.messageId)))),
       locked: !data.ready || data.loading || data.submitting || data.attaching || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
       sources: stream?.sources?.length ? stream.sources : savedSources,
       webSources: stream?.webSources?.length ? stream.webSources : savedWebSources,
@@ -233,7 +235,10 @@ export function createResearchThread(overrides = {}) {
     try { await deps.refreshCredits(); } catch { /* the chip keeps its last balance */ }
   }
   function recheckSaved(conversationId, t, tries = 24) {
-    if (tries <= 0) return;
+    if (tries <= 0) {
+      if (valid(t) && view.chat?.id === conversationId) emit({ error: 'Still not saved. Use Recover answer or Reload.' });
+      return;
+    }
     setTimeout(async () => {
       if (!valid(t)) return;
       try {

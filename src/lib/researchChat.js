@@ -228,7 +228,7 @@ function result(entry) {
  */
 export function connectionMessage(error) {
   const text = String(error?.message || '');
-  if (error?.name === 'TypeError' || /failed to fetch|load failed|networkerror|network error/i.test(text)) {
+  if (/failed to fetch|load failed|networkerror|network error|network connection was lost/i.test(text)) {
     return 'The connection dropped. The answer may still be finishing; it will appear here once it is saved.';
   }
   return text || 'The connection failed.';

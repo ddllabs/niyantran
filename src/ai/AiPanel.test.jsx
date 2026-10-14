@@ -616,5 +616,6 @@ it('keeps the partly written answer on screen after a dropped connection', () =>
   stream: { isPending: true, isStreaming: false, status: 'unknown', errorCode: 'connection_lost', error: 'The connection dropped.', streamingText: 'PARTIAL_ANSWER_TEXT' } };
  const html = renderToStaticMarkup(<AiPanel lang="en" />);
  expect(html).toContain('PARTIAL_ANSWER_TEXT');
- expect(html).not.toContain('Failed to fetch');
+ // Nothing is running here, so the activity ticker does not spin (review).
+ expect(html).not.toContain('ai-ticker active');
 });

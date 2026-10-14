@@ -613,6 +613,11 @@ it('a dropped connection with nothing running offers no Stop button',async()=>{
  expect(f.controller.getSnapshot().canStop).toBe(false);
  expect(f.controller.getSnapshot().locked).toBe(true);
 });
+it('an acknowledged turn keeps Stop after a dropped connection: the server may still be writing it',async()=>{
+ const f=fixture();await f.controller.start();
+ f.setStreams({new:{isStreaming:false,isPending:true,status:'unknown',errorCode:'connection_lost',error:'The connection dropped.',messageId:'m1',sources:[]}});
+ expect(f.controller.getSnapshot().canStop).toBe(true);
+});
 it('after a dropped connection the saved answer is checked again until it is there',async()=>{
  vi.useFakeTimers();
  try{
@@ -627,5 +632,16 @@ it('after a dropped connection the saved answer is checked again until it is the
   const calls=f.deps.reconcileSavedTurn.mock.calls.length;
   await vi.advanceTimersByTimeAsync(30000);
   expect(f.deps.reconcileSavedTurn.mock.calls.length).toBe(calls); // stops once the answer is there
+ }finally{vi.useRealTimers();}
+});
+it('when the saved answer never arrives the reader is told what to do',async()=>{
+ vi.useFakeTimers();
+ try{
+  const f=fixture();await f.controller.start();
+  f.deps.sendTurn.mockImplementation(async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:true,status:'unknown',errorCode:'connection_lost',error:'The connection dropped.',messageId:'m'}});
+  f.deps.reconcileSavedTurn.mockResolvedValue(false);
+  await f.controller.send({message:'Q',turn_key:'k'});
+  await vi.advanceTimersByTimeAsync(26*5000);
+  expect(f.controller.getSnapshot().error).toBe('Still not saved. Use Recover answer or Reload.');
  }finally{vi.useRealTimers();}
 });
