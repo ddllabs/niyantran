@@ -1,37 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BILL_FEATURE, GRAPH_FEATURE, nationalResourceKey } from '../lib/nationalLandingSummary.js';
+import { loadLandingSummaries } from './landingRetry.js';
 
 const unavailable = feature => ({ feature, resourceKey: nationalResourceKey(feature), count: null, availability: 'error', sourceMode: 'unknown', columns: [], sources: [], sectors: [] });
-export async function loadNationalSummaries({ features, signal, onSummary, fetcher = fetch }) {
-  const queue = [...new Set(features.map(nationalResourceKey))];
-  async function worker() {
-    while (queue.length && !signal?.aborted) {
-      const feature = queue.shift();
-      const controller = new AbortController();
-      const abort = () => controller.abort();
-      signal?.addEventListener('abort', abort, { once: true });
-      const timer = setTimeout(abort, 45000);
-      let summary;
-      try {
-        const response = await fetcher(`/api/national-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
-        summary = await response.json();
-        const counted = summary.ok === true && Number.isInteger(summary.count) && summary.count >= 0;
-        const coverageUnavailable = summary.ok === false && summary.count === null && summary.availability === 'error';
-        if ((!response.ok && !coverageUnavailable) || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !coverageUnavailable)) throw new Error('Invalid summary');
-      } catch {
-        summary = unavailable(feature);
-      } finally {
-        clearTimeout(timer); signal?.removeEventListener('abort', abort);
-      }
-      if (signal?.aborted) return;
-      onSummary(summary);
-      if (feature === BILL_FEATURE && features.includes(GRAPH_FEATURE)) onSummary({
-        ...summary, feature: GRAPH_FEATURE, columns: summary.graphColumns || [],
-        limitations: 'A view of the bill register; these records are counted once in the desk total.',
-      });
+export async function loadNationalSummaries({ features, signal, onSummary, fetcher = fetch, retryAfterMs }) {
+  async function fetchOne(feature) {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, 45000);
+    let summary;
+    try {
+      const response = await fetcher(`/api/national-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
+      summary = await response.json();
+      const counted = summary.ok === true && Number.isInteger(summary.count) && summary.count >= 0;
+      const coverageUnavailable = summary.ok === false && summary.count === null && summary.availability === 'error';
+      if ((!response.ok && !coverageUnavailable) || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !coverageUnavailable)) throw new Error('Invalid summary');
+    } catch {
+      summary = unavailable(feature);
+    } finally {
+      clearTimeout(timer); signal?.removeEventListener('abort', abort);
     }
+    return summary;
   }
-  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  const publish = summary => {
+    onSummary(summary);
+    if (summary.feature === BILL_FEATURE && features.includes(GRAPH_FEATURE)) onSummary({
+      ...summary, feature: GRAPH_FEATURE, columns: summary.graphColumns || [],
+      limitations: 'A view of the bill register; these records are counted once in the desk total.',
+    });
+  };
+  await loadLandingSummaries({ features: [...new Set(features.map(nationalResourceKey))], signal, fetchOne, publish, retryAfterMs });
 }
 
 export function useNationalLanding(features) {

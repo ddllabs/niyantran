@@ -3,7 +3,8 @@
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
-import { serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
+import { serveFeatureFeedWithBackup, serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
+import { serveFeaturePage, wantsPage } from '../server/featurePage.mjs';
 import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
 import { serveLawLanding } from '../server/lawLandingSummary.mjs';
 import { serveEconomicsLanding } from '../server/economicsLandingSummary.mjs';
@@ -170,7 +171,7 @@ export default async function handler(req, res) {
       const entertainment = path === '/api/entertainment-landing';
       if (method !== 'GET') { res.status(405).json({ ok: false, error: 'GET only' }); return; }
       try {
-        const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), serveFeatureFeedWithinLimit);
+        const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(q(req), (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup);
         res.status(body.ok ? 200 : 502).json(body);
       } catch (err) {
         res.status(err.message === `Unknown ${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502).json({ ok: false, error: `${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` });
@@ -182,12 +183,16 @@ export default async function handler(req, res) {
         res.status(405).json({ ok: false, error: 'GET /api/feature-feed only' });
         return;
       }
-      const body = await serveFeatureFeedWithinLimit(q(req));
+      // F156: a page of a large module when `page` is asked for; otherwise the whole answer, as before.
+      const params = q(req);
+      const { status, body } = wantsPage(params)
+        ? await serveFeaturePage(params, serveFeatureFeedWithBackup)
+        : { status: 200, body: await serveFeatureFeedWithBackup(params) };
       if (method === 'HEAD') {
-        res.status(200).end();
+        res.status(status).end();
         return;
       }
-      res.status(200).json(body);
+      res.status(status).json(body);
       return;
     }
 

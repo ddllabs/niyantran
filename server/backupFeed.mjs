@@ -260,7 +260,9 @@ function parseXlsxRows(filePath, cap) {
   if (hit) return hit;
 
   const buf = fs.readFileSync(filePath);
-  const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
+  // F156: read only the rows that can be kept (the header sits in the first few rows; the slack
+  // covers it and skipped rows). The whole sheet took 0.7-2.6 s per large pack and blocked the server.
+  const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, sheetRows: cap + 100 });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
 

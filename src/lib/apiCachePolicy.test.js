@@ -9,6 +9,8 @@ const feed = vi.hoisted(() => ({ within: null }));
 vi.mock('../../server/featureFeed.mjs', () => ({
   serveFeatureFeed: vi.fn(() => { throw new Error('the router must use the time-limited feed'); }),
   serveFeatureFeedWithinLimit: vi.fn((params) => feed.within(params)),
+  // F156: the time-limited feed with the backup-pack fallback; the packs are out of this test.
+  serveFeatureFeedWithBackup: vi.fn((params) => feed.within(params)),
 }));
 
 import handler, { API_CACHE, cachePolicyFor } from '../../api/router.js';

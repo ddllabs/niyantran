@@ -1891,6 +1891,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     a day while it refreshes. Everything else stays `no-store`.
   - **Verified live:** `x-vercel-id` shows `bom1`; `/data/` carries the header; landing and
     module routes return `x-vercel-cache: HIT`/`STALE` on repeat; timings are in F154.
+  - **Known effect:** live-only modules (Morning Brief, Statement Tracker, Economic Overview) can
+    show an "unavailable" landing count at 4 s while their live fetch finishes later; F156 retries.
   - **Rollback:** revert `719a7eb` and push (removes the region, the headers and the time limit).
   - **Checks on the merged branch:** 4,220 Vitest and 1,073 Deno tests, lint, build,
     `check:bundle` (+806 bytes gzip, within the limit) and the router import.

@@ -2,18 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { tableFilterGroups } from '../lib/analytics.js';
 import { vizFilterList, vizFilterOn } from '../lib/nationalKpi.js';
 import { Icon } from './Icons.jsx';
+import { selectedValues } from '../lib/choiceFilter.js';
 
-export function selectedValues(current, allValue = '') {
-  if (Array.isArray(current)) return current;
-  if (current == null || current === '' || current === allValue || current === 'all' || current === 'All') return [];
-  return [current];
-}
-
-export function matchesChoice(current, value, allValue = '') {
-  const sel = selectedValues(current, allValue);
-  if (!sel.length) return true;
-  return sel.map(String).includes(String(value));
-}
+export { matchesChoice, selectedValues } from '../lib/choiceFilter.js';
 
 export function choiceGroup(title, values, current, setCurrent, { allValue = '', allLabel = 'All' } = {}) {
   const opts = values.map((v) => (v && typeof v === 'object' ? v : { value: v, label: v }));
@@ -54,6 +45,8 @@ export default function TableFilterPop({
   const feedGroups = useMemo(() => {
     if (groupsProp) return groupsProp;
     if (!feed) return [];
+    // F156: a paged module's menu comes with the page, counted over the whole register.
+    if (feed.paged) return feed.filterGroups || [];
     try {
       return tableFilterGroups(feed);
     } catch {

@@ -3,6 +3,7 @@ import { isHtmlOnlyModule } from '../desks/catalog.js';
 import features from '../data/html-feature-map.json';
 import { fetchArchiveFeature, hasRealRows } from './archiveFeed.js';
 import { isTransitFeature, rowFromAir } from './transit.js';
+import { isPagedFeature, pageQuery } from './pagedFeatures.js';
 
 function featureMapRow(tier, feature) {
   const want = String(feature || '').trim().toLowerCase();
@@ -243,4 +244,16 @@ export async function fetchFeature({ tier, feature, signal, onUpdate } = {}) {
   if (api.ok && hasRealRows(api.body)) return api.body;
   const archive = await fetchArchiveFeature({ tier, feature, signal });
   return withoutLive(archive, api);
+}
+
+/**
+ * F156: one page of a large module (src/lib/pagedFeatures.js) from /api/feature-feed: its rows,
+ * `total`, `totalAll`, `columns`, `filterGroups` and `overview`, already prepared. Resolves null when
+ * the API is not on this host, fails, or answers the whole module instead; the caller then loads the
+ * whole module as before. Throws only an AbortError.
+ */
+export async function fetchFeaturePage({ signal, ...view } = {}) {
+  if (!featureFeedApiEnabled() || !isPagedFeature(view.feature)) return null;
+  const api = await requestFeatureFeed(`/api/feature-feed?${pageQuery(view)}`, signal);
+  return api.ok && api.body?.paged ? api.body : null;
 }

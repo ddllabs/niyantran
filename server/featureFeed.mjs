@@ -70,6 +70,7 @@ import * as resourcesLive from './resourcesApi.mjs';
 import * as financeLive from './financeApi.mjs';
 import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
+import { serveFeaturePage, wantsPage } from './featurePage.mjs';
 import * as entertainmentLive from './entertainmentApi.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -3611,7 +3612,8 @@ function applyBackupFallback(body, searchParams) {
     };
   }
   if (!pack?.rows?.length) return body;
-  return envelope({
+  // Stored rows: the edge keeps this answer as briefly as any other archive answer (F156).
+  return { ...envelope({
     tier,
     feature: featureName,
     rows: pack.rows,
@@ -3626,7 +3628,7 @@ function applyBackupFallback(body, searchParams) {
     kind: 'backup-pack',
     note: pack.note,
     meta: pack.meta,
-  });
+  }), served: 'archive' };
 }
 
 // F154: the whole live attempt for one request, across every source it tries. Past it the
@@ -3727,8 +3729,13 @@ export async function serveFeatureFeedWithinLimit(
   return serveArchiveFor(searchParams, reason);
 }
 
-async function loadLandingFeed(params) {
-  return applyBackupFallback(await serveFeatureFeedWithinLimit(params), params);
+/**
+ * F156: the feed within its time limit, then the backup pack when live and archive have no rows.
+ * The Vite middleware and api/router.js both answer /api/feature-feed and the National, Global and
+ * Law landings through this, so the local and deployed servers answer the same way.
+ */
+export async function serveFeatureFeedWithBackup(searchParams, options) {
+  return applyBackupFallback(await serveFeatureFeedWithinLimit(searchParams, options), searchParams);
 }
 
 export async function handleFeatureFeedRequest(req, res, next) {
@@ -3749,7 +3756,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : loadLandingFeed);
+      const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup);
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
@@ -3791,10 +3798,12 @@ export async function handleFeatureFeedRequest(req, res, next) {
     return;
   }
   try {
-    const raw = await serveFeatureFeedWithinLimit(url.searchParams);
-    const body = applyBackupFallback(raw, url.searchParams);
+    // F156: a page of a large module when `page` is asked for; otherwise the whole answer, as before.
+    const { status, body } = wantsPage(url.searchParams)
+      ? await serveFeaturePage(url.searchParams, serveFeatureFeedWithBackup)
+      : { status: 200, body: await serveFeatureFeedWithBackup(url.searchParams) };
     const json = JSON.stringify(body);
-    res.statusCode = 200;
+    res.statusCode = status;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'HEAD') res.end();

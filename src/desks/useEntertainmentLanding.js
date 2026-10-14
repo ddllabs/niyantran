@@ -1,27 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
+import { featuresToLoad, loadLandingSummaries } from './landingRetry.js';
 
 const unavailable = feature => ({ feature, resourceKey: feature, count: null, availability: 'error', sourceMode: 'unknown', columns: [], sources: [], locations: [] });
-export async function loadEntertainmentSummaries({ features, signal, onSummary, fetcher = fetch }) {
-  const queue = [...new Set(features)];
-  async function worker() {
-    while (queue.length && !signal?.aborted) {
-      const feature = queue.shift(), controller = new AbortController();
-      const abort = () => controller.abort();
-      signal?.addEventListener('abort', abort, { once: true });
-      const timer = setTimeout(abort, 45000);
-      let summary;
-      try {
-        const response = await fetcher(`/api/entertainment-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
-        summary = await response.json();
-        const counted = summary.ok === true && (summary.availability === 'unavailable' ? summary.count === null : Number.isInteger(summary.count) && summary.count >= 0);
-        const failedCoverage = summary.ok === false && summary.count === null && summary.availability === 'error';
-        if ((!response.ok && !failedCoverage) || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !failedCoverage)) throw new Error('Invalid summary');
-      } catch { summary = unavailable(feature); }
-      finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
-      if (!signal?.aborted) onSummary(summary);
-    }
+export async function loadEntertainmentSummaries({ features, signal, onSummary, fetcher = fetch, retryAfterMs }) {
+  async function fetchOne(feature) {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, 45000);
+    let summary;
+    try {
+      const response = await fetcher(`/api/entertainment-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
+      summary = await response.json();
+      const counted = summary.ok === true && (summary.availability === 'unavailable' ? summary.count === null : Number.isInteger(summary.count) && summary.count >= 0);
+      const failedCoverage = summary.ok === false && summary.count === null && summary.availability === 'error';
+      if ((!response.ok && !failedCoverage) || summary.version !== 1 || summary.feature !== feature || summary.resourceKey !== feature || (!counted && !failedCoverage)) throw new Error('Invalid summary');
+    } catch { summary = unavailable(feature); }
+    finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+    return summary;
   }
-  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  await loadLandingSummaries({ features: [...new Set(features)], signal, fetchOne, publish: onSummary, retryAfterMs });
 }
 
 export function useEntertainmentLanding(features) {
@@ -32,7 +30,7 @@ export function useEntertainmentLanding(features) {
   useEffect(() => { current.current = {}; setSummaries({}); }, [key]);
   useEffect(() => {
     const controller = new AbortController();
-    void loadEntertainmentSummaries({ features: key.split('\0').filter(feature => feature && !current.current[feature]), signal: controller.signal, onSummary: summary => {
+    void loadEntertainmentSummaries({ features: featuresToLoad(key.split('\0'), current.current), signal: controller.signal, onSummary: summary => {
       current.current = { ...current.current, [summary.feature]: summary };
       setSummaries(current.current);
     } });

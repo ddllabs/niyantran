@@ -7,7 +7,8 @@
  * shell calls takePendingDeskRow, which finds the row by its desk key
  * (deskRowKey — the same key the loader stored) and selects it. A feed that
  * no longer contains the key yields null and the viewer keeps the snapshot
- * with its captured-on date.
+ * with its captured-on date. A paged module (F156) that has the row on another page fetches it
+ * by its key instead (fetchPendingDeskRow).
  */
 import { resolveDeskRoute, writeDeskHash } from '../lib/deskRoute.js';
 import { deskRowKey } from '../lib/deskRows.js';
@@ -42,7 +43,28 @@ export function takePendingDeskRow(feed, tab) {
   const feature = String(feed.feature || '');
   if (feature !== pending.feature) return null;
   const key = pending.row_key;
+  const row = rowWithKey(feed, key);
+  // F156: a paged module holds one page; the desk asks the server for the row (fetchPendingDeskRow).
+  if (!row && feed.paged) return null;
   pending = null;
+  return row;
+}
+
+function rowWithKey(feed, key) {
   const rows = Array.isArray(feed.rows) ? feed.rows : [];
   return rows.find((r) => r && typeof r === 'object' && r.status !== 'source_status' && deskRowKey(r) === key) || null;
+}
+
+/**
+ * F156: for a paged module whose current page lacks the cited row, takes the request and asks
+ * `fetchByKey` (a `key=` page request) for the row. Resolves the row, or null when there is no such
+ * request, the row is on the page (takePendingDeskRow selects it), or the module has no such row.
+ */
+export async function fetchPendingDeskRow(feed, fetchByKey) {
+  if (!pending || !feed?.paged || String(feed.feature || '') !== pending.feature) return null;
+  const key = pending.row_key;
+  if (rowWithKey(feed, key)) return null;
+  pending = null;
+  const rows = (await fetchByKey(key)) || [];
+  return rows.find((r) => r && typeof r === 'object' && deskRowKey(r) === key) || null;
 }

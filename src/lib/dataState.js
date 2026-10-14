@@ -57,8 +57,11 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
   const kind = String(feed?.source?.kind || '');
   const adapter = String(feed?.source?.adapter || '');
   const rows = (feed?.rows || []).filter((r) => r?.status !== 'source_status');
+  // F156: a paged answer holds one page (empty when nothing matches a search); `totalAll` is the
+  // register's size.
+  const count = feed?.paged ? Math.max(0, Number(feed.totalAll) || 0) : rows.length;
 
-  if (sr || rows.length === 0) {
+  if (sr || count === 0) {
     if (PLANNED_RE.test(blob) || /scrape|licensed|credential/i.test(adapter)) {
       return {
         ...DATA_STATE.planned,
@@ -87,7 +90,7 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
     return {
       ...DATA_STATE.curated,
       detail: feed?.source?.note || 'Editorial / reference dataset.',
-      coverage: coverageText(feed, rows.length),
+      coverage: coverageText(feed, count),
       lastSync: lastSyncText(feed),
     };
   }
@@ -106,7 +109,7 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
           : recent
             ? 'Live source failed. Showing a recent cache.'
             : 'Dated historical snapshot. Not a live feed.'),
-      coverage: coverageText(feed, rows.length),
+      coverage: coverageText(feed, count),
       lastSync: lastSyncText(feed),
       fallback: true,
     };
@@ -118,14 +121,14 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
       return {
         ...DATA_STATE.live,
         detail: feed?.source?.note || 'Live request returned rows.',
-        coverage: coverageText(feed, rows.length),
+        coverage: coverageText(feed, count),
         lastSync: lastSyncText(feed),
       };
     }
     return {
       ...DATA_STATE.archived,
       detail: feed?.source?.note || 'Ingested pack / archive.',
-      coverage: coverageText(feed, rows.length),
+      coverage: coverageText(feed, count),
       lastSync: lastSyncText(feed),
     };
   }
@@ -133,7 +136,7 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
   return {
     ...DATA_STATE.live,
     detail: feed?.source?.note || 'Live request returned rows.',
-    coverage: coverageText(feed, rows.length),
+    coverage: coverageText(feed, count),
     lastSync: lastSyncText(feed),
   };
 }

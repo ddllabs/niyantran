@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F157 is next) and goes in the
+- A new finding gets the next free `F` number (F159 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -552,19 +552,27 @@ rechecked. Nothing in this check wrote to production.
     runs in `bom1`; `/data/` carries the new header; Cabinet Decisions landing 9–21 s → 0.13 s
     (edge `STALE`/`HIT`); NSE/BSE landing 4.2 s cold, 0.16 s `HIT`; Cabinet Decisions module page
     0.72 s cold, 0.12 s `HIT`; Morning Brief module page 28 s/504 → 4.2 s from stored rows.
-    Morning Brief, Statement Tracker and Economic Overview landing counts now answer 502
-    "unavailable" in 4.2 s (never cached), because the deployed server has no stored copy of
-    those modules: F156.
+    Morning Brief, Statement Tracker and Economic Overview landing counts can answer 502
+    "unavailable" at 4.2 s (never cached): they are live-only modules with no stored copy, and the
+    live fetch finishes on the server a few seconds later (Morning Brief: 502, 502, then 200 with
+    219 reports about 24 s later). Corrected 2026-10-14 by the F156 measurements; the retry is F156.
   - Not in this phase (F156): one call per desk for its counts, new-tab start-up (`App.jsx`,
     `userStore.js`), re-encoding `public/images/desks-v6`, Vite `json.stringify`.
 - [ ] **F156. Terminal speed (phase 2): paged module lists and stored copies on the server.**
   Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
-  costs server time; load them in pages instead. Also from F154: the deployed `/api/feature-feed`
-  never reads the backup packs (the local dev server does), so modules whose live source is slow
-  show "unavailable" counts after 4 s (Morning Brief, Statement Tracker, Economic Overview).
-  Scope to be specced on `task/speed-paging`: server pages of about 100 rows with search, filter,
-  sort and a total count, edge-cached; stored copies readable by the deployed function; then the
-  other F154 leftovers if measured worth it.
+  costs server time; load them in pages instead.
+  [Spec](../specs/2026-10-14-paged-module-lists.md), with measurements: only Bills (9,819 rows,
+  about 0.9 MB per cold open) and Parliamentary Questions (8,000 rows, about 0.6 MB) are large;
+  every other module is at most about 60 KB compressed. Planned: server pages of 100 rows for those
+  two (search, sort, filters and counts on the server, edge-cached); pending landing counts retried
+  instead of shown as "unavailable"; the deployed site reading the backup packs with a bounded
+  read (the `includeFiles` line awaits the owner's approval).
+- [ ] **F157. State desk landing downloads 26 whole modules to count them.** Found by the F156
+  measurements: at least about 440 KB compressed per State landing visit; the other seven desks
+  have count-only routes. Recommended: a count-only `/api/state-landing` like the others.
+- [ ] **F158. The Goa booth geography pack is in every terminal visit's JavaScript.** Found by the
+  F156 measurements: `niy-geo.json` costs 120 KB compressed whether or not a booth module opens.
+  Recommended: load it only when a booth module opens (`archiveFeed.js`).
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused
