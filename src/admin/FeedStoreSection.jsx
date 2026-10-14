@@ -6,12 +6,15 @@ import {
   filterCounts,
   filterFeedRows,
   formatBytes,
+  formatClock,
   formatFeedAge,
   formatInterval,
   isFailing,
   loadFeedStore,
+  nextFeedState,
   sizeWarning,
   sortFeedRows,
+  startFeedPolling,
 } from './feedAdmin.js';
 
 function Marker({ kind }) {
@@ -105,6 +108,12 @@ export function FeedStoreView({ state, filter = 'all', onFilter = () => {}, onRe
     const shown = sortFeedRows(filterFeedRows(state.rows, filter));
     body = (
       <>
+        {state.refreshFailedAt ? (
+          // Quiet on purpose: no alert role, so a reader is not interrupted every minute.
+          <p className="adm-hint">
+            Last refresh failed at {formatClock(state.refreshFailedAt)}; showing the earlier reading.
+          </p>
+        ) : null}
         <DatabaseSize sizes={state.sizes} note={state.sizesNote} />
         <div className="adm-filters" role="group" aria-label="Filter scheduled feeds">
           {FEED_FILTERS.map((f) => (
@@ -162,31 +171,23 @@ export function FeedStoreView({ state, filter = 'all', onFilter = () => {}, onRe
   );
 }
 
-/** Reads the feed store's health with the admin's session and shows it. Re-read every minute and on demand. */
+/** Reads the feed store's health with the admin's session and shows it. Re-read every minute (startFeedPolling). */
 export default function FeedStoreSection({ client = supabase }) {
   const [state, setState] = useState({ status: 'loading' });
   const [filter, setFilter] = useState('all');
-  const [tick, setTick] = useState(0);
+  const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadFeedStore(client).then((next) => {
-      if (!cancelled) setState(next);
-    });
-    return () => { cancelled = true; };
-  }, [client, tick]);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 60000);
-    return () => clearInterval(id);
-  }, []);
+  useEffect(() => startFeedPolling(
+    () => loadFeedStore(client),
+    (result) => setState((prev) => nextFeedState(prev, result, Date.now())),
+  ), [client, attempt]);
 
   return (
     <FeedStoreView
       state={state}
       filter={filter}
       onFilter={setFilter}
-      onRetry={() => { setState({ status: 'loading' }); setTick((n) => n + 1); }}
+      onRetry={() => { setState({ status: 'loading' }); setAttempt((n) => n + 1); }}
       now={Date.now()}
     />
   );

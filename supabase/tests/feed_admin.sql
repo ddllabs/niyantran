@@ -125,14 +125,15 @@ RESET ROLE;
 -- 4. An admin reads the rows ------------------------------------------------------------------
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000fed02', true);
-CREATE TEMP TABLE got AS SELECT * FROM public.feed_admin_status();
+-- WITH ORDINALITY records the order the function returned them in.
+CREATE TEMP TABLE got AS SELECT * FROM public.feed_admin_status() WITH ORDINALITY AS s;
 RESET ROLE;
 
 SELECT pg_temp.assert_true((SELECT count(*) = 10 FROM got), 'an admin gets one row per module and variant');
-SELECT pg_temp.assert_true((SELECT array_agg(tier || '/' || feature || '/' || variant ORDER BY ord) = ARRAY[
+SELECT pg_temp.assert_true((SELECT array_agg(tier || '/' || feature || '/' || variant ORDER BY ordinality) = ARRAY[
     'global/Constitutions/', 'markets/Tape/', 'markets/Tape Slow/', 'national/Cabinet/', 'news/Failing/',
     'news/Never New/', 'news/Never Old/', 'news/Statements/Leader One', 'news/Wire/', 'news/Wire Late/']
-  FROM (SELECT g.*, row_number() OVER () AS ord FROM got g) g),
+  FROM got),
   'the rows come ordered by tier, feature, variant');
 SELECT pg_temp.assert_true((SELECT class = 'news' AND kind = 'news' AND interval_minutes = 30 AND serve
       AND item_count = 40 AND next_due_at = now() + interval '5 minutes' AND consecutive_failures = 0 AND last_error IS NULL

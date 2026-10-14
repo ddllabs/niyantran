@@ -149,12 +149,16 @@ export function formatFeedAge(ts, now = Date.now()) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-/** The database does not have the function yet (the migration is not applied): PostgREST PGRST202 or Postgres 42883. */
+/**
+ * feed_admin_status() is not installed yet (the migration is not applied): PostgREST's PGRST202 (it
+ * names only the function that was called), or Postgres 42883 whose message names feed_admin_status.
+ * A 42883 about anything else, such as is_platform_admin() missing inside it, is a real error.
+ */
 export function isNotSetUp(error) {
   if (!error) return false;
   const code = text(error.code);
-  if (code === 'PGRST202' || code === '42883') return true;
-  return /could not find the function|function .* does not exist/i.test(text(error.message));
+  if (code === 'PGRST202') return true;
+  return code === '42883' && text(error.message).includes('feed_admin_status');
 }
 
 /**
@@ -184,5 +188,79 @@ export async function loadFeedStore(client) {
     rows: shapeFeedRows(status?.data),
     sizes,
     sizesNote: sizes ? '' : 'The database size could not be read.',
+  };
+}
+
+/** HH:MM on the reader's clock (or in `timeZone`, for a test). */
+export function formatClock(ts, timeZone) {
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, ...(timeZone ? { timeZone } : {}) });
+}
+
+/**
+ * The state after a read. A failed read keeps the last good table and notes when the refresh failed
+ * (`refreshFailedAt`); the error screen is only for when nothing has loaded yet. A good read clears it.
+ */
+export function nextFeedState(prev, result, at) {
+  if (result?.status === 'ready') return { ...result, refreshFailedAt: null };
+  if (result?.status === 'error' && prev?.status === 'ready') return { ...prev, refreshFailedAt: at };
+  return result;
+}
+
+export const POLL_MS = 60000;
+
+const pageHidden = () => typeof document !== 'undefined' && document.hidden === true;
+function onPageVisible(callback) {
+  if (typeof document === 'undefined') return () => {};
+  document.addEventListener('visibilitychange', callback);
+  return () => document.removeEventListener('visibilitychange', callback);
+}
+
+/**
+ * Reads now, then every `intervalMs`, and hands each result to `onState`. Returns a stop function.
+ *  - A tick is skipped while the page is hidden; when it becomes visible again, one read is made if the
+ *    last was started more than `intervalMs` ago. The first read is made whatever the page's state.
+ *  - A tick is skipped while a read is still in flight.
+ *  - After stop, the timer is cleared and a reply that was still on its way is dropped.
+ * The timer, visibility and clock are injectable for tests.
+ */
+export function startFeedPolling(load, onState, {
+  intervalMs = POLL_MS,
+  setInterval: setTimer = (fn, ms) => globalThis.setInterval(fn, ms),
+  clearInterval: clearTimer = (id) => globalThis.clearInterval(id),
+  isHidden = pageHidden,
+  subscribeVisible = onPageVisible,
+  now = Date.now,
+} = {}) {
+  let stopped = false;
+  let inFlight = false;
+  let lastAt = null;
+
+  function read() {
+    if (stopped || inFlight) return;
+    inFlight = true;
+    lastAt = now();
+    let pending;
+    try {
+      pending = Promise.resolve(load());
+    } catch (err) {
+      pending = Promise.reject(err);
+    }
+    pending
+      .catch((err) => ({ status: 'error', message: text(err?.message) || 'The request failed.' }))
+      .then((result) => {
+        inFlight = false;
+        if (!stopped) onState(result);
+      });
+  }
+
+  read();
+  const timer = setTimer(() => { if (!isHidden()) read(); }, intervalMs);
+  const unsubscribe = subscribeVisible(() => {
+    if (!isHidden() && (lastAt === null || now() - lastAt > intervalMs)) read();
+  });
+  return function stop() {
+    stopped = true;
+    clearTimer(timer);
+    unsubscribe();
   };
 }

@@ -1,5 +1,5 @@
 // F169 phase 4, C5: the pure side of the admin screen's feed-store section.
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DB_WARN_BYTES,
   filterCounts,
@@ -12,7 +12,13 @@ import {
   shapeFeedRows,
   shapeSizes,
   sizeWarning,
-  sortFeedRows, formatInterval } from './feedAdmin.js';
+  sortFeedRows,
+  formatInterval,
+  formatClock,
+  nextFeedState,
+  startFeedPolling,
+  POLL_MS,
+} from './feedAdmin.js';
 
 const GB = 1024 ** 3;
 const raw = (over = {}) => ({
@@ -144,15 +150,175 @@ describe('formatFeedAge', () => {
 });
 
 describe('isNotSetUp', () => {
-  it('recognises a missing function', () => {
+  it('recognises feed_admin_status missing', () => {
+    expect(isNotSetUp({ code: 'PGRST202', message: 'Could not find the function public.feed_admin_status without parameters in the schema cache' })).toBe(true);
     expect(isNotSetUp({ code: 'PGRST202', message: 'x' })).toBe(true);
-    expect(isNotSetUp({ code: '42883', message: 'x' })).toBe(true);
-    expect(isNotSetUp({ message: 'Could not find the function public.feed_admin_status without parameters in the schema cache' })).toBe(true);
+    expect(isNotSetUp({ code: '42883', message: 'function public.feed_admin_status() does not exist' })).toBe(true);
+  });
+  it('does not take a 42883 about another function for it', () => {
+    expect(isNotSetUp({ code: '42883', message: 'function public.is_platform_admin() does not exist' })).toBe(false);
+    expect(isNotSetUp({ code: '42883', message: 'x' })).toBe(false);
   });
   it('does not take a refusal or a network failure for it', () => {
     expect(isNotSetUp({ code: '42501', message: 'Only an admin can read the feed store\'s health' })).toBe(false);
     expect(isNotSetUp({ message: 'Failed to fetch' })).toBe(false);
+    expect(isNotSetUp({ message: 'Could not find the function public.feed_admin_status' })).toBe(false);
     expect(isNotSetUp(null)).toBe(false);
+  });
+});
+
+describe('nextFeedState', () => {
+  const good = { status: 'ready', rows: [1], sizes: null, sizesNote: 'x', refreshFailedAt: null };
+  const error = { status: 'error', message: 'down' };
+  it('replaces the state with a good read and clears the failure note', () => {
+    const next = { status: 'ready', rows: [2], sizes: null, sizesNote: '' };
+    expect(nextFeedState({ ...good, refreshFailedAt: 5 }, next, 9)).toEqual({ ...next, refreshFailedAt: null });
+  });
+  it('keeps the last good table when a refresh fails, and notes when', () => {
+    expect(nextFeedState(good, error, 1234)).toEqual({ ...good, refreshFailedAt: 1234 });
+  });
+  it('updates the time on a second failure and still keeps the table', () => {
+    const once = nextFeedState(good, error, 1000);
+    expect(nextFeedState(once, error, 2000)).toEqual({ ...good, refreshFailedAt: 2000 });
+  });
+  it('shows the error when nothing has loaded yet', () => {
+    expect(nextFeedState({ status: 'loading' }, error, 1)).toEqual(error);
+  });
+  it('shows not set up even over a good table', () => {
+    expect(nextFeedState(good, { status: 'notSetUp' }, 1)).toEqual({ status: 'notSetUp' });
+  });
+});
+
+describe('formatClock', () => {
+  it('gives HH:MM', () => {
+    expect(formatClock(Date.parse('2026-10-15T09:05:30Z'), 'UTC')).toBe('09:05');
+    expect(formatClock(Date.parse('2026-10-15T23:59:00Z'), 'UTC')).toBe('23:59');
+  });
+});
+
+describe('startFeedPolling', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const noVisibility = () => () => {};
+  const setup = (opts = {}) => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => ({ status: 'ready' }));
+    const onState = vi.fn();
+    const stop = startFeedPolling(load, onState, { subscribeVisible: noVisibility, ...opts });
+    return { load, onState, stop };
+  };
+
+  it('reads at once and then every minute', async () => {
+    const { load, onState } = setup();
+    expect(POLL_MS).toBe(60000);
+    expect(load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(59999);
+    expect(load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(load).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(load).toHaveBeenCalledTimes(4);
+    expect(onState).toHaveBeenCalledTimes(4);
+  });
+
+  it('stops: the timer is cleared and no more reads are made', async () => {
+    const { load, stop } = setup();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(1);
+    stop();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(300000);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a reply that arrives after stop', async () => {
+    vi.useFakeTimers();
+    let answer;
+    const load = vi.fn(() => new Promise((resolve) => { answer = resolve; }));
+    const onState = vi.fn();
+    const stop = startFeedPolling(load, onState, { subscribeVisible: noVisibility });
+    stop();
+    answer({ status: 'ready' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onState).not.toHaveBeenCalled();
+  });
+
+  it('delivers a reply that arrives while it is running', async () => {
+    vi.useFakeTimers();
+    let answer;
+    const onState = vi.fn();
+    startFeedPolling(() => new Promise((resolve) => { answer = resolve; }), onState, { subscribeVisible: noVisibility });
+    answer({ status: 'ready', rows: [] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onState).toHaveBeenCalledWith({ status: 'ready', rows: [] });
+  });
+
+  it('does not start another read while one is in flight', async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(() => new Promise(() => {}));
+    startFeedPolling(load, vi.fn(), { subscribeVisible: noVisibility });
+    await vi.advanceTimersByTimeAsync(180000);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns a rejected or throwing read into an error result and keeps going', async () => {
+    vi.useFakeTimers();
+    const load = vi.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementationOnce(() => { throw new Error('boom'); })
+      .mockResolvedValue({ status: 'ready' });
+    const onState = vi.fn();
+    startFeedPolling(load, onState, { subscribeVisible: noVisibility });
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(onState.mock.calls.map((c) => c[0])).toEqual([
+      { status: 'error', message: 'offline' }, { status: 'error', message: 'boom' }, { status: 'ready' },
+    ]);
+  });
+
+  it('skips the timer reads while the page is hidden', async () => {
+    let hidden = false;
+    const { load } = setup({ isHidden: () => hidden });
+    hidden = true;
+    await vi.advanceTimersByTimeAsync(300000);
+    expect(load).toHaveBeenCalledTimes(1);
+    hidden = false;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads once when the page becomes visible after a minute, not before', async () => {
+    vi.useFakeTimers();
+    let hidden = true;
+    let clock = 0;
+    let show;
+    const load = vi.fn(async () => ({ status: 'ready' }));
+    const unsubscribe = vi.fn();
+    startFeedPolling(load, vi.fn(), {
+      isHidden: () => hidden, now: () => clock,
+      subscribeVisible: (cb) => { show = cb; return unsubscribe; },
+    });
+    expect(load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    clock = 30000; hidden = false; show();
+    expect(load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    clock = 90000; hidden = false; show();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not read on a visibility event while still hidden, and stops listening on stop', async () => {
+    vi.useFakeTimers();
+    let show;
+    const unsubscribe = vi.fn();
+    const load = vi.fn(async () => ({ status: 'ready' }));
+    const stop = startFeedPolling(load, vi.fn(), {
+      isHidden: () => true, now: () => 10 * 60000, subscribeVisible: (cb) => { show = cb; return unsubscribe; },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    show();
+    expect(load).toHaveBeenCalledTimes(1);
+    stop();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });
 

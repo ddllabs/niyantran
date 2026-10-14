@@ -16,7 +16,7 @@ vi.mock('../lib/userStore.js', () => ({
 
 import { ApisPage } from './AdminPages.jsx';
 import { DatabaseSize, FeedStoreView } from './FeedStoreSection.jsx';
-import { shapeFeedRows } from './feedAdmin.js';
+import { formatClock, shapeFeedRows } from './feedAdmin.js';
 
 const GB = 1024 ** 3;
 const NOW = Date.parse('2026-10-15T12:00:00Z');
@@ -63,6 +63,24 @@ describe('the three states', () => {
     for (const head of ['Module', 'Class', 'Serve', 'Last success', 'Failures', 'Items', 'Status']) {
       expect(markup).toContain(`<th scope="col">${head}</th>`);
     }
+  });
+});
+
+describe('a failed background refresh', () => {
+  it('keeps the table and says so quietly, with no alert', () => {
+    const at = Date.parse('2026-10-15T11:58:00Z');
+    const markup = view({ ...ready(MIXED), refreshFailedAt: at });
+    expect(markup).toContain(`Last refresh failed at ${formatClock(at)}; showing the earlier reading.`);
+    expect(markup).not.toMatch(/role="alert"/);
+    expect(markup).not.toMatch(/role="status"/);
+    expect(markup).toContain('>Broken<');
+    expect(markup).toContain('<table');
+  });
+  it('says nothing when the last refresh was good', () => {
+    expect(view({ ...ready(MIXED), refreshFailedAt: null })).not.toContain('Last refresh failed');
+  });
+  it('uses the error screen only when nothing has loaded', () => {
+    expect(view({ status: 'error', message: 'down' })).toMatch(/role="alert"/);
   });
 });
 
