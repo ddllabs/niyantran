@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F136 is next; F133–F135 are on `task/ui-polish`) and goes in the
+- A new finding gets the next free `F` number (F147 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -489,6 +489,36 @@ rechecked. Nothing in this check wrote to production.
   client: 15 items in [the client document](../research/2026-10-14-homepage-preview-for-client.md)
   (retitling Media, Ops and Economy to real datasets; the bars, rows and tiles with no data).
   Remaining: merge, push, then the client's answers.
+- [ ] **F145. Globe handover and page speed.** Owner request 2026-10-14, from the client: a globe on
+  a black background flashes before the real globe on every page change, and pages feel slow. Causes
+  (measured on a production build): the globe's stand-in image is a photo of Earth on black space
+  (inherited from the client's package), and each page rebuilds the globe from scratch; the homepage
+  loads a 34 MB GIF as the walkthrough backdrop (since 2026-09-21), the whole terminal script
+  (2.6 MB) for signed-out visitors, and 2.3 MB of Earth images; nothing is cached by browsers.
+  [Spec](../specs/2026-10-14-globe-handover-and-page-speed.md). Owner 2026-10-14: GIF becomes a still,
+  caching rule approved, unused files removed. Built on `task/page-speed` (T1–T5): a transparent still
+  of our globe and shared textures and time across pages (no flash; later globes draw at once); the
+  GIF is an 11 KB lazy still; the terminal, admin and chooser load on demand (entry 723 → 220 KB gzip,
+  CSS byte-identical); WebP textures (2.28 → 0.52 MB), a 4 KB logo; `vercel.json` caching. A first
+  homepage visit is about 0.94 MB over the wire, against about 40 MB. Reviewed (fixes: a late
+  lost-context event, a reload screen for a failed download after a deploy, the terminal loading at
+  start-up for a signed-in visitor, the Earth clock, a stylesheet guard in `check:bundle`). Merged
+  (`3daa484`) and pushed (`5503287`, owner 2026-10-14); CI passed on both jobs.
+  - **Live check, 2026-10-14:** build files are cached a year as immutable, brand images a day, and
+    pages still revalidate. The signed-in terminal loads its on-demand chunks with no error screen.
+  - **Finding: a missing `/assets/` file also gets the one-year header**, because Vercel applies
+    headers to 404s. A browser that hit a missing build file would keep that 404 for a year (it
+    matters only for a rollback to the deployment that has the file). Owner 2026-10-14: the rule is
+    narrowed to top-level build files (`/assets/([^/]+)`). Checked live after `d6c8849`:
+    - a build file keeps the year;
+    - a subfolder 404 (`/assets/uploads/…`) gets `max-age=0`;
+    - brand images keep the day.
+  - Remaining: owner and client check.
+- [x] **F146. Withdrawn, not a defect (2026-10-14).** Reported during the F145 live check as broken
+  news images under our `/assets/uploads/`. That was a measurement error by the supervisor: the
+  filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
+  URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
+  and they load from nter.news (200). Nothing under `public/data` needs changing.
 - [ ] **F111. AI credits.** Plans sell AI credits, but no credit ledger,
   allowance or enforcement exists; research-chat only logs USD cost. Needs the
   owner's credit definition, then a spec (ledger, allowances per plan, unused

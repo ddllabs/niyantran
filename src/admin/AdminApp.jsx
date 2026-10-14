@@ -155,7 +155,7 @@ export default function AdminApp() {
       <button type="button" className="adm-scrim" aria-label="Close menu" onClick={() => { setNavOpen(false); menuButton.current?.focus(); }} />
       <aside className="adm-side" id="adm-side-nav" ref={sideNav} inert={mobileNav && !navOpen} aria-hidden={mobileNav && !navOpen ? true : undefined}>
         <div className="adm-brand">
-          <img src="/brand/logo.png?v=2" alt="" />
+          <img src="/brand/logo-128.webp" alt="" />
           <div>
             <b>TERMINAL</b>
             <span>CONTROL PLANE</span>

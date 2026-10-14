@@ -316,7 +316,7 @@ export default function TerminalShell({ onLogout }) {
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
-          <img src="/brand/logo.png?v=2" alt="" />
+          <img src="/brand/logo-128.webp" alt="" />
           <span>TERMINAL</span>
         </div>
         <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>

@@ -13,6 +13,7 @@ import {
 import { hydrateUserPrefs } from '../lib/userPrefsSync.js';
 import { supabase } from '../lib/supabaseClient.js';
 import DataGlobe from './DataGlobe.jsx';
+import { prefetchTerminal } from '../lib/loadTerminal.js';
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 
 export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
@@ -25,6 +26,9 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
     if (typeof location === 'undefined') return false;
     return location.href?.includes('verified=true') || location.hash?.includes('verified=true');
   });
+
+  // F145: likely to sign in next, so fetch the terminal in the background.
+  useEffect(() => { prefetchTerminal(); }, []);
 
   useEffect(() => {
     const lastEmail = sessionStorage.getItem('lastRegisteredEmail');
@@ -140,7 +144,7 @@ export default function LoginPage({ onSuccess, onSignup, onForgotPassword }) {
           <i /> SYS/READY
         </p>
         <div className="mark">
-          <img src="/brand/logo.png?v=2" alt="" />
+          <img src="/brand/logo-128.webp" alt="" />
         </div>
         <h1>TERMINAL</h1>
         <div className="tag">DESK ACCESS</div>

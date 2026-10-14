@@ -149,7 +149,7 @@ export default function AdminLogin({ onOk, checking = false, message = '' }) {
       </div>
       <main className="adm-login-card">
         <div className="mark">
-          <img src="/brand/logo.png?v=2" alt="" />
+          <img src="/brand/logo-128.webp" alt="" />
         </div>
         <h1>CONTROL</h1>
         <div className="tag">ADMIN ACCESS</div>

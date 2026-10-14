@@ -9,14 +9,56 @@
  *
  * Importing this file defines <nter-data-globe>. It fires a bubbling
  * 'data-select' CustomEvent with { key } and does no navigation itself.
- * Pair it with nterGlobe.css. Credits: public/brand/auth-earth/CREDITS.md. */
+ * Pair it with nterGlobe.css. Credits: public/brand/auth-earth/CREDITS.md.
+ *
+ * F145: each page mounts its own element, so what can outlive one is kept at module level: the
+ * decoded textures (sharedTextures), the animation and Earth times (sharedClock). An element leaving the page
+ * releases its WebGL context. */
 
 export const TEXTURE_URLS = {
-  day: '/brand/auth-earth/day.jpg',
-  clouds: '/brand/auth-earth/clouds.jpg',
-  oceans: '/brand/auth-earth/oceans.jpg',
-  fallback: '/brand/auth-earth/fallback.jpg',
+  // WebP at the sizes the globe is drawn (F145): day 2048 x 1024, clouds 2048 x 1024, oceans 1024 x 512.
+  day: '/brand/auth-earth/day.webp',
+  clouds: '/brand/auth-earth/clouds.webp',
+  oceans: '/brand/auth-earth/oceans.webp',
+  // A still of this globe at time 0, rendered from the shader on a transparent background (F145).
+  fallback: '/brand/auth-earth/globe-still.webp',
 };
+const TEXTURE_KEYS = ['day', 'clouds', 'oceans'];
+
+/** Fetches and decodes one texture, off the main thread where the browser can. */
+export function decodeTexture(url) {
+  if (typeof createImageBitmap === 'function') {
+    return fetch(url).then(r => { if (!r.ok) throw new Error(`Globe texture ${r.status}`); return r.blob(); }).then(b => createImageBitmap(b));
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img); img.onerror = reject; img.src = url;
+  });
+}
+
+let textures = null, texturesLoaded = false;
+/** The day, clouds and oceans images, decoded once per visit; a failure lets the next globe retry. */
+export function sharedTextures(load = decodeTexture) {
+  if (!textures) {
+    textures = Promise.all(TEXTURE_KEYS.map(key => load(TEXTURE_URLS[key]))).then(
+      images => { texturesLoaded = true; return images; },
+      error => { textures = null; throw error; },
+    );
+  }
+  return textures;
+}
+export const texturesReady = () => texturesLoaded;
+export function resetSharedTextures() { textures = null; texturesLoaded = false; }
+
+/**
+ * The labels' time and the Earth's turn, so the next page's globe continues where the last one was.
+ * The Earth turns only while it is drawn, so on a slow first load it starts from the still (time 0).
+ */
+export const sharedClock = { time: 0, earth: 0 };
+
+export function releaseContext(gl) {
+  gl?.getExtension?.('WEBGL_lose_context')?.loseContext();
+}
 
 export const ITEMS = [
   { key: 'bills', title: 'Bills', color: '#293fa5', icon: 'M7 3h7l4 4v14H7z M14 3v5h4 M10 12h5 M10 16h5' },
@@ -95,14 +137,14 @@ function orbitalPath(plane, width, fit, front) {
 }
 
 // The class extends HTMLElement, so it is built only where custom elements
-// exist. In Node (tests, SSR) the module imports and does nothing else.
-function createGlobeClass() {
-  return class NterDataGlobe extends HTMLElement {
+// exist. In Node (tests, SSR) the module imports and does nothing else; tests pass their own base.
+export function createGlobeClass(Base = HTMLElement) {
+  return class NterDataGlobe extends Base {
     static get observedAttributes() { return ['paused']; }
 
     constructor() {
       super();
-      this._time = 0; this._last = 0; this._frame = 0;
+      this._time = sharedClock.time; this._earth = sharedClock.earth; this._last = 0; this._frame = 0;
       this._visible = true; this._hovered = false; this._focused = false; this._ready = false;
       this._onTick = this._tick.bind(this);
     }
@@ -110,6 +152,7 @@ function createGlobeClass() {
     connectedCallback() {
       if (this._ready) { this._sync(); return; }
       this._ready = true;
+      this._time = sharedClock.time; this._earth = sharedClock.earth;
       this.classList.add('data-orbit');
       this.setAttribute('role', 'group');
       this.setAttribute('aria-label', 'Explore seven connected kinds of research data');
@@ -139,8 +182,7 @@ function createGlobeClass() {
       this._resize.observe(this);
       this._observer = new IntersectionObserver(entries => { this._visible = entries[0].isIntersecting; this._sync(); }, { rootMargin: '100px' });
       this._observer.observe(this);
-      this._canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); this.classList.remove('globe-ready'); this._gl = null; });
-      this._canvas.addEventListener('webglcontextrestored', () => this._initGL());
+      this._watchContext(this._canvas);
       this._size(); this._initGL(); this._sync();
     }
 
@@ -150,6 +192,18 @@ function createGlobeClass() {
       document.removeEventListener('visibilitychange', this._onVisibility);
       this._motion?.removeEventListener('change', this._onMotion);
       this._ready = false;
+      releaseContext(this._gl); this._gl = null;
+      this.classList.remove('globe-ready', 'globe-instant');
+    }
+
+    // loseContext() fires 'webglcontextlost' later, as a task: by then the element may have
+    // reconnected with a new canvas, whose context that late event must not touch.
+    _watchContext(canvas) {
+      canvas.addEventListener('webglcontextlost', e => {
+        if (canvas !== this._canvas) return;
+        e.preventDefault(); this.classList.remove('globe-ready', 'globe-instant'); this._gl = null;
+      });
+      canvas.addEventListener('webglcontextrestored', () => { if (canvas === this._canvas) this._initGL(); });
     }
 
     attributeChangedCallback() { if (this._ready) this._sync(); }
@@ -161,7 +215,8 @@ function createGlobeClass() {
     set currentTime(seconds) { this.seek(seconds); }
     seek(seconds) {
       if (!Number.isFinite(Number(seconds))) return;
-      this._time = Math.max(0, Number(seconds)); this._last = 0; this._render();
+      this._time = sharedClock.time = this._earth = sharedClock.earth = Math.max(0, Number(seconds));
+      this._last = 0; this._render();
     }
 
     _shouldRun() {
@@ -177,7 +232,11 @@ function createGlobeClass() {
 
     _tick(now) {
       if (!this._shouldRun()) { this._frame = 0; return; }
-      if (this._last) this._time += Math.min((now - this._last) / 1000, .08);
+      if (this._last) {
+        const step = Math.min((now - this._last) / 1000, .08);
+        sharedClock.time = this._time += step;
+        if (this._gl) sharedClock.earth = this._earth += step;
+      }
       this._last = now; this._render();
       this._frame = requestAnimationFrame(this._onTick);
     }
@@ -206,8 +265,12 @@ function createGlobeClass() {
     }
 
     async _initGL() {
+      const canvas = this._canvas;
+      // Textures already decoded by an earlier globe: draw on the first frame, with no fade.
+      const instant = texturesReady();
+      let gl = null;
       try {
-        const gl = this._canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false, powerPreference: 'low-power' });
+        gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false, powerPreference: 'low-power' });
         if (!gl) return;
         const compile = (type, source) => {
           const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader);
@@ -226,30 +289,27 @@ function createGlobeClass() {
         const position = gl.getAttribLocation(program, 'aPosition');
         gl.enableVertexAttribArray(position);
         gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-        await Promise.all(['day', 'clouds', 'oceans'].map((key, i) => new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => {
-            if (!this.isConnected) { resolve(); return; }
-            gl.activeTexture(gl.TEXTURE0 + i);
-            const texture = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-            gl.uniform1i(gl.getUniformLocation(program, 'u' + key[0].toUpperCase() + key.slice(1)), i);
-            resolve();
-          };
-          img.onerror = reject;
-          img.src = TEXTURE_URLS[key];
-        })));
-        if (!this.isConnected) return;
+        const images = await sharedTextures();
+        // Left the page (or rebuilt its canvas) while the textures loaded: this context is not used.
+        if (!this.isConnected || canvas !== this._canvas) { releaseContext(gl); return; }
+        TEXTURE_KEYS.forEach((key, i) => {
+          gl.activeTexture(gl.TEXTURE0 + i);
+          const texture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, images[i]);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.uniform1i(gl.getUniformLocation(program, 'u' + key[0].toUpperCase() + key.slice(1)), i);
+        });
         this._gl = gl; this._program = program;
         this._timeLocation = gl.getUniformLocation(program, 'uTime');
+        if (instant) this.classList.add('globe-instant');
         this.classList.add('globe-ready');
         this._render();
       } catch (_error) {
+        releaseContext(gl);
         this.classList.remove('globe-ready'); this._gl = null;
       }
     }
@@ -278,7 +338,7 @@ function createGlobeClass() {
         gl.viewport(0, 0, this._canvas.width, this._canvas.height);
         gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(this._program);
-        gl.uniform1f(this._timeLocation, this._time);
+        gl.uniform1f(this._timeLocation, this._earth);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
     }

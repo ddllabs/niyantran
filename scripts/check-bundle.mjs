@@ -7,11 +7,15 @@
 // It finds the main entry chunk that dist/index.html loads and fails (exit 1) when:
 //   1. it contains `GlobalWorkerOptions`, i.e. pdf.js leaked out of its lazy chunk;
 //   2. its gzip size exceeds the recorded baseline (scripts/bundle-baseline.json) by more than
-//      2 KB. Gzip uses zlib's default level, which is what vite's build report prints.
+//      2 KB. Gzip uses zlib's default level, which is what vite's build report prints;
+//   3. a stylesheet other than the entry's and the PDF viewer's is emitted (F145): the terminal,
+//      admin and persona chooser load lazily, and a stylesheet that moved with them would load after
+//      index.css and change the cascade. Their styles are kept in the entry by
+//      src/shell/terminalStyles.js (npm run build:terminal-styles).
 //
 // When the main bundle is meant to grow, re-measure and update the baseline file in the same
 // change, saying why.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
@@ -45,6 +49,13 @@ if (code.includes(PDFJS_MARKER)) {
     'Load it only through the dynamic loader in src/lib/pdfjs.js.');
 }
 
+const ALLOWED_CSS = /^(index|PageViewer)-[\w-]+\.css$/;
+const strayCss = readdirSync(join(dist, 'assets')).filter((f) => f.endsWith('.css') && !ALLOWED_CSS.test(f));
+if (strayCss.length) {
+  fail(`unexpected stylesheet(s) ${strayCss.join(', ')}: a lazily loaded chunk carries CSS, which would load after ` +
+    'index.css. Run `npm run build:terminal-styles` (and keep the import in App.jsx) so it stays in the entry.');
+}
+
 const { mainEntryGzipBytes: baseline } = JSON.parse(readFileSync(join(root, 'scripts', 'bundle-baseline.json'), 'utf8'));
 if (!Number.isInteger(baseline) || baseline <= 0) {
   fail('scripts/bundle-baseline.json has no valid mainEntryGzipBytes.');
@@ -57,4 +68,4 @@ if (gzipBytes > limit) {
   fail(`${summary}. The main bundle grew by more than ${TOLERANCE_BYTES} bytes gzip.`);
 }
 
-console.log(`check:bundle ok: ${summary}; no "${PDFJS_MARKER}".`);
+console.log(`check:bundle ok: ${summary}; no "${PDFJS_MARKER}"; no stylesheet outside the entry and the PDF viewer.`);

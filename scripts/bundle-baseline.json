@@ -1,6 +1,6 @@
 {
-  "mainEntryGzipBytes": 646171,
-  "measuredAt": "main at 4a5f1ed + docs (panel-loading merged), npm run build (vite 5.4.21), zlib default level as vite reports it",
+  "mainEntryGzipBytes": 219945,
+  "measuredAt": "task/page-speed (F145 T3), npm run build (vite 5.4.21), zlib default level as vite reports it",
   "spec": "docs/specs/2026-10-01-rag-v2-citations-pdf.md (Testing, Bundle check)",
-  "note": "Re-measured 2026-10-02 at the owner's request: intended main-entry growth of +2,022 B gzip since the R6 baseline (644,149) = the F46 chat bug fixes (stick-to-bottom, saved-step and label fixes), the thinking display (ActivityTicker rewrite: clock, Found line, summary; the NyAI card it replaced was removed), answer streaming (first-word timing) and panel loading (dock keep-alive, placeholders, memoised MessageRow). pdf.js stays lazy."
+  "note": "Re-measured 2026-10-14 (F145): the terminal, admin and persona chooser now load on demand, so the entry fell from 722,868 B gzip (main at b8d79ad, which was already 76,697 B over the stale 646,171 baseline) to 219,945 B (with the review's error screen and stale-file reload). Their stylesheets stay in the entry (src/shell/terminalStyles.js); the built CSS is byte-identical. pdf.js stays lazy."
 }
