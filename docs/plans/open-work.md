@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F166 is next) and goes in the
+- A new finding gets the next free `F` number (F169 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -639,7 +639,24 @@ rechecked. Nothing in this check wrote to production.
     records. Tests: `moduleLiveRetry.test.js`, `deskViewLiveWait.test.jsx`,
     `railLiveWait.test.jsx`, `deskLandingError.test.jsx`, additions to `featureFeed.test.js` and
     `featureFeedTimeLimit.test.js`, each shown to fail without its code.
+- [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
+  research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
+  `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);
+  production answers 404 (checked), and the pages are also gated on `VITE_LIVE_API`. Readers see a
+  plain "not available" message. The server already builds the same content (`server/nationalFeed.mjs`
+  :504 Morning Brief, :439 Statement Tracker for the first leader). Recommended: switch both pages to
+  `/api/feature-feed` now (small), rather than adding an open `/api/rss?url=` proxy to the live
+  function (it would fetch any URL it is given). F160 phase 1 then serves them from the database.
+- [ ] **F167. `/api/home/refresh` is public and makes outside fetches.** Found by the F160 research:
+  anyone can call it (GET or POST) and trigger fetches of every home source. Recommended: require
+  the same secret as F160's refresh route, or remove it from the live router. Size S.
+- [ ] **F168. An empty "taking longer than usual" answer is edge-cached for 60 s.** Found by the F160
+  research: a pending module answer (`served: 'archive'` with no rows) is a 200, so the edge keeps
+  it, and the F159 retries can be served the same empty answer. Recommended: send pending answers
+  with `no-store`. Size S.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
+  [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14, awaiting the owner's
+  answers to its open questions.
   Owner 2026-10-14: "eventually we would keep this as part of our database … a combination of both
   live pull and data-backed entries." Today a visitor's request pulls the live source (4 s limit),
   the edge keeps the answer 5 minutes (stale up to a day), and the shipped archive is a fixed
