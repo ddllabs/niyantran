@@ -562,9 +562,18 @@ rechecked. Nothing in this check wrote to production.
   Paging and the landing retry are live (`97828b2`, pushed `3d0a0d8`). Production, from the
   owner's Mac: Bills page 1 is 9.4 KB compressed (was 534 KB for the whole register, plus a
   450 KB archive), 0.82 s cold and 0.37 s from the edge; a search 0.19 s; Questions page 1
-  8.5 KB, 0.44 s. Remaining: the stored-copy (backup pack) files on the deployed function. Owner
-  asked whether they are needed; recommended including only the four packs that fill empty modules
-  (about 5 MB) instead of all 82 MB.
+  8.5 KB, 0.44 s.
+  - **Backup packs, decided 2026-10-14 (owner: "go with your recommendation … make a note"):**
+    `backup/` holds 99 Excel workbooks and 8 manifests (82 MB), a one-time snapshot from
+    2026-09-11 (`c83fabe`), never refreshed and not in Supabase (`desk_rows` holds none of them).
+    They are a last resort, read only when a module's live source and its shipped archive are both
+    empty. Only four modules reach that point on the live site, so the live function carries only
+    their packs and manifests (about 5 MB): Satellite Infrastructure, Growth Indicators and
+    Global Trade (`backup/GLOBAL`) and Athlete Index (`backup/SPORTS`), listed by name in
+    `vercel.json` and `api/router.js` `config.includeFiles` (test: `src/backupPacksDeploy.test.js`).
+    The other 95 workbooks stay in the repository for the local dev server and must not be deleted
+    without an approved data task. If another module starts showing empty on the live site, add its
+    pack and manifest to that list. Refreshing or converting the packs is a separate data task.
   Owner request 2026-10-14: large module lists are loaded whole, which keeps load times high and
   costs server time; load them in pages instead.
   [Spec](../specs/2026-10-14-paged-module-lists.md), with measurements: only Bills (9,819 rows,

@@ -1913,3 +1913,9 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     in; the page may have made anonymous public reads.
   - **Checks on the merged branch:** 4,470 Vitest and 1,073 Deno tests, all 28 SQL fixtures with
     vacuity, lint, build, `check:bundle` and the router import.
+- **Backup packs on the live function (F156), owner: "Go with your recommendation on this and just make a note of it":**
+  - `vercel.json` and `api/router.js` `includeFiles` now add six named files: `backup/GLOBAL`
+    `manifest.json`, `F08_Satellite_Infrastructure.xlsx`, `F11_Growth_Indicators.xlsx`,
+    `F15_Global_Trade.xlsx`, and `backup/SPORTS` `manifest.json`, `F64_Athlete_Index.xlsx`
+    (about 5 MB), not all of `backup/` (82 MB). Reasons and the rule for adding more are in F156.
+  - Rollback: restore `includeFiles` to `{src/data/**,public/data/**}` and push.

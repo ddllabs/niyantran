@@ -6,7 +6,7 @@
   "functions": {
     "api/router.js": {
       "maxDuration": 60,
-      "includeFiles": "{src/data/**,public/data/**}"
+      "includeFiles": "{src/data/**,public/data/**,backup/GLOBAL/manifest.json,backup/GLOBAL/F08_Satellite_Infrastructure.xlsx,backup/GLOBAL/F11_Growth_Indicators.xlsx,backup/GLOBAL/F15_Global_Trade.xlsx,backup/SPORTS/manifest.json,backup/SPORTS/F64_Athlete_Index.xlsx}"
     }
   },
   "rewrites": [

@@ -38,7 +38,9 @@ import { handleSiteIconRequest } from '../server/siteIconApi.mjs';
 
 export const config = {
   maxDuration: 60,
-  includeFiles: ['{src/data/**,public/data/**}'],
+  // F156: only the four backup packs that fill otherwise empty modules on the live site (owner, 2026-10-14);
+  // the other 95 workbooks stay in the repository for the local dev server.
+  includeFiles: ['{src/data/**,public/data/**,backup/GLOBAL/manifest.json,backup/GLOBAL/F08_Satellite_Infrastructure.xlsx,backup/GLOBAL/F11_Growth_Indicators.xlsx,backup/GLOBAL/F15_Global_Trade.xlsx,backup/SPORTS/manifest.json,backup/SPORTS/F64_Athlete_Index.xlsx}'],
 };
 
 // F154: the only routes Vercel's CDN may keep. Each is public, needs no sign-in, and its answer
