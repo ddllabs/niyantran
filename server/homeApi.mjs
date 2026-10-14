@@ -2,7 +2,7 @@
  * Same-origin home APIs as the root HTML terminal:
  *   GET /data/markets.json | conflict.json | news.json   agent snapshots (HTML niySnapshot)
  *   GET /api/ohlc?symbol=&range=                         Yahoo, then data/ohlc.json
- *   GET /api/conflict?days=&topic=                       GDELT, then Open Fronts snapshot
+ *   GET /api/conflict                                    agent snapshot, then Open Fronts snapshot
  *   GET /api/rss?url=                                    raw RSS XML (JSON if format=json)
  *   GET /api/home/markets | latest | pulse               Home desk helpers
  */
@@ -101,7 +101,7 @@ async function fetchText(url, ms = 12000) {
     });
     const text = await res.text();
     if (res.status === 429 || /please limit requests|too many requests/i.test(text)) {
-      throw new Error('GDELT rate limited');
+      throw new Error('rate limited');
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return text;
@@ -511,12 +511,6 @@ export async function serveHomeLatest(opts = {}) {
   };
 }
 
-function gdeltTime(seendate) {
-  const s = String(seendate || '');
-  if (s.length >= 15) return `${s.slice(9, 11)}:${s.slice(11, 13)}`;
-  return '';
-}
-
 function conflictFromWarTracker() {
   const rows = loadWar()
     .filter((r) => r.conflict_name)
@@ -535,7 +529,7 @@ function conflictFromWarTracker() {
     gdelt: false,
     archive: true,
     meta: { unique: rows.length, deduped: 0, window: 'embedded Open Fronts snapshot' },
-    note: 'Original HTML Open Fronts table (geopolitics_war_tracker). GDELT live wire was unreachable. No records were invented.',
+    note: 'Original HTML Open Fronts table (geopolitics_war_tracker). This is a stored register, not a live wire. No records were invented.',
   };
 }
 
@@ -556,93 +550,13 @@ function conflictSnapshotDisk() {
   return null;
 }
 
-export async function serveConflict(days = 2, topic = '') {
-  const snap = conflictSnapshotDisk();
-  if (snap && snap.ageH <= SNAPSHOT_MAX_AGE_H) return snap;
-
-  const span = Number(days) === 1 ? '1d' : Number(days) >= 7 ? '7d' : `${Number(days) || 2}d`;
-  const q = (topic && String(topic).trim()) || '(war OR conflict OR ceasefire OR airstrike)';
-  const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&sort=datedesc&timespan=${span}&maxrecords=75`;
-  try {
-    const text = await fetchText(url, 15000);
-    const j = JSON.parse(text);
-    const arts = j?.articles || [];
-    const seen = new Set();
-    const rows = [];
-    let deduped = 0;
-    for (const a of arts) {
-      const title = (a.title || '').trim();
-      const key = title.toLowerCase().replace(/\s+/g, ' ').slice(0, 80);
-      if (!title || seen.has(key)) {
-        if (title) deduped += 1;
-        continue;
-      }
-      seen.add(key);
-      rows.push({
-        title,
-        link: a.url || '',
-        time: gdeltTime(a.seendate),
-        region: a.sourcecountry || '',
-        source: a.domain || '',
-        outlets: a.domain || '',
-      });
-    }
-    if (rows.length) {
-      return {
-        ok: true,
-        rows,
-        gdelt: true,
-        meta: { unique: rows.length, deduped, window: span },
-        note: 'GDELT DOC 2.0 reporting search — not an official dataset.',
-      };
-    }
-  } catch {
-    /* fall through to original HTML table */
-  }
-  if (snap?.rows?.length) return snap;
-  return conflictFromWarTracker();
+export async function serveConflict() {
+  // The agent snapshot, even when stale (it carries its own age and archive flag), else the stored
+  // Open Fronts register. Nothing is fetched.
+  return conflictSnapshotDisk() || conflictFromWarTracker();
 }
 
 async function fetchLiveConflict() {
-  const span = '2d';
-  const q = '(war OR conflict OR ceasefire OR airstrike)';
-  const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&sort=datedesc&timespan=${span}&maxrecords=75`;
-  try {
-    const text = await fetchText(url, 15000);
-    const j = JSON.parse(text);
-    const arts = j?.articles || [];
-    const seen = new Set();
-    const rows = [];
-    let deduped = 0;
-    for (const a of arts) {
-      const title = (a.title || '').trim();
-      const key = title.toLowerCase().replace(/\s+/g, ' ').slice(0, 80);
-      if (!title || seen.has(key)) {
-        if (title) deduped += 1;
-        continue;
-      }
-      seen.add(key);
-      rows.push({
-        title,
-        link: a.url || '',
-        time: gdeltTime(a.seendate),
-        region: a.sourcecountry || '',
-        source: a.domain || '',
-        outlets: a.domain || '',
-      });
-    }
-    if (rows.length) {
-      return {
-        ok: true,
-        rows,
-        gdelt: true,
-        meta: { unique: rows.length, deduped, window: span },
-        note: 'GDELT DOC 2.0 reporting search — not an official dataset.',
-      };
-    }
-  } catch {
-    /* fall through */
-  }
   return conflictFromWarTracker();
 }
 
@@ -934,7 +848,7 @@ export async function handleHomeApi(req, res, next) {
       return;
     }
     if (p === '/api/conflict') {
-      json(res, await serveConflict(url.searchParams.get('days') || 2, url.searchParams.get('topic') || ''));
+      json(res, await serveConflict());
       return;
     }
     if (p === '/api/rss') {
