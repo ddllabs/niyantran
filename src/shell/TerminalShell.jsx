@@ -30,6 +30,7 @@ import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
 import PlanBilling from './PlanBilling.jsx';
+import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
 import { hydrateUserPrefs, startUserPrefsSync } from '../lib/userPrefsSync.js';
@@ -96,6 +97,13 @@ export default function TerminalShell({ onLogout }) {
     if (plan === null) return;
     sessionStorage.removeItem('niyOpenBilling');
     setBilling({ plan: plan || null });
+  }, []);
+
+  // The chat's Upgrade and Buy credits buttons open the panel while the terminal is open (F111).
+  useEffect(() => {
+    const onOpenBilling = (event) => setBilling({ plan: event.detail?.plan ?? null });
+    window.addEventListener(OPEN_BILLING_EVENT, onOpenBilling);
+    return () => window.removeEventListener(OPEN_BILLING_EVENT, onOpenBilling);
   }, []);
 
   // The plan comes from the server (F2). Re-read it when the terminal opens,

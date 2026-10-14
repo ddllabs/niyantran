@@ -10,6 +10,13 @@ it('opens Plan & billing from the profile menu and from a pricing hand-off', () 
   expect(shell).toContain("sessionStorage.getItem('niyOpenBilling')");
 });
 
+it('opens Plan & billing live when the chat asks (Upgrade or Buy credits, F111)', () => {
+  const shell = read('./TerminalShell.jsx');
+  expect(shell).toContain("import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx'");
+  expect(shell).toContain('window.addEventListener(OPEN_BILLING_EVENT, onOpenBilling)');
+  expect(shell).toContain('window.removeEventListener(OPEN_BILLING_EVENT, onOpenBilling)');
+});
+
 it("sends a signed-in visitor's pricing choice to the panel instead of signup", () => {
   const site = read('../marketing/MarketingSite.jsx');
   expect(site).toContain("sessionStorage.setItem('niyOpenBilling'");
