@@ -1943,3 +1943,8 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
 - **Credits wording (F161), owner: "approved, push it":** pricing cards, Plan & billing, the chat's
   blocked message, the Terms (paid-only models, no automatic renewal) and the refund policy. Code
   only; no database or function change. Rollback: revert the commit and push.
+- **Correction to the backup-pack record above (2026-10-14, module audit):** the six named files in
+  `includeFiles` restrict nothing; Vercel's file tracing packages the whole 82 MB `backup/` folder
+  because `server/backupFeed.mjs` reads it at run time. Production served packs that are not on the
+  list (Box Office, OTT, Sports Governance, State Tender, High Court tracker). No change made yet;
+  the fix is F169 phase 1 (T1).

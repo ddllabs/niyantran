@@ -503,6 +503,11 @@ Only T7's last phase records F160 as done in `open-work.md`.
 
 ## 11. Open questions for the owner
 
+**Owner's answers, 2026-10-14:** the timer runs every **5 minutes**, not every minute ("Every minute
+is too much"); the other recommendations below are adopted. F160 is now phase 4 of
+[F169](2026-10-14-module-data-repair.md). Question 8 (the Vercel plan) is still open.
+
+
 1. **Where the timer runs.**
    - **Recommendation:** pg_cron in Supabase calling our Vercel server (4.1). It already runs four jobs
      this way, works at any frequency on the current plans and needs no code port.

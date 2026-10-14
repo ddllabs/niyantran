@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F169 is next) and goes in the
+- A new finding gets the next free `F` number (F170 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -571,6 +571,11 @@ rechecked. Nothing in this check wrote to production.
     their packs and manifests (about 5 MB): Satellite Infrastructure, Growth Indicators and
     Global Trade (`backup/GLOBAL`) and Athlete Index (`backup/SPORTS`), listed by name in
     `vercel.json` and `api/router.js` `config.includeFiles` (test: `src/backupPacksDeploy.test.js`).
+    **Correction 2026-10-14 (module audit):** this list restricts nothing. Vercel's file tracing
+    packages the whole `backup/` folder because `server/backupFeed.mjs` reads it at run time, so
+    every pack is on the live function and in use since F156. Several packs hold a different kind
+    of record from their module (Box Office → headlines, OTT → a TV schedule), and none of the four
+    chosen here matches its module. Fixed by F169 phase 1 (T1).
     The other 95 workbooks stay in the repository for the local dev server and must not be deleted
     without an approved data task. If another module starts showing empty on the live site, add its
     pack and manifest to that list. Refreshing or converting the packs is a separate data task.
@@ -639,6 +644,14 @@ rechecked. Nothing in this check wrote to production.
     records. Tests: `moduleLiveRetry.test.js`, `deskViewLiveWait.test.jsx`,
     `railLiveWait.test.jsx`, `deskLandingError.test.jsx`, additions to `featureFeed.test.js` and
     `featureFeedTimeLimit.test.js`, each shown to fail without its code.
+- [ ] **F169. Module data repair.** Owner 2026-10-14, after Cabinet Decisions showed one listing:
+  "Can you do a complete module-by-module analysis?" … "what do you propose as a fix? … document it".
+  [Audit](../research/2026-10-14-module-audit/README.md) of 123 modules (44 live, 10 live but over
+  4 s, 4 broken, 46 stored only, 19 not built), [spec](../specs/2026-10-14-module-data-repair.md)
+  and [plan](2026-10-14-module-data-repair.md): phase 1 backup files off the live site, phase 2
+  repair broken and thin sources (PIB, briefs, Geopolitics, ISL, Regulatory, Manifold, Wikidata,
+  F166–F168), phase 3 "As of" dates and an honest admin status screen, phase 4 F160 seeded with the
+  larger registers. Awaiting the owner's answers to the spec's five questions.
 - [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
   research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
   `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);
@@ -655,8 +668,9 @@ rechecked. Nothing in this check wrote to production.
   it, and the F159 retries can be served the same empty answer. Recommended: send pending answers
   with `no-store`. Size S.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
-  [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14, awaiting the owner's
-  answers to its open questions.
+  [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
+  day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
+  of F169.
   Owner 2026-10-14: "eventually we would keep this as part of our database … a combination of both
   live pull and data-backed entries." Today a visitor's request pulls the live source (4 s limit),
   the edge keeps the answer 5 minutes (stale up to a day), and the shipped archive is a fixed
