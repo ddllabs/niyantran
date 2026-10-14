@@ -13,8 +13,7 @@ import {
   saveRefreshCfg,
   subscribeRefresh,
 } from '../lib/refreshStore.js';
-import { liveApiEnabled } from '../lib/apiMode.js';
-import { cancelSweep, decorateApis, healStaleInactiveProbes, healStaticHostProbes, refreshOne, sweepApis } from '../lib/refreshFeeds.js';
+import { cancelSweep, decorateApis, refreshOne, sweepApis } from '../lib/refreshFeeds.js';
 
 const DESKS = ['ALL', 'GLOBAL', 'NATIONAL', 'STATE', 'LOCAL', 'LAW', 'ECONOMICS', 'CARBON', 'SPORTS', 'ENTERTAINMENT'];
 
@@ -138,11 +137,6 @@ export function OverviewPage({ users }) {
   // The directory is read a page at a time (F147); the total is of all of it.
   const directoryTotal = usersPaging().total;
 
-  useEffect(() => {
-    healStaticHostProbes();
-    if (liveApiEnabled()) healStaleInactiveProbes().catch(() => {});
-  }, []);
-
   const rows = decorateApis(classifyApis());
   const stats = apiStats(rows);
   const total = stats.total || 1;
@@ -150,6 +144,7 @@ export function OverviewPage({ users }) {
   const bars = [
     ['live', stats.live, '#176b55'],
     ['archive', stats.archive, '#c4a35a'],
+    ['unchecked', stats.unchecked, '#8a8f98'],
     ['local', stats.local, '#012ea1'],
     ['inactive', stats.inactive, '#c81322'],
   ];
@@ -169,9 +164,9 @@ export function OverviewPage({ users }) {
           <span>APIs returning rows</span>
         </article>
         <article className="adm-kpi archive">
-          <label>Archive</label>
+          <label>Stored</label>
           <strong>{stats.archive}</strong>
-          <span>Live failed · archive showing</span>
+          <span>Stored records showing</span>
         </article>
         <article className="adm-kpi local">
           <label>Local pack</label>
@@ -222,11 +217,6 @@ export function ApisPage() {
   const [status, setStatus] = useState('all');
   const [busy, setBusy] = useState('');
 
-  useEffect(() => {
-    healStaticHostProbes();
-    if (liveApiEnabled()) healStaleInactiveProbes().catch(() => {});
-  }, []);
-
   const qNorm = q.trim().toLowerCase();
   const searched = !qNorm
     ? rows
@@ -234,7 +224,7 @@ export function ApisPage() {
         `${r.feature} ${r.desk} ${r.adapter} ${r.url} ${r.note} ${r.lastError || ''}`.toLowerCase().includes(qNorm),
       );
 
-  const statusCounts = { all: 0, live: 0, archive: 0, local: 0, inactive: 0 };
+  const statusCounts = { all: 0, live: 0, archive: 0, local: 0, inactive: 0, unchecked: 0 };
   for (const r of searched) {
     if (desk !== 'ALL' && r.desk !== desk) continue;
     statusCounts.all += 1;
@@ -276,7 +266,7 @@ export function ApisPage() {
       <RefreshBar />
       <div className="adm-filters">
         <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search desks, hosts, notes" />
-        {['all', 'live', 'archive', 'local', 'inactive'].map((id) => (
+        {['all', 'live', 'archive', 'local', 'inactive', 'unchecked'].map((id) => (
           <button
             key={id}
             type="button"
