@@ -3,6 +3,8 @@
  * LIVE | CACHED | ARCHIVED | CURATED | OFFLINE | PLANNED | ERROR
  */
 
+import { isStoreAnswer } from './plainSourceNote.js';
+
 export const DATA_STATE = {
   // Feedback: never show Archived / Archive next to desk headers.
   archived: { id: 'archived', label: '', tone: 'muted', hideBadge: true },
@@ -13,6 +15,9 @@ export const DATA_STATE = {
   error: { id: 'error', label: 'ERROR', tone: 'bad' },
   loading: { id: 'loading', label: 'LOADING', tone: 'muted' },
   live: { id: 'live', label: 'LIVE', tone: 'ok' },
+  // F169 C4: items kept by the scheduled refresh and served from the feed store. Fresh data, but not
+  // fetched for this request, so no LIVE badge; the header says how long ago ("updated 5 min ago").
+  served: { id: 'served', label: '', tone: 'ok', hideBadge: true },
 };
 
 const PLANNED_RE =
@@ -83,6 +88,16 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
       detail: sr?.detail || sr?.title || 'No live rows and no archive on this host.',
       host: sr?.host || '',
       sourceNote: feed?.source?.note || '',
+    };
+  }
+
+  // F169 C4: not live (no badge), not an archive or stored copy (no banner).
+  if (isStoreAnswer(feed)) {
+    return {
+      ...DATA_STATE.served,
+      detail: feed?.source?.note || 'Updated by the scheduled refresh.',
+      coverage: coverageText(feed, count),
+      lastSync: lastSyncText(feed),
     };
   }
 

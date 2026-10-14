@@ -217,7 +217,11 @@ export function metaFor(body, fetchedAt) {
   // shown as the live one is.
   const view = body?.meta && typeof body.meta === 'object' ? storable(body.meta) : null;
   if (view && bytes(JSON.stringify(view)) <= 4096) meta.view = view;
+  // The answer's timeline (the loaders' `timeline`), when small; the first thing left out if meta is too big.
+  const timeline = Array.isArray(body?.timeline) && body.timeline.length ? storable(body.timeline) : null;
+  if (timeline && bytes(JSON.stringify(timeline)) <= 4096) meta.timeline = timeline;
   const size = () => bytes(JSON.stringify(meta));
+  if (size() > META_TEXT_LIMIT) delete meta.timeline;
   while (size() > META_TEXT_LIMIT && meta.links.length) meta.links.pop();
   if (size() > META_TEXT_LIMIT) delete meta.view;
   if (size() > META_TEXT_LIMIT) meta.note = cutChars(meta.note, 500);

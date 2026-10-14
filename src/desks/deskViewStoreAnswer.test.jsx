@@ -36,15 +36,15 @@ const fromStore = (msAgo, extra = {}) => ({
 
 describe('the module header for an answer from the store (F169 C4)', () => {
   it('says how long ago the items were fetched, in place of the source line', () => {
-    expect(headerOf(page(fromStore(5 * MIN + 20_000)))).toBe('2 rows · Updated 5 min ago');
-    expect(headerOf(page(fromStore(3 * 60 * MIN + 5 * MIN)))).toBe('2 rows · Updated 3 h ago');
-    expect(headerOf(page(fromStore(2 * 24 * 60 * MIN + 60 * MIN)))).toBe('2 rows · Updated 2 d ago');
+    expect(headerOf(page(fromStore(5 * MIN + 20_000)))).toBe('2 rows · updated 5 min ago');
+    expect(headerOf(page(fromStore(3 * 60 * MIN + 5 * MIN)))).toBe('2 rows · updated 3 h ago');
+    expect(headerOf(page(fromStore(2 * 24 * 60 * MIN + 60 * MIN)))).toBe('2 rows · updated 2 d ago');
   });
 
   it('never says "stored copy", even when the live answer came from a register-type adapter', () => {
     for (const adapter of ['api', 'embedded', 'register', 'source-library']) {
       const header = headerOf(page(fromStore(MIN, { source: { adapter, links: [], note: '' } })));
-      expect(header, adapter).toBe('2 rows · Updated 1 min ago');
+      expect(header, adapter).toBe('2 rows · updated 1 min ago');
       expect(header, adapter).not.toMatch(/stored copy/i);
     }
   });
@@ -53,6 +53,19 @@ describe('the module header for an answer from the store (F169 C4)', () => {
     const all = page({ ...fromStore(MIN), updatedLive: true });
     expect(all).not.toContain('Updated live.');
     expect(all.join(' ')).not.toMatch(/latest stored records/i);
+  });
+
+  it('shows no LIVE badge beside the title, while a live answer still does', () => {
+    const badges = (feed) => {
+      hooks.index = 0;
+      hooks.overrides = { 2: feed, 4: false };
+      const tree = DeskView({ featureName: 'Test feed', tier: 'finance', selected: null, onSelect: vi.fn(), onFeed: vi.fn(), onLoading: vi.fn() });
+      return nodes(tree).filter((n) => typeof n.props?.className === 'string' && /\blive-feed\b/.test(n.props.className));
+    };
+    expect(badges(fromStore(MIN))).toEqual([]);
+    const live = badges({ ...fromStore(MIN), served: 'live', fetchedAt: undefined });
+    expect(live).toHaveLength(1);
+    expect(live[0].props.children).toBe('LIVE');
   });
 
   it('a real stored answer still says "stored copy"', () => {

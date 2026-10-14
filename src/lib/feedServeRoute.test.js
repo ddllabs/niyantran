@@ -7,10 +7,12 @@ import { handleFeatureFeedRequest, resetFeedCache } from '../../server/featureFe
 const SECRET = 'sb_secret_route-test-key-91ac';
 const ROUTE = 'feature-feed?tier=finance&feature=AI%20%26%20the%20Tech%20Industry';
 
+// Fetched five minutes ago, so the store is fresh whenever the test runs.
+const FETCHED = new Date(Date.now() - 5 * 60_000).toISOString();
 const page = (over = {}) => ({
   tier: 'finance', feature: 'AI & the Tech Industry', variant: '', class: 'news', kind: 'news', serve: true,
-  fetched_at: '2026-10-15T10:00:00.000Z', interval_minutes: 30, total: 1,
-  meta: { note: 'Google News topic search.', links: ['https://news.google.com/rss/search?q=ai'], coverage: { from: '', through: '7d', exhaustive: false }, adapter: 'news-search', kind: '', fetched_at: '2026-10-15T10:00:00.000Z' },
+  fetched_at: FETCHED, interval_minutes: 30, total: 1,
+  meta: { note: 'Google News topic search.', links: ['https://news.google.com/rss/search?q=ai'], coverage: { from: '', through: '7d', exhaustive: false }, adapter: 'news-search', kind: '', fetched_at: FETCHED },
   items: [{ item_key: 'url:a.example/1', row: { title: 'Stored story', date: '2026-10-15', source_url: 'https://a.example/1' } }],
   ...over,
 });
@@ -63,7 +65,7 @@ describe('/api/feature-feed reads a scheduled module from the store (F169 C4)', 
     const local = await middlewareGet(ROUTE);
     for (const res of [router, local]) {
       expect(res.statusCode).toBe(200);
-      expect(res.body).toMatchObject({ ok: true, served: 'store', fallback: false, fetchedAt: '2026-10-15T10:00:00.000Z' });
+      expect(res.body).toMatchObject({ ok: true, served: 'store', fallback: false, fetchedAt: FETCHED });
       expect(res.body.rows).toEqual([{ title: 'Stored story', date: '2026-10-15', source_url: 'https://a.example/1' }]);
       expect(JSON.stringify(res.body)).not.toContain(SECRET);
     }
@@ -72,6 +74,17 @@ describe('/api/feature-feed reads a scheduled module from the store (F169 C4)', 
     // The deployed route keeps a store answer at the edge for one minute; the local server never caches.
     expect(router.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdnStore);
     expect(local.headers['cache-control']).toBe('no-store');
+  });
+
+  it('answers the live way when the store is older than its limit', async () => {
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).endsWith('/rest/v1/rpc/feed_page')) return new Response(JSON.stringify(page({ fetched_at: new Date(Date.now() - 3 * 3600_000).toISOString() })), { status: 200 });
+      throw new Error('offline');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await routerGet(ROUTE);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.served).not.toBe('store');
   });
 
   it('answers the live way, with no store marker, when serve is off', async () => {

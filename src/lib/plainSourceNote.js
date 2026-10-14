@@ -227,7 +227,8 @@ export function plainSourceLine(feed, now = Date.now()) {
   const news = src.adapter === 'news-search' || Boolean(src.gdelt) || NEWS_LINK.test(links[0] || '');
   const unit = news ? (n === 1 ? 'story' : 'stories') : n === 1 ? 'record' : 'records';
   // F169 C4: items kept by the scheduled refresh say when they were fetched, not "Live".
-  const lead = isStoreAnswer(feed) ? asOfLabel(feed, now) : 'Live';
+  const ago = isStoreAnswer(feed) ? asOfLabel(feed, now) : '';
+  const lead = ago ? ago[0].toUpperCase() + ago.slice(1) : 'Live';
   return `${lead} · ${n.toLocaleString('en-IN')} ${unit}${from ? ` from ${from}` : ''}`;
 }
 
@@ -311,19 +312,20 @@ export function isStoredAnswer(feed) {
   return Boolean(feed?.served === 'archive' || feed?.fallback || STORED_ADAPTERS.has(String(feed?.source?.adapter || '')));
 }
 
-// "Updated 5 min ago", "Updated 3 h ago" (from an hour), "Updated 2 d ago" (from a day).
+// "updated 5 min ago", "updated 3 h ago" (from an hour), "updated 2 d ago" (from a day), in the header's
+// lower case; a sentence that starts with it capitalises it (plainSourceLine).
 function updatedAgo(fetchedAt, now) {
   const minutes = Math.floor((now - Date.parse(fetchedAt)) / 60_000);
-  if (minutes < 1) return 'Updated just now';
-  if (minutes < 60) return `Updated ${minutes} min ago`;
-  if (minutes < 1440) return `Updated ${Math.floor(minutes / 60)} h ago`;
-  return `Updated ${Math.floor(minutes / 1440)} d ago`;
+  if (minutes < 1) return 'updated just now';
+  if (minutes < 60) return `updated ${minutes} min ago`;
+  if (minutes < 1440) return `updated ${Math.floor(minutes / 60)} h ago`;
+  return `updated ${Math.floor(minutes / 1440)} d ago`;
 }
 
 /**
  * "as of 15 Jul 2026" from the newest record date (dates more than a day ahead, such as scheduled
  * releases, are not "as of" dates), else the answer's own as-of date, else "date not recorded".
- * An answer from the feed store says instead how long ago its items were fetched: "Updated 5 min ago".
+ * An answer from the feed store says instead how long ago its items were fetched: "updated 5 min ago".
  */
 export function asOfLabel(feed, now = Date.now()) {
   if (isStoreAnswer(feed)) return updatedAgo(feed.fetchedAt, now);

@@ -653,7 +653,7 @@ export default function DeskView({
     // F165: "complete list" and "updated …" / "stored copy" in place of "exhaustive" and "sync …".
     const complete = completenessLabel(feed, total || n);
     // F169 T9: a stored answer says how old its records are; a live one keeps its freshness.
-    // F169 C4: an answer from the scheduled feed store says when its items were fetched ("Updated 5 min ago").
+    // F169 C4: an answer from the scheduled feed store says when its items were fetched ("updated 5 min ago").
     const fresh = isStoredAnswer(feed)
       ? `stored copy · ${asOfLabel(feed)}`
       : isStoreAnswer(feed)

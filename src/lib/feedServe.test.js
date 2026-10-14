@@ -7,7 +7,8 @@ import {
   resetFeedCache,
   serveFeatureFeedStoredFirst,
 } from '../../server/featureFeed.mjs';
-import { STORE_PAGE_ROWS, STORE_TIME_LIMIT_MS, serveFromStore, storeVariant } from '../../server/feedServe.mjs';
+import { STORE_MIN_FRESH_MINUTES, STORE_PAGE_ROWS, STORE_TIME_LIMIT_MS, serveFromStore, storeMaxAgeMinutes, storeVariant } from '../../server/feedServe.mjs';
+import { metaFor } from '../../server/feedStore.mjs';
 import { FEED_SCHEDULE } from '../../server/feedSchedule.mjs';
 import { STATEMENT_LEADERS } from '../data/nationalCurated.js';
 
@@ -50,11 +51,14 @@ function page(over = {}) {
 }
 
 const rpcReturning = (value) => vi.fn(async () => value);
+const FETCHED = Date.parse('2026-10-15T10:00:00.000Z');
+// A clock five minutes after the page's fetched time: fresh for every module.
+const SOON = { now: () => FETCHED + 5 * 60_000 };
 
 describe('serveFromStore: a scheduled module answers from the store', () => {
   it('rebuilds the live envelope from the stored rows, newest first, and says it came from the store', async () => {
     const rpc = rpcReturning(page());
-    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc });
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc, ...SOON });
     expect(body).toMatchObject({
       ok: true,
       tier: 'finance',
@@ -78,7 +82,7 @@ describe('serveFromStore: a scheduled module answers from the store', () => {
 
   it('asks feed_page for the module and variant, the first page at the usual row count', async () => {
     const rpc = rpcReturning(page());
-    await serveFromStore(NEWS, NEWS_PARAMS, { rpc });
+    await serveFromStore(NEWS, NEWS_PARAMS, { rpc, ...SOON });
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith('feed_page', {
       p_tier: 'finance',
@@ -94,7 +98,7 @@ describe('serveFromStore: a scheduled module answers from the store', () => {
   it('maps the Statement Tracker person to the variant, as the live loader reads it', async () => {
     const rpc = rpcReturning(page({ tier: 'national', feature: 'Statement & Quote Tracker with Contradiction Detection', variant: 'Amit Shah' }));
     const params = new URLSearchParams({ tier: 'national', feature: 'Statement & Quote Tracker with Contradiction Detection', person: 'amit shah' });
-    await serveFromStore(STATEMENTS, params, { rpc });
+    await serveFromStore(STATEMENTS, params, { rpc, ...SOON });
     expect(rpc.mock.calls[0][1].p_variant).toBe('Amit Shah');
     expect(storeVariant(STATEMENTS, new URLSearchParams({ person: 'Nobody Listed' }))).toBe(STATEMENT_LEADERS[0]);
     expect(storeVariant(STATEMENTS, new URLSearchParams())).toBe(STATEMENT_LEADERS[0]);
@@ -106,7 +110,7 @@ describe('serveFromStore: a scheduled module answers from the store', () => {
   });
 
   it('does not serve a store answer as a stored copy: no fallback, no archive, no backup', async () => {
-    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()) });
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...SOON });
     expect(body.fallback).toBe(false);
     expect(body.served).not.toBe('archive');
     expect(body.source.kind).not.toBe('backup-pack');
@@ -171,7 +175,7 @@ describe('serveFromStore: the real database call', () => {
   it('posts to feed_page with the service key and never shows the key in the answer', async () => {
     const fetchSpy = vi.fn(async () => new Response(JSON.stringify(page()), { status: 200 }));
     vi.stubGlobal('fetch', fetchSpy);
-    const body = await serveFromStore(NEWS, NEWS_PARAMS);
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, SOON);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
     expect(url).toBe('https://db.example/rest/v1/rpc/feed_page');
@@ -198,6 +202,98 @@ describe('serveFromStore: the real database call', () => {
     const started = Date.now();
     expect(await serveFromStore(NEWS, NEWS_PARAMS, { timeoutMs: 60 })).toBeNull();
     expect(Date.now() - started).toBeLessThan(1500);
+  });
+});
+
+describe('serveFromStore: only while the items are fresh', () => {
+  const MIN = 60_000;
+  const at = (minutes) => ({ now: () => FETCHED + minutes * MIN });
+  const serveAfter = (minutes, over = {}) => serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page(over)), ...at(minutes) });
+  beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('allows three intervals or two hours, whichever is more', () => {
+    expect(STORE_MIN_FRESH_MINUTES).toBe(120);
+    expect(storeMaxAgeMinutes(15)).toBe(120); // markets
+    expect(storeMaxAgeMinutes(30)).toBe(120); // news: 90 minutes is under the two hours
+    expect(storeMaxAgeMinutes(40)).toBe(120); // exactly 120
+    expect(storeMaxAgeMinutes(60)).toBe(180); // official, events, charts
+    expect(storeMaxAgeMinutes(360)).toBe(1080); // Statement Tracker leaders
+    expect(storeMaxAgeMinutes(1440)).toBe(4320); // reference: three days
+    expect(storeMaxAgeMinutes(null)).toBe(120);
+    expect(storeMaxAgeMinutes('x')).toBe(120);
+  });
+
+  it('a news module (30 min): served just inside two hours, live just outside', async () => {
+    expect((await serveAfter(119.9, { interval_minutes: 30 }))?.served).toBe('store');
+    expect((await serveAfter(120, { interval_minutes: 30 }))?.served).toBe('store');
+    expect(await serveAfter(120.1, { interval_minutes: 30 })).toBeNull();
+  });
+
+  it('a 15-minute market module: the two-hour minimum, not 45 minutes', async () => {
+    expect((await serveAfter(60, { interval_minutes: 15, class: 'markets', kind: 'measurement' }))?.served).toBe('store');
+    expect((await serveAfter(119, { interval_minutes: 15 }))?.served).toBe('store');
+    expect(await serveAfter(121, { interval_minutes: 15 })).toBeNull();
+  });
+
+  it('an hourly module is allowed three hours', async () => {
+    expect((await serveAfter(179, { interval_minutes: 60 }))?.served).toBe('store');
+    expect(await serveAfter(181, { interval_minutes: 60 })).toBeNull();
+  });
+
+  it('a daily reference module: three days', async () => {
+    const day = 24 * 60;
+    expect((await serveAfter(3 * day - 1, { interval_minutes: 1440, class: 'reference', kind: 'reference' }))?.served).toBe('store');
+    expect(await serveAfter(3 * day + 1, { interval_minutes: 1440 })).toBeNull();
+    // Two hours would have been far too strict for it.
+    expect((await serveAfter(5 * 60, { interval_minutes: 1440 }))?.served).toBe('store');
+  });
+
+  it('a state with no usable interval gets the two-hour minimum', async () => {
+    expect((await serveAfter(100, { interval_minutes: undefined }))?.served).toBe('store');
+    expect(await serveAfter(130, { interval_minutes: undefined })).toBeNull();
+  });
+
+  it('says why the live path answers, in the log', async () => {
+    const lines = [];
+    console.warn.mockImplementation((...a) => { lines.push(a.map(String).join(' ')); });
+    await serveAfter(300, { interval_minutes: 30 });
+    expect(lines.join(' ')).toMatch(/300 min old.*limit of 120/);
+  });
+});
+
+describe('the answer keeps the stored timeline', () => {
+  it('metaFor keeps a small timeline and the store answer returns it', async () => {
+    const timeline = [{ date: '2026-10-01', text: 'Talks begin' }, { date: '2026-10-09', text: 'Talks stall' }];
+    const meta = metaFor({ source: { adapter: 'api', links: [] }, coverage: {}, timeline }, '2026-10-15T10:00:00.000Z');
+    expect(meta.timeline).toEqual(timeline);
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page({ meta })), ...SOON });
+    expect(body.timeline).toEqual(timeline);
+  });
+
+  it('a timeline over 4 KB is left out, never the links or note', () => {
+    const timeline = Array.from({ length: 60 }, (_, i) => ({ date: '2026-10-01', text: `event ${i} ${'x'.repeat(200)}` }));
+    const meta = metaFor({ source: { adapter: 'api', links: ['https://a.example/x'], note: 'Note' }, coverage: {}, timeline }, '2026-10-15T10:00:00.000Z');
+    expect(meta.timeline).toBeUndefined();
+    expect(meta.links).toEqual(['https://a.example/x']);
+    expect(meta.note).toBe('Note');
+    expect(Buffer.byteLength(JSON.stringify(meta))).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it('a timeline is the first thing dropped when the meta is over its 16 KB limit', () => {
+    const links = Array.from({ length: 25 }, (_, i) => `https://a.example/${i}/${'p'.repeat(480)}`);
+    const timeline = Array.from({ length: 12 }, (_, i) => ({ date: '2026-10-01', text: `event ${i} ${'x'.repeat(200)}` }));
+    const small = metaFor({ source: { adapter: 'api', links: links.slice(0, 5) }, coverage: {}, timeline }, '2026-10-15T10:00:00.000Z');
+    expect(small.timeline).toEqual(timeline);
+    const meta = metaFor({ source: { adapter: 'api', links }, coverage: {}, timeline }, '2026-10-15T10:00:00.000Z');
+    expect(meta.timeline).toBeUndefined();
+    expect(meta.links.length).toBeGreaterThan(5);
+    expect(Buffer.byteLength(JSON.stringify(meta))).toBeLessThanOrEqual(12 * 1024);
+  });
+
+  it('an answer with no timeline stores none', () => {
+    expect(metaFor({ source: {}, coverage: {} }, '2026-10-15T10:00:00.000Z').timeline).toBeUndefined();
+    expect(metaFor({ source: {}, coverage: {}, timeline: [] }, '2026-10-15T10:00:00.000Z').timeline).toBeUndefined();
   });
 });
 

@@ -4,7 +4,10 @@
  * serveFromStore asks public.feed_page for the module's first page of stored items, newest first
  * (the database orders them), and rebuilds the envelope a live answer has. It answers null whenever
  * the live path should answer instead: the database is not configured (local dev), the call fails or
- * passes its time limit, the module has no state, `serve` is off, or it has no items.
+ * passes its time limit, the module has no state, `serve` is off, it has no items, or its items are too old.
+ *
+ * The store is served only while it is fresh: items fetched longer ago than three of the module's
+ * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes).
  *
  * A store answer is the normal path, not a fallback. It is marked `served: 'store'` with the time the
  * items were fetched (`fetchedAt`, ISO), keeps `fallback: false`, and never passes through the archive
@@ -24,6 +27,18 @@ export const STORE_TIME_LIMIT_MS = 1500;
  * Parliamentary Questions, neither of which is scheduled), so only the first page is asked for.
  */
 export const STORE_PAGE_ROWS = 500;
+/** The least a module's items stay fresh for, however short its interval (a 15-minute market module). */
+export const STORE_MIN_FRESH_MINUTES = 120;
+
+/**
+ * How old (minutes since the items were fetched) a module's items may be and still be served: three
+ * of its refresh intervals, or two hours, whichever is more. News (30 min) and markets (15 min) get
+ * two hours; hourly classes three hours; daily reference modules three days.
+ */
+export function storeMaxAgeMinutes(intervalMinutes) {
+  const every = Number(intervalMinutes);
+  return Math.max(STORE_MIN_FRESH_MINUTES, Number.isFinite(every) && every > 0 ? 3 * every : 0);
+}
 
 /**
  * The stored variant a request means. The Statement Tracker's `person` is the variant (a listed
@@ -44,8 +59,11 @@ function isoOrNull(value) {
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
-/** A feed_page result as the live envelope (server/featureFeed.mjs envelope()), or null for the live path. */
-function storedAnswer(page) {
+/**
+ * A feed_page result as the live envelope (server/featureFeed.mjs envelope()), or null for the live
+ * path. `id` and `now` (ms) are for the log line and the freshness rule.
+ */
+function storedAnswer(id, page, now) {
   if (!isRow(page) || page.serve !== true) return null;
   const rows = (Array.isArray(page.items) ? page.items : []).map((i) => i?.row).filter(isRow);
   if (!rows.length) return null;
@@ -53,6 +71,12 @@ function storedAnswer(page) {
   // Without a fetched time the page could not say how old its items are.
   const fetchedAt = isoOrNull(page.fetched_at) || isoOrNull(meta.fetched_at);
   if (!fetchedAt) return null;
+  const ageMinutes = (now - Date.parse(fetchedAt)) / 60_000;
+  const limit = storeMaxAgeMinutes(page.interval_minutes);
+  if (ageMinutes > limit) {
+    console.warn(`[feed-store] ${id}: the items are ${Math.floor(ageMinutes)} min old, over the limit of ${limit} min; the live path answers`);
+    return null;
+  }
   const coverage = isRow(meta.coverage) ? meta.coverage : {};
   return {
     ok: true,
@@ -73,7 +97,7 @@ function storedAnswer(page) {
     },
     fallback: false,
 
-    timeline: [],
+    timeline: Array.isArray(meta.timeline) ? meta.timeline : [],
     meta: isRow(meta.view) ? meta.view : null,
     served: 'store',
     fetchedAt,
@@ -91,7 +115,7 @@ const storeConfigured = (env) => Boolean((env.SUPABASE_URL || env.VITE_SUPABASE_
 export async function serveFromStore(
   id,
   searchParams,
-  { rpc, timeoutMs = STORE_TIME_LIMIT_MS, env = process.env, limit = STORE_PAGE_ROWS, offset = 0 } = {},
+  { rpc, timeoutMs = STORE_TIME_LIMIT_MS, env = process.env, limit = STORE_PAGE_ROWS, offset = 0, now = Date.now } = {},
 ) {
   if (!Object.hasOwn(FEED_SCHEDULE, id)) return null;
   if (!rpc && !storeConfigured(env)) return null;
@@ -105,7 +129,7 @@ export async function serveFromStore(
         timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs} ms`)), timeoutMs);
       }),
     ]);
-    return storedAnswer(page);
+    return storedAnswer(id, page, now());
   } catch (err) {
     // The message has no key (supabaseRpc masks it) and no query string (safeText).
     console.warn(`[feed-store] ${id}: ${safeText(err?.message || err, 200)}; the live path answers`);

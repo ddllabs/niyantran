@@ -19,24 +19,24 @@ const store = (fetchedAt, extra = {}) => ({
 
 describe('asOfLabel for an answer from the store', () => {
   it('counts minutes, then hours past an hour, then days past a day', () => {
-    expect(asOfLabel(store(ago(5 * MIN)), NOW)).toBe('Updated 5 min ago');
-    expect(asOfLabel(store(ago(59 * MIN + 59_000)), NOW)).toBe('Updated 59 min ago');
-    expect(asOfLabel(store(ago(60 * MIN)), NOW)).toBe('Updated 1 h ago');
-    expect(asOfLabel(store(ago(5 * HOUR + 40 * MIN)), NOW)).toBe('Updated 5 h ago');
-    expect(asOfLabel(store(ago(23 * HOUR + 59 * MIN)), NOW)).toBe('Updated 23 h ago');
-    expect(asOfLabel(store(ago(24 * HOUR)), NOW)).toBe('Updated 1 d ago');
-    expect(asOfLabel(store(ago(3 * DAY + 2 * HOUR)), NOW)).toBe('Updated 3 d ago');
+    expect(asOfLabel(store(ago(5 * MIN)), NOW)).toBe('updated 5 min ago');
+    expect(asOfLabel(store(ago(59 * MIN + 59_000)), NOW)).toBe('updated 59 min ago');
+    expect(asOfLabel(store(ago(60 * MIN)), NOW)).toBe('updated 1 h ago');
+    expect(asOfLabel(store(ago(5 * HOUR + 40 * MIN)), NOW)).toBe('updated 5 h ago');
+    expect(asOfLabel(store(ago(23 * HOUR + 59 * MIN)), NOW)).toBe('updated 23 h ago');
+    expect(asOfLabel(store(ago(24 * HOUR)), NOW)).toBe('updated 1 d ago');
+    expect(asOfLabel(store(ago(3 * DAY + 2 * HOUR)), NOW)).toBe('updated 3 d ago');
   });
 
   it('says "just now" under a minute, and for a clock that is a little ahead', () => {
-    expect(asOfLabel(store(ago(20_000)), NOW)).toBe('Updated just now');
-    expect(asOfLabel(store(ago(0)), NOW)).toBe('Updated just now');
-    expect(asOfLabel(store(ago(-90_000)), NOW)).toBe('Updated just now');
+    expect(asOfLabel(store(ago(20_000)), NOW)).toBe('updated just now');
+    expect(asOfLabel(store(ago(0)), NOW)).toBe('updated just now');
+    expect(asOfLabel(store(ago(-90_000)), NOW)).toBe('updated just now');
   });
 
   it('is by the time fetched, not by the newest record date', () => {
     const feed = store(ago(10 * MIN), { rows: [{ title: 'Old', date: '2024-01-01' }] });
-    expect(asOfLabel(feed, NOW)).toBe('Updated 10 min ago');
+    expect(asOfLabel(feed, NOW)).toBe('updated 10 min ago');
   });
 
   it('keeps "as of <date>" for a stored answer, even one with a fetched time that is not from the store', () => {

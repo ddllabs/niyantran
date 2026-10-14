@@ -1,6 +1,7 @@
 import { classifyApis } from './apiStatus.js';
 import { fetchFeature } from './featureFeed.js';
 import { hasRealRows } from './archiveFeed.js';
+import { isStoreAnswer } from './plainSourceNote.js';
 import {
   getAbort,
   loadProbes,
@@ -26,7 +27,8 @@ export function checkOutcome(body) {
   const n = real ? rows.filter((r) => r?.status !== 'source_status').length : 0;
   const note = String(body?.source?.note || body?.error || '');
   if (!real) return { ok: false, fallback: false, rows: 0, status: 'inactive', error: note || 'No rows showing.' };
-  const stored = body?.served === 'archive' || Boolean(body?.fallback) || STORED_ADAPTERS.has(String(body?.source?.adapter || ''));
+  // F169 C4: an answer from the scheduled feed store is fresh, served data, whatever adapter the live answer had.
+  const stored = !isStoreAnswer(body) && (body?.served === 'archive' || Boolean(body?.fallback) || STORED_ADAPTERS.has(String(body?.source?.adapter || '')));
   return stored
     ? { ok: true, fallback: true, rows: n, status: 'archive', error: null }
     : { ok: true, fallback: false, rows: n, status: 'live', error: null };
