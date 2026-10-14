@@ -262,7 +262,7 @@ export default function EnergyDesk({ feed, selected, onSelect, onAsk, vizFilter,
                 ))}
               </div>
               <p className="gld-src-note">
-                Prices and supply-risk minerals are separate. {stats.note || 'Illustrative levels — swaps to EIA/Trading Economics live.'}{' '}
+                Prices and supply-risk minerals are separate. {stats.note || 'Illustrative levels. No live price feed is connected.'}{' '}
                 As of {asOf}.
               </p>
             </div>

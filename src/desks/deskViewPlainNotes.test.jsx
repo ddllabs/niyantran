@@ -109,8 +109,15 @@ describe('the module header and board notes in plain words (F165)', () => {
       coverage: { from: '', through: 'backup', exhaustive: true },
       source: { adapter: 'embedded', kind: 'backup-pack', links: ['/backup/global/x.xlsx'], note: 'Exhaustive shipped backup · 500 rows (pack has 4,104; capped for display). Live and archive returned no rows.' },
       meta: { backup: true, exhaustive: true, declaredRecords: 4104, status: 'BACKUP · EXHAUSTIVE PACK' } });
-    expect(headerOf(all)).toBe('500 rows · 4,104 in the full list · page 1/5 · stored copy');
+    expect(headerOf(all)).toBe('500 rows · 4,104 in the full list · page 1/5 · stored copy · date not recorded');
     expect(headerOf(all)).not.toMatch(HEADER_DEVELOPER);
+  });
+
+  // F169 T9: a stored answer says how old its records are.
+  it('a stored register: the date of its newest record', () => {
+    const { all } = page({ ok: true, tier: 'global', feature: 'Test feed', rows: [{ title: 'A', date: '2026-07-10' }, { title: 'B', as_of: '2026-07-15T03:45:00Z' }],
+      fallback: false, coverage: { from: '', through: '', exhaustive: false }, source: { adapter: 'embedded', links: [], note: 'Stored.' } });
+    expect(headerOf(all)).toBe('2 rows · stored copy · as of 15 Jul 2026');
   });
 
   it('a complete register that runs to the present', () => {

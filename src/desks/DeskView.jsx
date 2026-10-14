@@ -14,7 +14,7 @@ import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
 import { prepareDeskFeed } from '../lib/prepareDeskFeed.js';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
-import { completenessLabel, freshnessLabel, plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
+import { asOfLabel, completenessLabel, freshnessLabel, isStoredAnswer, plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isAlliancesFeature } from '../lib/alliances.js';
@@ -651,7 +651,8 @@ export default function DeskView({
     }
     // F165: "complete list" and "updated …" / "stored copy" in place of "exhaustive" and "sync …".
     const complete = completenessLabel(feed, total || n);
-    const fresh = dataState.lastSync ? freshnessLabel(feed) : '';
+    // F169 T9: a stored answer says how old its records are; a live one keeps its freshness.
+    const fresh = isStoredAnswer(feed) ? `stored copy · ${asOfLabel(feed)}` : dataState.lastSync ? freshnessLabel(feed) : '';
     return `${n}${total && n !== total ? ` / ${total}` : ''} rows${complete ? ` · ${complete}` : ''}${
       usePaging ? ` · page ${safePage + 1}/${pageCount}` : ''
     }${fresh ? ` · ${fresh}` : ''}`;

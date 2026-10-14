@@ -78,7 +78,9 @@ describe('the bounded backup read (F156)', () => {
     const pack = loadBackupForFeature('Key Financial Indicators (GDP, CPI, PMI, Emp-to-Pop)', 'economics', { cap: 500 });
     const took = performance.now() - started;
     expect(pack.rows).toHaveLength(500);
-    expect(took).toBeLessThan(1000);
+    // F174: well under a second alone; the full suite on a busy machine has taken longer, so the
+    // bound guards against an unbounded read (tens of seconds), not against a slow machine.
+    expect(took).toBeLessThan(2500);
   });
 });
 

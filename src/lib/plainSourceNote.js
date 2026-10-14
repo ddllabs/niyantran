@@ -8,7 +8,7 @@
  * example `plainSourceLine(feed)`) for what was dropped. The original stays reachable as a `title`.
  */
 
-import { formatDate } from './format.js';
+import { formatDate, parseDate } from './format.js';
 
 // Wording a reader should not have to decode: hosts, paths, files, protocols, pacing, archives,
 // internal identifiers and error text.
@@ -287,4 +287,37 @@ export function plainReportingNote(value) {
   const caveat = /\bnot an? official [^.;,]+/i.exec(s)?.[0]?.replace(/\barchive\b/i, 'record').trim();
   const how = /google news/i.test(s) ? 'Found by a Google News search' : 'Found by a news search';
   return caveat ? `${how}, ${caveat}.` : `${how}.`;
+}
+
+// F169 T9: a stored answer says how old its records are.
+const STORED_ADAPTERS = new Set(['embedded', 'register', 'source-library']);
+const DATE_KEYS = ['date', 'published', 'published_at', 'pubDate', 'date_introduced', 'occurred_at', 'updated', 'updated_at',
+  'as_of', 'asOf', 'snapshot_at', 'last_updated', 'decision_date', 'order_date', 'release_date', 'filed', 'year_date'];
+
+/** Records read from storage rather than fetched live for this request. */
+export function isStoredAnswer(feed) {
+  return Boolean(feed?.served === 'archive' || feed?.fallback || STORED_ADAPTERS.has(String(feed?.source?.adapter || '')));
+}
+
+/**
+ * "as of 15 Jul 2026" from the newest record date (dates more than a day ahead, such as scheduled
+ * releases, are not "as of" dates), else the answer's own as-of date, else "date not recorded".
+ */
+export function asOfLabel(feed, now = Date.now()) {
+  const limit = now + 86_400_000;
+  let best = 0;
+  for (const row of feed?.rows || []) {
+    if (!row || row.status === 'source_status') continue;
+    for (const key of DATE_KEYS) {
+      const t = parseDate(row[key])?.getTime();
+      if (t && t <= limit && t > best) best = t;
+    }
+  }
+  if (!best) {
+    for (const v of [feed?.meta?.as_of, feed?.meta?.asOf, feed?.coverage?.through]) {
+      const t = parseDate(v)?.getTime();
+      if (t && t <= limit) { best = t; break; }
+    }
+  }
+  return best ? `as of ${formatDate(new Date(best))}` : 'date not recorded';
 }

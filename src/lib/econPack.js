@@ -89,6 +89,8 @@ export function marketQuoteRows(raw) {
         high: num(r.high) === '' ? r.high || '' : num(r.high),
         low: num(r.low) === '' ? r.low || '' : num(r.low),
         source_url: r.source_url || '',
+        // F169 T9: when the quote was taken, so a stored copy can say how old it is.
+        ...(r.as_of || r.occurred_at ? { as_of: r.as_of || r.occurred_at } : {}),
       };
     })
     .filter(Boolean);

@@ -6,7 +6,7 @@
     "brent": "$90.4",
     "wti": "$86.2",
     "ttfGas": "€34/MWh",
-    "note": "Illustrative levels — swaps to EIA/Trading Economics live."
+    "note": "Illustrative levels. No live price feed is connected."
   },
   "commodities": [
     {
