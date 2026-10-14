@@ -408,7 +408,7 @@ the payment.
   - The "Plans, credits and billing" clause says one credit is 10 paise of AI
     processing.
 
-#### 10.1 Proposed wording (2026-10-14, awaiting the owner's approval)
+#### 10.1 Wording (approved by the owner as written, 2026-10-14)
 
 **Pricing page** (`src/lib/publicPlans.js`)
 

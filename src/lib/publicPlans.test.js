@@ -55,3 +55,18 @@ it('allows upgrades and renewals while a plan is active, never a lower plan (own
   expect(purchaseKind({ plan: 'pro', status: 'active' }, 'free')).toBe('blocked');
   expect(purchaseKind(null, 'enterprise')).toBe('blocked');
 });
+
+// F111 owner-approved wording (spec §10.1, approved 2026-10-14).
+it('states each plan\'s AI credits and the 10% rollover, never "carry forward"', () => {
+  const items = Object.fromEntries(PUBLIC_PLANS.map(p => [p.id, p.items]));
+  expect(items.free).toContain('1,000 AI credits to start, valid 30 days');
+  expect(items.plus).toEqual(['2,000 AI credits every month', '10% of unused credits roll over for a month']);
+  expect(items.pro).toContain('6,500 AI credits every month');
+  expect(items.max).toContain('75,000 AI credits every month');
+  for (const id of ['plus', 'pro', 'max']) expect(items[id]).toContain('10% of unused credits roll over for a month');
+  expect(PRICING_COMPARE.find(r => r[0] === 'Monthly AI credits').slice(1)).toEqual(['1,000 to start', '2,000', '6,500', '75,000']);
+  expect(PRICING_COMPARE.find(r => r[0] === 'Unused credits roll over').slice(1)).toEqual(['—', '10% for a month', '10% for a month', '10% for a month']);
+  const all = JSON.stringify([PUBLIC_PLANS, PRICING_COMPARE, PRICING_NOTES]);
+  expect(all).not.toMatch(/carry forward|starter credits|allowances published/i);
+  expect(PRICING_NOTES.find(n => n.title === 'AI credits').text).toBe('a typical answer uses about 20 credits; larger models use more');
+});

@@ -13,7 +13,7 @@ export const COMPANY = {
   hours: 'Monday to Saturday, 10:00 to 18:00 IST, except public holidays',
 };
 
-const LAST_UPDATED = '12 October 2026';
+const LAST_UPDATED = '14 October 2026';
 
 const contactBody = `Grievance Officer and contact person: ${COMPANY.grievanceOfficer}
 
@@ -116,9 +116,10 @@ export const TERMS_OF_SERVICE = {
     ['eligibility', 'Eligibility and accounts', `You must be at least 18 and able to enter a binding contract under Indian law. Give accurate information, keep your credentials secure and do not share your account. One account is allowed per email address. You are responsible for activity on your account; tell us promptly about any unauthorised use.`],
     ['service', 'The service', `The Terminal organises information from public government, legislative, economic and other published sources into desks, and offers an AI research assistant that answers questions with citations to those sources. All desks are available to signed-in users. We may add, change or remove features; we will give notice of changes that materially reduce a paid plan.`],
     ['plans', 'Plans, credits and billing', `- Plans: Free (₹0), Plus (₹399 per month), Pro (₹999 per month) and Max (₹9,999 per month). Current plan details are on the [Pricing](/#/pricing) page.
-- What plans include: paid plans differ in AI credits and, when personal file storage is introduced, storage. Credits are consumed according to the AI processing (tokens) your requests use. How many credits each plan includes and how consumption is counted are published on the Pricing page; we may change them for future billing months with notice.
+- What plans include: paid plans differ in AI credits and, when personal file storage is introduced, storage. One credit is worth ₹0.10 of AI processing. An answer uses credits according to the AI processing it needs (tokens and web searches), so longer answers and larger models use more. How many credits each plan includes is published on the Pricing page; we may change it for future billing months with notice.
 - Niyantran AI: our in-house model will be available only on Pro and Max plans once released. Other models use credits on every plan.
-- Unused credits remain available on your account while it is open. Credits have no cash value and cannot be transferred.
+- Credits: new accounts receive 1,000 credits once, valid for 30 days. Paid plans add their monthly credits at the start of each paid month, valid until that month ends. Up to 10% of a month's unused plan credits carry into the next month and expire at its end. Top-up credits, when offered, are valid for 12 months. Credits are used in the order they expire. Credits have no cash value and cannot be transferred.
+- How answers are charged: an answer that fails without giving you any text uses no credits. If you stop an answer, the part already produced is charged. An answer always finishes: if it costs more than your remaining credits, your balance can go below zero, and the difference is taken from your next credits.
 - Billing: paid plans are billed monthly in advance in Indian rupees through Razorpay. If you choose automatic renewal, your plan renews each month until you cancel, and you are notified before each renewal charge as Reserve Bank of India rules require. Without automatic renewal, your plan ends at the end of the paid month unless you pay again.
 - Taxes: we are not registered under GST, so no GST is charged; the price shown is the price you pay.
 - Failed payments: if a renewal payment fails, your account moves to the Free plan.`],
@@ -160,7 +161,7 @@ export const REFUND_POLICY = doc('Grievance Officer: Tamanesh Kauri', [
 - a charge was made without your authorisation and reported to us promptly.
 
 We confirm an eligible refund within 7 working days of your request. Your bank or card issuer may take a further 5 to 7 working days to credit it.`],
-  ['credits', 'Unused credits', `Unused credits remain on your account while it is open. They have no cash value and are not refunded.`],
+  ['credits', 'Unused credits', `Unused credits have no cash value and are not refunded. Up to 10% of a month's unused plan credits carry into the next month; the rest expire at the end of the month.`],
   ['request', 'How to ask', `Email [${COMPANY.email}](mailto:${COMPANY.email}) from your registered email address with the payment reference and a short description. We acknowledge within 48 hours. This policy does not affect any rights you have under Indian consumer law.`],
   ['contact', 'Grievance Officer and contact', contactBody],
 ]);
