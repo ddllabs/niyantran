@@ -2021,3 +2021,11 @@ recommendations … We can fix everything that is under your control."
   functions; `service_role` can record; `feed_admin_status()` callable by authenticated (admin-only
   inside); `db_size()` not by anon; `pg_net` 0.20.4 (60 s timeout possible); no cron job for
   `/api/feeds/refresh`. Rollback: the Down blocks in each migration's header (tables are empty).
+- **2026-10-15: Cabinet Decisions' register loaded into the NTER feed store** (F169 C6, before the
+  timer, as the plan orders). `node --env-file=.env.local scripts/load-feed-register.mjs --apply
+  --target prod --confirm-prod` after a dry run with a live sample (79 decisions: 158 rows less 16
+  undated, 1 not a Cabinet decision, 62 second releases; keys in the live format). Result: one
+  `feed_state` row (kind official, `serve` false, no lease), 79 items with 79 keys, one run. Readers
+  see nothing yet. Push 7 production check: `POST /api/feeds/refresh` 503 `no-store` (dormant), GET
+  405; Cabinet, Cricket Wire, Economic Overview and Geopolitics answer live. Rollback: delete the
+  module's `feed_items` and `feed_state` rows as the database owner.
