@@ -25,6 +25,22 @@ describe('planned modules', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('the deployed route keeps a planned module planned (no stored rows borrowed)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, text: async () => '', headers: new Headers(), arrayBuffer: async () => new ArrayBuffer(0) })));
+    const { serveFeatureFeedWithBackup } = await import('../../server/featureFeed.mjs');
+    for (const id of PLANNED_MODULES) {
+      const [tier, feature] = id.split(/:(.*)/s);
+      const out = await serveFeatureFeedWithBackup(new URLSearchParams({ tier, feature }), { limitMs: 2000 });
+      expect(out.rows.filter((r) => r?.status !== 'source_status'), id).toEqual([]);
+    }
+  }, 60_000);
+
+  it('the record loader skips planned modules', async () => {
+    const { loadableModules } = await import('./deskRowsFeed.js');
+    const ids = loadableModules().map(({ mod }) => `${mod.htmlTier}:${mod.htmlFeature}`);
+    for (const id of PLANNED_MODULES) expect(ids, id).not.toContain(id);
+  });
+
   it('the client asks the server nothing for a planned module', async () => {
     const fetch = vi.fn(async () => { throw new Error('no request expected'); });
     vi.stubGlobal('fetch', fetch);

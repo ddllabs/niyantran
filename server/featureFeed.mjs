@@ -3597,6 +3597,8 @@ function bodyHasRealRows(body) {
 /** Last resort: exhaustive backup/{DESK} XLSX when live + archive are empty. */
 function applyBackupFallback(body, searchParams) {
   if (bodyHasRealRows(body)) return body;
+  // F173 review: a planned module stays planned; no stored rows are borrowed for it.
+  if (body?.source?.adapter === 'planned') return body;
   const featureName =
     (typeof body?.feature === 'string' && body.feature) ||
     searchParams.get('feature') ||

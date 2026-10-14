@@ -13,6 +13,7 @@
  * Spec: docs/specs/2026-09-20-desk-row-grounding-design.md §A and its plan
  * amendments of 2026-09-21.
  */
+import { isPlannedModule } from './plannedModules.js';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import manifest from '../../public/data/embedded_csv/_manifest.json';
@@ -121,5 +122,6 @@ export async function deskRowsFor(mod, { publicDir, fallbackSnapshot }) {
 export function loadableModules() {
   return groundingCatalogModules()
     .map((mod) => ({ mod, tab: tabForModule(mod) }))
-    .filter((x) => x.tab);
+    // F173 review: a planned module has no records to load or to cite.
+    .filter((x) => x.tab && !isPlannedModule(x.mod.htmlTier, x.mod.htmlFeature));
 }

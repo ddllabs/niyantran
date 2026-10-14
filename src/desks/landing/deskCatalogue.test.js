@@ -1,4 +1,3 @@
-import { PLANNED_MODULES } from '../../lib/plannedModules.js';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import features from '../../data/html-feature-map.json';
 import { DESK_CATALOGUE, searchDeskCatalogue } from './deskCatalogue.js';
@@ -11,6 +10,7 @@ import { CARBON_PRESENTATION } from './carbonPresentation.js';
 import { SPORTS_PRESENTATION } from './sportsPresentation.js';
 import { ENTERTAINMENT_PRESENTATION } from './entertainmentPresentation.js';
 import { STATE_PRESENTATION } from './statePresentation.js';
+import { PLANNED_MODULES } from '../../lib/plannedModules.js';
 
 const presentations = [NATIONAL_PRESENTATION, GLOBAL_PRESENTATION, LAW_PRESENTATION, ECONOMICS_PRESENTATION, CARBON_PRESENTATION, SPORTS_PRESENTATION, ENTERTAINMENT_PRESENTATION];
 const stateFeatures = ['Constituency Register', 'MLA Directory', 'MLA Report Card + Statement Tracker', 'Roll Demography', 'Community Bloc Matrix', 'Cabinet Decisions', 'Bureaucrat Transfer & Posting Tracker (State Cadre)', 'State Tender Aggregator (State e-Procurement)', 'Booth-level Results Database', 'Booth Political History', 'Municipal Watch', 'Panchayat Watch', 'Municipal & Panchayat Tender Aggregator', 'Local Governance Brief'];

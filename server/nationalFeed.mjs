@@ -653,7 +653,8 @@ export async function serveNational(ctx) {
       feature: feat,
       rows,
       adapter: 'embedded',
-      links: ['https://ipm.mospi.gov.in/'],
+      // F89: ipm.mospi.gov.in's certificate expired (2026-10-14); MoSPI's main site answers.
+      links: ['https://www.mospi.gov.in/'],
       coverage: { from: '2026-01', through: '2026-01', exhaustive: false },
       fallback: false,
       note: 'Eight flagship programmes. PAIMANA not wired — no original/revised cost, expenditure or end dates. Winning bidder is dropped (refuted).',
