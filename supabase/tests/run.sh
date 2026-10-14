@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -148,6 +148,9 @@ chain() {
         # Scheduled module records (F169 phase 4), applied as a non-superuser; they need only
         # is_platform_admin() and user_profiles (auth_schema.sql) for db_size().
         feed_records) FILES+=("$(as_non_superuser 20261015120000_feed_records.sql)") ;;
+        # The admin's view of the feed store (F169 phase 4, C5): feed_records' chain plus
+        # feed_admin_status(), applied as a non-superuser. The vacuity check drops the last.
+        feed_admin) FILES+=("$(as_non_superuser 20261015120000_feed_records.sql)" "$(as_non_superuser 20261015140000_feed_admin.sql)") ;;
         # plan_entitlements' chain plus the INR plan set, applied as a non-superuser.
         inr_plans)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)") ;;
@@ -339,6 +342,44 @@ feed_records_checks() {
   return $rc
 }
 
+# feed_admin only: the migration's Down section, executed (as feed_records_checks does). "base" is
+# the chain without the migration plus its non-superuser prelude; "up" has the migration and then
+# its Down block as written. The schemas must dump identically, and the migration must re-apply.
+feed_admin_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_feed_admin_base_test up=niyantran_feed_admin_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261015140000_feed_admin.sql"
+  {
+    echo 'SET ROLE nter_migrator;'
+    sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' | sed 's/^--   //'
+  } > "$WORK/feed_admin_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/feed_admin_down.sql" > "$WORK/feed_admin_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/feed_admin_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fa_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fa_up.dump"
+    if ! diff -q "$WORK/fa_base.dump" "$WORK/fa_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/fa_base.dump" "$WORK/fa_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -360,6 +401,7 @@ run_fixture() {
     [ "${VACUITY:-1}" = 1 ] && { vacuity_check "$name" || rc=1; }
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
+    [ "$name" = feed_admin ] && { feed_admin_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"

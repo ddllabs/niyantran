@@ -14,6 +14,7 @@ import {
   subscribeRefresh,
 } from '../lib/refreshStore.js';
 import { cancelSweep, decorateApis, refreshOne, sweepApis } from '../lib/refreshFeeds.js';
+import FeedStoreSection from './FeedStoreSection.jsx';
 
 const DESKS = ['ALL', 'GLOBAL', 'NATIONAL', 'STATE', 'LOCAL', 'LAW', 'ECONOMICS', 'CARBON', 'SPORTS', 'ENTERTAINMENT'];
 
@@ -348,6 +349,7 @@ export function ApisPage() {
           </table>
         </div>
       </div>
+      <FeedStoreSection />
     </>
   );
 }
