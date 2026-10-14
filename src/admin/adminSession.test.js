@@ -9,7 +9,7 @@ vi.mock('./AdminPages.jsx', () => ({
 vi.mock('./AiModelsPage.jsx', () => ({ AiModelsPage: () => null }));
 vi.mock('./AiPersonasPage.jsx', () => ({ AiPersonasPage: () => null }));
 vi.mock('./AdminSitePages.jsx', () => ({
-  PrivacyAdminPage: () => null, SiteSettingsPage: () => null, TermsAdminPage: () => null,
+  SiteSettingsPage: () => null,
 }));
 vi.mock('../lib/userStore.js', () => ({
   loadUsers: vi.fn(() => []), hydrateUsersFromServer: vi.fn(async () => []),

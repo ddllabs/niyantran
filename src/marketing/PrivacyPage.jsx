@@ -1,11 +1,15 @@
 import LegalDocPage from './LegalDocPage.jsx';
-import { loadPrivacy, subscribePrivacy } from '../lib/privacyStore.js';
+import { PRIVACY_POLICY } from '../lib/legalPolicies.js';
+
+// F108: the published text only; nothing a browser has stored changes it.
+const load = () => PRIVACY_POLICY;
+const subscribe = () => () => {};
 
 export default function PrivacyPage() {
   return (
     <LegalDocPage
-      load={loadPrivacy}
-      subscribe={subscribePrivacy}
+      load={load}
+      subscribe={subscribe}
       kicker="POLICY"
       title="Privacy Policy"
       lede="How {org} collects, uses, protects and otherwise processes information when you use the Terminal and related services."

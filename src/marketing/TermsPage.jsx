@@ -1,11 +1,15 @@
 import LegalDocPage from './LegalDocPage.jsx';
-import { loadTerms, subscribeTerms } from '../lib/termsStore.js';
+import { TERMS_OF_SERVICE } from '../lib/legalPolicies.js';
+
+// F108: the published text only; nothing a browser has stored changes it.
+const load = () => TERMS_OF_SERVICE;
+const subscribe = () => () => {};
 
 export default function TermsPage() {
   return (
     <LegalDocPage
-      load={loadTerms}
-      subscribe={subscribeTerms}
+      load={load}
+      subscribe={subscribe}
       kicker="TERMS"
       title="Terms & Conditions"
       lede="The agreement that governs access to {org}, including the website, dashboards, APIs, research tools and related services."

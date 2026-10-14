@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { DEFAULT_PRIVACY } from './privacyStore.js';
-import { DEFAULT_TERMS } from './termsStore.js';
-import { COMPANY, REFUND_POLICY, DELIVERY_POLICY, ABOUT_PAGE, CONTACT_PAGE } from './legalPolicies.js';
+import { COMPANY, PRIVACY_POLICY as DEFAULT_PRIVACY, TERMS_OF_SERVICE as DEFAULT_TERMS, REFUND_POLICY, DELIVERY_POLICY, ABOUT_PAGE, CONTACT_PAGE } from './legalPolicies.js';
 
 const text = doc => doc.sections.map(s => `${s.title}\n${s.body}`).join('\n');
 const docs = { privacy: DEFAULT_PRIVACY, terms: DEFAULT_TERMS, refunds: REFUND_POLICY, delivery: DELIVERY_POLICY, about: ABOUT_PAGE, contact: CONTACT_PAGE };

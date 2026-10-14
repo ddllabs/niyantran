@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { parsePolicyBody } from '../lib/privacyStore.js';
+import { parsePolicyBody } from '../lib/policyBody.js';
 import { loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
 
 function websiteHref(doc, site) {

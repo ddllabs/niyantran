@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient.js';
 import { ApisPage, OverviewPage, UsersPage } from './AdminPages.jsx';
 import { AiModelsPage } from './AiModelsPage.jsx';
 import { AiPersonasPage } from './AiPersonasPage.jsx';
-import { PrivacyAdminPage, SiteSettingsPage, TermsAdminPage } from './AdminSitePages.jsx';
+import { SiteSettingsPage } from './AdminSitePages.jsx';
 import { hydrateUsersFromServer, loadUsers, usersPaging } from '../lib/userStore.js';
 import { isDue, loadRefreshCfg, refreshProgress } from '../lib/refreshStore.js';
 import { sweepApis } from '../lib/refreshFeeds.js';
@@ -23,8 +23,6 @@ const NAV = [
   { id: 'personas', label: 'AI personas' },
   { id: 'documents', label: 'Documents' },
   { id: 'site', label: 'Website' },
-  { id: 'privacy', label: 'Privacy' },
-  { id: 'terms', label: 'Terms' },
 ];
 
 function viewFromHash() {
@@ -212,8 +210,6 @@ export default function AdminApp() {
             </Suspense>
           )}
           {view === 'site' && <SiteSettingsPage />}
-          {view === 'privacy' && <PrivacyAdminPage />}
-          {view === 'terms' && <TermsAdminPage />}
         </div>
       </div>
     </div>
