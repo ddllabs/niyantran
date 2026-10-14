@@ -137,6 +137,12 @@ function linkKey(url) {
   if (!/^https?:$/.test(u.protocol)) return '';
   for (const k of [...u.searchParams.keys()]) if (TRACKING.test(k)) u.searchParams.delete(k);
   const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  // A PIB release has one identity, its PRID, whichever page and language parameters link it (the RSS
+  // links PressReleaseIframePage, the register PressReleasePage with lang and reg) (C6, 2026-10-15).
+  const prid = host === 'pib.gov.in' && /^\/PressRelease(Iframe)?Page\.aspx$/i.test(u.pathname)
+    ? (u.searchParams.get('PRID') || u.searchParams.get('prid') || '').trim()
+    : '';
+  if (/^\d+$/.test(prid)) return `pib.gov.in/PressRelease?PRID=${prid}`;
   const path = u.pathname.replace(/\/+$/, '');
   const query = u.searchParams.toString();
   return `${host}${path}${query ? `?${query}` : ''}`;

@@ -316,6 +316,9 @@ function parseXlsxRows(filePath, cap) {
   return rows;
 }
 
+/** One backup workbook's rows, parsed by the same rules as a served pack (scripts/load-feed-register.mjs). */
+export { parseXlsxRows as readBackupRows };
+
 /**
  * Load exhaustive backup rows for a desk feature.
  * @returns {{ rows: object[], meta: object } | null}
