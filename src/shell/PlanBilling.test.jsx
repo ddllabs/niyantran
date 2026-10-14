@@ -22,6 +22,7 @@ vi.mock('../lib/creditsStore.js', async original => ({
   serverCredits: (...args) => fake.serverCredits(...args),
 }));
 import PlanBilling from './PlanBilling.jsx';
+import { OPEN_CONVERSATION_EVENT } from '../lib/creditsStore.js';
 
 const DAY = 86400000;
 const FREE = { plan: 'free', status: 'free', loaded: true };
@@ -37,10 +38,10 @@ afterEach(() => vi.clearAllMocks());
 
 const USER = { id: 'u1', email: 'a@example.test', name: 'A' };
 // state order in PlanBilling: config, invoices, selected, busy, result, credits, creditsTried
-function render(ent, { config = CLOSED, invoices = [], selected = null, busy = false, result = null, credits = null, tried = false, user = USER } = {}) {
+function render(ent, { config = CLOSED, invoices = [], selected = null, busy = false, result = null, credits = null, tried = false, user = USER, onClose = vi.fn() } = {}) {
   fake.cursor = 0;
   if (!fake.states.length) fake.states = [config, invoices, selected, busy, result, credits, tried];
-  return PlanBilling({ ent, user, onClose: vi.fn() });
+  return PlanBilling({ ent, user, onClose });
 }
 // Hook-free function components (the credits section) are expanded in place.
 const expand = node => (node && typeof node === 'object' && typeof node.type === 'function' ? node.type(node.props) : node);
@@ -214,11 +215,33 @@ it('names an untitled conversation and a deleted one', () => {
   expect(items[1]).not.toContain('1 credits');
 });
 
-it('keeps answer rows as plain text because the app has no URL for a conversation', () => {
-  const recent = [{ conversationId: 'c1', title: 'Rate cut', credits: 3, createdAt: '2026-10-13T12:00:00Z' }];
-  const tree = render(PRO, { credits: credits({ recent }) });
-  const [row] = rows(tree, 'plan-credits-answer');
-  expect(text(row)).toContain('Rate cut');
+// F149: an answer's row opens that conversation in the AI panel; a deleted conversation stays text.
+const answerRows = recent => rows(render(PRO, { credits: credits({ recent }), onClose: closed }), 'plan-credits-answer');
+const closed = vi.fn();
+const buttonOf = row => all(row, n => n.type === 'button')[0];
+
+it('turns a saved conversation\'s answer row into a button that opens it and closes Plan & billing', () => {
+  const target = new EventTarget();
+  vi.stubGlobal('window', target);
+  try {
+    closed.mockReset();
+    const seen = vi.fn();
+    target.addEventListener(OPEN_CONVERSATION_EVENT, seen);
+    const [row] = answerRows([{ conversationId: 'c1', title: 'Rate cut', credits: 3, createdAt: '2026-10-13T12:00:00Z' }]);
+    const button = buttonOf(row);
+    expect(button.props.type).toBe('button');
+    expect(text(button)).toContain('Rate cut');
+    expect(button.props['aria-label']).toMatch(/Open conversation.*Rate cut/);
+    button.props.onClick();
+    expect(seen).toHaveBeenCalledOnce();
+    expect(seen.mock.calls[0][0].detail).toEqual({ conversationId: 'c1' });
+    expect(closed).toHaveBeenCalledOnce();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it('keeps a deleted conversation\'s answer row as plain text', () => {
+  const [row] = answerRows([{ conversationId: null, title: null, credits: 3, createdAt: '2026-10-13T12:00:00Z' }]);
+  expect(text(row)).toContain('Deleted conversation');
   expect(all(row, n => n.type === 'a' || n.type === 'button')).toHaveLength(0);
 });
 

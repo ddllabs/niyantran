@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadRegistry } from './aiRegistry.js';
+import { effectivePlan, loadRegistry, minPlanOf, modelAvailable, planNeededLabel, planNeededReason } from './aiRegistry.js';
 
 /** A minimal fake of the PostgREST builder: every method chains, awaiting resolves the rows. */
 function fakeClient(tables, seen = []) {
@@ -7,7 +7,7 @@ function fakeClient(tables, seen = []) {
     from(name) {
       const result = { data: tables[name] ?? [], error: null };
       const builder = {
-        select: () => builder,
+        select: (columns) => (seen.push(`${name}.select=${columns}`), builder),
         eq: (col, val) => (seen.push(`${name}.${col}=${val}`), builder),
         order: () => builder,
         then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
@@ -51,5 +51,55 @@ describe('loadRegistry', () => {
 
   it('refuses to run without a configured client', async () => {
     await expect(loadRegistry(null)).rejects.toThrow(/not configured/);
+  });
+});
+
+describe('which models a plan may use (F150)', () => {
+  it('reads each model\'s minimum plan with the allowlist', async () => {
+    const seen = [];
+    await loadRegistry(fakeClient({ ai_models: [{ model_id: 'v/a', label: 'A', min_plan: 'free' }] }, seen));
+    expect(seen.find((s) => s.startsWith('ai_models.select='))).toMatch(/\bmin_plan\b/);
+  });
+
+  it('takes a missing or unknown minimum plan as plus, for safety', () => {
+    expect(minPlanOf({ min_plan: 'free' })).toBe('free');
+    expect(minPlanOf({ min_plan: 'pro' })).toBe('pro');
+    expect(minPlanOf({ min_plan: 'max' })).toBe('max');
+    for (const model of [{}, { min_plan: null }, { min_plan: 'gold' }, null, undefined]) expect(minPlanOf(model)).toBe('plus');
+  });
+
+  it('ranks the plans free < plus < pro < max', () => {
+    const at = (plan) => ['free', 'plus', 'pro', 'max'].filter((min) => modelAvailable({ min_plan: min }, plan));
+    expect(at('free')).toEqual(['free']);
+    expect(at('plus')).toEqual(['free', 'plus']);
+    expect(at('pro')).toEqual(['free', 'plus', 'pro']);
+    expect(at('max')).toEqual(['free', 'plus', 'pro', 'max']);
+    expect(modelAvailable({}, 'free')).toBe(false);
+    expect(modelAvailable({}, 'plus')).toBe(true);
+    expect(modelAvailable({ min_plan: 'max' }, 'nonsense')).toBe(false);
+  });
+
+  it('names the plans that unlock a model, in short and in a sentence', () => {
+    expect(planNeededLabel({ min_plan: 'plus' })).toBe('Paid plans');
+    expect(planNeededLabel({})).toBe('Paid plans');
+    expect(planNeededLabel({ min_plan: 'pro' })).toBe('Pro and Max');
+    expect(planNeededLabel({ min_plan: 'max' })).toBe('Max');
+    expect(planNeededLabel({ min_plan: 'free' })).toBe('');
+    expect(planNeededReason({ min_plan: 'plus' })).toBe('available on paid plans');
+    expect(planNeededReason({ min_plan: 'pro' })).toBe('available on Pro and Max plans');
+    expect(planNeededReason({ min_plan: 'max' })).toBe('available on the Max plan');
+  });
+
+  it('takes the effective plan from the server entitlement: lapsed, ended or unread is free', () => {
+    const now = Date.parse('2026-10-14T12:00:00Z');
+    const active = { plan: 'pro', status: 'active', lapsed: false, periodEnd: '2026-11-01T00:00:00Z' };
+    expect(effectivePlan(active, now)).toBe('pro');
+    expect(effectivePlan({ ...active, plan: 'max', periodEnd: null }, now)).toBe('max');
+    expect(effectivePlan({ ...active, plan: 'professional' }, now)).toBe('pro');
+    expect(effectivePlan({ ...active, lapsed: true }, now)).toBe('free');
+    expect(effectivePlan({ ...active, status: 'free' }, now)).toBe('free');
+    expect(effectivePlan({ ...active, periodEnd: '2026-10-01T00:00:00Z' }, now)).toBe('free');
+    expect(effectivePlan({ ...active, plan: 'free' }, now)).toBe('free');
+    expect(effectivePlan(null, now)).toBe('free');
   });
 });

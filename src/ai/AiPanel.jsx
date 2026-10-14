@@ -1,5 +1,5 @@
 import DictationButton from '../components/DictationButton.jsx';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { setChatAttachments } from '../lib/aiThreads.js';
 import { filesFromDrop, handOffAiDrop, materializeAiDrop, readAiDrag } from '../lib/aiDrop.js';
@@ -15,7 +15,9 @@ import CreditBalance, { useCredits } from './CreditBalance.jsx';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import WebSourceStrip, { liveStrip } from './WebSourceStrip.jsx';
-import ModelPicker from './ModelPicker.jsx';
+import ModelPicker, { ModelPlanNotice } from './ModelPicker.jsx';
+import { effectivePlan } from '../lib/aiRegistry.js';
+import { serverEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
 import WebSearchToggle, { isWebGated, useWebPrediction } from './WebSearchToggle.jsx';
 import MessageRow from './MessageRow.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
@@ -374,6 +376,16 @@ export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverag
   return () => { alive = false; clearInterval(id); };
 }
 
+/**
+ * The verified account's effective plan, for the model picker (F150): the server's entitlement, with a lapsed,
+ * ended or unread plan counted as free. Re-read whenever the shell refreshes it.
+ */
+function useEffectivePlan(ownerId) {
+  const read = () => serverEntitlement(ownerId);
+  const entitlement = useSyncExternalStore(subscribeEntitlement, read, read);
+  return effectivePlan(entitlement);
+}
+
 export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot, actionsSlot }) {
   const hi = lang === 'hi';
   const research = useResearchThread(true);
@@ -384,6 +396,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // F111 §8: a turn refused for credits says so in the credits notice by the composer, once.
   const creditBlock = research.creditBlock || '';
   const credits = useCredits(research.ownerId);
+  const plan = useEffectivePlan(research.ownerId);
   // Only the refusal itself is hidden (the notice replaces it); any other error still shows (review R, M4).
   const creditError = creditBlock ? research.creditError || '' : '';
   const err = creditError && research.error === creditError ? '' : research.error;
@@ -1111,7 +1124,9 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         ) : null}
         {shownError ? (
-          <p className="ai-foot warn" role="alert">{shownError}</p>
+          research.planBlock === 'model_requires_plan'
+            ? <ModelPlanNotice message={shownError} />
+            : <p className="ai-foot warn" role="alert">{shownError}</p>
         ) : null}
         {state.persistenceError ? <p className="ai-foot warn" role="alert">{state.persistenceError}</p> : null}
         <div className="ai-composer-stack">
@@ -1166,6 +1181,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
               pending={!research.ready}
               models={registry.models}
               roles={registry.roles}
+              plan={plan}
+              estimates={research.estimates}
               value={modelChoice}
               open={modelOpen}
               effortsOpenFor={effortsOpenFor}

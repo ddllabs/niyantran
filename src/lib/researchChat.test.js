@@ -1054,6 +1054,15 @@ describe('credit refusals before the stream', () => {
     clearStream('new');
   });
 
+  // F150: a model the plan does not allow is refused before anything starts.
+  it('403 model_requires_plan is a definite refusal: the message and code kept, nothing pending, not replayable', async () => {
+    const body = { error: 'This model is available on paid plans.', code: 'model_requires_plan' };
+    const result = await sendTurn({ ...turn, turn_key: 'plan-403' }, { send: refuse(403, body) });
+    expect(result).toMatchObject({ errorCode: 'model_requires_plan', isPending: false, retryable: false, status: 'error', held: false });
+    expect(result.error).toBe('This model is available on paid plans.');
+    clearStream('new');
+  });
+
   it('503 credits_unavailable is also definite (the turn never started) and can be sent again as it was', async () => {
     const body = { error: 'AI credits could not be checked.', code: 'credits_unavailable' };
     const result = await sendTurn({ ...turn, turn_key: 'credits-503' }, { send: refuse(503, body) });

@@ -139,3 +139,11 @@ ul.ai-suggest > li { display: contents; }
 .ai-source-version-tag { border: 1px solid var(--ai-line, #e5e7eb); border-radius: 999px; background: var(--accent-soft, #e8eef8); color: var(--accent, #012ea1); font: 600 11px/1 var(--font-ui, Arial, sans-serif); padding: 5px 9px; cursor: pointer; }
 .ai-source-version-tag:hover { border-color: var(--accent, #012ea1); }
 .ai-source-version-tag:focus-visible { outline: 2px solid var(--ai-blue, #2563eb); outline-offset: 1px; }
+/* F150/F151: the credits a typical answer costs sits beside the cost diamonds; a model the plan does not allow
+   keeps its reason readable (the row is disabled, so the generic dimming is lifted and only the name is dimmed). */
+.ai-research-model .ai-v2-model-trail { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; min-width: 0; }
+.ai-research-model .ai-v2-model-est { color: var(--ai-muted, var(--muted, #6b7280)); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ai-research-model .ai-v2-model-opt:disabled { opacity: 1; }
+.ai-research-model .ai-v2-model-opt:disabled em, .ai-research-model .ai-v2-model-opt:disabled .ai-brand-ico, .ai-research-model .ai-v2-model-opt:disabled .ai-v2-model-cost { opacity: .55; }
+.ai-research-model .ai-v2-model-opt:disabled .ai-v2-model-copy small { color: var(--ai-muted, var(--muted, #6b7280)); font-weight: 650; }
+.ai-plan-notice .ai-plan-upgrade { padding: 0; border: 0; background: none; font: inherit; font-weight: 650; color: var(--accent, #012ea1); text-decoration: underline; cursor: pointer; }

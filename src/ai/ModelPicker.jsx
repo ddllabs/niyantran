@@ -16,9 +16,19 @@
  *
  * The open row is owned by the caller, like `open` for the menu itself, so this
  * stays a plain function of its props.
+ *
+ * F150: `plan` is the account's effective plan. A model whose `min_plan` is
+ * above it is listed but disabled, with the plan that unlocks it, and nothing
+ * here can choose it; research-chat refuses it too, so this is the courtesy and
+ * the server is the control. Without a `plan` nothing is limited. F151:
+ * `estimates` maps a model id to the credits a typical answer costs; a model
+ * without one shows nothing. Credits only, never a price.
  */
 import './research.css';
 import { AiBrandIcon } from './AiBrandIcon.jsx';
+import { openPlanBilling } from './CreditBalance.jsx';
+import { creditEstimateText } from '../lib/creditsStore.js';
+import { modelAvailable, planNeededLabel, planNeededReason } from '../lib/aiRegistry.js';
 
 function allowedModels(models) {
   return (Array.isArray(models) ? models : []).filter(m => m && typeof m.model_id === 'string' && m.model_id.trim() && m.enabled !== false && m.allowed !== false);
@@ -95,15 +105,31 @@ export function defaultEffortFor(models, modelId) {
   return efforts.find(e => e !== 'off') || efforts[0] || 'off';
 }
 
-export default function ModelPicker({ models = [], roles = [], value, onChange, open, onToggle, effortsOpenFor = '', onToggleEfforts, pending = false }) {
+/**
+ * F150: the server refused the chosen model for the plan (a plan that changed since the picker loaded).
+ * The refusal is shown as it was sent, with the way to a paid plan.
+ */
+export function ModelPlanNotice({ message, onUpgrade = openPlanBilling }) {
+  return (
+    <p className="ai-foot warn ai-plan-notice" role="alert">
+      {message}
+      {' '}
+      <button type="button" className="ai-plan-upgrade" onClick={() => onUpgrade()}>Upgrade</button>
+    </p>
+  );
+}
+
+export default function ModelPicker({ models = [], roles = [], value, onChange, open, onToggle, effortsOpenFor = '', onToggleEfforts, pending = false, plan, estimates }) {
   models = allowedModels(models);
+  const usable = (m) => plan === undefined || modelAvailable(m, plan);
   const groups = groupByVendor(models);
   const picked = models.find((m) => m.model_id === value?.modelId) || models.find((m) => m.is_default) || models[0] || null;
 
   const efforts = effortsFor(models, picked?.model_id);
   const chosen = efforts.includes(value?.effort) ? value.effort : defaultEffortFor(models, picked?.model_id);
   const select = modelId => {
-    if (!models.some(m => m.model_id === modelId)) return;
+    const model = models.find(m => m.model_id === modelId);
+    if (!model || !usable(model)) return;
     onChange?.({ ...value, modelId, effort: effortsFor(models, modelId).includes(value?.effort) ? value.effort : defaultEffortFor(models, modelId) });
   };
 
@@ -148,7 +174,7 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
                     className={`ai-v2-role${r.model_id === picked?.model_id ? ' on' : ''}`}
                     title={r.hint}
                     aria-pressed={r.model_id === picked?.model_id}
-                    disabled={r.enabled === false || !models.some(m => m.model_id === r.model_id)}
+                    disabled={r.enabled === false || !models.some(m => m.model_id === r.model_id && usable(m))}
                     onClick={() => { if (r.enabled !== false) select(r.model_id); }}
                   >
                     {r.label}
@@ -164,13 +190,17 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
               {g.items.map((m) => {
                 const rungs = effortsFor(models, m.model_id);
                 const isPicked = m.model_id === picked?.model_id;
-                const showing = effortsOpenFor === m.model_id;
+                const ok = usable(m);
+                const showing = ok && effortsOpenFor === m.model_id;
+                const estimate = creditEstimateText(estimates?.[m.model_id]);
                 return (
                   <div key={m.model_id} className={`ai-v2-model-entry${showing ? ' open' : ''}`}>
                     <button
                       type="button"
                       aria-pressed={isPicked}
-                      className={`ai-v2-model-opt${isPicked ? ' on' : ''}`}
+                      className={`ai-v2-model-opt${isPicked ? ' on' : ''}${ok ? '' : ' locked'}`}
+                      disabled={!ok}
+                      aria-label={ok ? undefined : `${m.label}, ${planNeededReason(m)}`}
                       onClick={() => select(m.model_id)}
                     >
                       <AiBrandIcon id={m.vendor} size={16} />
@@ -179,14 +209,17 @@ export default function ModelPicker({ models = [], roles = [], value, onChange, 
                         {/* On the picked row, the rung in force - otherwise the
                             only way to read the current setting was to open the
                             accordion. */}
-                        <small>{isPicked ? EFFORT_LABELS[chosen] || chosen : m.is_default ? 'Default' : ''}</small>
+                        <small>{!ok ? planNeededLabel(m) : isPicked ? EFFORT_LABELS[chosen] || chosen : m.is_default ? 'Default' : ''}</small>
                       </span>
-                      <span className="ai-v2-model-cost" aria-hidden="true">{costHint(m)}</span>
+                      <span className="ai-v2-model-trail">
+                        {estimate ? <span className="ai-v2-model-est">{estimate}</span> : null}
+                        <span className="ai-v2-model-cost" aria-hidden="true">{costHint(m)}</span>
+                      </span>
                     </button>
                     {/* A separate button, not a child of the row: inside it, a
                         click on the chevron also selects the model and closes
                         the menu, which is never what reaching for it meant. */}
-                    {rungs.length > 1 ? (
+                    {ok && rungs.length > 1 ? (
                       <button
                         type="button"
                         className="ai-v2-model-disclose"

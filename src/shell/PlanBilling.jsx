@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
-import { creditsText, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, openConversation, refreshCredits, rupeeHint, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 
@@ -49,7 +49,7 @@ function byExpiry(lots) {
  * cycle began (my_credits().used_this_cycle), never derived here from the
  * allowance and the lots; it is left out when there is no cycle (null).
  */
-function CreditsSection({ credits, tried, checkoutClosed }) {
+function CreditsSection({ credits, tried, checkoutClosed, onOpenConversation }) {
   if (!credits) {
     return (
       <section className="plan-credits" aria-labelledby="plan-credits-title">
@@ -106,11 +106,27 @@ function CreditsSection({ credits, tried, checkoutClosed }) {
         <ul className="plan-credits-answers">
           {answers.map((r, i) => {
             const title = r.title || (r.conversationId ? 'Untitled' : 'Deleted conversation');
-            return (
-              <li key={`${r.conversationId}-${r.createdAt}-${i}`} className="plan-credits-answer">
-                <span className="plan-credits-when">{dayOrNull(r.createdAt) || ''}</span>
+            const when = dayOrNull(r.createdAt) || '';
+            const cells = (
+              <>
+                <span className="plan-credits-when">{when}</span>
                 <span className="plan-credits-title" title={title}>{title}</span>
                 <span className="plan-credits-num">{creditsText(r.credits)}</span>
+              </>
+            );
+            // F149: a saved conversation opens in the AI panel; a deleted one has nothing to open.
+            return (
+              <li key={`${r.conversationId}-${r.createdAt}-${i}`} className={`plan-credits-answer${r.conversationId ? ' plan-credits-link' : ''}`}>
+                {r.conversationId ? (
+                  <button
+                    type="button"
+                    className="plan-credits-open"
+                    aria-label={`Open conversation ${title}${when ? `, ${when}` : ''}, ${creditsText(r.credits)}`}
+                    onClick={() => onOpenConversation(r.conversationId)}
+                  >
+                    {cells}
+                  </button>
+                ) : cells}
               </li>
             );
           })}
@@ -284,7 +300,17 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
         ) : null}
         {result && !result.ok ? <p className="plan-up-err" role="alert">{result.text}</p> : null}
 
-        {userId ? <CreditsSection credits={credits} tried={creditsTried} checkoutClosed={Boolean(config) && !open} /> : null}
+        {userId ? (
+          <CreditsSection
+            credits={credits}
+            tried={creditsTried}
+            checkoutClosed={Boolean(config) && !open}
+            onOpenConversation={(id) => {
+              openConversation(id);
+              close.current?.();
+            }}
+          />
+        ) : null}
 
         <h3 className="plan-up-sub">Invoices</h3>
         {invoices === null ? (
