@@ -554,6 +554,61 @@ SELECT pg_temp.assert_true(jsonb_path_query_array(public.feed_page('national', '
   'a variant page reads its own items');
 RESET ROLE;
 
+-- 8b. Source order ----------------------------------------------------------------------------
+-- Items stored in one batch share one sort_at (first_seen is now() for all of them), so without
+-- position a set comes back in item_key order.
+CREATE FUNCTION pg_temp.page_keys(t text, f text, v text DEFAULT '') RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_path_query_array(public.feed_page(t, f, v, 500, 0), '$.items[*].item_key');
+$$;
+CREATE FUNCTION pg_temp.batch(keys text[], hash text) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_agg(pg_temp.item(k, hash) ORDER BY o) FROM unnest(keys) WITH ORDINALITY AS u(k, o);
+$$;
+-- The same, each item dated a day later than the one before: newest-first would reverse it.
+CREATE FUNCTION pg_temp.dated_batch(keys text[], hash text) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_agg(pg_temp.item(k, hash, '{}', to_char(DATE '2000-01-01' + o::integer, 'YYYY-MM-DD') || 'T00:00:00Z') ORDER BY o)
+    FROM unnest(keys) WITH ORDINALITY AS u(k, o);
+$$;
+-- Reference (Constitutions holds k0001..k0008 with hash h8): the same items in a new order.
+SELECT pg_temp.assert_true((r ->> 'status') = 'ok' AND (r ->> 'moved_items')::int > 0 AND (r ->> 'changed_items')::int = 0,
+  'a reference set sent in a new order is a change: items moved')
+  FROM pg_temp.rec('geo', 'Constitutions', '', 'ok',
+                   pg_temp.batch(ARRAY['k0005', 'k0002', 'k0008', 'k0001', 'k0007', 'k0003', 'k0006', 'k0004'], 'h8')) AS r;
+SELECT pg_temp.assert_true(pg_temp.page_keys('geo', 'Constitutions') = '["k0005", "k0002", "k0008", "k0001", "k0007", "k0003", "k0006", "k0004"]',
+  'a reference set is served in the order it was sent, not by key');
+SELECT pg_temp.assert_true((SELECT array_agg(position ORDER BY position) = ARRAY[0, 1, 2, 3, 4, 5, 6, 7]
+    FROM public.feed_items WHERE feature = 'Constitutions'), 'positions are the 0-based batch indexes');
+UPDATE public.feed_items SET row = row || '{"marker": "kept"}' WHERE feature = 'Constitutions';
+SELECT pg_temp.assert_true((r ->> 'status') = 'unchanged' AND (r ->> 'moved_items')::int = 0,
+  'the same content in the same order again is unchanged')
+  FROM pg_temp.rec('geo', 'Constitutions', '', 'ok',
+                   pg_temp.batch(ARRAY['k0005', 'k0002', 'k0008', 'k0001', 'k0007', 'k0003', 'k0006', 'k0004'], 'h8')) AS r;
+SELECT pg_temp.assert_true(pg_temp.page_keys('geo', 'Constitutions') = '["k0005", "k0002", "k0008", "k0001", "k0007", "k0003", "k0006", "k0004"]'
+    AND (SELECT bool_and(row ->> 'marker' = 'kept') FROM public.feed_items WHERE feature = 'Constitutions'),
+  'and keeps its order, with no row rewritten');
+SELECT pg_temp.rec('geo', 'Constitutions', '', 'ok',
+                   pg_temp.batch(ARRAY['k0008', 'k0007', 'k0006', 'k0005', 'k0004', 'k0003', 'k0002', 'k0001'], 'h8'));
+SELECT pg_temp.assert_true(pg_temp.page_keys('geo', 'Constitutions') = '["k0008", "k0007", "k0006", "k0005", "k0004", "k0003", "k0002", "k0001"]',
+  'a reordered batch is served in its new order');
+SELECT pg_temp.assert_true(jsonb_path_query_array(public.feed_page('geo', 'Constitutions', '', 3, 3), '$.items[*].item_key') = '["k0005", "k0004", "k0003"]',
+  'pages follow the source order');
+SELECT pg_temp.rec('geo', 'Constitutions', '', 'ok',
+                   pg_temp.dated_batch(ARRAY['k0001', 'k0002', 'k0003', 'k0004', 'k0005', 'k0006', 'k0007', 'k0008'], 'hd'));
+SELECT pg_temp.assert_true(pg_temp.page_keys('geo', 'Constitutions') = '["k0001", "k0002", "k0003", "k0004", "k0005", "k0006", "k0007", "k0008"]',
+  'a reference set is served in source order even when its items carry dates');
+-- Measurement (NSE holds nifty): source order too.
+SELECT pg_temp.rec('finance', 'NSE', '', 'ok', pg_temp.dated_batch(ARRAY['zeta', 'nifty', 'alpha'], 'h3'));
+SELECT pg_temp.assert_true(pg_temp.page_keys('finance', 'NSE') = '["zeta", "nifty", "alpha"]',
+  'a measurement module is served in source order, not by date');
+-- News (Statements, Leader One, holds q1): equal sort_at keeps the source order; an older item
+-- still sorts by its date.
+SELECT pg_temp.assert_true((r ->> 'status') = 'ok' AND (r ->> 'moved_items')::int = 0,
+  'a news item that moves is not counted as moved: its order is its date')
+  FROM pg_temp.rec('national', 'Statements', 'Leader One', 'ok',
+                   jsonb_build_array(pg_temp.item('old', 'h1', '{}', '2000-01-01T00:00:00Z'))
+                   || pg_temp.batch(ARRAY['s3', 's1', 's2', 'q1'], 'h1')) AS r;
+SELECT pg_temp.assert_true(pg_temp.page_keys('national', 'Statements', 'Leader One') = '["s3", "s1", "s2", "q1", "old"]',
+  'news items with the same sort_at keep their source order; an older one still sorts by date');
+
 -- 9. Purge ------------------------------------------------------------------------------------
 INSERT INTO public.feed_runs (tier, feature, variant, started_at, status) VALUES
   ('news', 'Wire', '', now() - interval '31 days', 'ok'),
@@ -569,8 +624,8 @@ SELECT pg_temp.assert_true(public.feed_purge() = '{"feed_runs": 1, "feed_items":
   'the purge deletes runs older than 30 days and measurement items not seen for 30 days');
 SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.feed_runs WHERE started_at < now() - interval '28 days' AND status = 'ok'),
   'a run 29 days old is kept');
-SELECT pg_temp.assert_true(pg_temp.keys('finance', 'NSE') = ARRAY['nifty', 'recent']
-    AND (SELECT item_count = 2 FROM public.feed_state WHERE feature = 'NSE'),
+SELECT pg_temp.assert_true(pg_temp.keys('finance', 'NSE') = ARRAY['alpha', 'nifty', 'recent', 'zeta']
+    AND (SELECT item_count = 4 FROM public.feed_state WHERE feature = 'NSE'),
   'the measurement item not seen for 31 days is gone, one seen 29 days ago stays, and item_count follows');
 SELECT pg_temp.assert_true(pg_temp.keys('news', 'Wire') = ARRAY['a', 'b', 'c', 'edge'], 'other kinds are kept however old');
 SELECT pg_temp.assert_true((SELECT count(*) = 2 FROM public.feed_daily WHERE item_key = 'gone'), 'the purged item''s daily summaries stay');
