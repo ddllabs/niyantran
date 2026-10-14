@@ -1979,3 +1979,11 @@ recommendations … We can fix everything that is under your control."
   (`7f28aeb` … `fce768b`). Two independent reviews (no critical findings; all important ones fixed
   before the push). Read-only check: `desk_rows` holds no rows for the four newly planned modules.
   No database, migration or Edge Function change. Rollback: revert and push.
+- **2026-10-15: `research-chat` v59** deployed with `supabase functions deploy research-chat` from
+  `main` at `de2d1b2` (F67, F36). Before the deploy the production source (v58, downloaded with the
+  CLI) matched `main` file for file (34 files), so v59 adds only this change. `verify_jwt` stays
+  false (the handler verifies the caller); unsigned POST 401, CORS preflight from the production
+  origin 204. The other nine functions were not redeployed. Rollback: redeploy `research-chat` from
+  `9e7da8e`.
+- **Push 4** (this batch): F171 B11–B16, B18 (`de2d1b2`, `e91d959`) and these records. Rollback:
+  revert and push.

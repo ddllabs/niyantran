@@ -705,7 +705,10 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
   - Done 2026-10-14: B1 source links (F89), B2 chat uploads (F172), B3 dropped connection (F66), B4
     file size (F62), B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk (F44),
-    B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30). Next: B11 to B22.
+    B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30); 2026-10-15: B11 (F67), B12 (F36),
+    B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, needs a signed-in
+    phone check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
+    (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
 - [ ] **F178. Chat upload follow-ups (review, 2026-10-14).** Messages on the chip are English only and
   sit in a tooltip touch screens cannot reach; PDFs in CID fonts without cMaps, and legacy Hindi fonts
   (Kruti Dev), extract as nothing or gibberish; one re-check loop per conversation (a second dropped
@@ -908,19 +911,44 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 
-- [ ] **F80. Existing mobile marketing trivia overflow.** *2026-10-14 (F171 B16): fixed in code by `3717f95` at 768 px and below; 320 px and desktop not yet measured.* Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
+## 1. Done
 
-- [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
+- [x] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
   versus measured zero and identify observed partial counts explicitly; add
   stream/persisted parity guards before changing this. Read-only finding from
   the owner's F65 annotation; the displayed turn's actual provider usage has
   not been inspected. No backend change or deployment in the styling amendment.
-- [ ] **F61. Broader tab keyboard audit.** *2026-10-14 (F171 B15): the Nuclear tab component no longer exists (`d25eb24`); Live TV remains.* Review the remaining Live TV and
+  *Done 2026-10-15 (F171 B11, `de2d1b2`; `research-chat` v59 deployed): unknown reasoning usage is sent as null and a partial count as partial, as the saved row does.*
+- [x] **F36.** `_shared/logging.ts` redacts by field name, and any name
+  containing "token" is hidden. So `embed_tokens` and other counts appear as
+  `[redacted]` in Edge logs (seen in the I7 run). Names containing "key" are
+  hidden too: `document_key`, `expected_key` and `key_holder` in `admin-ingest`'s
+  logs (C5). Redact known secret names and secret-shaped values instead.
+  *Done 2026-10-15 (F171 B12, `de2d1b2`): secrets redacted by exact name and by value shape (Bearer, JWT, sk-), inside arrays too; counts and record keys are logged. Live in `research-chat` v59; the other nine functions take it on their next deploy (several hold undeployed code on `main`, so they were not redeployed for this).*
+- [x] **F39.** `research-chat`'s `featureScopeOf` keeps only the first
+  spelling of a desk feature (`handler.ts:515-536`). It should collect every
+  spelling, e.g. "(RBI / SEBI / TRAI / CCI)" and "(RBI/SEBI/TRAI/CCI)".
+  *Closed 2026-10-15 (F171 B13): not reproduced. Read-only SQL: every module has exactly one `desk_feature` spelling in `documents` (Regulatory is stored as "(RBI SEBI TRAI CCI)"), and `featureScopeOf` resolves it. Reopen if a second spelling is ever ingested.*
+- [x] **F52.** Some document titles are stored malformed. For example "The Farmers (Old Age
+  Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
+  stored in the sources list and the reader. Needs a count over `documents.title` and a decision
+  on cleaning at ingestion or at display.
+  - **Also found (2026-10-02, research-coverage T1):** some records carry another document's
+    title. `4618230e` ("The Airlines (Penalty for Delays) Bill,2005") and `a76358ab` ("The
+    Communal Violence(Prevention,Control and Rehabilitation of Victims) Bill,2005") each hold one
+    passage of an unrelated 2004 Appropriation Act. Read in the local replica, a copy of the
+    legacy corpus; nothing was changed.
+  *Done 2026-10-15 (F171 B14, `e91d959`): titles are tidied for display only (unbalanced bracket before Bill/Act/Ordinance, the space before the year, a stray final bracket); versions differing only that way share a sources card. Stored titles are unchanged; the records that carry another document's text (second note above) remain a data task.*
+- [x] **F61. Broader tab keyboard audit.** *2026-10-14 (F171 B15): the Nuclear tab component no longer exists (`d25eb24`); Live TV remains.* Review the remaining Live TV and
   Nuclear analytics tab patterns for consistent roles and keyboard behavior.
   Outside the concrete F60 repair scope; coordinate with the next UI brief.
-## 1. Done
-
+  *Done 2026-10-15 (F171 B15, `e91d959`): Live TV categories are pressed buttons; the lower tabs are tabs with one tab stop, arrows, Home and End, and a labelled panel. Not checked in a signed-in browser.*
+- [x] **F80. Existing mobile marketing trivia overflow.** *2026-10-14 (F171 B16): fixed in code by `3717f95` at 768 px and below; 320 px and desktop not yet measured.* Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
+  *Done 2026-10-15 (F171 B16, `e91d959`): border-box at every width; measured on the local copy: no sideways scroll at 320, 768 or 1440 px, the band inside the gutters (16–304 at 320, 24–1416 at 1440).*
+- [x] **F31.** `deno.lock` is stale: it still lists `sql.js` (removed in C3)
+  and lacks the ESLint packages. Regenerate it in its own commit.
+  *Done 2026-10-15 (F171 B18, `e91d959`): `deno.lock` deleted; nothing read it (`"lock": false`); 1,079 Deno tests pass without it.*
 - [x] **F172. Files uploaded into AI chat never reach the AI.** Found 2026-10-14 (F171 research,
   read): `requestAttachments` (`src/ai/AiPanel.jsx:171-186`) keeps only attachments with a top-level
   `text`; an uploaded file's text sits under `files[]`, so every uploaded file is dropped without a
@@ -1688,8 +1716,6 @@ Part 2: deployed ingestion and the remaining pilot/acquisition work:
 
 Follow-ups and findings:
 
-- [ ] **F31.** `deno.lock` is stale: it still lists `sql.js` (removed in C3)
-  and lacks the ESLint packages. Regenerate it in its own commit.
 - [x] **F32.** (fixed by R2, 2026-10-01) `research-chat` `documentModules` (`index.ts:265-281`)
   reads one row per document with no range. PostgREST caps a read at
   `max_rows` 1000, so modules can be missing from the list. Fixed by R2
@@ -1710,17 +1736,9 @@ Follow-ups and findings:
   Also measure lowering the feature filter's exact threshold T (15,000)
   so that Regulatory takes the index path. Its exact scan takes 733 ms on
   NTER.
-- [ ] **F36.** `_shared/logging.ts` redacts by field name, and any name
-  containing "token" is hidden. So `embed_tokens` and other counts appear as
-  `[redacted]` in Edge logs (seen in the I7 run). Names containing "key" are
-  hidden too: `document_key`, `expected_key` and `key_holder` in `admin-ingest`'s
-  logs (C5). Redact known secret names and secret-shaped values instead.
 - [ ] **F38.** A sweeper for `corpus/staging/` objects older than 24 h, and
   for content-addressed objects no document references after a discard
   (admin-upload spec, "Follow-ups").
-- [ ] **F39.** `research-chat`'s `featureScopeOf` keeps only the first
-  spelling of a desk feature (`handler.ts:515-536`). It should collect every
-  spelling, e.g. "(RBI / SEBI / TRAI / CCI)" and "(RBI/SEBI/TRAI/CCI)".
 - [ ] **F40.** Rows in 73 of 75 desk features carry no `document_key`, so a dropped row
   from those desks can never attach its document. Only the two bill features have keys. This
   needs stable keys from the loader for every row, and a generalised client key in place of
@@ -1952,15 +1970,6 @@ Follow-ups and findings:
     local run is in `research/2026-10-02-source-list-local-run.md`.
   - **Shipped:** production at `5b49049` (Vercel READY, operations record 2026-10-02).
     Owner acceptance is not inferred from deployment.
-- [ ] **F52.** Some document titles are stored malformed. For example "The Farmers (Old Age
-  Allowance Bill,2000" has an unbalanced parenthesis and no space before the year. They show as
-  stored in the sources list and the reader. Needs a count over `documents.title` and a decision
-  on cleaning at ingestion or at display.
-  - **Also found (2026-10-02, research-coverage T1):** some records carry another document's
-    title. `4618230e` ("The Airlines (Penalty for Delays) Bill,2005") and `a76358ab` ("The
-    Communal Violence(Prevention,Control and Rehabilitation of Victims) Bill,2005") each hold one
-    passage of an unrelated 2004 Appropriation Act. Read in the local replica, a copy of the
-    legacy corpus; nothing was changed.
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
