@@ -68,7 +68,7 @@ function ByFeature({ summary }) {
 }
 
 export default function UsageAnalytics({
-  range, measure, groupBy, state, chart, onRange, onMeasure, onGroupBy, onToggle,
+  range, measure, groupBy, state, chart, onRange, onMeasure, onGroupBy, onToggle, afterChart = null,
 }) {
   const summary = state?.summary || null;
   const valueText = valueFormatter(measure);
@@ -112,15 +112,16 @@ export default function UsageAnalytics({
           </Figure>
         </div>
       )}
-      <p className="cu-caption">Rolling window in IST — independent of your billing period, so these totals can differ from AI activity above.</p>
+      <p className="cu-caption">Rolling window in IST — independent of your billing period, so these totals can differ from the Overview.</p>
       {early ? <p className="cu-caption">{CREDITS_STARTED_NOTE}; earlier calls show 0 credits.</p> : null}
       <div className="cu-chart-row">
         <UsageChart chart={chart} status={status} valueText={valueText} />
         <UsageLegend chart={chart} groupBy={groupBy} onGroupBy={onGroupBy} onToggle={onToggle} valueText={valueText} />
       </div>
+      {afterChart}
       {summary ? (
         <>
-          <h4 className="cu-h4">Highlights</h4>
+          <h4 className="cu-h4" id="cu-highlights">Highlights</h4>
           <Highlights summary={summary} />
           <h4 className="cu-h4">By feature</h4>
           <ByFeature summary={summary} />

@@ -15,7 +15,7 @@ import { isChokepointsFeature } from '../lib/strategicAssets.js';
 import { isEnergyFeature } from '../lib/geonomics.js';
 import { isNationalFullscreen, isImpactRecordFeature } from '../lib/national.js';
 import { isGithubCsvRow } from '../lib/githubCsv.js';
-import { parseDeskHash, resolveDeskRoute, writeDeskHash } from '../lib/deskRoute.js';
+import { deskHash, parseDeskHash, resolveDeskRoute, writeDeskHash } from '../lib/deskRoute.js';
 import { kickHomeRefreshIfDue } from '../lib/homeCache.js';
 import { clearSessionUser, sessionUser, userTypeOf } from '../lib/userStore.js';
 import {
@@ -30,8 +30,9 @@ import { setPageTitle } from '../lib/siteHead.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
-import PlanBilling from './PlanBilling.jsx';
-import CreditsUsage from './usage/CreditsUsage.jsx';
+import CreditsPage from './credits/CreditsPage.jsx';
+import BalancePill from './credits/BalancePill.jsx';
+import { goAccount, parseAccountHash } from './credits/accountRoute.js';
 import { OPEN_BILLING_EVENT } from '../ai/CreditBalance.jsx';
 import LiveTvModal from './LiveTvModal.jsx';
 import { clearPersonaPrefs } from '../lib/personas.js';
@@ -55,10 +56,8 @@ export default function TerminalShell({ onLogout }) {
   const [liveTvOpen, setLiveTvOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
-  // Plan & billing panel (F110): null when closed, else { plan } to preselect.
-  const [billing, setBilling] = useState(null);
-  // Credits usage page (F153): open or closed.
-  const [usageOpen, setUsageOpen] = useState(false);
+  // The credits page (F184): its section while open (#/account/<section>), else null.
+  const [account, setAccount] = useState(() => parseAccountHash());
   const [userTick, setUserTick] = useState(0);
   const profileRef = useRef(null);
   const user = sessionUser();
@@ -95,24 +94,35 @@ export default function TerminalShell({ onLogout }) {
     hydrateUserPrefs().catch(() => {});
   }, []);
 
-  // A plan chosen on the public pricing page while signed in opens the panel.
+  // The credits page follows the address (F184): back, forward and bookmarks work as for desks.
+  useEffect(() => {
+    const sync = () => setAccount(parseAccountHash());
+    window.addEventListener('hashchange', sync);
+    window.addEventListener('popstate', sync);
+    return () => {
+      window.removeEventListener('hashchange', sync);
+      window.removeEventListener('popstate', sync);
+    };
+  }, []);
+
+  // A plan chosen on the public pricing page while signed in opens Plan and invoices with it.
   useEffect(() => {
     const plan = sessionStorage.getItem('niyOpenBilling');
     if (plan === null) return;
     sessionStorage.removeItem('niyOpenBilling');
-    setBilling({ plan: plan || null });
+    goAccount('billing', { plan: plan || null });
   }, []);
 
-  // The chat's Upgrade and Buy credits buttons open the panel while the terminal is open (F111).
+  // The chat's Upgrade and Buy credits buttons open Plan and invoices (F111, F184).
   useEffect(() => {
-    const onOpenBilling = (event) => setBilling({ plan: event.detail?.plan ?? null });
+    const onOpenBilling = (event) => goAccount('billing', { plan: event.detail?.plan ?? null });
     window.addEventListener(OPEN_BILLING_EVENT, onOpenBilling);
     return () => window.removeEventListener(OPEN_BILLING_EVENT, onOpenBilling);
   }, []);
 
-  // Plan & billing and the chat's credit chip open the Credits usage page (F153).
+  // The chat's Credits link opens the credits page's Overview (F153, F184).
   useEffect(() => {
-    const onOpenUsage = () => setUsageOpen(true);
+    const onOpenUsage = () => goAccount('credits');
     window.addEventListener(OPEN_USAGE_EVENT, onOpenUsage);
     return () => window.removeEventListener(OPEN_USAGE_EVENT, onOpenUsage);
   }, []);
@@ -254,6 +264,7 @@ export default function TerminalShell({ onLogout }) {
     }
     setTab(r.tab);
     setFeatureName(r.feature);
+    if (parseAccountHash(hash)) return;
     if (r.tab === 'home' && emptyHash && r.tab === parseDeskHash().tab) return;
     writeDeskHash(r.tab, r.feature, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,6 +289,7 @@ export default function TerminalShell({ onLogout }) {
   const searchTabs = deskTabs;
 
   function onDesk(id) {
+    setAccount(null);
     panel.act({ type: 'landing' });
     const r = resolveDeskRoute(id, '');
     setTab(r.tab);
@@ -287,6 +299,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   function onFeature(name) {
+    setAccount(null);
     const r = resolveDeskRoute(tab, name);
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -295,6 +308,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   function onOpen({ tab: nextTab, feature }) {
+    setAccount(null);
     const r = resolveDeskRoute(nextTab, feature);
     setTab(r.tab);
     setFeatureName(r.feature);
@@ -306,14 +320,21 @@ export default function TerminalShell({ onLogout }) {
   const hasRail = deskHasRail({ restricted, tab, guideMode, featureName });
   const panel = useSidePanel({ hasRail, selected, featureName, tab, landing: guideMode || tab === 'home' });
   pickRef.current = { selected, panel };
-  // An answer chosen in Plan & billing opens its conversation (F149): this shows the AI panel, wherever it was
-  // (collapsed, on another tab, never opened); the research thread inside it selects the chat.
+  // An answer chosen on the credits page opens its conversation (F149): this shows the AI panel, wherever it was
+  // (collapsed, on another tab, never opened); the research thread inside it selects the chat. From the
+  // credits page it first goes back to the desk that was open, where the panel lives (F184).
   const openAi = panel.act;
   useEffect(() => {
-    const onOpenConversation = () => openAi({ type: 'ai-open' });
+    const onOpenConversation = () => {
+      if (parseAccountHash()) {
+        setAccount(null);
+        location.hash = deskHash(tab, featureName);
+      }
+      openAi({ type: 'ai-open' });
+    };
     window.addEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
     return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
-  }, [openAi]);
+  }, [openAi, tab, featureName]);
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);
@@ -330,7 +351,7 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-v6-directory${moduleNavigation ? ' with-module-navigation' : ''} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation' : ''}${account ? ' with-credits-page' : ''} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
@@ -393,6 +414,7 @@ export default function TerminalShell({ onLogout }) {
           >
             {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
+          <BalancePill user={user} />
           <div className="profile-wrap" ref={profileRef}>
             <button
               type="button"
@@ -448,20 +470,10 @@ export default function TerminalShell({ onLogout }) {
                     className="profile-pop-upgrade"
                     onClick={() => {
                       setProfileOpen(false);
-                      setBilling({ plan: null });
+                      goAccount('credits');
                     }}
                   >
-                    Plan &amp; billing
-                  </button>
-                  <button
-                    type="button"
-                    className="profile-pop-persona"
-                    onClick={() => {
-                      setProfileOpen(false);
-                      setUsageOpen(true);
-                    }}
-                  >
-                    Credits usage
+                    Credits
                   </button>
                   <button
                     type="button"
@@ -486,65 +498,67 @@ export default function TerminalShell({ onLogout }) {
         </div>
         </div>
       </header>
-      {moduleNavigation && <DeskNav
-        tab={tab}
-        featureName={featureName}
-        lang={lang}
-        onDesk={onDesk}
-        onFeature={onFeature}
-        tabs={deskTabs}
-        lockedIds={lockedIds}
-      />}
-      <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
-        <main className="main-col">
-          {restricted ? (
-            <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
-              onAccess={doLogout}
-              onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
-          ) : tab === 'home' ? (
-            <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
-          ) : guideMode ? (
-            <DeskLandingView
-              key={`${tab}:${reload}`}
-              tab={tab}
-              label={hi ? active.labelHi : active.label}
-              buckets={deskBuckets}
-              onFeature={onFeature}
-              lang={lang}
-            />
-          ) : (
-            <DeskView
-              key={`${feedTier}:${featureName}`}
-              tier={feedTier}
-              featureName={featureName}
-              onFeed={onFeed}
-              selected={selected}
-              onSelect={onSelect}
-              onLoading={onLoading}
-              reload={reload}
-              vizFilter={vizFilter}
-              onClearViz={onClearViz}
-            />
-          )}
-        </main>
-        {!restricted && <SidePanel
-          panel={panel}
-          hasRail={hasRail}
-          feed={feed}
-          selected={selected}
-          onSelect={onSelect}
-          lang={lang}
-          loading={loading}
-          vizFilter={vizFilter}
+      {account ? (
+        <CreditsPage section={account} user={user} ent={ent} />
+      ) : (
+        <>
+        {moduleNavigation && <DeskNav
           tab={tab}
           featureName={featureName}
+          lang={lang}
+          onDesk={onDesk}
+          onFeature={onFeature}
+          tabs={deskTabs}
+          lockedIds={lockedIds}
         />}
-      </div>
-      {!restricted && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
-      {billing ? (
-        <PlanBilling ent={ent} user={user} initialPlan={billing.plan} onClose={() => setBilling(null)} />
-      ) : null}
-      {usageOpen && user ? <CreditsUsage user={user} onClose={() => setUsageOpen(false)} /> : null}
+        <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined}>
+          <main className="main-col">
+            {restricted ? (
+              <RestrictedDeskRoute desk={hi ? active.labelHi : active.label} feature={featureName} lang={lang}
+                onAccess={doLogout}
+                onBack={() => backFromRestrictedDesk(() => onDesk('home'))}/>
+            ) : tab === 'home' ? (
+              <HomeDesk onOpen={onOpen} onFeed={onFeed} onSelect={onSelect} onLoading={onLoading} reload={reload} />
+            ) : guideMode ? (
+              <DeskLandingView
+                key={`${tab}:${reload}`}
+                tab={tab}
+                label={hi ? active.labelHi : active.label}
+                buckets={deskBuckets}
+                onFeature={onFeature}
+                lang={lang}
+              />
+            ) : (
+              <DeskView
+                key={`${feedTier}:${featureName}`}
+                tier={feedTier}
+                featureName={featureName}
+                onFeed={onFeed}
+                selected={selected}
+                onSelect={onSelect}
+                onLoading={onLoading}
+                reload={reload}
+                vizFilter={vizFilter}
+                onClearViz={onClearViz}
+              />
+            )}
+          </main>
+          {!restricted && <SidePanel
+            panel={panel}
+            hasRail={hasRail}
+            feed={feed}
+            selected={selected}
+            onSelect={onSelect}
+            lang={lang}
+            loading={loading}
+            vizFilter={vizFilter}
+            tab={tab}
+            featureName={featureName}
+          />}
+        </div>
+        {!restricted && (tab === 'home' ? <OnboardingTour kind="home" /> : <OnboardingTour kind="desk" deskId={tab} />)}
+        </>
+      )}
       {personaOpen ? (
         <PersonaChooser
           onCancel={() => setPersonaOpen(false)}

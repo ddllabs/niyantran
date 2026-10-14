@@ -1,6 +1,5 @@
-// F153: sections A and B of the Credits usage page, the small version in Plan & billing, and the page
-// itself - figures in credits only (F184), the period line, top models, the analytics figures and
-// captions, and never a dollar.
+// F184: the credits page - its side menu, sections and status bar - with the Overview's figures and
+// pictures, and F153's AI analytics (now the Usage section), all in credits only and never a dollar.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -14,10 +13,10 @@ vi.mock('../../lib/creditsStore.js', async (original) => ({
 }));
 
 import { buildChart } from '../../lib/usageChart.js';
-import CreditsUsage, { filterModels } from './CreditsUsage.jsx';
-import UsageActivityCard, { periodLine } from './UsageActivityCard.jsx';
+import { periodLine } from '../../lib/creditsVisual.js';
+import CreditsPage, { SECTION_PARTS, filterModels } from '../credits/CreditsPage.jsx';
+import OverviewSection from '../credits/OverviewSection.jsx';
 import UsageAnalytics from './UsageAnalytics.jsx';
-import { Sparkline, UsageMini } from './UsageMini.jsx';
 
 const CREDITS = {
   userId: 'u1', balance: 1500, held: 0, available: 1500, debt: 0, plan: 'plus', allowance: 2000,
@@ -41,9 +40,11 @@ const POINTS = [
 ];
 const NO_DOLLAR = /\$|usd|dollar/i;
 
-describe('A. AI activity', () => {
+describe('the Overview', () => {
   const html = (over = {}) => renderToStaticMarkup(
-    <UsageActivityCard credits={CREDITS} state={{ status: 'ready', summary: SUMMARY }} onViewAll={vi.fn()} {...over} />,
+    <OverviewSection credits={CREDITS} cycle={{ status: 'ready', summary: SUMMARY }} series={{ status: 'ready', points: POINTS }}
+      recent={{ status: 'ready', rows: [{ turnKey: 't1', createdAt: '2026-10-14T06:30:00Z', conversationId: 'c1', title: 'Rate cut', question: 'What did the RBI do?', status: 'succeeded', model: 'google/gemini-3.7-flash', calls: 3, tokens: 3310, credits: 47.5, detail: [] }] }}
+      onOpenChat={vi.fn()} now={Date.parse('2026-10-20T06:30:00Z')} {...over} />,
   );
 
   it('names the billing period, or the sign-up credits on Free', () => {
@@ -51,44 +52,41 @@ describe('A. AI activity', () => {
     expect(periodLine({ ...CREDITS, plan: 'free' })).toBe('Sign-up credits · valid until 14 Nov 2026');
   });
 
-  it('shows the four figures in credits only, the lifetime line and the top three models', () => {
+  it('leads with what is left, the period bar, this period\'s figures and the lifetime spend', () => {
     const out = html();
-    expect(out).toMatch(/Credits used<\/span><span class="cu-fig-value"><span class="cu-credits"><span class="cu-credits-num">500<\/span><\/span>/);
-    expect(out).toMatch(/Credits left[\s\S]*1,500[\s\S]*of 2,000 this period/);
-    expect(out).not.toContain('₹');
-    expect(out).toMatch(/Model calls<\/span><span class="cu-fig-value">42</);
+    expect(out).toMatch(/<h3 id="cp-left-title" class="cp-big">1,500<span class="cu-sr"> credits left<\/span><\/h3>/);
+    expect(out).toContain('credits left of 2,000 this period');
+    expect(out).toContain('25 days to renewal');
+    expect(out).toContain('aria-label="Used 500, Monthly left 1,500"');
+    expect(out).toMatch(/Model calls this period<\/dt><dd>42<span class="cp-dim"> · 3 failed/);
     expect(out).toContain('title="22,70,000 tokens"');
-    expect(out).toContain('>2.27M</abbr>');
-    expect(out).toMatch(/Lifetime spend: <strong>813 credits<\/strong><\/p>/);
-    expect(out.match(/class="cu-top-row"/g)).toHaveLength(3);
-    expect(out).toContain('30 calls · 300 credits');
-    expect(out).toContain('View all AI activity');
+    expect(out).toContain('Lifetime spend</dt><dd>813 credits');
+    expect(out).not.toContain('₹');
     expect(out).not.toMatch(NO_DOLLAR);
   });
 
-  it('shows debt as negative, taken from the next credits', () => {
-    const out = html({ credits: { ...CREDITS, balance: -50, available: -50, debt: 50 } });
-    expect(out).toContain('−50');
-    expect(out).toContain('taken from your next credits');
+  it('draws the pace, where the credits went with readable names, the latest answers and the lots', () => {
+    const out = html();
+    expect(out).toMatch(/<svg viewBox="0 0 640 210" class="cp-pace-svg" role="img" aria-label="Used 500 credits of 2,000 credits so far this period/);
+    expect(out).toContain('Gemini 3.7 Flash');
+    expect(out).toContain('Claude Sonnet 5');
+    expect(out).not.toContain('Text Embedding');
+    expect(out).toContain('Including 35 credits for 7 web searches.');
+    expect(out).toContain('>What did the RBI do?</button>');
+    expect(out).toMatch(/Monthly[\s\S]*1,500 credits[\s\S]*Expires 14 Nov 2026/);
   });
 
-  it('opens All AI activity', () => {
-    const onViewAll = vi.fn();
-    const tree = UsageActivityCard({ credits: CREDITS, state: { status: 'ready', summary: SUMMARY }, onViewAll });
-    const button = [tree.props.children].flat().find((c) => c?.type === 'button');
-    button.props.onClick();
-    expect(onViewAll).toHaveBeenCalledOnce();
-  });
-
-  it('says when it is loading or could not load', () => {
-    expect(html({ state: { status: 'loading' } })).toContain('Loading your usage');
-    expect(html({ state: { status: 'error' } })).toContain('could not be loaded');
+  it('says when its parts are loading or could not load', () => {
+    expect(html({ cycle: { status: 'error', summary: null } })).toContain('usage could not be loaded just now.');
+    expect(html({ series: { status: 'loading', points: [] } })).toContain('Loading the pace');
+    expect(html({ recent: { status: 'error', rows: [] } })).toContain('Your latest answers could not be loaded just now.');
+    expect(renderToStaticMarkup(<OverviewSection credits={null} creditsFailed cycle={{}} series={{}} recent={{}} />)).toContain('Your credits could not be loaded just now.');
   });
 });
 
 describe('B. AI analytics', () => {
   const html = (over = {}) => renderToStaticMarkup(
-    <UsageAnalytics range="30d" measure="credits" groupBy="model" rate={0.1}
+    <UsageAnalytics range="30d" measure="credits" groupBy="model"
       state={{ status: 'ready', summary: SUMMARY, series: { bucket: 'day', points: POINTS }, window: { from: '2026-09-14T18:30:00.000Z', to: '2026-10-14T10:00:00.000Z' } }}
       chart={buildChart(POINTS)} onRange={vi.fn()} onMeasure={vi.fn()} onGroupBy={vi.fn()} onToggle={vi.fn()} {...over} />,
   );
@@ -107,7 +105,7 @@ describe('B. AI analytics', () => {
     expect(out).toMatch(/Model calls<\/span><span class="cu-fig-value">42<\/span><span class="cu-fig-sub">3 failed/);
     expect(out).toMatch(/Models used<\/span><span class="cu-fig-value">4<\/span><span class="cu-fig-sub">3 providers/);
     expect(out).toMatch(/Web searches<\/span><span class="cu-fig-value">7<\/span><span class="cu-fig-sub">35 credits</);
-    expect(out).toContain('Rolling window in IST — independent of your billing period, so these totals can differ from AI activity above.');
+    expect(out).toContain('Rolling window in IST — independent of your billing period, so these totals can differ from the Overview.');
     expect(out).toMatch(/Top provider[\s\S]*Google[\s\S]*60% of credits/);
     expect(out).toMatch(/Most used[\s\S]*gemini-3\.7-flash[\s\S]*30 calls/);
     expect(out).toMatch(/Best value[\s\S]*deepseek-v4-flash[\s\S]*3\.33 credits a call/);
@@ -120,7 +118,7 @@ describe('B. AI analytics', () => {
   it('changes measure and range', () => {
     const onMeasure = vi.fn();
     const onRange = vi.fn();
-    const out = UsageAnalytics({ range: '30d', measure: 'credits', groupBy: 'model', rate: 0.1, state: { status: 'ready', summary: SUMMARY }, chart: null, onMeasure, onRange });
+    const out = UsageAnalytics({ range: '30d', measure: 'credits', groupBy: 'model', state: { status: 'ready', summary: SUMMARY }, chart: null, onMeasure, onRange });
     const walk = (n, f = []) => { if (Array.isArray(n)) n.forEach((c) => walk(c, f)); else if (n?.props) { f.push(n); walk(n.props.children, f); } return f; };
     const all = walk(out);
     all.find((e) => e.type === 'button' && e.props.children === 'Calls').props.onClick();
@@ -135,50 +133,37 @@ describe('B. AI analytics', () => {
   });
 });
 
-describe('the small version in Plan & billing', () => {
-  const html = (state) => renderToStaticMarkup(<UsageMini credits={CREDITS} state={state} onSeeUsage={vi.fn()} />);
-
-  it('shows the four figures compactly, the top three models and a 30-day sparkline', () => {
-    const out = html({ status: 'ready', summary: SUMMARY, points: POINTS });
-    expect(out).toContain('class="cu-figs cu-figs-compact"');
-    expect(out).toMatch(/Credits used[\s\S]*Credits left[\s\S]*Model calls[\s\S]*Tokens/);
-    expect(out.match(/class="cu-top-row"/g)).toHaveLength(3);
-    expect(out).toMatch(/<svg class="cu-spark"[^>]*role="img"[^>]*aria-label="Credits per day over the last 2 days: 300 credits in total"/);
-    expect(out).toContain('See credits usage');
-    expect(out).not.toMatch(NO_DOLLAR);
-  });
-
-  it('opens the page', () => {
-    const onSeeUsage = vi.fn();
-    const tree = UsageMini({ credits: CREDITS, state: { status: 'ready', summary: SUMMARY, points: [] }, onSeeUsage });
-    [tree.props.children].flat().find((c) => c?.type === 'button').props.onClick();
-    expect(onSeeUsage).toHaveBeenCalledOnce();
-  });
-
-  it('says when loading or failed, and draws a flat line without usage', () => {
-    expect(html({ status: 'loading' })).toContain('Loading usage');
-    expect(html({ status: 'error' })).toContain('Usage could not be loaded');
-    expect(renderToStaticMarkup(<Sparkline points={[]} />)).not.toContain('polyline');
-  });
-});
-
 describe('the page', () => {
-  it('renders sections A, B and D in a labelled full-screen dialog', () => {
+  it('has a side menu: a balance card, the four sections with the open one marked, and its parts as links', () => {
     store.credits = CREDITS;
-    const out = renderToStaticMarkup(<CreditsUsage user={{ id: 'u1' }} onClose={vi.fn()} />);
-    expect(out).toMatch(/<div class="cu-root" role="dialog" aria-modal="true" aria-labelledby="cu-title">/);
-    expect(out).toContain('<h2 id="cu-title">Credits usage</h2>');
-    expect(out).toContain('AI activity');
+    const out = renderToStaticMarkup(<CreditsPage section="usage" user={{ id: 'u1' }} ent={{ plan: 'plus', status: 'active' }} />);
+    expect(out).toMatch(/<nav class="cp-menu" aria-label="Credits">/);
+    expect(out).toMatch(/<p class="cp-balance-num">1,500<\/p><p class="cp-dim">credits left<\/p>/);
+    expect(out).toMatch(/href="#\/account\/credits" class="cp-menu-item">Overview<\/a>[\s\S]*href="#\/account\/usage" class="cp-menu-item on" aria-current="page">Usage<\/a>[\s\S]*href="#\/account\/activity"[\s\S]*href="#\/account\/billing" class="cp-menu-item">Plan and invoices<\/a>/);
+    expect(out).toMatch(/<button type="button">Chart and legend<\/button>[\s\S]*<button type="button">Daily use<\/button>/);
+    expect(out).toContain('<h2 id="cp-section-title" class="cp-title" tabindex="-1">Usage</h2>');
+    expect(out).toContain('Where did my credits go?');
     expect(out).toContain('AI analytics');
-    expect(out).toContain('Credits by expiry');
-    expect(out).toMatch(/Monthly[\s\S]*1,500 credits[\s\S]*Expires 14 Nov 2026/);
-    expect(out).not.toContain('All AI activity');
+    expect(out).toContain('<div id="cp-heat">');
+    expect(out).not.toMatch(/role="dialog"|aria-modal/);
     expect(out).not.toMatch(NO_DOLLAR);
+  });
+
+  it('points every menu part at an element the section renders', () => {
+    expect(SECTION_PARTS.credits.map(([id]) => id)).toEqual(['cp-left-title', 'cp-pace-title', 'cp-where-title', 'cp-recent-title', 'cp-lots-title']);
+    expect(SECTION_PARTS.usage.map(([id]) => id)).toEqual(['cu-analytics-title', 'cp-heat', 'cu-highlights']);
+    expect(SECTION_PARTS.billing.map(([id]) => id)).toEqual(['plan-billing-title', 'plan-change-title', 'plan-invoices-title']);
+  });
+
+  it('shows the status bar above the section', () => {
+    store.credits = { ...CREDITS, balance: 150, available: 150 };
+    const out = renderToStaticMarkup(<CreditsPage section="credits" user={{ id: 'u1' }} ent={{ plan: 'plus', status: 'active' }} />);
+    expect(out).toMatch(/<p class="cp-status-msg cp-tone-warn" role="status"><span>Running low: 150 credits left this cycle.<\/span><button type="button" class="cp-link">See plans<\/button><\/p>/);
   });
 
   it('asks a signed-out visitor to sign in', () => {
     store.credits = null;
-    expect(renderToStaticMarkup(<CreditsUsage user={null} onClose={vi.fn()} />)).toContain('Sign in to see your credits usage.');
+    expect(renderToStaticMarkup(<CreditsPage user={null} />)).toContain('Sign in to see your credits.');
   });
 
   it('offers every model either summary has seen in the activity filter, most credits first', () => {

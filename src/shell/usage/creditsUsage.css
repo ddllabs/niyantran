@@ -6,32 +6,16 @@
    status pills have dark values of their own at the end. creditsUsageCss.test.js measures contrast in
    both themes. Every class here starts with cu-. */
 
-.cu-root, .cu-dialog-root, .cu-mini {
+/* The chart's series colours, on the credits page (F184: .cp-page carries .cu-series). */
+.cu-series {
   --cu-s0: #012ea1; --cu-s1: #c81322; --cu-s2: #4f1d90; --cu-s3: #0f766e;
   --cu-s4: #b45309; --cu-s5: #be185d; --cu-s6: #4d7c0f; --cu-s7: #64748b;
 }
-/* Above the terminal's top bar (z-index 200), which would otherwise cover the page's own header. */
-.cu-root { position: fixed; inset: 0; z-index: 210; display: grid; place-items: center; padding: 20px; }
-.cu-dialog-root { position: fixed; inset: 0; z-index: 220; display: grid; place-items: center; padding: 20px; }
-.cu-scrim { position: absolute; inset: 0; border: 0; background: rgba(12, 18, 32, 0.48); cursor: pointer; }
-.cu-page, .cu-dialog {
-  position: relative; z-index: 1; width: min(1080px, 100%); max-height: min(94vh, 1000px); overflow: auto;
-  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 18px;
-  box-shadow: 0 28px 64px rgba(12, 18, 32, 0.28); padding: 22px 22px 24px; box-sizing: border-box;
-}
-.cu-dialog { width: min(1000px, 100%); max-height: min(90vh, 900px); }
-.cu-page:focus, .cu-dialog:focus { outline: none; }
-.cu-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.cu-kicker { margin: 0 0 4px; font-size: 10px; font-weight: 750; letter-spacing: 0.14em; color: var(--accent); }
-.cu-head h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; color: var(--fg); }
-.cu-x { flex: none; width: 32px; height: 32px; border: 0; border-radius: 10px; background: var(--bg); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer; }
-.cu-sections { display: grid; gap: 14px; }
 .cu-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .cu-card-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--fg); }
 .cu-icon { flex: none; color: var(--accent); }
 .cu-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .cu-h4 { margin: 18px 0 8px; font-size: 11px; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-.cu-h5 { margin: 0 0 6px; font-size: 11px; font-weight: 650; color: var(--muted); }
 .cu-note { margin: 12px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .cu-error { color: #a3101d; }
 .cu-caption { margin: 10px 0 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
@@ -50,22 +34,15 @@
 .cu-credits-note { font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cu-owed { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #a3101d; }
 .cu-tokens { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
-.cu-tokens:focus-visible, .cu-link:focus-visible, .cu-btn:focus-visible, .cu-x:focus-visible, .cu-expand:focus-visible,
+.cu-tokens:focus-visible, .cu-btn:focus-visible, .cu-expand:focus-visible,
 .cu-chat-open:focus-visible, .cu-leg-row:focus-visible, .cu-seg-ctl button:focus-visible, .cu-switch:focus-visible,
 .cu-disclose:focus-visible, .cu-select select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cu-lifetime { margin: 12px 0 0; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
-.cu-lifetime strong { color: var(--fg); }
 
 /* Top models */
-.cu-top { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.cu-top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
-.cu-top-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--fg); font-weight: 600; overflow-wrap: anywhere; }
-.cu-top-num { color: var(--text); font-variant-numeric: tabular-nums; }
 .cu-mark { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 750; }
 .cu-dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; }
 
 /* Links, buttons, controls */
-.cu-link { margin-top: 14px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .cu-btn { min-height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
 .cu-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .cu-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
@@ -128,19 +105,10 @@
 .cu-table thead th { font-size: 10px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .cu-table tbody th { font-weight: 600; color: var(--fg); white-space: nowrap; }
 .cu-chart-table td { text-align: right; }
-.cu-table .cu-num { text-align: right; white-space: nowrap; }
-.cu-table .cu-num .cu-credits { align-items: flex-end; }
-.cu-when { white-space: nowrap; }
 .cu-expand { width: 24px; height: 24px; margin-right: 4px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; line-height: 1; cursor: pointer; }
 .cu-expand-gap { display: inline-block; width: 28px; }
-.cu-chat { min-width: 180px; max-width: 360px; }
 .cu-chat-open { display: block; max-width: 100%; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cu-chat > span:first-child { display: block; font-weight: 600; color: var(--fg); }
 .cu-chat-gone { font-style: italic; }
-.cu-chat-model { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
-.cu-row.on td { background: var(--bg); }
-.cu-detail > td { padding: 4px 8px 12px 36px; background: var(--bg); }
-.cu-question { margin: 6px 0 4px; font-size: 13px; line-height: 1.45; color: var(--fg); white-space: pre-wrap; }
 .cu-calls { margin-top: 4px; }
 .cu-calls td, .cu-calls th { padding: 6px 8px; }
 .cu-call-status { color: var(--muted); }
@@ -156,50 +124,27 @@
 .cu-pager span { margin-right: auto; }
 
 /* The small version, inside Plan & billing */
-.cu-mini { display: grid; gap: 10px; }
-.cu-mini .cu-link { margin-top: 0; justify-self: start; }
-.cu-figs-compact { gap: 6px; margin-top: 0; }
-.cu-figs-compact .cu-fig { padding: 8px; }
-.cu-figs-compact .cu-fig-value { font-size: 15px; }
-.cu-mini-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; }
-.cu-mini-col { min-width: 0; }
-.cu-mini .cu-top-row { padding: 6px 8px; font-size: 12px; }
-.cu-spark { display: block; max-width: 100%; height: auto; }
-.cu-spark-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 
 @media (max-width: 900px) {
   .cu-chart-row { grid-template-columns: minmax(0, 1fr); }
   .cu-figs-five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
-  .cu-root, .cu-dialog-root { padding: 0; }
-  .cu-page, .cu-dialog { width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0; padding: 16px 16px 24px; }
   .cu-card { padding: 12px; }
   .cu-figs, .cu-figs-five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cu-highs { grid-template-columns: minmax(0, 1fr); }
   .cu-fig-value { font-size: 17px; }
-  .cu-mini-row { grid-template-columns: minmax(0, 1fr); }
   .cu-controls { align-items: stretch; }
-  /* On a phone the activity table keeps when, chat, credits and status; calls and tokens are in the
-     expanded rows and the export. */
-  .cu-activity-table > thead > tr > :nth-child(3), .cu-activity-table > thead > tr > :nth-child(4),
-  .cu-activity-table > tbody > .cu-row > :nth-child(3), .cu-activity-table > tbody > .cu-row > :nth-child(4) { display: none; }
-  .cu-activity-table th, .cu-activity-table td { padding: 8px 4px; }
-  .cu-chat { min-width: 0; max-width: none; }
   .cu-chat-open { white-space: normal; overflow-wrap: anywhere; }
-  .cu-when { white-space: normal; }
   .cu-expand-gap { width: 0; }
-  .cu-detail > td { padding: 4px 4px 12px; }
 }
 
 /* Dark theme: the terminal root carries .theme-dark (src/index.css), which redefines the tokens used
    above. Only what is not a token needs its own value here. */
-.theme-dark .cu-root, .theme-dark .cu-dialog-root, .theme-dark .cu-mini {
+.theme-dark .cu-series {
   --cu-s0: #7ba3ff; --cu-s1: #f87171; --cu-s2: #b57cff; --cu-s3: #2dd4bf;
   --cu-s4: #f59e0b; --cu-s5: #f472b6; --cu-s6: #a3e635; --cu-s7: #94a3b8;
 }
-.theme-dark .cu-scrim { background: rgba(0, 0, 0, 0.62); }
-.theme-dark .cu-page, .theme-dark .cu-dialog { box-shadow: 0 28px 64px rgba(0, 0, 0, 0.6); color-scheme: dark; }
 .theme-dark .cu-error, .theme-dark .cu-owed { color: #f87171; }
 .theme-dark .cu-pill-succeeded { background: #1f3a2a; color: #7fd8ad; }
 .theme-dark .cu-pill-failed { background: #4a2428; color: #ffb4b4; }

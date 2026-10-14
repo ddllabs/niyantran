@@ -258,3 +258,63 @@ None blocking. The owner's choices are recorded above.
 - After T2: the page opens from every old entry point.
 - After T5: nothing from the old modals is lost.
 - After T7: the owner reviews a local preview before any merge or push.
+
+## As built (2026-10-15, branch `task/credits-ui`)
+
+**Files.**
+- New, under `src/shell/credits/`:
+  - `CreditsPage.jsx`: the side menu, the sections and the status bar; each section reads only its
+    own reports.
+  - `OverviewSection.jsx`, `ActivitySection.jsx`: Activity was F153's dialog.
+  - `CreditsVisuals.jsx`: the period bar, pace chart, heat map, where credits went and the status bar.
+  - `BalancePill.jsx`: the pill, the glance popover and the ring.
+  - `accountRoute.js`: `#/account/<section>`, and the one-time plan hand-off.
+  - `creditsPage.css`.
+- New pure helpers: `src/lib/creditsVisual.js` (`periodBar`, `paceModel`, `heatmapCells`,
+  `groupByChat`, `roleSegments`, `statusMessages`, `periodLine`) and `modelLabel` in
+  `creditUsage.js`, which gives readable model names such as "Gemini 3.7 Flash".
+- Changed:
+  - `PlanBilling.jsx` is now the Plan and invoices section: no modal, the plan card holds this
+    period's bar, invoices show the plan.
+  - `ActivityTable.jsx`: rows lead with the question; an opened row shows a bar by step, then every
+    call; Group by chat.
+  - `UsageAnalytics.jsx`: the heat map slot below the chart.
+  - `CreditBalance.jsx`: the ring, and "Credits" in place of "Usage".
+  - `TerminalShell.jsx`: the route, the pill, one "Credits" menu item, and every desk action leaving
+    the page.
+- Removed: `CreditsUsage.jsx`, `ActivityDialog.jsx`, `UsageMini.jsx`, `UsageActivityCard.jsx`, and
+  their CSS (series colours now on `.cu-series`, which the page carries).
+
+**Rupees.** No credit amount is converted anywhere: `rupeeHint`, `inrPerCredit` and the CSV
+"Rupees (₹)" column are gone. `noRupees.test.js` failed on the old code and passes now. Plan prices
+and invoice totals stay in ₹.
+
+**Web-search credits** are part of each model's credits in `my_usage_summary`. So "Where your
+credits went" shows models only, with "Including N credits for M web searches" below, rather than
+the separate segment drawn on the canvas, which would count them twice.
+
+**"Group by chat"** totals every matching answer, up to 2,000 (the export's cap), on the client.
+There is no per-chat report.
+
+**Desks keep their header.** The desk module bar (DeskNav) and the side panel do not show on the
+credits page. Opening a chat from it returns to the desk that was open, where the chat panel lives.
+
+**Verification.**
+- `npm run lint`: clean.
+- `npm test`: 329 files, 5,015 tests.
+- `npm run build`: passes.
+- `node scripts/check-bundle.mjs`: the entry script is 220,102 B gzip, +157 B, because the page
+  sits in the lazy terminal chunk.
+- Mutation checks, each caught by its test: a desk click that keeps the page; a credits address
+  rewritten on load; held credits not taken from a lot; no three-day guard on the estimate; a chat
+  opened without leaving the page.
+- **Browser, with sample data, in a scratch preview that is not committed.** It rendered the real
+  `CreditsPage`, `BalancePill` and `CreditBalance`, with `supabase.rpc` and the billing endpoints
+  answered by samples. Checked:
+  - at 1440×1000 in light and dark: all four sections; an opened answer; group by chat; the
+    popover (focus moves in, Escape closes and returns focus to the pill);
+  - the low and overdrawn states;
+  - 390×844: the side menu becomes tabs, with no horizontal scroll.
+- **Not verified:** the terminal shell itself in a browser (the header pill, the profile menu, desk
+  switching). The local app needs a real session, and no password is entered. Tests cover the
+  wiring. To check it, open the local preview and sign in.

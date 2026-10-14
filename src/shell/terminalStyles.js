@@ -10,6 +10,7 @@ import '../desks/economicsLanding.css';
 import './deskDirectory.css';
 import '../components/dictation.css';
 import '../ai/research.css';
+import './credits/creditsPage.css';
 import '../ai/chat-presentation.css';
 import '../ai/reader.css';
 import './panel-overlay.css';

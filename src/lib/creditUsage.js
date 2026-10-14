@@ -208,6 +208,20 @@ export function modelName(model) {
   return at >= 0 ? id.slice(at + 1) : id;
 }
 
+const BRANDS = { gpt: 'GPT', deepseek: 'DeepSeek', gemini: 'Gemini', claude: 'Claude', whisper: 'Whisper', llama: 'Llama', mistral: 'Mistral', qwen: 'Qwen', grok: 'Grok', exa: 'Exa' };
+
+/** A readable model name for people (F184): "google/gemini-3.7-flash" is "Gemini 3.7 Flash". */
+export function modelLabel(model) {
+  const id = modelName(model);
+  if (id === 'Unknown model') return id;
+  return id.split(/[-_]+/).filter(Boolean).map((w) => {
+    const low = w.toLowerCase();
+    if (BRANDS[low]) return BRANDS[low];
+    if (/^v?\d/.test(low)) return low.toUpperCase();
+    return low[0].toUpperCase() + low.slice(1);
+  }).join(' ').replace(/^GPT (?=\d)/, 'GPT-');
+}
+
 const ROLES = { answer: 'Answer', search: 'Search and plan', repair: 'Repair', dictation: 'Dictation' };
 export function roleLabel(role) {
   return ROLES[role] || 'Other';

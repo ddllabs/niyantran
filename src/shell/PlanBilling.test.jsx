@@ -22,7 +22,6 @@ vi.mock('../lib/creditsStore.js', async original => ({
   serverCredits: (...args) => fake.serverCredits(...args),
 }));
 import PlanBilling from './PlanBilling.jsx';
-import { OPEN_USAGE_EVENT } from '../lib/creditsStore.js';
 
 const DAY = 86400000;
 const FREE = { plan: 'free', status: 'free', loaded: true };
@@ -193,44 +192,25 @@ it('lists the lots in plain words, earliest expiry first, with remaining and exp
 
 // F153: the 20-row "Recent answers" list moved to the Credits usage page's All AI activity; in its
 // place is the small version of that page, which opens it.
-const closed = vi.fn();
-const mini = tree => all(tree, n => String(n.props?.className || '').split(' ').includes('cu-mini'))[0];
-
-it('shows the small usage version in place of the recent answers list', () => {
+// F184: on the credits page the plan card shows this period as one bar; the small usage version and
+// its link to the usage dialog are gone (usage and activity have their own sections of the page).
+it('shows this period as a bar in the plan card, with no small usage version or recent answers', () => {
   const recent = [{ conversationId: 'c1', title: 'Rate cut', credits: 38, createdAt: '2026-10-13T12:00:00Z' }];
-  const tree = render(PRO, { credits: credits({ recent }) });
+  const tree = render(PRO, { credits: credits({ recent, usedThisCycle: 500, balance: 1500, lots: [{ kind: 'monthly', remaining: 1500, expiresAt: '2026-11-14T00:00:00Z' }] }) });
   expect(rows(tree, 'plan-credits-answer')).toHaveLength(0);
-  expect(text(section(tree))).not.toMatch(/Recent answers|No answers yet/);
-  expect(text(section(tree))).toContain('Usage this period');
-  expect(mini(tree)).toBeTruthy();
-  expect(text(mini(tree))).toMatch(/Loading usage/);
+  expect(text(section(tree))).not.toMatch(/Recent answers|No answers yet|Usage this period|See credits usage/);
+  expect(text(section(tree))).toContain('This period');
+  const bars = all(tree, n => n.props?.className === 'cp-bar');
+  expect(bars).toHaveLength(1);
+  expect(bars[0].props['aria-label']).toBe('Used 500, Monthly left 1,500');
+  expect(all(tree, n => String(n.props?.className || '').split(' ').includes('cu-mini'))).toHaveLength(0);
 });
 
-it('fills the small version once its reports arrive: four figures, top models and a 30-day sparkline', () => {
-  fake.states = [CLOSED, [], null, false, null, credits({ balance: 1500, allowance: 2000 }), true, {
-    status: 'ready', points: [{ bucket: '2026-10-13', model: 'google/gemini-3.7-flash', credits: 30, calls: 2, tokens: 900 }],
-    summary: { credits: 500, calls: 42, tokens: 2270000, byModel: [{ model: 'google/gemini-3.7-flash', provider: 'google', credits: 480, calls: 40, tokens: 2200000 }] },
-  }];
-  const t = text(mini(render(PRO)));
-  expect(t).toMatch(/Credits used.*500.*Credits left.*1,500.*of 2,000 this period.*Model calls.*42.*Tokens.*2\.27M/);
-  expect(t).toContain('gemini-3.7-flash');
-  expect(t).toContain('40 calls · 480 credits');
-  expect(t).toMatch(/See credits usage/);
-});
-
-it('opens the Credits usage page from the small version and closes Plan & billing', () => {
-  const target = new EventTarget();
-  vi.stubGlobal('window', target);
-  try {
-    closed.mockReset();
-    const seen = vi.fn();
-    target.addEventListener(OPEN_USAGE_EVENT, seen);
-    const see = all(mini(render(PRO, { credits: credits(), onClose: closed })), n => n.type === 'button' && /See credits usage/.test(text(n)))[0];
-    see.props.onClick();
-    expect(closed).toHaveBeenCalledOnce();
-    expect(seen).toHaveBeenCalledOnce();
-    expect(OPEN_USAGE_EVENT).toBe('niy-open-usage');
-  } finally { vi.unstubAllGlobals(); }
+it('is a section of the credits page: no dialog, scrim or close button', () => {
+  const tree = render(PRO, { credits: credits() });
+  expect(tree.props.className).toBe('plan-billing-section');
+  expect(all(tree, n => n.props?.role === 'dialog' || /plan-up-(scrim|x)\b/.test(String(n.props?.className || '')))).toHaveLength(0);
+  expect(text(tree)).toMatch(/Your plan: Pro[\s\S]*Change plan[\s\S]*Invoices/);
 });
 
 // F161 (owner approved 2026-10-14): top-ups are not on sale until O6, whatever the state of plan

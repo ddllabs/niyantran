@@ -3,11 +3,16 @@ import { expect, it } from 'vitest';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-it('opens Plan & billing from the profile menu and from a pricing hand-off', () => {
+// F184: Plan & billing is the credits page's Plan and invoices section; the profile menu's one Credits
+// item opens the page, and a plan chosen on the pricing page opens the section with it.
+it('opens the credits page from the profile menu and Plan and invoices from a pricing hand-off', () => {
   const shell = read('./TerminalShell.jsx');
-  expect(shell).toContain('Plan &amp; billing');
-  expect(shell).toContain('<PlanBilling');
+  expect(shell).not.toContain('Plan &amp; billing');
+  expect(shell).toMatch(/goAccount\('credits'\);\s*\}\s*\}\s*>\s*Credits\s*<\/button>/);
+  expect(shell).toContain('<CreditsPage section={account}');
   expect(shell).toContain("sessionStorage.getItem('niyOpenBilling')");
+  expect(shell).toContain("goAccount('billing', { plan: plan || null });");
+  expect(read('./credits/CreditsPage.jsx')).toContain('<PlanBilling key={plan || \'none\'} ent={ent} user={user} initialPlan={plan} />');
 });
 
 it('opens Plan & billing live when the chat asks (Upgrade or Buy credits, F111)', () => {

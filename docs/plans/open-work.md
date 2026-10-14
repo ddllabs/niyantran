@@ -541,8 +541,9 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
   Also: a header balance pill with a glance popover, and a status bar keeping every existing
   message. Every credit-to-rupee conversion goes, the CSV included; plan prices and invoices stay
-  in ₹. Spec and plan: `docs/specs/2026-10-15-credits-page.md`; design canvas, board 9. Building on
-  `task/credits-ui`.
+  in ₹. Spec and plan: `docs/specs/2026-10-15-credits-page.md`; design canvas, board 9. Built on
+  `task/credits-ui` (spec "As built"). Remaining: independent review, the owner's look at a signed-in
+  preview, then merge and push on the owner's word.
 - [x] **F177. Globe position and sizes.** Done 2026-10-14 (owner: "push merge"). Owner request:
   Pricing's globe sat at the extreme right (24 px from the screen, a label 18 px); the homepage
   globe 5% larger; sign-in and sign-up smaller ("the globe" is the whole box). As built

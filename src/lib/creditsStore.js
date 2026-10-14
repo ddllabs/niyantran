@@ -209,8 +209,8 @@ export function takeWantedConversation() {
 }
 
 /**
- * Plan & billing, the profile menu and the chat's credit chip ask the shell for the Credits usage page
- * (F153), the way they ask for Plan & billing. The shell holds the page's open state.
+ * The chat's Credits link asks the shell for the credits page (F153, F184), the way it asks for Plan
+ * and invoices. The shell opens the page's Overview at #/account/credits.
  */
 export const OPEN_USAGE_EVENT = 'niy-open-usage';
 

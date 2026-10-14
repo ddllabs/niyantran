@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
- * F153: the Credits usage page in both themes. Its surfaces and words use the app tokens, which the
+ * F153, F184: the credits page's usage styles in both themes. Its surfaces and words use the app tokens, which the
  * terminal root's .theme-dark redefines (src/index.css); the series colours and status pills carry
  * their own dark values. These tests resolve every colour in each theme and measure the contrast, so
  * a word that falls under 4.5:1 on its surface, or a series that falls under 3:1, fails here.
@@ -42,7 +42,7 @@ function value(theme, selector, prop) {
   return /^#[0-9a-f]{3,6}$/i.test(resolved) ? resolved : null;
 }
 function series(theme, slot) {
-  const root = theme === 'dark' ? { ...BASE.get('.cu-root'), ...DARK.get('.cu-root') } : BASE.get('.cu-root');
+  const root = theme === 'dark' ? { ...BASE.get('.cu-series'), ...DARK.get('.cu-series') } : BASE.get('.cu-series');
   return root[`--cu-s${slot}`];
 }
 
@@ -65,15 +65,14 @@ const contrast = (a, b) => {
 
 // [text selector, surface selector]
 const PAIRS = [
-  ['.cu-head h2', '.cu-page'], ['.cu-kicker', '.cu-page'], ['.cu-sub', '.cu-card'], ['.cu-h4', '.cu-card'],
+  ['.cu-sub', '.cu-card'], ['.cu-h4', '.cu-card'],
   ['.cu-note', '.cu-card'], ['.cu-caption', '.cu-card'], ['.cu-error', '.cu-card'], ['.cu-owed', '.cu-fig'],
   ['.cu-fig-label', '.cu-fig'], ['.cu-fig-value', '.cu-fig'], ['.cu-fig-sub', '.cu-fig'], ['.cu-credits-note', '.cu-fig'],
-  ['.cu-credits-note', '.cu-card'], ['.cu-top-num', '.cu-card'], ['.cu-top-name', '.cu-card'], ['.cu-link', '.cu-card'],
-  ['.cu-x', '.cu-x'], ['.cu-seg-ctl button', '.cu-seg-ctl'], ['.cu-seg-ctl button.on', '.cu-seg-ctl button.on'],
+  ['.cu-credits-note', '.cu-card'], ['.cu-seg-ctl button', '.cu-seg-ctl'], ['.cu-seg-ctl button.on', '.cu-seg-ctl button.on'],
   ['.cu-select', '.cu-card'], ['.cu-select select', '.cu-select select'], ['.cu-btn', '.cu-btn'], ['.cu-switch', '.cu-card'],
   ['.cu-leg-name', '.cu-card'], ['.cu-leg-share', '.cu-card'], ['.cu-tip', '.cu-tip'], ['.cu-disclose', '.cu-card'],
-  ['.cu-table thead th', '.cu-card'], ['.cu-table th', '.cu-card'], ['.cu-chat-open', '.cu-card'], ['.cu-chat-model', '.cu-card'],
-  ['.cu-question', '.cu-detail > td'], ['.cu-free', '.cu-detail > td'], ['.cu-mark', '.cu-mark'],
+  ['.cu-table thead th', '.cu-card'], ['.cu-table th', '.cu-card'], ['.cu-chat-open', '.cu-card'],
+  ['.cu-free', '.cu-card'], ['.cu-mark', '.cu-mark'],
   ['.cu-pill-succeeded', '.cu-pill-succeeded'], ['.cu-pill-failed', '.cu-pill-failed'],
   ['.cu-pill-stopped', '.cu-pill-stopped'], ['.cu-pill-running', '.cu-pill-running'],
 ];
@@ -97,7 +96,7 @@ describe('Credits usage styles (F153)', () => {
   it('keeps the series and pills in a dark rule of their own, and the surfaces on tokens', () => {
     for (const slot of [0, 7]) expect(series('dark', slot)).not.toBe(series('light', slot));
     for (const pill of ['.cu-pill-succeeded', '.cu-pill-failed', '.cu-pill-stopped', '.cu-pill-running']) expect(DARK.has(pill), pill).toBe(true);
-    for (const surface of ['.cu-page', '.cu-card', '.cu-fig', '.cu-tip']) expect(BASE.get(surface).background).toMatch(/^var\(--/);
+    for (const surface of ['.cu-card', '.cu-fig', '.cu-tip']) expect(BASE.get(surface).background).toMatch(/^var\(--/);
   });
 
   it('respects reduced motion and names only cu- classes, with no dollar', () => {

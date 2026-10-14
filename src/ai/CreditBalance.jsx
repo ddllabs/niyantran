@@ -11,11 +11,12 @@
  */
 import { useEffect, useState } from 'react';
 import { creditsText, lowBalance, openCreditsUsage, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { BalanceRing } from '../shell/credits/BalancePill.jsx';
 
 /**
- * Plan & billing is owned by the terminal shell (TerminalShell.jsx holds its open state), and the
- * chat panel is mounted deep inside it. The panel announces the request; the shell opens its own
- * panel. Nothing else listens, so nothing happens outside the shell.
+ * Plan and invoices is a section of the credits page (F184), which the terminal shell owns; the chat
+ * panel is mounted deep inside it. The panel announces the request; the shell opens the section with
+ * the plan. Nothing else listens, so nothing happens outside the shell.
  */
 export const OPEN_BILLING_EVENT = 'niy-open-billing';
 
@@ -67,12 +68,13 @@ export default function CreditBalance({ credits, block = '', held = false, onOpe
       {unchecked ? <p className="ai-credit-msg" role="alert">AI credits could not be checked right now. Try again in a moment.</p> : null}
       {known ? (
         <p className="ai-credit-line">
+          <BalanceRing credits={known} size={16} />
           <span className="ai-credit-amount">{creditsText(known.balance)}</span>
           {negative ? <span className="ai-credit-hint">taken from your next credits</span> : null}
           {/* F162: credits set aside for an answer still running, released or charged when it ends. */}
           {known.held > 0 ? <span className="ai-credit-hint">{creditsText(known.held)} held for a running answer</span> : null}
-          {/* F153: where the credits went, on the Credits usage page. */}
-          <button type="button" className="ai-credit-usage" onClick={() => onOpenUsage()}>Usage</button>
+          {/* F184: where the credits went, on the credits page. */}
+          <button type="button" className="ai-credit-usage" onClick={() => onOpenUsage()}>Credits</button>
         </p>
       ) : null}
       {/* Always present, so a warning that appears after a turn is announced; empty it takes no room. */}

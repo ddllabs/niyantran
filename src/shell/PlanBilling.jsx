@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { completeCheckout, fetchBillingConfig, fetchInvoices, openInvoice } from '../lib/billing.js';
-import { creditsText, openCreditsUsage, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
+import { creditsText, refreshCredits, serverCredits, subscribeCredits } from '../lib/creditsStore.js';
 import { refreshEntitlement } from '../lib/entitlementStore.js';
 import { PUBLIC_PLANS, purchaseKind, rupees } from '../lib/publicPlans.js';
 import CreditLots, { dayOrNull } from './CreditLots.jsx';
-import UsageMiniCard from './usage/UsageMini.jsx';
+import { PeriodBar } from './credits/CreditsVisuals.jsx';
 
 const PAID = PUBLIC_PLANS.filter((p) => p.monthly > 0);
 const RENEW_WINDOW_MS = 7 * 86400000;
@@ -23,15 +23,14 @@ function day(iso) {
  * only (F184); the server sends only credits. "Used
  * this cycle" is the server's own count of credits charged to answers since the
  * cycle began (my_credits().used_this_cycle), never derived here from the
- * allowance and the lots; it is left out when there is no cycle (null). Below the lots sits the small
- * version of the Credits usage page (F153), which replaced the "Recent answers" list: those rows are
- * now the page's All AI activity.
+ * allowance and the lots; it is left out when there is no cycle (null). On the credits page (F184) it
+ * sits in the plan card with this period's bar; usage and activity have their own sections.
  */
-function CreditsSection({ credits, tried, onSeeUsage }) {
+function CreditsSection({ credits, tried }) {
   if (!credits) {
     return (
       <section className="plan-credits" aria-labelledby="plan-credits-title">
-        <h3 className="plan-up-sub" id="plan-credits-title">AI credits</h3>
+        <h4 className="plan-up-sub" id="plan-credits-title">AI credits</h4>
         <p className="plan-up-note">{tried ? 'Your credits could not be loaded just now.' : 'Loading credits…'}</p>
       </section>
     );
@@ -41,7 +40,7 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
   const endsOn = dayOrNull(credits.cycleEndsAt);
   return (
     <section className="plan-credits" aria-labelledby="plan-credits-title">
-      <h3 className="plan-up-sub" id="plan-credits-title">AI credits</h3>
+      <h4 className="plan-up-sub" id="plan-credits-title">AI credits</h4>
       <p className={`plan-credits-balance${owed ? ' plan-credits-negative' : ''}`}>
         <strong>{creditsText(credits.balance)}</strong>
       </p>
@@ -65,8 +64,8 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
       <h4 className="plan-credits-sub">Credits by expiry</h4>
       <CreditLots lots={credits.lots} />
 
-      <h4 className="plan-credits-sub">Usage this period</h4>
-      <UsageMiniCard credits={credits} onSeeUsage={onSeeUsage} />
+      <h4 className="plan-credits-sub">This period</h4>
+      <PeriodBar credits={credits} compact />
 
       {/* F161: top-ups are not on sale until O6, whatever the state of plan checkout. */}
       <p className="plan-up-note plan-credits-note">
@@ -78,13 +77,11 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
 }
 
 /**
- * Plan & billing (open-work F110). Shows the server's view of the plan, offers
- * a month of Plus, Pro or Max (renew or upgrade only while a plan is active),
- * and lists invoices. Payment is checkout.js -> /api/billing/verify; the panel
- * reports only what the server verified, and says so plainly while checkout is
- * closed.
+ * The credits page's Plan and invoices section (F184 spec §3.5; F111's Plan & billing, once a modal):
+ * your plan with this period's credits, the plan choices and checkout, and the invoices. Checkout
+ * reports only what the server verified, and says so plainly while it is closed.
  */
-export default function PlanBilling({ ent, user, onClose, initialPlan = null }) {
+export default function PlanBilling({ ent, user, initialPlan = null }) {
   const [config, setConfig] = useState(null);
   const [invoices, setInvoices] = useState(null);
   const [selected, setSelected] = useState(() =>
@@ -95,23 +92,14 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
   const userId = user?.id || null;
   const [credits, setCredits] = useState(() => serverCredits(userId));
   const [creditsTried, setCreditsTried] = useState(false);
-  const card = useRef(null);
-  const close = useRef(onClose);
-  close.current = onClose;
 
   useEffect(() => {
     let live = true;
     fetchBillingConfig().then((c) => live && setConfig(c));
     Promise.resolve(fetchInvoices()).then((list) => live && setInvoices(list || []));
     refreshEntitlement();
-    card.current?.focus();
-    const onKey = (e) => {
-      if (e.key === 'Escape') close.current?.();
-    };
-    window.addEventListener('keydown', onKey);
     return () => {
       live = false;
-      window.removeEventListener('keydown', onKey);
     };
   }, []);
 
@@ -157,16 +145,9 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
   }
 
   return (
-    <div className="plan-up-root" role="dialog" aria-modal="true" aria-labelledby="plan-billing-title">
-      <button type="button" className="plan-up-scrim" aria-label="Close plan and billing" onClick={() => close.current?.()} />
-      <div className="plan-up-card plan-billing" ref={card} tabIndex={-1}>
-        <div className="plan-up-head">
-          <div>
-            <p className="plan-up-kicker">PLAN &amp; BILLING</p>
-            <h2 id="plan-billing-title">Your plan: {planLabel(current)}</h2>
-          </div>
-          <button type="button" className="plan-up-x" aria-label="Close" onClick={() => close.current?.()}>×</button>
-        </div>
+    <div className="plan-billing-section">
+      <section className="cp-card" aria-labelledby="plan-billing-title">
+        <h3 id="plan-billing-title" className="cp-card-title">Your plan: {planLabel(current)}</h3>
         <p className="plan-up-lead">
           {active
             ? `${planLabel(current)} is active ${end ? `until ${day(end)}` : 'with no end date'}.`
@@ -175,7 +156,11 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
         {renewDue ? (
           <p className="plan-up-renew">Your {planLabel(current)} month ends on {day(end)}. Renew to keep it.</p>
         ) : null}
+        {userId ? <CreditsSection credits={credits} tried={creditsTried} /> : null}
+      </section>
 
+      <section className="cp-card" aria-labelledby="plan-change-title">
+        <h3 id="plan-change-title" className="cp-card-title">Change plan</h3>
         <div className="plan-up-choices">
           {PAID.map((p) => {
             const option = purchaseKind(ent, p.id);
@@ -236,19 +221,10 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
           </p>
         ) : null}
         {result && !result.ok ? <p className="plan-up-err" role="alert">{result.text}</p> : null}
+      </section>
 
-        {userId ? (
-          <CreditsSection
-            credits={credits}
-            tried={creditsTried}
-            onSeeUsage={() => {
-              close.current?.();
-              openCreditsUsage();
-            }}
-          />
-        ) : null}
-
-        <h3 className="plan-up-sub">Invoices</h3>
+      <section className="cp-card" aria-labelledby="plan-invoices-title">
+        <h3 id="plan-invoices-title" className="cp-card-title">Invoices</h3>
         {invoices === null ? (
           <p className="plan-up-note">Loading invoices…</p>
         ) : invoices.length ? (
@@ -256,7 +232,7 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
             {invoices.map((inv) => (
               <li key={inv.id}>
                 <span>{inv.invoiceNo}</span>
-                <span>{inv.issuedAt ? day(inv.issuedAt) : ''}</span>
+                <span>{inv.issuedAt ? day(inv.issuedAt) : ''}{inv.planId ? ` · ${planLabel(inv.planId)}` : ''}</span>
                 <span>{rupees(Math.round(Number(inv.total) || 0))}</span>
                 <button type="button" className="plan-up-inv-link" onClick={() => openInvoice(inv.id)}>
                   Open
@@ -272,7 +248,7 @@ export default function PlanBilling({ ent, user, onClose, initialPlan = null }) 
           Prices in Indian rupees; no GST is charged. Each payment covers one month. See the{' '}
           <a href="/refunds">Refund &amp; Cancellation Policy</a>.
         </p>
-      </div>
+      </section>
     </div>
   );
 }

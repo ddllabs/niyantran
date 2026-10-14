@@ -119,8 +119,8 @@ describe('Plan & billing in the dark theme (F148)', () => {
     expect(index).toMatch(/\.theme-dark \{[^}]*--panel:/);
     const shell = read('./TerminalShell.jsx');
     expect(shell).toContain('theme-${theme}');
-    // Plan & billing renders inside that root, not in a portal, so the class reaches it.
-    expect(shell.indexOf('<PlanBilling')).toBeGreaterThan(shell.indexOf('theme-${theme}'));
+    // The credits page, and Plan and invoices in it (F184), render inside that root, not in a portal.
+    expect(shell.indexOf('<CreditsPage')).toBeGreaterThan(shell.indexOf('theme-${theme}'));
     expect(read('./PlanBilling.jsx')).not.toContain('createPortal');
   });
 });

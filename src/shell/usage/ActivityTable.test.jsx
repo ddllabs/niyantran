@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import ActivityTable, { rowKey } from './ActivityTable.jsx';
-import { FIRST_FILTERS, csvName, nextFilters, toggled } from './ActivityDialog.jsx';
+import { FIRST_FILTERS, csvName, nextFilters, toggled } from '../credits/ActivitySection.jsx';
 
 const answer = {
   turnKey: 'a1', createdAt: '2026-10-14T06:30:00Z', conversationId: 'c1', title: 'Rate cut', question: 'What did the RBI do?',
@@ -23,7 +23,7 @@ function props(over = {}) {
   return {
     state: { status: 'ready', total: 120, rows: [answer, deleted, dictation] },
     filters: FIRST_FILTERS, offset: 0, pageSize: 50, expanded: new Set(), models: ['google/gemini-3.7-flash', 'deepseek/deepseek-v4-flash'],
-    rate: 0.1, exporting: false, exportError: '',
+    exporting: false, exportError: '',
     onFilter: vi.fn(), onPage: vi.fn(), onToggleRow: vi.fn(), onOpenChat: vi.fn(), onExport: vi.fn(),
     ...over,
   };
@@ -43,25 +43,25 @@ const text = (node) => elements(node).flatMap((e) => [e.props.children].flat(Inf
 const buttons = (p) => elements(ActivityTable(p)).filter((e) => e.type === 'button');
 const labelled = (p, re) => buttons(p).find((b) => re.test(text(b)) || re.test(b.props['aria-label'] || ''));
 
-describe('the table', () => {
-  it('shows when, chat and model, calls, tokens, credits only, and a status pill', () => {
+describe('the list', () => {
+  it('leads each row with the question, then when, the chat, a readable model, calls and tokens, then credits (F184)', () => {
     const out = html();
-    expect(out).toMatch(/<th scope="col">When<\/th><th scope="col">Chat<\/th>/);
-    expect(out).toContain('14 Oct, 12:00');
-    expect(out).toContain('>Rate cut</button>');
-    expect(out).toContain('class="cu-chat-model" title="google/gemini-3.7-flash">gemini-3.7-flash');
-    expect(out).toMatch(/<span class="cu-credits-num">47\.5<\/span><\/span>/);
+    expect(out).toContain('<ul class="cp-rows" aria-label="AI activity, one row per question">');
+    expect(out).toMatch(/<p class="cp-row-q">What did the RBI do\?<\/p><p class="cp-row-meta"><span>14 Oct, 12:00<\/span><button type="button" class="cu-chat-open" title="Rate cut">Rate cut<\/button><span class="cp-chip" title="google\/gemini-3\.7-flash">Gemini 3\.7 Flash<\/span><span>3 calls · <abbr class="cu-tokens" title="3,310 tokens"/);
+    expect(out).toContain('1 search step');
+    expect(out).toMatch(/<span class="cp-row-credits">47\.5<span class="cu-sr"> credits<\/span><\/span>/);
+    expect(out).toContain('<span class="cp-s0" style="width:100%"></span>');
     expect(out).not.toContain('₹');
-    expect(out).toContain('title="3,310 tokens"');
-    expect(out).toContain('class="cu-pill cu-pill-succeeded">Succeeded');
+    // A plain success needs no pill; anything else says what happened.
+    expect(out).not.toContain('cu-pill-succeeded');
     expect(out).toContain('class="cu-pill cu-pill-failed">Failed');
     expect(out).not.toMatch(/\$|usd|dollar/i);
   });
 
   it('names a deleted conversation and a dictation call, neither of them a link', () => {
     const out = html();
-    expect(out).toContain('<span class="cu-chat-gone">Deleted conversation</span>');
-    expect(out).toMatch(/<td class="cu-chat"><span class="">Dictation<\/span>/);
+    expect(out).toContain('<p class="cp-row-q">Deleted conversation</p>');
+    expect(out).toContain('<p class="cp-row-q">Dictation</p>');
     expect(out.match(/class="cu-chat-open"/g)).toHaveLength(1);
   });
 
@@ -73,7 +73,7 @@ describe('the table', () => {
 
   it('marks a row from before credits with the launch note', () => {
     const out = html({ state: { status: 'ready', total: 1, rows: [early] } });
-    expect(out).toContain('title="Credits started on 14 Oct 2026"');
+    expect(out).toContain('<span class="cp-row-credits" title="Credits started on 14 Oct 2026">0<span class="cu-credits-note">before credits*</span>');
     expect(out).toContain('* Credits started on 14 Oct 2026; earlier calls show 0 credits.');
     expect(html()).not.toContain('Credits started');
     // A failed answer is free anyway: no launch note for it.
@@ -101,15 +101,17 @@ describe('expanding a question', () => {
     expect(p.onToggleRow).toHaveBeenCalledWith('t:a1');
   });
 
-  it('shows the question, each call with role, model, thinking, tokens and credits or free, and a total', () => {
+  it('shows the credits as one bar split by step, each step with its model and thinking, then every call and a total', () => {
     const out = html({ expanded: new Set(['t:a1']) });
     expect(out).toContain('aria-expanded="true" aria-controls="cu-calls-0"');
-    expect(out).toMatch(/<tr id="cu-calls-0" class="cu-detail">/);
-    expect(out).toContain('What did the RBI do?');
-    expect(out).toMatch(/<td>Search and plan<\/td><td title="google\/gemini-3\.7-flash">gemini-3\.7-flash<\/td><td>Low<\/td>/);
-    expect(out).toMatch(/<td>Answer<\/td>[\s\S]*<td>Extra high<\/td>[\s\S]*<td>28\.5<\/td>/);
-    expect(out).toMatch(/<td>Repair<\/td>[\s\S]*<span class="cu-free">free<\/span>/);
-    expect(out).toMatch(/<th scope="row" colSpan="3">TOTAL<\/th>[\s\S]*<td>47\.5<\/td>/);
+    expect(out).toContain('<li class="cp-row on">');
+    expect(out).toMatch(/<div id="cu-calls-0" class="cp-calls"><p class="cp-calls-title">Where these 47\.5 credits went<\/p>/);
+    expect(out).toContain('aria-label="Search and plan 19, Answer 28.5, Repair free"');
+    expect(out).toMatch(/<strong>Search and plan<\/strong> <strong class="cp-role-num">19<\/strong><span class="cp-dim cp-block">Gemini 3\.7 Flash · Low thinking<\/span>/);
+    expect(out).toMatch(/<strong>Answer<\/strong> <strong class="cp-role-num">28\.5<\/strong><span class="cp-dim cp-block">Gemini 3\.7 Flash · Extra high thinking<\/span>/);
+    expect(out).toMatch(/<strong>Repair<\/strong> <span class="cu-free">free<\/span>/);
+    expect(out).toMatch(/<td>Search and plan<\/td><td title="google\/gemini-3\.7-flash">Gemini 3\.7 Flash<\/td><td>Low<\/td>/);
+    expect(out).toMatch(/<th scope="row" colSpan="3">Total<\/th>[\s\S]*<td>47\.5<\/td>/);
     expect(out).not.toContain('₹');
   });
 });
@@ -145,16 +147,17 @@ describe('filters and switches', () => {
     selects[1].props.onChange({ target: { value: 'succeeded' } });
     selects[2].props.onChange({ target: { value: 'dictation' } });
     const switches = tree.filter((e) => e.props.role === 'switch');
-    expect(switches.map((s) => s.props['aria-checked'])).toEqual([true, false]);
+    expect(switches.map((s) => s.props['aria-checked'])).toEqual([true, false, false]);
     switches[0].props.onClick();
     switches[1].props.onClick();
+    switches[2].props.onClick();
     expect(p.onFilter.mock.calls).toEqual([
       [{ model: 'deepseek/deepseek-v4-flash' }], [{ model: null }], [{ status: 'succeeded' }], [{ kind: 'dictation' }],
-      [{ grouped: false }], [{ status: 'failed' }],
+      [{ grouped: false }], [{ byChat: true }], [{ status: 'failed' }],
     ]);
     const failing = elements(ActivityTable(props({ filters: { ...FIRST_FILTERS, status: 'failed' } }))).filter((e) => e.props.role === 'switch');
-    expect(failing[1].props['aria-checked']).toBe(true);
-    failing[1].props.onClick();
+    expect(failing[2].props['aria-checked']).toBe(true);
+    failing[2].props.onClick();
   });
 
   it('exports on request, and not while there is nothing or an export is running', () => {
@@ -174,5 +177,32 @@ describe('dialog helpers', () => {
     expect([...toggled(new Set(['a']), 'a')]).toEqual([]);
     expect(nextFilters(FIRST_FILTERS, { status: 'failed' })).toEqual({ ...FIRST_FILTERS, status: 'failed' });
     expect(csvName(new Date('2026-10-14T20:00:00Z'))).toBe('niyantran-ai-activity-2026-10-15.csv');
+  });
+});
+
+// F184: "Group by chat" totals every matching answer per chat (ActivitySection loads them), most
+// credits first, and drops the pager, which counts answers.
+describe('grouped by chat', () => {
+  const groups = [
+    { key: 'c1', conversationId: 'c1', title: 'Rate cut', credits: 95, calls: 7, answers: 2, latest: '2026-10-14T06:30:00Z', sample: answer },
+    { key: 'none', conversationId: null, title: null, credits: 0, calls: 1, answers: 1, latest: '2026-10-14T07:00:00Z', sample: dictation },
+  ];
+  const byChat = { ...FIRST_FILTERS, byChat: true };
+
+  it('lists each chat with its answers, calls, latest time and credits, and opens a saved chat', () => {
+    const p = props({ filters: byChat, chats: { status: 'ready', groups, capped: false } });
+    const out = renderToStaticMarkup(<ActivityTable {...p} />);
+    expect(out).toContain('2 chats, most credits first.');
+    expect(out).toMatch(/class="cu-chat-open cp-chat-title">Rate cut<\/button><\/p><p class="cp-row-meta"><span>2 answers · 7 calls<\/span><span>latest 14 Oct, 12:00<\/span>/);
+    expect(out).toContain('<p class="cp-row-q">Dictation</p>');
+    expect(out).not.toContain('Showing');
+    labelled(p, /^Rate cut$/).props.onClick();
+    expect(p.onOpenChat).toHaveBeenCalledWith('c1');
+  });
+
+  it('says when the totals are loading, failed or capped', () => {
+    expect(html({ filters: byChat, chats: { status: 'loading', groups: [] } })).toContain('Totalling your chats');
+    expect(html({ filters: byChat, chats: { status: 'error', groups: [] } })).toContain('Chat totals could not be loaded just now.');
+    expect(html({ filters: byChat, chats: { status: 'ready', groups, capped: true } })).toContain('2 chats, most credits first, from your latest 2,000 answers.');
   });
 });

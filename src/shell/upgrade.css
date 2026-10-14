@@ -345,7 +345,6 @@
 }
 
 /* Plan & billing (F110) */
-.plan-billing { width: min(640px, 100%); }
 .plan-up-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .plan-up-plan:disabled { opacity: 0.5; cursor: not-allowed; }
 .plan-up-renew { margin: -6px 0 14px; padding: 8px 12px; border-radius: 10px; background: #fbf3e6; color: #8a5a12; font-size: 13px; }
