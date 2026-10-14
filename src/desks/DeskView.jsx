@@ -14,7 +14,7 @@ import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
 import { prepareDeskFeed } from '../lib/prepareDeskFeed.js';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
-import { asOfLabel, completenessLabel, freshnessLabel, isStoredAnswer, plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
+import { asOfLabel, completenessLabel, freshnessLabel, isStoreAnswer, isStoredAnswer, plainLabel, plainNote, plainSourceLine, technicalTitle } from '../lib/plainSourceNote.js';
 import { isConflictsFeature } from '../lib/conflictsMonitor.js';
 import { isTransitFeature } from '../lib/transit.js';
 import { isAlliancesFeature } from '../lib/alliances.js';
@@ -70,7 +70,8 @@ const SEARCH_WAIT_MS = 300;
 /** F154: names stored rows shown while live data loads, and the moment live rows replace them. */
 export function liveRefreshNote(feed) {
   if (feed?.refreshing) return 'Showing stored rows. Refreshing live data…';
-  if (feed?.updatedLive) return 'Updated live.';
+  // F169 C4: an answer from the feed store replacing the archive is not "live"; its header says how old it is.
+  if (feed?.updatedLive && !isStoreAnswer(feed)) return 'Updated live.';
   return null;
 }
 
@@ -652,7 +653,12 @@ export default function DeskView({
     // F165: "complete list" and "updated …" / "stored copy" in place of "exhaustive" and "sync …".
     const complete = completenessLabel(feed, total || n);
     // F169 T9: a stored answer says how old its records are; a live one keeps its freshness.
-    const fresh = isStoredAnswer(feed) ? `stored copy · ${asOfLabel(feed)}` : dataState.lastSync ? freshnessLabel(feed) : '';
+    // F169 C4: an answer from the scheduled feed store says when its items were fetched ("Updated 5 min ago").
+    const fresh = isStoredAnswer(feed)
+      ? `stored copy · ${asOfLabel(feed)}`
+      : isStoreAnswer(feed)
+        ? asOfLabel(feed)
+        : dataState.lastSync ? freshnessLabel(feed) : '';
     return `${n}${total && n !== total ? ` / ${total}` : ''} rows${complete ? ` · ${complete}` : ''}${
       usePaging ? ` · page ${safePage + 1}/${pageCount}` : ''
     }${fresh ? ` · ${fresh}` : ''}`;

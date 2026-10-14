@@ -11,6 +11,8 @@ vi.mock('../../server/featureFeed.mjs', () => ({
   serveFeatureFeed: vi.fn(),
   serveFeatureFeedWithinLimit: vi.fn((params) => feed.within(params)),
   serveFeatureFeedWithBackup: vi.fn((params) => feed.within(params)),
+  // F169 C4: the scheduled-store-first route; the store is out of this test.
+  serveFeatureFeedStoredFirst: vi.fn((params) => feed.within(params)),
 }));
 vi.mock('../../server/homeApi.mjs', async (original) => ({ ...await original(), refreshHomeSnapshots: home.refresh }));
 

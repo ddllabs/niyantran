@@ -208,7 +208,7 @@ const NEWS_LINK = /gdeltproject|news\.google|bbci?\.co|bbc\.com|variety\.com|ndt
  * "Live · 24 stories from BBC World", "Latest stored records", "Stored records from the published
  * source", "Updated live."
  */
-export function plainSourceLine(feed) {
+export function plainSourceLine(feed, now = Date.now()) {
   if (!feed) return '';
   const src = feed.source || {};
   const rows = (feed.rows || []).filter((r) => r?.status !== 'source_status');
@@ -217,7 +217,7 @@ export function plainSourceLine(feed) {
   const names = rowNames(rows).length ? rowNames(rows) : sourceNames(links);
   const from = listNames(names);
   const kind = String(src.kind || '');
-  if (feed.updatedLive) return 'Updated live.';
+  if (feed.updatedLive && !isStoreAnswer(feed)) return 'Updated live.';
   if (feed.served === 'archive' || feed.fallback || /backup-pack/i.test(kind)) return 'Latest stored records';
   if (feed.meta?.curated || /curated/i.test(kind)) return from ? `Curated records from ${from}` : 'Curated records';
   if (src.adapter === 'embedded' || /pack|dossier/i.test(kind)) {
@@ -226,7 +226,9 @@ export function plainSourceLine(feed) {
   if (!n) return from ? `Source: ${from}` : '';
   const news = src.adapter === 'news-search' || Boolean(src.gdelt) || NEWS_LINK.test(links[0] || '');
   const unit = news ? (n === 1 ? 'story' : 'stories') : n === 1 ? 'record' : 'records';
-  return `Live · ${n.toLocaleString('en-IN')} ${unit}${from ? ` from ${from}` : ''}`;
+  // F169 C4: items kept by the scheduled refresh say when they were fetched, not "Live".
+  const lead = isStoreAnswer(feed) ? asOfLabel(feed, now) : 'Live';
+  return `${lead} · ${n.toLocaleString('en-IN')} ${unit}${from ? ` from ${from}` : ''}`;
 }
 
 /** The text to keep as a `title` for debugging, when what is shown differs from it. */
@@ -294,16 +296,37 @@ const STORED_ADAPTERS = new Set(['embedded', 'register', 'source-library']);
 const DATE_KEYS = ['date', 'published', 'published_at', 'pubDate', 'date_introduced', 'occurred_at', 'updated', 'updated_at',
   'as_of', 'asOf', 'snapshot_at', 'last_updated', 'decision_date', 'order_date', 'release_date', 'filed', 'year_date'];
 
+/**
+ * F169 C4: an answer read from the scheduled feed store (server/feedServe.mjs): `served: 'store'` with
+ * the time the items were fetched. It is the normal path, neither live nor a stored or old copy.
+ */
+export function isStoreAnswer(feed) {
+  return feed?.served === 'store' && Number.isFinite(Date.parse(String(feed.fetchedAt || '')));
+}
+
 /** Records read from storage rather than fetched live for this request. */
 export function isStoredAnswer(feed) {
+  if (isStoreAnswer(feed)) return false;
+
   return Boolean(feed?.served === 'archive' || feed?.fallback || STORED_ADAPTERS.has(String(feed?.source?.adapter || '')));
+}
+
+// "Updated 5 min ago", "Updated 3 h ago" (from an hour), "Updated 2 d ago" (from a day).
+function updatedAgo(fetchedAt, now) {
+  const minutes = Math.floor((now - Date.parse(fetchedAt)) / 60_000);
+  if (minutes < 1) return 'Updated just now';
+  if (minutes < 60) return `Updated ${minutes} min ago`;
+  if (minutes < 1440) return `Updated ${Math.floor(minutes / 60)} h ago`;
+  return `Updated ${Math.floor(minutes / 1440)} d ago`;
 }
 
 /**
  * "as of 15 Jul 2026" from the newest record date (dates more than a day ahead, such as scheduled
  * releases, are not "as of" dates), else the answer's own as-of date, else "date not recorded".
+ * An answer from the feed store says instead how long ago its items were fetched: "Updated 5 min ago".
  */
 export function asOfLabel(feed, now = Date.now()) {
+  if (isStoreAnswer(feed)) return updatedAgo(feed.fetchedAt, now);
   const limit = now + 86_400_000;
   let best = 0;
   for (const row of feed?.rows || []) {

@@ -73,6 +73,8 @@ import * as financeLive from './financeApi.mjs';
 import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
+import { FEED_SCHEDULE } from './feedSchedule.mjs';
+import { serveFromStore } from './feedServe.mjs';
 import * as entertainmentLive from './entertainmentApi.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -3772,6 +3774,42 @@ export async function serveFeatureFeedWithBackup(searchParams, options) {
   return applyBackupFallback(await serveFeatureFeedWithinLimit(searchParams, options), searchParams);
 }
 
+/**
+ * The schedule id (`tier:feature`, server/feedSchedule.mjs) of the module a request names, resolved
+ * as the loader resolves it (tier aliases, spelling, the feature map's own tier), or '' when the
+ * module is not scheduled.
+ */
+export function scheduledModuleId(searchParams) {
+  const tier = searchParams.get('tier') || '';
+  const feature = searchParams.get('feature') || '';
+  if (!feature.trim() || resolveTier(tier) === 'home') return '';
+  const { feat } = matchFeature(tier, feature);
+  if (!feat) return '';
+  const id = `${feat.htmlTier}:${feat.htmlFeature}`;
+  return Object.hasOwn(FEED_SCHEDULE, id) ? id : '';
+}
+
+/**
+ * F169 phase 4 (C4): what /api/feature-feed answers. A scheduled module is read from the feed store
+ * first (server/feedServe.mjs): that is the normal path, so it skips the live attempt and the backup
+ * pass. When the store has nothing to serve (not configured, an error or timeout, no state, `serve`
+ * off, no items) the answer is today's: serveFeatureFeedWithBackup. The landing summaries do not use
+ * this; they still call serveFeatureFeedWithBackup or serveFeatureFeedWithinLimit directly.
+ * Paged modules (Bills, Parliamentary Questions) are not scheduled and keep serveFeaturePage.
+ */
+export async function serveFeatureFeedStoredFirst(searchParams, { store = serveFromStore, ...options } = {}) {
+  const id = scheduledModuleId(searchParams);
+  if (id) {
+    try {
+      const stored = await store(id, searchParams);
+      if (stored) return stored;
+    } catch {
+      // The live path answers.
+    }
+  }
+  return serveFeatureFeedWithBackup(searchParams, options);
+}
+
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
@@ -3836,7 +3874,7 @@ export async function handleFeatureFeedRequest(req, res, next) {
     // F156: a page of a large module when `page` is asked for; otherwise the whole answer, as before.
     const { status, body } = wantsPage(url.searchParams)
       ? await serveFeaturePage(url.searchParams, serveFeatureFeedWithBackup)
-      : { status: 200, body: await serveFeatureFeedWithBackup(url.searchParams) };
+      : { status: 200, body: await serveFeatureFeedStoredFirst(url.searchParams) };
     const json = JSON.stringify(body);
     res.statusCode = status;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

@@ -11,6 +11,8 @@ vi.mock('../../server/featureFeed.mjs', () => ({
   serveFeatureFeedWithinLimit: vi.fn((params) => feed.within(params)),
   // F156: the time-limited feed with the backup-pack fallback; the packs are out of this test.
   serveFeatureFeedWithBackup: vi.fn((params) => feed.within(params)),
+  // F169 C4: the scheduled-store-first route; the store is out of this test.
+  serveFeatureFeedStoredFirst: vi.fn((params) => feed.within(params)),
 }));
 
 import handler, { API_CACHE, cachePolicyFor } from '../../api/router.js';
@@ -133,6 +135,16 @@ describe('API cache headers on responses (F154)', () => {
     const res = vercelResponse();
     await handler(request('GET', 'feature-feed?tier=national&feature=Cabinet%20Decisions'), res);
     expect(res.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdnArchive);
+  });
+
+  it('a feed-store answer is kept for one minute (F169 C4), and a live one still five', async () => {
+    expect(API_CACHE.cdnStore).toBe('public, s-maxage=60, stale-while-revalidate=300');
+    feed.within = vi.fn(async () => ({ ok: true, rows: [{ title: 'A' }], source: { adapter: 'api' }, served: 'store', fallback: false, fetchedAt: '2026-10-15T10:00:00.000Z' }));
+    const res = vercelResponse();
+    await handler(request('GET', 'feature-feed?tier=finance&feature=AI%20%26%20the%20Tech%20Industry'), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe(API_CACHE.browser);
+    expect(res.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdnStore);
   });
 
   it('a landing summary answer may be kept by the CDN', async () => {

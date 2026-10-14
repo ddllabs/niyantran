@@ -3,7 +3,7 @@
  * vercel.json rewrites /api/* → /api/router?__route=<path> so URLs stay the same.
  */
 import { getCachedDeskBrief, runDeskBrief } from '../server/deskBrief.mjs';
-import { serveFeatureFeedWithBackup, serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
+import { serveFeatureFeedStoredFirst, serveFeatureFeedWithBackup, serveFeatureFeedWithinLimit } from '../server/featureFeed.mjs';
 import { serveFeaturePage, wantsPage } from '../server/featurePage.mjs';
 import { serveNationalLanding } from '../server/nationalLandingSummary.mjs';
 import { serveLawLanding } from '../server/lawLandingSummary.mjs';
@@ -72,6 +72,11 @@ export const API_CACHE = {
   cdn: 'public, s-maxage=300, stale-while-revalidate=86400',
   // An archive answer given because the live source passed its time limit: re-checked sooner.
   cdnArchive: 'public, s-maxage=60, stale-while-revalidate=86400',
+  // F169 C4: an answer read from the feed store (`served: 'store'`). The store changes at most every
+  // 15 minutes and a cached answer's age is shown from its own fetched time, so one minute at the edge
+  // loses nothing; a short stale window also means switching a module's `serve` off (the rollback) is
+  // seen within minutes, not a day.
+  cdnStore: 'public, s-maxage=60, stale-while-revalidate=300',
 };
 
 /** 'edge', 'own' or 'no-store' for one request. */
@@ -103,7 +108,10 @@ function cacheAtEdgeOnSuccess(res) {
       return;
     }
     res.setHeader('Cache-Control', API_CACHE.browser);
-    res.setHeader('Vercel-CDN-Cache-Control', body?.served === 'archive' ? API_CACHE.cdnArchive : API_CACHE.cdn);
+    res.setHeader(
+      'Vercel-CDN-Cache-Control',
+      body?.served === 'archive' ? API_CACHE.cdnArchive : body?.served === 'store' ? API_CACHE.cdnStore : API_CACHE.cdn,
+    );
   };
   const json = res.json.bind(res);
   const end = res.end.bind(res);
@@ -205,7 +213,7 @@ export default async function handler(req, res) {
       const params = q(req);
       const { status, body } = wantsPage(params)
         ? await serveFeaturePage(params, serveFeatureFeedWithBackup)
-        : { status: 200, body: await serveFeatureFeedWithBackup(params) };
+        : { status: 200, body: await serveFeatureFeedStoredFirst(params) };
       if (method === 'HEAD') {
         res.status(status).end();
         return;
