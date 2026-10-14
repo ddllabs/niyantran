@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F171 is next) and goes in the
+- A new finding gets the next free `F` number (F174 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -85,6 +85,21 @@ rechecked. Nothing in this check wrote to production.
   2. the owner's next UI changes, to be described;
   3. plan AI credits (F111);
   4. the Razorpay integration and live keys (O6).
+
+## Waiting for the owner's check on production (built and live)
+
+Recorded 2026-10-14. Agents do not sign in to production, so these close on the owner's check:
+
+- **Desk and header:** F119 sector cards, F120 one header, F133 desk tabs, F134 search drag into
+  AI, F135 side panel closing.
+- **Record panels:** F121 Global, F124 National, F128 Law, F129 WTO register.
+- **Web search:** F130 web search in AI Research, F131 one stream and site icons.
+- **Homepage and marketing:** F140 homepage hero, F141 one globe, F142 live figures, F143 landing
+  counters, F144 preview figures (plus the client's 15 answers), F145 globe handover and speed.
+- **Error wording:** F159 plain module errors.
+- **Chat and viewer:** F46 chat brief, F47 phone avatar (re-measure in F171 B17), F48 PDF viewer,
+  F49 whole page, F50 Safari text view, F51 sources list.
+- **Other:** F76 dictation, R4 citation check, R8 "Budget at a Glance" upload.
 
 ## UI follow-ups
 
@@ -692,6 +707,21 @@ rechecked. Nothing in this check wrote to production.
   text layer; chat uploads check the text layer for the whole file only, so a scanned PDF with one
   typed page passes with empty scanned pages. Open: news full text kept per chat or shared
   (copyright; recommendation per chat), and the OCR cap amount.
+- [ ] **F171. The bug programme.** Owner 2026-10-14: "Regarding the bugs, I'll follow your order.
+  Ideally, we need to fix all of it." [Spec](../specs/2026-10-14-bug-programme.md) and
+  [plan](2026-10-14-bug-programme.md): B1 to B22 in order (source links, chat uploads, chat
+  connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
+  reasoning usage, log redaction, desk-filter spellings, document titles, then measurements and
+  small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
+- [ ] **F172. Files uploaded into AI chat never reach the AI.** Found 2026-10-14 (F171 research,
+  read): `requestAttachments` (`src/ai/AiPanel.jsx:171-186`) keeps only attachments with a top-level
+  `text`; an uploaded file's text sits under `files[]`, so every uploaded file is dropped without a
+  word while its chip shows it as attached. The server's file extraction (`extractBuffer`) lost its
+  only caller in `def5f71`. F171 B2.
+- [ ] **F173. Four unbuilt modules are not marked planned.** Found 2026-10-14 (read): Sports
+  Governance & Policy, Election Forecast Aggregator, State Fiscal Deep-Dive and Municipal &
+  Panchayat Tender Aggregator show news rows or an empty state instead of "Module planned", unlike
+  the other 15 unbuilt modules. F171 B9.
 - [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
   research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
   `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);
@@ -907,7 +937,7 @@ rechecked. Nothing in this check wrote to production.
 
 
 
-- [ ] **F80. Existing mobile marketing trivia overflow.** Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
+- [ ] **F80. Existing mobile marketing trivia overflow.** *2026-10-14 (F171 B16): fixed in code by `3717f95` at 768 px and below; 320 px and desktop not yet measured.* Browser at 320/768px has scrollWidth 335/783px. Main's unchanged stylesheet reproduces the 335px trivia block in a minimal browser fixture. Outside the homepage Earth scope; inspect .mkt-trivia-inner sizing before changing it. [Evidence](2026-10-04-earth-replacement.md).
 
 - [ ] **F67. Reasoning usage accuracy.** `sendTerminal` in research-chat
   coerces unavailable `row.usage.reasoning_tokens` to zero. Preserve unknown
@@ -922,7 +952,7 @@ rechecked. Nothing in this check wrote to production.
 
 
 
-- [ ] **F61. Broader tab keyboard audit.** Review the remaining Live TV and
+- [ ] **F61. Broader tab keyboard audit.** *2026-10-14 (F171 B15): the Nuclear tab component no longer exists (`d25eb24`); Live TV remains.* Review the remaining Live TV and
   Nuclear analytics tab patterns for consistent roles and keyboard behavior.
   Outside the concrete F60 repair scope; coordinate with the next UI brief.
 - [ ] **F62. File admission policy.** File attachment materialization still reads
@@ -1890,7 +1920,7 @@ Follow-ups and findings:
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
-- [ ] **F44.** The shared CORS allowlist's Vercel preview pattern (`_shared/cors.ts:21-36`;
+- [x] **F44.** *Closed 2026-10-14: already an accepted risk (section 7, "The preview wildcard in `ALLOWED_ORIGINS`"); the functions take a bearer token, not cookies. Reopen with that risk.* The shared CORS allowlist's Vercel preview pattern (`_shared/cors.ts:21-36`;
   production `ALLOWED_ORIGINS` includes it) matches any `niyantran-*-ddl-labs.vercel.app` host.
   A third party could probably claim such a name.
   - **Risk:** small, because functions authenticate with bearer tokens, not cookies.
@@ -1971,8 +2001,8 @@ Earlier items, updated:
 ## 5. Launch
 
 - [ ] **D1. Supabase dashboard: what remains.** The Auth redirect URLs are
-  done (see Done), and leaked-password protection was dropped by the owner
-  (see accepted risks). Left:
+  done (see Done), and leaked-password protection is on (F152, owner,
+  2026-10-14). Left:
   - confirm the Storage global upload limit is at least 50 MB. The
     `marketing` bucket allows 50 MB and Supabase's default global limit is
     50 MB, but no tool here can read the global setting. The O8 intro-video
@@ -2031,10 +2061,6 @@ Each can be reopened by the condition named.
   is disabled, and removing it would mean rewriting `main`.
 - **1,288 documents with unknown `integrity`.** It can't be recovered from
   the inputs.
-- **No leaked-password protection** (Supabase's HaveIBeenPwned check).
-  Dropped by the owner on 2026-09-29. Most accounts sign in with Google;
-  email accounts keep Supabase's password rules. Reopen before a public
-  launch if email sign-ups grow.
 - **Previews share the live Supabase project.** There is no Supabase
   branching. Test writes use test accounts only, and migrations stay
   additive and fixture-tested.

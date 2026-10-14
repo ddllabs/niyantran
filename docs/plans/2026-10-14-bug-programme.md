@@ -37,7 +37,6 @@ and recorded in `coordination.md`.
 | T4 | B3 dropped connection | `src/lib/researchChat.js`, `src/ai/useResearchThread.js`, `src/ai/AiPanel.jsx`, tests | Tests: no "Failed to fetch" on screen; no Stop when nothing runs; partial answer kept | — |
 | T5 | B5 legal pages | `src/marketing/PrivacyPage.jsx`, `TermsPage.jsx`, `src/admin/AdminApp.jsx`, `AdminSitePages.jsx`, `privacyStore.js`, `termsStore.js` (removed), tests | A stored edit in `localStorage` does not change the page | — |
 | T6 | B6 SheetJS | `package.json`, `package-lock.json`, `server/sourceExtract.mjs` (size cap), tests | `npm audit --omit=dev` clean; `budgetStat1` and backup-pack tests pass | — |
-| T7 | B7 preview rule | `supabase/functions/_shared/cors.ts`, its test | Deno test: the wildcard is ignored unless allowed; owner step listed | — |
 | T8 | B8 Live TV | `server/liveTvApi.mjs`, `src/shell/LiveTvModal.jsx`, `src/lib/liveTv.test.js`, `src/lib/apiVerification.test.js` | No "Verified Record", no Unsplash thumbnails, empty schedule says so | — |
 | T9 | B9 planned modules | the four desk presentation files, `server/featureFeed.mjs` (planned answer), `deskCatalogue.test.js` | All 19 have `configured: false`; the server fetches nothing for them | — |
 | T10 | B10 desk count | `src/marketing/HomePage.jsx`, test | The proof card's count equals the desk list | — |
@@ -49,15 +48,12 @@ and recorded in `coordination.md`.
 
 ## Owner list (things only the owner can do)
 
-1. **Preview address rule (B7):** in Supabase, Edge Functions, Secrets, remove the
-   `https://niyantran-*-ddl-labs.vercel.app` entry from `ALLOWED_ORIGINS`. Previews then need their
-   own Supabase project or exact hostnames.
-2. **Vercel upgrade** before F169 phase 4 goes live (Hobby does not allow commercial use, and the
+1. **Vercel upgrade** before F169 phase 4 goes live (Hobby does not allow commercial use, and the
    timer needs about 2.8 hours of function time a day).
-3. **Signed-in checks on production** (agents do not sign in): the 27 items in `open-work.md`
+2. **Signed-in checks on production** (agents do not sign in): the 27 items in `open-work.md`
    marked "waiting for the owner's check".
-4. **NSE price feed:** ask NSE Data & Analytics for a quote, or keep the stored prices with their date.
-5. **MoSPI IPM:** nothing to do unless a replacement source is wanted; the link returns when its
+3. **NSE price feed:** ask NSE Data & Analytics for a quote, or keep the stored prices with their date.
+4. **MoSPI IPM:** nothing to do unless a replacement source is wanted; the link returns when its
    certificate is renewed.
 
 ## Log
