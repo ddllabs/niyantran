@@ -205,3 +205,27 @@ about one more time, adding 1.6 s at p50 and 7 s at p90. Cost is the same.
 16th to 40th. Returning widened searches to 40, the default every other search uses, is the
 simpler choice, and the evidence supports it. The owner decides; the change needs a
 `research-chat` deploy.
+
+## Provider routing, second run on today's code (2026-10-15)
+
+Owner, 2026-10-15: "Run the chat speed measurements test." Same method as amendment 1 (above), on
+`main` at `a52cff4` (`research-chat` v59 code), Gemini 3.8 Flash at Low (still the default model on
+NTER), the local corpus replica, 10 narrow questions and 15 briefs, variant order rotated. Raw results:
+`eval/agent/results/2026-10-14T19-05-33-335Z.json`, about $2.50, no errors.
+
+| | Narrow v45 | thru | lat | Brief v45 | thru | lat |
+| --- | --- | --- | --- | --- | --- | --- |
+| Searches | 1.20 | 1.10 | 1.20 | 4.93 | 2.87 | 3.07 |
+| Documents cited | 1.40 | 1.10 | 1.30 | 2.27 | 1.93 | 2.00 |
+| Pages cited | 5.90 | 3.80 | 4.50 | 8.60 | 7.40 | 7.40 |
+| Expected document | 10/10 | 10/10 | 10/10 | 15/15 | 14/15 | 14/15 |
+| Valid citations | 10/10 | 10/10 | 10/10 | 15/15 | 15/15 | 15/15 |
+| First word p50 | 4.9 s | 4.3 s | 4.4 s | 24.4 s | 9.9 s | 9.8 s |
+| Total p50 | 10.6 s | 8.4 s | 10.4 s | 37.5 s | 19.4 s | 20.5 s |
+| Cost per answer | $0.015 | $0.015 | $0.016 | $0.058 | $0.039 | $0.038 |
+
+**The October result repeats.** Sorted routing halves the time of a brief (first word 24 s → 10 s,
+whole answer 37 s → 20 s) and costs a third less, but briefs search less (about 3 searches against
+5), cite fewer pages (7.4 against 8.6) and missed the expected document once in 15. On narrow
+questions the time gain is small and pages drop (3.8 and 4.5 against 5.9). By the amendment's
+rule nothing ships; the decision is the owner's (speed against depth).
