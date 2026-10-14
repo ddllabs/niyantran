@@ -172,15 +172,17 @@
   color: #8a8190;
 }
 
-/* The globe, with separate radial colour clouds dissolving into white around it. */
+/* The globe, with separate radial colour clouds dissolving into white around it.
+   F177 (owner 2026-10-14): 5% larger than its column and cap; justify-self keeps it centred on the
+   column even where it is wider than the column (auto margins would push it right). */
 .nd-globe-column {
   position: relative;
   isolation: isolate;
   align-self: center;
-  width: 100%;
+  justify-self: center;
+  width: 105%;
   min-width: 0;
-  max-width: min(756px, calc(100svh - 144px));
-  margin-inline: auto;
+  max-width: calc(min(756px, 100svh - 144px) * 1.05);
 }
 .nd-globe-column::before {
   content: '';
@@ -327,7 +329,7 @@
   .nd-metrics { margin-top: 18px; padding-top: 14px; max-width: 100%; min-width: 0; }
   .nd-metrics strong { font-size: 25px; }
   .nd-metrics div > span { font-size: 9px; }
-  .nd-globe-column { max-width: 100%; }
+  .nd-globe-column { max-width: none; }
   .nd-globe-column::before { inset: 0 -12%; }
   .nd-globe-column nter-data-globe { margin-block: 0; }
   .nd-curated-bar { display: block; padding-block: 18px; }

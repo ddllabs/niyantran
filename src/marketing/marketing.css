@@ -2713,10 +2713,15 @@ html.mkt-doc:has(.mkt-auth) #root {
 @media (min-width: 1025px) {
   .mkt-pr-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) min(400px, 34vw);
+    /* F177 (owner 2026-10-14): the globe 10% larger than the old 400px / 34vw column. */
+    grid-template-columns: minmax(0, 1fr) calc(min(400px, 34vw) * 1.1);
     align-items: center;
     gap: 40px;
     padding-bottom: 32px;
+    /* F177 (owner 2026-10-14): the globe and its labels sit inside the page, clear of its right edge.
+       Border-box keeps the padding inside the page width. */
+    box-sizing: border-box;
+    padding-inline-end: clamp(32px, 5vw, 96px);
   }
 }
 .mkt-pr-earth {
@@ -4899,16 +4904,19 @@ html.mkt-doc:has(.mkt-auth) #root {
    bottom-right corner, above the labels. */
 .data-globe-pause{position:absolute;right:4%;bottom:4%;z-index:40;display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--mkt-border);border-radius:50%;background:rgba(255,255,255,.88);color:var(--mkt-black);cursor:pointer}
 .data-globe-pause:focus-visible{outline:2px solid var(--mkt-blue);outline-offset:3px}
-.mkt-globe-slot>.nter-globe-scene{flex:none;width:93.75%;max-width:calc(100vw - 24px)}
+/* F177 (owner 2026-10-14): sign-in shows the globe 10% smaller and sign-up 5% smaller, in every layout below. */
+.mkt-login-earth-visual{--globe-scale:.9}
+.mkt-signup-illustration{--globe-scale:.95}
+.mkt-globe-slot>.nter-globe-scene{flex:none;width:calc(93.75% * var(--globe-scale, 1));max-width:calc(100vw - 24px)}
 /* A narrow box beside other content (sign-in and sign-up between the stacked and the wide layouts)
    keeps the whole square inside it, so labels never cross the form or the heading. */
-@container (max-width:439px){.mkt-globe-slot>.nter-globe-scene{width:100%}}
+@container (max-width:439px){.mkt-globe-slot>.nter-globe-scene{width:calc(100% * var(--globe-scale, 1))}}
 /* Stacked layouts have room around the box: there the Earth keeps the old globe's size (it filled the
    box), within the screen. */
 /* Sign-up's box is a grid by its own rule; a content-sized grid track would collapse the square to 0. */
 .mkt-signup-illustration.mkt-globe-slot{display:flex}
-@media(max-width:999px){.mkt-login-earth-visual.mkt-globe-slot>.nter-globe-scene{width:min(156.25%,calc(100vw - 24px))}}
-@media(max-width:850px){.mkt-signup-illustration.mkt-globe-slot>.nter-globe-scene{width:min(156.25%,calc(100vw - 24px))}}
+@media(max-width:999px){.mkt-login-earth-visual.mkt-globe-slot>.nter-globe-scene{width:calc(min(156.25%, 100vw - 24px) * var(--globe-scale, 1))}}
+@media(max-width:850px){.mkt-signup-illustration.mkt-globe-slot>.nter-globe-scene{width:calc(min(156.25%, 100vw - 24px) * var(--globe-scale, 1))}}
 /* Pricing showed an unlabelled 400px Earth at the hero's right edge; the square fits that box, so the
    orbits stay on screen. */
 .mkt-pr-earth.mkt-globe-slot>.nter-globe-scene{width:100%}

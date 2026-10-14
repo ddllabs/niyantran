@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F177 is next) and goes in the
+- A new finding gets the next free `F` number (F178 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -530,6 +530,15 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [x] **F177. Globe position and sizes.** Done 2026-10-14 (owner: "push merge"). Owner request:
+  Pricing's globe sat at the extreme right (24 px from the screen, a label 18 px); the homepage
+  globe 5% larger; sign-in and sign-up smaller ("the globe" is the whole box). As built
+  (spec `docs/specs/2026-10-14-globe-sizes.md`): Pricing's hero keeps `clamp(32px, 5vw, 96px)`
+  clear on the right and its globe is 10% larger (400 → 440 px, 96 px from the edge at 1440 px);
+  home `width: 105%` and cap × 1.05, centred; every scene width × `--globe-scale`, `.9` on sign-in
+  and `.95` on sign-up. Browser-measured at 1920, 1440, 1200, 900 and 390 px. Accepted trade-off: on
+  height-limited screens such as 1440×900 the homepage pushes the "Curated for" strip about
+  15–26 px below the fold. Not checked in Safari or Firefox.
 - [x] **F154. Terminal page speed (phase 1).** Done 2026-10-14 (`719a7eb`, pushed `1e5d065`). Owner request 2026-10-14: opening a terminal link
   takes 5–7 s; the owner asked for caching. A read-only audit on production found the page files
   fast (0.12–0.19 s) and the API slow: every `/api/*` answer was `no-store`, the function ran in
