@@ -11,9 +11,13 @@ const TTL = 24 * 60 * 60 * 1000;
 const STOOQ_TTL = 15 * 60 * 1000;
 const MANIFOLD_TTL = 15 * 60 * 1000;
 
+// F169 T7: Indian companies of five named types (enterprise, public company, business,
+// company, multinational) with a chief executive. The earlier `wdt:P31/wdt:P279*` subclass walk
+// timed out at Wikidata (HTTP 504 after 67 s); this answers in about 3.3 s uncached (2026-10-14).
 const WD_Q =
   'SELECT ?person ?personLabel ?company ?companyLabel WHERE { ' +
-  '?company wdt:P31/wdt:P279* wd:Q4830453; wdt:P17 wd:Q668; wdt:P169 ?person. ' +
+  '?company wdt:P17 wd:Q668; wdt:P169 ?person; wdt:P31 ?type. ' +
+  'VALUES ?type { wd:Q4830453 wd:Q891723 wd:Q6881511 wd:Q783794 wd:Q161726 } ' +
   'SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 500';
 const WIKIDATA = `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(WD_Q)}`;
 
@@ -242,8 +246,9 @@ export async function loadManifoldPolitical() {
   if (manCache && Date.now() - manAt < MANIFOLD_TTL) return manCache;
   const seen = new Set();
   const merged = [];
-  for (const url of MANIFOLD_SEARCH) {
-    const json = await getJson(url);
+  // F169 T7: the searches run together (one after another took 4.3-5 s, over the 4 s limit).
+  const answers = await Promise.all(MANIFOLD_SEARCH.map((url) => getJson(url)));
+  for (const json of answers) {
     const arr = Array.isArray(json) ? json : [];
     for (const m of arr) {
       if (!m?.id || seen.has(m.id)) continue;
