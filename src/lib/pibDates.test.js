@@ -20,4 +20,14 @@ describe('English PIB releases are dated from their pages', () => {
     const row = out.rows.find((r) => /Example Scheme/.test(r.title));
     expect(row?.date).toBe('2026-10-14');
   });
+
+  it('a release keeps the same id on every refresh: its PRID, not its place in the list', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const body = /RssMain/i.test(String(url)) ? rss : page;
+      return { ok: true, status: 200, url: String(url), headers: new Headers({ 'content-type': /RssMain/i.test(String(url)) ? 'application/rss+xml' : 'text/html' }), text: async () => body, arrayBuffer: async () => new TextEncoder().encode(body).buffer };
+    }));
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'national', feature: 'Cabinet Decisions' }));
+    expect(out.rows.find((r) => /Example Scheme/.test(r.title))?.id).toBe('pib-501');
+  });
 });

@@ -81,6 +81,17 @@ describe('item keys (F170 rule 1)', () => {
     expect(stored).toBe(live);
   });
 
+  it('a PIB release is one item whichever page or language parameters link it', () => {
+    const forms = [
+      'https://pib.gov.in/PressReleaseIframePage.aspx?PRID=2301145',
+      'https://www.pib.gov.in/PressReleasePage.aspx?PRID=2301145&lang=1&reg=3',
+      'https://pib.gov.in/PressReleasePage.aspx?PRID=2301145&Lang=1',
+    ];
+    expect(new Set(forms.map((u) => itemKeyFor({ source_url: u }))).size).toBe(1);
+    expect(itemKeyFor({ source_url: forms[0] })).toBe('url:pib.gov.in/PressRelease?PRID=2301145');
+    expect(itemKeyFor({ source_url: 'https://pib.gov.in/PressReleasePage.aspx?PRID=2301146' })).not.toBe(itemKeyFor({ source_url: forms[0] }));
+  });
+
   it('otherwise a hash of the title and date, the same on every run', () => {
     const k = itemKeyFor({ title: 'Rupee steadies', date: '2026-10-14' });
     expect(k).toMatch(/^h:[0-9a-f]{16}$/);
