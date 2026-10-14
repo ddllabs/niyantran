@@ -222,6 +222,17 @@ function result(entry) {
   return { conversationId: s.conversationId, messageId: s.messageId, error: s.error, errorCode: s.errorCode, held: s.held === true,
     status: s.status, isPending: s.isPending, retryable: s.retryable, aborted: Boolean(entry.endReason), endReason: entry.endReason || '' };
 }
+/**
+ * F66 (F171 B3): what a reader sees when the connection drops mid-answer. The browser's own words
+ * ("Failed to fetch", "Load failed", "NetworkError…") are replaced; a message the app wrote is kept.
+ */
+export function connectionMessage(error) {
+  const text = String(error?.message || '');
+  if (error?.name === 'TypeError' || /failed to fetch|load failed|networkerror|network error/i.test(text)) {
+    return 'The connection dropped. The answer may still be finishing; it will appear here once it is saved.';
+  }
+  return text || 'The connection failed.';
+}
 // Transport bookkeeping is separate from protected frame publication. If an
 // identity check stalls, abort cannot authorize publishing its pending payload.
 // The last verified owner may still recover the frozen request by manual replay.
@@ -640,7 +651,7 @@ async function run(entry, opts) {
   } catch (error) {
     await coalescer.flush();
     const message = entry.endReason === 'timeout' ? 'The answer stopped arriving. Its server outcome is unknown; reload or replay this turn.'
-      : entry.endReason === 'detached' ? 'The connection was closed. Its server outcome is unknown; reload the conversation.' : error?.message || 'The connection failed.';
+      : entry.endReason === 'detached' ? 'The connection was closed. Its server outcome is unknown; reload the conversation.' : connectionMessage(error);
     await publish(entry, { isStreaming: false, status: entry.dispatched ? 'unknown' : 'error', isPending: entry.dispatched,
       error: entry.state.error || message, errorCode: entry.state.errorCode || (entry.dispatched ? 'connection_lost' : 'identity_changed'),
       retryable: entry.dispatched }, attempt);

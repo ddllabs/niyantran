@@ -1040,7 +1040,8 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           )) : null}
 
           {/* The turn in flight: the ticker, the pages searched (F131), then the answer as it is written. */}
-          {showFlight && !stream?.error && !research.error ? (
+          {/* F66: after a dropped connection the partly written answer stays while its saved result is read. */}
+          {showFlight && ((!stream?.error && !research.error) || stream?.errorCode === 'connection_lost') ? (
             <div className="ai-msg ai-msg-assistant">
               {/* One indicator from Send (thinking-display spec §1): the ticker opens at once on
                   "Starting…" and runs until the turn ends; the NyAI card it replaced covered only

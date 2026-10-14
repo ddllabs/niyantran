@@ -608,3 +608,13 @@ describe('model plans and credit estimates in the picker',()=>{
   expect(plain).toContain(message);expect(plain).not.toContain('ai-plan-notice');expect(plain).not.toContain('>Upgrade</button>');
  });
 });
+
+// F66 (F171 B3): after a dropped connection the partly written answer stayed hidden, leaving an
+// empty space; it now stays on screen while the saved result is checked.
+it('keeps the partly written answer on screen after a dropped connection', () => {
+ fake.research = { ...fake.research, ready: true, loading: false, locked: true, live: true, error: 'The connection dropped.',
+  stream: { isPending: true, isStreaming: false, status: 'unknown', errorCode: 'connection_lost', error: 'The connection dropped.', streamingText: 'PARTIAL_ANSWER_TEXT' } };
+ const html = renderToStaticMarkup(<AiPanel lang="en" />);
+ expect(html).toContain('PARTIAL_ANSWER_TEXT');
+ expect(html).not.toContain('Failed to fetch');
+});

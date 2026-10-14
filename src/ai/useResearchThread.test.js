@@ -604,3 +604,28 @@ describe('credit estimates for the picker (F151)',()=>{
   f.signOut();expect(f.controller.getSnapshot().estimates).toEqual({});
  });
 });
+
+// F66 (F171 B3): after a dropped connection the turn's outcome is unknown. Stop stayed on screen
+// though nothing was running, and the saved answer was checked once only.
+it('a dropped connection with nothing running offers no Stop button',async()=>{
+ const f=fixture();await f.controller.start();
+ f.setStreams({new:{isStreaming:false,isPending:true,status:'unknown',errorCode:'connection_lost',error:'The connection dropped.',sources:[]}});
+ expect(f.controller.getSnapshot().canStop).toBe(false);
+ expect(f.controller.getSnapshot().locked).toBe(true);
+});
+it('after a dropped connection the saved answer is checked again until it is there',async()=>{
+ vi.useFakeTimers();
+ try{
+  const f=fixture();await f.controller.start();
+  f.deps.sendTurn.mockImplementation(async(body,opts)=>{await opts.onConversation({id:'server-c'});return{conversationId:'server-c',isPending:true,status:'unknown',errorCode:'connection_lost',error:'The connection dropped.',messageId:'m'}});
+  f.deps.reconcileSavedTurn.mockResolvedValueOnce(false).mockResolvedValueOnce(false).mockResolvedValue(true);
+  await f.controller.send({message:'Q',turn_key:'k'});
+  const first=f.deps.reconcileSavedTurn.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(5000);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(f.deps.reconcileSavedTurn.mock.calls.length).toBeGreaterThan(first);
+  const calls=f.deps.reconcileSavedTurn.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(f.deps.reconcileSavedTurn.mock.calls.length).toBe(calls); // stops once the answer is there
+ }finally{vi.useRealTimers();}
+});

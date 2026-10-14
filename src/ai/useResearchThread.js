@@ -106,7 +106,10 @@ export function createResearchThread(overrides = {}) {
     view = { ...data, chat, stream, messages, live, storedRunning,
       // The verified account these values belong to, so the credits shown are never another account's.
       ownerId: owner?.id || '',
-      canStop: data.ready && Boolean(data.submitting || stream?.isPending || stream?.isStreaming || storedRunning),
+      // F66: after a dropped connection (outcome unknown) nothing here is running, so there is
+      // nothing to stop; the turn stays pending (no duplicate send) until its saved result is read.
+      canStop: data.ready && Boolean(data.submitting || stream?.isStreaming || storedRunning
+        || (stream?.isPending && stream?.errorCode !== 'connection_lost')),
       locked: !data.ready || data.loading || data.submitting || data.attaching || Boolean(stream?.isPending || stream?.isStreaming || storedRunning),
       sources: stream?.sources?.length ? stream.sources : savedSources,
       webSources: stream?.webSources?.length ? stream.webSources : savedWebSources,
@@ -229,6 +232,18 @@ export function createResearchThread(overrides = {}) {
   async function refreshWallet() {
     try { await deps.refreshCredits(); } catch { /* the chip keeps its last balance */ }
   }
+  function recheckSaved(conversationId, t, tries = 24) {
+    if (tries <= 0) return;
+    setTimeout(async () => {
+      if (!valid(t)) return;
+      try {
+        const done = await settleSaved(conversationId, t);
+        if (!done) recheckSaved(conversationId, t, tries - 1);
+      } catch {
+        recheckSaved(conversationId, t, tries - 1);
+      }
+    }, 5000);
+  }
   async function finishTurn(result, context, t) {
     if (!valid(t)) return;
     if (result.error) emit({ error: result.error });
@@ -256,8 +271,11 @@ export function createResearchThread(overrides = {}) {
         const store = await deps.reconcileTurn(result.conversationId, context);
         if (!await current(t)) return;
         emit({ store });
-        await settleSaved(result.conversationId, t);
+        const settled = await settleSaved(result.conversationId, t);
         if (!await current(t)) return;
+        // F66: after a dropped connection the answer may still be finishing on the server; its
+        // saved result is read again every 5 s, for up to 2 minutes, until it is there.
+        if (!settled && result.errorCode === 'connection_lost') recheckSaved(result.conversationId, t);
         if (!result.isPending && result.messageId && store.chats.some(c => c.id === result.conversationId
           && c.messages.some(m => m.id === result.messageId && m.status !== 'running'))) {
           deps.clearStream(result.conversationId); emit();
