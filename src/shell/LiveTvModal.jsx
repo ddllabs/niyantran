@@ -22,7 +22,8 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   // Tabs: 'schedule' | 'videos' | 'archive' | 'transcript'
-  const [activeTab, setActiveTab] = useState('schedule');
+  // F7: videos first; the schedule, archive and transcripts are empty until a real source exists.
+  const [activeTab, setActiveTab] = useState('videos');
   const [schedule, setSchedule] = useState([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleError, setScheduleError] = useState(null);
@@ -301,14 +302,14 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
             )}
             {playbackMode === 'video' && activeVideo && (
               <span className="ltv-archive-pill">
-                {activeVideo.duration} &bull; {activeVideo.publishedAt?.split('T')[0]}
+                {[activeVideo.duration, activeVideo.publishedAt?.split('T')[0]].filter(Boolean).join(' • ')}
               </span>
             )}
             {playbackMode === 'live' && (
               <span className="ltv-viewer-metric">
                 {activeChannel?.viewers != null
                   ? `● ${activeChannel.viewers.toLocaleString()} viewers`
-                  : '● Telemetry source: unmetered broadcast'}
+                  : ''}
               </span>
             )}
           </div>
@@ -362,7 +363,7 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                   {ch.short || ch.name.slice(0, 3)}
                 </span>
                 <span className="ltv-chip-name">{ch.name}</span>
-                <span className={`ltv-chip-status ltv-chip-status-${ch.status || 'live'}`}>
+                <span className={`ltv-chip-status ltv-chip-status-${ch.status || 'recent'}`}>
                   {ch.status === 'live' ? 'LIVE' : ch.status === 'soon' ? 'SOON' : 'RECENT'}
                 </span>
               </button>
@@ -629,13 +630,17 @@ export default function LiveTvModal({ open, onClose, onNavigateDesk }) {
                               <span>{vid.duration || 'VIDEO'}</span>
                             </div>
                           )}
-                          <span className="ltv-video-card-badge">{vid.duration || 'HD'}</span>
+                          {vid.duration ? <span className="ltv-video-card-badge">{vid.duration}</span> : null}
                         </div>
                         <div className="ltv-video-card-content">
                           <h4>{vid.title}</h4>
                           <div className="ltv-video-card-meta">
-                            <span>{vid.publishedAt?.split('T')[0]}</span>
-                            <span>&bull;</span>
+                            {vid.publishedAt ? (
+                              <>
+                                <span>{vid.publishedAt.split('T')[0]}</span>
+                                <span>&bull;</span>
+                              </>
+                            ) : null}
                             <span>{vid.channelTitle || activeChannel?.name}</span>
                           </div>
                           {vid.description && (

@@ -1,6 +1,6 @@
 /**
  * Live TV API client.
- * Authoritative backend requests for channels, videos, live streams, schedule, archive, and transcript.
+ * Backend requests for channels, videos, live streams, schedule, archive, and transcript.
  */
 
 export async function fetchLiveTvChannels(category) {
