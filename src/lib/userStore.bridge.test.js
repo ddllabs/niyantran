@@ -71,6 +71,157 @@ describe('admin user adapter', () => {
   });
 });
 
+// F147: the directory is read a page at a time; the store remembers which.
+describe('admin directory paging', () => {
+  const rows = (n, from = 0) => Array.from({ length: n }, (_, i) => ({ id: `u-${from + i}`, email: `u${from + i}@example.test` }));
+  const answer = (users, page, total, pageSize = 100) => ({ ok: true, json: async () => ({ ok: true, users, page, pageSize, total }) });
+  const urls = () => fetch.mock.calls.map(([url]) => url);
+
+  it('starts on page 1 with no search, and says so before anything is loaded', () => {
+    expect(store.usersPaging()).toEqual({ page: 1, pageSize: 100, total: 0, query: '' });
+  });
+
+  it('asks for the page and the trimmed search it is given, and keeps what the server says about them', async () => {
+    fetch.mockResolvedValueOnce(answer(rows(100, 100), 2, 250));
+    const users = await store.hydrateUsersFromServer({ page: 2, q: '  ali  ' });
+    expect(fetch.mock.calls[0][0]).toBe('/api/users?page=2&q=ali');
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer token-a');
+    expect(users).toHaveLength(100);
+    expect(store.loadUsers()).toHaveLength(100);
+    expect(store.usersPaging()).toEqual({ page: 2, pageSize: 100, total: 250, query: 'ali' });
+  });
+
+  it('encodes the search, so no character of it can become another parameter', async () => {
+    fetch.mockResolvedValueOnce(answer([], 1, 0));
+    await store.hydrateUsersFromServer({ page: 1, q: 'a&page=9#,)%*' });
+    expect(fetch.mock.calls[0][0]).toBe('/api/users?page=1&q=a%26page%3D9%23%2C%29%25*');
+    const url = new URL(fetch.mock.calls[0][0], 'http://localhost');
+    expect(url.searchParams.get('page')).toBe('1');
+    expect(url.searchParams.get('q')).toBe('a&page=9#,)%*');
+  });
+
+  it('sends no q for a blank search', async () => {
+    await store.hydrateUsersFromServer({ page: 1, q: '   ' });
+    expect(fetch.mock.calls[0][0]).toBe('/api/users?page=1');
+  });
+
+  it('keeps to the limits the server enforces: a whole page number from 1, a search of at most 100 characters', async () => {
+    await store.hydrateUsersFromServer({ page: 0, q: 'x'.repeat(150) });
+    expect(urls()[0]).toBe(`/api/users?page=1&q=${'x'.repeat(100)}`);
+    await store.hydrateUsersFromServer({ page: 2.7 });
+    await store.hydrateUsersFromServer({ page: 'abc' });
+    // A page that is not a whole number from 1 is page 1; a missing search is no search.
+    expect(urls().slice(1)).toEqual(['/api/users?page=1', '/api/users?page=1']);
+  });
+
+  it('reads the same page again after an edit, and after a plain refresh', async () => {
+    fetch.mockResolvedValueOnce(answer([{ id: 'remote', email: 'remote@example.test' }, ...rows(99)], 2, 250));
+    await store.hydrateUsersFromServer({ page: 2, q: 'ali' });
+    fetch.mockClear();
+    fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, user: { id: 'remote' } }) });
+    fetch.mockResolvedValueOnce(answer([{ id: 'remote', email: 'remote@example.test', active: false }], 2, 250));
+    expect(await store.setUserActive('remote', false)).toEqual({ ok: true });
+    expect(urls()).toEqual(['/api/users/remote', '/api/users?page=2&q=ali']);
+    fetch.mockClear();
+    await store.hydrateUsersFromServer();
+    expect(urls()).toEqual(['/api/users?page=2&q=ali']);
+  });
+
+  it('does not move to a page whose read failed', async () => {
+    fetch.mockResolvedValueOnce(answer(rows(100), 2, 250));
+    await store.hydrateUsersFromServer({ page: 2 });
+    fetch.mockRejectedValueOnce(new TypeError('offline'));
+    expect(await store.loadUsersPage({ page: 3 })).toEqual({ ok: false });
+    expect(store.usersPaging().page).toBe(2);
+    fetch.mockClear();
+    await store.hydrateUsersFromServer();
+    expect(urls()).toEqual(['/api/users?page=2']);
+  });
+
+  it('says whether a page was loaded', async () => {
+    expect(await store.loadUsersPage({ page: 1 })).toEqual({ ok: true });
+    fetch.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ ok: false }) });
+    expect(await store.loadUsersPage({ page: 1 })).toEqual({ ok: false });
+  });
+
+  it('treats a refused request as a failed page, not as a lost sign-in', async () => {
+    await store.hydrateUsersFromServer();
+    const signedOut = vi.fn();
+    store.subscribeLocalIdentity(signedOut);
+    fetch.mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ ok: false, error: 'The page must be a whole number from 1' }) });
+    expect(await store.loadUsersPage({ page: 2 })).toEqual({ ok: false });
+    expect(signedOut).not.toHaveBeenCalled();
+    expect(store.loadUsers().map((u) => u.id)).toEqual(['remote']);
+    // A rejected sign-in still ends the session.
+    fetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ ok: false }) });
+    expect(await store.loadUsersPage({ page: 2 })).toEqual({ ok: false });
+    expect(signedOut).toHaveBeenCalledWith(null, null);
+  });
+
+  it('shows only the newest of two overlapping reads', async () => {
+    const slow = deferred();
+    fetch.mockReturnValueOnce(slow.promise);
+    fetch.mockResolvedValueOnce(answer([{ id: 'second', email: 'second@example.test' }], 1, 1));
+    const first = store.hydrateUsersFromServer({ page: 1, q: 'a' });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    await store.hydrateUsersFromServer({ page: 1, q: 'ab' });
+    slow.resolve(answer([{ id: 'first', email: 'first@example.test' }], 1, 1));
+    expect(await first).toEqual([]);
+    expect(store.loadUsers().map((u) => u.id)).toEqual(['second']);
+    expect(store.usersPaging().query).toBe('ab');
+  });
+
+  it('steps back to the last page once when the page asked for is past the end', async () => {
+    fetch.mockResolvedValueOnce(answer([], 9, 250));
+    fetch.mockResolvedValueOnce(answer(rows(50, 200), 3, 250));
+    const users = await store.hydrateUsersFromServer({ page: 9 });
+    expect(urls()).toEqual(['/api/users?page=9', '/api/users?page=3']);
+    expect(users).toHaveLength(50);
+    expect(store.usersPaging()).toEqual({ page: 3, pageSize: 100, total: 250, query: '' });
+  });
+
+  it('does not step back when there are no users at all, or the last page is itself empty', async () => {
+    fetch.mockResolvedValueOnce(answer([], 4, 0));
+    expect(await store.hydrateUsersFromServer({ page: 4 })).toEqual([]);
+    expect(fetch).toHaveBeenCalledOnce();
+    fetch.mockClear();
+    fetch.mockResolvedValueOnce(answer([], 9, 250));
+    fetch.mockResolvedValueOnce(answer([], 3, 250));
+    await store.hydrateUsersFromServer({ page: 9 });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts an answer that carries no paging, as the total of what it lists', async () => {
+    fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, users: rows(3) }) });
+    await store.hydrateUsersFromServer({ page: 1 });
+    expect(store.usersPaging()).toEqual({ page: 1, pageSize: 100, total: 3, query: '' });
+  });
+
+  it('goes back to page 1 with no search for another account, but not when the same account is announced again', async () => {
+    fetch.mockResolvedValueOnce(answer(rows(100), 2, 250));
+    await store.hydrateUsersFromServer({ page: 2, q: 'ali' });
+    auth.listener('SIGNED_IN', auth.session);
+    expect(store.usersPaging()).toMatchObject({ page: 2, query: 'ali' });
+    switchAccount('b');
+    expect(store.usersPaging()).toEqual({ page: 1, pageSize: 100, total: 0, query: '' });
+  });
+
+  it('forgets the page and the search on sign-out', async () => {
+    fetch.mockResolvedValueOnce(answer(rows(100), 2, 250));
+    await store.hydrateUsersFromServer({ page: 2, q: 'ali' });
+    auth.session = null;
+    auth.listener('SIGNED_OUT', null);
+    expect(store.usersPaging()).toEqual({ page: 1, pageSize: 100, total: 0, query: '' });
+    expect(store.loadUsers()).toEqual([]);
+  });
+
+  it('makes no request without a verified admin, whatever the page', async () => {
+    auth.session = null;
+    expect(await store.loadUsersPage({ page: 2, q: 'x' })).toEqual({ ok: false });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe('profile authority bridge', () => {
   it('does not elevate plan from signup extras', () => {
     expect(store.userFromSupabase(USER, { user_id: 'uid-1', plan: 'free', status: 'active' }, { plan: 'max' }).plan).toBe('free');
@@ -161,7 +312,7 @@ it('sends explicit admin mutations with a verified bearer and updates from the s
   expect(fetch.mock.calls[0][1].method).toBe('PATCH');
   expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer token-a');
   expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ active: false });
-  expect(fetch.mock.calls[1][0]).toBe('/api/users');
+  expect(fetch.mock.calls[1][0]).toBe('/api/users?page=1');
   expect(fetch.mock.calls[1][1].method ?? 'GET').toBe('GET');
   expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer token-a');
 });

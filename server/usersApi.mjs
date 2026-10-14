@@ -1,7 +1,10 @@
 /**
  * Admin user directory, backed by Supabase `public.user_profiles`.
  *
- *   GET   /api/users           internal admin: every profile, oldest first
+ *   GET   /api/users?page=N&q=text
+ *                              internal admin: one page of 100 profiles, oldest
+ *                              first, optionally those whose email or name
+ *                              contains the text; { ok, users, page, pageSize, total }
  *   PATCH /api/users/:userId   internal admin: { active?: boolean, type?: persona }
  *                              or { plan: free|plus|pro|max, planEnd?: date|null }
  *   POST  /api/users/:userId/credits
@@ -34,6 +37,11 @@ const CREDIT_DECIMALS = 1e4;
 // A typo guard, not a business rule: the largest plan grants 75,000 a month.
 const MAX_CREDIT_AMOUNT = 1_000_000;
 const MAX_REASON_LENGTH = 500;
+// F147: the directory is read one page at a time, never whole.
+export const USERS_PAGE_SIZE = 100;
+const PAGE_NUMBER = /^[1-9]\d{0,5}$/;
+const MAX_SEARCH_LENGTH = 100;
+const SEARCH_COLUMNS = ['email', 'first_name', 'last_name'];
 
 function json(res, body, status = 200) {
   res.statusCode = status;
@@ -131,39 +139,26 @@ function creditAmount(value) {
 }
 
 /**
- * Every wallet, keyed by user. A user with no wallet row yet has nothing
- * (balance 0). If any read fails the list still answers, with the balance
- * unknown (null), never a made-up 0.
+ * The wallets of the listed users, keyed by user. A user with no wallet row
+ * yet has nothing (balance 0). If the read fails the list still answers, with
+ * the balance unknown (null), never a made-up 0.
  *
- * The whole table is read (an admin-only call, after the admin check) rather
- * than filtered with `.in('user_id', ids)`: a filter of every listed user is a
- * URL that grows with the directory and is refused past a few hundred users,
- * which would blank every balance. The table has at most one small row per
- * user, so it is read in ordered pages; the server caps rows per request, so a
- * page's length is never taken as a sign of the end, only an empty page is.
- * The caller then looks up the users it lists, so a wallet of anyone not
- * listed never leaves.
+ * Only the ids of the page being listed are asked for (at most
+ * USERS_PAGE_SIZE, a URL of a few kilobytes), so the wallet of anyone not
+ * listed is never read, and no more rows come back than the server's per
+ * request cap allows.
  */
-const WALLET_PAGE = 1000;
-const MAX_WALLET_PAGES = 1000;
-
-async function walletsFor(client) {
+async function walletsFor(client, ids) {
   const unknown = { balance: null, debt: null };
+  if (!ids.length) return () => unknown;
   try {
+    const { data, error } = await client
+      .from('credit_wallets')
+      .select('user_id, balance, debt')
+      .in('user_id', ids);
+    if (error || !Array.isArray(data)) return () => unknown;
     const byUser = new Map();
-    let from = 0;
-    for (let page = 0; ; page += 1) {
-      if (page >= MAX_WALLET_PAGES) return () => unknown;
-      const { data, error } = await client
-        .from('credit_wallets')
-        .select('user_id, balance, debt')
-        .order('user_id', { ascending: true })
-        .range(from, from + WALLET_PAGE - 1);
-      if (error || !Array.isArray(data)) return () => unknown;
-      if (!data.length) break;
-      for (const w of data) byUser.set(w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0 });
-      from += data.length;
-    }
+    for (const w of data) byUser.set(w.user_id, { balance: creditAmount(w.balance) ?? 0, debt: creditAmount(w.debt) ?? 0 });
     return (id) => byUser.get(id) || { balance: 0, debt: 0 };
   } catch {
     return () => unknown;
@@ -220,16 +215,78 @@ function planGrant(body) {
   return { plan: body.plan, periodEnd: body.plan === 'free' ? null : periodEnd };
 }
 
-async function listUsers(res, deps) {
+// A query-string value: from the URL, else from req.query. api/router.js rewrites
+// req.url to the bare path, so on the hosted API the parsed query is all that is left.
+function queryParam(url, req, name) {
+  if (url.searchParams.has(name)) return url.searchParams.get(name);
+  const raw = req.query?.[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' ? value : null;
+}
+
+/** { page, search } for a valid request, or { error }. Page 1 and no search when they are not sent. */
+function directoryRequest(url, req) {
+  const rawPage = queryParam(url, req, 'page');
+  if (rawPage !== null && !PAGE_NUMBER.test(rawPage)) return { error: 'The page must be a whole number from 1' };
+  const search = (queryParam(url, req, 'q') ?? '').trim();
+  if (search.length > MAX_SEARCH_LENGTH) return { error: `The search can be at most ${MAX_SEARCH_LENGTH} characters` };
+  return { page: rawPage === null ? 1 : Number(rawPage), search };
+}
+
+/**
+ * The PostgREST `or` filter for a search, or null when there is nothing to
+ * look for. The text is data, never syntax:
+ *   - `*` is PostgREST's wildcard and cannot be matched literally, so it is
+ *     left out; the text is matched as "contains" anyway;
+ *   - `%`, `_` and `\` are LIKE's own wildcards and escape, so each is
+ *     escaped with a backslash and matches itself;
+ *   - the value is double-quoted, with `"` and `\` backslash-escaped, so a
+ *     comma, parenthesis, dot or colon cannot end it or start another clause.
+ */
+export function directoryFilter(search) {
+  const text = String(search ?? '').replaceAll('*', '').trim();
+  if (!text) return null;
+  const pattern = `*${text.replace(/[\\%_]/g, '\\$&')}*`;
+  const quoted = `"${pattern.replace(/[\\"]/g, '\\$&')}"`;
+  return SEARCH_COLUMNS.map((column) => `${column}.ilike.${quoted}`).join(',');
+}
+
+const outOfRange = (result) => result?.error?.code === 'PGRST103' || result?.status === 416;
+
+async function listUsers(res, deps, { page, search }) {
   try {
     const client = adminClientFrom(deps);
-    const { data, error } = await client
-      .from('user_profiles')
-      .select(PROFILE_COLUMNS)
-      .order('created_at', { ascending: true });
-    if (error || !Array.isArray(data)) throw new Error('Directory read failed');
-    const walletOf = await walletsFor(client);
-    return json(res, { ok: true, users: data.map((row) => directoryUser(row, walletOf(row.user_id))) });
+    const filter = directoryFilter(search);
+    const from = (page - 1) * USERS_PAGE_SIZE;
+    let query = client.from('user_profiles').select(PROFILE_COLUMNS, { count: 'exact' });
+    if (filter) query = query.or(filter);
+    // created_at alone can tie; the id keeps every user on exactly one page.
+    const read = await query
+      .order('created_at', { ascending: true })
+      .order('user_id', { ascending: true })
+      .range(from, from + USERS_PAGE_SIZE - 1);
+    let rows = read.data;
+    let total = read.count;
+    if (outOfRange(read)) {
+      // A page past the end is not an error: an empty page with the real total.
+      let counted = client.from('user_profiles').select('user_id', { count: 'exact', head: true });
+      if (filter) counted = counted.or(filter);
+      const head = await counted;
+      if (head.error) throw new Error('Directory read failed');
+      rows = [];
+      total = head.count;
+    } else if (read.error || !Array.isArray(rows)) {
+      throw new Error('Directory read failed');
+    }
+    if (!Number.isInteger(total) || total < 0) throw new Error('Directory count failed');
+    const walletOf = await walletsFor(client, rows.map((row) => row.user_id));
+    return json(res, {
+      ok: true,
+      users: rows.map((row) => directoryUser(row, walletOf(row.user_id))),
+      page,
+      pageSize: USERS_PAGE_SIZE,
+      total,
+    });
   } catch {
     return json(res, { ok: false, error: 'The user directory is unavailable' }, 503);
   }
@@ -394,7 +451,9 @@ export async function handleUsersApi(req, res, next, deps = {}) {
     if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
     const caller = await authorizeLocalUser(req, res, { admin: true, clientForToken: deps.clientForToken });
     if (!caller) return;
-    return listUsers(res, deps);
+    const listing = directoryRequest(url, req);
+    if (listing.error) return json(res, { ok: false, error: listing.error }, 400);
+    return listUsers(res, deps, listing);
   }
   if (url.pathname.startsWith('/api/users/') && segments.length === 1 && segments[0]) {
     if (req.method !== 'PATCH') return methodNotAllowed(res, 'PATCH');

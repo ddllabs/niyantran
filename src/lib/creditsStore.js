@@ -15,6 +15,9 @@ let inflight = null;
 let queued = null;
 // Bumped by clearCredits(), so a read begun before a sign-out cannot publish after it.
 let epoch = 0;
+// What a typical answer costs per model (F151): read once, kept until sign-out. Never a failure.
+let estimates = null;
+let estimatesInflight = null;
 
 function publish(next) {
   current = next;
@@ -112,6 +115,9 @@ export function refreshCredits() {
 /** Forget the cached balance (sign-out), and discard any read still in flight. */
 export function clearCredits() {
   epoch += 1;
+  estimates = null;
+  estimatesInflight = null;
+  wantedConversation = '';
   publish(null);
 }
 
@@ -136,6 +142,70 @@ export async function conversationCredits(conversationId) {
     /* an unread charge simply shows nothing */
   }
   return out;
+}
+
+/**
+ * Credits a typical answer costs, by model id (model_credit_estimates()): whole credits, never dollars.
+ *
+ * Asked once per session and kept; concurrent callers share the one read. A failure, a signed-out
+ * caller or a sign-out mid-read gives `{}` and keeps nothing, so the next call asks again, and a model
+ * without an estimate is simply absent. The server's `basis` (measured or list-based) is not kept:
+ * both are shown as an estimate.
+ */
+export function loadCreditEstimates() {
+  if (estimates) return Promise.resolve(estimates);
+  if (estimatesInflight) return estimatesInflight;
+  const started = epoch;
+  const read = (async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session?.user?.id) return {};
+      const result = await supabase.rpc('model_credit_estimates');
+      if (result.error || !Array.isArray(result.data)) return {};
+      const found = {};
+      for (const row of result.data) {
+        const credits = num(row?.credits);
+        if (typeof row?.model_id === 'string' && row.model_id && credits !== null && credits > 0) found[row.model_id] = credits;
+      }
+      if (started !== epoch) return {};
+      estimates = found;
+      return found;
+    } catch {
+      return {};
+    } finally {
+      if (estimatesInflight === read) estimatesInflight = null;
+    }
+  })();
+  estimatesInflight = read;
+  return read;
+}
+
+/** "≈ 170 credits" for one model's estimate; empty when there is no usable number. */
+export function creditEstimateText(value) {
+  const n = num(value);
+  return n === null || n <= 0 ? '' : `≈ ${creditsText(n)}`;
+}
+
+/**
+ * Plan & billing asks the AI panel to open one of the caller's saved conversations (F149), the way the
+ * chat asks the shell for Plan & billing (OPEN_BILLING_EVENT in ai/CreditBalance.jsx). The shell shows
+ * the AI panel; the research thread selects the chat. The id is also kept until a panel takes it, because
+ * the panel may not have been mounted yet when the request was made.
+ */
+export const OPEN_CONVERSATION_EVENT = 'niy-open-conversation';
+let wantedConversation = '';
+
+export function openConversation(conversationId) {
+  if (typeof window === 'undefined' || typeof conversationId !== 'string' || !conversationId) return;
+  wantedConversation = conversationId;
+  window.dispatchEvent(new CustomEvent(OPEN_CONVERSATION_EVENT, { detail: { conversationId } }));
+}
+
+/** The conversation asked for and not yet opened, or ''. Reading it clears it. */
+export function takeWantedConversation() {
+  const id = wantedConversation;
+  wantedConversation = '';
+  return id;
 }
 
 const GROUPED = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });

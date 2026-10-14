@@ -114,7 +114,7 @@ the payment.
   | `topup_valid` | 12 months |
   | `hold_credits` | 300 (the dearest answer measured was 301) |
   | `hold_minutes` | 5 |
-  | `launch_at` | when credits go live in shadow mode; balances are real from then |
+  | `launch_at` | when credits went live (2026-10-14); balances are real from then |
 
   **Why five minutes:** a turn ends by 120 s (`research-chat`'s execution
   deadline). The hold must outlive the deadline plus the log flush plus the
@@ -173,15 +173,14 @@ the payment.
    4. Repays debt from new lots.
    5. Checks *available = balance − active holds*.
       - At zero or below, it returns `{ok:false, reason:'credits_exhausted',
-        balance}`. With enforcement on, the function answers 402 and no
-        message is created. When the balance is positive but held by answers
+        balance}`. The function answers 402 and no message is created
+        (enforced for everyone from 2026-10-14; owner: remove the shadow
+        concept). When the balance is positive but held by answers
         still running, the 402 adds `held: true` and says so, instead of
         "no credits left".
       - When no new turn starts after reserve (the claim fails or returns
         anything but a running or finished turn), the hold is released at
         once, so it does not block the user for its five minutes.
-      - In shadow mode it still records the hold and returns its id with
-        `ok:false`, so the turn is charged and measured like any other.
       - Otherwise it records a hold of `min(available, hold_credits)` and
         returns `{ok:true, hold:{credits, expires_at}, available, balance}`
         (the hold is identified by the turn; §12).
@@ -311,6 +310,25 @@ the payment.
 | transcribe-audio (dictation) | no | gains a `model_call_logs` row so its cost is visible |
 | admin ingestion, OCR | no | platform cost |
 
+#### 6.1 Which plans may use a model (F150, owner 2026-10-14)
+
+- **Per model.** `ai_models.min_plan` (`app_plan`, default `plus`) is the
+  lowest plan that may use a model; plans rank free < plus < pro < max.
+- **Seeded free:** Gemini Flash-class, DeepSeek, Luna and Haiku. Everything
+  else, and any model added later, needs a paid plan until an admin changes
+  it. The owner decides plan-by-plan access per model later.
+- **research-chat** reads the caller's plan from `user_profiles` with the
+  service client, only when the chosen model or a failover the chain could
+  reach is above Free, and applies
+  `entitlement_from`'s rule (a lapsed paid plan, or an account that is not
+  active, counts as Free). Below `min_plan` it answers 403
+  `{error: 'This model is available on paid plans.', code:
+  'model_requires_plan'}` before reserve, so nothing is held or created. A
+  plan read that fails answers 503 `plan_unavailable`.
+- The failover chain (requested, default, cheapest other) is built only from
+  the models the plan allows, so a paid model never answers for a Free user;
+  with no allowed fallback the turn fails as it would with none available.
+
 ### 7. Reading credits, and privacy
 
 - **`my_credits()`**, called as the signed-in user via `auth.uid()`, returns:
@@ -378,8 +396,8 @@ the payment.
   - It lists recent answers with their credits: date, conversation title and
     credits. This follows TenderBase's per-turn cost view, without dollars or
     model rows.
-- **Model picker.** It keeps its cost diamonds; per-model credit estimates
-  can come later.
+- **Model picker.** It keeps its cost diamonds. Per-model estimates come
+  from `model_credit_estimates()` (F151, §12); showing them is UI work.
 
 ### 9. Admin
 
@@ -443,14 +461,10 @@ and the refund clause about partly used months.
 ### 11. Rollout
 
 1. **Migration, function and site,** each with the owner's go-ahead.
-2. **Shadow mode first.**
-   - Ledger, holds and charges run for real. A blocked reserve still holds
-     and charges, but the turn runs.
-   - The switch is `CREDITS_ENFORCED` (unset means shadow).
-   - The owner then compares charges with OpenRouter's bill.
-3. **Enforcement.** The owner sets `CREDITS_ENFORCED=1`. Balances are not
-   reset: a user who ran below zero during the shadow week is blocked until
-   their next credits, exactly as they would have been.
+2. **Enforced for everyone from 2026-10-14** (owner: remove the shadow
+   concept). research-chat always calls `reserve_turn_credits(user,
+   turn_key, true)` and no longer reads `CREDITS_ENFORCED`. Balances were not
+   reset. (Superseded: a shadow week behind `CREDITS_ENFORCED` was planned.)
 
 ### 12. Schema and function contracts
 
@@ -500,15 +514,22 @@ settle and sweep read.
 
 | Function | Caller | Contract |
 |---|---|---|
-| `reserve_turn_credits(p_user uuid, p_turn_key text, p_enforced boolean) → jsonb` | service_role | Runs the §3 order. An existing hold for the turn is returned unchanged. Returns `{ok, hold:{credits, expires_at}, available, balance}`, with `reason:'credits_exhausted'` when `available ≤ 0`. Creates no hold when blocked and `p_enforced` is true. Creates one marked `shadow_blocked` when blocked and `p_enforced` is false |
+| `reserve_turn_credits(p_user uuid, p_turn_key text, p_enforced boolean) → jsonb` | service_role | Runs the §3 order. An existing hold for the turn is returned unchanged. Returns `{ok, hold:{credits, expires_at}, available, balance}`, with `reason:'credits_exhausted'` when `available ≤ 0`. Creates no hold when blocked and `p_enforced` is true. Creates one marked `shadow_blocked` when blocked and `p_enforced` is false; research-chat always passes true since 2026-10-14 |
 | `settle_turn_credits(p_user uuid, p_turn_key text) → jsonb` | service_role | Finds the message through `research_turns`. Returns `{state:'pending'}` while it is `running` and inside its deadline. Otherwise it charges the turn's uncharged chargeable rows (§3.1) as one ledger entry, sets `settled_at`, and returns `{state:'charged'\|'free', credits, balance}`. Idempotent. A message deleted with its conversation is charged from its logs |
 | `admin_adjust_credits(p_user, p_credits, p_kind, p_reason, p_admin, p_request_id uuid) → jsonb` | service_role | `p_kind` is adjustment or topup, and `p_reason` must not be empty. A repeated `p_request_id` returns the first result. Positive: mints a lot (a top-up valid `topup_valid`, an adjustment valid 12 months). Negative: an adjustment entry that draws lots and may create debt |
 | `credits_on_plan_grant()` | trigger on `plan_grants` | Applies §4: a payment grant becomes one cycle, and a manual change ends the open monthly lot |
 | `my_credits() → jsonb` | authenticated | For `auth.uid()` only. It sweeps, expires and mints first. Returns `{balance, held, debt, plan, inr_per_credit, cycle:{allowance, ends_at}, used_this_cycle, lots:[{kind, remaining, expires_at}], recent:[{conversation_id, title, credits, created_at}]}`: `recent` is the last 20 charged answers. `used_this_cycle` is the credits charged to the user's answers (charge entries, as a positive number) since the cycle start: the `starts_at` of the current open monthly lot, else on Free the open signup lot's; null when there is neither. `inr_per_credit` (₹0.10) is the published value of a credit, used for the rupee hint, so the UI copies no rate. No USD and no exchange rate |
 | `my_conversation_credits(p_conversation uuid) → jsonb` | authenticated | `[{message_id, credits}]` for the caller's own conversation, read only, so reloaded answers show their credits |
+| `model_credit_estimates() → jsonb` (F151) | authenticated | `[{model_id, credits, basis}]` for every enabled `ai_models` row, in picker order. `measured`: the median credits per answer over 30 days when the model has at least 10 charged answers (charges summed per turn; a turn belongs to its earliest charged `chat_answer` row's `model_requested`). Else `list_price`: `round((prompt_usd × 30,000 + completion_usd × 2,000) × usd_to_inr ÷ inr_per_credit)`. `none` with `credits` null when unpriced. Whole credits, at least 1; no USD, rupees or rate. STABLE, read only; not executable by `PUBLIC`, `anon` or `service_role` |
 
-The `my_` functions are the only ones granted to `authenticated`; nothing is
-granted to `anon`.
+**Columns added by `20261014230000_credit_estimates_and_effort.sql`:**
+`ai_models.min_plan` (§6.1) and `model_call_logs.reasoning_effort` (P3: the
+effort the turn asked for, `off` when none, on every research-chat row; CHECKed
+against `validate.ts` `REASONING_VALUES`, null for older rows and other
+callers).
+
+The `my_` functions and `model_credit_estimates()` are the only ones granted
+to `authenticated`; nothing is granted to `anon`.
 
 ## Acceptance evidence
 
@@ -570,8 +591,7 @@ granted to `anon`.
 
 **Deno tests (research-chat)**
 - Reserve runs before the claim.
-  - Enforced and blocked: 402 `credits_exhausted`, and no message.
-  - Shadow and blocked: the turn runs.
+  - Blocked: 402 `credits_exhausted`, and no message (always enforced).
   - Reserve error: 503.
 - Settle runs after the flush and within 3 seconds. A settle error or
   timeout leaves `credits: null` and does not fail the turn.
@@ -600,7 +620,7 @@ granted to `anon`.
 - Each charge equals logged cost × 950.
 - Total test spend is at most $1.00.
 
-**After deploy (shadow week)**
+**After deploy (shadow week; removed by the owner, 2026-10-14)**
 - Each answer's credits match its logged cost, over at least 50 production
   turns.
 
@@ -620,8 +640,8 @@ granted to `anon`.
 - Organisations and seats (P2).
 - NYAI gating (the model does not exist yet).
 - Per-feature limits, and charging briefs, dictation or indexing.
-- Per-model credit estimates in the picker, and limiting expensive models on
-  a low balance. These are follow-ups, if needed.
+- Limiting expensive models on a low balance. (Per-model estimates are
+  F151 and plan-gated models F150, §6.1 and §12, added 2026-10-14.)
 - GST.
 
 ## Boundaries
@@ -655,7 +675,8 @@ granted to `anon`.
 5. **Existing users at launch:**
    - Free accounts get 30 days from launch.
    - Paid and manually granted plans get the current cycle's credits.
-6. **Shadow mode:** one week, on real balances.
+6. **Shadow mode:** one week, on real balances. (Superseded 2026-10-14:
+   enforced for everyone; the owner removed the shadow concept.)
 
 ## Design review (2026-10-14)
 
@@ -710,7 +731,8 @@ none changes a §12 contract.
 - **Lot timing.** Lots are minted only once usable, and a rollover that
   would already be expired is skipped.
 - **Shadow holds.** A shadow-blocked hold is full size but does not count
-  against other turns, so shadow behaves as enforcement would.
+  against other turns, so shadow behaves as enforcement would. Unused since
+  2026-10-14: research-chat always passes `p_enforced = true`.
 - **`my_conversation_credits`** lists charged answers only. A missing answer
   means no credits were used.
 - **The usage scrub** disables `research_result_immutable` for its one

@@ -1,11 +1,14 @@
 import {renderToStaticMarkup} from 'react-dom/server';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-const fake=vi.hoisted(()=>({ensure:vi.fn(()=>({chats:[],activeId:''})),research:null,credits:null}));
+const fake=vi.hoisted(()=>({ensure:vi.fn(()=>({chats:[],activeId:''})),research:null,credits:null,entitlement:null,picker:null}));
 function methods(){return {activeAiChat:()=>null,addChatAttachments(){},appendAiMessage(){},createAiChat(){},deleteAiChat(){},ensureAiChat:fake.ensure,setActiveAiChat(){},setChatAttachments(){},setChatRole(){},subscribeAiChats:()=>()=>{}};}
 vi.mock('../lib/aiThreads.js',()=>({...methods(),hydrateConversations(){},reconcileTurn(){}}));
 vi.mock('./useResearchThread.js',()=>({default:()=>fake.research}));
 // F111: only the read of the balance is replaced; the formatting is the real one.
 vi.mock('../lib/creditsStore.js',async orig=>({...await orig(),serverCredits:id=>id==='u1'?fake.credits:null,refreshCredits:async()=>null,subscribeCredits:()=>()=>{}}));
+// F150/F151: the real picker, with its props kept so the panel's wiring can be read.
+vi.mock('./ModelPicker.jsx',async orig=>{const real=await orig();return{...real,default:props=>{fake.picker=props;return real.default(props)}}});
+vi.mock('../lib/entitlementStore.js',async orig=>({...await orig(),serverEntitlement:()=>fake.entitlement,subscribeEntitlement:()=>()=>{}}));
 import AiPanel from './AiPanel.jsx';
 it('places attachments by the composer and uses one submit position while running',()=>{
  const chat={id:'c',attachments:[{id:'a',kind:'file',title:'Evidence.txt'}]};
@@ -574,3 +577,34 @@ describe('credits on each answer in the thread',()=>{
  });
 });
 
+
+// F150: the picker is told the account's effective plan; F151: it is given the estimates.
+describe('model plans and credit estimates in the picker',()=>{
+ const ready=()=>({...fake.research,ready:true,loading:false,locked:false,ownerId:'u1'});
+ beforeEach(()=>{fake.entitlement=null;fake.picker=null});
+ it('passes free for an unread, free, lapsed or ended plan, and the plan for a paid one',()=>{
+  const plan=ent=>{fake.entitlement=ent;fake.research=ready();renderToStaticMarkup(<AiPanel lang="en"/>);return fake.picker.plan};
+  expect(plan(null)).toBe('free');
+  expect(plan({plan:'free',status:'free',lapsed:false})).toBe('free');
+  expect(plan({plan:'pro',status:'active',lapsed:true,periodEnd:null})).toBe('free');
+  expect(plan({plan:'pro',status:'active',lapsed:false,periodEnd:'2020-01-01T00:00:00Z'})).toBe('free');
+  expect(plan({plan:'pro',status:'active',lapsed:false,periodEnd:null})).toBe('pro');
+  expect(plan({plan:'max',status:'active',lapsed:false,periodEnd:new Date(Date.now()+864e5).toISOString()})).toBe('max');
+ });
+ it('gives the picker the estimates the thread loaded, and none before they load',()=>{
+  fake.research=ready();renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(fake.picker.estimates??{}).toEqual({});
+  fake.research={...ready(),estimates:{'m/a':4}};renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(fake.picker.estimates).toEqual({'m/a':4});
+ });
+ it('shows a model_requires_plan refusal plainly, once, with an Upgrade action',()=>{
+  const message='This model is available on paid plans.';
+  fake.research={...ready(),planBlock:'model_requires_plan',error:message};
+  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(html.match(/This model is available on paid plans\./g)).toHaveLength(1);
+  expect(html).toContain('ai-plan-notice');expect(html).toContain('>Upgrade</button>');
+  fake.research={...ready(),planBlock:'',error:message};
+  const plain=renderToStaticMarkup(<AiPanel lang="en"/>);
+  expect(plain).toContain(message);expect(plain).not.toContain('ai-plan-notice');expect(plain).not.toContain('>Upgrade</button>');
+ });
+});

@@ -25,7 +25,7 @@ import {
   planOf,
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
-import { clearCredits } from '../lib/creditsStore.js';
+import { OPEN_CONVERSATION_EVENT, clearCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
@@ -296,6 +296,14 @@ export default function TerminalShell({ onLogout }) {
   const hasRail = deskHasRail({ restricted, tab, guideMode, featureName });
   const panel = useSidePanel({ hasRail, selected, featureName, tab, landing: guideMode || tab === 'home' });
   pickRef.current = { selected, panel };
+  // An answer chosen in Plan & billing opens its conversation (F149): this shows the AI panel, wherever it was
+  // (collapsed, on another tab, never opened); the research thread inside it selects the chat.
+  const openAi = panel.act;
+  useEffect(() => {
+    const onOpenConversation = () => openAi({ type: 'ai-open' });
+    window.addEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
+    return () => window.removeEventListener(OPEN_CONVERSATION_EVENT, onOpenConversation);
+  }, [openAi]);
   useEffect(() => {
     if (restricted) { setFeed(null); setSelected(null); setLoading(false); }
   }, [restricted]);

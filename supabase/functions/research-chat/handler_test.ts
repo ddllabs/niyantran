@@ -19,9 +19,9 @@ import type { ClaimedTurn, TurnState, TurnStore } from './persistence.ts';
 import type { ModelCallRow, TurnTraceRow } from './telemetry.ts';
 
 const MODELS: AiModelLike[] = [
-  { model_id: 'google/gemini-3.5-flash-lite', efforts: ['low', 'medium', 'high'], is_default: true, tier: 1 },
-  { model_id: 'anthropic/claude-sonnet-5', efforts: ['low', 'medium', 'high'], is_default: false, tier: 3 },
-  { model_id: 'deepseek/deepseek-v4-flash', efforts: ['low'], is_default: false, tier: 1 },
+  { model_id: 'google/gemini-3.5-flash-lite', efforts: ['low', 'medium', 'high'], is_default: true, tier: 1, min_plan: 'free' },
+  { model_id: 'anthropic/claude-sonnet-5', efforts: ['low', 'medium', 'high'], is_default: false, tier: 3, min_plan: 'plus' },
+  { model_id: 'deepseek/deepseek-v4-flash', efforts: ['low'], is_default: false, tier: 1, min_plan: 'free' },
 ];
 
 function envelope(answer: string, sources: { id: number; source: string }[] = [], followUps: string[] = []): string {
@@ -120,7 +120,8 @@ interface Recorder {
   cleared: number;
   /** The order of the turn store and credit calls, by name. */
   order: string[];
-  reserves: { userId: string; turnKey: string; enforced: boolean }[];
+  reserves: { userId: string; turnKey: string }[];
+  plans: string[];
   settles: { userId: string; turnKey: string }[];
 }
 
@@ -138,6 +139,7 @@ function fakeDeps(
     cleared: 0,
     order: [],
     reserves: [],
+    plans: [],
     settles: [],
   };
   const claims = new Map<string, { claim: ClaimedTurn; hash: string; index: number }>();
@@ -225,10 +227,9 @@ function fakeDeps(
   const deps: HandlerDeps = {
     requireUser: () => Promise.resolve({ userId: 'user-1', token: 'jwt' }),
     credits: {
-      enforced: false,
-      reserve: (userId, turnKey, enforced) => {
+      reserve: (userId, turnKey) => {
         rec.order.push('reserve');
-        rec.reserves.push({ userId, turnKey, enforced });
+        rec.reserves.push({ userId, turnKey });
         return Promise.resolve({ ok: true, balance: 1000 });
       },
       settle: (userId, turnKey) => {
@@ -238,6 +239,11 @@ function fakeDeps(
       },
     },
     models: () => Promise.resolve(MODELS),
+    plan: (userId) => {
+      rec.order.push('plan');
+      rec.plans.push(userId);
+      return Promise.resolve({ plan: 'max', plan_status: 'active', plan_period_end: null, status: 'active' });
+    },
     pricing: () => Promise.resolve({ prompt_usd: 0.000001, completion_usd: 0.000002 }),
     persona: () => Promise.resolve('You are the analyst desk.'),
     catalogue: () => 'Modules on the national desk: …',
@@ -2704,7 +2710,7 @@ Deno.test('credits: reserve follows the replay lookup and precedes the claim, wi
   };
   await frames(await handleResearchChat(post(BODY), deps));
   assertEquals(rec.order.slice(0, 3), ['lookup', 'reserve', 'claim']);
-  assertEquals(rec.reserves, [{ userId: 'user-1', turnKey: 'turn-1', enforced: false }]);
+  assertEquals(rec.reserves, [{ userId: 'user-1', turnKey: 'turn-1' }]);
   assertEquals(rec.messages[0].status, 'complete');
 });
 
@@ -2721,12 +2727,11 @@ Deno.test('credits: a replay is answered before reserve, and an invalid model is
   assertEquals(rec.reserves.length, 1, 'a request refused as invalid holds nothing');
 });
 
-Deno.test('credits: enforced and blocked answers 402 with the balance and CORS headers, and creates no message', async () => {
+Deno.test('credits: a blocked reserve answers 402 with the balance and CORS headers, and creates no message', async () => {
   const provider = scripted([]);
   const { deps, rec } = fakeDeps(provider, { headers: { 'access-control-allow-origin': 'https://app.test' } });
-  deps.credits.enforced = true;
-  deps.credits.reserve = (userId, turnKey, enforced) => {
-    rec.reserves.push({ userId, turnKey, enforced });
+  deps.credits.reserve = (userId, turnKey) => {
+    rec.reserves.push({ userId, turnKey });
     return Promise.resolve({ ok: false, balance: -180.5 });
   };
   const response = await handleResearchChat(post(BODY), deps);
@@ -2737,40 +2742,20 @@ Deno.test('credits: enforced and blocked answers 402 with the balance and CORS h
   assertEquals(body.code, 'credits_exhausted');
   assertEquals(body.balance, -180.5);
   assert(typeof body.error === 'string' && body.error.endsWith('.'), 'a plain sentence');
-  assertEquals(rec.reserves, [{ userId: 'user-1', turnKey: 'turn-1', enforced: true }]);
+  assertEquals(rec.reserves, [{ userId: 'user-1', turnKey: 'turn-1' }]);
   assertEquals(rec.order.includes('claim'), false, 'the claim was never called');
   assertEquals(rec.userMessages.length, 0);
   assertEquals(rec.messages.length, 0);
   assertEquals(provider.seen.length, 0);
 });
 
-Deno.test('credits: shadow and blocked logs the block and runs the turn normally', async () => {
-  const provider = scripted([...DECLINES, [text(envelope('Answer in shadow.')), finish()]]);
-  const { deps, rec } = fakeDeps(provider);
-  deps.credits.reserve = (userId, turnKey, enforced) => {
-    rec.reserves.push({ userId, turnKey, enforced });
-    return Promise.resolve({ ok: false, balance: 0 });
-  };
-  const { result: got, events } = await captureLogs(async () => await frames(await handleResearchChat(post(BODY), deps)));
-  assertEquals(rec.reserves[0].enforced, false);
-  assertEquals(rec.messages[0].status, 'complete');
-  assertEquals(rec.messages[0].content, 'Answer in shadow.');
-  assert(got.some((f) => 'done' in f));
-  const blocked = events.filter((e) => e.event === 'research_chat.credits_shadow_blocked');
-  assertEquals(blocked.length, 1);
-  assertEquals(JSON.stringify(blocked[0]).includes('user-1'), false, 'no user id in the log');
-});
-
 Deno.test('credits: a reserve error or timeout answers 503 and never runs the turn', async () => {
   const provider = scripted([]);
   const { deps, rec } = fakeDeps(provider);
   deps.credits.reserve = () => Promise.reject(new Error('reserve timed out'));
-  for (const enforced of [true, false]) {
-    deps.credits.enforced = enforced;
-    const response = await handleResearchChat(post(BODY), deps);
-    assertEquals(response.status, 503);
-    assertEquals(await response.json(), { error: 'AI credits could not be checked.', code: 'credits_unavailable' });
-  }
+  const response = await handleResearchChat(post(BODY), deps);
+  assertEquals(response.status, 503);
+  assertEquals(await response.json(), { error: 'AI credits could not be checked.', code: 'credits_unavailable' });
   assertEquals(rec.order.includes('claim'), false);
   assertEquals(rec.messages.length, 0);
   assertEquals(provider.seen.length, 0);
@@ -3099,7 +3084,6 @@ Deno.test('credits: a claim that replays an existing turn never releases that tu
 Deno.test('credits: a 402 with credits held by running answers says so; one with nothing left keeps today\'s text', async () => {
   const blockedAt = async (balance: number | null) => {
     const { deps } = fakeDeps(scripted([]));
-    deps.credits.enforced = true;
     deps.credits.reserve = () => Promise.resolve({ ok: false, balance });
     const response = await handleResearchChat(post(BODY), deps);
     assertEquals(response.status, 402);
@@ -3118,4 +3102,189 @@ Deno.test('credits: a 402 with credits held by running answers says so; one with
       balance,
     }, `balance ${balance}`);
   }
+});
+
+// Credits are enforced for everyone (owner, 2026-10-14: remove the shadow concept).
+Deno.test('credits: a blocked reserve never runs the turn and logs no shadow block', async () => {
+  const provider = scripted([...DECLINES, [text(envelope('Never.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  deps.credits.reserve = () => Promise.resolve({ ok: false, balance: 0 });
+  const { result: response, events } = await captureLogs(() => handleResearchChat(post(BODY), deps));
+  assertEquals(response.status, 402);
+  assertEquals(rec.messages.length, 0);
+  assertEquals(provider.seen.length, 0);
+  assertEquals(events.some((e) => String(e.event).includes('shadow')), false);
+  assertEquals('enforced' in deps.credits, false, 'the gate has no enforcement switch');
+});
+
+// F150 (owner, 2026-10-14): access is per model. ai_models.min_plan is the lowest plan that may
+// use a model; the caller's effective plan (a lapsed paid plan is free) must reach it.
+const PLAN_REFUSAL = { error: 'This model is available on paid plans.', code: 'model_requires_plan' };
+const PAST = '2026-01-01T00:00:00Z';
+const FUTURE = '2099-01-01T00:00:00Z';
+const profile = (plan: string, over: Record<string, unknown> = {}) => ({
+  plan,
+  plan_status: plan === 'free' ? 'free' : 'active',
+  plan_period_end: plan === 'free' ? null : FUTURE,
+  status: 'active',
+  ...over,
+});
+async function gated(model: string, row: Record<string, unknown> | null, models: AiModelLike[] = MODELS) {
+  const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider, { models: () => Promise.resolve(models) });
+  deps.plan = (userId) => {
+    rec.order.push('plan');
+    rec.plans.push(userId);
+    return Promise.resolve(row as Awaited<ReturnType<HandlerDeps['plan']>>);
+  };
+  const response = await handleResearchChat(post({ ...BODY, turn_key: `plan-${model}`, model }), deps);
+  return { response, rec, provider };
+}
+
+Deno.test('plans: a Free caller choosing a paid-plan model gets 403 before reserve, and nothing is created', async () => {
+  const { response, rec, provider } = await gated('anthropic/claude-sonnet-5', profile('free'));
+  assertEquals(response.status, 403);
+  assertStringIncludes(response.headers.get('content-type') ?? '', 'application/json');
+  assertEquals(await response.json(), PLAN_REFUSAL);
+  assertEquals(rec.plans, ['user-1'], 'the plan is read for the verified caller');
+  assertEquals(rec.reserves.length, 0, 'no hold');
+  assertEquals(rec.order.includes('claim'), false, 'no claim');
+  assertEquals(rec.userMessages.length + rec.messages.length, 0);
+  assertEquals(provider.seen.length, 0);
+});
+
+Deno.test('plans: a Plus caller may use a paid-plan model', async () => {
+  const { response, rec } = await gated('anthropic/claude-sonnet-5', profile('plus'));
+  assertEquals(response.status, 200);
+  await frames(response);
+  assertEquals(rec.order.slice(0, 4), ['lookup', 'plan', 'reserve', 'claim']);
+  assertEquals(rec.messages[0].status, 'complete');
+});
+
+Deno.test('plans: a Free caller may use a free model; the plan is read only when the chain could reach a paid one', async () => {
+  // Gemini's chain is Gemini, then DeepSeek (cheapest other): all free, so no read.
+  // DeepSeek's chain is DeepSeek, Gemini (default), then Sonnet (cheapest other left): read.
+  for (const [model, reads] of [['google/gemini-3.5-flash-lite', 0], ['deepseek/deepseek-v4-flash', 1]] as const) {
+    const { response, rec } = await gated(model, profile('free'));
+    assertEquals(response.status, 200, model);
+    await frames(response);
+    assertEquals(rec.plans.length, reads, `${model}: plan reads`);
+    assertEquals(rec.reserves.length, 1);
+  }
+});
+
+Deno.test('plans: a lapsed paid plan, a missing profile and a suspended account count as Free', async () => {
+  for (
+    const row of [
+      profile('plus', { plan_period_end: PAST }),
+      profile('max', { plan_period_end: PAST }),
+      null,
+      profile('max', { status: 'suspended' }),
+    ]
+  ) {
+    const { response, rec } = await gated('anthropic/claude-sonnet-5', row);
+    assertEquals(response.status, 403, JSON.stringify(row));
+    assertEquals(await response.json(), PLAN_REFUSAL);
+    assertEquals(rec.reserves.length, 0);
+  }
+  // An open-ended paid plan (no end date) is not lapsed.
+  const open = await gated('anthropic/claude-sonnet-5', profile('plus', { plan_period_end: null }));
+  assertEquals(open.response.status, 200);
+  await frames(open.response);
+});
+
+Deno.test('plans: plans rank free < plus < pro < max, and a model without min_plan needs a paid plan', async () => {
+  const proModel = MODELS.map((m) => (m.model_id === 'anthropic/claude-sonnet-5' ? { ...m, min_plan: 'pro' } : m));
+  for (const [plan, status] of [['plus', 403], ['pro', 200], ['max', 200]] as const) {
+    const { response } = await gated('anthropic/claude-sonnet-5', profile(plan), proModel);
+    assertEquals(response.status, status, plan);
+    await response.body?.cancel();
+  }
+  const unset = MODELS.map((m) => {
+    if (m.model_id !== 'anthropic/claude-sonnet-5') return m;
+    const { min_plan: _drop, ...rest } = m;
+    return rest;
+  });
+  assertEquals((await gated('anthropic/claude-sonnet-5', profile('free'), unset)).response.status, 403);
+  const bogus = MODELS.map((m) => (m.model_id === 'anthropic/claude-sonnet-5' ? { ...m, min_plan: 'gold' } : m));
+  assertEquals((await gated('anthropic/claude-sonnet-5', profile('max'), bogus)).response.status, 403, 'an unknown min_plan admits nobody');
+});
+
+Deno.test('plans: a plan read that fails answers 503 and never reserves', async () => {
+  const provider = scripted([]);
+  const { deps, rec } = fakeDeps(provider);
+  deps.plan = () => Promise.reject(new Error('profile read timed out'));
+  const response = await handleResearchChat(post({ ...BODY, model: 'anthropic/claude-sonnet-5' }), deps);
+  assertEquals(response.status, 503);
+  assertEquals(await response.json(), { error: 'Your plan could not be checked.', code: 'plan_unavailable' });
+  assertEquals(rec.reserves.length, 0);
+  assertEquals(provider.seen.length, 0);
+});
+
+// P3: every model_call_logs row carries the turn's requested reasoning effort ('off' for none).
+Deno.test('telemetry: every logged row carries the turn\'s requested reasoning effort', async () => {
+  for (const [reasoning, expected] of [[undefined, 'low'], ['high', 'high'], ['off', 'off']] as const) {
+    const provider = scripted([...DECLINES, [text(envelope('Answer.')), finish()]]);
+    const { deps, rec } = fakeDeps(provider);
+    const body = reasoning ? { ...BODY, turn_key: `effort-${reasoning}`, reasoning } : BODY;
+    await frames(await handleResearchChat(post(body), deps));
+    assert(rec.calls.length >= 2, 'several rows logged');
+    assertEquals(rec.calls.map((c) => c.reasoning_effort), rec.calls.map(() => expected), String(reasoning));
+  }
+});
+
+// F150 follow-up: the failover chain (requested -> default -> cheapest other) only ever holds
+// models the caller's effective plan allows.
+const FAILOVER_MODELS: AiModelLike[] = [
+  { model_id: 'anthropic/claude-sonnet-5', efforts: ['low'], is_default: true, tier: 3, min_plan: 'plus' },
+  { model_id: 'aaa/paid-cheap', efforts: ['low'], is_default: false, tier: 1, min_plan: 'plus' },
+  { model_id: 'deepseek/deepseek-v4-flash', efforts: ['low'], is_default: false, tier: 1, min_plan: 'free' },
+  { model_id: 'google/gemini-3.5-flash-lite', efforts: ['low'], is_default: false, tier: 2, min_plan: 'free' },
+];
+const PAID_ONLY = ['anthropic/claude-sonnet-5', 'aaa/paid-cheap'];
+async function failingOver(row: Record<string, unknown>, attempts: (ModelEvent[] | Error)[], models = FAILOVER_MODELS) {
+  const provider = scripted(attempts);
+  const { deps, rec } = fakeDeps(provider, { models: () => Promise.resolve(models) });
+  deps.plan = (userId) => {
+    rec.plans.push(userId);
+    return Promise.resolve(row as unknown as Awaited<ReturnType<HandlerDeps['plan']>>);
+  };
+  await frames(await handleResearchChat(post({ ...BODY, turn_key: 'failover-plan', model: 'deepseek/deepseek-v4-flash' }), deps));
+  return { provider, rec };
+}
+
+Deno.test('plans: a Free caller\'s failover skips a paid-only default and cheapest model', async () => {
+  const { provider, rec } = await failingOver(profile('free'), [
+    new ProviderError(503, 'overloaded'),
+    ...DECLINES,
+    [text(envelope('Rescued.')), finish()],
+  ]);
+  assertEquals(rec.plans, ['user-1'], 'the plan is read because the chain could reach a paid model');
+  assertEquals(provider.seen[0].model, 'deepseek/deepseek-v4-flash');
+  assertEquals(provider.seen.slice(1).map((r) => r.model), provider.seen.slice(1).map(() => 'google/gemini-3.5-flash-lite'));
+  assertEquals(rec.messages[0].status, 'complete');
+  assertEquals(rec.messages[0].content, 'Rescued.');
+});
+
+Deno.test('plans: a Free caller with no allowed fallback fails as today, never on a paid model', async () => {
+  const onlyPaidFallbacks = FAILOVER_MODELS.filter((m) => m.model_id !== 'google/gemini-3.5-flash-lite');
+  const { provider, rec } = await failingOver(profile('free'), [
+    new ProviderError(503, 'overloaded'),
+    new ProviderError(503, 'overloaded'),
+    new ProviderError(503, 'overloaded'),
+  ], onlyPaidFallbacks);
+  assertEquals(provider.seen.map((r) => r.model), ['deepseek/deepseek-v4-flash']);
+  assert(provider.seen.every((r) => !PAID_ONLY.includes(r.model)));
+  assertEquals(rec.messages[0].status, 'error');
+});
+
+Deno.test('plans: a Plus caller\'s chain is unchanged: requested, default, cheapest other', async () => {
+  const { provider, rec } = await failingOver(profile('plus'), [
+    new ProviderError(503, 'overloaded'),
+    new ProviderError(503, 'overloaded'),
+    ...DECLINES,
+    [text(envelope('Third time.')), finish()],
+  ]);
+  assertEquals(provider.seen.slice(0, 3).map((r) => r.model), ['deepseek/deepseek-v4-flash', 'anthropic/claude-sonnet-5', 'aaa/paid-cheap']);
+  assertEquals(rec.messages[0].content, 'Third time.');
 });

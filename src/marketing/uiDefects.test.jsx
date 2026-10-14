@@ -15,7 +15,7 @@ vi.mock('react', async (original) => ({
 }));
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: { auth: {} } }));
 vi.mock('../admin/adminSession.js', () => ({ createAdminSession: (_client, notify) => ({ refresh: () => notify({ status: 'verified', user: { id: 'fixture' } }), dispose() {} }) }));
-vi.mock('../lib/userStore.js', () => ({ hydrateUsersFromServer: async () => [], loadUsers: () => [], userTypeOf: () => ({ id: 'student' }), setSessionUser() {} }));
+vi.mock('../lib/userStore.js', () => ({ hydrateUsersFromServer: async () => [], loadUsers: () => [], usersPaging: () => ({ page: 1, pageSize: 100, total: 0, query: '' }), userTypeOf: () => ({ id: 'student' }), setSessionUser() {} }));
 import GoogleSignInButton from './GoogleSignInButton.jsx';
 import SignupPage from './SignupPage.jsx';
 import SegmentCarousel from './SegmentCarousel.jsx';

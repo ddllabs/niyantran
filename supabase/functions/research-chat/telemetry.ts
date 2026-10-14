@@ -37,6 +37,8 @@ export interface ModelCallRow {
   web_search_cost_usd: number | null;
   openrouter_generation_id: string | null;
   raw_usage: Record<string, unknown> | null;
+  /** P3: the turn's requested reasoning effort (validate.ts REASONING_VALUES); null when not given. */
+  reasoning_effort: string | null;
 }
 
 export interface TurnTraceRow {
@@ -132,6 +134,7 @@ export interface AttemptInput {
   usage?: Usage | null;
   generationId?: string | null;
   pricing?: Pricing | null;
+  reasoningEffort?: string | null;
 }
 
 export function modelCallRow(a: AttemptInput): ModelCallRow {
@@ -168,6 +171,7 @@ export function modelCallRow(a: AttemptInput): ModelCallRow {
     web_search_cost_usd: searches > 0 ? webSearchCostUsd(a.usage, searches) : null,
     openrouter_generation_id: a.generationId ?? null,
     raw_usage: a.usage ? { ...a.usage, cost_source: source } : null,
+    reasoning_effort: a.reasoningEffort ?? null,
   };
 }
 
@@ -280,6 +284,8 @@ export function createAttemptRecorder(options: {
   userId: string;
   conversationId: string;
   messageId: string;
+  /** P3: the turn's requested reasoning effort, written on every row. */
+  reasoningEffort?: string | null;
   pricing(model: string): Promise<Pricing | null>;
   db: TelemetryDb;
   now?: () => number;
@@ -484,6 +490,7 @@ export function createAttemptRecorder(options: {
             usage: record.usage,
             generationId: record.generationId,
             pricing,
+            reasoningEffort: options.reasoningEffort,
           });
           // AI credits spec §3.1: a success with no cost is a warning, never charged as zero.
           if (row.status === 'success' && row.cost_usd === null) log('research_chat.success_without_cost');

@@ -1,5 +1,6 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createResearchThread,normalizeResearchChoice} from './useResearchThread.js';
+import {bindOpenConversation,createResearchThread,normalizeResearchChoice} from './useResearchThread.js';
+import {OPEN_CONVERSATION_EVENT} from '../lib/creditsStore.js';
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve}};
 function fixture(){
  let owner={id:'a',epoch:1,token:'a',expiresAt:Date.now()+60000};let listener;let state={chats:[],activeId:'',loaded:false};let callback;let streamListener;let streams={};let sent=[];let append=[];let reconciled=[];let adopted=[];
@@ -18,7 +19,7 @@ function fixture(){
  loadRegistry:async()=>({models:[{model_id:'model/default',is_default:true,efforts:['low']}],roles:[]}),subscribeRegistry:()=>()=>{},
  setActiveAiChat:id=>{state.activeId=id;callback?.(state);return state},loadMessages:async()=>state,deleteAiChat:vi.fn(),addChatAttachments:vi.fn(),
  // F111: the credits store reads the network; a test that does not care gets quiet stand-ins.
- refreshCredits:vi.fn(async()=>null),conversationCredits:vi.fn(async()=>new Map()),
+ refreshCredits:vi.fn(async()=>null),conversationCredits:vi.fn(async()=>new Map()),loadCreditEstimates:vi.fn(async()=>({})),
  };
  const controller=createResearchThread(deps);
  return{controller,deps,sent,append,reconciled,adopted,setStreams:v=>{streams=v;streamListener?.()},changeOwner(id='b'){owner={id,epoch:owner.epoch+1,token:id,expiresAt:Date.now()+60000};state={chats:[],activeId:'',loaded:false};listener?.(id,'TOKEN_REFRESHED')},
@@ -517,5 +518,89 @@ describe('credits on each answer',()=>{
  it('a failed read of the record changes nothing',async()=>{
   const f=fixture();f.deps.hydrateConversations.mockImplementation(async()=>savedState());f.deps.conversationCredits.mockRejectedValue(new Error('offline'));
   await f.controller.start();await Promise.resolve();expect(f.controller.getSnapshot()).toMatchObject({ready:true,answerCredits:{},error:''});
+ });
+});
+
+// F149: Plan & billing asks for a saved conversation; the thread opens it once it can.
+describe('opening a conversation from Plan & billing (F149)',()=>{
+ const two=()=>({chats:[{id:'c1',messages:[],attachments:[],loaded:true},{id:'c2',messages:[],attachments:[],loaded:true}],activeId:'c1',loaded:true});
+ it('selects the saved chat it is asked for',async()=>{
+  const f=fixture();f.setState(two());await f.controller.start();
+  expect(await f.controller.openConversation('c2')).toBe(true);expect(f.controller.getSnapshot().store.activeId).toBe('c2');
+  expect(f.controller.getSnapshot().error).toBe('');
+ });
+ it('keeps a request made before the thread is ready, and applies it when it is',async()=>{
+  const f=fixture();f.setState(two());const started=f.controller.start();
+  expect(await f.controller.openConversation('c2')).toBe(false);
+  await started;await vi.waitFor(()=>expect(f.controller.getSnapshot().store.activeId).toBe('c2'));
+ });
+ it('says so plainly, and changes nothing, when the conversation is not among the recent chats',async()=>{
+  const f=fixture();f.setState(two());await f.controller.start();
+  expect(await f.controller.openConversation('old')).toBe(false);
+  expect(f.controller.getSnapshot().store.activeId).toBe('c1');expect(f.controller.getSnapshot().error).toMatch(/not in your recent chats/i);
+ });
+ it('does not switch chats while an answer is running, and says to wait',async()=>{
+  const f=fixture();f.setState(two());await f.controller.start();
+  let release;f.deps.sendTurn.mockImplementationOnce(()=>new Promise(r=>release=r));
+  const sending=f.controller.send({message:'Q',turn_key:'k'});await vi.waitFor(()=>expect(f.deps.sendTurn).toHaveBeenCalled());
+  expect(await f.controller.openConversation('c2')).toBe(false);
+  expect(f.controller.getSnapshot().store.activeId).toBe('c1');expect(f.controller.getSnapshot().error).toMatch(/finish/i);
+  release({conversationId:'c1',isPending:false,status:'complete',messageId:'m'});await sending;
+ });
+ it('forgets a request when the account changes',async()=>{
+  const f=fixture();f.setState(two());const started=f.controller.start();await f.controller.openConversation('c2');
+  f.signOut();await started;expect(f.controller.getSnapshot().store.activeId).not.toBe('c2');
+ });
+ it('bindOpenConversation takes a request made before it was bound, follows the event, and stops',()=>{
+  const target=new EventTarget();const opened=[];let wanted='early';
+  const take=vi.fn(()=>{const id=wanted;wanted='';return id});
+  const stop=bindOpenConversation({openConversation:id=>opened.push(id)},{target,take});
+  expect(opened).toEqual(['early']);
+  target.dispatchEvent(new CustomEvent(OPEN_CONVERSATION_EVENT,{detail:{conversationId:'c9'}}));
+  expect(opened).toEqual(['early','c9']);expect(take).toHaveBeenCalledTimes(2);
+  target.dispatchEvent(new CustomEvent(OPEN_CONVERSATION_EVENT,{detail:{}}));expect(opened).toEqual(['early','c9']);
+  stop();target.dispatchEvent(new CustomEvent(OPEN_CONVERSATION_EVENT,{detail:{conversationId:'c10'}}));expect(opened).toEqual(['early','c9']);
+ });
+});
+
+// F150: a 403 model_requires_plan (a stale plan) is shown plainly and the default model takes over.
+describe('a model that needs a paid plan (F150)',()=>{
+ it('names the refusal, falls back to the default model and remembers it, and the next send clears it',async()=>{
+  const f=fixture();const storage=memoryStorage({niyResearchChoice:JSON.stringify({modelId:'model/deep',effort:'high'})});
+  const controller=createResearchThread({...f.deps,loadRegistry:twoModels,choiceStorage:storage});await controller.start();
+  expect(controller.getSnapshot().choice.modelId).toBe('model/deep');
+  f.deps.sendTurn.mockImplementationOnce(async()=>refusal('model_requires_plan','This model is available on paid plans.'));
+  await controller.send({message:'Q1',turn_key:'k1'});
+  expect(controller.getSnapshot()).toMatchObject({planBlock:'model_requires_plan',error:'This model is available on paid plans.',choice:{modelId:'model/default',effort:'low'}});
+  expect(JSON.parse(storage.values.get('niyResearchChoice'))).toEqual({modelId:'model/default',effort:'low'});
+  expect(controller.getSnapshot().creditBlock).toBe('');
+  f.deps.sendTurn.mockImplementationOnce(async(body)=>({conversationId:'server-c',isPending:false,status:'complete',messageId:'m',model:body.model}));
+  await controller.send({message:'Q2',turn_key:'k2'});
+  expect(f.sent.at(-1)?.model??f.deps.sendTurn.mock.calls.at(-1)[0].model).toBe('model/default');
+  expect(controller.getSnapshot().planBlock).toBe('');
+ });
+ it('leaves other refusals alone',async()=>{
+  const f=fixture();await f.controller.start();
+  f.deps.sendTurn.mockImplementationOnce(async()=>refusal('http_400','Bad request'));
+  await f.controller.send({message:'Q',turn_key:'k'});
+  expect(f.controller.getSnapshot().planBlock).toBe('');
+ });
+});
+
+// F151: what a typical answer costs, per model, read once the thread is ready.
+describe('credit estimates for the picker (F151)',()=>{
+ it('loads them after the thread is ready',async()=>{
+  const f=fixture();f.deps.loadCreditEstimates.mockResolvedValue({'model/default':4});
+  await f.controller.start();await vi.waitFor(()=>expect(f.controller.getSnapshot().estimates).toEqual({'model/default':4}));
+ });
+ it('a failed or empty read leaves none and never stops the thread',async()=>{
+  const f=fixture();f.deps.loadCreditEstimates.mockRejectedValue(new Error('offline'));
+  await f.controller.start();await Promise.resolve();
+  expect(f.controller.getSnapshot()).toMatchObject({ready:true,error:'',estimates:{}});
+ });
+ it('drops them on sign-out',async()=>{
+  const f=fixture();f.deps.loadCreditEstimates.mockResolvedValue({'model/default':4});
+  await f.controller.start();await vi.waitFor(()=>expect(f.controller.getSnapshot().estimates).toEqual({'model/default':4}));
+  f.signOut();expect(f.controller.getSnapshot().estimates).toEqual({});
  });
 });

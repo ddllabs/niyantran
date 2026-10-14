@@ -6,7 +6,7 @@ import { ApisPage, OverviewPage, UsersPage } from './AdminPages.jsx';
 import { AiModelsPage } from './AiModelsPage.jsx';
 import { AiPersonasPage } from './AiPersonasPage.jsx';
 import { PrivacyAdminPage, SiteSettingsPage, TermsAdminPage } from './AdminSitePages.jsx';
-import { hydrateUsersFromServer, loadUsers } from '../lib/userStore.js';
+import { hydrateUsersFromServer, loadUsers, usersPaging } from '../lib/userStore.js';
 import { isDue, loadRefreshCfg, refreshProgress } from '../lib/refreshStore.js';
 import { sweepApis } from '../lib/refreshFeeds.js';
 import './admin.css';
@@ -197,7 +197,8 @@ export default function AdminApp() {
               </button>
             ))}
           </div>
-          <span className="adm-top-meta">{users.filter((u) => u.active).length} issued seats</span>
+          {/* The list is paged (F147), so the header shows the directory's total, not the page's. */}
+          <span className="adm-top-meta">{usersPaging().total ?? users.length} accounts</span>
         </header>
         <div className="adm-body">
           {view === 'overview' && <OverviewPage users={users} />}

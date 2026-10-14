@@ -81,6 +81,8 @@ function profileDirectory() {
       const builder = {
         select: () => builder,
         order: () => builder,
+        or: () => builder,
+        range: () => builder,
         eq: () => builder,
         neq: () => builder,
         update: (value) => { patch = value; return builder; },
@@ -89,7 +91,7 @@ function profileDirectory() {
           if (patch) directory.writes.push(patch);
           return { data: { ...row, ...patch }, error: null };
         },
-        then: (resolve, reject) => Promise.resolve(result() || { data: [{ ...row }], error: null }).then(resolve, reject),
+        then: (resolve, reject) => Promise.resolve(result() || { data: [{ ...row }], error: null, count: 1 }).then(resolve, reject),
       };
       return builder;
     }),
