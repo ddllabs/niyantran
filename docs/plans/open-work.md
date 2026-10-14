@@ -651,7 +651,9 @@ rechecked. Nothing in this check wrote to production.
   and [plan](2026-10-14-module-data-repair.md): phase 1 backup files off the live site, phase 2
   repair broken and thin sources (PIB, briefs, Geopolitics, ISL, Regulatory, Manifold, Wikidata,
   F166–F168), phase 3 "As of" dates and an honest admin status screen, phase 4 F160 seeded with the
-  larger registers. Awaiting the owner's answers to the spec's five questions.
+  larger registers. Approved 2026-10-14 with all five recommendations; Supabase is on Pro;
+  Vercel upgrade later; O6 after this work. Phase 4's storage design is being revised to
+  records-first (every listed item stored and kept), per the owner's research-platform question.
 - [ ] **F166. Morning Brief and Statement Tracker cannot load on the live site.** Found by the F160
   research 2026-10-14: both pages fetch through `/api/rss` (`MorningBriefDesk.jsx:51-53`,
   `StatementsDesk.jsx:45-47`), which only the local dev server has (`server/homeApi.mjs:955`);

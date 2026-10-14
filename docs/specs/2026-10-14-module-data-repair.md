@@ -1,7 +1,9 @@
 # Spec: module data repair (F169)
 
 > **Status: Living.** Proposed 2026-10-14 after the [module audit](../research/2026-10-14-module-audit/README.md);
-> awaiting the owner's approval. Plan: [module data repair plan](../plans/2026-10-14-module-data-repair.md).
+> **approved by the owner the same day** ("Okay, approved"), with the recommendations to all five
+> questions in section 7. Owner notes: Supabase is already on Pro; Vercel will be upgraded later;
+> Razorpay (O6) comes after this work; check TradingView or the official NSE route for prices. Plan: [module data repair plan](../plans/2026-10-14-module-data-repair.md).
 > F160 (scheduled module data) is the last phase of this work and keeps its own
 > [spec](2026-10-14-scheduled-module-data.md).
 
