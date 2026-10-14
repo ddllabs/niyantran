@@ -17,11 +17,7 @@ export async function loadDeskCatalogueSummary(entry, { lockedIds = [], signal, 
   if (lockedIds.includes(canonical.tab) || signal?.aborted) return null;
   let selected = null;
   if (canonical.tab === 'state') {
-    await loadStateSummaries({ modules: [canonical], signal, onSummary: summary => { selected = summary; }, fetcher: async request => {
-      const response = await fetcher(`/api/feature-feed?${new URLSearchParams({ tier: request.tier, feature: request.feature })}`, { signal: request.signal });
-      if (!response.ok) throw new Error('State source unavailable');
-      return response.json();
-    } });
+    await loadStateSummaries({ modules: [canonical], signal, fetcher, onSummary: summary => { selected = summary; } });
     return signal?.aborted ? null : selected;
   }
   await loaders[canonical.tab]({ features: [canonical.feature], signal, fetcher, onSummary: summary => {

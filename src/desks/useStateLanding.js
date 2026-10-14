@@ -1,47 +1,65 @@
-import { useEffect, useRef, useState } from 'react';
-import { fetchFeature } from '../lib/featureFeed.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATE_MODULES, projectStateSummary } from '../lib/stateLandingSummary.js';
+import { loadLandingSummaries } from './landingRetry.js';
 
-export async function loadStateSummaries({ modules = STATE_MODULES, signal, onSummary, fetcher = fetchFeature }) {
-  const queue = [...modules];
-  async function worker() {
-    while (queue.length && !signal?.aborted) {
-      const module = queue.shift();
-      const controller = new AbortController();
-      const abort = () => controller.abort();
-      signal?.addEventListener('abort', abort, { once: true });
-      let timer;
-      try {
-        const request = module.configured ? fetcher({ tier: module.tier, feature: module.feature, signal: controller.signal }) : Promise.resolve({ ok: true, tier: module.tier, feature: module.feature, rows: [], source: { adapter: 'planned', note: 'No implemented data source for this reference module.' } });
-        const raw = await Promise.race([request, new Promise((_, reject) => { timer = setTimeout(() => { abort(); reject(new Error('Summary timeout')); }, 30000); })]);
-        if (!signal?.aborted) onSummary(projectStateSummary(module, raw));
-      } catch {
-        if (!signal?.aborted) onSummary(projectStateSummary(module, null));
-      } finally {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', abort);
-      }
-    }
+const AVAILABILITY = new Set(['ready', 'empty', 'unavailable', 'error']);
+const planned = module => projectStateSummary(module, { ok: true, tier: module.tier, feature: module.feature, rows: [], source: { adapter: 'planned', note: 'No implemented data source for this reference module.' } });
+
+/**
+ * F157: one count per module from /api/state-landing (server/stateLandingSummary.mjs), not the
+ * module's rows. Planned modules have no source and are summarised here without a request.
+ */
+export async function loadStateSummaries({ modules = STATE_MODULES, signal, onSummary, fetcher = fetch, retryAfterMs }) {
+  const byFeature = new Map();
+  for (const module of modules) {
+    if (module.configured) byFeature.set(module.feature, module);
+    else if (!signal?.aborted) onSummary(planned(module));
   }
-  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+  async function fetchOne(feature) {
+    const module = byFeature.get(feature);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, 45000);
+    let summary;
+    try {
+      const response = await fetcher(`/api/state-landing?${new URLSearchParams({ feature })}`, { signal: controller.signal });
+      summary = await response.json();
+      const counted = Number.isInteger(summary.count) && summary.count >= 0 && ['ready', 'empty'].includes(summary.availability);
+      const uncounted = summary.count === null && ['unavailable', 'error'].includes(summary.availability);
+      const coverageUnavailable = summary.ok === false && summary.count === null && summary.availability === 'error';
+      if ((!response.ok && !coverageUnavailable) || summary.version !== 1 || summary.tier !== module.tier || summary.feature !== feature || !AVAILABILITY.has(summary.availability) || (!counted && !uncounted)) throw new Error('Invalid summary');
+    } catch {
+      summary = projectStateSummary(module, null);
+    } finally {
+      clearTimeout(timer); signal?.removeEventListener('abort', abort);
+    }
+    return summary;
+  }
+  const publish = summary => { if (!signal?.aborted) onSummary(summary); };
+  await loadLandingSummaries({ features: [...byFeature.keys()], signal, fetchOne, publish, retryAfterMs });
 }
 
 export function useStateLanding() {
   const [summaries, setSummaries] = useState({});
-  const [attempt, setAttempt] = useState(0);
-  const current = useRef({});
+  const controllerRef = useRef(null);
+  const publish = useCallback(s => setSummaries(previous => ({ ...previous, [s.feature]: s })), []);
   useEffect(() => {
-    const controller = new AbortController();
-    void loadStateSummaries({ modules: STATE_MODULES.filter(module => !current.current[module.feature]), signal: controller.signal, onSummary: summary => {
-      current.current = { ...current.current, [summary.feature]: summary };
-      setSummaries(current.current);
-    } });
+    const controller = new AbortController(); controllerRef.current = controller;
+    setSummaries({});
+    void loadStateSummaries({ signal: controller.signal, onSummary: publish });
     return () => controller.abort();
-  }, [attempt]);
-  const retry = feature => {
-    delete current.current[feature];
-    setSummaries({ ...current.current });
-    setAttempt(value => value + 1);
-  };
+  }, [publish]);
+  const retry = useCallback(feature => {
+    const signal = controllerRef.current?.signal;
+    const module = STATE_MODULES.find(item => item.feature === feature);
+    if (!signal || signal.aborted || !module) return;
+    setSummaries(previous => {
+      const next = { ...previous };
+      delete next[feature];
+      return next;
+    });
+    void loadStateSummaries({ modules: [module], signal, onSummary: publish });
+  }, [publish]);
   return { summaries, retry };
 }

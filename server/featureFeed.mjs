@@ -10,6 +10,7 @@ import { serveCarbonLanding } from './carbonLandingSummary.mjs';
 import { serveSportsLanding } from './sportsLandingSummary.mjs';
 import { serveEntertainmentLanding } from './entertainmentLandingSummary.mjs';
 import { serveGlobalLanding } from './globalLandingSummary.mjs';
+import { serveStateLanding } from './stateLandingSummary.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { flattenAlliance } from '../src/lib/alliances.js';
@@ -3731,8 +3732,8 @@ export async function serveFeatureFeedWithinLimit(
 
 /**
  * F156: the feed within its time limit, then the backup pack when live and archive have no rows.
- * The Vite middleware and api/router.js both answer /api/feature-feed and the National, Global and
- * Law landings through this, so the local and deployed servers answer the same way.
+ * The Vite middleware and api/router.js both answer /api/feature-feed and the National, Global,
+ * Law and State landings through this, so the local and deployed servers answer the same way.
  */
 export async function serveFeatureFeedWithBackup(searchParams, options) {
   return applyBackupFallback(await serveFeatureFeedWithinLimit(searchParams, options), searchParams);
@@ -3741,7 +3742,8 @@ export async function serveFeatureFeedWithBackup(searchParams, options) {
 export async function handleFeatureFeedRequest(req, res, next) {
   const host = req.headers.host || 'localhost';
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/national-landing' || url.pathname === '/api/global-landing' || url.pathname === '/api/law-landing' || url.pathname === '/api/economics-landing' || url.pathname === '/api/carbon-landing' || url.pathname === '/api/sports-landing' || url.pathname === '/api/entertainment-landing') {
+  if (url.pathname === '/api/national-landing' || url.pathname === '/api/global-landing' || url.pathname === '/api/law-landing' || url.pathname === '/api/economics-landing' || url.pathname === '/api/carbon-landing' || url.pathname === '/api/sports-landing' || url.pathname === '/api/entertainment-landing' || url.pathname === '/api/state-landing') {
+    const state = url.pathname === '/api/state-landing';
     const global = url.pathname === '/api/global-landing';
     const law = url.pathname === '/api/law-landing';
     const economics = url.pathname === '/api/economics-landing';
@@ -3756,12 +3758,12 @@ export async function handleFeatureFeedRequest(req, res, next) {
       return;
     }
     try {
-      const body = await (entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup);
+      const body = await (state ? serveStateLanding : entertainment ? serveEntertainmentLanding : sports ? serveSportsLanding : carbon ? serveCarbonLanding : economics ? serveEconomicsLanding : law ? serveLawLanding : global ? serveGlobalLanding : serveNationalLanding)(url.searchParams, (economics || carbon || sports || entertainment) ? serveFeatureFeedWithinLimit : serveFeatureFeedWithBackup);
       res.statusCode = body.ok ? 200 : 502;
       res.end(JSON.stringify(body));
     } catch (err) {
-      res.statusCode = err.message === `Unknown ${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502;
-      res.end(JSON.stringify({ ok: false, error: `${entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` }));
+      res.statusCode = err.message === `Unknown ${state ? 'State' : entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} module` ? 400 : 502;
+      res.end(JSON.stringify({ ok: false, error: `${state ? 'State' : entertainment ? 'Entertainment' : sports ? 'Sports' : carbon ? 'Carbon' : economics ? 'Economics' : law ? 'Law' : global ? 'Global' : 'National'} summary unavailable` }));
     }
     return;
   }

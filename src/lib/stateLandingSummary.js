@@ -3,6 +3,10 @@ import { feedColumns } from './columns.js';
 import { sensitiveNoteFor } from './sensitiveData.js';
 
 export const STATE_MODULES = STATE_PRESENTATION.groups.flatMap(group => group.modules);
+// F157: the modules /api/state-landing answers. Planned (unconfigured) modules have no source and
+// are summarised in the browser without a request.
+export const STATE_FEATURES = STATE_MODULES.filter(module => module.configured).map(module => module.feature);
+export const stateModule = feature => STATE_MODULES.find(module => module.configured && module.feature === feature) || null;
 const safeUrl = value => { try { const url = new URL(value); return /^https?:$/.test(url.protocol) ? url.href : null; } catch { return null; } };
 const sourceDate = value => /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(String(value || '')) && Number.isFinite(Date.parse(value)) ? value : null;
 const populated = value => value != null && !['', '—', 'unknown', 'Not reported'].includes(String(value).trim());
@@ -50,4 +54,27 @@ export function projectStateSummary(module, raw) {
     period: raw?.meta?.vintage || raw?.meta?.profile || null,
     districts: [...districts].map(([label, count]) => ({ label, count })),
   };
+}
+
+const hasRealRows = raw => Array.isArray(raw?.rows) && raw.rows.length > 0 && raw.rows[0]?.status !== 'source_status';
+// What the browser's shipped archive (src/lib/archiveFeed.js) gives every State module outside the
+// Goa geography pack. The server always answers the pack modules with rows, so this was the only
+// archive answer the landing could fall back to. stateLandingParity.test.js checks it per module.
+export const NO_SHIPPED_REGISTER = 'No shipped register for this module on this host.';
+const noShippedRegister = module => ({ ok: true, tier: module.tier, feature: module.feature, rows: [], source: { adapter: 'embedded', links: [], note: NO_SHIPPED_REGISTER, gdelt: false, kind: '' }, fallback: false, meta: null });
+
+/**
+ * F157: the answer of /api/state-landing for one module: the summary the landing used to work out
+ * in the browser from the whole module, without the rows.
+ * - A feed answer without real rows is replaced as the browser did (src/lib/featureFeed.js,
+ *   `withoutLive`): by its shipped archive, which has no register for these modules.
+ * - When that happened because the live source missed the server's time limit (`served:
+ *   'archive'`), the count is pending, not unavailable: it answers `availability: 'error'`, so that
+ *   src/desks/landingRetry.js shows it as loading and asks again.
+ */
+export function stateLandingAnswer(module, raw) {
+  const counted = hasRealRows(raw);
+  const summary = projectStateSummary(module, counted ? raw : noShippedRegister(module));
+  const answer = !counted && raw?.served === 'archive' ? { ...summary, availability: 'error' } : summary;
+  return { ...answer, ok: answer.availability !== 'error', ...(raw?.served ? { served: raw.served } : {}) };
 }

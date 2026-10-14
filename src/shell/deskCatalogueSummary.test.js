@@ -13,13 +13,19 @@ describe('single-module catalogue summary', () => {
     expect(endpoint.pathname).toBe(`/api/${tab === 'law' ? 'law' : tab}-landing`);
     expect(endpoint.searchParams.get('feature')).toBe(entry.feature);
   });
-  it('loads the exact Local-tier booth source through the State catalogue', async () => {
+  it('loads the exact Local-tier booth count through the State catalogue (F157: count only)', async () => {
     const entry = DESK_CATALOGUE.find(item => item.feature === 'Booth-level Results Database');
-    const fetcher = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, tier: 'local', feature: entry.feature, rows: [], source: { adapter: 'embedded', kind: 'geo-pack' } }) }));
-    expect(await loadDeskCatalogueSummary(entry, { fetcher })).toMatchObject({ count: 0, availability: 'empty', tier: 'local' });
+    const fetcher = vi.fn(async () => response(entry.feature, { tier: 'local', resourceKey: 'goa-booths', count: 1731, availability: 'ready' }));
+    expect(await loadDeskCatalogueSummary(entry, { fetcher })).toMatchObject({ count: 1731, availability: 'ready', tier: 'local' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
     const url = new URL(fetcher.mock.calls[0][0], 'http://localhost');
-    expect(url.searchParams.get('tier')).toBe('local');
+    expect(url.pathname).toBe('/api/state-landing');
     expect(url.searchParams.get('feature')).toBe(entry.feature);
+  });
+  it('rejects a State count for another tier', async () => {
+    const entry = DESK_CATALOGUE.find(item => item.feature === 'Booth-level Results Database');
+    const fetcher = vi.fn(async () => response(entry.feature, { tier: 'state', count: 1731, availability: 'ready' }));
+    expect(await loadDeskCatalogueSummary(entry, { fetcher })).toMatchObject({ count: null, availability: 'error' });
   });
   it('uses the bill resource for the policy graph while returning graph coverage', async () => {
     const entry = DESK_CATALOGUE.find(entry => entry.feature === 'Policy Intelligence Graph');

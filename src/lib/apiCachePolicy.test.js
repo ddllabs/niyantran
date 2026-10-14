@@ -25,6 +25,7 @@ const ROUTES = {
   '/api/carbon-landing': 'edge',
   '/api/sports-landing': 'edge',
   '/api/entertainment-landing': 'edge',
+  '/api/state-landing': 'edge',
   '/api/feature-feed': 'edge',
   '/api/home/segments': 'edge',
   '/api/constitutions': 'edge',
@@ -139,6 +140,15 @@ describe('API cache headers on responses (F154)', () => {
     const res = vercelResponse();
     await handler(request('GET', 'national-landing?feature=Cabinet%20Decisions'), res);
     expect(res.statusCode).toBe(200);
+    expect(res.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdn);
+  });
+
+  it('a State landing count may be kept by the CDN (F157)', async () => {
+    feed.within = vi.fn(async (params) => ({ ok: true, tier: params.get('tier'), feature: params.get('feature'), rows: [{ title: 'Decision' }], source: { adapter: 'news-search', links: [] }, served: 'live' }));
+    const res = vercelResponse();
+    await handler(request('GET', 'state-landing?feature=Cabinet%20Decisions'), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ count: 1, served: 'live' });
     expect(res.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdn);
   });
 

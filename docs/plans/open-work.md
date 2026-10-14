@@ -585,6 +585,27 @@ rechecked. Nothing in this check wrote to production.
 - [ ] **F157. State desk landing downloads 26 whole modules to count them.** Found by the F156
   measurements: at least about 440 KB compressed per State landing visit; the other seven desks
   have count-only routes. Recommended: a count-only `/api/state-landing` like the others.
+  - 2026-10-14, built, not yet committed or deployed: `/api/state-landing?feature=…`
+    (`server/stateLandingSummary.mjs`, `stateLandingAnswer` in `src/lib/stateLandingSummary.js`),
+    on the F154 edge allow-list and in the Vite middleware, read through
+    `serveFeatureFeedWithBackup` as the State landing's `/api/feature-feed` requests were. It
+    answers the 26 configured modules (Local-tier booth modules included, in the catalogue's
+    tier); the 15 planned modules are still summarised in the browser without a request.
+    `useStateLanding.js` and the catalogue search's State summary use it, with `landingRetry.js`
+    for counts pending after the live time limit.
+    - Same numbers and labels: the server reproduces the browser's fallback (a feed answer with no
+      real rows was replaced by the shipped archive, which has no register for these modules).
+      `src/lib/stateLandingParity.test.js` compares the new answer with the old browser summary for
+      every module, with live sources answering in time, failing, and past the time limit. Run live
+      against a local dev server, 26 of 26 summaries were identical.
+    - Measured locally (dev server from the worktree, live sources on), the 26 requests of one
+      State landing visit: before, 4.2–4.8 MB raw, 677–725 KB gzip, 542–578 KB brotli (the two
+      booth modules about 110 KB each); after, 29.6 KB raw, 17.8 KB gzip, 14.2 KB brotli (each
+      answer at most 1.1 KB). Loader wall time 5.5–11.3 s before, 0.5–1.3 s after. Per route after:
+      median 47–81 ms, slowest 0.2–0.7 s (news modules).
+    - Change in behaviour: a count whose live source misses the 4 s limit now shows
+      "Loading live count…" and is asked for again at 6 s and 15 s (before: "Measured data
+      unavailable"); if still missing it shows "Summary unavailable" with Retry.
 - [ ] **F158. The Goa booth geography pack is in every terminal visit's JavaScript.** Found by the
   F156 measurements: `niy-geo.json` costs 120 KB compressed whether or not a booth module opens.
   Recommended: load it only when a booth module opens (`archiveFeed.js`).
