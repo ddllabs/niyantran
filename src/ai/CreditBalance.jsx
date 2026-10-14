@@ -72,13 +72,15 @@ export default function CreditBalance({ credits, block = '', held = false, onOpe
           <span className="ai-credit-amount">{creditsText(known.balance)}</span>
           {hint ? <span className="ai-credit-hint">{hint}</span> : null}
           {negative ? <span className="ai-credit-hint">taken from your next credits</span> : null}
+          {/* F162: credits set aside for an answer still running, released or charged when it ends. */}
+          {known.held > 0 ? <span className="ai-credit-hint">{creditsText(known.held)} held for a running answer</span> : null}
           {/* F153: where the credits went, on the Credits usage page. */}
           <button type="button" className="ai-credit-usage" onClick={() => onOpenUsage()}>Usage</button>
         </p>
       ) : null}
       {/* Always present, so a warning that appears after a turn is announced; empty it takes no room. */}
       <p className="ai-credit-warn" role="status">
-        {low && !blocked ? `Running low: ${creditsText(known.balance)} left${known.plan === 'free' ? '' : ' this cycle'}` : ''}
+        {low && !blocked ? `Running low: ${creditsText(known.balance)} left${known.plan !== 'free' && known.allowance > 0 ? ' this cycle' : ''}` : ''}
       </p>
       {blocked && !inUse ? (
         <div className="ai-credit-actions">

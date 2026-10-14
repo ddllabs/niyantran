@@ -52,8 +52,8 @@ export function applyParliamentaryQuestionShapingToFeed(feed) {
       ...(feed.meta || {}),
       boardNote:
         known > 0
-          ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. Has-answer is filled only when the archive carries an answer status.`
-          : `Search covers all ${rows.length.toLocaleString('en-IN')} questions. Answer text is missing on every row in this archive — Has answer stays Not reported until Sansad answer fields are wired.`,
+          ? `Search covers all ${rows.length.toLocaleString('en-IN')} questions. "Has answer" is filled only where the source records whether a question was answered.`
+          : `Search covers all ${rows.length.toLocaleString('en-IN')} questions. Answers are not in this dataset yet, so "Has answer" shows Not reported.`,
     },
   };
 }

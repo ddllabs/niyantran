@@ -254,10 +254,18 @@ export function rupeeHint(credits, inrPerCredit) {
   return `≈ ${c < 0 ? '−' : ''}₹${text}`;
 }
 
-/** True when credits are running low (at most 10% of the cycle allowance) but not yet gone. */
+// F162: an account with no allowance (top-ups only, or between cycles) is low at 10% of the
+// smallest monthly allowance (Plus, 2,000 credits).
+export const LOW_BALANCE_WITHOUT_ALLOWANCE = 200;
+
+/**
+ * True when credits are running low but not yet gone: at most 10% of the cycle allowance, or
+ * LOW_BALANCE_WITHOUT_ALLOWANCE when there is no allowance.
+ */
 export function lowBalance(credits) {
   const balance = num(credits?.balance);
+  if (balance === null || balance <= 0) return false;
   const allowance = num(credits?.allowance);
-  if (balance === null || allowance === null || allowance <= 0) return false;
-  return balance > 0 && balance <= allowance * 0.1;
+  const limit = allowance !== null && allowance > 0 ? allowance * 0.1 : LOW_BALANCE_WITHOUT_ALLOWANCE;
+  return balance <= limit;
 }

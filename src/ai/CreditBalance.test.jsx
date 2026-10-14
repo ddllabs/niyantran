@@ -49,6 +49,14 @@ describe('the balance by the chat box', () => {
     expect(out).toContain('role="status">Running low');
     expect(html({ credits: credits({ balance: 150, plan: 'free' }) })).toContain('Running low: 150 credits left<');
     expect(html({ credits: credits({ balance: 1500 }) })).not.toContain('Running low');
+    // F162: top-ups only, no allowance: warned too, without "this cycle".
+    expect(html({ credits: credits({ balance: 150, allowance: null }) })).toContain('Running low: 150 credits left<');
+  });
+
+  // F162: credits set aside for an answer still running are shown beside the balance.
+  it('shows credits held for a running answer, and nothing when none are held', () => {
+    expect(html({ credits: credits({ held: 300, available: 1220.4567 }) })).toContain('300 credits held for a running answer');
+    expect(html({ credits: credits() })).not.toContain('held for a running answer');
   });
 
   it('renders nothing when signed out or before the balance is read', () => {

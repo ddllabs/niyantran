@@ -18,7 +18,7 @@ vi.mock('./supabaseClient.js', () => ({
 
 import {
   OPEN_CONVERSATION_EVENT, clearCredits, conversationCredits, creditEstimateText, creditsText, formatCredits, loadCreditEstimates,
-  lowBalance, openConversation, refreshCredits, rupeeHint, serverCredits, shapeCredits, takeWantedConversation,
+  LOW_BALANCE_WITHOUT_ALLOWANCE, lowBalance, openConversation, refreshCredits, rupeeHint, serverCredits, shapeCredits, takeWantedConversation,
 } from './creditsStore.js';
 
 const SERVER = {
@@ -260,8 +260,13 @@ describe('lowBalance', () => {
     expect(lowBalance({ balance: 0, allowance: 2000 })).toBe(false);
   });
 
-  it('is false without an allowance', () => {
-    expect(lowBalance({ balance: 5, allowance: null })).toBe(false);
+  // F162: an account with no allowance (top-ups only) was never warned.
+  it('without an allowance, is low at 200 credits or fewer', () => {
+    expect(LOW_BALANCE_WITHOUT_ALLOWANCE).toBe(200);
+    expect(lowBalance({ balance: 5, allowance: null })).toBe(true);
+    expect(lowBalance({ balance: 200, allowance: 0 })).toBe(true);
+    expect(lowBalance({ balance: 201, allowance: null })).toBe(false);
+    expect(lowBalance({ balance: 0, allowance: null })).toBe(false);
     expect(lowBalance(null)).toBe(false);
   });
 });

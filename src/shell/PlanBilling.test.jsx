@@ -249,6 +249,15 @@ it('says top-ups are coming soon and where to write for credits, whether checkou
   }
 });
 
+// F162: credits set aside for an answer still running are shown, in the muted style, not as debt.
+it('shows credits held for a running answer under the balance', () => {
+  fake.states = [];
+  const t = text(section(render(PRO, { credits: credits({ held: 300 }) })));
+  expect(t).toContain('300 credits held for a running answer');
+  fake.states = [];
+  expect(text(section(render(PRO, { credits: credits() })))).not.toContain('held for a running answer');
+});
+
 it('gives a Free account with no credit lots a plain empty state', () => {
   const t = text(section(render(FREE, { credits: credits({ plan: 'free', balance: 0, available: 0, allowance: null, cycleEndsAt: null, lots: [] }) })));
   expect(t).toContain('0 credits');

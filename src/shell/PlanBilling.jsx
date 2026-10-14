@@ -49,6 +49,10 @@ function CreditsSection({ credits, tried, onSeeUsage }) {
         {!owed && hint(credits.balance) ? <span className="plan-credits-inr">{hint(credits.balance)}</span> : null}
       </p>
       {owed ? <p className="plan-credits-owed">taken from your next credits</p> : null}
+      {/* F162: credits set aside for an answer still running. */}
+      {credits.held > 0 ? (
+        <p className="plan-credits-cycle"><span className="plan-credits-until">{creditsText(credits.held)} held for a running answer</span></p>
+      ) : null}
 
       {credits.allowance !== null && credits.allowance > 0 ? (
         <p className="plan-credits-cycle">

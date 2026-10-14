@@ -660,11 +660,11 @@ rechecked. Nothing in this check wrote to production.
     (`legalPolicies.js:123,155`), against the no-auto-renew decision; the Terms say "Other models use
     credits on every plan" (`legalPolicies.js:120`) although paid-only models exist (F150), and
     pricing never mentions model access.
-- [ ] **F162. Credits clarity.** From the credits audit: credits held by a running answer are not
+- [x] **F162. Credits clarity.** Done 2026-10-14 (owner: "do F162 and F163 and push"): credits held for a running answer show beside the balance in the chat and in Plan & billing ("N credits held for a running answer"); an account with no allowance is warned at 200 credits or fewer (`LOW_BALANCE_WITHOUT_ALLOWANCE`, 10% of Plus's 2,000), without "this cycle". Was: From the credits audit: credits held by a running answer are not
   shown; the low-balance warning never shows without a monthly allowance (top-up-only users,
   `creditsStore.js:258-263`). The word "wallet" is internal only; users see "AI credits", the
   balance, "Credits by expiry" and "Credits usage". Size S.
-- [ ] **F163. Questions note reads like an internal note.** "Answer text is missing on every row in
+- [x] **F163. Questions note reads like an internal note.** Done 2026-10-14: now "Search covers all 8,000 questions. Answers are not in this dataset yet, so \"Has answer\" shows Not reported." (`src/lib/shapeQuestions.test.js`). Was: "Answer text is missing on every row in
   this archive — Has answer stays Not reported until Sansad answer fields are wired."
   (`src/lib/shapeQuestions.js:55-56`, there since 2026-09-09). Owner asked whether it was new: it
   is not. Recommended: "Answers are not yet in this dataset" or hide it until answers are loaded.
