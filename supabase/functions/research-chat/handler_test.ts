@@ -2956,3 +2956,166 @@ Deno.test('credits: no cost key reaches the saved usage or any frame', async () 
   assertEquals(/cost/i.test(JSON.stringify(got)), false, 'no frame carries a cost');
   assert(rec.calls.some((c) => c.cost_usd === 0.02), 'model_call_logs keeps its cost');
 });
+
+// ---------------------------------------------------------------------------------------------
+// F111 review R: I1 (no full charge while a cut-off round's cost is coming), M1 (a claim that
+// starts no turn releases its hold), M2 (a 402 caused by holds says so).
+
+Deno.test('credits: a Stop whose cut-off round still awaits its cost sends credits null, and settle still charges the rest', async () => {
+  let cancel = false;
+  const jobs: Promise<unknown>[] = [];
+  const { deps, rec } = fakeDeps(stoppedProvider('gen-cut', () => (cancel = true)), {
+    waitUntil: (p) => {
+      jobs.push(p);
+    },
+    sleep: () => Promise.resolve(),
+    generationCost: () => Promise.resolve(null),
+  }, { cancelRequestedSince: () => Promise.resolve(cancel) });
+  deps.telemetry.saveGenerationCost = () => Promise.resolve();
+  const { result: got, events } = await captureLogs(async () => await frames(await handleResearchChat(post(BODY), deps)));
+  await Promise.all(jobs);
+  assertEquals(rec.messages[0].status, 'cancelled');
+  assertEquals(rec.settles, [{ userId: 'user-1', turnKey: 'turn-1' }], 'the finished rounds are still charged');
+  assertEquals(got.map(keyOf).slice(-2), ['done', 'credits']);
+  assertEquals(got.at(-1), { credits: null }, 'never reported as fully charged');
+  assertEquals(events.filter((e) => e.event === 'research_chat.credits_pending').length, 1);
+});
+
+Deno.test('credits: a Stop with no cut-off round awaiting a cost sends the settled number', async () => {
+  let cancel = false;
+  const { deps, rec } = fakeDeps(stoppedProvider(null, () => (cancel = true)), {}, {
+    cancelRequestedSince: () => Promise.resolve(cancel),
+  });
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'cancelled');
+  assertEquals(rec.settles.length, 1);
+  assertEquals(got.at(-1), { credits: 1.23 });
+});
+
+Deno.test('credits: a claim that starts no turn releases its hold by settling it, without waiting on it', async () => {
+  const failures: { name: string; claim: TurnStore['claim']; status: number }[] = [
+    ...(['forbidden', 'deleted', 'conflict', 'not_found', 'missing'] as const).map((kind) => ({
+      name: kind,
+      claim: () => Promise.resolve({ kind }),
+      status: kind === 'conflict' ? 409 : kind === 'deleted' ? 410 : kind === 'forbidden' ? 403 : 404,
+    })),
+    { name: 'rpc error', claim: () => Promise.reject(new Error('claim failed')), status: 503 },
+  ];
+  for (const failure of failures) {
+    const jobs: Promise<unknown>[] = [];
+    const provider = scripted([]);
+    const { deps, rec } = fakeDeps(provider, {
+      waitUntil: (p) => {
+        jobs.push(p);
+      },
+    });
+    deps.persistence.claim = failure.claim;
+    // A settle that never answers: the response must not wait on the release.
+    deps.credits.settle = (userId, turnKey) => {
+      rec.settles.push({ userId, turnKey });
+      return new Promise(() => {});
+    };
+    const response = await handleResearchChat(post(BODY), deps);
+    assertEquals(response.status, failure.status, failure.name);
+    assertEquals(rec.reserves.length, 1, `${failure.name}: reserved first`);
+    assertEquals(rec.settles, [{ userId: 'user-1', turnKey: 'turn-1' }], `${failure.name}: the hold is released`);
+    assertEquals(jobs.length, 1, `${failure.name}: the release is kept alive by waitUntil`);
+    assertEquals(provider.seen.length, 0);
+  }
+});
+
+Deno.test('credits: a failed release is logged only and never changes the response', async () => {
+  const { deps, rec } = fakeDeps(scripted([]), {});
+  const jobs: Promise<unknown>[] = [];
+  deps.waitUntil = (p) => {
+    jobs.push(p);
+  };
+  deps.persistence.claim = () => Promise.resolve({ kind: 'deleted' });
+  deps.credits.settle = (userId, turnKey) => {
+    rec.settles.push({ userId, turnKey });
+    return Promise.reject(new Error('settle timed out'));
+  };
+  const { result: status, events } = await captureLogs(async () => {
+    const response = await handleResearchChat(post(BODY), deps);
+    await Promise.all(jobs);
+    return response.status;
+  });
+  assertEquals(status, 410);
+  assertEquals(rec.settles.length, 1);
+  assertEquals(events.filter((e) => e.event === 'research_chat.credits_release_failed').length, 1);
+});
+
+Deno.test('credits: a claim that replays an existing turn never releases that turn\'s hold', async () => {
+  let release!: () => void;
+  const blocked = new Promise<void>((r) => {
+    release = r;
+  });
+  const { deps, rec } = fakeDeps(scripted([]), {
+    executeTurn: async () => {
+      await blocked;
+      return {
+        content: 'Only answer',
+        status: 'complete',
+        sources: [],
+        follow_ups: [],
+        activity: [],
+        model_served: 'fake',
+        error_message: null,
+        usage: null,
+        timing: null,
+      };
+    },
+  });
+  // The next request's replay lookup misses, as if it ran just before the turn was claimed, so
+  // its claim is the call that finds the turn.
+  const lookup = deps.persistence.lookup;
+  let missNext = false;
+  deps.persistence.lookup = (input) => {
+    if (!missNext) return lookup(input);
+    missNext = false;
+    return Promise.resolve({ kind: 'missing' });
+  };
+  const first = await handleResearchChat(post(BODY), deps);
+
+  // Running: the turn is still executing when the second claim finds it.
+  missNext = true;
+  const running = await handleResearchChat(post(BODY), deps);
+  assertEquals(running.status, 202);
+  assertEquals(rec.reserves.length, 2, 'the second request reserved before its claim found the turn');
+  assertEquals(rec.settles.length, 0, 'the 202 did not release the live hold');
+  release();
+  await frames(first);
+  assertEquals(rec.settles.length, 1, 'only the turn itself settles');
+
+  // Terminal: the turn finished between this request's lookup and its claim.
+  missNext = true;
+  const replay = await handleResearchChat(post(BODY), deps);
+  assertEquals(replay.status, 200);
+  assert((await frames(replay)).some((f) => 'duplicate' in f), 'answered as a replay');
+  assertEquals(rec.reserves.length, 3);
+  assertEquals(rec.settles.length, 1, 'the replay did not settle the finished turn again');
+});
+
+Deno.test('credits: a 402 with credits held by running answers says so; one with nothing left keeps today\'s text', async () => {
+  const blockedAt = async (balance: number | null) => {
+    const { deps } = fakeDeps(scripted([]));
+    deps.credits.enforced = true;
+    deps.credits.reserve = () => Promise.resolve({ ok: false, balance });
+    const response = await handleResearchChat(post(BODY), deps);
+    assertEquals(response.status, 402);
+    return await response.json();
+  };
+  assertEquals(await blockedAt(25), {
+    error: 'Your credits are in use by an answer that is still running. Try again when it finishes.',
+    code: 'credits_exhausted',
+    balance: 25,
+    held: true,
+  });
+  for (const balance of [0, -180.5, null]) {
+    assertEquals(await blockedAt(balance), {
+      error: 'You have no AI credits left to start an answer.',
+      code: 'credits_exhausted',
+      balance,
+    }, `balance ${balance}`);
+  }
+});

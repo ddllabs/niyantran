@@ -8,7 +8,8 @@ const MAX_BODY_BYTES = MAX_AUDIO_BYTES + 16384;
 const TYPES = new Set(['audio/webm', 'video/webm', 'audio/mp4', 'video/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/ogg']);
 const MODEL = 'openai/whisper-large-v3-turbo';
 const FAILED = 'Transcription failed. Try again.';
-/** A log write may delay the answer by at most this long, then is abandoned. */
+/** A log write is abandoned after this long. With waitUntil it runs after the response and delays
+ * nothing; without it, it may delay the answer by at most this long. */
 export const TELEMETRY_TIMEOUT_MS = 1_500;
 
 /**
@@ -16,9 +17,10 @@ export const TELEMETRY_TIMEOUT_MS = 1_500;
  * desk-brief's and research-chat's rows.
  *
  * Dictation is FREE (owner decision 2026-10-14, AI credits spec section 6).
- * These rows exist so its cost is visible, never to bill it: credits settle
- * reads only caller = 'research-chat' rows by message id, and these rows carry
- * message_id null. Do not give a dictation row a message id.
+ * These rows exist so its cost is visible, never to bill it: credit settle and
+ * sweep read log rows only by the answer turn's message_id, and these rows carry
+ * message_id null, so no turn can ever reach them. Do not give a dictation row a
+ * message id.
  */
 export interface ModelCallRow {
   user_id: string;
@@ -52,6 +54,9 @@ export interface TranscriptionDeps {
   now?: () => number;
   telemetryTimeoutMs?: number;
   origins?: string[];
+  /** Keeps the log insert alive after the response (index.ts wires EdgeRuntime.waitUntil). Without
+   * it the insert is awaited, bounded, before the response. */
+  waitUntil?: (p: Promise<unknown>) => void;
 }
 
 function known(v: unknown): number | null {
@@ -196,7 +201,9 @@ export async function handleTranscription(req: Request, deps: TranscriptionDeps)
       if (req.signal.aborted) { status = 'aborted'; reason = 'Provider attempt aborted.'; }
       else reason = (error as Error)?.name === 'TimeoutError' ? 'Provider attempt timed out.' : 'Provider request failed.';
     }
-    await record(deps, modelCallRow({ userId, status, reason, latencyMs: now() - started, payload }));
+    const logged = record(deps, modelCallRow({ userId, status, reason, latencyMs: now() - started, payload }));
+    if (deps.waitUntil) deps.waitUntil(logged);
+    else await logged;
     if (text === null) throw new HttpError(502, FAILED);
     return json({ text }, 200, cors);
   } catch (error) { return errorResponse(error, cors); }

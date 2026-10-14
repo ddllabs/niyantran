@@ -585,8 +585,10 @@ export type AttemptRecorder = ReturnType<typeof createAttemptRecorder>;
 /** When the background job asks for a cut-off call's cost, after the abort (AI credits spec §3.1).
  * The 2026-10-14 probe saw OpenRouter's generation record appear 6-15 s after the abort. */
 export const LATE_COST_POLLS_MS = [8_000, 12_000, 16_000, 20_000, 25_000];
-/** The whole job's limit, from its start: well inside the Edge wall clock (150 s Free, 400 s paid,
- * per worker; supabase.com/docs/guides/functions/limits), which waitUntil does not extend. */
+/** The whole job's limit, from its start: well inside the Edge wall clock, which waitUntil does not
+ * extend. NTER's organisation is on Supabase Pro (plan "pro", checked 2026-10-14 through the
+ * management API), whose wall clock is 400 s per worker (150 s on Free);
+ * https://supabase.com/docs/guides/functions/limits */
 export const LATE_COST_JOB_MS = 30_000;
 
 export interface LateCost {

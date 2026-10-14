@@ -365,7 +365,10 @@ the payment.
 - **Plan & billing panel.**
   - It shows the balance in credits with the rupee hint ("2,000 credits ·
     ₹200 of AI").
-  - It shows a breakdown by expiry, plus credits used this cycle.
+  - It shows a breakdown by expiry, plus credits used this cycle
+    (`my_credits().used_this_cycle`: answers charged since the current
+    monthly lot began, or on Free since the signup lot began; none when there
+    is neither).
   - It lists recent answers with their credits: date, conversation title and
     credits. This follows TenderBase's per-turn cost view, without dollars or
     model rows.
@@ -495,7 +498,7 @@ settle and sweep read.
 | `settle_turn_credits(p_user uuid, p_turn_key text) → jsonb` | service_role | Finds the message through `research_turns`. Returns `{state:'pending'}` while it is `running` and inside its deadline. Otherwise it charges the turn's uncharged chargeable rows (§3.1) as one ledger entry, sets `settled_at`, and returns `{state:'charged'\|'free', credits, balance}`. Idempotent. A message deleted with its conversation is charged from its logs |
 | `admin_adjust_credits(p_user, p_credits, p_kind, p_reason, p_admin, p_request_id uuid) → jsonb` | service_role | `p_kind` is adjustment or topup, and `p_reason` must not be empty. A repeated `p_request_id` returns the first result. Positive: mints a lot (a top-up valid `topup_valid`, an adjustment valid 12 months). Negative: an adjustment entry that draws lots and may create debt |
 | `credits_on_plan_grant()` | trigger on `plan_grants` | Applies §4: a payment grant becomes one cycle, and a manual change ends the open monthly lot |
-| `my_credits() → jsonb` | authenticated | For `auth.uid()` only. It sweeps, expires and mints first. Returns `{balance, held, debt, plan, inr_per_credit, cycle:{allowance, ends_at}, lots:[{kind, remaining, expires_at}], recent:[{conversation_id, title, credits, created_at}]}`: the last 20 charged answers. `inr_per_credit` (₹0.10) is the published value of a credit, used for the rupee hint, so the UI copies no rate. No USD and no exchange rate |
+| `my_credits() → jsonb` | authenticated | For `auth.uid()` only. It sweeps, expires and mints first. Returns `{balance, held, debt, plan, inr_per_credit, cycle:{allowance, ends_at}, used_this_cycle, lots:[{kind, remaining, expires_at}], recent:[{conversation_id, title, credits, created_at}]}`: `recent` is the last 20 charged answers. `used_this_cycle` is the credits charged to the user's answers (charge entries, as a positive number) since the cycle start: the `starts_at` of the current open monthly lot, else on Free the open signup lot's; null when there is neither. `inr_per_credit` (₹0.10) is the published value of a credit, used for the rupee hint, so the UI copies no rate. No USD and no exchange rate |
 | `my_conversation_credits(p_conversation uuid) → jsonb` | authenticated | `[{message_id, credits}]` for the caller's own conversation, read only, so reloaded answers show their credits |
 
 The `my_` functions are the only ones granted to `authenticated`; nothing is

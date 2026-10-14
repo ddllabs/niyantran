@@ -903,6 +903,8 @@ DECLARE
   v_held numeric;
   v_lots jsonb;
   v_recent jsonb;
+  v_cycle_start timestamptz;
+  v_used numeric;
 BEGIN
   IF uid IS NULL THEN
     RAISE EXCEPTION 'Sign in to read credits' USING ERRCODE = '42501';
@@ -922,6 +924,21 @@ BEGIN
   ELSE
     SELECT o.granted, o.expires_at INTO v_allowance, v_ends FROM public.credit_lots o
     WHERE o.user_id = uid AND o.source_key = 'signup' AND o.closed_at IS NULL;
+  END IF;
+
+  -- Credits charged to answers this cycle (review R, I2). The cycle starts with the current open
+  -- monthly lot (the latest-ending one, which also gives cycle.ends_at), else on Free with the open
+  -- signup lot; with neither there is no cycle and the figure is null.
+  SELECT o.starts_at INTO v_cycle_start FROM public.credit_lots o
+  WHERE o.user_id = uid AND o.kind = 'monthly' AND o.closed_at IS NULL
+  ORDER BY o.expires_at DESC, o.starts_at DESC LIMIT 1;
+  IF v_cycle_start IS NULL THEN
+    SELECT o.starts_at INTO v_cycle_start FROM public.credit_lots o
+    WHERE o.user_id = uid AND o.source_key = 'signup' AND o.closed_at IS NULL;
+  END IF;
+  IF v_cycle_start IS NOT NULL THEN
+    SELECT coalesce(-sum(e.credits), 0) INTO v_used FROM public.credit_ledger e
+    WHERE e.user_id = uid AND e.kind = 'charge' AND e.created_at >= v_cycle_start;
   END IF;
 
   SELECT coalesce(sum(x.credits), 0) INTO v_held FROM public.credit_holds x
@@ -950,7 +967,7 @@ BEGIN
            -- The published value of one credit in rupees, for the UI's rupee hint; never dollars.
            'inr_per_credit', (SELECT cs.inr_per_credit FROM public.credit_settings cs WHERE cs.id),
            'cycle', jsonb_build_object('allowance', v_allowance, 'ends_at', v_ends),
-           'lots', v_lots, 'recent', v_recent);
+           'used_this_cycle', v_used, 'lots', v_lots, 'recent', v_recent);
 END;
 $$;
 
