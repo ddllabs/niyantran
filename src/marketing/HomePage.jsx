@@ -544,7 +544,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
                 </i>
                 <div>
                   <strong>
-                    <b>12</b> Desks
+                    <b>8</b> Desks
                   </strong>
                   <span>Curated intelligence modules</span>
                 </div>
