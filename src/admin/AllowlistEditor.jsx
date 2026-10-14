@@ -1,14 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { accessToken, functionsUrl } from '../lib/supabaseClient.js';
 import { notifyRegistryChanged } from '../lib/aiRegistry.js';
-import { catalogueChoices, formatEfforts, modelDraftToRow, parseEfforts, pricingLabel, rolesForDisplay } from './allowlistEditor.js';
+import {
+  catalogueChoices,
+  formatEfforts,
+  MODEL_PLANS,
+  modelDraftToRow,
+  modelPlanLabel,
+  modelPlanOf,
+  NEW_MODEL_PLAN,
+  parseEfforts,
+  pricingLabel,
+  rolesForDisplay,
+} from './allowlistEditor.js';
 
 /**
  * The allowlist editor (foundation spec §D.1): the admin "AI models" page.
  * Reads and writes only through the
  * admin-models edge function; a non-admin sees the list read-only with the
  * server's message. A model id is chosen from the OpenRouter catalogue or
- * not at all.
+ * not at all. Each model's plan (min_plan, F155) is chosen here: a model added
+ * from the catalogue needs a paid plan unless the admin picks another.
  */
 
 async function adminFetch(method, body) {
@@ -41,6 +53,7 @@ export function AllowlistEditor() {
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState('');
   const [addId, setAddId] = useState('');
+  const [addPlan, setAddPlan] = useState(NEW_MODEL_PLAN);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -91,7 +104,8 @@ export function AllowlistEditor() {
       <p className="adm-lede">
         The allowlist of models Ask AI may call. Only models present in the OpenRouter catalogue with tool calling can be
         enabled; the catalogue refreshes every twelve hours. The server refuses any model not enabled here. Roles pick
-        which enabled model answers each kind of question.
+        which enabled model answers each kind of question. Plans decide who may use each model; a model added from the
+        catalogue needs a paid plan unless you choose otherwise.
       </p>
       {banner ? (
         <p className="adm-msg" role="alert">
@@ -107,6 +121,7 @@ export function AllowlistEditor() {
               <th>Model</th>
               <th>Label</th>
               <th>Tier</th>
+              <th>Plans</th>
               <th>Efforts</th>
               <th>Order</th>
               <th>Enabled</th>
@@ -133,6 +148,23 @@ export function AllowlistEditor() {
                       <option value="2">2</option>
                       <option value="3">3 · costly</option>
                     </select>
+                  </td>
+                  <td>
+                    <select
+                      aria-label={`Plans that may use ${m.model_id}`}
+                      value={modelPlanOf(d)}
+                      disabled={readOnly}
+                      onChange={(e) => patchDraft(m.model_id, 'min_plan', e.target.value)}
+                    >
+                      {MODEL_PLANS.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                    {modelPlanOf(d) !== modelPlanOf(m) ? (
+                      <div className="note">Not saved yet · currently {modelPlanLabel(m)}</div>
+                    ) : null}
                   </td>
                   <td>
                     <input value={d.efforts} disabled={readOnly} placeholder="low, medium, high" onChange={(e) => patchDraft(m.model_id, 'efforts', e.target.value)} />
@@ -177,7 +209,7 @@ export function AllowlistEditor() {
             })}
             {!loading && !(data.models || []).length ? (
               <tr>
-                <td colSpan={8} className="note">
+                <td colSpan={9} className="note">
                   No models on the allowlist yet. Add one from the catalogue below.
                 </td>
               </tr>
@@ -195,14 +227,23 @@ export function AllowlistEditor() {
             </option>
           ))}
         </select>
+        <select aria-label="Plans that may use the new model" value={addPlan} disabled={readOnly} onChange={(e) => setAddPlan(e.target.value)}>
+          {MODEL_PLANS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
         <button
           className="adm-btn"
           type="button"
           disabled={readOnly || !addId || busy === 'add'}
           onClick={() => {
             const id = addId;
+            const plan = addPlan;
             setAddId('');
-            save('model', { model_id: id, label: id.split('/').pop(), enabled: false }, 'add');
+            setAddPlan(NEW_MODEL_PLAN);
+            save('model', { model_id: id, label: id.split('/').pop(), enabled: false, min_plan: plan }, 'add');
           }}
         >
           Add (disabled)

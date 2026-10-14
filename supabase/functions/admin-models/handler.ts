@@ -27,8 +27,14 @@ export interface AdminDeps {
   origins?: string[];
 }
 
-const MODEL_FIELDS = ['model_id', 'label', 'vendor', 'tier', 'efforts', 'params', 'enabled', 'is_default', 'sort_order'] as const;
+const MODEL_FIELDS = ['model_id', 'label', 'vendor', 'tier', 'efforts', 'params', 'enabled', 'is_default', 'sort_order', 'min_plan'] as const;
 const ROLE_FIELDS = ['role_id', 'label', 'hint', 'model_id', 'sort_order'] as const;
+
+/**
+ * The app_plan values, lowest first: a model's min_plan is the lowest plan that may use it (F150, F155).
+ * admin_models_upsert refuses anything else too; this answers 400 before the database is asked.
+ */
+export const MODEL_PLANS = ['free', 'plus', 'pro', 'max'] as const;
 
 /** Keep only the columns the RPC accepts; unknown keys are dropped, not rejected. */
 export function pickRow(kind: Kind, raw: unknown): Record<string, unknown> {
@@ -41,6 +47,9 @@ export function pickRow(kind: Kind, raw: unknown): Record<string, unknown> {
   if (typeof out[idField] !== 'string' || !(out[idField] as string).trim()) throw new HttpError(400, `${idField} is required`);
   if ('efforts' in out && !Array.isArray(out.efforts)) throw new HttpError(400, 'efforts must be an array');
   if ('tier' in out && typeof out.tier !== 'number') throw new HttpError(400, 'tier must be a number');
+  if ('min_plan' in out && !(MODEL_PLANS as readonly unknown[]).includes(out.min_plan)) {
+    throw new HttpError(400, `min_plan must be one of ${MODEL_PLANS.join(', ')}`);
+  }
   for (const b of ['enabled', 'is_default'] as const) {
     if (b in out && typeof out[b] !== 'boolean') throw new HttpError(400, `${b} must be a boolean`);
   }

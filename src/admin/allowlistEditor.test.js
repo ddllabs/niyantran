@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogueChoices, formatEfforts, modelDraftToRow, parseEfforts, pricingLabel, rolesForDisplay } from './allowlistEditor.js';
+import { catalogueChoices, formatEfforts, MODEL_PLANS, modelDraftToRow, modelPlanLabel, modelPlanOf, NEW_MODEL_PLAN, parseEfforts, pricingLabel, rolesForDisplay } from './allowlistEditor.js';
 
 describe('allowlist editor helpers', () => {
   it('offers only catalogue models that are not already listed, in id order', () => {
@@ -43,5 +43,32 @@ describe('allowlist editor helpers', () => {
     const merged = rolesForDisplay([{ role_id: 'PDF_PARSER', label: 'Custom', hint: 'h', model_id: 'v/a', sort_order: 30 }, { role_id: 'EXTRA', label: 'X', hint: '', model_id: 'v/b', sort_order: 99 }]);
     expect(merged.find((r) => r.role_id === 'PDF_PARSER')).toMatchObject({ label: 'Custom', model_id: 'v/a' });
     expect(merged.map((r) => r.role_id)).toContain('EXTRA');
+  });
+
+  // F155: the admin chooses which plans may use a model.
+  it('offers the four plans, lowest first, with labels that say who gets the model', () => {
+    expect(MODEL_PLANS).toEqual([
+      { value: 'free', label: 'Free and paid plans' },
+      { value: 'plus', label: 'Paid plans' },
+      { value: 'pro', label: 'Pro and Max' },
+      { value: 'max', label: 'Max only' },
+    ]);
+    expect(NEW_MODEL_PLAN).toBe('plus');
+  });
+
+  it('reads a missing or unknown plan as paid plans', () => {
+    expect(modelPlanOf({ min_plan: 'free' })).toBe('free');
+    expect(modelPlanOf({ min_plan: 'max' })).toBe('max');
+    for (const m of [{}, { min_plan: null }, { min_plan: 'gold' }, null]) expect(modelPlanOf(m)).toBe('plus');
+    expect(modelPlanLabel({ min_plan: 'free' })).toBe('Free and paid plans');
+    expect(modelPlanLabel({ min_plan: 'pro' })).toBe('Pro and Max');
+    expect(modelPlanLabel({})).toBe('Paid plans');
+  });
+
+  it('sends min_plan only when the draft holds a known plan, so a stored plan is never overwritten by accident', () => {
+    for (const plan of ['free', 'plus', 'pro', 'max']) expect(modelDraftToRow({ model_id: 'v/a', min_plan: plan }).min_plan).toBe(plan);
+    for (const draft of [{ model_id: 'v/a' }, { model_id: 'v/a', min_plan: null }, { model_id: 'v/a', min_plan: 'gold' }]) {
+      expect(modelDraftToRow(draft)).not.toHaveProperty('min_plan');
+    }
   });
 });

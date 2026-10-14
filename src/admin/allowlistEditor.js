@@ -38,10 +38,40 @@ export function pricingLabel(pricing) {
 
 const TIERS = [1, 2, 3];
 
-/** The editable draft of a model row → the row admin-models PUT accepts. */
+/**
+ * Which plans may use a model (F150, F155): ai_models.min_plan is the lowest plan allowed, and plans rank
+ * free < plus < pro < max. The labels say who gets the model, not the plan's name.
+ */
+export const MODEL_PLANS = [
+  { value: 'free', label: 'Free and paid plans' },
+  { value: 'plus', label: 'Paid plans' },
+  { value: 'pro', label: 'Pro and Max' },
+  { value: 'max', label: 'Max only' },
+];
+
+/** A model added without a choice needs a paid plan, as the database default does. */
+export const NEW_MODEL_PLAN = 'plus';
+
+const isPlan = (value) => MODEL_PLANS.some((p) => p.value === value);
+
+/** The model's plan for display; a missing or unknown value reads as plus, as research-chat reads it. */
+export function modelPlanOf(model) {
+  return isPlan(model?.min_plan) ? model.min_plan : NEW_MODEL_PLAN;
+}
+
+/** "Paid plans" for { min_plan: 'plus' }. */
+export function modelPlanLabel(model) {
+  const plan = modelPlanOf(model);
+  return MODEL_PLANS.find((p) => p.value === plan).label;
+}
+
+/**
+ * The editable draft of a model row → the row admin-models PUT accepts. min_plan is sent only when the draft
+ * holds a known plan, so a row read without one never overwrites the stored plan.
+ */
 export function modelDraftToRow(draft) {
   const tier = Number(draft.tier);
-  return {
+  const row = {
     model_id: String(draft.model_id || '').trim(),
     label: String(draft.label || '').trim() || String(draft.model_id || '').trim(),
     tier: TIERS.includes(tier) ? tier : 2,
@@ -50,6 +80,8 @@ export function modelDraftToRow(draft) {
     enabled: Boolean(draft.enabled),
     is_default: Boolean(draft.is_default),
   };
+  if (isPlan(draft.min_plan)) row.min_plan = draft.min_plan;
+  return row;
 }
 
 /** The four roles Niyantran routes by, in display order, for seeding an empty table. */

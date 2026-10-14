@@ -66,3 +66,41 @@ Deno.test('a guard refusal from the database comes back as 400 with its message'
 Deno.test('pickRow keeps role fields and drops model fields for a role', () => {
   assertEquals(pickRow('role', { role_id: 'DEFAULT_ANALYST', model_id: 'v/a', enabled: true, hint: 'h' }), { role_id: 'DEFAULT_ANALYST', model_id: 'v/a', hint: 'h' });
 });
+
+// F155: the admin chooses which plans may use a model (ai_models.min_plan).
+Deno.test('PUT passes min_plan through to the write for every plan', async () => {
+  for (const plan of ['free', 'plus', 'pro', 'max']) {
+    let got: Record<string, unknown> = {};
+    const d = deps({ write: (_k, row) => ((got = row), Promise.resolve({ row })) });
+    const res = await handleAdminModels(put({ kind: 'model', row: { model_id: 'v/a', label: 'A', min_plan: plan } }), d);
+    assertEquals(res.status, 200);
+    assertEquals(got, { model_id: 'v/a', label: 'A', min_plan: plan });
+    assertEquals((await res.json()).row.min_plan, plan);
+  }
+});
+
+Deno.test('PUT refuses a min_plan that is not a plan, and writes nothing', async () => {
+  let written = 0;
+  const d = deps({ write: (_k, row) => (written++, Promise.resolve({ row })) });
+  for (const bad of ['gold', 'FREE', '', null, 1, ['free'], { plan: 'free' }]) {
+    const res = await handleAdminModels(put({ kind: 'model', row: { model_id: 'v/a', min_plan: bad } }), d);
+    assertEquals(res.status, 400);
+    assertEquals((await res.json()).error, 'min_plan must be one of free, plus, pro, max');
+  }
+  assertEquals(written, 0);
+});
+
+Deno.test('a row without min_plan sends none, so the stored plan is kept', () => {
+  assertEquals(pickRow('model', { model_id: 'v/a', enabled: true }), { model_id: 'v/a', enabled: true });
+});
+
+Deno.test('min_plan is not a role field', () => {
+  assertEquals(pickRow('role', { role_id: 'DEFAULT_ANALYST', model_id: 'v/a', min_plan: 'gold' }), { role_id: 'DEFAULT_ANALYST', model_id: 'v/a' });
+});
+
+Deno.test('GET lists each model with its plan', async () => {
+  const read = { models: [{ model_id: 'v/a', enabled: true, min_plan: 'free' }, { model_id: 'v/b', enabled: false, min_plan: 'plus' }], roles: [], catalogue: [] };
+  const res = await handleAdminModels(get(), deps({ read: () => Promise.resolve(read) }));
+  assertEquals(res.status, 200);
+  assertEquals((await res.json()).models.map((m: { min_plan: string }) => m.min_plan), ['free', 'plus']);
+});

@@ -756,6 +756,17 @@ rechecked. Nothing in this check wrote to production.
   each model's `min_plan` is chosen there. New models default to paid until then. Credits audit
   2026-10-14: still missing (`admin-models/handler.ts` leaves out `min_plan`; no selector in
   `AllowlistEditor.jsx`). Size S; deploys the `admin-models` function.
+  - 2026-10-14, built on `task/admin-model-plan` (not yet applied or deployed): migration
+    `20261014234500_admin_model_plan.sql` replaces `admin_models_upsert` (same signature, SECURITY
+    DEFINER, `search_path ''`, service_role only) so a model row may carry `min_plan`: only
+    `free`/`plus`/`pro`/`max` (anything else, null included, is refused with 22023), a new model
+    without it gets `plus`, an existing model without it keeps its plan; no stored plan changes.
+    `admin-models` passes `min_plan` through and answers 400 for any other value; its list already
+    returns the column. The AI models page has a Plans selector per model ("Free and paid plans",
+    "Paid plans", "Pro and Max", "Max only") saved with the row's Save, a note while a change is
+    unsaved, and a selector beside "Add from catalogue" that starts at "Paid plans". Evidence: SQL
+    fixture `supabase/tests/admin_model_plan.sql` (with vacuity check), Deno and Vitest tests. To
+    go live: apply the migration, then deploy `admin-models`.
 
 - [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
 
