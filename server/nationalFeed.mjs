@@ -340,23 +340,41 @@ export async function serveNational(ctx) {
   }
 
   if (/regulatory body watch/i.test(name)) {
-    const live = await tryUrls([RBI_NOTES, RBI_PRESS, SEBI_RSS, primary].filter(Boolean));
-    const rows = live.rows.length ? live.rows : archive || [];
+    // F169 T6: the three feeds together (it used to stop at the first that answered), then the
+    // stored register behind them; one row per link, newest first.
+    const feeds = [
+      [RBI_NOTES, 'RBI'],
+      [RBI_PRESS, 'RBI'],
+      [SEBI_RSS, 'SEBI'],
+    ];
+    const answers = await Promise.all(feeds.map(([url]) => tryUrls([url])));
+    const liveRows = answers.flatMap((a, k) => (a.rows || []).map((r) => ({ ...r, regulator: r.regulator || feeds[k][1] })));
+    const seen = new Set();
+    const keyOf = (r) => String(r.source_url || r.detail_url || r.link || r.title || '').replace(/^https?:\/\/(www\.)?/i, '').toLowerCase();
+    const rows = [...liveRows, ...(archive || [])]
+      .filter((r) => {
+        const key = keyOf(r);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
     if (!rows.length) return null;
+    const answered = feeds.filter((_, k) => answers[k].rows?.length).map(([url]) => url);
     return envelope({
       tier,
       feature: feat,
       rows,
-      adapter: live.rows.length ? 'live' : 'embedded',
+      adapter: liveRows.length ? 'live' : 'embedded',
       links: [RBI_NOTES, RBI_PRESS, SEBI_RSS],
       coverage,
-      fallback: !live.rows.length,
-      note: live.rows.length
-        ? 'RBI / SEBI RSS. A one-shot RBI pull is ~7 items. TRAI / CBDT / IBBI / CCI are not wired, so a “Regulators” count of 1 is the RBI-only register.'
-        : 'Regulator RSS did not return rows. Showing the last-known-good register (121 rows).',
+      fallback: !liveRows.length,
+      note: liveRows.length
+        ? `RBI notifications, RBI press releases and SEBI (${liveRows.length} live items from ${answered.length} of 3 feeds), with the stored register behind them. TRAI, CBDT, IBBI and CCI are not connected.`
+        : 'The regulator feeds did not answer. Showing the stored register.',
       meta: {
         section: 'REGULATORY WATCH — RBI / SEBI / TRAI / CCI',
-        status: live.rows.length ? 'LIVE · REGULATOR RSS' : 'ARCHIVE · LAST-KNOWN-GOOD',
+        status: liveRows.length ? 'LIVE · REGULATOR RSS' : 'ARCHIVE · LAST-KNOWN-GOOD',
         heading: heading(feat),
       },
     });
