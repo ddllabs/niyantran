@@ -44,6 +44,14 @@ let observedId = null;
 const identityListeners = new Set();
 // F13: the kind of the last failed identity check, for the caller's message.
 let lastFailure = null;
+// F147: which page of the admin directory is on screen (and for which search), so an
+// edit or a credit adjustment refreshes that page rather than going back to the first.
+const DIRECTORY_PAGE_SIZE = 100;
+const MAX_DIRECTORY_PAGE = 999999;
+const MAX_DIRECTORY_SEARCH = 100;
+const FIRST_PAGE = Object.freeze({ page: 1, q: '' });
+let directoryQuery = FIRST_PAGE;
+let directoryMeta = { pageSize: DIRECTORY_PAGE_SIZE, total: 0 };
 
 /**
  * 'transient' when the last identity check could not be answered (network,
@@ -77,6 +85,12 @@ function isTransient(error, status) {
 }
 
 function identityChanged(id, event = null) {
+  // Another account (or none) starts at the first page; the same account announced
+  // again (a tab refocus, a token refresh) keeps its place.
+  if (id !== observedId) {
+    directoryQuery = FIRST_PAGE;
+    directoryMeta = { pageSize: DIRECTORY_PAGE_SIZE, total: 0 };
+  }
   observedId = id;
   identityEpoch += 1;
   usersCache = null;
@@ -244,35 +258,91 @@ function publishUsers(users, identity) {
   return loadUsers();
 }
 
-/** Pull the authoritative server list; hydration never writes or unions it. */
-export async function hydrateUsersFromServer() {
+/** The page and search, held to what the server accepts: a whole page number from 1, a search of at most 100 characters. */
+function cleanDirectoryQuery(query) {
+  const page = Number(query?.page);
+  return {
+    page: Number.isInteger(page) && page >= 1 && page <= MAX_DIRECTORY_PAGE ? page : 1,
+    q: String(query?.q ?? '').trim().slice(0, MAX_DIRECTORY_SEARCH).trim(),
+  };
+}
+
+function directoryUrl({ page, q }) {
+  const params = new URLSearchParams({ page: String(page) });
+  if (q) params.set('q', q);
+  return `/api/users?${params}`;
+}
+
+/** Which page of the admin directory is loaded: { page, pageSize, total, query }. */
+export function usersPaging() {
+  return { page: directoryQuery.page, pageSize: directoryMeta.pageSize, total: directoryMeta.total, query: directoryQuery.q };
+}
+
+/**
+ * One page of the admin directory. `query` is { page, q }; left out, the page on
+ * screen is read again. Resolves to { ok, superseded?, users }. A read that a newer
+ * read or an edit overtook is `superseded` (not an error); the page and search
+ * move only when their read succeeds.
+ */
+async function readDirectory(query) {
   const readSequence = ++directoryReadSequence;
   const mutationVersion = directoryMutationVersion;
   const readIsCurrent = () => readSequence === directoryReadSequence
     && mutationVersion === directoryMutationVersion && !directoryMutationPending;
-  if (!readIsCurrent()) return [];
+  if (!readIsCurrent()) return { ok: false, superseded: true, users: [] };
   const identity = await verifiedLocalIdentity({ admin: true });
-  if (!identity || !readIsCurrent()) return [];
+  if (!identity) return { ok: false, users: [] };
+  if (!readIsCurrent()) return { ok: false, superseded: true, users: [] };
+  let wanted = query === undefined ? directoryQuery : cleanDirectoryQuery(query);
   try {
-    const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${identity.token}` } });
-    if (transientStatus(res.status)) throw new TransientIdentityError('Directory unavailable');
-    if (!res.ok) throw new Error('Read failed');
-    let body;
-    try {
-      body = await res.json();
-    } catch {
-      throw new TransientIdentityError('Directory unreadable');
+    for (let attempt = 0; ; attempt += 1) {
+      const res = await fetch(directoryUrl(wanted), { headers: { Authorization: `Bearer ${identity.token}` } });
+      if (transientStatus(res.status)) throw new TransientIdentityError('Directory unavailable');
+      // The request itself was refused: nothing is wrong with the sign-in.
+      if (res.status === 400) return { ok: false, users: [] };
+      if (!res.ok) throw new Error('Read failed');
+      let body;
+      try {
+        body = await res.json();
+      } catch {
+        throw new TransientIdentityError('Directory unreadable');
+      }
+      if (!body.ok || !Array.isArray(body.users)) throw new Error('Invalid users');
+      if (!await localIdentityIsCurrent(identity) || !readIsCurrent()) return { ok: false, superseded: true, users: [] };
+      const pageSize = Number.isInteger(body.pageSize) && body.pageSize >= 1 ? body.pageSize : DIRECTORY_PAGE_SIZE;
+      const total = Number.isInteger(body.total) && body.total >= 0 ? body.total : body.users.length;
+      // A page past the end (the list shrank): once, step back to the last page that exists.
+      const last = Math.ceil(total / pageSize);
+      if (!body.users.length && total > 0 && wanted.page > last && attempt === 0) {
+        wanted = { ...wanted, page: last };
+        continue;
+      }
+      directoryQuery = wanted;
+      directoryMeta = { pageSize, total };
+      return { ok: true, users: publishUsers(body.users, identity) };
     }
-    if (!body.ok || !Array.isArray(body.users)) throw new Error('Invalid users');
-    if (!await localIdentityIsCurrent(identity) || !readIsCurrent()) return [];
-    return publishUsers(body.users, identity);
   } catch (error) {
     // A network error or 5xx says nothing about the identity; keep it.
-    if (isTransient(error)) return [];
+    if (isTransient(error)) return { ok: false, users: [] };
     // An old failed read cannot invalidate a newer read or completed mutation.
     if (identity.epoch === identityEpoch && readIsCurrent()) identityChanged(null);
-    return [];
+    return { ok: false, users: [] };
   }
+}
+
+/** Pull the authoritative server list; hydration never writes or unions it. */
+export async function hydrateUsersFromServer(query) {
+  return (await readDirectory(query)).users;
+}
+
+/**
+ * Show another page or search of the directory ({ page, q }). Resolves to { ok }:
+ * false when it could not be loaded (the page on screen stays as it was); a read
+ * that a newer one overtook is not a failure.
+ */
+export async function loadUsersPage(query) {
+  const result = await readDirectory(query ?? FIRST_PAGE);
+  return { ok: result.ok || result.superseded === true };
 }
 
 const RELOAD_DIRECTORY = 'Reload the verified admin directory before editing.';
