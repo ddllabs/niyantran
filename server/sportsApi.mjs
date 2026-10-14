@@ -13,6 +13,7 @@ import {
   wikidataAthleteRows,
   wikidataLeagueRows,
 } from '../src/lib/sportsPack.js';
+import { cacheFresh } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Sports)';
 const FETCH_MS = 20_000;
@@ -49,7 +50,7 @@ function sportsDb(kind, id) {
 }
 
 export async function loadWorldFixtures() {
-  if (fxCache && Date.now() - fxAt < TTL) return fxCache;
+  if (fxCache && cacheFresh(fxAt, TTL)) return fxCache;
   const rows = [];
   await Promise.all(
     WORLD_LEAGUES.map(async (lg) => {
@@ -79,7 +80,7 @@ function islOrder(a, b) {
 }
 
 export async function loadIsl() {
-  if (islCache && Date.now() - islAt < TTL) return islCache;
+  if (islCache && cacheFresh(islAt, TTL)) return islCache;
   try {
     // F169 T5: the season's two calendar years (the season runs September to April). Without a
     // date ESPN returns only today's matchday; a date range answers 400 (measured 2026-10-14).
@@ -125,7 +126,7 @@ function wdUrl(q) {
 }
 
 export async function loadSportsLeagues() {
-  if (lgCache && Date.now() - lgAt < WD_TTL) return lgCache;
+  if (lgCache && cacheFresh(lgAt, WD_TTL)) return lgCache;
   const json = await getJson(wdUrl(WD_LEAGUES_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataLeagueRows(json);
   lgCache = { ok: true, source: 'wikidata', rows };
@@ -134,7 +135,7 @@ export async function loadSportsLeagues() {
 }
 
 export async function loadAthletes() {
-  if (atCache && Date.now() - atAt < WD_TTL) return atCache;
+  if (atCache && cacheFresh(atAt, WD_TTL)) return atCache;
   const json = await getJson(wdUrl(WD_ATHLETES_Q), { Accept: 'application/sparql-results+json' }, SPARQL_MS);
   const rows = wikidataAthleteRows(json);
   atCache = { ok: true, source: 'wikidata', rows };

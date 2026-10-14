@@ -38,7 +38,7 @@ const live = (rows, extra = {}) => ({
   tier: 'news',
   feature: 'x',
   rows,
-  source: { adapter: 'rss', links: ['https://wire.example/feed'], note: 'Live wire', gdelt: false, kind: '' },
+  source: { adapter: 'news-search', links: ['https://wire.example/feed'], note: 'Live wire', gdelt: false, kind: '' },
   coverage: { from: '', through: '', exhaustive: false },
   fallback: false,
   timeline: [],
@@ -65,6 +65,13 @@ describe('classifyAnswer: only live answers are kept', () => {
     expect(classifyAnswer({ ok: false, rows: [statusRow()], source: { note: 'unknown feature' } }).status).toBe('failed');
     expect(classifyAnswer(null).status).toBe('failed');
   });
+
+  it('accepts only the adapters live answers use: the simulator, the bill archive and anything unknown are refused', () => {
+    for (const adapter of ['api', 'news-search', 'live']) expect(classifyAnswer(live([row(1)], { source: { adapter } })).status, adapter).toBe('ok');
+    for (const adapter of ['internal', 'bill-history', 'source-library', 'licensed', 'unmapped', '', undefined]) {
+      expect(classifyAnswer(live([row(1)], { source: { adapter } })).status, String(adapter)).toBe('failed');
+    }
+  });
 });
 
 describe('itemsFromRows: caps, keys and hashes', () => {
@@ -77,9 +84,12 @@ describe('itemsFromRows: caps, keys and hashes', () => {
 
   it('keeps rows that share a dataset link as separate items', () => {
     const wb = 'https://data.worldbank.org/indicator/NY.GDP.MKTP.CD';
-    const { items, dropped } = itemsFromRows([{ title: 'India', source_url: wb }, { title: 'Nepal', source_url: wb }]);
+    const rows = [{ title: 'India', source_url: wb }, { title: 'Nepal', source_url: wb }];
+    const { items, dropped } = itemsFromRows(rows, 'reference');
     expect(items).toHaveLength(2);
     expect(dropped.duplicate).toBe(0);
+    // A kept kind keys by the link alone: the second row is the same item.
+    expect(itemsFromRows(rows, 'news')).toMatchObject({ items: [{ title: 'India' }], dropped: { duplicate: 1 } });
   });
 
   it('keeps at most 2,000 items and counts the rest', () => {
@@ -124,42 +134,55 @@ describe('itemsFromRows: caps, keys and hashes', () => {
 describe('metaFor', () => {
   it('carries the note, links, coverage and fetched time within 16 KB', () => {
     const body = live([row(1)], {
-      source: { adapter: 'rss', note: 'n'.repeat(50_000), links: Array.from({ length: 500 }, (_, i) => `https://l.example/${i}/${'q'.repeat(100)}`) },
+      source: { adapter: 'news-search', note: 'n'.repeat(50_000), links: Array.from({ length: 500 }, (_, i) => `https://l.example/${i}/${'q'.repeat(100)}`) },
       coverage: { from: '2020', through: '2026', exhaustive: false },
     });
     const meta = metaFor(body, '2026-10-15T00:00:00.000Z');
     expect(Buffer.byteLength(JSON.stringify(meta))).toBeLessThanOrEqual(FEED_CAPS.metaBytes);
-    expect(meta).toMatchObject({ adapter: 'rss', fetched_at: '2026-10-15T00:00:00.000Z', coverage: { from: '2020', through: '2026', exhaustive: false } });
+    expect(meta).toMatchObject({ adapter: 'news-search', fetched_at: '2026-10-15T00:00:00.000Z', coverage: { from: '2020', through: '2026', exhaustive: false } });
     expect(meta.note.length).toBeGreaterThan(0);
     expect(meta.links.length).toBeGreaterThan(0);
   });
 });
 
+// A loader reaches its source before it answers; a request per module, each on its own host.
+const touch = async (params) => {
+  const slug = String(params?.get?.('feature') || 'x').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
+  await (await fetch(`https://${slug}.src.example/feed`)).text();
+};
+const viaSource = (fn) => async (params) => {
+  await touch(params);
+  return fn(params);
+};
+
 describe('refreshDue', () => {
   const originalFetch = globalThis.fetch;
+  beforeEach(() => {
+    globalThis.fetch = vi.fn(async () => new Response('<rss/>'));
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
 
   it('records every claimed module with its lease token and the status its answer earns', async () => {
     const answers = {
-      live: async () => live([row(1), row(2)]),
-      empty: async () => live([]),
+      live: viaSource(() => live([row(1), row(2)])),
+      empty: viaSource(() => live([])),
       throws: async () => { throw new Error('boom at https://api.example/x?api_key=SECRET123'); },
-      'status row': async () => live([statusRow('source refused the request')]),
-      fallback: async () => live([row(1)], { fallback: true }),
-      backup: async () => live([row(1)], { fallback: true, served: 'archive', source: { adapter: 'embedded', kind: 'backup-pack' } }),
-      stored: async () => live([row(1)], { source: { adapter: 'embedded', kind: 'finance-pack' } }),
-      planned: async () => live([], { source: { adapter: 'planned' } }),
+      'status row': viaSource(() => live([statusRow('source refused the request')])),
+      fallback: viaSource(() => live([row(1)], { fallback: true })),
+      backup: viaSource(() => live([row(1)], { fallback: true, served: 'archive', source: { adapter: 'embedded', kind: 'backup-pack' } })),
+      stored: viaSource(() => live([row(1)], { source: { adapter: 'embedded', kind: 'finance-pack' } })),
+      planned: viaSource(() => live([], { source: { adapter: 'planned' } })),
       slow: () => new Promise(() => {}),
     };
     const db = fakeDb(Object.keys(answers));
-    const load = vi.fn((params) => answers[params.get('feature')]());
+    const load = vi.fn((params) => answers[params.get('feature')](params));
     const summary = await refreshDue({ rpc: db.rpc, load, budgetMs: 2000, moduleMs: 150, reserveMs: 200 });
 
     const got = byFeature(db.records);
     expect(Object.keys(got).sort()).toEqual(Object.keys(answers).sort());
-    expect(got.live).toMatchObject({ status: 'ok', items: expect.any(Array), meta: expect.objectContaining({ adapter: 'rss' }) });
+    expect(got.live).toMatchObject({ status: 'ok', items: expect.any(Array), meta: expect.objectContaining({ adapter: 'news-search' }) });
     expect(got.live.items).toHaveLength(2);
     expect(got.empty.status).toBe('empty');
     expect(got.throws).toMatchObject({ status: 'failed', error: expect.stringMatching(/boom/) });
@@ -183,7 +206,7 @@ describe('refreshDue', () => {
   it('passes the Statement Tracker leader as the person parameter', async () => {
     const feature = 'Statement & Quote Tracker with Contradiction Detection';
     const db = fakeDb([{ tier: 'national', feature, variant: 'Amit Shah' }]);
-    const load = vi.fn(async () => live([row(1)]));
+    const load = vi.fn(viaSource(() => live([row(1)])));
     await refreshDue({ rpc: db.rpc, load });
     const params = load.mock.calls[0][0];
     expect(params.get('tier')).toBe('national');
@@ -194,7 +217,7 @@ describe('refreshDue', () => {
 
   it('claims with the schedule from code, a bounded count and a lease that outlasts the budget', async () => {
     const db = fakeDb(['a']);
-    await refreshDue({ rpc: db.rpc, load: async () => live([row(1)]), budgetMs: 55_000 });
+    await refreshDue({ rpc: db.rpc, load: viaSource(() => live([row(1)])), budgetMs: 55_000 });
     const first = db.claims[0];
     expect(first.p_runs.length).toBeGreaterThan(50);
     expect(first.p_runs[0]).toEqual(expect.objectContaining({ tier: expect.any(String), feature: expect.any(String), class: expect.any(String), kind: expect.any(String), interval_minutes: expect.any(Number) }));
@@ -206,7 +229,7 @@ describe('refreshDue', () => {
 
   it('treats a stale answer as done, with no retry', async () => {
     const db = fakeDb(['a', 'b'], { recordAnswer: () => ({ status: 'stale' }) });
-    const summary = await refreshDue({ rpc: db.rpc, load: async () => live([row(1)]) });
+    const summary = await refreshDue({ rpc: db.rpc, load: viaSource(() => live([row(1)])) });
     expect(db.records).toHaveLength(2);
     expect(summary.counts.stale).toBe(2);
   });
@@ -220,7 +243,7 @@ describe('refreshDue', () => {
         return { status: p.status };
       },
     });
-    const summary = await refreshDue({ rpc: db.rpc, load: async () => live([row(1)]) });
+    const summary = await refreshDue({ rpc: db.rpc, load: viaSource(() => live([row(1)])) });
     expect(db.records.map((r) => r.status)).toEqual(['ok', 'failed']);
     expect(db.records[1].lease_token).toBe(db.records[0].lease_token);
     expect(db.records[1].error).toMatch(/refused/);
@@ -231,9 +254,10 @@ describe('refreshDue', () => {
     const db = fakeDb(Array.from({ length: 12 }, (_, i) => `m${i}`));
     let active = 0;
     let max = 0;
-    const load = async () => {
+    const load = async (params) => {
       active += 1;
       max = Math.max(max, active);
+      await touch(params);
       await sleep(30);
       active -= 1;
       return live([row(1)]);
@@ -248,8 +272,9 @@ describe('refreshDue', () => {
     const db = fakeDb(Array.from({ length: 40 }, (_, i) => `m${i}`));
     const starts = [];
     const t0 = Date.now();
-    const load = async () => {
+    const load = async (params) => {
       starts.push(Date.now() - t0);
+      await touch(params);
       await sleep(60);
       return live([row(1)]);
     };
@@ -434,5 +459,222 @@ describe('supabaseRpc', () => {
   it('refuses to run without a URL and key', async () => {
     const rpc = supabaseRpc({ url: '', key: '', fetchImpl: vi.fn() });
     await expect(rpc('feed_claim_due', {})).rejects.toMatchObject({ code: 'not_configured' });
+  });
+});
+
+describe('refreshDue: answers that only look live are refused (C3 review)', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('refuses an answer for which no request reached a source (a cache or stored data)', async () => {
+    globalThis.fetch = vi.fn(async () => new Response('ok'));
+    const db = fakeDb(['cached']);
+    await refreshDue({ rpc: db.rpc, load: async () => live([row(1)]) });
+    expect(db.records[0]).toMatchObject({ status: 'failed', error: expect.stringMatching(/no request reached a source/) });
+    expect(db.records[0].items).toBeUndefined();
+  });
+
+  it('a host the run closed outranks a live answer from the module\'s other sources', async () => {
+    globalThis.fetch = vi.fn(async (input) => new Response('x', { status: String(input).includes('busy.example') ? 429 : 200 }));
+    const db = fakeDb(['closer', 'partial']);
+    const load = async (params) => {
+      if (params.get('feature') === 'closer') {
+        await fetch('https://busy.example/a');
+        return live([statusRow('rate limited')]);
+      }
+      await (await fetch('https://fine.example/b')).text();
+      await fetch('https://busy.example/c').catch(() => null);
+      return live([row(1)]);
+    };
+    await refreshDue({ rpc: db.rpc, concurrency: 1, load });
+    expect(byFeature(db.records).partial).toMatchObject({ status: 'failed', error: expect.stringMatching(/busy\.example.*429/) });
+    expect(byFeature(db.records).partial.items).toBeUndefined();
+  });
+
+  describe('Top Financial & Business Players (loadIndiaCeos and its 24-hour cache)', () => {
+    const feature = 'Top Financial & Business Players';
+    const wikidata = (people) => new Response(JSON.stringify({
+      results: { bindings: people.map((p, i) => ({ personLabel: { value: p }, companyLabel: { value: `Company ${i}` }, company: { value: `http://www.wikidata.org/entity/Q${i + 1}` } })) },
+    }), { headers: { 'content-type': 'application/sparql-results+json' } });
+
+    it('skips the loader cache inside a refresh, and the cache still answers outside it', async () => {
+      globalThis.fetch = vi.fn(async () => wikidata(['First Person']));
+      const params = new URLSearchParams({ tier: 'finance', feature });
+      const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+      await serveFeatureFeed(params);
+      // Outside a refresh, a second ordinary request is answered from the loader's cache.
+      globalThis.fetch = vi.fn(async () => wikidata(['Second Person']));
+      const cached = await serveFeatureFeed(params);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(cached.rows.map((r) => r.person)).toEqual(['First Person']);
+      // Inside a refresh the source is asked again, and its answer is what is stored.
+      const db = fakeDb([{ tier: 'finance', feature, kind: 'reference' }]);
+      await refreshDue({ rpc: db.rpc });
+      expect(globalThis.fetch).toHaveBeenCalled();
+      expect(db.records[0].status).toBe('ok');
+      expect(db.records[0].items.map((i) => i.row.person)).toEqual(['Second Person']);
+    });
+
+    it('refuses the stale list the loader answers when Wikidata fails', async () => {
+      globalThis.fetch = vi.fn(async () => wikidata(['Cached Person']));
+      const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+      await serveFeatureFeed(new URLSearchParams({ tier: 'finance', feature }));
+      globalThis.fetch = vi.fn(async () => new Response('down', { status: 500 }));
+      const body = await serveFeatureFeed(new URLSearchParams({ tier: 'finance', feature }));
+      expect(body.fallback).toBe(false); // outside a refresh the fresh cache answers, as before
+      const db = fakeDb([{ tier: 'finance', feature, kind: 'reference' }]);
+      await refreshDue({ rpc: db.rpc });
+      expect(globalThis.fetch).toHaveBeenCalled();
+      expect(db.records[0]).toMatchObject({ status: 'failed', error: expect.stringMatching(/stored rows stood in/) });
+    });
+  });
+});
+
+describe('refreshDue: time (C3 review)', () => {
+  const originalFetch = globalThis.fetch;
+  beforeEach(() => {
+    globalThis.fetch = vi.fn(async () => new Response('<rss/>'));
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const slowDb = (features, { claimMs = 0, recordMs = 0, hangRecord = false } = {}) => {
+    const db = fakeDb(features);
+    const inner = db.rpc;
+    db.finished = [];
+    db.rpc = vi.fn(async (name, args) => {
+      if (name === 'feed_claim_due') await sleep(claimMs);
+      if (name === 'feed_record') {
+        if (hangRecord) return new Promise(() => {});
+        await sleep(recordMs);
+      }
+      const out = await inner(name, args);
+      if (name === 'feed_record') db.finished.push(Date.now());
+      return out;
+    });
+    return db;
+  };
+
+  it('with a slow database, every claimed module is recorded before the budget ends', async () => {
+    const db = slowDb(Array.from({ length: 12 }, (_, i) => `m${i}`), { claimMs: 80, recordMs: 250 });
+    const t0 = Date.now();
+    const summary = await refreshDue({
+      rpc: db.rpc, budgetMs: 1500, moduleMs: 200, reserveMs: 400,
+      load: viaSource(async () => { await sleep(60); return live([row(1)]); }),
+    });
+    expect(Date.now() - t0).toBeLessThan(1500 + 60);
+    expect(db.claimed.length).toBeGreaterThan(0);
+    expect(db.records).toHaveLength(db.claimed.length);
+    expect(db.finished).toHaveLength(db.claimed.length);
+    for (const t of db.finished) expect(t - t0).toBeLessThanOrEqual(1500 + 20);
+    expect(summary.counts.ok).toBe(db.claimed.length);
+  });
+
+  it('a slow claim does not stretch a module past the work time', async () => {
+    const db = slowDb(['late'], { claimMs: 600 });
+    const t0 = Date.now();
+    await refreshDue({ rpc: db.rpc, budgetMs: 1000, moduleMs: 400, reserveMs: 200, load: () => new Promise(() => {}) });
+    expect(Date.now() - t0).toBeLessThan(1000 + 60);
+    expect(db.records[0]).toMatchObject({ status: 'timeout', error: expect.stringMatching(/run.s time ran out/) });
+  });
+
+  it('a database that never answers cannot hold the run past its budget', async () => {
+    const db = slowDb(['a', 'b'], { hangRecord: true });
+    const t0 = Date.now();
+    const summary = await refreshDue({ rpc: db.rpc, budgetMs: 800, moduleMs: 200, reserveMs: 300, load: viaSource(() => live([row(1)])) });
+    expect(Date.now() - t0).toBeLessThan(800 + 60);
+    expect(summary.counts.unrecorded).toBe(2);
+    expect(summary.errors.join(' ')).toMatch(/feed_record: no answer within/);
+  });
+
+  it('passes the time left to the database call', async () => {
+    const db = fakeDb(['a']);
+    await refreshDue({ rpc: db.rpc, budgetMs: 2000, moduleMs: 200, reserveMs: 500, load: viaSource(() => live([row(1)])) });
+    for (const [, , opts] of db.rpc.mock.calls) {
+      expect(opts.timeoutMs).toBeGreaterThan(0);
+      expect(opts.timeoutMs).toBeLessThanOrEqual(2000);
+    }
+  });
+
+  it('time spent waiting for a host\'s turn does not use up a module\'s limit', async () => {
+    globalThis.fetch = vi.fn(async (input) => {
+      await sleep(String(input).endsWith('/first') ? 130 : 90);
+      return new Response('ok');
+    });
+    const db = fakeDb(['first', 'second']);
+    const summary = await refreshDue({
+      rpc: db.rpc, concurrency: 2, moduleMs: 150, budgetMs: 3000, reserveMs: 300,
+      load: async (params) => {
+        await (await fetch(`https://shared.example/${params.get('feature')}`)).text();
+        return live([row(params.get('feature'))]);
+      },
+    });
+    // "second" waited about 130 ms for the host, then ran 90 ms: 220 ms in all, within a 150 ms limit.
+    expect(byFeature(db.records).second.status).toBe('ok');
+    const second = summary.modules.find((m) => m.feature === 'second');
+    expect(second.queued_ms).toBeGreaterThanOrEqual(100);
+    expect(second.ms).toBeGreaterThan(150);
+  });
+
+  it('records a module as failed when the refresh itself throws, so its lease is released', async () => {
+    const db = fakeDb(['odd']);
+    const body = live([]);
+    Object.defineProperty(body, 'rows', { get() { throw new Error('rows exploded'); } });
+    await refreshDue({ rpc: db.rpc, load: viaSource(() => body) });
+    expect(db.records).toHaveLength(1);
+    expect(db.records[0]).toMatchObject({ status: 'failed', lease_token: token(0), error: expect.stringMatching(/rows exploded/) });
+  });
+});
+
+describe('refreshDue: two overlapping runs', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('each run has its own gate, and fetch is put back only when the last run ends', async () => {
+    const inFlight = new Map();
+    const maxPerHost = new Map();
+    const fake = vi.fn(async (input) => {
+      const u = new URL(String(input));
+      const key = `${u.host}`;
+      inFlight.set(key, (inFlight.get(key) || 0) + 1);
+      maxPerHost.set(key, Math.max(maxPerHost.get(key) || 0, inFlight.get(key)));
+      await sleep(30);
+      inFlight.set(key, inFlight.get(key) - 1);
+      return new Response('x', { status: u.pathname.startsWith('/closeme') ? 429 : 200 });
+    });
+    globalThis.fetch = fake;
+    const load = (host) => async (params) => {
+      const res = await fetch(`https://${host}/${params.get('feature')}`);
+      if (!res.ok) return live([statusRow(`HTTP ${res.status}`)]);
+      await res.text();
+      return live([row(params.get('feature'))]);
+    };
+    const a = fakeDb(['closeme-a', 'a2']);
+    const b = fakeDb(['b1', 'b2', 'b3', 'b4', 'b5', 'b6']);
+    const runA = refreshDue({ rpc: a.rpc, concurrency: 1, load: load('a.example') });
+    const runB = refreshDue({ rpc: b.rpc, load: load('b.example') });
+    await runA;
+    // Run B is still going: fetch stays gated for it.
+    expect(globalThis.fetch).not.toBe(fake);
+    await runB;
+    expect(globalThis.fetch).toBe(fake);
+    // A closed a.example for itself only; B's host was never closed and B stayed one request at a time.
+    expect(byFeature(a.records).a2.error).toMatch(/a\.example.*429/);
+    expect(b.records.every((r) => r.status === 'ok')).toBe(true);
+    expect(maxPerHost.get('b.example')).toBe(1);
+  });
+});
+
+describe('masking', () => {
+  it('masks the key before cutting, so no part of it is left in a long message', async () => {
+    const key = 'sb_secret_abcdefghijklmnopqrstuvwxyz';
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ code: 'XX000', message: `${'m'.repeat(290)} ${key}` }), { status: 500 }));
+    const err = await supabaseRpc({ url: 'https://db.example', key, fetchImpl })('feed_record', {}).catch((e) => e);
+    expect(err.message).not.toContain('sb_secre');
   });
 });

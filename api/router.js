@@ -358,8 +358,10 @@ export default async function handler(req, res) {
     // request. If pg_net stops waiting first, curl drops the connection and records
     // timed_out = true in net._http_response; the function is NOT stopped, because Vercel
     // cancels a Node.js function on client disconnect only when "supportsCancellation" is set
-    // (vercel.json does not set it). The run finishes within its 55 s budget and records every
-    // module; only its summary is lost.
+    // (vercel.json does not set it). The run still returns within its 55 s budget, under the 60 s
+    // maxDuration: modules stop by 50 s and every database call is cut at the time left, so a
+    // record either completes by 55 s or its module's lease runs out and the next claim counts it
+    // as failed. Only the summary is lost.
     // Sources: https://github.com/supabase/pg_net (README, src/core.c at v0.20.4),
     // https://supabase.com/docs/guides/database/extensions/pg_net,
     // https://vercel.com/docs/functions/functions-api-reference#cancel-requests

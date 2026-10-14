@@ -5,6 +5,8 @@
  * GET /api/celestrak  — CelesTrak objects catalogued in the last 30 days
  * GET /api/wb-projects — World Bank projects API (trimmed)
  */
+import { cacheFresh } from './loaderCache.mjs';
+
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; StrategicAssets)';
 const FETCH_MS = 28_000;
 const TTL = 30 * 60 * 1000;
@@ -78,7 +80,7 @@ async function getJson(url) {
 }
 
 export async function loadPortwatch() {
-  if (pwCache && Date.now() - pwAt < PW_TTL) return pwCache;
+  if (pwCache && cacheFresh(pwAt, PW_TTL)) return pwCache;
   const j = await getJson(PORTWATCH);
   const attrs = (j.features || []).map((f) => f.attributes).filter((a) => a?.portname);
   const latest = attrs[0]?.date || '';
@@ -126,7 +128,7 @@ export function flattenLaunch(l) {
 }
 
 export async function loadLaunches() {
-  if (launchCache && Date.now() - launchAt < TTL) return launchCache;
+  if (launchCache && cacheFresh(launchAt, TTL)) return launchCache;
   const j = await getJson(LAUNCHES);
   const rows = (j.results || []).map(flattenLaunch);
   launchCache = { ok: true, source: 'spacedevs', rows };
@@ -135,7 +137,7 @@ export async function loadLaunches() {
 }
 
 export async function loadCelestrak() {
-  if (ctCache && Date.now() - ctAt < CT_TTL) return ctCache;
+  if (ctCache && cacheFresh(ctAt, CT_TTL)) return ctCache;
   const arr = await getJson(CELESTRAK);
   const list = Array.isArray(arr) ? arr : [];
   ctCache = {
@@ -153,7 +155,7 @@ export async function loadCelestrak() {
 }
 
 export async function loadWbProjects() {
-  if (wbCache && Date.now() - wbAt < PW_TTL) return wbCache;
+  if (wbCache && cacheFresh(wbAt, PW_TTL)) return wbCache;
   const j = await getJson(WB);
   const ps = j?.projects ? Object.keys(j.projects).map((k) => j.projects[k]) : [];
   wbCache = {

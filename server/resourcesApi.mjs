@@ -4,6 +4,8 @@
  * GET /api/growth         — G20-set GDP / CPI / unemployment
  * GET /api/leaders        — UN member heads of state / government
  */
+import { cacheFresh } from './loaderCache.mjs';
+
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; GlobalResources)';
 const FETCH_MS = 25_000;
 const WC_TTL = 7 * 24 * 60 * 60 * 1000;
@@ -57,7 +59,7 @@ function fmt1(v) {
 }
 
 export async function loadConstitutions() {
-  if (wcCache && Date.now() - wcAt < WC_TTL) return wcCache;
+  if (wcCache && cacheFresh(wcAt, WC_TTL)) return wcCache;
   const arr = await getJson(CONSTITUTE);
   const rows = (Array.isArray(arr) ? arr : [])
     .filter((c) => c && c.in_force === true)
@@ -92,7 +94,7 @@ function wbMap(payload) {
 }
 
 export async function loadGrowth() {
-  if (grCache && Date.now() - grAt < GR_TTL) return grCache;
+  if (grCache && cacheFresh(grAt, GR_TTL)) return grCache;
   const [gdpJ, cpiJ, uemJ] = await Promise.all([
     getJson(WB('NY.GDP.MKTP.KD.ZG')),
     getJson(WB('FP.CPI.TOTL.ZG')),
@@ -121,7 +123,7 @@ let gtCache = null;
 let gtAt = 0;
 
 export async function loadTrade() {
-  if (gtCache && Date.now() - gtAt < GR_TTL) return gtCache;
+  if (gtCache && cacheFresh(gtAt, GR_TTL)) return gtCache;
   const [expJ, trdJ] = await Promise.all([getJson(WB('TX.VAL.MRCH.CD.WT')), getJson(WB('NE.TRD.GNFS.ZS'))]);
   const exp = wbMap(expJ);
   const trd = wbMap(trdJ);
@@ -151,7 +153,7 @@ function wdLabel(cell) {
 }
 
 export async function loadLeaders() {
-  if (hsCache && Date.now() - hsAt < HS_TTL) return hsCache;
+  if (hsCache && cacheFresh(hsAt, HS_TTL)) return hsCache;
   const j = await getJson(WIKIDATA, { Accept: 'application/sparql-results+json' });
   const seen = {};
   const rows = [];

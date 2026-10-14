@@ -88,24 +88,42 @@ describe('item keys (F170 rule 1)', () => {
     expect(itemKeyFor({ title: 'Rupee steadies', date: '2026-10-15' })).not.toBe(k);
   });
 
-  it('rows that share a dataset link stay separate items, the same on every run; a lone link keeps its key', () => {
+  it('replacing kinds: rows that share a dataset link stay separate items, keyed the same whatever else the answer holds', () => {
     const wb = 'https://data.worldbank.org/indicator/NY.GDP.MKTP.CD';
-    const rows = [
-      { iso3: 'USA', title: 'United States', country: 'United States', year: '2025', source_url: wb },
-      { iso3: 'IND', title: 'India', country: 'India', year: '2025', source_url: wb },
-      { title: 'A story', source_url: 'https://example.com/story/1' },
-    ];
-    const keys = itemKeysFor(rows);
-    expect(new Set(keys).size).toBe(3);
-    expect(keys[0]).toMatch(/^url:data\.worldbank\.org\/indicator\/NY\.GDP\.MKTP\.CD#[0-9a-f]{16}$/);
-    expect(keys[2]).toBe('url:example.com/story/1');
-    expect(itemKeysFor(rows.map((r) => ({ ...r, gdp_usd_bn: '1' })))).toEqual(keys);
+    const usa = { iso3: 'USA', title: 'United States', country: 'United States', year: '2025', source_url: wb };
+    const ind = { iso3: 'IND', title: 'India', country: 'India', year: '2025', source_url: wb };
+    for (const kind of ['reference', 'latest', 'measurement']) {
+      const keys = itemKeysFor([usa, ind], kind);
+      expect(new Set(keys).size).toBe(2);
+      expect(keys[0]).toMatch(/^url:data\.worldbank\.org\/indicator\/NY\.GDP\.MKTP\.CD#[0-9a-f]{16}$/);
+      // A key never depends on the other rows: alone, or beside more rows, a row keeps its key.
+      expect(itemKeysFor([usa], kind)).toEqual([keys[0]]);
+      expect(itemKeysFor([ind, usa, { ...usa, iso3: 'NPL', title: 'Nepal', country: 'Nepal' }], kind).slice(0, 2)).toEqual([keys[1], keys[0]]);
+      // A value is not part of the key.
+      expect(itemKeysFor([{ ...usa, gdp_usd_bn: '1' }], kind)).toEqual([keys[0]]);
+    }
   });
 
-  it('the same link with the same title twice is still one item', () => {
-    const r = { title: 'A story', source_url: 'https://example.com/story/1' };
-    const keys = itemKeysFor([r, { ...r, summary: 'edited' }]);
-    expect(keys[0]).toBe(keys[1]);
+  it('replacing kinds: the date or year is part of a reference key, never of a measurement key', () => {
+    const wb = 'https://data.worldbank.org/indicator/NY.GDP.MKTP.CD';
+    const y25 = { title: 'India', iso3: 'IND', year: '2025', source_url: wb };
+    const y26 = { ...y25, year: '2026' };
+    expect(itemKeysFor([y25], 'reference')).not.toEqual(itemKeysFor([y26], 'reference'));
+    const quote = { name: 'S&P/ASX 200', exchange: 'ASX', date: '2026-10-14', source_url: 'https://finance.yahoo.com/quote/%5EAXJO' };
+    expect(itemKeysFor([quote], 'measurement')).toEqual(itemKeysFor([{ ...quote, date: '2026-10-15', last: 1 }], 'measurement'));
+  });
+
+  it('kept kinds: the link alone, so the same link is one item whatever else the answer holds', () => {
+    const story = { title: 'A story', source_url: 'https://example.com/story/1' };
+    for (const kind of ['news', 'official', 'events', undefined]) {
+      expect(itemKeysFor([story], kind)).toEqual(['url:example.com/story/1']);
+      expect(itemKeysFor([story, { ...story, title: 'Retitled' }], kind)).toEqual(['url:example.com/story/1', 'url:example.com/story/1']);
+    }
+  });
+
+  it('keys other than links are left as itemKeyFor gives them', () => {
+    const bill = itemKeyFor({ title: 'No link', date: '2026-10-14' });
+    expect(itemKeysFor([{ title: 'No link', date: '2026-10-14' }], 'reference')).toEqual([bill]);
   });
 });
 

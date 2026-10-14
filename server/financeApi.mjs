@@ -3,6 +3,7 @@
  * No GDELT. No market cap. PMI is licensed and is not fetched.
  */
 import { mapManifoldLive, mapWikidataCeos, WORLD_BOARD, yahooQuoteRow } from '../src/lib/econPack.js';
+import { cacheFresh } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Economics)';
 const FETCH_MS = 25_000;
@@ -113,7 +114,7 @@ function wbMap(list) {
 }
 
 export async function loadCountryEconomies() {
-  if (gdpCache && Date.now() - gdpAt < TTL) return gdpCache;
+  if (gdpCache && cacheFresh(gdpAt, TTL)) return gdpCache;
   const list = await wbAll('NY.GDP.MKTP.CD');
   const rows = list
     .map((r) => ({
@@ -133,7 +134,7 @@ export async function loadCountryEconomies() {
 }
 
 export async function loadKeyIndicators() {
-  if (keyCache && Date.now() - keyAt < TTL) return keyCache;
+  if (keyCache && cacheFresh(keyAt, TTL)) return keyCache;
   const [gdp, cpi, emp] = await Promise.all([
     wbAll('NY.GDP.MKTP.KD.ZG'),
     wbAll('FP.CPI.TOTL.ZG'),
@@ -159,7 +160,7 @@ export async function loadKeyIndicators() {
 }
 
 export async function loadIndiaEnergy() {
-  if (energyCache && Date.now() - energyAt < TTL) return energyCache;
+  if (energyCache && cacheFresh(energyAt, TTL)) return energyCache;
   const url =
     'https://api.worldbank.org/v2/country/IND/indicator/EG.ELC.ACCS.ZS?format=json&date=2000:2030&per_page=100';
   const j = await getJson(url);
@@ -185,7 +186,7 @@ let indiaGdpAt = 0;
 
 /** India annual GDP growth (NY.GDP.MKTP.KD.ZG) — baseline series for Economic Simulator. */
 export async function loadIndiaGdpGrowth() {
-  if (indiaGdpCache && Date.now() - indiaGdpAt < TTL) return indiaGdpCache;
+  if (indiaGdpCache && cacheFresh(indiaGdpAt, TTL)) return indiaGdpCache;
   const url =
     'https://api.worldbank.org/v2/country/IND/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=1990:2030&per_page=100';
   const j = await getJson(url);
@@ -220,7 +221,7 @@ function yahooChartUrl(symbol) {
 }
 
 export async function loadWorldExchanges() {
-  if (stooqCache && Date.now() - stooqAt < STOOQ_TTL) return stooqCache;
+  if (stooqCache && cacheFresh(stooqAt, STOOQ_TTL)) return stooqCache;
   const rows = [];
   for (const item of WORLD_BOARD) {
     try {
@@ -243,7 +244,7 @@ const MANIFOLD_SEARCH = [
 ];
 
 export async function loadManifoldPolitical() {
-  if (manCache && Date.now() - manAt < MANIFOLD_TTL) return manCache;
+  if (manCache && cacheFresh(manAt, MANIFOLD_TTL)) return manCache;
   const seen = new Set();
   const merged = [];
   // F169 T7: the searches run together (one after another took 4.3-5 s, over the 4 s limit).
@@ -264,7 +265,7 @@ export async function loadManifoldPolitical() {
 }
 
 export async function loadIndiaCeos() {
-  if (ceoCache && Date.now() - ceoAt < TTL) return ceoCache;
+  if (ceoCache && cacheFresh(ceoAt, TTL)) return ceoCache;
   try {
     const json = await getJson(WIKIDATA, { Accept: 'application/sparql-results+json' }, SPARQL_MS);
     const rows = mapWikidataCeos(json);
