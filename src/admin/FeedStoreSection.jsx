@@ -7,6 +7,7 @@ import {
   filterFeedRows,
   formatBytes,
   formatFeedAge,
+  formatInterval,
   isFailing,
   loadFeedStore,
   sizeWarning,
@@ -27,7 +28,7 @@ export function DatabaseSize({ sizes, note }) {
     <div className="adm-card" style={{ padding: 16 }}>
       <h3 className="adm-feed-sub">Database size</h3>
       <p style={{ margin: '0 0 8px' }}>
-        <b>{formatBytes(sizes.database)}</b> in total. The warning level is {formatBytes(DB_WARN_BYTES)}.
+        The whole database is <b>{formatBytes(sizes.database)}</b>; the warning level is {formatBytes(DB_WARN_BYTES)}.
       </p>
       {warn ? (
         <p className="adm-msg err" role="alert">
@@ -57,7 +58,7 @@ function FeedRow({ row, now }) {
     <tr>
       <th scope="row">
         <div className="feat">{row.feature}{row.variant ? ` (${row.variant})` : ''}</div>
-        <div className="note">{row.tier} · every {row.intervalMinutes} min{row.leased ? ' · running now' : ''}</div>
+        <div className="note">{row.tier} · {formatInterval(row.intervalMinutes)}{row.leased ? ' · running now' : ''}</div>
         {isFailing(row) && row.lastError ? <div className="note">{row.lastError}</div> : null}
       </th>
       <td>{row.cls || '—'}</td>

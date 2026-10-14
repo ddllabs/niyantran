@@ -5,8 +5,8 @@
 // so the page server and this screen share it; supabase/migrations/20261015140000_feed_admin.sql)
 // and db_size() (20261015120000_feed_records.sql). Nothing here writes.
 //
-// "Failing" means the module's last attempt failed: consecutive_failures is above zero (the count
-// resets on the next success). "Stale" is the SQL rule: not fetched within three of its intervals or
+// "Failing" means the module's last two attempts or more failed (consecutive_failures resets on the next
+// success): one timeout among dozens of runs a day is noise, not a failing module. "Stale" is the SQL rule: not fetched within three of its intervals or
 // two hours, whichever is more. A module can be both.
 
 /** The database size at which the screen warns: 5 GB, counted as pg_size_pretty counts (1024 cubed). */
@@ -73,7 +73,16 @@ export function shapeSizes(data) {
   };
 }
 
-export const isFailing = (row) => row.failures > 0;
+export const FAILING_AFTER = 2;
+export const isFailing = (row) => row.failures >= FAILING_AFTER;
+
+/** An interval as a reader says it: every 15 min, every 6 h, daily. */
+export function formatInterval(minutes) {
+  const m = Number(minutes) || 0;
+  if (m > 0 && m % 1440 === 0) return m === 1440 ? 'daily' : `every ${m / 1440} days`;
+  if (m >= 60 && m % 60 === 0) return `every ${m / 60} h`;
+  return `every ${m} min`;
+}
 
 /** The markers a row shows, worst first. Text, never colour alone. */
 export function markersOf(row) {

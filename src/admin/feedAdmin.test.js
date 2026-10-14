@@ -12,8 +12,7 @@ import {
   shapeFeedRows,
   shapeSizes,
   sizeWarning,
-  sortFeedRows,
-} from './feedAdmin.js';
+  sortFeedRows, formatInterval } from './feedAdmin.js';
 
 const GB = 1024 ** 3;
 const raw = (over = {}) => ({
@@ -50,11 +49,21 @@ describe('shapeFeedRows', () => {
   });
 });
 
+describe('failing and intervals', () => {
+  it('one failed attempt is not yet failing; two in a row are', () => {
+    expect(markersOf(rows({ feature: 'One miss', consecutive_failures: 1 })[0])).toEqual([]);
+    expect(markersOf(rows({ feature: 'Two misses', consecutive_failures: 2 })[0])).toEqual(['failing']);
+  });
+  it('says an interval as a reader would', () => {
+    expect([15, 30, 60, 360, 1440, 2880].map(formatInterval)).toEqual(['every 15 min', 'every 30 min', 'every 1 h', 'every 6 h', 'daily', 'every 2 days']);
+  });
+});
+
 describe('markers, sorting and filtering', () => {
   const list = rows(
     { feature: 'Fine' },
     { feature: 'Stale only', stale: true },
-    { feature: 'Failing only', consecutive_failures: 1 },
+    { feature: 'Failing only', consecutive_failures: 2 },
     { feature: 'Both', consecutive_failures: 4, stale: true },
     { feature: 'Off', serve: false },
   );
