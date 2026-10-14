@@ -697,6 +697,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   text layer; chat uploads check the text layer for the whole file only, so a scanned PDF with one
   typed page passes with empty scanned pages. Open: news full text kept per chat or shared
   (copyright; recommendation per chat), and the OCR cap amount.
+- **Plan for what is left (2026-10-15):** [next work](2026-10-15-next-work.md): small items (F178, F176,
+  F175, local signed-in checks), measurements (F41, F35, F59), then F169 phase 4 records-first storage.
 - [ ] **F171. The bug programme.** Owner 2026-10-14: "Regarding the bugs, I'll follow your order.
   Ideally, we need to fix all of it." [Spec](../specs/2026-10-14-bug-programme.md) and
   [plan](2026-10-14-bug-programme.md): B1 to B22 in order (source links, chat uploads, chat
