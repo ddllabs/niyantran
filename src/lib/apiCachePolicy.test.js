@@ -35,7 +35,6 @@ const ROUTES = {
   '/api/home/latest': 'no-store',
   '/api/home/pulse': 'no-store',
   '/api/ohlc': 'no-store',
-  '/api/home/refresh': 'no-store',
   '/api/livetv': 'no-store',
   '/api/news/ingest': 'no-store',
   '/api/users': 'no-store',

@@ -14,7 +14,6 @@ import { serveEntertainmentLanding } from '../server/entertainmentLandingSummary
 import { serveGlobalLanding } from '../server/globalLandingSummary.mjs';
 import { serveStateLanding } from '../server/stateLandingSummary.mjs';
 import {
-  refreshHomeSnapshots,
   serveHomeLatest,
   serveHomeMarkets,
   serveHomePulse,
@@ -81,6 +80,11 @@ export function cachePolicyFor(path, method) {
   return 'no-store';
 }
 
+function isPendingAnswer(body) {
+  if (body?.served !== 'archive') return false;
+  return !(body.rows || []).some((r) => r && r.status !== 'source_status');
+}
+
 // Decides the headers when the answer is written, once its status is known: only a 2xx answer
 // may be kept; an error, a refusal or a timeout keeps `no-store`.
 function cacheAtEdgeOnSuccess(res) {
@@ -88,6 +92,12 @@ function cacheAtEdgeOnSuccess(res) {
   const apply = () => {
     const status = Number(res.statusCode) || 200;
     if (status < 200 || status >= 300) {
+      res.setHeader('Cache-Control', 'no-store');
+      return;
+    }
+    // F168: a pending answer (stored records served, none to show) is not kept, so the page's
+    // retries reach the server again.
+    if (isPendingAnswer(body)) {
       res.setHeader('Cache-Control', 'no-store');
       return;
     }
@@ -301,15 +311,6 @@ export default async function handler(req, res) {
         return;
       }
       res.status(200).json(await serveHomeSegments());
-      return;
-    }
-
-    if (path === '/api/home/refresh') {
-      if (method !== 'GET' && method !== 'POST' && method !== 'HEAD') {
-        res.status(405).json({ ok: false, error: 'GET or POST /api/home/refresh only' });
-        return;
-      }
-      res.status(200).json(await refreshHomeSnapshots());
       return;
     }
 

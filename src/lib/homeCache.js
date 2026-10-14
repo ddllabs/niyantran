@@ -1,4 +1,4 @@
-import { homeLiveApiEnabled, liveApiEnabled } from './apiMode.js';
+import { liveApiEnabled } from './apiMode.js';
 import { loadRefreshCfg } from './refreshStore.js';
 
 /** Bumped when Latest switched to nter.news-only (drops stale wire cache). */
@@ -59,8 +59,8 @@ export function saveHomeCache({ markets, latest, pulse }) {
 export function kickHomeRefreshIfDue() {
   const cfg = loadRefreshCfg();
   if (!cfg.auto) return Promise.resolve(null);
-  // Home refresh route is deployed on Vercel — allow outside Vite DEV.
-  if (!homeLiveApiEnabled() && !liveApiEnabled()) return Promise.resolve(null);
+  // F169 T8 (F167): the refresh route is the local dev server's only; the live site has none.
+  if (!liveApiEnabled()) return Promise.resolve(null);
   const hours = cfg.intervalHours;
   const cache = read();
   if (!homeCacheHasRows(cache)) return Promise.resolve(null);
