@@ -391,12 +391,21 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
   }
   if (!reservation.ok) {
     if (enforced) {
+      // Blocked with a positive balance means answers still running hold it (spec §3 step 1).
+      const held = reservation.balance !== null && reservation.balance > 0;
       return json(
-        {
-          error: 'You have no AI credits left to start an answer.',
-          code: 'credits_exhausted',
-          balance: reservation.balance,
-        },
+        held
+          ? {
+            error: 'Your credits are in use by an answer that is still running. Try again when it finishes.',
+            code: 'credits_exhausted',
+            balance: reservation.balance,
+            held: true,
+          }
+          : {
+            error: 'You have no AI credits left to start an answer.',
+            code: 'credits_exhausted',
+            balance: reservation.balance,
+          },
         402,
         headers,
       );
@@ -416,9 +425,15 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
       deskFeature: request.desk_context?.feature,
     });
   } catch {
+    releaseHold(deps, caller.userId, request.turn_key);
     return json({ error: 'Turn persistence unavailable' }, 503, headers);
   }
-  if (claim.kind !== 'claimed') return replayTurn(claim, headers);
+  if (claim.kind !== 'claimed') {
+    // A replay of an existing turn shares that turn's hold, which its own request settles. Any other
+    // answer started nothing, so this request's hold is released now rather than at its expiry.
+    if (claim.kind !== 'running' && claim.kind !== 'terminal') releaseHold(deps, caller.userId, request.turn_key);
+    return replayTurn(claim, headers);
+  }
   const claimed = claim;
 
   // start() runs synchronously inside the constructor, so the sender exists
@@ -471,8 +486,13 @@ export async function handleResearchChat(req: Request, deps: HandlerDeps): Promi
       }
       // Settle charges the rows the flush just wrote (AI credits spec §3 step 4). The terminal frame
       // has already gone, so this adds no answer latency; the credits go in a frame of their own,
-      // dropped quietly by the sender if the reader has already stopped at `done`.
-      sender.send({ credits: await settleCredits(deps.credits, caller.userId, request.turn_key) });
+      // dropped quietly by the sender if the reader has already stopped at `done`. A round Stop cut
+      // off is still waiting for its cost, which the sweep charges later: settle charges the rest,
+      // but the turn's credits are not final, so the frame says null rather than a short total.
+      const awaitingCost = attempts.lateCosts().length > 0;
+      const settled = await settleCredits(deps.credits, caller.userId, request.turn_key);
+      if (awaitingCost) log('research_chat.credits_pending', { stage: 'late_cost' });
+      sender.send({ credits: awaitingCost ? null : settled });
     } finally {
       sender.done();
     }
@@ -495,6 +515,17 @@ function scheduleLateCosts(deps: HandlerDeps, pending: LateCost[]): void {
     return;
   }
   deps.waitUntil(recoverLateCosts(pending, { lookup: deps.generationCost, save, now: deps.now, sleep: deps.sleep }));
+}
+
+/** Releases the hold of a request whose claim started no turn (review R, M1), so it does not block
+ * the user's next answer until it expires. Settle answers `pending` for a turn still running, so a
+ * live hold is never released. Fire-and-forget: bounded by the wiring like any settle, kept alive by
+ * waitUntil, and a failure is only logged; the hold's sweep releases it at expiry anyway. */
+function releaseHold(deps: HandlerDeps, userId: string, turnKey: string): void {
+  const release = Promise.resolve()
+    .then(() => deps.credits.settle(userId, turnKey))
+    .then(() => {}, () => log('research_chat.credits_release_failed'));
+  deps.waitUntil?.(release);
 }
 
 /** The turn's credits to 2 dp, or null when settlement is pending or failed. Never throws: a settle

@@ -169,3 +169,47 @@ Deno.test('function entry writes rows with the service client, to model_call_log
   assertStringIncludes(source, 'serviceClient()');
   assertStringIncludes(source, ".from('model_call_logs').insert(row)");
 });
+
+// ---- review R, M4: the transcription never waits on its log row ----------------------------
+
+Deno.test('with waitUntil, the response does not wait on a slow log insert, which still completes in the background', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const rows: ModelCallRow[] = [];
+  const jobs: Promise<unknown>[] = [];
+  const logModelCall = async (row: ModelCallRow) => { await gate; rows.push(row); };
+  const started = performance.now();
+  const res = await handleTranscription(request(), deps({ logModelCall, telemetryTimeoutMs: 2_000, waitUntil: (p: Promise<unknown>) => { jobs.push(p); } }));
+  const elapsed = performance.now() - started;
+  assertEquals(res.status, 200); assertEquals(await res.json(), { text: 'Hello world' });
+  assertEquals(elapsed < 1_000, true, `took ${elapsed}ms: the response waited on the insert`);
+  assertEquals(jobs.length, 1, 'the insert is handed to waitUntil');
+  assertEquals(rows.length, 0, 'not yet written when the response went');
+  release();
+  await jobs[0];
+  assertEquals(rows.length, 1); assertEquals(rows[0].caller, 'transcribe-audio');
+});
+
+Deno.test('with waitUntil, a failing log insert is still only logged, and the error response is unchanged', async () => {
+  const jobs: Promise<unknown>[] = [];
+  const waitUntil = (p: Promise<unknown>) => { jobs.push(p); };
+  const logModelCall = () => Promise.reject(new Error('db down'));
+  const bad = await handleTranscription(request(), deps({ logModelCall, waitUntil, fetch: provider({}, 500) }));
+  assertEquals(bad.status, 502); assertStringIncludes(await bad.text(), 'Transcription failed');
+  assertEquals(jobs.length, 1);
+  await jobs[0]; // never rejects
+});
+
+Deno.test('without waitUntil, the insert is awaited as before, within the bound', async () => {
+  const rows: ModelCallRow[] = [];
+  const logModelCall = async (row: ModelCallRow) => { await new Promise((r) => setTimeout(r, 20)); rows.push(row); };
+  const res = await handleTranscription(request(), deps({ logModelCall, telemetryTimeoutMs: 1_000 }));
+  assertEquals(res.status, 200);
+  assertEquals(rows.length, 1, 'written before the response, as today');
+});
+
+Deno.test('function entry hands the log insert to EdgeRuntime.waitUntil', async () => {
+  const source = await Deno.readTextFile(new URL('./index.ts', import.meta.url));
+  assertStringIncludes(source, 'EdgeRuntime');
+  assertStringIncludes(source, 'waitUntil');
+});

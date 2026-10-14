@@ -509,7 +509,8 @@ SET LOCAL ROLE anon;
 SELECT pg_temp.rejected($q$SELECT public.my_credits()$q$, '42501', 'anon cannot read credits');
 RESET ROLE;
 SELECT pg_temp.assert_true((SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(pg_temp.r('late.mine')) k)
-  = ARRAY['balance', 'cycle', 'debt', 'held', 'inr_per_credit', 'lots', 'plan', 'recent'], 'my_credits returns the §12 keys');
+  = ARRAY['balance', 'cycle', 'debt', 'held', 'inr_per_credit', 'lots', 'plan', 'recent', 'used_this_cycle'],
+  'my_credits returns the §12 keys');
 SELECT pg_temp.assert_true((pg_temp.r('late.mine') - 'inr_per_credit')::text !~* '(usd|cost|rate|inr)',
   'my_credits carries no dollars and no exchange rate');
 SELECT pg_temp.assert_true((pg_temp.r('late.mine') ->> 'inr_per_credit')::numeric = 0.10,
@@ -969,5 +970,58 @@ RESET ROLE;
 SELECT pg_temp.assert_true(NOT EXISTS (SELECT FROM public.chat_messages WHERE jsonb_path_exists(usage, 'strict $.**.cost_usd')
     OR jsonb_path_exists(usage, 'strict $.**.web_search_cost_usd') OR jsonb_path_exists(usage, 'strict $.**.cost_usd_from')),
   'no saved message anywhere carries a cost key');
+
+-- 16. Credits used this cycle (review R, I2) -----------------------------------------------------
+-- Each charge is settled now(); the fixture back-dates a ledger entry's created_at
+-- to place it in time (as superuser; no role can do this in a real database).
+CREATE FUNCTION pg_temp.charge_at(p_user uuid, p_key text, p_cost numeric, p_at timestamptz) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.log(p_user, pg_temp.turn(p_user, p_key, 'complete'), 'chat_answer', 'success', p_cost);
+  PERFORM public.settle_turn_credits(p_user, p_key);
+  UPDATE public.credit_ledger SET created_at = p_at WHERE user_id = p_user AND kind = 'charge' AND turn_key = p_key;
+END;
+$$;
+-- Plus: a cycle that began 5 days ago; one answer in the previous cycle, two in this one.
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c031');
+SET LOCAL ROLE service_role;
+SELECT public.grant_manual_plan('00000000-0000-4000-8000-00000000c031', 'plus', NULL, '00000000-0000-4000-8000-00000000c0ff');
+RESET ROLE;
+UPDATE public.credit_lots SET starts_at = now() - interval '5 days'
+  WHERE user_id = '00000000-0000-4000-8000-00000000c031' AND kind = 'monthly';
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c031', 'u1', 0.01, now() - interval '6 days');   -- 9.5, previous cycle
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c031', 'u2', 0.02, now() - interval '1 day');    -- 19
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c031', 'u3', 0.03, now());                       -- 28.5
+SELECT public.admin_adjust_credits('00000000-0000-4000-8000-00000000c031', -50, 'adjustment', 'Not an answer',
+  '00000000-0000-4000-8000-00000000c0ff', 'a0000000-0000-4000-8000-000000000311');
+-- Free: the signup lot minted 2 days ago; one charge before it (shadow mode, before
+-- the email was confirmed), two since.
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c032', true, now() - interval '3 days');
+SELECT private.credit_refresh('00000000-0000-4000-8000-00000000c032', now() - interval '2 days');
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c032', 'f0', 0.04, now() - interval '2 days 1 hour');  -- 38, before
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c032', 'f1', 0.01, now() - interval '1 day');          -- 9.5
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c032', 'f2', 0.02, now());                             -- 19
+-- No lots (an unconfirmed email), charged once in shadow mode.
+SELECT pg_temp.mkuser('00000000-0000-4000-8000-00000000c033');
+SELECT pg_temp.charge_at('00000000-0000-4000-8000-00000000c033', 'n1', 0.01, now());
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c031', true);
+INSERT INTO res VALUES ('used.plus', public.my_credits());
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c032', true);
+INSERT INTO res VALUES ('used.free', public.my_credits());
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c033', true);
+INSERT INTO res VALUES ('used.none', public.my_credits());
+RESET ROLE;
+SELECT pg_temp.assert_true(pg_temp.r('used.plus') @> '{"plan": "plus", "used_this_cycle": 47.5, "cycle": {"allowance": 2000}}',
+  'Plus: used_this_cycle is this cycle''s two answers (19 + 28.5), not the previous cycle''s or an adjustment');
+SELECT pg_temp.assert_true(pg_temp.r('used.free') @> '{"plan": "free", "used_this_cycle": 28.5, "cycle": {"allowance": 1000}}',
+  'Free: used_this_cycle counts the answers charged since the signup lot began');
+SELECT pg_temp.assert_true(pg_temp.r('used.none') ? 'used_this_cycle'
+  AND pg_temp.r('used.none') -> 'used_this_cycle' = 'null'::jsonb
+  AND pg_temp.turn_charged('00000000-0000-4000-8000-00000000c033', 'n1') = 9.5,
+  'with no monthly or signup lot there is no cycle: used_this_cycle is null although an answer was charged');
+SELECT pg_temp.assert_true((pg_temp.r('used.plus') - 'inr_per_credit')::text !~* '(usd|cost|rate|inr)',
+  'used_this_cycle adds no dollars');
+SELECT pg_temp.invariants('used this cycle');
 
 ROLLBACK;
