@@ -9,7 +9,7 @@ export const PUBLIC_PLANS = [
     who: 'For everyone getting started',
     tag: 'Every desk and the AI research assistant at no cost.',
     cta: 'Get started free', ctaKind: 'ghost-blue',
-    items: ['All 8 desks and 120 modules', '1,000 AI credits to start, valid 30 days', 'Cited answers with the source document', 'Copy and export'],
+    items: ['All 8 desks and 120 modules', 'AI research assistant', '1,000 AI credits to start, valid 30 days', 'Cited answers with the source document', 'Copy and export'],
   },
   {
     id: 'plus', tone: 'pro', name: 'PLUS', monthly: 399, unit: '/month',
