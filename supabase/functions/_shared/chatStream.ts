@@ -40,7 +40,7 @@ export type ChatFrame =
   | {
     timing: { search_ms: number; reasoning_ms: number; writing_ms: number; total_ms: number; first_model_ms?: number; first_answer_ms?: number; rounds?: number };
     /** Token usage is not a measurement of reasoning duration. */
-    usage?: { reasoning_tokens: number };
+    usage?: { reasoning_tokens: number; partial?: true } | null;
   }
   | { duplicate: true }
   | { saveFailed: { stage: string; detail: string } }

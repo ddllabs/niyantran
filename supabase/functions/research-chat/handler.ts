@@ -334,6 +334,16 @@ export function failoverChain(models: AiModelLike[], requested: string): string[
   return chain.slice(0, 3);
 }
 
+/** The reasoning count a stream frame carries: measured, partial, or null when unknown (F67). */
+function reasoningUsage(usage: { reasoning_tokens?: unknown; observed?: { reasoning_tokens?: unknown } } | null | undefined):
+  { reasoning_tokens: number; partial?: true } | null {
+  const known = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const total = known(usage?.reasoning_tokens);
+  if (total !== null) return { reasoning_tokens: total };
+  const observed = known(usage?.observed?.reasoning_tokens);
+  return observed !== null ? { reasoning_tokens: observed, partial: true } : null;
+}
+
 export async function handleResearchChat(req: Request, deps: HandlerDeps): Promise<Response> {
   const headers = deps.headers ?? {};
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405, headers);
@@ -698,7 +708,9 @@ function sendTerminal(
   }
   // The reasoning count goes with the timing, so the live summary's "thought" or "waited" matches
   // the saved row's (chat-panel-fixes, F47).
-  if (row.timing) sender.send({ timing: row.timing, usage: { reasoning_tokens: Number(row.usage?.reasoning_tokens) || 0 } });
+  // F67 (F171 B11): unknown stays unknown (null), and a partial count says it is partial, as the saved
+  // row does (src/lib/aiConversations.js reasoningUsage); it was coerced to a measured zero.
+  if (row.timing) sender.send({ timing: row.timing, usage: reasoningUsage(row.usage) });
   if (row.status === 'truncated') {
     sender.send({ truncated: { reason: 'length', continuations: Number(row.usage?.continuations) || 0 } });
   }

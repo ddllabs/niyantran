@@ -343,7 +343,8 @@ Deno.test('the timing frame carries the turn\'s reasoning token count', async ()
   const plain = fakeDeps(scripted([...DECLINES, [text(envelope('Hi.')), finish()]]));
   const none = (await frames(await handleResearchChat(post({ ...BODY, turn_key: 'no-reasoning' }), plain.deps)))
     .find((f) => 'timing' in f) as { usage?: { reasoning_tokens: number } };
-  assertEquals(none.usage, { reasoning_tokens: 0 });
+  // F67 (F171 B11): unknown is sent as unknown, not as a measured zero.
+  assertEquals(none.usage, null);
 });
 
 Deno.test('a plain answer streams as chunks, persists, and reports sources, timing and done in order', async () => {
