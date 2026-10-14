@@ -65,7 +65,11 @@ At most three agents run at once.
 - [x] Task 7: copy (owner approved the §10.1 wording as written, 2026-10-14)
 - [x] Review R: no critical findings; 2 important + 7 minor + nits fixed (`21d5c2d` frontend, `c035c2c` backend)
 - [x] Checkpoint C (local run 2 in the browser, desktop and phone, $0.02; [evidence](../research/2026-10-14-ai-credits-local-run-2.md))
-- [ ] Production steps 1–5 (each on the owner's go-ahead)
+- [x] Production 1: migration 47 applied (2026-10-14, `supabase db push`)
+- [x] Production 2: research-chat v54 and transcribe-audio v2 in shadow mode
+- [x] Production 3: `main` pushed (`2a85579..80aeaa6`); the site serves credits
+- [ ] Production 4: shadow week, 2026-10-14 05:46 UTC to 2026-10-21 (check below)
+- [ ] Production 5: enforcement for everyone (owner, 2026-10-14: "we should enforce it")
 
 ## Tasks
 
@@ -332,3 +336,78 @@ At most three agents run at once.
 | Repeated Free sign-ups | ₹100 each; production requires a confirmed email |
 | The copy still promises the old rule | Task 7 lands with the rest, before enforcement |
 | Expensive models drain credits fast (Claude Sonnet 5: about 12 answers on Plus) | The model picker's cost diamonds stay. Per-model credit estimates are a follow-up if users are surprised |
+
+## After launch (2026-10-14)
+
+### Shadow-week check (production 4, read-only, on or after 2026-10-21)
+
+Run on NTER through the Supabase MCP `execute_sql`, read-only. It reads no
+personal data.
+
+```sql
+-- 1. Every charge equals its rows' cost × the rate it stored (to 4 decimals).
+select count(*) as charges,
+       max(abs(-e.credits - round(r.usd * e.usd_to_inr / e.inr_per_credit, 4))) as worst_diff
+from public.credit_ledger e
+join (select ledger_id, sum(cost_usd) usd from public.credit_charge_rows group by ledger_id) r on r.ledger_id = e.id
+where e.kind = 'charge';
+-- 2. Ledger and balances agree for every wallet.
+select bool_and(w.balance = (select coalesce(sum(credits), 0) from public.credit_ledger l where l.user_id = w.user_id))
+from public.credit_wallets w;
+-- 3. Answers (since launch_at) and how many were charged; chargeable rows left uncharged after 10 minutes.
+select count(distinct l.message_id) as answers,
+       count(*) filter (where c.model_call_log_id is null and l.status in ('success','aborted') and l.cost_usd >= 0
+                        and l.purpose in ('chat_answer','embedding') and m.status in ('complete','truncated','cancelled')
+                        and l.created_at < now() - interval '10 minutes') as uncharged_rows
+from public.model_call_logs l
+left join public.credit_charge_rows c on c.model_call_log_id = l.id
+left join public.chat_messages m on m.id = l.message_id
+where l.caller = 'research-chat' and l.created_at > (select launch_at from public.credit_settings);
+-- 4. Would-be blocks, stopped rounds that never got a cost, and wallets in debt.
+select (select count(*) from public.credit_holds where shadow_blocked) as shadow_blocked_turns,
+       (select count(*) from public.model_call_logs where caller = 'research-chat' and status = 'aborted' and cost_usd is null
+          and created_at > (select launch_at from public.credit_settings)) as aborted_without_cost,
+       (select count(*) from public.credit_wallets where debt > 0) as wallets_in_debt;
+```
+
+**Pass:**
+- at least 50 answers;
+- `worst_diff` = 0;
+- the ledger agrees with every balance;
+- `uncharged_rows` = 0 (any exception explained, e.g. a failed turn);
+- aborted rounds without a cost are rare.
+
+Also check the Edge logs for `credits_settle_failed` and
+`credits_unavailable`.
+
+### Enforcement (production 5)
+
+1. Show the owner the check above. The owner approved enforcement in
+   principle on 2026-10-14; confirm in the session before the change.
+2. Set `CREDITS_ENFORCED=1` with
+   `supabase secrets set CREDITS_ENFORCED=1 --project-ref vfgcppstyzjarlzyqdac`,
+   then redeploy `research-chat`.
+3. Verify that an unauthenticated POST returns 401, and that the Edge logs
+   show no `credits_unavailable`.
+4. Record it in `docs/agents/coordination.md`; tick production 5; move F111
+   to Done.
+
+**Rollback:** `supabase secrets unset CREDITS_ENFORCED`, then redeploy. No
+database change is needed.
+
+### Follow-ups and recommendations (tracked in `open-work.md`)
+
+| Item | Recommendation | Owner decision needed |
+|---|---|---|
+| O6 Razorpay: plans | One-month orders without an auto-renew mandate at launch (RBI e-mandates add pre-debit notices and failure handling); add auto-renew once payments are stable | Confirm no mandate at launch |
+| O6: top-up packs | Three packs, each dearer per credit than Plus (₹0.20), with about a 50% margin over AI cost (₹0.10): **1,000 for ₹249**, **5,000 for ₹1,149**, **20,000 for ₹4,299**; valid 12 months; bought in Plan & billing | The pack sizes and prices |
+| O6: downgrade at the next cycle | `grant_paid_plan` queues a lower plan from the current `plan_period_end` (needs a pending-plan column); the credits trigger then mints at the new cycle | None (already decided) |
+| O6: renewal-date drift | Compute each renewal end from the first paid day, clamped to the month's last day (31 Jan → 28 Feb → 31 Mar), not from the previous end | None |
+| F6 server plan gating | Close as superseded: plans now differ only in credits and storage, and desks are free to signed-in users (owner, 2026-10-12). Credits are already enforced on the server | Confirm closing |
+| P3 metering and credits | Done by F111; move it to Done | None |
+| F147 admin user list paging | Page the directory 100 at a time with search, when there are more than 300 users | None; later |
+| F148 Plan & billing dark mode | A small CSS task for the next UI polish pass | None |
+| F149 open an answer from Plan & billing | A `niy-open-conversation` event, like the billing one, selects the chat and opens the AI panel | None |
+| F150 expensive models on Free | Tier-3 models (Claude Sonnet: about 170 credits an answer) only on paid plans; this caps a Free account's unpaid debt and makes paid plans more attractive | Approve the rule |
+| F151 credit estimate in the model picker | Show "≈ N credits a typical answer" per model, from `model_pricing` and the last 30 days' medians, next to the cost diamonds | None; after enforcement |
+| F152 leaked-password protection | Turn on Supabase Auth's HaveIBeenPwned check (Dashboard → Auth → Passwords; the security advisor flags it) | Owner's dashboard action |

@@ -551,6 +551,31 @@ rechecked. Nothing in this check wrote to production.
       - the production steps in the plan, each on the owner's go-ahead:
         migration, functions in shadow mode, push, a shadow week, then
         enforcement.
+  - 2026-10-14: **live in shadow mode.**
+    - Shipped: migration 47, research-chat v54, transcribe-audio v2, and the
+      push `2a85579..80aeaa6`. Task 7's wording is live.
+    - Remaining:
+      - the shadow-week check on or after 2026-10-21;
+      - then enforcement for everyone (owner: "we should enforce it").
+    - The steps and the check queries are in the plan's "After launch"
+      section.
+- [ ] **F147. Admin user list paging.** The directory reads every profile in
+  one request (and every wallet, in pages). Recommended: page it 100 at a
+  time with search, once there are more than 300 users.
+- [ ] **F148. Plan & billing dark mode.** The panel, its credits section
+  included, has light styles only. A small CSS task for the next UI polish
+  pass.
+- [ ] **F149. Open an answer from Plan & billing.** Recent answers are plain
+  text, because no route selects a conversation. Recommended: a
+  `niy-open-conversation` event, like `niy-open-billing`.
+- [ ] **F150. Expensive models on Free (owner decision).** One Claude Sonnet
+  answer costs about 170 credits, and a Free account can leave one answer
+  of debt unpaid. Recommended: tier-3 models on paid plans only.
+- [ ] **F151. Credit estimate in the model picker.** Show "≈ N credits a
+  typical answer" per model beside the cost diamonds. After enforcement.
+- [ ] **F152. Leaked-password protection (owner's dashboard action).** The
+  Supabase security advisor flags it as off. Recommended: turn it on
+  (Auth → Passwords).
     - 1 credit = 10 paise of AI cost.
     - Free gets 1,000 once (30 days). Plus 2,000, Pro 6,500 and Max 75,000 a
       month.
@@ -1613,6 +1638,9 @@ Earlier items, updated:
   `my_entitlement`, or RLS), server-side exports and API row caps.
   - **Parked by the owner (2026-10-02)** until payments are integrated: "when the payment plan
     is actually integrated, we might have to make changes again."
+  - **Recommended 2026-10-14: close as superseded.** Since 2026-10-12, plans differ only in AI
+    credits and storage, and every desk is free to signed-in users. Credits are enforced on the
+    server (F111). Awaiting the owner's confirmation.
   - **Decisions recorded for then:**
     - core desks stay persona-based and user-editable;
     - the AI assistant respects the same desk locks when it reads desk rows;
@@ -1624,10 +1652,21 @@ Earlier items, updated:
     both the client and the server.
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
   end to end.
+  - Added by F111 (2026-10-14; recommendations in the
+    [credits plan](2026-10-14-ai-credits.md), "After launch"):
+    - **Top-up packs:** 1,000 for ₹249, 5,000 for ₹1,149 and 20,000 for
+      ₹4,299, valid 12 months (the owner to confirm the prices).
+    - **Downgrade at the next cycle:** `grant_paid_plan` queues a lower plan
+      until the current `plan_period_end`.
+    - **Renewal dates anchored to the first paid day,** so they do not drift
+      after the 31st.
+    - **No auto-renew mandate at launch** (recommended).
 - [ ] **P2.** Organisation seats, organisation billing, Razorpay
   subscriptions.
 - [ ] **P3.** Metering and credits (ADR 0002); an effort column in
   `model_call_logs`.
+  - 2026-10-14: metering and credits are delivered by F111 (live in shadow
+    mode); only the effort column remains.
 
 ## 5. Launch
 
