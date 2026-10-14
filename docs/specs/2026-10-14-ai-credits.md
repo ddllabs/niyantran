@@ -174,7 +174,12 @@ the payment.
    5. Checks *available = balance − active holds*.
       - At zero or below, it returns `{ok:false, reason:'credits_exhausted',
         balance}`. With enforcement on, the function answers 402 and no
-        message is created.
+        message is created. When the balance is positive but held by answers
+        still running, the 402 adds `held: true` and says so, instead of
+        "no credits left".
+      - When no new turn starts after reserve (the claim fails or returns
+        anything but a running or finished turn), the hold is released at
+        once, so it does not block the user for its five minutes.
       - In shadow mode it still records the hold and returns its id with
         `ok:false`, so the turn is charged and measured like any other.
       - Otherwise it records a hold of `min(available, hold_credits)` and
@@ -200,9 +205,10 @@ the payment.
    the turn's chargeable rows that are not yet charged (§3.1), then marks the
    hold settled.
    - A settle error or timeout is logged and never fails the answer.
-   - The credits then arrive as their own `{credits}` frame after `done`
-     (`null` when the settle is pending or failed, and the sweep finishes
-     the job). The client either reads past `done` for it or calls
+   - The credits then arrive as their own `{credits}` frame after `done`.
+     It is `null` when the settle is pending or failed, or when a round cut
+     off by Stop is still waiting for its cost; the sweep then finishes the
+     job. The client either reads past `done` for it or calls
      `my_conversation_credits` (task 4b).
    - Settle treats a message still `running` past its `execution_expires_at`
      as `interrupted`.
