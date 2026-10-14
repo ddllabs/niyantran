@@ -582,7 +582,7 @@ rechecked. Nothing in this check wrote to production.
   two (search, sort, filters and counts on the server, edge-cached); pending landing counts retried
   instead of shown as "unavailable"; the deployed site reading the backup packs with a bounded
   read (the `includeFiles` line awaits the owner's approval).
-- [ ] **F157. State desk landing downloads 26 whole modules to count them.** Found by the F156
+- [x] **F157. State desk landing downloads 26 whole modules to count them.** Done 2026-10-14 (`791b01e`, pushed `701e22d`). Live: `/api/state-landing` answers 0.7–0.9 KB per module (booth modules were about 110 KB each), 0.15–0.37 s, edge `HIT` on repeat; browser check on the local copy: 26 count requests, 29 KB raw in all, no whole-module downloads. Found by the F156
   measurements: at least about 440 KB compressed per State landing visit; the other seven desks
   have count-only routes. Recommended: a count-only `/api/state-landing` like the others.
   - 2026-10-14, built, not yet committed or deployed: `/api/state-landing?feature=…`
@@ -606,7 +606,7 @@ rechecked. Nothing in this check wrote to production.
     - Change in behaviour: a count whose live source misses the 4 s limit now shows
       "Loading live count…" and is asked for again at 6 s and 15 s (before: "Measured data
       unavailable"); if still missing it shows "Summary unavailable" with Retry.
-- [ ] **F158. The Goa booth geography pack is in every terminal visit's JavaScript.** Found by the
+- [x] **F158. The Goa booth geography pack is in every terminal visit's JavaScript.** Done 2026-10-14 (`9faeade`, pushed `701e22d`). Live: served on its own as `assets/niy-geo-BQCNMAF0.js` (122 KB gzip), fetched only when a geography module opens; browser check on the local copy: not loaded on the State landing, loaded when Booth Political History opened (1,731 rows shown). Found by the
   F156 measurements: `niy-geo.json` costs 120 KB compressed whether or not a booth module opens.
   Recommended: load it only when a booth module opens (`archiveFeed.js`).
   - 2026-10-14 (task/geo-pack-lazy, awaiting review): `archiveFeed.js` now loads the pack with

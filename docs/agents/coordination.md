@@ -1919,3 +1919,15 @@ at `f28e619`. Local end-to-end run first: `docs/research/2026-10-01-citations-pd
     `F15_Global_Trade.xlsx`, and `backup/SPORTS` `manifest.json`, `F64_Athlete_Index.xlsx`
     (about 5 MB), not all of `backup/` (82 MB). Reasons and the rule for adding more are in F156.
   - Rollback: restore `includeFiles` to `{src/data/**,public/data/**}` and push.
+- **State landing counts (F157) and the lazy Goa geography pack (F158), owner: "go ahead with both and push":**
+  - Pushed `main` `cf2115a..701e22d`. New public route `/api/state-landing` (on the edge-cache
+    allow-list, like the other seven landing routes); the State landing and the catalogue search
+    use it. The Goa pack is now a separate `niy-geo-*.js` chunk; `check:bundle` fails if it
+    returns to a shared chunk.
+  - Verified live: `/api/state-landing` 200 with `x-vercel-cache: HIT` on repeat; the geo chunk is
+    served on its own. Timings in F157/F158.
+  - Note: one full `npm test` run on the F158 branch had two failures that did not recur in three
+    further runs (another agent's tests were running at the same time); the merged branch passed.
+  - Rollback: revert `701e22d` (merge) and push.
+  - Checks on the merged branch: 4,573 Vitest and 1,073 Deno tests, lint, build, `check:bundle`
+    and the router import.
