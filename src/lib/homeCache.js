@@ -55,7 +55,7 @@ export function saveHomeCache({ markets, latest, pulse }) {
   return next;
 }
 
-/** Live Yahoo / nter.news / GDELT — when the admin interval has elapsed. */
+/** Live Yahoo / nter.news / the stored Open Fronts snapshot — when the admin interval has elapsed. */
 export function kickHomeRefreshIfDue() {
   const cfg = loadRefreshCfg();
   if (!cfg.auto) return Promise.resolve(null);
