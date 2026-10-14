@@ -101,7 +101,8 @@ async function fetchEnglishPibTitle(prid) {
       const dateHint = (html.match(/Posted On:\s*([0-9]{1,2}\s+[A-Za-z]{3}\s+[0-9]{4})/i) || [])[1] || '';
       let date = '';
       if (dateHint) {
-        const d = new Date(dateHint);
+        // Read as UTC: a bare "14 Oct 2026" in local time is the 13th in India once made ISO.
+        const d = new Date(`${dateHint} UTC`);
         if (!Number.isNaN(d.getTime())) date = d.toISOString().slice(0, 10);
       }
       // Hindi release pages expose an "English" sibling with a different PRID.
@@ -172,7 +173,7 @@ async function mapPool(items, limit, fn) {
  */
 async function enrichPibEnglish(rows, opts = {}) {
   const list = (Array.isArray(rows) ? rows : []).slice(0, 40);
-  const enriched = await mapPool(list, 4, async (row, idx) => {
+  const enriched = await mapPool(list, 8, async (row, idx) => {
     const base = {
       ...row,
       id: row.id != null ? row.id : `pib-${idx}`,
@@ -190,8 +191,18 @@ async function enrichPibEnglish(rows, opts = {}) {
     }
     if (!isHindiText(title) && title) {
       const url = base.source_url || `https://www.pib.gov.in/PressReleasePage.aspx?PRID=${prid}&Lang=1`;
-      const page = opts.ministry ? await fetchEnglishPibTitle(prid) : null;
-      return { ...base, title, topic: base.topic || title, source_url: url, language: 'en', ...(page?.ministry ? { ministry: page.ministry } : {}) };
+      // PIB's English RSS has no dates (checked 2026-10-14), so the release page gives the date,
+      // and the issuing body when asked for (F125).
+      const page = opts.ministry || !base.date ? await fetchEnglishPibTitle(prid) : null;
+      return {
+        ...base,
+        title,
+        topic: base.topic || title,
+        source_url: url,
+        language: 'en',
+        ...(page?.date && !base.date ? { date: page.date } : {}),
+        ...(opts.ministry && page?.ministry ? { ministry: page.ministry } : {}),
+      };
     }
     const en = await fetchEnglishPibTitle(prid);
     if (!en) {
