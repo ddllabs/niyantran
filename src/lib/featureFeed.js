@@ -177,7 +177,7 @@ async function archiveFirst({ tier, feature, signal, url, onUpdate }) {
   return shown;
 }
 
-export async function fetchFeature({ tier, feature, signal, onUpdate } = {}) {
+export async function fetchFeature({ tier, feature, signal, onUpdate, params } = {}) {
   const mapRow = featureMapRow(tier, feature);
   // HTML-ONLY: own title, zero rows, no live GDELT stand-in and no sibling archive.
   if (isHtmlOnlyModule(mapRow)) {
@@ -246,6 +246,8 @@ export async function fetchFeature({ tier, feature, signal, onUpdate } = {}) {
   const q = new URLSearchParams();
   if (tier) q.set('tier', tier);
   if (feature) q.set('feature', feature);
+  // F169 T3: extra inputs a module's server loader reads (the Statement Tracker's `person`).
+  for (const [k, v] of Object.entries(params || {})) if (v != null && v !== '') q.set(k, String(v));
   const url = `/api/feature-feed?${q.toString()}`;
 
   if (onUpdate) return archiveFirst({ tier, feature, signal, url, onUpdate });

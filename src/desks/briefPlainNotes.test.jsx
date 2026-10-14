@@ -67,7 +67,7 @@ describe('Statement Tracker (F164)', () => {
 
   it('the coverage chart names its source plainly', () => {
     const html = render(StatementsDesk, { 2: [{ year: '10/13', n: 4 }, { year: '10/14', n: 9 }], 4: false });
-    expect(shown(html)).toContain('GDELT news search');
+    expect(shown(html)).toContain('news search');
     expect(shown(html).match(DEVELOPER)?.[0] ?? null).toBeNull();
   });
 });

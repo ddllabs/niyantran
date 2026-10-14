@@ -64,7 +64,7 @@ import {
   entertainmentSlice,
   rssWireRows as entRssRows,
 } from '../src/lib/entertainmentPack.js';
-import { serveNational } from './nationalFeed.mjs';
+import { serveNational, statementLeader } from './nationalFeed.mjs';
 import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
 import * as assetsLive from './assetsApi.mjs';
 import * as resourcesLive from './resourcesApi.mjs';
@@ -3281,6 +3281,8 @@ export async function serveFeatureFeed(searchParams) {
 
   if (tier === 'national') {
     const nat = await serveNational({
+      // F169 T3: the Statement Tracker's leader; only a listed leader is accepted.
+      person: statementLeader(searchParams.get('person')),
       feat,
       dataset,
       adapter,
@@ -3668,12 +3670,13 @@ export const LIVE_TIME_LIMIT_MS = 4000;
 const ARCHIVE_TIME_LIMIT_MS = 3000;
 // A live answer that arrived after its request gave up is served to later requests this long.
 const LATE_LIVE_MS = 10 * 60_000;
-// Per instance; keyed by the only two inputs serveFeatureFeed reads.
+// Per instance; keyed by the inputs serveFeatureFeed reads (tier, feature and the Statement Tracker's leader).
 const liveInFlight = new Map();
 const lateLive = new Map();
 
 function liveKey(searchParams) {
-  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}`;
+  const person = searchParams.get('person');
+  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}`;
 }
 
 function settleWithin(promise, ms) {

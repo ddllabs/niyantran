@@ -19,18 +19,15 @@ const RBI_NOTES = 'https://www.rbi.org.in/notifications_rss.xml';
 const RBI_PRESS = 'https://www.rbi.org.in/pressreleases_rss.xml';
 const SEBI_RSS = 'https://www.sebi.gov.in/sebirss.xml';
 /** Real person query — never search the product name "Statement & Quote Tracker…". */
-function statementsGdeltUrl(person = STATEMENT_LEADERS[0]) {
-  const q = `"${person}" sourcecountry:IN`;
-  return (
-    'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
-    encodeURIComponent(q) +
-    '&mode=artlist&format=json&sort=datedesc&timespan=3d&maxrecords=40'
-  );
+/** A listed leader for the Statement Tracker (F169 T3); anything else is the first leader. */
+export function statementLeader(name) {
+  const want = String(name || '').trim().toLowerCase();
+  return STATEMENT_LEADERS.find((p) => p.toLowerCase() === want) || STATEMENT_LEADERS[0];
 }
 function statementsNewsRss(person = STATEMENT_LEADERS[0]) {
   return (
     'https://news.google.com/rss/search?q=' +
-    encodeURIComponent(`"${person}" India`) +
+    encodeURIComponent(`"${person}" India when:7d`) +
     '&hl=en-IN&gl=IN&ceid=IN:en'
   );
 }
@@ -439,30 +436,9 @@ export async function serveNational(ctx) {
   }
 
   if (/statement/i.test(name)) {
-    const person = STATEMENT_LEADERS[0];
-    const gdeltUrl = statementsGdeltUrl(person);
+    // F169 T3: the leader the page asked for; Google News only (GDELT refuses every request, T4).
+    const person = statementLeader(ctx.person);
     const newsUrl = statementsNewsRss(person);
-    const live = await tryUrls([gdeltUrl]);
-    if (live.rows?.length) {
-      return envelope({
-        tier,
-        feature: feat,
-        rows: live.rows.map((r) => ({ ...r, person })),
-        adapter: 'news-search',
-        links: [gdeltUrl],
-        coverage: { from: '', through: '3d', exhaustive: false },
-        fallback: false,
-        gdelt: true,
-        kind: 'wire',
-        note: `Live GDELT DOC 2.0 media mentions for "${person}" (India). Coverage volume, not a statement archive — no contradiction verdict.`,
-        meta: {
-          section: 'MEDIA MENTIONS — GDELT 2.0',
-          status: 'LIVE · GDELT',
-          heading: heading(feat),
-          person,
-        },
-      });
-    }
     const rss = await tryUrls([newsUrl]);
     if (rss.rows?.length) {
       return envelope({
@@ -470,15 +446,15 @@ export async function serveNational(ctx) {
         feature: feat,
         rows: rss.rows.map((r) => ({ ...r, person })),
         adapter: 'news-search',
-        links: [newsUrl, gdeltUrl],
-        coverage: { from: '', through: 'present', exhaustive: false },
+        links: [newsUrl],
+        coverage: { from: '', through: '7d', exhaustive: false },
         fallback: false,
         gdelt: false,
         kind: 'wire',
-        note: `Live Google News RSS for "${person}" (GDELT unavailable: ${live.error || 'empty/rate-limited'}). Coverage mentions only — no contradiction verdict.`,
+        note: `Google News coverage of "${person}" from the last 7 days. Media mentions, not a statement archive; no contradiction verdict.`,
         meta: {
-          section: 'MEDIA MENTIONS — GOOGLE NEWS RSS',
-          status: 'LIVE · NEWS RSS',
+          section: 'MEDIA MENTIONS',
+          status: 'LIVE · NEWS SEARCH',
           heading: heading(feat),
           person,
         },
@@ -489,30 +465,24 @@ export async function serveNational(ctx) {
       feature: feat,
       rows: statusRow({
         adapter: 'news-search',
-        url: gdeltUrl,
-        reason: live.error || rss.error || 'empty coverage wire',
+        url: newsUrl,
+        reason: rss.error || 'empty coverage wire',
         featureName: name,
       }),
       adapter: 'news-search',
-      links: [gdeltUrl, newsUrl],
-      coverage: { through: '3d' },
+      links: [newsUrl],
+      coverage: { through: '7d' },
       fallback: false,
-      gdelt: true,
+      gdelt: false,
       kind: 'wire',
-      note: 'GDELT / News RSS returned no coverage rows. No contradiction verdicts are invented.',
-      meta: { section: 'MEDIA MENTIONS — GDELT 2.0', status: 'OFFLINE', heading: heading(feat), person },
+      note: `No coverage of "${person}" came back from the news search. No contradiction verdict is invented.`,
+      meta: { section: 'MEDIA MENTIONS', status: 'OFFLINE', heading: heading(feat), person },
     });
   }
 
   if (/morning brief/i.test(name)) {
-    const topUrl =
-      'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
-      encodeURIComponent('sourcecountry:IN (India OR government OR parliament)') +
-      '&mode=artlist&format=json&sort=datedesc&timespan=3d&maxrecords=20';
-    const ecoUrl =
-      'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
-      encodeURIComponent('(economy OR RBI OR rupee OR markets) sourcecountry:IN') +
-      '&mode=artlist&format=json&sort=datedesc&timespan=3d&maxrecords=20';
+    // F169 T3: PIB and two Google News searches together; GDELT is not asked (it refuses every
+    // request, T4).
     const topNews =
       'https://news.google.com/rss/search?q=' +
       encodeURIComponent('India government OR parliament when:3d') +
@@ -521,18 +491,18 @@ export async function serveNational(ctx) {
       'https://news.google.com/rss/search?q=' +
       encodeURIComponent('India (RBI OR economy OR markets OR rupee) when:3d') +
       '&hl=en-IN&gl=IN&ceid=IN:en';
+    const topUrl = topNews;
+    const ecoUrl = ecoNews;
 
-    const pibLive = await tryUrls([PIB_PRESS]);
+    const [pibLive, topLive, ecoLive] = await Promise.all([tryUrls([PIB_PRESS]), tryUrls([topNews]), tryUrls([ecoNews])]);
     const pibRows = await enrichPibEnglish(pibLive.rows || []);
-    const topLive = await tryUrls([topUrl]);
-    const topRows = topLive.rows?.length ? topLive.rows : (await tryUrls([topNews])).rows || [];
-    const ecoLive = await tryUrls([ecoUrl]);
-    const ecoRows = ecoLive.rows?.length ? ecoLive.rows : (await tryUrls([ecoNews])).rows || [];
+    const topRows = topLive.rows || [];
+    const ecoRows = ecoLive.rows || [];
 
     const tagged = [
-      ...topRows.map((r) => ({ ...r, section: 'Top of the Day', source: r.source || r.domain || 'GDELT/News' })),
+      ...topRows.map((r) => ({ ...r, section: 'Top of the Day', source: r.publisher || r.source || 'News' })),
       ...pibRows.map((r) => ({ ...r, section: 'Government Wire', source: r.source || 'PIB' })),
-      ...ecoRows.map((r) => ({ ...r, section: 'Economy', source: r.source || r.domain || 'GDELT/News' })),
+      ...ecoRows.map((r) => ({ ...r, section: 'Economy', source: r.publisher || r.source || 'News' })),
     ];
     if (tagged.length) {
       return envelope({
@@ -543,9 +513,9 @@ export async function serveNational(ctx) {
         links: [PIB_PRESS, topUrl, ecoUrl],
         coverage: { from: '', through: '3d', exhaustive: false },
         fallback: false,
-        gdelt: Boolean(topLive.rows?.length || ecoLive.rows?.length),
+        gdelt: false,
         kind: 'panel',
-        note: `Morning Brief live panel — Top ${topRows.length} · PIB ${pibRows.length} · Economy ${ecoRows.length}. GDELT paced ≥5s; News RSS fills gaps. Not a personalised digest.`,
+        note: `Morning Brief: top stories ${topRows.length}, PIB ${pibRows.length}, economy ${ecoRows.length}. Not a personalised digest.`,
         meta: {
           section: 'MORNING BRIEF',
           status: 'LIVE · PIB + WIRES',
@@ -568,9 +538,9 @@ export async function serveNational(ctx) {
       links: [PIB_PRESS, topUrl, ecoUrl],
       coverage: { through: '3d' },
       fallback: false,
-      gdelt: true,
+      gdelt: false,
       kind: 'panel',
-      note: 'Morning Brief wires returned no rows (GDELT rate limit / PIB unreachable). No digest was invented.',
+      note: 'Morning Brief sources returned no rows (PIB and news search unreachable). No digest was invented.',
       meta: { section: 'MORNING BRIEF', status: 'OFFLINE', heading: heading(feat) },
     });
   }
