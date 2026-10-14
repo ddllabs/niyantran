@@ -9,14 +9,14 @@ import PrivacyPage from './PrivacyPage.jsx';
 import TermsPage from './TermsPage.jsx';
 import { AboutPage, ContactPage, DeliveryPage, RefundPage } from './PolicyPages.jsx';
 import { LEGAL_PATHS as LEGAL, isLegalPathname } from './legalRoutes.js';
-import { DEFAULT_SITE_SETTINGS, loadSiteSettings, subscribeSiteSettings } from '../lib/siteSettingsStore.js';
+import { SITE_SETTINGS, loadSiteSettings } from '../lib/siteSettings.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { sessionUser } from '../lib/userStore.js';
 import './marketing.css';
 
 // F145: the default logo, with or without a ?v= query, is drawn from its 128 px copy (the full logo
-// is 164 KB); a favicon set in admin is shown as set.
-const FULL_LOGO = DEFAULT_SITE_SETTINGS.faviconUrl.split('?')[0];
+// is 164 KB); any other favicon address is shown as given.
+const FULL_LOGO = SITE_SETTINGS.faviconUrl.split('?')[0];
 export const brandLogo = (url) => (!url || url.split('?')[0] === FULL_LOGO ? '/brand/logo-128.webp' : url);
 
 function pageFromRoute() {
@@ -42,7 +42,7 @@ function pageFromRoute() {
 export default function MarketingSite({ onAuthed }) {
   const [page, setPage] = useState(pageFromRoute);
   const [menu, setMenu] = useState(false);
-  const [site, setSite] = useState(() => loadSiteSettings());
+  const site = loadSiteSettings();
 
   useEffect(() => {
     document.documentElement.classList.add('mkt-doc');
@@ -61,8 +61,6 @@ export default function MarketingSite({ onAuthed }) {
       window.removeEventListener('popstate', onHash);
     };
   }, []);
-
-  useEffect(() => subscribeSiteSettings(setSite), []);
 
   useEffect(() => {
     if (page === 'privacy') setPageTitle('Privacy Policy');

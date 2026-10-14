@@ -40,8 +40,8 @@ describe('image weight', () => {
       expect(src, page).not.toMatch(/<img[^>]*src="\/brand\/logo\.png/);
       expect(src, page).toContain('/brand/logo-128.webp');
     }
-    // The favicon and share image stay the full logo (siteSettingsStore.js).
-    expect(readFileSync(new URL('lib/siteSettingsStore.js', SRC), 'utf8')).toContain("faviconUrl: '/brand/logo.png?v=2'");
+    // The favicon and share image stay the full logo (siteSettings.js).
+    expect(readFileSync(new URL('lib/siteSettings.js', SRC), 'utf8')).toContain("faviconUrl: '/brand/logo.png?v=2'");
   });
 
   it('draws the default logo small however it was saved, and an admin-set favicon as set', async () => {
