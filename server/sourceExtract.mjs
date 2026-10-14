@@ -150,6 +150,8 @@ async function pdfToText(buf) {
 }
 
 function sheetToText(buf) {
+  // P12 (F171 B6): nothing larger than a fetched source is parsed.
+  if (buf.length > MAX_BIN) return { error: `Spreadsheet too large (over ${MAX_BIN / 1024 / 1024} MB)` };
   try {
     const XLSX = require('xlsx');
     const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
