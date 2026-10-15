@@ -3514,8 +3514,10 @@ const lateLive = new Map();
 
 function liveKey(searchParams) {
   const person = searchParams.get('person');
-  // F190: MLA Directory's live branch keeps one state's members, so a state's answer is its own.
-  const state = mlaStateVariant(searchParams.get('state'));
+  // F190: MLA Directory's live branch keeps one state's members, so a state's answer is its own. Only on
+  // the state tier (where MLA Directory and its aliases live), so `?state=` on any other module cannot
+  // start extra live attempts.
+  const state = searchParams.get('tier') === 'state' ? mlaStateVariant(searchParams.get('state')) : '';
   return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}${state ? `\u0000${state}` : ''}`;
 }
 
