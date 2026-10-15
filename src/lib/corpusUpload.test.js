@@ -177,9 +177,15 @@ describe('deskPairs', () => {
     const keys = pairs.map((p) => `${p.tier}\u0000${p.feature}`);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toEqual([...keys].sort());
-    const want = new Set(catalog.entries.map((e) => `${e.tier}\u0000${e.feature}`));
+    const want = new Set(catalog.entries.filter((e) => !e.tables).map((e) => `${e.tier}\u0000${e.feature}`));
     expect(new Set(keys)).toEqual(want);
     for (const pair of pairs) expect(Object.keys(pair).sort()).toEqual(['feature', 'tier']);
+  });
+
+  it('never offers an RBI Handbook register as an upload target', () => {
+    const features = new Set(deskPairs().map((p) => p.feature));
+    expect(features.has('State Fiscal Deep-Dive')).toBe(false);
+    expect(catalog.entries.some((e) => e.feature === 'State Fiscal Deep-Dive')).toBe(true);
   });
 
   it('keeps a feature that exists on two tiers as two pairs', () => {

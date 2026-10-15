@@ -164,8 +164,10 @@ export function estimateCostUsd(pages) {
  */
 export function deskPairs() {
   const pairs = new Map();
-  for (const { tier, feature } of deskCatalog.entries) {
-    if (tier && feature) pairs.set(`${tier}\u0000${feature}`, { tier, feature });
+  // The RBI Handbook entries (they list tables) are stored registers for the AI's search, not
+  // targets for uploaded documents.
+  for (const { tier, feature, tables } of deskCatalog.entries) {
+    if (tier && feature && !tables) pairs.set(`${tier}\u0000${feature}`, { tier, feature });
   }
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   return [...pairs.values()].sort((a, b) => cmp(a.tier, b.tier) || cmp(a.feature, b.feature));

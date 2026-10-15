@@ -12,6 +12,12 @@ export interface CatalogEntry {
   pack: string | null;
   rows: number; // rows the desk showed when the catalogue was generated
   note: string | null;
+  // Only the RBI Handbook modules carry these (src/lib/deskCatalogBuild.js): their tables as
+  // "Table 176: State-wise Composition of Outstanding Liabilities", the fields to search on and how a
+  // year is written. Their rows are loaded apart from the desk feed, so `rows` is 0 and not printed.
+  tables?: string[];
+  fields?: string[];
+  years?: string;
 }
 
 export const DESK_TIERS = ['global', 'national', 'state', 'law', 'economics', 'carbon', 'sports', 'entertainment'] as const;
@@ -36,8 +42,19 @@ export function resolveFeature(tier: string, name: string): CatalogEntry | null 
 }
 
 function longLine(e: CatalogEntry): string {
+  if (e.tables?.length) return tablesBlock(e);
   const rows = e.rows > 0 ? `${e.rows.toLocaleString('en-IN')} rows` : 'no rows loaded';
   return `- ${e.feature} (${e.bucket}) — ${rows}${e.note ? ` · ${e.note}` : ''}`;
+}
+
+/** A module that holds tables of figures: its line, the fields to filter on, how years are written, then one line per table. */
+function tablesBlock(e: CatalogEntry): string {
+  return [
+    `- ${e.feature} (${e.bucket}) — ${e.tables!.length} tables${e.note ? ` · ${e.note}` : ''}`,
+    ...(e.fields?.length ? [`  filter by: ${e.fields.join(', ')}`] : []),
+    ...(e.years ? [`  years: ${e.years}`] : []),
+    ...e.tables!.map((t) => `  ${t}`),
+  ].join('\n');
 }
 
 function shortLine(tier: string): string {

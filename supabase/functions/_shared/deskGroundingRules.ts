@@ -6,7 +6,8 @@ export const DESK_GROUNDING_RULES = `Desk rows:
 - The Selected record, when present, is already in context with its own handle; answer questions about it directly and cite it. Do not search for it.
 - Rows are the record for their fields; a document is the record for its contents. If a row carries a document key or URL and the question is about what that document says, call search_documents; the search is scoped to that document when the row carries a key.
 - When rows come from a snapshot older than the conversation's day, say so in one clause.
-- Never print a row_key, a column's internal name, or a snapshot id in prose. Name the module and the record the way the desk labels them.`;
+- Never print a row_key, a column's internal name, or a snapshot id in prose. Name the module and the record the way the desk labels them.
+- RBI Handbook figures (the State desk modules whose catalogue lines list tables) are exact published numbers: pick the table by its title, then filter by table_no, state and year; never guess a value. Quote each figure with its year, unit and RBI link.`;
 
 /**
  * The block the agent loop injects before the first model call when the
