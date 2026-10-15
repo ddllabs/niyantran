@@ -4,6 +4,7 @@ import HomeDesk from '../desks/HomeDesk.jsx';
 import DeskView from '../desks/DeskView.jsx';
 import DeskLandingView from '../desks/DeskLandingView.jsx';
 import DeskNav from './DeskNav.jsx';
+import DeskRail from './DeskRail.jsx';
 import DeskDirectory, { DeskLandingTabs } from './DeskDirectory.jsx';
 import SidePanel, { useSidePanel } from './SidePanel.jsx';
 import { deskHasRail, rowPicker } from './sidePanelModel.js';
@@ -58,6 +59,8 @@ export default function TerminalShell({ onLogout }) {
   const [personaOpen, setPersonaOpen] = useState(false);
   // The credits page (F184): its section while open (#/account/<section>), else null.
   const [account, setAccount] = useState(() => parseAccountHash());
+  // F195: the desk rail on module pages, open (names, over the page; a drawer on phones) or not.
+  const [railOpen, setRailOpen] = useState(false);
   const [userTick, setUserTick] = useState(0);
   const profileRef = useRef(null);
   const user = sessionUser();
@@ -351,14 +354,15 @@ export default function TerminalShell({ onLogout }) {
   }
 
   return (
-    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation' : ''}${account ? ' with-credits-page' : ''} theme-${theme}`}>
+    <div className={`terminal with-v6-directory${moduleNavigation && !account ? ' with-module-navigation with-desk-rail' : ''}${account ? ' with-credits-page' : ''} theme-${theme}`}>
       <div className={`load-bar${loading ? ' on' : ''}`} />
       <header className="topbar">
         <div className="brand" title="Niyantran Terminal">
           <img src="/brand/logo-128.webp" alt="" />
           <span>TERMINAL</span>
         </div>
-        <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>
+        {/* F195: inside a desk the desks are the left rail; the header keeps them everywhere else. */}
+        {moduleNavigation && !account ? null : <DeskLandingTabs tab={tab} lang={lang} tabs={deskTabs} onDesk={onDesk}/>}
         <div className="shell-header-utilities">
         <DeskDirectory tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}/>
         <DeskCatalogueSearch key={`${user?.id || user?.email || ""}:${userTick}`} tabs={deskTabs} recordTabs={searchTabs} lockedIds={[...lockedIds]}
@@ -501,6 +505,8 @@ export default function TerminalShell({ onLogout }) {
       {/* F184: the credits page takes the work area; the desk stays mounted underneath, hidden, so the
           AI panel keeps its thread, draft and any answer still streaming (SidePanel.jsx). */}
       {account ? <CreditsPage section={account} user={user} ent={ent} /> : null}
+      {moduleNavigation && !account && <DeskRail tab={tab} lang={lang} tabs={deskTabs} lockedIds={lockedIds} onDesk={onDesk}
+        open={railOpen} onOpenChange={setRailOpen} />}
       {moduleNavigation && !account && <DeskNav
         tab={tab}
         featureName={featureName}
@@ -509,6 +515,8 @@ export default function TerminalShell({ onLogout }) {
         onFeature={onFeature}
         tabs={deskTabs}
         lockedIds={lockedIds}
+        desksOpen={railOpen}
+        onOpenDesks={() => setRailOpen((open) => !open)}
       />}
       <div className={`workspace${restricted ? ' restricted-workspace' : ''}${tab === 'home' ? ' home' : ''}${guideMode ? ' desk-guide-mode' : ''}${isConflictsFeature(featureName) ? ' conflicts-holistic' : ''}${isChokepointsFeature(featureName) || isEnergyFeature(featureName) || isNationalFullscreen(featureName) ? ' choke-holistic' : ''}${isTransitFeature(featureName) ? ' transit-map' : ''}${isNationalFullscreen(featureName) ? ' pig-holistic' : ''}${billRecordOpen ? ' bill-record' : ''}${panel.aiOpen ? ' ai-open' : ''}${panel.collapsed ? ' panel-collapsed' : ''}`} style={panel.width ? { '--panel-chosen': `${panel.width}px` } : undefined} hidden={account ? true : undefined}>
         <main className="main-col">

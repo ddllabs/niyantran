@@ -530,6 +530,12 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F195. Desk rail on module pages.** Owner request 2026-10-15 (revisits F102 for module pages
+  only). Inside a desk, the desk tabs leave the header for a 56 px icon rail on the left; its toggle
+  widens it to 208 px with names over the page; at 900 px and below it is a drawer from a Desks
+  button in the category row. Landing pages, Home and the credits page keep the header tabs. Spec:
+  `docs/specs/2026-10-15-desk-left-rail.md`. Built on `task/desk-left-rail` (from
+  `task/chat-credits-strip`); remaining: review, the owner's look, merge and push on their word.
 - [x] **F194. `openCreditsUsage` has no caller left.** Done 2026-10-15 on `task/chat-credits-strip` (owner:
   "fix them too"): removed with its event and the shell's listener. Found in the F193 review, 2026-10-15. F193
   removed the chat's "Credits" link, the last caller of `openCreditsUsage` (`src/lib/creditsStore.js`);

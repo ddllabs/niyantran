@@ -40,13 +40,26 @@ describe('account-restricted canonical destinations', () => {
 
 
 describe('v6 header hierarchy', () => {
-  it.each(['#/home', '#/national/Bill%20Passage%20Probability%20Index', '#/economics/Live%20Global%20Stock%20Exchanges'])('keeps desk navigation in the header on %s', hash => {
+  it.each(['#/home', '#/national', '#/law'])('keeps desk navigation in the header on %s', hash => {
     location.hash = hash;
     const html = renderToStaticMarkup(<TerminalShell/>);
     const header = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)[1];
     expect(header).toContain('aria-label="Desks"');
-    expect(html).not.toContain('class="desk-rail"');
+    expect(html).not.toContain('class="desk-rail');
     expect(html.match(/aria-label="Desks"/g)).toHaveLength(1);
+  });
+  // F195 (owner 2026-10-15): inside a desk, the desks move to the left rail and the category row is
+  // the only bar under the header.
+  it.each(['#/national/Bill%20Passage%20Probability%20Index', '#/economics/Live%20Global%20Stock%20Exchanges'])('moves the desks to the left rail on the module page %s', hash => {
+    location.hash = hash;
+    const html = renderToStaticMarkup(<TerminalShell/>);
+    const header = html.match(/<header class="topbar">([\s\S]*?)<\/header>/)[1];
+    expect(header).not.toContain('v6-landing-tabs');
+    expect(html).toMatch(/<div class="terminal with-v6-directory with-module-navigation with-desk-rail theme-/);
+    expect(html).toContain('<nav class="desk-rail" id="desk-rail" aria-label="Desks">');
+    expect(html.match(/aria-label="Desks"/g)).toHaveLength(1);
+    expect(html.indexOf('class="desk-rail"')).toBeLessThan(html.indexOf('class="desktabs'));
+    expect(html).toMatch(/<button type="button" class="desktabs-desks" aria-haspopup="true" aria-expanded="false" aria-controls="desk-rail">/);
   });
   it('keeps directory, search and account controls together beside desk navigation', () => {
     location.hash = '#/national';

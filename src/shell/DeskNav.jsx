@@ -34,7 +34,7 @@ function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
   );
 }
 
-export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tabs }) {
+export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tabs, desksOpen = false, onOpenDesks }) {
   const [open, setOpen] = useState(null);
   const btnRefs = useRef({});
   const closeTimer = useRef(null);
@@ -82,6 +82,13 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
 
   return (
     <nav aria-label={hi ? 'डेस्क के मॉड्यूल' : 'Desk modules'} className={`desktabs${tab === 'home' ? ' home-nav' : ''}`}>
+      {/* F195: at 900 px and below the desk rail is a drawer, and this opens it (CSS shows it there). */}
+      {onOpenDesks ? (
+        <button type="button" className="desktabs-desks" aria-haspopup="true" aria-expanded={desksOpen} aria-controls="desk-rail" onClick={() => onOpenDesks()}>
+          <Icon name="menu" size={14} />
+          {hi ? 'डेस्क' : 'Desks'}
+        </button>
+      ) : null}
       {tab !== 'home' && (
         <button
           type="button"

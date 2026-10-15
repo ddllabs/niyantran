@@ -280,7 +280,7 @@ describe('Escape with a popup open', () => {
   it('asks for every kind of popup by role or mark', () => {
     let asked = '';
     escapeOwnerOpen({ querySelectorAll: (sel) => { asked = sel; return []; } }, null);
-    for (const part of ['dialog[open]', '[aria-modal="true"]', '[role="dialog"]', '[role="menu"]', '.alw-live']) expect(asked).toContain(part);
+    for (const part of ['dialog[open]', '[aria-modal="true"]', '[role="dialog"]', '[role="menu"]', '.alw-live', '.desk-rail.open']) expect(asked).toContain(part);
   });
 });
 

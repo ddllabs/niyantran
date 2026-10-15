@@ -7,6 +7,7 @@ import '../desks/carbonLanding.css';
 import '../desks/sportsLanding.css';
 import '../desks/entertainmentLanding.css';
 import '../desks/economicsLanding.css';
+import './deskRail.css';
 import './deskDirectory.css';
 import '../components/dictation.css';
 import '../ai/research.css';

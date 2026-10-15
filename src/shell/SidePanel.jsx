@@ -186,10 +186,11 @@ export function escapeAction({ userExpanded, citationExpanded, aiActive, railOpe
 
 /**
  * Popups that own Escape: native and modal dialogs, role="dialog" and role="menu" popovers (filters,
- * columns, account, Live TV, the desk menu, the tour) and the monitors' live feeds. One open outside
+ * columns, account, Live TV, the desk menu, the tour), the monitors' live feeds and the open desk
+ * rail (F195). One open outside
  * the panel takes Escape, so the panel does not collapse in the same keystroke.
  */
-const ESCAPE_OWNERS = 'dialog[open], [aria-modal="true"], [role="dialog"], [role="menu"], .alw-live';
+const ESCAPE_OWNERS = 'dialog[open], [aria-modal="true"], [role="dialog"], [role="menu"], .alw-live, .desk-rail.open';
 export function escapeOwnerOpen(doc, aside) {
   return [...(doc?.querySelectorAll?.(ESCAPE_OWNERS) ?? [])].some((el) => !aside?.contains?.(el));
 }
