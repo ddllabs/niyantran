@@ -941,7 +941,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     2019-20 at current and constant prices (Tables 21, 22) and the highest 2023 outstanding liabilities
     (Tamil Nadu ₹7,58,931.5 crore, Table 176, from "state debt") — every figure equal to desk_rows.
     Seen: the answer's Gaps section asserted the 2023 figures are provisional, which the rows do not say.*
-  - [ ] **Before the 2026-27 edition is loaded: stable block names.** `yearBlocks` groups newest-first, so
+  - [x] **Before the 2026-27 edition is loaded: stable block names.** *Done 2026-10-16 (`3d577f3`):
+    block names are unchanged; the loader finds every stored block of a split table (orphans of an
+    unfinished cleanup included), prints one statement that switches the new blocks on and obsolete ones
+    off, never deletes, and exits 4 until consistent; a re-cut block that the shrink guard refuses is
+    named with its finish command (no auto-repeat past the guard). Yearly steps: dry run with
+    `--target prod`, `--apply … --force`, repeat for a named re-cut block, run the printed statement,
+    re-run for exit 0. Optional later: an admin RPC `feed_set_block_serve` and a variant listing in
+    place of the printed SQL and the probes.* Original finding: `yearBlocks` groups newest-first, so
     one new year renames most older blocks; a shrunk block is refused and keeps serving last edition's
     years, and obsolete blocks keep `serve` on until the printed SQL is run. Group oldest-first or have
     the loader switch new blocks on and obsolete ones off in one step (review finding 3).
