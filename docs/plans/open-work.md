@@ -548,7 +548,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F207. Cleanup after F203-F206.** Owner 2026-10-16 ("clean up the small gaps"). The record
+- [x] **F207. Cleanup after F203-F206.** Done 2026-10-16 (`d7b0b02`, `59e54ed`; owner: "merge everything to
+  main, and deploy"). Owner 2026-10-16 ("clean up the small gaps"). The record
   adapters no longer compute the graph's `lanes`/`nodes` (27 adapters, 24 test files, 867 lines out;
   node checks moved to links and About rows where they had a match); footer notes no longer promise
   companies or sectors the panels do not show; questions and the pipeline no longer fetch the
