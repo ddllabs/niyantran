@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F211 is next) and goes in the
+- A new finding gets the next free `F` number (F212 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,6 +548,11 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F211. The client's record animation plays while a brief is written.** Owner 2026-10-16. The
+  "NTER-Record-Animation-Final" web component (copied unchanged to `public/animation`) mounts in the
+  brief card only in F209's `writing` state, loaded on first use, scaled to the card; a quick write
+  waits for its 2.5 s; stored briefs and revisits are unchanged. Spec:
+  `docs/specs/2026-10-16-record-brief-animation.md`. On `task/brief-animation`.
 - [ ] **F210. `researchThreadIntegration.test.js` is flaky in CI.** Found 2026-10-16: "a TOKEN_REFRESHED
   for the same account while a send is checked does not fail the send" saw the server called 3 times,
   not 2, on CI run 38818354932 (commit 56f42d2); it passed 6 of 6 locally and on the next CI run.

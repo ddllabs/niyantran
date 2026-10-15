@@ -1,11 +1,14 @@
+import { useEffect, useRef } from 'react';
 import { deskHash } from '../../lib/deskRoute.js';
+import { loadRecordAnimation, RECORD_ANIMATION_LOGO } from './recordAnimation.js';
+import { RECORD_BRIEF_ANIMATION_MS } from './useRecordBrief.js';
 import { VISUALS } from './visuals/index.js';
 import './recordPanel.css';
 
 /**
  * One record panel for every Global module (F121; docs/specs/2026-10-13-global-record-panels.md).
  * It renders a RecordPanelModel built by a module adapter: header, 01 at a glance, 02 about,
- * 03 what it touches, and a footer that names the provider and as-of date. A part the model lacks
+ * 03 related records, and a footer that names the provider and as-of date. A part the model lacks
  * is omitted; the panel never shows a placeholder or claims a live feed it is not.
  */
 
@@ -62,16 +65,40 @@ function BriefBody({ brief }) {
  * server says 'pending', or the answer is slower than a stored read) shows the Niyantran mark with a
  * shimmer, so the reader can tell a model call from a database read.
  */
+/**
+ * F211 (owner 2026-10-16): while a brief is written, the client's approved animation plays in the
+ * card (public/animation, loaded on first use). The card's own writing look is its light-DOM content,
+ * shown until the component is defined and if it never loads; once it runs, the look sits in the
+ * component's hidden result slot. Unmounting cancels it.
+ */
+function BriefAnimation() {
+  const host = useRef(null);
+  useEffect(() => {
+    let live = true;
+    const el = host.current;
+    loadRecordAnimation().then((ok) => {
+      if (!ok || !live || typeof el?.load !== 'function') return;
+      // The brief arrives through the hook, not through the component: its task only ends on cancel.
+      const waitForCancel = (signal) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }));
+      el.load(waitForCancel, () => document.createTextNode(''), { label: 'Writing the AI brief for this record.', duration: RECORD_BRIEF_ANIMATION_MS }).catch(() => {});
+    });
+    return () => { live = false; el?.cancel?.(); };
+  }, []);
+  return (
+    <div className="rp-brief-anim">
+      <nter-record-loader ref={host} logo-src={RECORD_ANIMATION_LOGO}>
+        <div className="rp-brief-writing" role="status"><span className="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20" /></span><span>Writing the AI brief…</span></div>
+        <div className="rp-brief-skel is-writing" aria-hidden="true"><i /><i /><i /></div>
+      </nter-record-loader>
+    </div>
+  );
+}
+
 function BriefWaiting({ writing }) {
   if (!writing) {
     return <div className="rp-brief-skel" role="status"><span className="rp-sr">Loading the AI brief…</span><i /><i /></div>;
   }
-  return (
-    <>
-      <div className="rp-brief-writing" role="status"><span className="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20" /></span><span>Writing the AI brief…</span></div>
-      <div className="rp-brief-skel is-writing" aria-hidden="true"><i /><i /><i /></div>
-    </>
-  );
+  return <BriefAnimation />;
 }
 
 export function BriefCard({ brief }) {

@@ -100,6 +100,12 @@
 @media (prefers-reduced-motion: reduce) {
   .rp-brief-skel.is-writing i::after, .rp-brief-mark::after { animation: none; transform: translateX(-100%); }
 }
+/* F211: the client's animation (470 px tall, built for the whole panel) scaled to the card, about
+   290 px. Before it is defined, its children (the card's own writing look) show in place. */
+.rp-brief-anim { margin: 6px -6px 0; border-radius: 10px; overflow: hidden; }
+.rp-brief-anim nter-record-loader { display: block; zoom: 0.62; background: transparent; }
+.rp-brief-anim nter-record-loader:not(:defined) { zoom: 1; }
+.theme-dark .rp-brief-anim nter-record-loader:defined { background: #fff; }
 .rp-xlinks a, .rp-xlink-static, .rp-xlink-open { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; background: var(--panel); font-size: 13px; }
 .rp-xlinks a:hover, .rp-xlink-open:hover { border-color: var(--accent); background: var(--accent-soft); }
 .rp-xlink-open { font: inherit; font-size: 13px; text-align: left; cursor: pointer; width: 100%; }

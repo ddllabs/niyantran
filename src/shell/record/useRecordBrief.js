@@ -5,6 +5,11 @@ import { entryFingerprintFnv, getRecordBrief } from '../../lib/deskBrief.js';
 export const RECORD_BRIEF_POLL_MS = 2_000;
 /** How long a panel waits for that before it says the brief is unavailable. */
 export const RECORD_BRIEF_WAIT_MS = 60_000;
+/**
+ * F211 (owner 2026-10-16): the client's writing animation runs 2.5 s; a brief written faster waits
+ * for it to finish rather than cutting it off. A stored brief never waits.
+ */
+export const RECORD_BRIEF_ANIMATION_MS = 2_500;
 /** Briefs kept for the session, so a record opened again shows its brief at once. */
 const CACHE_MAX = 300;
 const cache = new Map();
@@ -61,10 +66,22 @@ export function useRecordBrief({ feed, selected, loading }) {
     if (!key || cache.has(key)) return undefined;
     const ac = new AbortController();
     const started = Date.now();
+    let writingSince = 0;
     const show = (brief) => {
       if (ac.signal.aborted) return;
-      if (brief.state === 'ready') remember(key, brief);
-      setResult({ key, brief });
+      if (brief.state === 'writing' && !writingSince) writingSince = Date.now();
+      // Remembered when shown, so a held brief does not skip the end of the animation.
+      const land = () => {
+        if (brief.state === 'ready') remember(key, brief);
+        setResult({ key, brief });
+      };
+      const hold = brief.state === 'ready' && writingSince ? writingSince + RECORD_BRIEF_ANIMATION_MS - Date.now() : 0;
+      if (hold <= 0) {
+        land();
+        return;
+      }
+      const timer = setTimeout(() => { if (!ac.signal.aborted) land(); }, hold);
+      ac.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
     };
     const ask = (mode) => getRecordBrief({ tier, feature, row: selected, signal: ac.signal, ...(mode ? { mode } : {}) });
     (async () => {

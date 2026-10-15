@@ -19,7 +19,7 @@ vi.mock('react', async (original) => ({
 }));
 vi.mock('../../lib/deskBrief.js', () => ({ entryFingerprintFnv: (row) => JSON.stringify(row), getRecordBrief: vi.fn() }));
 import { getRecordBrief } from '../../lib/deskBrief.js';
-import { clearRecordBriefCache, RECORD_BRIEF_POLL_MS, RECORD_BRIEF_WAIT_MS, useRecordBrief } from './useRecordBrief.js';
+import { clearRecordBriefCache, RECORD_BRIEF_ANIMATION_MS, RECORD_BRIEF_POLL_MS, RECORD_BRIEF_WAIT_MS, useRecordBrief } from './useRecordBrief.js';
 
 const feed = { feature: 'Open Fronts', tier: 'geopolitics' };
 const READY = { state: 'ready', headline: 'H', points: ['a'], model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' };
@@ -56,8 +56,23 @@ it('reads first; when nothing is stored it says it is writing and then asks for 
   expect(getRecordBrief.mock.calls[0][0].mode).toBe('read');
   expect(getRecordBrief.mock.calls[1][0].mode).toBeUndefined();
   written(READY); await settle();
+  // F211: a write that lands early waits for the client's 2.5 s animation to finish.
+  expect(RECORD_BRIEF_ANIMATION_MS).toBe(2500);
+  expect(Render({ id: 'a' })).toEqual({ state: 'writing' });
+  await vi.advanceTimersByTimeAsync(2499);
+  expect(Render({ id: 'a' })).toEqual({ state: 'writing' });
+  await vi.advanceTimersByTimeAsync(1);
   expect(Render({ id: 'a' })).toEqual(READY);
   expect(getRecordBrief).toHaveBeenCalledTimes(2);
+});
+
+it('shows a write that took longer than the animation as soon as it lands', async () => {
+  let written;
+  getRecordBrief.mockResolvedValueOnce({ state: 'missing' }).mockReturnValueOnce(new Promise((r) => { written = r; }));
+  Render({ id: 'a' }); effects(); await settle();
+  await vi.advanceTimersByTimeAsync(3200);
+  written(READY); await settle();
+  expect(Render({ id: 'a' })).toEqual(READY);
 });
 
 it('never says it is writing for a stored brief, however slowly it arrives', async () => {
@@ -85,6 +100,7 @@ it('a write that loses the race to another request reads until that brief lands'
   Render({ id: 'a' }); effects(); await settle();
   expect(Render({ id: 'a' })).toEqual({ state: 'writing' });
   await vi.advanceTimersByTimeAsync(2000); await settle();
+  await vi.advanceTimersByTimeAsync(500);
   expect(Render({ id: 'a' })).toEqual(READY);
   expect(getRecordBrief.mock.calls.map((c) => c[0].mode)).toEqual(['read', undefined, 'read']);
 });

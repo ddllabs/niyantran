@@ -209,11 +209,15 @@ describe('RecordPanel AI brief', () => {
     const reading = html({ state: 'loading' });
     expect(reading).toContain('<div class="rp-brief-skel" role="status"><span class="rp-sr">Loading the AI brief…</span><i></i><i></i></div>');
     expect(reading).not.toContain('logo');
+    // F211 (owner 2026-10-16): the client's animation plays while a brief is written; the card's own
+    // writing look sits inside it as the fallback until the component loads.
     for (const state of ['writing', 'pending']) {
       const writing = html({ state });
+      expect(writing).toMatch(/<div class="rp-brief-anim"><nter-record-loader logo-src="\/animation\/logo\.svg">/);
       expect(writing).toContain('<div class="rp-brief-writing" role="status"><span class="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20"/></span><span>Writing the AI brief…</span></div>');
-      expect(writing).toContain('<div class="rp-brief-skel is-writing" aria-hidden="true"><i></i><i></i><i></i></div>');
+      expect(writing).toContain('<div class="rp-brief-skel is-writing" aria-hidden="true"><i></i><i></i><i></i></div></nter-record-loader></div>');
     }
+    expect(reading).not.toContain('nter-record-loader');
   });
 
   it('says when it is not available, and when it failed', () => {
