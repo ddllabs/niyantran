@@ -2070,3 +2070,8 @@ recommendations … We can fix everything that is under your control."
 - **2026-10-15: P12 migration 55** (`033f4af`, `20261015190000_rls_initplan_fk_indexes`) applied to NTER
   with `supabase db push --linked` after `migration list` showed it the only pending one. Live check:
   no policy with a bare `auth.uid()`, the 8 indexes present. Rollback: the Down block in the file.
+- **2026-10-15: D3 fixes live.** Migration 56 `20261015210000_desk_rows_date_range` applied with
+  `supabase db push --linked` (only pending one), `analyze public.desk_rows`; research-chat v61
+  (`a0c1216`, admin model bypass + F196 catalogue) and v62 (`71f4897`, F197/F199/F200), each after
+  checking that the deployed v60 matched `0dde63f`. Client fixes `ea78041`. Production re-checks: the
+  count question answers 23 and 11; GPT – Astra selectable for the admin; Escape closes only the menu.

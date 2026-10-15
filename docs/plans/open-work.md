@@ -801,21 +801,25 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   removed; lint, build, 5,429 Vitest tests; independent review approved. Not checked in a browser
   (the shell needs a signed-in local stack). Possible follow-up, not opened: in Hindi mode,
   English-only content (dataset names, feeds) is now read with a Hindi voice unless marked `lang="en"`.
-- [ ] **F197. AI counts from desk rows: an unknown filter field returns a silent zero (D3, 2026-10-15).**
+- [x] **F197. AI counts from desk rows: an unknown filter field returns a silent zero (D3, 2026-10-15).**
   "How many Lok Sabha bills in 2026" answered 0 (truth 23, 11 assented): `search_desk_rows` filters are
   exact JSON containment, so an invented field (`year`) matches nothing and the model reports zero as
   fact. Fix: reject unknown filter fields with the module's real field list, and support a year or date
   range on the module's date field. [D3 record](../research/2026-10-15-d3-paid-live-round.md).
-- [ ] **F198. Changing model or reasoning mid-conversation breaks the thread (D3).** The last answer
+  *Done 2026-10-15 (`71f4897`, migration 56 `20261015210000_desk_rows_date_range`, research-chat v62): a filtered zero checks the module's real fields and returns an error listing them for an unknown field; `date_from`/`date_to` on the row date; a case-insensitive retry only when the exact match finds nothing; a valid zero is reported as "0 matching rows for …". Production re-run: "23 bills … 11 assented", matching the register.*
+- [x] **F198. Changing model or reasoning mid-conversation breaks the thread (D3).** The last answer
   vanishes from view (it is saved) and the next send fails "Your research session changed" until Reload.
-- [ ] **F199. High reasoning on a document question can outrun the server's time limit (D3).** Gemini
+  *Done 2026-10-15 (`ea78041`): the cause was the account being re-announced (tab focus, token refresh) during the thread's account check, which dropped the re-read answer and cancelled the send; the same account now keeps the send and retries the check. Red-then-green integration tests; not reproduced in a signed-in browser.*
+- [x] **F199. High reasoning on a document question can outrun the server's time limit (D3).** Gemini
   Flash · High was cut off at 108.7 s after reading 40 passages; the answer is lost (not charged). Bound
   the passages or the reasoning budget so a turn finishes, or save what was written.
-- [ ] **F200. Small chat issues found in D3.** Escape closes the whole panel instead of the open menu; a
+  *Done 2026-10-15 (`71f4897`, research-chat v62): the turn deadline is 120 s; the agent keeps 45 s for the answer, stops a call with no text at that line and answers at low effort from what it has, and caps passages at 24,000 characters at high effort. Production: Gemini Flash · High answered the count question in about a minute.*
+- [x] **F200. Small chat issues found in D3.** Escape closes the whole panel instead of the open menu; a
   greeting gets a full structured brief opening "Search widened."; one click on a listed source reloaded
   the desk and re-showed the desk tour (not reproduced); a model listed under its raw id
   "gpt-luna-latest"; the owner's admin account cannot pick GPT – Astra (plan gate; decide whether
   admins bypass it).
+  *Done 2026-10-15 (`ea78041`, `71f4897`): Escape closes an open panel menu first (checked on production); the desk tour waits for the account before deciding (it re-showed on any reload); an empty or id-only model label shows a readable name ("GPT Luna Latest", checked on production); greetings get a one-to-three-sentence reply with no search. The one-off reload on a source click is most likely a deploy landing mid-session (the viewer chunk reloads the page once). Admins bypass model plans (owner 2026-10-15, `a0c1216`): GPT – Astra selectable on the owner's admin account on production; research-chat checks `is_platform_admin()` as the caller.*
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
   2026-10-15: "The source is in that only … We just have to make them up and working"; the tender
   aggregators wait for the owner's source. [Research](../research/2026-10-15-planned-module-sources.md):
