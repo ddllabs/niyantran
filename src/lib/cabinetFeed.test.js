@@ -57,4 +57,22 @@ describe('National Cabinet Decisions feed (F125)', () => {
     expect(feed.rows.some((r) => /Finance Minister addresses/.test(r.title))).toBe(false);
     expect(feed.source.note).toMatch(/no Cabinet decision in the latest PIB window/i);
   });
+
+  // F187: PIB releases one decision twice on one day (the ministry's and the Cabinet's); both pass the
+  // filter, so the live answer used to list it twice. English RSS titles and pages as seen 2026-08-19.
+  it('lists a decision once when the ministry and the CCEA both released it', async () => {
+    const title = 'Cabinet approves four multitracking projects covering eight Districts in West Bengal, Odisha, Tamil Nadu and Andhra Pradesh, increasing the existing network of Indian Railways by about 410 Kms';
+    const other = 'Cabinet approves the Example Scheme for 2026-27';
+    stubPib({
+      2301143: englishPage(title, 'Ministry of Railways'),
+      2301142: englishPage(title, 'Cabinet Committee on Economic Affairs (CCEA)'),
+      2301200: englishPage(other, 'Ministry of Finance'),
+    }, [[title, 2301143], [other, 2301200], [title, 2301142]]);
+    const feed = await cabinetFeed();
+    expect(feed.rows.filter((r) => r.title === title)).toHaveLength(1);
+    expect(feed.rows.find((r) => r.title === title).ministry).toBe('Cabinet Committee on Economic Affairs (CCEA)');
+    expect(feed.rows.find((r) => r.title === title).source_url).toMatch(/PRID=2301142/);
+    expect(feed.rows.filter((r) => r.title === other)).toHaveLength(1);
+    expect(feed.rows.map((r) => r.title)).toEqual([other, title]); // the feed's order is kept
+  });
 });
