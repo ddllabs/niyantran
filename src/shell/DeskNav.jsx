@@ -26,11 +26,12 @@ function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
       setPos({ top: r.bottom + 2, left: Math.max(12, left) });
     };
     place();
+    const row = anchor.closest('.desktabs');
     window.addEventListener('resize', place);
-    anchor.closest('.desktabs')?.addEventListener('scroll', place, { passive: true });
+    row?.addEventListener('scroll', place, { passive: true });
     return () => {
       window.removeEventListener('resize', place);
-      anchor.closest('.desktabs')?.removeEventListener('scroll', place);
+      row?.removeEventListener('scroll', place);
     };
   }, [anchor]);
   if (!anchor) return null;

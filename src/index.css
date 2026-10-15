@@ -1026,8 +1026,9 @@ button, input, textarea { font-family: inherit; }
 
 .main-col, .right-rail, .desk, .home-desk, .rail-body, .ai-panel, .ai-dock { min-height: 0; }
 /* F203: clip, not hidden. A hidden box is still scrolled by focus and scrollIntoView, which pushed a
-   tall page's top out of reach with no way back; a clipped one cannot be scrolled at all. */
-.main-col { overflow: clip; background: var(--panel); }
+   tall page's top out of reach with no way back; a clipped one cannot be scrolled at all. Browsers
+   without clip (Safari before 16) keep hidden. */
+.main-col { overflow: hidden; overflow: clip; background: var(--panel); }
 
 /* side-panel (docs/specs/2026-10-03-side-panel.md): one panel for Desk, Record and AI research. The
    tab bar is its own row; each tab panel fills the rest and is hidden, not removed, when inactive. */
@@ -5446,7 +5447,7 @@ button.live-feed:hover { color: var(--fg); }
 }
 
 /* Security Ã¢ÂÂ Transit live map (HTML seaborne) */
-.workspace.transit-map .main-col { overflow: hidden; background: #0a0d13; }
+.workspace.transit-map .main-col { overflow: hidden; overflow: clip; background: #0a0d13; }
 .transit-desk {
   height: 100%;
   min-height: 0;
@@ -5947,10 +5948,11 @@ button.live-feed:hover { color: var(--fg); }
 .alw-feedstat span { display: block; margin-top: 4px; color: #7b8791; font: 640 6px ui-monospace, monospace; letter-spacing: 0.045em; text-transform: uppercase; white-space: nowrap; }
 .alw-feedtools { display: grid; grid-template-columns: minmax(230px, 1fr) repeat(3, minmax(108px, 148px)); gap: 7px; padding: 8px 9px; border-bottom: 1px solid #dde2e6; background: #fff; }
 /* F203: beside the map the desk is about 570 px wide; its bar and tools stack by its own width, not the
-   window's, so nothing is cut off on the right. */
+   window's, so nothing is cut off on the right. Scoped to .alw-desk so the later window-width rules
+   (1280 px: two tool columns) do not undo it. */
 @container (max-width: 720px) {
-  .alw-feedbar, .alw-feedtools { grid-template-columns: minmax(0, 1fr); }
-  .alw-feedstats { flex-wrap: wrap; }
+  .alw-desk .alw-feedbar, .alw-desk .alw-feedtools { grid-template-columns: minmax(0, 1fr); }
+  .alw-desk .alw-feedstats { flex-wrap: wrap; }
 }
 .alw-search, .alw-select { width: 100%; height: 29px; padding: 0 9px; border: 1px solid #c8d0d6; border-radius: 2px; background: #fff; color: #26333d; font: 540 11px Arial, sans-serif; outline: none; }
 .alw-search:focus, .alw-select:focus { border-color: #627685; box-shadow: 0 0 0 2px rgba(31, 95, 148, 0.07); }
@@ -6549,7 +6551,7 @@ button.live-feed:hover { color: var(--fg); }
   letter-spacing: 0.06em;
 }
 
-.workspace.pig-holistic .main-col { overflow: hidden; background: #0c0f0d; }
+.workspace.pig-holistic .main-col { overflow: hidden; overflow: clip; background: #0c0f0d; }
 .pig-host { height: 100%; min-height: 0; display: flex; flex-direction: column; background: #0c0f0d; }
 .pig-host .alliances-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pig-wrap {

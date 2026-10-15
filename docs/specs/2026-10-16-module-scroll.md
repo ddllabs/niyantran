@@ -29,8 +29,8 @@ hides overflow) was checked for content it clips.
   scrolls the hidden area, the top disappears, and the wheel cannot bring it back.
 - **The right side cut off (3 modules at 1200 px):** Alliances, Sanctions and Global Aid. Their column
   is about 570 px wide beside the map, and the feed bar (`minmax(260px, 1fr) auto`, 412 px of stats)
-  and the tool row (230 px + 3 × 108 px) do not fit; their narrow layout only switches on the window
-  width (900 px), not on the column's.
+  and the tool row (230 px + 3 × 108 px) do not fit; their narrow layouts switch only on the window
+  width (1280 px for two tool columns, 640 px for one), not on the column's.
 - **The menu "closing" on hover:** a category menu (240 px) is wider than its tab and reaches under the
   next tab. Moving the pointer down-right from a tab to its menu crosses the neighbouring tab, which
   switches the open menu at once (the owner's screenshot shows "Electoral Data" underlined with the
@@ -62,3 +62,20 @@ hides overflow) was checked for content it clips.
 
 Making the 19 hand-built pages use the shared table look. That is a design decision per page (some
 are cards, maps or simulators, not tables); options go to the owner separately.
+
+## Review and checks (2026-10-16)
+
+Independent `agent-skills:code-reviewer` on `53130d9`: approve. Taken up: the Alliances container
+rules are scoped to `.alw-desk` so the later 1280 px window rule cannot undo them; the transit-map
+and policy-graph module areas clip too; `overflow: hidden` stays first as the fallback for Safari
+before 16; the menu looks its row up once so its scroll listener is always removed.
+
+Browser check on the signed-in local preview:
+- The 12 affected modules at 1440 × 900 and the worst at 1200 × 800: nothing clipped, nothing cut on
+  the right.
+- MP Profiles: focusing card 200 scrolls the card list (9,090 px), the module area stays at 0, and the
+  header can be scrolled back to.
+- Menus (simulated pointer): passing over the next tab for 60 ms keeps the Electoral menu; reaching the
+  menu keeps it; resting on the next tab for 250 ms switches.
+- `check:bundle` fails on `main` before this change too (222,128 bytes against a 221,993 limit, from
+  other work); this change adds nothing to the main bundle.

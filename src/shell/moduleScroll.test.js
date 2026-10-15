@@ -10,7 +10,9 @@ const nav = readFileSync(new URL('./DeskNav.jsx', import.meta.url), 'utf8');
 
 describe('the module area', () => {
   it('cannot be scrolled, even by focus, so nothing is ever shifted out of reach', () => {
-    expect(css).toMatch(/\n\.main-col \{ overflow: clip; background: var\(--panel\); \}/);
+    expect(css).toMatch(/\n\.main-col \{ overflow: hidden; overflow: clip; background: var\(--panel\); \}/);
+    // No module area is left merely hidden: the map pages clip too.
+    expect(css).not.toMatch(/\.main-col \{ overflow: hidden; background/);
   });
 
   it('fits a National panel to the area, padding included, so its bottom is reachable', () => {
@@ -24,7 +26,7 @@ describe('the module area', () => {
   it('lays the Alliances desk out by its own width, so the feed bar and tools fit beside the map', () => {
     expect(css).toMatch(/\.alw-desk \{[^}]*container-type: inline-size;/);
     const narrow = css.slice(css.indexOf('@container (max-width: 720px)'));
-    expect(narrow).toMatch(/^@container \(max-width: 720px\) \{\s*\.alw-feedbar, \.alw-feedtools \{ grid-template-columns: minmax\(0, 1fr\); \}\s*\.alw-feedstats \{ flex-wrap: wrap; \}/);
+    expect(narrow).toMatch(/^@container \(max-width: 720px\) \{\s*\.alw-desk \.alw-feedbar, \.alw-desk \.alw-feedtools \{ grid-template-columns: minmax\(0, 1fr\); \}\s*\.alw-desk \.alw-feedstats \{ flex-wrap: wrap; \}/);
   });
 });
 
@@ -40,6 +42,7 @@ describe('the category menus', () => {
     expect(nav).toMatch(/onMouseEnter=\{\(\) => enterMenu\(b\.label\)\}/);
     expect(nav).toMatch(/function enterMenu\(label\) \{\s*clearTimeout\(switchTimer\.current\);\s*const wait = menuSwitchDelay\(open, label\);/);
     expect(nav).toMatch(/onMouseLeave=\{\(\) => \{ clearTimeout\(switchTimer\.current\); hideMenuSoon\(\); \}\}/);
-    expect(nav).toMatch(/window\.addEventListener\('resize', place\);\s*anchor\.closest\('\.desktabs'\)\?\.addEventListener\('scroll', place, \{ passive: true \}\);/);
+    expect(nav).toMatch(/const row = anchor\.closest\('\.desktabs'\);\s*window\.addEventListener\('resize', place\);\s*row\?\.addEventListener\('scroll', place, \{ passive: true \}\);/);
+    expect(nav).toContain("row?.removeEventListener('scroll', place);");
   });
 });
