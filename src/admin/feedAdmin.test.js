@@ -14,6 +14,7 @@ import {
   sizeWarning,
   sortFeedRows,
   formatInterval,
+  intervalLabel,
   formatClock,
   nextFeedState,
   startFeedPolling,
@@ -62,6 +63,15 @@ describe('failing and intervals', () => {
   });
   it('says an interval as a reader would', () => {
     expect([15, 30, 60, 360, 1440, 2880].map(formatInterval)).toEqual(['every 15 min', 'every 30 min', 'every 1 h', 'every 6 h', 'daily', 'every 2 days']);
+  });
+});
+
+describe('a register row (C6 option 1)', () => {
+  it('shows "register" in place of its interval; every other row keeps its interval', () => {
+    const [register, wire] = rows({ feature: 'MLA Directory', variant: 'Kerala', class: 'register', kind: 'official', interval_minutes: 43200 }, { feature: 'Wire' });
+    expect(intervalLabel(register)).toBe('register');
+    expect(intervalLabel(wire)).toBe('every 30 min');
+    expect(intervalLabel(rows({ feature: 'Monthly', class: 'official', kind: 'official', interval_minutes: 43200 })[0])).toBe('every 30 days');
   });
 });
 

@@ -246,28 +246,46 @@ describe('serveFromStore: MLA Directory from the register', () => {
     expect(await serveFromStore('finance:AI & the Tech Industry', new URLSearchParams(), { rpc: vi.fn(async () => page), ...NOW })).toBeNull();
   });
 
-  it('with no state (what the page sends today): a first page across all 31 states', async () => {
-    const rpc = byVariant();
+  // public.feed_page_across (supabase/migrations/20261015170000_feed_register_page.sql): one read for
+  // every variant; pages only when every variant is served, ordered by the database's collation.
+  function acrossPage({ pages = [...STATES].reverse().map((v) => statePage(v)), allServed = true, ...over } = {}) {
+    return {
+      tier: 'state', feature: 'MLA Directory', variants: STATES.length, served: allServed ? STATES.length : 3, all_served: allServed,
+      fetched_at: LOADED, total: 62, pages: allServed ? pages.map(({ tier: _t, feature: _f, items, ...p }) => ({ ...p, items })) : [], ...over,
+    };
+  }
+  const across = (page) => vi.fn(async (name) => (name === 'feed_page_across' ? page : null));
+
+  it('with no state (what the page sends today): one read, a first page across all 31 states in the variants\' order', async () => {
+    const rpc = across(acrossPage());
     const body = await serveFromStore(MLA, params(), { rpc, ...NOW });
-    expect(rpc).toHaveBeenCalledTimes(31);
+    expect(rpc).toHaveBeenCalledTimes(1);
     const each = Math.floor(STORE_PAGE_ROWS / 31);
     expect(each).toBe(16);
-    expect(rpc.mock.calls.map(([, a]) => a.p_variant)).toEqual(STATES);
-    for (const [name, a] of rpc.mock.calls) expect([name, a.p_limit, a.p_offset]).toEqual(['feed_page', each, 0]);
-    expect(body).toMatchObject({ served: 'store', register: true, fallback: false, storeTotal: 62 });
+    expect(rpc).toHaveBeenCalledWith('feed_page_across', { p_tier: 'state', p_feature: 'MLA Directory', p_per_variant: each });
+    expect(body).toMatchObject({ served: 'store', register: true, fallback: false, storeTotal: 62, fetchedAt: LOADED });
     expect(body.rows).toHaveLength(62);
     expect(body.rows.slice(0, 3).map((r) => r.title)).toEqual(['First of Andhra Pradesh', 'Second of Andhra Pradesh', 'First of Arunachal Pradesh']);
     expect(body.source.note).toMatch(/16 MLAs from each of the 31 states and union territories/);
     expect(body.coverage).toEqual({ from: '2026-07-14', through: '2026-08-19', exhaustive: false });
     // A state the register does not hold is the same as no state.
-    expect((await serveFromStore(MLA, params({ state: 'Ladakh' }), { rpc: byVariant(), ...NOW })).rows).toHaveLength(62);
+    const again = across(acrossPage());
+    expect((await serveFromStore(MLA, params({ state: 'Ladakh' }), { rpc: again, ...NOW })).rows).toHaveLength(62);
+    expect(again.mock.calls[0][0]).toBe('feed_page_across');
   });
 
-  it('with no state, any state missing from the store leaves the whole page to the live path', async () => {
-    const rpc = byVariant((v) => (v === 'Goa' ? null : statePage(v)));
+  it('with no state, a module not fully served goes straight to the live path after the one read', async () => {
+    const rpc = across(acrossPage({ allServed: false }));
     expect(await serveFromStore(MLA, params(), { rpc, ...NOW })).toBeNull();
-    const off = byVariant((v) => statePage(v, v === 'Kerala' ? { serve: false } : {}));
-    expect(await serveFromStore(MLA, params(), { rpc: off, ...NOW })).toBeNull();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(await serveFromStore(MLA, params(), { rpc: across(null), ...NOW })).toBeNull();
+  });
+
+  it('with no state, a state missing from the pages or with no items leaves the whole page to the live path', async () => {
+    const withoutGoa = acrossPage({ pages: STATES.filter((v) => v !== 'Goa').map((v) => statePage(v)) });
+    expect(await serveFromStore(MLA, params(), { rpc: across(withoutGoa), ...NOW })).toBeNull();
+    const emptyKerala = acrossPage({ pages: STATES.map((v) => statePage(v, v === 'Kerala' ? { items: [] } : {})) });
+    expect(await serveFromStore(MLA, params(), { rpc: across(emptyKerala), ...NOW })).toBeNull();
   });
 
   it('before the load (the store has nothing for the variant) the live path answers', async () => {

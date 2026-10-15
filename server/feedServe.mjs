@@ -13,7 +13,7 @@
  * refreshed, so it is served whatever its age, marked `register: true` so the page dates it by its
  * records ("register · as of …") rather than by its load time. A request's `state` picks its variant;
  * with no state (or one the register does not hold) the page gets a first page across every variant,
- * the same share of each (registerAcross).
+ * the same share of each, in one read (registerAcross, public.feed_page_across).
  *
  * A store answer is the normal path, not a fallback. It is marked `served: 'store'` with the time the
  * items were fetched (`fetchedAt`, ISO), keeps `fallback: false`, and never passes through the archive
@@ -118,21 +118,27 @@ function storedAnswer(id, page, now, register = false) {
   };
 }
 
+/** The most items per variant public.feed_page_across returns (it clamps to 1..100). */
+export const ACROSS_MAX_PER_VARIANT = 100;
+
 /**
  * A register with no variant asked for: the first page across every variant, the same share of each
  * (floor(limit / variants): 16 of each of MLA Directory's 31 states in 500 rows), in the variants'
- * order. Every variant must have something to serve; one missing leaves the whole page to the live path,
- * so the page never shows some states as if they were all.
+ * order. One read, public.feed_page_across (supabase/migrations/20261015170000_feed_register_page.sql),
+ * which returns the pages only when every variant has serve on: until then (serve is off before
+ * go-live) the live path answers straight away. Every variant must also have items; one missing
+ * leaves the whole page to the live path, so the page never shows some states as if they were all.
  */
 async function registerAcross(id, ask, limit, now) {
   const register = FEED_REGISTERS[id];
   const [tier, feature] = id.split(/:(.*)/s);
-  const each = Math.max(1, Math.floor(limit / register.values.length));
-  const pages = await Promise.all(
-    register.values.map((variant) => ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: each, p_offset: 0 })),
-  );
+  const each = Math.min(ACROSS_MAX_PER_VARIANT, Math.max(1, Math.floor(limit / register.values.length)));
+  const page = await ask('feed_page_across', { p_tier: tier, p_feature: feature, p_per_variant: each });
+  // Not fully served (or not loaded): the live path, quietly, as feed_page's serve-off answer is.
+  if (!isRow(page) || page.all_served !== true) return null;
+  const byVariant = new Map((Array.isArray(page.pages) ? page.pages : []).filter(isRow).map((p) => [p.variant, p]));
   const at = now();
-  const answers = pages.map((page) => storedAnswer(id, page, at, true));
+  const answers = register.values.map((v) => (byVariant.has(v) ? storedAnswer(id, { ...byVariant.get(v), tier, feature }, at, true) : null));
   const missing = register.values.filter((_v, i) => !answers[i]);
   if (missing.length) {
     console.warn(`[feed-store] ${id}: ${missing.length} of ${register.values.length} variants have nothing to serve (${safeText(missing.slice(0, 3).join(', '), 100)}); the live path answers`);
