@@ -770,9 +770,11 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 - [ ] **F192. Hindi interface: the page language and the toggle's name.** The document's `lang` stays
   `en` while the interface is in Hindi, and the EN/HI toggle has no accessible name (local check
   2026-10-15, `docs/research/2026-10-15-local-signed-in-checks.md`).
-- [ ] **F191. Homepage "Source endpoints": 246 or 115?** Owner decision. F180 took the 131 GDELT search
-  addresses out of the source registry, which now counts 115; the homepage keeps the owner's 246
-  (`src/lib/siteFigures.js`) until the owner decides.
+- [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
+  now because we are going to be fixing the rest of the sources and eventually bringing it up to that
+  number, or whatever the true number is." The source registry counts 115 working-route addresses
+  since F180; the published figure stays 246 (`src/lib/siteFigures.js`) until the sources are sorted
+  out, then it shows the true count.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
