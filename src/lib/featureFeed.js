@@ -98,16 +98,23 @@ function archiveAsFallback(archive, note) {
 const STORED_NOTE = 'Showing the latest stored records.';
 const STORED_LOADING_NOTE = 'Showing the latest stored records. Live data is still loading.';
 
+// F159 review: the server's live attempt failed rather than ran late (`source.liveFailed`); the mark
+// travels with the records shown instead, so the page does not retry it as slow (moduleLiveRetry.js).
+function liveFailedFrom(served, body) {
+  if (served?.served !== 'archive' || served?.source?.liveFailed !== true) return body;
+  return { ...body, source: { ...(body.source || {}), liveFailed: true } };
+}
+
 // What the page shows when the API has no rows for it. When the server answered from its stored
 // records because live data is still loading (`served: 'archive'`), the answer keeps saying so,
 // so that the page asks again (src/desks/moduleLiveRetry.js).
 function withoutLive(archive, api) {
   const pending = api.body?.served === 'archive' ? { served: 'archive' } : {};
   if (hasRealRows(archive)) {
-    return { ...archiveAsFallback(archive, STORED_NOTE), ...pending };
+    return liveFailedFrom(api.body, { ...archiveAsFallback(archive, STORED_NOTE), ...pending });
   }
   if (archive && Array.isArray(archive.rows)) {
-    return { ...archive, ok: true, fallback: false, ...pending };
+    return liveFailedFrom(api.body, { ...archive, ok: true, fallback: false, ...pending });
   }
   if (api.body) return api.body;
   // The message is matched by src/lib/refreshFeeds.js; DeskView shows its own words instead.
@@ -169,7 +176,7 @@ async function archiveFirst({ tier, feature, signal, url, onUpdate }) {
       // F159: stored records from the server (`served: 'archive'`) are not a live update.
       const servedArchive = api.body?.served === 'archive';
       if (api.ok && hasRealRows(api.body)) onUpdate({ ...api.body, refreshing: false, ...(servedArchive ? {} : { updatedLive: true }) });
-      else onUpdate({ ...shown, refreshing: false, ...(servedArchive ? { served: 'archive' } : {}) });
+      else onUpdate(liveFailedFrom(api.body, { ...shown, refreshing: false, ...(servedArchive ? { served: 'archive' } : {}) }));
     },
     () => {},
   );

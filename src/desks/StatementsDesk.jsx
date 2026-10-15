@@ -64,7 +64,9 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
         const note = feed.source?.note || '';
         setRows(mapped);
         setVol(series);
-        if (!mapped.length) setErr(feed.source?.diagnostic || note || 'no mentions');
+        // F159 review: `source.diagnostic` is for the console, not the banner's title.
+        if (feed.source?.diagnostic) console.warn(`[${FEATURE}] stored or unavailable:`, feed.source.diagnostic);
+        if (!mapped.length) setErr(note || 'no mentions');
         onFeed?.(
           applyRecordChecklistToFeed({
             ok: true,

@@ -58,7 +58,7 @@ describe('backup packs behind the deployed router (F156)', () => {
     expect(router.body).toEqual(local.body);
   });
 
-  it('keeps served: archive on a backup answer, so the edge keeps it for one minute only', async () => {
+  it('keeps served: archive on a backup answer, so the edge keeps it for a few seconds only', async () => {
     const router = await routerGet(`feature-feed?${ATHLETES}`);
     expect(router.body.served).toBe('archive');
     expect(router.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdnArchive);

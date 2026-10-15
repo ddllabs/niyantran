@@ -224,3 +224,44 @@ describe('stored answers while live data loads (F159)', () => {
     expect(body.source.note).toBe('Showing the latest stored records.');
   });
 });
+
+// F159 review: a live attempt that failed on the server (`source.liveFailed`) stays marked when the
+// page shows its own shipped records instead, so the page does not retry it as if it were slow.
+describe('a failed live attempt stays marked (F159 review)', () => {
+  const originalFetch = globalThis.fetch;
+  const FAILED_PENDING = { ok: false, feature: FEATURE, rows: [{ status: 'source_status', title: 'Source offline or empty' }], source: { adapter: 'api', note: 'The live source isn’t responding.', liveFailed: true, diagnostic: 'upstream-error' }, served: 'archive' };
+  let api;
+  beforeEach(() => {
+    api = deferred();
+    globalThis.fetch = vi.fn(() => api.promise);
+  });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('shipped records shown once the server answered', async () => {
+    archive.fetch = async () => STORED;
+    api.resolve(response(FAILED_PENDING));
+    const body = await fetchFeature({ tier: TIER, feature: FEATURE });
+    expect(body.rows).toEqual(STORED.rows);
+    expect(body.served).toBe('archive');
+    expect(body.source.liveFailed).toBe(true);
+  });
+
+  it('shipped records kept when the server answers after them', async () => {
+    archive.fetch = async () => STORED;
+    const onUpdate = vi.fn();
+    await fetchFeature({ tier: TIER, feature: FEATURE, onUpdate });
+    api.resolve(response(FAILED_PENDING));
+    await tick();
+    const kept = onUpdate.mock.calls[0][0];
+    expect(kept.served).toBe('archive');
+    expect(kept.source.liveFailed).toBe(true);
+  });
+
+  it('nothing stored anywhere', async () => {
+    archive.fetch = async () => ({ ...STORED, rows: [] });
+    api.resolve(response(FAILED_PENDING));
+    const body = await fetchFeature({ tier: TIER, feature: FEATURE });
+    expect(body.served).toBe('archive');
+    expect(body.source.liveFailed).toBe(true);
+  });
+});

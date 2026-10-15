@@ -20,7 +20,8 @@ export function briefSection(feed, section) {
   const real = (feed?.rows || []).filter((r) => r && r.status !== 'source_status');
   const rows = dedupeNewsRows(real.filter((r) => r.section === section));
   if (rows.length) return { rows, err: '' };
-  return { rows: [], err: real.length ? '' : (feed?.source?.diagnostic || feed?.source?.note || 'no rows') };
+  // F159 review: `source.diagnostic` is for the console (logged below), not the banner's title.
+  return { rows: [], err: real.length ? '' : (feed?.source?.note || 'no rows') };
 }
 
 export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearViz }) {
@@ -37,6 +38,7 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
       .catch((e) => (e?.name === 'AbortError' ? null : { rows: [], source: { note: String(e?.message || e) } }))
       .then((feed) => {
         if (!feed || ac.signal.aborted) return;
+        if (feed.source?.diagnostic) console.warn(`[${FEATURE}] stored or unavailable:`, feed.source.diagnostic);
         setTop(briefSection(feed, SECTIONS.top));
         setPib(briefSection(feed, SECTIONS.pib));
         setEco(briefSection(feed, SECTIONS.eco));

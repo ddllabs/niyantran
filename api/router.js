@@ -70,8 +70,11 @@ const OWN_CACHE_ROUTES = new Set(['/api/site-figures', '/api/site-icon']);
 export const API_CACHE = {
   browser: 'public, max-age=0, must-revalidate',
   cdn: 'public, s-maxage=300, stale-while-revalidate=86400',
-  // An archive answer given because the live source passed its time limit: re-checked sooner.
-  cdnArchive: 'public, s-maxage=60, stale-while-revalidate=86400',
+  // An archive answer (`served: 'archive'`: stored records, or a backup pack, because the live attempt
+  // passed its time limit or failed). F159 review: kept a few seconds only, with no stale window, so
+  // the page's retry 8 s later (src/desks/moduleLiveRetry.js) reaches the server and can get live rows;
+  // the few seconds still let a burst of readers share one answer.
+  cdnArchive: 'public, s-maxage=5',
   // F169 C4: an answer read from the feed store (`served: 'store'`). The store changes at most every
   // 15 minutes and a cached answer's age is shown from its own fetched time, so one minute at the edge
   // loses nothing; a short stale window also means switching a module's `serve` off (the rollback) is

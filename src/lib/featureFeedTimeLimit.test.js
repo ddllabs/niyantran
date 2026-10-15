@@ -55,7 +55,7 @@ describe('serveFeatureFeedWithinLimit (F154)', () => {
     expect(realRows(body).length).toBeGreaterThan(0);
     // F159: the reader is told in plain words; the reason stays in the diagnostic.
     expect(body.source.note).toBe(ARCHIVE_NOTES.slowStored);
-    expect(body.source.diagnostic).toMatch(/time limit/i);
+    expect(body.source.diagnostic).toBe('timeout');
     // The archive pass itself reaches no live source: only the live attempt's first request was made.
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
@@ -153,7 +153,7 @@ describe('archive answers in plain words (F159)', () => {
     expect(realRows(body).length).toBeGreaterThan(0);
     expect(body.source.note).toBe('Showing the latest stored records. Live data is still loading.');
     expect(body.source.note).not.toMatch(DEVELOPER);
-    expect(body.source.diagnostic).toMatch(/passed the 0.05 s time limit/);
+    expect(body.source.diagnostic).toBe('timeout');
   });
 
   it('stored records after a failed live source', async () => {
@@ -162,7 +162,7 @@ describe('archive answers in plain words (F159)', () => {
     expect(realRows(body).length).toBeGreaterThan(0);
     expect(body.source.note).toBe('The live source isn\u2019t responding. Showing the latest stored records.');
     expect(body.source.note).not.toMatch(DEVELOPER);
-    expect(body.source.diagnostic).toMatch(/Live source failed \(host did not respond\)/);
+    expect(body.source.diagnostic).toBe('upstream-error');
   });
 
   it('nothing stored while a slow live source is still loading', async () => {
@@ -171,7 +171,7 @@ describe('archive answers in plain words (F159)', () => {
     expect(body.served).toBe('archive');
     expect(realRows(body)).toHaveLength(0);
     expect(body.source.note).toBe('Live data is taking longer than usual.');
-    expect(body.source.diagnostic).toMatch(/time limit/);
+    expect(body.source.diagnostic).toBe('timeout');
   });
 
   it('nothing stored after a failed live source', async () => {
@@ -196,6 +196,76 @@ describe('archive answers in plain words (F159)', () => {
     const body = await serveFeatureFeedWithBackup(new URLSearchParams({ tier: 'sports', feature: 'Athlete Index' }), { live: failing });
     expect(body.source.kind).toBe('backup-pack');
     expect(body.served).toBe('archive');
-    expect(body.source.diagnostic).toMatch(/Live source failed/);
+    expect(body.source.diagnostic).toBe('upstream-error');
+    // F159 review: the page does not retry a failed live source as if it were slow.
+    expect(body.source.liveFailed).toBe(true);
+  });
+});
+
+// F159 review: `source.diagnostic` is in the public answer, so it is a short code from a fixed list;
+// the raw reason (which can name a server file) goes to the server log. A live attempt that threw is
+// marked `source.liveFailed`, so the page does not retry it as if it were only slow.
+describe('the public reason is a fixed code (F159 review)', () => {
+  const originalFetch = globalThis.fetch;
+  const CODES = /^(timeout|upstream-error|no-stored-records|backup-error)( · (timeout|upstream-error|no-stored-records|backup-error))*$/;
+  const RAW = "ENOENT: no such file or directory, open '/var/task/server/private-loader.mjs'";
+  let warn;
+  beforeEach(() => {
+    resetFeedCache();
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    warn.mockRestore();
+  });
+  const throwing = async () => { throw new Error(RAW); };
+
+  it('a slow live source: timeout, and not marked failed', async () => {
+    globalThis.fetch = hangingFetch();
+    const body = await serveFeatureFeedWithinLimit(CABINET, { limitMs: 50 });
+    expect(body.source.diagnostic).toBe('timeout');
+    expect(body.source.liveFailed).toBeUndefined();
+  });
+
+  it('a failed live source with stored records: upstream-error, marked failed, raw reason only in the log', async () => {
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network off')));
+    const body = await serveFeatureFeedWithinLimit(CABINET, { live: throwing });
+    expect(realRows(body).length).toBeGreaterThan(0);
+    expect(body.source.diagnostic).toMatch(CODES);
+    expect(body.source.diagnostic).toBe('upstream-error');
+    expect(body.source.liveFailed).toBe(true);
+    expect(JSON.stringify(body)).not.toMatch(/private-loader|\/var\/task|ENOENT/);
+    expect(warn.mock.calls.flat().join(' ')).toContain(RAW);
+  });
+
+  it('a failed live source with nothing stored: marked failed, raw reason not in the answer', async () => {
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network off')));
+    const body = await serveFeatureFeedWithinLimit(new URLSearchParams({ tier: 'national', feature: 'National Morning Brief (Auto-digest)' }), { live: throwing });
+    expect(body.served).toBe('archive');
+    expect(body.source.diagnostic).toMatch(CODES);
+    expect(body.source.liveFailed).toBe(true);
+    expect(JSON.stringify(body)).not.toMatch(/private-loader|\/var\/task|ENOENT/);
+  });
+});
+
+describe('a backup pack that cannot be read (F159 review)', () => {
+  const RAW = "ENOENT: no such file or directory, open '/var/task/backup/sports/athletes.xlsx'";
+  let warn;
+  beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => {
+    warn.mockRestore();
+    vi.doUnmock('../../server/backupFeed.mjs');
+    vi.resetModules();
+  });
+
+  it('says backup-error in the answer and logs the file path on the server only', async () => {
+    vi.resetModules();
+    vi.doMock('../../server/backupFeed.mjs', () => ({ loadBackupForFeature: () => { throw new Error(RAW); } }));
+    const { serveFeatureFeedWithBackup: withBackup } = await import('../../server/featureFeed.mjs');
+    const empty = { ok: true, feature: 'Athlete Index', rows: [{ status: 'source_status' }], source: { adapter: 'api' } };
+    const body = await withBackup(new URLSearchParams({ tier: 'sports', feature: 'Athlete Index' }), { live: async () => empty });
+    expect(body.source.diagnostic).toBe('backup-error');
+    expect(JSON.stringify(body)).not.toMatch(/athletes\.xlsx|\/var\/task|ENOENT/);
+    expect(warn.mock.calls.flat().join(' ')).toContain(RAW);
   });
 });

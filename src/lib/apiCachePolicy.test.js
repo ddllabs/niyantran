@@ -16,6 +16,7 @@ vi.mock('../../server/featureFeed.mjs', () => ({
 }));
 
 import handler, { API_CACHE, cachePolicyFor } from '../../api/router.js';
+import { STORED_RETRY_AFTER_MS } from '../desks/moduleLiveRetry.js';
 
 // Every route api/router.js serves, with the policy it must have. A new route fails the
 // completeness check below until it is added here, and it is 'no-store' unless allow-listed.
@@ -130,11 +131,23 @@ describe('API cache headers on responses (F154)', () => {
     expect(res.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdn);
   });
 
-  it('an archive answer served after the live time limit is kept for one minute only', async () => {
+  it('an archive answer served after the live time limit is kept for a few seconds only', async () => {
     feed.within = vi.fn(async () => ({ ok: true, rows: [{ title: 'A' }], source: { adapter: 'embedded' }, served: 'archive' }));
     const res = vercelResponse();
     await handler(request('GET', 'feature-feed?tier=national&feature=Cabinet%20Decisions'), res);
+    expect(res.headers['cache-control']).toBe(API_CACHE.browser);
     expect(res.headers['vercel-cdn-cache-control']).toBe(API_CACHE.cdnArchive);
+  });
+
+  // F159 review: the page asks again 8 s after stored records are shown (moduleLiveRetry.js). An
+  // archive answer the edge kept for a minute (or served stale while revalidating) gave that retry
+  // the same stored records, so it never saw live rows.
+  it('an archive answer has expired at the edge, stale window included, before the page asks again', () => {
+    const seconds = (name) => Number(API_CACHE.cdnArchive.match(new RegExp(`${name}=(\\d+)`))?.[1] || 0);
+    expect(API_CACHE.cdnArchive).toMatch(/s-maxage=\d+/);
+    expect(seconds('s-maxage')).toBeGreaterThan(0);
+    expect((seconds('s-maxage') + seconds('stale-while-revalidate')) * 1000).toBeLessThan(STORED_RETRY_AFTER_MS);
+    expect(API_CACHE.cdnArchive).not.toMatch(/stale-if-error/);
   });
 
   it('a feed-store answer is kept for one minute (F169 C4), and a live one still five', async () => {

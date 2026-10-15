@@ -3467,14 +3467,14 @@ function applyBackupFallback(body, searchParams) {
   try {
     pack = loadBackupForFeature(featureName, tier, { cap: MAX_ROWS });
   } catch (err) {
+    // F159 review: the message can name a file on the server, so it goes to the log only.
+    console.warn(`[feature-feed] backup pack for ${tier || 'desk'} / ${featureName} failed to load:`, err?.message || String(err));
     return {
       ...body,
       source: {
         ...(body?.source || {}),
         // F159: kept out of the note a reader sees.
-        diagnostic:
-          (body?.source?.diagnostic ? `${body.source.diagnostic} · ` : '') +
-          `Backup pack failed to load (${err.message || err}).`,
+        diagnostic: publicDiagnostic(body?.source?.diagnostic, 'backup-error'),
       },
     };
   }
@@ -3496,9 +3496,15 @@ function applyBackupFallback(body, searchParams) {
     note: pack.note,
     meta: pack.meta,
   });
-  // F159: why live and archive had no rows stays available for debugging.
-  const diagnostic = body?.source?.diagnostic;
-  return { ...backup, source: diagnostic ? { ...backup.source, diagnostic } : backup.source, served: 'archive' };
+  // F159: why live and archive had no rows stays available for debugging, and a failed live attempt
+  // stays marked so the page does not retry it as slow.
+  const diagnostic = publicDiagnostic(body?.source?.diagnostic);
+  const source = {
+    ...backup.source,
+    ...(diagnostic ? { diagnostic } : {}),
+    ...(body?.source?.liveFailed === true ? { liveFailed: true } : {}),
+  };
+  return { ...backup, source, served: 'archive' };
 }
 
 // F154: the whole live attempt for one request, across every source it tries. Past it the
@@ -3561,7 +3567,20 @@ export const ARCHIVE_NOTES = {
   failedEmpty: 'The live source isn\u2019t responding.',
 };
 
-async function serveArchiveFor(searchParams, reason, failed) {
+// F159 review: `source.diagnostic` is part of the public answer, so it holds only codes from this list
+// (joined with ' \u00b7 '), never an error message, which can name a server file or URL. The raw reason
+// goes to the server log (console.warn).
+export const DIAGNOSTIC_CODES = Object.freeze(['timeout', 'upstream-error', 'no-stored-records', 'backup-error']);
+
+function publicDiagnostic(...parts) {
+  const codes = parts.flatMap((p) => String(p || '').split(' \u00b7 ')).filter((c) => DIAGNOSTIC_CODES.includes(c));
+  return [...new Set(codes)].join(' \u00b7 ');
+}
+
+// `code` is 'timeout' or 'upstream-error'; `failed` marks the answer `source.liveFailed`, which the
+// page reads as "not worth retrying soon" (src/desks/moduleLiveRetry.js).
+async function serveArchiveFor(searchParams, code, failed) {
+  const marked = failed ? { liveFailed: true } : {};
   const archived = await settleWithin(
     archivePass.run(true, () => serveFeatureFeed(searchParams)),
     ARCHIVE_TIME_LIMIT_MS,
@@ -3572,12 +3591,13 @@ async function serveArchiveFor(searchParams, reason, failed) {
       ok: false,
       tier: resolveTier(searchParams.get('tier') || ''),
       feature,
-      rows: statusRow({ adapter: 'api', url: '', reason, featureName: feature }),
+      rows: statusRow({ adapter: 'api', url: '', reason: failed ? 'live feed unavailable' : 'timed out', featureName: feature }),
       source: {
         adapter: 'api',
         links: [],
         note: failed ? ARCHIVE_NOTES.failedEmpty : ARCHIVE_NOTES.slowEmpty,
-        diagnostic: `${reason}. No stored archive could be read in time.`,
+        diagnostic: publicDiagnostic(code, 'no-stored-records'),
+        ...marked,
       },
       coverage: { from: '', through: '', exhaustive: false },
       fallback: false,
@@ -3586,7 +3606,6 @@ async function serveArchiveFor(searchParams, reason, failed) {
   }
   const body = archived.value;
   const stored = bodyHasRealRows(body);
-  const note = body?.source?.note ? ` ${body.source.note}` : '';
   return {
     ...body,
     served: 'archive',
@@ -3596,7 +3615,8 @@ async function serveArchiveFor(searchParams, reason, failed) {
       note: stored
         ? failed ? ARCHIVE_NOTES.failedStored : ARCHIVE_NOTES.slowStored
         : failed ? ARCHIVE_NOTES.failedEmpty : ARCHIVE_NOTES.slowEmpty,
-      diagnostic: `${reason}; showing stored records.${note}`,
+      diagnostic: publicDiagnostic(code),
+      ...marked,
     },
   };
 }
@@ -3619,10 +3639,14 @@ export async function serveFeatureFeedWithinLimit(
     return { ...kept.body, served: 'live', liveAt: new Date(kept.at).toISOString() };
   }
   const failed = outcome.state === 'failed';
-  const reason = failed
-    ? `Live source failed (${shortFail(outcome.error?.message || String(outcome.error))})`
-    : `Live sources passed the ${limitMs / 1000} s time limit`;
-  return serveArchiveFor(searchParams, reason, failed);
+  if (failed) {
+    // F159 review: the raw reason is for the server log; the answer carries a code.
+    console.warn(
+      `[feature-feed] live attempt failed for ${searchParams.get('tier') || ''} / ${searchParams.get('feature') || ''}:`,
+      outcome.error?.message || String(outcome.error),
+    );
+  }
+  return serveArchiveFor(searchParams, failed ? 'upstream-error' : 'timeout', failed);
 }
 
 /**

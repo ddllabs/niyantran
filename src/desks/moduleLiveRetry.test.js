@@ -142,3 +142,42 @@ describe('followUpLive (F159)', () => {
     }
   });
 });
+
+// F159 review: a live source that failed on the server is not slow, so the page does not say it is
+// retrying; and a retry that brings stored records stops saying live data is still loading.
+describe('a failed live source and a retry that brings stored records (F159 review)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const storedFailed = { ...stored, source: { note: 'The live source isn\u2019t responding. Showing the latest stored records.', liveFailed: true } };
+  const pendingFailed = { ...pending, source: { note: 'The live source isn\u2019t responding.', liveFailed: true } };
+
+  it('an answer the server marks liveFailed is not followed up', async () => {
+    expect(liveFollowUpKind(storedFailed)).toBeNull();
+    expect(liveFollowUpKind(pendingFailed)).toBeNull();
+    for (const first of [storedFailed, pendingFailed]) {
+      const r = run(first, [live]);
+      await vi.advanceTimersByTimeAsync(60000);
+      await r.done;
+      expect(r.refetch).not.toHaveBeenCalled();
+      expect(r.published).toHaveLength(0);
+    }
+  });
+
+  it('with nothing stored after a failed live source, the page has given up rather than waiting', () => {
+    expect(liveHoldState(pendingFailed)).toBe('gaveUp');
+    expect(liveHoldState(storedFailed)).toBeNull();
+  });
+
+  it('a pending page whose retry brings stored records stops saying live data is still loading', async () => {
+    const r = run(pending, [stored]);
+    await vi.advanceTimersByTimeAsync(60000);
+    await r.done;
+    expect(r.refetch).toHaveBeenCalledTimes(1);
+    expect(r.published).toHaveLength(1);
+    expect(r.published[0].rows).toEqual(stored.rows);
+    expect(r.published[0].source.note).toBe('Showing the latest stored records.');
+    expect(r.published[0].source.note).not.toMatch(/still loading/i);
+    expect(r.published[0].updatedLive).toBeUndefined();
+  });
+});

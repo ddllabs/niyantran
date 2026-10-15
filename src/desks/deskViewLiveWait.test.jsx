@@ -103,6 +103,38 @@ describe('what a module page says (F159)', () => {
     expect(all.filter((t) => DEVELOPER.test(t))).toEqual([]);
   });
 
+  // F159 review: role="status" already announces politely; a second aria-live was redundant.
+  it('the waiting message is a status region without a redundant aria-live', () => {
+    hooks.overrides = { 2: pending, 4: false };
+    const region = nodes(render()).find((n) => n.props?.role === 'status' && /feed-loader/.test(n.props?.className || ''));
+    expect(region).toBeDefined();
+    expect(region.props['aria-live']).toBeUndefined();
+  });
+
+  // F159 review: a server 404/500 is not the reader's connection.
+  it('a failed load that reached the server does not blame the reader’s connection', () => {
+    hooks.overrides = { 2: null, 3: MODULE_UNAVAILABLE_TEXT, 4: false };
+    const all = onScreen(render());
+    expect(all).toContain('The source did not respond. Try again.');
+    expect(all.filter((t) => /connection/i.test(t))).toEqual([]);
+  });
+
+  it('a failed load while the reader is offline asks them to check their connection', () => {
+    // DeskView's useState order continues: … mlaPick 12, errOffline 13.
+    hooks.overrides = { 2: null, 3: MODULE_UNAVAILABLE_TEXT, 4: false, 13: true };
+    expect(onScreen(render())).toContain('Check your connection and try again.');
+  });
+
+  it('nothing stored after a failed live source: the module could not load, with Retry, not a wait', () => {
+    hooks.overrides = { 2: { ...pending, source: { ...pending.source, note: 'The live source isn’t responding.', liveFailed: true } }, 4: false };
+    const tree = render();
+    const all = onScreen(tree);
+    expect(all).not.toContain(LIVE_WAIT_TEXT);
+    expect(all).toContain(MODULE_UNAVAILABLE_TEXT);
+    expect(all).toContain('Retry');
+    expect(all.filter((t) => /taking longer/i.test(t))).toEqual([]);
+  });
+
   it('a backup pack is described as stored records, not by its file', () => {
     const backup = { ...stored, source: { adapter: 'embedded', kind: 'backup-pack', note: 'Exhaustive shipped backup · 500 rows (pack has 4,104; capped for display). Live and archive returned no rows.' } };
     hooks.overrides = { 2: backup, 4: false };
@@ -196,6 +228,32 @@ describe('what a module page asks for (F159)', () => {
     expect(api.whole).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(api.whole).toHaveBeenCalledTimes(2);
+  });
+
+  it('notes whether the reader was offline when a load failed', async () => {
+    api.whole.mockRejectedValue(new Error('feature-feed HTTP 404'));
+    hooks.runEffects = true;
+    render();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(hooks.setters[13]).toHaveBeenLastCalledWith(false);
+
+    vi.stubGlobal('navigator', { onLine: false });
+    try {
+      hooks.index = 0; hooks.setters = {};
+      render();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(hooks.setters[13]).toHaveBeenLastCalledWith(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not retry stored records after a failed live source', async () => {
+    api.whole.mockResolvedValue({ ...stored, source: { ...stored.source, liveFailed: true } });
+    hooks.runEffects = true;
+    render();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(api.whole).toHaveBeenCalledTimes(1);
   });
 
   it('does not retry a genuine failure', async () => {

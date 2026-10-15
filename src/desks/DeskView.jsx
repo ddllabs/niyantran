@@ -9,7 +9,7 @@ import { cellText, filterRows, isArticleHref, sortRows } from '../lib/normalise.
 import { buildTableSearchIndex, searchTableRows, shouldIndexSearch } from '../lib/tableSearch.js';
 import { formatCell, formatDate, formatStatus, getStatusToneClass, truncateTwoLines } from '../lib/format.js';
 import { DATA_STATE, isTerminalState, resolveDataState } from '../lib/dataState.js';
-import { LIVE_WAIT_TEXT, MODULE_UNAVAILABLE_TEXT, followUpLive, liveFollowUpKind, liveHoldState } from './moduleLiveRetry.js';
+import { LIVE_WAIT_TEXT, MODULE_UNAVAILABLE_TEXT, followUpLive, liveFailed, liveFollowUpKind, liveHoldState } from './moduleLiveRetry.js';
 import { isGithubCsvRow } from '../lib/githubCsv.js';
 import { cellOf, feedColumns } from '../lib/columns.js';
 import { prepareDeskFeed } from '../lib/prepareDeskFeed.js';
@@ -77,6 +77,20 @@ export function liveRefreshNote(feed) {
   return null;
 }
 
+/**
+ * F159 review: whether a failed load was the reader's network rather than the server. fetchFeature
+ * reports an unreachable API as `feature-feed HTTP 404`, so the browser's own offline flag (and a raw
+ * fetch failure, should one arrive) is what tells them apart.
+ */
+function readerOffline(error) {
+  if (typeof navigator !== 'undefined' && navigator?.onLine === false) return true;
+  return /^(Failed to fetch|NetworkError\b|Load failed$)/i.test(String(error?.message || ''));
+}
+
+// What the error card says under "This module couldn't load right now."
+const SERVER_FAILED_DETAIL = 'The source did not respond. Try again.';
+const OFFLINE_DETAIL = 'Check your connection and try again.';
+
 function isParliamentaryQuestions(name) {
   return /parliamentary question/i.test(String(name || ''));
 }
@@ -109,6 +123,8 @@ export default function DeskView({
   const [paging, setPaging] = useState(false);
   // F190: MLA Directory's State picker ('' is All states); only that module reads it (mlaState below).
   const [mlaPick, setMlaPick] = useState('');
+  // F159 review: a failed load says "check your connection" only when the reader is offline.
+  const [errOffline, setErrOffline] = useState(false);
   const loadedFor = useRef('');
   const mounted = useRef(true);
   const lastMlaState = useRef('');
@@ -230,6 +246,7 @@ export default function DeskView({
         if (e.name === 'AbortError' || ac.signal.aborted) return;
         // F159: the reason is for debugging; the page says it in plain words.
         console.warn(`[${featureName}] module failed to load:`, e.message || String(e));
+        setErrOffline(readerOffline(e));
         setErr(MODULE_UNAVAILABLE_TEXT);
         setFeed(null);
         onFeed(null);
@@ -372,7 +389,13 @@ export default function DeskView({
   const liveGaveUp = hold === 'gaveUp';
   const liveHold = liveWait || liveGaveUp;
   const dataState = liveGaveUp
-    ? { ...DATA_STATE.error, detail: 'Live data is taking longer than usual. Try again in a moment.' }
+    ? {
+      ...DATA_STATE.error,
+      // F159 review: a live source that failed is not "taking longer".
+      detail: liveFailed(feed)
+        ? 'The live source isn’t responding. Try again in a moment.'
+        : 'Live data is taking longer than usual. Try again in a moment.',
+    }
     : resolveDataState(feed, { loading: loading || liveWait, error: err });
   const liveOn = dataState.id === 'live';
   const shellState = isTerminalState(dataState) || (err && !feed) || statusRow || liveHold;
@@ -788,7 +811,7 @@ export default function DeskView({
         <div className={`table-wrap${loading || paging ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label={`Loading ${featureName || 'feed'}…`} />}
           {liveWait ? (
-            <div className="feed-loader" role="status" aria-live="polite">
+            <div className="feed-loader" role="status">
               <i className="spinner" />
               <div className="feed-loader-copy">
                 <span>{LIVE_WAIT_TEXT}</span>
@@ -796,7 +819,7 @@ export default function DeskView({
             </div>
           ) : !loading && shellState ? (
             <DeskStateShell
-              state={err && !feed ? { ...dataState, id: 'error', label: 'ERROR', detail: 'Check your connection and try again.' } : dataState}
+              state={err && !feed ? { ...dataState, id: 'error', label: 'ERROR', detail: errOffline ? OFFLINE_DETAIL : SERVER_FAILED_DETAIL } : dataState}
               featureName={featureName}
               onRetry={retry}
               expectedSources={feed?.source?.links || []}

@@ -54,7 +54,7 @@ describe('a pending feature-feed answer is not kept (F168)', () => {
     expect(res.headers['vercel-cdn-cache-control']).toBeUndefined();
   });
 
-  it('stored records with rows are still kept for a minute', async () => {
+  it('stored records with rows are kept at the edge for a few seconds', async () => {
     feed.within = vi.fn(async () => ({ ok: true, rows: [{ title: 'A decision' }], source: { adapter: 'embedded' }, served: 'archive' }));
     const res = vercelResponse();
     await handler(request('GET', 'feature-feed?tier=national&feature=Cabinet%20Decisions'), res);

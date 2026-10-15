@@ -1,17 +1,17 @@
 // F169 T3 (F166): Morning Brief and the Statement Tracker fetched their items through /api/rss,
 // which only the local dev server has, so neither loaded on the live site. Both now read
 // /api/feature-feed through fetchFeature; the Statement Tracker asks for the selected leader.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-const hooks = vi.hoisted(() => ({ index: 0, overrides: {}, effects: [] }));
+const hooks = vi.hoisted(() => ({ index: 0, overrides: {}, effects: [], setters: {} }));
 vi.mock('react', async (original) => ({ ...await original(),
-  useState: (init) => { const i = hooks.index++; return [i in hooks.overrides ? hooks.overrides[i] : typeof init === 'function' ? init() : init, vi.fn()]; },
+  useState: (init) => { const i = hooks.index++; hooks.setters[i] ??= vi.fn(); return [i in hooks.overrides ? hooks.overrides[i] : typeof init === 'function' ? init() : init, hooks.setters[i]]; },
   useEffect: (fn) => { hooks.effects.push(fn); }, useLayoutEffect: () => {}, useMemo: (fn) => fn(), useRef: (v) => ({ current: v }), useCallback: (fn) => fn,
 }));
-const feed = vi.hoisted(() => ({ calls: [] }));
+const feed = vi.hoisted(() => ({ calls: [], answer: null }));
 vi.mock('../lib/featureFeed.js', () => ({
-  fetchFeature: vi.fn(async (args) => { feed.calls.push(args); return { rows: [], source: { note: '' } }; }),
+  fetchFeature: vi.fn(async (args) => { feed.calls.push(args); return feed.answer || { rows: [], source: { note: '' } }; }),
 }));
 vi.mock('../lib/supabaseClient.js', () => ({ supabase: null }));
 import MorningBriefDesk, { briefSection } from './MorningBriefDesk.jsx';
@@ -21,12 +21,14 @@ function mountAndRunEffects(Component, overrides = {}) {
   hooks.index = 0;
   hooks.overrides = overrides;
   hooks.effects = [];
+  hooks.setters = {};
   renderToStaticMarkup(<Component onSelect={vi.fn()} onFeed={vi.fn()} />);
   for (const fn of hooks.effects) fn();
 }
 
 beforeEach(() => {
   feed.calls = [];
+  feed.answer = null;
   vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('the page must not fetch directly'); }));
 });
 
@@ -59,6 +61,41 @@ describe('briefSection', () => {
   });
   it('a feed with only a status row marks every section down', () => {
     expect(briefSection({ rows: [{ status: 'source_status' }], source: { note: 'sources empty' } }, 'Economy').err).toBe('sources empty');
+  });
+  // F159 review: the banner's title (a tooltip) showed `source.diagnostic`; it is for the console only.
+  it('never puts the server diagnostic in what the section shows', () => {
+    const down = { rows: [{ status: 'source_status' }], source: { note: 'sources empty', diagnostic: 'upstream-error' } };
+    expect(briefSection(down, 'Economy').err).toBe('sources empty');
+    expect(briefSection({ ...down, source: { diagnostic: 'upstream-error' } }, 'Economy').err).toBe('no rows');
+  });
+});
+
+describe('the server diagnostic goes to the console, not a tooltip (F159 review)', () => {
+  let warn;
+  beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => warn.mockRestore());
+  const down = { rows: [{ status: 'source_status' }], source: { note: 'The live source isn’t responding.', diagnostic: 'upstream-error' } };
+
+  it('Morning Brief', async () => {
+    feed.answer = down;
+    mountAndRunEffects(MorningBriefDesk);
+    await new Promise((r) => setTimeout(r, 0));
+    // MorningBriefDesk's useState order: top 0, pib 1, eco 2, q 3, loading 4.
+    for (const i of [0, 1, 2]) {
+      const shown = hooks.setters[i].mock.calls.at(-1)[0];
+      expect(shown.err).not.toMatch(/upstream-error/);
+    }
+    expect(warn.mock.calls.flat().join(' ')).toContain('upstream-error');
+  });
+
+  it('the Statement Tracker', async () => {
+    feed.answer = down;
+    // StatementsDesk's useState order: i 0, rows 1, vol 2, err 3, loading 4, q 5.
+    mountAndRunEffects(StatementsDesk);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hooks.setters[3].mock.calls.at(-1)[0]).not.toMatch(/upstream-error/);
+    expect(hooks.setters[3].mock.calls.at(-1)[0]).toBe('The live source isn’t responding.');
+    expect(warn.mock.calls.flat().join(' ')).toContain('upstream-error');
   });
 });
 

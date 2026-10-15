@@ -2,10 +2,13 @@
  * F159: a module page whose answer the server gave from stored records because live data was still
  * loading (`served: 'archive'`, src/lib/featureFeed.js) asks again, as a landing count does
  * (landingRetry.js): the live fetch keeps running on the server and a later request usually gets
- * its answer. The edge keeps such an answer for one minute only, so a retry reaches the server.
+ * its answer. The edge keeps such an answer for a few seconds only (`API_CACHE.cdnArchive`,
+ * api/router.js), less than the first wait below, so a retry reaches the server.
  * - No records yet ("pending"): asked again 6 s and 15 s after the first answer, then given up.
  * - Stored records on screen ("stored"): asked again once after 8 s; live records replace them.
- * A genuine failure (no `served: 'archive'`) and a paged answer are not retried.
+ * A genuine failure (no `served: 'archive'`), a live attempt that failed on the server
+ * (`source.liveFailed`: it is not slow, so asking again soon would not help) and a paged answer are
+ * not retried.
  */
 import { hasRealRows } from '../lib/archiveFeed.js';
 import { PENDING_RETRY_AFTER_MS, wait } from './landingRetry.js';
@@ -19,17 +22,28 @@ export const MODULE_UNAVAILABLE_TEXT = 'This module couldn’t load right now.';
 
 /** 'pending' (nothing to show yet), 'stored' (stored records on screen) or null (nothing to retry). */
 export function liveFollowUpKind(feed) {
-  if (!feed || feed.paged || feed.served !== 'archive' || feed.liveGaveUp) return null;
+  if (!feed || feed.paged || feed.served !== 'archive' || feed.liveGaveUp || liveFailed(feed)) return null;
   return hasRealRows(feed) ? 'stored' : 'pending';
 }
 
 /** How a page holds while it has no records to show: 'wait' (still asking), 'gaveUp', or null. */
 export function liveHoldState(feed) {
   if (!feed || feed.paged || feed.served !== 'archive' || hasRealRows(feed)) return null;
-  return feed.liveGaveUp ? 'gaveUp' : 'wait';
+  return feed.liveGaveUp || liveFailed(feed) ? 'gaveUp' : 'wait';
+}
+
+/** The server's live attempt failed (server/featureFeed.mjs), as opposed to running late. */
+export function liveFailed(feed) {
+  return feed?.source?.liveFailed === true;
 }
 
 const isLive = (body) => hasRealRows(body) && body.served !== 'archive';
+
+/** Stored records kept on screen once retrying stops: no longer says that live data is loading. */
+function storedSettled(body) {
+  const note = String(body.source?.note || '').replace(/\s*Live data is still loading\.?\s*$/i, '');
+  return { ...body, liveGaveUp: true, source: { ...(body.source || {}), note } };
+}
 
 async function ask(refetch) {
   try {
@@ -64,8 +78,7 @@ export async function followUpLive({
       return;
     }
     // Still stored: stop saying that live data is loading.
-    const note = String(first.source?.note || '').replace(/\s*Live data is still loading\.?\s*$/i, '');
-    publish({ ...first, liveGaveUp: true, source: { ...(first.source || {}), note } });
+    publish(storedSettled(first));
     return;
   }
   for (const after of pendingAfterMs) {
@@ -74,7 +87,8 @@ export async function followUpLive({
     const next = await ask(refetch);
     if (signal?.aborted) return;
     if (next && liveFollowUpKind(next) !== 'pending') {
-      publish(isLive(next) ? { ...next, updatedLive: true } : next);
+      // Stored records instead of live ones: retrying stops here, so the note stops promising live data.
+      publish(isLive(next) ? { ...next, updatedLive: true } : hasRealRows(next) ? storedSettled(next) : next);
       return;
     }
   }
