@@ -11,8 +11,9 @@ import {
   UNION_PROMISES,
 } from '../src/data/nationalCurated.js';
 import { allocateSeats } from '../src/lib/nationalKpi.js';
-import { isCabinetDecision, pickReleasePairs } from '../src/lib/parliament.js';
-import { freshNewsRows, headlineKey, isPipelineRelease } from '../src/lib/curatedNews.js';
+import { isPipelineRelease } from '../src/lib/curatedNews.js';
+// Task B follow-up (2026-10-16): the row rules the store path applies to these modules' stored rows too.
+import { cabinetDecisionRows, morningBriefRows, pipelineRows, statementRows } from './feedRows.mjs';
 
 const WB_MANF = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.MANF.ZS?format=json&date=2000:2030&per_page=100';
 const WB_IND = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.TOTL.ZS?format=json&date=2000:2030&per_page=100';
@@ -329,7 +330,7 @@ export async function serveNational(ctx) {
     // its page is read (so only kept releases cost a page); a Hindi one after its English title is found.
     const candidates = listed.filter((r) => isHindiText(r.title) || isPipelineRelease(r.title));
     const pages = { read: 0, failed: 0 };
-    const liveRows = (await enrichPibEnglish(candidates, { pages })).filter((r) => isPipelineRelease(r.title));
+    const liveRows = pipelineRows(await enrichPibEnglish(candidates, { pages }));
     const scope =
       'drafts, consultations, notifications, rules, regulations, amendments, gazette notifications, bills, policies, ordinances, guidelines or approved schemes';
     if (liveRows.length) {
@@ -559,13 +560,13 @@ export async function serveNational(ctx) {
     const person = statementLeader(ctx.person);
     const newsUrl = statementsNewsRss(person);
     const rss = await tryUrls([newsUrl]);
-    // F202 (audit C6): the last 7 days only, one row per story.
-    const fresh = freshNewsRows(rss.rows, { days: 7 });
+    // F202 (audit C6): the last 7 days only, one row per story, each naming the leader (server/feedRows.mjs).
+    const fresh = statementRows(rss.rows, person);
     if (fresh.length) {
       return envelope({
         tier,
         feature: feat,
-        rows: fresh.map((r) => ({ ...r, person })),
+        rows: fresh,
         adapter: 'news-search',
         links: [newsUrl],
         coverage: { from: '', through: '7d', exhaustive: false },
@@ -612,19 +613,13 @@ export async function serveNational(ctx) {
       '&hl=en-IN&gl=IN&ceid=IN:en';
 
     const [pibLive, topLive, ecoLive] = await Promise.all([tryUrls([PIB_PRESS]), tryUrls([topNews]), tryUrls([ecoNews])]);
-    const pibRows = await enrichPibEnglish(pibLive.rows || []);
-    // F202 (audit C6): the brief's 3 days only, one row per story; a story in both searches is shown once.
-    const topRows = freshNewsRows(topLive.rows, { days: 3 });
-    const topKeys = new Set(topRows.map((r) => headlineKey(r.title, r.publisher)));
-    const topLinks = new Set(topRows.map((r) => r.source_url));
-    const ecoRows = freshNewsRows(ecoLive.rows, { days: 3 })
-      .filter((r) => !topLinks.has(r.source_url) && !topKeys.has(headlineKey(r.title, r.publisher)));
-
-    const tagged = [
-      ...topRows.map((r) => ({ ...r, section: 'Top of the Day', source: r.publisher || r.source || 'News' })),
-      ...pibRows.map((r) => ({ ...r, section: 'Government Wire', source: r.source || 'PIB' })),
-      ...ecoRows.map((r) => ({ ...r, section: 'Economy', source: r.publisher || r.source || 'News' })),
-    ];
+    // F202 (audit C6): the brief's 3 days only, one row per story; a story in both searches is shown once
+    // (server/feedRows.mjs, as the store path).
+    const { top: topRows, pib: pibRows, eco: ecoRows, rows: tagged } = morningBriefRows({
+      top: topLive.rows,
+      pib: await enrichPibEnglish(pibLive.rows || []),
+      eco: ecoLive.rows,
+    });
     if (tagged.length) {
       return envelope({
         tier,
@@ -708,8 +703,8 @@ export async function serveNational(ctx) {
         ministry: r.ministry || '',
       }));
     // F187: PIB releases some decisions twice on one day (the ministry's and the Cabinet's); one row each.
-    const archiveRows = pickReleasePairs(shaped(archive || []).filter(isCabinetDecision));
-    const liveRows = pickReleasePairs(shaped(liveEn).filter(isCabinetDecision));
+    const archiveRows = cabinetDecisionRows(shaped(archive || []));
+    const liveRows = cabinetDecisionRows(shaped(liveEn));
     const rows = liveRows.length ? liveRows : archiveRows;
     if (!rows.length) return null;
     const checked = liveEn.length;

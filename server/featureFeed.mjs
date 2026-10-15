@@ -45,7 +45,6 @@ import {
   carbonNote,
   carbonRows,
   carbonSlice,
-  newsRows,
   registryRows,
 } from '../src/lib/carbonPack.js';
 import {
@@ -65,7 +64,8 @@ import {
   rssWireRows as entRssRows,
 } from '../src/lib/entertainmentPack.js';
 import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
-import { WIRE_GUARDS, curatedNewsFor, curatedNewsRows, decodeEntities, freshNewsRows, newsDays } from '../src/lib/curatedNews.js';
+import { WIRE_GUARDS, curatedNewsFor, curatedNewsRows, decodeEntities, newsDays } from '../src/lib/curatedNews.js';
+import { aiTechRows, BBC_WORLD, climateWireRows, geopoliticsWireRows, indiaSportsRows, isTechPibRelease, lawWireRows, searchWireRows } from './feedRows.mjs';
 import { COMPARISON_DEFAULT_TABLE, HANDBOOK, HANDBOOK_BLOCK_MAX, HANDBOOK_NOTE, HANDBOOK_TABLES, HANDBOOK_TABLE_NUMBERS, handbookModuleFor, handbookOwner, handbookTableLabel, handbookTableVariant, isHandbookYear, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
 import { handbookHeld, handbookView, parseHandbookTable, yearBlocks } from '../src/lib/rbiHandbook.js';
 import { compareStates, comparisonYears, isComparisonYear, rankedWithin, wholeYearsOf } from '../src/lib/stateComparison.js';
@@ -170,32 +170,6 @@ function mlaCoverageNewsRssUrl() {
     encodeURIComponent('India (MLA OR "legislative assembly" OR "Vidhan Sabha") when:7d') +
     '&hl=en-IN&gl=IN&ceid=IN:en'
   );
-}
-
-/**
- * Technology-industry titles: AI and compute, chips, electronics and IT, telecom, cyber security,
- * data centres, startups, digital public infrastructure. F202 (2026-10-16): the bare words "digital"
- * and "technolog" let through a rural-livelihood data workshop ("Strengthening Digital Data
- * Systems ... DAY-NRLM") and an Ayurveda institute's "digital initiatives", so a digital title
- * must name the digital economy or its infrastructure, and a technology title an industry or an
- * emerging technology.
- */
-const TECH_TITLE = new RegExp(
-  [
-    '\\b(?:AI|GenAI|IndiaAI|MeitY|UPI|5G|6G|GPUs?|CERT-In|DPDP)\\b',
-    'artificial intelligence|machine learning|large language model|\\bLLMs?\\b|generative',
-    'semiconductor|\\bchips?\\b|\\bfabs?\\b|supercomput|\\bcomput(?:e|ing)\\b|quantum',
-    'electronics|information technology|telecom|spectrum|broadband',
-    'cyber ?(?:secur|attack|threat|resilien)|data cent(?:re|er)|data protection',
-    'start-?ups?|deep ?tech|emerging technolog|critical (?:and emerging )?technolog|frontier tech',
-    'technology (?:park|compan|firm|sector|industry|major|giant|hub)|\\bIT (?:sector|industry|services|compan)',
-    'software|\\binternet\\b|robot',
-    'digital (?:India|public infrastructure|economy|payments?|platform|stack|trade|infrastructure|transformation|governance)',
-  ].join('|'),
-  'i',
-);
-function isTechTitle(title) {
-  return TECH_TITLE.test(String(title || ''));
 }
 
 function aiTechNewsRssUrl() {
@@ -1915,14 +1889,9 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
         : primary;
       const wire = await tryUrls([newsUrl].filter(Boolean));
       const wireNote = 'Google News RSS — court / litigation coverage. Not an official docket or cause list.';
-      // F202 (audit C6): the last 7 days only, one row per story.
-      const fresh = freshNewsRows(wire.rows, { days: 7 });
-      if (fresh.length) {
-        const rows = fresh.map((r) => ({
-          ...r,
-          section: 'COVERAGE — GOOGLE NEWS RSS',
-          reporting_search: 'Google News RSS — coverage mentions, not an official court dataset',
-        }));
+      // F202 (audit C6): the last 7 days only, one row per story (server/feedRows.mjs, as the store path).
+      const rows = lawWireRows(wire.rows);
+      if (rows.length) {
         return envelope({
           tier,
           feature: feat,
@@ -2190,18 +2159,12 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
       const news = aiTechNewsRssUrl();
       const [pibGot, newsGot] = await Promise.all([tryUrls([PIB_PRESS_RSS]), tryUrls([news])]);
       // F202 (audit C2): the technology releases are dated from their pages (at most 10, cached).
-      const pibTech = (pibGot.rows || []).filter((r) => isTechTitle(r.title) && !/[\u0900-\u097F]/.test(String(r.title || '')));
+      // Judged before their pages are read, so only technology releases cost a page.
+      const pibTech = (pibGot.rows || []).filter(isTechPibRelease);
       const pibRows = (await enrichPibEnglish(pibTech, { limit: 10 }))
         .map((r) => ({ ...r, publisher: r.publisher || 'Press Information Bureau' }));
-      const seen = new Set();
-      const rows = [...pibRows, ...(newsGot.rows || [])]
-        .filter((r) => {
-          const key = String(r.title || '').toLowerCase().replace(/\s+-\s+[^-]+$/, '').trim();
-          if (!key || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+      // Task B follow-up: the same rule the store path applies to the stored rows (server/feedRows.mjs).
+      const rows = aiTechRows([...pibRows, ...(newsGot.rows || [])]);
       if (rows.length) {
         return envelope({
           tier,
@@ -2306,14 +2269,9 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
       const parts = await Promise.all(NEWS_FEEDS.map((f) => rssTagged(f.url, { outlet: f.outlet, source: f.outlet })));
       // F202 (audit): Mongabay India's feed also carries wildlife and botany features, so its items
       // keep only climate and energy headlines; every outlet keeps 30 days, one row per story.
+      // server/feedRows.mjs, as the store path.
       const climate = WIRE_GUARDS.climate;
-      const all = parts.flat();
-      const mongabay = all.filter((r) => /mongabay/i.test(r.outlet || ''));
-      const kept = [
-        ...curatedNewsRows(mongabay, climate),
-        ...freshNewsRows(all.filter((r) => !/mongabay/i.test(r.outlet || '')), { days: climate.days }),
-      ];
-      const live = newsRows(kept);
+      const live = climateWireRows(parts.flat());
       if (live.length) {
         return envelope({
           tier,
@@ -2440,7 +2398,8 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
     }
 
     if (slice === 'india') {
-      const live = rssWireRows(await rssTagged(INDIA_SPORTS_RSS, { outlet: 'Google News' }), 'Google News');
+      // The 7 days its search asks for, also on the stored rows (server/feedRows.mjs).
+      const live = indiaSportsRows(rssWireRows(await rssTagged(INDIA_SPORTS_RSS, { outlet: 'Google News' }), 'Google News'));
       if (live.length) {
         return envelope({
           tier,
@@ -3017,16 +2976,14 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
   if (/^geopolitics news wire$/i.test(feat.htmlFeature || '') || dataset === 'geo_news_wire.csv') {
     const bbc = 'https://feeds.bbci.co.uk/news/world/rss.xml';
     // Both together, BBC preferred: a slow BBC must not use up the 4 s limit (review, F169 T4).
-    const [rssAll, got] = await Promise.all([rssTagged(bbc, { outlet: 'BBC World' }), tryUrls([GEO_NEWS_WIRE_NEWS])]);
+    const [rssAll, got] = await Promise.all([rssTagged(bbc, { outlet: BBC_WORLD }), tryUrls([GEO_NEWS_WIRE_NEWS])]);
     // F202 (audit): BBC World carries every world story (crime, weather, celebrity); a geopolitics
     // guard keeps conflict, diplomacy, elections and governments. The search's rows, guarded the
     // same way, follow BBC's. Seven days, one row per story.
+    // server/feedRows.mjs, as the store path.
+    const { rows, bbc: rss, searched } = geopoliticsWireRows(rssAll, got.rows);
     const geo = WIRE_GUARDS.geopolitics;
-    const rss = curatedNewsRows(rssAll, geo);
-    const searched = curatedNewsRows(got.rows, geo);
     if (rss.length) {
-      const seen = new Set(rss.map((r) => r.source_url));
-      const rows = [...rss, ...searched.filter((r) => !seen.has(r.source_url))].slice(0, 100);
       return envelope({
         tier,
         feature: feat,
@@ -3557,7 +3514,7 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
         source: r.source || 'PIB',
       }));
       // F202 (audit C6): the last 7 days only, one row per story.
-      const wireRows = freshNewsRows(wire.rows, { days: 7 }).map((r) => ({
+      const wireRows = searchWireRows(wire.rows).map((r) => ({
         ...r,
         section: 'Coverage wire',
         reporting_search: 'Google News RSS — coverage mentions, not an official dataset',
@@ -3709,8 +3666,8 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
 
   const live = liveUrls.length ? await tryUrls(liveUrls) : { rows: [] };
   if (storedSearch) {
-    // F202 (audit C6): the last 7 days only, one row per story.
-    const fresh = freshNewsRows(live.rows, { days: 7 });
+    // F202 (audit C6): the last 7 days only, one row per story (server/feedRows.mjs, as the store path).
+    const fresh = searchWireRows(live.rows);
     if (fresh.length) {
       return envelope({
         tier,
@@ -3756,7 +3713,7 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
     const newsUrl = newsRssUrlForFeature(feat.htmlFeature, tier);
     // The same search was just asked as the row's live address: its answer is not asked for twice.
     const news = storedSearch && liveUrls[0] === newsUrl ? live : await tryUrls([newsUrl]);
-    const fresh = freshNewsRows(news.rows, { days: 7 });
+    const fresh = searchWireRows(news.rows);
     if (fresh.length) {
       return envelope({
         tier,

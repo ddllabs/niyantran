@@ -630,8 +630,11 @@ describe('serveFromStore: a hard ceiling on a stale copy (review finding 2)', ()
   });
 
   it('a news module: an old copy is kept up to seven days, and not after', async () => {
-    expect((await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...at(7 * DAY - 1), allowStale: true }))?.stale).toBe(true);
-    expect(await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...at(7 * DAY + 1), allowStale: true })).toBeNull();
+    // Undated rows of the latest run: a dated row a week old is past AI & the Tech Industry's own 7-day
+    // window (server/feedRows.mjs), so only undated rows show the ceiling alone.
+    const undated = page({ items: page().items.map((i) => ({ ...i, row: { title: i.row.title, source_url: i.row.source_url }, published_at: null })) });
+    expect((await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(undated), ...at(7 * DAY - 1), allowStale: true }))?.stale).toBe(true);
+    expect(await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(undated), ...at(7 * DAY + 1), allowStale: true })).toBeNull();
     expect(lines.join(' ')).toMatch(/AI & the Tech Industry.*over the ceiling of 10080 min/);
   });
 

@@ -23,6 +23,11 @@
  * register's variant (a table, or a whole-year block of a large table, `table` and `years`) is read
  * whole, up to 2,000 items in four pages asked for at once (wholeVariant).
  *
+ * Task B follow-up (2026-10-16): a stored answer shows only rows the module's live code would show now:
+ * the latest run of a measurement or events module, an undated item only while its source lists it
+ * (servableItems), and the live branch's own row rules, its guards, age window and one row per story
+ * (server/feedRows.mjs storeRowsFor). When none is left, the live path answers.
+ *
  * A store answer is the normal path, not a fallback. It is marked `served: 'store'` with the time the
  * items were fetched (`fetchedAt`, ISO), keeps `fallback: false`, and never passes through the archive
  * or backup passes, so the page does not take it for a stored or old copy (src/lib/plainSourceNote.js).
@@ -32,7 +37,7 @@
  */
 import { classifyAnswer } from './feedAnswer.mjs';
 import { FEED_CLASSES, FEED_REGISTERS, FEED_SCHEDULE, FEED_VARIANTS, isStoreServed } from './feedSchedule.mjs';
-import { pickReleasePairs } from '../src/lib/parliament.js';
+import { storeRowsFor } from './feedRows.mjs';
 import { safeText, supabaseRpc } from './supabaseRpc.mjs';
 
 /** The store gets this long. Past it the live path answers; the live path has its own 4 s limit after that. */
@@ -67,6 +72,42 @@ export const STORE_STALE_CEILING_MINUTES = 7 * 24 * 60;
 export function storeCeilingMinutes(intervalMinutes) {
   const every = Number(intervalMinutes);
   return Math.max(STORE_STALE_CEILING_MINUTES, Number.isFinite(every) && every > 0 ? 20 * every : 0);
+}
+
+/**
+ * Task B follow-up (2026-10-16): which stored items a page may show, by the module's keeping kind.
+ * feed_record stamps every item a run lists with last_seen = the run's time, the same time it writes to
+ * feed_state.fetched_at; an item the run does not list keeps its older last_seen.
+ *  - measurement and events (LATEST_RUN_KINDS): only the items of the latest run, last_seen at or after
+ *    the state's fetched_at less LATEST_RUN_MARGIN_MS. A market that closed, a launch that flew,
+ *    yesterday's TV schedule: the live branch no longer shows them. A run that failed moves neither
+ *    time, so the previous run's items stay the latest.
+ *  - official and news: every item, except that an undated one (no published_at, no readable date) is
+ *    served only while its source still lists it (last_seen within the margin of the newest last_seen
+ *    on the page, the latest run that recorded items: a run that found nothing new moves fetched_at
+ *    but not last_seen). Its age cannot be judged from a date, so it is shown as long as live shows it.
+ *  - latest and reference replace their items each run, so all are served.
+ * An item without a readable last_seen is kept (public.feed_page always returns one).
+ */
+export const LATEST_RUN_KINDS = Object.freeze(new Set(['measurement', 'events']));
+const KEPT_KINDS = new Set(['official', 'news']);
+/** How far before the run's time an item's last_seen may be and still count as that run's. */
+export const LATEST_RUN_MARGIN_MS = 60_000;
+
+const timeOf = (value) => Date.parse(String(value ?? ''));
+const isDated = (i) => Number.isFinite(timeOf(i?.published_at)) || Number.isFinite(timeOf(i?.row?.date));
+
+export function servableItems(kind, items, fetchedAt) {
+  const latestOnly = LATEST_RUN_KINDS.has(kind);
+  if (!latestOnly && !KEPT_KINDS.has(kind)) return items;
+  const seen = items.map((i) => timeOf(i?.last_seen)).filter(Number.isFinite);
+  const runAt = latestOnly ? timeOf(fetchedAt) : Math.max(...seen);
+  if (!Number.isFinite(runAt)) return items;
+  const inLatestRun = (i) => {
+    const t = timeOf(i?.last_seen);
+    return !Number.isFinite(t) || t >= runAt - LATEST_RUN_MARGIN_MS;
+  };
+  return items.filter((i) => (latestOnly ? inLatestRun(i) : isDated(i) || inLatestRun(i)));
 }
 
 /** The module's refresh interval from the schedule (server/feedSchedule.mjs), else the stored state's. */
@@ -127,15 +168,22 @@ function isoOrNull(value) {
  */
 function storedAnswer(id, page, now, register = false, allowStale = false) {
   if (!isRow(page) || page.serve !== true) return null;
-  const stored = (Array.isArray(page.items) ? page.items : []).map((i) => i?.row).filter(isRow);
-  // F187: refreshes can store both releases of one Cabinet decision (the ministry's and the Cabinet's,
-  // seen on different runs); the page shows one, as the live loader does.
-  const rows = id === 'national:Cabinet Decisions' ? pickReleasePairs(stored) : stored;
-  if (!rows.length) return null;
   const meta = isRow(page.meta) ? page.meta : {};
   // Without a fetched time the page could not say how old its items are.
   const fetchedAt = isoOrNull(page.fetched_at) || isoOrNull(meta.fetched_at);
+  const items = (Array.isArray(page.items) ? page.items : []).filter((i) => isRow(i?.row));
+  if (!items.length) return null;
   if (!fetchedAt) return null;
+  // Task B follow-up (2026-10-16): only the items the module's live code would show: the latest run of a
+  // measurement or events module, undated items only while listed, then the live branch's own row rules
+  // (server/feedRows.mjs; F187: one release per Cabinet decision is one of them).
+  const kind = String(page.kind || FEED_CLASSES[FEED_SCHEDULE[id]]?.kind || '');
+  const listed = register ? items : servableItems(kind, items, page.fetched_at || meta.fetched_at);
+  const rows = storeRowsFor(id, listed.map((i) => i.row), { now, variant: String(page.variant ?? '') });
+  if (!rows.length) {
+    console.warn(`[feed-store] ${id}: none of the ${items.length} stored items is one the live branch would show now; the live path answers`);
+    return null;
+  }
   const ageMinutes = (now - Date.parse(fetchedAt)) / 60_000;
   const limit = storeMaxAgeMinutes(page.interval_minutes);
   const stale = !register && ageMinutes > limit;

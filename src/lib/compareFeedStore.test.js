@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   READ_RPCS,
   READ_TABLES,
+  SAMPLE_MODULES,
   compareAll,
   compareModule,
+  compareServed,
   parseArgs,
   readOnlyClient,
   renderMarkdown,
   selectRuns,
+  servedFromStore,
   summarise,
 } from '../../scripts/compare-feed-store.mjs';
 import { scheduledRuns } from '../../server/feedSchedule.mjs';
@@ -210,5 +213,76 @@ describe('compareAll: sequential and read-only end to end', () => {
     const live = calls.filter((c) => c.href.startsWith('https://site.example/api/feature-feed'));
     expect(live).toHaveLength(3);
     for (const c of live) expect(new URL(c.href).searchParams.get('_cb')).toBeTruthy();
+  });
+});
+
+/**
+ * Task B follow-up (2026-10-16): the stored page passed through the store-serving code locally (serve
+ * simulated on, nothing written), against the live answer.
+ */
+describe('compareServed: the stored page as the store would serve it, against live', () => {
+  const NOW_ISO = new Date(NOW - 10 * MIN).toISOString();
+  const OLDER = new Date(NOW - 70 * MIN).toISOString();
+  const govRun = { tier: 'state', feature: 'State Governance Brief', variant: '', cls: 'news', kind: 'news', every: 30, params: {} };
+  const govRow = (n, title, date) => ({ title, date, publisher: 'The Hindu', source_url: `https://g.example/${n}`, section: 'State coverage' });
+  const govStored = () => storedPage({
+    tier: 'state', feature: 'State Governance Brief', fetched_at: NOW_ISO, total: 4,
+    items: [
+      { item_key: 'url:g.example/1', row: govRow(1, 'Kerala cabinet approves new health scheme', '2026-10-15'), published_at: '2026-10-15T00:00:00Z', last_seen: NOW_ISO },
+      { item_key: 'url:g.example/2', row: govRow(2, 'Punjab chief minister meets farmers in Chandigarh', '2026-10-14'), published_at: '2026-10-14T00:00:00Z', last_seen: OLDER },
+      { item_key: 'url:pib/1', row: { title: 'Legislative Department, Ministry of Law &amp; Justice organises workshop', section: 'Government wire (PIB)', source_url: 'https://www.pib.gov.in/PressReleasePage.aspx?PRID=1' }, published_at: null, last_seen: OLDER },
+      { item_key: 'url:g.example/3', row: govRow(3, 'Bihar chief minister reviews flood relief work', '2026-09-20'), published_at: '2026-09-20T00:00:00Z', last_seen: OLDER },
+    ],
+  });
+
+  it('serves the stored page through the store code with serve simulated on, and counts the rows each side lacks', async () => {
+    const stored = govStored();
+    const served = await servedFromStore(govRun, stored, { now: NOW });
+    expect(stored.serve).toBe(false);
+    const live = liveBody([govRow(1, 'Kerala cabinet approves new health scheme', '2026-10-15'), govRow(9, 'Assam chief minister opens bridge', '2026-10-16')]);
+    const s = compareServed({ run: govRun, stored, served, live, now: NOW });
+    expect(s).toMatchObject({ servedRows: 2, liveRows: 2, storeOnly: 1, liveOnly: 1, filterFailures: 0, liveDropped: 0, notLatestRun: 0 });
+    expect(s.servedTop).toEqual(['Kerala cabinet approves new health scheme', 'Punjab chief minister meets farmers in Chandigarh']);
+    expect(s.liveTop).toEqual(['Kerala cabinet approves new health scheme', 'Assam chief minister opens bridge']);
+  });
+
+  it('a measurement module: only the latest run is served, and none of it is from an older run', async () => {
+    const mRun = { tier: 'finance', feature: 'Prediction Market Political Odds', variant: '', cls: 'markets', kind: 'measurement', every: 15, params: {} };
+    const stored = storedPage({
+      tier: 'finance', feature: 'Prediction Market Political Odds', class: 'markets', kind: 'measurement', interval_minutes: 15, fetched_at: NOW_ISO, total: 2,
+      items: [
+        { item_key: 'url:m/1#a', row: { title: 'Open market', source_url: 'https://m.example/1' }, last_seen: NOW_ISO },
+        { item_key: 'url:m/2#b', row: { title: 'Closed market', source_url: 'https://m.example/2' }, last_seen: OLDER },
+      ],
+    });
+    const served = await servedFromStore(mRun, stored, { now: NOW });
+    const s = compareServed({ run: mRun, stored, served, live: liveBody([{ title: 'Open market', source_url: 'https://m.example/1' }]), now: NOW });
+    expect(s).toMatchObject({ servedRows: 1, storeOnly: 0, liveOnly: 0, notLatestRun: 0 });
+  });
+
+  it('says when the store would serve nothing (the live path answers)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stored = storedPage({ tier: 'state', feature: 'State Governance Brief', fetched_at: NOW_ISO, total: 1, items: [govStored().items[2]] });
+    const served = await servedFromStore(govRun, stored, { now: NOW });
+    const s = compareServed({ run: govRun, stored, served, live: liveBody([]), now: NOW });
+    expect(s).toMatchObject({ servedRows: 0, servedNote: expect.stringMatching(/live path/) });
+    vi.restoreAllMocks();
+  });
+
+  it('the report has a served section with the top ten titles of each side for the sample modules', () => {
+    expect(SAMPLE_MODULES).toEqual([
+      'state:State Governance Brief',
+      'local:Municipal Watch',
+      'state:Assembly Proceedings Digest (Vernacular, Translated)',
+      'finance:Prediction Market Political Odds',
+    ]);
+    const row = {
+      id: 'state:State Governance Brief', variant: '', class: 'news', kind: 'news', verdict: 'store worse', reasons: [],
+      served: { servedRows: 2, liveRows: 2, storeOnly: 1, liveOnly: 1, filterFailures: 0, liveDropped: 0, notLatestRun: 0, servedTop: ['A', 'B'], liveTop: ['A', 'C'], servedNote: '' },
+    };
+    const md = renderMarkdown([row], summarise([row]), { generatedAt: '2026-10-16T10:00:00Z' });
+    expect(md).toMatch(/## Served from the store/);
+    expect(md).toContain('| state:State Governance Brief |  | news | 2 | 2 | 1 | 1 | 0 | 0 | 0 |');
+    expect(md).toMatch(/### state:State Governance Brief[\s\S]*Store[\s\S]*1\. A[\s\S]*Live[\s\S]*2\. C/);
   });
 });

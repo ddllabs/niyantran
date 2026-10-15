@@ -31,12 +31,22 @@
  *    the live items (of 10 or more);
  *  - store equal-or-better: anything else, including every module whose live answer had no live rows
  *    (empty, a status row, a fallback, the archive, an error), which the store would serve in its place.
+ *
+ * Served from the store (Task B follow-up, 2026-10-16), for every module of kind news, official, events
+ * or measurement: the stored page (its first 500 items, as feed_page answers the page server) is passed
+ * through the store-serving code itself (server/feedServe.mjs serveFromStore, with the module's row rules
+ * from server/feedRows.mjs), locally, on a copy with `serve` simulated on, and compared with the live
+ * answer: rows served against live, the rows each side lacks, served rows that fail the module's current
+ * rules when applied again (filterFailures, 0 expected), live rows the rules would drop (liveDropped: the
+ * live branch and the store's rules have drifted apart, 0 expected), and for a measurement or events
+ * module served rows from before its latest run (notLatestRun, 0 expected). Nothing is written.
  */
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { REPLACING_KINDS, itemKeysFor, scheduledRuns } from '../server/feedSchedule.mjs';
-import { liveAnswerIsUsable, storeMaxAgeMinutes } from '../server/feedServe.mjs';
+import { LATEST_RUN_KINDS, LATEST_RUN_MARGIN_MS, STORE_PAGE_ROWS, liveAnswerIsUsable, serveFromStore, storeMaxAgeMinutes } from '../server/feedServe.mjs';
+import { storeRowsFor } from '../server/feedRows.mjs';
 import { safeText } from '../server/supabaseRpc.mjs';
 
 export const READ_RPCS = Object.freeze(new Set(['feed_page', 'feed_page_across']));
@@ -214,6 +224,82 @@ export function compareModule({ run, stored, live, liveError = '', lastRun = nul
   };
 }
 
+/** The kinds whose stored page is passed through the store-serving code (compareServed). */
+export const SERVED_KINDS = Object.freeze(new Set(['news', 'official', 'events', 'measurement']));
+/** The modules whose top ten titles, served and live, the report lists. */
+export const SAMPLE_MODULES = Object.freeze([
+  'state:State Governance Brief',
+  'local:Municipal Watch',
+  'state:Assembly Proceedings Digest (Vernacular, Translated)',
+  'finance:Prediction Market Political Odds',
+]);
+const TOP = 10;
+
+/**
+ * The stored page as the page server would serve it if `serve` were on: server/feedServe.mjs
+ * serveFromStore on a local copy of the page (its first STORE_PAGE_ROWS items, serve set to true),
+ * kept even past its freshness limit (allowStale, as the route keeps it). null: the live path answers.
+ */
+export async function servedFromStore(run, stored, { now = Date.now() } = {}) {
+  if (!isRow(stored)) return null;
+  const copy = { ...stored, serve: true, items: (Array.isArray(stored.items) ? stored.items : []).slice(0, STORE_PAGE_ROWS) };
+  const params = new URLSearchParams({ tier: run.tier, feature: run.feature, ...(run.params || {}) });
+  return serveFromStore(`${run.tier}:${run.feature}`, params, { rpc: async () => copy, now: () => now, allowStale: true });
+}
+
+/** One module's served rows against its live rows (see the header). `served` is servedFromStore's answer. */
+export function compareServed({ run, stored, served, live, now = Date.now() }) {
+  const id = `${run.tier}:${run.feature}`;
+  const kind = stored?.kind || run.kind;
+  const rows = (Array.isArray(served?.rows) ? served.rows : []).filter(isRow);
+  const liveReal = realRows(live);
+  const byLink = !REPLACING_KINDS.has(kind);
+  const keysOf = (list) => itemKeysFor(list, kind);
+  const index = (list) => {
+    const keys = new Set(keysOf(list));
+    const links = new Set(byLink ? list.map(linkOf).filter(Boolean) : []);
+    return (r, key) => keys.has(key) || Boolean(byLink && linkOf(r) && links.has(linkOf(r)));
+  };
+  const inLive = index(liveReal);
+  const inServed = index(rows);
+  const servedKeys = keysOf(rows);
+  const liveKeys = keysOf(liveReal);
+  const opts = { now, variant: run.variant || '' };
+  // Applied again to the rows as they are stored (a curated rule writes a day-only date over the stored
+  // one, so a served row is judged by its stored date, as the store path judged it): to the whole served
+  // list (one row per story) and to each row alone (guards, windows).
+  const storedByLink = new Map((stored?.items || []).filter((i) => isRow(i?.row) && linkOf(i.row)).map((i) => [linkOf(i.row), i.row]));
+  const asStored = rows.map((r) => storedByLink.get(linkOf(r)) || r);
+  const againLinks = new Set(storeRowsFor(id, asStored, opts).map(linkOf));
+  const failing = asStored.filter((r) => (linkOf(r) && !againLinks.has(linkOf(r))) || !storeRowsFor(id, [r], opts).length).length;
+  const kept = new Set(keysOf(storeRowsFor(id, liveReal, opts)));
+  let notLatestRun = 0;
+  if (LATEST_RUN_KINDS.has(kind)) {
+    const runAt = Date.parse(String(stored?.fetched_at || ''));
+    const seenAt = new Map((stored?.items || []).filter((i) => isRow(i?.row)).map((i) => [i.row, Date.parse(String(i.last_seen || ''))]));
+    notLatestRun = rows.filter((r) => {
+      const t = seenAt.get(r);
+      return Number.isFinite(t) && Number.isFinite(runAt) && t < runAt - LATEST_RUN_MARGIN_MS;
+    }).length;
+  }
+  const title = (r) => String(r.title || r.name || r.question || '').replace(/\s+/g, ' ').trim();
+  return {
+    servedRows: rows.length,
+    liveRows: liveReal.length,
+    storeOnly: rows.filter((r, i) => !inLive(r, servedKeys[i])).length,
+    liveOnly: liveReal.filter((r, i) => !inServed(r, liveKeys[i])).length,
+    filterFailures: failing,
+    liveDropped: liveReal.filter((_r, i) => !kept.has(liveKeys[i])).length,
+    notLatestRun,
+    servedTop: rows.slice(0, TOP).map(title),
+    liveTop: liveReal.slice(0, TOP).map(title),
+    servedNote: [
+      served ? (served.stale ? `stale copy (${served.ageMinutes} min old)` : '') : 'nothing to serve: the live path answers',
+      live?.served === 'store' ? 'the live answer is the deployed store copy (serve on), not a live one' : '',
+    ].filter(Boolean).join('; '),
+  };
+}
+
 /** The runs named by --module: a schedule id (tier:feature) or part of a feature name, any case. */
 export function selectRuns(runs, filter) {
   const f = String(filter || '').trim().toLowerCase();
@@ -307,6 +393,10 @@ export async function compareAll({
     const { live, liveError } = await fetchLive(run, { liveBase, fetchImpl, now });
     const row = compareModule({ run, stored, live, liveError, lastRun: Array.isArray(recent) ? recent[0] : null, runs24h: Array.isArray(recent) ? recent : [], now: now() });
     if (storeError) row.reasons.push(`store read failed: ${storeError}`);
+    if (stored && SERVED_KINDS.has(stored.kind || run.kind)) {
+      const at = now();
+      row.served = compareServed({ run, stored, served: await servedFromStore(run, stored, { now: at }), live, now: at });
+    }
     rows.push(row);
     log(`${n + 1}/${runs.length} ${row.id}${variant ? ` / ${variant}` : ''}: ${row.verdict}`);
     if (delayMs && n < runs.length - 1) await sleep(delayMs);
@@ -366,8 +456,42 @@ export function renderMarkdown(rows, summary = summarise(rows), { generatedAt = 
       Object.entries(r.runs24h || {}).map(([s, n]) => `${s} ${n}`).join(', '), r.serve ? 'on' : 'off', r.verdict, r.reasons.join('; '),
     ].map(cell).join(' | ')).map((l) => `| ${l} |`),
     '',
+    ...renderServed(rows),
   ];
   return lines.join('\n');
+}
+
+/** The served section: the stored page through the store-serving code against live, and the samples. */
+function renderServed(rows) {
+  const served = rows.filter((r) => r.served);
+  if (!served.length) return [];
+  const samples = served.filter((r) => SAMPLE_MODULES.includes(r.id));
+  const list = (titles) => (titles.length ? titles.map((t, i) => `${i + 1}. ${cell(t)}`) : ['(none)']);
+  return [
+    '## Served from the store (the stored page through the store-serving code, serve simulated on) against live',
+    '',
+    'Store only / live only: rows one side shows and the other does not. Filter failures: served rows the module\'s rules drop when applied again. Live dropped: live rows the store\'s rules would drop (drift). Not latest run: served rows of a measurement or events module from before its latest run.',
+    '',
+    '| Module | Variant | Kind | Served | Live | Store only | Live only | Filter failures | Live dropped | Not latest run | Note |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+    ...served.map((r) => {
+      const s = r.served;
+      return `| ${[r.id, r.variant, r.kind, s.servedRows, s.liveRows, s.storeOnly, s.liveOnly, s.filterFailures, s.liveDropped, s.notLatestRun, s.servedNote].map(cell).join(' | ')} |`;
+    }),
+    '',
+    ...samples.flatMap((r) => [
+      `### ${r.id}${r.variant ? ` / ${r.variant}` : ''}: top ${TOP}`,
+      '',
+      `Store (${r.served.servedRows} served):`,
+      '',
+      ...list(r.served.servedTop),
+      '',
+      `Live (${r.served.liveRows}):`,
+      '',
+      ...list(r.served.liveTop),
+      '',
+    ]),
+  ];
 }
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
