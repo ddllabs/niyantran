@@ -51,3 +51,11 @@ default action is a new chat" unless the reader opens a previous chat.
   the controller's fresh-chat rules and the panel wiring), full suite, lint and build.
 - Browser (signed-in local preview): the first AI open shows a new chat; after picking an old chat,
   selecting a row, visiting Record and returning to AI, a new chat (0 messages).
+
+## Review (2026-10-16)
+
+Independent `agent-skills:code-reviewer` on `9b21083..f7f76b8`: one required fix, taken up. A new chat
+never replaces the reader's work: an unsent new chat (with records attached or not) or text typed in
+the composer is kept. Also taken up: a page change within 1.5 s of opening a chat from the credits
+page is ignored (the desk coming back after the account page); the record key is memoised; the brief's
+"slow" mark is reset when its record is left, so a record visited again starts as a read.

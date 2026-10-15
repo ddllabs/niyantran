@@ -66,6 +66,18 @@ it('says it is writing once the answer takes longer than a stored read, and neve
   expect(Render({ id: 'b' })).toEqual(READY);
 });
 
+it('does not carry "writing" back to a record after a quick visit elsewhere', async () => {
+  getRecordBrief.mockReturnValueOnce(new Promise(() => {}));
+  Render({ id: 'a' }); effects();
+  await vi.advanceTimersByTimeAsync(1300);
+  expect(Render({ id: 'a' })).toEqual({ state: 'writing' });
+  getRecordBrief.mockResolvedValueOnce(READY);
+  Render({ id: 'b' }); effects(); await settle();
+  expect(Render({ id: 'b' })).toEqual(READY);
+  getRecordBrief.mockReturnValueOnce(new Promise(() => {}));
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+});
+
 it('polls every two seconds while pending, then shows the brief', async () => {
   expect(RECORD_BRIEF_POLL_MS).toBe(2000);
   getRecordBrief.mockResolvedValueOnce({ state: 'pending' }).mockResolvedValueOnce({ state: 'pending' }).mockResolvedValueOnce(READY);

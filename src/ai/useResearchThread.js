@@ -75,6 +75,10 @@ export function createResearchThread(overrides = {}) {
   // F206 (owner 2026-10-16): the page changed (or AI has not opened yet) since the reader last chose a
   // chat, so the next opening starts a new one. A history pick, the credits page, a send or a new chat clears it.
   let stale = true;
+  // F206 review: opening a chat from the credits page brings the desk back, a page change that must not
+  // mark that chat stale; changes within this window after an explicit open are ignored.
+  let chosenAt = 0;
+  const CHOSEN_GRACE_MS = 1500;
   let rechecking = null, recheckSequence = 0;
   let subscriptions = [];
   const listeners = new Set();
@@ -405,17 +409,17 @@ export function createResearchThread(overrides = {}) {
       emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '', attachNotice: '' }); return true;
     },
     /** F206: the desk, module or record changed; the next opening starts a new chat. */
-    contextChanged() { stale = true; },
+    contextChanged() { if (Date.now() - chosenAt > CHOSEN_GRACE_MS) stale = true; },
     /**
      * F206: on opening, a new chat replaces the last one if the page changed since the reader chose it.
-     * Never while an answer runs or a requested conversation is on its way; an untouched new chat is
-     * kept. Nothing is saved until its first turn. True when it started one.
+     * Never while an answer runs or a requested conversation is on its way, and never over an unsent
+     * new chat or typed text. Nothing is saved until its first turn. True when it started one.
      */
     freshIfStale() {
       if (!stale || !data.ready || view.locked || wanted) return false;
       stale = false;
-      const chat = view.chat;
-      if (chat?.draft && !chat.messages?.length && !chat.attachments?.length) return false;
+      // Never throw away the reader's work: an unsent new chat (whatever it holds) or typed text.
+      if (view.chat?.draft || String(data.draft || '').trim()) return false;
       emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '', attachNotice: '' });
       return true;
     },
@@ -435,7 +439,7 @@ export function createResearchThread(overrides = {}) {
      */
     async openConversation(id) {
       if (typeof id !== 'string' || !id) return false;
-      stale = false;
+      stale = false; chosenAt = Date.now();
       if (!data.ready) { wanted = id; return false; }
       if (!data.store.chats.some(c => c.id === id)) { emit({ error: 'That conversation is not in your recent chats.' }); return false; }
       if (view.locked) { emit({ error: 'Wait for the current answer to finish, then open that conversation.' }); return false; }

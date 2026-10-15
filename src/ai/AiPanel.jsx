@@ -573,7 +573,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   // as stale; opening AI then starts a new one (the thread keeps a chat the reader chose, one asked for
   // from the credits page, and any answer still running). Before the seed effect, so a record's Ask AI
   // or a drop lands in the new chat.
-  const contextKey = `${tab || ''}|${featureName || ''}|${selected ? deskRowKey(selected) : ''}`;
+  const contextKey = useMemo(() => `${tab || ''}|${featureName || ''}|${selected ? deskRowKey(selected) : ''}`, [tab, featureName, selected]);
   const seenContext = useRef(contextKey);
   useEffect(() => {
     if (seenContext.current === contextKey) return undefined;

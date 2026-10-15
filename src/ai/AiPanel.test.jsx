@@ -605,7 +605,7 @@ it('keeps the partly written answer on screen after a dropped connection', () =>
 describe('a fresh chat on opening',()=>{
  const src=require('node:fs').readFileSync(new URL('./AiPanel.jsx',import.meta.url),'utf8');
  it('marks a change of desk, module or record, and starts fresh when AI opens',()=>{
-  expect(src).toContain("const contextKey = `${tab || ''}|${featureName || ''}|${selected ? deskRowKey(selected) : ''}`;");
+  expect(src).toContain("const contextKey = useMemo(() => `${tab || ''}|${featureName || ''}|${selected ? deskRowKey(selected) : ''}`, [tab, featureName, selected]);");
   expect(src).toMatch(/if \(seenContext\.current === contextKey\) return undefined;\s*seenContext\.current = contextKey;\s*research\.actions\.contextChanged\(\);/);
   expect(src).toMatch(/if \(open && research\.ready\) research\.actions\.freshIfStale\(\);/);
  });

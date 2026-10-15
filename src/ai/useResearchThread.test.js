@@ -729,6 +729,17 @@ describe('a fresh chat by default',()=>{
   f.controller.contextChanged();await f.controller.openConversation('c1');expect(f.controller.freshIfStale()).toBe(false);
   expect(f.controller.getSnapshot().chat.id).toBe('c1');
  });
+ it('never throws away an unsent new chat with attachments, or text the reader typed',async()=>{
+  const f=await ready();f.controller.freshIfStale();
+  const draft=f.getState().chats[0];draft.attachments=[{key:'r1'}];f.setState({...f.getState()});
+  f.controller.contextChanged();expect(f.controller.freshIfStale()).toBe(false);expect(f.controller.getSnapshot().chat.attachments).toHaveLength(1);
+  await f.controller.selectChat('c1');f.controller.setDraft('half a question');f.controller.contextChanged();
+  expect(f.controller.freshIfStale()).toBe(false);expect(f.controller.getSnapshot().draft).toBe('half a question');
+ });
+ it('ignores the page change that follows opening a chat from the credits page',async()=>{
+  const f=await ready();await f.controller.openConversation('c1');f.controller.contextChanged();
+  expect(f.controller.freshIfStale()).toBe(false);expect(f.controller.getSnapshot().chat.id).toBe('c1');
+ });
  it('never replaces a chat while an answer is running',async()=>{
   const f=await ready();f.setStreams({c1:{isPending:true,isStreaming:true,status:'streaming',sources:[]}});
   expect(f.controller.freshIfStale()).toBe(false);expect(f.controller.getSnapshot().chat.id).toBe('c1');

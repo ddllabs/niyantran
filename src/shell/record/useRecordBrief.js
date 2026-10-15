@@ -69,7 +69,12 @@ export function useRecordBrief({ feed, selected, loading }) {
     })().catch((err) => {
       if (err?.name !== 'AbortError') show({ state: 'error' });
     });
-    return () => { clearTimeout(slow); ac.abort(); };
+    return () => {
+      clearTimeout(slow);
+      ac.abort();
+      // F205 review: a record visited again starts as a read, not as "writing" from its last visit.
+      setSlowKey((k) => (k === key ? '' : k));
+    };
     // The key carries the record's fingerprint; an equivalent re-created row does not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
