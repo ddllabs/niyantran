@@ -1341,14 +1341,11 @@ export async function serveFeatureFeed(searchParams) {
     exhaustive: Boolean(entry?.exhaustive) && isBills,
   };
   const primary = entry?.primaryFeedUrl || (isHttpsUrl(feat.source) ? feat.source : '');
-  // The registry's open-live fallback. NEWS_TOPIC_ROUTE means the row falls back to the module's Google
-  // News topic search, built here from its current name (newsRssUrlForFeature), so the address cannot go
-  // stale; any other value is an explicit address, used as it stands. Empty for a row that routes by
-  // status or archive.
-  const openLiveFallback =
-    entry?.openLiveFallback === NEWS_TOPIC_ROUTE
-      ? newsRssUrlForFeature(feat.htmlFeature)
-      : entry?.openLiveFallback || '';
+  // The registry's open-live fallback is NEWS_TOPIC_ROUTE or empty. The marker means the row falls back
+  // to the module's Google News topic search, built here from its current name (newsRssUrlForFeature),
+  // so the address cannot go stale. Empty for a row that routes by status or archive. Any other value is
+  // ignored (gdeltRegistry.test.js keeps the shipped register to the two).
+  const openLiveFallback = entry?.openLiveFallback === NEWS_TOPIC_ROUTE ? newsRssUrlForFeature(feat.htmlFeature) : '';
 
   // Transit: never pull full OpenSky /states/all (often times out). Use bbox air proxy.
   if (/^transit$/i.test(feat.htmlFeature || '')) {

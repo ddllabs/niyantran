@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { newsRssUrlForFeature } from '../../server/featureFeed.mjs';
 
 /**
  * F180: the source registry and the feature map name no GDELT address. Nothing asks GDELT (F169 T4);
@@ -12,7 +11,6 @@ const readJson = (name) => JSON.parse(readFileSync(new URL(`../data/${name}`, im
 const registry = readJson('source-registry.json');
 const featureMap = readJson('html-feature-map.json');
 // The one row whose fallback was never a GDELT address: its own MLA coverage search (it has its own route in the loader).
-const MLA_REPORT_CARD = 'state-mla-performanc-meter';
 
 describe('no GDELT address in the source data (F180)', () => {
   it('the source registry holds no gdeltproject address in any field', () => {
@@ -42,15 +40,9 @@ describe('no GDELT address in the source data (F180)', () => {
 });
 
 describe('the news route the registry and the feature map name is the one the loader asks (F180, F189)', () => {
-  it("a row's openLiveFallback is the news-topic marker; only the MLA report card names its own search", () => {
-    const wrong = registry
-      .filter((row) => row.openLiveFallback && row.openLiveFallback !== 'news-topic' && row.key !== MLA_REPORT_CARD)
-      .map((row) => row.key);
+  it("a row's openLiveFallback is the news-topic marker or empty, never an address", () => {
+    const wrong = registry.filter((row) => row.openLiveFallback && row.openLiveFallback !== 'news-topic').map((row) => row.key);
     expect(wrong).toEqual([]);
-    // The one explicit address is a Google News search of its own, not the generated topic search.
-    const own = registry.find((row) => row.key === MLA_REPORT_CARD);
-    expect(own.openLiveFallback).toMatch(/^https:\/\/news\.google\.com\/rss\/search/);
-    expect(own.openLiveFallback).not.toBe(newsRssUrlForFeature(own.htmlFeature));
   });
 
   it('only rows whose adapter reads the news search keep a fallback; a table, scrape or licensed row names none', () => {

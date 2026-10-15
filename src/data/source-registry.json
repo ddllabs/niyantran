@@ -1265,7 +1265,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(MLA%20OR%20%22legislative%20assembly%22%20OR%20%22Vidhan%20Sabha%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "2.0",
     "role": "primary_of_record"

@@ -131,10 +131,10 @@ describe('a registry row falls back to the topic wire by the same marker (F189)'
   const MLA_REPORT_CARD = 'state-mla-performanc-meter';
   const fallbackRows = registry.filter((r) => r.openLiveFallback);
 
-  it('every fallback is the marker, except the one row with its own explicit search address', () => {
-    const notMarker = fallbackRows.filter((r) => r.openLiveFallback !== MARKER).map((r) => r.key);
-    expect(notMarker).toEqual([MLA_REPORT_CARD]);
-    expect(fallbackRows.filter((r) => r.openLiveFallback === MARKER)).toHaveLength(117);
+  it('every fallback is the marker: no row stores an address that could go stale', () => {
+    expect(fallbackRows.filter((r) => r.openLiveFallback !== MARKER).map((r) => r.key)).toEqual([]);
+    expect(fallbackRows.filter((r) => r.openLiveFallback === MARKER)).toHaveLength(118);
+    expect(fallbackRows.map((r) => r.key)).toContain(MLA_REPORT_CARD);
   });
 
   it('renaming a module with the marker keeps its fallback (the wire follows the new name)', async () => {
