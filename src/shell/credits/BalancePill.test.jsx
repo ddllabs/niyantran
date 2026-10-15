@@ -37,15 +37,28 @@ describe('the glance popover', () => {
   });
 
   it('closes on Escape and hands focus back to the pill; other keys do nothing', () => {
-    const doc = fakeTarget();
+    const inner = {};
+    const doc = Object.assign(fakeTarget(), { activeElement: inner });
     const onClose = vi.fn();
     const focusPill = vi.fn();
-    watchPopover({ doc, root: fakeNode(), onClose, focusPill });
+    watchPopover({ doc, root: fakeNode([inner]), onClose, focusPill });
     fire(doc, 'keydown', { key: 'Enter' });
     expect(onClose).not.toHaveBeenCalled();
     fire(doc, 'keydown', { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
     expect(focusPill).toHaveBeenCalledOnce();
+  });
+
+  // F193 review: a popover opened for a refusal leaves focus in the chat box; Escape typed there
+  // closes it and keeps focus where it is.
+  it('closes on Escape without taking focus when focus was outside it', () => {
+    const doc = Object.assign(fakeTarget(), { activeElement: { tagName: 'TEXTAREA' } });
+    const onClose = vi.fn();
+    const focusPill = vi.fn();
+    watchPopover({ doc, root: fakeNode([{}]), onClose, focusPill });
+    fire(doc, 'keydown', { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(focusPill).not.toHaveBeenCalled();
   });
 
   it('closes when focus moves out of it, not when it moves within it', () => {
@@ -153,12 +166,22 @@ describe('the messages at the pill', () => {
     expect(opensFor(out, null)).toBe(false);
   });
 
-  it('marks the pill while a refusal or a warning stands', async () => {
-    const { needsAttention } = await import('./BalancePill.jsx');
-    expect(needsAttention(wallet({ balance: 1500, available: 1500 }), false, null)).toBe(false);
-    expect(needsAttention(wallet({ balance: 1500, available: 1500 }), false, { block: 'credits_unavailable' })).toBe(true);
-    expect(needsAttention(wallet({ balance: 120, available: 120 }), false, null)).toBe(true);
-    expect(needsAttention(wallet(), false, null)).toBe(true);
-    expect(needsAttention(null, true, null)).toBe(true);
+  it('opens quietly only when it was closed, so a refusal while it is open leaves the next opening normal', async () => {
+    const { noticeStep } = await import('./BalancePill.jsx');
+    const out = { block: 'credits_exhausted', held: false };
+    expect(noticeStep(null, out, false)).toEqual({ open: true, quiet: true });
+    expect(noticeStep(null, out, true)).toEqual({ open: false, quiet: false });
+    expect(noticeStep(out, { ...out }, false)).toEqual({ open: false, quiet: false });
+    expect(noticeStep(out, null, false)).toEqual({ open: false, quiet: false });
+  });
+
+  it('marks the pill while a refusal or a warning stands, red for danger and amber for a warning', async () => {
+    const { attentionTone } = await import('./BalancePill.jsx');
+    expect(attentionTone(wallet({ balance: 1500, available: 1500 }), false, null)).toBeNull();
+    expect(attentionTone(wallet({ balance: 1500, available: 1500 }), false, { block: 'credits_unavailable' })).toBe('warn');
+    expect(attentionTone(wallet({ balance: 120, available: 120 }), false, null)).toBe('warn');
+    expect(attentionTone(wallet(), false, null)).toBe('danger');
+    expect(attentionTone(wallet(), false, { block: 'credits_exhausted' })).toBe('danger');
+    expect(attentionTone(null, true, null)).toBe('warn');
   });
 });

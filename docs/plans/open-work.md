@@ -530,6 +530,10 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F194. `openCreditsUsage` has no caller left.** Found in the F193 review, 2026-10-15. F193
+  removed the chat's "Credits" link, the last caller of `openCreditsUsage` (`src/lib/creditsStore.js`);
+  the shell's `OPEN_USAGE_EVENT` listener (`src/shell/TerminalShell.jsx`) now hears nothing, and the
+  comments there still name the chat's Credits link. Remove both, or give the event a new caller.
 - [ ] **F193. Chat credit notices at the header pill; "Web sources" strip.** Owner request
   2026-10-15 (UI only). The credit line under the chat box goes; the chat's refusal (no credits,
   credits in use, could not be checked with Try again) and every warning show at the header's balance

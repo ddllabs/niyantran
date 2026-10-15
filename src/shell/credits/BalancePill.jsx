@@ -14,13 +14,19 @@ import { PeriodBar, paceSentence } from './CreditsVisuals.jsx';
 import { goAccount } from './accountRoute.js';
 
 /**
- * Closes an open popover on a press outside `root`, on Escape (focus returns to the pill), and when
- * focus moves out of `root`. Returns the cleanup.
+ * Closes an open popover on a press outside `root`, on Escape, and when focus moves out of `root`.
+ * Escape hands focus back to the pill only from inside the popover: one opened for a refusal leaves
+ * focus in the chat box, and Escape typed there keeps it there (F193 review). Returns the cleanup.
  */
 export function watchPopover({ doc, root, onClose, focusPill }) {
   const inside = (node) => Boolean(node && root && root.contains(node));
   const onDown = (e) => { if (!inside(e.target)) onClose(); };
-  const onKey = (e) => { if (e.key === 'Escape') { onClose(); focusPill(); } };
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    const within = inside(doc.activeElement);
+    onClose();
+    if (within) focusPill();
+  };
   const onFocusOut = (e) => { if (e.relatedTarget && !inside(e.relatedTarget)) onClose(); };
   doc.addEventListener('mousedown', onDown);
   doc.addEventListener('keydown', onKey);
@@ -47,6 +53,12 @@ export function opensFor(prev, next) {
   return !prev || prev.block !== next.block || prev.held !== next.held;
 }
 
+/** What a notice does to the popover: open it quietly for a new refusal when it is closed. */
+export function noticeStep(prev, next, isOpen) {
+  const open = opensFor(prev, next) && !isOpen;
+  return { open, quiet: open };
+}
+
 /** The messages at the pill: the refusal first, then the standing ones without repeating it. Held
  * credits keep the popover's own line. */
 function glanceMessages(credits, failed, notice) {
@@ -58,9 +70,11 @@ function glanceMessages(credits, failed, notice) {
   return [...(refusal ? [refusal] : []), ...statusMessages({ credits, failed, skip }).filter((m) => !skip.includes(m.key))];
 }
 
-/** True while a refusal or a warning stands, for the pill's dot. */
-export function needsAttention(credits, failed, notice) {
-  return glanceMessages(credits, failed, notice).some((m) => m.tone === 'warn' || m.tone === 'danger');
+/** 'danger' or 'warn' while a refusal or a warning stands, for the pill's dot; null otherwise. */
+export function attentionTone(credits, failed, notice) {
+  const tones = glanceMessages(credits, failed, notice).map((m) => m.tone);
+  if (tones.includes('danger')) return 'danger';
+  return tones.includes('warn') ? 'warn' : null;
 }
 
 export function GlanceMessages({ credits, failed = false, notice, onDone = () => {} }) {
@@ -164,12 +178,14 @@ export default function BalancePill({ user }) {
   const shown = useRef(creditNotice());
   // Opened for a refusal, not by the reader: focus stays in the chat box.
   const quiet = useRef(false);
+  const isOpen = useRef(open);
+  isOpen.current = open;
 
   useEffect(() => subscribeCreditNotice((next) => {
-    const fresh = opensFor(shown.current, next);
+    const step = noticeStep(shown.current, next, isOpen.current);
     shown.current = next;
     setNotice(next);
-    if (fresh) { quiet.current = true; setOpen(true); }
+    if (step.open) { quiet.current = step.quiet; setOpen(true); }
   }), []);
 
   useEffect(() => {
@@ -183,15 +199,15 @@ export default function BalancePill({ user }) {
   if (!user?.id) return null;
   const left = credits ? Math.max(Math.round(credits.balance - (credits.held || 0)), 0) : null;
   const words = state === 'unchecked' ? 'Credits unavailable' : state === 'loading' ? 'Credits' : `${formatCredits(left)} credits`;
-  const alert = needsAttention(credits, failed, notice);
-  const label = `${state === 'unchecked' ? 'Credits could not be checked.' : state === 'loading' ? 'Credits.' : `${words} left.`}${alert ? ' Needs attention.' : ''}`;
+  const tone = attentionTone(credits, failed, notice);
+  const label = `${state === 'unchecked' ? 'Credits could not be checked.' : state === 'loading' ? 'Credits.' : `${words} left.`}${tone ? ' Needs attention.' : ''}`;
   return (
     <div className={`cp-pill-wrap${open ? ' open' : ''}`} ref={wrap}>
       <button type="button" ref={button} className={`cp-pill cp-pill-${state}`} aria-haspopup="dialog" aria-expanded={open}
         aria-controls={open ? id : undefined} aria-label={`${label} Open the summary.`} onClick={() => setOpen((v) => !v)}>
         <BalanceRing credits={credits} failed={failed} />
         <span className="cp-pill-text">{words}</span>
-        {alert ? <span className="cp-pill-dot" aria-hidden="true" /> : null}
+        {tone ? <span className={`cp-pill-dot cp-dot-${tone}`} aria-hidden="true" /> : null}
       </button>
       {open ? <Glance credits={credits} failed={failed} notice={notice} id={id} onClose={() => setOpen(false)} onOpenPage={() => { setOpen(false); goAccount('credits'); }} /> : null}
     </div>

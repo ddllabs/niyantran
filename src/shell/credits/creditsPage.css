@@ -195,10 +195,12 @@
 .cp-pill-empty, .cp-pill-unchecked { border-color: color-mix(in srgb, #c81322 45%, var(--line)); }
 /* F193: a dot on the ring while a refusal or a warning stands; its words are in the popover. */
 .cp-pill { position: relative; }
-.cp-pill-dot { position: absolute; top: 4px; left: 21px; width: 7px; height: 7px; border-radius: 50%; background: #c81322; box-shadow: 0 0 0 2px var(--panel); }
-.cp-pill-low .cp-pill-dot { background: #b45309; }
-.theme-dark .cp-pill-dot { background: #ff7a85; }
-.theme-dark .cp-pill-low .cp-pill-dot { background: #f0a54a; }
+.cp-pill-dot { position: absolute; top: 4px; left: 21px; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 2px var(--panel); }
+.cp-pill-wrap.open .cp-pill-dot { box-shadow: 0 0 0 2px var(--accent-soft); }
+.cp-dot-danger { background: #c81322; }
+.cp-dot-warn { background: #b45309; }
+.theme-dark .cp-dot-danger { background: #ff7a85; }
+.theme-dark .cp-dot-warn { background: #f0a54a; }
 /* The messages lead the popover; in 320 px the actions wrap under the words. */
 .cp-pop-status { margin: 0 0 14px; }
 .cp-pop-status .cp-status-msg { flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; font-size: 12.5px; }

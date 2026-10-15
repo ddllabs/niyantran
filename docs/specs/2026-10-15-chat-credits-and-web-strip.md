@@ -22,8 +22,8 @@
 
 ## Expected outcome
 
-- **No credit line under the chat box.** `CreditBalance`'s component is removed; its exports
-  (`useCredits`, `openPlanBilling`, `OPEN_BILLING_EVENT`, `watchCredits`) stay.
+- **No credit line under the chat box.** `CreditBalance`'s component is removed, with `useCredits`
+  and `watchCredits`, which only it used; `openPlanBilling` and `OPEN_BILLING_EVENT` stay.
 - **The chat panel announces its refusal** through a small store (`chatCreditNotice.js`):
   `{ block, held, retry }`, cleared when the refusal clears or the panel unmounts.
 - **The header pill carries every message.** The glance popover starts with the messages:
@@ -33,7 +33,9 @@
   - then F184's `statusMessages` (overdrawn, empty, low, held, renews), without repeating the
     refusal.
 - **A refusal opens the popover by itself,** without taking focus from the chat box, so the reader
-  sees why the answer did not start. The pill shows a dot while a warning or refusal stands.
+  sees why the answer did not start; Escape typed in the chat box closes it without moving focus to
+  the pill (the chat box's own Escape, which leaves the box, is unchanged).
+  The pill shows a dot while a warning or refusal stands: red for danger, amber for a warning.
 - **The ring** stays as built: the share of the period's credits left, amber when low, red when none.
 - **The strip:** icon pill (no overlap), "Web sources", "5 pages", caret; no outer border, a soft
   background on hover. While searching it still says "Searching the web…" and counts pages. The
@@ -50,3 +52,18 @@
 ## Exclusions
 
 No backend, prompt or Edge Function change. No change to how credits are read or charged.
+
+## Review (2026-10-15)
+
+Independent `agent-skills:code-reviewer` on `6bb9303`: ready with one fix; no refusal path is lost.
+Fixed: Escape from the chat box no longer moves focus to the pill (`watchPopover` focuses the pill
+only from inside the popover); the quiet flag is set only when the popover was closed (`noticeStep`);
+the dot takes the tone of the worst message; its ring matches the open pill. Left as found: the
+"could not be checked" refusal stands until the next send (as the old line did); `openCreditsUsage`
+lost its last caller (open work F194).
+
+Browser check after the fixes (signed-in local preview, port 5182): the strip shows four icons 23 px
+apart in their pill, "Web sources", "5 pages", no border; the list reads "1 search · 5 pages · 2 cited
+in the answer"; no credit line under the chat box; a simulated "could not be checked" refusal opened
+the popover with focus left in the chat box, an amber dot, and Try again called the retry and closed
+it; Escape in the chat box closed it and focus did not go to the pill.
