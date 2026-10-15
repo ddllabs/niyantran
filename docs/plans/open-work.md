@@ -669,7 +669,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     its error state. `npm run check:bundle` now fails when the pack is not in its own chunk or a
     chunk imports it statically; tests in `src/lib/archiveFeedGeoLazy.test.js`. The server copy
     (`server/featureFeed.mjs`) is unchanged.
-- [ ] **F159. Module pages show developer wording when live data is slow or fails.** Owner,
+- [x] **F159. Module pages show developer wording when live data is slow or fails.** Owner,
   2026-10-14: "On a couple of modules in national, it's showing that the 4-second limit has passed
   ... This kind of error is not very user-friendly." Also an error card "Something went wrong ·
   feature-feed HTTP 404 · Retry" (Policy Pipeline Tracker, local server stopped). Cause: F154's
@@ -689,6 +689,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     records. Tests: `moduleLiveRetry.test.js`, `deskViewLiveWait.test.jsx`,
     `railLiveWait.test.jsx`, `deskLandingError.test.jsx`, additions to `featureFeed.test.js` and
     `featureFeedTimeLimit.test.js`, each shown to fail without its code.
+  *Done 2026-10-15: owner checked on production; an independent review then found the stored-records retry answered from the edge cache and the old wording in two tooltips. Fixed in `4cb1ade`: answers served from stored records stay 5 s at the edge with no stale window (the retry 8 s later reaches the server); a failed live attempt is marked `liveFailed` and not retried; the public `source.diagnostic` holds codes only (`timeout`, `upstream-error`, `no-stored-records`, `backup-error`), the raw reason goes to the server log; Morning Brief and Statement Tracker log the diagnostic instead of a tooltip; the error card no longer blames the reader's connection for a server error. Checks: new tests red then green, lint, build, router import, 5,451 Vitest tests. Not changed: `shortFail` still passes unrecognised text into status rows for all modules.*
 - [ ] **F169. Module data repair.** Owner 2026-10-14, after Cabinet Decisions showed one listing:
   "Can you do a complete module-by-module analysis?" … "what do you propose as a fix? … document it".
   [Audit](../research/2026-10-14-module-audit/README.md) of 123 modules (44 live, 10 live but over
