@@ -111,6 +111,7 @@ export default function DeskView({
   const [mlaPick, setMlaPick] = useState('');
   const loadedFor = useRef('');
   const mounted = useRef(true);
+  const lastMlaState = useRef('');
   const colsKey = featureName ? `niy-cols:${tier || ''}:${featureName}` : '';
   const filtersKey = featureName ? `niy-filters:${tier || ''}:${featureName}` : '';
   const questionsDesk = isParliamentaryQuestions(featureName);
@@ -182,6 +183,14 @@ export default function DeskView({
     }
     if (pagedMode) return undefined;
     const params = mlaState ? { state: mlaState } : undefined;
+    // F190: the other state's list must not stay on screen or in the shell (an AI attachment, the side panel)
+    // while this one loads.
+    if (lastMlaState.current !== mlaState) {
+      lastMlaState.current = mlaState;
+      setFeed(null);
+      onFeed(null);
+      onSelect(null);
+    }
     const ac = new AbortController();
     setLoading(true);
     onLoading?.(true);
@@ -709,7 +718,7 @@ export default function DeskView({
               disabled={loading}
             />
           )}
-          <span className="muted">{coverageLabel}</span>
+          <span className="muted" aria-live={mlaDesk ? 'polite' : undefined}>{coverageLabel}</span>
         </div>
         {mlaDesk ? <MlaStatePicker value={mlaState} onChange={setMlaPick} /> : null}
         {!shellState && liveRefreshNote(feed) ? (

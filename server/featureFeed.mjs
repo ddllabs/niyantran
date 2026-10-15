@@ -73,7 +73,7 @@ import * as financeLive from './financeApi.mjs';
 import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
-import { isStoreServed } from './feedSchedule.mjs';
+import { isStoreServed, mlaStateVariant } from './feedSchedule.mjs';
 import { serveFromStore } from './feedServe.mjs';
 import * as entertainmentLive from './entertainmentApi.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -3031,18 +3031,35 @@ export async function serveFeatureFeed(searchParams) {
   if (/^mla directory$/i.test(feat.htmlFeature || '')) {
     const MLA_WD = indiaMlaWikidataUrl();
     const live = await tryUrls([MLA_WD, primary].filter(Boolean));
-    if (live.rows.length) {
+    // F190: the source lists every state; a request that names one (the page's State picker) gets that
+    // state's members only, and a plain status row when the source has none of them.
+    const wantState = mlaStateVariant(searchParams.get('state'));
+    const members = wantState ? live.rows.filter((r) => mlaStateVariant(r.state || r.stateLabel) === wantState) : live.rows;
+    if (wantState && !members.length) {
+      const [offline] = statusRow({ adapter: 'api', url: MLA_WD, reason: live.error || `Wikidata SPARQL returned no legislators of ${wantState}`, featureName: feat.htmlFeature });
       return envelope({
         tier,
         feature: feat,
-        rows: capRows(live.rows, false),
+        rows: [{ ...offline, title: `${wantState}\u2019s list isn\u2019t available right now`, detail: `The list of ${wantState} MLAs is not available right now. No records were invented.` }],
+        adapter: 'api',
+        links: [MLA_WD],
+        coverage,
+        fallback: false,
+        note: 'MLA Directory uses Wikidata SPARQL (Indian jurisdictions). No rows were invented.',
+      });
+    }
+    if (members.length) {
+      return envelope({
+        tier,
+        feature: feat,
+        rows: capRows(members, false),
         adapter: 'api',
         links: [MLA_WD, 'https://query.wikidata.org/'],
         coverage: { from: '', through: 'present', exhaustive: false },
         fallback: false,
         note:
           'Wikidata live directory of people holding Indian state legislative positions (jurisdiction in India). Not a complete electoral roll.',
-        meta: { heading: 'MLA Directory', items: live.rows.length, source: 'wikidata' },
+        meta: { heading: 'MLA Directory', items: members.length, source: 'wikidata' },
       });
     }
     return envelope({
@@ -3435,6 +3452,8 @@ function applyBackupFallback(body, searchParams) {
     '';
   const tier = body?.tier || searchParams.get('tier') || '';
   if (!featureName) return body;
+  // F190: the backup pack lists every state (capped at MAX_ROWS), so a state's request keeps the answer it has.
+  if (/^mla directory$/i.test(featureName.trim()) && mlaStateVariant(searchParams.get('state'))) return body;
   let pack;
   try {
     pack = loadBackupForFeature(featureName, tier, { cap: MAX_ROWS });
@@ -3480,13 +3499,15 @@ export const LIVE_TIME_LIMIT_MS = 4000;
 const ARCHIVE_TIME_LIMIT_MS = 3000;
 // A live answer that arrived after its request gave up is served to later requests this long.
 const LATE_LIVE_MS = 10 * 60_000;
-// Per instance; keyed by the inputs serveFeatureFeed reads (tier, feature and the Statement Tracker's leader).
+// Per instance; keyed by the inputs serveFeatureFeed reads (tier, feature, the Statement Tracker's leader and MLA Directory's state).
 const liveInFlight = new Map();
 const lateLive = new Map();
 
 function liveKey(searchParams) {
   const person = searchParams.get('person');
-  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}`;
+  // F190: MLA Directory's live branch keeps one state's members, so a state's answer is its own.
+  const state = mlaStateVariant(searchParams.get('state'));
+  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}${state ? `\u0000${state}` : ''}`;
 }
 
 function settleWithin(promise, ms) {

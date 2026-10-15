@@ -7434,3 +7434,7 @@ a.ai-web-entry:focus-visible { outline: 2px solid var(--accent); outline-offset:
   font-size: 12px;
 }
 .mla-state select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* A touch screen: a 44 px target, and 16 px text so iOS does not zoom the page on focus */
+@media (pointer: coarse) {
+  .mla-state select { min-height: 44px; font-size: 16px; }
+}
