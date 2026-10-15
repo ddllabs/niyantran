@@ -2254,6 +2254,8 @@ Deno.test('streaming: a promoted research answer reaches the reader in many chun
   assertEquals(timing.rounds, 2);
   assert(timing.first_model_ms >= 0 && timing.first_answer_ms >= timing.first_model_ms);
   assert(provider.seen.length === 2 && provider.seen.every((r) => r.session_id === conversationOf(got)));
+  // F41 option 1 (owner, 2026-10-15): every call asks OpenRouter for the lowest-latency provider.
+  assert(provider.seen.every((r) => r.providerSort === 'latency'), 'latency routing on every call');
 });
 
 Deno.test('streaming: a draft that turns into a search is reset, and only the final answer is kept', async () => {

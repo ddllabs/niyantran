@@ -1155,6 +1155,10 @@ async function runTurnBody(
             model,
             signal,
             session_id: conversation.id,
+            // F41 option 1 (owner, 2026-10-15): the lowest-latency provider. Measured twice: briefs
+            // finish in about 20 s instead of 37 s and cost a third less, citing about one page fewer
+            // (docs/research/2026-10-02-turn-cost-benchmark.md).
+            providerSort: 'latency',
             ...(effortOf(t, model) ? { reasoning: { effort: effortOf(t, model)! } } : {}),
             ...(schemaDropped ? { response_format: undefined } : {}),
           },
