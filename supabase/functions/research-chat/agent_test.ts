@@ -4,9 +4,10 @@ import { HttpError } from '../_shared/http.ts';
 import { createHandleAssigner } from '../_shared/handles.ts';
 import { type ModelEvent, ProviderError, type StreamRequest, streamChat } from '../_shared/openrouterStream.ts';
 import type { Chunk } from '../_shared/retrieval.ts';
-import type { DeskRow } from '../_shared/tools/searchDeskRows.ts';
+import type { DeskRow, SearchDeskRowsArgs } from '../_shared/tools/searchDeskRows.ts';
 import { WEB_SEARCHES_PER_TURN, type WebPage, webEvidenceBlock, webSearchTool } from '../_shared/webSearch.ts';
 import {
+  ANSWER_RESERVE_MS,
   foundOf,
   type AgentDeps,
   type AgentEvent,
@@ -1917,4 +1918,158 @@ Deno.test('live pages: a call not offered the tool forwards nothing, and its pro
   assertEquals(f.events.filter((e) => 'finish' in e).map((e) => (e as { finish: ModelEvent }).finish.type), ['finish', 'finish', 'finish']);
   assertEquals(result.searches, 1, 'the tool call after the progress still ran');
   assertEquals(result.webPages, []);
+});
+
+// ---- F197 (D3): a year question reaches the desk search as a date range. ----
+
+const rowsCall = (args: Record<string, unknown>): ModelEvent => ({ type: 'tool-call', id: 'rows', name: 'search_desk_rows', args: JSON.stringify(args) });
+
+Deno.test('F197: date_from and date_to reach the desk search; a year sent as a number is read as one', async () => {
+  const seen: SearchDeskRowsArgs[] = [];
+  const searchDeskRows = (a: SearchDeskRowsArgs) => {
+    seen.push(a);
+    return Promise.resolve({ rows: [row()], total: 23, snapshot_at: '2026-10-01' });
+  };
+  const asked = { tier: 'national', feature: 'Bill Passage Probability Index', filters: { house: 'Lok Sabha' }, date_from: '2026', date_to: '2026' };
+  const f = fake([[rowsCall(asked), finish('tool_calls')], ready(), answer()], { searchDeskRows });
+  await runAgent(f.deps, input);
+  const g = fake([[rowsCall({ ...asked, date_from: 2026, date_to: 2026 }), finish('tool_calls')], ready(), answer()], { searchDeskRows });
+  await runAgent(g.deps, input);
+  assertEquals(seen, [asked, asked]);
+  // Nothing retrieved, so the no-search push-back takes one more call before the answer.
+  const h = fake([[rowsCall({ ...asked, date_from: { year: 2026 } }), finish('tool_calls')], ready(), ready(), answer()], { searchDeskRows });
+  await runAgent(h.deps, input);
+  assertEquals(seen.length, 2, 'an object is not a date');
+  assertEquals(h.requests[1].messages.find((m) => m.role === 'tool')?.content, 'INVALID_TOOL_ARGUMENTS: provide arguments matching the tool schema.');
+});
+
+// ---- F199 (D3): a turn finishes inside its time limit. ----
+
+type Step = ModelEvent[] | { hang: ModelEvent[] } | { slow: ModelEvent[]; ms: number; rest: ModelEvent[] };
+/** fake(), with calls that hang until aborted, or pause part-way, on the real clock. */
+function timedFake(steps: Step[], over: Partial<AgentDeps> = {}) {
+  const f = fake([], over);
+  f.deps.model = async function* (req) {
+    f.requests.push(structuredClone({ ...req, signal: undefined }));
+    const step = steps[f.requests.length - 1];
+    if (!step) throw new Error('Unexpected model call');
+    if (Array.isArray(step)) return yield* step;
+    const aborted = (signal?: AbortSignal) =>
+      new Promise<never>((_, reject) => {
+        // A call nobody cuts fails the test instead of hanging it.
+        const timer = setTimeout(() => reject(new Error('the call was never cut')), 2_000);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+        }, { once: true });
+      });
+    if ('hang' in step) {
+      yield* step.hang;
+      await aborted(req.signal);
+    }
+    if ('slow' in step) {
+      yield* step.slow;
+      await new Promise((resolve) => setTimeout(resolve, step.ms));
+      req.signal?.throwIfAborted();
+      yield* step.rest;
+    }
+  };
+  return f;
+}
+/** timeLeft for a turn that reaches the answer reserve `leadMs` from now. */
+function reserveIn(leadMs: number): () => number {
+  const start = performance.now();
+  return () => ANSWER_RESERVE_MS + leadMs - (performance.now() - start);
+}
+const HIGH = { model: 'requested-model', reasoning: { effort: 'high' } };
+const LOW = { effort: 'low' };
+const ANSWER_TEXT = (answer()[0] as { text: string }).text;
+const outOfTime = (events: AgentEvent[]) => events.flatMap((e) => ('outOfTime' in e ? [e.outOfTime] : []));
+
+Deno.test('F199: a turn already inside the answer reserve stops researching and answers at the lower effort', async () => {
+  const f = timedFake([answer()], {
+    request: HIGH,
+    timeLeft: () => ANSWER_RESERVE_MS - 1,
+    lateReasoning: LOW,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, { ...input, presearch: 'q' });
+  assertEquals(f.requests.length, 1);
+  assertEquals(f.requests[0].tool_choice, 'none', 'the first call is the answer');
+  assertEquals(f.requests[0].reasoning, LOW);
+  assert(f.requests[0].messages.some((m) => m.role === 'tool' && m.content?.includes('Evidence a')), 'what was retrieved is answered from');
+  assertEquals(result.text, ANSWER_TEXT);
+  assertEquals(outOfTime(f.events), [{ phase: 'research', cut: false }]);
+  // null means "send no reasoning" for a model that has no lower effort.
+  const none = timedFake([answer()], { request: HIGH, timeLeft: () => 0, lateReasoning: null });
+  await runAgent(none.deps, { ...input, conversational: true });
+  assertEquals(none.requests[0].reasoning, undefined);
+});
+
+Deno.test('F199: a research call still thinking at the reserve line is cut, and the answer is written from what was retrieved', async () => {
+  const f = timedFake([{ hang: [] }, answer()], {
+    request: HIGH,
+    timeLeft: reserveIn(60),
+    lateReasoning: LOW,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, { ...input, presearch: 'q' });
+  assertEquals(f.requests.length, 2);
+  assertEquals([f.requests[0].tool_choice, f.requests[0].reasoning], [undefined, { effort: 'high' }]);
+  assertEquals([f.requests[1].tool_choice, f.requests[1].reasoning], ['none', LOW]);
+  assert(f.requests[1].messages.some((m) => m.role === 'tool' && m.content?.includes('Evidence a')));
+  assertEquals(result.text, ANSWER_TEXT);
+  assertEquals(result.finish, 'stop');
+  assertEquals(outOfTime(f.events), [{ phase: 'research', cut: true }]);
+});
+
+Deno.test('F199: an answer call that has written nothing by the reserve line is cut and rewritten at the lower effort', async () => {
+  const f = timedFake([[docCall(), finish('tool_calls')], ready(), { hang: [] }, answer()], {
+    request: HIGH,
+    timeLeft: reserveIn(80),
+    lateReasoning: LOW,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.map((r) => r.tool_choice ?? null), [null, null, 'none', 'none']);
+  assertEquals(f.requests[2].reasoning, { effort: 'high' });
+  assertEquals(f.requests[3].reasoning, LOW);
+  assertEquals(result.text, ANSWER_TEXT);
+  assertEquals(result.finish, 'stop');
+  assertEquals(outOfTime(f.events), [{ phase: 'answer', cut: true }]);
+});
+
+Deno.test('F199: an answer already streaming at the reserve line is left to finish', async () => {
+  const [head, tail] = [ANSWER_TEXT.slice(0, 20), ANSWER_TEXT.slice(20)];
+  const f = timedFake([[docCall(), finish('tool_calls')], ready(), { slow: [{ type: 'text', text: head }], ms: 120, rest: [{ type: 'text', text: tail }, finish()] }], {
+    request: HIGH,
+    timeLeft: reserveIn(40),
+    lateReasoning: LOW,
+    searchDocuments: () => Promise.resolve([chunk('a')]),
+  });
+  const result = await runAgent(f.deps, input);
+  assertEquals(f.requests.length, 3);
+  assertEquals(result.text, ANSWER_TEXT);
+  assertEquals(outOfTime(f.events), []);
+});
+
+// ---- F200 (D3): a greeting gets a greeting. ----
+
+Deno.test('F200: small talk never searches, so a greeting cannot widen the scope or bring back passages', async () => {
+  let searched = 0;
+  const greeting = '{"answer":"Hello. What would you like to check in the record?","sources":[],"follow_up_questions":[]}';
+  const f = fake([[docCall(), finish('tool_calls')], answer(greeting)], {
+    searchDocuments: () => {
+      searched++;
+      return Promise.resolve([chunk('a')]);
+    },
+  });
+  const result = await runAgent(f.deps, { ...input, focus: 'attached', conversational: true });
+  assertEquals(searched, 0);
+  assertEquals(result.searches, 0);
+  assertEquals(result.widened, null);
+  assertEquals(f.events.filter((e) => 'widened' in e), []);
+  assertEquals(result.chunks, []);
+  assert(f.requests[1].messages.find((m) => m.role === 'tool')?.content?.startsWith('SMALL_TALK'));
+  assertEquals(result.text, greeting);
 });

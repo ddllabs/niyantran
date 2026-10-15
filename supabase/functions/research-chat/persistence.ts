@@ -132,6 +132,8 @@ export interface TurnExecution {
   signal: AbortSignal;
   /** Visible partial output only; do not checkpoint hidden provider reasoning. */
   checkpoint(value: Partial<TerminalResult>): void;
+  /** Milliseconds until this execution is aborted as interrupted (F199). */
+  timeLeft?(): number;
 }
 /** Own one bounded execution. Only this wrapper finalizes: a provider ignoring
  * abort cannot later overwrite the interrupted/error result. D4 owns transport. */
@@ -163,6 +165,9 @@ export async function executeClaimedTurn(input: {
     Date.parse(claim.assistant.execution_expires_at) - Date.parse(claim.server_now),
   );
   if (!Number.isFinite(remaining)) throw new Error('Invalid turn deadline');
+  // The execution is aborted at remaining - 5 s from here; the executor can ask how long is left.
+  const startedAt = performance.now();
+  const timeLeft = () => remaining - 5_000 - (performance.now() - startedAt);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let interrupted = false;
   const deadline = new Promise<never>((_, reject) => {
@@ -186,6 +191,7 @@ export async function executeClaimedTurn(input: {
           checkpoint: (value) => {
             if (active) partial = { ...partial, ...value };
           },
+          timeLeft,
         })
       ),
       deadline,

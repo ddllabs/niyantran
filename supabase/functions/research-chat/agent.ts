@@ -25,6 +25,16 @@ import { ANSWER_JSON_SCHEMA } from './prompt.ts';
 import type { Focus } from './validate.ts';
 
 export const BUDGET = { maxSteps: 12, maxSearches: 10, maxContinuations: 2 } as const;
+/**
+ * F199 (D3, 2026-10-15): the time a turn keeps for its final answer call. Gemini Flash at high
+ * reasoning thought for 108.7 s over forty passages and was cut off by the turn deadline with
+ * nothing written, so the reader got an empty "interrupted" message. With AgentDeps.timeLeft set,
+ * research stops once only this much is left, and a call that has written nothing by then - a
+ * research call, or an answer still reasoning - is cut so the answer can be written in what remains,
+ * at AgentDeps.lateReasoning. A brief at low effort takes about 20 s (research/2026-10-02-turn-cost-
+ * benchmark.md), so this leaves room for one and its prompt.
+ */
+export const ANSWER_RESERVE_MS = 45_000;
 /** The pre-search query is the reader's question, trimmed. */
 export const PRESEARCH_MAX_CHARS = 300;
 /** answer-speed amendment 1: opens the pre-search's reply, outside the untrusted evidence. The
@@ -149,6 +159,9 @@ export type AgentEvent =
   /** While a research call offered the web tool runs: pages its searches returned that the call
    * had not yet reported. Display only: never carried forward, counted or charged (spec §2). */
   | { webProgress: { pages: WebPage[] } }
+  /** F199: the turn reached ANSWER_RESERVE_MS. `cut`: a call that had written nothing was aborted;
+   * otherwise research ended before another call started. Either way the answer comes next. */
+  | { outOfTime: { phase: 'research' | 'answer'; cut: boolean } }
   | { finish: Extract<ModelEvent, { type: 'finish' }> };
 export interface AgentDeps {
   /** The agent alone decides the tools, the server tools and the tool choice of each call. */
@@ -178,6 +191,11 @@ export interface AgentDeps {
    * Reuse it (and its budget/handle assigner) when replacing provider deps. */
   checkpoint?: AgentCheckpoint;
   now?: () => number;
+  /** F199: milliseconds left before the turn is cut off. Unset: no time budget. */
+  timeLeft?: () => number;
+  /** F199: the reasoning of a call that starts with ANSWER_RESERVE_MS or less left. Unset keeps
+   * request.reasoning; null sends none. */
+  lateReasoning?: { effort: string } | null;
 }
 export interface AgentResult {
   text: string;
@@ -393,6 +411,8 @@ const CONTINUE =
 // answer at all would be worse than an answer whose thinness the reader can see.
 const SEARCH_FIRST =
   'You have not searched, so you have no evidence and cannot yet know what the record holds. Call search_documents or search_desk_rows now, with a query phrased as the document would phrase it. Do not answer, and do not say "Not in record.", until you have looked.';
+const SMALL_TALK_NO_SEARCH =
+  'SMALL_TALK: this message is a greeting or small talk, so no search was run. Reply in one or two plain sentences and offer to help with the record.';
 const ANSWER_NOW =
   'Research is complete. Write the final answer as one new JSON object using only the user context and retrieved evidence. Earlier assistant drafts are not evidence. Do not call tools. Mark missing evidence as Not in record.';
 
@@ -452,12 +472,23 @@ function rowArguments(args: Record<string, unknown>): SearchDeskRowsArgs | null 
     (!args.filters || typeof args.filters !== 'object' || Array.isArray(args.filters) ||
       Object.values(args.filters).some((v) => typeof v !== 'string'))
   ) return null;
+  // F197: a date bound is a string; a bare year sent as a number is read as that year. The tool
+  // validates the form and answers a bad one with an error the model sees.
+  const dates: Record<string, string> = {};
+  for (const key of ['date_from', 'date_to'] as const) {
+    const v = args[key];
+    if (v === undefined) continue;
+    if (typeof v === 'number' && Number.isInteger(v)) dates[key] = String(v);
+    else if (typeof v === 'string') dates[key] = v;
+    else return null;
+  }
   return {
     tier: args.tier,
     ...(args.feature !== undefined ? { feature: args.feature as string } : {}),
     ...(args.query !== undefined ? { query: args.query as string } : {}),
     ...(args.limit !== undefined ? { limit: args.limit as number } : {}),
     ...(args.filters !== undefined ? { filters: args.filters as Record<string, string> } : {}),
+    ...dates,
   };
 }
 
@@ -548,6 +579,10 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
     if (call.name !== 'search_documents' && call.name !== 'search_desk_rows') {
       return 'UNKNOWN_TOOL: use search_documents or search_desk_rows.';
     }
+    // F200 (D3): small talk asks nothing of the record, so it searches nothing. A greeting that
+    // searched anyway came back as a full brief opening "Search widened.": the search left an
+    // attached scope nobody had asked to search, and its forty passages became the answer.
+    if (a.conversational) return SMALL_TALK_NO_SEARCH;
     const parsed = parseArguments(call.args);
     const args = parsed && (call.name === 'search_documents' ? documentArguments(parsed) : rowArguments(parsed));
     if (!args) return 'INVALID_TOOL_ARGUMENTS: provide arguments matching the tool schema.';
@@ -681,6 +716,14 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       state.phase === 'research' &&
       (budget.searches >= BUDGET.maxSearches || budget.modelAttempts >= BUDGET.maxSteps - 1)
     ) beginAnswer();
+    // F199: inside the answer reserve, research is over and the answer is written from what was
+    // retrieved, at the lower effort, rather than starting a call that cannot finish.
+    const left = deps.timeLeft ? deps.timeLeft() : Infinity;
+    const late = left <= ANSWER_RESERVE_MS;
+    if (late && state.phase === 'research') {
+      deps.onEvent({ outOfTime: { phase: 'research', cut: false } });
+      beginAnswer();
+    }
     if (state.resumeAnswer) {
       if (budget.continuations >= BUDGET.maxContinuations) {
         state.finish = 'length';
@@ -724,6 +767,26 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       ...(webTool ? { serverTools: [webTool] } : {}),
       ...(phase === 'answer' ? { tool_choice: 'none' as const } : {}),
     };
+    if (late && deps.lateReasoning !== undefined) {
+      if (deps.lateReasoning) request.reasoning = deps.lateReasoning;
+      else delete request.reasoning;
+    }
+    // F199: a call started before the reserve that has written nothing - no text, no tool call -
+    // when the reserve arrives is cut, so the answer still has the reserve to be written in. One
+    // that is writing is left to finish: text in hand beats a restart, and the turn deadline still
+    // bounds it (whatever it streamed is saved).
+    const cutoff = new AbortController();
+    let cut = false;
+    const watchdog = !late && Number.isFinite(left)
+      ? setTimeout(() => {
+        if (partial || calls.length) return;
+        cut = true;
+        cutoff.abort(new DOMException('The turn reached its answer reserve', 'TimeoutError'));
+      }, Math.max(0, left - ANSWER_RESERVE_MS))
+      : undefined;
+    if (watchdog !== undefined) {
+      request.signal = deps.request.signal ? AbortSignal.any([deps.request.signal, cutoff.signal]) : cutoff.signal;
+    }
     const started = now();
     try {
       for await (const event of deps.model(request)) {
@@ -762,6 +825,15 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       checkAbort();
       if (!ended) throw new Error('Model stream ended without finish');
     } catch (error) {
+      clearTimeout(watchdog);
+      if (cut && !deps.request.signal?.aborted) {
+        // F199: cut at the reserve with nothing written. A research call's half-thought is
+        // dropped and the answer starts now; a cut answer call runs again, late, at lateReasoning.
+        if (webTool) state.webSearches += 1;
+        deps.onEvent({ outOfTime: { phase, cut: true } });
+        if (phase === 'research') beginAnswer();
+        continue;
+      }
       // Incomplete research calls are not executable. Answer bytes already
       // streamed are kept and retried only as a bounded same-model continuation.
       if (partial) messages.push({ role: 'assistant', content: partial });
@@ -773,6 +845,7 @@ export async function runAgent(deps: AgentDeps, a: AgentInput): Promise<AgentRes
       retract('error');
       throw error;
     }
+    clearTimeout(watchdog);
     state.finish = ended.reason;
     // web-search spec §2, §5: the provider's count is the count. Without one, pages returned
     // are a floor of one search, never a guess upward. The turn keeps one entry per URL; what

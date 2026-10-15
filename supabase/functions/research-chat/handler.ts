@@ -36,6 +36,7 @@ import {
   type DocumentSearchArgs,
   rowSourceKey,
   runAgent,
+  TOOL_REPLY_CHARS,
   type TraceStep,
   type WidenedScope,
 } from './agent.ts';
@@ -962,7 +963,9 @@ async function runTurnBody(
   // follow-ups here; withholding the attachments removes what the model was
   // summarising instead of greeting.
   const attachments: RenderedAttachment[] = conversational ? [] : request.attachments.map(promptAttachment);
-  const userTurn = buildUserTurn(request.message, attachments);
+  // F200: and it is told that it is small talk, so no answer style or persona format turns it into
+  // a brief; the agent runs no search for it (agent.ts), so nothing can widen either.
+  const userTurn = buildUserTurn(request.message, attachments, undefined, { smallTalk: conversational });
   const documentKeys = documentKeysOf(request);
   const documentIds = documentIdsOf(request);
   const scopedDocumentIds = await deps.db.resolveDocumentIds({ keys: documentKeys, ids: documentIds });
@@ -1015,6 +1018,9 @@ async function runTurnBody(
       // each of its six rounds, which is why every label is said once (F46).
       if (e.attempt.phase === 'research') stage(researchRounds++ === 0 ? READING_QUESTION : READING_RESULTS);
       else stage(WRITING);
+    } else if ('outOfTime' in e) {
+      // F199: how often the reserve decides a turn is a question only the logs can answer.
+      log('research.out_of_time', { phase: e.outOfTime.phase, cut: e.outOfTime.cut, rounds });
     } else if ('promoted' in e) {
       // The research reply is the answer, so it is the call the answer trace
       // and any later rejection belong to.
@@ -1184,6 +1190,13 @@ async function runTurnBody(
           checkpoint,
           onEvent,
           now,
+          // F199: the answer keeps ANSWER_RESERVE_MS of the execution deadline, and a call that
+          // starts inside it runs at the model's low effort. At high effort a document search
+          // hands the answer one reply budget of passages, not forty: Gemini Flash at high read
+          // forty and was still thinking when the deadline cut it at 108.7 s.
+          ...(context.timeLeft ? { timeLeft: context.timeLeft } : {}),
+          ...lateReasoningOf(t, model),
+          ...(HIGH_EFFORTS.has(effortOf(t, model) ?? '') ? { toolReplyChars: TOOL_REPLY_CHARS } : {}),
         },
         input,
       );
@@ -1429,6 +1442,19 @@ function effortOf(t: TurnInput, modelId: string): string | null {
   if (!t.effort) return null;
   const model = t.models.find((m) => m.model_id === modelId);
   return model?.efforts.includes(t.effort) ? t.effort : null;
+}
+
+/** F199: the efforts whose turns get a bounded passage budget. */
+const HIGH_EFFORTS = new Set(['high', 'xhigh', 'max']);
+/** F199: the efforts a late call may drop to, lowest first. A turn already at one of them, or without
+ * reasoning, keeps what it has; a model that accepts neither keeps the turn's effort too. */
+const LATE_EFFORTS = ['minimal', 'low'];
+function lateReasoningOf(t: TurnInput, modelId: string): { lateReasoning?: { effort: string } } {
+  const effort = effortOf(t, modelId);
+  if (!effort || LATE_EFFORTS.includes(effort)) return {};
+  const efforts = t.models.find((m) => m.model_id === modelId)?.efforts ?? [];
+  const late = [...LATE_EFFORTS].reverse().find((e) => efforts.includes(e));
+  return late ? { lateReasoning: { effort: late } } : {};
 }
 
 export interface Timing {

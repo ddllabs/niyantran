@@ -15,6 +15,8 @@ import {
   type UserDb,
   windowMessages,
 } from './handler.ts';
+import { ANSWER_RESERVE_MS, TOOL_REPLY_CHARS } from './agent.ts';
+import { SMALL_TALK } from './prompt.ts';
 import type { ClaimedTurn, TurnState, TurnStore } from './persistence.ts';
 import type { ModelCallRow, TurnTraceRow } from './telemetry.ts';
 
@@ -3307,4 +3309,107 @@ Deno.test('plans: a Plus caller\'s chain is unchanged: requested, default, cheap
   ]);
   assertEquals(provider.seen.slice(0, 3).map((r) => r.model), ['deepseek/deepseek-v4-flash', 'anthropic/claude-sonnet-5', 'aaa/paid-cheap']);
   assertEquals(rec.messages[0].content, 'Third time.');
+});
+
+// ---- F199 (D3, 2026-10-15): high reasoning on a document question outran the turn deadline. ----
+
+/** fakeDeps whose claim leaves `ms` before the turn deadline (the executor keeps 5 s of it). */
+function withRemaining(deps: HandlerDeps, ms: number): HandlerDeps {
+  const claim = deps.persistence.claim;
+  deps.persistence.claim = async (input) => {
+    const result = await claim(input);
+    return result.kind === 'claimed' ? { ...result, remaining_ms: ms } : result;
+  };
+  return deps;
+}
+
+Deno.test('F199: a turn that reaches the answer reserve answers at once, at the model\'s low effort', async () => {
+  const provider = scripted([[text(envelope('Answered in time.')), finish()]]);
+  const { deps, rec } = fakeDeps(provider);
+  withRemaining(deps, 5_000 + ANSWER_RESERVE_MS - 1_000);
+  await frames(await handleResearchChat(post({ ...BODY, reasoning: 'high' }), deps));
+  assertEquals(provider.seen.length, 1);
+  assertEquals(provider.seen[0].tool_choice, 'none', 'no research call is started that cannot finish');
+  assertEquals(provider.seen[0].reasoning, { effort: 'low' });
+  assertEquals(rec.messages[0].status, 'complete');
+  // With the whole deadline ahead, the turn researches at the effort asked for.
+  const roomy = scripted([...DECLINES, [text(envelope('Researched.')), finish()]]);
+  const fresh = fakeDeps(roomy);
+  await frames(await handleResearchChat(post({ ...BODY, reasoning: 'high', turn_key: 'roomy' }), fresh.deps));
+  assertEquals(roomy.seen[0].tool_choice, undefined);
+  assertEquals(roomy.seen.map((r) => r.reasoning), [{ effort: 'high' }, { effort: 'high' }, { effort: 'high' }]);
+});
+
+Deno.test('F199: at high reasoning a document search hands the answer at most one reply budget of passages', async () => {
+  const long = (id: string): Chunk => ({ ...chunk(id), content: `${id} `.repeat(500) });
+  const forty = Array.from({ length: 40 }, (_, i) => long(`p${i}`));
+  // The answer call's copy of the search reply (a citation repair call may follow it).
+  const replyOf = (seen: StreamRequest[]) =>
+    String(seen.filter((r) => r.tool_choice === 'none').at(-1)?.messages.find((m) => m.role === 'tool')?.content ?? '');
+  const high = byPhase(documentTurn(1).stream, documentTurn(1).stream);
+  const a = fakeDeps(high, { searchDocuments: () => Promise.resolve(forty) });
+  await frames(await handleResearchChat(post({ ...BODY, reasoning: 'high', turn_key: 'high' }), a.deps));
+  const highReply = replyOf(high.seen);
+  assert(highReply.length <= TOOL_REPLY_CHARS + 200, `high: ${highReply.length} characters`);
+  assert(highReply.includes('p0 p0'), 'the first passage always stays');
+  assert(!highReply.includes('p39 p39'), 'the last passage is past the budget');
+  const low = byPhase(documentTurn(1).stream, documentTurn(1).stream);
+  const b = fakeDeps(low, { searchDocuments: () => Promise.resolve(forty) });
+  await frames(await handleResearchChat(post({ ...BODY, reasoning: 'low', turn_key: 'low' }), b.deps));
+  assertEquals((replyOf(low.seen).match(/ref:[a-z0-9]{6}-\d+ \|/g) ?? []).length, 40, 'below high, every passage');
+});
+
+Deno.test('F199: an answer cut off by the deadline after text has streamed is saved with that text', async () => {
+  const stream: HandlerDeps['stream'] = async function* (req) {
+    yield text('{"answer":"The Bill was referred to');
+    await new Promise((_, reject) => {
+      const timer = setTimeout(() => reject(new Error('never aborted')), 3_000);
+      req.signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(req.signal!.reason);
+      }, { once: true });
+    });
+  };
+  const { deps, rec } = fakeDeps({ stream });
+  withRemaining(deps, 5_000 + 300);
+  const got = await frames(await handleResearchChat(post(BODY), deps));
+  assertEquals(rec.messages[0].status, 'interrupted');
+  assertEquals(rec.messages[0].content, 'The Bill was referred to');
+  assertEquals(rendered(got), 'The Bill was referred to');
+  assert(got.some((f) => 'error' in f && f.code === 'interrupted'));
+});
+
+// ---- F200 (D3): a greeting got a full brief opening "Search widened." ----
+
+Deno.test('F200: a greeting is answered in plain prose: no search, no "Search widened", no brief', async () => {
+  let searched = 0;
+  let asked = 0;
+  const provider = byPhase(
+    async function* () {
+      // The first research call searches, as D3's did; after that the model has nothing to add.
+      if (asked++) return yield finish();
+      yield { type: 'tool-call', id: 'c1', name: 'search_documents', args: '{"query":"hello"}' };
+      yield finish('tool_calls');
+    },
+    async function* () {
+      yield text(envelope('Hello. What would you like to check in the record?'));
+      yield finish();
+    },
+  );
+  const { deps, rec } = fakeDeps(provider, {
+    searchDocuments: () => {
+      searched++;
+      return Promise.resolve([chunk('c1')]);
+    },
+  });
+  const module = { kind: 'file', title: 'Bill Passage Probability Index', text: 'six sample rows' };
+  await frames(await handleResearchChat(post({ ...BODY, message: 'Hello!', focus: 'attached', turn_key: 'hello', attachments: [module] }), deps));
+  assertEquals(searched, 0);
+  const content = String(rec.messages[0].content);
+  assert(!content.includes('Search widened'), content);
+  assertEquals(content, 'Hello. What would you like to check in the record?');
+  assertEquals(rec.messages[0].follow_ups, []);
+  const user = String(provider.seen[0].messages.at(-1)?.content);
+  assertStringIncludes(user, SMALL_TALK);
+  assert(!user.includes('six sample rows'), 'the attachment is not context for a greeting');
 });

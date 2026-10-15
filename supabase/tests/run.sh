@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|unscoped_ef_search|rls_initplan_fk_indexes)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -147,6 +147,10 @@ chain() {
         web_search) FILES+=("$(as_non_superuser 20261013140000_web_search.sql)") ;;
         # Live site figures (F142), applied as a non-superuser; they need only desk_rows and documents (0003).
         site_figures) FILES+=("$(as_non_superuser 20261014120000_site_figures.sql)") ;;
+        # Desk-row date ranges and fields (F197): search_desk_rows as 082308 left it, then the
+        # migration, as a non-superuser. The vacuity check drops the last.
+        desk_rows_date_range)
+          FILES+=("$(m 20260922082308_desk_rows_search_optional_predicates.sql)" "$(as_non_superuser 20261015210000_desk_rows_date_range.sql)") ;;
         # Scheduled module records (F169 phase 4), applied as a non-superuser; they need only
         # is_platform_admin() and user_profiles (auth_schema.sql) for db_size().
         feed_records) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)") ;;

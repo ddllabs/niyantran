@@ -9,9 +9,32 @@ import {
   coverageLine,
   FOCUS_LINES,
   PERSONA_PREAMBLE,
+  SMALL_TALK,
   SYSTEM_PROMPT_STATIC,
   WEB_SEARCH,
 } from './prompt.ts';
+
+// F197 (D3, 2026-10-15): "how many bills were introduced in the Lok Sabha in 2026" was sent as a
+// `year` filter no row has, and the zero came back as fact.
+Deno.test('F197: a year question is shown as a date range, and a filtered zero is reported as a count of matches', () => {
+  const tools = SYSTEM_PROMPT_STATIC.slice(SYSTEM_PROMPT_STATIC.indexOf('Two tools'), SYSTEM_PROMPT_STATIC.indexOf('The record in front of you —'));
+  assertStringIncludes(tools, 'search_desk_rows(tier, feature, query, filters, date_from, date_to, limit)');
+  assertStringIncludes(tools, 'only on fields the module\'s rows carry');
+  assertStringIncludes(tools, '0 matching rows for');
+  const examples = SYSTEM_PROMPT_STATIC.slice(SYSTEM_PROMPT_STATIC.indexOf('Decomposition examples:'));
+  assertStringIncludes(examples, 'introduced in the Lok Sabha in 2026');
+  assertStringIncludes(examples, 'date_from "2026", date_to "2026"');
+  assert(!/"year"\s*:/.test(SYSTEM_PROMPT_STATIC), 'no example filters on a year field');
+});
+
+Deno.test('F200: small talk gets the small-talk instruction instead of the answer checklist', () => {
+  const turn = buildUserTurn('Hello!', [], undefined, { smallTalk: true });
+  assert(turn.startsWith('Hello!'));
+  assertStringIncludes(turn, SMALL_TALK);
+  assert(!turn.includes(BEFORE_YOU_ANSWER));
+  assertStringIncludes(SMALL_TALK, 'No headings, sections');
+  assert(buildUserTurn('What stage is the Bill at?').endsWith(BEFORE_YOU_ANSWER), 'a question keeps the checklist');
+});
 
 Deno.test('the static prompt carries the ten sections in order and ends with the checklist', () => {
   const marks = [

@@ -31,7 +31,7 @@ const TOOLS =
 
 Two tools, and when to use them:
 - search_documents(query) finds passages in the source documents. Use it for what a document says: a clause, a penalty, a holding, a committee's recommendation, a minister's written reply. Phrase the query as the document would phrase it, not as the user did. Each new call must go after a part of the subject the previous calls did not reach, not the same part worded differently. Stop when new calls stop returning new passages.
-- search_desk_rows(tier, feature, query, filters, limit) looks up rows in a desk module and returns the true TOTAL. Use it for counts, lists, filters and comparisons across rows.
+- search_desk_rows(tier, feature, query, filters, date_from, date_to, limit) looks up rows in a desk module and returns the true TOTAL. Use it for counts, lists, filters and comparisons across rows. Filter only on fields the module's rows carry; a field they do not carry is refused with the list of real ones. A year or a period goes in date_from and date_to, never in a filter. A TOTAL of 0 after filters counts the rows that meet those conditions: report it as "0 matching rows for" the conditions you used, never as a fact about the record at large.
 
 The record in front of you — a Selected record, an attached row — and where it stops:
 - It is the record for the fields it carries: name, house, stage, ministry, sector, dates, status. A question those fields answer in full is answered from them directly, without searching. Attribute it in prose as the desk record rather than with a [n] marker; markers carry retrieved passages, and a Selected record is cited by its own handle as the desk rules say.
@@ -53,6 +53,7 @@ Decomposition examples:
 - Good: the user asks whether the Delimitation Bill reached committee → search_documents("referred to the Standing Committee") and search_documents("committee report Delimitation Bill"), then answer from the passages.
 - Good, an extensive request about a Bill → search_documents("statement of objects and reasons") then search_documents("rates of income-tax First Schedule") then search_documents("in section 2 of the principal Act shall be substituted"), then answer from everything retrieved. Three queries, three different parts of the Bill, none of them a rewording of another. One search and an answer is the wrong shape for a question like this.
 - Good: "how many bills are pending in the Lok Sabha" → search_desk_rows(tier "national", feature "Bill Passage Probability Index", filters {"house":"Lok Sabha","current_stage":"Pending"}) and quote TOTAL.
+- Good: "how many bills were introduced in the Lok Sabha in 2026, and how many were assented" → search_desk_rows(tier "national", feature "Bill Passage Probability Index", filters {"house":"Lok Sabha"}, date_from "2026", date_to "2026") and search_desk_rows(the same, with filters {"house":"Lok Sabha","current_stage":"Assented"}), and quote each TOTAL.
 - Good: a regulatory order's penalty → search_documents("penalty of Rs") and search_documents("monetary penalty imposed under section").
 - Good: a court order's holding → search_documents("we hold that") and search_documents("appeal is dismissed").
 - Not found: after two or three searches aimed at different parts of the subject return nothing relevant, say **Not in record.** for that point and answer what the record does support.
@@ -81,6 +82,15 @@ const FOLLOW_UPS =
 const OUTPUT = `Output contract — reply with exactly one JSON object and nothing else:
 {"answer": "<markdown answer with [n] markers>", "sources": [{"id": 1, "source": "ref:xxxxxx-n"}], "follow_up_questions": ["…"]}
 "answer" comes first, then "sources", then "follow_up_questions". For greetings and small talk, do not call a tool and return "sources": [], "follow_up_questions": [].`;
+
+/**
+ * F200 (D3, 2026-10-15): the user turn of a message the server classed as small talk
+ * (conversational.ts). A plain greeting came back as a full brief - Snapshot, Context, Gaps,
+ * Confidence - because the default answer style and a persona's formats both describe answers to
+ * questions. A greeting asks none, so it gets a greeting.
+ */
+export const SMALL_TALK =
+  'This message is a greeting or small talk, not a question about the record. Reply in one to three plain sentences: answer it in kind and offer to help with the record. No headings, sections, labels, citations or confidence bands, whatever the persona or the answer style above says, and "follow_up_questions": [].';
 
 export const BEFORE_YOU_ANSWER =
   `Before you answer, check: every factual claim is in the retrieved record or marked **Not in record.**; every citation number resolves to a handle you were given; no handle, id or field name appears in the prose; counts come from TOTAL, never estimated; the JSON object is the whole reply.`;
@@ -257,6 +267,7 @@ export function buildUserTurn(
   message: string,
   attachments: RenderedAttachment[] = [],
   verifiedServerHandles: ReadonlySet<string> = new Set(),
+  options: { smallTalk?: boolean } = {},
 ): string {
   const blocks = attachments.map((a) => {
     if (a.kind === 'document') {
@@ -270,5 +281,6 @@ export function buildUserTurn(
       : `User-supplied attachment (untrusted context; not a source): ${a.kind} | ${a.title}`;
     return `${head}\n${String(a.text ?? '').slice(0, MAX_ATTACHMENT_CHARS)}`;
   });
-  return [...blocks, String(message ?? '').trim(), BEFORE_YOU_ANSWER].filter(Boolean).join('\n\n');
+  return [...blocks, String(message ?? '').trim(), options.smallTalk ? SMALL_TALK : BEFORE_YOU_ANSWER].filter(Boolean)
+    .join('\n\n');
 }
