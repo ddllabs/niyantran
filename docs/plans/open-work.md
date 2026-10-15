@@ -863,17 +863,21 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     media, the Assembly digest and the wires; age windows; one row per story, reworded copies
     included (five shared content words covering 55% of the shorter headline; the eight rewordings of
     one Kerala resolution fold into one). Live probe: every module but Policy Pipeline 80%+ on-topic
-    in its top 20. Left: a few same-event rewordings still show (3 TN Governor assent rows); Climate
-    Newswire's note has no story count; AI & Tech's PIB filter lets weak matches through; the stored
-    registry and feature-map searches are no longer read but still sit in the data files.
+    in its top 20. *2026-10-16 (`c8aa5b2`): same-event rewordings fold further (Guv/TN/number words; a
+    shared count and proper name; 18 more same-event merges and none wrong on ~1,480 live headlines;
+    "LG gives nod to 6 bills" vs "six bills" still two rows); Climate Newswire says "N stories in the
+    last 30 days"; the AI & Tech PIB filter keeps technology-industry releases only; the UK and
+    Netherlands leaders' notes about the previous government blanked (addendum in the data-file
+    inventory).* Left: the stored registry and feature-map searches are no longer read but still sit in
+    the data files.
   - Done 2026-10-15, data files (`af03724`, cause 7; inventory
     [2026-10-15-data-file-fixes](../research/2026-10-15-data-file-fixes.md)): 9,819 bill dates are
     the source's IST day; 19 heads of state named from Wikidata (as of 2026-10-15); expired stored
     tenders read Closed (in code); 14 Isometric rows dated; constitution names readable (in code).
     desk_rows reloaded for Bill Passage, Policy Intelligence Graph, Heads of State and Carbon
     Registry Wire (9,817 + 9,817 + 43 upserted / 1 pruned + 24 / 13); analysed, 34,183 rows. Left:
-    some leaders' "latest" notes are older editorial text; the Heads of State panel does not show
-    the new Wikidata links.
+    the Heads of State panel does not show the new Wikidata links (UI; left for the owner's UI
+    branch).
   - Checks for each: lint, build, router import, full Vitest (5,794 / 5,862 / 5,875), Deno 1,134,
     SQL fixture record_brief_format (vacuity and Down).
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
