@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSiteFigures } from './siteFiguresApi.mjs';
 import { prepareHomeMarketQuotes } from '../src/lib/homeMarkets.js';
+import { REGISTER_NOTE, REGISTER_WINDOW, isAgentSnapshot } from '../src/lib/conflictRegister.js';
 import { serveNterLatest } from './nterNews.mjs';
 import { writablePath } from './writableRoot.mjs';
 
@@ -511,20 +512,17 @@ export async function serveHomeLatest(opts = {}) {
   };
 }
 
-/** What `conflictFromWarTracker` puts in `meta.window`; it is also how a stored copy of it is told apart. */
-const REGISTER_WINDOW = 'embedded Open Fronts snapshot';
-
 /**
- * F182: the conflict snapshot is what an agent saved. The Open Fronts register is read from the
- * embedded file on every request, so it is never stored as a snapshot (a stored copy would be
- * labelled "Agent snapshot" and would hide later edits to the register). Copies already on disk,
- * written before this, and the committed public/data/conflict.json seed are such copies; they are
- * recognised by their window and ignored, so the register path labels itself.
+ * F182: the conflict snapshot is one an agent saved, recognised by its positive marker
+ * (src/lib/conflictRegister.js). The Open Fronts register is read from the embedded file on every
+ * request and never saved as a snapshot (a stored copy would hide later edits to it). Stored copies
+ * of the register (the committed public/data/conflict.json seed, caches written before F182) and
+ * caches from the GDELT era carry no such marker, so they are ignored. No writer of an agent
+ * snapshot exists in this repository.
  */
 function readConflictSnapshot() {
   const snap = readDiskSnapshot('conflict');
-  if (!snap?.rows?.length || snap.meta?.window === REGISTER_WINDOW) return null;
-  return snap;
+  return isAgentSnapshot(snap) ? snap : null;
 }
 
 function conflictFromWarTracker() {
@@ -545,7 +543,7 @@ function conflictFromWarTracker() {
     gdelt: false,
     archive: true,
     meta: { unique: rows.length, deduped: 0, window: REGISTER_WINDOW },
-    note: 'Original HTML Open Fronts table (geopolitics_war_tracker). This is a stored register, not a live wire. No records were invented.',
+    note: REGISTER_NOTE,
   };
 }
 
@@ -558,6 +556,8 @@ function conflictSnapshotDisk() {
       gdelt: false,
       source: 'snapshot',
       ageH: snap.__ageH,
+      updated: snap.updated,
+      as_of: snap.as_of || snap.updated || '',
       archive: snap.__ageH > SNAPSHOT_MAX_AGE_H,
       meta: { unique: snap.rows.length, deduped: 0, window: 'agent snapshot' },
       note: 'Agent snapshot (same /data/conflict.json the HTML home reads).',
@@ -576,8 +576,8 @@ export async function serveHomePulse(opts = {}) {
   // An agent snapshot when there is one (it carries its own age and archive flag); otherwise the
   // stored Open Fronts register, read from the embedded file and not saved anywhere (F182).
   if (!opts.fresh) {
-    const snap = readConflictSnapshot();
-    if (snap) return { ...snapshotPayload(snap), rows: snap.rows.slice(0, 8) };
+    const snap = conflictSnapshotDisk();
+    if (snap) return { ...snap, rows: snap.rows.slice(0, 8) };
   }
   const war = conflictFromWarTracker();
   return { ...war, rows: war.rows.slice(0, 8) };
@@ -617,8 +617,9 @@ function snapshotNewsFile() {
 function snapshotConflictFile() {
   const snap = readConflictSnapshot();
   if (snap) return snap;
+  // The register has no time of its own, so it carries none: a made-up `updated` read as fresh.
   const war = conflictFromWarTracker();
-  return { updated: new Date().toISOString(), rows: war.rows };
+  return { rows: war.rows, source: 'register', archive: true, note: war.note, meta: war.meta };
 }
 
 const BILLS_PATH = path.join(PUBLIC_DATA, 'embedded_csv', 'national_bill_tracker.json');

@@ -63,11 +63,35 @@ describe('F182: the conflict register is not labelled an agent snapshot', () => 
   });
 
   it('a snapshot an agent really saved is still served, labelled as one', async () => {
-    writeSnapshot({ rows: [{ title: 'Agent-written front', time: '2026', region: 'X', link: '', source: 'agent', outlets: '', event: '' }], source: 'snapshot', meta: { unique: 1, deduped: 0, window: 'agent snapshot' } });
+    writeSnapshot({ rows: [{ title: 'Agent-written front', time: '2026', region: 'X', link: '', source: 'agent', outlets: '', event: '' }], source: 'agent', meta: { unique: 1, deduped: 0, window: 'agent snapshot' } });
     const { serveConflict, serveHomePulse } = await load();
     const out = await serveConflict();
     expect(out.note).toMatch(/agent snapshot/i);
     expect(out.rows[0].title).toBe('Agent-written front');
-    expect((await serveHomePulse({})).rows[0].title).toBe('Agent-written front');
+    const pulse = await serveHomePulse({});
+    expect(pulse.rows[0].title).toBe('Agent-written front');
+    // The pulse is labelled the way serveConflict labels it, and is never "news search · live".
+    expect(pulse.note).toBe(out.note);
+    expect(pulse.gdelt).toBe(false);
+  });
+
+  it('a cache from the GDELT era (no agent marker) is ignored, so the pulse is never "news search · live"', async () => {
+    writeSnapshot({ rows: [{ title: 'Old GDELT headline', time: '', region: '', link: '', source: 'x', outlets: '', event: '' }], source: 'snapshot', gdelt: true, note: 'Live GDELT conflict pulse.' });
+    const { serveHomePulse, serveConflict } = await load();
+    const pulse = await serveHomePulse({});
+    expect(pulse.gdelt).toBe(false);
+    expect(pulse.rows.map((r) => r.title)).not.toContain('Old GDELT headline');
+    expect(pulse.note).toMatch(/stored register/i);
+    expect((await serveConflict()).note).toMatch(/stored register/i);
+  });
+
+  it('the dev /data/conflict.json carries no made-up freshness', async () => {
+    const { handleHomeApi } = await load();
+    const res = { headers: {}, setHeader() {}, end(b) { this.body = JSON.parse(b); } };
+    await handleHomeApi({ url: '/data/conflict.json', method: 'GET', headers: {} }, res, () => {});
+    expect(res.body.rows.length).toBeGreaterThan(0);
+    expect(res.body).not.toHaveProperty('updated');
+    expect(res.body).not.toHaveProperty('as_of');
+    expect(res.body.source).toBe('register');
   });
 });

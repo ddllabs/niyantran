@@ -240,6 +240,7 @@ export async function inspectPdf(bytes) {
     isEvalSupported: false,
     useSystemFonts: false,
     verbosity: 0,
+    // Harmless, but not a text fix: this reads only the page count and encryption, never page text.
     ...pdfAssetOptions(),
   });
   try {
