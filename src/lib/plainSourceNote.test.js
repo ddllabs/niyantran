@@ -191,3 +191,17 @@ describe('a row\'s reporting_search field (F165)', () => {
     expect(plainReportingNote(value)).not.toMatch(DEVELOPER_WORDING);
   });
 });
+
+// F202 (audit 2026-10-15): the source line agrees with the LIVE badge.
+describe('plainSourceLine agrees with the badge', () => {
+  const rows = [{ title: 'a' }, { title: 'b' }];
+  it('calls a register stored, never Live', () => {
+    expect(plainSourceLine({ rows, served: 'live', source: { adapter: 'register', kind: 'register', links: [] } })).not.toMatch(/^Live/);
+  });
+  it('calls an internal model Modelled, never Live', () => {
+    expect(plainSourceLine({ rows, served: 'live', source: { adapter: 'internal', kind: 'simulator', links: ['https://news.google.com/rss/search?q=x'] } })).toMatch(/^Modelled/);
+  });
+  it('calls a dossier fetched live Live, not Stored', () => {
+    expect(plainSourceLine({ rows, served: 'live', source: { adapter: 'live', kind: 'dossier', links: [] } })).toMatch(/^Live/);
+  });
+});

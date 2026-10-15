@@ -221,7 +221,12 @@ export function plainSourceLine(feed, now = Date.now()) {
   if (feed.updatedLive && !isStoreAnswer(feed)) return 'Updated live.';
   if (feed.served === 'archive' || feed.fallback || /backup-pack/i.test(kind)) return 'Latest stored records';
   if (feed.meta?.curated || /curated/i.test(kind)) return from ? `Curated records from ${from}` : 'Curated records';
-  if (src.adapter === 'embedded' || /pack|dossier/i.test(kind)) {
+  // F202: the line agrees with the LIVE badge (dataState.js): a model is modelled, a register or a
+  // pack is stored, and a dossier fetched live is live.
+  if (src.adapter === 'internal') return from ? `Modelled from ${from}` : 'Modelled from stored records';
+  const liveAdapter = ['api', 'live', 'news-search', 'scrape'].includes(src.adapter);
+  const storedRegister = !isStoreAnswer(feed) && (src.adapter === 'register' || /register/i.test(kind));
+  if (src.adapter === 'embedded' || storedRegister || (/pack|dossier/i.test(kind) && !liveAdapter)) {
     return from ? `Stored records from ${from}` : 'Stored records from the published source';
   }
   if (!n) return from ? `Source: ${from}` : '';
