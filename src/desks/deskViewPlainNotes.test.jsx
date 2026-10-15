@@ -41,7 +41,7 @@ beforeEach(() => { hooks.index = 0; hooks.overrides = {}; });
 const geoNewsOnBbc = {
   ok: true, tier: 'global', feature: 'Test feed', served: 'live', fallback: false,
   rows: Array.from({ length: 24 }, (_, i) => ({ title: `World story ${i}`, outlet: 'BBC World', source_url: `https://www.bbc.co.uk/news/${i}` })),
-  source: { adapter: 'news-search', links: [BBC, GDELT], gdelt: false, kind: '',
+  source: { adapter: 'news-search', links: [BBC, GDELT], kind: '',
     note: 'Live BBC World RSS (GDELT DOC 2.0 unavailable: api.gdeltproject.org: GDELT rate limited (need ≥5s between calls)).' },
   meta: { section: 'TOP WORLD STORIES — BBC WORLD RSS', status: 'LIVE · BBC WORLD', note: '24 stories · GDELT paced ≥5s; primary DOC 2.0 search retries on the next refresh' },
 };

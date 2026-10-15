@@ -204,6 +204,7 @@ function aiTechNewsRssUrl() {
 const PIB_PRESS_RSS = 'https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3&reg=3';
 
 const GDELT_OFF = 'GDELT is not asked (it refuses every request; F169 T4)';
+const GDELT_HOST = /gdeltproject\.org/i;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const USER_AGENT_BOT =
@@ -288,17 +289,6 @@ function isHttpsUrl(url) {
   } catch {
     return false;
   }
-}
-
-/** The registry (src/data/source-registry.json) still holds GDELT URLs; they are recognised, never fetched. */
-function isGdelt(url) {
-  return /gdeltproject\.org/i.test(url || '');
-}
-
-/** A registry GDELT URL whose query is a quoted product title: the row is answered by a topic news wire. */
-function isProductNameGdeltUrl(url) {
-  if (!isGdelt(url)) return false;
-  return /[?&]query=%22[^&%]{6,}%22/i.test(url) || /[?&]query="[^"]{6,}"/i.test(url);
 }
 
 const TOPIC_STOP = new Set([
@@ -404,7 +394,7 @@ function topicQueryForFeature(featureName) {
   return `India (${orBits})`;
 }
 
-function newsRssUrlForFeature(featureName) {
+export function newsRssUrlForFeature(featureName) {
   const q = `${topicQueryForFeature(featureName)} when:7d`;
   return (
     'https://news.google.com/rss/search?q=' +
@@ -855,7 +845,7 @@ async function fetchText(url) {
   }
   // F169 T4 (owner, 2026-10-14): GDELT refuses every request and each try waited up to 11 s, so it
   // is not asked; callers move on to their next source at once.
-  if (isGdelt(url)) throw new Error(GDELT_OFF);
+  if (GDELT_HOST.test(url)) throw new Error(GDELT_OFF);
 
   const attempt = async () => {
     const ac = new AbortController();
@@ -1036,17 +1026,16 @@ function sourceLinks(entry, feature) {
     if (isHttpsUrl(t)) urls.add(t);
   }
   if (feature?.source && isHttpsUrl(feature.source.split(/\s/)[0])) urls.add(feature.source.split(/\s/)[0]);
-  if (entry?.openLiveFallback && isHttpsUrl(entry.openLiveFallback)) urls.add(entry.openLiveFallback);
   return [...urls];
 }
 
 /**
- * F89 (F171 B1): source links never shown to readers: GDELT's raw API (it refuses every request;
- * F169 T4) and MoSPI's IPM site (expired certificate, checked 2026-10-14; restore when renewed).
+ * F89 (F171 B1): source links never shown to readers: MoSPI's IPM site (expired certificate,
+ * checked 2026-10-14; restore when renewed).
  */
-const HIDDEN_SOURCE_LINK = /^https?:\/\/(?:api\.gdeltproject\.org\/|ipm\.mospi\.gov\.in\b)/i;
+const HIDDEN_SOURCE_LINK = /^https?:\/\/ipm\.mospi\.gov\.in\b/i;
 
-function envelope({ tier, feature, rows, adapter, links, coverage, fallback, note, gdelt, kind, timeline, meta }) {
+function envelope({ tier, feature, rows, adapter, links, coverage, fallback, note, kind, timeline, meta }) {
   return {
     ok: true,
     tier,
@@ -1056,7 +1045,6 @@ function envelope({ tier, feature, rows, adapter, links, coverage, fallback, not
       adapter,
       links: Array.isArray(links) ? links.filter((l) => !HIDDEN_SOURCE_LINK.test(String(l || ''))) : links,
       note: note || '',
-      gdelt: Boolean(gdelt),
       kind: kind || '',
     },
     coverage: {
@@ -1347,7 +1335,8 @@ export async function serveFeatureFeed(searchParams) {
     exhaustive: Boolean(entry?.exhaustive) && isBills,
   };
   const primary = entry?.primaryFeedUrl || (isHttpsUrl(feat.source) ? feat.source : '');
-  // The registry's open-live fallback: a GDELT search for most rows (read for routing, never fetched).
+  // The registry's open-live fallback: the row's Google News topic search (newsRssUrlForFeature), a
+  // marker that the row falls back to the news wire. Empty for a row that routes by status or archive.
   const openLiveFallback = entry?.openLiveFallback || '';
 
   // Transit: never pull full OpenSky /states/all (often times out). Use bbox air proxy.
@@ -1462,7 +1451,7 @@ export async function serveFeatureFeed(searchParams) {
         primary,
         'https://www.courtlistener.com/api/rest/v4/search/?type=o&court=scotus&order_by=dateFiled%20desc&page_size=100',
       ]
-        .filter((u) => u && !isGdelt(u))
+        .filter(Boolean)
         .map((u) => (u.includes('page_size=') ? u : `${u}${u.includes('?') ? '&' : '?'}page_size=100`));
       for (const url of clUrls) {
         try {
@@ -2579,7 +2568,6 @@ export async function serveFeatureFeed(searchParams) {
         links: [bbc, GEO_NEWS_WIRE_NEWS],
         coverage: { from: '', through: 'present', exhaustive: false },
         fallback: false,
-        gdelt: false,
         note: 'BBC World news feed. Reporting, not an official government dataset.',
         meta: { section: 'TOP WORLD STORIES — BBC WORLD', status: 'LIVE · BBC WORLD', note: `${rss.length} stories` },
       });
@@ -2593,7 +2581,6 @@ export async function serveFeatureFeed(searchParams) {
         links: [GEO_NEWS_WIRE_NEWS, bbc],
         coverage: { from: '', through: '3d', exhaustive: false },
         fallback: false,
-        gdelt: false,
         note: 'Google News search for geopolitics and diplomacy (BBC World did not answer). Reporting, not an official government dataset.',
         meta: { section: 'TOP WORLD STORIES — NEWS SEARCH', status: 'LIVE · NEWS SEARCH', note: `${got.rows.length} stories` },
       });
@@ -2611,7 +2598,6 @@ export async function serveFeatureFeed(searchParams) {
       links: [bbc, GEO_NEWS_WIRE_NEWS],
       coverage: { from: '', through: '3d', exhaustive: false },
       fallback: false,
-      gdelt: false,
       note: 'BBC World and the news search returned no stories. No stories were invented.',
     });
   }
@@ -3171,27 +3157,13 @@ export async function serveFeatureFeed(searchParams) {
     if (nat) return nat;
   }
 
-  // A registry row whose source is only a GDELT search (a product-name query, or a blocked adapter with
-  // only GDELT) is answered by the Google News topic wire, with PIB where it fits. The registry still
-  // carries those GDELT URLs; they are read here to choose the route and are never fetched.
-  // Covers Assembly Proceedings, Governor Assent, Cabinet, Cadre transfers, and the rest of the inactive queue.
+  // A module with no registry row, whose declared source (the feature map's `source`) is its own Google
+  // News topic search, is answered by that wire, with PIB where it fits. A module with a registry row
+  // reads its own sources. (Before F180 the feature map held a GDELT search here, read only to choose
+  // this route; GDELT is not asked.)
   {
     const skipGeoDataset = dataset && /^geo_/i.test(dataset);
-    const hasRealPrimary = primary && !isGdelt(primary) && isHttpsUrl(primary);
-    const productPrimary = isProductNameGdeltUrl(primary);
-    const productFallback = isProductNameGdeltUrl(openLiveFallback);
-    const blocked = STATUS_ADAPTERS.has(adapter) || !LIVE_ADAPTERS.has(adapter);
-    const gdeltOnly =
-      primary &&
-      isGdelt(primary) &&
-      (!openLiveFallback || isGdelt(openLiveFallback)) &&
-      (!links.length || links.every((u) => isGdelt(u) || !u));
-    // Never replace a real primary (XLSX, RSS, Wikidata, …) with a news wire.
-    const rewrite =
-      !skipGeoDataset &&
-      !hasRealPrimary &&
-      (productPrimary ||
-        (blocked && (productPrimary || productFallback || (gdeltOnly && isGdelt(primary)))));
+    const rewrite = !skipGeoDataset && !entry && Boolean(primary) && primary === newsRssUrlForFeature(feat.htmlFeature);
 
     if (rewrite) {
       const newsUrl = newsRssUrlForFeature(feat.htmlFeature);
@@ -3345,11 +3317,12 @@ export async function serveFeatureFeed(searchParams) {
   const format = (entry?.format || '').toUpperCase();
   const skipBinary = format === 'XLSX' || format === 'XLS';
   const liveUrls = [];
-  // A registry GDELT search is a news search, not the HTML table, and is never the live feed.
-  if (primary && !skipBinary && !isGdelt(primary)) liveUrls.push(primary);
-  const allowNewsFallback =
-    adapter === 'news-search' ||
-    (openLiveFallback && isGdelt(openLiveFallback) && (adapter === 'api' || adapter === 'source-library' || adapter === 'embedded'));
+  if (primary && !skipBinary) liveUrls.push(primary);
+  // A registry row's `openLiveFallback` is its Google News topic search (newsRssUrlForFeature): the
+  // answer when the live table and the archive give nothing. News-search rows always fall back to it.
+  const newsFallback =
+    Boolean(openLiveFallback) &&
+    (adapter === 'news-search' || adapter === 'api' || adapter === 'source-library' || adapter === 'embedded');
 
   const live = liveUrls.length ? await tryUrls(liveUrls) : { rows: [] };
   if (live.rows.length) {
@@ -3380,7 +3353,7 @@ export async function serveFeatureFeed(searchParams) {
     });
   }
 
-  if (allowNewsFallback && (openLiveFallback || isGdelt(primary))) {
+  if (newsFallback) {
     const newsUrl = newsRssUrlForFeature(feat.htmlFeature);
     const news = await tryUrls([newsUrl]);
     if (news.rows.length) {
@@ -3389,17 +3362,15 @@ export async function serveFeatureFeed(searchParams) {
         feature: feat,
         rows: capRows(news.rows, false),
         adapter: 'news-search',
-        links: [newsUrl, isGdelt(primary) ? primary : openLiveFallback].filter(Boolean),
+        links: [newsUrl],
         coverage: { from: '', through: '7d', exhaustive: false },
         fallback: false,
-        gdelt: false,
         note: 'Google News topic search. Reporting, not an official dataset.',
         meta: { heading: feat.htmlFeature, status: 'LIVE · NEWS RSS' },
       });
     }
   }
 
-  const primaryIsGdelt = isGdelt(primary) || isGdelt(openLiveFallback);
   return envelope({
     tier,
     feature: feat,
@@ -3413,8 +3384,7 @@ export async function serveFeatureFeed(searchParams) {
     links,
     coverage,
     fallback: false,
-    gdelt: primaryIsGdelt,
-    note: primaryIsGdelt
+    note: newsFallback
       ? 'The news search returned nothing. No records were invented.'
       : 'No live rows and no last-known-good archive. Status row only — no records invented.',
   });

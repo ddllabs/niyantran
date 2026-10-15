@@ -52,7 +52,7 @@ describe('Home Top Stories (F181)', () => {
     expect(feed.tier).toBe('home');
     expect(feed.feature).toBe('Top Stories');
     expect(feed.source.adapter).toBe('news-search');
-    expect(feed.source.gdelt).toBe(false);
+    expect(Object.hasOwn(feed.source, 'gdelt')).toBe(false);
     expect(feed.source.links).toEqual(['https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en']);
     expect(feed.source.note).toMatch(/Google News/i);
     expect(feed.source.note).not.toMatch(/no live/i);
@@ -73,7 +73,7 @@ describe('Home Top Stories (F181)', () => {
     expect(feed.rows).toHaveLength(1);
     expect(feed.rows[0]).toMatchObject({ status: 'source_status', readiness: 'offline', adapter: 'news-search' });
     expect(feed.source.note).toMatch(/No stories were invented/i);
-    expect(feed.source.gdelt).toBe(false);
+    expect(Object.hasOwn(feed.source, 'gdelt')).toBe(false);
   });
 
   it('answers a status row when the feed has no items', async () => {

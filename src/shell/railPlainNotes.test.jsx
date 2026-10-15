@@ -27,7 +27,7 @@ beforeEach(() => { hooks.index = 0; });
 it("names the source in plain words, keeping the feed's note as a title", () => {
   const feed = { ok: true, tier: 'global', feature: 'Test feed', served: 'live', fallback: false,
     rows: Array.from({ length: 24 }, (_, i) => ({ title: `World story ${i}`, outlet: 'BBC World' })),
-    source: { adapter: 'news-search', links: [BBC, GDELT], gdelt: false,
+    source: { adapter: 'news-search', links: [BBC, GDELT],
       note: 'Live BBC World RSS (GDELT DOC 2.0 unavailable: api.gdeltproject.org: GDELT rate limited (need ≥5s between calls)).' },
     meta: {} };
   const tree = panel(feed);
@@ -61,13 +61,14 @@ it("stored records with the archive's own note: a plain banner", () => {
   expect(all.filter((t) => DEVELOPER.test(t))).toEqual([]);
 });
 
-// F165: a news-search module's side panel warned "GDELT reporting search - not an official dataset."
-it('a news-search module: the warning names a news search, not GDELT, and keeps its caveat', () => {
+// F165, F179: a news-search module's side panel once warned "GDELT reporting search - not an official
+// dataset", then "News search results, not an official dataset" from a `gdelt` flag the server set on
+// failed searches only. The flag is gone; the panel never names GDELT.
+it('a news-search module: the side panel names no GDELT and no longer carries the flag banner', () => {
   const feed = { ok: true, tier: 'global', feature: 'Test feed', served: 'live', fallback: false,
     rows: [{ title: 'Story', source_url: 'https://www.reuters.com/x' }],
-    source: { adapter: 'news-search', links: [GDELT], gdelt: true, note: 'Reporting search, not an official dataset.' }, meta: {} };
+    source: { adapter: 'news-search', links: [BBC], note: 'Reporting search, not an official dataset.' }, meta: {} };
   const all = strings(panel(feed));
-  expect(all).toContain('News search results, not an official dataset.');
-  // The overview tiles from src/lib/analytics.js (a "GDELT" source tile) are outside F165's sweep.
-  expect(all.filter((t) => /GDELT reporting search/.test(t))).toEqual([]);
+  expect(all).not.toContain('News search results, not an official dataset.');
+  expect(all.filter((t) => /GDELT/i.test(t))).toEqual([]);
 });

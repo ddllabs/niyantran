@@ -22,8 +22,8 @@ describe('Sports source summaries', () => {
     expect(projectSportsSummary(raw(F[7],athletes))).toMatchObject({count:1,unit:'identities'});
     expect(projectSportsSummary(raw(F[7],athletes)).columns.some(c=>/ranking|medals/i.test(c.key))).toBe(false);
   });
-  it('rejects backups, GDELT, unknown adapters and headlines pretending to be fixtures', () => {
-    for(const source of [{adapter:'news-search'},{adapter:'embedded',kind:'backup-pack'},{adapter:'unknown'},{adapter:'api',gdelt:true}]) expect(projectSportsSummary(raw(F[1],[{title:'Fixture',home:'Home',away:'Away',league:'NBA'}],{source}))).toMatchObject({count:null,availability:'error',columns:[],leagueDistribution:[]});
+  it('rejects backups, news searches, unknown adapters and headlines pretending to be fixtures', () => {
+    for(const source of [{adapter:'news-search'},{adapter:'embedded',kind:'backup-pack'},{adapter:'unknown'}]) expect(projectSportsSummary(raw(F[1],[{title:'Fixture',home:'Home',away:'Away',league:'NBA'}],{source}))).toMatchObject({count:null,availability:'error',columns:[],leagueDistribution:[]});
     expect(projectSportsSummary(raw(F[1],[{title:'Headline',date:'2026-10-01'}])).count).toBeNull();
     for(const feature of [F[6],F[7]]) expect(projectSportsSummary(raw(feature,[{title:'Headline',date:'2026-10-01'}])).count).toBeNull();
   });

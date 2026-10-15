@@ -46,11 +46,88 @@ function stubWorld(down = false) {
 describe('F176: no loader asks GDELT', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 
-  it('home Top Stories no longer claims a GDELT search', async () => {
+  it('home Top Stories carries no GDELT flag', async () => {
     stubWorld();
     const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
     const out = await serveFeatureFeed(new URLSearchParams({ tier: 'home', feature: 'Top Stories' }));
-    expect(Boolean(out?.source?.gdelt)).toBe(false);
+    expect(Object.hasOwn(out?.source || {}, 'gdelt')).toBe(false);
+  });
+
+  // F179: nothing searches GDELT, so no answer may say it did. In the world where every source is
+  // down, 14 State and Local modules used to answer a status row flagged `gdelt: true`; and every
+  // other answer carried `gdelt: false`. The flag is gone from the server and from the browser loader.
+  const flagKeys = (value, path = '$', found = []) => {
+    if (Array.isArray(value)) value.forEach((v, i) => flagKeys(v, `${path}[${i}]`, found));
+    else if (value && typeof value === 'object') {
+      for (const [k, v] of Object.entries(value)) {
+        if (/^gdelt$/i.test(k)) found.push(`${path}.${k}`);
+        flagKeys(v, `${path}.${k}`, found);
+      }
+    }
+    return found;
+  };
+
+  for (const [world, down] of [['sources up', false], ['sources down', true]]) {
+    it(`no desk module answers with a gdelt key, server loader, ${world}`, async () => {
+      stubWorld(down);
+      const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+      const carrying = [];
+      for (const m of DESK_CATALOGUE) {
+        const out = await serveFeatureFeed(new URLSearchParams({ tier: m.tier, feature: m.feature })).catch(() => null);
+        const keys = flagKeys(out);
+        if (keys.length) carrying.push(`${m.tier}/${m.feature}: ${keys.join(', ')}`);
+      }
+      expect(carrying).toEqual([]);
+    }, 120_000);
+
+    it(`no desk module answers with a gdelt key, browser loader, ${world}`, async () => {
+      stubWorld(down);
+      const { fetchArchiveFeature } = await import('./archiveFeed.js');
+      const carrying = [];
+      for (const m of DESK_CATALOGUE) {
+        const out = await fetchArchiveFeature({ tier: m.tier, feature: m.feature }).catch(() => null);
+        const keys = flagKeys(out);
+        if (keys.length) carrying.push(`${m.tier}/${m.feature}: ${keys.join(', ')}`);
+      }
+      expect(carrying).toEqual([]);
+    }, 120_000);
+  }
+
+  // F180: the routes that GDELT addresses in the registry and the feature map used to choose now come
+  // from the Google News topic search the loader asks. These answers were identical before and after.
+  it('a module with no registry row and a news topic source answers the Google News wire (up) or says it returned no rows (down)', async () => {
+    stubWorld();
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    const up = await serveFeatureFeed(new URLSearchParams({ tier: 'local', feature: 'Ward/Panchayat Results Database' }));
+    expect(up.source.adapter).toBe('news-search');
+    expect(up.rows[0]).toMatchObject({ section: 'Coverage wire' });
+    expect(up.meta).toMatchObject({ wire: 1, status: 'LIVE · NEWS RSS' });
+    expect(up.source.links).toHaveLength(1);
+    vi.unstubAllGlobals();
+    stubWorld(true);
+    const down = await serveFeatureFeed(new URLSearchParams({ tier: 'local', feature: 'Ward/Panchayat Results Database' }));
+    expect(down.rows[0]).toMatchObject({ status: 'source_status', host: 'news.google.com' });
+    expect(down.source.note).toBe('Topic news wire returned no rows. No records were invented.');
+  });
+
+  it('a registry row on the news fallback says the news search returned nothing, and names Google News, never GDELT', async () => {
+    stubWorld(true);
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'Governor Assent Tracker' }));
+    expect(out.rows[0]).toMatchObject({ status: 'source_status', host: 'news.google.com' });
+    expect(out.source.note).toBe('The news search returned nothing. No records were invented.');
+    // GPDP had a GDELT address as its primary: its status row used to name api.gdeltproject.org as the host.
+    const gpdp = await serveFeatureFeed(new URLSearchParams({ tier: 'local', feature: 'Gram Panchayat Development Plan (GPDP) Fund Tracker' }));
+    expect(gpdp.rows[0]).toMatchObject({ status: 'source_status', host: 'news.google.com' });
+    expect(JSON.stringify(gpdp)).not.toMatch(/gdelt/i);
+  });
+
+  it('a registry row on a table adapter keeps its plain status note, not the news-search one', async () => {
+    stubWorld(true);
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    // A scrape row: no live extraction is scheduled, whatever the registry once held as a fallback.
+    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Tender Aggregator (State e-Procurement)' }));
+    expect(out.source.note).toBe('Live extraction is not scheduled for this adapter. No records were invented.');
   });
 
   it('the home conflict note names no GDELT', async () => {

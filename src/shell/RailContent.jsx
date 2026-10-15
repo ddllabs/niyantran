@@ -91,7 +91,7 @@ function sanitizeRailOverview(overview, { carbon = false, feed = null } = {}) {
       const label = String(k.label || '');
       const value = String(k.value ?? '');
       const sub = String(k.sub || '');
-      if (/source|data source|feed state|gdelt|verification|data check/i.test(label) && dropRe.test(`${value} ${sub}`)) {
+      if (/source|data source|feed state|verification|data check/i.test(label) && dropRe.test(`${value} ${sub}`)) {
         return { ...k, value: carbon ? 'Register' : 'Register', sub: 'rows in this view' };
       }
       if (/data check|verification/i.test(label)) return null;
@@ -147,7 +147,6 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
       return { title: feed?.feature || 'MODULE', kpis: [], charts: [], note: 'Overview could not be built for this feed.' };
     }
   })();
-  const gdelt = Boolean(feed?.source?.gdelt);
   const status = feed?.rows?.[0]?.status === 'source_status';
   const alliances = isAlliancesFeature(feed?.feature);
   const sanctions = isSanctionsFeature(feed?.feature);
@@ -181,7 +180,6 @@ export default function RailContent({ view, feed, selected: selectedRow, onSelec
           {!feed && !loading && (
             <p className="banner">Select a module. Overview clears on every route change.</p>
           )}
-          {gdelt && !terminal && <p className="banner warn">News search results, not an official dataset.</p>}
           {showFallbackBanner ? (
             <p className="banner" title={technicalTitle(dataState.detail, fallbackBanner)}>
               {fallbackBanner}

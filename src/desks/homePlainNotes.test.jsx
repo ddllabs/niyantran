@@ -28,11 +28,11 @@ function home(boot) {
 
 describe('Home in plain words (F165)', () => {
   it('no headlines yet, with the server\'s ingest note: a plain line, the note kept as its title', () => {
-    const html = home({ markets: { rows: [quote] }, latest: { rows: [], note: INGEST_NOTE, waiting: true, source: 'nter.news' }, pulse: { rows: [], gdelt: true } });
+    const html = home({ markets: { rows: [quote] }, latest: { rows: [], note: INGEST_NOTE, waiting: true, source: 'nter.news' }, pulse: { rows: [] } });
     const text = shown(html);
     expect(text).toContain('No nter.news headlines yet. No headlines were invented.');
     expect(text).toContain('waiting for stories');
-    expect(text).toContain('NEWS SEARCH · LIVE');
+    expect(text).not.toContain('NEWS SEARCH · LIVE');
     expect(text).toContain('No time stamp on these quotes, so treat them as a stored snapshot.');
     expect(text.filter((t) => FORBIDDEN.test(t))).toEqual([]);
     expect(html).toContain(`title="${INGEST_NOTE}"`);

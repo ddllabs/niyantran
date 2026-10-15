@@ -58,7 +58,6 @@ export default function MorningBriefDesk({ onSelect, onFeed, vizFilter, onClearV
         rows,
         source: {
           adapter: 'news-search',
-          gdelt: false,
           note: anyLive
             ? `Morning Brief: top stories ${top.rows.length}, PIB ${pib.rows.length}, economy ${eco.rows.length}.`
             : 'Morning Brief: no section could load right now.',

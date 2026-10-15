@@ -231,7 +231,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           applyRecordChecklistToFeed({
             feature: 'Home',
             rows,
-            source: { adapter: 'nter.news', note: latestBody.note, gdelt: false },
+            source: { adapter: 'nter.news', note: latestBody.note },
             fallback: Boolean(latestBody.archive),
           }),
         );
@@ -244,9 +244,8 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
             feature: 'Conflict Pulse',
             rows,
             source: {
-              adapter: pulseBody.gdelt ? 'news-search' : 'embedded',
+              adapter: 'embedded',
               note: pulseBody.note,
-              gdelt: Boolean(pulseBody.gdelt),
             },
             fallback: Boolean(pulseBody.archive),
           }),
@@ -641,7 +640,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
           <section className="nh-box">
             <div className="bh">
               CONFLICT PULSE{' '}
-              <small>{meta.pulse?.gdelt ? 'NEWS SEARCH · LIVE' : meta.pulse?.rows?.length ? 'OPEN FRONTS' : ''}</small>
+              <small>{meta.pulse?.rows?.length ? 'OPEN FRONTS' : ''}</small>
               <SnapshotBadge ageH={meta.pulse?.ageH} archive={Boolean(meta.pulse?.archive)} />
             </div>
             <ul className="nh-pulse">

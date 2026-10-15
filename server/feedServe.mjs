@@ -24,6 +24,7 @@
  * module a request names and what to do when this answers null.
  */
 import { FEED_REGISTERS, FEED_VARIANTS, isStoreServed } from './feedSchedule.mjs';
+import { pickReleasePairs } from '../src/lib/parliament.js';
 import { safeText, supabaseRpc } from './supabaseRpc.mjs';
 
 /** The store gets this long. Past it the live path answers; the live path has its own 4 s limit after that. */
@@ -77,7 +78,10 @@ function isoOrNull(value) {
  */
 function storedAnswer(id, page, now, register = false) {
   if (!isRow(page) || page.serve !== true) return null;
-  const rows = (Array.isArray(page.items) ? page.items : []).map((i) => i?.row).filter(isRow);
+  const stored = (Array.isArray(page.items) ? page.items : []).map((i) => i?.row).filter(isRow);
+  // F187: refreshes can store both releases of one Cabinet decision (the ministry's and the Cabinet's,
+  // seen on different runs); the page shows one, as the live loader does.
+  const rows = id === 'national:Cabinet Decisions' ? pickReleasePairs(stored) : stored;
   if (!rows.length) return null;
   const meta = isRow(page.meta) ? page.meta : {};
   // Without a fetched time the page could not say how old its items are.
@@ -99,7 +103,6 @@ function storedAnswer(id, page, now, register = false) {
       adapter: String(meta.adapter || ''),
       links: Array.isArray(meta.links) ? meta.links : [],
       note: String(meta.note || ''),
-      gdelt: false,
       kind: String(meta.kind || ''),
     },
     coverage: {

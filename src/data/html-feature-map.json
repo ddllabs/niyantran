@@ -319,7 +319,7 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Geopolitics%20News%20Wire",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Geopolitics+News+Wire%22+global&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -589,7 +589,7 @@
     "backendRoute": "/api/feature-feed?tier=geopolitics&feature=Maritime%20Choke-Points",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Maritime+Choke-Points%22+global&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -715,7 +715,7 @@
     "backendRoute": "/api/feature-feed?tier=national&feature=Statement%20%26%20Quote%20Tracker%20with%20Contradiction%20Detection",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Statement+and+Quote+Tracker+with+Contradiction+Detection%22+India+government+parliament+policy&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -733,7 +733,7 @@
     "backendRoute": "/api/feature-feed?tier=national&feature=National%20Morning%20Brief%20(Auto-digest)",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22National+Morning+Brief+%28Auto-digest%29%22+India+government+parliament+policy&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1057,7 +1057,7 @@
     "backendRoute": "/api/feature-feed?tier=state&feature=SIR%20Roll%20Churn",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22SIR+Roll+Churn%22+India+state+government+assembly+election&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -1217,7 +1217,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AParty%2520Organisation%2520Map",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Party+Organisation+Map%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1251,7 +1251,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AMLA%2520Defection%2520%2526%2520Anti-defection%2520Case%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22MLA+Defection++and++Anti-defection+Case+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1303,7 +1303,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AState%2520Economic%2520Data%2520(GSDP%252C%2520sectors)",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22State+Economic+Data+%28GSDP%2C+sectors%29%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1319,7 +1319,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ACross-State%2520Comparison%2520Engine",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Cross-State+Comparison+Engine%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1353,7 +1353,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ASDL%2520Auction%2520%2526%2520Borrowing%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22SDL+Auction++and++Borrowing+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1387,7 +1387,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ALegislative%2520Productivity%2520Comparison",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Legislative+Productivity+Comparison%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1403,7 +1403,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AGovernor%2520Friction%2520%2526%2520President's%2520Rule%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Governor+Friction++and++President%27s+Rule+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1419,7 +1419,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ANITI%2520Aayog%2520State%2520Indices",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22NITI+Aayog+State+Indices%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1453,7 +1453,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Health%2520%2526%2520Nutrition%2520Indicators",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Health++and++Nutrition+Indicators%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1469,7 +1469,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Education%2520Indicators",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Education+Indicators%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1485,7 +1485,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Economic%2520%2526%2520Livelihood%2520Indicators",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Economic++and++Livelihood+Indicators%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1501,7 +1501,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Agriculture%2520%2526%2520Rural%2520Indicators",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Agriculture++and++Rural+Indicators%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1517,7 +1517,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Infrastructure%2520%2526%2520Connectivity",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Infrastructure++and++Connectivity%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1533,7 +1533,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Governance%2520%2526%2520Grievance%2520Indicators",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Governance++and++Grievance+Indicators%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1549,7 +1549,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Crime%2520%2526%2520Safety%2520Indicators",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22District+Crime++and++Safety+Indicators%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1693,7 +1693,7 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Local%20Governance%20Brief",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Local+Governance+Brief%22+India+district+municipal+panchayat+local+government&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -1709,7 +1709,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3APanchayat%2520Seat%2520Reservation%2520Rotation%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Panchayat+Seat+Reservation+Rotation+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Panchayat%22%20OR%20%22Seat%22%20OR%20%22Reservation%22%20OR%20%22Rotation%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1743,7 +1743,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AUrban%2520Master%2520Plan%2520%2526%2520Land%2520Use%2520Change%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Urban+Master+Plan++and++Land+Use+Change+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Urban%22%20OR%20%22Master%22%20OR%20%22Plan%22%20OR%20%22Land%22%20OR%20%22Use%22%20OR%20%22Change%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1777,7 +1777,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AWard%252FPanchayat%2520Results%2520Database",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Ward%2FPanchayat+Results+Database%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Ward%22%20OR%20%22Panchayat%22%20OR%20%22Results%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1793,7 +1793,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3ABuilding%2520Permission%2520%2526%2520Plan%2520Sanction%2520Monitor",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Building+Permission++and++Plan+Sanction+Monitor%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Building%22%20OR%20%22Permission%22%20OR%20%22Plan%22%20OR%20%22Sanction%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1847,7 +1847,7 @@
     "backendRoute": "/api/feature-feed?tier=local&feature=Gram%20Panchayat%20Development%20Plan%20(GPDP)%20Fund%20Tracker",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Gram+Panchayat+Development+Plan+%28GPDP%29+Fund+Tracker%22+India+district+municipal+panchayat+local+government&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1917,7 +1917,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AMGNREGA%2520Anomaly%2520%2526%2520Delay%2520Analytics",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22MGNREGA+Anomaly++and++Delay+Analytics%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22MGNREGA%22%20OR%20%22Anomaly%22%20OR%20%22Delay%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1933,7 +1933,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3ALocal%2520Body%2520Finance%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Local+Body+Finance+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Body%22%20OR%20%22Finance%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1949,7 +1949,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AMunicipal%2520Own-Revenue%2520%2526%2520Solvency%2520Health",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Municipal+Own-Revenue++and++Solvency+Health%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Municipal%22%20OR%20%22Own-Revenue%22%20OR%20%22Solvency%22%20OR%20%22Health%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1965,7 +1965,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AService-Delivery%2520Scorecards",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Service-Delivery+Scorecards%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Service-Delivery%22%20OR%20%22Scorecards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1981,7 +1981,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AFlagship-City%2520Deep%2520Dashboard",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Flagship-City+Deep+Dashboard%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Flagship-City%22%20OR%20%22Dashboard%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1997,7 +1997,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AULB%252FGP%2520Performance%2520Tracker%2520(Composite)",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22ULB%2FGP+Performance+Tracker+%28Composite%29%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22ULB%22%20OR%20%22Performance%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2013,7 +2013,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AGP%2520Finance%2520%2526%2520GPDP%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22GP+Finance++and++GPDP+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Finance%22%20OR%20%22GPDP%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2047,7 +2047,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AProperty%2520Tax%2520%2526%2520Own-Revenue%2520Efficiency",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Property+Tax++and++Own-Revenue+Efficiency%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Property%22%20OR%20%22Tax%22%20OR%20%22Own-Revenue%22%20OR%20%22Efficiency%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2063,7 +2063,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AService%2520Delivery%2520Scorecards%2520(Urban)",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Service+Delivery+Scorecards+%28Urban%29%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Service%22%20OR%20%22Delivery%22%20OR%20%22Scorecards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2079,7 +2079,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AGP%2520Service%2520%2526%2520Asset%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22GP+Service++and++Asset+Tracker%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Service%22%20OR%20%22Asset%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2095,7 +2095,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3ALocal%2520Body%2520Election%2520%2526%2520Incumbency",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Local+Body+Election++and++Incumbency%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Body%22%20OR%20%22Election%22%20OR%20%22Incumbency%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2111,7 +2111,7 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AElected%2520Rep%2520Profiles%2520%2526%2520Report%2520Cards",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Elected+Rep+Profiles++and++Report+Cards%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "https://news.google.com/rss/search?q=India%20(%22Elected%22%20OR%20%22Rep%22%20OR%20%22Profiles%22%20OR%20%22Report%22%20OR%20%22Cards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2309,7 +2309,7 @@
     "backendRoute": "/api/feature-feed?tier=judiciary&feature=WTO%20Dispute%20Settlement",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=domain%3Awto.org%20dispute&mode=artlist&format=json&sort=datedesc&timespan=30d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC API — WTO disputes · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2903,7 +2903,7 @@
     "backendRoute": "/api/feature-feed?tier=climate&feature=ETS%20%26%20Tax%20Adoption%20Timeline",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22carbon%20tax%22%20OR%20%22emissions%20trading%20system%22&mode=artlist&format=json&sort=datedesc&timespan=30d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC API — carbon pricing · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -2921,7 +2921,7 @@
     "backendRoute": "/api/feature-feed?tier=climate&feature=Carbon%20Border%20(CBAM)%20Watch",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Carbon+Border+%28CBAM%29+Watch%22+carbon+climate+emissions&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -2939,7 +2939,7 @@
     "backendRoute": "/api/feature-feed?tier=climate&feature=India%20CCTS%20%26%20Green%20Credits",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22Carbon%20Credit%20Trading%20Scheme%22%20India&mode=artlist&format=json&sort=datedesc&timespan=30d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC API — India CCTS · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -2957,7 +2957,7 @@
     "backendRoute": "/api/feature-feed?tier=climate&feature=Carbon%20Registry%20Wire",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%28Verra%20OR%20Puro.earth%20OR%20Isometric%29%20carbon%20registry&mode=artlist&format=json&sort=datedesc&timespan=30d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC API — carbon registries · GET · JSON · auth: none",
     "role": "primary_of_record"
   },
@@ -2975,7 +2975,7 @@
     "backendRoute": "/api/feature-feed?tier=climate&feature=Climate%20Newswire",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://api.gdeltproject.org/api/v2/doc/doc?query=%22climate%20change%22&mode=artlist&format=json&sort=datedesc&timespan=7d&maxrecords=250",
+    "source": "",
     "developerNote": "GDELT DOC API — climate · GET · JSON · auth: none",
     "role": "primary_of_record"
   }

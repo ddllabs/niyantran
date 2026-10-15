@@ -71,7 +71,7 @@ export default function StatementsDesk({ onSelect, onFeed, vizFilter, onClearViz
             tier: 'national',
             feature: FEATURE,
             rows: mapped,
-            source: { adapter: 'news-search', gdelt: false, note },
+            source: { adapter: 'news-search', note },
             coverage: { from: '', through: '7d', exhaustive: false },
             fallback: false,
             meta: {

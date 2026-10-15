@@ -128,8 +128,8 @@ const CASES = [
 const BROAD = ' It was found by a keyword search for this forum and may still not concern it.';
 const UNKNOWN = 'Some Other Court Watch';
 
-const feedOf = (feature, gdeltFlag) => ({ feature, source: { gdelt: gdeltFlag === true }, coverage: { through: '7d' } });
-const build = (row, feature, extra = {}) => lawWire(row, { rows: [row], feed: feedOf(feature, row.domain !== undefined && row.seendate !== undefined), today: '2026-10-13', ...extra });
+const feedOf = (feature) => ({ feature, coverage: { through: '7d' } });
+const build = (row, feature, extra = {}) => lawWire(row, { rows: [row], feed: feedOf(feature), today: '2026-10-13', ...extra });
 const tile = (m, label) => m.glance.tiles.find((t) => t.label === label);
 const allStrings = (v, out = []) => {
   if (typeof v === 'string') out.push(v);
@@ -405,7 +405,7 @@ describe('Law wire modules (F128 L4)', () => {
     it('finds the same GDELT domain regardless of case and a leading www', () => {
       const a = gdelt();
       const b = gdelt({ title: 'Another story', domain: 'www.LiveLaw.in', url: 'https://www.livelaw.in/b', source_url: 'https://www.livelaw.in/b' });
-      const links = lawWire(a, { rows: [a, b], feed: feedOf(CASES[0].feature, true) }).touches.links;
+      const links = lawWire(a, { rows: [a, b], feed: feedOf(CASES[0].feature) }).touches.links;
       expect(links.map((l) => l.title)).toEqual(['Another story']);
     });
 
@@ -424,7 +424,7 @@ describe('Law wire modules (F128 L4)', () => {
       const rows = [google(), google({ source_url: 'https://news.google.com/rss/articles/b' }), google({ publisher: undefined, source_url: 'https://news.google.com/rss/articles/c' }), google({ publisher: undefined, source_url: 'https://news.google.com/rss/articles/d' }), { status: 'source_status', title: 'Notice' }];
       expect(lawWire(rows[0], { rows, feed }).footer.health).toEqual([['Rows', '4'], ['Record-level rows', '0'], ['Publisher named', '50%']]);
       const g = [gdelt(), gdelt({ domain: '' , url: 'https://example.org/x', source_url: 'https://example.org/x' })];
-      expect(lawWire(g[0], { rows: g, feed: feedOf(CASES[0].feature, true) }).footer.health).toEqual([['Rows', '2'], ['Record-level rows', '0'], ['Publisher named', '50%']]);
+      expect(lawWire(g[0], { rows: g, feed: feedOf(CASES[0].feature) }).footer.health).toEqual([['Rows', '2'], ['Record-level rows', '0'], ['Publisher named', '50%']]);
       // No rows passed: the record itself is the one row.
       expect(lawWire(google(), { feed }).footer.health).toEqual([['Rows', '1'], ['Record-level rows', '0'], ['Publisher named', '100%']]);
     });

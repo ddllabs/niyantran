@@ -67,7 +67,6 @@ export function provenanceLabel(feed) {
   if (feed.source?.kind === 'finance-pack') return feed.fallback ? 'STORED' : 'INGESTED';
   if (feed.source?.kind === 'carbon-pack') return feed.fallback ? 'STORED' : 'INGESTED';
   if (feed.source?.kind === 'dossier') return 'DOSSIER';
-  if (feed.source?.gdelt) return feed.fallback ? 'GDELT SEARCH (fallback)' : 'GDELT SEARCH';
   if (feed.fallback) return 'STORED';
   return 'LIVE';
 }

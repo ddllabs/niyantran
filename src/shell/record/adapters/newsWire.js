@@ -31,11 +31,8 @@ function publishedLabel(row) {
   return '';
 }
 
-/** Which feed made the row: the envelope's flag (`source.gdelt`) when it has one, otherwise the row's own fields. */
-function feedKind(row, feed) {
-  const flag = feed?.source?.gdelt;
-  if (flag === true) return GDELT;
-  if (flag === false) return RSS;
+/** Which feed made the row: its own fields. A stored GDELT article carries domain, seendate or the reporting-search label. */
+function feedKind(row) {
   if (text(row.domain) || text(row.seendate) || text(row.reporting_search)) return GDELT;
   if (text(row.outlet) || text(row.summary)) return RSS;
   return null;
@@ -88,7 +85,7 @@ const CAPTION = {
 };
 
 export default function newsWire(row, ctx = {}) {
-  const kind = feedKind(row, ctx.feed);
+  const kind = feedKind(row);
   const title = plainText(row.title) || 'News story';
   const publisher = publisherOf(row);
   const published = publishedLabel(row);

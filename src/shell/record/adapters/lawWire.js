@@ -6,7 +6,8 @@ import { plainLabel } from '../../../lib/plainSourceNote.js';
 /**
  * The nine Law wire modules → record panel (F128 L4; docs/specs/2026-10-13-law-record-panels.md,
  * "Wire modules"). These modules have no docket behind them: the judiciary wire branch of
- * server/featureFeed.mjs serves Google News RSS coverage first, then GDELT DOC 2.0, as news items.
+ * server/featureFeed.mjs serves Google News RSS coverage as news items (GDELT DOC 2.0 rows, no longer
+ * fetched, may still be stored).
  * A row is therefore a report about a forum, never a record of it, and the panel says so in the
  * badge, in tile three, in the callout and in the footer. Nothing here describes an item as an
  * order, a charge, a holding or a stage, and no deadline is computed.
@@ -145,13 +146,11 @@ const configFor = (ctx) => {
   return name && Object.hasOwn(CONFIG, name) ? CONFIG[name] : GENERIC;
 };
 
-/** Which feed made the row: its section text first, then the envelope's flag, then the row's own fields. */
-function feedKind(row, feed) {
+/** Which feed made the row: its section text first (the server always sets it), then the row's own fields. */
+function feedKind(row) {
   const section = text(row.section);
   if (/gdelt/i.test(section)) return GDELT;
   if (/google news/i.test(section)) return GOOGLE;
-  if (feed?.source?.gdelt === true) return GDELT;
-  if (feed?.source?.gdelt === false) return GOOGLE;
   if (text(row.domain) || text(row.seendate)) return GDELT;
   if (text(row.publisher)) return GOOGLE;
   return null;
@@ -245,7 +244,7 @@ const NOTE = 'The item is coverage. Nothing here is an order, a charge, a holdin
 export default function lawWire(row, ctx = {}) {
   const item = row && typeof row === 'object' ? row : {};
   const config = configFor(ctx);
-  const kind = feedKind(item, ctx?.feed);
+  const kind = feedKind(item);
   const headline = headlineOf(item);
   const title = titleOf(item) || 'News item';
   const publisher = publisherOf(item);

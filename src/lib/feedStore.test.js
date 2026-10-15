@@ -38,7 +38,7 @@ const live = (rows, extra = {}) => ({
   tier: 'news',
   feature: 'x',
   rows,
-  source: { adapter: 'news-search', links: ['https://wire.example/feed'], note: 'Live wire', gdelt: false, kind: '' },
+  source: { adapter: 'news-search', links: ['https://wire.example/feed'], note: 'Live wire', kind: '' },
   coverage: { from: '', through: '', exhaustive: false },
   fallback: false,
   timeline: [],
