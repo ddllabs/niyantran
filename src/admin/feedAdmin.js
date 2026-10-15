@@ -84,6 +84,14 @@ export function formatInterval(minutes) {
   return `every ${m} min`;
 }
 
+/**
+ * What the row says in place of its interval: "register" for a register variant (class register,
+ * C6 option 1: loaded once, never refreshed by the timer, never stale), else formatInterval.
+ */
+export function intervalLabel(row) {
+  return row?.cls === 'register' ? 'register' : formatInterval(row?.intervalMinutes);
+}
+
 /** The markers a row shows, worst first. Text, never colour alone. */
 export function markersOf(row) {
   const out = [];

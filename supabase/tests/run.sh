@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|unscoped_ef_search)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|unscoped_ef_search)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -153,6 +153,11 @@ chain() {
         # The admin's view of the feed store (F169 phase 4, C5): feed_records' chain plus
         # feed_admin_status(), applied as a non-superuser. The vacuity check drops the last.
         feed_admin) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)") ;;
+        # A register's first page across its variants, and a register never stale (C6 option 1):
+        # feed_admin's chain plus feed_register_page, applied as a non-superuser. The vacuity check
+        # drops the last.
+        feed_register_page) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)"
+                                    "$(as_non_superuser 20261015170000_feed_register_page.sql)") ;;
         # plan_entitlements' chain plus the INR plan set, applied as a non-superuser.
         inr_plans)
           FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)") ;;
@@ -382,6 +387,52 @@ feed_admin_checks() {
   return $rc
 }
 
+# feed_register_page only: the migration's Down section, executed (as feed_admin_checks does). Its
+# Down block drops feed_page_across and feed_admin_status, then says to run feed_admin's create
+# function with its revoke and grant: that step is performed by extracting exactly those statements
+# from 20261015160000_feed_admin.sql (as corpus_records_checks does). The schemas must dump
+# identically, then the migration must re-apply and the fixture pass again.
+feed_register_page_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_feed_register_page_base_test up=niyantran_feed_register_page_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261015170000_feed_register_page.sql"
+  {
+    echo 'SET ROLE nter_migrator;'
+    sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' \
+      | grep -v -e '^--   --' -e '^--   commit;' | sed 's/^--   //'
+    awk '/^create function public\.feed_admin_status\(/,/^\$\$;/' "$MIG/20261015160000_feed_admin.sql"
+    grep -E '^(revoke|grant) .* public\.feed_admin_status\(\)' "$MIG/20261015160000_feed_admin.sql"
+    echo 'commit;'
+  } > "$WORK/frp_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/frp_down.sql" > "$WORK/frp_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/frp_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/frp_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/frp_up.dump"
+    if ! diff -q "$WORK/frp_base.dump" "$WORK/frp_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/frp_base.dump" "$WORK/frp_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/feed_register_page.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -404,6 +455,7 @@ run_fixture() {
     [ "$name" = corpus_records ] && { corpus_records_checks || rc=1; }
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
     [ "$name" = feed_admin ] && { feed_admin_checks || rc=1; }
+    [ "$name" = feed_register_page ] && { feed_register_page_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"

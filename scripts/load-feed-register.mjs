@@ -14,6 +14,7 @@
  * (the register's fields come back and the live row's come off until the next refresh).
  *
  *   node scripts/load-feed-register.mjs                       # dry run for Cabinet Decisions (default)
+ *   node scripts/load-feed-register.mjs --module "state:MLA Directory"   # dry run for the MLA register
  *   node scripts/load-feed-register.mjs --live-sample         # also fetch today's live answer and compare keys
  *   node scripts/load-feed-register.mjs --apply --target local --db niyantran_feed_register_load_test
  *   node scripts/load-feed-register.mjs --apply --target local --db <db> --force   # local test: make it due first
@@ -37,9 +38,17 @@
  *     server/feedSchedule.mjs feedRunsForDb) and records the items with the lease token
  *     (public.feed_record). Nothing else is written. Run it again and the second load is `unchanged`.
  *
+ * Register modules (MLA Directory; server/feedSchedule.mjs FEED_REGISTERS, owner decision C6 option 1)
+ * are not scheduled: the timer never refreshes them. Their register is loaded as one store variant per
+ * value (MLA Directory: one per state, 31), each claimed and recorded on its own with the run
+ * registerRunsForDb gives it (class `register`, kind `official`, a 30-day interval). feed_claim_due adds
+ * a variant it has not seen as due now and leases it; the refresh route never lists a register, so
+ * nothing else ever claims it. A repeat load within 30 days of the last is NOT DUE (use --force on a
+ * local test database); the production gate is the same as for Cabinet Decisions.
+ *
  * A register is loaded only for a module of kind `official` (kept forever, never pruned). Every other
  * kind is refused: a module that replaces its list on each run (latest, reference, measurement) would
- * lose the register at the next refresh (the MLA Directory case, see the C6 report), and a news
+ * lose the register at the next refresh (why MLA Directory became a register module), and a news
  * register is not built yet.
  *
  * Release pairs. PIB often publishes one decision twice on one day, as the ministry's release and as
@@ -74,7 +83,7 @@ import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readBackupRows } from '../server/backupFeed.mjs';
-import { feedRunsForDb, itemKeyFor } from '../server/feedSchedule.mjs';
+import { FEED_REGISTERS, feedRunsForDb, itemKeyFor, mlaStateVariant, registerRunsForDb } from '../server/feedSchedule.mjs';
 import { itemsFromRows, metaFor, supabaseRpc } from '../server/feedStore.mjs';
 import { isCabinetBody, isCabinetDecision } from '../src/lib/parliament.js';
 
@@ -206,12 +215,88 @@ export function cabinetPrefers(a, b) {
   return Number(a.prid || Infinity) < Number(b.prid || Infinity);
 }
 
+/** The live loader's link for a Wikidata person (server/featureFeed.mjs wikidataRows, https). */
+export const wikidataEntity = (qid) => `https://www.wikidata.org/entity/${qid}`;
+
+// Register columns copied as they are (squashed), when not empty.
+const MLA_FIELDS = ['party', 'constituency', 'constituency_id', 'districts', 'education', 'age', 'assets_total',
+  'liabilities_total', 'criminal_cases_declared', 'state_code', 'politician_id'];
+
+/**
+ * One row of backup/STATE/F30_MLA_Directory.xlsx (4,104 MLAs in 31 states; columns as the sheet names
+ * them) as a live MLA Directory row (server/featureFeed.mjs: a Wikidata binding through wikidataRows):
+ *
+ *   register column                   live field                 note
+ *   name (else title, record_title)   person, personLabel, title  whitespace squashed; rows with none dropped
+ *   current_position                  position, positionLabel    the register's wording ("Member of the
+ *                                                                  Legislative Assembly, Kerala")
+ *   state (else geography)            state, stateLabel          the variant name (mlaStateVariant); a row
+ *                                                                  whose state has none is dropped
+ *   (none)                            date                       '' as in the live row, so the store serves
+ *                                                                  a state in register order
+ *   wikidata_qid                      source_url, wikidata_qid   https://www.wikidata.org/entity/<QID>, the
+ *                                                                  live row's link; else the register's citation
+ *   party, constituency, constituency_id, districts, education, age, assets_total,
+ *   liabilities_total, criminal_cases_declared, state_code, politician_id    same names, when not empty
+ *   source_published_at (else record_date)  as_of               the register's date for the member (ISO day)
+ *   record_id                         register_id
+ *   source_provider, source_url       register_source, register_source_url   the register's citation
+ *
+ * Left out on purpose: email (contact addresses, many private, not needed to name a member), the
+ * stray column headed "Mohan Singh Bisht" (a misplaced header cell whose values are other members'
+ * names), the day-dependent formula columns (record_age_days, record_completeness_pct,
+ * source_retrieved_at), the columns that are the same on every row (status, category, active, house,
+ * constituency_type, coverage_*, universe_count, quality_status, provenance, metric_value,
+ * metric_unit) and those that repeat another (record_title, primary_entity, geography, year, month).
+ *
+ * Returns { row } or { drop: reason }: no_title, no_state.
+ */
+export function mapMlaRegisterRow(raw) {
+  const name = squash(raw?.name || raw?.title || raw?.record_title);
+  if (!name) return { drop: 'no_title' };
+  const state = mlaStateVariant(raw?.state || raw?.geography);
+  if (!state) return { drop: 'no_state' };
+  const qid = /^Q\d+$/.test(squash(raw?.wikidata_qid)) ? squash(raw.wikidata_qid) : '';
+  const citation = [raw?.source_url].map(squash).find((u) => /^https?:\/\//i.test(u)) || '';
+  const position = squash(raw?.current_position);
+  const row = { person: name, personLabel: name, positionLabel: position, stateLabel: state, position, state, date: '', title: name };
+  for (const key of MLA_FIELDS) if (squash(raw?.[key])) row[key] = squash(raw[key]);
+  if (qid) row.wikidata_qid = qid;
+  const asOf = isoDay(raw?.source_published_at || raw?.record_date);
+  if (asOf) row.as_of = asOf;
+  if (squash(raw?.record_id)) row.register_id = squash(raw.record_id);
+  if (squash(raw?.source_provider)) row.register_source = squash(raw.source_provider);
+  if (citation) row.register_source_url = citation;
+  const link = qid ? wikidataEntity(qid) : citation;
+  if (link) row.source_url = link;
+  return { row };
+}
+
+/**
+ * An MLA's item key: with a QID, itemKeyFor of the row (its Wikidata link, the key a live refresh gives
+ * the same person: url:wikidata.org/entity/<QID>); without one, the register's politician_id
+ * (constituency, state and name), since such rows share their state's citation page.
+ */
+export function mlaItemKey(row) {
+  if (row?.wikidata_qid) return itemKeyFor(row);
+  return row?.politician_id ? `mla:${row.politician_id}` : itemKeyFor(row);
+}
+
+const MLA_STATE_ORDER = new Map(FEED_REGISTERS['state:MLA Directory'].values.map((v, i) => [v, i]));
+/** By state (the variants' order), then constituency, then name. */
+const mlaOrder = (a, b) =>
+  MLA_STATE_ORDER.get(a.state) - MLA_STATE_ORDER.get(b.state)
+  || a.constituency.localeCompare(b.constituency, 'en') || a.title.localeCompare(b.title, 'en');
+
 /**
  * The registers this script knows. file: the workbook, relative to the repository. map: a register
  * row to { row } or { drop }. liveKey: the key a live refresh gives the row's item (null: itemKeyFor
  * of the row, as built). releaseGroup and prefers: rows that share a group are releases of one decision,
  * and `prefers(a, b)` says whether a is the one kept. links and noun: the stored answer's links and what
- * its records are called.
+ * its records are called. Optional: itemKey (each row's key, used in place of the store's own keying,
+ * which would merge rows that share a link), order (the items' order, default newest first), dateOf (a
+ * row's date for the report and coverage, default row.date), variantOf (a row's store variant: the
+ * module is a register module, loaded one variant at a time) and note (the stored note).
  */
 export const REGISTERS = Object.freeze({
   'national:Cabinet Decisions': {
@@ -222,6 +307,18 @@ export const REGISTERS = Object.freeze({
     prefers: cabinetPrefers,
     links: ['https://www.pib.gov.in/'],
     noun: 'PIB Cabinet decisions',
+  },
+  'state:MLA Directory': {
+    file: 'backup/STATE/F30_MLA_Directory.xlsx',
+    map: mapMlaRegisterRow,
+    itemKey: mlaItemKey,
+    order: mlaOrder,
+    dateOf: (row) => row.as_of || '',
+    variantOf: (row) => row.state,
+    links: ['https://www.wikidata.org/'],
+    noun: 'MLAs',
+    note: (report, file) =>
+      `Stored register of ${report.kept} MLAs of ${report.variant}, as of ${report.newest || 'an unrecorded date'}, loaded from ${file}. It is not refreshed: it stays as loaded until the register is loaded again.`,
   },
 });
 
@@ -255,7 +352,7 @@ export function buildRegisterItems(rawRows, register, kind) {
     if (out.drop) report.dropped[out.drop] = (report.dropped[out.drop] || 0) + 1;
     else mapped.push(out.row);
   }
-  mapped.sort(byNewest);
+  mapped.sort(register.order || byNewest);
   let rows = mapped;
   if (register.releaseGroup) {
     const kept = new Map();
@@ -272,7 +369,7 @@ export function buildRegisterItems(rawRows, register, kind) {
     const keep = new Set(kept.values());
     rows = mapped.filter((row) => keep.has(row));
   }
-  const built = itemsFromRows(rows, kind);
+  const built = register.itemKey ? itemsOneByOne(rows, kind, register.itemKey) : itemsFromRows(rows, kind);
   report.store_dropped = built.dropped;
 
   const seen = new Set();
@@ -287,10 +384,44 @@ export function buildRegisterItems(rawRows, register, kind) {
     items.push({ ...item, item_key: key });
   }
   report.kept = items.length;
-  const dates = items.map((i) => i.row.date).sort();
+  const dates = items.map((i) => (register.dateOf ? register.dateOf(i.row) : i.row.date)).filter(Boolean).sort();
   report.oldest = dates[0] || '';
   report.newest = dates[dates.length - 1] || '';
   return { items, report };
+}
+
+/**
+ * Rows built one at a time, as itemsFromRows builds them (status rows, invalid and oversize rows left
+ * out), each keyed by `itemKey(row)`: itemsFromRows keys rows itself and keeps one per shared link.
+ */
+function itemsOneByOne(rows, kind, itemKey) {
+  const dropped = { status_rows: 0, invalid: 0, oversize: 0, duplicate: 0, over_limit: 0 };
+  const items = [];
+  for (const row of rows) {
+    const one = itemsFromRows([row], kind);
+    for (const [reason, n] of Object.entries(one.dropped)) dropped[reason] += n;
+    for (const item of one.items) items.push({ ...item, item_key: itemKey(item.row) });
+  }
+  return { items, dropped };
+}
+
+/**
+ * A register module's items by store variant, in the register's variant order, each with its own
+ * report (variant, kept, oldest and newest date) for its stored note.
+ */
+export function groupByVariant(items, register) {
+  const groups = new Map();
+  for (const item of items) {
+    const variant = register.variantOf(item.row);
+    if (!groups.has(variant)) groups.set(variant, []);
+    groups.get(variant).push(item);
+  }
+  return [...groups].map(([variant, list]) => {
+    const dates = list.map((i) => (register.dateOf ? register.dateOf(i.row) : i.row.date)).filter(Boolean).sort();
+    // The variant's own citations (MLA Directory: its assembly's page), named in its stored links.
+    const links = [...new Set(list.map((i) => i.row.register_source_url).filter(Boolean))].slice(0, 10);
+    return { variant, items: list, report: { variant, kept: list.length, oldest: dates[0] || '', newest: dates[dates.length - 1] || '', links } };
+  });
 }
 
 /** feed_state.meta for the register: shown until the first live refresh replaces it. */
@@ -300,8 +431,8 @@ export function registerMeta(register, report, file, fetchedAt) {
       source: {
         adapter: 'register',
         kind: 'register',
-        links: register.links || [],
-        note: `Stored register of ${report.kept} ${register.noun || 'records'}, ${report.oldest} to ${report.newest}, loaded from ${file}. Each refresh adds the newest releases on top.`,
+        links: [...new Set([...(register.links || []), ...(report.links || [])])],
+        note: register.note ? register.note(report, file) : `Stored register of ${report.kept} ${register.noun || 'records'}, ${report.oldest} to ${report.newest}, loaded from ${file}. Each refresh adds the newest releases on top.`,
       },
       coverage: { from: report.oldest, through: report.newest, exhaustive: false },
     },
@@ -327,6 +458,17 @@ export function runFor(moduleId, { runs = feedRunsForDb() } = {}) {
   }
   const { params: _params, ...pRun } = run;
   return pRun;
+}
+
+/**
+ * A register module's runs, one per variant (server/feedSchedule.mjs registerRunsForDb), as
+ * feed_claim_due takes them. Throws when the module is not a register module or a run is not of a kept kind.
+ */
+export function registerRunsFor(moduleId) {
+  const runs = registerRunsForDb(moduleId);
+  if (!runs.length) throw new Error(`${moduleId} is not a register module (server/feedSchedule.mjs FEED_REGISTERS)`);
+  for (const run of runs) if (!KEPT_KINDS.includes(run.kind)) throw new Error(`${moduleId} / ${run.variant} is kept as "${run.kind}"`);
+  return runs;
 }
 
 /**
@@ -513,11 +655,11 @@ const OPTIONS = {
 
 const line = (label, value) => console.log(`  ${label.padEnd(40)} ${value}`);
 
-function printReport(report) {
+function printReport(report, { releases = true } = {}) {
   console.log('Register rows');
   line('read from the workbook', report.read);
   for (const [reason, n] of Object.entries(report.dropped)) line(`left out: ${reason}`, n);
-  line('left out: second release of a decision', report.release_variants);
+  if (releases) line('left out: second release of a decision', report.release_variants);
   for (const [reason, n] of Object.entries(report.store_dropped)) if (n) line(`left out by the store: ${reason}`, n);
   line('duplicate keys (first kept)', report.key_duplicates);
   line('kept', report.kept);
@@ -537,7 +679,8 @@ export const USAGE = `Usage: node scripts/load-feed-register.mjs [--module "tier
        [--apply --target prod --confirm-prod]      (SUPABASE_URL and SUPABASE_SECRET_KEY in the environment)
 
 A dry run is the default: it reads the register, prints the counts and a sample, and never calls a database.
-Only a module of kind "official" can be loaded (Cabinet Decisions).
+Only a module of kind "official" can be loaded: Cabinet Decisions, and the register module MLA Directory
+(--module "state:MLA Directory", one store variant per state, never refreshed by the timer).
 
 ORDER: run the production load BEFORE the 5-minute refresh job is switched on. A load makes the module's
 first refresh an interval (60 min) away; after the job has run, a load usually reports NOT DUE, and one
@@ -590,6 +733,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const { url } = checkOptions(o, env);
   const register = registers[o.module];
   if (!register) throw new Error(`no register mapping for ${o.module}; the mapped modules are: ${Object.keys(registers).join(', ')}`);
+  if (register.variantOf) return loadVariants({ o, url, env, register, readRows, makeLocalRpc, makeProdRpc, forceDue });
   const run = runFor(o.module);
   const file = o.file || register.file;
   const shownFile = displayFile(file);
@@ -655,6 +799,80 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   line('serve switch', after?.serve);
   line('newest three', (after?.items || []).map((i) => `${String(i.published_at).slice(0, 10)} ${String(i.row?.title).slice(0, 50)}`).join(' | '));
   return result.answer?.status === 'ok' || result.answer?.status === 'unchanged' ? 0 : 1;
+}
+
+/**
+ * A register module's load (main, after the same gate): the register's items grouped by store variant,
+ * each variant claimed and recorded on its own (registerRunsFor), then each variant's stored count read
+ * back. Returns 0 when every variant recorded ok or unchanged, 3 when any was not due (the others are
+ * still recorded), 1 when the store did not accept one.
+ */
+async function loadVariants({ o, url, env, register, readRows, makeLocalRpc, makeProdRpc, forceDue }) {
+  const runs = registerRunsFor(o.module);
+  const file = o.file || register.file;
+  const shownFile = displayFile(file);
+  const rawRows = readRows(resolve(ROOT, file), 10_000);
+  const { items, report } = buildRegisterItems(rawRows, register, runs[0].kind);
+  if (!items.length) throw new Error('no item to load');
+  const groups = groupByVariant(items, register);
+  for (const g of groups) {
+    if (!runs.some((r) => r.variant === g.variant)) throw new Error(`${o.module} has no store variant "${g.variant}"`);
+    if (g.items.length > MAX_ITEMS) throw new Error(`${g.variant}: ${g.items.length} items; one record holds at most ${MAX_ITEMS}`);
+  }
+  const fetchedAt = new Date().toISOString();
+
+  console.log(`${o.apply ? 'APPLY' : 'DRY RUN'}: ${o.module} (register: ${runs[0].kind}, one store variant per ${FEED_REGISTERS[o.module]?.param || 'value'}, never refreshed by the timer) from ${shownFile}`);
+  printReport(report, { releases: Boolean(register.releaseGroup) });
+  console.log(`${o.apply ? 'Recording' : 'Would record'} ${groups.length} store variants, ${items.length} items`);
+  for (const g of groups) line(g.variant, `${g.items.length}`);
+  line('note (first variant)', registerMeta(register, groups[0].report, shownFile, fetchedAt).note);
+  console.log('Sample (3 of the mapped items)');
+  for (const i of [0, Math.floor(items.length / 2), items.length - 1]) {
+    console.log(JSON.stringify({ item_key: items[i].item_key, published_at: items[i].published_at, url: items[i].url, row: items[i].row }, null, 2));
+  }
+  if (!o.apply) {
+    console.log('Dry run: the database was not called. Add --apply with --target local or --target prod.');
+    return 0;
+  }
+
+  let rpc;
+  if (o.target === 'local') {
+    rpc = makeLocalRpc({ container: o.container, db: o.db });
+  } else {
+    console.log(`Target: ${hostOf(url)}`);
+    rpc = makeProdRpc({ url, key: env.SUPABASE_SECRET_KEY, timeoutMs: 60_000 });
+  }
+  const outcomes = [];
+  for (const g of groups) {
+    const run = runs.find((r) => r.variant === g.variant);
+    if (o.force && o.target === 'local') await forceDue({ container: o.container, db: o.db, run });
+    const meta = registerMeta(register, g.report, shownFile, fetchedAt);
+    const result = await loadRegister({ rpc, run, items: g.items, meta });
+    if (result.state === 'not_due') {
+      const p = result.page;
+      line(g.variant, `NOT DUE${p ? ` (last checked ${p.checked_at}, ${p.total} items held)` : ''}`);
+      outcomes.push('not_due');
+      continue;
+    }
+    const a = result.answer || {};
+    line(g.variant, `${a.status}: ${a.items} items, ${a.new_items ?? 0} new, ${a.changed_items ?? 0} changed, ${a.item_count ?? '?'} held`);
+    outcomes.push(a.status);
+  }
+  if (o.force && o.target === 'local') console.log(`--force: each variant was set due in ${o.db} first (local test only)`);
+  console.log('Held after the load');
+  let held = 0;
+  for (const g of groups) {
+    const page = await readBack(rpc, runs.find((r) => r.variant === g.variant), 1);
+    held += Number(page?.total) || 0;
+    line(g.variant, `${page?.total ?? '(not in the store)'} items, serve ${page?.serve}`);
+  }
+  line('total held', held);
+  if (outcomes.some((s) => s !== 'ok' && s !== 'unchanged' && s !== 'not_due')) return 1;
+  if (outcomes.includes('not_due')) {
+    console.log('NOT DUE: some variants were not recorded. Wait 30 days from their last load, or on a local test database use --force.');
+    return 3;
+  }
+  return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

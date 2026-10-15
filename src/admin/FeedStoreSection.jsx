@@ -8,7 +8,7 @@ import {
   formatBytes,
   formatClock,
   formatFeedAge,
-  formatInterval,
+  intervalLabel,
   isFailing,
   loadFeedStore,
   nextFeedState,
@@ -61,7 +61,7 @@ function FeedRow({ row, now }) {
     <tr>
       <th scope="row">
         <div className="feat">{row.feature}{row.variant ? ` (${row.variant})` : ''}</div>
-        <div className="note">{row.tier} · {formatInterval(row.intervalMinutes)}{row.leased ? ' · running now' : ''}</div>
+        <div className="note">{row.tier} · {intervalLabel(row)}{row.leased ? ' · running now' : ''}</div>
         {isFailing(row) && row.lastError ? <div className="note">{row.lastError}</div> : null}
       </th>
       <td>{row.cls || '—'}</td>

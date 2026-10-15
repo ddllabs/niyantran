@@ -111,6 +111,11 @@ describe('the rows', () => {
   it('says OK for a healthy module', () => {
     expect(view(ready([{ feature: 'Fine' }]))).toContain('<td>OK</td>');
   });
+  it('shows "register" in place of the interval for a register variant (C6 option 1)', () => {
+    const markup = view(ready([{ feature: 'MLA Directory', variant: 'Kerala', class: 'register', kind: 'official', interval_minutes: 43200, tier: 'state' }]));
+    expect(markup).toContain('state · register');
+    expect(markup).not.toContain('every 30 days');
+  });
   it('shows a module that was never fetched as Never', () => {
     expect(view(ready([{ feature: 'Fresh', fetched_at: null }]))).toContain('Never');
   });

@@ -274,7 +274,7 @@ describe('loadRegister', () => {
   });
 
   it('refuses a module whose refresh replaces its list, and a module that is not scheduled', () => {
-    expect(() => runFor('state:MLA Directory')).toThrow(/reference.*pruned/s);
+    expect(() => runFor('state:Centre-State Fund Flow Tracker')).toThrow(/reference.*pruned/s);
     expect(() => runFor('national:No Such Module')).toThrow(/not a scheduled module/);
     expect(KEPT_KINDS).toEqual(['official']);
     // A news module keeps its items too, but a news register is not built: only official is loaded.
@@ -425,8 +425,8 @@ describe('main: the gate before anything is written', () => {
   });
 
   it('only a module of kind official is loaded', async () => {
-    const registers = { 'state:MLA Directory': REGISTER, 'state:Cabinet Decisions': REGISTER };
-    for (const [module, kind] of [['state:MLA Directory', 'reference'], ['state:Cabinet Decisions', 'news']]) {
+    const registers = { 'state:Centre-State Fund Flow Tracker': REGISTER, 'state:Cabinet Decisions': REGISTER };
+    for (const [module, kind] of [['state:Centre-State Fund Flow Tracker', 'reference'], ['state:Cabinet Decisions', 'news']]) {
       const { deps } = setup();
       await expect(main(['--module', module, '--apply', '--target', 'prod', '--confirm-prod'], { ...deps, registers })).rejects.toThrow(new RegExp(`"${kind}"`));
       expect(deps.readRows).not.toHaveBeenCalled();

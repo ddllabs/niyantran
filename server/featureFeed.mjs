@@ -73,7 +73,7 @@ import * as financeLive from './financeApi.mjs';
 import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
-import { FEED_SCHEDULE } from './feedSchedule.mjs';
+import { isStoreServed } from './feedSchedule.mjs';
 import { serveFromStore } from './feedServe.mjs';
 import * as entertainmentLive from './entertainmentApi.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -3635,7 +3635,7 @@ export async function serveFeatureFeedWithBackup(searchParams, options) {
 /**
  * The schedule id (`tier:feature`, server/feedSchedule.mjs) of the module a request names, resolved
  * as the loader resolves it (tier aliases, spelling, the feature map's own tier), or '' when the
- * module is not scheduled.
+ * module is not served from the store (neither scheduled nor a register module, C6 option 1).
  */
 export function scheduledModuleId(searchParams) {
   const tier = searchParams.get('tier') || '';
@@ -3644,7 +3644,7 @@ export function scheduledModuleId(searchParams) {
   const { feat } = matchFeature(tier, feature);
   if (!feat) return '';
   const id = `${feat.htmlTier}:${feat.htmlFeature}`;
-  return Object.hasOwn(FEED_SCHEDULE, id) ? id : '';
+  return isStoreServed(id) ? id : '';
 }
 
 /**

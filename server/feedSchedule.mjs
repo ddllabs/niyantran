@@ -2,7 +2,9 @@
  * F169 phase 4 (C1): which modules the 5-minute timer refreshes, how often, and how long their
  * items are kept (F170 rules 1–2). A module is scheduled when its loader calls an outside source
  * (measured 2026-10-15: 58 of 120 desk modules); stored registers and planned modules are not. A test
- * (src/lib/feedSchedule.test.js) checks this table against what the loaders actually call.
+ * (src/lib/feedSchedule.test.js) checks this table against what the loaders actually call: every
+ * module whose loader calls a source is on it, except the register modules (FEED_REGISTERS) and the
+ * modules deliberately off the timer (OFF_TIMER), each listed with its reason.
  */
 import { createHash } from 'node:crypto';
 import { STATEMENT_LEADERS } from '../src/data/nationalCurated.js';
@@ -25,7 +27,6 @@ export const FEED_CLASSES = Object.freeze({
 });
 
 export const FEED_SCHEDULE = Object.freeze({
-  'finance:NSE/BSE Delayed Market Feed': 'markets',
   'finance:Live Global Stock Exchanges': 'markets',
   'finance:Prediction Market Political Odds': 'markets',
 
@@ -87,7 +88,6 @@ export const FEED_SCHEDULE = Object.freeze({
   'entertainment:Box Office Tracker': 'reference',
   'entertainment:OTT & Studio Intelligence': 'reference',
   'entertainment:Celebrity Influence Index': 'reference',
-  'state:MLA Directory': 'reference',
   'state:Centre-State Fund Flow Tracker': 'reference',
 });
 
@@ -96,9 +96,93 @@ export const FEED_VARIANTS = Object.freeze({
   'national:Statement & Quote Tracker with Contradiction Detection': { param: 'person', values: STATEMENT_LEADERS },
 });
 
-/** Every scheduled run: one per module, or one per variant, with its class settings. */
-export function scheduledRuns() {
-  return Object.entries(FEED_SCHEDULE).flatMap(([id, cls]) => {
+/**
+ * Modules a loader serves from a source but the timer never refreshes, with the reason. A module here is
+ * not served from the store either (the page keeps its live path).
+ */
+export const OFF_TIMER = Object.freeze({
+  // F186: no live source; the loader answers a frozen snapshot, which the store refuses, so every refresh failed.
+  'finance:NSE/BSE Delayed Market Feed': 'no live source: it answers a frozen snapshot, which the store refuses (F186)',
+});
+
+/**
+ * MLA Directory's variants: the 31 states and union territories of the register
+ * (backup/STATE/F30_MLA_Directory.xlsx), by the register's own names, each with the register's state code
+ * and other spellings a request may use.
+ */
+const MLA_STATE_NAMES = [
+  ['Andhra Pradesh', 'AP'], ['Arunachal Pradesh', 'AR'], ['Assam', 'AS'], ['Bihar', 'BR'],
+  ['Chhattisgarh', 'CG', 'CT', 'Chattisgarh'], ['Delhi', 'DL', 'NCT of Delhi', 'National Capital Territory of Delhi'],
+  ['Goa', 'GA'], ['Gujarat', 'GJ'], ['Haryana', 'HR'], ['Himachal Pradesh', 'HP'], ['Jammu & Kashmir', 'JK'],
+  ['Jharkhand', 'JH'], ['Karnataka', 'KA'], ['Kerala', 'KL'], ['Madhya Pradesh', 'MP'], ['Maharashtra', 'MH'],
+  ['Manipur', 'MN'], ['Meghalaya', 'ML'], ['Mizoram', 'MZ'], ['Nagaland', 'NL'], ['Odisha', 'OD', 'OR', 'Orissa'],
+  ['Puducherry', 'PY', 'Pondicherry'], ['Punjab', 'PB'], ['Rajasthan', 'RJ'], ['Sikkim', 'SK'], ['Tamil Nadu', 'TN'],
+  ['Telangana', 'TG', 'TS'], ['Tripura', 'TR'], ['Uttar Pradesh', 'UP'], ['Uttarakhand', 'UK', 'UT', 'Uttaranchal'],
+  ['West Bengal', 'WB'],
+];
+export const MLA_STATES = Object.freeze(MLA_STATE_NAMES.map(([name]) => name));
+
+// Case, spacing, punctuation and "&" against "and" do not matter.
+const foldName = (value) => String(value ?? '').normalize('NFKC').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const MLA_STATE_BY_NAME = new Map(MLA_STATE_NAMES.flatMap(([name, ...others]) => [name, ...others].map((n) => [foldName(n), name])));
+
+/** A state as its MLA Directory variant (the register's name for it), or '' when it names none. */
+export function mlaStateVariant(value) {
+  return MLA_STATE_BY_NAME.get(foldName(value)) || '';
+}
+
+/**
+ * How a register's variants are kept in feed_state: kind official (kept forever, never pruned) and the
+ * longest interval feed_state allows (30 days). Nothing schedules by the interval: no refresh lists a
+ * register, so none claims it; only scripts/load-feed-register.mjs does.
+ */
+export const REGISTER_CLASS = Object.freeze({ name: 'register', every: 43200, kind: 'official' });
+
+/**
+ * Register modules (owner decision C6, option 1): served from the store but never refreshed by the
+ * timer. Loaded once from a stored register, one store variant per value of `param` (each under
+ * feed_record's 2,000-item cap), kept, and valid until loaded again, so the page serves them whatever
+ * their age (server/feedServe.mjs). variantOf(value): a request's or a row's value as its variant,
+ * '' when it names none. noun and unit name what the page shows across variants.
+ */
+export const FEED_REGISTERS = Object.freeze({
+  'state:MLA Directory': Object.freeze({
+    param: 'state',
+    values: MLA_STATES,
+    variantOf: mlaStateVariant,
+    noun: 'MLAs',
+    unit: 'states and union territories',
+  }),
+});
+
+/** Modules the page reads from the store first: the scheduled modules and the registers. */
+export function isStoreServed(id) {
+  return Object.hasOwn(FEED_SCHEDULE, id) || Object.hasOwn(FEED_REGISTERS, id);
+}
+
+/** A register's variants as feed_claim_due takes them (for the loader only; never in feedRunsForDb). */
+export function registerRunsForDb(id) {
+  const register = FEED_REGISTERS[id];
+  if (!register) return [];
+  const [tier, feature] = id.split(/:(.*)/s);
+  return register.values.map((variant) => ({
+    tier,
+    feature,
+    variant,
+    class: REGISTER_CLASS.name,
+    kind: REGISTER_CLASS.kind,
+    interval_minutes: REGISTER_CLASS.every,
+  }));
+}
+
+const offTimer = (id) => Object.hasOwn(FEED_REGISTERS, id) || Object.hasOwn(OFF_TIMER, id);
+
+/**
+ * Every scheduled run: one per module, or one per variant, with its class settings. A register module or
+ * a module off the timer is never a run, even if it is listed in the schedule by mistake.
+ */
+export function scheduledRuns(schedule = FEED_SCHEDULE) {
+  return Object.entries(schedule).filter(([id]) => !offTimer(id)).flatMap(([id, cls]) => {
     const [tier, feature] = id.split(/:(.*)/s);
     const base = { tier, feature, cls, ...FEED_CLASSES[cls] };
     const v = FEED_VARIANTS[id];
@@ -113,8 +197,8 @@ export function scheduledRuns() {
  * interval from this list, and feed_record keeps items by the stored kind, so the refresh route
  * never chooses a module's keeping rule itself. params is ignored by the database.
  */
-export function feedRunsForDb() {
-  return scheduledRuns().map((r) => ({
+export function feedRunsForDb(schedule = FEED_SCHEDULE) {
+  return scheduledRuns(schedule).map((r) => ({
     tier: r.tier,
     feature: r.feature,
     variant: r.variant,
