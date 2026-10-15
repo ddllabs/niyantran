@@ -45,8 +45,8 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { REPLACING_KINDS, itemKeysFor, scheduledRuns } from '../server/feedSchedule.mjs';
-import { LATEST_RUN_KINDS, LATEST_RUN_MARGIN_MS, STORE_PAGE_ROWS, liveAnswerIsUsable, serveFromStore, storeMaxAgeMinutes } from '../server/feedServe.mjs';
-import { storeRowsFor } from '../server/feedRows.mjs';
+import { LATEST_RUN_MARGIN_MS, STORE_PAGE_ROWS, liveAnswerIsUsable, serveFromStore, storeMaxAgeMinutes } from '../server/feedServe.mjs';
+import { servesLatestRunOnly, storeRowsFor } from '../server/feedRows.mjs';
 import { safeText } from '../server/supabaseRpc.mjs';
 
 export const READ_RPCS = Object.freeze(new Set(['feed_page', 'feed_page_across']));
@@ -237,14 +237,21 @@ const TOP = 10;
 
 /**
  * The stored page as the page server would serve it if `serve` were on: server/feedServe.mjs
- * serveFromStore on a local copy of the page (its first STORE_PAGE_ROWS items, serve set to true),
- * kept even past its freshness limit (allowStale, as the route keeps it). null: the live path answers.
+ * serveFromStore on a local copy of the stored items (serve set to true), each feed_page call answered
+ * with the page it asks for (its offset and limit, STORE_PAGE_ROWS by default: the first page, or more
+ * when the store path reads a variant whole), kept even past its freshness limit (allowStale, as the
+ * route keeps it). null: the live path answers.
  */
 export async function servedFromStore(run, stored, { now = Date.now() } = {}) {
   if (!isRow(stored)) return null;
-  const copy = { ...stored, serve: true, items: (Array.isArray(stored.items) ? stored.items : []).slice(0, STORE_PAGE_ROWS) };
+  const all = Array.isArray(stored.items) ? stored.items : [];
+  const pageAt = (args = {}) => {
+    const offset = Math.max(0, Number(args.p_offset) || 0);
+    const limit = Math.min(STORE_PAGE_ROWS, Math.max(1, Number(args.p_limit) || STORE_PAGE_ROWS));
+    return { ...stored, serve: true, items: all.slice(offset, offset + limit) };
+  };
   const params = new URLSearchParams({ tier: run.tier, feature: run.feature, ...(run.params || {}) });
-  return serveFromStore(`${run.tier}:${run.feature}`, params, { rpc: async () => copy, now: () => now, allowStale: true });
+  return serveFromStore(`${run.tier}:${run.feature}`, params, { rpc: async (_name, args) => pageAt(args), now: () => now, allowStale: true });
 }
 
 /** One module's served rows against its live rows (see the header). `served` is servedFromStore's answer. */
@@ -274,7 +281,7 @@ export function compareServed({ run, stored, served, live, now = Date.now() }) {
   const failing = asStored.filter((r) => (linkOf(r) && !againLinks.has(linkOf(r))) || !storeRowsFor(id, [r], opts).length).length;
   const kept = new Set(keysOf(storeRowsFor(id, liveReal, opts)));
   let notLatestRun = 0;
-  if (LATEST_RUN_KINDS.has(kind)) {
+  if (servesLatestRunOnly(id, kind)) {
     const runAt = Date.parse(String(stored?.fetched_at || ''));
     const seenAt = new Map((stored?.items || []).filter((i) => isRow(i?.row)).map((i) => [i.row, Date.parse(String(i.last_seen || ''))]));
     notLatestRun = rows.filter((r) => {

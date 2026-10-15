@@ -11,13 +11,13 @@
  *
  * STORE_ROW_RULES: module id → (rows, { now, variant }) → the rows its live branch would show.
  * STORE_ROWS_AS_STORED: module id → why its stored rows need no rule (its live branch filters nothing,
- * or the store serves only its latest run: server/feedServe.mjs, kinds measurement and events).
+ * or the store serves only its latest run: server/feedServe.mjs, servesLatestRunOnly).
  * A test (src/lib/feedStoreRows.test.js) checks that every scheduled module of kind news, official,
  * events or measurement is in exactly one of them.
  *
  * Kept free of loaders and of the network, so the page server can use it without importing them.
  */
-import { CURATED_NEWS, WIRE_GUARDS, curatedNewsRows, freshNewsRows, headlineKey, isPipelineRelease } from '../src/lib/curatedNews.js';
+import { CURATED_NEWS, WIRE_GUARDS, ageTime, curatedNewsRows, freshNewsRows, headlineKey, isPipelineRelease } from '../src/lib/curatedNews.js';
 import { newsRows } from '../src/lib/carbonPack.js';
 import { isCabinetDecision, pickReleasePairs } from '../src/lib/parliament.js';
 import { FEED_SCHEDULE } from './feedSchedule.mjs';
@@ -25,14 +25,15 @@ import { FEED_SCHEDULE } from './feedSchedule.mjs';
 const DAY_MS = 86_400_000;
 
 /**
- * Rows dated within the last `days` days (by Date.parse of `date`, as src/lib/curatedNews.js judges
- * them). A row with no readable date is kept, as the live branches keep it; the store serves an
- * undated row only while its source still lists it (server/feedServe.mjs).
+ * Rows dated within the last `days` days, judged as src/lib/curatedNews.js judges them (ageTime: the
+ * first date field that is not empty, a bare day lasting to its end). A row with no readable date is
+ * kept, as the live branches keep it; the store serves an undated row only while its source still
+ * lists it (server/feedServe.mjs).
  */
 export function withinDays(rows, days, now = Date.now()) {
   const oldest = now - days * DAY_MS;
   return (rows || []).filter((row) => {
-    const t = Date.parse(String(row?.date || ''));
+    const t = ageTime(row);
     return !Number.isFinite(t) || t >= oldest;
   });
 }
@@ -231,20 +232,39 @@ export const STORE_ROW_RULES = Object.freeze({
   'sports:Indian Sports Wire': (rows, { now } = {}) => indiaSportsRows(rows, { now }),
   // Its registry row's live feed (Wikidata districts, undated) is answered whole (capRows); only when that
   // feed and the archive give nothing does its Google News fallback answer, kept to 7 days, one row per
-  // story. A row from that search (a news.google.com link) is held to the fallback's rule.
+  // story. So with any other row stored, a row from that search (a news.google.com link) is not served,
+  // and without one, the search's rows are held to the fallback's rule (review of 1d2bdb7, finding 1).
   'state:District Performance Tracker (Composite)': (rows, { now } = {}) => {
-    const fromSearch = searchWireRows(rows.filter(isNewsSearchRow), { now });
-    return [...rows.filter((r) => !isNewsSearchRow(r)), ...fromSearch];
+    const direct = rows.filter((r) => !isNewsSearchRow(r));
+    return direct.length ? direct : searchWireRows(rows.filter(isNewsSearchRow), { now });
   },
   'national:Policy Pipeline Tracker (Draft-to-Gazette)': (rows) => pipelineRows(rows),
   'national:Cabinet Decisions': (rows) => cabinetDecisionRows(rows),
 });
 
+/**
+ * Review of 1d2bdb7 (finding 4): the measurement modules whose items legitimately vanish (a market that
+ * closed drops out of the source), so the store serves only the items of their latest run
+ * (server/feedServe.mjs servableItems). Every other measurement module serves every stored item: Live
+ * Global Stock Exchanges keeps a venue the latest run could not read at its last stored value, until
+ * feed_purge drops an instrument not seen for 30 days (the measurement retention). Every events module
+ * serves its latest run only (a launch that flew, yesterday's schedule).
+ */
+export const LATEST_RUN_MEASUREMENTS = Object.freeze(new Set([
+  'finance:Prediction Market Political Odds',
+  'finance:Election Forecast Aggregator',
+]));
+
+/** Whether the store serves only the latest run of module `id`, of keeping kind `kind`. */
+export function servesLatestRunOnly(id, kind) {
+  return kind === 'events' || (kind === 'measurement' && LATEST_RUN_MEASUREMENTS.has(id));
+}
+
 const LATEST_RUN = 'kind events: the store serves only the items of the latest run (server/feedServe.mjs), which is what the live branch shows';
-const MEASURED = 'kind measurement: the store serves only the items of the latest run (server/feedServe.mjs), which is what the live branch shows';
+const MEASURED = 'kind measurement, LATEST_RUN_MEASUREMENTS: the store serves only the items of the latest run (server/feedServe.mjs), which is what the live branch shows; a closed market is not served';
 
 export const STORE_ROWS_AS_STORED = Object.freeze({
-  'finance:Live Global Stock Exchanges': MEASURED,
+  'finance:Live Global Stock Exchanges': 'kind measurement: every stored venue is served, one the latest run could not read at its last stored value (as before the store\'s row rules), until feed_purge drops a venue not seen for 30 days; the live branch has no topic or age filter',
   'finance:Prediction Market Political Odds': MEASURED,
   'finance:Election Forecast Aggregator': MEASURED,
   'geopolitics:Satellite Infrastructure': `${LATEST_RUN} (The Space Devs' upcoming launches)`,

@@ -152,6 +152,29 @@ function dayOf(value) {
   return Number.isFinite(t) ? t : NaN;
 }
 
+/**
+ * The fields a row's date is read from, in the order server/feedStore.mjs reads them for an item's
+ * published_at: the first one that is not empty.
+ */
+export const DATE_FIELDS = Object.freeze(['date', 'published_at', 'published', 'pub_date']);
+const BARE_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The time a row's age is judged by (ms), NaN when it has no readable date. Review of 1d2bdb7
+ * (2026-10-16): the date is the first of DATE_FIELDS that is not empty, so a row the store counts as
+ * dated (by its published_at) is always aged; and a bare day (YYYY-MM-DD, as this file and
+ * src/lib/carbonPack.js write a row's date) lasts to the end of that day (UTC), so a story the live
+ * branch kept on its full time is not dropped from the store up to a day early.
+ */
+export function ageTime(row) {
+  const raw = DATE_FIELDS.map((key) => row?.[key]).find((v) => v != null && String(v).trim() !== '');
+  if (raw == null) return NaN;
+  const s = String(raw).trim();
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return NaN;
+  return BARE_DAY.test(s) ? t + DAY_MS - 1 : t;
+}
+
 function isoDay(value) {
   const t = dayOf(value);
   return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : '';
@@ -159,8 +182,8 @@ function isoDay(value) {
 
 /**
  * The rows of a news answer worth showing: titles unescaped; no study guide or bare navigation
- * page ("India News - LatestLY"); nothing older than `days` (an undated row is kept: its age
- * cannot be judged); each link and each story once (a reworded headline counts as the same story);
+ * page ("India News - LatestLY"); nothing older than `days` (by ageTime; an undated row is kept: its
+ * age cannot be judged); each link and each story once (a reworded headline counts as the same story);
  * newest first; at most `cap`.
  * `keep(row, headline)` may refuse a row (a module's title guard).
  */
@@ -184,7 +207,7 @@ function keptNews(rows, { days = DEFAULT_NEWS_DAYS, now = Date.now(), cap = 100,
     if (headline.replace(PUBLISHER_SUFFIX, '').split(/\s+/).filter(Boolean).length < 3) continue;
     if (STUDY_SITES.test(`${title} ${publisher}`)) continue;
     if (keep && !keep(row, headline)) continue;
-    const t = dayOf(row?.date);
+    const t = ageTime(row);
     if (Number.isFinite(t) && t < oldest) continue;
     const link = String(row?.source_url || '').trim();
     const story = headlineKey(title, publisher);

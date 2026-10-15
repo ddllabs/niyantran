@@ -260,6 +260,22 @@ describe('compareServed: the stored page as the store would serve it, against li
     expect(s).toMatchObject({ servedRows: 1, storeOnly: 0, liveOnly: 0, notLatestRun: 0 });
   });
 
+  it('a measurement variant of more than one page: the store code reads it whole, as the page server would', async () => {
+    // Review of 1d2bdb7 (finding 4): feed_page orders a measurement by position; 450 markets of an earlier
+    // run come first, the latest run's 150 after them.
+    const mRun = { tier: 'finance', feature: 'Prediction Market Political Odds', variant: '', cls: 'markets', kind: 'measurement', every: 15, params: {} };
+    const items = Array.from({ length: 600 }, (_v, i) => ({
+      item_key: `url:m/${i}`, row: { title: `Market ${i}`, source_url: `https://m.example/${i}` }, last_seen: i < 450 ? OLDER : NOW_ISO,
+    }));
+    const stored = storedPage({
+      tier: 'finance', feature: 'Prediction Market Political Odds', class: 'markets', kind: 'measurement', interval_minutes: 15, fetched_at: NOW_ISO, total: 600, items,
+    });
+    const served = await servedFromStore(mRun, stored, { now: NOW });
+    expect(served.rows.map((r) => r.title)).toEqual(items.slice(450).map((i) => i.row.title));
+    const s = compareServed({ run: mRun, stored, served, live: liveBody(items.slice(450).map((i) => i.row)), now: NOW });
+    expect(s).toMatchObject({ servedRows: 150, liveRows: 150, storeOnly: 0, liveOnly: 0, notLatestRun: 0 });
+  });
+
   it('says when the store would serve nothing (the live path answers)', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const stored = storedPage({ tier: 'state', feature: 'State Governance Brief', fetched_at: NOW_ISO, total: 1, items: [govStored().items[2]] });

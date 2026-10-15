@@ -24,7 +24,8 @@
  * whole, up to 2,000 items in four pages asked for at once (wholeVariant).
  *
  * Task B follow-up (2026-10-16): a stored answer shows only rows the module's live code would show now:
- * the latest run of a measurement or events module, an undated item only while its source lists it
+ * the latest run of an events module or of a market whose items close (servesLatestRunOnly; such a
+ * variant is read whole when it is larger than one page), an undated item only while its source lists it
  * (servableItems), and the live branch's own row rules, its guards, age window and one row per story
  * (server/feedRows.mjs storeRowsFor). When none is left, the live path answers.
  *
@@ -37,7 +38,7 @@
  */
 import { classifyAnswer } from './feedAnswer.mjs';
 import { FEED_CLASSES, FEED_REGISTERS, FEED_SCHEDULE, FEED_VARIANTS, isStoreServed } from './feedSchedule.mjs';
-import { storeRowsFor } from './feedRows.mjs';
+import { servesLatestRunOnly, storeRowsFor } from './feedRows.mjs';
 import { safeText, supabaseRpc } from './supabaseRpc.mjs';
 
 /** The store gets this long. Past it the live path answers; the live path has its own 4 s limit after that. */
@@ -78,10 +79,14 @@ export function storeCeilingMinutes(intervalMinutes) {
  * Task B follow-up (2026-10-16): which stored items a page may show, by the module's keeping kind.
  * feed_record stamps every item a run lists with last_seen = the run's time, the same time it writes to
  * feed_state.fetched_at; an item the run does not list keeps its older last_seen.
- *  - measurement and events (LATEST_RUN_KINDS): only the items of the latest run, last_seen at or after
- *    the state's fetched_at less LATEST_RUN_MARGIN_MS. A market that closed, a launch that flew,
- *    yesterday's TV schedule: the live branch no longer shows them. A run that failed moves neither
- *    time, so the previous run's items stay the latest.
+ *  - every events module and the measurement modules of server/feedRows.mjs LATEST_RUN_MEASUREMENTS
+ *    (servesLatestRunOnly): only the items of the latest run, last_seen at or after the state's
+ *    fetched_at less LATEST_RUN_MARGIN_MS. A market that closed, a launch that flew, yesterday's TV
+ *    schedule: the live branch no longer shows them. A run that failed moves neither time, so the
+ *    previous run's items stay the latest. Their variant is read whole first when it is larger than
+ *    one page (serveFromStore), since feed_page orders a measurement by position, not by run.
+ *  - any other measurement module (Live Global Stock Exchanges): every item, so a venue the latest run
+ *    could not read keeps its last stored value (review of 1d2bdb7, finding 4).
  *  - official and news: every item, except that an undated one (no published_at, no readable date) is
  *    served only while its source still lists it (last_seen within the margin of the newest last_seen
  *    on the page, the latest run that recorded items: a run that found nothing new moves fetched_at
@@ -89,7 +94,6 @@ export function storeCeilingMinutes(intervalMinutes) {
  *  - latest and reference replace their items each run, so all are served.
  * An item without a readable last_seen is kept (public.feed_page always returns one).
  */
-export const LATEST_RUN_KINDS = Object.freeze(new Set(['measurement', 'events']));
 const KEPT_KINDS = new Set(['official', 'news']);
 /** How far before the run's time an item's last_seen may be and still count as that run's. */
 export const LATEST_RUN_MARGIN_MS = 60_000;
@@ -97,8 +101,8 @@ export const LATEST_RUN_MARGIN_MS = 60_000;
 const timeOf = (value) => Date.parse(String(value ?? ''));
 const isDated = (i) => Number.isFinite(timeOf(i?.published_at)) || Number.isFinite(timeOf(i?.row?.date));
 
-export function servableItems(kind, items, fetchedAt) {
-  const latestOnly = LATEST_RUN_KINDS.has(kind);
+export function servableItems(id, kind, items, fetchedAt) {
+  const latestOnly = servesLatestRunOnly(id, kind);
   if (!latestOnly && !KEPT_KINDS.has(kind)) return items;
   const seen = items.map((i) => timeOf(i?.last_seen)).filter(Number.isFinite);
   const runAt = latestOnly ? timeOf(fetchedAt) : Math.max(...seen);
@@ -154,6 +158,8 @@ export function storeVariant(id, searchParams) {
 }
 
 const isRow = (r) => Boolean(r) && typeof r === 'object' && !Array.isArray(r);
+/** A stored page's keeping kind: the state's own, else the schedule's. */
+const kindOf = (id, page) => String((isRow(page) && page.kind) || FEED_CLASSES[FEED_SCHEDULE[id]]?.kind || '');
 
 function isoOrNull(value) {
   if (!value) return null;
@@ -174,11 +180,11 @@ function storedAnswer(id, page, now, register = false, allowStale = false) {
   const items = (Array.isArray(page.items) ? page.items : []).filter((i) => isRow(i?.row));
   if (!items.length) return null;
   if (!fetchedAt) return null;
-  // Task B follow-up (2026-10-16): only the items the module's live code would show: the latest run of a
-  // measurement or events module, undated items only while listed, then the live branch's own row rules
+  // Task B follow-up (2026-10-16): only the items the module's live code would show: the latest run of an
+  // events module or a closing market (servableItems), undated items only while listed, then the live branch's own row rules
   // (server/feedRows.mjs; F187: one release per Cabinet decision is one of them).
-  const kind = String(page.kind || FEED_CLASSES[FEED_SCHEDULE[id]]?.kind || '');
-  const listed = register ? items : servableItems(kind, items, page.fetched_at || meta.fetched_at);
+  const kind = kindOf(id, page);
+  const listed = register ? items : servableItems(id, kind, items, page.fetched_at || meta.fetched_at);
   const rows = storeRowsFor(id, listed.map((i) => i.row), { now, variant: String(page.variant ?? '') });
   if (!rows.length) {
     console.warn(`[feed-store] ${id}: none of the ${items.length} stored items is one the live branch would show now; the live path answers`);
@@ -275,27 +281,53 @@ async function registerAcross(id, ask, limit, now) {
 export const WHOLE_VARIANT_PAGES = 4;
 
 /**
- * F201: a register variant read whole (a handbook table, or one whole-year block of a large one): the
- * pages at offsets 0, 500, 1000 and 1500, asked for at once, joined in offset order. null (the live
- * path) unless every page agrees on fetched_at and total and the pages together hold `total` items: a
- * reload between the reads, or a variant larger than the reads, is never served part-way.
+ * F201: a variant read whole: the pages at offsets 0, 500, 1000 and 1500, asked for at once, joined in
+ * offset order, as one feed_page result. With `first` (the page at offset 0, already read) only the
+ * pages its total still needs are asked for. null (the live path) unless every page agrees on
+ * fetched_at and total and the pages together hold `total` items: a reload or a refresh between the
+ * reads, or a variant larger than the reads, is never served part-way.
  */
-async function wholeVariant(id, ask, tier, feature, variant, now) {
-  const offsets = Array.from({ length: WHOLE_VARIANT_PAGES }, (_v, i) => i * STORE_PAGE_ROWS);
-  const pages = await Promise.all(offsets.map((offset) => ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: STORE_PAGE_ROWS, p_offset: offset })));
-  const [first] = pages;
+async function readWholeVariant(id, ask, tier, feature, variant, first = null) {
+  const total = Number(first?.total);
+  const needed = first ? Math.ceil(total / STORE_PAGE_ROWS) : WHOLE_VARIANT_PAGES;
+  if (first && needed > WHOLE_VARIANT_PAGES) {
+    console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: ${total} items, more than the ${WHOLE_VARIANT_PAGES * STORE_PAGE_ROWS} read whole; the live path answers`);
+    return null;
+  }
+  const offsets = Array.from({ length: needed }, (_v, i) => i * STORE_PAGE_ROWS).filter((offset) => !first || offset > 0);
+  const read = await Promise.all(offsets.map((offset) => ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: STORE_PAGE_ROWS, p_offset: offset })));
+  const pages = first ? [first, ...read] : read;
+  const [head] = pages;
   // No state, or not served: the live path, quietly, as for one page.
-  if (!isRow(first) || first.serve !== true) return null;
-  if (pages.some((p) => !isRow(p) || p.fetched_at !== first.fetched_at || p.total !== first.total)) {
+  if (!isRow(head) || head.serve !== true) return null;
+  if (pages.some((p) => !isRow(p) || p.fetched_at !== head.fetched_at || p.total !== head.total)) {
     console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: the reads of one variant disagree (a reload between them?); the live path answers`);
     return null;
   }
   const items = pages.flatMap((p) => (Array.isArray(p.items) ? p.items : []));
-  if (items.length !== Number(first.total)) {
-    console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: ${items.length} items read of ${first.total}; the live path answers`);
+  if (items.length !== Number(head.total)) {
+    console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: ${items.length} items read of ${head.total}; the live path answers`);
     return null;
   }
-  return storedAnswer(id, { ...first, items }, now(), true);
+  return { ...head, items };
+}
+
+/** F201: a register variant (a handbook table, or one whole-year block of a large one) read whole. */
+async function wholeVariant(id, ask, tier, feature, variant, now) {
+  const page = await readWholeVariant(id, ask, tier, feature, variant);
+  return page ? storedAnswer(id, page, now(), true) : null;
+}
+
+/**
+ * Review of 1d2bdb7 (finding 4): a module served by its latest run only, whose variant holds more than
+ * the first page. feed_page orders a measurement module by position (each run renumbers only the items
+ * it lists), so the latest run's items can sit past the first page; the variant is read whole, as a
+ * handbook register's is, before the latest run is picked.
+ */
+function needsWholeRun(id, page, offset) {
+  if (offset !== 0 || !isRow(page) || page.serve !== true) return false;
+  const read = Array.isArray(page.items) ? page.items.length : 0;
+  return servesLatestRunOnly(id, kindOf(id, page)) && Number(page.total) > read;
 }
 
 /**
@@ -334,7 +366,12 @@ export async function serveFromStore(
       : register && FEED_REGISTERS[id].wholeVariant
         ? wholeVariant(id, ask, tier, feature, variant, now)
         : ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: limit, p_offset: offset })
-          .then((page) => storedAnswer(id, page, now(), register, allowStale));
+          .then(async (page) => {
+            if (!needsWholeRun(id, page, offset)) return storedAnswer(id, page, now(), register, allowStale);
+            // The first page is reused when it is a whole page; otherwise every page is read.
+            const whole = await readWholeVariant(id, ask, tier, feature, variant, limit === STORE_PAGE_ROWS ? page : null);
+            return whole ? storedAnswer(id, whole, now(), register, allowStale) : null;
+          });
     return await Promise.race([
       work,
       new Promise((_resolve, reject) => {

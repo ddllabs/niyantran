@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { serveFromStore } from '../../server/feedServe.mjs';
 import { FEED_CLASSES, FEED_SCHEDULE, OFF_TIMER } from '../../server/feedSchedule.mjs';
-import { STORE_ROWS_AS_STORED, STORE_ROW_RULES, isTechTitle, storeRowsFor } from '../../server/feedRows.mjs';
+import { STORE_ROWS_AS_STORED, STORE_ROW_RULES, isTechTitle, storeRowsFor, withinDays } from '../../server/feedRows.mjs';
 import { CURATED_NEWS } from './curatedNews.js';
 import { isLawExtract, isUsScotusDesk } from './lawPack.js';
 
@@ -71,10 +71,12 @@ describe('measurement modules: only the items of the latest run', () => {
     expect(titles(body)).toEqual(['Bihar 2030: NDA majority?']);
   });
 
-  it('Live Global Stock Exchanges: a run that brought fewer quotes serves those, as live would', async () => {
+  it('Live Global Stock Exchanges: a venue the latest run could not read still shows its last stored value', async () => {
+    // Review of 1d2bdb7 (finding 4): a venue does not vanish when one quote fails; feed_purge drops one
+    // not seen for 30 days (the measurement retention), so only the latest-run rule is left out here.
     const venues = ['S&P 500', 'NASDAQ', 'TSX', 'Tadawul', 'ASX 200'];
     const items = venues.map((v, i) => item({ title: v, name: v, exchange: v, date: '2026-10-15' }, { seen: i < 3 ? RUN : EARLIER_RUN }));
-    expect(titles(await served('finance:Live Global Stock Exchanges', items))).toEqual(['S&P 500', 'NASDAQ', 'TSX']);
+    expect(titles(await served('finance:Live Global Stock Exchanges', items))).toEqual(venues);
   });
 
   it('Live Global Stock Exchanges: a failed run leaves the previous run as the latest, so every quote is served', async () => {
@@ -83,6 +85,41 @@ describe('measurement modules: only the items of the latest run', () => {
     const items = venues.map((v) => item({ title: v, name: v, exchange: v, date: '2026-10-15' }, { seen: EARLIER_RUN }));
     const body = await served('finance:Live Global Stock Exchanges', items, { fetched_at: EARLIER_RUN });
     expect(titles(body)).toEqual(venues);
+  });
+
+  it('Prediction Market Political Odds: a variant of more than one page is read whole before the latest run is picked', async () => {
+    // feed_page orders a measurement module by position, so the latest run's markets can sit past the first
+    // 500 items (each run renumbers only the items it lists). 450 markets of an earlier run lead the order,
+    // the latest run's 150 follow; the first page alone would serve 50 of them.
+    const all = Array.from({ length: 600 }, (_v, i) => item(
+      { title: `Market ${i}`, probability: 0.5, source_url: `https://manifold.markets/m${i}` },
+      { seen: i < 450 ? EARLIER_RUN : RUN },
+    ));
+    const id = 'finance:Prediction Market Political Odds';
+    const rpc = vi.fn(async (_name, args) => page(id, all.slice(args.p_offset, args.p_offset + args.p_limit), { total: all.length }));
+    const body = await serveFromStore(id, new URLSearchParams(), { rpc, ...SOON });
+    expect(titles(body)).toEqual(all.slice(450).map((i) => i.row.title));
+    // The first page, then the second, read once each (pages past the total are not asked for).
+    expect(rpc.mock.calls.map(([, args]) => args.p_offset).sort((a, b) => a - b)).toEqual([0, 500]);
+  });
+
+  it('Prediction Market Political Odds: a variant that fits one page is read once', async () => {
+    const id = 'finance:Prediction Market Political Odds';
+    const items = [item({ title: 'Market A', source_url: 'https://manifold.markets/a' })];
+    const rpc = vi.fn(async () => page(id, items));
+    expect(titles(await serveFromStore(id, new URLSearchParams(), { rpc, ...SOON }))).toEqual(['Market A']);
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('Prediction Market Political Odds: pages that disagree (a refresh between the reads) leave the answer to the live path', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const id = 'finance:Prediction Market Political Odds';
+    const all = Array.from({ length: 600 }, (_v, i) => item({ title: `Market ${i}`, source_url: `https://manifold.markets/m${i}` }));
+    const rpc = vi.fn(async (_name, args) => page(id, all.slice(args.p_offset, args.p_offset + args.p_limit), {
+      total: all.length,
+      fetched_at: args.p_offset ? AT(FETCHED + 60_000) : RUN,
+    }));
+    expect(await serveFromStore(id, new URLSearchParams(), { rpc, ...SOON })).toBeNull();
   });
 
   it('an item stamped a few seconds off the fetched time still counts as the latest run', async () => {
@@ -143,8 +180,10 @@ describe('news modules: the live branch row rules, on stored rows', () => {
     const items = [item(stateRow('Kerala cabinet approves new health scheme', '2026-10-14'))];
     const ask = (days) => serveFromStore(STATE, new URLSearchParams(), { rpc: vi.fn(async () => page(STATE, items)), now: () => FETCHED + days * 86_400_000, allowStale: true });
     expect(titles(await ask(5))).toEqual(['Kerala cabinet approves new health scheme']);
-    // Six days on, the story is past State Governance Brief's 7 days: nothing to serve, the live path answers.
-    expect(await ask(6)).toBeNull();
+    // Six days on (2026-10-21T10:00Z) the day 2026-10-14 is still within 7 days at its end (23:59:59Z) …
+    expect(titles(await ask(6))).toEqual(['Kerala cabinet approves new health scheme']);
+    // … seven days on it is past State Governance Brief's 7 days: nothing to serve, the live path answers.
+    expect(await ask(7)).toBeNull();
   });
 
   it("Municipal Watch: a New York mayor's story is left out, an Indian municipal one kept", async () => {
@@ -247,13 +286,80 @@ describe('news modules: the live branch row rules, on stored rows', () => {
     expect(titles(body)).toEqual(['Pulwama district']);
   });
 
-  it("District Performance Tracker: a row of its news fallback is held to that fallback's 7 days", async () => {
+  it('District Performance Tracker: with Wikidata rows stored, its news fallback rows are not served (live answers with Wikidata alone)', async () => {
     const body = await served('state:District Performance Tracker (Composite)', [
       item({ title: 'Pulwama district', source_url: 'https://www.wikidata.org/wiki/Q1' }),
       item({ title: 'District collector reviews flood relief in Pulwama', date: '2026-10-14', source_url: 'https://news.google.com/rss/articles/new' }),
+    ]);
+    expect(titles(body)).toEqual(['Pulwama district']);
+  });
+
+  it("District Performance Tracker: with no Wikidata row stored, its news fallback answers, held to that fallback's 7 days", async () => {
+    const body = await served('state:District Performance Tracker (Composite)', [
+      item({ title: 'District collector reviews flood relief in Pulwama', date: '2026-10-14', source_url: 'https://news.google.com/rss/articles/new' }),
       item({ title: 'District collector reviews school results in Sagar', date: '2026-09-20', source_url: 'https://news.google.com/rss/articles/old' }),
     ]);
-    expect(titles(body).sort()).toEqual(['District collector reviews flood relief in Pulwama', 'Pulwama district']);
+    expect(titles(body)).toEqual(['District collector reviews flood relief in Pulwama']);
+  });
+});
+
+describe('age windows: a bare day lasts to its end, and a row dated by another field is aged by it', () => {
+  // Review of 1d2bdb7 (finding 3): src/lib/curatedNews.js and carbonPack's newsRows write a day only
+  // (YYYY-MM-DD), read as that day's UTC midnight. A story live kept on its full time was then dropped
+  // from the store up to a day early. Probe: now 2026-10-16T10:00Z; published 2026-10-09T15:00Z.
+  const PROBE_NOW = Date.parse('2026-10-16T10:00:00Z');
+  const SEVEN_DAY = [
+    ['state:State Governance Brief', 'Kerala cabinet approves new health scheme for districts'],
+    ['judiciary:UP High Court (Allahabad) Order Feed', 'Allahabad High Court grants bail to accused in land case'],
+    ['national:Statement & Quote Tracker with Contradiction Detection', 'Amit Shah addresses rally in Bihar ahead of polls'],
+    ['state:Bureaucrat Transfer & Posting Tracker (State Cadre)', 'UP transfers 12 IAS officers in major reshuffle'],
+    ['sports:Indian Sports Wire', 'India beat Pakistan in hockey Asia Cup final'],
+    ['finance:AI & the Tech Industry', 'Startup raises funds for AI chips in Bengaluru'],
+  ];
+
+  for (const [id, title] of SEVEN_DAY) {
+    it(`${id}: a story of 2026-10-09T15:00Z stays in its 7 days at 2026-10-16T10:00Z, live and stored`, () => {
+      const raw = { title, date: '2026-10-09T15:00:00Z', publisher: 'Example News', source_url: `https://news.google.com/rss/articles/${encodeURIComponent(title)}` };
+      const opts = { now: PROBE_NOW, variant: 'Amit Shah' };
+      expect(storeRowsFor(id, [raw], opts).map((r) => r.title), 'live').toEqual([title]);
+      expect(storeRowsFor(id, [{ ...raw, date: '2026-10-09' }], opts).map((r) => r.title), 'stored').toEqual([title]);
+      // A day earlier is out on both.
+      expect(storeRowsFor(id, [{ ...raw, date: '2026-10-08' }], opts), 'a day earlier').toEqual([]);
+    });
+  }
+
+  it('Climate Newswire: a story of 2026-09-16T15:00Z stored as 2026-09-16 stays in its 30 days, live and stored', () => {
+    const raw = { title: 'Heat waves push India power demand to record', date: '2026-09-16T15:00:00Z', outlet: 'Carbon Brief', source_url: 'https://cb.example/1' };
+    const id = 'climate:Climate Newswire';
+    expect(storeRowsFor(id, [raw], { now: PROBE_NOW }).map((r) => r.title)).toEqual([raw.title]);
+    expect(storeRowsFor(id, [{ ...raw, date: '2026-09-16' }], { now: PROBE_NOW }).map((r) => r.title)).toEqual([raw.title]);
+  });
+
+  it('withinDays: a bare day is judged at its last millisecond', () => {
+    expect(withinDays([{ date: '2026-10-09' }], 7, PROBE_NOW)).toHaveLength(1);
+    expect(withinDays([{ date: '2026-10-08' }], 7, PROBE_NOW)).toHaveLength(0);
+  });
+
+  // Review of 1d2bdb7 (finding 5): a stored item counts as dated by its published_at (from `published` or
+  // `pub_date` when the row has no `date`), so it is kept past its run; the window must then age it too.
+  for (const field of ['published_at', 'published', 'pub_date']) {
+    it(`a row dated only by ${field} is aged by it`, () => {
+      const old = { [field]: '2026-09-20T10:00:00Z', source_url: 'https://n.example/old' };
+      expect(withinDays([old], 7, PROBE_NOW), 'withinDays').toEqual([]);
+      expect(storeRowsFor('sports:Indian Sports Wire', [{ ...old, title: 'India beat Pakistan in hockey Asia Cup final' }], { now: PROBE_NOW })).toEqual([]);
+      expect(storeRowsFor('state:Bureaucrat Transfer & Posting Tracker (State Cadre)', [{ ...old, title: 'UP transfers 12 IAS officers in major reshuffle' }], { now: PROBE_NOW })).toEqual([]);
+      expect(storeRowsFor('state:State Governance Brief', [{ ...old, title: 'Kerala cabinet approves new health scheme' }], { now: PROBE_NOW })).toEqual([]);
+      const fresh = { [field]: '2026-10-15T10:00:00Z', title: 'UP transfers 12 IAS officers in major reshuffle', source_url: 'https://n.example/new' };
+      expect(storeRowsFor('state:Bureaucrat Transfer & Posting Tracker (State Cadre)', [fresh], { now: PROBE_NOW })).toHaveLength(1);
+    });
+  }
+
+  it('a stored item dated only by `published`, from an earlier run, is not served once past its window', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const body = await served('state:Bureaucrat Transfer & Posting Tracker (State Cadre)', [
+      item({ title: 'Bihar transfers 20 IPS officers including SPs', published: '2026-09-20T10:00:00Z', source_url: 'https://n.example/b0' }, { seen: EARLIER_RUN, published: '2026-09-20T10:00:00.000Z' }),
+    ]);
+    expect(body).toBeNull();
   });
 });
 
