@@ -10,7 +10,9 @@
  * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes). With
  * `allowStale` such items are answered marked `stale: true` instead, so that the route can keep them
  * when the live path brings nothing better (liveAnswerIsUsable): an empty or failed live answer never
- * hides a good stored copy (Task B, 2026-10-16).
+ * hides a good stored copy (Task B, 2026-10-16). Up to a ceiling: items older than seven days, or 20 of
+ * the module's intervals when that is longer (storeCeilingMinutes), are never served, and the live,
+ * archive and backup path answers as before. A stored copy, fresh or stale, never says LIVE (storedView).
  *
  * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory, the RBI handbook modules) is loaded by a script
  * (a reload replaces a variant's list, served in load order) and never refreshed by the timer, so it
@@ -28,7 +30,8 @@
  * This file imports no loaders: the route (featureFeed.mjs, serveFeatureFeedStoredFirst) decides which
  * module a request names and what to do when this answers null.
  */
-import { FEED_REGISTERS, FEED_VARIANTS, isStoreServed } from './feedSchedule.mjs';
+import { classifyAnswer } from './feedAnswer.mjs';
+import { FEED_CLASSES, FEED_REGISTERS, FEED_SCHEDULE, FEED_VARIANTS, isStoreServed } from './feedSchedule.mjs';
 import { pickReleasePairs } from '../src/lib/parliament.js';
 import { safeText, supabaseRpc } from './supabaseRpc.mjs';
 
@@ -51,6 +54,43 @@ export const STORE_MIN_FRESH_MINUTES = 120;
 export function storeMaxAgeMinutes(intervalMinutes) {
   const every = Number(intervalMinutes);
   return Math.max(STORE_MIN_FRESH_MINUTES, Number.isFinite(every) && every > 0 ? 3 * every : 0);
+}
+
+/** The least time a stale copy may still be kept for the route (allowStale): seven days. */
+export const STORE_STALE_CEILING_MINUTES = 7 * 24 * 60;
+
+/**
+ * Review of 1345bfd (finding 2): the oldest a module's items may be and still be served at all, even
+ * marked stale: seven days, or 20 of its refresh intervals when that is longer (a daily reference
+ * module: 20 days). Past it the store answers null, so the live, archive and backup path answers.
+ */
+export function storeCeilingMinutes(intervalMinutes) {
+  const every = Number(intervalMinutes);
+  return Math.max(STORE_STALE_CEILING_MINUTES, Number.isFinite(every) && every > 0 ? 20 * every : 0);
+}
+
+/** The module's refresh interval from the schedule (server/feedSchedule.mjs), else the stored state's. */
+function intervalOf(id, stored) {
+  return FEED_CLASSES[FEED_SCHEDULE[id]]?.every ?? stored;
+}
+
+// Review of 1345bfd (finding 1): a stored copy was not fetched for this request, so it never says LIVE.
+const LEADING_LIVE = /^\s*live\b/i;
+const ANY_LIVE = /\blive\b/i;
+
+/**
+ * The stored envelope meta (the loader's own: heading, section, status, as-of) as the page may show it.
+ * The desk strip prints `status` as it is (src/desks/DeskView.jsx), and about twenty loaders write
+ * "LIVE · …": a leading LIVE reads STORED, and a status that claims LIVE anywhere else is left out
+ * (the strip then shows the section alone). Everything else is passed on unchanged; the stored row
+ * is not changed in place.
+ */
+export function storedView(view) {
+  if (!isRow(view)) return null;
+  if (typeof view.status !== 'string' || !ANY_LIVE.test(view.status)) return view;
+  const status = view.status.replace(LEADING_LIVE, 'STORED');
+  const { status: _claim, ...rest } = view;
+  return ANY_LIVE.test(status) ? rest : { ...rest, status };
 }
 
 /**
@@ -103,6 +143,11 @@ function storedAnswer(id, page, now, register = false, allowStale = false) {
     console.warn(`[feed-store] ${id}: the items are ${Math.floor(ageMinutes)} min old, over the limit of ${limit} min; the live path answers`);
     return null;
   }
+  const ceiling = storeCeilingMinutes(intervalOf(id, page.interval_minutes));
+  if (stale && ageMinutes > ceiling) {
+    console.warn(`[feed-store] ${id}: the items are ${Math.floor(ageMinutes)} min old, over the ceiling of ${ceiling} min for a stale copy; the live path answers`);
+    return null;
+  }
   const coverage = isRow(meta.coverage) ? meta.coverage : {};
   return {
     ok: true,
@@ -123,11 +168,11 @@ function storedAnswer(id, page, now, register = false, allowStale = false) {
     fallback: false,
 
     timeline: Array.isArray(meta.timeline) ? meta.timeline : [],
-    meta: isRow(meta.view) ? meta.view : null,
+    meta: storedView(meta.view),
     served: 'store',
     ...(register ? { register: true } : {}),
     // Past the freshness limit, kept only for the route to weigh against the live answer (allowStale).
-    ...(stale ? { stale: true } : {}),
+    ...(stale ? { stale: true, ageMinutes: Math.floor(ageMinutes) } : {}),
     fetchedAt,
     // The module's item count in the store; `rows` holds the first page of them.
     storeTotal: Number.isFinite(Number(page.total)) ? Number(page.total) : rows.length,
@@ -206,16 +251,15 @@ async function wholeVariant(id, ask, tier, feature, variant, now) {
 }
 
 /**
- * Whether a live answer may take the place of a stored copy (Task B, 2026-10-16): real rows from a
- * live attempt that finished, not a fallback, the archive, the backup pack or only a status row. An
- * answer that is none of these never hides a stored copy that is merely past its freshness limit.
+ * Whether a live answer may take the place of a stored copy (Task B, 2026-10-16): a live attempt that
+ * finished (`served: 'live'`) with an answer the refresh itself would keep (feedAnswer.mjs
+ * classifyAnswer, status ok): real rows from a live adapter, not a fallback, the archive, the backup
+ * pack, an embedded or planned answer, or only a status row. An answer that is none of these never
+ * hides a stored copy that is merely past its freshness limit.
  */
 export function liveAnswerIsUsable(body) {
-  if (!isRow(body) || body.ok === false) return false;
-  if (body.served !== 'live' || body.fallback) return false;
-  if (body.source?.kind === 'backup-pack') return false;
-  const rows = Array.isArray(body.rows) ? body.rows : [];
-  return rows.some((r) => isRow(r) && r.status !== 'source_status');
+  if (!isRow(body) || body.served !== 'live') return false;
+  return classifyAnswer(body).status === 'ok';
 }
 
 const storeConfigured = (env) => Boolean((env.SUPABASE_URL || env.VITE_SUPABASE_URL) && env.SUPABASE_SECRET_KEY);

@@ -20,8 +20,12 @@ function respond(url, body, type) {
   return new Response(body, { status: 200, headers: { 'content-type': type } });
 }
 
-/** PIB's RSS lists `items`; `rssDown` makes every RSS request fail (PIB unreachable). */
-function stubPib(items, { rssDown = false } = {}) {
+/**
+ * PIB's RSS lists `items`; `rssDown` makes every RSS request fail (PIB unreachable). `pages` decides how
+ * a release page answers, by PRID: 'ok' (the default), 429 (rate-limited) or 'challenge' (a bot check
+ * that answers 200 with no release in it).
+ */
+function stubPib(items, { rssDown = false, pages = () => 'ok' } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input) => {
     const u = String(input?.url || input);
     if (/RssMain/i.test(u)) {
@@ -29,6 +33,9 @@ function stubPib(items, { rssDown = false } = {}) {
       return respond(u, rss(items.map(([t, prid]) => [t, prid])), 'application/rss+xml');
     }
     const prid = (/PRID=(\d+)/.exec(u) || [])[1];
+    const how = pages(prid);
+    if (how === 429) return new Response('Too Many Requests', { status: 429 });
+    if (how === 'challenge') return respond(u, '<html><body><script>/* checking your browser */</script></body></html>', 'text/html');
     const hit = items.find(([, p]) => String(p) === prid);
     if (!hit) return new Response('', { status: 404 });
     return respond(u, page(hit[0], hit[2]), 'text/html');
@@ -83,6 +90,46 @@ describe('Policy Pipeline Tracker: no release about policy in the making', () =>
   });
 });
 
+// Review of 1345bfd, finding 3: the RSS answering is not enough. A release page tells whether a release
+// is the Cabinet's (and gives a Hindi release its English title); when the pages could not be read,
+// nothing is known to be new or not, so the run is not "nothing new".
+const HINDI = [
+  ['केंद्रीय मंत्रिमंडल ने आज एक योजना को मंजूरी दी', 3331, 'Cabinet'],
+  ['प्रधानमंत्री ने आज नई दिल्ली में एक कार्यक्रम को संबोधित किया', 3332, 'Prime Minister\'s Office'],
+];
+
+describe('release pages that could not be read are not "nothing new" (review finding 3)', () => {
+  it('Cabinet Decisions: every release page answers 429', async () => {
+    stubPib(NOT_CABINET, { pages: () => 429 });
+    const out = await feed('Cabinet Decisions');
+    expect(out.meta?.nothing_new).toBeUndefined();
+    // The page still shows the stored decisions, and does not claim the releases were checked.
+    expect(out.rows.length).toBeGreaterThan(0);
+    expect(out.source.note).toMatch(/2 of their release pages could not be read/);
+  });
+
+  it('Cabinet Decisions: a challenge page in place of every release', async () => {
+    stubPib(NOT_CABINET, { pages: () => 'challenge' });
+    expect((await feed('Cabinet Decisions')).meta?.nothing_new).toBeUndefined();
+  });
+
+  it('Cabinet Decisions: one page read and one refused is not enough either', async () => {
+    stubPib(NOT_CABINET, { pages: (prid) => (prid === '2223' ? 429 : 'ok') });
+    expect((await feed('Cabinet Decisions')).meta?.nothing_new).toBeUndefined();
+  });
+
+  it('the Policy Pipeline: Hindi releases whose pages answer 429', async () => {
+    stubPib(HINDI, { pages: () => 429 });
+    const out = await feed('Policy Pipeline Tracker (Draft-to-Gazette)');
+    expect(out.meta?.nothing_new).toBeUndefined();
+  });
+
+  it('the Policy Pipeline: English titles judged without any page are still nothing new', async () => {
+    stubPib(NOT_CABINET, { pages: () => 429 });
+    expect((await feed('Policy Pipeline Tracker (Draft-to-Gazette)')).meta?.nothing_new).toBe(true);
+  });
+});
+
 describe('the refresh records it as a success that keeps the stored items', () => {
   const token = '00000000-0000-4000-8000-000000000001';
   async function refreshOne(feature) {
@@ -116,5 +163,16 @@ describe('the refresh records it as a success that keeps the stored items', () =
     const rec = await refreshOne('Cabinet Decisions');
     expect(rec.status).toBe('failed');
     expect(rec).not.toHaveProperty('nothing_new');
+  });
+
+  it('release pages answering 429 are a failure, not nothing new (review finding 3)', async () => {
+    stubPib(NOT_CABINET, { pages: () => 429 });
+    const rec = await refreshOne('Cabinet Decisions');
+    expect(rec.status).toBe('failed');
+    expect(rec).not.toHaveProperty('nothing_new');
+    stubPib(HINDI, { pages: () => 429 });
+    const pipeline = await refreshOne('Policy Pipeline Tracker (Draft-to-Gazette)');
+    expect(pipeline.status).toBe('failed');
+    expect(pipeline).not.toHaveProperty('nothing_new');
   });
 });

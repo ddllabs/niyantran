@@ -4116,12 +4116,16 @@ export async function serveFeatureFeedStoredFirst(searchParams, { store = serveF
     }
   }
   if (!old) return serveFeatureFeedWithBackup(searchParams, options);
+  let live = null;
   try {
-    const live = await serveFeatureFeedWithBackup(searchParams, options);
-    return liveAnswerIsUsable(live) ? live : old;
+    live = await serveFeatureFeedWithBackup(searchParams, options);
   } catch {
-    return old;
+    // The stored copy answers.
   }
+  if (liveAnswerIsUsable(live)) return live;
+  // Review of 1345bfd (finding 2): one line whenever a copy past its freshness limit is served.
+  console.warn(`[feed-store] ${id}: serving the stale stored copy (${old.ageMinutes ?? '?'} min old, fetched ${old.fetchedAt}); the live path brought no usable rows`);
+  return old;
 }
 
 export async function handleFeatureFeedRequest(req, res, next) {

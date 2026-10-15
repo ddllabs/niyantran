@@ -7,8 +7,8 @@ import {
   resetFeedCache,
   serveFeatureFeedStoredFirst,
 } from '../../server/featureFeed.mjs';
-import { STORE_MIN_FRESH_MINUTES, STORE_PAGE_ROWS, STORE_TIME_LIMIT_MS, liveAnswerIsUsable, serveFromStore, storeMaxAgeMinutes, storeVariant } from '../../server/feedServe.mjs';
-import { metaFor } from '../../server/feedStore.mjs';
+import { STORE_MIN_FRESH_MINUTES, STORE_PAGE_ROWS, STORE_STALE_CEILING_MINUTES, STORE_TIME_LIMIT_MS, liveAnswerIsUsable, serveFromStore, storeCeilingMinutes, storeMaxAgeMinutes, storeVariant } from '../../server/feedServe.mjs';
+import { LIVE_ADAPTERS, classifyAnswer, metaFor } from '../../server/feedStore.mjs';
 import { FEED_SCHEDULE } from '../../server/feedSchedule.mjs';
 import { STATEMENT_LEADERS } from '../data/nationalCurated.js';
 
@@ -67,7 +67,8 @@ describe('serveFromStore: a scheduled module answers from the store', () => {
       served: 'store',
       fetchedAt: '2026-10-15T10:00:00.000Z',
       timeline: [],
-      meta: { heading: 'AI & the Tech Industry', status: 'LIVE · NEWS RSS' },
+      // Review of 1345bfd (finding 1): the loader's LIVE status is not passed on from the store.
+      meta: { heading: 'AI & the Tech Industry', status: 'STORED · NEWS RSS' },
       coverage: { from: '', through: '7d', exhaustive: false },
     });
     expect(body.rows.map((r) => r.title)).toEqual(['Newer story', 'Older story']);
@@ -563,5 +564,126 @@ describe('serveFromStore: a whole handbook variant (F201)', () => {
     const across = vi.fn(async () => ({ all_served: false }));
     expect(await serveFromStore('state:MLA Directory', new URLSearchParams({ tier: 'state', feature: 'MLA Directory' }), { rpc: across, ...SOON })).toBeNull();
     expect(across.mock.calls.map(([n]) => n)).toEqual(['feed_page_across']);
+  });
+});
+
+// Review of 1345bfd (2026-10-16), finding 1: a stored copy is not live. The desk strip shows
+// meta.status as it is (src/desks/DeskView.jsx), so a loader's "LIVE · …" never reaches the page from the store.
+describe('serveFromStore: a stored copy never says LIVE (review finding 1)', () => {
+  const MIN = 60_000;
+  const withStatus = (status) => page({ meta: { ...page().meta, view: { heading: 'AI & the Tech Industry', section: 'AI WIRE', status } } });
+  beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('a fresh copy: a leading LIVE reads STORED, and the rest of the view is kept', async () => {
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(withStatus('LIVE · PIB RSS · EN')), ...SOON });
+    expect(body.meta).toEqual({ heading: 'AI & the Tech Industry', section: 'AI WIRE', status: 'STORED · PIB RSS · EN' });
+  });
+
+  it('a stale copy kept for the route reads STORED too', async () => {
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(withStatus('LIVE · NEWS RSS')), now: () => FETCHED + 300 * MIN, allowStale: true });
+    expect(body.stale).toBe(true);
+    expect(body.meta.status).toBe('STORED · NEWS RSS');
+  });
+
+  it('every form of a LIVE claim: any case, no separator; a claim later in the text drops the status', async () => {
+    const statusOf = async (s) => (await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(withStatus(s)), ...SOON })).meta;
+    expect((await statusOf('LIVE REGISTRY')).status).toBe('STORED REGISTRY');
+    expect((await statusOf('Live · World Bank')).status).toBe('STORED · World Bank');
+    expect((await statusOf('  LIVE NOTICES')).status).toBe('STORED NOTICES');
+    const later = await statusOf('PIB · LIVE WIRES');
+    expect(later).not.toHaveProperty('status');
+    expect(later.heading).toBe('AI & the Tech Industry');
+    // A status that claims nothing live is passed on as it is.
+    expect((await statusOf('CACHED · BUDGET XLSX')).status).toBe('CACHED · BUDGET XLSX');
+    expect((await statusOf('REGISTER · GAZETTED ORDERS')).status).toBe('REGISTER · GAZETTED ORDERS');
+    // "deliver" or "olive" is not the word LIVE.
+    expect((await statusOf('OLIVE OIL PRICES')).status).toBe('OLIVE OIL PRICES');
+  });
+
+  it('the stored row is not changed in place', async () => {
+    const stored = withStatus('LIVE · NEWS RSS');
+    await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(stored), ...SOON });
+    expect(stored.meta.view.status).toBe('LIVE · NEWS RSS');
+  });
+});
+
+// Review finding 2: an old stored copy is kept only up to a hard ceiling, max(7 days, 20 of the
+// module's refresh intervals); past it the store answers null and the archive and backup path answers.
+describe('serveFromStore: a hard ceiling on a stale copy (review finding 2)', () => {
+  const MIN = 60_000;
+  const DAY = 24 * 60;
+  const at = (minutes) => ({ now: () => FETCHED + minutes * MIN });
+  let lines;
+  beforeEach(() => {
+    lines = [];
+    vi.spyOn(console, 'warn').mockImplementation((...a) => { lines.push(a.map(String).join(' ')); });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is seven days, or twenty of the module\'s intervals when that is longer', () => {
+    expect(STORE_STALE_CEILING_MINUTES).toBe(7 * DAY);
+    expect(storeCeilingMinutes(30)).toBe(7 * DAY);
+    expect(storeCeilingMinutes(60)).toBe(7 * DAY);
+    expect(storeCeilingMinutes(1440)).toBe(20 * DAY);
+    expect(storeCeilingMinutes(null)).toBe(7 * DAY);
+  });
+
+  it('a news module: an old copy is kept up to seven days, and not after', async () => {
+    expect((await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...at(7 * DAY - 1), allowStale: true }))?.stale).toBe(true);
+    expect(await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...at(7 * DAY + 1), allowStale: true })).toBeNull();
+    expect(lines.join(' ')).toMatch(/AI & the Tech Industry.*over the ceiling of 10080 min/);
+  });
+
+  it('takes the interval from the schedule, not only from the stored state', async () => {
+    // A news module (30 min) whose stored state names a daily interval still has the seven-day ceiling.
+    expect(await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page({ interval_minutes: 1440 })), ...at(8 * DAY), allowStale: true })).toBeNull();
+  });
+
+  it('the route: past the ceiling the live, archive and backup path answers, even when it is empty', async () => {
+    resetFeedCache();
+    const store = vi.fn((id, params, opts) => serveFromStore(id, params, { ...opts, rpc: rpcReturning(page()), ...at(8 * DAY) }));
+    const liveFn = vi.fn(async () => ({ ok: true, rows: [], source: { adapter: 'api' }, fallback: false }));
+    const body = await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store, live: liveFn });
+    expect(liveFn).toHaveBeenCalledTimes(1);
+    expect(body.served).not.toBe('store');
+  });
+
+  it('the route logs one line when it serves a stale copy, with its age and no secret', async () => {
+    resetFeedCache();
+    const store = vi.fn((id, params, opts) => serveFromStore(id, params, { ...opts, rpc: rpcReturning(page()), ...at(300) }));
+    const body = await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store, live: vi.fn(async () => ({ ok: true, rows: [], source: { adapter: 'api' }, fallback: false })) });
+    expect(body.served).toBe('store');
+    const stale = lines.filter((l) => /stale|past its freshness/i.test(l) && l.includes('AI & the Tech Industry'));
+    expect(stale).toHaveLength(1);
+    expect(stale[0]).toMatch(/300 min old/);
+    expect(stale[0]).not.toContain(SECRET);
+  });
+
+  it('a fresh copy logs nothing', async () => {
+    resetFeedCache();
+    const store = vi.fn((id, params, opts) => serveFromStore(id, params, { ...opts, rpc: rpcReturning(page()), ...SOON }));
+    await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store, live: vi.fn() });
+    expect(lines).toEqual([]);
+  });
+});
+
+// Review finding 4: a live answer replaces a stored copy only under the refresh's own rules
+// (server/feedStore.mjs classifyAnswer): never an embedded, planned or unknown adapter.
+describe('liveAnswerIsUsable: the refresh\'s adapter rules (review finding 4)', () => {
+  const liveBody = (adapter) => ({ ok: true, rows: [{ title: 'A story' }], source: { adapter }, fallback: false, served: 'live' });
+  it('refuses what the refresh would not keep', () => {
+    for (const adapter of ['embedded', 'planned', 'bill-history', 'source-library', 'internal', '', undefined]) {
+      expect(liveAnswerIsUsable(liveBody(adapter)), String(adapter)).toBe(false);
+    }
+  });
+  it('accepts every adapter the refresh keeps', () => {
+    for (const adapter of LIVE_ADAPTERS) expect(liveAnswerIsUsable(liveBody(adapter)), adapter).toBe(true);
+  });
+  it('agrees with classifyAnswer on every answer served live', () => {
+    for (const adapter of [...LIVE_ADAPTERS, 'embedded', 'planned', 'bill-history', 'scrape', '']) {
+      const body = liveBody(adapter);
+      expect(liveAnswerIsUsable(body), adapter).toBe(classifyAnswer(body).status === 'ok');
+    }
   });
 });

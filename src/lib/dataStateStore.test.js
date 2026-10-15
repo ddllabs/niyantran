@@ -57,6 +57,26 @@ describe('the data state of an answer from the store', () => {
   });
 });
 
+// Review of 1345bfd, finding 1: a stored copy past its freshness limit (`stale: true`, kept because the live
+// path brought nothing better) is still served, but its tone warns, so the header can say so.
+describe('a stale answer from the store', () => {
+  it('warns, and is still served data with no badge', () => {
+    const state = resolveDataState(store({ stale: true }));
+    expect(state.id).toBe('served');
+    expect(state.tone).toBe('warn');
+    expect(state.stale).toBe(true);
+    expect(state.hideBadge).toBe(true);
+    expect(isTerminalState(state)).toBe(false);
+  });
+
+  it('a fresh one keeps the ok tone, and DATA_STATE.served is not changed', () => {
+    expect(resolveDataState(store()).tone).toBe('ok');
+    expect(resolveDataState(store()).stale).toBeUndefined();
+    resolveDataState(store({ stale: true }));
+    expect(DATA_STATE.served.tone).toBe('ok');
+  });
+});
+
 describe('the probe counts an answer from the store as live (refreshFeeds.checkOutcome)', () => {
   it('whatever its adapter', () => {
     for (const adapter of ['api', 'news-search', 'source-library', 'register']) {

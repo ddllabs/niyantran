@@ -191,10 +191,21 @@ async function mapPool(items, limit, fn) {
  * its issuing body, including rows whose RSS title is already English. PIB's English RSS has no
  * dates, so each release's date comes from its page. F202: exported so every module that shows PIB
  * rows dates them; `limit` caps the releases (and so the pages) read, 40 by default.
+ *
+ * `opts.pages` (review of 1345bfd, finding 3), when given, counts the release pages asked for:
+ * `read` answered with a release title, `failed` did not (an error, a 429, or a challenge page with no
+ * release in it). A module that says it found nothing new needs every page it asked for to be read.
  */
 export async function enrichPibEnglish(rows, opts = {}) {
   const limit = Number(opts.limit) > 0 ? Number(opts.limit) : 40;
   const list = (Array.isArray(rows) ? rows : []).slice(0, limit);
+  const pages = opts.pages && typeof opts.pages === 'object' ? opts.pages : { read: 0, failed: 0 };
+  const readPage = async (prid) => {
+    const page = await fetchEnglishPibTitle(prid);
+    if (page?.title) pages.read += 1;
+    else pages.failed += 1;
+    return page;
+  };
   const enriched = await mapPool(list, 8, async (row, idx) => {
     // A release's id is its PRID when it has one, so the same release has the same row on every
     // refresh (the feed store hashes rows); the list position only when there is no PRID.
@@ -218,7 +229,7 @@ export async function enrichPibEnglish(rows, opts = {}) {
       const url = base.source_url || `https://www.pib.gov.in/PressReleasePage.aspx?PRID=${prid}&Lang=1`;
       // PIB's English RSS has no dates (checked 2026-10-14), so the release page gives the date,
       // and the issuing body when asked for (F125).
-      const page = opts.ministry || !base.date ? await fetchEnglishPibTitle(prid) : null;
+      const page = opts.ministry || !base.date ? await readPage(prid) : null;
       return {
         ...base,
         title,
@@ -229,7 +240,7 @@ export async function enrichPibEnglish(rows, opts = {}) {
         ...(opts.ministry && page?.ministry ? { ministry: page.ministry } : {}),
       };
     }
-    const en = await fetchEnglishPibTitle(prid);
+    const en = await readPage(prid);
     if (!en) {
       return { ...base, title, topic: base.topic || title };
     }
@@ -317,7 +328,8 @@ export async function serveNational(ctx) {
     // F202 (audit C2): only releases about policy in the making. An English title is judged before
     // its page is read (so only kept releases cost a page); a Hindi one after its English title is found.
     const candidates = listed.filter((r) => isHindiText(r.title) || isPipelineRelease(r.title));
-    const liveRows = (await enrichPibEnglish(candidates)).filter((r) => isPipelineRelease(r.title));
+    const pages = { read: 0, failed: 0 };
+    const liveRows = (await enrichPibEnglish(candidates, { pages })).filter((r) => isPipelineRelease(r.title));
     const scope =
       'drafts, consultations, notifications, rules, regulations, amendments, gazette notifications, bills, policies, ordinances, guidelines or approved schemes';
     if (liveRows.length) {
@@ -335,6 +347,26 @@ export async function serveNational(ctx) {
           status: 'LIVE · PIB RSS · EN',
           heading: heading(feat),
         },
+      });
+    }
+    // Review of 1345bfd (finding 3): a Hindi release is judged only once its page gives the English
+    // title; a page that could not be read leaves it unjudged, so the run did not find "nothing new".
+    if (listed.length && pages.failed) {
+      return envelope({
+        tier,
+        feature: feat,
+        rows: statusRow({
+          adapter: 'api',
+          url: PIB_PRESS,
+          reason: `${pages.failed} of the latest PIB release pages could not be read, so their releases were not judged`,
+          featureName: name,
+        }),
+        adapter: 'api',
+        links: [PIB_PRESS, 'https://www.pib.gov.in/ViewRss.aspx?reg=3&lang=1'],
+        coverage: { from: '', through: 'present', exhaustive: false },
+        fallback: false,
+        note: `PIB listed ${listed.length} press releases, but ${pages.failed} of their release pages could not be read, so those releases could not be judged. No records were invented.`,
+        meta: { section: 'POLICY PIPELINE — DRAFT TO GAZETTE', status: 'OFFLINE', heading: heading(feat) },
       });
     }
     if (listed.length) {
@@ -665,7 +697,8 @@ export async function serveNational(ctx) {
     // F125: releases whose issuing body, as PIB's own release page names it, is the Cabinet or one
     // of its committees; plus, by the owner's rule of 2026-10-14, PIB releases titled "Cabinet
     // approves…" or "Cabinet apprises…" that PIB files under a ministry.
-    const liveEn = await enrichPibEnglish(live.rows || [], { ministry: true });
+    const pages = { read: 0, failed: 0 };
+    const liveEn = await enrichPibEnglish(live.rows || [], { ministry: true, pages });
     const shaped = (rows) =>
       (rows || []).map((r, i) => ({
         ...r,
@@ -680,6 +713,10 @@ export async function serveNational(ctx) {
     const rows = liveRows.length ? liveRows : archiveRows;
     if (!rows.length) return null;
     const checked = liveEn.length;
+    // Review of 1345bfd (finding 3): whether a release is the Cabinet's is read from its page. Nothing
+    // new only when every release page asked for was read: the RSS alone, or pages answering 429 or a
+    // challenge, leave releases unchecked.
+    const allPagesRead = pages.read > 0 && pages.failed === 0;
     return envelope({
       tier,
       feature: feat,
@@ -690,7 +727,9 @@ export async function serveNational(ctx) {
       fallback: !liveRows.length,
       note: liveRows.length
         ? `PIB RSS filtered to Cabinet decisions (${liveRows.length} of ${checked} latest releases).`
-        : checked
+        : checked && !allPagesRead
+          ? `PIB listed ${checked} releases, but ${pages.failed} of their release pages could not be read, so they were not all checked. Showing the stored Cabinet decisions.`
+          : checked
           ? `No Cabinet decision in the latest PIB window (${checked} releases checked). Showing the stored Cabinet decisions.`
           : 'PIB RSS returned no readable releases. Showing the stored Cabinet decisions.',
       meta: {
@@ -699,7 +738,7 @@ export async function serveNational(ctx) {
         heading: heading(feat),
         // Task B: PIB answered with releases and none is a Cabinet decision: nothing new, which the refresh
         // records as a success that keeps the stored decisions; the rows above are for the page only.
-        ...(!liveRows.length && checked ? { nothing_new: true } : {}),
+        ...(!liveRows.length && checked && allPagesRead ? { nothing_new: true } : {}),
       },
     });
   }

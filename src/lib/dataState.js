@@ -95,6 +95,9 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
   if (isStoreAnswer(feed)) {
     return {
       ...DATA_STATE.served,
+      // Review of 1345bfd (finding 1): a copy past its freshness limit, kept because the live path
+      // brought nothing better, is still served but warns.
+      ...(feed.stale === true ? { tone: 'warn', stale: true } : {}),
       detail: feed?.source?.note || 'Updated by the scheduled refresh.',
       coverage: coverageText(feed, count),
       lastSync: lastSyncText(feed),
