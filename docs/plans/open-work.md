@@ -373,7 +373,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     now be unused; `fillSiteLabel` in `src/lib/geoTip.js` is now called only
     by its test, and its comment and the F28 note below still name the
     deleted `NuclearSiteMap.jsx`.
-- [ ] **F123. AI brief in the Global record panels.** Owner 2026-10-13: the
+- [x] **F123. AI brief in the Global record panels.** Owner 2026-10-13: the
   old brief box was largely a dummy (its base text was a template filled from
   the row, labelled "AI analyst brief"); keep a box there for now and revisit
   it properly with AI credits (F111).
@@ -383,6 +383,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     No template text is shown as AI.
   - Remaining, with F111: whether selecting a record should generate a brief,
     what it costs in credits, and how it is labelled.
+  *Done 2026-10-15 (owner: "create that AI brief automatically and store it … the credit cost can be borne by us"): `6cf8f35`, `c408f46`, `26dbf4d`; migration 57 `20261015220000_record_briefs`; desk-brief v10; `app_flags.record_briefs` on. Opening a record panel (adapter panels, `RecordDetail`, National generic records) asks `desk-brief` scope `record`; the first viewer's request writes the brief at the platform's cost (Claude Haiku 5.5, `RECORD_BRIEF_MODEL` to change), every later viewer reads it; regenerated only when the record changes, at most once per 24 h; 10 a minute and 200 a day per user, 5,000 a day in all; failures back off and stop after 5. Browser-supplied rows (not in `desk_rows`) get content-addressed briefs only (two security reviews; the second found a field-hiding gap, fixed in `c408f46`). [Measurement](../research/2026-10-15-record-brief-measurement.md): 20/20 correct on Haiku, about $0.16 per 1,000. Production: two briefs written ($0.000188 each), served again from the store; a re-announced account briefly hid a stored brief, fixed in `26dbf4d` with a retried account check. Open: `RecordDetail`'s separate source-document brief sits next to the record brief (product choice); Morning Brief's module is not in the catalogue; `BillRecordPane` is unreachable and could be removed.*
 - [x] **F130. Web search in AI Research.** Owner request 2026-10-13: web
   context for records without indexed documents, site-wide, through
   OpenRouter's server web-search tool (Exa), as in TenderBase. Owner

@@ -2075,3 +2075,7 @@ recommendations … We can fix everything that is under your control."
   (`a0c1216`, admin model bypass + F196 catalogue) and v62 (`71f4897`, F197/F199/F200), each after
   checking that the deployed v60 matched `0dde63f`. Client fixes `ea78041`. Production re-checks: the
   count question answers 23 and 11; GPT – Astra selectable for the admin; Escape closes only the menu.
+- **2026-10-15: F123 record briefs live.** Migration 57 `20261015220000_record_briefs` (renamed from
+  …200000 so it sorts after migration 56) applied with `db push`; desk-brief deployed (v9 matched main
+  before F123); security advisor: only the expected server-only `record_brief_quota`; then
+  `app_flags.record_briefs = true`. Rollback: set the flag false (stored briefs keep being served).
