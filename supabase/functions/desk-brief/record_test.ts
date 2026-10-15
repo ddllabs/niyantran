@@ -8,6 +8,7 @@ import {
   type ClaimResult,
   DEFAULT_RECORD_BRIEF_MODEL,
   buildRecordPrompt,
+  catalogueFeature,
   type FinishArgs,
   identify,
   RECORD_LIMITS,
@@ -555,4 +556,12 @@ Deno.test('field names are cut to 64 characters and the field list to 6,000', ()
   assert(!prompt.includes('x'.repeat(65)), 'a field name is at most 64 characters');
   const fields = prompt.split('the only evidence you may use):\n')[1];
   assert(fields.length <= 6000, `fields are at most 6,000 characters, got ${fields.length}`);
+});
+
+// Owner 2026-10-15: the Morning Brief's records get briefs too; its composite page has no rows in
+// the generated catalogue, so it is allowed by name on the National desk only.
+Deno.test('the National Morning Brief is a known module; unknown names still are not', () => {
+  assertEquals(catalogueFeature('national', 'National Morning Brief (Auto-digest)'), 'National Morning Brief (Auto-digest)');
+  assertEquals(catalogueFeature('state', 'National Morning Brief (Auto-digest)'), null);
+  assertEquals(catalogueFeature('national', 'Made Up Module'), null);
 });

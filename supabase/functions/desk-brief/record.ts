@@ -90,7 +90,20 @@ export function normaliseTier(tier: unknown): string | null {
  * and space-insensitively within the tier; null when the tier has no such module.
  */
 export function catalogueFeature(tier: string, feature: string): string | null {
-  return resolveFeature(tier, feature)?.feature ?? null;
+  return resolveFeature(tier, feature)?.feature ?? compositeFeature(tier, feature);
+}
+
+/**
+ * Composite pages whose records have a panel but no rows of their own in the generated catalogue
+ * (owner 2026-10-15: the Morning Brief's records get briefs too). Matched exactly, per tier.
+ */
+const COMPOSITE_MODULES: Record<string, readonly string[]> = {
+  national: ['National Morning Brief (Auto-digest)'],
+};
+
+function compositeFeature(tier: string, feature: string): string | null {
+  const want = String(feature ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return (COMPOSITE_MODULES[tier] ?? []).find((f) => f.toLowerCase() === want) ?? null;
 }
 
 // ---- store ----------------------------------------------------------------------------------
