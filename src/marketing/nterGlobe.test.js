@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // F140 T1: the homepage globe module (<nter-data-globe>). It is imported here in
 // Node, where there is no window, document or customElements, so the import
@@ -128,7 +128,7 @@ describe('nterGlobe across page changes', () => {
   const fakeGl = (loseContext = () => {}) => new Proxy({}, {
     get: (_, key) => (key === 'getExtension' ? (name => (name === 'WEBGL_lose_context' ? { loseContext } : null)) : () => true),
   });
-  class FakeBase { hasAttribute() { return false; } toggleAttribute() {} }
+  class FakeBase { hasAttribute() { return false; } toggleAttribute() {} addEventListener() {} removeEventListener() {} }
   const element = async () => {
     const mod = await import('./nterGlobe.js');
     const el = new (mod.createGlobeClass(FakeBase))();
@@ -302,3 +302,80 @@ describe('nterGlobe across page changes', () => {
   });
 });
 
+
+// F140 review defects inherited from the client's globe: its focus listeners were added again on
+// every reconnect, and the part of a rear label hidden behind Earth could still be clicked, because
+// the Earth canvas lets pointer events through.
+describe('nterGlobe defects (F140)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  class ListenerBase {
+    constructor() { this.listeners = []; }
+    addEventListener(type, fn) { this.listeners.push([type, fn]); }
+    removeEventListener(type, fn) { this.listeners = this.listeners.filter(([t, f]) => t !== type || f !== fn); }
+    hasAttribute() { return false; }
+    toggleAttribute() {}
+    setAttribute() {}
+    querySelector() { return {}; }
+    querySelectorAll() { return []; }
+    contains() { return false; }
+  }
+  const mounted = async () => {
+    class Observer { observe() {} disconnect() {} }
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    vi.stubGlobal('document', { hidden: false, activeElement: null, addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal('ResizeObserver', Observer);
+    vi.stubGlobal('IntersectionObserver', Observer);
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const mod = await import('./nterGlobe.js');
+    const el = new (mod.createGlobeClass(ListenerBase))();
+    el.classList = { add() {}, remove() {} };
+    el.isConnected = true;
+    el._size = () => {};
+    el._initGL = () => {};
+    el._watchContext = () => {};
+    return { mod, el };
+  };
+
+  it('listens for focus once however often it is reconnected, and stops when it leaves', async () => {
+    const { el } = await mounted();
+    const count = () => ['focusin', 'focusout'].map(type => el.listeners.filter(([t]) => t === type).length);
+    el.connectedCallback();
+    expect(count()).toEqual([1, 1]);
+    el.disconnectedCallback();
+    el.isConnected = false;
+    expect(count()).toEqual([0, 0]);
+    el.isConnected = true;
+    el.connectedCallback();
+    expect(count()).toEqual([1, 1]);
+  });
+
+  it('covers the Earth disc with a shield between rear and front labels, so a rear label is not clickable through Earth', async () => {
+    const { mod, el } = await mounted();
+    el.connectedCallback();
+    const tag = el.innerHTML.match(/<div class="data-orbit-shield"[^>]*>/)?.[0];
+    expect(tag, 'shield element').toBeTruthy();
+    expect(tag).toMatch(/aria-hidden="true"/);
+    const style = tag.match(/style="([^"]*)"/)[1];
+    expect(style).toMatch(/border-radius:50%/);
+    expect(style).toMatch(/pointer-events:auto/);
+    // The shield is exactly the shader's disc: radius .64 of the half box, so inset 18% on each side.
+    const radius = Number(SOURCE.match(/const float radius=([\d.]+);/)[1]);
+    expect(Number(style.match(/inset:([\d.]+)%/)[1])).toBeCloseTo(50 * (1 - radius), 5);
+    const shieldZ = Number(style.match(/z-index:(\d+)/)[1]);
+    // Over a full orbit of every label, rear labels stay under the shield and front labels above it.
+    const width = 600;
+    const labels = mod.ITEMS.map(() => ({ style: {}, dataset: {} }));
+    Object.assign(el, { _labels: labels, _width: width, _fit: 1, _dimensions: labels.map(() => ({ w: 150, h: 46 })), _gl: null });
+    const rear = [], front = [];
+    for (let t = 0; t <= 62; t += 0.25) {
+      el._time = t;
+      Object.getPrototypeOf(el)._render.call(el);
+      labels.forEach(l => (l.dataset.depth === 'behind' ? rear : front).push(Number(l.style.zIndex)));
+    }
+    expect(rear.length).toBeGreaterThan(0);
+    expect(front.length).toBeGreaterThan(0);
+    expect(Math.max(...rear)).toBeLessThan(shieldZ);
+    expect(Math.min(...front)).toBeGreaterThan(shieldZ);
+  });
+});

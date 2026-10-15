@@ -147,6 +147,9 @@ export function createGlobeClass(Base = HTMLElement) {
       this._time = sharedClock.time; this._earth = sharedClock.earth; this._last = 0; this._frame = 0;
       this._visible = true; this._hovered = false; this._focused = false; this._ready = false;
       this._onTick = this._tick.bind(this);
+      // F140: kept so disconnectedCallback can remove them; a reconnect adds them again, once.
+      this._onFocusIn = () => { this._focused = true; this._sync(); };
+      this._onFocusOut = () => queueMicrotask(() => { this._focused = this.contains(document.activeElement); this._sync(); });
     }
 
     connectedCallback() {
@@ -156,11 +159,15 @@ export function createGlobeClass(Base = HTMLElement) {
       this.classList.add('data-orbit');
       this.setAttribute('role', 'group');
       this.setAttribute('aria-label', 'Explore seven connected kinds of research data');
+      // F140: the canvas lets pointer events through, so the shield (exactly the shader's disc,
+      // radius .64 of the half box) takes them over Earth: the part of a rear label (z-index 1) hidden
+      // behind Earth is not clickable, its visible part and every front label (6 and up) still are.
       this.innerHTML = `<div class="data-orbit-halo" aria-hidden="true"></div>
    <svg class="data-orbit-rings data-orbit-rings-back" aria-hidden="true">${PLANES.map(p => `<path stroke="${p.color}"/>`).join('')}</svg>
    <svg class="data-orbit-rings data-orbit-rings-front" aria-hidden="true">${PLANES.map(p => `<path stroke="${p.color}"/>`).join('')}</svg>
    <img class="data-orbit-fallback" src="${TEXTURE_URLS.fallback}" alt="" aria-hidden="true">
    <canvas class="data-orbit-earth" aria-hidden="true"></canvas>
+   <div class="data-orbit-shield" aria-hidden="true" style="position:absolute;inset:18%;border-radius:50%;z-index:3;pointer-events:auto"></div>
    <div class="data-orbit-labels">${ITEMS.map(i => `<button class="data-orbit-label" type="button" data-key="${i.key}" style="--orbit-label-color:${i.color}" aria-label="Explore ${i.title.toLowerCase()}"><span class="data-orbit-label-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${i.icon}"/></svg></span><span>${i.title}</span><span class="data-orbit-label-arrow" aria-hidden="true">↗</span></button>`).join('')}</div>`;
       this._canvas = this.querySelector('canvas');
       this._labels = [...this.querySelectorAll('.data-orbit-label')];
@@ -170,8 +177,8 @@ export function createGlobeClass(Base = HTMLElement) {
         b.addEventListener('pointerenter', () => { this._hovered = true; this._sync(); });
         b.addEventListener('pointerleave', () => { this._hovered = false; this._sync(); });
       });
-      this.addEventListener('focusin', () => { this._focused = true; this._sync(); });
-      this.addEventListener('focusout', () => queueMicrotask(() => { this._focused = this.contains(document.activeElement); this._sync(); }));
+      this.addEventListener('focusin', this._onFocusIn);
+      this.addEventListener('focusout', this._onFocusOut);
       this._motion = matchMedia('(prefers-reduced-motion: reduce)');
       this._onMotion = () => { this.toggleAttribute('reduced-motion', this._motion.matches); this._sync(); };
       this._motion.addEventListener('change', this._onMotion);
@@ -191,6 +198,8 @@ export function createGlobeClass(Base = HTMLElement) {
       this._resize?.disconnect(); this._observer?.disconnect();
       document.removeEventListener('visibilitychange', this._onVisibility);
       this._motion?.removeEventListener('change', this._onMotion);
+      this.removeEventListener('focusin', this._onFocusIn);
+      this.removeEventListener('focusout', this._onFocusOut);
       this._ready = false;
       releaseContext(this._gl); this._gl = null;
       this.classList.remove('globe-ready', 'globe-instant');
@@ -329,9 +338,6 @@ export function createGlobeClass(Base = HTMLElement) {
         label.style.zIndex = focused ? '30' : p.z < 0 ? '1' : String(6 + Math.round(p.z / w * 20));
         label.style.opacity = focused ? '1' : p.opacity.toFixed(3);
         label.dataset.depth = p.z < 0 ? 'behind' : 'front';
-        const d = this._dimensions?.[i];
-        const hiddenByEarth = p.z < 0 && d && Math.hypot(Math.abs(p.x - w / 2) + d.w * p.scale / 2, Math.abs(p.y - w / 2) + d.h * p.scale / 2) < w * .32;
-        label.style.pointerEvents = hiddenByEarth && !focused ? 'none' : 'auto';
       });
       if (this._gl) {
         const gl = this._gl;

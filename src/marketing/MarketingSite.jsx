@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import HomePage from './HomePage.jsx';
 import LoginPage from './LoginPage.jsx';
 import SignupPage from './SignupPage.jsx';
@@ -105,10 +105,20 @@ export default function MarketingSite({ onAuthed }) {
     }
   }
 
+  // F140: "Data coverage" from another page scrolls once the home page has rendered the section,
+  // after the route change has put the window at the top, instead of after a guessed delay.
+  const pendingSection = useRef(null);
+  useEffect(() => {
+    if (page !== 'home' || !pendingSection.current) return;
+    const id = pendingSection.current;
+    pendingSection.current = null;
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  }, [page]);
+
   function onCoverage() {
     if (page !== 'home') {
+      pendingSection.current = 'coverage';
       go('home');
-      setTimeout(() => document.getElementById('coverage')?.scrollIntoView({ behavior: 'smooth' }), 80);
       return;
     }
     document.getElementById('coverage')?.scrollIntoView({ behavior: 'smooth' });
