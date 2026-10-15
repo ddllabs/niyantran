@@ -97,8 +97,9 @@ horizontal one, which, upon clicking, animates and opens this on the left side."
   column (48 px on phones), sticky when the row scrolls sideways, and the same button opens the phone
   drawer (the separate "Desks" button is gone). The category row now runs the full width; the rail
   starts under it (grid areas "top top" "modules modules" "rail work").
-- The icon is two lines that turn into a cross when the rail is open (200 ms, transform only);
-  "Show desks" / "Hide desks".
+- The icon is three lines (owner: "three … instead of two") whose outer two turn into a cross while
+  the middle one fades when the rail is open (200 ms, transform and opacity); "Show desks" / "Hide
+  desks".
 - The rail slides: it is always 208 px wide and its `clip-path` goes from `inset(0 152px 0 0)` to
   `inset(0 -48px 0 0)` (220 ms, strong ease-out), so nothing reflows and the clipped part takes no
   clicks. The current desk's highlight is its 40 px icon tile, whole in the collapsed column.

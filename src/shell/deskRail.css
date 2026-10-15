@@ -15,9 +15,10 @@
 /* The toggle: the row's first cell, the rail's width, kept in place when the row scrolls sideways. */
 .with-desk-rail > .desktabs > .desk-rail-toggle { position: sticky; left: 0; z-index: 1; display: grid; place-items: center; flex: none; width: 56px; height: 36px; padding: 0; margin-right: 6px; border: 0; border-right: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
 .desk-rail-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.desk-rail-glyph line { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; transform-box: fill-box; transform-origin: center; transition: transform 200ms var(--rail-ease, ease-out); }
-.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-top { transform: translateY(3px) rotate(45deg); }
-.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-bottom { transform: translateY(-3px) rotate(-45deg); }
+.desk-rail-glyph line { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; transform-box: fill-box; transform-origin: center; transition: transform 200ms var(--rail-ease, ease-out), opacity 150ms var(--rail-ease, ease-out); }
+.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-top { transform: translateY(5px) rotate(45deg); }
+.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-middle { opacity: 0; transform: scaleX(0.4); }
+.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-bottom { transform: translateY(-5px) rotate(-45deg); }
 .desk-rail-glyph { transition: transform 160ms var(--rail-ease, ease-out); }
 .desk-rail-toggle:active .desk-rail-glyph { transform: scale(0.92); }
 @media (hover: hover) and (pointer: fine) {

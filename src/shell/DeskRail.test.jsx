@@ -39,7 +39,7 @@ describe('the desk rail', () => {
   it('is opened from a toggle that says what it does and controls the rail', () => {
     const closed = renderToStaticMarkup(<DeskRailToggle open={false} onToggle={() => {}} />);
     expect(closed).toMatch(/^<button type="button" class="desk-rail-toggle" aria-expanded="false" aria-controls="desk-rail" aria-label="Show desks" title="Show desks"><svg class="desk-rail-glyph"/);
-    expect((closed.match(/<line /g) || []).length).toBe(2);
+    expect((closed.match(/<line /g) || []).length).toBe(3);
     const open = renderToStaticMarkup(<DeskRailToggle open onToggle={() => {}} />);
     expect(open).toContain('aria-expanded="true"');
     expect(open).toContain('aria-label="Hide desks"');
@@ -102,9 +102,11 @@ describe('the rail\'s layout', () => {
     expect(css).toMatch(/\.desk-rail\.open \{[^}]*clip-path: inset\(0 -48px 0 0\);/);
   });
 
-  it('morphs the toggle\'s two lines into a cross when open', () => {
-    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-top \{ transform: translateY\(3px\) rotate\(45deg\); \}/);
-    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-bottom \{ transform: translateY\(-3px\) rotate\(-45deg\); \}/);
+  // Owner 2026-10-15: three lines, not two.
+  it('morphs the toggle\'s three lines into a cross when open, the middle one fading out', () => {
+    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-top \{ transform: translateY\(5px\) rotate\(45deg\); \}/);
+    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-middle \{ opacity: 0; transform: scaleX\(0\.4\); \}/);
+    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-bottom \{ transform: translateY\(-5px\) rotate\(-45deg\); \}/);
   });
 
   it('becomes a drawer with a scrim at 900 px and below, opened from the same toggle', () => {

@@ -9,15 +9,16 @@ import { useEffect, useRef } from 'react';
 import { Icon, TAB_ICON } from './Icons.jsx';
 import './deskRail.css';
 
-/** Two lines that cross when the rail is open (F195 follow-up, owner 2026-10-15: "sleek and modern"). */
+/** Three lines that become a cross when the rail is open (F195 follow-up, owner 2026-10-15). */
 export function DeskRailToggle({ open, onToggle, lang = 'en' }) {
   const hi = lang === 'hi';
   const label = open ? (hi ? 'डेस्क छिपाएँ' : 'Hide desks') : (hi ? 'डेस्क दिखाएँ' : 'Show desks');
   return (
     <button type="button" className="desk-rail-toggle" aria-expanded={open} aria-controls="desk-rail" aria-label={label} title={label} onClick={() => onToggle()}>
       <svg className="desk-rail-glyph" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <line className="desk-rail-glyph-top" x1="5" x2="19" y1="9" y2="9" />
-        <line className="desk-rail-glyph-bottom" x1="5" x2="19" y1="15" y2="15" />
+        <line className="desk-rail-glyph-top" x1="5" x2="19" y1="7" y2="7" />
+        <line className="desk-rail-glyph-middle" x1="5" x2="19" y1="12" y2="12" />
+        <line className="desk-rail-glyph-bottom" x1="5" x2="19" y1="17" y2="17" />
       </svg>
     </button>
   );
