@@ -548,24 +548,26 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F204. Record panels draw no relations graph.** Owner 2026-10-16 ("not genuine … remove that
+- [x] **F204. Record panels draw no relations graph.** Done 2026-10-16 (`e2a9613`; owner: "push and
+  merge"). Owner 2026-10-16 ("not genuine … remove that
   wherever it comes"). The four-lane graph is gone from all 26 record types; their related register
   rows stay as "Related on record". Follow-up: drop the unread `lanes`/`nodes` from the adapters.
   Spec: `docs/specs/2026-10-16-record-panel-and-chat.md`. On `task/module-scroll`.
-- [ ] **F205. The AI brief card tells reading from writing.** Owner 2026-10-16. A stored brief shows a
+- [x] **F205. The AI brief card tells reading from writing.** Done 2026-10-16 (`9ef80e5`, `56ee533`). Owner 2026-10-16. A stored brief shows a
   plain skeleton; one being written (server 'pending', or slower than 1.2 s) shows the Niyantran mark
   with a shimmer. Same spec and branch.
-- [ ] **F206. AI opens on a new chat by default.** Owner 2026-10-16. After a desk, module or record
+- [x] **F206. AI opens on a new chat by default.** Done 2026-10-16 (`e1aad94`, `56ee533`). Owner 2026-10-16. After a desk, module or record
   change, opening AI starts a new local chat; a history pick, the credits page, a running answer and
   an untouched new chat are kept. Same spec and branch.
-- [ ] **F203. Module pages that cannot scroll, are cut off, or lose their menu.** Owner request
+- [x] **F203. Module pages that cannot scroll, are cut off, or lose their menu.** Done 2026-10-16
+  (`d53c029`, `4e0e1f5`, `8e6a0a4`). Owner request
   2026-10-16 (UI only). Measured on all 120 desk modules: the 101 on the shared table were fine; of the
   19 hand-built pages, 7 lost their bottom 36 px (`.nat-panel` content-box padding), MP Profiles and
   Centre-sanctioned Projects could not scroll (`.alliances-wrap` grew past a clipped area), a focused
   card could push a page's top out of reach (`.main-col` hidden, not clipped), and Alliances, Sanctions
   and Global Aid were cut on the right beside the map. Category menus switched under a diagonal
-  pointer. Spec: `docs/specs/2026-10-16-module-scroll.md`. Built on `task/module-scroll`; remaining:
-  review, the owner's look, merge and push on their word. Making the 19 hand-built pages share the
+  pointer. Spec: `docs/specs/2026-10-16-module-scroll.md`. Reviewed; the menu's hover bridge fix
+  followed the owner's look. Making the 19 hand-built pages share the
   table look is a separate owner decision.
 - [x] **F195. Desk rail on module pages.** Done 2026-10-15 (`1a1b2e7`, `315de13`, `bb2e7da`, `ff17ad1`;
   owner: "once that is fixed, push"). Owner request 2026-10-15 (revisits F102 for module pages
