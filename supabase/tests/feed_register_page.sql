@@ -216,8 +216,18 @@ SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = '')
 SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = 'Never')
     AND (SELECT next_due_at = now() + interval '30 days' AND lease_token IS NOT NULL FROM public.feed_state WHERE feature = 'Reg' AND variant = 'Never'),
   'a register variant a run holds is left alone, lease and all');
+
 SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = 'No Such') AND (SELECT NOT done FROM made WHERE v IS NULL),
   'an unknown variant, or none, is not made due');
 SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.feed_state WHERE next_due_at = now()), 'nothing else was made due');
+
+-- A load that died leaves an ended lease; the register can still be reloaded.
+UPDATE public.feed_state SET lease_token = '00000000-0000-4000-8000-0000000fee91', leased_at = now() - interval '10 minutes',
+  lease_until = now() - interval '5 minutes', next_due_at = now() + interval '30 days' WHERE feature = 'Reg' AND variant = 'Never';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.assert_true(public.feed_make_due('state', 'Reg', 'Never'), 'a register whose lease has ended (a load that died) is made due');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT next_due_at <= now() AND lease_token IS NULL AND lease_until IS NULL FROM public.feed_state WHERE feature = 'Reg' AND variant = 'Never'),
+  'and its ended lease is released');
 
 ROLLBACK;

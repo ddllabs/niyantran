@@ -20,8 +20,8 @@
 --   * feed_make_due(p_tier, p_feature, p_variant)              service_role
 --       Makes one register variant due now, so scripts/load-feed-register.mjs --force can reload a
 --       register (a bad load corrected) before its 30-day interval ends. Only a row of class
---       'register', and only when no run holds a lease on it (lease_token null; a lease that has
---       ended is cleared by the next feed_claim_due first). Returns true when it set next_due_at,
+--       'register', and only when no run holds a live lease on it (a lease that has ended belongs
+--       to a load that died, and is released). Returns true when it set next_due_at,
 --       false otherwise (no such variant, not a register, or leased). Nothing else changes. A
 --       scheduled module cannot be made due: the timer alone decides when it runs.
 --   * feed_admin_status()                                      authenticated, admins only
@@ -99,11 +99,16 @@ as $$
 declare
   v_done boolean;
 begin
+  -- A lease that has ended belongs to a load that died (a register is never claimed by the timer, so
+  -- nothing else would clear it): it is released here, or the register could never be reloaded.
   update public.feed_state s
-     set next_due_at = now()
+     set next_due_at = now(),
+         lease_token = null,
+         leased_at   = null,
+         lease_until = null
    where s.tier = p_tier and s.feature = p_feature and s.variant = coalesce(p_variant, '')
      and s.class = 'register'
-     and s.lease_token is null
+     and (s.lease_token is null or s.lease_until < now())
   returning true into v_done;
   return coalesce(v_done, false);
 end;
