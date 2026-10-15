@@ -1003,9 +1003,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   module's own live row filters (`server/feedRows.mjs`); stored copies never read LIVE; stale copies are
   capped (7 days or 20 intervals). Left:
   - MLA Report Card + Statement Tracker: serve off; its store page holds 3–7 of ~495 live items (a
-    500-row Wikidata sample stored as news). Needs a different keeping kind or sampling.
-  - District Performance Tracker: serve off; it is a Wikidata districts list scheduled as kind news (a
-    different 500 districts each run). Reschedule as reference.
+    500-row Wikidata sample stored as news). Shown as "MLA Profiles & Coverage" since `7608584` (owner
+    2026-10-16), its note saying it is not a scorecard. A real report card needs a source (e.g.
+    ADR/MyNeta affidavits; state assembly questions and attendance).
+  - District Performance Tracker: planned since `7608584` (owner 2026-10-16) and off the timer; its only
+    source was a Wikidata district directory with no performance data. To build with the district
+    modules: NITI Aspirational Districts, NFHS-5 district fact sheets, UDISE+, MGNREGA; a composite
+    index needs an owner-approved method; shown as a district choropleth (DataMeet 2011 districts or
+    LGD-coded current boundaries) with a table.
   - `feed_record` treats nothing-new as success even when the module holds no items (needs a migration:
     `and v_state.item_count > 0` in the nothing-new branch).
   - Music Charts: a request's 8 s timer does not count time queued behind the host gate.
