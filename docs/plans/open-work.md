@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F196 is next) and goes in the
+- A new finding gets the next free `F` number (F204 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,6 +548,15 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F203. Module pages that cannot scroll, are cut off, or lose their menu.** Owner request
+  2026-10-16 (UI only). Measured on all 120 desk modules: the 101 on the shared table were fine; of the
+  19 hand-built pages, 7 lost their bottom 36 px (`.nat-panel` content-box padding), MP Profiles and
+  Centre-sanctioned Projects could not scroll (`.alliances-wrap` grew past a clipped area), a focused
+  card could push a page's top out of reach (`.main-col` hidden, not clipped), and Alliances, Sanctions
+  and Global Aid were cut on the right beside the map. Category menus switched under a diagonal
+  pointer. Spec: `docs/specs/2026-10-16-module-scroll.md`. Built on `task/module-scroll`; remaining:
+  review, the owner's look, merge and push on their word. Making the 19 hand-built pages share the
+  table look is a separate owner decision.
 - [x] **F195. Desk rail on module pages.** Done 2026-10-15 (`1a1b2e7`, `315de13`, `bb2e7da`, `ff17ad1`;
   owner: "once that is fixed, push"). Owner request 2026-10-15 (revisits F102 for module pages
   only). Inside a desk, the desk tabs leave the header for a 56 px icon rail on the left; its toggle

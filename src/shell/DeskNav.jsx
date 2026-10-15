@@ -5,14 +5,33 @@ import { featureMenuLabel } from '../lib/national.js';
 import { Icon, TAB_ICON } from './Icons.jsx';
 import { DeskRailToggle } from './DeskRail.jsx';
 
+/**
+ * F203: a menu (240 px) reaches under the next tab, so a diagonal move from a tab to its menu crosses
+ * the neighbour. With a menu open, another tab takes over only after the pointer rests on it.
+ */
+export const SWITCH_DELAY_MS = 160;
+export function menuSwitchDelay(openLabel, label) {
+  return openLabel && openLabel !== label ? SWITCH_DELAY_MS : 0;
+}
+
 function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   useLayoutEffect(() => {
-    if (!anchor) return;
-    const r = anchor.getBoundingClientRect();
-    const width = 240;
-    const left = Math.min(r.left, window.innerWidth - width - 12);
-    setPos({ top: r.bottom + 2, left: Math.max(12, left) });
+    if (!anchor) return undefined;
+    // F203: the menu follows its tab when the row scrolls sideways or the window resizes.
+    const place = () => {
+      const r = anchor.getBoundingClientRect();
+      const width = 240;
+      const left = Math.min(r.left, window.innerWidth - width - 12);
+      setPos({ top: r.bottom + 2, left: Math.max(12, left) });
+    };
+    place();
+    window.addEventListener('resize', place);
+    anchor.closest('.desktabs')?.addEventListener('scroll', place, { passive: true });
+    return () => {
+      window.removeEventListener('resize', place);
+      anchor.closest('.desktabs')?.removeEventListener('scroll', place);
+    };
   }, [anchor]);
   if (!anchor) return null;
   return createPortal(
@@ -39,6 +58,7 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
   const [open, setOpen] = useState(null);
   const btnRefs = useRef({});
   const closeTimer = useRef(null);
+  const switchTimer = useRef(null);
   const hi = lang === 'hi';
   const homeTabs = tabs || TABS;
   const active = homeTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
@@ -63,12 +83,22 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
       clearTimeout(closeTimer.current);
+      clearTimeout(switchTimer.current);
     };
   }, []);
 
   function showMenu(label) {
     clearTimeout(closeTimer.current);
     setOpen(label);
+  }
+
+  function enterMenu(label) {
+    clearTimeout(switchTimer.current);
+    const wait = menuSwitchDelay(open, label);
+    if (!wait) { showMenu(label); return; }
+    // The open menu stays while the pointer only passes over this tab.
+    clearTimeout(closeTimer.current);
+    switchTimer.current = setTimeout(() => showMenu(label), wait);
   }
 
   function hideMenuSoon() {
@@ -107,8 +137,8 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
           <div
             key={b.label}
             className="drop"
-            onMouseEnter={() => showMenu(b.label)}
-            onMouseLeave={hideMenuSoon}
+            onMouseEnter={() => enterMenu(b.label)}
+            onMouseLeave={() => { clearTimeout(switchTimer.current); hideMenuSoon(); }}
           >
             <button
               type="button"
