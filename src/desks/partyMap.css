@@ -1,5 +1,8 @@
 /* F196 Party Organisation Map (src/desks/IndiaPartyMap.jsx). Party colours are the same in both
    themes; borders, text and empty states take the theme's tokens. */
+/* The desk is a full-height grid with no scroll of its own (tables scroll inside .table-wrap), so the
+   map page scrolls here; without it everything below the first screen was unreachable. */
+.pm-host { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .pm { display: grid; gap: 14px; padding: 16px; min-width: 0; color: var(--text); }
 .pm-head h1 { margin: 0 0 4px; font-size: 1.25rem; color: var(--fg); }
 .pm-head p { margin: 0; font-size: 0.875rem; }

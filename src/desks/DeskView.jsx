@@ -673,7 +673,7 @@ export default function DeskView({
     return (
       <div className="desk desk-wide desk-res">
         {err && <p className="banner warn">{err}</p>}
-        <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
+        <div className={`alliances-wrap pm-host${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Counting party seats…" />}
           {!loading && <IndiaPartyMap feed={feed} />}
         </div>
