@@ -840,6 +840,11 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   8. Column setups that do not match the data (Centre-Sanctioned Projects, MLA Report Card, District
      Performance, Energy); resolved prediction markets and 9999 dates; raw HTML entities; Goa-only
      modules unlabelled; "Vernacular" modules that are English news; State Tender shown as configured.
+  Owner 2026-10-15: all recommendations approved, including the data-file fixes (cause 7) as a
+  data-migration task with an exact inventory. Also from the owner's review: the AI record brief takes
+  the format of the code-written blue box (brief, why it matters, watch for, tags) and that box is
+  removed (one analysis box per record); "Source date" and "Last verified" fall back to the dataset's
+  as-of and our fetch time. In progress: badge, news relevance, columns/labels, data files, brief format.
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
   2026-10-15: "The source is in that only … We just have to make them up and working"; the tender
   aggregators wait for the owner's source. [Research](../research/2026-10-15-planned-module-sources.md):
@@ -887,6 +892,9 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   [plan](2026-10-15-rbi-handbook-full-history.md)): full history is 101,277 figures (+36,832 store
   items, est. 40–60 MB); recommended: keep one variant per table read whole (up to four 500-item
   pages), split only tables 176 and 151 into whole-year blocks, no migration; T1–T11 with checkpoints.
+  Owner 2026-10-15: approach approved; full history shown by default; a Year control on the Cross-State
+  Comparison; and the AI must be able to query the figures ("Isn't that the entire point: AI should
+  query over it") — added as T9b: load the full handbook into desk_rows for search_desk_rows. In build.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
