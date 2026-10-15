@@ -580,7 +580,7 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
                 <b>
                   {meta.pulse?.ageH != null
                     ? `${Number(meta.pulse.ageH).toFixed(1)}h`
-                    : meta.pulse?.meta?.window === REGISTER_WINDOW
+                    : meta.pulse?.meta?.window === REGISTER_WINDOW && meta.pulse?.rows?.length
                       ? 'register'
                       : loading ? '…' : '—'}
                 </b>
