@@ -822,8 +822,20 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   of the 17 in scope, 4 news modules and Election Forecast can be built now; SDL auctions from the RBI
   press feed; State Economic, State Fiscal, NITI indices and Cross-State from the RBI state handbook
   (same RBI site as the registry's source); the 5 district themes only as state-level figures; District
-  Governance and District Crime have no source and stay planned. Owner decisions: the RBI handbook,
-  the district relabel, Party Organisation Map as party strength.
+  Governance and District Crime have no source and stay planned. Owner decisions (2026-10-15, "I agree
+  with your recommendation"): use the RBI handbook as a yearly stored register; the five district
+  themes show state-level figures and are renamed; Party Organisation Map is party seat strength per
+  state, an India map (official Survey of India boundary) coloured by the largest party, with a table.
+  - Batch 1 done 2026-10-15 (`99d3e83`): Sports Governance & Policy, Governor Friction & President's
+    Rule, Legislative Productivity (news coverage only) and MLA Defection from curated Google News
+    queries (20/20, 19/20, 20/20, 20/20 on-topic in the top 20, with headline guards), Election Forecast
+    from Manifold's Indian election markets (play money; 50 markets, 17 open). On `FEED_SCHEDULE`;
+    registry and feature map updated (registry addresses 115 → 120; the homepage keeps 246, F191).
+    Checks: 37 new tests red first, lint, build, router import, 5,509 Vitest, 1,079 Deno; each module
+    answered live on a local server. Left: no Sports history (the F63 pack is not served on the live
+    site); resolved Election markets do not show the winner.
+  - Next: the RBI handbook register (State Economic, State Fiscal, NITI indices, Cross-State, the five
+    state-level themes), SDL auctions from the RBI press feed, and the party-strength map.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
