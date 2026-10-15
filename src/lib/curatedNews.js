@@ -73,12 +73,55 @@ export function headlineKey(title, publisher = '') {
 const STORY_STOP = new Set(('a an the of to in on for by with and at from is as are was be it its his her their '
   + 'after over into amid says said will has have here what this that new more').split(' '));
 
+// Spellings that mean one word in the headlines of one event ("Guv"/"Governor", "TN"/"Tamil Nadu",
+// "twelve"/"12"). Applied to a lower-case token before it is cut to its stem. Only numbers of two
+// digits or more are spelled out: "3 months" is a figure of speech, "12 bills" is an event.
+// "govt" is not folded into "government": that made a Kerala motion on UPI charges and another on
+// the Western Ghats "the same story" through "Union govt".
+const STORY_ALIASES = {
+  guv: 'governor', guvnor: 'governor', tn: 'tamil nadu',
+  ten: '10', eleven: '11', twelve: '12', thirteen: '13', fourteen: '14', fifteen: '15', sixteen: '16',
+  seventeen: '17', eighteen: '18', nineteen: '19', twenty: '20',
+};
+// Capitalised words that name nothing in particular (title-case headlines capitalise them all), and
+// states and union territories, which every headline of a state module names.
+const STORY_GENERIC = new Set(('bill bills act acts house court courts state states centre center government ministry '
+  + 'minister cabinet india indian news report reports session assembly pradesh nadu andhra arunachal assam bihar '
+  + 'chhattisgarh goa gujarat haryana himachal jharkhand karnataka kerala keralam madhya maharashtra manipur '
+  + 'meghalaya mizoram nagaland odisha orissa punjab rajasthan sikkim tamil telangana tripura uttar uttarakhand '
+  + 'bengal delhi jammu kashmir ladakh puducherry pondicherry chandigarh').split(' '));
+
+/** A count a headline states: two digits or more, and not a year (a year is a date, not a count). */
+const isCount = (w) => /^\d{2,}$/.test(w) && !(w.length === 4 && +w >= 1900 && +w <= 2100);
+
+// A number as a headline states it ("5.50" is one number; "45,185" and "5,000" are read as 45185 and 5000).
+const NUMBER = /\p{N}+(?:\.\p{N}+)?/gu;
+
 /**
  * A headline's content words, each cut to its first five letters so that outlets' variants of one
- * word meet ("Kerala"/"Keralam", "passes"/"passed", "summons"/"summoned").
+ * word meet ("Kerala"/"Keralam", "passes"/"passed", "summons"/"summoned"), with the counts it
+ * states and the proper names it carries (capitalised words that are not generic nouns or places).
+ * Pass the headline itself for the names and for "45,185" to read as one word.
  */
-function storyWords(key) {
-  return new Set(key.split(' ').filter((w) => w.length > 1 && !STORY_STOP.has(w)).map((w) => w.slice(0, 5)));
+function storyWords(key, headline = '') {
+  const split = (text) => text.split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+    .flatMap((t) => (STORY_ALIASES[t.toLowerCase()] ?? t.toLowerCase()).split(' '));
+  const text = headline ? headline.replace(/(\d),(?=\d{3}\b)/g, '$1') : key;
+  const words = new Set();
+  for (const w of split(text.toLowerCase())) {
+    if (w.length < 2 || STORY_STOP.has(w)) continue;
+    words.add(w.slice(0, 5));
+  }
+  // Counts are read whole: the 50 in "5.50%" is not a count of 50.
+  const nums = new Set();
+  for (const n of text.match(NUMBER) || []) if (isCount(n)) nums.add(n);
+  for (const t of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) if (isCount(STORY_ALIASES[t] || '')) nums.add(STORY_ALIASES[t]);
+  const names = new Set();
+  for (const raw of text.split(/[^\p{L}\p{N}]+/u)) {
+    if (!/^\p{Lu}/u.test(raw)) continue;
+    for (const w of split(raw)) if (w.length > 1 && !STORY_STOP.has(w) && !STORY_GENERIC.has(w)) names.add(w.slice(0, 5));
+  }
+  return { words, nums, names };
 }
 
 /**
@@ -86,11 +129,19 @@ function storyWords(key) {
  * 55% of the shorter headline. Measured on the 2026-10-15 live probe: the eight rewordings of the
  * Kerala Assembly's resolution on the CEC fold into one, while the same Assembly's motions on UPI
  * charges, a railway division and the Western Ghats (four or five shared words, 40-57%) stay apart.
+ * Four shared words are enough when they include a count both headlines state (two digits or more,
+ * not a year) and a proper name both carry (a person, office or body, not a state): "Governor
+ * Arlekar gives assent to 12 bills" and "12 Bills passed in House get Governor's assent" are one event.
  */
 function sameStory(a, b) {
   let shared = 0;
-  for (const w of a) if (b.has(w)) shared += 1;
-  return shared >= 5 && shared / Math.min(a.size, b.size) >= 0.55;
+  for (const w of a.words) if (b.words.has(w)) shared += 1;
+  const coverage = shared / Math.min(a.words.size, b.words.size);
+  if (shared >= 5 && coverage >= 0.55) return true;
+  if (shared < 4 || coverage < 0.55) return false;
+  const sharedCount = [...a.nums].some((n) => b.nums.has(n));
+  const sharedName = [...a.names].some((n) => b.names.has(n) && a.words.has(n) && b.words.has(n));
+  return sharedCount && sharedName;
 }
 
 // UPSC / GK study guides, not news (audit C4: Vajiram & Ravi, GK Today, Insights IAS…).
@@ -138,7 +189,7 @@ function keptNews(rows, { days = DEFAULT_NEWS_DAYS, now = Date.now(), cap = 100,
     const link = String(row?.source_url || '').trim();
     const story = headlineKey(title, publisher);
     if ((link && links.has(link)) || stories.has(story)) continue;
-    const words = storyWords(story);
+    const words = storyWords(story, headline);
     if (storySets.some((seen) => sameStory(words, seen))) continue;
     if (link) links.add(link);
     stories.add(story);

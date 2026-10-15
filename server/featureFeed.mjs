@@ -172,8 +172,28 @@ function mlaCoverageNewsRssUrl() {
   );
 }
 
-/** Technology titles: AI, chips, digital public infrastructure, telecom, cyber, data, startups. */
-const TECH_TITLE = /\b(?:AI|IndiaAI|MeitY|UPI|5G|6G)\b|artificial intelligence|semiconductor|\bchips?\b|digital|technolog|electronics|telecom|cyber|data cent(?:re|er)|quantum|supercomput|startup|software|internet|machine learning|robot/i;
+/**
+ * Technology-industry titles: AI and compute, chips, electronics and IT, telecom, cyber security,
+ * data centres, startups, digital public infrastructure. F202 (2026-10-16): the bare words "digital"
+ * and "technolog" let through a rural-livelihood data workshop ("Strengthening Digital Data
+ * Systems ... DAY-NRLM") and an Ayurveda institute's "digital initiatives", so a digital title
+ * must name the digital economy or its infrastructure, and a technology title an industry or an
+ * emerging technology.
+ */
+const TECH_TITLE = new RegExp(
+  [
+    '\\b(?:AI|GenAI|IndiaAI|MeitY|UPI|5G|6G|GPUs?|CERT-In|DPDP)\\b',
+    'artificial intelligence|machine learning|large language model|\\bLLMs?\\b|generative',
+    'semiconductor|\\bchips?\\b|\\bfabs?\\b|supercomput|\\bcomput(?:e|ing)\\b|quantum',
+    'electronics|information technology|telecom|spectrum|broadband',
+    'cyber ?(?:secur|attack|threat|resilien)|data cent(?:re|er)|data protection',
+    'start-?ups?|deep ?tech|emerging technolog|critical (?:and emerging )?technolog|frontier tech',
+    'technology (?:park|compan|firm|sector|industry|major|giant|hub)|\\bIT (?:sector|industry|services|compan)',
+    'software|\\binternet\\b|robot',
+    'digital (?:India|public infrastructure|economy|payments?|platform|stack|trade|infrastructure|transformation|governance)',
+  ].join('|'),
+  'i',
+);
 function isTechTitle(title) {
   return TECH_TITLE.test(String(title || ''));
 }
@@ -2301,9 +2321,10 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
           rows: live,
           adapter: 'api',
           links: NEWS_FEEDS.map((f) => f.url),
-          coverage: { from: '', through: '', exhaustive: false },
+          coverage: { from: '', through: `${climate.days}d`, exhaustive: false },
           fallback: false,
-          note: carbonNote('news', 'Live outlet RSS.'),
+          // F202: counted like the other news modules ("N stories in the last X days").
+          note: `${live.length} ${live.length === 1 ? 'story' : 'stories'} in the last ${climate.days} days. ${carbonNote('news')}`,
           meta: { heading: feat.htmlFeature, section: 'Climate wire' },
         });
       }

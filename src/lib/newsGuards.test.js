@@ -472,6 +472,34 @@ describe('PIB rows are dated from their release pages, within limits (C2)', () =
     expect(row?.date).toBe('2026-10-14');
   });
 
+  // F202 leftovers: titles are real PIB releases. The first group is from PIB's English RSS on 2026-10-16
+  // (the two the loose filter let through: "digital" in a rural-livelihood workshop and in an Ayurveda
+  // institute's initiatives); the second are PIB's MeitY releases.
+  const PIB_NOT_TECH = [
+    ['National Workshop held on “Strengthening Digital Data Systems and Evidence-Based Learning” under Deendayal Antyodaya Yojana-National Rural Livelihood Mission at Gurugram, Haryana on 12th and 13th October, 2026', 1101],
+    ['Vice-President inaugurates KAUMARACON-2026 and launches digital initiatives of the All India Institute of Ayurveda', 1102],
+    ['Union Commerce and Industry Minister Shri Piyush Goyal Launches National Strategic Trade Command Centre at Vanijya Bhawan', 1103],
+    ['Legislative Department, Ministry of Law &amp; Justice organises workshop on E-Waste Disposal under Special Campaign 6', 1104],
+    ['DRI seizes around 6.2 kg foreign-origin gold; busts sophisticated gold smuggling modus operandi through unaccompanied baggage; three arrested', 1105],
+  ];
+  const PIB_TECH = [
+    ['India’s Common Compute Capacity Crosses 34,000 GPUs', 2132817],
+    ['Nationwide Momentum in Chip Design as India Prepares Workforce for AI Age: Shri Ashwini Vaishnaw', 2230976],
+    ['Prime Minister Shri Narendra Modi presented with First set of Made-in-India Chips; Union Minister Ashwini Vaishnaw Calls It a Moment of Pride', 2163184],
+    ['Meeting of the Parliamentary Consultative Committee for the Ministry of Electronics and Information Technology (MeitY) held under the Chairmanship of Union Minister Shri Ashwini Vaishnaw', 2245449],
+    ['Union Minister of Electronics and Information Technology Shri Ashwini Vaishnaw highlights India AI Mission’s Seven Pillars for inclusive development', 2083189],
+    ['MeitY launches AIKosha, a secured platform that provides a repository of datasets, models and use cases to enable AI innovation', 2108961],
+    ['India to Add 20,000 GPUs Beyond Existing 38,000 to Strengthen National AI Infrastructure', 2229171],
+  ];
+
+  it('AI & Tech takes PIB releases about the technology industry and not a "digital" in any title', async () => {
+    stubPib([...PIB_NOT_TECH, ...PIB_TECH]);
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'finance', feature: 'AI & the Tech Industry' }));
+    const pib = out.rows.filter((r) => r.publisher === 'Press Information Bureau').map((r) => r.title);
+    expect(pib.sort()).toEqual(PIB_TECH.map(([t]) => t).sort());
+  });
+
   it('a release page read once is not read again within the cache window', async () => {
     const pages = stubPib([['Cabinet approves the Example Scheme for 2026-27', 901]]);
     const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
@@ -526,5 +554,129 @@ describe('reworded stories on the 2026-10-15 live probe', () => {
       at('Punjab Assembly session from Oct 22-27 - The Times of India', 6, 'u/10'),
     ], { days: 7, now: NOW });
     expect(rows.map((r) => r.source_url)).toEqual(['u/1', 'u/2', 'u/3', 'u/4', 'u/10']);
+  });
+});
+
+describe('one event told in different words (F202 leftovers: three Tamil Nadu Governor assent rows)', () => {
+  const at = (title, n, url) => ({ title, source_url: url, date: day(n) });
+  const kept = (rows) => freshNewsRows(rows, { days: 30, now: NOW }).map((r) => r.source_url);
+
+  // Google News, 2026-10-15/16. The same event: Tamil Nadu's Governor assented to 12 of 13 bills.
+  const TN = [
+    at('Governor Arlekar gives assent to 12 bills - DT Next', 3, 'tn/1'),
+    at('TN Guv gives assent to 12 Bills - ThePrint', 4, 'tn/2'),
+    at('Tamil Nadu Governor R V Arlekar clears 12 of 13 bills - The Times of India', 4, 'tn/3'),
+    at('12 Bills passed in House get Governor\'s assent - The New Indian Express', 5, 'tn/4'),
+  ];
+
+  it('folds the Governor assenting to 12 Tamil Nadu bills, however an outlet words it', () => {
+    expect(kept(TN)).toEqual(['tn/1']);
+  });
+
+  it('folds the telling whatever order the rows arrive in', () => {
+    expect(kept([...TN].reverse())).toEqual(['tn/1']);
+  });
+
+  it('folds the story into its newest telling even when that is the shortest wording', () => {
+    // "12 Bills passed in House get Governor's assent" is newest; the wordings with "Guv" and the Governor's
+    // name are older. All three are one story and the newest is the one shown.
+    expect(kept([
+      at('12 Bills passed in House get Governor\'s assent - The New Indian Express', 1, 'ch/1'),
+      at('TN Guv gives assent to 12 Bills - ThePrint', 2, 'ch/2'),
+      at('Governor Arlekar gives assent to 12 bills - DT Next', 3, 'ch/3'),
+    ])).toEqual(['ch/1']);
+  });
+
+  it('folds the same event across other wordings: "Guv", a spelled-out count, a comma in the amount', () => {
+    expect(kept([
+      at('Governor Arlekar approves 12 Tamil Nadu bills, seeks clarification on private universities - The Hindu', 3, 'tn/8'),
+      at('Tamil Nadu Bills: Governor Approves 12, Private Universities Bill Sent For Further Consideration - Free Press Journal', 4, 'tn/9'),
+    ])).toEqual(['tn/8']);
+    expect(kept([
+      at('Academics urge Governor not to approve Inter-University Transfer Bill - The Hindu', 1, 'wb/3'),
+      at('Profs Seek Guv Intervention Against Inter-University Transfer Bill - The Times of India', 2, 'wb/4'),
+    ])).toEqual(['wb/3']);
+    expect(kept([
+      at('SIR Stay, Action Against Officials: Rahul Gandhi\'s 10 Requests To Top Court - NDTV', 1, 'sir/1'),
+      at('Here are the ten directions Rahul Gandhi has sought from Supreme Court in his petition on SIR - The Hindu', 2, 'sir/2'),
+    ])).toEqual(['sir/1']);
+    expect(kept([
+      at('Maharashtra CM Announces Diwali Gift Of Rs 5000 To Farmers, 40 More Talukas Added To \'Drought\' Category - NDTV', 1, 'mh/1'),
+      at('Drought hits 85% of Maharashtra\'s talukas; Fadnavis announces Rs 5,000 farmer relief - The Hindu', 2, 'mh/2'),
+      at('Maharashtra announces drought relief, Rs 5,000 aid per farmer before Diwali - Mint', 2, 'mh/3'),
+    ])).toEqual(['mh/1']);
+    expect(kept([
+      at('TN govt’s Rs 35 per-unit electricity deal reeks of corruption: Senthil Balaji - The Hindu', 1, 'tnp/1'),
+      at('TVK govt’s Rs 35 per unit power deal triggers political row in Tamil Nadu - Deccan Herald', 2, 'tnp/2'),
+    ])).toEqual(['tnp/1']);
+  });
+
+  it('keeps apart different governors, different counts and different bills', () => {
+    expect(kept([
+      ...TN.slice(0, 1),
+      at('LG Sinha Gives Assent to Six Bills Passed During Jammu Kashmir Assembly’s Autumn Session - Kashmir Life', 8, 'jk/1'),
+      at('Governor Arlekar seeks clarifications from T.N. govt. on Tamil Nadu Private Universities (Amendment) Bill, 2026 - The Hindu', 4, 'tn/5'),
+      at('Governor Refers Bill On Varsities To President - Deccan Chronicle', 3, 'tn/6'),
+      at('Supreme Court Closes Punjab\'s Plea Against Governor Reserving Two Bills For President\'s Assent - Live Law', 20, 'pb/1'),
+      at('Gujarat UCC Bill gets President Murmu’s assent, becomes 2nd state after Uttarakhand | India News - Hindustan Times', 14, 'gj/1'),
+      at('Deadline for industrial nod reduced after Governor\'s assent - DT Next', 2, 'tn/7'),
+      at('Anti-Goonda Bill still under President’s consideration: West Bengal CM clarifies - OpIndia', 19, 'wb/1'),
+      at('Why did President Droupadi Murmu return Bengal’s ‘Anti-Goonda Bill’? Here’s what Centre flagged - Mathrubhumi English', 21, 'wb/2'),
+    ]).sort()).toEqual(['gj/1', 'jk/1', 'pb/1', 'tn/1', 'tn/5', 'tn/6', 'tn/7', 'wb/1', 'wb/2']);
+  });
+
+  it.each([
+    // A shared count and a shared name do not make one event (each pair is two live Google News headlines).
+    ['TN Guv gives assent to 12 Bills - ThePrint', 'Tamil Nadu private universities bill sent to President for assent, land norm cut to 12 acres in Chennai - The Hindu'],
+    ['RBI Repo Rate at 5.50%: Calibrated Tightening Explained - Groww', 'RBI rate hikes of 50 bps expected in next two policies, terminal repo rate to reach 6.0%: Kotak report - Mint'],
+    ['Allahabad HC directs state to notify silence zones within 3 months, ban illegal hooters - The Hindu', 'Allahabad HC directs UP to hold panchayat polls within three months - The Hindu'],
+    ['Kerala Assembly unanimously passes resolution asking Union government to accept State’s revised ESA proposal - The Hindu', 'Keralam Assembly passes resolution asking Union govt. to withdraw MDR charges on UPI transactions - ThePrint'],
+    ['Rajasthan Cabinet approves proposal to felicitate PM Modi - The Times of India', 'Odisha Cabinet Lauds PM Modi’s 25 Years in Public Service, Clears 16 Proposals - Odisha TV'],
+    ['Andhra Pradesh govt notifies mayoral post reservations for 17 municipal corporations - The Hindu', 'Andhra Pradesh Government Notifies Reservation For Zilla Parishad Chairperson Posts - Deccan Chronicle'],
+    ['RBI MPC hikes repo rate by 25 bps to 5.5%, near-term cuts \'off the table\' - Mint', 'Banks Raise Lending Rates After RBI Hikes Repo Rate To 5.5% - Business Today'],
+  ])('keeps two different events apart: %s | %s', (a, b) => {
+    expect(kept([at(a, 1, 'x/1'), at(b, 2, 'x/2')])).toEqual(['x/1', 'x/2']);
+  });
+
+  it('the Kerala Assembly motions of one day stay apart when the aliases apply (MDR, Mangaluru, Western Ghats)', () => {
+    expect(kept([
+      at('Keralam Assembly passes motion urging Centre to withdraw MDR on UPI transactions - ThePrint', 0, 'k/m1'),
+      at('Keralam Assembly passes motion against bifurcation of Mangaluru from Palakkad Rly division - ThePrint', 0, 'k/m2'),
+      at('Keralam assembly passes resolution urging Centre to accept revised Western Ghats ESA proposal - ThePrint', 0, 'k/m3'),
+    ])).toEqual(['k/m1', 'k/m2', 'k/m3']);
+  });
+});
+
+describe('Climate Newswire says how many stories it shows and for how long (F202 leftovers)', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.resetModules(); });
+
+  const stubClimate = (feeds) => vi.stubGlobal('fetch', vi.fn(async (url) => {
+    const host = Object.keys(feeds).find((h) => String(url).includes(h));
+    // Each outlet has its own links (rssOf numbers links from 0 within a feed).
+    return respond(url, rssOf(host ? feeds[host] : []).replace(/example\.com\/s\//g, `${host}/s/`));
+  }));
+  const ask = async () => {
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    return serveFeatureFeed(new URLSearchParams({ tier: 'climate', feature: 'Climate Newswire' }));
+  };
+
+  it('opens its note with the story count and the window, like the other news modules', async () => {
+    stubClimate({
+      'carbonbrief.org': ['Analysis: UK emissions fall to lowest level since 1850', 'Q&A: What COP31 could deliver on fossil fuel phase-out'],
+      'mongabay.com': ['Protests over dam heat up as crackdown on activists continues', 'The giants with one horn'],
+      'climatechangenews.com': ['Loss and damage fund delays first project approvals as needs dwarf resources'],
+    });
+    const out = await ask();
+    // Mongabay's wildlife feature is dropped by the climate guard: 2 + 1 + 1 stories.
+    expect(out.rows).toHaveLength(4);
+    expect(out.source.note).toMatch(/^4 stories in the last 30 days\. Headlines from Carbon Brief, Mongabay India and Climate Home News\./);
+    expect(out.coverage.through).toBe('30d');
+  });
+
+  it('says "1 story" for one', async () => {
+    stubClimate({ 'carbonbrief.org': ['Analysis: UK emissions fall to lowest level since 1850'] });
+    const out = await ask();
+    expect(out.source.note).toMatch(/^1 story in the last 30 days\. Headlines from /);
   });
 });

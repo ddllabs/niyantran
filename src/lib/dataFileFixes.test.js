@@ -57,6 +57,18 @@ describe('Heads of State names a holder for every office', () => {
       expect(p?.as_of, id).toBe('2026-10-15');
     }
   });
+
+  // F202 leftovers (docs/research/2026-10-15-data-file-fixes.md, addendum): editorial "latest" notes
+  // written for the previous office-holder are blank, not carried over to the new one.
+  it('shows no "latest" note written for the previous government (United Kingdom, Netherlands, Bangladesh)', () => {
+    const byId = new Map(leadersPack.leaders.map((p) => [p.id, p]));
+    for (const id of ['gb', 'nl', 'bd']) expect(byId.get(id)?.latest, id).toBe('');
+  });
+
+  it('keeps the other filled rows’ notes as they were', () => {
+    const byId = new Map(leadersPack.leaders.map((p) => [p.id, p]));
+    for (const id of FILLED.filter((x) => !['gb', 'nl', 'bd'].includes(x))) expect(byId.get(id)?.latest, id).toBeTruthy();
+  });
 });
 
 describe('Central tenders past their deadline read Closed', () => {

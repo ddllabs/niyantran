@@ -221,3 +221,55 @@ no change to the adapters:
   ideology "—".
 - `src/shell/record/adapters/constitutions.test.js`: fixture rows are picked by Constitute id or by display name,
   and the expected names are the loader's.
+
+## Addendum (2026-10-16): "latest" notes of the 19 Heads of State rows
+
+> **Status: Historical (dated 2026-10-16).** Owner-approved data-migration task (F202 leftovers, Task C
+> of `docs/plans/2026-10-16-leftover-phases.md`). `backup/` and `public/data/` were not touched. No row was
+> added, removed or reordered, no `id` changed, and only the `latest` field of two rows changed.
+
+**Question.** §2 kept the editorial `latest` note of the 19 rows whose `name` was replaced with the holder
+named by Wikidata (`as_of` 2026-10-15), except Bangladesh's. The notes were written for the office, before a
+holder was named, so a note could describe the previous office-holder's government. Each of the 19 was read
+against the holder now named in the row (country, office, party, `since`, and the research above).
+
+**Rule.** A note stays when it states the country's standing position or priorities, which hold whoever is
+in office, and fits the current holder. A note is set to `""` (an honest blank; the record panel then shows
+no Latest card, as for Bangladesh) when it describes the previous government's agenda or when it cannot be
+told. No replacement text was written.
+
+**Changed (2 rows).** `src/data/leaders.json` sha256 (first 16) `83a9339e8c35a9f3` → `df11b2c5bc830ace`.
+
+| id | Country | Holder now in the row | Old `latest` | New `latest` | Reason |
+|---|---|---|---|---|---|
+| gb | United Kingdom | Andy Burnham (Prime Minister, since 2026-07-20) | "Rebuilding EU ties post-Brexit; AUKUS; fiscal constraint." | "" | These are the previous Labour government's priorities (EU reset, AUKUS, fiscal rules). Nothing in the sources checked says whether Burnham's government keeps them, so it cannot be told. |
+| nl | Netherlands | Rob Jetten (Prime Minister, Democrats 66, since 2026-02-23) | "ASML export-control pivot; migration curbs; NATO/Ukraine support." | "" | "Migration curbs" and the export-control pivot are the agenda of the right-wing coalition that §2 replaced (the row's old `ideology` read "Right-coalition"). The note describes the previous government; a D66-led government's position was not checked. |
+
+Bangladesh (bd) had already been blanked in §2 (the note described the Yunus interim government).
+
+**Kept unchanged (16 rows), with the reason each still fits.**
+
+| id | Country (holder) | Why the note is kept |
+|---|---|---|
+| us | United States (Donald Trump) | Second term since 2025-01-20: tariffs, burden-sharing, Ukraine and Taiwan posture all describe this term. |
+| de | Germany (Friedrich Merz) | Rearmament, energy after the Russian gas cutoff and industrial competitiveness continue under Merz; "Zeitenwende" was coined under his predecessor but names a policy that continues. |
+| jp | Japan (Sanae Takaichi) | Defence build-up, US alliance, China deterrence and yen management fit Takaichi's government (owner flagged Japan; checked, it holds). |
+| kr | South Korea (Lee Jae Myung) | US alliance, North Korea deterrence, chip-export exposure and Japan ties are structural and current. |
+| pk | Pakistan (Shehbaz Sharif) | Same holder since 2024-03-03; IMF, army-backed government, India tension and CPEC are his government's. |
+| lk | Sri Lanka (Anura Kumara Dissanayake) | Same holder since 2024-09-23; post-crisis recovery, IMF and the India-China port balance. |
+| af | Afghanistan (Hibatullah Akhundzada) | Same leader since 2021; the note is about the Taliban government. |
+| ca | Canada (Mark Carney) | US tariff friction, Arctic security and critical minerals are Carney-era themes. |
+| pl | Poland (Donald Tusk) | Same holder since 2023-12-13; frontline NATO state and Ukraine logistics. |
+| au | Australia (Anthony Albanese) | Same holder since 2022; AUKUS, China trade thaw, Pacific, critical minerals are his government's. |
+| vn | Vietnam (Tô Lâm) | "Bamboo diplomacy" began under his predecessor but is Vietnam's continuing line; chip and manufacturing shift is current. |
+| th | Thailand (Anutin Charnvirakul) | Civil-military balance, Myanmar border and China rail links are country-level and current. |
+| qa | Qatar (Tamim bin Hamad Al Thani) | Same emir since 2013; mediation, LNG and Al Udeid. |
+| ae | UAE (Mohamed bin Zayed Al Nahyan) | Same president since 2022; G42, Sudan allegations, logistics hub. |
+| sg | Singapore (Lawrence Wong) | Same holder since 2024-05-15; US-China hedging and the chip and finance hub. |
+| cu | Cuba (Miguel Díaz-Canel) | Same holder since 2018/2019; the note describes the long-running economic crisis and embargo. |
+
+These keeps are a judgement from what the notes say, not a verification of each claim: the notes remain
+unsourced editorial text and carry no `source_url` of their own.
+
+Guard: `src/lib/dataFileFixes.test.js` gains two tests (gb, nl and bd read blank; the other filled rows keep a
+note). The first fails on the file as it stood at `HEAD` (gb) and passes with this change.
