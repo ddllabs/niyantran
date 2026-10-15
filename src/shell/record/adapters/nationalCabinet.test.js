@@ -338,8 +338,9 @@ describe('National cabinet adapter', () => {
       expect(m.touches.nodes.center).toMatchObject({ code: 'C', l1: 'This item', l2: 'Cabinet decision' });
       expect(m.touches.nodes.right).toBeUndefined();
       expect(m.touches.nodes.far).toBeUndefined();
+      // F204: the panel draws no graph from these lanes.
       const html = renderToStaticMarkup(createElement(RecordPanel, { model: m }));
-      expect(html).toContain('None on record');
+      expect(html).not.toContain('None on record');
     });
 
     it('links up to three other items from the same ministry: newest first, never the selection or a copy of it', () => {

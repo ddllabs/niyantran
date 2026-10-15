@@ -29,7 +29,7 @@ const model = (over = {}) => ({
 describe('RecordPanel', () => {
   it('renders the five parts in order', () => {
     const html = renderToStaticMarkup(<RecordPanel model={model()} />);
-    const order = ['rp-head', '01 · At a glance', '02 · About this front', '03 · Front &amp; what it touches', 'rp-footer'];
+    const order = ['rp-head', '01 · At a glance', '02 · About this front', '03 · Related on record', 'rp-footer'];
     let at = -1;
     for (const part of order) {
       const i = html.indexOf(part);
@@ -50,10 +50,20 @@ describe('RecordPanel', () => {
     expect(html).toContain('href="/#/global/Maritime%20Choke-Points"');
   });
 
-  it('writes "None on record" for a touch lane with nothing behind it', () => {
+  // F204 (owner 2026-10-16): the four-lane relations graph is gone from every record; its lanes were
+  // thin (a bill's "sector" repeated its ministry) and read as a real impact map. The related records
+  // under it are register rows and stay, under their own heading.
+  it('draws no relations graph, and keeps the related records under "Related on record"', () => {
     const html = renderToStaticMarkup(<RecordPanel model={model()} />);
-    expect(html).toContain('None on record');
-    expect(html).toContain('3 nodes on record');
+    for (const gone of ['rp-graph', 'nodes on record', 'None on record', 'Relations on record', 'what it touches']) expect(html).not.toContain(gone);
+    expect(html).toContain('<h3 class="rp-eyebrow">03 · Related on record</h3>');
+    expect(html).toContain('Chokepoints in play →');
+  });
+
+  it('shows no related section when a record has no related records, and keeps an unnumbered label plain', () => {
+    expect(renderToStaticMarkup(<RecordPanel model={model({ touches: { ...model().touches, links: [] } })} />)).not.toContain('rp-touches');
+    const plain = renderToStaticMarkup(<RecordPanel model={model({ touches: { ...model().touches, label: 'What it touches' } })} />);
+    expect(plain).toContain('<h3 class="rp-eyebrow">Related on record</h3>');
   });
 
   it('omits about rows, touches and the callout when the model has none', () => {

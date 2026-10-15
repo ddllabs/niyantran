@@ -1,6 +1,5 @@
 import { deskHash } from '../../lib/deskRoute.js';
 import { VISUALS } from './visuals/index.js';
-import TouchGraph from './visuals/TouchGraph.jsx';
 import './recordPanel.css';
 
 /**
@@ -84,7 +83,9 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, 
   const { glance = {}, about = {}, touches, footer = {} } = model;
   const links = (model.links || []).map((l) => ({ ...l, href: safeHref(l.href) })).filter((l) => l.href);
   const tiles = glance.tiles || [];
-  const nodeCount = touches ? ['left', 'center', 'right', 'far'].filter((k) => touches.nodes?.[k]).length : 0;
+  // F204 (owner 2026-10-16): no relations graph; the related records keep the section's number.
+  const related = touches?.links?.length ? touches.links : [];
+  const relatedLabel = `${String(touches?.label || '').match(/^\s*\d+\s*·\s*/)?.[0] || ''}Related on record`;
   const prov = footer.provenance || {};
   const quick = onQuick ? (model.quick || []) : [];
   const showBrief = Boolean(brief && brief.state !== 'none');
@@ -145,20 +146,16 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, 
         </section>
       ) : null}
 
-      {touches ? (
+      {related.length ? (
         <section className="rp-block rp-touches">
-          <div className="rp-blockhead"><h3 className="rp-eyebrow">{touches.label}</h3><span>{nodeCount} nodes on record</span></div>
-          <TouchGraph lanes={touches.lanes} nodes={touches.nodes} />
-          <p className="rp-viz-cap">Relations on record, computed from the registers; not an assessed impact.</p>
-          {touches.links?.length ? (
-            <div className="rp-xlinks">
-              {touches.links.map((l) => (l.row && onSelect
-                ? <button key={l.title} type="button" className="rp-xlink-open" onClick={() => onSelect(l.row)}><b>{l.title} →</b><span>{l.detail}</span></button>
-                : l.to
-                  ? <a key={l.title} href={`/${deskHash(l.to.tab, l.to.feature)}`}><b>{l.title} →</b><span>{l.detail}</span></a>
-                  : <div key={l.title} className="rp-xlink-static"><b>{l.title}</b><span>{l.detail}</span></div>))}
-            </div>
-          ) : null}
+          <h3 className="rp-eyebrow">{relatedLabel}</h3>
+          <div className="rp-xlinks">
+            {related.map((l) => (l.row && onSelect
+              ? <button key={l.title} type="button" className="rp-xlink-open" onClick={() => onSelect(l.row)}><b>{l.title} →</b><span>{l.detail}</span></button>
+              : l.to
+                ? <a key={l.title} href={`/${deskHash(l.to.tab, l.to.feature)}`}><b>{l.title} →</b><span>{l.detail}</span></a>
+                : <div key={l.title} className="rp-xlink-static"><b>{l.title}</b><span>{l.detail}</span></div>))}
+          </div>
         </section>
       ) : null}
 

@@ -599,7 +599,8 @@ describe('rendering', () => {
       }
       const html = renderToStaticMarkup(createElement(RecordPanel, { model: brief(t1), onSelect: () => {} }));
       expect(html).toContain('rp-xlink-open');
-      expect(html).toContain('None on record');
+      // F204: related items show without the graph.
+      expect(html).not.toContain('None on record');
     } finally {
       spy.mockRestore();
     }

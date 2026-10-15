@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import PanelMap from './PanelMap.jsx';
 import StageTimeline from './StageTimeline.jsx';
 import ValueBoard from './ValueBoard.jsx';
-import TouchGraph from './TouchGraph.jsx';
 
 // F121: the record visuals say what they are. A map with an approximate marker says so; the graph
 // marks an empty lane "None on record"; every visual is labelled for assistive technology.
@@ -38,18 +37,4 @@ describe('record visuals', () => {
     expect(html).toContain('Annual series, not a forecast.');
   });
 
-  it('draws up to four nodes and names empty lanes', () => {
-    const html = renderToStaticMarkup(<TouchGraph lanes={['REGION', 'FRONT', 'CHOKEPOINTS', 'SAME REGION']} nodes={{ left: { l1: 'Middle East' }, center: { code: 'F', l1: 'This front' } }} />);
-    expect(html).toContain('role="img"');
-    expect((html.match(/None on record/g) || []).length).toBe(2);
-    expect(html).toContain('Middle East');
-    expect(html).toMatch(/aria-label="[^"]*Middle East[^"]*This front[^"]*"/);
-  });
-
-  it('shortens long node labels and keeps the full text as a tooltip', () => {
-    const long = 'Trincomalee/Colombo Port Strategic Stake';
-    const html = renderToStaticMarkup(<TouchGraph lanes={['A', 'B', 'C', 'D']} nodes={{ center: { l1: 'This' }, far: { l1: long } }} />);
-    expect(html).toContain(`<title>${long}</title>`);
-    expect(html).toMatch(/>Trincomalee\/Colombo P…</);
-  });
 });

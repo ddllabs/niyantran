@@ -40,7 +40,6 @@
 .rp-viz-head span + span { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12px; }
 .rp-viz-cap { margin: 0; padding: 8px 12px; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .rp-viz > .rp-viz-cap { border-top: 1px solid var(--line); }
-.rp-touches > .rp-viz-cap { padding: 0; }
 .rp-map .geo-mapwrap { position: relative; background: color-mix(in srgb, var(--accent-soft, #eef4fb) 70%, var(--panel)); }
 .rp-map .geo-map { display: block; width: 100%; height: clamp(150px, 22vh, 210px); }
 .rp-map .geo-map-legend { display: none; }
@@ -78,13 +77,6 @@
 .rp-card-hd { padding: 8px 12px; background: var(--rp-soft); border-bottom: 1px solid var(--line); font-size: 10.5px; letter-spacing: .1em; color: var(--muted); font-weight: 700; text-transform: uppercase; }
 .rp-card p { margin: 0; padding: 11px 12px; font-size: 13.5px; line-height: 1.6; }
 
-.rp-graph { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--rp-soft); }
-.rp-g-lane { font-size: 10px; font-weight: 700; letter-spacing: .1em; fill: var(--muted); }
-.rp-g-link { stroke: #16a34a; stroke-width: 2.4; } .rp-g-link.off { stroke: var(--line); stroke-dasharray: 4 4; }
-.rp-g-center { fill: #fff4ec; stroke: #ea580c; stroke-width: 2.5; } .rp-g-code { font-size: 11px; font-weight: 700; fill: #c2410c; }
-.rp-g-node { fill: #dcfce7; stroke: #16a34a; stroke-width: 2; } .rp-g-node.far { fill: #fef3c7; stroke: #d97706; }
-.rp-g-empty { fill: none; stroke: var(--muted); stroke-opacity: .5; stroke-width: 1.5; stroke-dasharray: 4 3; }
-.rp-g-l1 { font-size: 11px; fill: var(--fg); } .rp-g-l2 { font-size: 10.5px; fill: var(--muted); } .rp-g-muted { font-size: 10.5px; fill: var(--muted); font-style: italic; }
 .rp-xlinks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 /* The brief card is the analysis box (.rd-ai in index.css, owner 2026-10-15), wherever it is shown. */
 .rp-brief .rd-sec-label small { font-weight: 500; letter-spacing: 0; color: var(--muted); }
@@ -111,5 +103,5 @@
 .theme-dark .rp-red { background: #4a1d1d; color: #fecaca; } .theme-dark .rp-amber, .theme-dark .rp-flag { background: #4a3510; color: #fde68a; } .theme-dark .rp-green { background: #173a24; color: #bbf7d0; }
 .theme-dark .rp-red-text { color: #f87171; } .theme-dark .rp-amber-text { color: #fbbf24; } .theme-dark .rp-green-text { color: #4ade80; }
 .theme-dark .rp-callout-amber { background: #3a2a0c; border-color: #6b4f14; color: #fde68a; } .theme-dark .rp-callout-red { background: #3d1515; border-color: #7f1d1d; color: #fecaca; }
-.theme-dark .rp-g-center { fill: #3a2414; } .theme-dark .rp-g-node { fill: #173a24; } .theme-dark .rp-g-node.far { fill: #3a2a0c; } .theme-dark .rp-step.now i { box-shadow: 0 0 0 3px #3a2414; }
-.theme-dark .rp-ask { color: #0b1020; } .theme-dark .rp-g-code { fill: #fdba74; } .theme-dark .rp-g-link { stroke: #4ade80; } .theme-dark .rp-g-center { stroke: #fb923c; }
+.theme-dark .rp-step.now i { box-shadow: 0 0 0 3px #3a2414; }
+.theme-dark .rp-ask { color: #0b1020; }

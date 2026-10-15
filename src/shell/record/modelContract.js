@@ -63,9 +63,8 @@ export function contractProblems(model) {
   for (const l of model.links || []) if (!/^https:\/\//i.test(String(l.href || ''))) problems.push(`non-https link ${l.href}`);
   if (!String(model.about?.label || '').trim()) problems.push('missing about label');
   for (const [k, v] of model.about?.rows || []) if (!String(k || '').trim() || !String(v || '').trim()) problems.push(`empty about row ${k}`);
+  // F204: the relations graph is gone; only the related records under it are shown.
   if (model.touches) {
-    if ((model.touches.lanes || []).length !== 4) problems.push('touches needs four lanes');
-    if (!model.touches.nodes?.center) problems.push('touches needs a centre node');
     for (const l of model.touches.links || []) if (l.row !== undefined && (!l.row || typeof l.row !== 'object' || Array.isArray(l.row))) problems.push(`touch link ${l.title} has a row that is not a record`);
   }
   const quick = model.quick || [];
