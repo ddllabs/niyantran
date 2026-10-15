@@ -1,9 +1,12 @@
 // F169 phase 4 (C6): scripts/load-feed-register.mjs loads a module's stored register into the feed
 // store. The fixture is five real rows of backup/NATIONAL/F25_Cabinet_Decisions.xlsx, as
 // server/backupFeed.mjs reads them (the sheet's columns), copied here so no test reads backup/.
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { itemsFromRows } from '../../server/feedStore.mjs';
+import { HANDBOOK, HANDBOOK_STATES, HANDBOOK_TABLES } from './rbiHandbookTables.js';
 import {
+  EXIT_BLOCKS_PENDING,
   KEPT_KINDS,
   REGISTERS,
   buildRegisterItems,
@@ -15,13 +18,18 @@ import {
   main,
   registerMeta,
   dollarQuote,
+  finishCommand,
   liveLink,
   loadRegister,
   localRpc,
   mapCabinetRegisterRow,
+  planTable,
   registerLink,
   rpcSql,
   runFor,
+  serveSql,
+  shrinkReason,
+  storedBlocks,
 } from '../../scripts/load-feed-register.mjs';
 
 const TITLE_NH22 =
@@ -477,5 +485,287 @@ describe('the most items one record holds', () => {
     const { HANDBOOK_BLOCK_MAX } = await import('./rbiHandbookTables.js');
     expect(MAX_ITEMS).toBe(2000);
     expect(HANDBOOK_BLOCK_MAX).toBe(MAX_ITEMS);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// F201 review, finding 3: a table over 2,000 figures is stored as whole-year blocks named by their oldest
+// year, newest first, so the next edition's extra year renames most older blocks. The load must leave the
+// table consistent: its new blocks serving, the blocks it no longer produces (and orphans left by an earlier
+// unfinished cleanup) not serving, nothing deleted, every write through feed_claim_due / feed_record /
+// feed_make_due (no function sets `serve`, so the load prints the one statement that does and exits 4).
+// The store below is a stateful fake of those functions, including feed_record's shrink guard.
+describe('F201 review: the block lifecycle across editions', () => {
+  const FISCAL = 'state:State Fiscal Deep-Dive';
+  const ENV = { SUPABASE_URL: 'https://example-project.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_TESTKEY' };
+  const T176 = HANDBOOK_TABLES.get(176);
+  const STATES = HANDBOOK_STATES.slice(0, 32);
+  const fileMeta = { tables: new Map([[176, { no: 176, title: T176.title, unit: 'Per cent', source: 'Finances of State Governments' }]]) };
+  // One year of Table 176: 19 indicators x 32 states = 608 figures. A block of 3 years holds 1,824.
+  const year176 = (year) => Array.from({ length: 19 }, (_, k) => k).flatMap((k) => STATES.map((state, s) => ({
+    state, indicator: k === 0 ? 'Outstanding Liabilities' : `Indicator ${k}`, year, value: 1000 * k + s + Number(year.slice(0, 4)), unit: 'Per cent',
+    table_no: 176, table_title: T176.title, source_url: T176.url, as_of: HANDBOOK.published, edition: HANDBOOK.edition, title: `${state} · ${k} · ${year}`,
+  })));
+  const years = (from, through) => Array.from({ length: through - from + 1 }, (_, i) => String(through - i));
+  // The 2024-25 edition holds 2005..2025; the next edition adds 2026 (here: the 2025 figures copied as 2026).
+  const edition = (through) => years(2005, through).flatMap(year176);
+  const EDITION_2025 = edition(2025);
+  const EDITION_2026 = edition(2026);
+  const EDITION_2027 = edition(2027);
+
+  const NAMES_2025 = ['176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005'];
+  // 22 years from the newest: 2026-2024, ..., 2008-2006, then 2005 alone (one year, 608 figures).
+  const NAMES_2026 = ['176', '176@2021', '176@2018', '176@2015', '176@2012', '176@2009', '176@2006', '176@2005'];
+  const NAMES_2027 = ['176', '176@2022', '176@2019', '176@2016', '176@2013', '176@2010', '176@2007', '176@2005'];
+
+  /** The functions the loader calls, over a map of variants; feed_record has the store's shrink guard. */
+  function fakeStore() {
+    const state = new Map();
+    const calls = [];
+    const rpc = vi.fn(async (name, args) => {
+      calls.push(name);
+      if (name === 'feed_claim_due') {
+        const run = args.p_runs[0];
+        if (!state.has(run.variant)) state.set(run.variant, { total: 0, serve: false, meta: {}, shrunk: 0, sig: '', due: true, leased: false });
+        const s = state.get(run.variant);
+        if (!s.due || s.leased) return [];
+        s.leased = true;
+        return [{ ...run, lease_token: `lease-${run.variant}` }];
+      }
+      if (name === 'feed_make_due') {
+        const s = state.get(args.p_variant);
+        if (!s || s.leased) return false;
+        s.due = true;
+        return true;
+      }
+      if (name === 'feed_record') {
+        const s = state.get(args.p.variant);
+        if (!s?.leased) return { status: 'stale' };
+        s.leased = false;
+        const n = args.p.items.length;
+        if (s.total >= 10 && n * 2 < s.total) {
+          if (s.shrunk >= 2) s.shrunk = 0;
+          else {
+            s.shrunk += 1;
+            s.due = true;
+            return { status: 'shrunk', items: n, new_items: 0, item_count: s.total };
+          }
+        }
+        const sig = createHash('sha1').update(args.p.items.map((i) => i.item_key + i.content_hash).join('|')).digest('hex');
+        const status = sig === s.sig && s.total === n ? 'unchanged' : 'ok';
+        Object.assign(s, { total: n, meta: args.p.meta, sig, due: false, shrunk: 0 });
+        return { status, items: n, new_items: status === 'ok' ? n : 0, changed_items: 0, item_count: n };
+      }
+      if (name === 'feed_page') {
+        const s = state.get(args.p_variant);
+        return s ? { variant: args.p_variant, serve: s.serve, total: s.total, meta: s.meta, checked_at: null, items: [] } : null;
+      }
+      throw new Error(`the fake store has no function ${name}`);
+    });
+    return {
+      rpc,
+      calls,
+      state,
+      serving: () => [...state].filter(([, s]) => s.serve).map(([v]) => v).sort(),
+      held: () => [...state.keys()].sort(),
+      snapshot: () => JSON.stringify([...state].map(([v, s]) => [v, s.total, s.serve, s.shrunk, s.due])),
+      /** The owner running a printed statement: serve = (variant in (…)) or false, for the variants it names. */
+      execute(sql) {
+        const m = /^update public\.feed_state set serve = (false|\(variant in \((.*?)\)\)) where tier = '([^']*)' and feature = '((?:[^']|'')*)' and variant in \((.*)\);$/.exec(sql);
+        if (!m) throw new Error(`not the statement the loader prints: ${sql}`);
+        const quoted = (text) => [...text.matchAll(/'((?:[^']|'')*)'/g)].map((x) => x[1].replace(/''/g, "'"));
+        const on = new Set(m[2] ? quoted(m[2]) : []);
+        for (const v of quoted(m[5])) if (state.has(v)) state.get(v).serve = on.has(v);
+      },
+    };
+  }
+
+  let out;
+  beforeEach(() => {
+    out = [];
+    vi.spyOn(console, 'log').mockImplementation((...a) => out.push(a.join(' ')));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const APPLY = ['--apply', '--target', 'prod', '--confirm-prod', '--force'];
+  const FINISH = `SUPABASE_URL=… SUPABASE_SECRET_KEY=… node scripts/load-feed-register.mjs --module "${FISCAL}" --apply --target prod --confirm-prod --force`;
+  async function load(store, records, argv = APPLY) {
+    out.length = 0;
+    const makeProdRpc = vi.fn(() => store.rpc);
+    const deps = { env: ENV, readJson: vi.fn(() => ({ rows: records, meta: fileMeta })), makeProdRpc, makeLocalRpc: vi.fn(), forceDue: vi.fn() };
+    const code = await main(['--module', FISCAL, ...argv], deps);
+    const text = out.join('\n');
+    return { code, text, sql: out.map((l) => l.trim()).filter((l) => l.startsWith('update public.feed_state')), deps };
+  }
+  /** A store as production holds it after an edition is loaded and its blocks are switched on. */
+  async function storeAfter(records, names) {
+    const store = fakeStore();
+    const first = await load(store, records);
+    expect(first.code).toBe(EXIT_BLOCKS_PENDING);
+    expect(first.sql).toHaveLength(1);
+    store.execute(first.sql[0]);
+    expect(store.serving()).toEqual([...names].sort());
+    return store;
+  }
+  /** The next edition's load until feed_record accepts the re-cut block (its third answer in a row). */
+  async function loadUntilStored(store, records) {
+    let last;
+    for (let i = 0; i < 3; i++) {
+      last = await load(store, records);
+      if (last.code !== 1) break;
+    }
+    return last;
+  }
+
+  it('a first load prints the one statement that switches every new block on, and exits 4 until a re-run finds nothing left', async () => {
+    const store = fakeStore();
+    const first = await load(store, EDITION_2025);
+    expect(first.code).toBe(EXIT_BLOCKS_PENDING);
+    expect(store.serving()).toEqual([]);
+    expect(first.sql).toEqual([serveSql(FISCAL, { enable: NAMES_2025, disable: [] })]);
+    expect(first.text).toMatch(/Blocks are NOT consistent/);
+    store.execute(first.sql[0]);
+    const again = await load(store, EDITION_2025);
+    expect(again.code).toBe(0);
+    expect(again.sql).toEqual([]);
+    expect(again.text).toMatch(/Blocks are consistent/);
+    expect(new Set(store.calls)).toEqual(new Set(['feed_page', 'feed_claim_due', 'feed_record', 'feed_make_due']));
+  }, 60_000);
+
+  it('the next edition: no stale block serves and every new block does, after the loads and the one printed statement; nothing is deleted', async () => {
+    const store = await storeAfter(EDITION_2025, NAMES_2025);
+    const first = await load(store, EDITION_2026);
+    // 176@2005 shrinks from 1,824 to 608 figures (2005 alone): feed_record refuses it, the run says so and plans no switch yet.
+    expect(first.code).toBe(1);
+    expect(first.text).toMatch(/176@2005\s+refused as shrunk: 608 items arrived and 1824 are held; the block was re-cut by the new edition \(years 2005 to 2007 held, 2005 now\)/);
+    expect(first.text).toContain(FINISH);
+    expect(first.text).toMatch(/guard is not bypassed/);
+    expect(first.sql).toEqual([]);
+    expect(store.serving()).toEqual([...NAMES_2025].sort());
+    const done = await loadUntilStored(store, EDITION_2026);
+    expect(done.code).toBe(EXIT_BLOCKS_PENDING);
+    const enable = ['176@2021', '176@2018', '176@2015', '176@2012', '176@2009', '176@2006'];
+    const disable = ['176@2020', '176@2017', '176@2014', '176@2011', '176@2008'];
+    expect(done.sql).toEqual([serveSql(FISCAL, { enable, disable })]);
+    expect(done.text).toMatch(/Obsolete blocks: 5 stored block variants are no longer produced \(5 serving\): 176@2020, 176@2017, 176@2014, 176@2011, 176@2008/);
+    store.execute(done.sql[0]);
+    expect(store.serving()).toEqual([...NAMES_2026].sort());
+    // Nothing was deleted: last edition's blocks are still stored, not serving.
+    expect(store.held()).toEqual([...new Set([...NAMES_2025, ...NAMES_2026])].sort());
+    const final = await load(store, EDITION_2026);
+    expect(final.code).toBe(0);
+    expect(final.sql).toEqual([]);
+  }, 60_000);
+
+  it('a shrunk block that was not re-cut (the same years, fewer figures) is not offered the finish command', async () => {
+    const store = await storeAfter(EDITION_2025, NAMES_2025);
+    // The same edition, but its oldest block (2005-2007) arrives with a third of its figures: same years, same name.
+    const thin = EDITION_2025.filter((r) => !['2005', '2006', '2007'].includes(r.year) || Number(r.value) % 3 === 0);
+    const r = await load(store, thin);
+    expect(r.code).toBe(1);
+    expect(r.text).toMatch(/refused as shrunk: .* are held, for the same years \(2005 to 2007\); the register file may be incomplete/);
+    expect(r.text).not.toContain(FINISH);
+    expect(r.sql).toEqual([]);
+  }, 60_000);
+
+  it('an orphan from an earlier, unfinished cleanup is found and switched off, though no stored view lists it any more', async () => {
+    const store = await storeAfter(EDITION_2025, NAMES_2025);
+    // 2026 is loaded to the end but its statement is never run: 2025's blocks keep serving, 2026's new ones do not.
+    const unfinished = await loadUntilStored(store, EDITION_2026);
+    expect(unfinished.code).toBe(EXIT_BLOCKS_PENDING);
+    expect(store.serving()).toEqual([...NAMES_2025].sort());
+    // The newest block's stored view now lists 2026's names, not 2025's: reading only that list never reports the orphans again.
+    expect(store.state.get('176').meta.view.blocks.map((b) => b.variant)).toEqual(NAMES_2026);
+
+    const r = await load(store, EDITION_2027);
+    expect(r.code).toBe(EXIT_BLOCKS_PENDING);
+    const orphans = ['176@2020', '176@2017', '176@2014', '176@2011', '176@2008'];
+    expect(r.text).toMatch(/Obsolete blocks: 11 stored block variants are no longer produced \(5 serving\)/);
+    for (const v of orphans) expect(r.text).toContain(`${v} (serving)`);
+    expect(r.sql).toEqual([serveSql(FISCAL, { enable: ['176@2022', '176@2019', '176@2016', '176@2013', '176@2010', '176@2007'], disable: orphans })]);
+    // 2026's never-enabled names are reported as left alone, not switched.
+    expect(r.text).toMatch(/not serving, left\s+176@2021, 176@2018, 176@2015, 176@2012, 176@2009, 176@2006/);
+    store.execute(r.sql[0]);
+    expect(store.serving()).toEqual([...NAMES_2027].sort());
+    expect(store.held()).toEqual([...new Set([...NAMES_2025, ...NAMES_2026, ...NAMES_2027])].sort());
+    expect((await load(store, EDITION_2027)).code).toBe(0);
+  }, 120_000);
+
+  it('a dry run with a target reads the store and reports what a load would switch; it writes nothing', async () => {
+    const store = await storeAfter(EDITION_2025, NAMES_2025);
+    const before = store.snapshot();
+    store.calls.length = 0;
+    const r = await load(store, EDITION_2026, ['--target', 'prod', '--confirm-prod']);
+    expect(r.code).toBe(0);
+    expect(store.calls.length).toBeGreaterThan(0);
+    expect(new Set(store.calls)).toEqual(new Set(['feed_page']));
+    expect(store.snapshot()).toBe(before);
+    expect(r.text).toMatch(/DRY RUN/);
+    expect(r.text).toMatch(/Obsolete blocks: 5 stored block variants are no longer produced \(5 serving\)/);
+    expect(r.text).toMatch(/176@2005\s+refused as shrunk: 608 items arrived and 1824 are held; the block was re-cut/);
+    expect(r.text).toMatch(/Block lifecycle: what a load would do \(nothing is written\)/);
+    expect(r.text).toMatch(/nothing was written/);
+    expect(r.sql).toEqual([]);
+    // Without a target a dry run does not touch the database at all.
+    const plain = await load(fakeStore(), EDITION_2026, []);
+    expect(plain.code).toBe(0);
+    expect(plain.deps.makeProdRpc).not.toHaveBeenCalled();
+    expect(plain.text).toMatch(/does not read the store/);
+  }, 60_000);
+
+  it('a dry run of a table with no stored blocks lists every produced block to switch on', async () => {
+    const store = fakeStore();
+    const r = await load(store, EDITION_2025, ['--target', 'prod', '--confirm-prod']);
+    expect(r.code).toBe(0);
+    expect(r.text).toMatch(new RegExp(`table 176: switch on\\s+${NAMES_2025.join(', ')}`));
+    expect(store.held()).toEqual([]);
+  });
+
+  it('storedBlocks probes only valid blocks of the table; a hostile name in a stored view is never probed, and SQL values are quoted', async () => {
+    const probed = [];
+    const rpc = vi.fn(async (name, args) => {
+      probed.push(args.p_variant);
+      if (args.p_variant === '176') {
+        return { serve: true, total: 1824, meta: { view: { blocks: [{ variant: '176' }, { variant: "176@1999'; drop table x; --" }, { variant: '21@2005' }, { variant: '176@2020', from: '2020' }], years: ['2025', '2024', 'junk'] } } };
+      }
+      return null;
+    });
+    const groups = [{ variant: '176', items: [], report: { view: { years: ['2025', '2024'] } } }, { variant: '176@2024', items: [], report: { view: { years: ['2025', '2024'] } } }];
+    const found = await storedBlocks(rpc, FISCAL, groups);
+    expect([...found.get(176).keys()]).toEqual(['176']);
+    expect(probed.some((v) => /drop|21@/.test(v))).toBe(false);
+    expect(probed).toContain('176@2020');
+    expect(probed.every((v) => /^176(@\d{4}(-\d{2})?)?$/.test(v))).toBe(true);
+    expect(serveSql(FISCAL, { enable: ["a'b"], disable: [] })).toBe("update public.feed_state set serve = (variant in ('a''b')) where tier = 'state' and feature = 'State Fiscal Deep-Dive' and variant in ('a''b');");
+  });
+
+  it('planTable: nothing is planned for a table while one of its blocks is unfinished; consistent means nothing left to switch', () => {
+    const view = { block: { from: '2005', through: '2005' }, blocks: [{ variant: '176@2005', from: '2005', through: '2005', count: 608 }] };
+    const held = (serve, total = 608) => ({ serve, total, view });
+    const block = (variant, o = {}) => ({ variant, count: 608, view, before: null, held: held(true), status: 'ok', ...o });
+    const stale = { variant: '176@2020', serve: true, total: 1824, view: null };
+    expect(planTable(176, [block('176'), block('176@2005')], [])).toMatchObject({ enable: [], disable: [], blocked: [], consistent: true });
+    expect(planTable(176, [block('176'), block('176@2005', { held: held(false) })], [stale])).toMatchObject({ enable: ['176@2005'], disable: ['176@2020'], consistent: false });
+    const unfinished = planTable(176, [block('176', { held: held(false) }), block('176@2005', { status: 'shrunk', before: held(true, 1824), held: held(true, 1824) })], [stale]);
+    expect(unfinished).toMatchObject({ enable: [], disable: [], consistent: false });
+    expect(unfinished.blocked).toEqual([expect.objectContaining({ variant: '176@2005', recut: false })]);
+    expect(planTable(176, [block('176', { status: 'failed', held: null })], [])).toMatchObject({ consistent: false, blocked: [{ why: 'not recorded (failed)' }] });
+    expect(planTable(176, [block('176', { held: held(true, 5) })], [])).toMatchObject({ consistent: false });
+    // A block not due is stored when the store holds this load's cut, not otherwise.
+    expect(planTable(176, [block('176@2005', { status: 'not_due' })], []).consistent).toBe(true);
+    expect(planTable(176, [block('176@2005', { status: 'not_due', held: { serve: true, total: 608, view: { ...view, block: { from: '2005', through: '2007' } } } })], []).consistent).toBe(false);
+  });
+
+  it('shrinkReason tells a re-cut block (other years) from the same years with fewer figures', () => {
+    const was = { total: 1824, view: { block: { from: '2005', through: '2007' } } };
+    expect(shrinkReason(was, { block: { from: '2005', through: '2005' } }, 608).recut).toBe(true);
+    expect(shrinkReason(was, { block: { from: '2005', through: '2007' } }, 400)).toMatchObject({ recut: false });
+    expect(shrinkReason(null, { block: { from: '2005', through: '2005' } }, 608).recut).toBe(false);
+  });
+
+  it('finishCommand repeats the same load, forced, for prod and for a local test database', () => {
+    expect(finishCommand({ module: FISCAL, target: 'prod' })).toBe(FINISH);
+    expect(finishCommand({ module: FISCAL, target: 'local', db: 'niyantran_x_test', container: 'niyantran-corpus-test-db', file: 'tmp/rbi-handbook/handbook-2025-26.json' }))
+      .toBe(`node scripts/load-feed-register.mjs --module "${FISCAL}" --apply --target local --db niyantran_x_test --force --file tmp/rbi-handbook/handbook-2025-26.json`);
   });
 });

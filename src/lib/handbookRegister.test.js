@@ -606,29 +606,30 @@ describe('F201: the registers and the loader by block', () => {
 
     it('records each block on its own run; blocks the store holds that this load does not produce are reported with the SQL to stop serving them, and nothing is written for them', async () => {
       const { deps, calls } = setup({ stored: { 176: ['176', '176@2020', '176@2002', "176@1999'; drop table x; --"] } });
-      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(0);
+      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(4);
       const recorded = calls.filter(([n]) => n === 'feed_record').map(([, a]) => [a.p.variant, a.p.items.length]);
       expect(recorded).toHaveLength(8);
       expect(recorded.every(([, n]) => n <= 2000)).toBe(true);
       expect(calls.some(([n, a]) => /176@2002/.test(JSON.stringify(a)) && n !== 'feed_page')).toBe(false);
-      // The obsolete report comes before the first claim.
-      const firstClaim = calls.findIndex(([n]) => n === 'feed_claim_due');
-      expect(calls.slice(0, firstClaim).filter(([n]) => n === 'feed_page').map(([, a]) => [a.p_variant, a.p_limit])).toEqual([['164', 1], ['176', 1]]);
+      // F201 lifecycle (Task D, 2026-10-16): a block a stored view names but the store does not hold
+      // is not obsolete; the fake store holds none of this load's blocks afterwards, so the run ends
+      // with exit 4 (blocks not yet consistent) and plans no serve switch. Hostile names never reach
+      // the output. Orphans the store does hold: feedRegister.test.js.
       const text = out.join('\n');
-      expect(text).toMatch(/no longer produced: 176@2002/);
-      expect(text).toContain("update public.feed_state set serve = false where tier = 'state' and feature = 'State Fiscal Deep-Dive' and variant in ('176@2002');");
+      expect(text).toMatch(/Obsolete blocks: none/);
+      expect(text).toMatch(/Blocks are NOT consistent: exit 4/);
       expect(text).not.toContain('drop table');
     });
 
     it('nothing obsolete: says so', async () => {
       const { deps } = setup({ stored: { 176: ['176', '176@2020'] } });
-      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(0);
+      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(4);
       expect(out.join('\n')).toMatch(/Obsolete blocks: none/);
     });
 
     it('--force on prod: a block the store has never seen cannot be made due, and is still claimed and recorded', async () => {
       const { deps, calls } = setup({ makeDue: (v) => !v.includes('@') });
-      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).resolves.toBe(0);
+      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).resolves.toBe(4);
       expect(out.join('\n')).toMatch(/176@2005\s+not made due/);
       expect(calls.filter(([n]) => n === 'feed_record').map(([, a]) => a.p.variant)).toContain('176@2005');
       const claims = calls.filter(([n]) => n === 'feed_claim_due').map(([, a]) => a.p_runs[0].variant);

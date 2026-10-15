@@ -27,11 +27,15 @@
  * F201: every figure is loaded; a table over 2,000 figures (MAX_ITEMS, one record) is loaded as whole-year
  * blocks, one variant each ("176", "176@2020", … "176@2005"; handbookParts), each with a stored view
  * (meta.view) listing the table's blocks and years. Before applying, the load reads each table's stored
- * view and prints the block variants it no longer produces with the SQL that switches their `serve` off
- * (it changes nothing itself). A new block variant starts with `serve` off (feed_state's default):
- * switch it on after the load. Yearly reload: fetch the new edition, dry-run each module, load each with
- * --force, act on the obsolete-block report, switch on any new "@" variants; a variant halved by a new
- * split is refused as shrunk twice by feed_record and accepted on the third load.
+ * view and lists every "<table>@<year>" variant the store holds for the tables it loads (orphans of earlier
+ * editions too), loads, then reads the store back. A new block variant starts with `serve` off
+ * (feed_state's default) and an obsolete one keeps it on, and no database function sets `serve`, so the
+ * load prints the one statement that switches the table's new blocks on and its obsolete ones off, and exits
+ * 4 until a re-run finds nothing left to switch (it changes and deletes nothing itself). Yearly reload:
+ * fetch the new edition, dry-run the module with --target prod (reads the store, writes nothing), load it
+ * with --force, run the printed statement, run the load again to confirm exit 0. A block a new split
+ * halves is refused as shrunk by feed_record until the third answer in a row; the load names it with the
+ * command to repeat (the guard is not bypassed) and plans no switch for that table until it is stored.
  * SDL Auction & Borrowing Tracker is a scheduled module of kind official like Cabinet Decisions, its
  * backfill read from the JSON scripts/fetch-rbi-sdl-releases.mjs writes (tmp/rbi-sdl/sdl-releases.json).
  *
@@ -105,7 +109,7 @@ import { readBackupRows } from '../server/backupFeed.mjs';
 import { FEED_REGISTERS, feedRunsForDb, itemKeyFor, mlaStateVariant, registerRunsForDb } from '../server/feedSchedule.mjs';
 import { itemsFromRows, metaFor, supabaseRpc } from '../server/feedStore.mjs';
 import { cabinetPrefers, cabinetReleaseGroup, isCabinetDecision } from '../src/lib/parliament.js';
-import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_NOTE, handbookTableLabel, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
+import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_NOTE, handbookTableLabel, handbookVariant, isHandbookYear, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
 import { handbookHeld, handbookView, yearBlocks } from '../src/lib/rbiHandbook.js';
 import { RBI_PRESS_RSS } from '../src/lib/rbiSdl.js';
 
@@ -627,30 +631,225 @@ export function groupByVariant(items, register) {
 
 const sqlText = (value) => `'${String(value).replace(/'/g, "''")}'`;
 
+// ---------------------------------------------------------------------------------------------
+// F201 review (finding 3): the life of a table's blocks across editions.
+//
+// A table over 2,000 figures is stored as whole-year blocks named by their oldest year (yearBlocks), newest
+// first, so one new year in the next edition renames most older blocks. A load therefore leaves three kinds
+// of variant behind, and `feed_state.serve` decides what the page shows:
+//   new       a block this load produces that the store never had: it starts with serve off;
+//   obsolete  a block of the table this load no longer produces: it keeps serve on, serving last edition's years;
+//   orphan    an obsolete block of an earlier edition, no longer named by the newest block's stored view.
+// No database function sets `serve` (service_role may update the column, but this script writes only through
+// the functions it already calls: feed_claim_due, feed_record, feed_make_due), so the script reads the store,
+// works out the one statement that makes the table's blocks consistent, prints it, and exits 4 until a re-run
+// finds nothing left to switch. It never deletes anything. Block names are not changed here (that would
+// rename the blocks the page serves now).
+
+/** Exit code: the blocks are recorded but the serve switch is not yet consistent (or a block is unfinished). */
+export const EXIT_BLOCKS_PENDING = 4;
+const PEEK_CONCURRENCY = 6;
+
+/** A variant as feed_page(limit 1) shows it: { variant, serve, total, view }, or null when the store has none. */
+async function peekVariant(rpc, tier, feature, variant) {
+  const page = await rpc('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: 1, p_offset: 0 });
+  if (!page) return null;
+  const view = page.meta?.view && typeof page.meta.view === 'object' ? page.meta.view : null;
+  return { variant, serve: page.serve === true, total: Number(page.total) || 0, view };
+}
+
+const viewBlockVariants = (view) => (Array.isArray(view?.blocks) ? view.blocks.map((b) => String(b?.variant ?? '')) : []);
+const viewYearTokens = (view) => [
+  ...(Array.isArray(view?.years) ? view.years : []),
+  ...(Array.isArray(view?.blocks) ? view.blocks.flatMap((b) => [b?.from, b?.through]) : []),
+].map((y) => String(y ?? '')).filter(isHandbookYear);
+
 /**
- * F201: the blocks the store holds for this module's tables that this load does not produce (a later
- * edition can shift a split table's blocks). Reads each table's newest block (feed_page, one item) and
- * its stored view's block list; only valid block names of the same table are listed. Returns
- * [{ table, variants }] and writes nothing.
+ * The store's blocks of the tables this load produces, read before the load: Map table -> Map variant ->
+ * { variant, serve, total, view } for every block that exists. A table's blocks are found three ways: the
+ * blocks this load produces; the blocks its newest block's stored view lists; and, for a table that is or
+ * was split, every "<table>@<year>" for each year the load or a stored view names (a block is named by the
+ * oldest year it holds, and an earlier edition's years are among the later one's), so a block left by an
+ * earlier, unfinished cleanup is found although no stored view lists it any more. Only valid block names
+ * of the table are probed. feed_page is the one read (limit 1); nothing is written.
  */
-export async function obsoleteBlocks(rpc, moduleId, groups) {
+export async function storedBlocks(rpc, moduleId, groups) {
   const [tier, feature] = moduleId.split(/:(.*)/s);
-  const produced = new Set(groups.map((g) => g.variant));
-  const tables = [...new Set(groups.map((g) => parseHandbookVariant(g.variant)?.no).filter((n) => n != null))];
-  const found = [];
-  for (const no of tables) {
-    const page = await rpc('feed_page', { p_tier: tier, p_feature: feature, p_variant: String(no), p_limit: 1, p_offset: 0 });
-    const stored = Array.isArray(page?.meta?.view?.blocks) ? page.meta.view.blocks.map((b) => String(b?.variant ?? '')) : [];
-    const variants = stored.filter((v) => parseHandbookVariant(v)?.no === no && !produced.has(v));
-    if (variants.length) found.push({ table: no, variants: [...new Set(variants)] });
+  const byTable = new Map();
+  for (const g of groups) {
+    const no = parseHandbookVariant(g.variant)?.no;
+    if (no == null) continue;
+    if (!byTable.has(no)) byTable.set(no, { produced: [], years: new Set() });
+    const t = byTable.get(no);
+    t.produced.push(g.variant);
+    for (const y of g.report.view?.years || []) t.years.add(String(y));
+  }
+  const found = new Map();
+  for (const [no, t] of byTable) {
+    const base = await peekVariant(rpc, tier, feature, String(no));
+    const stored = new Map(base ? [[base.variant, base]] : []);
+    const candidates = new Set(t.produced);
+    for (const v of viewBlockVariants(base?.view)) candidates.add(v);
+    if (t.produced.length > 1 || viewBlockVariants(base?.view).length > 1) {
+      for (const y of [...t.years, ...viewYearTokens(base?.view)]) if (isHandbookYear(y)) candidates.add(handbookVariant(no, y));
+    }
+    const todo = [...candidates].filter((v) => !stored.has(v) && parseHandbookVariant(v)?.no === no);
+    for (let i = 0; i < todo.length; i += PEEK_CONCURRENCY) {
+      const chunk = todo.slice(i, i + PEEK_CONCURRENCY);
+      const peeked = await Promise.all(chunk.map((v) => peekVariant(rpc, tier, feature, v)));
+      for (const s of peeked) if (s) stored.set(s.variant, s);
+    }
+    found.set(no, stored);
   }
   return found;
+}
+
+/** The stored variants of a table that this load does not produce: [{ variant, serve, total, view }]. */
+export function obsoleteOf(stored, produced) {
+  const made = new Set(produced);
+  return [...stored.values()].filter((s) => !made.has(s.variant));
+}
+
+/** True when a stored view is the same cut of the table as `view`: the same block, and the same blocks and counts. */
+function sameCut(held, view) {
+  if (!held || !view) return false;
+  const list = (v) => JSON.stringify((v.blocks || []).map((b) => [b.variant, b.from, b.through, b.count]));
+  return held.block?.from === view.block?.from && held.block?.through === view.block?.through && list(held) === list(view);
+}
+
+/**
+ * Why a block was refused as shrunk (feed_record keeps a held list when fewer than half of its items arrive,
+ * until the third such answer in a row): `recut` is true when the stored block covered other years than this
+ * load's, which is what a new edition's different split does; false when the same years now have fewer
+ * figures, which is a damaged or incomplete register file and not a split.
+ */
+export function shrinkReason(before, view, count) {
+  const was = before?.view?.block;
+  const now = view?.block;
+  const span = (b) => (b.from === b.through ? b.from : `${b.from} to ${b.through}`);
+  const recut = Boolean(was && now && (was.from !== now.from || was.through !== now.through));
+  const held = before?.total ?? '?';
+  const text = recut
+    ? `refused as shrunk: ${count} items arrived and ${held} are held; the block was re-cut by the new edition (years ${span(was)} held, ${span(now)} now)`
+    : `refused as shrunk: ${count} items arrived and ${held} are held, for the same years${now ? ` (${span(now)})` : ''}; the register file may be incomplete`;
+  return { recut, text };
+}
+
+/** What stops a produced block counting as stored: '' when nothing does, else the reason. */
+function blockProblem(p) {
+  const { status, held, count } = p;
+  if (status === 'shrunk') return shrinkReason(p.before, p.view, count).text;
+  if (status === 'ok' || status === 'unchanged' || status === 'planned') {
+    if (!held) return 'not in the store';
+    return held.total === count ? '' : `the store holds ${held.total} items and this load has ${count}`;
+  }
+  if (status === 'not_due') return held && held.total === count && sameCut(held.view, p.view) ? '' : "not due, and the stored copy is not this load's cut (use --force)";
+  return `not recorded (${status})`;
+}
+
+/**
+ * One table's serve plan. `produced` is [{ variant, count, view, before, held, status }] (what this load
+ * makes; `held` is the variant after the load, `before` the stored one before it); `others` the stored
+ * variants it does not produce. When every produced block is stored, `enable` lists the produced blocks
+ * that do not serve and `disable` the other stored blocks that do; the table is `consistent` when both are
+ * empty. While a block is unfinished (refused, not recorded) nothing is planned for the table: switching
+ * some of its blocks and not others would serve two editions' cuts together.
+ */
+export function planTable(table, produced, others) {
+  const blocked = produced
+    .map((p) => ({ variant: p.variant, why: blockProblem(p), recut: p.status === 'shrunk' && shrinkReason(p.before, p.view, p.count).recut }))
+    .filter((b) => b.why);
+  const idle = others.filter((s) => !s.serve).map((s) => s.variant);
+  if (blocked.length) return { table, enable: [], disable: [], blocked, idle, consistent: false };
+  const enable = produced.filter((p) => !p.held?.serve).map((p) => p.variant);
+  const disable = others.filter((s) => s.serve).map((s) => s.variant);
+  return { table, enable, disable, blocked, idle, consistent: !enable.length && !disable.length };
 }
 
 /** The SQL the supervisor runs to stop serving obsolete blocks (printed, never run by this script). */
 export function obsoleteSql(moduleId, variants) {
   const [tier, feature] = moduleId.split(/:(.*)/s);
   return `update public.feed_state set serve = false where tier = ${sqlText(tier)} and feature = ${sqlText(feature)} and variant in (${variants.map(sqlText).join(', ')});`;
+}
+
+/**
+ * One statement that makes the listed blocks consistent in one step: `enable` serve on, `disable` serve
+ * off. Printed, never run by this script (no database function sets serve).
+ */
+export function serveSql(moduleId, { enable, disable }) {
+  const [tier, feature] = moduleId.split(/:(.*)/s);
+  const list = (vs) => vs.map(sqlText).join(', ');
+  const on = enable.length ? `(variant in (${list(enable)}))` : 'false';
+  return `update public.feed_state set serve = ${on} where tier = ${sqlText(tier)} and feature = ${sqlText(feature)} and variant in (${list([...enable, ...disable])});`;
+}
+
+/** The command that finishes a load: the same one, forced (a refused block is due again at once). */
+export function finishCommand(o) {
+  const quote = (s) => (/^[\w./:@-]+$/.test(s) ? s : `"${String(s).replace(/(["\\$`])/g, '\\$1')}"`);
+  const target = o.target === 'local' ? `--target local --db ${o.db}${o.container && o.container !== DEFAULT_CONTAINER ? ` --container ${o.container}` : ''}` : '--target prod --confirm-prod';
+  const prefix = o.target === 'local' ? '' : 'SUPABASE_URL=… SUPABASE_SECRET_KEY=… ';
+  return `${prefix}node scripts/load-feed-register.mjs --module ${quote(o.module)} --apply ${target} --force${o.file ? ` --file ${quote(o.file)}` : ''}`;
+}
+
+/**
+ * Print the plan of every table (planTable) and return true when all are consistent. `preview` words it as
+ * what a load would do (a dry run reads the store and writes nothing).
+ */
+function printLifecycle(o, plans, { preview = false } = {}) {
+  console.log(preview ? 'Block lifecycle: what a load would do (nothing is written)' : 'Block lifecycle');
+  let ok = true;
+  const enable = [];
+  const disable = [];
+  for (const p of plans) {
+    if (!p.consistent) ok = false;
+    for (const b of p.blocked) line(`table ${p.table}: ${b.variant}`, b.why);
+    if (p.blocked.length) line(`table ${p.table}`, 'unfinished: no serve switch is planned until every block is stored');
+    if (p.enable.length) line(`table ${p.table}: switch on`, p.enable.join(', '));
+    if (p.disable.length) line(`table ${p.table}: switch off`, p.disable.join(', '));
+    if (p.idle.length) line(`table ${p.table}: not serving, left`, p.idle.join(', '));
+    enable.push(...p.enable);
+    disable.push(...p.disable);
+  }
+  if (enable.length || disable.length) {
+    console.log(preview
+      ? `  A load would leave ${enable.length} produced blocks to switch on and ${disable.length} obsolete blocks to switch off.`
+      : '  No database function sets feed_state.serve, so this script does not. Run, as the project owner, once:');
+    if (!preview) console.log(`  ${serveSql(o.module, { enable, disable })}`);
+  }
+  const recut = plans.flatMap((p) => p.blocked.filter((b) => b.recut));
+  if (recut.length && !preview) {
+    console.log(`  ${recut.map((b) => b.variant).join(', ')}: a re-cut block smaller than half of what it held is refused until the third answer in a row (feed_record's shrink guard).`);
+    console.log('  The guard is not bypassed here. Run the command below again, twice more at most; the block is accepted on the third answer:');
+    console.log(`  ${finishCommand(o)}`);
+  }
+  if (plans.some((p) => p.blocked.some((b) => !b.recut))) {
+    console.log('  A block that is not stored for a reason other than a re-cut needs a look at the register file and the report above first.');
+  }
+  if (!preview) {
+    console.log(ok
+      ? 'Blocks are consistent: every produced block is stored and serving, and no other stored block of these tables serves.'
+      : `Blocks are NOT consistent: exit ${EXIT_BLOCKS_PENDING}. Finish the steps above, then run this command again (it reports nothing left to switch when done).`);
+  }
+  return ok;
+}
+
+/** Print the stored blocks this load does not produce, before it records anything (nothing is changed). */
+function printObsolete(stored, groups) {
+  const byTable = new Map();
+  for (const g of groups) {
+    const no = parseHandbookVariant(g.variant)?.no;
+    if (no != null) byTable.set(no, [...(byTable.get(no) || []), g.variant]);
+  }
+  const found = [...byTable].map(([no, produced]) => ({ table: no, others: obsoleteOf(stored.get(no) || new Map(), produced) })).filter((x) => x.others.length);
+  if (!found.length) {
+    console.log('Obsolete blocks: none (every stored block of these tables is produced by this load)');
+    return;
+  }
+  const all = found.flatMap((x) => x.others);
+  const serving = all.filter((s) => s.serve).length;
+  console.log(`Obsolete blocks: ${all.length} stored block variants are no longer produced (${serving} serving): ${all.map((s) => s.variant).join(', ')}`);
+  for (const x of found) line(`table ${x.table}`, x.others.map((s) => `${s.variant}${s.serve ? ' (serving)' : ''}`).join(', '));
+  console.log('  They are left as they are (nothing is deleted); the lifecycle step below says how to stop serving them.');
 }
 
 /** feed_state.meta for the register: shown until the first live refresh replaces it. */
@@ -911,7 +1110,10 @@ export const USAGE = `Usage: node scripts/load-feed-register.mjs [--module "tier
        [--apply --target prod --confirm-prod [--force]]   (SUPABASE_URL and SUPABASE_SECRET_KEY in the environment;
                                                      --force on prod only for a register module)
 
-A dry run is the default: it reads the register, prints the counts and a sample, and never calls a database.
+A dry run is the default: it reads the register, prints the counts and a sample, and never calls a database
+(exception: a handbook module with --target reads the store with feed_page, never writes, and reports which
+stored blocks a load would switch on and off). Exit codes: 0 done, 1 the store did not accept a variant,
+2 refused, 3 not due, 4 recorded but the handbook blocks' serve switch is not yet consistent.
 Cabinet Decisions is loaded as kind "official". The register module MLA Directory (--module "state:MLA Directory")
 is loaded as kind "reference", one store variant per state, never refreshed by the timer: a reload replaces each
 state's list. The RBI handbook modules (F196) load the same way, one store variant per table, from
@@ -1045,7 +1247,10 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
  * A register module's load (main, after the same gate): the register's items grouped by store variant,
  * each variant claimed and recorded on its own (registerRunsFor), then each variant's stored count read
  * back. Returns 0 when every variant recorded ok or unchanged, 3 when any was not due (the others are
- * still recorded), 1 when the store did not accept one.
+ * still recorded), 1 when the store did not accept one. A module with `reportsObsolete` (the handbook's
+ * blocks) is also reconciled afterwards (the block lifecycle above): exit 4 until every produced block is
+ * stored and serving and no other stored block of these tables serves. A dry run of such a module with a
+ * --target reads the store (feed_page only) and reports what a load would do; it writes nothing.
  */
 async function loadVariants({ o, url, env, register, read, makeLocalRpc, makeProdRpc, forceDue }) {
   const [{ kind }] = registerRunsFor(o.module);
@@ -1073,7 +1278,46 @@ async function loadVariants({ o, url, env, register, read, makeLocalRpc, makePro
   for (const i of [0, Math.floor(items.length / 2), items.length - 1]) {
     console.log(JSON.stringify({ item_key: items[i].item_key, published_at: items[i].published_at, url: items[i].url, row: items[i].row }, null, 2));
   }
+  const lifecycle = Boolean(register.reportsObsolete);
+  // The tables of a block-lifecycle module, each with the blocks this load produces.
+  const tablesOf = () => {
+    const byTable = new Map();
+    for (const g of groups) {
+      const no = parseHandbookVariant(g.variant)?.no;
+      if (!byTable.has(no)) byTable.set(no, []);
+      byTable.get(no).push(g);
+    }
+    return byTable;
+  };
+
   if (!o.apply) {
+    if (lifecycle && o.target) {
+      // A dry run with a target reads the store (feed_page only) and reports what a load would do.
+      const { url: gateUrl } = checkOptions({ ...o, apply: true }, env);
+      let rpc;
+      if (o.target === 'local') rpc = makeLocalRpc({ container: o.container, db: o.db });
+      else {
+        console.log(`Target (read only): ${hostOf(gateUrl)}`);
+        rpc = makeProdRpc({ url: gateUrl, key: env.SUPABASE_SECRET_KEY, timeoutMs: 60_000 });
+      }
+      const stored = await storedBlocks(rpc, o.module, groups);
+      printObsolete(stored, groups);
+      const plans = [];
+      for (const [no, list] of tablesOf()) {
+        const have = stored.get(no) || new Map();
+        const produced = list.map((g) => {
+          const before = have.get(g.variant) || null;
+          // feed_record keeps a held list of 10 or more items when fewer than half of its items arrive.
+          const shrunk = before && before.total >= 10 && g.items.length * 2 < before.total;
+          return { variant: g.variant, count: g.items.length, view: g.report.view, before, status: shrunk ? 'shrunk' : 'planned', held: before ? { ...before, total: g.items.length } : { variant: g.variant, serve: false, total: g.items.length, view: g.report.view } };
+        });
+        plans.push(planTable(no, produced, obsoleteOf(have, list.map((g) => g.variant))));
+      }
+      printLifecycle(o, plans, { preview: true });
+      console.log('Dry run: the store was read (feed_page only) and nothing was written. Add --apply to load.');
+      return 0;
+    }
+    if (lifecycle) console.log('Block lifecycle: a dry run without --target does not read the store. With --target it lists the stored blocks this load makes obsolete or orphaned, the new blocks to switch on, and any block feed_record would refuse as shrunk; --apply then prints the one statement that switches them.');
     console.log('Dry run: the database was not called. Add --apply with --target local or --target prod.');
     return 0;
   }
@@ -1085,19 +1329,14 @@ async function loadVariants({ o, url, env, register, read, makeLocalRpc, makePro
     console.log(`Target: ${hostOf(url)}`);
     rpc = makeProdRpc({ url, key: env.SUPABASE_SECRET_KEY, timeoutMs: 60_000 });
   }
-  if (register.reportsObsolete) {
-    // F201: nothing is deleted or switched off here; the supervisor runs the printed SQL.
-    const obsolete = await obsoleteBlocks(rpc, o.module, groups);
-    if (!obsolete.length) console.log('Obsolete blocks: none (every stored block of these tables is produced by this load)');
-    else {
-      const all = obsolete.flatMap((x) => x.variants);
-      console.log(`Obsolete blocks: ${all.length} stored block variants are no longer produced: ${all.join(', ')}`);
-      for (const x of obsolete) line(`table ${x.table}`, x.variants.join(', '));
-      console.log('  They are left as they are. To stop serving them, run:');
-      console.log(`  ${obsoleteSql(o.module, all)}`);
-    }
+  let stored = null;
+  if (lifecycle) {
+    // F201: read the store's blocks of these tables before anything changes; nothing is deleted or switched here.
+    stored = await storedBlocks(rpc, o.module, groups);
+    printObsolete(stored, groups);
   }
   const outcomes = [];
+  const answers = new Map();
   for (const g of groups) {
     const run = runs.find((r) => r.variant === g.variant);
     if (o.force && o.target === 'local') await forceDue({ container: o.container, db: o.db, run });
@@ -1111,22 +1350,45 @@ async function loadVariants({ o, url, env, register, read, makeLocalRpc, makePro
       const p = result.page;
       line(g.variant, `NOT DUE${p ? ` (last checked ${p.checked_at}, ${p.total} items held)` : ''}`);
       outcomes.push('not_due');
+      answers.set(g.variant, { status: 'not_due' });
       continue;
     }
     const a = result.answer || {};
     line(g.variant, `${a.status}: ${a.items} items, ${a.new_items ?? 0} new, ${a.changed_items ?? 0} changed, ${a.item_count ?? '?'} held`);
     outcomes.push(a.status);
+    answers.set(g.variant, a);
   }
   if (o.force) console.log(o.target === 'local' ? `--force: each variant was set due in ${o.db} first (local test only)` : '--force: each variant was made due first (public.feed_make_due)');
   console.log('Held after the load');
   let held = 0;
+  const after = new Map();
   for (const g of groups) {
     const page = await readBack(rpc, runs.find((r) => r.variant === g.variant), 1);
     held += Number(page?.total) || 0;
+    if (page) after.set(g.variant, { variant: g.variant, serve: page.serve === true, total: Number(page.total) || 0, view: page.meta?.view || null });
     line(g.variant, `${page?.total ?? '(not in the store)'} items, serve ${page?.serve}`);
   }
   line('total held', held);
+
+  let consistent = true;
+  if (lifecycle) {
+    const plans = [];
+    for (const [no, list] of tablesOf()) {
+      const have = stored.get(no) || new Map();
+      const produced = list.map((g) => ({
+        variant: g.variant,
+        count: g.items.length,
+        view: g.report.view,
+        before: have.get(g.variant) || null,
+        held: after.get(g.variant) || null,
+        status: answers.get(g.variant)?.status,
+      }));
+      plans.push(planTable(no, produced, obsoleteOf(have, list.map((g) => g.variant))));
+    }
+    consistent = printLifecycle(o, plans);
+  }
   if (outcomes.some((s) => s !== 'ok' && s !== 'unchanged' && s !== 'not_due')) return 1;
+  if (!consistent) return EXIT_BLOCKS_PENDING;
   if (outcomes.includes('not_due')) {
     console.log('NOT DUE: some variants were not recorded. Wait 30 days from their last load, or on a local test database use --force.');
     return 3;
