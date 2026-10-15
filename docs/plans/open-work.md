@@ -985,6 +985,19 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   number, or whatever the true number is." The source registry counts 115 working-route addresses
   since F180; the published figure stays 246 (`src/lib/siteFigures.js`) until the sources are sorted
   out, then it shows the true count.
+- [ ] **F160 status 2026-10-16: serving from the store is on** for 64 of the 66 scheduled modules
+  (`1345bfd`, `4244984`, `943246f`, `ffbc8ff`; coordination.md 2026-10-16). Store answers pass the
+  module's own live row filters (`server/feedRows.mjs`); stored copies never read LIVE; stale copies are
+  capped (7 days or 20 intervals). Left:
+  - MLA Report Card + Statement Tracker: serve off; its store page holds 3–7 of ~495 live items (a
+    500-row Wikidata sample stored as news). Needs a different keeping kind or sampling.
+  - District Performance Tracker: serve off; it is a Wikidata districts list scheduled as kind news (a
+    different 500 districts each run). Reschedule as reference.
+  - `feed_record` treats nothing-new as success even when the module holds no items (needs a migration:
+    `and v_state.item_count > 0` in the nothing-new branch).
+  - Music Charts: a request's 8 s timer does not count time queued behind the host gate.
+  - World Constitutions: about a quarter of its item keys change between runs.
+  - A latest-run measurement variant over 2,000 items falls back to live (Political Odds holds ~280).
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4

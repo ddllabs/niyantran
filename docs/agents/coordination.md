@@ -2135,3 +2135,16 @@ recommendations … We can fix everything that is under your control."
   `unchanged` runs), MLA Report Card (store page 7 of 497). Rollback for what is on:
   `update feed_state set serve = false where class in ('reference','events','charts','leaders','markets')
   or (class = 'official' and feature in ('Regulatory Body Watch (RBI/SEBI/TRAI/CCI)','Carbon Registry Wire'));`
+- **2026-10-16: serving from the store, completed (F169/F160).** Fix `943246f` + review fixes `ffbc8ff`
+  (each module's live row filter is shared by the live branch and the store path; measurement latest-run
+  only for the two prediction-market modules; events latest-run; bare-day dates last to the end of the
+  day; District Performance serves Wikidata rows only; a two-way drift test). A read-only comparison of
+  every stored page passed through the new store code against live: 0 filter failures in 69 module
+  runs. Deployed (`dpl_4qbaGguMfWwMteVpEb2thGF4akE9`), then serve on for 30 news modules, Prediction
+  Market Political Odds and Election Forecast; then national Cabinet Decisions and Policy Pipeline after
+  their first `unchanged` runs. Probes: all `served: store` (0.1–0.7 s); State Governance Brief 82 rows,
+  0 PIB, 0 undated, 0 raw entities, oldest 6.9 days; Political Odds 204 = live; Cabinet Decisions 79
+  stored decisions (live had 1); Policy Pipeline has no stored item that passes its filter, so live
+  answers (0 rows, honestly). Off: MLA Report Card + Statement Tracker, District Performance Tracker.
+  Rollback: `update feed_state set serve = false where class in ('news','markets','events','charts',
+  'reference','leaders') or (class = 'official' and feature <> 'SDL Auction & Borrowing Tracker');`
