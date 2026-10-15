@@ -134,9 +134,6 @@ export default function sanctions(row, ctx = {}) {
     trail.length ? { heading: 'Trail on record', body: trail.map((t) => `${text(t[0])}: ${text(t[1])}`).join('; ') } : null,
   ].filter(Boolean);
 
-  const left = authorities.length > 1 ? { l1: `${authorities.length} issuing`, l2: 'authorities' } : authorities.length ? { l1: authorities[0].label } : undefined;
-  const right = sectors.length > 1 ? { l1: plural(sectors.length, 'sector'), l2: sectors[0] } : sectors.length ? { l1: sectors[0] } : undefined;
-
   return {
     title,
     meta: [text(p.issuer), type].filter(Boolean),
@@ -160,13 +157,6 @@ export default function sanctions(row, ctx = {}) {
     },
     touches: {
       label: '03 · Programme & what it touches',
-      lanes: ['AUTHORITY', 'PROGRAMME', 'SECTORS', 'ENTITIES'],
-      nodes: {
-        left,
-        center: { code: 'S', l1: 'This programme', l2: badge?.text },
-        right,
-        far: entities ? { l1: entities, l2: 'listed scope' } : undefined,
-      },
       links: relatedLinks,
     },
     footer: {

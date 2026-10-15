@@ -80,14 +80,6 @@ export default function nationalAffidavits(row) {
     },
     touches: {
       label: '03 · Candidate & constituency',
-      lanes: ['PARTY', 'CANDIDATE', 'CONSTITUENCY', 'OUTCOME'],
-      nodes: {
-        left: party ? { l1: party, l2: 'as in the register' } : undefined,
-        center: { code: 'A', l1: 'This candidate', l2: election || undefined },
-        right: constituency ? { l1: constituency, l2: 'constituency' } : undefined,
-        // The register holds no outcome, and none is inferred: the lane reads "None on record".
-        far: undefined,
-      },
       links: [],
     },
     footer: {

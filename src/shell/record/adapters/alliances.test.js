@@ -340,25 +340,8 @@ describe('02 about this bloc', () => {
 });
 
 describe('03 bloc and what it touches', () => {
-  it('uses the reference lanes, region on the left, the bloc, its member count, and no far node', () => {
-    for (const row of ALL) {
-      const t = model(row).touches;
-      expect(t.lanes, row.title).toEqual(['REGION', 'BLOC', 'MEMBERS', 'FRONTS']);
-      expect(t.nodes.far, `${row.title} holds no Open Fronts link`).toBeUndefined();
-    }
-    const t = model(nato).touches;
-    expect(t.label).toMatch(/^03 · /);
-    expect(t.nodes.left).toEqual({ l1: 'Transatlantic' });
-    expect(t.nodes.center).toMatchObject({ code: 'A', l1: 'This bloc', l2: 'NATO' });
-    expect(t.nodes.right).toEqual({ l1: '32 members', l2: 'on the roster' });
-  });
-
-  it('falls back to the seat for the left lane, and leaves a lane empty when the row holds nothing', () => {
-    expect(model(synthetic({ region: '' })).touches.nodes.left).toEqual({ l1: 'Paris, France' });
-    const b = model(bare).touches.nodes;
-    expect(b.left).toBeUndefined();
-    expect(b.right).toBeUndefined();
-    expect(b.center).toBeTruthy();
+  it('numbers the section 03', () => {
+    expect(model(nato).touches.label).toMatch(/^03 · /);
   });
 
   it('links up to three blocs sharing the most members, as records that open in place', () => {

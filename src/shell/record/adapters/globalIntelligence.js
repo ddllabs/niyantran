@@ -67,13 +67,6 @@ export default function globalIntelligence(row, ctx = {}) {
     },
     touches: {
       label: '03 · Programme & what it touches',
-      lanes: ['ORIGIN', 'PROGRAMME', 'SAME ORIGIN', 'SAME CATEGORY'],
-      nodes: {
-        left: origin ? { l1: origin } : undefined,
-        center: { code: 'P', l1: 'This programme', l2: badge?.text },
-        right: sameOrigin ? { l1: `${plural(sameOrigin, 'other')} from ${origin}` } : undefined,
-        far: sameCategory ? { l1: row.category, l2: `${sameCategory} more on record` } : undefined,
-      },
       links: [
         ...(sameOrigin ? [{ title: `Programmes from ${origin}`, detail: `${sameOrigin} more on the watch list` }] : []),
         ...(sameCategory ? [{ title: `More ${String(row.category).toLowerCase()}`, detail: `${sameCategory} more on the watch list` }] : []),

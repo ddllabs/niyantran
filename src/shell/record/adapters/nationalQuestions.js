@@ -1,5 +1,5 @@
-import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
-import { companiesNamedIn, dateLabel, presentRows, provenanceFlags, sourceLinks } from './common.js';
+import { analysisFor } from '../../../lib/impactRecord.js';
+import { dateLabel, presentRows, provenanceFlags, sourceLinks } from './common.js';
 import { titleCaseCaps } from './feedText.js';
 
 /**
@@ -8,8 +8,7 @@ import { titleCaseCaps } from './feedText.js';
  * text and an empty status on every row, so the lifecycle ends in an answer that is "not on record"
  * and no badge is drawn unless a row really carries a status. The analysis pack (ctx.packs, loaded
  * by the panel host) adds a short brief, why it matters and watch-for for the few questions it
- * covers, and the ontology links the question to sectors and to companies it names. Pure and
- * synchronous: it reads the saved pack only and never fetches or generates anything.
+ * covers. Pure and synchronous: it reads the saved pack only and never fetches or generates anything.
  */
 const MAX_RELATED = 3;
 const ISO_DATE = /^\d{4}-\d{2}(-\d{2})?([T ].*)?$/;
@@ -46,7 +45,6 @@ function memberIndex(rows) {
 export default function nationalQuestions(row, ctx = {}) {
   const packs = ctx.packs?.ready ? ctx.packs : null;
   const a = packs ? analysisFor(row, packs.analysis) : null;
-  const impact = packs ? buildRecordModel(row, a, packs.ontology, DESKS.question) : null;
 
   const subject = held(row.subject) || held(row.title);
   const member = held(row.mp_name);
@@ -57,15 +55,6 @@ export default function nationalQuestions(row, ctx = {}) {
   const status = held(row.status);
   const tabled = when(row.date) || when(row.occurred_at);
   const asOf = when(row.as_of);
-
-  // Sectors and segments the question touches; the ministry's own institution is the left lane.
-  const reach = [];
-  for (const s of impact?.sectors || []) reach.push({ name: s.name, kind: 'sector' });
-  for (const s of impact?.segments || []) if (s.kind !== 'institution') reach.push({ name: s.name, kind: 'segment' });
-  const seen = new Set();
-  const lane = reach.filter((s) => s.name && !seen.has(s.name.toLowerCase()) && seen.add(s.name.toLowerCase()));
-  // Companies only where the question names them: never by sector association (path P2).
-  const companies = packs ? companiesNamedIn(impact, packs.ontology, subject) : [];
 
   const taken = new Set();
   const unique = (title, detail, id) => {
@@ -143,13 +132,6 @@ export default function nationalQuestions(row, ctx = {}) {
     },
     touches: {
       label: '03 · Question & its reach',
-      lanes: ['MINISTRY', 'QUESTION', 'SECTORS & SEGMENTS', 'COMPANIES'],
-      nodes: {
-        left: ministry ? { l1: ministry, l2: 'ministry asked' } : undefined,
-        center: { code: 'Q', l1: 'This question', l2: type || undefined },
-        right: lane.length ? { l1: lane[0].name, l2: lane.length > 1 ? `+${lane.length - 1} more` : lane[0].kind } : undefined,
-        far: companies.length ? { l1: companies[0], l2: companies.length > 1 ? `+${companies.length - 1} more named` : 'named in the question' } : undefined,
-      },
       links,
     },
     footer: {
@@ -159,7 +141,7 @@ export default function nationalQuestions(row, ctx = {}) {
         asOf,
         flags: [...(asOf ? [] : ['as-of not on record']), ...provenanceFlags(row)],
       },
-      note: `A question is a member's claim, not a finding: the premise in it is the member's own and is not verified here. The ministry's answer is not on record here. A company is drawn only where the question names it.`,
+      note: `A question is a member's claim, not a finding: the premise in it is the member's own and is not verified here. The ministry's answer is not on record here.`,
     },
   };
 }

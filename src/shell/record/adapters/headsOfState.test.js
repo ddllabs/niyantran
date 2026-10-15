@@ -279,31 +279,13 @@ describe('02 about', () => {
 });
 
 describe('03 what it touches', () => {
-  it('uses the four leader lanes, with a leader centre node coded H', () => {
-    for (const row of rows) {
-      const t = model(row).touches;
-      expect(t.lanes, row.id).toEqual(['COUNTRY', 'LEADER', 'PARTY', 'SAME IDEOLOGY']);
-      expect(t.nodes.center, row.id).toMatchObject({ code: 'H' });
-    }
-  });
-
-  it('puts the country left, the party right and the other leaders of that ideology far', () => {
-    const left = rows.filter((r) => r.ideology === 'Left');
-    expect(left.length).toBeGreaterThan(1);
-    const n = model(left[0]).touches.nodes;
-    expect(n.left).toEqual({ l1: left[0].country });
-    expect(n.right).toEqual({ l1: left[0].party });
-    expect(n.far).toEqual({ l1: 'Left', l2: `${left.length - 1} more on record` });
-    expect(n.center.l1).toBe('This leader');
-  });
-
   it('counts the other leaders of the same ideology and never the selection', () => {
     const counts = {};
     for (const r of rows) counts[r.ideology] = (counts[r.ideology] || 0) + 1;
     for (const row of rows) {
-      const far = model(row).touches.nodes.far;
-      if (row.ideology === '—' || counts[row.ideology] === 1) expect(far, row.id).toBeUndefined();
-      else expect(far.l2, row.id).toBe(`${counts[row.ideology] - 1} more on record`);
+      const links = model(row).touches.links;
+      if (row.ideology === '—' || counts[row.ideology] === 1) expect(links, row.id).toEqual([]);
+      else expect(links[0].detail, row.id).toBe(`${counts[row.ideology] - 1} more on the register`);
     }
   });
 
@@ -311,36 +293,24 @@ describe('03 what it touches', () => {
     const left = rows.filter((r) => r.ideology === 'Left');
     const copy = { ...left[0] };
     expect(left.includes(copy)).toBe(false);
-    expect(model(copy).touches.nodes.far.l2).toBe(`${left.length - 1} more on record`);
     expect(model(copy).touches.links[0].detail).toBe(`${left.length - 1} more on the register`);
   });
 
   it('matches ideology case-insensitively', () => {
     const odd = { ...full({ ideology: 'LEFT' }), id: 'odd' };
-    expect(model(odd, ctx({ rows: [...rows, odd] })).touches.nodes.far.l2).toBe('3 more on record');
+    expect(model(odd, ctx({ rows: [...rows, odd] })).touches.links[0].detail).toBe('3 more on the register');
   });
 
   it('never computes a same-ideology group for an empty or dash ideology, though eleven rows share the dash', () => {
     expect(rows.filter((r) => r.ideology === '—')).toHaveLength(11);
-    for (const row of rows.filter((r) => r.ideology === '—')) {
-      const m = model(row);
-      expect(m.touches.nodes.far, row.id).toBeUndefined();
-      expect(m.touches.links, row.id).toEqual([]);
-    }
-    expect(model(full({ ideology: '' }), ctx({ rows: [...rows, { ...full({ ideology: '' }), id: 'blank' }] })).touches.nodes.far).toBeUndefined();
+    for (const row of rows.filter((r) => r.ideology === '—')) expect(model(row).touches.links, row.id).toEqual([]);
+    expect(model(full({ ideology: '' }), ctx({ rows: [...rows, { ...full({ ideology: '' }), id: 'blank' }] })).touches.links).toEqual([]);
   });
 
-  it('omits a missing node so the renderer can say None on record', () => {
-    const n = model(us).touches.nodes;
-    expect(n.left).toEqual({ l1: 'United States' });
-    expect(n.right).toBeUndefined();
-    expect(n.far).toBeUndefined();
-    const none = model({}).touches.nodes;
-    expect(none.left).toBeUndefined();
-    expect(none.right).toBeUndefined();
-    expect(none.far).toBeUndefined();
-    expect(model(modi, { rows: undefined, feed: undefined }).touches.nodes.far).toBeUndefined();
-    expect(model(modi, { rows: [], feed: {} }).touches.nodes.far).toBeUndefined();
+  it('links nothing when the feed rows are missing', () => {
+    expect(model({}).touches.links).toEqual([]);
+    expect(model(modi, { rows: undefined, feed: undefined }).touches.links).toEqual([]);
+    expect(model(modi, { rows: [], feed: {} }).touches.links).toEqual([]);
   });
 
   it('writes its cross-links as static text, with no destination', () => {

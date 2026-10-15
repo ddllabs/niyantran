@@ -209,47 +209,25 @@ describe('02 about', () => {
 });
 
 describe('03 what it touches', () => {
-  it('uses the four satellite lanes, with a launch centre node', () => {
-    for (const row of FIXTURES) {
-      const t = model(row).touches;
-      expect(t.lanes, row.title).toEqual(['PROVIDER', 'LAUNCH', 'LAUNCH SITE', 'SAME PROVIDER']);
-      expect(t.nodes.center).toMatchObject({ code: 'L' });
-    }
-  });
-
-  it('puts the provider left, the launch site right and the other launches by that provider far', () => {
-    const n = model(falcon1).touches.nodes;
-    expect(n.left).toEqual({ l1: 'SpaceX' });
-    expect(n.center.l2).toBe('Go for Launch');
-    expect(n.right).toEqual({ l1: 'Cape Canaveral SFS, FL, USA' });
-    expect(n.far).toMatchObject({ l1: '2 other launches' });
-  });
-
   it('counts only the other launches of the same provider, case-insensitively, never the row itself', () => {
-    expect(model(falcon1).touches.nodes.far.l1).toBe('2 other launches');
-    expect(model(falcon2).touches.nodes.far.l1).toBe('2 other launches');
-    expect(model(electron).touches.nodes.far).toBeUndefined();
-    expect(model(noCoords).touches.nodes.far.l1).toBe('1 other launch');
+    const detail = (m) => m.touches.links[0]?.detail;
+    expect(detail(model(falcon1))).toBe('2 more in this list');
+    expect(detail(model(falcon2))).toBe('2 more in this list');
+    expect(model(electron).touches.links).toEqual([]);
+    expect(detail(model(noCoords))).toBe('1 more in this list');
     const shouty = { ...falcon3, id: 'x-shout', title: 'Shout', name: 'Shout', provider: 'SPACEX' };
-    expect(model(falcon1, ctx({ rows: [...rows, shouty] })).touches.nodes.far.l1).toBe('3 other launches');
+    expect(detail(model(falcon1, ctx({ rows: [...rows, shouty] })))).toBe('3 more in this list');
   });
 
   it('does not count the selection when it is a copy of its feed row', () => {
-    expect(model({ ...falcon1 }).touches.nodes.far.l1).toBe('2 other launches');
-    expect(model({ ...falcon1 }).touches.links.map((l) => l.detail).join(' ')).toMatch(/2 more/);
+    expect(model({ ...falcon1 }).touches.links[0].detail).toBe('2 more in this list');
   });
 
-  it('omits a missing node so the renderer can say None on record', () => {
-    const none = model(noProvider).touches.nodes;
-    expect(none.left).toBeUndefined();
-    expect(none.far).toBeUndefined();
-    expect(none.right.l1).toBe('Kourou, French Guiana');
-    const n = model(bare).touches.nodes;
-    expect(n.left).toBeUndefined();
-    expect(n.right).toBeUndefined();
-    expect(n.far).toBeUndefined();
-    expect(model(falcon1, { rows: undefined, feed: undefined }).touches.nodes.far).toBeUndefined();
-    expect(model(falcon1, { rows: [], feed: {} }).touches.nodes.far).toBeUndefined();
+  it('links nothing without a provider or feed rows', () => {
+    expect(model(noProvider).touches.links).toEqual([]);
+    expect(model(bare).touches.links).toEqual([]);
+    expect(model(falcon1, { rows: undefined, feed: undefined }).touches.links).toEqual([]);
+    expect(model(falcon1, { rows: [], feed: {} }).touches.links).toEqual([]);
   });
 
   it('writes its cross-links as static text, with no destination, and says the count is of this list', () => {

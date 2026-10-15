@@ -177,13 +177,6 @@ function announcement(row, ctx) {
     ],
     touches: {
       label: '03 · Entity & what it touches',
-      lanes: ['AUTHORITY', 'ANNOUNCEMENT', 'ENTITY', 'SECTOR'],
-      nodes: {
-        left: { l1: 'IBBI', l2: 'public announcement' },
-        center: { code: 'PA', l1: 'This notice', l2: announced || undefined },
-        right: debtor ? { l1: debtor, l2: 'corporate debtor' } : undefined,
-        far: undefined,
-      },
       links: relatedLinks(row, ctx.rows || []),
     },
     footer: {
@@ -241,13 +234,6 @@ function order(row, ctx) {
     ],
     touches: {
       label: '03 · Entity & what it touches',
-      lanes: ['TRIBUNAL', 'ORDER', 'ENTITY', 'SECTOR'],
-      nodes: {
-        left: { l1: 'NCLT', l2: 'via IBBI' },
-        center: { code: 'O', l1: 'This order', l2: dated || undefined },
-        right: debtor ? { l1: debtor, l2: 'corporate debtor' } : undefined,
-        far: undefined,
-      },
       links: relatedLinks(row, ctx.rows || []),
     },
     footer: {

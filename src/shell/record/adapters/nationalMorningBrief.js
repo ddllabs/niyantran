@@ -289,12 +289,6 @@ export default function nationalMorningBrief(selection, ctx = {}) {
     },
     touches: {
       label: '03 · Item & what it touches',
-      lanes: ['PUBLISHER', 'ITEM', 'RECORDS', 'SECTORS'],
-      nodes: {
-        left: publisher.name ? { l1: publisher.name, ...(publisher.named ? {} : { l2: 'wire, outlet not named' }) } : undefined,
-        center: { code: 'W', l1: 'This item', l2: 'Wire item' },
-        // No linked records or sectors are held for a wire item, so those lanes read "None on record".
-      },
       links: relatedLinks,
     },
     footer: {

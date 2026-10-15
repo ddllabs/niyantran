@@ -1,4 +1,4 @@
-import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
+import { analysisFor } from '../../../lib/impactRecord.js';
 import { dateLabel, plural, presentRows } from './common.js';
 
 /**
@@ -70,7 +70,6 @@ export default function nationalPipeline(row, ctx = {}) {
   const press = isPress(row);
   // The pack is keyed by the id the server gives the embedded items; a press release never joins it.
   const a = packs && !press ? analysisFor(row, packs.analysis) : null;
-  const impact = packs ? buildRecordModel(row, a, packs.ontology, DESKS.pipeline) : null;
 
   const title = clean(press ? row.title || row.topic : row.policy_name || row.title) || (press ? 'PIB press release' : 'Policy item');
   const stage = clean(row.stage);
@@ -79,8 +78,6 @@ export default function nationalPipeline(row, ctx = {}) {
   const source = press ? clean(row.source) || 'Press Information Bureau' : outletOf(row);
   const badge = press ? { text: 'Press release', tone: 'grey' } : stage ? { text: stage, tone: stageTone(stage) } : undefined;
   const noun = press ? 'release' : 'policy';
-
-  const sectors = (impact?.sectors || []).map((s) => s.name).filter(Boolean);
 
   const sameMinistry = ministry ? key(ministry) : '';
   const related = sameMinistry
@@ -124,14 +121,6 @@ export default function nationalPipeline(row, ctx = {}) {
     },
     touches: {
       label: `03 · ${press ? 'Release' : 'Policy'} & its reach`,
-      lanes: ['SOURCE', 'ITEM', 'INSTRUMENT', 'SECTORS'],
-      nodes: {
-        left: source ? { l1: source, l2: press ? 'press release feed' : 'reporting outlet' } : undefined,
-        center: { code: 'P', l1: `This ${noun}`, l2: press ? 'PIB release' : stage || undefined },
-        // Neither the row nor the analysis pack holds an instrument, so none is drawn.
-        right: undefined,
-        far: sectors.length ? { l1: sectors[0], l2: sectors.length > 1 ? `+${sectors.length - 1} more` : 'ontology match' } : undefined,
-      },
       links: [
         ...related.slice(0, MAX_RELATED).map((r) => ({
           title: clean(r.policy_name || r.title) || 'Policy item',
@@ -149,8 +138,8 @@ export default function nationalPipeline(row, ctx = {}) {
         flags: date ? [] : ['as-of not on record'],
       },
       note: press
-        ? 'A PIB press release is not a stage in the draft-to-gazette pipeline: the feed carries no stages. This feed is shared with Cabinet Decisions. Sectors are matched from the title.'
-        : 'Stages are as reported in the press and are not confirmed against the Gazette of India. This register is the latest stored set shown while the PIB feed is unavailable; the live PIB feed carries press releases, not pipeline stages, and is shared with Cabinet Decisions. Sectors are matched from the title, tags and the ministry on record.',
+        ? 'A PIB press release is not a stage in the draft-to-gazette pipeline: the feed carries no stages. This feed is shared with Cabinet Decisions.'
+        : 'Stages are as reported in the press and are not confirmed against the Gazette of India. This register is the latest stored set shown while the PIB feed is unavailable; the live PIB feed carries press releases, not pipeline stages, and is shared with Cabinet Decisions.',
     },
   };
 }

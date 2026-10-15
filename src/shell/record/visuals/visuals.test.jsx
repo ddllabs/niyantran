@@ -4,8 +4,8 @@ import PanelMap from './PanelMap.jsx';
 import StageTimeline from './StageTimeline.jsx';
 import ValueBoard from './ValueBoard.jsx';
 
-// F121: the record visuals say what they are. A map with an approximate marker says so; the graph
-// marks an empty lane "None on record"; every visual is labelled for assistive technology.
+// F121: the record visuals say what they are. A map with an approximate marker says so; every visual
+// is labelled for assistive technology.
 describe('record visuals', () => {
   it('captions a map with any approximate marker as approximate and schematic', () => {
     const html = renderToStaticMarkup(<PanelMap title="Theatre on the map" visual={{ type: 'map', caption: 'Front placed by region.', points: [{ lat: 49, lon: 32, label: 'Russia–Ukraine', tone: 'red', main: true, approximate: true }] }} />);

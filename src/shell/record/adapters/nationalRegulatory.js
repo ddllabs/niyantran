@@ -101,7 +101,7 @@ function windowVisual(here, all) {
 }
 
 /** The sector and class names the panel can draw, from the impact model and the ontology. */
-function impactNodes(impact, ontology, routine, title) {
+function impactNames(impact, ontology, routine, title) {
   if (!impact) return { classes: [], sectors: [], companies: [] };
   const seg = (impact.segments || []).find((s) => s.kind === 'institution' && String(s.id).startsWith('inst:'));
   const inst = seg ? (ontology?.institutions || []).find((i) => `inst:${i.id}` === seg.id) : null;
@@ -110,7 +110,7 @@ function impactNodes(impact, ontology, routine, title) {
   const sectors = (impact.sectors || []).filter((s) => s.band === 'Strong').map((s) => s.name).filter(Boolean);
   const hay = norm(title);
   const companies = routine ? [] : (impact.companies || []).filter((c) => c.path === 'P1' && c.name && hay.includes(norm(c.name))).map((c) => c.name);
-  return { institution: inst?.name || '', classes, sectors, companies };
+  return { classes, sectors, companies };
 }
 
 export default function nationalRegulatory(row, ctx = {}) {
@@ -135,7 +135,7 @@ export default function nationalRegulatory(row, ctx = {}) {
     ...(page && page !== pdf ? [{ label: regulator ? `Notice on ${regulator}` : 'Source notice', href: page }] : []),
   ];
 
-  const { institution, classes, sectors, companies } = impactNodes(impact, packs?.ontology, routine, row.title);
+  const { classes, sectors, companies } = impactNames(impact, packs?.ontology, routine, row.title);
 
   const notices = (Array.isArray(ctx.rows) ? ctx.rows : []).filter(isNotice);
   // The notices on hand, counting the selection once even when the list holds a copy of it.
@@ -189,13 +189,6 @@ export default function nationalRegulatory(row, ctx = {}) {
     },
     touches: {
       label: '03 · Notice & what it touches',
-      lanes: ['REGULATOR', 'INSTRUMENT', 'ENTITY CLASSES', 'SECTORS'],
-      nodes: {
-        left: regulator ? { l1: regulator, l2: institution && institution.toLowerCase() !== regulator.toLowerCase() ? institution : 'issuing regulator' } : undefined,
-        center: { code: 'N', l1: 'This notice', l2: action?.label || 'type not on record' },
-        right: classes.length ? { l1: classes[0], l2: classes.length > 1 ? `+${classes.length - 1} more` : 'regulated class' } : undefined,
-        far: sectors.length ? { l1: sectors[0], l2: sectors.length > 1 ? `+${sectors.length - 1} more` : 'named in the text' } : undefined,
-      },
       links: [
         ...related.map((r) => ({ title: plainText(r.title), detail: [actionOf(r)?.label, issuedOf(r)?.label].filter(Boolean).join(' · '), row: r })),
         ...(others.length > related.length ? [{ title: `Other ${regulator} notices`, detail: `${others.length} in this window` }] : []),

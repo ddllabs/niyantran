@@ -1,7 +1,7 @@
 /**
- * "What it touches" rules for Global record panels (F121). Every relation here is computed from
- * data the terminal holds, by a documented rule; it is a relation on record, not an assessed
- * impact. A rule that finds nothing returns an empty result and the panel says "None on record".
+ * Related-record rules for Global record panels (F121). Every relation here is computed from data
+ * the terminal holds, by a documented rule; it is a relation on record, not an assessed impact. A
+ * rule that finds nothing returns an empty result and the panel lists nothing for it (F204).
  */
 import { KNOWN_COUNTRIES } from './geoLookup.js';
 

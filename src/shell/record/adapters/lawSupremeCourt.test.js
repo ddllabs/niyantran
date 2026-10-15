@@ -50,7 +50,6 @@ describe('Supreme Court order record panel (F128 L3)', () => {
     expect(m.about.label).toBe('02 · The pointers');
     expect(m.about.rows.map(([k]) => k)).toEqual(['Case', 'Diary no.', 'Order date', 'Topic', 'Court']);
     expect(m.about.cards[0].heading).toBe('What this record does not settle');
-    expect(m.touches.lanes).toEqual(['COURT', 'ORDER', 'TOPIC', 'LATER CASES']);
     expect(m.footer.ask).toBe('Ask AI about this order');
     expect(m.footer.provenance.source).toBe('Supreme Court of India order listings (stored table, sci.gov.in)');
     // The table's snapshot time (07 Sep 2026 in India), never the order date.
@@ -66,8 +65,6 @@ describe('Supreme Court order record panel (F128 L3)', () => {
       expect(tile(m, 'Topic')).toMatchObject({ value: 'Unclassified', sub: 'the classifier left it unlabelled' });
       expect(JSON.stringify(m)).not.toMatch(/Other \/ Unclassified/);
       expect(m.touches.links).toEqual([]);
-      expect(m.touches.nodes.right).toBeUndefined();
-      expect(m.touches.nodes.far).toBeUndefined();
     }
     const blank = lawSupremeCourt(rowOf({ topic: '' }), scCtx);
     expect(tile(blank, 'Topic').value).toBe('Unclassified');
@@ -76,7 +73,6 @@ describe('Supreme Court order record panel (F128 L3)', () => {
 
   it('links up to three orders on the same topic, never the record itself', () => {
     const m = lawSupremeCourt(bail, scCtx);
-    expect(m.touches.nodes.right).toEqual({ l1: 'Bail / Criminal', l2: 'classifier label' });
     expect(m.touches.links).toHaveLength(3);
     for (const l of m.touches.links) {
       expect(l.row.topic).toBe('Bail / Criminal');
@@ -172,7 +168,6 @@ describe('Supreme Court order record panel (F128 L3)', () => {
     expect(tile(m, 'Court').sub).toBe('order date not on the row');
     expect(tile(m, 'Diary no.').value).toBe('Not on the row');
     expect(lawOrdersByTopic(bare, scCtx).glance.tiles.find((t) => t.label === 'Order date').value).toBe('Not on the row');
-    expect(m.touches.nodes.center.l2).toBeUndefined();
     expect(board(m)['Order PDF']).toBe('Not on the row');
   });
 

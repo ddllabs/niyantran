@@ -1,5 +1,5 @@
 import { othersSharing } from '../touchRules.js';
-import { cap, plural, presentRows, sourceLinks } from './common.js';
+import { cap, presentRows, sourceLinks } from './common.js';
 
 /**
  * Satellite Infrastructure (upcoming launches from The Space Devs) → record panel (F121). Rows come
@@ -101,13 +101,6 @@ export default function satellite(row, ctx = {}) {
     },
     touches: {
       label: '03 · Launch & what it touches',
-      lanes: ['PROVIDER', 'LAUNCH', 'LAUNCH SITE', 'SAME PROVIDER'],
-      nodes: {
-        left: provider ? { l1: provider } : undefined,
-        center: { code: 'L', l1: 'This launch', l2: badge?.text },
-        right: site ? { l1: site } : undefined,
-        far: sameProvider ? { l1: plural(sameProvider, 'other launch', 'other launches'), l2: 'in this list' } : undefined,
-      },
       links: sameProvider ? [{ title: `Other ${provider} launches`, detail: `${sameProvider} more in this list` }] : [],
     },
     footer: {

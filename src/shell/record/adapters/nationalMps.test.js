@@ -32,11 +32,6 @@ const repeated = register.find((r) => {
   const parts = r.committees.split(';').map((s) => s.trim()).filter(Boolean);
   return new Set(parts).size < parts.length;
 });
-// A member whose list repeats a committee and still names more than one distinct committee.
-const repeatedSeveral = register.find((r) => {
-  const parts = r.committees.split(';').map((s) => s.trim()).filter(Boolean);
-  return new Set(parts).size < parts.length && new Set(parts).size > 1;
-});
 const withPeers = register.find((r) => isLs(r) && register.filter((x) => x.party === r.party && x.state === r.state).length > 6);
 const loner = register.find((r) => register.filter((x) => x.party === r.party && x.state === r.state).length === 1);
 
@@ -205,40 +200,6 @@ describe('National MP profiles adapter', () => {
 
     it('never ranks or praises a member', () => {
       for (const row of [ls, rs, withPeers]) expect(text(model(row))).not.toMatch(/\b(top|best|worst|most active|least active|leading|rank(ed|s)?\b)/i);
-    });
-  });
-
-  describe('touch lanes', () => {
-    it('draws party, this member, constituency (or state) and committees', () => {
-      const t = model(ls).touches;
-      expect(t.lanes).toEqual(['PARTY', 'MEMBER', 'CONSTITUENCY', 'COMMITTEES']);
-      expect(t.nodes.center).toMatchObject({ code: 'M' });
-      expect(t.nodes.left.l1).toBe(ls.party);
-      expect(t.nodes.right.l1).toBe(ls.constituency);
-      const first = ls.committees.split(';')[0].trim();
-      expect(t.nodes.far.l1).toBe(first);
-    });
-
-    it('falls back to the state for a Rajya Sabha member, and leaves the committees lane empty when none is held', () => {
-      expect(model(rs).touches.nodes.right).toMatchObject({ l1: rs.state });
-      expect(model(noCommittees).touches.nodes.far).toBeUndefined();
-    });
-
-    it('leaves a lane empty (so the panel says "None on record") when the register holds nothing for it', () => {
-      const bare = model({ id: 'x', mp_name: 'Bare Member', source_url: '' }).touches.nodes;
-      expect(bare.left).toBeUndefined();
-      expect(bare.right).toBeUndefined();
-      expect(bare.far).toBeUndefined();
-      expect(bare.center).toMatchObject({ code: 'M' });
-      expect(bare.center.l2).toBeUndefined();
-      expect(model({ ...ls, party: '' }).touches.nodes.left).toBeUndefined();
-    });
-
-    it('counts the remaining committees, not the repeats', () => {
-      const far = model(repeatedSeveral).touches.nodes.far;
-      const distinct = Number(tile(model(repeatedSeveral), 'Committees').value);
-      expect(distinct).toBeGreaterThan(1); // the fixture must reach the branch
-      expect(far.l2).toBe(`+${distinct - 1} more`);
     });
   });
 

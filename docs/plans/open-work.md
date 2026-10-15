@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F207 is next) and goes in the
+- A new finding gets the next free `F` number (F209 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,10 +548,20 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F207. Cleanup after F203-F206.** Owner 2026-10-16 ("clean up the small gaps"). The record
+  adapters no longer compute the graph's `lanes`/`nodes` (27 adapters, 24 test files, 867 lines out;
+  node checks moved to links and About rows where they had a match); footer notes no longer promise
+  companies or sectors the panels do not show; questions and the pipeline no longer fetch the
+  ontology. The bundle baseline is re-recorded at 222,125 B gzip: the growth was bisected to F202's
+  column definitions and F196's modules, which the desk catalogue puts in the entry. On `task/cleanup`.
+- [ ] **F208. The desk catalogue puts every module's columns in the first-load bundle.** Found in F207,
+  2026-10-16. `src/desks/landing/deskCatalogue.js` imports `feedColumns` (`src/lib/columns.js`, 40 KB
+  of source) and the full feature map, so a signed-out visitor downloads them. Load them with the
+  terminal instead, then lower the baseline.
 - [x] **F204. Record panels draw no relations graph.** Done 2026-10-16 (`e2a9613`; owner: "push and
   merge"). Owner 2026-10-16 ("not genuine … remove that
   wherever it comes"). The four-lane graph is gone from all 26 record types; their related register
-  rows stay as "Related on record". Follow-up: drop the unread `lanes`/`nodes` from the adapters.
+  rows stay as "Related on record". The unread `lanes`/`nodes` left the adapters in F207.
   Spec: `docs/specs/2026-10-16-record-panel-and-chat.md`. On `task/module-scroll`.
 - [x] **F205. The AI brief card tells reading from writing.** Done 2026-10-16 (`9ef80e5`, `56ee533`). Owner 2026-10-16. A stored brief shows a
   plain skeleton; one being written (server 'pending', or slower than 1.2 s) shows the Niyantran mark

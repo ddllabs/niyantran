@@ -243,38 +243,11 @@ describe('02 about', () => {
 });
 
 describe('03 what it touches', () => {
-  it('uses the four Nuclear Watch lanes with a facility centre node', () => {
+  it('labels the section for a facility or a country-level record', () => {
     for (const row of rows) {
-      const t = model(row).touches;
-      expect(t.lanes, row.id).toEqual(['COUNTRY', 'FACILITY', 'FRONT', 'OPERATOR']);
-      expect(t.nodes.center, row.id).toMatchObject({ code: 'N', l1: /country centroid/i.test(row.precision) ? 'This record' : 'This site' });
+      expect(model(row).touches.label, row.id).toBe(`03 · ${/country centroid/i.test(row.precision) ? 'Record' : 'Facility'} & what it touches`);
     }
-    expect(model(zap).touches.nodes.center.l2).toBe('Suspended operation');
-    expect(model(reserve).touches.nodes.center.l1).toBe('This record');
-  });
-
-  it('puts the country left and the operator far', () => {
-    const n = model(zap).touches.nodes;
-    expect(n.left).toEqual({ l1: 'Ukraine' });
-    expect(n.far).toEqual({ l1: 'Energoatom', l2: 'operator' });
-  });
-
-  it('falls back to the capacity far when there is no operator, and omits far when neither exists', () => {
-    expect(model({ ...zap, operator: '', operators: '' }).touches.nodes.far).toEqual({ l1: '6 × VVER-1000; 5.7 GWe net reference', l2: 'capacity' });
-    expect(model({ ...zap, operator: '', operators: '', capacity: '' }).touches.nodes.far).toBeUndefined();
-  });
-
-  it('draws no front for any real record: none holds one, so the lane reads None on record', () => {
-    for (const row of rows) expect(model(row).touches.nodes.right, row.id).toBeUndefined();
-  });
-
-  it('names a front only when the row names one', () => {
-    expect(model({ ...zap, front: 'Russia–Ukraine front' }).touches.nodes.right).toEqual({ l1: 'Russia–Ukraine front' });
-    expect(model({ ...zap, front: '  ' }).touches.nodes.right).toBeUndefined();
-  });
-
-  it('omits the country node when the row has no country', () => {
-    expect(model({ ...zap, country: '' }).touches.nodes.left).toBeUndefined();
+    expect(model(reserve).touches.label).toBe('03 · Record & what it touches');
   });
 
   it('opens up to three other records in the same country, in place, never the selection', () => {

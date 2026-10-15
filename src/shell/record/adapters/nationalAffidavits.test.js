@@ -247,34 +247,17 @@ describe('National candidate affidavit adapter', () => {
     });
   });
 
-  describe('touch lanes', () => {
-    it('draws party, this candidate, constituency and outcome, in that order', () => {
-      const t = model(sample).touches;
-      expect(t.lanes).toEqual(['PARTY', 'CANDIDATE', 'CONSTITUENCY', 'OUTCOME']);
-      expect(t.label).toBeTruthy();
-      expect(t.nodes.center).toMatchObject({ code: 'A' });
-      expect(t.nodes.left.l1).toBe(sample.party);
-      expect(t.nodes.right.l1).toBe(sample.constituency);
+  describe('outcome', () => {
+    it('labels the touches section', () => {
+      expect(model(sample).touches.label).toBeTruthy();
     });
 
-    it('leaves the outcome lane empty ("None on record") for every candidate, and never infers a winner', () => {
+    it('never infers a winner for any candidate', () => {
       for (const row of register) {
-        const m = model(row);
-        expect(m.touches.nodes.far, row.name).toBeUndefined();
-        expect(text(m), row.name).not.toMatch(/\b(winner|won|win|wins|elected|defeated|lost|victor\w*|runner|margin|result)\b/i);
+        expect(text(model(row)), row.name).not.toMatch(/\b(winner|won|win|wins|elected|defeated|lost|victor\w*|runner|margin|result)\b/i);
       }
       // Even a row that carried an outcome-like field is not read for one: the register holds none.
-      expect(model({ ...sample, outcome: 'Won', result: 'Won', winner: 'yes' }).touches.nodes.far).toBeUndefined();
-    });
-
-    it('leaves a lane empty when the register holds nothing for it, with the centre kept', () => {
-      const nodes = model({ id: 'x', name: 'Bare Candidate', source_url: '' }).touches.nodes;
-      expect(nodes.left).toBeUndefined();
-      expect(nodes.right).toBeUndefined();
-      expect(nodes.far).toBeUndefined();
-      expect(nodes.center).toMatchObject({ code: 'A' });
-      expect(model({ ...sample, party: '' }).touches.nodes.left).toBeUndefined();
-      expect(model({ ...sample, constituency: '' }).touches.nodes.right).toBeUndefined();
+      expect(text(model({ ...sample, outcome: 'Won', result: 'Won', winner: 'yes' }))).not.toMatch(/\b(winner|won)\b/i);
     });
   });
 

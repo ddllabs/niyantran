@@ -92,21 +92,6 @@ describe('National bills adapter', () => {
     expect(steps.some((s) => /assent/i.test(s.label))).toBe(false);
   });
 
-  it('draws ministry, bill, sectors and named companies from the impact model', () => {
-    const t = nationalBills(assented, ctx()).touches;
-    expect(t.lanes).toEqual(['MINISTRY', 'BILL', 'SECTORS & SEGMENTS', 'COMPANIES']);
-    expect(t.nodes.center).toMatchObject({ code: 'B' });
-    expect(assented.sector).toBeTruthy(); // the fixture must reach the branch
-    expect(t.nodes.left.l1.toLowerCase()).toBe(assented.sector.toLowerCase());
-  });
-
-  it('names a company only where the bill text names it, not on an ordinary word such as "oil"', () => {
-    const edibleOil = bills.find((r) => /edible oil/i.test(r.bill_name));
-    expect(nationalBills(edibleOil, ctx()).touches.nodes.far).toBeUndefined();
-    const coal = bills.find((r) => /^the coal india \(/i.test(r.bill_name));
-    expect(nationalBills(coal, ctx()).touches.nodes.far?.l1).toMatch(/coal india/i);
-  });
-
   it('links up to three other bills from the same ministry, never this one or a copy of it', () => {
     const row = bills.find((r) => r.sector && bills.filter((x) => x.sector === r.sector).length > 5);
     const links = nationalBills({ ...row }, ctx()).touches.links.filter((l) => l.row);

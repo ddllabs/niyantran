@@ -49,8 +49,11 @@ const strings = (v, out = []) => {
 /** Strings that are the platform's own wording: not the notice's title, a related notice's title or pack/feed prose. */
 const ownWords = (m) => strings({ ...m, title: undefined, touches: m.touches && { ...m.touches, links: [] }, about: { ...m.about, cards: [] } });
 
-/** What the panel draws as nodes and fixed links: not the titles of the related notices it opens. */
-const drawn = (m) => strings([m.touches.nodes, m.touches.links.filter((l) => !l.row)]).join(' | ');
+/** What the panel shows as fixed links: not the titles of the related notices it opens. */
+const drawn = (m) => strings(m.touches.links.filter((l) => !l.row)).join(' | ');
+const aboutRow = (m, label) => m.about.rows.find(([k]) => k === label)?.[1];
+const CLASSES = 'Entity classes the regulator governs';
+const SECTORS = 'Sectors named in the text';
 const hasName = (text, name) => new RegExp(`(^|[^A-Za-z0-9])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^A-Za-z0-9])`).test(text);
 const impactOf = (row) => buildRecordModel(row, analysisFor(row, pack), ontology, DESKS.regulatory);
 const byId = (id) => rows.find((r) => r.id === id);
@@ -295,18 +298,10 @@ describe('National regulatory adapter', () => {
   });
 
   describe('touches', () => {
-    it('uses the four lanes: regulator, instrument, entity classes, sectors', () => {
-      for (const r of [penalty, routine, sebi, ...liveRows]) expect(model(r).touches.lanes).toEqual(['REGULATOR', 'INSTRUMENT', 'ENTITY CLASSES', 'SECTORS']);
-    });
-
-    it('draws the regulator, this notice, the classes the regulator governs and the sectors its text names', () => {
-      const n = model(penalty).touches.nodes;
-      expect(n.left.l1).toBe('RBI');
-      expect(n.left.l2).toBe('Reserve Bank of India');
-      expect(n.center).toMatchObject({ code: 'N', l1: 'This notice', l2: 'Penalty' });
-      expect(n.right.l1).toBe('Banks'); // RBI governs banks, public and private banks, NBFCs
-      expect(n.right.l2).toMatch(/\+3 more/);
-      expect(n.far.l1).toBe('Banks'); // a penalty on a bank names the sector in its own text
+    it('lists the classes the regulator governs and the sectors its text names', () => {
+      const m = model(penalty);
+      expect(aboutRow(m, CLASSES)).toBe('Banks · Public Sector Banks · Private Banks · NBFC & Housing Finance');
+      expect(aboutRow(m, SECTORS)).toBe('Banks'); // a penalty on a bank names the sector in its own text
     });
 
     it('never draws an ontology theme as an entity class (keyword matches such as "auction" are not entity classes)', () => {
@@ -314,32 +309,23 @@ describe('National regulatory adapter', () => {
       expect(impactOf(byId('1')).segments.some((s) => s.kind === 'theme')).toBe(true); // the defect the guard is about
       for (const r of rows) {
         const m = model(r);
-        const shown = strings([m.touches.nodes, m.about.rows]);
+        const shown = strings(m.about.rows);
         for (const t of themes) expect(shown.some((s) => s.includes(t)), `${r.id} ${t}`).toBe(false);
       }
     });
 
     it('reads the SEBI classes from the ontology, and nothing about a regulator the ontology does not know', () => {
-      expect(model(sebi).touches.nodes.right.l1).toBe('Financial Services');
+      expect(aboutRow(model(sebi), CLASSES)).toBe('Financial Services');
       // The ontology knows TRAI, though no TRAI notice is held today; it would read its own classes.
-      const trai = model({ ...penalty, regulator: 'TRAI' }).touches.nodes;
-      expect(trai.left).toMatchObject({ l1: 'TRAI', l2: 'Telecom Regulatory Authority of India' });
-      expect(trai.right.l1).toBe('Telecom');
-      const unknown = model({ ...penalty, regulator: 'Unlisted Authority' }).touches.nodes;
-      expect(unknown.left).toMatchObject({ l1: 'Unlisted Authority', l2: 'issuing regulator' });
-      expect(unknown.right).toBeUndefined();
+      expect(aboutRow(model({ ...penalty, regulator: 'TRAI' }), CLASSES)).toBe('Telecom');
+      expect(aboutRow(model({ ...penalty, regulator: 'Unlisted Authority' }), CLASSES)).toBeUndefined();
     });
 
-    it('omits what it does not hold, so the lane reads "None on record"', () => {
-      const n = model(liveRows[0]).touches.nodes;
-      expect(n.left).toBeUndefined(); // a live row names no regulator
-      expect(n.right).toBeUndefined();
-      expect(n.far).toBeUndefined();
-      expect(n.center).toMatchObject({ code: 'N', l1: 'This notice' });
-      const bare = model(penalty, { packs: null }).touches.nodes;
-      expect(bare.left.l1).toBe('RBI');
-      expect(bare.right).toBeUndefined();
-      expect(bare.far).toBeUndefined();
+    it('omits the classes and sectors it does not hold', () => {
+      for (const m of [model(liveRows[0]), model(penalty, { packs: null })]) {
+        expect(aboutRow(m, CLASSES)).toBeUndefined();
+        expect(aboutRow(m, SECTORS)).toBeUndefined();
+      }
     });
 
     it('draws no company for a routine notice, and says the links are withheld', () => {

@@ -113,7 +113,6 @@ export default function alliances(row, ctx = {}) {
     .filter((l) => l.title && !seenTitles.has(l.title) && seenTitles.add(l.title));
 
   const region = text(p.region);
-  const left = region || text(p.seat);
 
   return {
     title,
@@ -168,14 +167,6 @@ export default function alliances(row, ctx = {}) {
     },
     touches: {
       label: '03 · Bloc & what it touches',
-      lanes: ['REGION', 'BLOC', 'MEMBERS', 'FRONTS'],
-      nodes: {
-        left: left ? { l1: left } : undefined,
-        center: { code: 'A', l1: 'This bloc', l2: text(p.short) || undefined },
-        right: total ? { l1: plural(total, 'member'), l2: 'on the roster' } : undefined,
-        // The rows hold no link to Open Fronts, so the far lane is left empty rather than inferred.
-        far: undefined,
-      },
       links,
     },
     footer: {

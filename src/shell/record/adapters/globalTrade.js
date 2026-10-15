@@ -54,13 +54,6 @@ export default function globalTrade(row, ctx = {}) {
     },
     touches: {
       label: '03 · Economy & what it touches',
-      lanes: ['ECONOMY', 'EXPORTS', 'RANK', 'OPENNESS'],
-      nodes: {
-        left: { l1: title },
-        center: { code: 'T', l1: 'This economy', l2: exportsText || undefined },
-        right: rank ? { l1: rank.text, l2: 'on merchandise exports' } : undefined,
-        far: share ? { l1: `${share} of GDP`, l2: 'trade share' } : undefined,
-      },
       links: [
         ...(rank ? [{ title: 'Rank on merchandise exports', detail: `${rank.text} economies on this board, highest first` }] : []),
         { title: 'Growth Indicators', detail: 'GDP growth, inflation and unemployment', to: { tab: 'global', feature: 'Growth Indicators' } },

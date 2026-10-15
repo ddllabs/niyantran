@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import embedded from '../../../../public/data/embedded_csv/national_policy_pipeline.json';
 import analysis from '../../../../public/data/embedded_json/national_policy_pipeline_analysis.json';
 import ontology from '../../../../public/data/ontology.json';
-import { buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
+import { DESKS } from '../../../lib/impactRecord.js';
 import { contractProblems } from '../modelContract.js';
 import nationalPipeline from './nationalPipeline.js';
 
@@ -158,7 +158,6 @@ describe('National policy pipeline adapter', () => {
         expect(m.glance.tiles[0]).toMatchObject({ label: 'Stage', value: 'PIB release' });
         expect(m.glance.tiles[0].sub).toMatch(/press release/i);
         expect(m.glance.tiles[0].tone).toBeUndefined();
-        expect(m.touches.nodes.center).toMatchObject({ code: 'P', l1: 'This release' });
         expect(text(m)).not.toMatch(/draft released|public comments invited|cabinet approval pending|awaiting gazette/i);
       }
     });
@@ -169,7 +168,6 @@ describe('National policy pipeline adapter', () => {
       expect(m.glance.tiles.map((t) => t.label)).toEqual(['Stage', 'Released']);
       expect(m.glance.tiles[1].value).toBe('12 Oct 2026');
       expect(m.meta).toEqual(['Press Information Bureau']);
-      expect(m.touches.nodes.left).toMatchObject({ l1: 'Press Information Bureau' });
       expect(m.touches.links.filter((l) => l.row)).toEqual([]);
       expect(m.about.rows.map(([k]) => k)).not.toContain('Ministry');
     });
@@ -213,39 +211,13 @@ describe('National policy pipeline adapter', () => {
 
     it('shows the reporting outlet from the source headline, never the Google News link', () => {
       const m = nationalPipeline(register[0], ctx(register));
-      expect(m.touches.nodes.left).toMatchObject({ l1: 'The News Minute' });
       expect(m.meta).toEqual([register[0].ministry, 'The News Minute']);
       expect(m.about.rows).toContainEqual(['Source headline', register[0].source_title]);
       // An outlet is the part after the last " - "; a headline with an earlier dash keeps it.
       const dash = register.find((r) => /Explained/.test(r.source_title));
-      expect(nationalPipeline(dash, ctx(register)).touches.nodes.left.l1).toBe('Vajiram & Ravi');
-      // No outlet to read: the lane is left empty rather than guessed.
-      expect(nationalPipeline({ ...register[0], source_title: 'A headline with no outlet' }, ctx(register)).touches.nodes.left).toBeUndefined();
-    });
-
-    it('draws a lane of exactly source, item, instrument, sectors, and holds no instrument', () => {
-      for (const row of register) {
-        const t = nationalPipeline(row, ctx(register)).touches;
-        expect(t.lanes).toEqual(['SOURCE', 'ITEM', 'INSTRUMENT', 'SECTORS']);
-        expect(t.nodes.center).toMatchObject({ code: 'P', l1: 'This policy', l2: row.stage });
-        expect(t.nodes.right).toBeUndefined(); // neither the row nor the pack holds an instrument
-      }
-    });
-
-    it('draws sectors from the ontology for the pipeline desk, and none until the packs load', () => {
-      let drawn = 0;
-      for (const [i, row] of register.entries()) {
-        const a = analysis[String(i)];
-        const impact = buildRecordModel(row, a, ontology, DESKS.pipeline);
-        const far = nationalPipeline(row, ctx(register)).touches.nodes.far;
-        if (impact.sectors.length) {
-          drawn += 1;
-          expect(far.l1, row.policy_name).toBe(impact.sectors[0].name);
-          if (impact.sectors.length > 1) expect(far.l2).toBe(`+${impact.sectors.length - 1} more`);
-        } else expect(far, row.policy_name).toBeUndefined();
-        expect(nationalPipeline(row, ctx(register, { packs: null })).touches.nodes.far).toBeUndefined();
-      }
-      expect(drawn).toBeGreaterThan(0);
+      expect(nationalPipeline(dash, ctx(register)).meta[1]).toBe('Vajiram & Ravi');
+      // No outlet to read: none is shown rather than guessed.
+      expect(nationalPipeline({ ...register[0], source_title: 'A headline with no outlet' }, ctx(register)).meta).toEqual([register[0].ministry]);
     });
 
     it('shows the pack\'s tags and analysis labelled as register analysis, and only once the packs are ready', () => {

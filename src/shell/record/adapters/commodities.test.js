@@ -59,13 +59,11 @@ describe('Global Commodities adapter', () => {
     }
   });
 
-  it('keeps the change tile and touch lane as the change string, toned by direction', () => {
+  it('keeps the change tile as the change string, toned by direction', () => {
     const down = commodities(byName('Palladium'), withMeta);
     expect(down.glance.tiles[1]).toMatchObject({ label: 'Change', value: '-0.7%', tone: 'red' });
-    expect(down.touches.nodes.right.l1).toBe('-0.7%');
     const noChange = commodities({ ...byName('Copper'), change: '' }, withMeta);
     expect(noChange.glance.tiles.map((t) => t.label)).not.toContain('Change');
-    expect(noChange.touches.nodes.right).toBeUndefined();
     expect(contractProblems(noChange)).toEqual([]);
   });
 
@@ -160,15 +158,6 @@ describe('Global Commodities adapter', () => {
     expect(later.footer.provenance.flags).toEqual(['illustrative levels']);
   });
 
-  it('uses the touch lanes group, benchmark, move and same group', () => {
-    const model = commodities(byName('Brent crude'), withMeta);
-    expect(model.touches.lanes).toEqual(['GROUP', 'BENCHMARK', 'MOVE', 'SAME GROUP']);
-    expect(model.touches.nodes.left).toMatchObject({ l1: 'Energy' });
-    expect(model.touches.nodes.center).toMatchObject({ code: 'C', l1: 'This benchmark' });
-    expect(model.touches.nodes.right.l1).toBe('+4.1%');
-    expect(model.touches.nodes.far.l1).toBe('5 other benchmarks');
-  });
-
   it('counts other benchmarks of the group without counting the selection, even a copy of it', () => {
     for (const row of rows) {
       const expected = rows.filter((r) => r.group === row.group).length - 1;
@@ -176,7 +165,6 @@ describe('Global Commodities adapter', () => {
       for (const selected of [row, copy]) {
         const model = commodities(selected, withMeta);
         expect(othersSharing(rows, selected, 'group'), row.commodity).toBe(expected);
-        expect(model.touches.nodes.far.l1, row.commodity).toBe(`${expected} other benchmarks`);
         expect(model.glance.visual.rows.length, row.commodity).toBe(expected + 1);
         expect(model.glance.visual.rows.filter((r) => r.label === row.commodity), row.commodity).toHaveLength(1);
         expect(model.touches.links[0].detail, row.commodity).toMatch(new RegExp(`^${expected} more`));
@@ -184,9 +172,8 @@ describe('Global Commodities adapter', () => {
     }
   });
 
-  it('has no far node when the benchmark is alone in its group', () => {
+  it('has no related link when the benchmark is alone in its group', () => {
     const model = commodities(byName('Gold'), ctx([byName('Gold')]));
-    expect(model.touches.nodes.far).toBeUndefined();
     expect(model.touches.links).toEqual([]);
   });
 

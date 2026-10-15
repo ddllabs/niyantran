@@ -5,7 +5,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 describe('record packs', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 
-  it('loads the module\'s analysis pack and the ontology for a bill-style National module', async () => {
+  // F204: questions and the pipeline no longer draw an impact graph, so only bills and regulatory
+  // notices fetch the ontology.
+  it('loads only the analysis pack for questions, and the ontology too for bills', async () => {
+    const seen = [];
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      seen.push(String(url));
+      const body = /ontology/.test(url) ? { nodes: [] } : /identity/.test(url) ? null : { 0: { brief: 'x' } };
+      return { ok: true, json: async () => body };
+    }));
+    const { loadRecordPacks } = await import('./packs.js');
+    const questions = await loadRecordPacks('Parliamentary Question Database');
+    expect(questions.ontology).toBeNull();
+    expect(seen.some((u) => /ontology/.test(u))).toBe(false);
+    const bills = await loadRecordPacks('Bill Passage Probability Index');
+    expect(bills.desk.key).toBe('bill');
+    expect(bills.ontology).toEqual({ nodes: [] });
+  });
+
+  it('loads the module\'s analysis pack for a bill-style National module', async () => {
     const seen = [];
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       seen.push(String(url));
@@ -17,7 +35,6 @@ describe('record packs', () => {
     expect(packs.ready).toBe(true);
     expect(packs.desk.key).toBe('question');
     expect(packs.analysis).toEqual({ 0: { brief: 'x' } });
-    expect(packs.ontology).toEqual({ nodes: [] });
     expect(seen.some((u) => u.endsWith('national_question_database_analysis.json'))).toBe(true);
   });
 

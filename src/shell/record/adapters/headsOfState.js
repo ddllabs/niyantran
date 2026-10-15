@@ -92,13 +92,6 @@ export default function headsOfState(row, ctx = {}) {
     },
     touches: {
       label: '03 · Leader & what it touches',
-      lanes: ['COUNTRY', 'LEADER', 'PARTY', 'SAME IDEOLOGY'],
-      nodes: {
-        left: country ? { l1: country } : undefined,
-        center: { code: 'H', l1: 'This leader', l2: office || undefined },
-        right: party ? { l1: party } : undefined,
-        far: sameIdeology ? { l1: ideology, l2: `${sameIdeology} more on record` } : undefined,
-      },
       links: sameIdeology ? [{ title: `Same ideology: ${ideology}`, detail: `${sameIdeology} more on the register` }] : [],
     },
     footer: {

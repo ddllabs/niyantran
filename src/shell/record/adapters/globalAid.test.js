@@ -269,36 +269,8 @@ describe('about', () => {
 });
 
 describe('what it touches', () => {
-  it('uses the lanes agency, appeal, countries, sectors', () => {
-    for (const row of rows) expect(model(row).touches.lanes, row.id).toEqual(['AGENCY', 'APPEAL', 'COUNTRIES', 'SECTORS']);
-  });
-
-  it('puts the agency left, this appeal in the centre, the countries right and the sector count far', () => {
-    const n = model(sudan).touches.nodes;
-    expect(n.left).toMatchObject({ l1: 'UNICEF' });
-    expect(n.center).toMatchObject({ code: 'A', l1: 'This appeal', l2: '2026' });
-    expect(n.right).toMatchObject({ l1: 'Sudan' });
-    expect(n.far).toMatchObject({ l1: '5 sectors' });
-    const g = model(gho).touches.nodes;
-    expect(g.right.l1).toBe('23 country operations + 6 regional/refugee plans');
-    expect(g.far.l1).toBe('6 sectors');
-  });
-
   it('names no donors, which the rows do not hold', () => {
-    for (const row of rows) expect(JSON.stringify(model(row).touches.nodes), row.id).not.toMatch(/donor/i);
-    expect(model(gho).touches.lanes.join(' ')).not.toMatch(/donor/i);
-  });
-
-  it('leaves a lane out when the row holds nothing for it', () => {
-    const n = model({ id: 'zz', name: 'Bare appeal' }).touches.nodes;
-    expect(n.left).toBeUndefined();
-    expect(n.right).toBeUndefined();
-    expect(n.far).toBeUndefined();
-    expect(n.center).toMatchObject({ code: 'A' });
-  });
-
-  it('writes one sector singular', () => {
-    expect(model({ ...sudan, sectors_json: JSON.stringify(['Health']) }).touches.nodes.far.l1).toBe('1 sector');
+    for (const row of rows) expect(JSON.stringify(model(row).touches), row.id).not.toMatch(/donor/i);
   });
 });
 

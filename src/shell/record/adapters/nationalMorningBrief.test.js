@@ -511,23 +511,8 @@ describe('02 what the item says', () => {
 });
 
 describe('03 what it touches', () => {
-  it('uses the four lanes, a centre node coded W, and no records or sectors', () => {
-    for (const row of [...SELECTIONS, {}]) {
-      const t = brief(row).touches;
-      expect(t.lanes, row.title).toEqual(['PUBLISHER', 'ITEM', 'RECORDS', 'SECTORS']);
-      expect(t.nodes.center, row.title).toMatchObject({ code: 'W', l1: 'This item' });
-      expect(t.nodes.right, row.title).toBeUndefined();
-      expect(t.nodes.far, row.title).toBeUndefined();
-      expect(t.label).toBe('03 · Item & what it touches');
-    }
-  });
-
-  it('puts the publisher on the left, and says when the outlet is not named', () => {
-    expect(brief(t1).touches.nodes.left).toEqual({ l1: 'reuters.com' });
-    expect(brief(p1).touches.nodes.left).toEqual({ l1: 'PIB' });
-    expect(brief(g1).touches.nodes.left).toMatchObject({ l1: 'Google News', l2: expect.stringMatching(/outlet not named/i) });
-    expect(brief(t4).touches.nodes.left).toEqual({ l1: 'example.org' });
-    expect(nationalMorningBrief({}).touches.nodes.left).toBeUndefined();
+  it('numbers the section 03', () => {
+    for (const row of [...SELECTIONS, {}]) expect(brief(row).touches.label, row.title).toBe('03 · Item & what it touches');
   });
 
   it('opens up to three other items from the same source in place, newest first, never the selection or a copy', () => {

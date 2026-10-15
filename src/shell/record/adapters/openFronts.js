@@ -1,7 +1,7 @@
 import geoConflicts from '../../../data/geo-conflicts.json';
 import { regionPosition } from '../geoLookup.js';
 import { chokepointsForRegion, othersSharing } from '../touchRules.js';
-import { cap, dateLabel, plural, presentRows, provenanceFlags, sourceLinks } from './common.js';
+import { cap, dateLabel, presentRows, provenanceFlags, sourceLinks } from './common.js';
 
 /**
  * Open Fronts → record panel (F121). The register classifies each front editorially (stage,
@@ -103,13 +103,6 @@ export default function openFronts(row, ctx = {}) {
     },
     touches: {
       label: '03 · Front & what it touches',
-      lanes: ['REGION', 'FRONT', 'CHOKEPOINTS', 'SAME REGION'],
-      nodes: {
-        left: region ? { l1: region } : undefined,
-        center: { code: 'F', l1: 'This front', l2: stage?.text },
-        right: chokepoints.length ? { l1: chokepoints[0], l2: chokepoints.length > 1 ? `+${chokepoints.length - 1} more` : undefined } : undefined,
-        far: sameRegion ? { l1: plural(sameRegion, 'other front'), l2: region } : undefined,
-      },
       links: [
         ...(chokepoints.length ? [{ title: 'Chokepoints in play', detail: chokepoints.join(', '), to: { tab: 'global', feature: 'Maritime Choke-Points' } }] : []),
         ...(sameRegion ? [{ title: `Other fronts in ${region}`, detail: `${sameRegion} on the register` }] : []),

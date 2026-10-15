@@ -226,12 +226,6 @@ export default function nationalCabinet(row, ctx = {}) {
     },
     touches: {
       label: '03 · Release & what it touches',
-      lanes: ['MINISTRY', 'DECISION', 'SECTORS', 'STATES'],
-      nodes: {
-        left: ministry ? { l1: ministry, l2: 'ministry on record' } : undefined,
-        center: { code: 'C', l1: 'This item', l2: kind },
-        // Sectors and states are not held on any row, so those lanes read "None on record".
-      },
       links: [
         ...related.slice(0, MAX_RELATED).map((r) => ({
           title: titleOf(r),

@@ -48,7 +48,7 @@ describe('record panel contract', () => {
 
   it('accepts a touch link that opens a related row, and rejects a row that is not a record', () => {
     const m = base();
-    m.touches = { label: '03', lanes: ['A', 'B', 'C', 'D'], nodes: { center: { l1: 'This' } }, links: [{ title: 'Other', detail: 'x', row: { title: 'Other', note: '[date]', seat: 'undefined' } }] };
+    m.touches = { label: '03', links: [{ title: 'Other', detail: 'x', row: { title: 'Other', note: '[date]', seat: 'undefined' } }] };
     expect(contractProblems(m)).toEqual([]); // the row is data to open, not text the panel shows
     m.touches.links = [{ title: 'Other', detail: 'x', row: 'Other' }];
     expect(contractProblems(m).join()).toMatch(/touch link Other has a row that is not a record/);
@@ -66,7 +66,7 @@ describe('record panel contract', () => {
 
   it('reads a related record\'s title as source text too, but still checks a link without a record', () => {
     const m = base();
-    m.touches = { label: '03', lanes: ['A', 'B', 'C', 'D'], nodes: { center: { l1: 'This' } }, links: [{ title: 'The Constitution (Amendment) Bill, 1995 [to amend article 292]', detail: 'Lapsed', row: { id: 'b1' } }] };
+    m.touches = { label: '03', links: [{ title: 'The Constitution (Amendment) Bill, 1995 [to amend article 292]', detail: 'Lapsed', row: { id: 'b1' } }] };
     expect(contractProblems(m)).toEqual([]);
     m.touches.links = [{ title: '[Other bills]', detail: 'x' }];
     expect(contractProblems(m).join()).toMatch(/placeholder/);

@@ -156,13 +156,6 @@ export default function lawWtoRegister(row, ctx = {}) {
     ],
     touches: {
       label: '03 · Dispute & what it touches',
-      lanes: ['COMPLAINANT', 'DISPUTE', 'RESPONDENT', 'THIRD PARTIES'],
-      nodes: {
-        left: complainants.length ? { l1: complainants[0], l2: complainants.length > 1 ? `+${complainants.length - 1} more` : 'complainant' } : undefined,
-        center: { code: 'DS', l1: ds, l2: statusDate || undefined },
-        right: respondents.length ? { l1: respondents[0], l2: respondents.length > 1 ? `+${respondents.length - 1} more` : 'respondent' } : undefined,
-        far: thirdParties.length ? { l1: `${thirdParties.length} third ${thirdParties.length === 1 ? 'party' : 'parties'}`, l2: 'reserved rights' } : undefined,
-      },
       links: relatedLinks(row, rows),
     },
     footer: {

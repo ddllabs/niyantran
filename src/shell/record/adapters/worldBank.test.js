@@ -130,6 +130,9 @@ describe.each([
   });
 });
 
+// The rank the related links state ("2nd of 7"), or undefined when no rank link is drawn.
+const rankOf = (m) => m.touches.links.find((l) => l.title.startsWith('Rank on'))?.detail.replace(/ economies on this board, highest first$/, '');
+
 describe('Growth Indicators panel', () => {
   const model = (country, rows = growthRows) => growthIndicators(pick(rows, country), ctx(rows));
 
@@ -191,40 +194,37 @@ describe('Growth Indicators panel', () => {
   });
 
   it('ranks GDP growth numerically, whatever the row order', () => {
-    expect(model('Turkiye').touches.nodes.right).toMatchObject({ l1: '1st of 7', l2: 'on GDP growth' });
-    expect(model('India').touches.nodes.right.l1).toBe('2nd of 7');
-    expect(model('United States').touches.nodes.right.l1).toBe('3rd of 7');
-    expect(model('Germany').touches.nodes.right.l1).toBe('7th of 7');
+    expect(model('Turkiye').touches.links.find((l) => l.title === 'Rank on GDP growth').detail).toBe('1st of 7 economies on this board, highest first');
+    expect(rankOf(model('India'))).toBe('2nd of 7');
+    expect(rankOf(model('United States'))).toBe('3rd of 7');
+    expect(rankOf(model('Germany'))).toBe('7th of 7');
     // Same answer from a reversed copy of the rows.
     const reversed = [...growthRows].reverse();
-    expect(model('India', reversed).touches.nodes.right.l1).toBe('2nd of 7');
-    expect(model('Turkiye', reversed).touches.nodes.right.l1).toBe('1st of 7');
+    expect(rankOf(model('India', reversed))).toBe('2nd of 7');
+    expect(rankOf(model('Turkiye', reversed))).toBe('1st of 7');
   });
 
   it('calls a tie joint, for both rows in it', () => {
-    expect(model('Korea, Rep.').touches.nodes.right.l1).toBe('joint 4th of 7');
-    expect(model('Russian Federation').touches.nodes.right.l1).toBe('joint 4th of 7');
+    expect(rankOf(model('Korea, Rep.'))).toBe('joint 4th of 7');
+    expect(rankOf(model('Russian Federation'))).toBe('joint 4th of 7');
   });
 
   it('counts other economies whose latest year is the same, excluding itself', () => {
-    expect(model('India').touches.nodes.far).toMatchObject({ l1: '5 other economies', l2: 'also 2025' });
-    expect(model('Germany').touches.nodes.far).toBeUndefined(); // the only 2024 row
+    expect(model('India').touches.links.find((l) => l.title === 'Economies with 2025 data').detail).toBe('5 more on this board');
+    expect(model('Germany').touches.links.some((l) => /^Economies with/.test(l.title))).toBe(false); // the only 2024 row
   });
 
-  it('has the spec lanes, a centre node for the economy, and the country on the left', () => {
+  it('links the rank on GDP growth', () => {
     const t = model('India').touches;
-    expect(t.lanes).toEqual(['ECONOMY', 'SERIES', 'RANK', 'SAME YEAR']);
-    expect(t.nodes.left).toEqual({ l1: 'India' });
-    expect(t.nodes.center).toMatchObject({ code: 'G', l1: 'This economy' });
     expect(t.links.some((l) => /3 others|rank/i.test(`${l.title} ${l.detail}`))).toBe(true);
   });
 
   it('omits the rank when there is nothing to compare, or the row has no GDP growth', () => {
-    expect(growthIndicators(growthRows[0], ctx([growthRows[0]])).touches.nodes.right).toBeUndefined();
-    expect(growthIndicators(growthRows[0]).touches.nodes.right).toBeUndefined();
+    expect(rankOf(growthIndicators(growthRows[0], ctx([growthRows[0]])))).toBeUndefined();
+    expect(rankOf(growthIndicators(growthRows[0]))).toBeUndefined();
     const noGdp = { ...pick(growthRows, 'India'), gdp_growth: '' };
     const m = growthIndicators(noGdp, ctx(growthRows));
-    expect(m.touches.nodes.right).toBeUndefined();
+    expect(rankOf(m)).toBeUndefined();
     expect(m.glance.tiles.map((t) => t.value)).toEqual(['Not on record', 'Not on record', '2025']);
     expect(contractProblems(m)).toEqual([]);
   });
@@ -232,8 +232,8 @@ describe('Growth Indicators panel', () => {
   it('works when the selection is a copy of its feed row', () => {
     const copy = { ...pick(growthRows, 'India') };
     const m = growthIndicators(copy, ctx(growthRows));
-    expect(m.touches.nodes.right.l1).toBe('2nd of 7');
-    expect(m.touches.nodes.far.l1).toBe('5 other economies');
+    expect(rankOf(m)).toBe('2nd of 7');
+    expect(m.touches.links.find((l) => l.title === 'Economies with 2025 data').detail).toBe('5 more on this board');
   });
 
   it('writes the as-of as the data year, or flags that it is not on record', () => {
@@ -243,7 +243,7 @@ describe('Growth Indicators panel', () => {
     expect(noYear.footer.provenance.asOf || '').toBe('');
     expect(noYear.footer.provenance.flags).toContain('as-of not on record');
     expect(noYear.glance.tiles[2].value).toBe('Not on record');
-    expect(noYear.touches.nodes.far).toBeUndefined();
+    expect(noYear.touches.links.some((l) => /^Economies with/.test(l.title))).toBe(false);
     expect(contractProblems(noYear)).toEqual([]);
   });
 
@@ -288,7 +288,6 @@ describe('Global Trade panel', () => {
     const m = model('United States');
     expect(m.glance.tiles.map((t) => t.value)).toEqual(['US$ 2,065 bn', '2nd of 7', '2025']);
     expect(m.glance.visual.rows.map((r) => r.value)).toEqual(['US$ 2,065 bn', 'Not on record']);
-    expect(m.touches.nodes.far).toBeUndefined();
     expect(leaks(m)).toEqual([]);
   });
 
@@ -297,43 +296,34 @@ describe('Global Trade panel', () => {
     const m = globalTrade(blank, ctx(tradeRows));
     expect(m.glance.tiles.map((t) => t.value)).toEqual(['Not on record', 'Not on record', '2025']);
     expect(m.glance.visual.rows.map((r) => r.value)).toEqual(['Not on record', '45.2%']);
-    expect(m.touches.nodes.right).toBeUndefined();
-    expect(m.touches.nodes.center.l2 || '').not.toMatch(/US\$/);
+    expect(rankOf(m)).toBeUndefined();
     expect(contractProblems(m)).toEqual([]);
     expect(leaks(m)).toEqual([]);
   });
 
   it('ranks exports numerically on exports_raw, whatever the row order or the grouped text', () => {
     // "1,688" and "3,577" sort after "437" as text; the rank must not.
-    expect(model('China').touches.nodes.right).toMatchObject({ l1: '1st of 7', l2: 'on merchandise exports' });
-    expect(model('United States').touches.nodes.right.l1).toBe('2nd of 7');
-    expect(model('Germany').touches.nodes.right.l1).toBe('3rd of 7');
-    expect(model('Japan').touches.nodes.right.l1).toBe('4th of 7');
-    expect(model('India').touches.nodes.right.l1).toBe('7th of 7');
+    expect(model('China').touches.links.find((l) => l.title === 'Rank on merchandise exports').detail).toBe('1st of 7 economies on this board, highest first');
+    expect(rankOf(model('United States'))).toBe('2nd of 7');
+    expect(rankOf(model('Germany'))).toBe('3rd of 7');
+    expect(rankOf(model('Japan'))).toBe('4th of 7');
+    expect(rankOf(model('India'))).toBe('7th of 7');
     const reversed = [...tradeRows].reverse();
-    expect(model('China', reversed).touches.nodes.right.l1).toBe('1st of 7');
-    expect(model('India', reversed).touches.nodes.right.l1).toBe('7th of 7');
+    expect(rankOf(model('China', reversed))).toBe('1st of 7');
+    expect(rankOf(model('India', reversed))).toBe('7th of 7');
     expect(model('India', reversed).glance.tiles[1].value).toBe('7th of 7');
   });
 
   it('calls a tie joint, for both rows in it', () => {
-    expect(model('Korea, Rep.').touches.nodes.right.l1).toBe('joint 5th of 7');
-    expect(model('Italy').touches.nodes.right.l1).toBe('joint 5th of 7');
-  });
-
-  it('has the spec lanes, with the trade share of GDP on the far node', () => {
-    const t = model('Germany').touches;
-    expect(t.lanes).toEqual(['ECONOMY', 'EXPORTS', 'RANK', 'OPENNESS']);
-    expect(t.nodes.left).toEqual({ l1: 'Germany' });
-    expect(t.nodes.center).toMatchObject({ code: 'T', l1: 'This economy', l2: 'US$ 1,688 bn' });
-    expect(t.nodes.far).toMatchObject({ l1: '86.9% of GDP', l2: 'trade share' });
+    expect(rankOf(model('Korea, Rep.'))).toBe('joint 5th of 7');
+    expect(rankOf(model('Italy'))).toBe('joint 5th of 7');
   });
 
   it('works when the selection is a copy of its feed row', () => {
     const m = globalTrade({ ...pick(tradeRows, 'Germany') }, ctx(tradeRows));
-    expect(m.touches.nodes.right.l1).toBe('3rd of 7');
-    expect(globalTrade(tradeRows[0]).touches.nodes.right).toBeUndefined();
-    expect(globalTrade(tradeRows[0], ctx([tradeRows[0]])).touches.nodes.right).toBeUndefined();
+    expect(rankOf(m)).toBe('3rd of 7');
+    expect(rankOf(globalTrade(tradeRows[0]))).toBeUndefined();
+    expect(rankOf(globalTrade(tradeRows[0], ctx([tradeRows[0]])))).toBeUndefined();
   });
 
   it('writes the as-of as the data year, or flags that it is not on record', () => {

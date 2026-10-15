@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import questions from '../../../../public/data/embedded_csv/national_question_database.json';
 import analysis from '../../../../public/data/embedded_json/national_question_database_analysis.json';
 import ontology from '../../../../public/data/ontology.json';
-import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
+import { analysisFor, DESKS } from '../../../lib/impactRecord.js';
 import { shapeParliamentaryQuestionRows } from '../../../lib/shapeQuestions.js';
 import { contractProblems } from '../modelContract.js';
 import nationalQuestions from './nationalQuestions.js';
@@ -11,13 +11,6 @@ import nationalQuestions from './nationalQuestions.js';
 // These tests build a panel for every row of the register (thousands); GitHub's runners are slower
 // than a laptop, so they get more than Vitest's 5-second default.
 const WHOLE_REGISTER_MS = 20_000;
-
-// The real impact builder, wrapped so one test can hand the adapter a company drawn by sector (path P2),
-// which the question desk's own configuration never produces.
-vi.mock('../../../lib/impactRecord.js', async (importOriginal) => {
-  const real = await importOriginal();
-  return { ...real, buildRecordModel: vi.fn(real.buildRecordModel) };
-});
 
 // The packs exactly as loadRecordPacks hands them over (the question pack is keyed by row id).
 const packs = { desk: DESKS.question, analysis, ontology, ready: true };
@@ -29,18 +22,15 @@ const strings = (v, out = []) => {
   else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (k !== 'row') strings(x, out);
   return out;
 };
-const realBuild = (...args) => vi.mocked(buildRecordModel).getMockImplementation()(...args);
 const withAnalysis = questions.filter((r) => analysisFor(r, analysis));
-// Building a model with the packs links against the whole ontology (about a millisecond per row), so
-// the with-packs loops cover every fifth row plus every row the pack covers; no-pack loops cover all 8,000.
-const sample = questions.filter((r, i) => i % 5 === 0 || analysisFor(r, analysis) || /\b(ONGC|SAIL|NHPC|NTPC|Coal India)\b/.test(r.subject || ''));
+// The with-packs loops cover every fifth row plus every row the pack covers; no-pack loops cover all 8,000.
+const sample = questions.filter((r, i) => i % 5 === 0 || analysisFor(r, analysis));
 const byId = (id) => questions.find((r) => r.id === id);
 const plain = questions[0]; // id 1, Mani A (DMK), MSME, unstarred; in the pack
 const bare = questions.find((r) => !analysisFor(r, analysis));
 const starred = questions.find((r) => r.question_type === 'STARRED');
 // A member with several questions on the register, and the number of others they hold.
 const prolific = questions.find((r) => r.mp_name === 'P P Chaudhary');
-const named = (text) => questions.find((r) => r.subject === text);
 const blank = { id: 'x-1', date: '', ministry: '', mp_name: '', party: '', house: '', question_type: '', subject: '', source_url: '' };
 
 // F124 N3: a question panel shows what the register holds (who asked what of which ministry, and
@@ -91,7 +81,6 @@ describe('National questions adapter', () => {
     expect(m.glance.tiles[1].value).toBe('Not on record');
     expect(m.meta).toEqual([]);
     expect(m.about.rows.map(([k]) => k)).toEqual(['Tabled']);
-    expect(m.touches.nodes.left).toBeUndefined();
   });
 
   it('reads the date from the row, and says "Not on record" rather than guessing one', () => {
@@ -164,51 +153,6 @@ describe('National questions adapter', () => {
       expect(about.chips || []).toEqual([]);
     }
     expect(nationalQuestions(plain, ctx({ packs: { ...packs, ready: false } })).about.cards || []).toEqual([]);
-  });
-
-  it('draws ministry, question, sectors & segments and named companies as the touch lanes', () => {
-    const t = nationalQuestions(plain, ctx()).touches;
-    expect(t.lanes).toEqual(['MINISTRY', 'QUESTION', 'SECTORS & SEGMENTS', 'COMPANIES']);
-    expect(t.nodes.left.l1).toBe('Micro, Small and Medium Enterprises');
-    expect(t.nodes.center).toMatchObject({ code: 'Q', l1: 'This question' });
-    const pharma = nationalQuestions(named('Research and Innovation in Pharma-MedTech Sector'), ctx()).touches;
-    expect(pharma.nodes.right.l1).toBe('Pharmaceuticals');
-    expect(pharma.nodes.right.l2).toBe('+2 more');
-    expect(pharma.nodes.far).toBeUndefined(); // nothing named: "None on record"
-  });
-
-  it('has no sector, segment or company lane content until the packs load', () => {
-    const t = nationalQuestions(named('Research and Innovation in Pharma-MedTech Sector'), ctx({ packs: null })).touches;
-    expect(t.nodes.right).toBeUndefined();
-    expect(t.nodes.far).toBeUndefined();
-    expect(t.nodes.left).toBeDefined();
-  });
-
-  it('names a company only where the question itself names it', () => {
-    const company = (text) => nationalQuestions(named(text), ctx()).touches.nodes.far;
-    expect(company('Crude Oil Exploration by ONGC')).toMatchObject({ l1: 'ONGC' });
-    expect(company('Coal India Limited Production Target')).toMatchObject({ l1: 'Coal India' });
-    // Ordinary words that also happen to be a company's short name are not naming it.
-    expect(company('CSR Projects by Oil Companies in Tamil Nadu')).toBeUndefined();
-    expect(company('Self Reliance of Domestic Fertilizer Industry')).toBeUndefined();
-    expect(company('Persistent Challenges in Punjab')).toBeUndefined();
-    let drawn = 0;
-    for (const row of sample) {
-      const far = nationalQuestions(row, ctx()).touches.nodes.far;
-      if (far) { drawn += 1; expect(far.l2, row.id).toMatch(/named in the question|more named$/); }
-    }
-    expect(drawn).toBeGreaterThan(0); // the sample must contain questions that name a company
-  });
-
-  it('never draws a company by sector association (path P2), even one the text names', () => {
-    const row = named('Crude Oil Exploration by ONGC');
-    buildRecordModel.mockImplementationOnce((...args) => {
-      const m = realBuild(...args);
-      m.companies = [{ nt: 'company', id: 'company:ongc', name: 'ONGC', path: 'P2' }];
-      return m;
-    });
-    expect(nationalQuestions(row, ctx()).touches.nodes.far).toBeUndefined();
-    expect(nationalQuestions(row, ctx()).touches.nodes.far).toMatchObject({ l1: 'ONGC' }); // P1, from the real builder
   });
 
   it('links up to three other questions by the same member, most recent first, never the selection or a copy', () => {

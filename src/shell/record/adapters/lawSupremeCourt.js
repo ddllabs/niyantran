@@ -194,13 +194,6 @@ function build(row, ctx, variant) {
     ],
     touches: {
       label: '03 · Court & what it touches',
-      lanes: ['COURT', 'ORDER', 'TOPIC', 'LATER CASES'],
-      nodes: {
-        left: { l1: 'Supreme Court' },
-        center: { code: 'SC', l1: 'This order', l2: dated || undefined },
-        right: unclassified ? undefined : { l1: topic, l2: 'classifier label' },
-        far: undefined,
-      },
       links: relatedLinks(row, rows),
     },
     footer: {

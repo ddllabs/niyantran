@@ -1,6 +1,6 @@
 import commoditiesPack from '../../../data/commodities.json';
 import { othersSharing } from '../touchRules.js';
-import { dateLabel, plural, presentRows, sourceLinks } from './common.js';
+import { dateLabel, presentRows, sourceLinks } from './common.js';
 
 /**
  * Global Commodities (benchmark board) → record panel (F121). The levels are illustrative values in
@@ -79,13 +79,6 @@ export default function commodities(row, ctx = {}) {
     },
     touches: {
       label: '03 · Benchmark & what it touches',
-      lanes: ['GROUP', 'BENCHMARK', 'MOVE', 'SAME GROUP'],
-      nodes: {
-        left: group ? { l1: group } : undefined,
-        center: { code: 'C', l1: 'This benchmark', l2: level || undefined },
-        right: change ? { l1: change } : undefined,
-        far: sameGroup ? { l1: plural(sameGroup, 'other benchmark'), l2: `in ${group}` } : undefined,
-      },
       links: sameGroup ? [{ title: `Other ${group} benchmarks`, detail: `${sameGroup} more in the benchmark set` }] : [],
     },
     footer: {

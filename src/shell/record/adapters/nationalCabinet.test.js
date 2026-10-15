@@ -151,7 +151,6 @@ describe('National cabinet adapter', () => {
         const m = nationalCabinet(r, storedCtx());
         const isCabinet = r === marked[0];
         expect(m.badge).toEqual(isCabinet ? { text: 'Cabinet decision', tone: 'blue' } : { text: 'Press release', tone: 'grey' });
-        expect(m.touches.nodes.center.l2).toBe(isCabinet ? 'Cabinet decision' : 'Press release');
       }
     });
 
@@ -249,17 +248,15 @@ describe('National cabinet adapter', () => {
         const m = nationalCabinet(r, ctx(LIVE));
         expect(tile(m, 'Ministry').value, r.id).toBe('Not on record');
         expect(m.meta, r.id).toEqual(['PIB']);
-        expect(m.touches.nodes.left, r.id).toBeUndefined();
         expect(strings(m.about.rows).join('|'), r.id).not.toMatch(/Ministry on record/);
       }
     });
 
-    it('shows the ministry the row holds, in the tile, meta, about and left lane', () => {
+    it('shows the ministry the row holds, in the tile, meta and about', () => {
       const m = nationalCabinet(STORED[0], storedCtx());
       expect(tile(m, 'Ministry')).toMatchObject({ value: 'Cabinet Committee on Economic Affairs', sub: 'as tagged in the feed' });
       expect(m.meta).toEqual(['Cabinet Committee on Economic Affairs', 'PIB']);
       expect(m.about.rows).toContainEqual(['Ministry on record', 'Cabinet Committee on Economic Affairs']);
-      expect(m.touches.nodes.left).toMatchObject({ l1: 'Cabinet Committee on Economic Affairs' });
     });
   });
 
@@ -329,16 +326,12 @@ describe('National cabinet adapter', () => {
     });
   });
 
-  describe('touch lanes and related items', () => {
+  describe('related items', () => {
     const tagged = (n, ministry = 'Ministry of Finance') => Array.from({ length: n }, (_, i) => ({ ...live({ title: `Finance release ${i + 1}`, date: `2026-10-0${(i % 9) + 1}` }), ministry }));
 
-    it('uses the lanes Ministry, Decision, Sectors, States, with the item at the centre and sectors and states on record as none', () => {
+    it('renders no relations graph, so nothing reads "None on record"', () => {
       const m = nationalCabinet(L.msp, ctx(LIVE));
-      expect(m.touches.lanes).toEqual(['MINISTRY', 'DECISION', 'SECTORS', 'STATES']);
-      expect(m.touches.nodes.center).toMatchObject({ code: 'C', l1: 'This item', l2: 'Cabinet decision' });
-      expect(m.touches.nodes.right).toBeUndefined();
-      expect(m.touches.nodes.far).toBeUndefined();
-      // F204: the panel draws no graph from these lanes.
+      // F204: the panel draws no relations graph.
       const html = renderToStaticMarkup(createElement(RecordPanel, { model: m }));
       expect(html).not.toContain('None on record');
     });

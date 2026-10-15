@@ -62,11 +62,11 @@ describe('Open Fronts panel', () => {
     expect(mali.some((p) => /Sahel/.test(p.label))).toBe(false);
   });
 
-  it('touches the chokepoints of its region and counts the other fronts there', () => {
-    expect(model.touches.nodes.right).toMatchObject({ l1: 'Kerch Strait', l2: '+1 more' });
-    expect(model.touches.nodes.far.l1).toBe('1 other front');
+  it('links the chokepoints of its region and the other fronts there', () => {
+    expect(model.touches.links.find((l) => l.title === 'Chokepoints in play').detail).toMatch(/^Kerch Strait, /);
+    expect(model.touches.links.find((l) => /^Other fronts in /.test(l.title)).detail).toBe('1 on the register');
     const asia = openFronts(warTracker.find((r) => r.region === 'Central Asia'), ctx(warTracker));
-    expect(asia.touches.nodes.right).toBeUndefined();
+    expect(asia.touches.links.some((l) => l.title === 'Chokepoints in play')).toBe(false);
   });
 });
 
@@ -84,15 +84,13 @@ describe('Global Intelligence panel', () => {
 
   it('places the origin country approximately and counts same-origin programmes', () => {
     expect(model.glance.visual2.points[0]).toMatchObject({ label: 'France', approximate: true });
-    expect(model.touches.nodes.left.l1).toBe('France');
     const usa = globalIntelligence(procurement.find((r) => r.vendor_or_origin.endsWith('USA')), ctx(procurement));
-    expect(usa.touches.nodes.right.l1).toBe('1 other from USA');
+    expect(usa.touches.links.find((l) => l.title === 'Programmes from USA').detail).toBe('1 more on the watch list');
   });
 
   it('has no map when the origin is not stated', () => {
     const kalvari = globalIntelligence(procurement.find((r) => r.vendor_or_origin === 'Naval Group + Mazagon Dock'), ctx(procurement));
     expect(kalvari.glance.visual2).toBeUndefined();
-    expect(kalvari.touches.nodes.left).toBeUndefined();
   });
 });
 
@@ -112,7 +110,7 @@ describe('Infra panel', () => {
   });
 
   it('counts other assets in the same country and sector', () => {
-    expect(model.touches.nodes.right.l1).toMatch(/^\d+ other assets? in India$/);
-    expect(model.touches.nodes.far.l1).toMatch(/Major port/);
+    expect(model.touches.links.find((l) => l.title === 'Assets in India').detail).toMatch(/^\d+ more on the register$/);
+    expect(model.touches.links.some((l) => /^Other: .*Major port/.test(l.title))).toBe(true);
   });
 });

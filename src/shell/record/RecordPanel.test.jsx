@@ -17,8 +17,6 @@ const model = (over = {}) => ({
   about: { label: '02 · About this front', rows: [['Began', 'February 2022']], cards: [{ heading: 'Latest development', body: 'Attritional front.' }] },
   touches: {
     label: '03 · Front & what it touches',
-    lanes: ['REGION', 'FRONT', 'CHOKEPOINTS', 'SAME REGION'],
-    nodes: { left: { l1: 'Eastern Europe' }, center: { code: 'F', l1: 'This front', l2: 'Active' }, right: { l1: 'Kerch Strait', l2: '+1 more' } },
     links: [{ title: 'Chokepoints in play', detail: '2 on the board', to: { tab: 'global', feature: 'Maritime Choke-Points' } }],
   },
   footer: { ask: 'Ask AI about this front', provenance: { source: 'Open Fronts conflict register', asOf: '07 Sep 2026', flags: ['provenance unconfirmed'] }, note: 'A register describes a contested reality.' },

@@ -153,13 +153,6 @@ export default function newsWire(row, ctx = {}) {
     },
     touches: {
       label: '03 · Story & what it touches',
-      lanes: ['PUBLISHER', 'STORY', 'PUBLISHED', 'SAME PUBLISHER'],
-      nodes: {
-        left: publisher ? { l1: publisher } : undefined,
-        center: { code: 'N', l1: 'This story', l2: 'News report' },
-        right: published ? { l1: published } : undefined,
-        far: others ? { l1: plural(others, 'other story', 'other stories'), l2: 'same publisher' } : undefined,
-      },
       links: others ? [{ title: `Other stories from ${publisher}`, detail: `${others} more on the wire` }] : [],
     },
     footer: {

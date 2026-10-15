@@ -1,6 +1,6 @@
 import { AID_COUNTRIES, compact, coveragePct, hydrateAppeal, money } from '../../../lib/globalAid.js';
 import { countryPosition, regionPosition } from '../geoLookup.js';
-import { dateLabel, plural, presentRows } from './common.js';
+import { dateLabel, presentRows } from './common.js';
 
 /**
  * Global Aid (the humanitarian appeal register) → record panel (F121).
@@ -116,10 +116,6 @@ export default function globalAid(row, ctx = {}) {
     else fundedSub = 'no requirement on record to compare';
   }
 
-  const right = countries.length
-    ? { l1: countries.slice(0, 2).join(', '), l2: countries.length > 2 ? `and ${countries.length - 2} more` : undefined }
-    : (geography || real(p.region)) ? { l1: geography || real(p.region) } : undefined;
-
   const links = [
     ...(peers.length > 3 ? [{ title: `Other appeals by ${p.agency.trim()}`, detail: `${peers.length} on the register; the three largest open below` }] : []),
     ...open.map((x) => ({
@@ -166,13 +162,6 @@ export default function globalAid(row, ctx = {}) {
     },
     touches: {
       label: '03 · Appeal & where it lands',
-      lanes: ['AGENCY', 'APPEAL', 'COUNTRIES', 'SECTORS'],
-      nodes: {
-        left: agency ? { l1: agency } : undefined,
-        center: { code: 'A', l1: 'This appeal', l2: period || undefined },
-        right,
-        far: sectors.length ? { l1: plural(sectors.length, 'sector'), l2: sectors.slice(0, 2).join(', ') } : undefined,
-      },
       links: uniqueLinks,
     },
     footer: {

@@ -1,11 +1,11 @@
 import { analysisFor, buildRecordModel, DESKS } from '../../../lib/impactRecord.js';
-import { cap, companiesNamedIn, dateLabel, plural, presentRows, sourceLinks } from './common.js';
+import { cap, dateLabel, plural, presentRows, sourceLinks } from './common.js';
 import { titleCaseCaps } from './feedText.js';
 
 /**
  * Bill Passage Probability Index → record panel (F124). Rows are the Sansad bills register; the
  * analysis pack (ctx.packs, loaded by the panel host) adds the passage figure, precedent, time in
- * stage, sectors and the authored brief for the bills it covers. The register holds no date for any
+ * stage and the authored brief for the bills it covers. The register holds no date for any
  * stage after introduction, and for a resolved bill the stored passage figure is simply its outcome,
  * so the panel shows a passage figure only for a pending bill, as the historical base rate it is.
  */
@@ -65,10 +65,6 @@ export default function nationalBills(row, ctx = {}) {
   const days = a?.stage_duration?.days_in_current_stage;
   const daysInStage = days != null && Number.isFinite(Number(days)) ? Number(days) : null;
   const typical = a?.stage_duration?.typical_days_for_stage;
-  const sectors = (impact?.sectors || []).map((s) => s.name).filter(Boolean);
-  if (!sectors.length && ministry) sectors.push(ministry);
-  // Companies only where the bill's own text names them, never by sector association or an ordinary word.
-  const companies = packs ? companiesNamedIn(impact, packs.ontology, `${row.bill_name || ''} ${a?.brief || ''}`) : [];
   const pdf = httpsOnly(impact?.pdf);
 
   const rows = ctx.rows || [];
@@ -118,13 +114,6 @@ export default function nationalBills(row, ctx = {}) {
     },
     touches: {
       label: '03 · Bill & its impact',
-      lanes: ['MINISTRY', 'BILL', 'SECTORS & SEGMENTS', 'COMPANIES'],
-      nodes: {
-        left: ministry ? { l1: ministry, l2: 'ministry on record' } : undefined,
-        center: { code: 'B', l1: 'This bill', l2: info?.badge },
-        right: sectors.length ? { l1: sectors[0], l2: sectors.length > 1 ? `+${sectors.length - 1} more` : 'sector' } : undefined,
-        far: companies.length ? { l1: companies[0], l2: companies.length > 1 ? `+${companies.length - 1} named` : 'named in the text' } : undefined,
-      },
       links: [
         ...related.slice(0, MAX_RELATED).map((r) => ({ title: titleCase(r.bill_name || r.title), detail: [r.current_stage, dateLabel(r.date_introduced)].filter(Boolean).join(' · '), row: r })),
         ...(related.length > MAX_RELATED ? [{ title: `Other ${ministry} bills`, detail: `${related.length} on the register` }] : []),
@@ -133,7 +122,7 @@ export default function nationalBills(row, ctx = {}) {
     footer: {
       ask: 'Ask AI about this bill',
       provenance: { source: 'Sansad bills register (sansad.in)', asOf, flags: asOf ? [] : ['as-of not on record'] },
-      note: 'A passage figure appears only for a pending bill, as the historical base rate of similar bills: not a forecast. A resolved bill shows its outcome as its stage. A company is drawn only where the bill text names it.',
+      note: 'A passage figure appears only for a pending bill, as the historical base rate of similar bills: not a forecast. A resolved bill shows its outcome as its stage.',
     },
   };
 }

@@ -328,33 +328,6 @@ describe('02 about', () => {
 });
 
 describe('03 what it touches', () => {
-  it('uses the four sanctions lanes, with a programme centre node coded S', () => {
-    for (const row of rows) {
-      const t = model(row).touches;
-      expect(t.lanes, row.id).toEqual(['AUTHORITY', 'PROGRAMME', 'SECTORS', 'ENTITIES']);
-      expect(t.nodes.center, row.id).toMatchObject({ code: 'S', l1: 'This programme' });
-    }
-    expect(model(ru).touches.nodes.center.l2).toBe('Active');
-  });
-
-  it('puts the issuer left: a count of authorities, or the one authority by name', () => {
-    expect(model(ru).touches.nodes.left).toEqual({ l1: '6 issuing', l2: 'authorities' });
-    expect(model(cu).touches.nodes.left).toEqual({ l1: 'US (OFAC)' });
-    expect(model({}).touches.nodes.left).toBeUndefined();
-  });
-
-  it('puts the sectors right: the sector, or the count with the first', () => {
-    expect(model(ru).touches.nodes.right).toEqual({ l1: '4 sectors', l2: 'Energy & oil price cap' });
-    expect(model(byId('zw')).touches.nodes.right).toEqual({ l1: 'Targeted (individuals)' });
-    expect(model(full({ sectors_json: '[]' })).touches.nodes.right).toBeUndefined();
-  });
-
-  it('puts the register\'s listed scope far, and omits it when the row holds none', () => {
-    expect(model(ru).touches.nodes.far).toEqual({ l1: '6,300+ individuals & entities', l2: 'listed scope' });
-    expect(model(full({ entities: '', listed_scope: '' })).touches.nodes.far).toBeUndefined();
-    expect(model({}).touches.nodes.far).toBeUndefined();
-  });
-
   it('opens each other programme in the same register region in place, never the selection', () => {
     const links = model(byId('ir')).touches.links;
     expect(links.map((l) => l.title)).toEqual(['Houthis (Ansar Allah)', 'Hamas / PIJ / Hezbollah', 'Syria (post-Assad review)']);

@@ -1,5 +1,5 @@
 import { countryPosition } from '../geoLookup.js';
-import { plural, presentRows, sourceLinks } from './common.js';
+import { presentRows, sourceLinks } from './common.js';
 
 /**
  * Growth Indicators (World Bank GDP growth, inflation, unemployment) → record panel (F121).
@@ -130,13 +130,6 @@ export default function growthIndicators(row, ctx = {}) {
     },
     touches: {
       label: '03 · Economy & what it touches',
-      lanes: ['ECONOMY', 'SERIES', 'RANK', 'SAME YEAR'],
-      nodes: {
-        left: { l1: title },
-        center: { code: 'G', l1: 'This economy', l2: gdpText ? `GDP ${gdpText}` : undefined },
-        right: rank ? { l1: rank.text, l2: 'on GDP growth' } : undefined,
-        far: sameYear ? { l1: plural(sameYear, 'other economy', 'other economies'), l2: `also ${year}` } : undefined,
-      },
       links: [
         ...(rank ? [{ title: 'Rank on GDP growth', detail: `${rank.text} economies on this board, highest first` }] : []),
         ...(sameYear ? [{ title: `Economies with ${year} data`, detail: `${sameYear} more on this board` }] : []),

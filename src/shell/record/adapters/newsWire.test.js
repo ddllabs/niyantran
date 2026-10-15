@@ -448,59 +448,44 @@ describe('02 what the item says', () => {
 });
 
 describe('03 what it touches', () => {
-  it('uses the four news lanes with a story centre node coded N', () => {
-    for (const [row, c] of [...ALL, [{}, {}]]) {
-      const t = newsWire(row, c).touches;
-      expect(t.lanes, row.title).toEqual(['PUBLISHER', 'STORY', 'PUBLISHED', 'SAME PUBLISHER']);
-      expect(t.nodes.center, row.title).toMatchObject({ code: 'N', l1: 'This story' });
-      expect(t.label).toBe('03 · Story & what it touches');
-    }
+  it('numbers the section 03', () => {
+    for (const [row, c] of [...ALL, [{}, {}]]) expect(newsWire(row, c).touches.label, row.title).toBe('03 · Story & what it touches');
   });
 
-  it('puts the publisher left, the date right and the other stories by that publisher far', () => {
-    const n = gm(g1).touches.nodes;
-    expect(n.left).toEqual({ l1: 'reuters.com' });
-    expect(n.right).toEqual({ l1: '12 Oct 2026' });
-    expect(n.far).toEqual({ l1: '2 other stories', l2: 'same publisher' });
-    expect(rm(r1).touches.nodes.far.l1).toBe('3 other stories');
-    expect(rm(r1).touches.nodes.left).toEqual({ l1: 'BBC World' });
+  it('links the other stories by that publisher', () => {
+    expect(rm(r1).touches.links).toEqual([{ title: 'Other stories from BBC World', detail: '3 more on the wire' }]);
   });
 
   it('counts only others, case- and www-insensitively, without the selection or a copy of it', () => {
     const shouty = gdeltRow(art({ url: 'https://example.org/x', title: 'Another', domain: 'Reuters.COM' }));
     const www = gdeltRow(art({ url: 'https://example.org/y', title: 'Yet another', domain: 'www.reuters.com' }));
     const list = [...GDELT_ROWS, shouty, www, STATUS_ROW];
-    expect(gm(g1, gctx(list)).touches.nodes.far.l1).toBe('4 other stories');
-    expect(gm(shouty, gctx(list)).touches.nodes.far.l1).toBe('4 other stories');
-    expect(gm({ ...g1 }, gctx(list)).touches.nodes.far.l1).toBe('4 other stories');
-    expect(gm({ ...g1 }, gctx(list)).touches.links[0].detail).toBe('4 more on the wire');
-    expect(gm(g4).touches.nodes.far).toBeUndefined();
-    expect(gm(g1, gctx([g1, g4])).touches.nodes.far).toBeUndefined();
-    expect(gm(g1, gctx([g1, { ...g1 }])).touches.nodes.far).toBeUndefined(); // the same story listed twice is not another story
-    expect(gm(g1, gctx([g1, { ...g1, url: 'https://elsewhere.example/1', source_url: 'https://elsewhere.example/1' }])).touches.nodes.far.l1).toBe('1 other story');
+    const detail = (m) => m.touches.links[0]?.detail;
+    expect(detail(gm(g1, gctx(list)))).toBe('4 more on the wire');
+    expect(detail(gm(shouty, gctx(list)))).toBe('4 more on the wire');
+    expect(detail(gm({ ...g1 }, gctx(list)))).toBe('4 more on the wire');
+    expect(gm(g4).touches.links).toEqual([]);
+    expect(gm(g1, gctx([g1, g4])).touches.links).toEqual([]);
+    expect(gm(g1, gctx([g1, { ...g1 }])).touches.links).toEqual([]); // the same story listed twice is not another story
+    expect(detail(gm(g1, gctx([g1, { ...g1, url: 'https://elsewhere.example/1', source_url: 'https://elsewhere.example/1' }])))).toBe('1 more on the wire');
   });
 
   it('recognises a copy of a row without a link by its headline and date', () => {
     const a = rssRow({ n: 1, title: 'Same headline' });
     const bare = { ...a, source_url: '' };
     const list = [bare, rssRow({ n: 2, title: 'Same headline', date: 'Tue, 13 Oct 2026 10:00:00 GMT' }), rssRow({ n: 3, title: 'Different' })];
-    expect(rm({ ...bare }, rctx(list)).touches.nodes.far.l1).toBe('2 other stories');
+    expect(rm({ ...bare }, rctx(list)).touches.links[0].detail).toBe('2 more on the wire');
   });
 
   it('counts the publisher by outlet for RSS and does not count status rows', () => {
-    expect(rm(r1, rctx([...RSS_ROWS, STATUS_ROW, { ...STATUS_ROW, outlet: 'BBC World' }])).touches.nodes.far.l1).toBe('3 other stories');
+    expect(rm(r1, rctx([...RSS_ROWS, STATUS_ROW, { ...STATUS_ROW, outlet: 'BBC World' }])).touches.links[0].detail).toBe('3 more on the wire');
   });
 
-  it('omits a missing node so the renderer can say None on record', () => {
-    const n = newsWire({}).touches.nodes;
-    expect(n.left).toBeUndefined();
-    expect(n.right).toBeUndefined();
-    expect(n.far).toBeUndefined();
-    expect(gm(g5).touches.nodes.right).toBeUndefined();
-    expect(gm(g1, {}).touches.nodes.far).toBeUndefined();
-    expect(gm(g1, { rows: [] }).touches.nodes.far).toBeUndefined();
-    expect(gm({ ...g1, domain: '' }).touches.nodes.left).toBeUndefined();
-    expect(gm({ ...g1, domain: '' }).touches.nodes.far).toBeUndefined();
+  it('links nothing without feed rows or a publisher', () => {
+    expect(newsWire({}).touches.links).toEqual([]);
+    expect(gm(g1, {}).touches.links).toEqual([]);
+    expect(gm(g1, { rows: [] }).touches.links).toEqual([]);
+    expect(gm({ ...g1, domain: '' }).touches.links).toEqual([]);
   });
 
   it('writes its cross-link as static text with no destination', () => {
@@ -616,7 +601,6 @@ describe('Google News search rows (F188)', () => {
     expect(tile(model, 'Publisher').value).toBe('Reuters');
     expect(model.meta).toEqual(['News wire', 'Reuters']);
     expect(model.about.rows).toEqual([['Publisher', 'Reuters'], ['Published', '15 Oct 2026']]);
-    expect(model.touches.nodes.left).toEqual({ l1: 'Reuters' });
     expect(tile(ggm(googleNoSummary), 'Publisher').value).toBe('Al Jazeera');
   });
 

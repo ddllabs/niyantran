@@ -1,5 +1,5 @@
 import { countryPosition } from '../geoLookup.js';
-import { plural, presentRows, sourceLinks } from './common.js';
+import { presentRows, sourceLinks } from './common.js';
 
 /**
  * World Constitutions (Constitute Project, constitutions in force) → record panel (F121).
@@ -109,13 +109,6 @@ export default function constitutions(row, ctx = {}) {
     },
     touches: {
       label: '03 · Constitution & what it touches',
-      lanes: ['COUNTRY', 'CONSTITUTION', 'ENACTED', 'SAME DECADE'],
-      nodes: {
-        left: { l1: title },
-        center: { code: 'K', l1: 'This constitution', l2: 'In force' },
-        right: decade ? { l1: decade, l2: 'enacted' } : undefined,
-        far: sameDecade ? { l1: plural(sameDecade, 'other constitution'), l2: `also enacted in the ${decade}` } : undefined,
-      },
       links: sameDecade ? [{ title: `Other constitutions from the ${decade}`, detail: `${sameDecade} more in force on this list` }] : [],
     },
     footer: {

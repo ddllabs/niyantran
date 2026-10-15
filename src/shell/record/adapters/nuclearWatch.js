@@ -8,8 +8,7 @@ import { cap, dateLabel, presentRows, sourceLinks } from './common.js';
  * holds a status, a class, a country, an operator, a published capacity, safeguards text, a source
  * and the date it was checked, plus one position and a label for how precise that position is
  * ("Exact public site centroid", "Public approximate facility area", "Country centroid · not a
- * facility", ...). No record names a front or holds a position for one, so the front lane reads
- * "None on record" unless a row ever carries a `front`; nothing is guessed. The panel makes no
+ * facility", ...). No record names a front, and none is guessed. The panel makes no
  * assessment of safety, weapons potential or compliance: status is the public record's own word.
  */
 const NOT_ON_RECORD = 'Not on record';
@@ -101,7 +100,6 @@ export default function nuclearWatch(row, ctx = {}) {
   const noun = countryLevel ? 'record' : 'facility';
   const where = position(row);
   const approximate = APPROXIMATE.test(precision);
-  const front = text(row.front);
   const asOf = checked || dateLabel(ctx.feed?.meta?.asOf);
 
   const sameCountry = othersInCountry(ctx.rows, row);
@@ -148,13 +146,6 @@ export default function nuclearWatch(row, ctx = {}) {
     },
     touches: {
       label: `03 · ${countryLevel ? 'Record' : 'Facility'} & what it touches`,
-      lanes: ['COUNTRY', 'FACILITY', 'FRONT', 'OPERATOR'],
-      nodes: {
-        left: country ? { l1: country } : undefined,
-        center: { code: 'N', l1: countryLevel ? 'This record' : 'This site', l2: badge?.text },
-        right: front ? { l1: front } : undefined,
-        far: operator ? { l1: operator, l2: 'operator' } : capacity ? { l1: capacity, l2: 'capacity' } : undefined,
-      },
       links: [
         ...(sameCountry.length ? [{ title: `Records in ${country}`, detail: `${sameCountry.length} more on the register` }] : []),
         ...sameCountry.slice(0, MAX_FACILITY_LINKS).map((r) => ({

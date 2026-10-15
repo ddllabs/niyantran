@@ -46,7 +46,6 @@ const CONFIG = {
   'UP High Court (Allahabad) Order Feed': {
     pub: 'the Allahabad High Court',
     clock: 'Next date',
-    lane3: 'HIGH COURT',
     needs: ['CNR', 'Stage', 'Bench and roster', 'Interim order status', 'Next date and purpose', 'Order sheet text', 'Connected matters'],
     quick: ['Hearing note', 'Client status update'],
     callout: 'This module holds news coverage of the Allahabad High Court, not its cause lists or orders. A report of an order is not the order.',
@@ -55,7 +54,6 @@ const CONFIG = {
   'District Court Case Tracker': {
     pub: 'eCourts',
     clock: 'Next date',
-    lane3: 'COURT',
     needs: ['CNR number', 'Case type, number and year', 'Parties', 'Acts and sections', 'Stage', 'Last and next hearing date', 'Order PDFs'],
     quick: ['Hearing note', 'Client status update'],
     callout: 'A district-court tracker with no case on it: the rows are news items, and none reaches a cause list, a stage or an order.',
@@ -64,7 +62,6 @@ const CONFIG = {
   'NGT Environmental Litigation Tracker': {
     pub: 'the NGT',
     clock: 'Compliance by',
-    lane3: 'BENCH',
     needs: ['Original Application number and year', 'Zonal bench', 'Applicant and respondent', 'Project or clearance challenged', 'Direction issued', 'Compliance deadline', 'Committee reports on record'],
     quick: ['Case note', 'Compliance & deadline sheet'],
     callout: 'NGT directions carry compliance deadlines and compensation, the two things a client asks about first. Neither is on this row, and neither can be inferred from a headline.',
@@ -73,7 +70,6 @@ const CONFIG = {
   'CAT & Consumer Disputes (NCDRC) Watch': {
     pub: 'CAT and the NCDRC',
     clock: 'Appeal window',
-    lane3: 'FORUM',
     needs: ['OA or complaint number', 'Bench or commission', 'Applicant or complainant and opposite party', 'Service cadre, or value of goods and services', 'Impugned order or deficiency alleged', 'Relief sought', 'Relief granted'],
     quick: ['Case note', 'Limitation & deadline sheet'],
     callout: 'Service law (CAT) and consumer law (NCDRC) share no procedure, limitation period or relief. This item does not say which forum, if either, decided anything.',
@@ -82,7 +78,6 @@ const CONFIG = {
   'HC Judge Profiles & Bench Analytics': {
     pub: 'the High Courts and the Supreme Court collegium',
     clock: 'Retires',
-    lane3: 'COURT',
     needs: ['Appointment and elevation dates', 'Parent High Court', 'Benches and rosters sat on', 'Judgments authored', 'Subject distribution', 'Cited-by count', 'Denominator for every rate shown'],
     quick: ['Bench memo (factual)'],
     callout: 'Factual only. This row is commentary, not a record of a judge: no appointment dates, judgments or rates are on it, and none are computed.',
@@ -91,7 +86,6 @@ const CONFIG = {
   'ICC Proceedings': {
     pub: 'the ICC',
     clock: 'Next step',
-    lane3: 'COURT',
     needs: ['Situation and case number', 'Chamber', 'Suspect or accused', 'Charges under the Rome Statute', 'Procedural stage', 'Filing date and document number', 'Warrant status'],
     quick: ['Case brief', 'Chronology'],
     callout: 'ICC coverage names individuals. Nothing on this row establishes a charge, a warrant or a stage; a headline about a named person is not a court record.',
@@ -100,7 +94,6 @@ const CONFIG = {
   'ICJ Proceedings': {
     pub: 'the ICJ',
     clock: 'Next time-limit',
-    lane3: 'COURT',
     needs: ['Case title and General List number', 'Applicant and respondent', 'Basis of jurisdiction', 'Phase', 'Orders and judgments with dates', 'Time-limits fixed for pleadings', 'Separate and dissenting opinions'],
     quick: ['Case brief', 'Chronology'],
     callout: 'The ICJ publishes its contentious and advisory lists, numbered. This row is a news item, not an entry in them.',
@@ -109,7 +102,6 @@ const CONFIG = {
   'WTO Dispute Settlement': {
     pub: 'the WTO',
     clock: 'Compliance period ends',
-    lane3: 'DISPUTE',
     needs: ['DS number', 'Complainant and respondent', 'Measure at issue', 'Agreements and articles cited', 'Panel composition and third parties', 'Current stage with its date', 'Compliance and retaliation status'],
     quick: ['Dispute brief', 'Chronology'],
     callout: 'WTO disputes carry a DS number and a published timeline. This row is a news item and names neither.',
@@ -118,7 +110,6 @@ const CONFIG = {
   'Sector Tribunals (ITAT / TDSAT / SAT / DRT)': {
     pub: 'ITAT, TDSAT, SAT and DRT',
     clock: 'Appeal window',
-    lane3: 'FORUM',
     needs: ['Appeal or OA number', 'Bench', 'Assessment year, licence or order appealed against', 'Section or regulation in dispute', 'Quantum or penalty', 'Stay status', 'Date of pronouncement and appeal window'],
     quick: ['Case note', 'Limitation & deadline sheet'],
     callout: 'Four tribunals, four statutes, four limitation regimes. This item does not establish which tribunal, if any, decided anything.',
@@ -130,7 +121,6 @@ const CONFIG = {
 const GENERIC = {
   pub: 'the court or tribunal concerned',
   clock: 'Next date',
-  lane3: 'FORUM',
   needs: ['Case number', 'Parties', 'Forum', 'Stage', 'Order text'],
   quick: ['Case note'],
   callout: 'This module holds news coverage of a court or tribunal, not its records. A report of a decision is not the decision.',
@@ -289,13 +279,6 @@ export default function lawWire(row, ctx = {}) {
     quick: config.quick.map((label) => ({ label, prompt: quickPrompt(label, title) })),
     touches: {
       label: '03 · Entity & what it touches',
-      lanes: ['PUBLISHER', 'ITEM', config.lane3, 'ENTITIES'],
-      nodes: {
-        left: publisher ? { l1: publisher } : undefined,
-        center: { code: 'N', l1: 'This item', l2: 'Wire' },
-        right: undefined,
-        far: undefined,
-      },
       links: relatedLinks(item, rows),
     },
     footer: {

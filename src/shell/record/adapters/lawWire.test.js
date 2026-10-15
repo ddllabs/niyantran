@@ -62,63 +62,63 @@ const FIXTURES = {
 // The nine modules, written out independently of the adapter (the task table).
 const CASES = [
   {
-    feature: 'UP High Court (Allahabad) Order Feed', pub: 'the Allahabad High Court', clock: 'Next date', lane3: 'HIGH COURT',
+    feature: 'UP High Court (Allahabad) Order Feed', pub: 'the Allahabad High Court', clock: 'Next date',
     needs: ['CNR', 'Stage', 'Bench and roster', 'Interim order status', 'Next date and purpose', 'Order sheet text', 'Connected matters'],
     quick: ['Hearing note', 'Client status update'],
     callout: 'This module holds news coverage of the Allahabad High Court, not its cause lists or orders. A report of an order is not the order.',
     cite: 'There is no case to cite. Cite the publisher and the date, and say plainly that the underlying order was not read.',
   },
   {
-    feature: 'District Court Case Tracker', pub: 'eCourts', clock: 'Next date', lane3: 'COURT',
+    feature: 'District Court Case Tracker', pub: 'eCourts', clock: 'Next date',
     needs: ['CNR number', 'Case type, number and year', 'Parties', 'Acts and sections', 'Stage', 'Last and next hearing date', 'Order PDFs'],
     quick: ['Hearing note', 'Client status update'],
     callout: 'A district-court tracker with no case on it: the rows are news items, and none reaches a cause list, a stage or an order.',
     cite: 'There is no case to cite. Cite the publisher and the date, and say plainly that the underlying order was not read.',
   },
   {
-    feature: 'NGT Environmental Litigation Tracker', pub: 'the NGT', clock: 'Compliance by', lane3: 'BENCH',
+    feature: 'NGT Environmental Litigation Tracker', pub: 'the NGT', clock: 'Compliance by',
     needs: ['Original Application number and year', 'Zonal bench', 'Applicant and respondent', 'Project or clearance challenged', 'Direction issued', 'Compliance deadline', 'Committee reports on record'],
     quick: ['Case note', 'Compliance & deadline sheet'],
     callout: 'NGT directions carry compliance deadlines and compensation, the two things a client asks about first. Neither is on this row, and neither can be inferred from a headline.',
     cite: 'A direction has consequences; a report of a direction does not. Quote the publisher, and get the order before advising.',
   },
   {
-    feature: 'CAT & Consumer Disputes (NCDRC) Watch', pub: 'CAT and the NCDRC', clock: 'Appeal window', lane3: 'FORUM',
+    feature: 'CAT & Consumer Disputes (NCDRC) Watch', pub: 'CAT and the NCDRC', clock: 'Appeal window',
     needs: ['OA or complaint number', 'Bench or commission', 'Applicant or complainant and opposite party', 'Service cadre, or value of goods and services', 'Impugned order or deficiency alleged', 'Relief sought', 'Relief granted'],
     quick: ['Case note', 'Limitation & deadline sheet'],
     callout: 'Service law (CAT) and consumer law (NCDRC) share no procedure, limitation period or relief. This item does not say which forum, if either, decided anything.',
     cite: 'Say which forum, or say neither.',
   },
   {
-    feature: 'HC Judge Profiles & Bench Analytics', pub: 'the High Courts and the Supreme Court collegium', clock: 'Retires', lane3: 'COURT',
+    feature: 'HC Judge Profiles & Bench Analytics', pub: 'the High Courts and the Supreme Court collegium', clock: 'Retires',
     needs: ['Appointment and elevation dates', 'Parent High Court', 'Benches and rosters sat on', 'Judgments authored', 'Subject distribution', 'Cited-by count', 'Denominator for every rate shown'],
     quick: ['Bench memo (factual)'],
     callout: 'Factual only. This row is commentary, not a record of a judge: no appointment dates, judgments or rates are on it, and none are computed.',
     cite: 'Commentary about a judge is not a record of a judge. Attribute it to the publisher and leave it there.',
   },
   {
-    feature: 'ICC Proceedings', pub: 'the ICC', clock: 'Next step', lane3: 'COURT',
+    feature: 'ICC Proceedings', pub: 'the ICC', clock: 'Next step',
     needs: ['Situation and case number', 'Chamber', 'Suspect or accused', 'Charges under the Rome Statute', 'Procedural stage', 'Filing date and document number', 'Warrant status'],
     quick: ['Case brief', 'Chronology'],
     callout: 'ICC coverage names individuals. Nothing on this row establishes a charge, a warrant or a stage; a headline about a named person is not a court record.',
     cite: 'Name the stage or do not name the person. “Reported to be under investigation” and “charged” are different claims.',
   },
   {
-    feature: 'ICJ Proceedings', pub: 'the ICJ', clock: 'Next time-limit', lane3: 'COURT',
+    feature: 'ICJ Proceedings', pub: 'the ICJ', clock: 'Next time-limit',
     needs: ['Case title and General List number', 'Applicant and respondent', 'Basis of jurisdiction', 'Phase', 'Orders and judgments with dates', 'Time-limits fixed for pleadings', 'Separate and dissenting opinions'],
     quick: ['Case brief', 'Chronology'],
     callout: 'The ICJ publishes its contentious and advisory lists, numbered. This row is a news item, not an entry in them.',
     cite: 'Provisional measures bind. A report that measures were sought does not.',
   },
   {
-    feature: 'WTO Dispute Settlement', pub: 'the WTO', clock: 'Compliance period ends', lane3: 'DISPUTE',
+    feature: 'WTO Dispute Settlement', pub: 'the WTO', clock: 'Compliance period ends',
     needs: ['DS number', 'Complainant and respondent', 'Measure at issue', 'Agreements and articles cited', 'Panel composition and third parties', 'Current stage with its date', 'Compliance and retaliation status'],
     quick: ['Dispute brief', 'Chronology'],
     callout: 'WTO disputes carry a DS number and a published timeline. This row is a news item and names neither.',
     cite: 'Cite the dispute number or cite nothing.',
   },
   {
-    feature: 'Sector Tribunals (ITAT / TDSAT / SAT / DRT)', pub: 'ITAT, TDSAT, SAT and DRT', clock: 'Appeal window', lane3: 'FORUM',
+    feature: 'Sector Tribunals (ITAT / TDSAT / SAT / DRT)', pub: 'ITAT, TDSAT, SAT and DRT', clock: 'Appeal window',
     needs: ['Appeal or OA number', 'Bench', 'Assessment year, licence or order appealed against', 'Section or regulation in dispute', 'Quantum or penalty', 'Stay status', 'Date of pronouncement and appeal window'],
     quick: ['Case note', 'Limitation & deadline sheet'],
     callout: 'Four tribunals, four statutes, four limitation regimes. This item does not establish which tribunal, if any, decided anything.',
@@ -193,9 +193,8 @@ describe('Law wire modules (F128 L4)', () => {
       }
     });
 
-    it('uses the module\'s third lane and names the provenance', () => {
+    it('names the provenance', () => {
       const m = build(google(), c.feature);
-      expect(m.touches.lanes).toEqual(['PUBLISHER', 'ITEM', c.lane3, 'ENTITIES']);
       expect(m.footer.provenance.source).toBe(`Google News search results (live); not a record from ${c.pub}`);
       const g = build(gdelt(), c.feature);
       expect(g.footer.provenance.source).toBe(`News search results (live); not a record from ${c.pub}`);
@@ -327,8 +326,6 @@ describe('Law wire modules (F128 L4)', () => {
       const none = build(FIXTURES['google without publisher'], CASES[0].feature);
       expect(tile(none, 'Publisher').value).toBe('Not on the row');
       expect(none.meta).toEqual(['Published 12 Oct 2026']);
-      expect(none.touches.nodes.left).toBeUndefined();
-      expect(g.touches.nodes.left).toEqual({ l1: 'The Hindu' });
     });
   });
 
@@ -409,12 +406,9 @@ describe('Law wire modules (F128 L4)', () => {
       expect(links.map((l) => l.title)).toEqual(['Another story']);
     });
 
-    it('puts the item at the centre with nothing to the right', () => {
+    it('numbers the section 03', () => {
       const m = build(google(), CASES[0].feature);
       expect(m.touches.label).toBe('03 · Entity & what it touches');
-      expect(m.touches.nodes.center).toEqual({ code: 'N', l1: 'This item', l2: 'Wire' });
-      expect(m.touches.nodes.right).toBeUndefined();
-      expect(m.touches.nodes.far).toBeUndefined();
     });
   });
 

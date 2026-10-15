@@ -110,7 +110,6 @@ describe('World Constitutions adapter', () => {
   ])('writes %s as a readable country name', (id, name) => {
     const m = model(id);
     expect(m.title).toBe(name);
-    expect(m.touches.nodes.left.l1).toBe(name);
     expect(m.about.rows).toContainEqual(['Country', name]);
   });
 
@@ -142,15 +141,13 @@ describe('World Constitutions adapter', () => {
     expect(model('Timor-Leste').glance.tiles[2].value).toBe('2000s'); // 2002
   });
 
-  it('writes "Not on record" for a missing enactment year and draws no decade lane', () => {
+  it('writes "Not on record" for a missing enactment year and links no decade', () => {
     const m = model('Kosovo');
     expect(contractProblems(m)).toEqual([]);
     expect(m.glance.tiles[0]).toMatchObject({ label: 'Enacted', value: 'Not on record' });
     expect(m.glance.tiles[2]).toMatchObject({ label: 'Decade', value: 'Not on record' });
     expect(m.about.rows.map(([k]) => k)).toContain('Enacted');
     expect(m.about.rows.find(([k]) => k === 'Enacted')[1]).toBe('Not on record');
-    expect(m.touches.nodes.right).toBeUndefined();
-    expect(m.touches.nodes.far).toBeUndefined();
     expect(m.touches.links).toEqual([]);
   });
 
@@ -167,24 +164,18 @@ describe('World Constitutions adapter', () => {
     const india = pick('India');
     const m = constitutions(india, ctx());
     // Italy 1947, Japan 1946 and Korea 1948 share the 1940s with India (1949).
-    expect(m.touches.nodes.far).toEqual({ l1: '3 other constitutions', l2: 'also enacted in the 1940s' });
     expect(m.touches.links).toEqual([{ title: 'Other constitutions from the 1940s', detail: '3 more in force on this list' }]);
     // The selection can be a copy of its feed row: it still must not count itself.
-    expect(constitutions({ ...india }, ctx()).touches.nodes.far.l1).toBe('3 other constitutions');
+    expect(constitutions({ ...india }, ctx()).touches.links[0].detail).toBe('3 more in force on this list');
     // Rows of other decades are not counted: the 1210s hold only the United Kingdom (1215) here, and the 2010s hold three.
-    expect(model('United_Kingdom_of_Great_Britain_and_Northern_Ireland__the').touches.nodes.far).toBeUndefined();
-    expect(model('Niger_the').touches.nodes.far.l1).toBe('2 other constitutions');
-    // One other constitution reads in the singular.
+    expect(model('United_Kingdom_of_Great_Britain_and_Northern_Ireland__the').touches.links).toEqual([]);
+    expect(model('Niger_the').touches.links[0].detail).toBe('2 more in force on this list');
     const two = rows.filter((r) => ['India', 'Japan'].includes(r.country));
-    expect(constitutions(pick('India', two), ctx(two)).touches.nodes.far.l1).toBe('1 other constitution');
+    expect(constitutions(pick('India', two), ctx(two)).touches.links[0].detail).toBe('1 more in force on this list');
   });
 
-  it('uses the four fixed lanes with the country, this constitution, its decade and the count', () => {
+  it('keeps the related links as static text', () => {
     const m = model('India');
-    expect(m.touches.lanes).toEqual(['COUNTRY', 'CONSTITUTION', 'ENACTED', 'SAME DECADE']);
-    expect(m.touches.nodes.left).toEqual({ l1: 'India' });
-    expect(m.touches.nodes.center).toEqual({ code: 'K', l1: 'This constitution', l2: 'In force' });
-    expect(m.touches.nodes.right).toEqual({ l1: '1940s', l2: 'enacted' });
     for (const link of m.touches.links) expect(link.to, link.title).toBeUndefined(); // static text only
   });
 

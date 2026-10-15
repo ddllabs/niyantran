@@ -115,13 +115,6 @@ export default function nationalMps(row, ctx = {}) {
     },
     touches: {
       label: '03 · Member & party',
-      lanes: ['PARTY', 'MEMBER', 'CONSTITUENCY', 'COMMITTEES'],
-      nodes: {
-        left: party ? { l1: party, l2: listedAs && listedAs !== party ? `listed as ${listedAs}` : 'as in the register' } : undefined,
-        center: { code: 'M', l1: 'This member', l2: house || undefined },
-        right: constituency ? { l1: constituency, l2: state || 'constituency' } : state ? { l1: state, l2: 'state' } : undefined,
-        far: committees.length ? { l1: committees[0], l2: committees.length > 1 ? `+${committees.length - 1} more` : 'committee' } : undefined,
-      },
       links: [
         ...related.slice(0, MAX_RELATED).map((r) => ({
           title: clean(r.mp_name) || 'Member',

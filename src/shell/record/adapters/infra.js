@@ -1,7 +1,7 @@
 import infraPack from '../../../data/infra-projects.json';
 import { countryPosition } from '../geoLookup.js';
 import { othersSharing } from '../touchRules.js';
-import { cap, dateLabel, plural, presentRows, sourceLinks } from './common.js';
+import { cap, dateLabel, presentRows, sourceLinks } from './common.js';
 
 /** Infra (strategic infrastructure register) → record panel (F121). Positions are country level. */
 function statusOf(status) {
@@ -50,13 +50,6 @@ export default function infra(row, ctx = {}) {
     },
     touches: {
       label: '03 · Asset & what it touches',
-      lanes: ['COUNTRY', 'ASSET', 'SAME COUNTRY', 'SAME SECTOR'],
-      nodes: {
-        left: row.country ? { l1: row.country } : undefined,
-        center: { code: 'A', l1: 'This asset', l2: badge?.text },
-        right: sameCountry ? { l1: `${plural(sameCountry, 'other asset')} in ${row.country}` } : undefined,
-        far: sameSector ? { l1: row.sector, l2: `${sameSector} more on record` } : undefined,
-      },
       links: [
         ...(sameCountry ? [{ title: `Assets in ${row.country}`, detail: `${sameCountry} more on the register` }] : []),
         ...(sameSector ? [{ title: `Other: ${row.sector}`, detail: `${sameSector} more on the register` }] : []),
