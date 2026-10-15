@@ -530,25 +530,28 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F195. Desk rail on module pages.** Owner request 2026-10-15 (revisits F102 for module pages
+- [x] **F195. Desk rail on module pages.** Done 2026-10-15 (`1a1b2e7`, `315de13`, `bb2e7da`, `ff17ad1`;
+  owner: "once that is fixed, push"). Owner request 2026-10-15 (revisits F102 for module pages
   only). Inside a desk, the desk tabs leave the header for a 56 px icon rail on the left; its toggle
   widens it to 208 px with names over the page; at 900 px and below it is a drawer from a Desks
   button in the category row. Landing pages, Home and the credits page keep the header tabs. Spec:
   `docs/specs/2026-10-15-desk-left-rail.md`. Built on `task/desk-left-rail` (from
-  `task/chat-credits-strip`); remaining: review, the owner's look, merge and push on their word.
+  `task/chat-credits-strip`); reviewed, then the toggle moved to the start of the category row with a
+  three-line icon and a sliding reveal (owner follow-up).
 - [x] **F194. `openCreditsUsage` has no caller left.** Done 2026-10-15 on `task/chat-credits-strip` (owner:
   "fix them too"): removed with its event and the shell's listener. Found in the F193 review, 2026-10-15. F193
   removed the chat's "Credits" link, the last caller of `openCreditsUsage` (`src/lib/creditsStore.js`);
   the shell's `OPEN_USAGE_EVENT` listener (`src/shell/TerminalShell.jsx`) now hears nothing, and the
   comments there still name the chat's Credits link. Remove both, or give the event a new caller.
-- [ ] **F193. Chat credit notices at the header pill; "Web sources" strip.** Owner request
+- [x] **F193. Chat credit notices at the header pill; "Web sources" strip.** Done 2026-10-15 (`337f9c1`,
+  `baf263d`, `16cac7a`). Owner request
   2026-10-15 (UI only). The credit line under the chat box goes; the chat's refusal (no credits,
   credits in use, could not be checked with Try again) and every warning show at the header's balance
   pill, whose popover opens by itself for a refusal without taking focus. The web strip becomes site
   icons side by side in their own pill, "Web sources" and the page count, with no outer border; the
   search count and "N cited in the answer" move into the list it opens. The model's citation
   instructions are unchanged (owner). Spec: `docs/specs/2026-10-15-chat-credits-and-web-strip.md`.
-  Built on `task/chat-credits-strip`; remaining: review, the owner's look, merge and push on their word.
+  Built on `task/chat-credits-strip`, reviewed, owner-checked on the local preview.
 - [x] **F184. Credits page, balance pill and visual credits UI.** Done 2026-10-15 (`65c940e`; owner:
   "push + merge"). Owner request 2026-10-15
   (UI only). Credits get their own page from the profile menu, with a left side menu holding a
