@@ -26,27 +26,49 @@ function writtenDate(iso) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 }
 
+/** The ready brief's body: format 2 is the analysis box's lead, why, watch and tags; format 1 a headline and points. */
+function BriefBody({ brief }) {
+  if (Array.isArray(brief.points)) {
+    // Format 1, stored before the format change and shown until it is regenerated.
+    return (
+      <>
+        <div className="rd-ai-brief"><b>{brief.headline}</b></div>
+        <ul className="rd-ai-bullets">{brief.points.map((p, i) => <li key={i}>{p}</li>)}</ul>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="rd-ai-brief">{brief.brief}</div>
+      {brief.why ? <div className="rd-ai-sub"><span>Why it matters</span>{brief.why}</div> : null}
+      {brief.watch ? <div className="rd-ai-sub"><span>Watch for</span>{brief.watch}</div> : null}
+      {brief.tags?.length ? (
+        <div className="rd-ai-tags">{brief.tags.map((t, i) => <span key={i} className="rd-ai-tag">{t}</span>)}</div>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The AI brief box (F123; owner decisions 2026-10-15). The brief is written from the record's own
  * fields the first time anyone opens it, stored, and shown to every later viewer, labelled with the
- * date it was written. The box says plainly when it is being written, not available or failed,
- * and never shows template text as AI. `brief` is the state from useRecordBrief; absent, or
- * state 'none', means no box. Also shown by RecordDetail and NationalRecord's GenericRecord, the
- * record views of modules without a record-panel adapter.
+ * date it was written. It has the format and styling of the blue "Niyantran analysis" box (.rd-ai):
+ * a lead brief, "Why it matters", "Watch for" and tag chips; a brief stored before that change (a
+ * headline and points) is shown as such until it is regenerated. The box says plainly when it is
+ * being written, not available or failed, and never shows template text as AI. `brief` is the state
+ * from useRecordBrief; absent, or state 'none', means no box. Also shown by RecordDetail (in place
+ * of its own analysis box) and NationalRecord's GenericRecord, the record views of modules without
+ * a record-panel adapter.
  */
 export function BriefCard({ brief }) {
-  const ready = brief.state === 'ready' && brief.headline && brief.points?.length;
+  const ready = brief.state === 'ready'
+    && (Array.isArray(brief.points) ? Boolean(brief.headline && brief.points.length) : Boolean(brief.brief));
   const date = ready ? writtenDate(brief.writtenAt) : '';
   return (
-    <div className="rp-card rp-brief" aria-live="polite">
-      <div className="rp-card-hd">✦ Niyantran analysis{ready ? <small>{date ? `AI brief · written ${date}` : 'AI brief'}</small> : null}</div>
-      {ready ? (
-        <>
-          <p className="rp-brief-hl"><b>{brief.headline}</b></p>
-          <ul className="rp-brief-pts">{brief.points.map((p, i) => <li key={i}>{p}</li>)}</ul>
-        </>
-      ) : (
-        <p className="rp-brief-empty">{BRIEF_STATUS[brief.state] || BRIEF_STATUS.error}</p>
+    <div className="rd-ai rp-brief" aria-live="polite">
+      <div className="rd-sec-label">✦ Niyantran analysis{ready ? <small>{date ? ` · AI brief · written ${date}` : ' · AI brief'}</small> : null}</div>
+      {ready ? <BriefBody brief={brief} /> : (
+        <div className="rd-ai-brief rp-brief-empty">{BRIEF_STATUS[brief.state] || BRIEF_STATUS.error}</div>
       )}
     </div>
   );

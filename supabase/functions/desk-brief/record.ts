@@ -17,9 +17,15 @@
 //     hashes the same. A forged row with a real id gets a brief only an identical forgery reads;
 //     it never reaches an honest viewer and never replaces or stands in for a desk_rows brief.
 //
-// public.record_brief_claim (migration 20261015220000) decides, in one statement, whether this
-// caller generates; it also applies the kill switch and the limits, which count generations
-// only. The global limit (5,000 a day) can be used up by about 25 accounts at their daily limit;
+// public.record_brief_claim (migration 20261015220000, format-aware since 20261015240000) decides,
+// in one statement, whether this caller generates; it also applies the kill switch and the limits,
+// which count generations only.
+//
+// Format (owner decision 2026-10-15): the brief takes the shape of the blue "Niyantran analysis" box,
+// {brief, why, watch, tags} (RECORD_BRIEF_FORMAT 2). record_briefs keeps the lead brief in headline
+// and {why, watch, tags} in points. A brief stored in the earlier shape (format 1: a headline and
+// three points) is still served, labelled format 1, and the claim regenerates it once on its next
+// open, because the claim is asked for format 2. The global limit (5,000 a day) can be used up by about 25 accounts at their daily limit;
 // stored briefs are still served after that, new ones wait for the next UTC day.
 
 import { HttpError } from '../_shared/http.ts';
@@ -35,7 +41,14 @@ import { entryFingerprint } from '../_shared/entryFingerprint.ts';
  * secret alone.
  */
 export const DEFAULT_RECORD_BRIEF_MODEL = 'anthropic/claude-haiku-5.5';
-export const RECORD_MAX_TOKENS = 350;
+/**
+ * The stored brief's shape: 1 was {headline, points[3]}, 2 is {brief, why, watch, tags}. A stored
+ * brief of an older format is regenerated once on its next open (record_brief_claim, p_format).
+ * Bump it when the prompt or the shape changes enough that stored briefs should be rewritten.
+ */
+export const RECORD_BRIEF_FORMAT = 2;
+/** The four parts total at most 150 words and four tags (about 250 tokens): room without a cut-off. */
+export const RECORD_MAX_TOKENS = 450;
 export const RECORD_TEMPERATURE = 0.2;
 /** Well inside the claim's 90-second staleness window. */
 export const RECORD_PROVIDER_TIMEOUT_MS = 30_000;
@@ -46,8 +59,10 @@ export const RECORD_PROVIDER_TIMEOUT_MS = 30_000;
  */
 export const RECORD_LIMITS = Object.freeze({ userPerMinute: 10, userPerDay: 200, globalPerDay: 5_000 });
 
-const MAX_HEADLINE = 300;
-const MAX_POINT = 600;
+/** Each of brief, why and watch; record_brief_finish re-checks these in SQL. */
+const MAX_PART = 600;
+const MAX_TAGS = 4;
+const MAX_TAG = 40;
 const MAX_CELL = 220;
 const MAX_FIELDS = 40;
 /** A field name is cut to this, and the field list to MAX_FIELDS_TEXT (security re-review 2026-10-15). */
@@ -108,11 +123,22 @@ export function catalogueFeature(tier: string, feature: string): string | null {
 
 // ---- store ----------------------------------------------------------------------------------
 
+/** The parts of a format-2 brief after the lead, as record_briefs.points keeps them. */
+export interface BriefParts {
+  why: string;
+  watch: string;
+  tags: string[];
+}
+
 export interface StoredBrief {
+  /** The lead brief (format 2) or the headline (format 1). */
   headline: string;
-  points: string[];
+  /** {why, watch, tags} (format 2) or the three points (format 1). */
+  points: string[] | BriefParts;
   model: string | null;
   written_at: string;
+  /** Absent from a claim answered before migration 20261015240000; the points' shape tells. */
+  format?: number;
 }
 
 export type ClaimResult =
@@ -134,11 +160,15 @@ export interface ClaimArgs {
   source: RecordSource;
   userId: string;
   limits: typeof RECORD_LIMITS;
+  /** The format this function writes; a stored brief of an older one is regenerated once. */
+  format: number;
 }
 
 export interface FinishedBrief {
+  /** The lead brief. */
   headline: string;
-  points: string[];
+  points: BriefParts;
+  format: number;
   model: string;
   prompt_tokens: number | null;
   completion_tokens: number | null;
@@ -200,14 +230,18 @@ export function parseRecordRequest(
 // ---- prompt ---------------------------------------------------------------------------------
 
 export const RECORD_SYSTEM =
-  `You write the short AI brief shown on one record's panel in Niyantran Terminal, an Indian policy and geopolitics intelligence desk.
+  `You write the AI analysis shown on one record's panel in Niyantran Terminal, an Indian policy and geopolitics intelligence desk.
 Use only the record fields you are given. Do not add any fact, number, date, name, place, cause or consequence that is not in the fields, and do not use outside knowledge.
 If the fields are thin, say plainly what the record is and what it does not state.
-No advice, no buy / sell / hold language, no predictions or price targets. Never use the word "correlation".
+Do not interpret or characterise: no "suggests", "indicates", "signals" or "implies", and no describing a thing the fields only name.
+Do not repeat bookkeeping fields (provenance, confidence, verification or review status, source type) unless the record is about them.
+No advice: do not tell the reader to check, read or follow anything. No buy / sell / hold language, no predictions or price targets. Never use the word "correlation".
 Plain English, Indian spelling, short sentences.
-Return ONLY a JSON object: {"headline": "...", "points": ["...", "...", "..."]}
-- headline: one line, at most 20 words, naming what this record is about.
-- points: exactly 3 short sentences, together at most 90 words, each from the fields: what it is, its current status or figures, and what it does not state.`;
+Return ONLY a JSON object: {"brief": "...", "why": "...", "watch": "...", "tags": ["...", "..."]}
+- brief: at most 60 words: what this record is, and its current status or figures as the fields give them.
+- why: at most 50 words: why it matters, only from what the fields state (its scale, stage, parties or figures). Where the fields do not show why it matters, say what the record does not state.
+- watch: at most 40 words: what to watch for, only a pending stage, date or next step the fields name. Where they name none, say that the record states no next step.
+- tags: up to 4 short labels of one to three words, each taken from the fields (such as the region, ministry, stage or type).`;
 
 const SKIP_KEY =
   /^(id|record_id|row_key|uuid|members_json|agenda_json|sources_json|attached_sources|attached_documents|provenance_hubs|record_text|document_status|related_records|timeline)$/i;
@@ -316,18 +350,36 @@ export function parseBrief(text: string): Record<string, unknown> | null {
   }
 }
 
-/** {headline, points[≤3]} from the model's JSON, bounded; null when either part is missing. */
-export function normaliseRecordBrief(
-  raw: Record<string, unknown> | null,
-): { headline: string; points: string[] } | null {
+const part = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, MAX_PART) : '');
+
+/** Up to four distinct tags (case-insensitively) of at most 40 characters; others are dropped, not cut. */
+function tagsOf(v: unknown): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of Array.isArray(v) ? v : []) {
+    if (typeof t !== 'string') continue;
+    const tag = t.replace(/\s+/g, ' ').trim();
+    if (!tag || tag.length > MAX_TAG || seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    out.push(tag);
+    if (out.length >= MAX_TAGS) break;
+  }
+  return out;
+}
+
+export interface RecordBrief extends BriefParts {
+  brief: string;
+}
+
+/**
+ * {brief, why, watch, tags} from the model's JSON, bounded; null when the lead brief or why is
+ * missing. watch may be empty and tags none: the card then leaves them out.
+ */
+export function normaliseRecordBrief(raw: Record<string, unknown> | null): RecordBrief | null {
   if (!raw) return null;
-  const headline = String(raw.headline ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_HEADLINE);
-  const points = (Array.isArray(raw.points) ? raw.points : [])
-    .filter((p): p is string => typeof p === 'string')
-    .map((p) => p.replace(/\s+/g, ' ').trim().slice(0, MAX_POINT))
-    .filter(Boolean)
-    .slice(0, 3);
-  return headline && points.length ? { headline, points } : null;
+  const brief = part(raw.brief);
+  const why = part(raw.why);
+  return brief && why ? { brief, why, watch: part(raw.watch), tags: tagsOf(raw.tags) } : null;
 }
 
 // ---- identity -------------------------------------------------------------------------------

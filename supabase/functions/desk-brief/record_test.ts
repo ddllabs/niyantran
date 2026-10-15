@@ -13,18 +13,24 @@ import {
   type FinishArgs,
   identify,
   normaliseTier,
+  RECORD_BRIEF_FORMAT,
   RECORD_LIMITS,
+  RECORD_MAX_TOKENS,
+  RECORD_SYSTEM,
   type RecordBriefStore,
+  type StoredBrief,
 } from './record.ts';
 
+// Owner 2026-10-15: the brief takes the blue analysis box's shape (a lead brief, why it matters,
+// what to watch for, tags).
 const BRIEF = {
-  headline: 'Russia-Ukraine war remains a critical front in Eastern Europe',
-  points: [
-    'The register rates intensity as critical.',
-    'The front sits in Eastern Europe.',
-    'No casualty figure is recorded.',
-  ],
+  brief: 'The Russia-Ukraine War is tracked as a critical front in Eastern Europe.',
+  why: 'The register rates its intensity as critical; it does not state casualties.',
+  watch: 'The record names no next step or date to watch.',
+  tags: ['Eastern Europe', 'Critical'],
 };
+/** What the claim stores for BRIEF: headline is the lead brief, points holds the rest. */
+const STORED_V2 = { headline: BRIEF.brief, points: { why: BRIEF.why, watch: BRIEF.watch, tags: BRIEF.tags } };
 
 function completion(content: string, over: Record<string, unknown> = {}) {
   return {
@@ -134,27 +140,46 @@ async function call(s: Setup, body: unknown = record()) {
 
 Deno.test('a stored brief is served without a provider call, a log row or a finish', async () => {
   const s = setup({
-    claim: () => ({
-      state: 'ready',
-      headline: 'Stored',
-      points: ['a', 'b', 'c'],
-      model: 'm/x',
-      written_at: '2026-10-15T06:00:00+00:00',
-    }),
+    claim: () => ({ state: 'ready', ...STORED_V2, model: 'm/x', written_at: '2026-10-15T06:00:00+00:00', format: 2 }),
   });
   const r = await call(s);
   assertEquals(r.status, 200);
   assertEquals(r.body, {
     ok: true,
     state: 'ready',
-    headline: 'Stored',
-    points: ['a', 'b', 'c'],
+    format: 2,
+    ...BRIEF,
     model: 'm/x',
     writtenAt: '2026-10-15T06:00:00+00:00',
   });
   assertEquals(s.calls.length, 0);
   assertEquals(s.logs.length, 0);
   assertEquals(s.finishes.length, 0);
+});
+
+// A brief stored before the format change (headline and three points) is still served, as format 1,
+// until it is regenerated; the claim decides when (record_brief_claim, migration 20261015240000).
+Deno.test('an old-format stored brief is served in its own shape, labelled format 1', async () => {
+  const old = { headline: 'Stored', points: ['a', 'b', 'c'], model: 'm/x', written_at: '2026-10-15T06:00:00+00:00' };
+  for (const stored of [old, { ...old, format: 1 }]) {
+    const s = setup({ claim: () => ({ state: 'ready', ...stored }) });
+    assertEquals((await call(s)).body, {
+      ok: true,
+      state: 'ready',
+      format: 1,
+      headline: 'Stored',
+      points: ['a', 'b', 'c'],
+      model: 'm/x',
+      writtenAt: '2026-10-15T06:00:00+00:00',
+    });
+  }
+});
+
+Deno.test('the claim asks for the current brief format, so an older stored brief is regenerated', async () => {
+  const s = setup({ claim: () => ({ state: 'pending' }) });
+  await call(s);
+  assertEquals(RECORD_BRIEF_FORMAT, 2);
+  assertEquals(s.claims[0].format, RECORD_BRIEF_FORMAT);
 });
 
 Deno.test('a caller that loses the claim gets pending and calls no provider', async () => {
@@ -256,8 +281,12 @@ Deno.test('the winner generates once with the cheap settings, logs record_brief 
   const r = await call(s);
   assertEquals(r.status, 200);
   assertEquals(r.body.state, 'ready');
-  assertEquals(r.body.headline, BRIEF.headline);
-  assertEquals(r.body.points, BRIEF.points);
+  assertEquals(r.body.format, 2);
+  assertEquals(r.body.brief, BRIEF.brief);
+  assertEquals(r.body.why, BRIEF.why);
+  assertEquals(r.body.watch, BRIEF.watch);
+  assertEquals(r.body.tags, BRIEF.tags);
+  assert(!('headline' in r.body) && !('points' in r.body), 'the new format carries no headline or points');
   assertEquals(r.body.model, DEFAULT_RECORD_BRIEF_MODEL);
   assert(!Number.isNaN(Date.parse(r.body.writtenAt)));
   assert(!('cost_usd' in r.body) && !('usage' in r.body), 'no cost reaches the browser');
@@ -266,7 +295,9 @@ Deno.test('the winner generates once with the cheap settings, logs record_brief 
   const body = s.calls[0].body;
   assertEquals(s.calls[0].url, 'https://openrouter.ai/api/v1/chat/completions');
   assertEquals(body.model, DEFAULT_RECORD_BRIEF_MODEL);
-  assertEquals(body.max_tokens, 350);
+  // The four parts total up to 150 words and four tags: 450 tokens leaves room without a cut-off.
+  assertEquals(body.max_tokens, 450);
+  assertEquals(RECORD_MAX_TOKENS, 450);
   assertEquals(body.temperature, 0.2);
   assertEquals(body.usage, { include: true });
   assertEquals(body.response_format, { type: 'json_object' });
@@ -286,8 +317,10 @@ Deno.test('the winner generates once with the cheap settings, logs record_brief 
   const f = s.finishes[0];
   assertEquals(f.token, 'tok-1');
   assertEquals(f.rowKey, deskRowKey(ROW));
-  assertEquals(f.brief?.headline, BRIEF.headline);
-  assertEquals(f.brief?.points, BRIEF.points);
+  // record_briefs keeps the lead brief in headline and the rest in points, as an object (format 2).
+  assertEquals(f.brief?.format, 2);
+  assertEquals(f.brief?.headline, STORED_V2.headline);
+  assertEquals(f.brief?.points, STORED_V2.points);
   assertEquals(f.brief?.prompt_tokens, 420);
   assertEquals(f.brief?.completion_tokens, 88);
   assertEquals(f.brief?.reasoning_tokens, 0);
@@ -315,6 +348,14 @@ Deno.test('the prompt carries the row fields only: no identifiers, no web, no do
   assert(!user.includes('DOCUMENT TEXT'), 'a document extract reached the prompt');
   const system = msgs.find((m) => m.role === 'system')!.content;
   assertStringIncludes(system, 'only');
+});
+
+Deno.test('the prompt asks for the analysis box: brief, why, watch and tags, with word limits and no invention', () => {
+  assertStringIncludes(RECORD_SYSTEM, '{"brief": "...", "why": "...", "watch": "...", "tags": ["...", "..."]}');
+  for (const limit of ['at most 60 words', 'at most 50 words', 'at most 40 words', 'up to 4']) assertStringIncludes(RECORD_SYSTEM, limit);
+  assertStringIncludes(RECORD_SYSTEM, 'Use only the record fields you are given');
+  assertStringIncludes(RECORD_SYSTEM, 'what the record does not state');
+  assert(!RECORD_SYSTEM.includes('"headline"') && !RECORD_SYSTEM.includes('"points"'), 'the old shape is not asked for');
 });
 
 Deno.test('RECORD_BRIEF_MODEL is used when model_pricing lists it as available', async () => {
@@ -348,6 +389,7 @@ Deno.test('a provider failure marks the row failed, logs an error row, and serve
   assertEquals(r.body, {
     ok: true,
     state: 'ready',
+    format: 1,
     headline: 'Older brief',
     points: ['x'],
     model: 'm/x',
@@ -364,22 +406,43 @@ Deno.test('a provider failure marks the row failed, logs an error row, and serve
   assertEquals(t.logs[0].status, 'error');
 });
 
-Deno.test('a brief without points, or with an empty headline, is malformed', async () => {
-  for (const bad of [{ headline: 'H', points: [] }, { headline: '', points: ['a'] }, { headline: 'H' }]) {
+Deno.test('a brief without its lead or its why, or in the old shape, is malformed', async () => {
+  for (
+    const bad of [
+      { ...BRIEF, brief: '' },
+      { ...BRIEF, brief: undefined },
+      { ...BRIEF, why: '  ' },
+      { ...BRIEF, brief: 42 },
+      { headline: 'H', points: ['a', 'b', 'c'] },
+    ]
+  ) {
     const s = setup({ respond: () => Response.json(completion(JSON.stringify(bad))) });
     assertEquals((await call(s)).body.state, 'failed', JSON.stringify(bad));
     assertEquals(s.finishes[0].brief, null);
   }
 });
 
-Deno.test('a long brief is cut to three points and bounded lengths', async () => {
-  const long = { headline: 'w '.repeat(400), points: ['a', 'b', 'c', 'd', 'e', 'f'].map((x) => x.repeat(900)) };
+Deno.test('watch and tags are optional: a missing watch is empty, missing tags are none', async () => {
+  const s = setup({ respond: () => Response.json(completion(JSON.stringify({ brief: 'B.', why: 'W.' }))) });
+  const r = await call(s);
+  assertEquals(r.body.state, 'ready');
+  assertEquals([r.body.brief, r.body.why, r.body.watch, r.body.tags], ['B.', 'W.', '', []]);
+  assertEquals(s.finishes[0].brief?.points, { why: 'W.', watch: '', tags: [] });
+});
+
+Deno.test('a long brief is bounded: 600 characters a part, at most four tags of at most 40 characters', async () => {
+  const long = {
+    brief: 'w '.repeat(800),
+    why: 'y'.repeat(900),
+    watch: 'z'.repeat(900),
+    tags: ['One', 'one', ' Two ', 'x'.repeat(41), 7, '', 'Three', 'Four', 'Five'],
+  };
   const s = setup({ respond: () => Response.json(completion(JSON.stringify(long))) });
   const r = await call(s);
   assertEquals(r.body.state, 'ready');
-  assert(r.body.headline.length <= 300);
-  assertEquals(r.body.points.length, 3);
-  for (const p of r.body.points) assert(p.length <= 600);
+  for (const k of ['brief', 'why', 'watch']) assert(r.body[k].length <= 600, k);
+  // Repeats (case-insensitively), non-strings, empty and over-long tags are dropped; four are kept.
+  assertEquals(r.body.tags, ['One', 'Two', 'Three', 'Four']);
 });
 
 Deno.test('a store failure answers 503 without detail', async () => {
@@ -436,7 +499,7 @@ Deno.test('token counts reach record_brief_finish as integers, or null when out 
   assertEquals(b.cost_usd, 0.0000772);
 });
 
-type Brief = { headline: string; points: string[]; model: string | null; written_at: string };
+type Brief = Omit<StoredBrief, 'format'>;
 
 /**
  * An in-memory store that keeps public.record_brief_claim's contract for this case: a
@@ -473,8 +536,8 @@ function contractStore(stored: (i: number) => Record<string, unknown> | null): R
   };
 }
 
-const FORGED = { headline: 'Ceasefire signed, war over', points: ['Forged one.', 'Forged two.', 'Forged three.'] };
-const HONEST = { headline: 'Russia-Ukraine war remains critical', points: ['Real one.', 'Real two.', 'Real three.'] };
+const FORGED = { brief: 'Ceasefire signed, war over', why: 'Forged why.', watch: 'Forged watch.', tags: ['Forged'] };
+const HONEST = { brief: 'Russia-Ukraine war remains critical', why: 'Real why.', watch: 'Real watch.', tags: ['Real'] };
 const FORGED_ROW = { ...ROW, intensity: 'Ceasefire signed' };
 
 /** Deps over a contract store whose provider writes FORGED for a prompt carrying the forgery. */
@@ -501,17 +564,17 @@ Deno.test('a forged client row for a record not in desk_rows is never served to 
   const prompts: string[] = [];
   const deps = poisonDeps(contractStore(() => null), prompts);
   const attack = await (await handleDeskBrief(post(record({ row: FORGED_ROW })), deps)).json();
-  assertEquals(attack.headline, FORGED.headline, 'the attacker sees what it forged');
+  assertEquals(attack.brief, FORGED.brief, 'the attacker sees what it forged');
 
   const honest = await (await handleDeskBrief(post(record()), deps)).json();
   assertEquals(honest.state, 'ready');
-  assertEquals(honest.headline, HONEST.headline, 'the honest caller was served the forged brief');
+  assertEquals(honest.brief, HONEST.brief, 'the honest caller was served the forged brief');
   assertEquals(prompts.length, 2);
   assertStringIncludes(prompts[1], 'Critical');
 
   // The honest brief is stored for the honest content and read again without a provider call.
   const again = await (await handleDeskBrief(post(record()), deps)).json();
-  assertEquals(again.headline, HONEST.headline);
+  assertEquals(again.brief, HONEST.brief);
   assertEquals(prompts.length, 2);
 });
 
@@ -521,7 +584,7 @@ Deno.test('a client-sourced brief is never served in place of the desk_rows brie
   const deps = poisonDeps(contractStore((i) => (i === 0 ? null : ROW)), prompts);
   await handleDeskBrief(post(record({ row: FORGED_ROW })), deps);
   const honest = await (await handleDeskBrief(post(record()), deps)).json();
-  assertEquals(honest.headline, HONEST.headline, 'the desk_rows record was served the forged brief');
+  assertEquals(honest.brief, HONEST.brief, 'the desk_rows record was served the forged brief');
   assertEquals(prompts.length, 2);
 });
 

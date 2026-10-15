@@ -28,8 +28,9 @@ function sleep(ms, signal) {
  * record's panel asks for it; the first viewer's request writes it at the platform's cost and
  * every later viewer reads it. While another request is writing it, this asks again every two
  * seconds for about a minute. Returns {state} where state is 'none' (nothing to brief),
- * 'loading', 'pending', 'unavailable', 'error', or 'ready' with headline, points, model and
- * writtenAt. A new record or an unmount aborts the request and stops the polling.
+ * 'loading', 'pending', 'unavailable', 'error', or 'ready' with the brief as getRecordBrief gives
+ * it (format 2: brief, why, watch, tags; format 1: headline, points), model and writtenAt. A new
+ * record or an unmount aborts the request and stops the polling.
  */
 export function useRecordBrief({ feed, selected, loading }) {
   const [result, setResult] = useState({ key: '', brief: null });

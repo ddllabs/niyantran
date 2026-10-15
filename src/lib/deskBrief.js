@@ -207,12 +207,30 @@ function recordPayloadRow(row) {
   return slimEntry(row);
 }
 
+const text = (v) => (typeof v === 'string' ? v.trim() : '');
+
+/** A ready answer in either format, or {state: 'error'} when it lacks its required parts. */
+function readyBrief(body) {
+  const at = { model: body.model || null, writtenAt: body.writtenAt || null };
+  // Format 1, kept until regenerated; an answer without a format (the earlier function) says it by its points.
+  if (body.format === 1 || (body.format === undefined && Array.isArray(body.points))) {
+    const points = Array.isArray(body.points) ? body.points.filter((p) => text(p)) : [];
+    if (!text(body.headline) || !points.length) return { state: 'error' };
+    return { state: 'ready', format: 1, headline: body.headline, points, ...at };
+  }
+  if (!text(body.brief) || !text(body.why)) return { state: 'error' };
+  const tags = (Array.isArray(body.tags) ? body.tags : []).filter((t) => text(t)).slice(0, 4);
+  return { state: 'ready', format: 2, brief: body.brief, why: body.why, watch: text(body.watch) ? body.watch : '', tags, ...at };
+}
+
 /**
  * The stored AI brief for one record (F123). The desk-brief Edge Function (scope 'record') reads
  * it, or writes it once at the platform's cost when nobody has; the server derives the record's
- * key and hash from the row. Resolves to {state: 'ready', headline, points, model, writtenAt},
- * or {state} of 'pending' (another request is writing it), 'unavailable' (signed out, switched
- * off or limited), 'error' (failed or refused) or 'none' (nothing to brief). Rejects only on abort.
+ * key and hash from the row. Resolves to {state: 'ready', format: 2, brief, why, watch, tags, model,
+ * writtenAt} (owner 2026-10-15: the analysis box's shape), or, for a brief stored before that change
+ * and not yet regenerated, {state: 'ready', format: 1, headline, points, model, writtenAt}; or {state}
+ * of 'pending' (another request is writing it), 'unavailable' (signed out, switched off or limited),
+ * 'error' (failed or refused) or 'none' (nothing to brief). Rejects only on abort.
  */
 /**
  * The verified account, asked up to three times: the check answers nothing for a moment while
@@ -245,11 +263,7 @@ export async function getRecordBrief({ tier, feature, row, signal } = {}) {
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body?.ok) return { state: 'error' };
-  if (body.state === 'ready') {
-    const points = Array.isArray(body.points) ? body.points.filter((p) => typeof p === 'string' && p.trim()) : [];
-    if (typeof body.headline !== 'string' || !body.headline.trim() || !points.length) return { state: 'error' };
-    return { state: 'ready', headline: body.headline, points, model: body.model || null, writtenAt: body.writtenAt || null };
-  }
+  if (body.state === 'ready') return readyBrief(body);
   if (body.state === 'pending' || body.state === 'unavailable') return { state: body.state };
   return { state: 'error' };
 }

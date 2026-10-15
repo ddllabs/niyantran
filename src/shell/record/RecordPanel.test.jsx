@@ -121,24 +121,73 @@ describe('RecordPanel related-record links', () => {
 // F123 (owner 2026-10-15): every record panel has a stored AI brief, written the first time anyone
 // opens the record and labelled with the date it was written. The box says plainly when it is
 // being written, when it is not available, and when it failed; it never shows template text as AI.
+// Owner 2026-10-15: it has the blue "Niyantran analysis" box's format and styling (.rd-ai): a lead
+// brief, "Why it matters", "Watch for" and tag chips.
 describe('RecordPanel AI brief', () => {
   const html = (brief) => renderToStaticMarkup(<RecordPanel model={model()} brief={brief} />);
   const READY = {
     state: 'ready',
+    format: 2,
+    brief: 'The front remains attritional and is rated critical.',
+    why: 'The register rates its intensity as critical; it states no casualty figure.',
+    watch: 'The record names no next step.',
+    tags: ['Eastern Europe', 'Critical'],
+    model: 'anthropic/claude-haiku-5.5',
+    writtenAt: '2026-10-15T06:30:00Z',
+  };
+  const OLD = {
+    state: 'ready',
+    format: 1,
     headline: 'The front remains attritional',
     points: ['Fighting is largely static.', 'Drones define the fighting.', 'No casualty figure is recorded.'],
     model: 'anthropic/claude-haiku-5.5',
     writtenAt: '2026-10-15T06:30:00Z',
+  };
+  // Walks rendered elements; with `expand`, a function component inside is rendered and walked too.
+  const walk = (node, test, out = [], expand = false) => {
+    if (!node || typeof node !== 'object') return out;
+    if (test(node)) out.push(node);
+    if (expand && typeof node.type === 'function') return walk(node.type(node.props), test, out, expand);
+    for (const child of [].concat(node.props?.children ?? [])) walk(child, test, out, expand);
+    return out;
+  };
+  const cardNodes = (brief, test) => {
+    const [card] = walk(RecordPanel({ model: model(), brief }), (n) => n.type?.name === 'BriefCard');
+    return walk(card, test, [], true);
   };
 
   it('shows the brief, labelled "AI brief · written <date>", in About', () => {
     const out = html(READY);
     expect(out).toContain('✦ Niyantran analysis');
     expect(out).toContain('AI brief · written 15 Oct 2026');
-    expect(out).toContain('The front remains attritional');
-    for (const p of READY.points) expect(out).toContain(p);
     expect(out.indexOf('Niyantran analysis')).toBeGreaterThan(out.indexOf('02 · About this front'));
     expect(out).not.toMatch(/saved earlier|AI Research|Saved AI brief/);
+  });
+
+  it('has the analysis box format: lead brief, Why it matters, Watch for and tag chips, in the .rd-ai styling', () => {
+    const out = html(READY);
+    expect(out).toMatch(/<div class="rd-ai[ "]/);
+    expect(out).toMatch(/class="rd-sec-label">✦ Niyantran analysis/);
+    expect(out).toContain(`<div class="rd-ai-brief">${READY.brief}</div>`);
+    expect(out).toContain(`<div class="rd-ai-sub"><span>Why it matters</span>${READY.why}</div>`);
+    expect(out).toContain(`<div class="rd-ai-sub"><span>Watch for</span>${READY.watch}</div>`);
+    expect(out).toContain('<div class="rd-ai-tags"><span class="rd-ai-tag">Eastern Europe</span><span class="rd-ai-tag">Critical</span></div>');
+    expect(out).not.toContain('rp-brief-pts');
+  });
+
+  it('leaves out an empty Watch for and absent tags', () => {
+    const out = html({ ...READY, watch: '', tags: [] });
+    expect(out).toContain('Why it matters');
+    expect(out).not.toContain('Watch for');
+    expect(out).not.toContain('rd-ai-tags');
+  });
+
+  it('shows a brief stored before the format change (headline and points) until it is regenerated', () => {
+    const out = html(OLD);
+    expect(out).toContain('AI brief · written 15 Oct 2026');
+    expect(out).toContain(`<div class="rd-ai-brief"><b>${OLD.headline}</b></div>`);
+    expect(out).toContain('<ul class="rd-ai-bullets">');
+    for (const p of OLD.points) expect(out).toContain(`<li>${p}</li>`);
   });
 
   it('dates the brief in India time', () => {
@@ -150,7 +199,10 @@ describe('RecordPanel AI brief', () => {
     expect(html({ state: 'pending' })).toContain('Writing AI brief…');
     expect(html({ state: 'unavailable' })).toContain('AI brief not available yet');
     expect(html({ state: 'error' })).toContain('AI brief unavailable right now');
-    for (const state of ['loading', 'pending', 'unavailable', 'error']) expect(html({ state })).not.toContain('AI brief · written');
+    for (const state of ['loading', 'pending', 'unavailable', 'error']) {
+      expect(html({ state })).not.toContain('AI brief · written');
+      expect(html({ state })).toMatch(/<div class="rd-ai[ "]/);
+    }
   });
 
   it('shows no brief box when the panel is given no brief state, or none to show', () => {
@@ -158,19 +210,13 @@ describe('RecordPanel AI brief', () => {
     expect(html({ state: 'none' })).not.toContain('Niyantran analysis');
   });
 
-  it('keys the points by position, so two equal points are two distinct items', () => {
-    const brief = { ...READY, points: ['No figure is recorded.', 'No figure is recorded.'] };
-    const walk = (node, test, out = []) => {
-      if (!node || typeof node !== 'object') return out;
-      if (test(node)) out.push(node);
-      for (const child of [].concat(node.props?.children ?? [])) walk(child, test, out);
-      return out;
-    };
-    const [card] = walk(RecordPanel({ model: model(), brief }), (n) => n.type?.name === 'BriefCard');
-    const items = walk(card.type(card.props), (n) => n.type === 'li');
-    expect(items).toHaveLength(2);
-    expect(new Set(items.map((i) => i.key)).size).toBe(2);
-    expect(html(brief).match(/No figure is recorded\./g)).toHaveLength(2);
+  it('keys the points and tags by position, so two equal ones are two distinct items', () => {
+    const lis = cardNodes({ ...OLD, points: ['No figure is recorded.', 'No figure is recorded.'] }, (n) => n.type === 'li');
+    expect(lis).toHaveLength(2);
+    expect(new Set(lis.map((i) => i.key)).size).toBe(2);
+    const tags = cardNodes({ ...READY, tags: ['Critical', 'Critical'] }, (n) => n.props?.className === 'rd-ai-tag');
+    expect(tags).toHaveLength(2);
+    expect(new Set(tags.map((i) => i.key)).size).toBe(2);
   });
 
   it('opens About for the brief even when the model has no About content', () => {

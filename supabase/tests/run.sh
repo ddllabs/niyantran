@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|record_briefs)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|record_briefs|record_brief_format)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -224,6 +224,15 @@ chain() {
                   "$(as_non_superuser 20261014200000_ai_credits.sql)" "$TESTS/bootstrap_storage.sql"
                   "$(m 20260928100200_app_flags_and_marketing_media.sql)"
                   "$(as_non_superuser 20261015220000_record_briefs.sql)") ;;
+        # The record brief's analysis-box format (F123, owner 2026-10-15): record_briefs' chain, then
+        # 20261015240000, as a non-superuser. The vacuity check drops the last.
+        record_brief_format)
+          FILES+=("$(m 20260928120000_signup_persona.sql)" "$(m 20260929100000_plan_entitlements.sql)" "$(as_non_superuser 20261012120000_inr_plans.sql)"
+                  "$(as_non_superuser 20261013140000_web_search.sql)" "$TESTS/bootstrap_ai_credits_seed.sql"
+                  "$(as_non_superuser 20261014200000_ai_credits.sql)" "$TESTS/bootstrap_storage.sql"
+                  "$(m 20260928100200_app_flags_and_marketing_media.sql)"
+                  "$(as_non_superuser 20261015220000_record_briefs.sql)"
+                  "$(as_non_superuser 20261015240000_record_brief_format.sql)") ;;
       esac
       return 0 ;;
     *) echo "unknown fixture: $1" >&2; return 1 ;;
@@ -553,6 +562,61 @@ record_briefs_checks() {
   return $rc
 }
 
+# record_brief_format only: the migration's Down section, executed, over a stored format-2 brief. Its
+# block runs up to the line that says to run record_briefs' create function statements; that step is
+# performed by extracting exactly those two statements from 20261015220000_record_briefs.sql; then the
+# block's own revoke and grant lines. The brief must come back in the format-1 shape, the schema must
+# dump identically to the chain without the migration, and the migration must re-apply and the
+# fixture pass again.
+record_brief_format_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_record_brief_format_base_test up=niyantran_record_brief_format_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261015240000_record_brief_format.sql"
+  local block
+  block="$(sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p' | sed 's/^--   //')"
+  {
+    echo 'SET ROLE nter_migrator;'
+    printf '%s\n' "$block" | sed -n '1,/^-- run /p' | grep -v '^-- run '
+    awk '/^create function public\.record_brief_(claim|finish)\(/,/^\$\$;/' "$MIG/20261015220000_record_briefs.sql"
+    printf '%s\n' "$block" | sed -n '/^-- run /,$p' | grep -v '^-- run '
+  } > "$WORK/rbf_down.sql"
+  local seed="insert into public.record_briefs (tier, feature, row_key, hash_key, source, content_hash, status, headline, points, written_at, brief_format)
+    values ('global', 'Open Fronts', 'down-1', '', 'desk_rows', 'aaaaaaaaaaaaaaaaaaaaaaaa', 'ready', repeat('b', 400),
+            '{\"why\": \"W.\", \"watch\": \"\", \"tags\": [\"T\"]}', now(), 2)"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! q "$seed" -d $up >/dev/null 2>&1; then
+    echo "  DOWN FAIL - could not store a format-2 brief before the Down section"; rc=1
+  elif ! psql_in $up < "$WORK/rbf_down.sql" > "$WORK/rbf_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/rbf_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  elif [ "$(q "select length(headline) = 300 and points = jsonb_build_array(repeat('b', 400), 'W.') from public.record_briefs where row_key = 'down-1'" -d $up)" != t ]; then
+    echo "  DOWN FAIL - the format-2 brief did not come back in the format-1 shape"; rc=1
+  else
+    q "delete from public.record_briefs" -d $up >/dev/null
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/rbf_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/rbf_up.dump"
+    if ! diff -q "$WORK/rbf_base.dump" "$WORK/rbf_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/rbf_base.dump" "$WORK/rbf_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/record_brief_format.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - a format-2 brief returns to the format-1 shape; the schema is restored exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 run_fixture() {
   local name="$1" db="niyantran_${1}_test" rc=0
   chain "$name"
@@ -578,6 +642,7 @@ run_fixture() {
     [ "$name" = feed_register_page ] && { feed_register_page_checks || rc=1; }
     [ "$name" = feed_nothing_new ] && { feed_nothing_new_checks || rc=1; }
     [ "$name" = record_briefs ] && { record_briefs_checks || rc=1; }
+    [ "$name" = record_brief_format ] && { record_brief_format_checks || rc=1; }
   else
     rc=1
     echo "  FAIL"

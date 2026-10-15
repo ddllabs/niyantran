@@ -9,6 +9,9 @@ import { BriefCard } from './record/RecordPanel.jsx';
 import { useRecordBrief } from './record/useRecordBrief.js';
 import { plainNote, plainSourceLine } from '../lib/plainSourceNote.js';
 
+/** Row fields shown as the code-written analysis box (packAnalysis); in All fields where that box is not shown. */
+const ANALYSIS_KEYS = ['brief', 'why_it_matters', 'watch_for', 'tags'];
+
 const SKIP = new Set([
   'source_url',
   'pdf_url',
@@ -57,11 +60,13 @@ function isDateish(v) {
   return /(\b\d{1,2}[/\-\s][A-Za-z]{3,}|\d{4}-\d{2}-\d{2}|[A-Za-z]{3,}\s+\d{4}|\b\d{4}\b)/.test(String(v));
 }
 
-function entriesOf(row) {
+function entriesOf(row, keep = []) {
   return Object.entries(row || {}).filter(
-    ([k, v]) => !SKIP.has(k) && !/^source_\d/.test(k) && v != null && String(v).trim() !== '',
+    ([k, v]) => (!SKIP.has(k) || keep.includes(k)) && !/^source_\d/.test(k) && v != null && String(v).trim() !== '',
   );
 }
+
+const fieldText = (v) => (Array.isArray(v) ? v.filter((x) => x != null && String(x).trim() !== '').join(', ') : String(v)).trim();
 
 function packAnalysis(row) {
   if (!row?.brief && !row?.why_it_matters) return null;
@@ -113,6 +118,53 @@ function pickField(row, keys) {
   return null;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "15 Oct 2026 · 14:27 IST" for an instant (an ISO time with its zone), in India time; '' when invalid. */
+function istDateTime(value) {
+  const d = new Date(String(value || ''));
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(String(value || '')) || Number.isNaN(d.getTime())) return '';
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: 'numeric', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).map((p) => [p.type, p.value]));
+  return `${parts.day} ${MONTHS[Number(parts.month) - 1]} ${parts.year} · ${parts.hour}:${parts.minute} IST`;
+}
+
+/** A calendar date ("2026-10-14", "14.10.2026", an ISO time), not a word such as "present" or a vintage. */
+const isDate = (v) => /^\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[./-]\d{1,2}[./-]\d{4})/.test(String(v ?? '')) && Boolean(formatDate(v));
+
+/**
+ * The dataset's as-of, from the feed's answer, for a row with no date of its own: its as-of date
+ * (meta.as_of / meta.asOf, else coverage.through), else the vintage a geography pack names
+ * (meta.vintage, or coverage.from when it is not a date). Labelled as the dataset's, not the row's.
+ */
+function datasetDate(feed) {
+  const asOf = [feed?.meta?.as_of, feed?.meta?.asOf, feed?.coverage?.through].find(isDate);
+  if (asOf) return { key: 'dataset', value: String(asOf), display: `dataset as of ${formatDate(asOf)}` };
+  const from = feed?.coverage?.from;
+  const vintage = String(feed?.meta?.vintage || (from && !isDate(from) ? from : '') || '').trim();
+  return vintage ? { key: 'dataset', value: vintage, display: `dataset vintage: ${vintage}` } : null;
+}
+
+/**
+ * When the feed's answer was fetched, for a row with no verified field of its own: the store's
+ * fetch time (a register's is when it was loaded), else meta.fetched_at, else the source's
+ * verifiedAt or fetched_at. Answers fetched live for the request carry none.
+ */
+function feedChecked(feed) {
+  const candidates = [
+    [feed?.served === 'store' ? feed?.fetchedAt : null, feed?.register === true ? 'register loaded' : 'fetched'],
+    [feed?.meta?.fetched_at, 'fetched'],
+    [feed?.source?.verifiedAt, 'source checked'],
+    [feed?.source?.fetched_at, 'fetched'],
+  ];
+  for (const [value, label] of candidates) {
+    const when = istDateTime(value);
+    if (when) return { key: 'feed', value: String(value), display: `${label} ${when}` };
+  }
+  return null;
+}
+
 function provenanceOf(row, feed) {
   const source =
     pickField(row, ['source_label', 'source', 'outlet', 'domain']) ||
@@ -130,14 +182,16 @@ function provenanceOf(row, feed) {
     'introduced',
   ]);
   const verified = pickField(row, ['last_verified', 'verified', 'latestDate', 'dataThrough', 'verified_at']);
+  // Owner 2026-10-15: the row's own fields first, else what the feed's answer carries, so neither
+  // is blank when the answer is dated; each fallback says it is the dataset's or the fetch's.
   return {
     source,
     sourceDate: sourceDate
       ? { ...sourceDate, display: formatDateTime(sourceDate.value) || formatDate(sourceDate.value) || sourceDate.value }
-      : null,
+      : datasetDate(feed),
     verified: verified
       ? { ...verified, display: formatDateTime(verified.value) || formatDate(verified.value) || verified.value }
-      : null,
+      : feedChecked(feed),
   };
 }
 
@@ -264,6 +318,10 @@ function RecordDetailBody({
   // the record panels' card. A citation view (generateBrief off, AI Research) writes none: it
   // keeps only the brief AI Research saved earlier, from the browser's cache.
   const recordBrief = useRecordBrief({ feed, selected: csvFile || !generateBrief ? null : row, loading: false });
+  // Owner 2026-10-15: one analysis box per record. Where the AI brief card is shown, the code-written
+  // box below is not, and its row fields (brief, why_it_matters, watch_for, tags) are listed in All fields.
+  const aiCard = recordBrief.state !== 'none';
+  const allFields = aiCard ? entriesOf(row, ANALYSIS_KEYS) : entries;
   const { brief, busy, err } = useEntryBrief({ feed, selected: csvFile || generateBrief ? null : row });
   const intelLines = briefPlainLines(brief);
   const analysisBrief =
@@ -277,7 +335,7 @@ function RecordDetailBody({
   // Keep the analysis block visible while loading, on success, or when the API fails
   // (otherwise "Reading this entry…" vanishes and the whole section disappears).
   const showAnalysis =
-    Boolean(analysis) || Boolean(analysisBrief) || busy || Boolean(err) || Boolean(brief);
+    !aiCard && (Boolean(analysis) || Boolean(analysisBrief) || busy || Boolean(err) || Boolean(brief));
 
   return (
     <div className="rd">
@@ -372,7 +430,7 @@ function RecordDetailBody({
 
       {csvFile ? <CsvTablePane row={row} /> : null}
 
-      {recordBrief.state !== 'none' ? (
+      {aiCard ? (
         <div className="rd-section">
           <BriefCard brief={recordBrief} />
         </div>
@@ -499,10 +557,10 @@ function RecordDetailBody({
       <div className="rd-section">
         <div className="rd-sec-label">ALL FIELDS</div>
         <div className="row-detail-fields">
-          {entries
+          {allFields
             .filter(([, v]) => !isUrl(v))
             .map(([k, v]) => {
-              const s = String(v).trim();
+              const s = fieldText(v);
               const href = isArticleHref(s);
               return (
                 <div key={k} className="row-detail-field">

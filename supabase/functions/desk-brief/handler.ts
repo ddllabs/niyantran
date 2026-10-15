@@ -22,8 +22,10 @@ import {
   normaliseRecordBrief,
   parseBrief,
   parseRecordRequest,
+  RECORD_BRIEF_FORMAT,
   RECORD_LIMITS,
   RECORD_PROVIDER_TIMEOUT_MS,
+  type BriefParts,
   type RecordBriefStore,
   recordRequestBody,
   type StoredBrief,
@@ -454,7 +456,8 @@ async function postProvider(
 // ---- record scope (F123) ---------------------------------------------------
 
 type RecordAnswer =
-  | { state: 'ready'; headline: string; points: string[]; model: string | null; writtenAt: string }
+  | { state: 'ready'; format: number; brief: string; why: string; watch: string; tags: string[]; model: string | null; writtenAt: string }
+  | { state: 'ready'; format: 1; headline: string; points: string[]; model: string | null; writtenAt: string }
   | { state: 'pending' | 'failed' | 'unavailable' };
 
 /** record_briefs keeps token counts as integer columns: rounded, or null outside 0..2^31-1. */
@@ -464,13 +467,25 @@ function tokenCount(v: number | null): number | null {
   return n >= 0 && n <= 2_147_483_647 ? n : null;
 }
 
-const served = (b: StoredBrief): RecordAnswer => ({
-  state: 'ready',
-  headline: b.headline,
-  points: b.points,
-  model: b.model,
-  writtenAt: b.written_at,
-});
+/**
+ * A stored brief in the shape it was written: format 2 as {brief, why, watch, tags}, an older
+ * format-1 brief (stored before migration 20261015240000) as {headline, points} until it is
+ * regenerated. The points' shape decides, so a claim answered without a format reads the same.
+ */
+const served = (b: StoredBrief): RecordAnswer => {
+  const at = { model: b.model, writtenAt: b.written_at };
+  if (Array.isArray(b.points)) return { state: 'ready', format: 1, headline: b.headline, points: b.points, ...at };
+  const p = (b.points ?? {}) as Partial<BriefParts>;
+  return {
+    state: 'ready',
+    format: typeof b.format === 'number' && b.format >= 2 ? b.format : 2,
+    brief: b.headline,
+    why: typeof p.why === 'string' ? p.why : '',
+    watch: typeof p.watch === 'string' ? p.watch : '',
+    tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === 'string') : [],
+    ...at,
+  };
+};
 
 /**
  * Reads, or claims and writes, the stored brief for one record. The answer never carries cost
@@ -499,6 +514,7 @@ async function handleRecord(deps: DeskBriefDeps, userId: string, body: Record<st
       source: id.source,
       userId,
       limits: RECORD_LIMITS,
+      format: RECORD_BRIEF_FORMAT,
     });
   } catch (err) {
     log('record_brief.store_failed', { message: String((err as Error)?.message ?? err).slice(0, 300) });
@@ -547,7 +563,9 @@ async function handleRecord(deps: DeskBriefDeps, userId: string, body: Record<st
   }
   const servedModel = logRow.model_served ?? model;
   await finish({
-    ...brief,
+    headline: brief.brief,
+    points: { why: brief.why, watch: brief.watch, tags: brief.tags },
+    format: RECORD_BRIEF_FORMAT,
     model: servedModel,
     prompt_tokens: tokenCount(logRow.prompt_tokens),
     completion_tokens: tokenCount(logRow.completion_tokens),
@@ -555,7 +573,7 @@ async function handleRecord(deps: DeskBriefDeps, userId: string, body: Record<st
     cost_usd: logRow.cost_usd,
     model_call_log_id: logId,
   });
-  return { state: 'ready', ...brief, model: servedModel, writtenAt: new Date().toISOString() };
+  return { state: 'ready', format: RECORD_BRIEF_FORMAT, ...brief, model: servedModel, writtenAt: new Date().toISOString() };
 }
 
 // ---- handler --------------------------------------------------------------

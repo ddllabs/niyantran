@@ -27,6 +27,7 @@ const recordStore: RecordBriefStore = {
       p_user_per_minute: a.limits.userPerMinute,
       p_user_per_day: a.limits.userPerDay,
       p_global_per_day: a.limits.globalPerDay,
+      p_format: a.format,
     });
     if (error) throw new Error(error.message);
     return data as ClaimResult;

@@ -11,6 +11,8 @@ import { getRecordBrief } from './deskBrief.js';
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const ROW = { conflict_name: 'Russia-Ukraine War', region: 'Eastern Europe', __rowIndex: 3 };
+// Owner 2026-10-15: the brief has the analysis box's shape (format 2).
+const V2 = { format: 2, brief: 'B.', why: 'W.', watch: 'Wf.', tags: ['Eastern Europe', 'Critical'] };
 
 describe('getRecordBrief', () => {
   let fetchMock;
@@ -22,9 +24,9 @@ describe('getRecordBrief', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('posts scope record with the tier, module and row, and the bearer, to the Edge Function only', async () => {
-    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', headline: 'H', points: ['a', 'b', 'c'], model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' }));
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', ...V2, model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' }));
     const out = await getRecordBrief({ tier: 'geopolitics', feature: 'Open Fronts', row: ROW });
-    expect(out).toEqual({ state: 'ready', headline: 'H', points: ['a', 'b', 'c'], model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' });
+    expect(out).toEqual({ state: 'ready', ...V2, model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://project-ref.supabase.test/functions/v1/desk-brief');
@@ -49,12 +51,34 @@ describe('getRecordBrief', () => {
     expect(await ask()).toEqual({ state: 'error' });
   });
 
+  it('keeps a brief stored before the format change (headline and points) as format 1, until it is regenerated', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', format: 1, headline: 'H', points: ['a', '', 'b'], model: 'm', writtenAt: null }));
+    expect(await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW }))
+      .toEqual({ state: 'ready', format: 1, headline: 'H', points: ['a', 'b'], model: 'm', writtenAt: null });
+    // An answer from the desk-brief deployed before the change carries no format: its shape says.
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', headline: 'H', points: ['a'], model: 'm', writtenAt: null }));
+    expect((await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW })).format).toBe(1);
+  });
+
+  it('keeps only string tags, at most four, and treats a missing watch as empty', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', format: 2, brief: 'B.', why: 'W.', tags: ['a', 3, '', 'b', 'c', 'd', 'e'] }));
+    expect(await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW }))
+      .toEqual({ state: 'ready', format: 2, brief: 'B.', why: 'W.', watch: '', tags: ['a', 'b', 'c', 'd'], model: null, writtenAt: null });
+  });
+
+  it('a ready answer without a lead brief or why, or without a headline and points, is an error', async () => {
+    for (const bad of [{ ...V2, brief: '' }, { ...V2, why: ' ' }, { format: 2, brief: 'B.' }, { format: 1, headline: 'H', points: [] }, {}]) {
+      fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', ...bad }));
+      expect(await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW }), JSON.stringify(bad)).toEqual({ state: 'error' });
+    }
+  });
+
   // Production 2026-10-15: the account check briefly answers nothing while supabase-js re-announces
   // the account (tab focus, token refresh); a stored brief then showed "not available yet".
   it('retries the account check before giving up, so a re-announce does not hide the brief', async () => {
     const { verifiedLocalIdentity } = await import('./userStore.js');
     verifiedLocalIdentity.mockResolvedValueOnce(null);
-    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', headline: 'H', points: ['a'], model: 'm', writtenAt: null }));
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', ...V2, model: 'm', writtenAt: null }));
     const out = await getRecordBrief({ tier: 'geopolitics', feature: 'Open Fronts', row: ROW });
     expect(out.state).toBe('ready');
     expect(fetchMock).toHaveBeenCalledTimes(1);

@@ -9,6 +9,11 @@
 //
 //   deno run --allow-net=openrouter.ai --allow-read --allow-env=OPENROUTER_API_KEY \
 //     --env-file=<main checkout>/.env.local scripts/measure-record-briefs.ts > out.md
+//
+// Options (owner 2026-10-15, the analysis-box format check: 5 rows, Haiku only, under $0.01):
+//   --models=a,b   the models to run (default: both candidates)
+//   --picks=1,4,8  the 1-based rows of PICKS to brief (default: all 20)
+//   --cap=0.01     stop before a call once spend reaches this many USD (default 0.09)
 
 import {
   buildRecordPrompt,
@@ -18,8 +23,14 @@ import {
   recordRequestBody,
 } from '../supabase/functions/desk-brief/record.ts';
 
-const MODELS = ['google/gemini-2.5-flash-lite', 'anthropic/claude-haiku-5.5'];
-const SPEND_CAP_USD = 0.09;
+const arg = (name: string) => Deno.args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const MODELS = arg('models')?.split(',').map((m) => m.trim()).filter(Boolean) ??
+  ['google/gemini-2.5-flash-lite', 'anthropic/claude-haiku-5.5'];
+const SPEND_CAP_USD = Number(arg('cap') ?? 0.09);
+if (!Number.isFinite(SPEND_CAP_USD) || SPEND_CAP_USD <= 0 || SPEND_CAP_USD > 0.09) {
+  console.error('--cap must be a positive number of USD, at most 0.09.');
+  Deno.exit(1);
+}
 const PANELLED_RECORDS = 21_094;
 
 // [desk tier as the browser sends it, module, pack file, row index]
@@ -46,6 +57,12 @@ const PICKS: [string, string, string, number][] = [
   ['judiciary', 'WTO Dispute Settlement', 'judiciary_wto_disputes', 600],
 ];
 
+const PICKED = arg('picks')?.split(',').map((n) => Number(n.trim())) ?? PICKS.map((_p, i) => i + 1);
+if (PICKED.some((n) => !Number.isInteger(n) || n < 1 || n > PICKS.length)) {
+  console.error(`--picks must list rows 1 to ${PICKS.length}.`);
+  Deno.exit(1);
+}
+
 interface Result {
   model: string;
   served: string;
@@ -55,8 +72,10 @@ interface Result {
   reasoning: number | null;
   cost: number | null;
   ms: number;
-  headline: string;
-  points: string[];
+  brief: string;
+  why: string;
+  watch: string;
+  tags: string[];
   note: string;
 }
 
@@ -77,7 +96,7 @@ if (!key) {
 }
 
 let spent = 0;
-const records = await Promise.all(PICKS.map(async ([tier, feature, file, i]) => ({
+const records = await Promise.all(PICKED.map((n) => PICKS[n - 1]).map(async ([tier, feature, file, i]) => ({
   tier: normaliseTier(tier)!,
   feature,
   file,
@@ -131,8 +150,10 @@ for (const model of MODELS) {
       reasoning: n(details.reasoning_tokens),
       cost,
       ms,
-      headline: brief?.headline ?? '',
-      points: brief?.points ?? [],
+      brief: brief?.brief ?? '',
+      why: brief?.why ?? '',
+      watch: brief?.watch ?? '',
+      tags: brief?.tags ?? [],
       // A provider error's own message can name the model or parameter; it never carries the key.
       note: status === 200
         ? (brief ? '' : 'malformed JSON')
@@ -205,9 +226,19 @@ records.forEach((rec, i) => {
     const r = out[i];
     lines.push(`**${r.model}**${r.ok ? '' : ` (failed: ${cell(r.note)})`}`, '');
     if (r.ok) {
-      lines.push(`> **${cell(r.headline)}**`, '>');
-      for (const p of r.points) lines.push(`> - ${cell(p)}`);
-      lines.push('');
+      const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
+      lines.push(
+        `> ${cell(r.brief)}`,
+        '>',
+        `> **Why it matters** ${cell(r.why)}`,
+        '>',
+        `> **Watch for** ${cell(r.watch) || '(empty)'}`,
+        '>',
+        `> Tags: ${r.tags.map(cell).join(' · ') || '(none)'}`,
+        '',
+        `Words: brief ${words(r.brief)}/60, why ${words(r.why)}/50, watch ${words(r.watch)}/40; tags ${r.tags.length}/4.`,
+        '',
+      );
     }
   }
 });
