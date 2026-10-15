@@ -2,8 +2,7 @@
 // chat's Credits link (niy-open-usage) and Upgrade (niy-open-billing), a plan chosen on the pricing
 // page - and that it is a page of the themed terminal, not a dialog.
 import { readFileSync } from 'node:fs';
-import { expect, it, vi } from 'vitest';
-import { OPEN_USAGE_EVENT, openCreditsUsage } from '../../lib/creditsStore.js';
+import { expect, it } from 'vitest';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const shell = read('../TerminalShell.jsx');
@@ -41,11 +40,13 @@ it('follows the address both ways: back and forward set the section, and a desk 
   expect(read('../SidePanel.jsx')).toMatch(/if \(e\.key !== 'Escape'\) return;\s*\/\/[^\n]*\n\s*if \(panelHidden\(document\)\)/);
 });
 
-it('opens from the profile menu, the chat and the pricing page, and puts the pill in the header', () => {
+it('opens from the profile menu and the pricing page, and puts the pill in the header', () => {
   const menu = shell.slice(shell.indexOf('profile-pop-actions'), shell.indexOf('Log out', shell.indexOf('profile-pop-actions')));
   expect(menu).toContain("goAccount('credits');");
   expect(menu).not.toMatch(/Credits usage|Plan &amp; billing/);
-  expect(shell).toContain("const onOpenUsage = () => goAccount('credits');");
+  // F194: the chat's Credits link went with F193, and with it the usage event.
+  expect(shell).not.toMatch(/OPEN_USAGE_EVENT|onOpenUsage/);
+  expect(read('../../lib/creditsStore.js')).not.toMatch(/OPEN_USAGE_EVENT|openCreditsUsage/);
   expect(shell).toContain("const onOpenBilling = (event) => goAccount('billing', { plan: event.detail?.plan ?? null });");
   expect(shell.indexOf('<BalancePill user={user} />')).toBeLessThan(shell.indexOf('<div className="profile-wrap" ref={profileRef}>'));
 });
@@ -53,18 +54,6 @@ it('opens from the profile menu, the chat and the pricing page, and puts the pil
 it('leaves the page for the desk when an answer asks to open its chat', () => {
   const at = shell.indexOf('const onOpenConversation = () => {');
   expect(shell.slice(at, at + 260)).toMatch(/if \(parseAccountHash\(\)\) \{\s*setAccount\(null\);\s*location\.hash = deskHash\(tab, featureName\);\s*\}\s*openAi\(\{ type: 'ai-open' \}\);/);
-});
-
-it('announces niy-open-usage', () => {
-  const target = new EventTarget();
-  vi.stubGlobal('window', target);
-  try {
-    const seen = vi.fn();
-    target.addEventListener(OPEN_USAGE_EVENT, seen);
-    openCreditsUsage();
-    expect(OPEN_USAGE_EVENT).toBe('niy-open-usage');
-    expect(seen).toHaveBeenCalledOnce();
-  } finally { vi.unstubAllGlobals(); }
 });
 
 it('keeps the page and its parts free of dollars', () => {

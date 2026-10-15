@@ -2863,6 +2863,13 @@ button.live-feed:hover { color: var(--fg); }
   min-height: 0;
   max-height: 100%;
 }
+/* F193: on a desk landing page or Home, an AI panel left open (an answer opened from the credits
+   page) floats over the page instead of narrowing it (owner 2026-10-15). Desktop only: phones keep
+   the stacked panel row. Module pages keep the docked panel. */
+@media (min-width: 901px) {
+  .workspace.ai-open:is(.home, .desk-guide-mode) { grid-template-columns: minmax(0, 1fr) !important; }
+  .workspace.ai-open:is(.home, .desk-guide-mode) > .side-panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 40; width: clamp(400px, var(--panel-chosen, 50%), 60%); box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14); }
+}
 .workspace.ai-open .table-wrap { padding-left: 8px; padding-right: 8px; }
 .workspace.ai-open .feed-table {
   width: max-content;

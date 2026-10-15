@@ -208,17 +208,6 @@ export function takeWantedConversation() {
   return id;
 }
 
-/**
- * The chat's Credits link asks the shell for the credits page (F153, F184), the way it asks for Plan
- * and invoices. The shell opens the page's Overview at #/account/credits.
- */
-export const OPEN_USAGE_EVENT = 'niy-open-usage';
-
-export function openCreditsUsage() {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(OPEN_USAGE_EVENT));
-}
-
 const GROUPED = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 
 function trimmed(value, digits) {

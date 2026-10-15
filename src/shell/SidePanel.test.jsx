@@ -243,6 +243,7 @@ describe('Desk and Record close on a click outside or Escape', () => {
     expect(escapeAction({ ...base, railOpen: false })).toBe(null);
     expect(escapeAction({ ...base, userExpanded: true })).toBe('restore');
     expect(escapeAction({ ...base, railOpen: false, aiActive: true })).toBe('close-ai');
+    expect(escapeAction({ ...base, railOpen: false, aiActive: true, modalOpen: true })).toBe(null);
   });
 });
 

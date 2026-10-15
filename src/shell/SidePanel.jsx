@@ -177,7 +177,9 @@ export function panelHidden(doc) {
 
 export function escapeAction({ userExpanded, citationExpanded, aiActive, railOpen, modalOpen }) {
   if (userExpanded && !citationExpanded) return 'restore';
-  if (aiActive) return 'close-ai';
+  // F193: a popup open outside the panel (the credits popover a refusal opened while the reader typed,
+  // the account menu, a filter) takes this Escape; AI stays open. Popups inside the panel stop it.
+  if (aiActive) return modalOpen ? null : 'close-ai';
   if (railOpen && !modalOpen) return 'collapse';
   return null;
 }

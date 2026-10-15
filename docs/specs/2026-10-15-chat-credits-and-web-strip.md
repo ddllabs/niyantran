@@ -67,3 +67,18 @@ apart in their pill, "Web sources", "5 pages", no border; the list reads "1 sear
 in the answer"; no credit line under the chat box; a simulated "could not be checked" refusal opened
 the popover with focus left in the chat box, an amber dot, and Try again called the retry and closed
 it; Escape in the chat box closed it and focus did not go to the pill.
+
+## Owner follow-up (2026-10-15)
+
+"Regarding the things that you noticed but didn't change, fix them too."
+- **Escape in the chat box.** It closes the AI panel (the dock's Escape, by design), which is why focus
+  left the box. Fixed the real defect behind it: while a popup outside the panel is open (the credits
+  popover a refusal opened, the account menu, a filter), Escape now closes only that popup and AI stays
+  open (`escapeAction`: `aiActive` returns null when `modalOpen`). Popups inside the panel already stop
+  the key.
+- **F194.** `openCreditsUsage`, `OPEN_USAGE_EVENT` and the shell's listener are removed.
+- **The side panel on landing pages.** The desk tabs still close it on a landing page (`onDesk` sends
+  `landing`). It could still be open there when an answer is opened from the credits page; on desktop
+  (over 900 px) it now floats over a landing page or Home at its usual width instead of narrowing the
+  page. Module pages keep the docked panel; phones keep the stacked row. Browser-checked on Home: the
+  page kept its full 939 px under the panel.

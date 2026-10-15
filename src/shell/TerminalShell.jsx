@@ -25,7 +25,7 @@ import {
   planOf,
 } from '../lib/planEntitlements.js';
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
-import { OPEN_CONVERSATION_EVENT, OPEN_USAGE_EVENT, clearCredits } from '../lib/creditsStore.js';
+import { OPEN_CONVERSATION_EVENT, clearCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
@@ -118,13 +118,6 @@ export default function TerminalShell({ onLogout }) {
     const onOpenBilling = (event) => goAccount('billing', { plan: event.detail?.plan ?? null });
     window.addEventListener(OPEN_BILLING_EVENT, onOpenBilling);
     return () => window.removeEventListener(OPEN_BILLING_EVENT, onOpenBilling);
-  }, []);
-
-  // The chat's Credits link opens the credits page's Overview (F153, F184).
-  useEffect(() => {
-    const onOpenUsage = () => goAccount('credits');
-    window.addEventListener(OPEN_USAGE_EVENT, onOpenUsage);
-    return () => window.removeEventListener(OPEN_USAGE_EVENT, onOpenUsage);
   }, []);
 
   // The plan comes from the server (F2). Re-read it when the terminal opens,
