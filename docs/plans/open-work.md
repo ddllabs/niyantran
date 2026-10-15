@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F204 is next) and goes in the
+- A new finding gets the next free `F` number (F207 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,6 +548,16 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F204. Record panels draw no relations graph.** Owner 2026-10-16 ("not genuine … remove that
+  wherever it comes"). The four-lane graph is gone from all 26 record types; their related register
+  rows stay as "Related on record". Follow-up: drop the unread `lanes`/`nodes` from the adapters.
+  Spec: `docs/specs/2026-10-16-record-panel-and-chat.md`. On `task/module-scroll`.
+- [ ] **F205. The AI brief card tells reading from writing.** Owner 2026-10-16. A stored brief shows a
+  plain skeleton; one being written (server 'pending', or slower than 1.2 s) shows the Niyantran mark
+  with a shimmer. Same spec and branch.
+- [ ] **F206. AI opens on a new chat by default.** Owner 2026-10-16. After a desk, module or record
+  change, opening AI starts a new local chat; a history pick, the credits page, a running answer and
+  an untouched new chat are kept. Same spec and branch.
 - [ ] **F203. Module pages that cannot scroll, are cut off, or lose their menu.** Owner request
   2026-10-16 (UI only). Measured on all 120 desk modules: the 101 on the shared table were fine; of the
   19 hand-built pages, 7 lost their bottom 36 px (`.nat-panel` content-box padding), MP Profiles and

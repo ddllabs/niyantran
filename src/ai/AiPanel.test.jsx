@@ -600,3 +600,18 @@ it('keeps the partly written answer on screen after a dropped connection', () =>
  // Nothing is running here, so the activity ticker does not spin (review).
  expect(html).not.toContain('ai-ticker active');
 });
+// F206 (owner 2026-10-16): the panel tells the thread when the page changes and asks for a fresh chat
+// when it opens, before a seed (a record's Ask AI, a drop) is attached.
+describe('a fresh chat on opening',()=>{
+ const src=require('node:fs').readFileSync(new URL('./AiPanel.jsx',import.meta.url),'utf8');
+ it('marks a change of desk, module or record, and starts fresh when AI opens',()=>{
+  expect(src).toContain("const contextKey = `${tab || ''}|${featureName || ''}|${selected ? deskRowKey(selected) : ''}`;");
+  expect(src).toMatch(/if \(seenContext\.current === contextKey\) return undefined;\s*seenContext\.current = contextKey;\s*research\.actions\.contextChanged\(\);/);
+  expect(src).toMatch(/if \(open && research\.ready\) research\.actions\.freshIfStale\(\);/);
+ });
+ it('does so before the seed effect attaches anything',()=>{
+  const fresh=src.indexOf('research.actions.freshIfStale()');
+  expect(fresh).toBeGreaterThan(0);
+  expect(fresh).toBeLessThan(src.indexOf('if (seedOwner.current?.seed === seed) return undefined;'));
+ });
+});

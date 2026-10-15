@@ -72,6 +72,9 @@ export function createResearchThread(overrides = {}) {
   let owner = null, generation = 0, sequence = 0, active = false, operation = null;
   // F149: a conversation asked for before the thread was ready to show it.
   let wanted = '';
+  // F206 (owner 2026-10-16): the page changed (or AI has not opened yet) since the reader last chose a
+  // chat, so the next opening starts a new one. A history pick, the credits page, a send or a new chat clears it.
+  let stale = true;
   let rechecking = null, recheckSequence = 0;
   let subscriptions = [];
   const listeners = new Set();
@@ -151,7 +154,7 @@ export function createResearchThread(overrides = {}) {
     }
   }
   function invalidate(id, event) {
-    generation++; sequence++; owner = null; operation = null; wanted = '';
+    generation++; sequence++; owner = null; operation = null; wanted = ''; stale = true;
     emit({ ready: false, loading: Boolean(id), error: id ? '' : 'Sign in to use AI research.', store: emptyStore(),
       draft: '', viewer: null, submitting: false, attaching: false, attachNotice: '', cancelRequested: false, cancelPending: false, cancelError: '',
       creditBlock: '', creditError: '', creditHeld: false, planBlock: '', estimates: {}, answerCredits: {}, identityVersion: data.identityVersion + 1 });
@@ -309,6 +312,7 @@ export function createResearchThread(overrides = {}) {
   }
   async function execute(body, replay = false) {
     if (!data.ready || data.submitting || data.attaching || (!replay && view.locked)) return false;
+    stale = false;
     const t = token(), context = deps.captureConversationContext(view.chat?.id || '');
     if (!context) return false;
     const op = { context }; operation = op;
@@ -397,10 +401,27 @@ export function createResearchThread(overrides = {}) {
     closeViewer() { emit({ viewer: null }); },
     newChat() {
       if (!data.ready || data.submitting || data.attaching || deps.streamState('new').isPending) return false;
+      stale = false;
       emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '', attachNotice: '' }); return true;
+    },
+    /** F206: the desk, module or record changed; the next opening starts a new chat. */
+    contextChanged() { stale = true; },
+    /**
+     * F206: on opening, a new chat replaces the last one if the page changed since the reader chose it.
+     * Never while an answer runs or a requested conversation is on its way; an untouched new chat is
+     * kept. Nothing is saved until its first turn. True when it started one.
+     */
+    freshIfStale() {
+      if (!stale || !data.ready || view.locked || wanted) return false;
+      stale = false;
+      const chat = view.chat;
+      if (chat?.draft && !chat.messages?.length && !chat.attachments?.length) return false;
+      emit({ store: deps.createAiChat(), draft: '', viewer: null, error: '', cancelRequested: false, cancelError: '', attachNotice: '' });
+      return true;
     },
     async selectChat(id) {
       if (!data.ready || data.submitting || data.attaching) return;
+      stale = false;
       const t = token();
       emit({ store: deps.setActiveAiChat(id), viewer: null, draft: '', loading: true, error: '', cancelRequested: false, cancelError: '', attachNotice: '' });
       try { const store = await deps.loadMessages(id); if (await current(t)) { emit({ store }); void loadAnswerCredits(id, t); } }
@@ -414,6 +435,7 @@ export function createResearchThread(overrides = {}) {
      */
     async openConversation(id) {
       if (typeof id !== 'string' || !id) return false;
+      stale = false;
       if (!data.ready) { wanted = id; return false; }
       if (!data.store.chats.some(c => c.id === id)) { emit({ error: 'That conversation is not in your recent chats.' }); return false; }
       if (view.locked) { emit({ error: 'Wait for the current answer to finish, then open that conversation.' }); return false; }

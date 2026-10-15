@@ -703,3 +703,34 @@ describe('one saved-answer re-check loop per conversation (F178)',()=>{
   }finally{vi.useRealTimers();}
  });
 });
+
+// F206 (owner 2026-10-16): opening AI after the page changed (a desk, a module, a record) starts a new
+// chat; a chat chosen from history, one opened from the credits page, a sent turn or a new chat stays.
+describe('a fresh chat by default',()=>{
+ const saved=()=>({chats:[{id:'c1',title:'Old',messages:[{role:'user',content:'Q'}],attachments:[]}],activeId:'c1',loaded:true});
+ const ready=async()=>{const f=fixture();f.setState(saved());f.deps.hydrateConversations.mockImplementation(async()=>f.getState());await f.controller.start();return f};
+ it('starts a new chat the first time AI opens, without creating a server row',async()=>{
+  const f=await ready();expect(f.controller.getSnapshot().chat.id).toBe('c1');
+  expect(f.controller.freshIfStale()).toBe(true);
+  expect(f.deps.createAiChat).toHaveBeenCalledOnce();expect(f.controller.getSnapshot().chat.draft).toBe(true);expect(f.sent).toEqual([]);
+  expect(f.controller.freshIfStale()).toBe(false);expect(f.deps.createAiChat).toHaveBeenCalledOnce();
+ });
+ it('starts another after the page changes, and only once per change',async()=>{
+  const f=await ready();f.controller.freshIfStale();await f.controller.send({message:'Q2',turn_key:'k2'});
+  expect(f.controller.freshIfStale()).toBe(false);
+  f.controller.contextChanged();expect(f.controller.freshIfStale()).toBe(true);expect(f.deps.createAiChat).toHaveBeenCalledTimes(2);
+ });
+ it('keeps an untouched new chat rather than making another',async()=>{
+  const f=await ready();f.controller.freshIfStale();f.controller.contextChanged();
+  expect(f.controller.freshIfStale()).toBe(false);expect(f.deps.createAiChat).toHaveBeenCalledOnce();
+ });
+ it('keeps a chat the reader chose from history or the credits page asked for',async()=>{
+  const f=await ready();await f.controller.selectChat('c1');expect(f.controller.freshIfStale()).toBe(false);
+  f.controller.contextChanged();await f.controller.openConversation('c1');expect(f.controller.freshIfStale()).toBe(false);
+  expect(f.controller.getSnapshot().chat.id).toBe('c1');
+ });
+ it('never replaces a chat while an answer is running',async()=>{
+  const f=await ready();f.setStreams({c1:{isPending:true,isStreaming:true,status:'streaming',sources:[]}});
+  expect(f.controller.freshIfStale()).toBe(false);expect(f.controller.getSnapshot().chat.id).toBe('c1');
+ });
+});

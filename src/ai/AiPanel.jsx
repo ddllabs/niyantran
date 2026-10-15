@@ -569,6 +569,22 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
     }
   }, [focus]);
 
+  // F206 (owner 2026-10-16): a new chat by default. A change of desk, module or record marks the chat
+  // as stale; opening AI then starts a new one (the thread keeps a chat the reader chose, one asked for
+  // from the credits page, and any answer still running). Before the seed effect, so a record's Ask AI
+  // or a drop lands in the new chat.
+  const contextKey = `${tab || ''}|${featureName || ''}|${selected ? deskRowKey(selected) : ''}`;
+  const seenContext = useRef(contextKey);
+  useEffect(() => {
+    if (seenContext.current === contextKey) return undefined;
+    seenContext.current = contextKey;
+    research.actions.contextChanged();
+    return undefined;
+  }, [contextKey, research.actions]);
+  useEffect(() => {
+    if (open && research.ready) research.actions.freshIfStale();
+  }, [open, research.ready, research.actions]);
+
   useEffect(() => {
     if (!seed) { seedOwner.current = null; return undefined; }
     if (!research.ready) return undefined;
