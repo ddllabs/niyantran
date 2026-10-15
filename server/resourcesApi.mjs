@@ -5,6 +5,7 @@
  * GET /api/leaders        — UN member heads of state / government
  */
 import { cacheFresh, cacheWritable } from './loaderCache.mjs';
+import { constitutionCountryName } from '../src/lib/globalResources.js';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; GlobalResources)';
 const FETCH_MS = 25_000;
@@ -64,7 +65,8 @@ export async function loadConstitutions() {
   const rows = (Array.isArray(arr) ? arr : [])
     .filter((c) => c && c.in_force === true)
     .map((c) => {
-      const country = c.country_id || c.country || '';
+      // country_id is a slug (`Bahamas_the`); show the name (audit 2026-10-15, cause 7).
+      const country = constitutionCountryName(c.country_id) || c.country || '';
       const enacted = String(c.year_enacted || (c.date_enacted || '').slice(0, 4) || '').trim();
       const id = c.id || '';
       return {

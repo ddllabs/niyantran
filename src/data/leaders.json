@@ -21,7 +21,7 @@
     },
     {
       "id": "us",
-      "name": "US President",
+      "name": "Donald Trump",
       "country": "United States",
       "flag": "🇺🇸",
       "role": "President",
@@ -29,7 +29,9 @@
       "ideology": "—",
       "since": "2025",
       "age": null,
-      "latest": "Tariff-centric trade policy; pressure on allies for burden-sharing; Ukraine & Taiwan posture in flux."
+      "latest": "Tariff-centric trade policy; pressure on allies for burden-sharing; Ukraine & Taiwan posture in flux.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q22686"
     },
     {
       "id": "cn",
@@ -81,15 +83,17 @@
     },
     {
       "id": "gb",
-      "name": "UK Prime Minister",
+      "name": "Andy Burnham",
       "country": "United Kingdom",
       "flag": "🇬🇧",
       "role": "Prime Minister",
       "party": "—",
       "ideology": "—",
-      "since": "2024",
+      "since": "2026",
       "age": null,
-      "latest": "Rebuilding EU ties post-Brexit; AUKUS; fiscal constraint."
+      "latest": "Rebuilding EU ties post-Brexit; AUKUS; fiscal constraint.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q269909"
     },
     {
       "id": "fr",
@@ -105,7 +109,7 @@
     },
     {
       "id": "de",
-      "name": "German Chancellor",
+      "name": "Friedrich Merz",
       "country": "Germany",
       "flag": "🇩🇪",
       "role": "Chancellor",
@@ -113,7 +117,9 @@
       "ideology": "—",
       "since": "2025",
       "age": null,
-      "latest": "Zeitenwende rearmament; energy transition after Russian gas cutoff; industrial competitiveness."
+      "latest": "Zeitenwende rearmament; energy transition after Russian gas cutoff; industrial competitiveness.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q566257"
     },
     {
       "id": "tr",
@@ -153,19 +159,21 @@
     },
     {
       "id": "jp",
-      "name": "Japan PM",
+      "name": "Sanae Takaichi",
       "country": "Japan",
       "flag": "🇯🇵",
       "role": "Prime Minister",
       "party": "LDP-led",
       "ideology": "Conservative",
-      "since": "2024",
+      "since": "2025",
       "age": null,
-      "latest": "Defence build-up, US alliance deepening, China deterrence, yen management."
+      "latest": "Defence build-up, US alliance deepening, China deterrence, yen management.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q1705028"
     },
     {
       "id": "kr",
-      "name": "South Korea President",
+      "name": "Lee Jae Myung",
       "country": "South Korea",
       "flag": "🇰🇷",
       "role": "President",
@@ -173,7 +181,9 @@
       "ideology": "—",
       "since": "2025",
       "age": null,
-      "latest": "US alliance, DPRK deterrence, chip-export exposure, Japan rapprochement."
+      "latest": "US alliance, DPRK deterrence, chip-export exposure, Japan rapprochement.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q12612463"
     },
     {
       "id": "kp2",
@@ -213,7 +223,7 @@
     },
     {
       "id": "pk",
-      "name": "Pakistan PM",
+      "name": "Shehbaz Sharif",
       "country": "Pakistan",
       "flag": "🇵🇰",
       "role": "Prime Minister",
@@ -221,23 +231,27 @@
       "ideology": "—",
       "since": "2024",
       "age": null,
-      "latest": "IMF program, army-backed govt, India tension, China (CPEC) reliance."
+      "latest": "IMF program, army-backed govt, India tension, China (CPEC) reliance.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q2096387"
     },
     {
       "id": "bd",
-      "name": "Bangladesh (interim)",
+      "name": "Tarique Rahman",
       "country": "Bangladesh",
       "flag": "🇧🇩",
-      "role": "Chief Adviser",
-      "party": "—",
-      "ideology": "Technocratic",
-      "since": "2024",
+      "role": "Prime Minister",
+      "party": "Bangladesh Nationalist Party",
+      "ideology": "—",
+      "since": "2026",
       "age": null,
-      "latest": "Post-Hasina interim government (Yunus); reform + election roadmap."
+      "latest": "",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q7686199"
     },
     {
       "id": "lk",
-      "name": "Sri Lanka President",
+      "name": "Anura Kumara Dissanayake",
       "country": "Sri Lanka",
       "flag": "🇱🇰",
       "role": "President",
@@ -245,11 +259,13 @@
       "ideology": "Left",
       "since": "2024",
       "age": null,
-      "latest": "Post-crisis recovery; IMF; India-China balancing on ports."
+      "latest": "Post-crisis recovery; IMF; India-China balancing on ports.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q4777855"
     },
     {
       "id": "af",
-      "name": "Taliban (IEA)",
+      "name": "Hibatullah Akhundzada",
       "country": "Afghanistan",
       "flag": "🇦🇫",
       "role": "Supreme Leader",
@@ -257,7 +273,9 @@
       "ideology": "Islamist",
       "since": "2021",
       "age": null,
-      "latest": "Unrecognised; women’s-rights crackdown; ISKP threat; aid dependence."
+      "latest": "Unrecognised; women’s-rights crackdown; ISKP threat; aid dependence.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q24237654"
     },
     {
       "id": "eg",
@@ -321,7 +339,7 @@
     },
     {
       "id": "ca",
-      "name": "Canada PM",
+      "name": "Mark Carney",
       "country": "Canada",
       "flag": "🇨🇦",
       "role": "Prime Minister",
@@ -329,7 +347,9 @@
       "ideology": "—",
       "since": "2025",
       "age": null,
-      "latest": "US tariff friction; Arctic security; critical-minerals push; NATO spend."
+      "latest": "US tariff friction; Arctic security; critical-minerals push; NATO spend.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q192533"
     },
     {
       "id": "mx",
@@ -369,15 +389,17 @@
     },
     {
       "id": "pl",
-      "name": "Poland (govt)",
+      "name": "Donald Tusk",
       "country": "Poland",
       "flag": "🇵🇱",
-      "role": "PM / President",
+      "role": "Prime Minister",
       "party": "—",
       "ideology": "—",
       "since": "2023",
       "age": null,
-      "latest": "Frontline NATO state; largest EU defence spend %; Ukraine logistics hub."
+      "latest": "Frontline NATO state; largest EU defence spend %; Ukraine logistics hub.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q946"
     },
     {
       "id": "hu",
@@ -393,19 +415,21 @@
     },
     {
       "id": "nl",
-      "name": "Netherlands (govt)",
+      "name": "Rob Jetten",
       "country": "Netherlands",
       "flag": "🇳🇱",
       "role": "PM",
-      "party": "—",
-      "ideology": "Right-coalition",
-      "since": "2024",
+      "party": "Democrats 66",
+      "ideology": "—",
+      "since": "2026",
       "age": null,
-      "latest": "ASML export-control pivot; migration curbs; NATO/Ukraine support."
+      "latest": "ASML export-control pivot; migration curbs; NATO/Ukraine support.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q28860866"
     },
     {
       "id": "au",
-      "name": "Australia PM",
+      "name": "Anthony Albanese",
       "country": "Australia",
       "flag": "🇦🇺",
       "role": "Prime Minister",
@@ -413,7 +437,9 @@
       "ideology": "Centre-left",
       "since": "2022",
       "age": null,
-      "latest": "AUKUS submarines; China trade thaw; Pacific competition; critical minerals."
+      "latest": "AUKUS submarines; China trade thaw; Pacific competition; critical minerals.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q335697"
     },
     {
       "id": "ph",
@@ -429,7 +455,7 @@
     },
     {
       "id": "vn",
-      "name": "Vietnam (CPV)",
+      "name": "Tô Lâm",
       "country": "Vietnam",
       "flag": "🇻🇳",
       "role": "CPV General Secretary",
@@ -437,19 +463,23 @@
       "ideology": "Marxist-Leninist",
       "since": "2024",
       "age": null,
-      "latest": "\"Bamboo diplomacy\"; US comprehensive partnership; chip/manufacturing shift."
+      "latest": "\"Bamboo diplomacy\"; US comprehensive partnership; chip/manufacturing shift.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q10831196"
     },
     {
       "id": "th",
-      "name": "Thailand PM",
+      "name": "Anutin Charnvirakul",
       "country": "Thailand",
       "flag": "🇹🇭",
       "role": "Prime Minister",
-      "party": "Pheu Thai-led",
+      "party": "Bhumjaithai Party",
       "ideology": "—",
-      "since": "2024",
+      "since": "2025",
       "age": null,
-      "latest": "Military-civilian balance; Myanmar border crisis; China rail links."
+      "latest": "Military-civilian balance; Myanmar border crisis; China rail links.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q16139757"
     },
     {
       "id": "ua2",
@@ -465,7 +495,7 @@
     },
     {
       "id": "qa",
-      "name": "Qatar (Emir)",
+      "name": "Tamim bin Hamad Al Thani",
       "country": "Qatar",
       "flag": "🇶🇦",
       "role": "Emir",
@@ -473,11 +503,13 @@
       "ideology": "Monarchy",
       "since": "2013",
       "age": 45,
-      "latest": "Gaza/Hamas mediator; LNG superpower; US CENTCOM (Al Udeid) host."
+      "latest": "Gaza/Hamas mediator; LNG superpower; US CENTCOM (Al Udeid) host.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q1855372"
     },
     {
       "id": "ae",
-      "name": "UAE (President)",
+      "name": "Mohamed bin Zayed Al Nahyan",
       "country": "UAE",
       "flag": "🇦🇪",
       "role": "President",
@@ -485,11 +517,13 @@
       "ideology": "Monarchy",
       "since": "2022",
       "age": 64,
-      "latest": "Sudan/RSF ties alleged; AI (G42) ambitions; trade & logistics hub."
+      "latest": "Sudan/RSF ties alleged; AI (G42) ambitions; trade & logistics hub.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q1951896"
     },
     {
       "id": "sg",
-      "name": "Singapore PM",
+      "name": "Lawrence Wong",
       "country": "Singapore",
       "flag": "🇸🇬",
       "role": "Prime Minister",
@@ -497,7 +531,9 @@
       "ideology": "Technocratic",
       "since": "2024",
       "age": null,
-      "latest": "US-China hedging; chip & finance hub; Malacca-adjacent security."
+      "latest": "US-China hedging; chip & finance hub; Malacca-adjacent security.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q6504758"
     },
     {
       "id": "ng2",
@@ -513,7 +549,7 @@
     },
     {
       "id": "cu",
-      "name": "Cuba (President)",
+      "name": "Miguel Díaz-Canel",
       "country": "Cuba",
       "flag": "🇨🇺",
       "role": "President",
@@ -521,7 +557,9 @@
       "ideology": "Communist",
       "since": "2019",
       "age": null,
-      "latest": "Economic collapse; US embargo; migration wave; Russia/China ties."
+      "latest": "Economic collapse; US embargo; migration wave; Russia/China ties.",
+      "as_of": "2026-10-15",
+      "source_url": "https://www.wikidata.org/wiki/Q1932603"
     },
     {
       "id": "by2",

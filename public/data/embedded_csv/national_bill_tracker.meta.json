@@ -1,7 +1,7 @@
 {
   "dataset": "national_bill_tracker",
   "row_count": 9819,
-  "newest_record": "2026-08-09T19:00:00Z",
+  "newest_record": "2026-08-10T00:00:00+05:30",
   "as_of": "2026-09-07T18:02:04.432Z",
   "source": "https://sansad.in/api_rs/legislation/getBills",
   "note": "Full Sansad RS legislation backfill."

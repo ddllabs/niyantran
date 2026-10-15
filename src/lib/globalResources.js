@@ -2,6 +2,37 @@ export function isWorldConstitutionsFeature(name) {
   return /^world constitutions$/i.test(String(name || '').trim());
 }
 
+/**
+ * Constitute Project `country_id`s that the plain rule below would not turn into the name people use
+ * (audit 2026-10-15, cause 7: 46 of 188 in-force ids are slugs such as `Bahamas_the`, `Cote_d_Ivoire`).
+ */
+const CONSTITUTION_COUNTRY_NAMES = {
+  Brunei_Darussalam: 'Brunei',
+  Congo_the: 'Republic of the Congo',
+  Cote_d_Ivoire: "Côte d'Ivoire",
+  Democratic_People_s_Republic_of_Korea_the: 'North Korea',
+  Iran_Islamic_Rep_of_: 'Iran',
+  Lao_People_s_Democratic_Republic__the: 'Laos',
+  Micronesia__Fed_States_of_: 'Micronesia',
+  Republic_of_Korea__the: 'South Korea',
+  Republic_of_Moldova: 'Moldova',
+  Russian_Federation__the: 'Russia',
+  Swaziland: 'Eswatini',
+  The_former_Yugoslav_Republic_of_Macedonia: 'North Macedonia',
+  United_Kingdom_of_Great_Britain_and_Northern_Ireland__the: 'United Kingdom',
+  United_Republic_of_Tanzania__the: 'Tanzania',
+  United_States_of_America: 'United States',
+  Viet_Nam: 'Vietnam',
+};
+
+/** A Constitute Project `country_id` as a display name: underscores to spaces, a trailing "the" dropped, irregular ids mapped. */
+export function constitutionCountryName(countryId) {
+  const raw = String(countryId || '').trim();
+  if (!raw) return '';
+  if (Object.hasOwn(CONSTITUTION_COUNTRY_NAMES, raw)) return CONSTITUTION_COUNTRY_NAMES[raw];
+  return raw.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+the$/i, '');
+}
+
 export function isGrowthIndicatorsFeature(name) {
   return /^growth indicators$/i.test(String(name || '').trim());
 }

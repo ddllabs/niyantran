@@ -5,8 +5,11 @@ import { plural, presentRows, sourceLinks } from './common.js';
  * World Constitutions (Constitute Project, constitutions in force) → record panel (F121).
  *
  * Rows come from `loadConstitutions` (server/resourcesApi.mjs lines 59-81): { title, country,
- * enacted, constitution_id, source_url }. `country` is Constitute's `country_id` (an underscore-
- * joined name), `enacted` is a year string or '', and `constitution_id` is Constitute's own id.
+ * enacted, constitution_id, source_url }. Since F202 (2026-10-15) the loader sends `country`
+ * already readable ("Bahamas", "Iran"; `constitutionCountryName` in src/lib/globalResources.js), which
+ * `readableCountry` below passes through unchanged; it still reads a raw Constitute `country_id`
+ * (an underscore-joined name) from an older stored answer. `enacted` is a year string or '', and
+ * `constitution_id` is Constitute's own id.
  * The rows hold no text, topics or amendments, so the panel states none.
  *
  * Every row is in force: the loader keeps only records with `in_force === true` (resourcesApi.mjs

@@ -21,7 +21,10 @@ const model = (row, c = ctx()) => headsOfState(row, c);
 const byId = (id) => rows.find((r) => r.id === id);
 
 const modi = byId('in');
-const us = byId('us'); // placeholder name, party and ideology "—", no age
+// Since F202 (2026-10-15) every profile names its holder, sourced to Wikidata. The placeholder cases use the
+// US profile as it stood before: named by its office, with no as-of or source of its own.
+const us = flattenLeader({ ...leadersPack.leaders.find((p) => p.id === 'us'), name: 'US President', as_of: undefined, source_url: undefined }); // placeholder name, party and ideology "—", no age
+const SOURCED = ['us', 'gb', 'de', 'jp', 'kr', 'pk', 'bd', 'lk', 'af', 'ca', 'pl', 'nl', 'au', 'vn', 'th', 'qa', 'ae', 'sg', 'cu'];
 const xi = byId('cn');
 const ua2 = byId('ua2'); // duplicate reference row
 
@@ -48,12 +51,18 @@ describe('fixtures are real flattenLeader output', () => {
     expect(rows).toHaveLength(44);
     expect(us).toMatchObject({ name: 'Not verified', status: 'Not verified', next_transition: 'Not reported', authority: 'De jure (as listed)', source_url: 'https://www.wikidata.org/', party: '—', ideology: '—', age: '' });
     expect(modi).toMatchObject({ name: 'Narendra Modi', status: 'Tracked', next_transition: 'Not reported', authority: 'De jure (as listed)', last_verified: '', term_start: '2014', age: 75 });
+    expect(byId('us')).toMatchObject({ name: 'Donald Trump', status: 'Tracked', last_verified: '2026-10-15', source_url: 'https://www.wikidata.org/wiki/Q22686' });
   });
 
   it('holds none of the defaulted fields in the raw profiles', () => {
     for (const p of leadersPack.leaders) {
-      for (const k of ['status', 'next_transition', 'next_election', 'authority', 'acting', 'last_verified', 'as_of', 'source_url', 'term_start']) expect(p, `${p.id}.${k}`).not.toHaveProperty(k);
+      for (const k of ['status', 'next_transition', 'next_election', 'authority', 'acting', 'last_verified', 'term_start']) expect(p, `${p.id}.${k}`).not.toHaveProperty(k);
     }
+  });
+
+  it('holds an as-of date and a Wikidata item only on the 19 profiles filled from Wikidata (F202)', () => {
+    expect(leadersPack.leaders.filter((p) => 'as_of' in p || 'source_url' in p).map((p) => p.id)).toEqual(SOURCED);
+    for (const id of SOURCED) expect(byId(id).source_url, id).toMatch(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/);
   });
 });
 
@@ -108,7 +117,9 @@ describe('flattenLeader defaults are treated as not on record', () => {
     // F122: rows named by an office ("UK Prime Minister", "Qatar (Emir)") are not verified, as "US President" was.
     const badged = rows.filter((r) => model(r).badge).map((r) => r.id);
     expect(badged).toEqual(rows.filter((r) => r.name === 'Not verified').map((r) => r.id));
-    expect(badged).toEqual(expect.arrayContaining(['us', 'gb', 'de', 'jp', 'af', 'qa']));
+    // F202: the 19 office-named rows now name their holders, so no row of the pack is badged.
+    expect(badged).toEqual([]);
+    expect(model(us).badge).toEqual({ text: 'Not verified', tone: 'amber' });
     for (const id of ['in', 'sa', 'ng2', 'kp2']) expect(badged, id).not.toContain(id);
   });
 
@@ -140,7 +151,8 @@ describe('flattenLeader defaults are treated as not on record', () => {
 
   it('never links the Wikidata home page that flattenLeader writes into every row', () => {
     for (const row of rows) {
-      expect(row.source_url).toBe('https://www.wikidata.org/');
+      // The home page flattenLeader defaults to, or (F202) the profile's own Wikidata item; neither is linked.
+      expect(row.source_url).toMatch(/^https:\/\/www\.wikidata\.org\/(wiki\/Q\d+)?$/);
       expect(model(row).links, row.id).toEqual([]);
       for (const s of strings(model(row))) expect(s, row.id).not.toMatch(/wikidata|world factbook|cia\.gov/i);
     }
@@ -262,7 +274,7 @@ describe('02 about', () => {
   it('puts the latest note in a Latest card, and omits the card when there is none', () => {
     expect(model(xi).about.cards).toEqual([{ heading: 'Latest', body: xi.latest }]);
     expect(model({ ...xi, latest: '' }).about.cards || []).toEqual([]);
-    for (const row of rows) expect(model(row).about.cards?.[0]?.body, row.id).toBe(row.latest);
+    for (const row of rows) expect(model(row).about.cards?.[0]?.body, row.id).toBe(row.latest || undefined);
   });
 });
 
@@ -308,8 +320,8 @@ describe('03 what it touches', () => {
     expect(model(odd, ctx({ rows: [...rows, odd] })).touches.nodes.far.l2).toBe('3 more on record');
   });
 
-  it('never computes a same-ideology group for an empty or dash ideology, though nine rows share the dash', () => {
-    expect(rows.filter((r) => r.ideology === '—')).toHaveLength(9);
+  it('never computes a same-ideology group for an empty or dash ideology, though eleven rows share the dash', () => {
+    expect(rows.filter((r) => r.ideology === '—')).toHaveLength(11);
     for (const row of rows.filter((r) => r.ideology === '—')) {
       const m = model(row);
       expect(m.touches.nodes.far, row.id).toBeUndefined();

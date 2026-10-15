@@ -46,7 +46,14 @@ afterAll(() => vi.unstubAllGlobals());
 
 const rows = live.rows;
 const ctx = (list = rows) => ({ rows: list, feed: { rows: list } });
-const pick = (country, list = rows) => list.find((r) => r.country === country);
+/**
+ * A fixture row by its Constitute country_id, or by the name the loader shows. Since F202 (2026-10-15) the
+ * loader turns country_id into a display name (`constitutionCountryName`), so `country` is no longer the id.
+ */
+const pick = (key, list = rows) => {
+  const id = feed.find((f) => f.country_id === key)?.id;
+  return list.find((r) => (id && r.constitution_id === id) || r.country === key);
+};
 const model = (country, list = rows) => constitutions(pick(country, list), ctx(list));
 
 /** Every string anywhere in a model. */
@@ -88,18 +95,18 @@ describe('World Constitutions adapter', () => {
   it.each([
     ['India', 'India'],
     ['Cote_d_Ivoire', "Côte d'Ivoire"],
-    ['Gambia__the', 'The Gambia'],
-    ['Iran_Islamic_Rep_of_', 'Iran (Islamic Republic of)'],
+    ['Gambia__the', 'Gambia'],
+    ['Iran_Islamic_Rep_of_', 'Iran'],
     ['Bosnia_and_Herzegovina', 'Bosnia and Herzegovina'],
-    ['Congo_the', 'Congo (Republic of the)'],
+    ['Congo_the', 'Republic of the Congo'],
     ['Democratic_Republic_of_the_Congo', 'Democratic Republic of the Congo'],
-    ['Micronesia__Fed_States_of_', 'Micronesia (Federated States of)'],
-    ['Lao_People_s_Democratic_Republic__the', "Lao People's Democratic Republic"],
-    ['United_Kingdom_of_Great_Britain_and_Northern_Ireland__the', 'United Kingdom of Great Britain and Northern Ireland'],
-    ['Republic_of_Korea__the', 'Republic of Korea'],
+    ['Micronesia__Fed_States_of_', 'Micronesia'],
+    ['Lao_People_s_Democratic_Republic__the', 'Laos'],
+    ['United_Kingdom_of_Great_Britain_and_Northern_Ireland__the', 'United Kingdom'],
+    ['Republic_of_Korea__the', 'South Korea'],
     ['Niger_the', 'Niger'],
     ['Timor-Leste', 'Timor-Leste'],
-    ['The_former_Yugoslav_Republic_of_Macedonia', 'The former Yugoslav Republic of Macedonia'],
+    ['The_former_Yugoslav_Republic_of_Macedonia', 'North Macedonia'],
   ])('writes %s as a readable country name', (id, name) => {
     const m = model(id);
     expect(m.title).toBe(name);
