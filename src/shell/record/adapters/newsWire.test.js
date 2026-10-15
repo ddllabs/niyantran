@@ -565,3 +565,121 @@ describe('footer and provenance', () => {
     expect(gm(g1).footer.note).toMatch(/where the story/i);
   });
 });
+
+/**
+ * F188: the wire's other live source. When BBC World fails or is thin, the Geopolitics branch of
+ * server/featureFeed.mjs serves a Google News topic search. Its rows were captured from the real
+ * serveFeatureFeed under a stubbed fetch on 2026-10-15: { date (RFC 822), title ("Headline -
+ * Publisher"), source_url (a news.google.com redirect), summary ("Headline Publisher", or '' when
+ * the item has no description) } plus `publisher` only when the item carries <source>. There is no
+ * `outlet` and no `domain`. Before F188 a row with a summary read as BBC and its publisher as
+ * Not on record, and a row without one read as unknown.
+ */
+const GOOGLE_FEED = {
+  ok: true, tier: 'global', feature: 'Geopolitics News Wire',
+  source: { adapter: 'news-search', links: ['https://news.google.com/rss/search?q=geopolitics'], note: 'Google News search for geopolitics and diplomacy (BBC World did not answer).', kind: '' },
+  coverage: { from: '', through: '3d', exhaustive: false }, fallback: false, timeline: [],
+  meta: { section: 'TOP WORLD STORIES — NEWS SEARCH', status: 'LIVE · NEWS SEARCH', note: '3 stories' },
+};
+const googleRow = (n, over = {}) => ({
+  date: 'Thu, 15 Oct 2026 06:30:00 GMT',
+  title: `Talks resume ${n} - Reuters`,
+  source_url: `https://news.google.com/rss/articles/CBMi${n}?oc=5`,
+  summary: `Talks resume ${n} Reuters`,
+  publisher: 'Reuters',
+  ...over,
+});
+const googleWithSummary = googleRow(1);
+const googleNoSummary = googleRow(2, { title: 'Council meets - Al Jazeera', summary: '', publisher: 'Al Jazeera' });
+const googleNoPublisher = (() => { const { publisher, ...rest } = googleRow(3, { summary: '' }); return rest; })();
+const GOOGLE_ROWS = [googleWithSummary, googleNoSummary, googleNoPublisher];
+const ggm = (row, c = { rows: GOOGLE_ROWS, feed: GOOGLE_FEED }) => newsWire(row, c);
+
+describe('Google News search rows (F188)', () => {
+  it('copy the key sets the real feed code produces', () => {
+    expect(Object.keys(googleWithSummary).sort()).toEqual(['date', 'publisher', 'source_url', 'summary', 'title']);
+    expect(Object.keys(googleNoSummary).sort()).toEqual(['date', 'publisher', 'source_url', 'summary', 'title']);
+    expect(Object.keys(googleNoPublisher).sort()).toEqual(['date', 'source_url', 'summary', 'title']);
+  });
+
+  it('labels a Google row with a summary as Google News search, never as the BBC World feed', () => {
+    const model = ggm(googleWithSummary);
+    expect(tile(model, 'Feed').value).toBe('Google News search');
+    expect(model.footer.provenance.source).toBe('Google News search (not an official dataset)');
+    expect(model.footer.note).toMatch(/Google News/);
+    expect(model.badge?.text).toBe('News search');
+    for (const s of strings(model)) expect(s).not.toMatch(/BBC/);
+  });
+
+  it('shows the real publisher from the row, wherever the publisher is shown', () => {
+    const model = ggm(googleWithSummary);
+    expect(tile(model, 'Publisher').value).toBe('Reuters');
+    expect(model.meta).toEqual(['News wire', 'Reuters']);
+    expect(model.about.rows).toEqual([['Publisher', 'Reuters'], ['Published', '15 Oct 2026']]);
+    expect(model.touches.nodes.left).toEqual({ l1: 'Reuters' });
+    expect(tile(ggm(googleNoSummary), 'Publisher').value).toBe('Al Jazeera');
+  });
+
+  it('labels a Google row without a summary as Google News search too, with no summary card', () => {
+    const model = ggm(googleNoSummary);
+    expect(tile(model, 'Feed').value).toBe('Google News search');
+    expect(model.footer.provenance.source).toBe('Google News search (not an official dataset)');
+    expect(model.about.cards).toEqual([]);
+    expect(model.badge?.text).toBe('News search');
+  });
+
+  it('knows a Google row from its news.google.com link alone, and says Not on record for a missing publisher', () => {
+    const model = ggm(googleNoPublisher);
+    expect(tile(model, 'Feed').value).toBe('Google News search');
+    expect(tile(model, 'Publisher').value).toBe('Not on record');
+    expect(model.meta).toEqual(['News wire']);
+    // The publisher field alone also identifies it, even with a link that is not Google's.
+    expect(tile(ggm({ ...googleWithSummary, source_url: 'https://example.com/story' }), 'Feed').value).toBe('Google News search');
+  });
+
+  it('titles the summary card as Google News, since the row names no outlet', () => {
+    const card = ggm(googleWithSummary).about.cards[0];
+    expect(card.heading).toBe('Summary as listed by Google News');
+    expect(card.body).toBe('Talks resume 1 Reuters');
+  });
+
+  it('states the window from coverage.through, reads the date in India time, and counts same-publisher stories', () => {
+    const model = ggm(googleWithSummary, { rows: [googleWithSummary, googleRow(4)], feed: GOOGLE_FEED });
+    expect(boardRow(model, 'Feed window').value).toBe('Last 3 days');
+    expect(tile(model, 'Published').value).toBe('15 Oct 2026');
+    expect(tile(model, 'Published').sub).toMatch(/India/);
+    expect(boardRow(model, 'Same publisher').value).toBe('1');
+    expect(boardRow(ggm(googleWithSummary, {}), 'Feed window').value).toBe('Not on record');
+    expect(boardRow(model, "Publisher's country")).toBeUndefined();
+  });
+
+  it('does not present news.google.com as the publisher website, but keeps the article link over https', () => {
+    const model = ggm(googleWithSummary);
+    expect(model.about.rows.map(([label]) => label)).not.toContain('Website');
+    expect(strings(model.about).join(' ')).not.toMatch(/news\.google\.com/);
+    expect(model.links.length).toBe(1);
+  });
+
+  it('honours the panel contract and the honesty rules', () => {
+    for (const row of GOOGLE_ROWS) {
+      expect(contractProblems(ggm(row)), row.title).toEqual([]);
+      expect(contractProblems(newsWire(row)), row.title).toEqual([]);
+      expect(ggm(row).glance.visual.caption).toMatch(/not an official dataset/i);
+      expect(ggm(row).footer.note).toMatch(/not a verified record/i);
+    }
+  });
+
+  it('leaves the other shapes alone: BBC stays BBC, stored GDELT stays News search, an unknown row stays unknown', () => {
+    expect(tile(rm(r1), 'Feed').value).toBe('BBC World feed');
+    expect(rm(r1).footer.provenance.source).toBe('BBC World feed');
+    expect(tile(rm(r1), 'Publisher').value).toBe('BBC World');
+    expect(tile(gm(g1), 'Feed').value).toBe('News search');
+    expect(gm(g1).footer.provenance.source).toBe('News search (not an official dataset)');
+    expect(tile(gm(g1), 'Publisher').value).toBe('reuters.com');
+    const unknown = newsWire({ title: 'Headline only', date: 'Mon, 12 Oct 2026 14:30:00 GMT' }, { feed: {} });
+    expect(tile(unknown, 'Feed').value).toBe('Not on record');
+    expect(tile(unknown, 'Publisher').value).toBe('Not on record');
+    expect(unknown.footer.provenance.source).toBe('Geopolitics News Wire feed');
+    expect(unknown.badge).toBeUndefined();
+  });
+});
