@@ -28,6 +28,7 @@ import {
 import { refreshEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
 import { OPEN_CONVERSATION_EVENT, clearCredits } from '../lib/creditsStore.js';
 import { setPageTitle } from '../lib/siteHead.js';
+import { applyInterfaceLang } from './interfaceLang.js';
 import { openInDesk, takePendingDeskRow } from '../ai/openRowSource.js';
 import OnboardingTour from './OnboardingTour.jsx';
 import PersonaChooser from './PersonaChooser.jsx';
@@ -74,6 +75,8 @@ export default function TerminalShell({ onLogout }) {
   const active = deskTabs.find((t) => t.id === tab) || TABS.find((t) => t.id === tab) || TABS[0];
   const hi = lang === 'hi';
   const restricted = !canAccessDesk(user, tab);
+
+  useEffect(() => applyInterfaceLang(document.documentElement, lang), [lang]);
 
 
   useEffect(() => {
@@ -383,7 +386,13 @@ export default function TerminalShell({ onLogout }) {
             }
           }} />
         <div className="top-actions">
-          <button type="button" className="icon-btn" onClick={() => setLang(hi ? 'en' : 'hi')}>
+          <button
+            type="button"
+            className="icon-btn"
+            title={hi ? 'इंटरफ़ेस अंग्रेज़ी में बदलें' : 'Switch the interface to Hindi'}
+            aria-label={hi ? 'HI, इंटरफ़ेस अंग्रेज़ी में बदलें' : 'EN, switch the interface to Hindi'}
+            onClick={() => setLang(hi ? 'en' : 'hi')}
+          >
             {hi ? 'HI' : 'EN'}
           </button>
           <div className="tv-wrap">

@@ -118,3 +118,12 @@ describe('Home is the default view (owner, 2026-10-13)', () => {
     expect(html).toContain('with-module-navigation');
   });
 });
+
+// F192: the EN/HI toggle has a name that keeps its visible text and says what it does.
+describe('language toggle', () => {
+  it('names the toggle in English with the visible EN first', () => {
+    location.hash = '#/home';
+    const html = renderToStaticMarkup(<TerminalShell/>);
+    expect(html).toMatch(/<button type="button" class="icon-btn" title="Switch the interface to Hindi" aria-label="EN, switch the interface to Hindi">EN<\/button>/);
+  });
+});
