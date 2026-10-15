@@ -49,6 +49,12 @@ const FEATURE_DISPLAY_ALIASES = {
   'Prediction Market Political Odds': 'Prediction Market',
   'Music Charts — India Top 25': 'India Music Charts',
   'Music Charts — Global Top 25': 'Global Music Charts',
+  // F196: state-level figures (RBI Handbook of Statistics on Indian States); the module keys keep 'District'.
+  'District Health & Nutrition Indicators': 'State Health & Nutrition Indicators',
+  'District Education Indicators': 'State Education Indicators',
+  'District Economic & Livelihood Indicators': 'State Economic & Livelihood Indicators',
+  'District Agriculture & Rural Indicators': 'State Agriculture & Rural Indicators',
+  'District Infrastructure & Connectivity': 'State Infrastructure & Connectivity',
 };
 
 export function isIndustryFeature(name) {

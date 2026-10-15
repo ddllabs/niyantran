@@ -47,7 +47,7 @@ describe('planned modules', () => {
     const fetch = vi.fn(async () => { throw new Error('no request expected'); });
     vi.stubGlobal('fetch', fetch);
     const { fetchFeature } = await import('./featureFeed.js');
-    const out = await fetchFeature({ tier: 'state', feature: 'NITI Aayog State Indices' });
+    const out = await fetchFeature({ tier: 'state', feature: 'Party Organisation Map' });
     expect(out.source.adapter).toBe('planned');
     expect(fetch.mock.calls.filter(([u]) => /\/api\/feature-feed/.test(String(u)))).toEqual([]);
   }, 30_000);
@@ -59,7 +59,7 @@ describe('planned modules', () => {
 
   // F196: five modules were built from sources the repository already named.
   it('no longer lists the five modules F196 built', () => {
-    expect(PLANNED_MODULES.size).toBe(14);
+    expect(PLANNED_MODULES.size).toBe(4);
     for (const [tier, feature] of [
       ['sports', 'Sports Governance & Policy'],
       ['state', "Governor Friction & President's Rule Tracker"],
@@ -67,5 +67,19 @@ describe('planned modules', () => {
       ['state', 'MLA Defection & Anti-defection Case Tracker'],
       ['economics', 'Election Forecast Aggregator'],
     ]) expect(isPlannedModule(tier, feature), feature).toBe(false);
+  });
+
+  // F196 batch 2: nine modules from the RBI Handbook of Statistics on Indian States and RBI's press releases.
+  it('no longer lists the RBI handbook modules, the Comparison Engine or the SDL auctions', () => {
+    for (const feature of [
+      'State Economic Data (GSDP, sectors)', 'State Fiscal Deep-Dive', 'NITI Aayog State Indices', 'Cross-State Comparison Engine',
+      'District Health & Nutrition Indicators', 'District Education Indicators', 'District Economic & Livelihood Indicators',
+      'District Agriculture & Rural Indicators', 'District Infrastructure & Connectivity', 'SDL Auction & Borrowing Tracker',
+    ]) expect(isPlannedModule('state', feature), feature).toBe(false);
+    // No source yet (owner, 2026-10-15): these stay planned.
+    expect([...PLANNED_MODULES].sort()).toEqual([
+      'local:Municipal & Panchayat Tender Aggregator', 'state:District Crime & Safety Indicators',
+      'state:District Governance & Grievance Indicators', 'state:Party Organisation Map',
+    ]);
   });
 });

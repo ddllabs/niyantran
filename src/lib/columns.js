@@ -692,6 +692,51 @@ const PRESETS = [
     ],
   },
   {
+    // F196: the RBI Handbook of Statistics on Indian States, one table at a time (src/lib/rbiHandbook.js).
+    test: /^(state economic data \(gsdp, sectors\)|state fiscal deep-dive|niti aayog state indices|district (health & nutrition|education|economic & livelihood|agriculture & rural) indicators|district infrastructure & connectivity)$/i,
+    cols: [
+      { key: 'state', label: 'STATE', dot: true, keep: true },
+      { key: 'indicator', label: 'INDICATOR', keep: true },
+      { key: 'year', label: 'YEAR', keep: true },
+      { key: 'value', label: 'VALUE', num: true, keep: true },
+      { key: 'unit', label: 'UNIT' },
+      { key: 'price_basis', label: 'PRICES' },
+      { key: 'estimate', label: 'ESTIMATE', pill: true },
+      { key: 'table_title', label: 'TABLE' },
+    ],
+  },
+  {
+    // F196: one handbook table, every state ranked (src/lib/stateComparison.js).
+    test: /^cross-state comparison engine$/i,
+    cols: [
+      { key: 'rank', label: 'RANK', num: true, keep: true },
+      { key: 'state', label: 'STATE', dot: true, keep: true },
+      { key: 'indicator', label: 'INDICATOR', keep: true },
+      { key: 'year', label: 'YEAR', keep: true },
+      { key: 'value', label: 'VALUE', num: true, keep: true },
+      { key: 'unit', label: 'UNIT' },
+      { key: 'previous_year', label: 'YEAR BEFORE' },
+      { key: 'previous_value', label: 'VALUE BEFORE', num: true },
+      { key: 'change_pct', label: 'CHANGE %', num: true },
+    ],
+  },
+  {
+    // F196: RBI State Government Securities auctions, one row per security (src/lib/rbiSdl.js).
+    test: /^sdl auction & borrowing tracker$/i,
+    cols: [
+      { key: 'date', label: 'RELEASE', date: true, keep: true },
+      { key: 'stage', label: 'STAGE', pill: true, keep: true },
+      { key: 'state', label: 'STATE', dot: true, keep: true },
+      { key: 'notified_crore', label: 'NOTIFIED (₹ CR)', num: true, keep: true },
+      { key: 'accepted_crore', label: 'ACCEPTED (₹ CR)', num: true },
+      { key: 'cutoff_yield', label: 'CUT-OFF YIELD %', num: true },
+      { key: 'cutoff_price', label: 'CUT-OFF PRICE ₹', num: true },
+      { key: 'tenor', label: 'TENOR / RE-ISSUE' },
+      { key: 'auction_type', label: 'AUCTION', pill: true },
+      { key: 'auction_date', label: 'AUCTION DATE', date: true },
+    ],
+  },
+  {
     test: /^carbon border/i,
     cols: [
       { key: 'milestone', label: 'Milestone', fallback: 'title', dot: true, keep: true },

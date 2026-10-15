@@ -549,6 +549,7 @@ export async function refreshDue({
     let items = [];
     let meta;
     let dropped = 0;
+    let nothingNew = false;
     if (outcome.state === 'late') {
       status = 'timeout';
       reason = outcome.queued
@@ -566,7 +567,16 @@ export async function refreshDue({
         status = 'failed';
         reason = 'no request reached a source in this run; the answer came from a cache or stored data';
       }
-      if (status === 'ok') {
+      // F196 review R2: the source was read and listed nothing new (an append-only module such as the
+      // SDL auctions, whose feed holds only its latest releases). That is a success with no items:
+      // public.feed_record keeps the stored history for a kept kind and logs the run unchanged. Only
+      // when a request in this run reached the source; the stored note is left as it is (no meta).
+      if (status === 'empty' && outcome.value?.meta?.nothing_new === true && mod.requests > 0) {
+        status = 'ok';
+        reason = '';
+        nothingNew = true;
+      }
+      if (status === 'ok' && !nothingNew) {
         const built = itemsFromRows(outcome.value.rows, kind);
         for (const [k, n] of Object.entries(built.dropped)) {
           summary.dropped[k] += n;
@@ -588,8 +598,9 @@ export async function refreshDue({
       reason = mod.refusal;
       items = [];
       meta = undefined;
+      nothingNew = false;
     }
-    return { status, reason, items, meta, dropped };
+    return { status, reason, items, meta, dropped, nothingNew };
   }
 
   async function runModule(claim) {
@@ -603,7 +614,7 @@ export async function refreshDue({
       gate.finish(mod);
       result = { status: 'failed', reason: `refresh error: ${errorText(err)}`, items: [], dropped: 0 };
     }
-    const { status, reason, items, meta, dropped } = result;
+    const { status, reason, items, meta, dropped, nothingNew } = result;
     const payload = {
       tier: claim.tier,
       feature: claim.feature,
@@ -613,7 +624,7 @@ export async function refreshDue({
       ms: Math.max(0, Math.round(now() - mod.startedAt)),
       error: status === 'ok' ? null : safeText(reason),
       started_at: new Date(mod.startedAt).toISOString(),
-      ...(status === 'ok' ? { items, meta } : {}),
+      ...(status === 'ok' ? (nothingNew ? { items: [], nothing_new: true } : { items, meta }) : {}),
     };
     const recorded = await recordModule(payload);
     const recordedStatus = recorded.answer?.status || 'unrecorded';

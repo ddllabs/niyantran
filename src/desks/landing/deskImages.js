@@ -228,7 +228,7 @@ export const DESK_VISUALS = Object.freeze({
       "Constituencies, roll changes, communities and results.",
       "State governance, legislative activity and elected members.",
       "Budgets, borrowing, audits, tenders and transfers.",
-      "Health, education, livelihoods and district comparisons.",
+      "State health, education, livelihood and economy figures, compared across states.",
       "News coverage scoped to the selected geography."
     ]
   },

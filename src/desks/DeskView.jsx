@@ -47,6 +47,8 @@ import MorningBriefDesk from './MorningBriefDesk.jsx';
 import StatementsDesk from './StatementsDesk.jsx';
 import MlaStatePicker from './MlaStatePicker.jsx';
 import { isMlaDirectory } from '../lib/mlaStates.js';
+import ModulePicker from './ModulePicker.jsx';
+import { modulePicker } from '../lib/modulePicker.js';
 import IndustryDesk from './IndustryDesk.jsx';
 import { tenderCloseBand, applyVizFilter } from '../lib/nationalKpi.js';
 import FeedLoader from '../shell/FeedLoader.jsx';
@@ -95,6 +97,9 @@ function isParliamentaryQuestions(name) {
   return /parliamentary question/i.test(String(name || ''));
 }
 
+// No State or Table picked (DeskView's modulePick).
+const NO_PICK = Object.freeze({ for: '', value: '' });
+
 export default function DeskView({
   tier,
   featureName,
@@ -121,23 +126,29 @@ export default function DeskView({
   const [pagedMode, setPagedMode] = useState(() => isPagedFeature(featureName) && featureFeedApiEnabled());
   const [pagedQ, setPagedQ] = useState('');
   const [paging, setPaging] = useState(false);
-  // F190: MLA Directory's State picker ('' is All states); only that module reads it (mlaState below).
-  const [mlaPick, setMlaPick] = useState('');
+  // F190: MLA Directory's State picker ('' is All states); F196: the handbook modules' and the Comparison
+  // Engine's Table picker ('' is the module's first table). Only those modules read it (pickValue below).
+  // The pick is kept with the module it was made on, so the next module's first request never carries it.
+  const [modulePick, setModulePick] = useState(NO_PICK);
   // F159 review: a failed load says "check your connection" only when the reader is offline.
   const [errOffline, setErrOffline] = useState(false);
   const loadedFor = useRef('');
   const mounted = useRef(true);
-  const lastMlaState = useRef('');
+  const lastPick = useRef('');
   const colsKey = featureName ? `niy-cols:${tier || ''}:${featureName}` : '';
   const filtersKey = featureName ? `niy-filters:${tier || ''}:${featureName}` : '';
   const questionsDesk = isParliamentaryQuestions(featureName);
   const mlaDesk = isMlaDirectory(tier, featureName);
-  const mlaState = mlaDesk ? mlaPick : '';
+  const picker = mlaDesk ? null : modulePicker(tier, featureName);
+  const pickParam = mlaDesk ? 'state' : picker?.param || '';
+  const pickFor = `${tier || ''}:${featureName || ''}`;
+  const pickValue = pickParam && modulePick.for === pickFor ? modulePick.value : '';
+  const setPick = (value) => setModulePick({ for: pickFor, value: String(value ?? '') });
 
   useEffect(() => {
     setQ('');
     setHasAnswerFilter('');
-    setMlaPick('');
+    setModulePick(NO_PICK);
     onSelect(null);
     if (!colsKey) {
       setVisibleKeys(null);
@@ -198,11 +209,11 @@ export default function DeskView({
       return undefined;
     }
     if (pagedMode) return undefined;
-    const params = mlaState ? { state: mlaState } : undefined;
-    // F190: the other state's list must not stay on screen or in the shell (an AI attachment, the side panel)
-    // while this one loads.
-    if (lastMlaState.current !== mlaState) {
-      lastMlaState.current = mlaState;
+    const params = pickValue ? { [pickParam]: pickValue } : undefined;
+    // F190: the other state's (or table's) list must not stay on screen or in the shell (an AI attachment,
+    // the side panel) while this one loads.
+    if (lastPick.current !== pickValue) {
+      lastPick.current = pickValue;
       setFeed(null);
       onFeed(null);
       onSelect(null);
@@ -257,7 +268,7 @@ export default function DeskView({
         onLoading?.(false);
       });
     return () => ac.abort();
-  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode, mlaState]);
+  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode, pickParam, pickValue]);
 
   useEffect(() => {
     mounted.current = true;
@@ -272,8 +283,8 @@ export default function DeskView({
     return () => clearTimeout(timer);
   }, [q, pagedMode]);
 
-  // One page per view: a new search, sort, filter or MLA state starts again at its first page.
-  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter, ...(mlaState ? [mlaState] : [])]);
+  // One page per view: a new search, sort, filter, MLA state or table starts again at its first page.
+  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter, ...(pickValue ? [pickValue] : [])]);
   const page = pageAt.view === viewKey ? pageAt.n : 0;
   const setPage = (next) =>
     setPageAt((at) => ({ view: viewKey, n: typeof next === 'function' ? next(at.view === viewKey ? at.n : 0) : next }));
@@ -741,9 +752,9 @@ export default function DeskView({
               disabled={loading}
             />
           )}
-          <span className="muted" aria-live={mlaDesk ? 'polite' : undefined}>{coverageLabel}</span>
+          <span className="muted" aria-live={mlaDesk || picker ? 'polite' : undefined}>{coverageLabel}</span>
         </div>
-        {mlaDesk ? <MlaStatePicker value={mlaState} onChange={setMlaPick} /> : null}
+        {mlaDesk ? <MlaStatePicker value={pickValue} onChange={setPick} /> : picker ? <ModulePicker picker={picker} value={pickValue} onChange={setPick} /> : null}
         {!shellState && liveRefreshNote(feed) ? (
           <p className="desk-note" role="status">
             {liveRefreshNote(feed)}

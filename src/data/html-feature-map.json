@@ -1299,15 +1299,17 @@
     "htmlFeature": "State Economic Data (GSDP, sectors)",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-economic"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AState%2520Economic%2520Data%2520(GSDP%252C%2520sectors)",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=State%20Economic%20Data%20(GSDP%2C%20sectors)",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1315,15 +1317,17 @@
     "htmlFeature": "Cross-State Comparison Engine",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-cross-state-comparison"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ACross-State%2520Comparison%2520Engine",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=Cross-State%20Comparison%20Engine",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1335,12 +1339,12 @@
       "state-state-finances"
     ],
     "workbookFunctions": "STATE FINANCES",
-    "adapters": "download-or-html",
+    "adapters": "api",
     "backendRoute": "/api/feature-feed?tier=state&feature=State%20Fiscal%20Deep-Dive",
-    "mapping": "WORKBOOK-MAPPED",
-    "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://www.rbi.org.in/pressreleases_rss.xml",
-    "developerNote": "Reserve Bank of India Press Releases RSS · GET · RSS · auth: none",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
     "role": "primary_of_record"
   },
   {
@@ -1349,15 +1353,17 @@
     "htmlFeature": "SDL Auction & Borrowing Tracker",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-sdl-auctions"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ASDL%2520Auction%2520%2526%2520Borrowing%2520Tracker",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=SDL%20Auction%20%26%20Borrowing%20Tracker",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI press releases on State Government Securities auctions, one row per security, kept as seen (F196). Empty when none of the latest ten releases is an auction; no fabricated rows. No homepage links.",
+    "source": "https://www.rbi.org.in/pressreleases_rss.xml",
+    "developerNote": "RBI press releases RSS · GET · RSS · auth: none · src/lib/rbiSdl.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1419,15 +1425,17 @@
     "htmlFeature": "NITI Aayog State Indices",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-niti-indices"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ANITI%2520Aayog%2520State%2520Indices",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=NITI%20Aayog%20State%20Indices",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1453,15 +1461,17 @@
     "htmlFeature": "District Health & Nutrition Indicators",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-health"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Health%2520%2526%2520Nutrition%2520Indicators",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=District%20Health%20%26%20Nutrition%20Indicators",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1469,15 +1479,17 @@
     "htmlFeature": "District Education Indicators",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-education"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Education%2520Indicators",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=District%20Education%20Indicators",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1485,15 +1497,17 @@
     "htmlFeature": "District Economic & Livelihood Indicators",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-livelihood"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Economic%2520%2526%2520Livelihood%2520Indicators",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=District%20Economic%20%26%20Livelihood%20Indicators",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1501,15 +1515,17 @@
     "htmlFeature": "District Agriculture & Rural Indicators",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-agriculture"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Agriculture%2520%2526%2520Rural%2520Indicators",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=District%20Agriculture%20%26%20Rural%20Indicators",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1517,15 +1533,17 @@
     "htmlFeature": "District Infrastructure & Connectivity",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-rbi-handbook-infrastructure"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ADistrict%2520Infrastructure%2520%2526%2520Connectivity",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "api",
+    "backendRoute": "/api/feature-feed?tier=state&feature=District%20Infrastructure%20%26%20Connectivity",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "RBI Handbook of Statistics on Indian States, 2024-25 edition: state-level figures as published (F196), one table at a time; stored register, else the table's own page. No district figures, no estimates of our own. No homepage links.",
+    "source": "https://www.rbi.org.in/Scripts/AnnualPublications.aspx?head=Handbook%20of%20Statistics%20on%20Indian%20States",
+    "developerNote": "RBI Handbook HTML table pages · GET · HTML · auth: none · spreadsheets are behind a captcha and never fetched · src/lib/rbiHandbook.js",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",

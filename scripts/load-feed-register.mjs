@@ -21,6 +21,12 @@
  *   … --module "state:MLA Directory" --apply --target prod --confirm-prod --force   # reload a register within 30 days
  *   SUPABASE_URL=… SUPABASE_SECRET_KEY=… node scripts/load-feed-register.mjs --apply --target prod --confirm-prod
  *
+ * F196: the eight RBI handbook modules (src/lib/rbiHandbookTables.js HANDBOOK_MODULES, e.g. --module
+ * "state:State Fiscal Deep-Dive") are register modules like MLA Directory, one store variant per table,
+ * read from the JSON scripts/fetch-rbi-handbook.mjs writes (tmp/rbi-handbook/handbook-<edition>.json);
+ * SDL Auction & Borrowing Tracker is a scheduled module of kind official like Cabinet Decisions, its
+ * backfill read from the JSON scripts/fetch-rbi-sdl-releases.mjs writes (tmp/rbi-sdl/sdl-releases.json).
+ *
  * Options: --module <tier:Feature> (default national:Cabinet Decisions), --file <workbook, relative to
  * the repository> (default: the module's register; the stored note names it relative to the
  * repository, or by file name only when it is outside), --dry-run (the default), --apply, --target
@@ -82,6 +88,7 @@
  * only the host name is ever printed.
  */
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -90,6 +97,8 @@ import { readBackupRows } from '../server/backupFeed.mjs';
 import { FEED_REGISTERS, feedRunsForDb, itemKeyFor, mlaStateVariant, registerRunsForDb } from '../server/feedSchedule.mjs';
 import { itemsFromRows, metaFor, supabaseRpc } from '../server/feedStore.mjs';
 import { cabinetPrefers, cabinetReleaseGroup, isCabinetDecision } from '../src/lib/parliament.js';
+import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_NOTE, handbookTableLabel } from '../src/lib/rbiHandbookTables.js';
+import { RBI_PRESS_RSS } from '../src/lib/rbiSdl.js';
 
 export const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 
@@ -314,6 +323,101 @@ const mlaOrder = (a, b) =>
   MLA_STATE_ORDER.get(a.state) - MLA_STATE_ORDER.get(b.state)
   || a.constituency.localeCompare(b.constituency, 'en') || a.title.localeCompare(b.title, 'en');
 
+// ---------------------------------------------------------------------------------------------
+// F196: the RBI Handbook of Statistics on Indian States (scripts/fetch-rbi-handbook.mjs writes it) and
+// the SDL auction releases (scripts/fetch-rbi-sdl-releases.mjs). Both are JSON files under tmp/, read
+// with readRegisterJson; neither is shipped with the site.
+
+/** Where scripts/fetch-rbi-handbook.mjs writes this edition's register. */
+export const HANDBOOK_FILE = `tmp/rbi-handbook/handbook-${HANDBOOK.edition}.json`;
+/** Where scripts/fetch-rbi-sdl-releases.mjs writes the releases it read. */
+export const SDL_FILE = 'tmp/rbi-sdl/sdl-releases.json';
+
+/**
+ * A JSON register: { rows: its `records`, meta: the rest (a handbook's edition, publication date and
+ * tables by number) }. Throws when the file has no records list.
+ */
+export function readRegisterJson(path) {
+  const data = JSON.parse(readFileSync(path, 'utf8'));
+  if (!Array.isArray(data?.records)) throw new Error(`${basename(path)} has no records list`);
+  const { records, ...rest } = data;
+  const tables = new Map((Array.isArray(rest.tables) ? rest.tables : []).map((t) => [Number(t.no), t]));
+  return { rows: records, meta: { ...rest, tables } };
+}
+
+// A handbook record's fields, as src/lib/rbiHandbook.js writes them; anything else is left out.
+const HANDBOOK_FIELDS = ['state', 'indicator', 'year', 'value', 'unit', 'price_basis', 'estimate', 'year_label', 'state_label', 'aggregate', 'nil', 'table_no', 'table_title', 'source_url', 'as_of', 'edition', 'title'];
+
+/**
+ * One handbook record as a row of the module `spec` (src/lib/rbiHandbookTables.js HANDBOOK_MODULES):
+ * { row } with the record's own fields, or { drop }: not_module (a table the module does not hold),
+ * bad_record (no state, indicator, year, numeric value or RBI link).
+ */
+export function mapHandbookRecord(raw, spec) {
+  if (!spec.tables.includes(Number(raw?.table_no))) return { drop: 'not_module' };
+  const ok = raw.state && raw.indicator && raw.year && typeof raw.value === 'number' && Number.isFinite(raw.value)
+    && /^https:\/\/www\.rbi\.org\.in\//.test(String(raw.source_url || ''));
+  if (!ok) return { drop: 'bad_record' };
+  const row = {};
+  for (const k of HANDBOOK_FIELDS) if (raw[k] !== undefined && raw[k] !== '') row[k] = raw[k];
+  row.table_no = Number(row.table_no);
+  return { row };
+}
+
+/** A handbook figure's key: its table, state, indicator and year (the same in every edition that has it). */
+export const handbookItemKey = (row) => `hb:t${row.table_no}:${row.state}|${row.indicator}|${row.year}`;
+
+/** A handbook table's stored note: the edition, the table, its unit and source, and how it is kept. */
+export function handbookNote(report, file, meta) {
+  const t = meta?.tables?.get(Number(report.variant));
+  const unit = t?.unit ? ` (${t.unit})` : '';
+  const source = t?.source ? ` Source: ${String(t.source).slice(0, 300)}` : '';
+  // F196 review R1: a table larger than one store page was cut by the fetcher (its `cut`); say what is held.
+  const cut = t?.cut && Number(t.cut.left) > 0 ? t.cut : null;
+  const held = !cut
+    ? `${report.kept} figures`
+    : cut.partial
+      ? `${report.kept} figures, ${cut.partial.indicators} of the ${cut.partial.of} indicators of ${cut.partial.year} (each with all of its states); the rest are on the table's page`
+      : `the newest ${report.kept} of its ${report.kept + Number(cut.left)} figures: ${Number(cut.years) > 0 ? `${cut.years} ` : ''}whole years, ${cut.from} to ${cut.through}; older years are on the table's page`;
+  return `${HANDBOOK_NOTE} ${handbookTableLabel(report.variant)}${unit}: ${held}.${source} Stored register loaded from ${file}; not refreshed by the timer, a reload replaces this table.`;
+}
+
+const handbookRegisters = Object.fromEntries(
+  Object.entries(HANDBOOK_MODULES).map(([id, spec]) => [
+    id,
+    {
+      file: HANDBOOK_FILE,
+      format: 'json',
+      map: (raw) => mapHandbookRecord(raw, spec),
+      itemKey: handbookItemKey,
+      // The file's order: each table newest year first, as the table reads.
+      order: () => 0,
+      dateOf: (row) => row.as_of || '',
+      variantOf: (row) => String(row.table_no),
+      linkOf: (row) => row.source_url,
+      links: [HANDBOOK.listingUrl],
+      noun: 'figures',
+      dropReasons: ['not_module', 'bad_record'],
+      note: handbookNote,
+    },
+  ]),
+);
+
+// An SDL row's fields, as src/lib/rbiSdl.js writes them.
+const SDL_FIELDS = ['date', 'stage', 'state', 'state_label', 'notified_crore', 'accepted_crore', 'cutoff_yield', 'cutoff_price', 'tenor', 'tenor_years', 'reissue', 'security', 'first_issued', 'auction_type', 'auction_date', 'release_title', 'prid', 'source_url', 'feed_key', 'title'];
+
+/**
+ * One SDL auction line (src/lib/rbiSdl.js sdlRows) as the live row: { row }, or { drop: 'bad_record' }
+ * without a date, state, amount, release number or its own key.
+ */
+export function mapSdlRecord(raw) {
+  const ok = isoDay(raw?.date) && raw.state && typeof raw.notified_crore === 'number' && /^\d+$/.test(String(raw.prid || '')) && /^sdl:\d{1,12}:[a-z0-9:-]{1,180}$/.test(String(raw.feed_key || ''));
+  if (!ok) return { drop: 'bad_record' };
+  const row = {};
+  for (const k of SDL_FIELDS) if (raw[k] !== undefined && raw[k] !== '') row[k] = raw[k];
+  return { row };
+}
+
 /**
  * The registers this script knows. file: the workbook, relative to the repository. map: a register
  * row to { row } or { drop }. liveKey: the key a live refresh gives the row's item (null: itemKeyFor
@@ -322,7 +426,9 @@ const mlaOrder = (a, b) =>
  * its records are called. Optional: itemKey (each row's key, used in place of the store's own keying,
  * which would merge rows that share a link), order (the items' order, default newest first), dateOf (a
  * row's date for the report and coverage, default row.date), variantOf (a row's store variant: the
- * module is a register module, loaded one variant at a time) and note (the stored note).
+ * module is a register module, loaded one variant at a time), linkOf (a row's own link for its variant's
+ * stored links), format ('json': a file read with readRegisterJson, not a workbook) and note (the stored
+ * note: (report, file, meta of a JSON file)).
  */
 export const REGISTERS = Object.freeze({
   'national:Cabinet Decisions': {
@@ -346,6 +452,17 @@ export const REGISTERS = Object.freeze({
     dropReasons: ['no_title', 'no_state'],
     note: (report, file) =>
       `Stored register of ${report.kept} MLAs of ${report.variant}, as of ${report.newest || 'an unrecorded date'}, loaded from ${file}. It is not refreshed by the timer; a reload replaces this state's list.`,
+  },
+  ...handbookRegisters,
+  // F196: the auction releases the shipped F20 pack names, read from their pages (the backfill); kept as
+  // kind official, so the hourly refresh adds each new release on top.
+  'state:SDL Auction & Borrowing Tracker': {
+    file: SDL_FILE,
+    format: 'json',
+    map: mapSdlRecord,
+    links: [RBI_PRESS_RSS],
+    noun: 'SDL auction lines',
+    dropReasons: ['bad_record'],
   },
 });
 
@@ -447,20 +564,20 @@ export function groupByVariant(items, register) {
   return [...groups].map(([variant, list]) => {
     const dates = list.map((i) => (register.dateOf ? register.dateOf(i.row) : i.row.date)).filter(Boolean).sort();
     // The variant's own citations (MLA Directory: its assembly's page), named in its stored links.
-    const links = [...new Set(list.map((i) => i.row.register_source_url).filter(Boolean))].slice(0, 10);
+    const links = [...new Set(list.map((i) => i.row.register_source_url || register.linkOf?.(i.row)).filter(Boolean))].slice(0, 10);
     return { variant, items: list, report: { variant, kept: list.length, oldest: dates[0] || '', newest: dates[dates.length - 1] || '', links } };
   });
 }
 
 /** feed_state.meta for the register: shown until the first live refresh replaces it. */
-export function registerMeta(register, report, file, fetchedAt) {
+export function registerMeta(register, report, file, fetchedAt, fileMeta = null) {
   return metaFor(
     {
       source: {
         adapter: 'register',
         kind: 'register',
         links: [...new Set([...(register.links || []), ...(report.links || [])])],
-        note: register.note ? register.note(report, file) : `Stored register of ${report.kept} ${register.noun || 'records'}, ${report.oldest} to ${report.newest}, loaded from ${file}. Each refresh adds the newest releases on top.`,
+        note: register.note ? register.note(report, file, fileMeta) : `Stored register of ${report.kept} ${register.noun || 'records'}, ${report.oldest} to ${report.newest}, loaded from ${file}. Each refresh adds the newest releases on top.`,
       },
       coverage: { from: report.oldest, through: report.newest, exhaustive: false },
     },
@@ -686,7 +803,7 @@ const line = (label, value) => console.log(`  ${label.padEnd(40)} ${value}`);
 
 function printReport(report, { releases = true } = {}) {
   console.log('Register rows');
-  line('read from the workbook', report.read);
+  line('read from the register file', report.read);
   for (const [reason, n] of Object.entries(report.dropped)) line(`left out: ${reason}`, n);
   if (releases) line('left out: second release of a decision', report.release_variants);
   for (const [reason, n] of Object.entries(report.store_dropped)) if (n) line(`left out by the store: ${reason}`, n);
@@ -711,7 +828,9 @@ export const USAGE = `Usage: node scripts/load-feed-register.mjs [--module "tier
 A dry run is the default: it reads the register, prints the counts and a sample, and never calls a database.
 Cabinet Decisions is loaded as kind "official". The register module MLA Directory (--module "state:MLA Directory")
 is loaded as kind "reference", one store variant per state, never refreshed by the timer: a reload replaces each
-state's list.
+state's list. The RBI handbook modules (F196) load the same way, one store variant per table, from
+tmp/rbi-handbook/handbook-<edition>.json (scripts/fetch-rbi-handbook.mjs). SDL Auction & Borrowing Tracker loads
+as kind "official" from tmp/rbi-sdl/sdl-releases.json (scripts/fetch-rbi-sdl-releases.mjs).
 
 ORDER: run the production load BEFORE the 5-minute refresh job is switched on. A load makes the module's
 first refresh an interval (60 min) away; after the job has run, a load usually reports NOT DUE, and one
@@ -757,6 +876,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     makeProdRpc = supabaseRpc,
     forceDue = forceDueLocal,
     fetchLive = fetchLiveRows,
+    readJson = readRegisterJson,
   } = deps;
   const { values: o } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: false });
   if (o.help) {
@@ -766,11 +886,12 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const { url } = checkOptions(o, env);
   const register = registers[o.module];
   if (!register) throw new Error(`no register mapping for ${o.module}; the mapped modules are: ${Object.keys(registers).join(', ')}`);
-  if (register.variantOf) return loadVariants({ o, url, env, register, readRows, makeLocalRpc, makeProdRpc, forceDue });
+  const read = (file, max) => (register.format === 'json' ? readJson(resolve(ROOT, file)) : { rows: readRows(resolve(ROOT, file), max), meta: null });
+  if (register.variantOf) return loadVariants({ o, url, env, register, read, makeLocalRpc, makeProdRpc, forceDue });
   const run = runFor(o.module);
   const file = o.file || register.file;
   const shownFile = displayFile(file);
-  const rawRows = readRows(resolve(ROOT, file), 5000);
+  const { rows: rawRows } = read(file, 5000);
   const { items, report } = buildRegisterItems(rawRows, register, run.kind);
   if (!items.length) throw new Error('no item to load');
   if (items.length > MAX_ITEMS) throw new Error(`${items.length} items; one record holds at most ${MAX_ITEMS}`);
@@ -840,11 +961,11 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
  * back. Returns 0 when every variant recorded ok or unchanged, 3 when any was not due (the others are
  * still recorded), 1 when the store did not accept one.
  */
-async function loadVariants({ o, url, env, register, readRows, makeLocalRpc, makeProdRpc, forceDue }) {
+async function loadVariants({ o, url, env, register, read, makeLocalRpc, makeProdRpc, forceDue }) {
   const runs = registerRunsFor(o.module);
   const file = o.file || register.file;
   const shownFile = displayFile(file);
-  const rawRows = readRows(resolve(ROOT, file), 10_000);
+  const { rows: rawRows, meta: fileMeta } = read(file, 10_000);
   const { items, report } = buildRegisterItems(rawRows, register, runs[0].kind);
   if (!items.length) throw new Error('no item to load');
   const groups = groupByVariant(items, register);
@@ -858,7 +979,7 @@ async function loadVariants({ o, url, env, register, readRows, makeLocalRpc, mak
   printReport(report, { releases: Boolean(register.releaseGroup) });
   console.log(`${o.apply ? 'Recording' : 'Would record'} ${groups.length} store variants, ${items.length} items`);
   for (const g of groups) line(g.variant, `${g.items.length}`);
-  line('note (first variant)', registerMeta(register, groups[0].report, shownFile, fetchedAt).note);
+  line('note (first variant)', registerMeta(register, groups[0].report, shownFile, fetchedAt, fileMeta).note);
   console.log('Sample (3 of the mapped items)');
   for (const i of [0, Math.floor(items.length / 2), items.length - 1]) {
     console.log(JSON.stringify({ item_key: items[i].item_key, published_at: items[i].published_at, url: items[i].url, row: items[i].row }, null, 2));
@@ -883,7 +1004,7 @@ async function loadVariants({ o, url, env, register, readRows, makeLocalRpc, mak
       const made = await rpc('feed_make_due', { p_tier: run.tier, p_feature: run.feature, p_variant: run.variant });
       if (made !== true) line(g.variant, 'not made due (a run holds it, or it is not a register variant)');
     }
-    const meta = registerMeta(register, g.report, shownFile, fetchedAt);
+    const meta = registerMeta(register, g.report, shownFile, fetchedAt, fileMeta);
     const result = await loadRegister({ rpc, run, items: g.items, meta });
     if (result.state === 'not_due') {
       const p = result.page;

@@ -250,6 +250,28 @@ describe('refreshDue', () => {
     expect(summary.counts.failed).toBe(1);
   });
 
+  // F196 review R2: an append-only module (SDL auctions) whose source answered but listed nothing new
+  // is a success that keeps the stored history, not an empty failure.
+  it('sends "nothing new" from a source it reached as ok with no items and the flag; a plain empty answer still fails', async () => {
+    const db = fakeDb(['quiet', 'blank']);
+    const load = viaSource((params) => (params.get('feature') === 'quiet' ? live([], { meta: { nothing_new: true } }) : live([])));
+    const summary = await refreshDue({ rpc: db.rpc, load });
+    const by = byFeature(db.records);
+    expect(by.quiet).toMatchObject({ status: 'ok', nothing_new: true, items: [], error: null });
+    // The stored note and coverage describe the kept items; an answer with none leaves them.
+    expect(by.quiet).not.toHaveProperty('meta');
+    expect(by.blank).toMatchObject({ status: 'empty' });
+    expect(by.blank).not.toHaveProperty('nothing_new');
+    expect(summary.modules.find((m) => m.feature === 'quiet')).toMatchObject({ sent: 'ok', items: 0 });
+  });
+
+  it('does not take "nothing new" from an answer no request reached a source for', async () => {
+    const db = fakeDb(['cached']);
+    await refreshDue({ rpc: db.rpc, load: async () => live([], { meta: { nothing_new: true } }) });
+    expect(db.records[0].status).toBe('empty');
+    expect(db.records[0]).not.toHaveProperty('nothing_new');
+  });
+
   it('runs four modules at a time', async () => {
     const db = fakeDb(Array.from({ length: 12 }, (_, i) => `m${i}`));
     let active = 0;

@@ -1,7 +1,7 @@
 /**
  * F169 phase 4 (C1): which modules the 5-minute timer refreshes, how often, and how long their
  * items are kept (F170 rules 1–2). A module is scheduled when its loader calls an outside source
- * (measured 2026-10-15: 58 of 120 desk modules; 63 after F196); stored registers and planned modules are not. A test
+ * (measured 2026-10-15: 58 of 120 desk modules; 63 after F196 batch 1, 64 with the SDL auctions); stored registers and planned modules are not. A test
  * (src/lib/feedSchedule.test.js) checks this table against what the loaders actually call: every
  * module whose loader calls a source is on it, except the register modules (FEED_REGISTERS) and the
  * modules deliberately off the timer (OFF_TIMER), each listed with its reason.
@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { STATEMENT_LEADERS } from '../src/data/nationalCurated.js';
 import { MLA_STATE_NAMES, MLA_STATES } from '../src/lib/mlaStates.js';
 import { billDocumentKey } from '../src/lib/deskRows.js';
+import { HANDBOOK_MODULES, handbookTableVariant } from '../src/lib/rbiHandbookTables.js';
 
 /**
  * every: minutes between refreshes. kind: how items are kept.
@@ -38,6 +39,8 @@ export const FEED_SCHEDULE = Object.freeze({
   'national:Policy Pipeline Tracker (Draft-to-Gazette)': 'official',
   'national:Regulatory Body Watch (RBI/SEBI/TRAI/CCI)': 'official',
   'national:Cabinet Decisions': 'official',
+  // F196: RBI's State Government Securities auction releases, kept as they are seen (RBI's feed lists ten).
+  'state:SDL Auction & Borrowing Tracker': 'official',
   'climate:Carbon Registry Wire': 'official',
 
   'geopolitics:Satellite Infrastructure': 'events',
@@ -110,6 +113,8 @@ export const FEED_VARIANTS = Object.freeze({
 export const OFF_TIMER = Object.freeze({
   // F186: no live source; the loader answers a frozen snapshot, which the store refuses, so every refresh failed.
   'finance:NSE/BSE Delayed Market Feed': 'no live source: it answers a frozen snapshot, which the store refuses (F186)',
+  // F196: built on request from the handbook registers (the stored table, else the table's page); it has no list of its own to keep.
+  'state:Cross-State Comparison Engine': 'built on request from the RBI handbook registers; nothing of its own to store (F196)',
 });
 
 /**
@@ -153,6 +158,24 @@ export const FEED_REGISTERS = Object.freeze({
     noun: 'MLAs',
     unit: 'states and union territories',
   }),
+  // F196: the RBI Handbook of Statistics on Indian States (src/lib/rbiHandbookTables.js), loaded yearly
+  // from scripts/fetch-rbi-handbook.mjs's register: one store variant per table (at most one store page,
+  // 500 figures, its newest whole years: MAX_PER_TABLE), named by the table's number. A request names its table with `table`; one that names none
+  // (or a table the module does not hold) gets the module's first table (defaultVariant), never a
+  // page across all of them.
+  ...Object.fromEntries(
+    Object.entries(HANDBOOK_MODULES).map(([id, spec]) => [
+      id,
+      Object.freeze({
+        param: 'table',
+        values: Object.freeze(spec.tables.map(String)),
+        variantOf: (value) => handbookTableVariant(spec, value),
+        defaultVariant: String(spec.tables[0]),
+        noun: 'figures',
+        unit: 'tables',
+      }),
+    ]),
+  ),
 });
 
 /** Modules the page reads from the store first: the scheduled modules and the registers. */
@@ -238,6 +261,12 @@ function linkKey(url) {
  * hash of its title and date.
  */
 export function itemKeyFor(row) {
+  // F196: one line of an RBI State Government Securities auction release (src/lib/rbiSdl.js) names its
+  // own key, so the lines that share the release's link stay separate items. Only that loader's keys
+  // (prefix "sdl:") are honoured: a feed_key field arriving in any other upstream row cannot merge or
+  // split items.
+  const own = typeof row?.feed_key === 'string' ? row.feed_key.trim() : '';
+  if (/^sdl:\d{1,12}:[a-z0-9:-]{1,180}$/.test(own)) return `key:${own}`;
   const bill = billDocumentKey(row);
   if (bill) return bill;
   const link = linkKey(row?.source_url || row?.link || row?.url || row?.detail_url);

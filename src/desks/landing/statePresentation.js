@@ -1,7 +1,9 @@
 import { DESK_VISUALS } from './deskImages.js';
 const visual = DESK_VISUALS.state;
 const lines = html => html.replace(/<\/?span>/g, '').split('<br>');
-const module = (feature, { tier = 'state', configured = true, existingOnly = false } = {}) => ({ tier, feature, title: feature, configured, existingOnly });
+// title: the name the page shows when it differs from the module's key (F196: the five state-level themes
+// keep their 'District …' keys and show 'State …' names; src/lib/rbiHandbookTables.js HANDBOOK_MODULES).
+const module = (feature, { tier = 'state', configured = true, existingOnly = false, title = feature } = {}) => ({ tier, feature, title, configured, existingOnly });
 const groups = [
   { id: "elections", name: "Elections & Electoral Rolls", short: "Elections & Rolls", modules: [
     module("Constituency Register"),
@@ -34,20 +36,20 @@ const groups = [
     module("State Tender Aggregator (State e-Procurement)"),
     module("Centre-State Fund Flow Tracker"),
     module("Cabinet Decisions"),
-    module("State Economic Data (GSDP, sectors)", {"configured": false}),
-    module("State Fiscal Deep-Dive", {"configured": false}),
-    module("SDL Auction & Borrowing Tracker", {"configured": false}),
+    module("State Economic Data (GSDP, sectors)"),
+    module("State Fiscal Deep-Dive"),
+    module("SDL Auction & Borrowing Tracker"),
     module("CAG Audit Tracker"),
   ] },
   { id: "districts", name: "Districts & Development", short: "District Development", modules: [
-    module("Cross-State Comparison Engine", {"configured": false}),
-    module("NITI Aayog State Indices", {"configured": false}),
+    module("Cross-State Comparison Engine"),
+    module("NITI Aayog State Indices"),
     module("District Performance Tracker (Composite)"),
-    module("District Health & Nutrition Indicators", {"configured": false}),
-    module("District Education Indicators", {"configured": false}),
-    module("District Economic & Livelihood Indicators", {"configured": false}),
-    module("District Agriculture & Rural Indicators", {"configured": false}),
-    module("District Infrastructure & Connectivity", {"configured": false}),
+    module("District Health & Nutrition Indicators", {"title": "State Health & Nutrition Indicators"}),
+    module("District Education Indicators", {"title": "State Education Indicators"}),
+    module("District Economic & Livelihood Indicators", {"title": "State Economic & Livelihood Indicators"}),
+    module("District Agriculture & Rural Indicators", {"title": "State Agriculture & Rural Indicators"}),
+    module("District Infrastructure & Connectivity", {"title": "State Infrastructure & Connectivity"}),
     module("District Governance & Grievance Indicators", {"configured": false}),
     module("District Crime & Safety Indicators", {"configured": false}),
   ] },

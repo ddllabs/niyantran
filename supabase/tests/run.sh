@@ -89,7 +89,7 @@ chain() {
     corpus_revision_integrity)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)" "$(m 20260921000003_corpus_and_desk.sql)" "$(m 20260921000009_rag_rpcs.sql)" "$(m 20260921000014_corpus_revision_integrity.sql)") ;;
-    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|record_briefs)
+    least_privilege|research_turn_persistence|user_preferences|drop_ai_chats|analytics_events|app_flags_and_marketing_media|signup_persona|analytics_rate_limit|invoices|nter_news_articles|plan_entitlements|email_unique|inr_plans|halfvec_retrieval|feature_filter|page_contract|ingestion_v2|ingest_discard|corpus_records|search_document_pages|web_search|site_figures|ai_credits|credit_estimates_and_effort|credit_usage_reports|admin_model_plan|feed_records|feed_admin|feed_register_page|feed_nothing_new|unscoped_ef_search|rls_initplan_fk_indexes|desk_rows_date_range|record_briefs)
       CONTAINER=$VECTOR
       FILES=("$TESTS/bootstrap_auth.sql" backend/sql/auth_schema.sql
              "$(m 20260921000001_vector_and_email.sql)" "$(m 20260921000002_conversations.sql)"
@@ -162,6 +162,11 @@ chain() {
         # drops the last.
         feed_register_page) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)"
                                     "$(as_non_superuser 20261015170000_feed_register_page.sql)") ;;
+        # A kept module whose source listed nothing new is a success (F196 review R2): feed_register_page's
+        # chain plus feed_nothing_new, applied as a non-superuser. The vacuity check drops the last.
+        feed_nothing_new) FILES+=("$(as_non_superuser 20261015150000_feed_records.sql)" "$(as_non_superuser 20261015160000_feed_admin.sql)"
+                                  "$(as_non_superuser 20261015170000_feed_register_page.sql)"
+                                  "$(as_non_superuser 20261015230000_feed_nothing_new.sql)") ;;
         # P12: the twelve policies wrapped as (select auth.uid()) and eight foreign-key indexes. Every
         # table the policies and indexes name: the AI credits chain (conversations, traces, invoices,
         # plan grants, ingest jobs), applied as a non-superuser. The vacuity check drops the last.
@@ -458,6 +463,53 @@ feed_register_page_checks() {
   return $rc
 }
 
+# feed_nothing_new only: the migration's Down section, executed (as feed_register_page_checks does). Its
+# Down block drops feed_record, then says to run feed_records' create function public.feed_record: that
+# step is performed by extracting exactly that statement from 20261015150000_feed_records.sql, followed by
+# the block's own revoke and grant. The schemas must dump identically to the chain without the
+# migration, then the migration must re-apply and the fixture pass again.
+feed_nothing_new_checks() {
+  local guard="${FILES[${#FILES[@]}-1]}" n=${#FILES[@]} i=0 f rc=0
+  local base=niyantran_feed_nothing_new_base_test up=niyantran_feed_nothing_new_up_test
+  q() { docker exec "$CONTAINER" psql -U postgres -q -tA -c "$@"; }
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  q "create database $base" >/dev/null
+  for f in "${FILES[@]}"; do
+    i=$((i+1)); [ $i -eq $n ] && break
+    psql_in $base < "$f" >/dev/null 2>&1 || { echo "  CHECKS: bootstrap broke at $(basename "$f")"; return 1; }
+  done
+  q "create database $up template $base" >/dev/null
+  local mig="$MIG/20261015230000_feed_nothing_new.sql"
+  local block
+  block="$(sed -n '/^-- Down/,/^--   commit;/p' "$mig" | sed -n '/^--   begin;/,/^--   commit;/p')"
+  {
+    echo 'SET ROLE nter_migrator;'
+    printf '%s\n' "$block" | grep -E '^--   (begin;|drop )' | sed 's/^--   //'
+    awk '/^create function public\.feed_record\(/,/^\$\$;/' "$MIG/20261015150000_feed_records.sql"
+    printf '%s\n' "$block" | grep -E '^--   (revoke|grant) ' | sed 's/^--   //'
+    echo 'commit;'
+  } > "$WORK/fnn_down.sql"
+  if ! psql_in $up < "$guard" >/dev/null 2>&1; then
+    echo "  DOWN FAIL - the migration did not apply"; rc=1
+  elif ! psql_in $up < "$WORK/fnn_down.sql" > "$WORK/fnn_down.txt" 2>&1; then
+    echo "  DOWN FAIL - the Down section did not run:"; grep ERROR "$WORK/fnn_down.txt" | head -2 | sed 's/^/    /'; rc=1
+  else
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $base | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_base.dump"
+    docker exec "$CONTAINER" pg_dump -U postgres --schema-only $up | grep -v -e '^\\restrict ' -e '^\\unrestrict ' > "$WORK/fnn_up.dump"
+    if ! diff -q "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" >/dev/null; then
+      echo "  DOWN FAIL - the schema differs after the Down section:"; diff "$WORK/fnn_base.dump" "$WORK/fnn_up.dump" | head -8 | sed 's/^/    /'; rc=1
+    elif ! psql_in $up < "$guard" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the migration did not apply again after the Down section"; rc=1
+    elif ! psql_in $up < "$TESTS/feed_nothing_new.sql" >/dev/null 2>&1; then
+      echo "  DOWN FAIL - the fixture fails after Down and re-apply"; rc=1
+    else
+      echo "  down ok - the Down section restores the schema exactly; the migration re-applies and the fixture passes again"
+    fi
+  fi
+  for db in $base $up; do q "drop database if exists $db" >/dev/null; done
+  return $rc
+}
+
 # record_briefs only: the migration's Down section, executed (as feed_admin_checks does). "base" is
 # the chain without the migration; "up" has the migration and then its Down block as written. The
 # schemas must dump identically, the kill-switch row must be gone, and the migration must re-apply
@@ -524,6 +576,7 @@ run_fixture() {
     [ "$name" = feed_records ] && { feed_records_checks || rc=1; }
     [ "$name" = feed_admin ] && { feed_admin_checks || rc=1; }
     [ "$name" = feed_register_page ] && { feed_register_page_checks || rc=1; }
+    [ "$name" = feed_nothing_new ] && { feed_nothing_new_checks || rc=1; }
     [ "$name" = record_briefs ] && { record_briefs_checks || rc=1; }
   else
     rc=1

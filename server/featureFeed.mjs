@@ -66,6 +66,10 @@ import {
 } from '../src/lib/entertainmentPack.js';
 import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
 import { curatedNewsFor, curatedNewsRows } from '../src/lib/curatedNews.js';
+import { COMPARISON_DEFAULT_TABLE, HANDBOOK, HANDBOOK_NOTE, HANDBOOK_TABLES, HANDBOOK_TABLE_NUMBERS, handbookModuleFor, handbookOwner, handbookTableLabel, handbookTableVariant } from '../src/lib/rbiHandbookTables.js';
+import { newestYearsWithin, parseHandbookTable } from '../src/lib/rbiHandbook.js';
+import { compareStates, comparisonYears, rankedWithin, wholeYearsOf } from '../src/lib/stateComparison.js';
+import { RBI_PRESS_RSS, parseRbiPressRss, rbiReleaseUrl, sdlReleaseKind, sdlRows } from '../src/lib/rbiSdl.js';
 import { serveNational, statementLeader } from './nationalFeed.mjs';
 import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
 import * as assetsLive from './assetsApi.mjs';
@@ -75,7 +79,7 @@ import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
 import { isStoreServed, mlaStateVariant } from './feedSchedule.mjs';
-import { serveFromStore } from './feedServe.mjs';
+import { STORE_PAGE_ROWS, serveFromStore } from './feedServe.mjs';
 import * as entertainmentLive from './entertainmentApi.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -1334,6 +1338,226 @@ async function serveCuratedNews(tier, feat, spec) {
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// F196: RBI Handbook of Statistics on Indian States, Cross-State Comparison Engine, SDL auctions.
+
+/** One handbook table, read live from its HTML page (src/lib/rbiHandbook.js). Throws when it has no figures. */
+async function handbookTableLive(no) {
+  const t = HANDBOOK_TABLES.get(no);
+  const { text } = await fetchText(t.url);
+  const parsed = parseHandbookTable(text, { tableNo: no, url: t.url });
+  if (parsed.error || !parsed.records.length) throw new Error(parsed.error || 'the table page had no state figures');
+  return parsed;
+}
+
+const yearSpan = (records) => {
+  const years = comparisonYears(records);
+  return { from: years.at(-1) || '', through: years[0] || '' };
+};
+
+/**
+ * The live table's note. `capped` is newestYearsWithin's answer: the figures shown are its records, so
+ * the note gives that count, not the table's.
+ */
+function handbookTableNote(parsed, capped) {
+  const t = parsed.table;
+  const shown = capped.records.length;
+  const total = parsed.records.length;
+  let more = '';
+  if (capped.partial) {
+    more = ` Showing ${shown} of its ${total} figures: ${capped.partial.indicators} of the ${capped.partial.of} indicators of ${capped.partial.year}, each with all of its states.`;
+  } else if (total > shown) {
+    more = ` Showing the newest ${shown} of its ${total} figures: ${capped.years.length} whole years, ${capped.years.at(-1)} to ${capped.years[0]}.`;
+  }
+  return `${HANDBOOK_NOTE} ${handbookTableLabel(t.no)}${t.unit ? ` (${t.unit})` : ''}.${t.source ? ` Source: ${t.source.slice(0, 300)}` : ''}${more}`;
+}
+
+/**
+ * The Cross-State Comparison Engine's table: the one asked for (`table`, "21", "T21", "Table 21") when a
+ * handbook module holds it, else COMPARISON_DEFAULT_TABLE.
+ */
+function comparisonTable(value) {
+  const asked = Number(String(value ?? '').trim().replace(/^t(?:able)?\s*/i, ''));
+  return HANDBOOK_TABLE_NUMBERS.includes(asked) ? asked : COMPARISON_DEFAULT_TABLE;
+}
+
+/**
+ * The Cross-State Comparison Engine's year, or '' for each indicator's latest: a year as the handbook
+ * writes one, "YYYY" or "YYYY-YY" with YY the next year, from 1990 to next year. Anything else is ''.
+ */
+function comparisonYear(value, now = new Date()) {
+  const m = /^(\d{4})(?:-(\d{2}))?$/.exec(String(value ?? '').trim());
+  if (!m) return '';
+  const y = Number(m[1]);
+  if (y < 1990 || y > now.getFullYear() + 1) return '';
+  if (m[2] !== undefined && Number(m[2]) !== (y + 1) % 100) return '';
+  return m[0];
+}
+
+/**
+ * A handbook module (the stored register's live path, used before the register is loaded or when the
+ * store cannot answer): the table the request names (`table`), else the module's first, read from its
+ * page. Never another source.
+ */
+async function serveHandbookTable(tier, feat, spec, searchParams) {
+  const no = Number(handbookTableVariant(spec, searchParams.get('table')) || spec.tables[0]);
+  const t = HANDBOOK_TABLES.get(no);
+  const links = [t.url, HANDBOOK.listingUrl];
+  try {
+    const parsed = await handbookTableLive(no);
+    // F196 review R1: one page as the stored register holds it (scripts/fetch-rbi-handbook.mjs
+    // MAX_PER_TABLE): the newest whole years, never a year cut short.
+    const capped = newestYearsWithin(parsed.records, STORE_PAGE_ROWS);
+    const rows = capped.records;
+    return envelope({
+      tier,
+      feature: feat,
+      rows,
+      adapter: 'api',
+      links,
+      coverage: { ...yearSpan(rows), exhaustive: false },
+      fallback: false,
+      note: handbookTableNote(parsed, capped),
+      meta: { heading: handbookTableLabel(no), table: no, tables: spec.tables.length, as_of: parsed.table.published || HANDBOOK.published, status: 'RBI HANDBOOK · STATE LEVEL' },
+    });
+  } catch (e) {
+    return envelope({
+      tier,
+      feature: feat,
+      rows: statusRow({ adapter: 'api', url: t.url, reason: e?.message || String(e), featureName: feat.htmlFeature }),
+      adapter: 'api',
+      links,
+      coverage: { from: '', through: '', exhaustive: false },
+      fallback: false,
+      note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)} could not be read right now. No figures were invented.`,
+    });
+  }
+}
+
+/**
+ * Cross-State Comparison Engine: one handbook table (`table`, any table a handbook module holds; default
+ * Table 21), every state ranked for one year (`year`, default each indicator's latest), read from the
+ * stored register of the module that holds the table, else from the table's page.
+ */
+async function serveStateComparison(tier, feat, searchParams) {
+  const no = comparisonTable(searchParams.get('table'));
+  const year = comparisonYear(searchParams.get('year'));
+  const t = HANDBOOK_TABLES.get(no);
+  const links = [t.url, HANDBOOK.listingUrl];
+  let records = null;
+  let fromStore = false;
+  try {
+    const stored = await serveFromStore(handbookOwner(no), new URLSearchParams({ table: String(no) }));
+    if (stored?.rows?.length) {
+      // F196 review R1: a stored page short of its table (one loaded before tables were cut to one
+      // page) may end inside a year; that year is left out, so every year ranked is whole.
+      records = wholeYearsOf(stored.rows, stored.storeTotal);
+      fromStore = records.length > 0;
+      if (!fromStore) records = null;
+    }
+  } catch {
+    // The table's page answers instead.
+  }
+  let parsed = null;
+  if (!records) {
+    try {
+      parsed = await handbookTableLive(no);
+      records = parsed.records;
+    } catch (e) {
+      return envelope({
+        tier,
+        feature: feat,
+        rows: statusRow({ adapter: 'api', url: t.url, reason: e?.message || String(e), featureName: feat.htmlFeature }),
+        adapter: 'api',
+        links,
+        coverage: { from: '', through: '', exhaustive: false },
+        fallback: false,
+        note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)} could not be read right now. No figures were invented.`,
+      });
+    }
+  }
+  // F196 review R1: whole indicators within one page, so no indicator's ranking is cut short.
+  const shown = rankedWithin(compareStates(records, { year }), STORE_PAGE_ROWS);
+  const rows = shown.rows;
+  const years = comparisonYears(records);
+  const ranked = year && years.includes(year) ? `${year} where an indicator has it, else each indicator’s latest year` : 'each indicator’s latest year';
+  const partly = shown.indicators < shown.of ? ` Showing ${shown.indicators} of its ${shown.of} indicators, each with all of its states.` : '';
+  return envelope({
+    tier,
+    feature: feat,
+    rows,
+    adapter: fromStore ? 'register' : 'api',
+    links,
+    coverage: { from: years.at(-1) || '', through: years[0] || '', exhaustive: false },
+    fallback: false,
+    note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)}${rows[0]?.unit ? ` (${rows[0].unit})` : ''}: every state ranked, highest value first (rank 1 is the largest figure, not the best), with the year before; ${ranked} is ranked. All India is shown unranked.${partly} ${fromStore ? 'From the stored register.' : 'Read from the table’s page.'} Pick another table with the Table control.`,
+    meta: { heading: `Compare states: ${handbookTableLabel(no)}`, table: no, years, as_of: rows[0]?.as_of || HANDBOOK.published, status: 'RBI HANDBOOK · STATE LEVEL' },
+  });
+}
+
+/**
+ * SDL Auction & Borrowing Tracker: RBI's press releases on State Government Securities auctions in its
+ * press RSS (the latest ten releases), one row per security; a release whose item has no table is read
+ * from its page (at most two pages a run). The module is of kind `official`, so the store keeps every
+ * release it has seen; an answer with no such release among the ten is empty, never padded.
+ *
+ * F196 review R2: a feed that lists releases, none of them an SDL auction, was read and simply has
+ * nothing new: its answer carries meta.nothing_new, which the refresh records as a success that keeps
+ * the stored history (server/feedStore.mjs, public.feed_record). A feed with no items at all is broken
+ * (an error page, a changed format) and answers a status row, a failure.
+ */
+async function serveSdlAuctions(tier, feat) {
+  const links = [RBI_PRESS_RSS];
+  const unread = (reason) => envelope({
+    tier,
+    feature: feat,
+    rows: statusRow({ adapter: 'api', url: RBI_PRESS_RSS, reason, featureName: feat.htmlFeature }),
+    adapter: 'api',
+    links,
+    coverage: { from: '', through: '', exhaustive: false },
+    fallback: false,
+    note: 'RBI press releases RSS could not be read. No records were invented.',
+  });
+  let items;
+  try {
+    const { text } = await fetchText(RBI_PRESS_RSS);
+    items = parseRbiPressRss(text);
+  } catch (e) {
+    return unread(e?.message || String(e));
+  }
+  if (!items.length) return unread('the RSS feed listed no releases');
+  const releases = items.filter((i) => i.prid && sdlReleaseKind(i.title));
+  const rows = [];
+  let pages = 0;
+  for (const r of releases) {
+    const kind = sdlReleaseKind(r.title);
+    let got = sdlRows({ kind, prid: r.prid, date: r.date, title: r.title, html: r.description });
+    if (!got.length && pages < 2) {
+      pages += 1;
+      try {
+        const { text } = await fetchText(rbiReleaseUrl(r.prid));
+        got = sdlRows({ kind, prid: r.prid, date: r.date, title: r.title, html: text });
+      } catch {
+        // Left out; the next run reads it again while it is among the ten.
+      }
+    }
+    rows.push(...got);
+  }
+  const dates = rows.map((r) => r.date).filter(Boolean).sort();
+  const note = `RBI press releases on State Government Securities (SDL) auctions: notices (amount to be raised, tenor, re-issue) and results (amount accepted, cut-off yield or price), one row per security. RBI's feed lists its latest ten releases; the store keeps every auction release it has seen, so the history starts when this module went live${rows.length ? '' : '. None of the latest ten releases is an SDL auction. No records were invented'}.`;
+  return envelope({
+    tier,
+    feature: feat,
+    rows,
+    adapter: 'api',
+    links: [...links, ...new Set(rows.map((r) => r.source_url))].slice(0, 12),
+    coverage: { from: dates[0] || '', through: dates.at(-1) || '', exhaustive: false },
+    fallback: false,
+    note,
+    meta: { heading: 'SDL Auction & Borrowing Tracker', releases: releases.length, checked: items.length, ...(dates.length ? { as_of: dates.at(-1) } : {}), ...(releases.length ? {} : { nothing_new: true }), status: 'LIVE · RBI PRESS RELEASES' },
+  });
+}
+
 export async function serveFeatureFeed(searchParams) {
   loadCache();
   const tierIn = searchParams.get('tier') || '';
@@ -1384,6 +1608,14 @@ export async function serveFeatureFeed(searchParams) {
   // F196: a module built from a curated news search answers that search's on-topic headlines.
   const curated = curatedNewsFor(tier, feat.htmlFeature);
   if (curated) return serveCuratedNews(tier, feat, curated);
+
+  // F196: the RBI Handbook of Statistics on Indian States (stored registers; this is their live path,
+  // one table page), the Cross-State Comparison Engine built from it, and the SDL auctions from RBI's
+  // press releases.
+  const handbook = handbookModuleFor(tier, feat.htmlFeature);
+  if (handbook) return serveHandbookTable(tier, feat, handbook, searchParams);
+  if (tier === 'state' && /^cross-state comparison engine$/i.test(feat.htmlFeature)) return serveStateComparison(tier, feat, searchParams);
+  if (tier === 'state' && /^sdl auction & borrowing tracker$/i.test(feat.htmlFeature)) return serveSdlAuctions(tier, feat);
 
   const entry = entries[0] || null;
   const adapter = (entry?.adapter || feat.adapters || '').split(/[|,]/)[0].trim().toLowerCase();
@@ -3585,17 +3817,45 @@ export const LIVE_TIME_LIMIT_MS = 4000;
 const ARCHIVE_TIME_LIMIT_MS = 3000;
 // A live answer that arrived after its request gave up is served to later requests this long.
 const LATE_LIVE_MS = 10 * 60_000;
-// Per instance; keyed by the inputs serveFeatureFeed reads (tier, feature, the Statement Tracker's leader and MLA Directory's state).
+// Per instance; keyed by the inputs serveFeatureFeed reads (tier, feature, the Statement Tracker's leader, MLA Directory's state,
+// and a handbook module's or the Comparison Engine's resolved table and year: handbookLiveKeyParts).
 const liveInFlight = new Map();
 const lateLive = new Map();
+
+/**
+ * F196 review R3: the parts of a handbook module's or the Comparison Engine's request that change its
+ * answer, as that loader resolves them, so the live-attempt maps hold at most one entry per table (and
+ * per year for the Comparison) however a request spells them. A handbook module's table is the one it
+ * holds, else its first; the Comparison's is any handbook table, else Table 21, and its year a real one
+ * (comparisonYear) or none. Any other module: neither.
+ */
+function handbookLiveKeyParts(searchParams) {
+  const none = { table: '', year: '' };
+  if (!searchParams.has('table') && !searchParams.has('year')) return none;
+  const { feat, tier } = matchFeature(searchParams.get('tier') || '', searchParams.get('feature') || '');
+  if (!feat || tier !== 'state') return none;
+  const spec = handbookModuleFor(tier, feat.htmlFeature);
+  // The default table is keyed as no table, so a request that names it shares the plain request's attempt.
+  if (spec) {
+    const table = handbookTableVariant(spec, searchParams.get('table'));
+    return { table: table && table !== String(spec.tables[0]) ? table : '', year: '' };
+  }
+  if (/^cross-state comparison engine$/i.test(feat.htmlFeature)) {
+    const table = comparisonTable(searchParams.get('table'));
+    return { table: table === COMPARISON_DEFAULT_TABLE ? '' : String(table), year: comparisonYear(searchParams.get('year')) };
+  }
+  return none;
+}
 
 function liveKey(searchParams) {
   const person = searchParams.get('person');
   // F190: MLA Directory's live branch keeps one state's members, so a state's answer is its own. Only on
   // the state tier (where MLA Directory and its aliases live), so `?state=` on any other module cannot
   // start extra live attempts.
-  const state = searchParams.get('tier') === 'state' ? mlaStateVariant(searchParams.get('state')) : '';
-  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}${state ? `\u0000${state}` : ''}`;
+  const stateTier = searchParams.get('tier') === 'state';
+  const state = stateTier ? mlaStateVariant(searchParams.get('state')) : '';
+  const { table, year } = stateTier ? handbookLiveKeyParts(searchParams) : { table: '', year: '' };
+  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}${state ? `\u0000${state}` : ''}${table ? `\u0000t${table}` : ''}${year ? `\u0000y${year}` : ''}`;
 }
 
 function settleWithin(promise, ms) {

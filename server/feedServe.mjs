@@ -9,7 +9,7 @@
  * The store is served only while it is fresh: items fetched longer ago than three of the module's
  * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes).
  *
- * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory) is loaded by a script
+ * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory, the RBI handbook modules) is loaded by a script
  * (a reload replaces a variant's list, served in load order) and never refreshed by the timer, so it
  * is served whatever its age, marked `register: true` so the page dates it by its
  * records ("register · as of …") rather than by its load time. A request's `state` picks its variant;
@@ -51,12 +51,14 @@ export function storeMaxAgeMinutes(intervalMinutes) {
 /**
  * The stored variant a request means. The Statement Tracker's `person` is the variant (a listed
  * leader, else the first, as the live loader reads it). A register's variant is its parameter's
- * value, normalised (MLA Directory's `state`), or '' when the request names none it holds. Every
- * other module has the empty variant.
+ * value, normalised (MLA Directory's `state`, a handbook module's `table`), or, when the request names
+ * none it holds, the register's defaultVariant (a handbook module's first table) or '' (MLA Directory:
+ * the page across every state). Every other module has the empty variant.
  */
 export function storeVariant(id, searchParams) {
   const register = FEED_REGISTERS[id];
-  if (register) return register.variantOf(searchParams.get(register.param));
+  // F196: a register with a default variant (the handbook modules' first table) never pages across variants.
+  if (register) return register.variantOf(searchParams.get(register.param)) || register.defaultVariant || '';
   const v = FEED_VARIANTS[id];
   if (!v) return '';
   const want = String(searchParams.get(v.param) || '').trim().toLowerCase();
