@@ -1,5 +1,5 @@
--- A register module's first page across its variants in one read, and a register never stale
--- (migration 20261015170000; open-work F169 phase 4, owner decision C6 option 1). PostgreSQL
+-- A register module's first page across its variants in one read, a register never stale, and a
+-- register variant made due for a reload (migration 20261015170000; open-work F169 phase 4, owner decision C6 option 1). PostgreSQL
 -- assertions, no pgTAP. Run only in a disposable database, through run.sh.
 -- Bootstrap: the feed_admin chain (feed_records' chain, then 20261015150000_feed_records.sql and
 -- 20261015160000_feed_admin.sql), then 20261015170000_feed_register_page.sql, all applied as a
@@ -60,18 +60,19 @@ SELECT pg_temp.assert_true(has_function_privilege('authenticated', 'public.feed_
   'feed_admin_status keeps its grants: authenticated only');
 
 -- 2. Seed ---------------------------------------------------------------------------------------
--- A register module with three variants, of a kept kind (official) as the loader stores it, and a
--- second module whose rows must not leak in. Alpha holds 120 items for the clamp; Beta's items
--- test the kept-kind order; Gamma is a replacing kind (reference), ordered by position alone.
+-- A module with three variants and a second module whose rows must not leak in. Alpha is a register
+-- variant as the loader stores it (class register, kind reference) holding 120 items for the clamp;
+-- Beta is a kept kind (official), for feed_page's newest-first order; Gamma a replacing kind
+-- (reference), ordered by position alone.
 INSERT INTO public.feed_state (tier, feature, variant, class, kind, interval_minutes, serve, fetched_at, item_count, meta, created_at) VALUES
-  ('state', 'Reg', 'Alpha', 'register', 'official', 43200, true, now() - interval '200 days', 120, '{"note": "alpha"}', now() - interval '300 days'),
-  ('state', 'Reg', 'Beta', 'register', 'official', 43200, true, now() - interval '3 days', 4, '{"note": "beta"}', now() - interval '300 days'),
+  ('state', 'Reg', 'Alpha', 'register', 'reference', 43200, true, now() - interval '200 days', 120, '{"note": "alpha"}', now() - interval '300 days'),
+  ('state', 'Reg', 'Beta', 'official', 'official', 60, true, now() - interval '3 days', 4, '{"note": "beta"}', now() - interval '300 days'),
   ('state', 'Reg', 'Gamma', 'reference', 'reference', 1440, false, now() - interval '1 day', 3, '{}', now() - interval '300 days'),
-  ('state', 'Other', 'Alpha', 'register', 'official', 43200, true, now(), 1, '{}', now());
+  ('state', 'Other', 'Alpha', 'register', 'reference', 43200, true, now(), 1, '{}', now());
 
 INSERT INTO public.feed_items (tier, feature, variant, item_key, row, published_at, first_seen, kind, content_hash, position)
 SELECT 'state', 'Reg', 'Alpha', format('a%s', lpad(g::text, 3, '0')), jsonb_build_object('title', format('Alpha %s', g)),
-       NULL, now() - interval '200 days', 'official', 'h', g - 1
+       NULL, now() - interval '200 days', 'reference', 'h', g - 1
   FROM generate_series(1, 120) AS g;
 -- Beta: published dates decide first; two items share a published time, so position decides; one has none (first_seen).
 INSERT INTO public.feed_items (tier, feature, variant, item_key, row, published_at, first_seen, kind, content_hash, position) VALUES
@@ -83,7 +84,7 @@ INSERT INTO public.feed_items (tier, feature, variant, item_key, row, published_
   ('state', 'Reg', 'Gamma', 'g2', '{"title": "g second"}', now(), now(), 'reference', 'h', 1),
   ('state', 'Reg', 'Gamma', 'g1', '{"title": "g first"}', now() - interval '9 days', now(), 'reference', 'h', 0),
   ('state', 'Reg', 'Gamma', 'g3', '{"title": "g third"}', now() + interval '1 day', now(), 'reference', 'h', 2),
-  ('state', 'Other', 'Alpha', 'leak', '{"title": "other module"}', now(), now(), 'official', 'h', 0);
+  ('state', 'Other', 'Alpha', 'leak', '{"title": "other module"}', now(), now(), 'reference', 'h', 0);
 
 -- 3. Access -----------------------------------------------------------------------------------
 SET LOCAL ROLE anon;
@@ -126,13 +127,13 @@ SELECT pg_temp.assert_true((SELECT array_agg(e ->> 'item_key' ORDER BY o) = ARRA
 SELECT pg_temp.assert_true((SELECT bool_and(pg.p -> 'items' = s.p -> 'items')
     FROM full_page, jsonb_array_elements(j -> 'pages') AS pg(p) JOIN single s ON s.variant = pg.p ->> 'variant'),
   'each variant''s items are exactly feed_page''s first page, fields and order');
-SELECT pg_temp.assert_true((SELECT p ->> 'class' = 'register' AND p ->> 'kind' = 'official' AND (p ->> 'serve')::boolean
+SELECT pg_temp.assert_true((SELECT p ->> 'class' = 'register' AND p ->> 'kind' = 'reference' AND (p ->> 'serve')::boolean
       AND (p ->> 'total')::int = 120 AND (p ->> 'interval_minutes')::int = 43200 AND p -> 'meta' = '{"note": "alpha"}'::jsonb
       AND (p ->> 'fetched_at')::timestamptz = now() - interval '200 days'
     FROM full_page, jsonb_array_elements(j -> 'pages') AS pg(p) WHERE p ->> 'variant' = 'Alpha'),
   'a page carries its variant''s state: class, kind, serve, total, interval, meta, fetched_at');
 -- A fourth variant later added with serve off makes the module partly served again.
-INSERT INTO public.feed_state (tier, feature, variant, class, kind, interval_minutes, serve) VALUES ('state', 'Reg', 'Delta', 'register', 'official', 43200, false);
+INSERT INTO public.feed_state (tier, feature, variant, class, kind, interval_minutes, serve) VALUES ('state', 'Reg', 'Delta', 'register', 'reference', 43200, false);
 SET LOCAL ROLE service_role;
 SELECT pg_temp.assert_true((SELECT (j ->> 'all_served')::boolean = false AND (j ->> 'variants')::int = 4 AND j -> 'pages' = '[]'::jsonb
     FROM (SELECT public.feed_page_across('state', 'Reg', 2) AS j) t),
@@ -160,7 +161,7 @@ INSERT INTO public.feed_state (tier, feature, variant, class, kind, interval_min
   -- An official module on a 30-day interval that is not a register, as old as Alpha: stale.
   ('state', 'Not a register', '', 'official', 'official', 43200, false, now() - interval '200 days', now() - interval '300 days'),
   -- A register variant never fetched, listed long ago: still not stale.
-  ('state', 'Reg', 'Never', 'register', 'official', 43200, false, NULL, now() - interval '300 days'),
+  ('state', 'Reg', 'Never', 'register', 'reference', 43200, false, NULL, now() - interval '300 days'),
   -- An ordinary module one second past its limit: still stale.
   ('news', 'Wire Late', '', 'news', 'news', 30, true, now() - interval '120 minutes 1 second', now() - interval '9 days');
 INSERT INTO auth.users (id, email) VALUES ('00000000-0000-4000-8000-0000000fed02', 'admin@example.test');
@@ -169,7 +170,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000fed02', true);
 CREATE TEMP TABLE got AS SELECT * FROM public.feed_admin_status();
 RESET ROLE;
-SELECT pg_temp.assert_true((SELECT bool_and(NOT stale) AND count(*) = 4 FROM got WHERE class = 'register'),
+SELECT pg_temp.assert_true((SELECT bool_and(NOT stale) AND count(*) = 3 FROM got WHERE class = 'register'),
   'no register row is stale: 200 days old, never fetched, or fresh');
 SELECT pg_temp.assert_true((SELECT stale AND stale_after_minutes = 129600 FROM got WHERE feature = 'Not a register'),
   'an official module that is not a register, as old, is still stale');
@@ -178,5 +179,55 @@ SELECT pg_temp.assert_true((SELECT stale_after_minutes = 129600 AND interval_min
     FROM got WHERE feature = 'Reg' AND variant = 'Alpha'),
   'a register row keeps its other columns');
 SELECT pg_temp.assert_true((SELECT count(*) = 7 FROM got), 'one row per module and variant, as before');
+
+-- 9. feed_make_due: a register variant, unleased, is made due -------------------------------
+SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM pg_proc p
+    WHERE p.oid = 'public.feed_make_due(text, text, text)'::regprocedure
+      AND p.prosecdef AND p.provolatile = 'v' AND p.proconfig = ARRAY['search_path=""']),
+  'feed_make_due exists, SECURITY DEFINER, VOLATILE, with search_path ''''');
+SELECT pg_temp.assert_true(has_function_privilege('service_role', 'public.feed_make_due(text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.feed_make_due(text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.feed_make_due(text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('public', 'public.feed_make_due(text, text, text)', 'EXECUTE'),
+  'feed_make_due: service_role only');
+SET LOCAL ROLE anon;
+SELECT pg_temp.rejected($q$SELECT public.feed_make_due('state', 'Reg', 'Alpha')$q$, '42501', 'anon cannot make a variant due');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.rejected($q$SELECT public.feed_make_due('state', 'Reg', 'Alpha')$q$, '42501', 'authenticated (even an admin) cannot make a variant due');
+RESET ROLE;
+-- Alpha: due in 30 days, unleased. Beta: not a register. Never: a register with a lease held.
+UPDATE public.feed_state SET next_due_at = now() + interval '30 days';
+UPDATE public.feed_state SET lease_token = '00000000-0000-4000-8000-0000000fee90', leased_at = now() - interval '5 seconds',
+  lease_until = now() + interval '100 seconds' WHERE feature = 'Reg' AND variant = 'Never';
+SET LOCAL ROLE service_role;
+CREATE TEMP TABLE made AS SELECT v, public.feed_make_due('state', f, v) AS done
+  FROM (VALUES ('Reg', 'Alpha'), ('Reg', 'Beta'), ('Reg', 'Never'), ('Not a register', ''), ('Reg', 'No Such'), ('Reg', NULL)) AS t(f, v);
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT done FROM made WHERE v = 'Alpha')
+    AND (SELECT next_due_at = now() FROM public.feed_state WHERE feature = 'Reg' AND variant = 'Alpha'),
+  'a register variant with no lease is made due now, and the call says so');
+SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = 'Beta')
+    AND (SELECT next_due_at = now() + interval '30 days' FROM public.feed_state WHERE feature = 'Reg' AND variant = 'Beta'),
+  'a variant that is not a register is left alone');
+SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = '')
+    AND (SELECT next_due_at = now() + interval '30 days' FROM public.feed_state WHERE feature = 'Not a register'),
+  'a scheduled module cannot be made due');
+SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = 'Never')
+    AND (SELECT next_due_at = now() + interval '30 days' AND lease_token IS NOT NULL FROM public.feed_state WHERE feature = 'Reg' AND variant = 'Never'),
+  'a register variant a run holds is left alone, lease and all');
+
+SELECT pg_temp.assert_true((SELECT NOT done FROM made WHERE v = 'No Such') AND (SELECT NOT done FROM made WHERE v IS NULL),
+  'an unknown variant, or none, is not made due');
+SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.feed_state WHERE next_due_at = now()), 'nothing else was made due');
+
+-- A load that died leaves an ended lease; the register can still be reloaded.
+UPDATE public.feed_state SET lease_token = '00000000-0000-4000-8000-0000000fee91', leased_at = now() - interval '10 minutes',
+  lease_until = now() - interval '5 minutes', next_due_at = now() + interval '30 days' WHERE feature = 'Reg' AND variant = 'Never';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.assert_true(public.feed_make_due('state', 'Reg', 'Never'), 'a register whose lease has ended (a load that died) is made due');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT next_due_at <= now() AND lease_token IS NULL AND lease_until IS NULL FROM public.feed_state WHERE feature = 'Reg' AND variant = 'Never'),
+  'and its ended lease is released');
 
 ROLLBACK;

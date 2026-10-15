@@ -1,6 +1,6 @@
 // MLA Directory's register (owner decision C6, option 1): 4,104 MLAs in 31 store variants, one per
-// state, kept (kind official), loaded once by scripts/load-feed-register.mjs and never refreshed by
-// the timer. The page serves a state's variant whatever its age and labels it as a dated register.
+// state (kind reference: a load replaces the state's list), loaded by scripts/load-feed-register.mjs
+// and never refreshed by the timer. The page serves a state's variant whatever its age and labels it as a dated register.
 // The fixture is four real rows of backup/STATE/F30_MLA_Directory.xlsx as server/backupFeed.mjs reads
 // them (a subset of the sheet's columns; the e-mail is a placeholder), copied here so no test reads backup/.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -109,10 +109,7 @@ describe('mapMlaRegisterRow: a register row as the live MLA Directory row', () =
         constituency_id: 'ac-kl-adoor',
         districts: 'Pathanamthitta',
         education: 'Graduate Professional',
-        age: 'Born 1 January 1980 (age 46)',
-        assets_total: '₹72,82,160 (~72 Lacs)',
-        liabilities_total: '₹10,00,000 (~10 Lacs)',
-        criminal_cases_declared: '0',
+        birth_date: '1980-01-01',
         state_code: 'KL',
         politician_id: 'adoor-ac-kl-adv-c-v-santhakumar',
         wikidata_qid: 'Q139918608',
@@ -144,11 +141,23 @@ describe('mapMlaRegisterRow: a register row as the live MLA Directory row', () =
     expect(buildRegisterItems([NO_QID, other], REGISTER, 'official').items).toHaveLength(2);
   });
 
-  it('leaves out the e-mail, the stray header column, the day-dependent columns and empty cells', () => {
-    const { row } = mapMlaRegisterRow(KERALA);
-    for (const key of ['email', 'Mohan Singh Bisht', 'record_age_days', 'source_retrieved_at', 'active', 'record_title', 'geography', 'profession']) {
+  it('leaves out the e-mail, the stray header column, the age, the money and case columns, the day-dependent columns and empty cells', () => {
+    const { row } = mapMlaRegisterRow({ ...KERALA, profession: 'politician' });
+    for (const key of ['email', 'Mohan Singh Bisht', 'record_age_days', 'source_retrieved_at', 'active', 'record_title', 'geography', 'profession',
+      'age', 'assets_total', 'liabilities_total', 'criminal_cases_declared']) {
       expect(row, key).not.toHaveProperty(key);
     }
+  });
+
+  it('keeps the birth date only, as ISO when it parses, never the age (which goes out of date)', () => {
+    const birth = (age) => mapMlaRegisterRow({ ...KERALA, age }).row.birth_date;
+    expect(birth('Born 9 December 1952 (age 73)')).toBe('1952-12-09');
+    expect(birth('Born February 1957 (age 69)')).toBe('1957-02');
+    expect(birth('Born 1974 (age 52)')).toBe('1974');
+    expect(birth('Born 31 February 1957 (age 69)')).toBe('31 February 1957');
+    expect(birth('Born circa 1950')).toBe('circa 1950');
+    expect(birth('')).toBeUndefined();
+    expect(birth('Born (age 50)')).toBeUndefined();
   });
 
   it('gives the state its variant name, and drops a row whose state has no variant or that has no name', () => {
@@ -185,11 +194,12 @@ describe('buildRegisterItems and groupByVariant: one store variant per state', (
     expect(again.items.map((i) => [i.item_key, i.content_hash])).toEqual(built.items.map((i) => [i.item_key, i.content_hash]));
   });
 
-  it('each variant\'s note names its state and date, never a local path, and says it is not refreshed', () => {
+  it('each variant\'s note names its state and date, never a local path, and says a reload replaces the list', () => {
     const [arunachal] = groups;
     const meta = registerMeta(REGISTER, arunachal.report, 'backup/STATE/F30_MLA_Directory.xlsx', '2026-10-15T00:00:00.000Z');
     expect(meta.note).toMatch(/2 MLAs of Arunachal Pradesh/);
-    expect(meta.note).toMatch(/not refreshed/);
+    expect(meta.note).toMatch(/not refreshed by the timer/);
+    expect(meta.note).toMatch(/reload replaces this state's list/);
     expect(meta.note).not.toMatch(/\/Users|Downloads/);
     expect(meta.coverage).toEqual({ from: '2026-07-14', through: '2026-08-19', exhaustive: false });
     expect(meta.adapter).toBe('register');
@@ -204,7 +214,7 @@ const NOW = { now: () => Date.parse('2026-10-15T10:00:00.000Z') };
 
 function statePage(state, over = {}) {
   return {
-    tier: 'state', feature: 'MLA Directory', variant: state, class: 'register', kind: 'official', serve: true,
+    tier: 'state', feature: 'MLA Directory', variant: state, class: 'register', kind: 'reference', serve: true,
     fetched_at: LOADED, checked_at: LOADED, changed_at: LOADED, interval_minutes: 43200, consecutive_failures: 0, last_error: null,
     total: 2,
     meta: {
@@ -349,10 +359,10 @@ describe('the label: a dated register, not "updated N min ago"', () => {
 // Loading: the runs and the gate.
 
 describe('registerRunsFor: one run per state, never through the schedule', () => {
-  it('31 official runs for MLA Directory', () => {
+  it('31 runs for MLA Directory, of a replacing kind so a reload replaces each state\'s list', () => {
     const runs = registerRunsFor(MLA);
     expect(runs.map((r) => r.variant)).toEqual(STATES);
-    expect(runs.every((r) => r.kind === 'official' && r.class === 'register' && r.interval_minutes === 43200)).toBe(true);
+    expect(runs.every((r) => r.kind === 'reference' && r.class === 'register' && r.interval_minutes === 43200)).toBe(true);
   });
 
   it('refuses a module that is not a register; runFor refuses MLA Directory (not scheduled)', () => {
@@ -366,7 +376,7 @@ describe('main: MLA Directory load', () => {
   const TOKEN = '33333333-3333-4333-8333-333333333333';
   let out;
 
-  function setup({ due = () => true } = {}) {
+  function setup({ due = () => true, makeDue = () => true } = {}) {
     const calls = [];
     const rpc = vi.fn(async (name, args) => {
       calls.push([name, args]);
@@ -376,6 +386,7 @@ describe('main: MLA Directory load', () => {
       }
       if (name === 'feed_record') return { status: 'ok', items: args.p.items.length, new_items: args.p.items.length };
       if (name === 'feed_page') return { total: 1, checked_at: 'x', interval_minutes: 43200, serve: false, items: [] };
+      if (name === 'feed_make_due') return makeDue(args.p_variant);
       return null;
     });
     const deps = {
@@ -408,6 +419,9 @@ describe('main: MLA Directory load', () => {
     const text = out.join('\n');
     expect(text).toMatch(/DRY RUN: state:MLA Directory/);
     expect(text).toMatch(/Arunachal Pradesh\s+2/);
+    // Only the reasons that apply to this module.
+    expect(text).toMatch(/left out: no_state\s+0/);
+    for (const cabinetOnly of ['no_date', 'bad_date', 'not_module', 'second release']) expect(text).not.toContain(cabinetOnly);
     expect(text).toMatch(/3 store variants, 4 items/);
   });
 
@@ -418,7 +432,8 @@ describe('main: MLA Directory load', () => {
       [['--apply', '--target', 'local', '--db', 'postgres'], /local test database/, ENV],
       [['--apply', '--target', 'prod', '--confirm-prod'], /needs SUPABASE_URL and SUPABASE_SECRET_KEY/, {}],
       [['--apply', '--target', 'prod'], /add --confirm-prod/, ENV],
-      [['--apply', '--target', 'prod', '--confirm-prod', '--force'], /--force is for a local test database only/, ENV],
+      [['--apply', '--target', 'prod', '--force'], /add --confirm-prod/, ENV],
+      [['--apply', '--target', 'prod', '--force', '--confirm-prod'], /needs SUPABASE_URL and SUPABASE_SECRET_KEY/, {}],
     ];
     for (const [argv, why, env] of refusals) {
       const { deps } = setup();
@@ -436,7 +451,7 @@ describe('main: MLA Directory load', () => {
     expect(claims.map((a) => a.p_runs.map((r) => r.variant))).toEqual([['Arunachal Pradesh'], ['Jammu & Kashmir'], ['Kerala']]);
     for (const a of claims) {
       expect(a.p_limit).toBe(1);
-      expect(a.p_runs[0]).toEqual({ tier: 'state', feature: 'MLA Directory', variant: a.p_runs[0].variant, class: 'register', kind: 'official', interval_minutes: 43200 });
+      expect(a.p_runs[0]).toEqual({ tier: 'state', feature: 'MLA Directory', variant: a.p_runs[0].variant, class: 'register', kind: 'reference', interval_minutes: 43200 });
     }
     const records = calls.filter(([n]) => n === 'feed_record').map(([, a]) => a.p);
     expect(records.map((p) => [p.variant, p.items.length, p.lease_token, p.status])).toEqual([
@@ -451,6 +466,25 @@ describe('main: MLA Directory load', () => {
     await expect(main([...ARGS, '--apply', '--target', 'local', '--db', 'niyantran_x_test'], deps)).resolves.toBe(3);
     expect(calls.filter(([n]) => n === 'feed_record').map(([, a]) => a.p.variant)).toEqual(['Arunachal Pradesh', 'Jammu & Kashmir']);
     expect(out.join('\n')).toMatch(/Kerala.*NOT DUE/);
+  });
+
+  it('--force on prod (behind --confirm-prod) makes each state due with feed_make_due before its claim', async () => {
+    const { deps, calls } = setup();
+    await expect(main([...ARGS, '--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).resolves.toBe(0);
+    expect(deps.makeProdRpc).toHaveBeenCalledTimes(1);
+    expect(deps.forceDue).not.toHaveBeenCalled();
+    const names = calls.map(([n, a]) => (n === 'feed_make_due' ? `due:${a.p_variant}` : n === 'feed_claim_due' ? `claim:${a.p_runs[0].variant}` : n));
+    expect(names.filter((n) => /^(due|claim):/.test(n))).toEqual([
+      'due:Arunachal Pradesh', 'claim:Arunachal Pradesh', 'due:Jammu & Kashmir', 'claim:Jammu & Kashmir', 'due:Kerala', 'claim:Kerala',
+    ]);
+    expect(calls.find(([n]) => n === 'feed_make_due')[1]).toEqual({ p_tier: 'state', p_feature: 'MLA Directory', p_variant: 'Arunachal Pradesh' });
+  });
+
+  it('--force on prod says when a state could not be made due (a run holds it), and still never records it unclaimed', async () => {
+    const { deps, calls } = setup({ makeDue: (v) => v !== 'Kerala', due: (v) => v !== 'Kerala' });
+    await expect(main([...ARGS, '--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).resolves.toBe(3);
+    expect(out.join('\n')).toMatch(/Kerala.*not made due/);
+    expect(calls.filter(([n]) => n === 'feed_record').map(([, a]) => a.p.variant)).toEqual(['Arunachal Pradesh', 'Jammu & Kashmir']);
   });
 
   it('--force on a local test database makes each state due first', async () => {

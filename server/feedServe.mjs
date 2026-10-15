@@ -9,8 +9,9 @@
  * The store is served only while it is fresh: items fetched longer ago than three of the module's
  * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes).
  *
- * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory) is loaded once and never
- * refreshed, so it is served whatever its age, marked `register: true` so the page dates it by its
+ * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory) is loaded by a script
+ * (a reload replaces a variant's list, served in load order) and never refreshed by the timer, so it
+ * is served whatever its age, marked `register: true` so the page dates it by its
  * records ("register · as of …") rather than by its load time. A request's `state` picks its variant;
  * with no state (or one the register does not hold) the page gets a first page across every variant,
  * the same share of each, in one read (registerAcross, public.feed_page_across).

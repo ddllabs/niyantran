@@ -412,7 +412,7 @@ describe('main: the gate before anything is written', () => {
 
   it('--force is refused on prod', async () => {
     const { deps } = setup();
-    await expect(main(['--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).rejects.toThrow(/--force is for a local test database only/);
+    await expect(main(['--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).rejects.toThrow(/--force on prod is only for a register module/);
     noClient(deps);
   });
 

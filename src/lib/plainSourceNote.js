@@ -307,7 +307,7 @@ export function isStoreAnswer(feed) {
 }
 
 /**
- * C6 option 1: a register held in the feed store (MLA Directory): loaded once, never refreshed, valid
+ * C6 option 1: a register held in the feed store (MLA Directory): loaded by a script, never refreshed, valid
  * until loaded again. It is dated by its records ("register · as of …"), not by when it was loaded.
  */
 export function isRegisterAnswer(feed) {
