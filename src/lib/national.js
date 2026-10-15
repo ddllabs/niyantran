@@ -66,6 +66,8 @@ const FEATURE_DISPLAY_ALIASES = {
   'Booth-level Results Database': 'Goa Booth-Level Results Database',
   'Booth Political History': 'Goa Booth Political History',
   'Local Governance Brief': 'Goa Local Governance Brief',
+  // Owner 2026-10-16: Wikidata MLA identity profiles plus Google News coverage; not a scorecard.
+  'MLA Report Card + Statement Tracker': 'MLA Profiles & Coverage',
   // F202: English news; nothing is vernacular or translated.
   'Assembly Proceedings Digest (Vernacular, Translated)': 'Assembly Proceedings Digest',
   'District Media Monitor (Vernacular District Editions)': 'District Media Monitor',

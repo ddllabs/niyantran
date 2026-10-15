@@ -110,8 +110,6 @@ export function lawWireRows(rows, { now = Date.now() } = {}) {
   return freshNewsRows(rows, { days: WIRE_DAYS, now }).map((r) => ({ ...r, ...LAW_WIRE_FIELDS }));
 }
 
-const isNewsSearchRow = (row) => /^https?:\/\/news\.google\.com\//i.test(String(row?.source_url || row?.link || ''));
-
 /** A registry row's Google News search (or its news fallback): the last 7 days, one row per story. */
 export function searchWireRows(rows, { now = Date.now() } = {}) {
   return freshNewsRows(rows, { days: WIRE_DAYS, now });
@@ -230,14 +228,6 @@ export const STORE_ROW_RULES = Object.freeze({
   // Its registry row is a Google News search (the generic branch's storedSearch, or its news fallback).
   'state:Bureaucrat Transfer & Posting Tracker (State Cadre)': (rows, { now } = {}) => searchWireRows(rows, { now }),
   'sports:Indian Sports Wire': (rows, { now } = {}) => indiaSportsRows(rows, { now }),
-  // Its registry row's live feed (Wikidata districts, undated) is answered whole (capRows); only when that
-  // feed and the archive give nothing does its Google News fallback answer, kept to 7 days, one row per
-  // story. So with any other row stored, a row from that search (a news.google.com link) is not served,
-  // and without one, the search's rows are held to the fallback's rule (review of 1d2bdb7, finding 1).
-  'state:District Performance Tracker (Composite)': (rows, { now } = {}) => {
-    const direct = rows.filter((r) => !isNewsSearchRow(r));
-    return direct.length ? direct : searchWireRows(rows.filter(isNewsSearchRow), { now });
-  },
   'national:Policy Pipeline Tracker (Draft-to-Gazette)': (rows) => pipelineRows(rows),
   'national:Cabinet Decisions': (rows) => cabinetDecisionRows(rows),
 });

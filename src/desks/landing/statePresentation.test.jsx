@@ -43,3 +43,23 @@ describe('State module names say what the module holds (F202)', () => {
     expect(featureMenuLabel({ htmlFeature: feature })).toBe(module.title);
   });
 });
+
+// Owner decision 2026-10-16: the module holds 400 Wikidata MLA identity profiles plus Google News
+// coverage; there is no attendance, questions or funds data, so it is not named a report card. The
+// key is unchanged (routes, presets and stored rows).
+describe('MLA Report Card is named for what it holds', () => {
+  const key = 'MLA Report Card + Statement Tracker';
+  it('is titled MLA Profiles & Coverage on the landing and in menus, under the same key', () => {
+    const module = modules.find(item => item.feature === key);
+    expect(module.title).toBe('MLA Profiles & Coverage');
+    expect(featureMenuLabel({ htmlFeature: key })).toBe('MLA Profiles & Coverage');
+    expect(DESK_CATALOGUE.find(entry => entry.feature === key).aliases).toContain(key);
+  });
+});
+
+describe('District Performance Tracker is planned on the landing (owner decision 2026-10-16)', () => {
+  it('is marked not configured, with its key unchanged', () => {
+    const module = modules.find(item => item.feature === 'District Performance Tracker (Composite)');
+    expect(module.configured).toBe(false);
+  });
+});

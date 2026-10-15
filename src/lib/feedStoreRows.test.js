@@ -277,30 +277,6 @@ describe('news modules: the live branch row rules, on stored rows', () => {
     ]);
     expect(titles(body)).toEqual(['India beat Pakistan in hockey Asia Cup']);
   });
-
-  it('District Performance Tracker: an undated row is served only while the source still lists it', async () => {
-    const body = await served('state:District Performance Tracker (Composite)', [
-      item({ title: 'Pulwama district', source_url: 'https://www.wikidata.org/wiki/Q1' }),
-      item({ title: 'Sagar district', source_url: 'https://www.wikidata.org/wiki/Q2' }, { seen: EARLIER_RUN }),
-    ]);
-    expect(titles(body)).toEqual(['Pulwama district']);
-  });
-
-  it('District Performance Tracker: with Wikidata rows stored, its news fallback rows are not served (live answers with Wikidata alone)', async () => {
-    const body = await served('state:District Performance Tracker (Composite)', [
-      item({ title: 'Pulwama district', source_url: 'https://www.wikidata.org/wiki/Q1' }),
-      item({ title: 'District collector reviews flood relief in Pulwama', date: '2026-10-14', source_url: 'https://news.google.com/rss/articles/new' }),
-    ]);
-    expect(titles(body)).toEqual(['Pulwama district']);
-  });
-
-  it("District Performance Tracker: with no Wikidata row stored, its news fallback answers, held to that fallback's 7 days", async () => {
-    const body = await served('state:District Performance Tracker (Composite)', [
-      item({ title: 'District collector reviews flood relief in Pulwama', date: '2026-10-14', source_url: 'https://news.google.com/rss/articles/new' }),
-      item({ title: 'District collector reviews school results in Sagar', date: '2026-09-20', source_url: 'https://news.google.com/rss/articles/old' }),
-    ]);
-    expect(titles(body)).toEqual(['District collector reviews flood relief in Pulwama']);
-  });
 });
 
 describe('age windows: a bare day lasts to its end, and a row dated by another field is aged by it', () => {

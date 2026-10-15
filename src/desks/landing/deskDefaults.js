@@ -35,7 +35,7 @@ export const DESK_DEFAULTS = {
   },
   state: {
     elections: 'Constituency Register', government: 'State Governance Brief',
-    finance: 'Centre-State Fund Flow Tracker', districts: 'District Performance Tracker (Composite)',
+    finance: 'Centre-State Fund Flow Tracker', districts: 'Cross-State Comparison Engine',
     media: 'District Media Monitor (Vernacular District Editions)',
   },
 };

@@ -50,6 +50,15 @@ describe('the refresh schedule (F169 C1)', () => {
     for (const id of Object.keys(FEED_SCHEDULE)) expect(PLANNED_MODULES.has(id), id).toBe(false);
   });
 
+  // Owner decision 2026-10-16: District Performance Tracker is planned; the timer must not fetch it.
+  it('keeps District Performance Tracker (planned) off the timer', () => {
+    const id = 'state:District Performance Tracker (Composite)';
+    expect(Object.hasOwn(FEED_SCHEDULE, id)).toBe(false);
+    expect(PLANNED_MODULES.has(id)).toBe(true);
+    expect(scheduledRuns().some((r) => `${r.tier}:${r.feature}` === id)).toBe(false);
+    expect(feedRunsForDb().some((r) => `${r.tier}:${r.feature}` === id)).toBe(false);
+  });
+
   it('runs one entry per Statement Tracker leader', () => {
     const runs = scheduledRuns().filter((r) => r.feature.startsWith('Statement & Quote Tracker'));
     expect(runs.map((r) => r.variant).sort()).toEqual([...FEED_VARIANTS['national:Statement & Quote Tracker with Contradiction Detection'].values].sort());

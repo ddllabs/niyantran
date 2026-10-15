@@ -37,7 +37,7 @@ describe('State summary API (F157)', () => {
   });
 
   it('answers only modules the feed knows, in the tier the catalogue gives them', () => {
-    expect(STATE_FEATURES).toHaveLength(37); // F173: two more State modules are planned; F196 built four, then ten; F202 planned the State Tender Aggregator
+    expect(STATE_FEATURES).toHaveLength(36); // F173: two more State modules are planned; F196 built four, then ten; F202 planned the State Tender Aggregator and (2026-10-16) the District Performance Tracker
     for (const feature of STATE_FEATURES) {
       const module = STATE_MODULES.find(item => item.feature === feature);
       expect(featureMap.filter(row => row.htmlFeature === feature).map(row => row.htmlTier)).toContain(module.tier);

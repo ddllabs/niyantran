@@ -75,7 +75,6 @@ const WINDOW_DAYS = Object.freeze({
   'national:Statement & Quote Tracker with Contradiction Detection': WIRE_DAYS,
   'state:Bureaucrat Transfer & Posting Tracker (State Cadre)': WIRE_DAYS,
   'sports:Indian Sports Wire': INDIA_SPORTS_DAYS,
-  'state:District Performance Tracker (Composite)': WIRE_DAYS,
 });
 /** The modules whose live branch has no age window (a release filter only). */
 const NO_WINDOW = Object.freeze(['national:Policy Pipeline Tracker (Draft-to-Gazette)', 'national:Cabinet Decisions']);
@@ -106,8 +105,9 @@ function rssBody(url, items) {
 }
 
 /**
- * Stubs every source with the stories; returns the URLs asked for, in order. The Wikidata query fails
- * (it answers with JSON, not news), so District Performance Tracker answers from its news fallback.
+ * Stubs every source with the stories; returns the URLs asked for, in order. A Wikidata query fails
+ * (it answers with JSON, not news); no scheduled module makes one now that District Performance
+ * Tracker is planned (2026-10-16).
  */
 function stubSources(items) {
   const asked = [];

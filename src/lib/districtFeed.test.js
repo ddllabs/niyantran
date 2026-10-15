@@ -38,12 +38,17 @@ function stubWikidata(body, contentType = 'application/sparql-results+json;chars
   })));
 }
 
+// The module is planned (2026-10-16), so the server answers the planned state and never reaches the
+// Wikidata reader. These tests keep the reader's F185 guards proven for when the module is built:
+// they take it off the planned list for the test only (the Set is a fresh one for every test).
 async function districtFeed() {
+  const { PLANNED_MODULES } = await import('./plannedModules.js');
+  PLANNED_MODULES.delete('state:District Performance Tracker (Composite)');
   const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
   return serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'District Performance Tracker (Composite)' }));
 }
 
-describe('District Performance Tracker (F185)', () => {
+describe('District Performance Tracker (F185; planned since 2026-10-16, reader kept proven)', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 
   it('maps the SPARQL answer to one row per district with its real fields', async () => {

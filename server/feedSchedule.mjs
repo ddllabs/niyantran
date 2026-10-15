@@ -1,7 +1,8 @@
 /**
  * F169 phase 4 (C1): which modules the 5-minute timer refreshes, how often, and how long their
  * items are kept (F170 rules 1–2). A module is scheduled when its loader calls an outside source
- * (measured 2026-10-15: 58 of 120 desk modules; 63 after F196 batch 1, 64 with the SDL auctions); stored registers and planned modules are not. A test
+ * (measured 2026-10-15: 58 of 120 desk modules; 63 after F196 batch 1, 64 with the SDL auctions); stored registers and planned modules are not (the District Performance Tracker left it
+ * on 2026-10-16, when it became planned). A test
  * (src/lib/feedSchedule.test.js) checks this table against what the loaders actually call: every
  * module whose loader calls a source is on it, except the register modules (FEED_REGISTERS) and the
  * modules deliberately off the timer (OFF_TIMER), each listed with its reason.
@@ -74,7 +75,6 @@ export const FEED_SCHEDULE = Object.freeze({
   'state:Bureaucrat Transfer & Posting Tracker (State Cadre)': 'news',
   'state:Cabinet Decisions': 'news',
   'state:CAG Audit Tracker': 'news',
-  'state:District Performance Tracker (Composite)': 'news',
   'state:District Media Monitor (Vernacular District Editions)': 'news',
   // F196: built from curated news searches (src/lib/curatedNews.js).
   'sports:Sports Governance & Policy': 'news',

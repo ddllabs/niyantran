@@ -25,7 +25,8 @@ const groups = [
     module("Governor Assent Tracker"),
     // F202: English news on assembly sessions; nothing is vernacular or translated (key unchanged).
     module("Assembly Proceedings Digest (Vernacular, Translated)", {"title": "Assembly Proceedings Digest"}),
-    module("MLA Report Card + Statement Tracker"),
+    // Wikidata MLA identity profiles plus Google News coverage; not a scorecard (key unchanged; the same name is in src/lib/national.js).
+    module("MLA Report Card + Statement Tracker", {"title": "MLA Profiles & Coverage"}),
     module("Legislative Productivity Comparison"),
     module("Governor Friction & President's Rule Tracker"),
     module("MLA Directory", {"existingOnly": true}),
@@ -48,7 +49,8 @@ const groups = [
   { id: "districts", name: "Districts & Development", short: "District Development", modules: [
     module("Cross-State Comparison Engine"),
     module("NITI Aayog State Indices"),
-    module("District Performance Tracker (Composite)"),
+    // Planned (src/lib/plannedModules.js, owner 2026-10-16): no performance data, only a Wikidata directory.
+    module("District Performance Tracker (Composite)", {"configured": false}),
     module("District Health & Nutrition Indicators", {"title": "State Health & Nutrition Indicators"}),
     module("District Education Indicators", {"title": "State Education Indicators"}),
     module("District Economic & Livelihood Indicators", {"title": "State Economic & Livelihood Indicators"}),

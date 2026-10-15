@@ -59,7 +59,7 @@ describe('planned modules', () => {
 
   // F196: modules built from sources the repository already named (the party map from the MLA register).
   it('no longer lists the modules F196 built', () => {
-    expect(PLANNED_MODULES.size).toBe(4);
+    expect(PLANNED_MODULES.size).toBe(5);
     for (const [tier, feature] of [
       ['sports', 'Sports Governance & Policy'],
       ['state', "Governor Friction & President's Rule Tracker"],
@@ -80,9 +80,26 @@ describe('planned modules', () => {
     // No source yet (owner, 2026-10-15): these stay planned.
     expect([...PLANNED_MODULES].sort()).toEqual([
       'local:Municipal & Panchayat Tender Aggregator', 'state:District Crime & Safety Indicators',
-      'state:District Governance & Grievance Indicators', 'state:State Tender Aggregator (State e-Procurement)',
+      'state:District Governance & Grievance Indicators', 'state:District Performance Tracker (Composite)',
+      'state:State Tender Aggregator (State e-Procurement)',
     ]);
   });
+
+  // Owner decision 2026-10-16: the module has no performance data. Its only source is a Wikidata
+  // directory (name, population, area) capped at 500 of about 780 districts. Planned until built.
+  it('District Performance Tracker is planned, answers the planned state and fetches nothing', async () => {
+    const id = 'state:District Performance Tracker (Composite)';
+    expect(PLANNED_MODULES.has(id)).toBe(true);
+    expect(isPlannedModule('state', 'District Performance Tracker (Composite)')).toBe(true);
+    expect(DESK_CATALOGUE.find((m) => m.id === id).configured).toBe(false);
+    const fetch = vi.fn(async () => { throw new Error('no request expected'); });
+    vi.stubGlobal('fetch', fetch);
+    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'District Performance Tracker (Composite)' }));
+    expect(out.rows).toEqual([]);
+    expect(out.source.adapter).toBe('planned');
+    expect(fetch).not.toHaveBeenCalled();
+  }, 30_000);
 
   // F202 (module-quality audit 2026-10-15): the page answered "Module planned" (its scrape adapter
   // has no extraction) while the catalogue marked it configured and the landing counted it. The

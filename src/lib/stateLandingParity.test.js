@@ -63,7 +63,7 @@ afterAll(() => { vi.unstubAllGlobals(); });
 describe('State landing counts: count-only route vs the whole module (F157)', () => {
   it('answers every configured State module and only those', () => {
     expect(STATE_FEATURES).toEqual(configured.map(module => module.feature));
-    expect(configured).toHaveLength(37); // F173: State Fiscal Deep-Dive and Municipal & Panchayat Tender are planned; F196 built four (the party map among them), then ten (RBI handbook, Comparison Engine, SDL auctions); F202 planned the State Tender Aggregator
+    expect(configured).toHaveLength(36); // F173: State Fiscal Deep-Dive and Municipal & Panchayat Tender are planned; F196 built four (the party map among them), then ten (RBI handbook, Comparison Engine, SDL auctions); F202 planned the State Tender Aggregator and (2026-10-16) the District Performance Tracker
   });
 
   // First: a live answer with rows is kept for later requests (LATE_LIVE_MS) and would mask this.

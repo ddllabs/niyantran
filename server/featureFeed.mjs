@@ -3443,7 +3443,7 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
         fallback: false,
         note:
           `${profileRows.length} MLA profiles (${profiles.source || 'none'}) · ${wireLimited.length} coverage rows (${wireNote}). ` +
-          'Not a complete attendance/questions meter — UP pack is empty on disk; Wikidata supplies identities.',
+          'Wikidata MLA identity profiles plus Google News coverage; not a scorecard (no attendance, questions or funds data yet).',
         meta: {
           heading: 'MLA Report Card + Statement Tracker',
           profiles: profileRows.length,
@@ -3465,7 +3465,7 @@ export async function serveFeatureFeed(searchParams, { store } = {}) {
       links: [MLA_WD, newsUrl],
       coverage,
       fallback: false,
-      note: 'MLA Report Card uses Wikidata profiles + Google News RSS coverage. No rows were invented.',
+      note: 'Wikidata MLA identity profiles plus Google News coverage; not a scorecard (no attendance, questions or funds data yet). No rows were invented.',
     });
   }
 
