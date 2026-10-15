@@ -118,6 +118,22 @@ describe('serveFromStore: a scheduled module answers from the store', () => {
   });
 });
 
+describe('serveFromStore: Cabinet Decisions shows one release per decision (F187)', () => {
+  it('two stored releases of one decision, recorded by different refreshes, are served as one', async () => {
+    const TITLE = 'Cabinet approves four multitracking projects';
+    const cabinet = page({
+      tier: 'national', feature: 'Cabinet Decisions', class: 'official', kind: 'official', interval_minutes: 60,
+      items: [
+        { item_key: 'url:pib.gov.in/PressRelease?PRID=2301145', row: { title: TITLE, date: '2026-08-19', ministry: 'Ministry of Railways', source_url: 'https://pib.gov.in/PressReleaseIframePage.aspx?PRID=2301145' } },
+        { item_key: 'url:pib.gov.in/PressRelease?PRID=2301144', row: { title: TITLE, date: '2026-08-19', ministry: 'Cabinet Committee on Economic Affairs (CCEA)', source_url: 'https://pib.gov.in/PressReleaseIframePage.aspx?PRID=2301144' } },
+        { item_key: 'url:pib.gov.in/PressRelease?PRID=2300001', row: { title: 'Cabinet approves another scheme', date: '2026-08-18', ministry: 'Cabinet', source_url: 'https://pib.gov.in/PressReleaseIframePage.aspx?PRID=2300001' } },
+      ],
+    });
+    const body = await serveFromStore('national:Cabinet Decisions', new URLSearchParams({ tier: 'national', feature: 'Cabinet Decisions' }), { rpc: rpcReturning(cabinet), ...SOON });
+    expect(body.rows.map((r) => r.source_url.match(/PRID=(\d+)/)[1])).toEqual(['2301144', '2300001']);
+  });
+});
+
 describe('serveFromStore: when the live path is used instead (it answers null)', () => {
   const cases = {
     'the call fails': () => ({ rpc: vi.fn(async () => { throw new Error('HTTP 500'); }) }),

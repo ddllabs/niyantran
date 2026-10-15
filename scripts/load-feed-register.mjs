@@ -45,10 +45,9 @@
  * Release pairs. PIB often publishes one decision twice on one day, as the ministry's release and as
  * the Cabinet's or the CCEA's (the register marks them is_language_or_release_variant). One row per
  * decision is loaded: the release whose issuing body is the Cabinet or a Cabinet committee
- * (isCabinetBody), else the lower PRID. The report counts the releases left out. The live loader shows
- * both releases of a pair when both are in the RSS window (isCabinetDecision accepts a ministry
- * release whose title starts "Cabinet approves"), so a decision published after the register can
- * appear twice.
+ * (isCabinetBody), else the lower PRID. The report counts the releases left out. The live loader and
+ * the store's page apply the same rule (pickReleasePairs, src/lib/parliament.js), so a decision
+ * published after the register shows once too (F187).
  *
  * Item keys. A live Cabinet row links to https://pib.gov.in/PressReleaseIframePage.aspx?PRID=N (PIB's
  * RSS), the register to https://www.pib.gov.in/PressReleasePage.aspx?PRID=N&lang=1&reg=3. itemKeyFor
@@ -76,7 +75,7 @@ import { parseArgs } from 'node:util';
 import { readBackupRows } from '../server/backupFeed.mjs';
 import { feedRunsForDb, itemKeyFor } from '../server/feedSchedule.mjs';
 import { itemsFromRows, metaFor, supabaseRpc } from '../server/feedStore.mjs';
-import { isCabinetBody, isCabinetDecision } from '../src/lib/parliament.js';
+import { cabinetPrefers, cabinetReleaseGroup, isCabinetDecision } from '../src/lib/parliament.js';
 
 export const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 
@@ -195,16 +194,9 @@ export function mapCabinetRegisterRow(raw) {
 /** The key a live refresh gives the same release (itemKeyFor of the link PIB's RSS gives for the PRID). */
 export const cabinetLiveKey = (row) => (row?.prid ? itemKeyFor({ source_url: liveLink(row.prid) }) : null);
 
-/** Releases of one decision share a title and a day. */
-export const cabinetReleaseGroup = (row) => `${row.title.toLowerCase()}|${row.date}`;
-
-/** Of two releases of one decision, whether `a` is the one to keep: the Cabinet's or a committee's, else the lower PRID. */
-export function cabinetPrefers(a, b) {
-  const bodyA = isCabinetBody(a.ministry);
-  const bodyB = isCabinetBody(b.ministry);
-  if (bodyA !== bodyB) return bodyA;
-  return Number(a.prid || Infinity) < Number(b.prid || Infinity);
-}
+// Releases of one decision (F187): cabinetReleaseGroup and cabinetPrefers come from src/lib/parliament.js,
+// the rule the live loader also applies, so the register and the live feed keep the same release.
+export { cabinetPrefers, cabinetReleaseGroup };
 
 /**
  * The registers this script knows. file: the workbook, relative to the repository. map: a register
