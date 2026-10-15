@@ -1,5 +1,5 @@
--- One read for a register module's first page across its variants, and a register never shown as
--- stale (open-work F169 phase 4; owner decision C6, option 1: MLA Directory's register as 31 store
+-- One read for a register module's first page across its variants, a register never shown as
+-- stale, and a register variant made due for a reload (open-work F169 phase 4; owner decision C6, option 1: MLA Directory's register as 31 store
 -- variants, one per state, never refreshed by the timer; server/feedSchedule.mjs FEED_REGISTERS).
 --
 -- 20261015150000_feed_records.sql and 20261015160000_feed_admin.sql are applied to NTER and are not
@@ -17,10 +17,17 @@
 --                      and measurement by position; official, news and events by sort_at desc, then
 --                      position, then item_key). Each item has feed_page's fields.
 --       p_per_variant is clamped to 1..100 (null counts as 1). Null for a module with no variant.
+--   * feed_make_due(p_tier, p_feature, p_variant)              service_role
+--       Makes one register variant due now, so scripts/load-feed-register.mjs --force can reload a
+--       register (a bad load corrected) before its 30-day interval ends. Only a row of class
+--       'register', and only when no run holds a lease on it (lease_token null; a lease that has
+--       ended is cleared by the next feed_claim_due first). Returns true when it set next_due_at,
+--       false otherwise (no such variant, not a register, or leased). Nothing else changes. A
+--       scheduled module cannot be made due: the timer alone decides when it runs.
 --   * feed_admin_status()                                      authenticated, admins only
 --       Replaced with one change: a row of class 'register' (how scripts/load-feed-register.mjs
 --       stores a register variant: server/feedSchedule.mjs REGISTER_CLASS) is never stale. A register
---       is loaded once and stays valid until loaded again, so its age is not a fault. Every other
+--       is loaded by a script and stays valid until loaded again, so its age is not a fault. Every other
 --       column and row, and every other module's stale rule, is as in 20261015160000_feed_admin.sql.
 --       The grants are restated unchanged.
 --
@@ -28,6 +35,7 @@
 --
 -- Down (manual): drop the new function, then put back 20261015160000_feed_admin.sql's definition.
 --   begin;
+--   drop function public.feed_make_due(text, text, text);
 --   drop function public.feed_page_across(text, text, integer);
 --   drop function public.feed_admin_status();
 --   -- run 20261015160000_feed_admin.sql's create function and its revoke and grant
@@ -78,6 +86,31 @@ $$;
 
 revoke all on function public.feed_page_across(text, text, integer) from public, anon, authenticated, service_role;
 grant execute on function public.feed_page_across(text, text, integer) to service_role;
+
+-- feed_make_due -------------------------------------------------------------------------------
+
+create function public.feed_make_due(p_tier text, p_feature text, p_variant text)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_done boolean;
+begin
+  update public.feed_state s
+     set next_due_at = now()
+   where s.tier = p_tier and s.feature = p_feature and s.variant = coalesce(p_variant, '')
+     and s.class = 'register'
+     and s.lease_token is null
+  returning true into v_done;
+  return coalesce(v_done, false);
+end;
+$$;
+
+revoke all on function public.feed_make_due(text, text, text) from public, anon, authenticated, service_role;
+grant execute on function public.feed_make_due(text, text, text) to service_role;
 
 -- feed_admin_status: a register is never stale ------------------------------------------------
 

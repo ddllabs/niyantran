@@ -106,12 +106,12 @@ describe('modules served from the store but off the timer (C6 option 1, F186)', 
     for (const id of Object.keys(FEED_REGISTERS)) expect(Object.hasOwn(OFF_TIMER, id), id).toBe(false);
   });
 
-  it('a register variant run is official, long-interval and acceptable to feed_claim_due', () => {
+  it('a register variant run replaces its list (reference), is long-interval and acceptable to feed_claim_due', () => {
     const runs = registerRunsForDb(MLA);
     expect(runs).toHaveLength(31);
-    expect(REGISTER_CLASS).toEqual({ name: 'register', every: 43200, kind: 'official' });
+    expect(REGISTER_CLASS).toEqual({ name: 'register', every: 43200, kind: 'reference' });
     for (const r of runs) {
-      expect(r).toEqual({ tier: 'state', feature: 'MLA Directory', variant: r.variant, class: 'register', kind: 'official', interval_minutes: 43200 });
+      expect(r).toEqual({ tier: 'state', feature: 'MLA Directory', variant: r.variant, class: 'register', kind: 'reference', interval_minutes: 43200 });
       expect(r.class).toMatch(/^[a-z][a-z_]{0,39}$/);
       expect(r.variant.length).toBeGreaterThan(0);
       expect(r.variant.length).toBeLessThanOrEqual(200);

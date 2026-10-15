@@ -18,6 +18,7 @@
  *   node scripts/load-feed-register.mjs --live-sample         # also fetch today's live answer and compare keys
  *   node scripts/load-feed-register.mjs --apply --target local --db niyantran_feed_register_load_test
  *   node scripts/load-feed-register.mjs --apply --target local --db <db> --force   # local test: make it due first
+ *   … --module "state:MLA Directory" --apply --target prod --confirm-prod --force   # reload a register within 30 days
  *   SUPABASE_URL=… SUPABASE_SECRET_KEY=… node scripts/load-feed-register.mjs --apply --target prod --confirm-prod
  *
  * Options: --module <tier:Feature> (default national:Cabinet Decisions), --file <workbook, relative to
@@ -25,7 +26,7 @@
  * repository, or by file name only when it is outside), --dry-run (the default), --apply, --target
  * local|prod, --db <name> and --container <name> (local; the container defaults to
  * niyantran-corpus-test-db and the database must be named niyantran_*_test), --confirm-prod,
- * --force (local only), --live-sample.
+ * --force (local; on prod only for a register module, through public.feed_make_due), --live-sample.
  *
  * What it does, in order:
  *  1. Reads the workbook with the rules of server/backupFeed.mjs (the header block above the real
@@ -41,15 +42,19 @@
  * Register modules (MLA Directory; server/feedSchedule.mjs FEED_REGISTERS, owner decision C6 option 1)
  * are not scheduled: the timer never refreshes them. Their register is loaded as one store variant per
  * value (MLA Directory: one per state, 31), each claimed and recorded on its own with the run
- * registerRunsForDb gives it (class `register`, kind `official`, a 30-day interval). feed_claim_due adds
- * a variant it has not seen as due now and leases it; the refresh route never lists a register, so
- * nothing else ever claims it. A repeat load within 30 days of the last is NOT DUE (use --force on a
- * local test database); the production gate is the same as for Cabinet Decisions.
+ * registerRunsForDb gives it (class `register`, kind `reference`, a 30-day interval). Kind reference
+ * means a load replaces the state's list: feed_record drops the items it does not list (members who
+ * have left, an item whose key changed) and keeps its shrink guard, and the page serves the list in
+ * load order (position), which is the register's order. feed_claim_due adds a variant it has not
+ * seen as due now and leases it; the refresh route never lists a register, so nothing else ever
+ * claims it. A repeat load within 30 days of the last is NOT DUE unless --force: on a local test
+ * database it sets next_due_at as the owner; on prod (still behind --confirm-prod) it calls
+ * public.feed_make_due, which makes only a register variant due, and only when no run holds it.
  *
- * A register is loaded only for a module of kind `official` (kept forever, never pruned). Every other
- * kind is refused: a module that replaces its list on each run (latest, reference, measurement) would
- * lose the register at the next refresh (why MLA Directory became a register module), and a news
- * register is not built yet.
+ * Cabinet Decisions is loaded only as kind `official` (kept forever, never pruned): its live refresh
+ * adds new decisions on top, and a kind that replaces its list on each run (latest, reference,
+ * measurement) would lose the register at the next refresh; a news register is not built yet. A
+ * register module (never refreshed) is loaded only as kind `reference` (REGISTER_KINDS).
  *
  * Release pairs. PIB often publishes one decision twice on one day, as the ministry's release and as
  * the Cabinet's or the CCEA's (the register marks them is_language_or_release_variant). One row per
@@ -69,10 +74,10 @@
  *
  * Not due. A claim returns nothing when the module is not due (its next refresh is in the future) or
  * another run holds it. A module the store has not seen is added due now, so the first load always
- * claims. A later load inside the module's interval cannot: no database function makes a module due
- * (service_role may change only feed_state.serve). On --target local, --force sets next_due_at as the
- * database owner, for tests. On prod there is no such path; the script says when the module is next
- * due and stops.
+ * claims. A later load inside the module's interval cannot, for a scheduled module: no database
+ * function makes it due (service_role may change only feed_state.serve). On --target local, --force
+ * sets next_due_at as the database owner, for tests. On prod the script says when the module is next
+ * due and stops; only a register module's variants can be made due there (public.feed_make_due).
  *
  * Secrets: SUPABASE_URL and SUPABASE_SECRET_KEY come from the environment only (no file is read), and
  * only the host name is ever printed.
@@ -98,6 +103,8 @@ export const DEFAULT_MODULE = 'national:Cabinet Decisions';
 export const DEFAULT_CONTAINER = 'niyantran-corpus-test-db';
 /** Kinds a register may be loaded into: items kept forever and never pruned by a refresh. */
 export const KEPT_KINDS = Object.freeze(['official']);
+/** Kinds a register module (never refreshed by the timer) is loaded as: each load replaces the variant's list. */
+export const REGISTER_KINDS = Object.freeze(['reference']);
 // A lease long enough for one load; it ends by itself if the script dies.
 const LEASE_SECONDS = 120;
 const MAX_ITEMS = 2000;
@@ -219,8 +226,28 @@ export function cabinetPrefers(a, b) {
 export const wikidataEntity = (qid) => `https://www.wikidata.org/entity/${qid}`;
 
 // Register columns copied as they are (squashed), when not empty.
-const MLA_FIELDS = ['party', 'constituency', 'constituency_id', 'districts', 'education', 'age', 'assets_total',
-  'liabilities_total', 'criminal_cases_declared', 'state_code', 'politician_id'];
+const MLA_FIELDS = ['party', 'constituency', 'constituency_id', 'districts', 'education', 'state_code', 'politician_id'];
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/**
+ * The register's birth date without the age ("Born 9 December 1952 (age 73)": the age goes out of
+ * date): ISO when it parses (1952-12-09, 1957-02 for "February 1957", 1974 for "1974"), else the
+ * text after "Born" as written, or '' when there is none.
+ */
+export function birthDate(value) {
+  const text = squash(String(value ?? '').replace(/\(\s*age\s+\d+\s*\)/i, '').replace(/^born\b/i, ''));
+  if (!text) return '';
+  let m = /^(\d{1,2}) ([A-Za-z]+) (\d{4})$/.exec(text);
+  if (m) {
+    const month = MONTHS.indexOf(m[2].toLowerCase()) + 1;
+    const iso = `${m[3]}-${String(month).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    return month && isoDay(iso) === iso ? iso : text;
+  }
+  m = /^([A-Za-z]+) (\d{4})$/.exec(text);
+  if (m && MONTHS.includes(m[1].toLowerCase())) return `${m[2]}-${String(MONTHS.indexOf(m[1].toLowerCase()) + 1).padStart(2, '0')}`;
+  return text;
+}
 
 /**
  * One row of backup/STATE/F30_MLA_Directory.xlsx (4,104 MLAs in 31 states; columns as the sheet names
@@ -236,13 +263,18 @@ const MLA_FIELDS = ['party', 'constituency', 'constituency_id', 'districts', 'ed
  *                                                                  a state in register order
  *   wikidata_qid                      source_url, wikidata_qid   https://www.wikidata.org/entity/<QID>, the
  *                                                                  live row's link; else the register's citation
- *   party, constituency, constituency_id, districts, education, age, assets_total,
- *   liabilities_total, criminal_cases_declared, state_code, politician_id    same names, when not empty
+ *   party, constituency, constituency_id, districts, education, state_code, politician_id
+ *                                     same names, when not empty
+ *   age ("Born 9 December 1952 (age 73)")  birth_date          the birth date only (birthDate): ISO when it
+ *                                                                  parses, the age dropped (it goes out of date)
  *   source_published_at (else record_date)  as_of               the register's date for the member (ISO day)
  *   record_id                         register_id
  *   source_provider, source_url       register_source, register_source_url   the register's citation
  *
- * Left out on purpose: email (contact addresses, many private, not needed to name a member), the
+ * Left out on purpose: assets_total, liabilities_total and criminal_cases_declared (the register cites
+ * only Wikipedia's ECI results pages as its source, and a criminal-case count or a declared fortune
+ * credited to Wikipedia is a reputational risk), profession (empty on 1,488 rows; not needed), the
+ * age (only the birth date is kept), email (contact addresses, many private, not needed to name a member), the
  * stray column headed "Mohan Singh Bisht" (a misplaced header cell whose values are other members'
  * names), the day-dependent formula columns (record_age_days, record_completeness_pct,
  * source_retrieved_at), the columns that are the same on every row (status, category, active, house,
@@ -261,6 +293,8 @@ export function mapMlaRegisterRow(raw) {
   const position = squash(raw?.current_position);
   const row = { person: name, personLabel: name, positionLabel: position, stateLabel: state, position, state, date: '', title: name };
   for (const key of MLA_FIELDS) if (squash(raw?.[key])) row[key] = squash(raw[key]);
+  const born = birthDate(raw?.age);
+  if (born) row.birth_date = born;
   if (qid) row.wikidata_qid = qid;
   const asOf = isoDay(raw?.source_published_at || raw?.record_date);
   if (asOf) row.as_of = asOf;
@@ -317,8 +351,9 @@ export const REGISTERS = Object.freeze({
     variantOf: (row) => row.state,
     links: ['https://www.wikidata.org/'],
     noun: 'MLAs',
+    dropReasons: ['no_title', 'no_state'],
     note: (report, file) =>
-      `Stored register of ${report.kept} MLAs of ${report.variant}, as of ${report.newest || 'an unrecorded date'}, loaded from ${file}. It is not refreshed: it stays as loaded until the register is loaded again.`,
+      `Stored register of ${report.kept} MLAs of ${report.variant}, as of ${report.newest || 'an unrecorded date'}, loaded from ${file}. It is not refreshed by the timer; a reload replaces this state's list.`,
   },
 });
 
@@ -338,7 +373,8 @@ const byNewest = (a, b) =>
 export function buildRegisterItems(rawRows, register, kind) {
   const report = {
     read: rawRows.length,
-    dropped: { no_title: 0, no_date: 0, bad_date: 0, not_module: 0 },
+    // The reasons this module's mapping gives (shown in the report even at 0); Cabinet's by default.
+    dropped: Object.fromEntries((register.dropReasons || ['no_title', 'no_date', 'bad_date', 'not_module']).map((r) => [r, 0])),
     store_dropped: { status_rows: 0, invalid: 0, oversize: 0, duplicate: 0, over_limit: 0 },
     release_variants: 0,
     key_duplicates: 0,
@@ -462,12 +498,13 @@ export function runFor(moduleId, { runs = feedRunsForDb() } = {}) {
 
 /**
  * A register module's runs, one per variant (server/feedSchedule.mjs registerRunsForDb), as
- * feed_claim_due takes them. Throws when the module is not a register module or a run is not of a kept kind.
+ * feed_claim_due takes them. Throws when the module is not a register module or a run is not of a
+ * register kind (REGISTER_KINDS).
  */
 export function registerRunsFor(moduleId) {
   const runs = registerRunsForDb(moduleId);
   if (!runs.length) throw new Error(`${moduleId} is not a register module (server/feedSchedule.mjs FEED_REGISTERS)`);
-  for (const run of runs) if (!KEPT_KINDS.includes(run.kind)) throw new Error(`${moduleId} / ${run.variant} is kept as "${run.kind}"`);
+  for (const run of runs) if (!REGISTER_KINDS.includes(run.kind)) throw new Error(`${moduleId} / ${run.variant} is kept as "${run.kind}"; a register is loaded as reference`);
   return runs;
 }
 
@@ -676,11 +713,13 @@ function hostOf(url) {
 
 export const USAGE = `Usage: node scripts/load-feed-register.mjs [--module "tier:Feature"] [--file path] [--live-sample]
        [--apply --target local --db niyantran_<name>_test [--force]]
-       [--apply --target prod --confirm-prod]      (SUPABASE_URL and SUPABASE_SECRET_KEY in the environment)
+       [--apply --target prod --confirm-prod [--force]]   (SUPABASE_URL and SUPABASE_SECRET_KEY in the environment;
+                                                     --force on prod only for a register module)
 
 A dry run is the default: it reads the register, prints the counts and a sample, and never calls a database.
-Only a module of kind "official" can be loaded: Cabinet Decisions, and the register module MLA Directory
-(--module "state:MLA Directory", one store variant per state, never refreshed by the timer).
+Cabinet Decisions is loaded as kind "official". The register module MLA Directory (--module "state:MLA Directory")
+is loaded as kind "reference", one store variant per state, never refreshed by the timer: a reload replaces each
+state's list.
 
 ORDER: run the production load BEFORE the 5-minute refresh job is switched on. A load makes the module's
 first refresh an interval (60 min) away; after the job has run, a load usually reports NOT DUE, and one
@@ -689,8 +728,8 @@ made after a refresh puts the register's copy over the live row of any release b
 /**
  * The refusals, all before anything is read or any database client is made. Returns the production
  * URL when the target is prod. Throws for: --dry-run with --apply; --apply without --target local|prod;
- * a local database that is not niyantran_*_test; for prod, --force, a missing SUPABASE_URL or
- * SUPABASE_SECRET_KEY, and a missing --confirm-prod.
+ * a local database that is not niyantran_*_test; for prod, --force for a module that is not a register
+ * module, a missing SUPABASE_URL or SUPABASE_SECRET_KEY, and a missing --confirm-prod.
  */
 export function checkOptions(o, env = process.env) {
   if (o['dry-run'] && o.apply) throw new Error('--dry-run and --apply cannot be used together');
@@ -700,7 +739,9 @@ export function checkOptions(o, env = process.env) {
     return { url: '' };
   }
   if (o.target === 'prod') {
-    if (o.force) throw new Error('--force is for a local test database only; no database function makes a module due');
+    if (o.force && !Object.hasOwn(FEED_REGISTERS, o.module || DEFAULT_MODULE)) {
+      throw new Error('--force on prod is only for a register module (public.feed_make_due); no database function makes a scheduled module due');
+    }
     const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL || '';
     if (!url || !env.SUPABASE_SECRET_KEY) throw new Error('--target prod needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment');
     if (!o['confirm-prod']) throw new Error(`--target prod would write to ${hostOf(url)}; add --confirm-prod`);
@@ -846,6 +887,10 @@ async function loadVariants({ o, url, env, register, readRows, makeLocalRpc, mak
   for (const g of groups) {
     const run = runs.find((r) => r.variant === g.variant);
     if (o.force && o.target === 'local') await forceDue({ container: o.container, db: o.db, run });
+    if (o.force && o.target === 'prod') {
+      const made = await rpc('feed_make_due', { p_tier: run.tier, p_feature: run.feature, p_variant: run.variant });
+      if (made !== true) line(g.variant, 'not made due (a run holds it, or it is not a register variant)');
+    }
     const meta = registerMeta(register, g.report, shownFile, fetchedAt);
     const result = await loadRegister({ rpc, run, items: g.items, meta });
     if (result.state === 'not_due') {
@@ -858,7 +903,7 @@ async function loadVariants({ o, url, env, register, readRows, makeLocalRpc, mak
     line(g.variant, `${a.status}: ${a.items} items, ${a.new_items ?? 0} new, ${a.changed_items ?? 0} changed, ${a.item_count ?? '?'} held`);
     outcomes.push(a.status);
   }
-  if (o.force && o.target === 'local') console.log(`--force: each variant was set due in ${o.db} first (local test only)`);
+  if (o.force) console.log(o.target === 'local' ? `--force: each variant was set due in ${o.db} first (local test only)` : '--force: each variant was made due first (public.feed_make_due)');
   console.log('Held after the load');
   let held = 0;
   for (const g of groups) {

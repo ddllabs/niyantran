@@ -132,17 +132,20 @@ export function mlaStateVariant(value) {
 }
 
 /**
- * How a register's variants are kept in feed_state: kind official (kept forever, never pruned) and the
- * longest interval feed_state allows (30 days). Nothing schedules by the interval: no refresh lists a
- * register, so none claims it; only scripts/load-feed-register.mjs does.
+ * How a register's variants are kept in feed_state: kind reference, so each load replaces the
+ * variant's list (feed_record drops the items a load does not list, with its shrink guard: after an
+ * election a reload leaves out the members who have gone, and an item whose key changed leaves no
+ * copy behind), and the longest interval feed_state allows (30 days). Nothing schedules by the
+ * interval: no refresh lists a register, so none claims it; only scripts/load-feed-register.mjs does
+ * (public.feed_make_due lets it reload a register within the 30 days).
  */
-export const REGISTER_CLASS = Object.freeze({ name: 'register', every: 43200, kind: 'official' });
+export const REGISTER_CLASS = Object.freeze({ name: 'register', every: 43200, kind: 'reference' });
 
 /**
  * Register modules (owner decision C6, option 1): served from the store but never refreshed by the
- * timer. Loaded once from a stored register, one store variant per value of `param` (each under
- * feed_record's 2,000-item cap), kept, and valid until loaded again, so the page serves them whatever
- * their age (server/feedServe.mjs). variantOf(value): a request's or a row's value as its variant,
+ * timer. Loaded from a stored register, one store variant per value of `param` (each under
+ * feed_record's 2,000-item cap); a reload replaces a variant's list (REGISTER_CLASS). Valid until
+ * loaded again, so the page serves them whatever their age (server/feedServe.mjs). variantOf(value): a request's or a row's value as its variant,
  * '' when it names none. noun and unit name what the page shows across variants.
  */
 export const FEED_REGISTERS = Object.freeze({
