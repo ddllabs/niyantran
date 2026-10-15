@@ -5,12 +5,29 @@
 // Order matters. The caller is verified and the request bounded before the
 // registry or the provider is touched, and every provider attempt writes one
 // model_call_logs row whose failure never fails the brief.
+//
+// Scope 'record' (F123) is the stored, platform-paid record brief; record.ts
+// holds its prompt, identity and store contract, handleRecord below its flow.
 
 import { requireUser, type Verify } from '../_shared/auth.ts';
 import { corsHeaders, preflight } from '../_shared/cors.ts';
 import { errorResponse, HttpError, json } from '../_shared/http.ts';
 import { log } from '../_shared/logging.ts';
 import { OPENROUTER_CHAT_URL, type Usage } from '../_shared/openrouterStream.ts';
+import {
+  buildRecordPrompt,
+  catalogueFeature,
+  DEFAULT_RECORD_BRIEF_MODEL,
+  identify,
+  normaliseRecordBrief,
+  parseBrief,
+  parseRecordRequest,
+  RECORD_LIMITS,
+  RECORD_PROVIDER_TIMEOUT_MS,
+  type RecordBriefStore,
+  recordRequestBody,
+  type StoredBrief,
+} from './record.ts';
 
 export const DESK_ROLE = 'DEFAULT_ANALYST';
 export const MAX_LABEL_CHARS = 64;
@@ -39,7 +56,8 @@ export interface ModelCallRow {
   conversation_id: null;
   message_id: null;
   caller: 'desk-brief';
-  purpose: 'desk_brief';
+  /** record_brief is platform-paid: credit_charge_turn charges only chat_answer and embedding. */
+  purpose: 'desk_brief' | 'record_brief';
   model_requested: string;
   model_served: string | null;
   provider: string | null;
@@ -63,7 +81,12 @@ export interface DeskBriefDeps {
   deskModel?: string | null;
   apiKey: string | null | undefined;
   fetch: typeof fetch;
-  logModelCall(row: ModelCallRow): Promise<void>;
+  /** Inserts the row; may return its id, which a record brief keeps. */
+  logModelCall(row: ModelCallRow): Promise<string | null | void>;
+  /** Scope 'record' (F123). Absent, that scope answers unavailable. */
+  recordStore?: RecordBriefStore;
+  /** RECORD_BRIEF_MODEL, honoured when model_pricing lists it as available. */
+  recordModel?: string | null;
   now?: () => number;
   origins?: string[];
   providerTimeoutMs?: number;
@@ -259,21 +282,8 @@ Rules for this response:
 
 // ---- model output ---------------------------------------------------------
 
-/** The model's JSON object, tolerating a fence or prose around it; null when there is none. */
-export function parseBrief(text: string): Record<string, unknown> | null {
-  const raw = String(text ?? '').trim();
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = fenced ? fenced[1].trim() : raw;
-  const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) return null;
-  try {
-    const parsed = JSON.parse(body.slice(start, end + 1));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+// parseBrief lives in record.ts (dependency-free, so scripts/measure-record-briefs.ts can import it).
+export { parseBrief };
 
 const BAND = /^(strong|moderate|weak|speculative)$/i;
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -341,6 +351,7 @@ interface Attempt {
   reason: string | null;
   latencyMs: number;
   payload: Record<string, unknown> | null;
+  purpose?: ModelCallRow['purpose'];
 }
 
 export function modelCallRow(a: Attempt): ModelCallRow {
@@ -350,7 +361,7 @@ export function modelCallRow(a: Attempt): ModelCallRow {
     conversation_id: null,
     message_id: null,
     caller: 'desk-brief',
-    purpose: 'desk_brief',
+    purpose: a.purpose ?? 'desk_brief',
     model_requested: a.requested,
     model_served: scalar(a.payload?.model),
     provider: scalar(a.payload?.provider),
@@ -368,21 +379,23 @@ export function modelCallRow(a: Attempt): ModelCallRow {
   };
 }
 
-/** Never throws and never waits longer than the bound. */
-async function record(deps: DeskBriefDeps, row: ModelCallRow): Promise<void> {
+/** Never throws and never waits longer than the bound. Returns the row id when the writer gives one. */
+async function record(deps: DeskBriefDeps, row: ModelCallRow): Promise<string | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
+    const id = await Promise.race([
       Promise.resolve().then(() => deps.logModelCall(row)),
-      new Promise<void>((resolve) => {
+      new Promise<null>((resolve) => {
         timer = setTimeout(() => {
           log('desk_brief.telemetry_failed', { reason: 'timeout' });
-          resolve();
+          resolve(null);
         }, deps.telemetryTimeoutMs ?? TELEMETRY_TIMEOUT_MS);
       }),
     ]);
+    return typeof id === 'string' && id ? id : null;
   } catch {
     log('desk_brief.telemetry_failed', { reason: 'write_failed' });
+    return null;
   } finally {
     clearTimeout(timer);
   }
@@ -396,8 +409,26 @@ interface ProviderResult {
 }
 
 async function callProvider(deps: DeskBriefDeps, apiKey: string, model: string, prompt: string): Promise<ProviderResult> {
+  return await postProvider(deps, apiKey, {
+    model,
+    temperature: 0.25,
+    response_format: { type: 'json_object' },
+    usage: { include: true },
+    messages: [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: prompt },
+    ],
+  }, deps.providerTimeoutMs ?? PROVIDER_TIMEOUT_MS);
+}
+
+async function postProvider(
+  deps: DeskBriefDeps,
+  apiKey: string,
+  body: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<ProviderResult> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), deps.providerTimeoutMs ?? PROVIDER_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await deps.fetch(OPENROUTER_CHAT_URL, {
       method: 'POST',
@@ -408,16 +439,7 @@ async function callProvider(deps: DeskBriefDeps, apiKey: string, model: string, 
         'HTTP-Referer': 'https://niyantran.local',
         'X-Title': 'Niyantran Terminal Desk Brief',
       },
-      body: JSON.stringify({
-        model,
-        temperature: 0.25,
-        response_format: { type: 'json_object' },
-        usage: { include: true },
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: prompt },
-        ],
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => null);
     const payload = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
@@ -427,6 +449,113 @@ async function callProvider(deps: DeskBriefDeps, apiKey: string, model: string, 
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ---- record scope (F123) ---------------------------------------------------
+
+type RecordAnswer =
+  | { state: 'ready'; headline: string; points: string[]; model: string | null; writtenAt: string }
+  | { state: 'pending' | 'failed' | 'unavailable' };
+
+/** record_briefs keeps token counts as integer columns: rounded, or null outside 0..2^31-1. */
+function tokenCount(v: number | null): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  const n = Math.round(v);
+  return n >= 0 && n <= 2_147_483_647 ? n : null;
+}
+
+const served = (b: StoredBrief): RecordAnswer => ({
+  state: 'ready',
+  headline: b.headline,
+  points: b.points,
+  model: b.model,
+  writtenAt: b.written_at,
+});
+
+/**
+ * Reads, or claims and writes, the stored brief for one record. The answer never carries cost
+ * or tokens. Only the claim's winner calls the provider; every attempt it makes writes one
+ * model_call_logs row with purpose record_brief, which is never charged to the user.
+ */
+async function handleRecord(deps: DeskBriefDeps, userId: string, body: Record<string, unknown>): Promise<RecordAnswer> {
+  const parsed = parseRecordRequest(body, MAX_LABEL_CHARS, MAX_ROW_BYTES);
+  const store = deps.recordStore;
+  if (!store) return { state: 'unavailable' };
+  // Only the desk's modules are briefed, keyed by the catalogue's spelling of the name.
+  const feature = catalogueFeature(parsed.tier, parsed.feature);
+  if (!feature) return { state: 'unavailable' };
+  const input = { ...parsed, feature };
+  const now = deps.now ?? Date.now;
+
+  let id;
+  let claim;
+  try {
+    id = await identify(input, store);
+    claim = await store.claim({
+      tier: input.tier,
+      feature: input.feature,
+      rowKey: id.rowKey,
+      hash: id.hash,
+      source: id.source,
+      userId,
+      limits: RECORD_LIMITS,
+    });
+  } catch (err) {
+    log('record_brief.store_failed', { message: String((err as Error)?.message ?? err).slice(0, 300) });
+    throw new HttpError(503, UNAVAILABLE);
+  }
+  if (claim.state === 'ready') return served(claim);
+  if (claim.state !== 'claimed') return { state: claim.state };
+
+  // This caller generates. Whatever happens, the claim is finished, so the row never waits
+  // out its 90-second staleness window.
+  const previous = claim.previous;
+  const finish = async (brief: Parameters<RecordBriefStore['finish']>[0]['brief']) => {
+    try {
+      await store.finish({ tier: input.tier, feature: input.feature, rowKey: id.rowKey, token: claim.token, brief });
+    } catch (err) {
+      log('record_brief.finish_failed', { message: String((err as Error)?.message ?? err).slice(0, 300) });
+    }
+  };
+  const fallback = (state: 'failed' | 'unavailable'): RecordAnswer => (previous ? served(previous) : { state });
+
+  const model = String(deps.recordModel ?? '').trim() || DEFAULT_RECORD_BRIEF_MODEL;
+  const apiKey = String(deps.apiKey ?? '').trim();
+  const available = apiKey ? await store.modelAvailable(model).catch(() => false) : false;
+  if (!available) {
+    log('record_brief.unconfigured', { model, key: Boolean(apiKey) });
+    await finish(null);
+    return fallback('unavailable');
+  }
+
+  const { prompt } = buildRecordPrompt({ ...input, row: id.row });
+  const started = now();
+  const result = await postProvider(deps, apiKey, recordRequestBody(model, prompt), RECORD_PROVIDER_TIMEOUT_MS);
+  const latencyMs = now() - started;
+  const message = field(list(result.payload?.choices)[0], 'message');
+  const text = result.ok ? field(message, 'content') : null;
+  const brief = normaliseRecordBrief(typeof text === 'string' ? parseBrief(text) : null);
+
+  const status = result.ok && brief ? 'success' : 'error';
+  const reason = !result.ok ? 'Provider attempt failed.' : brief ? null : 'Model returned malformed JSON.';
+  const logRow = modelCallRow({ userId, requested: model, status, reason, latencyMs, payload: result.payload, purpose: 'record_brief' });
+  const logId = await record(deps, logRow);
+
+  if (!brief) {
+    await finish(null);
+    return fallback('failed');
+  }
+  const servedModel = logRow.model_served ?? model;
+  await finish({
+    ...brief,
+    model: servedModel,
+    prompt_tokens: tokenCount(logRow.prompt_tokens),
+    completion_tokens: tokenCount(logRow.completion_tokens),
+    reasoning_tokens: tokenCount(logRow.reasoning_tokens),
+    cost_usd: logRow.cost_usd,
+    model_call_log_id: logId,
+  });
+  return { state: 'ready', ...brief, model: servedModel, writtenAt: new Date().toISOString() };
 }
 
 // ---- handler --------------------------------------------------------------
@@ -449,7 +578,11 @@ export async function handleDeskBrief(req: Request, deps: DeskBriefDeps): Promis
   try {
     if (req.method !== 'POST') throw new HttpError(405, 'POST only');
     const { userId } = await requireUser(req, deps.verify);
-    const input = parseRequest(await readBody(req));
+    const raw = await readBody(req);
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw as Record<string, unknown>).scope === 'record') {
+      return json({ ok: true, ...(await handleRecord(deps, userId, raw as Record<string, unknown>)) }, 200, cors);
+    }
+    const input = parseRequest(raw);
 
     let model: string | null = null;
     try {

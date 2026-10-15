@@ -1,0 +1,94 @@
+[
+  {
+    "note": "a plain row",
+    "tier": "global",
+    "feature": "Open Fronts",
+    "row": {
+      "conflict_name": "Russia-Ukraine War",
+      "region": "Eastern Europe",
+      "intensity": "Critical"
+    },
+    "sha": "13fb79810358c36130f43dbd"
+  },
+  {
+    "note": "record_id wins the id slot; keys are sorted",
+    "tier": "national",
+    "feature": "Bills",
+    "row": {
+      "title": "B",
+      "record_id": "rec-9",
+      "id": "id-1",
+      "a": "1"
+    },
+    "sha": "a09d4155c2847491be9f8bd2"
+  },
+  {
+    "note": "id then source_url then title",
+    "tier": "law",
+    "feature": "NCLT / NCLAT (Insolvency)",
+    "row": {
+      "source_url": "https://ibbi.gov.in/a.pdf",
+      "title": "ACME"
+    },
+    "sha": "0e611cff63078ff63bdca453"
+  },
+  {
+    "note": "internal and backup_ keys are ignored",
+    "tier": "global",
+    "feature": "Infra",
+    "row": {
+      "title": "Port",
+      "__alId": "x",
+      "backup_title": "old",
+      "BACKUP_x": "y",
+      "status": "Open"
+    },
+    "sha": "a933efa7cc3f0f6cc8782e73"
+  },
+  {
+    "note": "whitespace collapses and values are cut at 220 characters",
+    "tier": "global",
+    "feature": "Infra",
+    "row": {
+      "title": "  A \n\t  B  ",
+      "body": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "sha": "9645f62b8cf14c8368abf3e5"
+  },
+  {
+    "note": "null, numbers, booleans, objects",
+    "tier": "national",
+    "feature": "MP Profiles & Performance (MPLAD, attendance, debates)",
+    "row": {
+      "name": "X",
+      "n": 42,
+      "ok": true,
+      "gone": null,
+      "obj": {
+        "a": 1
+      },
+      "arr": [
+        1,
+        2
+      ]
+    },
+    "sha": "271aba413807d992dd2bada3"
+  },
+  {
+    "note": "Devanagari is cut by UTF-16 units, not bytes",
+    "tier": "national",
+    "feature": "Bills",
+    "row": {
+      "title": "कककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककककक",
+      "ministry": "वित्त"
+    },
+    "sha": "92317b4c10f47252c746cfe6"
+  },
+  {
+    "note": "an empty row and an empty tier",
+    "tier": "",
+    "feature": "Open Fronts",
+    "row": {},
+    "sha": "a4242b82fd3ad5fa38425648"
+  }
+]

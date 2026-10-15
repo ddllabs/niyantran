@@ -15,4 +15,21 @@ describe('RecordDetail', () => {
     const html = renderToStaticMarkup(createElement(RecordDetail, { row, feed: { feature: 'Cabinet Decisions', tier: 'national' }, onClear: () => {} }));
     expect(html).toContain('Cabinet approves a scheme');
   });
+
+  // F123 (owner 2026-10-15): every record view has the stored AI brief, in the record panels' card.
+  it('shows the record brief card, writing on first render', () => {
+    const row = { id: 'r2', title: 'State rolls out a scheme', source_url: 'https://example.gov.in/x' };
+    const html = renderToStaticMarkup(createElement(RecordDetail, { row, feed: { feature: 'Local Governance Brief', tier: 'state' }, onClear: () => {} }));
+    expect(html).toContain('✦ Niyantran analysis');
+    expect(html).toContain('Writing AI brief…');
+  });
+
+  it('asks for no record brief in a citation view (generateBrief off)', () => {
+    const row = { id: 'r3', title: 'A cited row', source_url: 'https://example.gov.in/y' };
+    const html = renderToStaticMarkup(createElement(RecordDetail, {
+      row, feed: { feature: 'Local Governance Brief', tier: 'state' }, onClear: () => {}, generateBrief: false,
+    }));
+    expect(html).toContain('A cited row');
+    expect(html).not.toContain('Writing AI brief…');
+  });
 });

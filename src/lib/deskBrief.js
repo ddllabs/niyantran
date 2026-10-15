@@ -5,46 +5,15 @@
 
 import { functionsUrl } from './supabaseClient.js';
 import { verifiedLocalIdentity } from './userStore.js';
+import { entryFingerprintSha } from './entryFingerprint.js';
+
+export { entryFingerprintFnv, entryFingerprintSha } from './entryFingerprint.js';
 
 const STORE_KEY = 'niy-entry-brief-v7';
 
 function cell(v) {
   if (v == null) return '';
   return String(v).replace(/\s+/g, ' ').trim().slice(0, 220);
-}
-
-/** FNV fallback when Web Crypto is unavailable. */
-export function entryFingerprintFnv(row, feature, tier) {
-  const r = row && typeof row === 'object' ? row : {};
-  const parts = Object.keys(r)
-    .filter((k) => !/^__|backup_/i.test(k))
-    .sort()
-    .map((k) => `${k}=${cell(r[k])}`);
-  const id = r.record_id || r.id || r.source_url || r.title || '';
-  const raw = `v7-entry::entry::${tier || ''}::${feature || ''}::${id}::${parts.join('|')}`;
-  let h = 2166136261;
-  for (let i = 0; i < raw.length; i += 1) {
-    h ^= raw.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return `fnv_${(h >>> 0).toString(16).padStart(8, '0')}`;
-}
-
-export async function entryFingerprintSha(row, feature, tier) {
-  const r = row && typeof row === 'object' ? row : {};
-  const parts = Object.keys(r)
-    .filter((k) => !/^__|backup_/i.test(k))
-    .sort()
-    .map((k) => `${k}=${cell(r[k])}`);
-  const id = r.record_id || r.id || r.source_url || r.title || '';
-  const raw = `v7-entry::entry::${tier || ''}::${feature || ''}::${id}::${parts.join('|')}`;
-  if (globalThis.crypto?.subtle) {
-    const buf = new TextEncoder().encode(raw);
-    const dig = await crypto.subtle.digest('SHA-256', buf);
-    const hex = [...new Uint8Array(dig)].map((b) => b.toString(16).padStart(2, '0')).join('');
-    return hex.slice(0, 24);
-  }
-  return entryFingerprintFnv(row, feature, tier);
 }
 
 function loadStore() {
@@ -220,5 +189,55 @@ export async function ensureDeskBrief({
 
   writeLocalBrief(feature, hash, body, briefScope);
   return { ...body, hash };
+}
+
+/** The desk-brief function's row bound (MAX_ROW_BYTES), less a margin. */
+const RECORD_ROW_BYTES = 30_000;
+
+/**
+ * The row as sent for a record brief: whole when it fits, so the server keys it exactly as
+ * desk_rows does; else the slimmed entry (40 fields, 220 characters each).
+ */
+function recordPayloadRow(row) {
+  try {
+    if (new TextEncoder().encode(JSON.stringify(row)).length <= RECORD_ROW_BYTES) return row;
+  } catch {
+    /* not serialisable as is */
+  }
+  return slimEntry(row);
+}
+
+/**
+ * The stored AI brief for one record (F123). The desk-brief Edge Function (scope 'record') reads
+ * it, or writes it once at the platform's cost when nobody has; the server derives the record's
+ * key and hash from the row. Resolves to {state: 'ready', headline, points, model, writtenAt},
+ * or {state} of 'pending' (another request is writing it), 'unavailable' (signed out, switched
+ * off or limited), 'error' (failed or refused) or 'none' (nothing to brief). Rejects only on abort.
+ */
+export async function getRecordBrief({ tier, feature, row, signal } = {}) {
+  if (!row || typeof row !== 'object' || row.status === 'source_status' || !feature) return { state: 'none' };
+  const identity = await verifiedLocalIdentity().catch(() => null);
+  if (!identity?.token) return { state: 'unavailable' };
+  let res;
+  try {
+    res = await fetch(functionsUrl('desk-brief'), {
+      method: 'POST',
+      signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
+      body: JSON.stringify({ scope: 'record', tier: tier || '', feature, row: recordPayloadRow(row) }),
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+    return { state: 'error' };
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body?.ok) return { state: 'error' };
+  if (body.state === 'ready') {
+    const points = Array.isArray(body.points) ? body.points.filter((p) => typeof p === 'string' && p.trim()) : [];
+    if (typeof body.headline !== 'string' || !body.headline.trim() || !points.length) return { state: 'error' };
+    return { state: 'ready', headline: body.headline, points, model: body.model || null, writtenAt: body.writtenAt || null };
+  }
+  if (body.state === 'pending' || body.state === 'unavailable') return { state: body.state };
+  return { state: 'error' };
 }
 

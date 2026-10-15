@@ -118,33 +118,65 @@ describe('RecordPanel related-record links', () => {
   });
 });
 
-// F123 (owner 2026-10-13: keep the brief box until AI credits): the panel shows a saved AI brief
-// when one exists, says plainly when none does, and never presents template text as AI.
-describe('RecordPanel saved AI brief', () => {
+// F123 (owner 2026-10-15): every record panel has a stored AI brief, written the first time anyone
+// opens the record and labelled with the date it was written. The box says plainly when it is
+// being written, when it is not available, and when it failed; it never shows template text as AI.
+describe('RecordPanel AI brief', () => {
   const html = (brief) => renderToStaticMarkup(<RecordPanel model={model()} brief={brief} />);
+  const READY = {
+    state: 'ready',
+    headline: 'The front remains attritional',
+    points: ['Fighting is largely static.', 'Drones define the fighting.', 'No casualty figure is recorded.'],
+    model: 'anthropic/claude-haiku-5.5',
+    writtenAt: '2026-10-15T06:30:00Z',
+  };
 
-  it('shows the saved brief, labelled as a saved AI brief, in About', () => {
-    const out = html({ busy: false, lines: ['Front remains attritional.', 'Watch the energy grid.'] });
+  it('shows the brief, labelled "AI brief · written <date>", in About', () => {
+    const out = html(READY);
     expect(out).toContain('✦ Niyantran analysis');
-    expect(out).toContain('Saved AI brief');
-    expect(out).toContain('Front remains attritional.');
+    expect(out).toContain('AI brief · written 15 Oct 2026');
+    expect(out).toContain('The front remains attritional');
+    for (const p of READY.points) expect(out).toContain(p);
     expect(out.indexOf('Niyantran analysis')).toBeGreaterThan(out.indexOf('02 · About this front'));
+    expect(out).not.toMatch(/saved earlier|AI Research|Saved AI brief/);
   });
 
-  it('says when it is checking, when no brief is saved, and when the lookup failed', () => {
-    expect(html({ busy: true, lines: [] })).toContain('Checking for a saved AI brief');
-    expect(html({ busy: false, lines: [] })).toContain('No saved AI brief for this record yet');
-    expect(html({ busy: false, lines: [], err: true })).toContain('Saved AI brief unavailable');
+  it('dates the brief in India time', () => {
+    expect(html({ ...READY, writtenAt: '2026-10-15T20:00:00Z' })).toContain('AI brief · written 16 Oct 2026');
   });
 
-  it('shows no brief box when the panel is given no brief state', () => {
+  it('says when it is writing, when it is not available, and when it failed', () => {
+    expect(html({ state: 'loading' })).toContain('Writing AI brief…');
+    expect(html({ state: 'pending' })).toContain('Writing AI brief…');
+    expect(html({ state: 'unavailable' })).toContain('AI brief not available yet');
+    expect(html({ state: 'error' })).toContain('AI brief unavailable right now');
+    for (const state of ['loading', 'pending', 'unavailable', 'error']) expect(html({ state })).not.toContain('AI brief · written');
+  });
+
+  it('shows no brief box when the panel is given no brief state, or none to show', () => {
     expect(html(undefined)).not.toContain('Niyantran analysis');
+    expect(html({ state: 'none' })).not.toContain('Niyantran analysis');
+  });
+
+  it('keys the points by position, so two equal points are two distinct items', () => {
+    const brief = { ...READY, points: ['No figure is recorded.', 'No figure is recorded.'] };
+    const walk = (node, test, out = []) => {
+      if (!node || typeof node !== 'object') return out;
+      if (test(node)) out.push(node);
+      for (const child of [].concat(node.props?.children ?? [])) walk(child, test, out);
+      return out;
+    };
+    const [card] = walk(RecordPanel({ model: model(), brief }), (n) => n.type?.name === 'BriefCard');
+    const items = walk(card.type(card.props), (n) => n.type === 'li');
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((i) => i.key)).size).toBe(2);
+    expect(html(brief).match(/No figure is recorded\./g)).toHaveLength(2);
   });
 
   it('opens About for the brief even when the model has no About content', () => {
-    const out = renderToStaticMarkup(<RecordPanel model={model({ about: { label: '02 · About' } })} brief={{ busy: false, lines: [] }} />);
+    const out = renderToStaticMarkup(<RecordPanel model={model({ about: { label: '02 · About' } })} brief={{ state: 'unavailable' }} />);
     expect(out).toContain('02 · About');
-    expect(out).toContain('No saved AI brief for this record yet');
+    expect(out).toContain('AI brief not available yet');
   });
 });
 

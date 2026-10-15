@@ -86,9 +86,12 @@
 .rp-g-empty { fill: none; stroke: var(--muted); stroke-opacity: .5; stroke-width: 1.5; stroke-dasharray: 4 3; }
 .rp-g-l1 { font-size: 11px; fill: var(--fg); } .rp-g-l2 { font-size: 10.5px; fill: var(--muted); } .rp-g-muted { font-size: 10.5px; fill: var(--muted); font-style: italic; }
 .rp-xlinks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+/* The brief card is also shown outside .rp (RecordDetail, NationalRecord), so it carries its own tint. */
+.rp-brief { --rp-soft: color-mix(in srgb, var(--panel, #fff) 92%, var(--line, #e6e9ef)); }
 .rp-brief .rp-card-hd small { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); }
 .rp-brief p + p { margin-top: 6px; }
 .rp-brief-empty { color: var(--muted); }
+.rp-brief-pts { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .rp-xlinks a, .rp-xlink-static, .rp-xlink-open { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; background: var(--panel); font-size: 13px; }
 .rp-xlinks a:hover, .rp-xlink-open:hover { border-color: var(--accent); background: var(--accent-soft); }
 .rp-xlink-open { font: inherit; font-size: 13px; text-align: left; cursor: pointer; width: 100%; }

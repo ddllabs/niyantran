@@ -1,7 +1,8 @@
 import { parseINR, tenderCloseBand } from '../lib/nationalKpi.js';
 import BillRecordPane from './BillRecordPane.jsx';
 import { AffidavitRecord, DelimitationRecord, ManifestoRecord } from './ElectoralRecords.jsx';
-import { briefPlainLines, mergeBriefText, useEntryBrief } from '../shell/EntryBriefInline.jsx';
+import { BriefCard } from '../shell/record/RecordPanel.jsx';
+import { useRecordBrief } from '../shell/record/useRecordBrief.js';
 import { plainReportingNote } from '../lib/plainSourceNote.js';
 
 function field(row, keys) {
@@ -197,9 +198,8 @@ function GenericRecord({ row, onClear, noun, feed, loading }) {
   const skip = new Set(['source_url', 'status', 'pdf_url', 'id', 'reporting_search', 'adapter', 'host', 'fail_reason', 'backup_part', 'backup_function']);
   const tiles = Object.entries(row || {}).filter(([k, v]) => !skip.has(k) && v && String(v).length < 80);
   const foundBy = plainReportingNote(row?.reporting_search);
-  const { brief: intel } = useEntryBrief({ feed, selected: row, loading });
-  const intelLines = briefPlainLines(intel);
-  const note = mergeBriefText('', intelLines, { maxExtra: 4 });
+  // F123: the stored AI brief, written the first time anyone opens the record (platform-paid).
+  const brief = useRecordBrief({ feed, selected: row, loading });
   return (
     <div className="nat-rec">
       <header>
@@ -214,7 +214,7 @@ function GenericRecord({ row, onClear, noun, feed, loading }) {
         ))}
       </div>
       {foundBy ? <p className="desk-note">{foundBy}</p> : null}
-      {note ? <p className="desk-note">{note}</p> : null}
+      {brief.state !== 'none' ? <BriefCard brief={brief} /> : null}
       {/news\.google\.com/i.test(row.source_url || '') ? (
         <p className="desk-note">
           This item links to Google News. Google News limits commercial use of its links, so the link shows where the item came from

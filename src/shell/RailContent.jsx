@@ -19,16 +19,10 @@ import { isNationalTable } from '../lib/national.js';
 import NationalRecord from '../desks/NationalRecord.jsx';
 import RecordPanel from './record/RecordPanel.jsx';
 import { adapterFor } from './record/registry.js';
-import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
+import { useRecordBrief } from './record/useRecordBrief.js';
 import { useRecordPacks } from './record/packs.js';
 import { todayInIndia } from './record/adapters/common.js';
 
-/**
- * A record panel with its saved AI brief (F123). The brief is only read from the cache that AI
- * Research fills; selecting a record never generates one, so it spends no credits. A Quick exit
- * button (F128) only drafts its request in AI Research, with the record attached; nothing runs
- * until the reader sends it. `today` lets an adapter mark a stated deadline as passed.
- */
 /**
  * The rows an adapter lists beside the selected record. A paged module (F156) holds one page, so its
  * related rows (same sector or member) are asked for as one filtered page; others use the feed's rows.
@@ -52,15 +46,22 @@ export function useRelatedRows(feed, selected) {
   return related.key === key ? related.rows : [];
 }
 
+/**
+ * A record panel with its AI brief (F123; owner decisions 2026-10-15). Opening the panel asks for
+ * the record's stored brief; the first viewer's request writes it from the record's fields at the
+ * platform's cost (no user credits) and later viewers read it. A Quick exit button (F128) only
+ * drafts its request in AI Research, with the record attached; nothing runs until the reader sends
+ * it. `today` lets an adapter mark a stated deadline as passed.
+ */
 function RecordPanelWithBrief({ adapter, selected, feed, loading, onSelect }) {
-  const { brief, busy, err } = useEntryBrief({ feed, selected, loading });
+  const brief = useRecordBrief({ feed, selected, loading });
   const packs = useRecordPacks(feed?.feature);
   const rows = useRelatedRows(feed, selected);
   const today = todayInIndia();
   return (
     <RecordPanel
       model={adapter(selected, { rows, feed, packs, today })}
-      brief={{ busy, err: Boolean(err), lines: briefPlainLines(brief).slice(0, 4) }}
+      brief={brief}
       onClose={() => onSelect?.(null)}
       onAsk={() => openAiResearch({ row: selected, attachFeed: true })}
       onQuick={(prompt) => openAiResearch({ row: selected, attachFeed: true, prompt })}

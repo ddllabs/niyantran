@@ -12,24 +12,42 @@ import './recordPanel.css';
 
 const safeHref = (href) => (/^https:\/\//i.test(String(href || '')) ? href : null);
 
+const BRIEF_STATUS = {
+  loading: 'Writing AI brief…',
+  pending: 'Writing AI brief…',
+  unavailable: 'AI brief not available yet',
+  error: 'AI brief unavailable right now',
+};
+
+/** "15 Oct 2026", in India time; '' when the date is missing or invalid. */
+function writtenDate(iso) {
+  const d = new Date(iso || '');
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+}
+
 /**
- * The saved AI brief box (F123; owner 2026-10-13: keep it until AI credits). It shows a brief only
- * when one was saved earlier from AI Research, says so plainly when none was, and never fills the
- * box with template text. `brief` is { busy, lines, err } from useEntryBrief; absent means no box.
+ * The AI brief box (F123; owner decisions 2026-10-15). The brief is written from the record's own
+ * fields the first time anyone opens it, stored, and shown to every later viewer, labelled with the
+ * date it was written. The box says plainly when it is being written, not available or failed,
+ * and never shows template text as AI. `brief` is the state from useRecordBrief; absent, or
+ * state 'none', means no box. Also shown by RecordDetail and NationalRecord's GenericRecord, the
+ * record views of modules without a record-panel adapter.
  */
-function BriefCard({ brief }) {
-  const lines = brief.lines || [];
-  const body = brief.busy && !lines.length
-    ? 'Checking for a saved AI brief…'
-    : lines.length
-      ? null
-      : brief.err
-        ? 'Saved AI brief unavailable right now.'
-        : 'No saved AI brief for this record yet. Use Ask AI below to research it.';
+export function BriefCard({ brief }) {
+  const ready = brief.state === 'ready' && brief.headline && brief.points?.length;
+  const date = ready ? writtenDate(brief.writtenAt) : '';
   return (
-    <div className="rp-card rp-brief">
-      <div className="rp-card-hd">✦ Niyantran analysis{lines.length ? <small>Saved AI brief</small> : null}</div>
-      {lines.length ? lines.map((l) => <p key={l}>{l}</p>) : <p className="rp-brief-empty">{body}</p>}
+    <div className="rp-card rp-brief" aria-live="polite">
+      <div className="rp-card-hd">✦ Niyantran analysis{ready ? <small>{date ? `AI brief · written ${date}` : 'AI brief'}</small> : null}</div>
+      {ready ? (
+        <>
+          <p className="rp-brief-hl"><b>{brief.headline}</b></p>
+          <ul className="rp-brief-pts">{brief.points.map((p, i) => <li key={i}>{p}</li>)}</ul>
+        </>
+      ) : (
+        <p className="rp-brief-empty">{BRIEF_STATUS[brief.state] || BRIEF_STATUS.error}</p>
+      )}
     </div>
   );
 }
@@ -47,6 +65,7 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, 
   const nodeCount = touches ? ['left', 'center', 'right', 'far'].filter((k) => touches.nodes?.[k]).length : 0;
   const prov = footer.provenance || {};
   const quick = onQuick ? (model.quick || []) : [];
+  const showBrief = Boolean(brief && brief.state !== 'none');
   return (
     <article className="rp" aria-label={`Record: ${model.title}`}>
       <header className="rp-head">
@@ -81,10 +100,10 @@ export default function RecordPanel({ model, onClose, onAsk, onSelect, onQuick, 
         {glance.callout ? <p className={`rp-callout rp-callout-${glance.callout.tone || 'amber'}`}><b aria-hidden="true">!</b><span>{glance.callout.text}</span></p> : null}
       </section>
 
-      {about.rows?.length || about.chips?.length || about.cards?.length || brief ? (
+      {about.rows?.length || about.chips?.length || about.cards?.length || showBrief ? (
         <section className="rp-block">
           <h3 className="rp-eyebrow">{about.label || '02 · About this record'}</h3>
-          {brief ? <BriefCard brief={brief} /> : null}
+          {showBrief ? <BriefCard brief={brief} /> : null}
           {about.rows?.length ? (
             <dl className="rp-kv">{about.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
           ) : null}

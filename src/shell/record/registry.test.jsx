@@ -42,10 +42,10 @@ describe('record panel registry', () => {
     expect(html).not.toMatch(/class="alw-/);
   });
 
-  it('gives every record panel the saved-AI-brief box, starting with the lookup', () => {
+  it('gives every record panel the AI brief box, starting while the brief is fetched or written', () => {
     const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: warTracker }} selected={warTracker[0]} />);
     expect(html).toContain('✦ Niyantran analysis');
-    expect(html).toContain('Checking for a saved AI brief');
+    expect(html).toContain('Writing AI brief…');
   });
 
   it('keeps the existing National record view for National modules the reference does not cover', () => {

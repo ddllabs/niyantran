@@ -7,6 +7,8 @@ import { formatDate, formatDateTime } from '../lib/format.js';
 import CsvTablePane from './CsvTablePane.jsx';
 import { sensitiveNoteFor } from '../lib/sensitiveData.js';
 import { briefPlainLines, useEntryBrief } from './EntryBriefInline.jsx';
+import { BriefCard } from './record/RecordPanel.jsx';
+import { useRecordBrief } from './record/useRecordBrief.js';
 import { plainNote, plainSourceLine } from '../lib/plainSourceNote.js';
 
 const SKIP = new Set([
@@ -323,7 +325,11 @@ function RecordDetailBody({
   relatedLinks,
   entries,
 }) {
-  const { brief, busy, err } = useEntryBrief({ feed, selected: csvFile ? null : row });
+  // F123: a record view asks for the stored AI brief (written once, platform-paid) and shows it in
+  // the record panels' card. A citation view (generateBrief off, AI Research) writes none: it
+  // keeps only the brief AI Research saved earlier, from the browser's cache.
+  const recordBrief = useRecordBrief({ feed, selected: csvFile || !generateBrief ? null : row, loading: false });
+  const { brief, busy, err } = useEntryBrief({ feed, selected: csvFile || generateBrief ? null : row });
   const intelLines = briefPlainLines(brief);
   const analysisBrief =
     analysis?.brief ||
@@ -430,6 +436,12 @@ function RecordDetailBody({
       )}
 
       {csvFile ? <CsvTablePane row={row} /> : null}
+
+      {recordBrief.state !== 'none' ? (
+        <div className="rd-section">
+          <BriefCard brief={recordBrief} />
+        </div>
+      ) : null}
 
       {!csvFile && showAnalysis ? (
         <div className="rd-section rd-ai">
