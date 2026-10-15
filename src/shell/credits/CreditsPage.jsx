@@ -60,6 +60,7 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
   const [hidden, setHidden] = useState(() => new Set());
   const plan = section === 'billing' ? accountPlan() : null;
   const heading = useRef(null);
+  const pageRef = useRef(null);
 
   useEffect(() => {
     if (!userId) return undefined;
@@ -70,8 +71,10 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
     return () => { live = false; off(); };
   }, [userId]);
 
-  // Opening the page or a section moves focus to its heading, as a page change would.
+  // Opening the page or a section starts at its top and moves focus to its heading, as a page change
+  // would, without scrolling anything else.
   useEffect(() => {
+    pageRef.current?.scrollTo?.({ top: 0 });
     heading.current?.focus({ preventScroll: true });
   }, [section]);
 
@@ -104,15 +107,21 @@ export default function CreditsPage({ section = 'credits', user, ent }) {
   const failed = creditsTried && !credits;
   const meta = ACCOUNT_SECTIONS.find((s) => s.id === section) || ACCOUNT_SECTIONS[0];
   const openChat = (id) => openConversation(id);
+  // Scrolls the page itself only. scrollIntoView would also scroll the terminal frame, which hides
+  // its overflow, and push the header off screen (owner, 2026-10-15).
   const jump = (id) => {
+    const page = pageRef.current;
+    const el = document.getElementById(id);
+    if (!page || !el) return;
     const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    document.getElementById(id)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+    const top = page.scrollTop + el.getBoundingClientRect().top - page.getBoundingClientRect().top - 12;
+    page.scrollTo({ top, behavior: still ? 'auto' : 'smooth' });
   };
 
   if (!userId) return <main className="cp-page"><p className="cu-note">Sign in to see your credits.</p></main>;
 
   return (
-    <div className="cp-page cu-series">
+    <div className="cp-page cu-series" ref={pageRef}>
       <nav className="cp-menu" aria-label="Credits">
         <div className="cp-balance">
           <BalanceRing credits={credits} failed={failed} size={44} />

@@ -370,3 +370,19 @@ Left as nits:
 - **Not verified:** the terminal shell itself in a browser (the header pill, the profile menu, desk
   switching). The local app needs a real session, and no password is entered. Tests cover the
   wiring. To check it, open the local preview and sign in.
+
+**Owner feedback on the signed-in local preview (2026-10-15), fixed:**
+- **The ring.** Its arc sat off centre: a CSS `transform-box` moved the rotation. It is now drawn as
+  an arc path from the top, so no transform is needed, with a lighter accent track. From 36 px up it
+  carries a small credit spark in the middle (the balance card and the popover).
+- **The page shifted up on the menu's jump links.** `scrollIntoView` also scrolled the terminal frame,
+  which hides its overflow, and pushed the header off screen. The jumps now scroll the page alone.
+  Focus moves never scroll, and a section starts at its top.
+- **Chart and legend colours alternate dark and bright** (navy, orange, violet, teal, rose, amber,
+  green, slate; pastel ones in dark). Each keeps 3:1 on the card in both themes
+  (`creditsUsageCss.test.js`).
+- **By feature** is now rows without borders: an icon (sparkles for AI research, a microphone for
+  Dictation), what it did, its credits and share, and a thin share bar. Dictation shows "Free".
+- **Readable model names** in the legend, the chart, its table and the highlights too.
+- **The heat map is live.** It reads `my_usage_timeseries` for the last 90 IST days. It was mostly
+  empty on the preview because charging began on 14 Oct 2026, the busiest day at 256 credits.

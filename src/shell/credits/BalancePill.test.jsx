@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabaseClient.js', () => ({ supabase: {} }));
-import { BalanceRing, balanceState } from './BalanceRing.jsx';
+import { BalanceRing, balanceState, ringArc } from './BalanceRing.jsx';
 import { daysLeftText, watchPopover } from './BalancePill.jsx';
 
 // Listener targets whose events carry any target (a DOM Event's target is read-only).
@@ -75,8 +75,12 @@ describe('the pill and ring', () => {
   it('fills the ring by the share left, and shows a dash when the balance is unknown', () => {
     const ok = renderToStaticMarkup(<BalanceRing credits={CREDITS} />);
     expect(ok).toContain('class="cp-ring cp-ring-ok"');
-    // 860 left of 2,120: 40.6% of the circumference 87.96.
-    expect(ok).toContain('stroke-dasharray="35.68 87.96"');
+    // 860 left of 2,120 is 40.6% of the ring, drawn clockwise from the top as a path (no transform).
+    expect(ok).toContain('<path class="cp-ring-fill" d="M 20 4 A 16 16 0 0 1 28.94 33.27"></path>');
+    expect(ok).not.toContain('transform');
+    expect(renderToStaticMarkup(<BalanceRing credits={CREDITS} size={44} />)).toContain('class="cp-ring-spark"');
+    expect(ringArc(0)).toBeNull();
+    expect(ringArc(0.75)).toBe('M 20 4 A 16 16 0 1 1 4.00 20.00');
     expect(renderToStaticMarkup(<BalanceRing credits={null} failed />)).toContain('class="cp-ring-dash"');
   });
 

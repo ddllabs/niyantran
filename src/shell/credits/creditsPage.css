@@ -193,14 +193,19 @@
 .cp-pill-wrap.open .cp-pill { border-color: var(--accent); background: var(--accent-soft); }
 .cp-pill-low { border-color: color-mix(in srgb, #b45309 45%, var(--line)); }
 .cp-pill-empty, .cp-pill-unchecked { border-color: color-mix(in srgb, #c81322 45%, var(--line)); }
-.cp-ring { flex: none; display: block; }
-.cp-ring circle { fill: none; stroke-width: 5; }
-.cp-ring-track { stroke: color-mix(in srgb, var(--line) 80%, var(--panel)); }
-.cp-ring-fill { stroke: var(--accent); stroke-linecap: round; transform-box: fill-box; }
-.cp-ring-low .cp-ring-fill { stroke: #b45309; }
-.cp-ring-empty .cp-ring-track { stroke: color-mix(in srgb, #c81322 55%, var(--panel)); }
+.cp-ring { flex: none; display: block; overflow: visible; }
+.cp-ring-track, .cp-ring-fill { fill: none; stroke-width: 5; }
+.cp-ring-large .cp-ring-track, .cp-ring-large .cp-ring-fill { stroke-width: 3.5; }
+.cp-ring-track { stroke: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.cp-ring-fill { stroke: var(--accent); stroke-linecap: round; }
+.cp-ring-spark { fill: var(--accent); }
+.cp-ring-low .cp-ring-track { stroke: color-mix(in srgb, #b45309 16%, var(--panel)); }
+.cp-ring-low .cp-ring-fill, .cp-ring-low .cp-ring-spark { stroke: #b45309; fill: #b45309; }
+.cp-ring-low .cp-ring-fill { fill: none; }
+.cp-ring-empty .cp-ring-track { stroke: color-mix(in srgb, #c81322 45%, var(--panel)); }
 .cp-ring-dash { stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
 .theme-dark .cp-ring-low .cp-ring-fill { stroke: #f0a54a; }
+.theme-dark .cp-ring-low .cp-ring-spark { fill: #f0a54a; }
 .cp-pop {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 230; width: 320px; padding: 16px 18px;
   background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px;

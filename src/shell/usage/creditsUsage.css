@@ -1,15 +1,15 @@
-/* Credits usage page (F153). The series colours start from AnalyticsViz's palette (navy, red, purple,
-   teal, amber, slate) with its second blue and second red swapped for pink and green, so no two
-   series read as the same colour.
+/* Credits usage styles (F153; the credits page's Usage section, F184). The series colours alternate
+   dark and bright, with slate for "Other", so no two neighbouring series read alike.
    Surfaces and words use the app tokens (src/index.css), which the terminal
    root's .theme-dark redefines, so the page and its dialog follow the theme; the chart series and the
    status pills have dark values of their own at the end. creditsUsageCss.test.js measures contrast in
    both themes. Every class here starts with cu-. */
 
-/* The chart's series colours, on the credits page (F184: .cp-page carries .cu-series). */
+/* The chart's series colours, on the credits page (F184: .cp-page carries .cu-series). Dark and bright
+   alternate, so neighbouring models split clearly (owner, 2026-10-15); each keeps 3:1 on the card. */
 .cu-series {
-  --cu-s0: #012ea1; --cu-s1: #c81322; --cu-s2: #4f1d90; --cu-s3: #0f766e;
-  --cu-s4: #b45309; --cu-s5: #be185d; --cu-s6: #4d7c0f; --cu-s7: #64748b;
+  --cu-s0: #1e3a8a; --cu-s1: #ea580c; --cu-s2: #5b21b6; --cu-s3: #0d9488;
+  --cu-s4: #9f1239; --cu-s5: #d97706; --cu-s6: #166534; --cu-s7: #64748b;
 }
 .cu-card { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .cu-card-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--fg); }
@@ -93,10 +93,19 @@
 .cu-leg-share { min-width: 34px; text-align: right; color: var(--muted); }
 
 /* By feature */
-.cu-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.cu-feature { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.cu-features { list-style: none; margin: 0; padding: 0; }
+.cu-feature { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-areas: "icon text num" ". bar bar"; gap: 6px 12px; align-items: center; padding: 10px 0; font-size: 13px; }
+.cu-feature + .cu-feature { border-top: 1px solid var(--line); }
+.cu-feature-icon { grid-area: icon; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); }
+.cu-feature-dictation { background: color-mix(in srgb, #0f766e 12%, var(--panel)); color: #0f766e; }
+.cu-feature-text { grid-area: text; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cu-feature-name { font-weight: 650; color: var(--fg); }
-.cu-feature-num { color: var(--text); font-variant-numeric: tabular-nums; }
+.cu-feature-sub { font-size: 12px; color: var(--muted); }
+.cu-feature-num { grid-area: num; display: flex; align-items: baseline; gap: 8px; font-weight: 650; color: var(--fg); font-variant-numeric: tabular-nums; }
+.cu-feature-share { font-size: 12px; font-weight: 500; color: var(--muted); }
+.cu-feature-free { grid-area: num; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, #0f766e 12%, var(--panel)); color: #0b5d55; font-size: 12px; font-weight: 650; }
+.cu-feature-bar { grid-area: bar; display: block; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--line) 70%, var(--panel)); overflow: hidden; }
+.cu-feature-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
 
 /* Tables */
 .cu-table-wrap { max-width: 100%; overflow-x: auto; margin-top: 10px; }
@@ -142,8 +151,8 @@
 /* Dark theme: the terminal root carries .theme-dark (src/index.css), which redefines the tokens used
    above. Only what is not a token needs its own value here. */
 .theme-dark .cu-series {
-  --cu-s0: #7ba3ff; --cu-s1: #f87171; --cu-s2: #b57cff; --cu-s3: #2dd4bf;
-  --cu-s4: #f59e0b; --cu-s5: #f472b6; --cu-s6: #a3e635; --cu-s7: #94a3b8;
+  --cu-s0: #93c5fd; --cu-s1: #fb923c; --cu-s2: #c4b5fd; --cu-s3: #2dd4bf;
+  --cu-s4: #fda4af; --cu-s5: #fbbf24; --cu-s6: #86efac; --cu-s7: #94a3b8;
 }
 .theme-dark .cu-error, .theme-dark .cu-owed { color: #f87171; }
 .theme-dark .cu-pill-succeeded { background: #1f3a2a; color: #7fd8ad; }
@@ -151,3 +160,5 @@
 .theme-dark .cu-pill-stopped { background: #3a342c; color: #ead0af; }
 .theme-dark .cu-pill-running { background: #1c2744; color: #a9c1ff; }
 .theme-dark .cu-tip { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.theme-dark .cu-feature-dictation { color: #5eead4; }
+.theme-dark .cu-feature-free { color: #5eead4; }

@@ -123,10 +123,11 @@ describe('B. AI analytics', () => {
     expect(out).toMatch(/Web searches<\/span><span class="cu-fig-value">7<\/span><span class="cu-fig-sub">35 credits</);
     expect(out).toContain('Rolling window in IST — independent of your billing period, so these totals can differ from the Overview.');
     expect(out).toMatch(/Top provider[\s\S]*Google[\s\S]*60% of credits/);
-    expect(out).toMatch(/Most used[\s\S]*gemini-3\.7-flash[\s\S]*30 calls/);
-    expect(out).toMatch(/Best value[\s\S]*deepseek-v4-flash[\s\S]*3\.33 credits a call/);
-    expect(out).toMatch(/AI research[\s\S]*40 calls · 500 credits[\s\S]*7 searches/);
-    expect(out).toMatch(/Dictation<\/span><span class="cu-feature-num">2 calls · free/);
+    expect(out).toMatch(/Most used[\s\S]*Gemini 3\.7 Flash[\s\S]*30 calls/);
+    expect(out).toMatch(/Best value[\s\S]*DeepSeek V4 Flash[\s\S]*3\.33 credits a call/);
+    // By feature: an icon per row, what it did, its credits and share; dictation is free (owner, 2026-10-15).
+    expect(out).toMatch(/<span class="cu-feature-icon cu-feature-research" aria-hidden="true"><svg[\s\S]*?<span class="cu-feature-name">AI research<\/span><span class="cu-feature-sub">40 calls · 7 searches<\/span><\/span><span class="cu-feature-num">500 credits<span class="cu-feature-share">100%<\/span>/);
+    expect(out).toMatch(/<span class="cu-feature-name">Dictation<\/span><span class="cu-feature-sub">2 calls<\/span><\/span><span class="cu-feature-free">Free<\/span>/);
     expect(out).toContain('Credits started on 14 Oct 2026; earlier calls show 0 credits.');
     expect(out).not.toMatch(NO_DOLLAR);
   });

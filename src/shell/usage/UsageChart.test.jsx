@@ -30,18 +30,18 @@ function elements(node, out = []) {
 describe('the chart', () => {
   it('is one labelled SVG image with a focusable group per bucket and a title per segment', () => {
     const out = html();
-    expect(out).toMatch(/<svg[^>]*role="img"[^>]*aria-label="3 days, 60 in total\. Largest: gemini-3\.7-flash 50, claude-sonnet-5 10\."/);
+    expect(out).toMatch(/<svg[^>]*role="img"[^>]*aria-label="3 days, 60 in total\. Largest: Gemini 3\.7 Flash 50, Claude Sonnet 5 10\."/);
     expect(out.match(/<g class="cu-bar[^"]*" tabindex="0"/g)).toHaveLength(3);
     expect(out).toContain('aria-label="13 Oct: 40"');
-    expect(out).toContain('<title>13 Oct · gemini-3.7-flash: 30</title>');
-    expect(out).toContain('<title>13 Oct · claude-sonnet-5: 10</title>');
+    expect(out).toContain('<title>13 Oct · Gemini 3.7 Flash: 30</title>');
+    expect(out).toContain('<title>13 Oct · Claude Sonnet 5: 10</title>');
     expect(out.match(/class="cu-grid"/g)).toHaveLength(4);
     expect(out).toContain('fill:var(--cu-s');
   });
 
   it('shows a tooltip for the active bucket: each model, then the total', () => {
     const out = html({ active: 1 });
-    expect(out).toMatch(/class="cu-tip"[\s\S]*13 Oct[\s\S]*gemini-3\.7-flash[\s\S]*30[\s\S]*claude-sonnet-5[\s\S]*10[\s\S]*Total[\s\S]*40/);
+    expect(out).toMatch(/class="cu-tip"[\s\S]*13 Oct[\s\S]*Gemini 3\.7 Flash[\s\S]*30[\s\S]*Claude Sonnet 5[\s\S]*10[\s\S]*Total[\s\S]*40/);
     expect(html()).not.toContain('cu-tip');
   });
 
@@ -72,15 +72,15 @@ describe('the chart', () => {
     const open = html({ showTable: true });
     expect(open).toContain('aria-expanded="true"');
     expect(open).toMatch(/<table class="cu-table cu-chart-table">/);
-    expect(open).toMatch(/<th scope="col">Day<\/th><th scope="col">gemini-3\.7-flash<\/th><th scope="col">claude-sonnet-5<\/th><th scope="col">Total<\/th>/);
+    expect(open).toMatch(/<th scope="col">Day<\/th><th scope="col">Gemini 3\.7 Flash<\/th><th scope="col">Claude Sonnet 5<\/th><th scope="col">Total<\/th>/);
     expect(open).toMatch(/<th scope="row">13 Oct<\/th><td>30<\/td><td>10<\/td><td>40<\/td>/);
     expect(open).toMatch(/<th scope="row">12 Oct<\/th><td>0<\/td><td>0<\/td><td>0<\/td>/);
   });
 
   it('leaves a hidden series out of the bars and the table', () => {
     const out = renderToStaticMarkup(<UsageChartView chart={chart(new Set(['google/gemini-3.7-flash']))} width={640} valueText={formatCredits} showTable />);
-    expect(out).not.toContain('<title>13 Oct · gemini');
-    expect(out).not.toContain('<th scope="col">gemini-3.7-flash');
+    expect(out).not.toContain('<title>13 Oct · Gemini');
+    expect(out).not.toContain('<th scope="col">Gemini 3.7 Flash');
     expect(out).toMatch(/<th scope="row">13 Oct<\/th><td>10<\/td><td>10<\/td>/);
   });
 
@@ -96,7 +96,7 @@ describe('the legend', () => {
   it('lists each series as a pressed button with its colour, provider, name, value and share', () => {
     const out = renderToStaticMarkup(legend());
     expect(out.match(/<button type="button" class="cu-leg-row" aria-pressed="true"/g)).toHaveLength(2);
-    expect(out).toMatch(/gemini-3\.7-flash<\/span><span class="cu-leg-val">50<\/span><span class="cu-leg-share">83%<\/span>/);
+    expect(out).toMatch(/Gemini 3\.7 Flash<\/span><span class="cu-leg-val">50<\/span><span class="cu-leg-share">83%<\/span>/);
     expect(out).toContain('data-provider="google"');
     expect(out).toContain('background:var(--cu-s');
   });

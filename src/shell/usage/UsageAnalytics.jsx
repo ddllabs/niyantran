@@ -3,12 +3,13 @@
  * from the chart it renders. `state` is {status, summary, series, window} for my_usage_summary and
  * my_usage_timeseries over the selected range.
  */
+import { Mic, Sparkles } from 'lucide-react';
 import { creditsText, formatCredits } from '../../lib/creditsStore.js';
 import {
   CREDITS_STARTED_AT, CREDITS_STARTED_NOTE, MEASURES, RANGES, dayText, featureLabel, formatTokens, indianNumber,
-  modelName, providerName,
+  modelLabel, providerName,
 } from '../../lib/creditUsage.js';
-import { bucketLabel, highlights } from '../../lib/usageChart.js';
+import { bucketLabel, highlights, shareText } from '../../lib/usageChart.js';
 import UsageChart from './UsageChart.jsx';
 import UsageLegend from './UsageLegend.jsx';
 import { ChartIcon, Credits, Figure, Tokens } from './usageParts.jsx';
@@ -36,33 +37,44 @@ function Highlights({ summary }) {
         {h.topProvider ? providerName(h.topProvider.provider) : '—'}
       </Figure>
       <Figure label="Most used" sub={h.mostUsed ? `${indianNumber(h.mostUsed.calls)} calls` : null}>
-        <span title={h.mostUsed?.model}>{h.mostUsed ? modelName(h.mostUsed.model) : '—'}</span>
+        <span title={h.mostUsed?.model}>{h.mostUsed ? modelLabel(h.mostUsed.model) : '—'}</span>
       </Figure>
       <Figure label="Best value" sub={h.bestValue ? `${formatCredits(h.bestValue.perCall)} credits a call` : 'Needs 5 calls on a model'}>
-        <span title={h.bestValue?.model}>{h.bestValue ? modelName(h.bestValue.model) : '—'}</span>
+        <span title={h.bestValue?.model}>{h.bestValue ? modelLabel(h.bestValue.model) : '—'}</span>
       </Figure>
     </div>
   );
 }
 
+const FEATURE_ICONS = { research: Sparkles, dictation: Mic };
+
+/** Each feature as a row: an icon, what it did, its credits (or free) and its share of them. */
 function ByFeature({ summary }) {
   const features = summary?.byFeature || [];
+  const total = features.reduce((sum, f) => sum + (f.credits || 0), 0);
   return (
     <ul className="cu-features">
-      {features.map((f) => (
-        <li key={f.feature} className="cu-feature">
-          <span className="cu-feature-name">{featureLabel(f.feature)}</span>
-          <span className="cu-feature-num">
-            {indianNumber(f.calls)} {f.calls === 1 ? 'call' : 'calls'}
-            {f.feature === 'dictation' ? ' · free' : (
-              <>
-                {` · ${creditsText(f.credits)}`}
-                {` · ${indianNumber(f.searches)} ${f.searches === 1 ? 'search' : 'searches'}`}
-              </>
+      {features.map((f) => {
+        const Icon = FEATURE_ICONS[f.feature] || Sparkles;
+        const free = f.feature === 'dictation';
+        const share = total > 0 ? (100 * (f.credits || 0)) / total : 0;
+        return (
+          <li key={f.feature} className="cu-feature">
+            <span className={`cu-feature-icon cu-feature-${f.feature}`} aria-hidden="true"><Icon size={16} strokeWidth={1.8} /></span>
+            <span className="cu-feature-text">
+              <span className="cu-feature-name">{featureLabel(f.feature)}</span>
+              <span className="cu-feature-sub">
+                {indianNumber(f.calls)} {f.calls === 1 ? 'call' : 'calls'}
+                {!free && f.searches ? ` · ${indianNumber(f.searches)} ${f.searches === 1 ? 'search' : 'searches'}` : ''}
+              </span>
+            </span>
+            {free ? <span className="cu-feature-free">Free</span> : (
+              <span className="cu-feature-num">{creditsText(f.credits)}<span className="cu-feature-share">{shareText(share)}</span></span>
             )}
-          </span>
-        </li>
-      ))}
+            <span className="cu-feature-bar" aria-hidden="true"><span style={{ width: `${Math.round(share)}%` }} /></span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -115,8 +115,8 @@ export default function BalancePill({ user }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    const stop = watchPopover({ doc: document, root: wrap.current, onClose: () => setOpen(false), focusPill: () => button.current?.focus() });
-    wrap.current?.querySelector('.cp-pop-open')?.focus();
+    const stop = watchPopover({ doc: document, root: wrap.current, onClose: () => setOpen(false), focusPill: () => button.current?.focus({ preventScroll: true }) });
+    wrap.current?.querySelector('.cp-pop-open')?.focus({ preventScroll: true });
     return stop;
   }, [open]);
 

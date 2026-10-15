@@ -24,10 +24,10 @@ describe('buildChart', () => {
 
   it('stacks each bucket by series for the chosen measure, largest series first', () => {
     const chart = buildChart(POINTS, { measure: 'credits' });
-    expect(chart.series.map((s) => [s.label, s.total])).toEqual([['gemini-3.7-flash', 50], ['claude-sonnet-5', 10], ['whisper-large-v3-turbo', 0]]);
+    expect(chart.series.map((s) => [s.label, s.total])).toEqual([['Gemini 3.7 Flash', 50], ['Claude Sonnet 5', 10], ['Whisper Large V3 Turbo', 0]]);
     const day = chart.buckets[1];
     expect(day.total).toBe(40);
-    expect(day.segments.map((s) => [s.label, s.y0, s.y1])).toEqual([['gemini-3.7-flash', 0, 30], ['claude-sonnet-5', 30, 40]]);
+    expect(day.segments.map((s) => [s.label, s.y0, s.y1])).toEqual([['Gemini 3.7 Flash', 0, 30], ['Claude Sonnet 5', 30, 40]]);
     expect(chart.grand).toBe(60);
     expect(Math.round(chart.series[0].share)).toBe(83);
   });
@@ -35,7 +35,7 @@ describe('buildChart', () => {
   it('switches measure without changing the buckets', () => {
     const calls = buildChart(POINTS, { measure: 'calls' });
     expect(calls.buckets.map((b) => b.total)).toEqual([0, 4, 4]);
-    expect(calls.series[0].label).toBe('gemini-3.7-flash');
+    expect(calls.series[0].label).toBe('Gemini 3.7 Flash');
     const tokens = buildChart(POINTS, { measure: 'tokens' });
     expect(tokens.buckets[2].total).toBe(2050);
   });

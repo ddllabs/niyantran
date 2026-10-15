@@ -7,7 +7,7 @@
  * its colour from one range to the next; two keys that hash alike take the next free slot, in key
  * order, so the assignment never depends on ranking.
  */
-import { modelName, providerName, providerOf } from './creditUsage.js';
+import { modelLabel, providerName, providerOf } from './creditUsage.js';
 
 export const MAX_SERIES = 7;
 export const OTHER = '__other';
@@ -61,7 +61,7 @@ function keyOf(point, groupBy) {
 
 export function seriesLabel(key, groupBy) {
   if (key === OTHER) return 'Other';
-  return groupBy === 'provider' ? providerName(key) : modelName(key);
+  return groupBy === 'provider' ? providerName(key) : modelLabel(key);
 }
 
 /**

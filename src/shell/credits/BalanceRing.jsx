@@ -14,18 +14,32 @@ export function balanceState(credits, failed = false) {
   return lowBalance(credits) ? 'low' : 'ok';
 }
 
+const C = 20;
+const R = 16;
+
+/** The arc for a share of the ring, clockwise from the top; drawn as a path, so no transform is needed. */
+export function ringArc(share) {
+  const t = Math.max(0, Math.min(1, share));
+  if (t <= 0) return null;
+  if (t >= 0.999) return `M ${C} ${C - R} A ${R} ${R} 0 1 1 ${C - 0.01} ${C - R}`;
+  const a = 2 * Math.PI * t;
+  const x = (C + R * Math.sin(a)).toFixed(2);
+  const y = (C - R * Math.cos(a)).toFixed(2);
+  return `M ${C} ${C - R} A ${R} ${R} 0 ${t > 0.5 ? 1 : 0} 1 ${x} ${y}`;
+}
+
+/** The ring; from 36 px up it carries a small credit spark in the middle (the balance card, the popover). */
 export function BalanceRing({ credits, failed = false, size = 20 }) {
   const state = balanceState(credits, failed);
   const bar = credits ? periodBar(credits) : null;
   const share = bar && bar.total > 0 ? Math.min(1, bar.left / bar.total) : state === 'ok' || state === 'low' ? 1 : 0;
-  const r = 14;
-  const c = 2 * Math.PI * r;
+  const arc = state === 'unchecked' || state === 'loading' ? null : ringArc(share);
   return (
-    <svg className={`cp-ring cp-ring-${state}`} width={size} height={size} viewBox="0 0 36 36" aria-hidden="true" focusable="false">
-      <circle className="cp-ring-track" cx="18" cy="18" r={r} />
-      {state === 'unchecked' || state === 'loading'
-        ? <line className="cp-ring-dash" x1="11" x2="25" y1="18" y2="18" />
-        : <circle className="cp-ring-fill" cx="18" cy="18" r={r} strokeDasharray={`${(share * c).toFixed(2)} ${c.toFixed(2)}`} transform="rotate(-90 18 18)" />}
+    <svg className={`cp-ring cp-ring-${state}${size >= 36 ? ' cp-ring-large' : ''}`} width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+      <circle className="cp-ring-track" cx={C} cy={C} r={R} />
+      {arc ? <path className="cp-ring-fill" d={arc} /> : null}
+      {state === 'unchecked' || state === 'loading' ? <line className="cp-ring-dash" x1="14" x2="26" y1={C} y2={C} /> : null}
+      {size >= 36 && arc ? <path className="cp-ring-spark" d="M20 12.5l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6-5.6-1.9 5.6-1.9z" /> : null}
     </svg>
   );
 }
