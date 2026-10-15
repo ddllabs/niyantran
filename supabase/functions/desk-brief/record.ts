@@ -148,6 +148,59 @@ export type ClaimResult =
   | { state: 'unavailable'; reason?: string }
   | { state: 'claimed'; token: string; previous: StoredBrief | null };
 
+/** The key a claim reads by: a client brief is addressed by its content hash, a desk_rows brief by ''. */
+export interface PeekArgs {
+  tier: string;
+  feature: string;
+  rowKey: string;
+  hash: string;
+  source: RecordSource;
+}
+
+/** The record_briefs columns peekDecision reads. */
+export interface StoredRow {
+  status: 'pending' | 'ready' | 'failed';
+  content_hash: string;
+  brief_format: number;
+  headline: string | null;
+  points: unknown;
+  model: string | null;
+  written_at: string | null;
+  claimed_at: string | null;
+  retry_after: string | null;
+  attempts: number;
+}
+
+export type PeekDecision =
+  | { state: 'ready'; brief: StoredBrief }
+  | { state: 'pending' }
+  | { state: 'failed' }
+  | { state: 'missing' };
+
+const HOURS_24 = 24 * 3600 * 1000;
+const SECONDS_90 = 90 * 1000;
+const ms = (iso: string | null) => (iso ? Date.parse(iso) : NaN);
+
+/**
+ * Owner 2026-10-16: the panel shows the writing animation only while a brief is really written, so
+ * it first asks what a claim would do without claiming. This mirrors record_brief_claim's "not
+ * claimable" test (migration 20261015240000) exactly: when the claim would generate, the answer is
+ * 'missing' and the browser then asks for the write; otherwise it is what the claim would serve.
+ * Keep it equal to that test if the claim changes.
+ */
+export function peekDecision(b: StoredRow | null, hash: string, format: number, now: number): PeekDecision {
+  if (!b) return { state: 'missing' };
+  const claimable = (b.status === 'ready' && b.brief_format < format)
+    || (b.status === 'ready' && b.content_hash !== hash && (b.written_at === null || ms(b.written_at) < now - HOURS_24))
+    || (b.status === 'pending' && ms(b.claimed_at) < now - SECONDS_90 && (b.content_hash !== hash || b.attempts < 5))
+    || (b.status === 'failed' && ms(b.retry_after) <= now && (b.content_hash !== hash || b.attempts < 5));
+  if (claimable) return { state: 'missing' };
+  if (b.written_at && b.headline) {
+    return { state: 'ready', brief: { headline: b.headline, points: b.points as StoredBrief['points'], model: b.model, written_at: b.written_at, format: b.brief_format } };
+  }
+  return { state: b.status === 'pending' && ms(b.claimed_at) >= now - SECONDS_90 ? 'pending' : 'failed' };
+}
+
 /** Where the briefed row came from; see the head of this file. */
 export type RecordSource = 'desk_rows' | 'client';
 
@@ -194,6 +247,8 @@ export interface RecordBriefStore {
   /** desk_rows.row for the record, or null when desk_rows does not hold it. */
   storedRow(tier: string, feature: string, rowKey: string): Promise<Record<string, unknown> | null>;
   claim(a: ClaimArgs): Promise<ClaimResult>;
+  /** The record_briefs row a claim would read, without claiming (read mode), or null. */
+  peek(a: PeekArgs): Promise<StoredRow | null>;
   finish(a: FinishArgs): Promise<boolean>;
   /** model_pricing lists the model as available (the platform's model, not the chat allowlist). */
   modelAvailable(model: string): Promise<boolean>;

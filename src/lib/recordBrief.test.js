@@ -4,10 +4,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const identity = vi.hoisted(() => ({ value: { id: 'user-1', token: 'verified.jwt.token' } }));
-vi.mock('./userStore.js', () => ({ verifiedLocalIdentity: vi.fn(async () => identity.value) }));
+vi.mock('./userStore.js', () => ({
+  verifiedLocalIdentity: vi.fn(async () => identity.value),
+  localIdentityIsCurrent: vi.fn(async (i) => i === identity.value),
+}));
 vi.mock('./supabaseClient.js', () => ({ functionsUrl: (name) => `https://project-ref.supabase.test/functions/v1/${name}` }));
 
-import { getRecordBrief } from './deskBrief.js';
+import { forgetRecordBriefIdentity, getRecordBrief } from './deskBrief.js';
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const ROW = { conflict_name: 'Russia-Ukraine War', region: 'Eastern Europe', __rowIndex: 3 };
@@ -18,6 +21,7 @@ describe('getRecordBrief', () => {
   let fetchMock;
   beforeEach(() => {
     identity.value = { id: 'user-1', token: 'verified.jwt.token' };
+    forgetRecordBriefIdentity();
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -103,6 +107,31 @@ describe('getRecordBrief', () => {
     const sent = JSON.parse(fetchMock.mock.calls[0][1].body).row;
     expect(new TextEncoder().encode(JSON.stringify(sent)).length).toBeLessThanOrEqual(32_768);
     expect(sent.title).toBe('Big');
+  });
+
+  // Owner 2026-10-16: a read never writes; the panel asks for the write only when nothing is stored.
+  it('sends mode read only when asked, and passes missing through', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'missing' }));
+    expect(await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW, mode: 'read' })).toEqual({ state: 'missing' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).mode).toBe('read');
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'pending' }));
+    await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW, mode: 'write' });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).not.toHaveProperty('mode');
+  });
+
+  // Owner 2026-10-16: the account and profile check cost 0.5-1 s before every brief. The verified
+  // identity is reused while its session is unchanged (a local check); the server verifies the bearer.
+  it('reuses the verified account while it is current, and checks again once it is not', async () => {
+    const { verifiedLocalIdentity } = await import('./userStore.js');
+    verifiedLocalIdentity.mockClear();
+    fetchMock.mockImplementation(async () => json(200, { ok: true, state: 'pending' }));
+    await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW });
+    await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW });
+    expect(verifiedLocalIdentity).toHaveBeenCalledTimes(1);
+    identity.value = { id: 'user-1', token: 'refreshed.jwt.token' };
+    await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW });
+    expect(verifiedLocalIdentity).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('Bearer refreshed.jwt.token');
   });
 
   it('passes an abort through', async () => {

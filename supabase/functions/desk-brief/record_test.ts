@@ -13,12 +13,15 @@ import {
   type FinishArgs,
   identify,
   normaliseTier,
+  type PeekArgs,
+  peekDecision,
   RECORD_BRIEF_FORMAT,
   RECORD_LIMITS,
   RECORD_MAX_TOKENS,
   RECORD_SYSTEM,
   type RecordBriefStore,
   type StoredBrief,
+  type StoredRow,
 } from './record.ts';
 
 // Owner 2026-10-15: the brief takes the blue analysis box's shape (a lead brief, why it matters,
@@ -58,18 +61,20 @@ interface Setup {
   claims: ClaimArgs[];
   finishes: FinishArgs[];
   lookups: string[];
+  peeks: PeekArgs[];
 }
 
 function setup(
   opts: {
     claim?: (a: ClaimArgs) => ClaimResult | Promise<ClaimResult>;
+    peek?: StoredRow | null;
     stored?: Record<string, unknown> | null;
     available?: boolean;
     respond?: () => Response | Promise<Response>;
     deps?: Partial<DeskBriefDeps>;
   } = {},
 ): Setup {
-  const s: Omit<Setup, 'deps'> = { calls: [], logs: [], claims: [], finishes: [], lookups: [] };
+  const s: Omit<Setup, 'deps'> = { calls: [], logs: [], claims: [], finishes: [], lookups: [], peeks: [] };
   const respond = opts.respond ?? (() => Response.json(completion(JSON.stringify(BRIEF))));
   const store: RecordBriefStore = {
     storedRow: (tier, feature, rowKey) => {
@@ -85,6 +90,10 @@ function setup(
       return Promise.resolve(true);
     },
     modelAvailable: () => Promise.resolve(opts.available ?? true),
+    peek: (a) => {
+      s.peeks.push(a);
+      return Promise.resolve(opts.peek ?? null);
+    },
   };
   const deps: DeskBriefDeps = {
     verify: () => Promise.resolve({ id: 'user-1' }),
@@ -533,6 +542,7 @@ function contractStore(stored: (i: number) => Record<string, unknown> | null): R
       return Promise.resolve(true);
     },
     modelAvailable: () => Promise.resolve(true),
+    peek: () => Promise.resolve(null),
   };
 }
 
@@ -656,4 +666,82 @@ Deno.test('the desk module list names each module once, under the desk id normal
     assert(!seen.has(k), `${k} twice`);
     seen.add(k);
   }
+});
+
+
+// ---- read mode (owner 2026-10-16: the writing animation only while a brief is really written) ----
+
+const NOW = Date.parse('2026-10-16T12:00:00Z');
+const HASH = 'a'.repeat(24);
+const OTHER = 'b'.repeat(24);
+const stored = (over: Partial<StoredRow> = {}): StoredRow => ({
+  status: 'ready', content_hash: HASH, brief_format: RECORD_BRIEF_FORMAT, headline: 'Lead.', points: { why: 'W', watch: '', tags: [] },
+  model: 'm/x', written_at: '2026-10-16T06:00:00Z', claimed_at: '2026-10-16T05:59:58Z', retry_after: null, attempts: 1, ...over,
+});
+const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+Deno.test('peekDecision: nothing stored, or a claimable row, is missing (the browser then asks for a write)', () => {
+  assertEquals(peekDecision(null, HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  assertEquals(peekDecision(stored({ brief_format: 1 }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  assertEquals(peekDecision(stored({ content_hash: OTHER, written_at: ago(25 * 3600e3) }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  assertEquals(peekDecision(stored({ status: 'pending', claimed_at: ago(91e3), attempts: 1 }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  assertEquals(peekDecision(stored({ status: 'failed', retry_after: ago(1e3), attempts: 2 }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+});
+
+Deno.test('peekDecision: a stored brief is served, a changed copy inside 24 hours included, as the claim does', () => {
+  const d = peekDecision(stored(), HASH, RECORD_BRIEF_FORMAT, NOW);
+  assertEquals(d.state, 'ready');
+  if (d.state === 'ready') assertEquals(d.brief, { headline: 'Lead.', points: { why: 'W', watch: '', tags: [] }, model: 'm/x', written_at: '2026-10-16T06:00:00Z', format: RECORD_BRIEF_FORMAT });
+  assertEquals(peekDecision(stored({ content_hash: OTHER, written_at: ago(3600e3) }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'ready');
+});
+
+Deno.test('peekDecision: a write in progress is pending; one that may not be retried serves what it left, else failed', () => {
+  assertEquals(peekDecision(stored({ status: 'pending', claimed_at: ago(10e3), headline: null, points: null, written_at: null }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'pending');
+  assertEquals(peekDecision(stored({ status: 'pending', claimed_at: ago(91e3), attempts: 5, headline: null, points: null, written_at: null }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'failed');
+  assertEquals(peekDecision(stored({ status: 'failed', retry_after: new Date(NOW + 60e3).toISOString() }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'ready');
+  assertEquals(peekDecision(stored({ status: 'failed', retry_after: new Date(NOW + 60e3).toISOString(), headline: null, points: null, written_at: null }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'failed');
+});
+
+Deno.test('read mode never claims and never calls the model: a stored brief is served', async () => {
+  const s = setup({ peek: stored() });
+  const res = await call(s, record({ mode: 'read' }));
+  assertEquals(res.status, 200);
+  assertEquals(res.body.ok, true);
+  assertEquals(res.body.state, 'ready');
+  assertEquals(res.body.brief, 'Lead.');
+  assertEquals(s.claims.length, 0);
+  assertEquals(s.calls.length, 0);
+  assertEquals(s.peeks.length, 1);
+  assertEquals(s.peeks[0].source, 'client');
+});
+
+Deno.test('read mode says missing when nothing is stored, and still writes nothing', async () => {
+  const s = setup({ peek: null });
+  const res = await call(s, record({ mode: 'read' }));
+  assertEquals(res.body, { ok: true, state: 'missing' });
+  assertEquals(s.claims.length + s.calls.length + s.finishes.length, 0);
+});
+
+Deno.test('without read mode the request still reads or writes in one call, as before', async () => {
+  const s = setup();
+  const res = await call(s);
+  assertEquals(res.body.state, 'ready');
+  assertEquals(s.claims.length, 1);
+  assertEquals(s.peeks.length, 0);
+});
+
+Deno.test('peekDecision: the claim boundaries, exactly as record_brief_claim draws them', () => {
+  // 24 hours: a changed copy written exactly 24 h ago is still served (the claim needs older).
+  assertEquals(peekDecision(stored({ content_hash: OTHER, written_at: ago(24 * 3600e3) }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'ready');
+  assertEquals(peekDecision(stored({ content_hash: OTHER, written_at: ago(24 * 3600e3 + 1) }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  // 90 seconds: a write claimed exactly 90 s ago is still pending.
+  const writing = { status: 'pending' as const, headline: null, points: null, written_at: null };
+  assertEquals(peekDecision(stored({ ...writing, claimed_at: ago(90e3) }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'pending');
+  assertEquals(peekDecision(stored({ ...writing, claimed_at: ago(90e3 + 1) }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  // A retry due exactly now is due.
+  assertEquals(peekDecision(stored({ status: 'failed', retry_after: new Date(NOW).toISOString(), attempts: 2 }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  // Five attempts stop retries of the same content, never of changed content.
+  assertEquals(peekDecision(stored({ status: 'failed', retry_after: ago(1e3), attempts: 5, headline: null, points: null, written_at: null }), HASH, RECORD_BRIEF_FORMAT, NOW).state, 'failed');
+  assertEquals(peekDecision(stored({ status: 'failed', retry_after: ago(1e3), attempts: 5 }), OTHER, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
+  assertEquals(peekDecision(stored({ ...writing, claimed_at: ago(91e3), attempts: 5 }), OTHER, RECORD_BRIEF_FORMAT, NOW).state, 'missing');
 });

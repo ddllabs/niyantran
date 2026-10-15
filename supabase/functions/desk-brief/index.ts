@@ -6,7 +6,7 @@
 import { loadRegistry } from '../_shared/models.ts';
 import { serviceClient } from '../_shared/supabase.ts';
 import { type DeskBriefDeps, handleDeskBrief, type ModelCallRow } from './handler.ts';
-import type { ClaimResult, RecordBriefStore } from './record.ts';
+import type { ClaimResult, RecordBriefStore, StoredRow } from './record.ts';
 
 const recordStore: RecordBriefStore = {
   storedRow: async (tier, feature, rowKey) => {
@@ -42,6 +42,14 @@ const recordStore: RecordBriefStore = {
     });
     if (error) throw new Error(error.message);
     return data === true;
+  },
+  peek: async (a) => {
+    const { data, error } = await serviceClient().from('record_briefs')
+      .select('status, content_hash, brief_format, headline, points, model, written_at, claimed_at, retry_after, attempts')
+      .eq('tier', a.tier).eq('feature', a.feature).eq('row_key', a.rowKey)
+      .eq('hash_key', a.source === 'client' ? a.hash : '').maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data ?? null) as StoredRow | null;
   },
   modelAvailable: async (model) => {
     const { data, error } = await serviceClient().from('model_pricing').select('model_id')

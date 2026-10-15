@@ -19,6 +19,7 @@ import {
   catalogueFeature,
   DEFAULT_RECORD_BRIEF_MODEL,
   identify,
+  peekDecision,
   normaliseRecordBrief,
   parseBrief,
   parseRecordRequest,
@@ -458,7 +459,7 @@ async function postProvider(
 type RecordAnswer =
   | { state: 'ready'; format: number; brief: string; why: string; watch: string; tags: string[]; model: string | null; writtenAt: string }
   | { state: 'ready'; format: 1; headline: string; points: string[]; model: string | null; writtenAt: string }
-  | { state: 'pending' | 'failed' | 'unavailable' };
+  | { state: 'pending' | 'failed' | 'unavailable' | 'missing' };
 
 /** record_briefs keeps token counts as integer columns: rounded, or null outside 0..2^31-1. */
 function tokenCount(v: number | null): number | null {
@@ -501,6 +502,21 @@ async function handleRecord(deps: DeskBriefDeps, userId: string, body: Record<st
   if (!feature) return { state: 'unavailable' };
   const input = { ...parsed, feature };
   const now = deps.now ?? Date.now;
+
+  // Owner 2026-10-16: mode 'read' never writes. It answers what is stored, 'pending' while a write runs,
+  // or 'missing' when a claim would generate; the browser then asks again without it to write.
+  if (body.mode === 'read') {
+    let decision;
+    try {
+      const idRead = await identify(input, store);
+      const row = await store.peek({ tier: input.tier, feature: input.feature, rowKey: idRead.rowKey, hash: idRead.hash, source: idRead.source });
+      decision = peekDecision(row, idRead.hash, RECORD_BRIEF_FORMAT, now());
+    } catch (err) {
+      log('record_brief.peek_failed', { message: String((err as Error)?.message ?? err).slice(0, 300) });
+      throw new HttpError(503, UNAVAILABLE);
+    }
+    return decision.state === 'ready' ? served(decision.brief) : { state: decision.state };
+  }
 
   let id;
   let claim;

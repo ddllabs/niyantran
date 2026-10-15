@@ -4,7 +4,7 @@
  */
 
 import { functionsUrl } from './supabaseClient.js';
-import { verifiedLocalIdentity } from './userStore.js';
+import { localIdentityIsCurrent, verifiedLocalIdentity } from './userStore.js';
 import { entryFingerprintSha } from './entryFingerprint.js';
 
 export { entryFingerprintFnv, entryFingerprintSha } from './entryFingerprint.js';
@@ -229,23 +229,40 @@ function readyBrief(body) {
  * key and hash from the row. Resolves to {state: 'ready', format: 2, brief, why, watch, tags, model,
  * writtenAt} (owner 2026-10-15: the analysis box's shape), or, for a brief stored before that change
  * and not yet regenerated, {state: 'ready', format: 1, headline, points, model, writtenAt}; or {state}
- * of 'pending' (another request is writing it), 'unavailable' (signed out, switched off or limited),
+ * of 'pending' (another request is writing it), 'missing' (mode 'read' only: nothing is stored, so a
+ * write is needed), 'unavailable' (signed out, switched off or limited),
  * 'error' (failed or refused) or 'none' (nothing to brief). Rejects only on abort.
  */
 /**
  * The verified account, asked up to three times: the check answers nothing for a moment while
  * supabase-js re-announces the account (tab focus, token refresh), which is not a sign-out.
  */
+let briefIdentity = null;
+
+/** For tests: forget the account reused across brief requests. */
+export function forgetRecordBriefIdentity() {
+  briefIdentity = null;
+}
+
 async function accountForBrief(signal) {
+  // Owner 2026-10-16: the account and profile check cost 0.5-1 s before every brief; the verified
+  // identity is reused while its session is unchanged (a local check). The server verifies the bearer.
+  if (briefIdentity) {
+    let current = false;
+    try { current = await localIdentityIsCurrent(briefIdentity); } catch { /* checked again below */ }
+    if (current) return briefIdentity;
+  }
+  briefIdentity = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const identity = await verifiedLocalIdentity().catch(() => null);
+    if (identity?.token) briefIdentity = identity;
     if (identity?.token || signal?.aborted) return identity;
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
   }
   return null;
 }
 
-export async function getRecordBrief({ tier, feature, row, signal } = {}) {
+export async function getRecordBrief({ tier, feature, row, signal, mode } = {}) {
   if (!row || typeof row !== 'object' || row.status === 'source_status' || !feature) return { state: 'none' };
   const identity = await accountForBrief(signal);
   if (!identity?.token) return { state: 'unavailable' };
@@ -255,7 +272,8 @@ export async function getRecordBrief({ tier, feature, row, signal } = {}) {
       method: 'POST',
       signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
-      body: JSON.stringify({ scope: 'record', tier: tier || '', feature, row: recordPayloadRow(row) }),
+      // Owner 2026-10-16: mode 'read' never writes; it answers 'missing' when nothing is stored.
+      body: JSON.stringify({ scope: 'record', tier: tier || '', feature, row: recordPayloadRow(row), ...(mode === 'read' ? { mode: 'read' } : {}) }),
     });
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
@@ -264,7 +282,7 @@ export async function getRecordBrief({ tier, feature, row, signal } = {}) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body?.ok) return { state: 'error' };
   if (body.state === 'ready') return readyBrief(body);
-  if (body.state === 'pending' || body.state === 'unavailable') return { state: body.state };
+  if (body.state === 'pending' || body.state === 'unavailable' || body.state === 'missing') return { state: body.state };
   return { state: 'error' };
 }
 

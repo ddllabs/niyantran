@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F209 is next) and goes in the
+- A new finding gets the next free `F` number (F210 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,6 +548,12 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F209. The record brief shows "writing" only while it is written.** Owner 2026-10-16 ("go"),
+  before the client's new writing animation. Measured: stored reads took 1.1-2.5 s and showed the
+  writing look; nothing was regenerated (50 briefs before and after). `desk-brief` gains a read mode
+  (`peekDecision` mirrors `record_brief_claim`, no claim, no model call); the panel reads first and
+  writes only on `missing`; briefs seen this session show at once; the account check is reused. Spec:
+  `docs/specs/2026-10-16-record-brief-read.md`. On `task/brief-read`.
 - [x] **F207. Cleanup after F203-F206.** Done 2026-10-16 (`d7b0b02`, `59e54ed`; owner: "merge everything to
   main, and deploy"). Owner 2026-10-16 ("clean up the small gaps"). The record
   adapters no longer compute the graph's `lanes`/`nodes` (27 adapters, 24 test files, 867 lines out;
