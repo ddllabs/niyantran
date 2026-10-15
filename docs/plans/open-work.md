@@ -705,8 +705,10 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     database size (`20261015160000_feed_admin`); C6 `scripts/load-feed-register.mjs` for Cabinet's
     register (79 decisions, one per decision). Local run against the real sources: 64 of 65 modules
     stored (NSE has no live source), 7,000 items, a second run rewrote nothing. C7 go-live: steps 1–2
-    (migrations 52 and 53 applied to NTER, dormant code) done with Push 7; step 3 (secret) and step 4 (timer, after the Vercel
-    upgrade) are the owner's; then the Cabinet register load, a day with `serve` off, and `serve` on
+    (migrations 52 and 53 applied to NTER, dormant code) done with Push 7; step 3 (secret) done by the
+    owner 2026-10-15 (Vault `feed_refresh_secret` and Vercel `FEED_REFRESH_SECRET`, production; an
+    unsigned `POST /api/feeds/refresh` now answers 401, not 503); step 4 (timer, after the Vercel
+    upgrade) is the owner's; then the Cabinet register load, a day with `serve` off, and `serve` on
     class by class.
   - **MLA Directory's register (owner: option 1, 2026-10-15), live and served.** 31 per-state
     store variants (class `register`, kind `reference`: a reload replaces a state's list), off the

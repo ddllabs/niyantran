@@ -2063,3 +2063,7 @@ recommendations … We can fix everything that is under your control."
   UI fixes (main `eee71aa`): the page's `lang` follows the EN/HI toggle and the toggle has a name.
   `TerminalShell.jsx` only for the shell; no credits or desk-rail file touched. Checks: lint, build,
   5,429 Vitest tests, independent review approved. Rollback: revert and push.
+- **2026-10-15: refresh secret set (F169 C7 step 3)** by the owner in Vault and in Vercel
+  (production), then a production redeploy (`dpl_Af1ZsHG5BGYUTqK3RP44TCM32EKH`, `6f8a542`). Check:
+  an unsigned `POST /api/feeds/refresh` on `niyantran-six.vercel.app` answers 401 `Unauthorized`.
+  Nothing scheduled yet; the timer waits for the Vercel upgrade.
