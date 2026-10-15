@@ -45,8 +45,10 @@ describe('the data state of an answer from the store', () => {
   it('other answers keep their states', () => {
     expect(resolveDataState({ ...store(), served: 'live', fetchedAt: undefined }).id).toBe('live');
     expect(resolveDataState({ ...store(), served: 'archive', fallback: true, fetchedAt: undefined }).id).toBe('archived');
-    // A "store" answer with no usable fetched time is not trusted as one.
-    expect(resolveDataState(store({ fetchedAt: undefined })).id).toBe('live');
+    // A "store" answer with no usable fetched time is not trusted as one, and is not live either
+    // (module audit 2026-10-15, C1: LIVE only when served live).
+    expect(resolveDataState(store({ fetchedAt: undefined })).id).not.toBe('served');
+    expect(resolveDataState(store({ fetchedAt: undefined })).id).not.toBe('live');
   });
 
   it('an empty or status-row answer is still a state card, not "served"', () => {

@@ -131,30 +131,43 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
     };
   }
 
-  if (/geo-pack|law-pack|finance-pack|carbon-pack|backup-pack|dossier/i.test(kind)) {
-    // Packs are ingested snapshots unless the envelope explicitly says live.
-    if (/live/i.test(blob) && !/archive|fallback/i.test(blob)) {
-      return {
-        ...DATA_STATE.live,
-        detail: feed?.source?.note || 'Live request returned rows.',
-        coverage: coverageText(feed, count),
-        lastSync: lastSyncText(feed),
-      };
-    }
+  // Module audit 2026-10-15 (C1): LIVE only for an answer that is positively live, never by default
+  // and never because a note contains the word ("no live price feed", "not the live table").
+  if (isLiveAnswer(feed)) {
     return {
-      ...DATA_STATE.archived,
-      detail: feed?.source?.note || 'Ingested pack / archive.',
+      ...DATA_STATE.live,
+      detail: feed?.source?.note || 'Live request returned rows.',
       coverage: coverageText(feed, count),
       lastSync: lastSyncText(feed),
     };
   }
 
+  // Registers, packs, dossiers, embedded and internal answers: stored records with no badge; the
+  // header says how current they are ("stored copy · as of …").
   return {
-    ...DATA_STATE.live,
-    detail: feed?.source?.note || 'Live request returned rows.',
+    ...DATA_STATE.archived,
+    detail: feed?.source?.note || 'Stored records.',
     coverage: coverageText(feed, count),
     lastSync: lastSyncText(feed),
   };
+}
+
+// Adapters that fetch from the source for the request being answered.
+const LIVE_ADAPTERS = new Set(['api', 'live', 'news-search', 'scrape']);
+// Kinds that name stored records whatever the adapter.
+const STORED_KIND_RE = /pack|register/i;
+
+/**
+ * An answer fetched live for this request: a live adapter, served live (or built in the browser from a
+ * live call, with no `served`), not a fallback, and not a pack or register. Store answers are decided
+ * before this (`served`, "updated N min ago").
+ */
+function isLiveAnswer(feed) {
+  const served = feed?.served;
+  if (served !== undefined && served !== 'live') return false;
+  if (feed?.fallback) return false;
+  if (STORED_KIND_RE.test(String(feed?.source?.kind || ''))) return false;
+  return LIVE_ADAPTERS.has(String(feed?.source?.adapter || ''));
 }
 
 function coverageText(feed, n) {
