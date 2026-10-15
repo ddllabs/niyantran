@@ -45,6 +45,8 @@ import FundFlowDesk, { isFundFlowFeature } from './FundFlowDesk.jsx';
 import ProjectsDesk from './ProjectsDesk.jsx';
 import MorningBriefDesk from './MorningBriefDesk.jsx';
 import StatementsDesk from './StatementsDesk.jsx';
+import MlaStatePicker from './MlaStatePicker.jsx';
+import { isMlaDirectory } from '../lib/mlaStates.js';
 import IndustryDesk from './IndustryDesk.jsx';
 import { tenderCloseBand, applyVizFilter } from '../lib/nationalKpi.js';
 import FeedLoader from '../shell/FeedLoader.jsx';
@@ -105,15 +107,20 @@ export default function DeskView({
   const [pagedMode, setPagedMode] = useState(() => isPagedFeature(featureName) && featureFeedApiEnabled());
   const [pagedQ, setPagedQ] = useState('');
   const [paging, setPaging] = useState(false);
+  // F190: MLA Directory's State picker ('' is All states); only that module reads it (mlaState below).
+  const [mlaPick, setMlaPick] = useState('');
   const loadedFor = useRef('');
   const mounted = useRef(true);
   const colsKey = featureName ? `niy-cols:${tier || ''}:${featureName}` : '';
   const filtersKey = featureName ? `niy-filters:${tier || ''}:${featureName}` : '';
   const questionsDesk = isParliamentaryQuestions(featureName);
+  const mlaDesk = isMlaDirectory(tier, featureName);
+  const mlaState = mlaDesk ? mlaPick : '';
 
   useEffect(() => {
     setQ('');
     setHasAnswerFilter('');
+    setMlaPick('');
     onSelect(null);
     if (!colsKey) {
       setVisibleKeys(null);
@@ -174,6 +181,7 @@ export default function DeskView({
       return undefined;
     }
     if (pagedMode) return undefined;
+    const params = mlaState ? { state: mlaState } : undefined;
     const ac = new AbortController();
     setLoading(true);
     onLoading?.(true);
@@ -194,7 +202,7 @@ export default function DeskView({
         first: body,
         signal: ac.signal,
         publish: show,
-        refetch: () => fetchFeature({ tier, feature: featureName, signal: ac.signal }),
+        refetch: () => fetchFeature({ tier, feature: featureName, signal: ac.signal, params }),
       });
     };
     // F154: the stored archive shows as soon as it is in; live rows replace it when they arrive.
@@ -202,7 +210,7 @@ export default function DeskView({
       show(body);
       follow(body);
     };
-    fetchFeature({ tier, feature: featureName, signal: ac.signal, onUpdate })
+    fetchFeature({ tier, feature: featureName, signal: ac.signal, onUpdate, params })
       .then((body) => {
         if (ac.signal.aborted) return;
         show(body);
@@ -223,7 +231,7 @@ export default function DeskView({
         onLoading?.(false);
       });
     return () => ac.abort();
-  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode]);
+  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode, mlaState]);
 
   useEffect(() => {
     mounted.current = true;
@@ -238,8 +246,8 @@ export default function DeskView({
     return () => clearTimeout(timer);
   }, [q, pagedMode]);
 
-  // One page per view: a new search, sort or filter starts again at its first page.
-  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter]);
+  // One page per view: a new search, sort, filter or MLA state starts again at its first page.
+  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter, ...(mlaState ? [mlaState] : [])]);
   const page = pageAt.view === viewKey ? pageAt.n : 0;
   const setPage = (next) =>
     setPageAt((at) => ({ view: viewKey, n: typeof next === 'function' ? next(at.view === viewKey ? at.n : 0) : next }));
@@ -703,6 +711,7 @@ export default function DeskView({
           )}
           <span className="muted">{coverageLabel}</span>
         </div>
+        {mlaDesk ? <MlaStatePicker value={mlaState} onChange={setMlaPick} /> : null}
         {!shellState && liveRefreshNote(feed) ? (
           <p className="desk-note" role="status">
             {liveRefreshNote(feed)}

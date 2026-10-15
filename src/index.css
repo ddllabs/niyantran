@@ -7415,3 +7415,22 @@ a.ai-web-entry:focus-visible { outline: 2px solid var(--accent); outline-offset:
 .ai-web-link-mark { display: inline-flex; vertical-align: -2px; margin-left: 3px; color: var(--muted); }
 .ai-site-icon.ai-web-link-icon { width: 14px; height: 14px; font-size: 8px; }
 .ai-site-icon.ai-web-link-icon img { padding: 1px; }
+
+/* F190: MLA Directory's State picker, a row under the module header */
+.mla-state { display: flex; align-items: center; gap: 8px; padding: 2px 16px 6px; max-width: 100%; }
+.mla-state label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mla-state select {
+  box-sizing: border-box;
+  min-height: 28px;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 220px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+}
+.mla-state select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
