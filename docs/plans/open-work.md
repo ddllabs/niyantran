@@ -1821,6 +1821,7 @@ Each needs one answer, then an agent can finish it.
     - three sets of multiple permissive policies.
   - Leaked-password protection and the Auth connection strategy are
     dashboard settings (D1).
+  *2026-10-15 (owner: "P12 speedup, go ahead"; `033f4af`): migration 55 `20261015190000_rls_initplan_fk_indexes` applied to NTER with `supabase db push`: the twelve policies read `(select auth.uid())` once per statement (a pre-check refuses if any live policy differs), and the eight unindexed foreign keys have covering indexes. Checks: `npm run test:sql` 34 fixtures pass, the new one fails without the migration; live: 0 bare `auth.uid()` policies, 8 indexes; the security advisor shows only the accepted findings. Left open here: the Vite 7 / Vitest 4 upgrade (developer tooling, no reader-facing speed); unused indexes and multiple permissive policies stay as recorded.*
 - [x] **F30. The other hand-written marketing figures** *(2026-10-14: "9,819", "211+" and "99.9%" are gone (F142); "12 Desks" fixed to 8 and tied to the desk list (F171 B10, `df556a4`). The homepage preview cards' sample figures are on the client's list, F144.)* (found while doing
   P16). They weren't part of P16's approval:
   - `src/marketing/HomePage.jsx` shows "9,819" bills in four places (lines

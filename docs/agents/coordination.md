@@ -2067,3 +2067,6 @@ recommendations … We can fix everything that is under your control."
   (production), then a production redeploy (`dpl_Af1ZsHG5BGYUTqK3RP44TCM32EKH`, `6f8a542`). Check:
   an unsigned `POST /api/feeds/refresh` on `niyantran-six.vercel.app` answers 401 `Unauthorized`.
   Nothing scheduled yet; the timer waits for the Vercel upgrade.
+- **2026-10-15: P12 migration 55** (`033f4af`, `20261015190000_rls_initplan_fk_indexes`) applied to NTER
+  with `supabase db push --linked` after `migration list` showed it the only pending one. Live check:
+  no policy with a bare `auth.uid()`, the 8 indexes present. Rollback: the Down block in the file.
