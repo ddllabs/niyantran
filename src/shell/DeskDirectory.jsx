@@ -15,8 +15,9 @@ export function DeskDirectoryCards({ tabs, tab, onDesk, lang = 'en' }) {
       aria-current={desk.id === tab ? 'page' : undefined}
       title={desk.label}
       onClick={() => onDesk(desk.id)}>
-      {visual ? <img src={(DESK_IMAGES[visual.image] || DESK_IMAGES[`${visual.image}.jpg`])} alt="" loading="lazy"/> : <div className="v6-directory-home"><Icon name={TAB_ICON[desk.id] || 'home'} size={28}/></div>}
-      <span><b>{name}</b><small>{lang === 'hi' ? 'डेस्क खोलें' : 'Explore desk'}</small></span><span className="v6-directory-arrow" aria-hidden="true">↗</span>
+      {/* Owner 2026-10-16: Home shows the Niyantran Terminal mark; no card carries an arrow. */}
+      {visual ? <img src={(DESK_IMAGES[visual.image] || DESK_IMAGES[`${visual.image}.jpg`])} alt="" loading="lazy"/> : <div className="v6-directory-home"><img src="/brand/logo-128.webp" alt="" width="40" height="40"/><span>TERMINAL</span></div>}
+      <span><b>{name}</b><small>{lang === 'hi' ? 'डेस्क खोलें' : 'Explore desk'}</small></span>
     </button>;
   })}</div>;
 }

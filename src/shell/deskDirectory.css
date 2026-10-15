@@ -10,17 +10,18 @@
 .v6-directory-heading h2 span { color:#6b80a0; }
 .v6-directory-heading p { color:#67768b;font-size:11px; }
 .v6-desk-directory { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:24px; }
-.v6-desk-directory>button { display:grid;grid-template-columns:1fr auto;text-align:left;font:inherit;background:#fafbfd;color:#18263b;border:1px solid #e2e8f2;border-radius:11px;overflow:hidden;padding:0;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s; }
+.v6-desk-directory>button { display:grid;grid-template-columns:1fr;text-align:left;font:inherit;background:#fafbfd;color:#18263b;border:1px solid #e2e8f2;border-radius:11px;overflow:hidden;padding:0;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s; }
 .v6-desk-directory>button:hover { transform:translateY(-3px);box-shadow:0 8px 25px #2a477215;border-color:#9eb5e2; }
 .v6-desk-directory>button[aria-current=page] { border-color:#87a6ed;background:#f3f6fe; }
 .v6-desk-directory img,.v6-directory-home { grid-column:1/-1;width:100%;height:89px;object-fit:cover; }
-.v6-directory-home { display:grid;place-items:center;background:#eef3fc;color:#6b80a0; }
+.v6-directory-home { display:flex;align-items:center;justify-content:center;gap:10px;background:#eef3fc;color:#18263b; }
+.v6-directory-home img { width:40px;height:40px;object-fit:contain; }
+.v6-directory-home span { font:700 13px/1 var(--font-ui);letter-spacing:.18em; }
 .v6-desk-directory [data-directory=national] img { object-position:62% 50%; }
 .v6-desk-directory [data-directory=global] img { object-position:50% 47%; }
 .v6-desk-directory>button>span { padding:12px 13px; }
 .v6-desk-directory b { display:block;font-size:13px;font-weight:600; }
 .v6-desk-directory small { display:block;font-size:9px;color:#67768b;margin-top:4px; }
-.v6-directory-arrow { align-self:center;color:#6b80a0; }
 .v6-directory-control button:focus-visible { outline:2px solid #3767ec;outline-offset:3px; }
 .terminal.with-v6-directory { grid-template-columns:minmax(0,1fr);grid-template-rows:68px 36px minmax(0,1fr);grid-template-areas:"top" "modules" "work"; }
 /* Primary desk navigation (owner, 2026-10-13): readable size, roomy targets,

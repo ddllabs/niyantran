@@ -19,7 +19,7 @@ describe('v6 desk directory', () => {
     expect(html).toContain('राष्ट्रीय');
     expect(html).toContain('विधि');
     expect(html).toContain('/images/desks-v6/a675cbad2d7f9b9d7e3b.png');
-    expect((html.match(/<img src=/g) || []).length).toBe(8);
+    expect((html.match(/<img src="\/images\/desks-v6\//g) || []).length).toBe(8);
     expect(html).not.toContain('<img alt=');
   });
   // Owner, 2026-10-13: the desk icons of the former left rail (DeskRail, removed in b0ba405) return
@@ -32,3 +32,13 @@ describe('v6 desk directory', () => {
   });
 });
 
+
+// Owner 2026-10-16: the directory cards drop the ↗ arrow, and Home shows the Niyantran Terminal mark.
+describe('the desk directory cards', () => {
+  it('have no arrow, and the Home card carries the Niyantran Terminal logo instead of a house icon', async () => {
+    const html = renderToStaticMarkup(<DeskDirectoryCards tabs={TABS} tab="global" onDesk={() => {}}/>);
+    expect(html).not.toContain('v6-directory-arrow');
+    expect(html).not.toContain('↗');
+    expect(html).toContain('<div class="v6-directory-home"><img src="/brand/logo-128.webp" alt="" width="40" height="40"/><span>TERMINAL</span></div>');
+  });
+});

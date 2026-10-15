@@ -553,7 +553,9 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   node checks moved to links and About rows where they had a match); footer notes no longer promise
   companies or sectors the panels do not show; questions and the pipeline no longer fetch the
   ontology. The bundle baseline is re-recorded at 222,125 B gzip: the growth was bisected to F202's
-  column definitions and F196's modules, which the desk catalogue puts in the entry. On `task/cleanup`.
+  column definitions and F196's modules, which the desk catalogue puts in the entry. Also (owner,
+  2026-10-16): the All sections cards lose their ↗ arrow, and Home shows the Niyantran Terminal logo.
+  On `task/cleanup`.
 - [ ] **F208. The desk catalogue puts every module's columns in the first-load bundle.** Found in F207,
   2026-10-16. `src/desks/landing/deskCatalogue.js` imports `feedColumns` (`src/lib/columns.js`, 40 KB
   of source) and the full feature map, so a signed-out visitor downloads them. Load them with the
