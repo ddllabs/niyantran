@@ -3156,6 +3156,23 @@ Deno.test('plans: a Free caller choosing a paid-plan model gets 403 before reser
   assertEquals(provider.seen.length, 0);
 });
 
+// Owner 2026-10-15: "Yes they can bypass. Only admins." A verified platform admin may use any model;
+// the admin flag comes from the server's own check, never from the request.
+Deno.test('plans: a Free platform admin may use a paid-plan model; a Free non-admin may not', async () => {
+  const admin = await gated('anthropic/claude-sonnet-5', profile('free', { admin: true }));
+  assertEquals(admin.response.status, 200);
+  await frames(admin.response);
+  assertEquals(admin.rec.messages[0].status, 'complete');
+  const user = await gated('anthropic/claude-sonnet-5', profile('free', { admin: false }));
+  assertEquals(user.response.status, 403);
+  assertEquals(await user.response.json(), PLAN_REFUSAL);
+});
+
+Deno.test('plans: an inactive admin account gets no bypass', async () => {
+  const { response } = await gated('anthropic/claude-sonnet-5', profile('free', { admin: true, status: 'suspended' }));
+  assertEquals(response.status, 403);
+});
+
 Deno.test('plans: a Plus caller may use a paid-plan model', async () => {
   const { response, rec } = await gated('anthropic/claude-sonnet-5', profile('plus'));
   assertEquals(response.status, 200);

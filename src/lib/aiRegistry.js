@@ -59,8 +59,12 @@ export function modelAvailable(model, plan) {
   return (PLAN_RANK[plan] ?? 0) >= PLAN_RANK[minPlanOf(model)];
 }
 
-/** The plan in force for a server entitlement (entitlementStore): a lapsed, ended or unread plan is free. */
-export function effectivePlan(entitlement, now = Date.now()) {
+/**
+ * The plan in force for a server entitlement (entitlementStore): a lapsed, ended or unread plan is free.
+ * A platform admin may use every model (owner 2026-10-15); research-chat checks admin itself.
+ */
+export function effectivePlan(entitlement, now = Date.now(), { admin = false } = {}) {
+  if (admin) return 'max';
   if (!entitlement || entitlement.status !== 'active' || entitlement.lapsed === true) return 'free';
   const end = entitlement.periodEnd ? Date.parse(entitlement.periodEnd) : NaN;
   if (Number.isFinite(end) && end <= now) return 'free';

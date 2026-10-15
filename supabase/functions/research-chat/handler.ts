@@ -104,6 +104,8 @@ export interface ProfilePlan {
   plan_period_end: string | null;
   /** The account status: my_entitlement() reports nothing for an account that is not active. */
   status: string;
+  /** Whether the caller is a platform admin, from is_platform_admin() asked as the caller. */
+  admin?: boolean;
 }
 
 /** Plans in ascending order (F150). */
@@ -116,6 +118,8 @@ export const PLAN_RANK: Record<string, number> = { free: 0, plus: 1, pro: 2, max
  */
 export function effectivePlanRank(row: ProfilePlan | null, now: number): number {
   if (!row || row.status !== 'active') return PLAN_RANK.free;
+  // Owner 2026-10-15: "Yes they can bypass. Only admins." An active platform admin may use any model.
+  if (row.admin === true) return PLAN_RANK.max;
   if (row.plan_status !== 'free' && row.plan_period_end !== null && Date.parse(row.plan_period_end) <= now) {
     return PLAN_RANK.free;
   }

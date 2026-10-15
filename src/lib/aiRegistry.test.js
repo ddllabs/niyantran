@@ -90,6 +90,14 @@ describe('which models a plan may use (F150)', () => {
     expect(planNeededReason({ min_plan: 'max' })).toBe('available on the Max plan');
   });
 
+  // Owner 2026-10-15: admins bypass the per-model plan lock (research-chat enforces it the same way).
+  it('gives a platform admin every model in the picker, whatever the plan', () => {
+    const now = Date.parse('2026-10-14T12:00:00Z');
+    expect(effectivePlan({ plan: 'free', status: 'active' }, now, { admin: true })).toBe('max');
+    expect(effectivePlan(null, now, { admin: true })).toBe('max');
+    expect(effectivePlan({ plan: 'free', status: 'active' }, now, { admin: false })).toBe('free');
+  });
+
   it('takes the effective plan from the server entitlement: lapsed, ended or unread is free', () => {
     const now = Date.parse('2026-10-14T12:00:00Z');
     const active = { plan: 'pro', status: 'active', lapsed: false, periodEnd: '2026-11-01T00:00:00Z' };

@@ -298,10 +298,14 @@ export function createDependencies(req: Request, overrides: Partial<Runtime> = {
     // F150: the plan comes from the database with the service client, for the verified owner only.
     plan: async (userId) => {
       if (!owner || userId !== owner) throw new HttpError(403, 'Turn owner mismatch');
-      return await query((signal) =>
+      const row = await query((signal) =>
         service().from('user_profiles').select('plan,plan_status,plan_period_end,status').eq('user_id', userId)
           .abortSignal(signal).maybeSingle()
       );
+      if (!row) return row;
+      // Asked as the caller, so the answer is about this bearer, not the service key.
+      const admin = (await query((signal) => caller().rpc('is_platform_admin').abortSignal(signal))) === true;
+      return { ...row, admin };
     },
     pricing: async (model) => {
       const row = await query((signal) =>

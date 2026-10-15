@@ -18,6 +18,7 @@ import WebSourceStrip, { liveStrip } from './WebSourceStrip.jsx';
 import ModelPicker, { ModelPlanNotice } from './ModelPicker.jsx';
 import { effectivePlan } from '../lib/aiRegistry.js';
 import { serverEntitlement, subscribeEntitlement } from '../lib/entitlementStore.js';
+import { sessionUser } from '../lib/userStore.js';
 import WebSearchToggle, { isWebGated, useWebPrediction } from './WebSearchToggle.jsx';
 import MessageRow from './MessageRow.jsx';
 import SuggestionPills from './SuggestionPills.jsx';
@@ -383,7 +384,8 @@ export function watchCoverage(attachedKeys, onAnswer, { refresh = refreshCoverag
 function useEffectivePlan(ownerId) {
   const read = () => serverEntitlement(ownerId);
   const entitlement = useSyncExternalStore(subscribeEntitlement, read, read);
-  return effectivePlan(entitlement);
+  // The picker's courtesy only: research-chat checks admin for itself.
+  return effectivePlan(entitlement, Date.now(), { admin: sessionUser()?.role === 'admin' });
 }
 
 export default function AiPanel({ feed, selected, tab, featureName, lang, seed, onSeedConsumed, compact, onClose, open = true, embedded = false, onCitation, viewerSlot, actionsSlot }) {

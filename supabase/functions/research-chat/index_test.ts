@@ -891,7 +891,11 @@ Deno.test('plans: the plan columns are read with the service client for the veri
   const d = createDependencies(request(), f.runtime);
   await assertRejects(() => d.plan('verified-owner'), Error, 'Turn owner mismatch');
   await d.requireUser(request());
-  assertEquals(await d.plan('verified-owner'), { plan: 'plus', plan_status: 'active', plan_period_end: null, status: 'active' });
+  // Owner 2026-10-15: admins bypass model plans; the admin answer is asked as the caller.
+  assertEquals(await d.plan('verified-owner'), { plan: 'plus', plan_status: 'active', plan_period_end: null, status: 'active', admin: false });
+  const adminCheck = f.calls.find((c) => c.table === 'is_platform_admin');
+  assert(adminCheck, 'is_platform_admin is asked');
+  assertEquals(adminCheck.side, 'caller');
   const read = f.calls.find((c) => c.table === 'user_profiles');
   assert(read);
   assertEquals(read.side, 'service');
