@@ -11,11 +11,12 @@ export const SITE_FIGURES = {
   ministries: MEASURED_FIGURES.ministries,
   fronts: MEASURED_FIGURES.fronts,
   modules: DESK_CATALOGUE.length,
-  // F140 (owner 2026-10-13): unique source endpoint URLs in src/data/source-registry.json (the seed
-  // registry). Recounted 2026-10-15 after F180 took the 131 GDELT search addresses out (GDELT is not
-  // asked, so they were never sources): 246 before, 115 after. siteFigures.test.js recounts the
-  // registry and fails if they drift.
-  endpoints: 115,
+  // F140 (owner 2026-10-13): the published "Source endpoints" figure. The owner kept 246 (counted
+  // from src/data/source-registry.json on 2026-10-14, 189 of them per-module search URLs). F180
+  // (2026-10-15) took the 131 GDELT search addresses out of the registry, which now counts 115
+  // (registryEndpointCount); whether the homepage shows 115 is the owner's decision, so the published
+  // figure stays 246 until then.
+  endpoints: 246,
 };
 
 /** Unique source endpoint URLs across a registry's `sourceUrls` lists (newline- or pipe-separated). */

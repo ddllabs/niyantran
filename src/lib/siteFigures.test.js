@@ -25,8 +25,9 @@ it('leaves no hand-typed bill, endpoint or uptime figures on the homepage and pr
 // homepage bundle; this recount fails the moment the two drift apart.
 it('counts source endpoints from the source registry', () => {
   const registry = JSON.parse(readFileSync(new URL('../data/source-registry.json', import.meta.url), 'utf8'));
-  expect(SITE_FIGURES.endpoints).toBe(registryEndpointCount(registry));
-  expect(SITE_FIGURES.endpoints).toBeGreaterThan(100);
+  // The registry counts 115 since F180; the published 246 is the owner's figure until they decide.
+  expect(registryEndpointCount(registry)).toBe(115);
+  expect(SITE_FIGURES.endpoints).toBe(246);
 });
 
 it('counts each endpoint URL once, across newline- or pipe-separated source lists', () => {
