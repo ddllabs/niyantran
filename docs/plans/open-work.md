@@ -724,8 +724,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
   reasoning usage, log redaction, desk-filter spellings, document titles, then measurements and
   small closures). Starts after F169 phases 2 and 3. Owner decisions taken as recommended.
-  - 2026-10-15: B19 done (F35, migration 51 live); B20 measured twice (F41, owner's routing
-    choice).
+  - 2026-10-15: B19 done (F35, migration 51 live); B20 done (F41, latency routing, v60).
   - Done 2026-10-14: B1 source links (F89), B2 chat uploads (F172), B3 dropped connection (F66), B4
     file size (F62), B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk (F44),
     B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30); 2026-10-15: B11 (F67), B12 (F36),
@@ -948,6 +947,49 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 ## 1. Done
+
+- [x] **F41.** A widened chat turn is slow: on 2026-10-01 a bill question waited 65 s, of which
+  Gemini Flash took 46 s on a 25,850-token prompt. Search took 0.6 s. Measure the prompt size
+  of widened turns and cap it.
+  - **In progress (2026-10-02).** Spec `specs/2026-10-02-chat-turn-cost.md` (approved: "measure,
+    then cap"); plan `plans/2026-10-02-chat-turn-cost.md`. It also covers F46's agent-loop cost.
+    - **Built:** a widened search asks for 15 passages, and a search reply stops at 24,000
+      characters (`0de8178`, `13c050e`).
+    - **The benchmark** has a widened kind and per-call prompt tokens (`a76d093`).
+    - **Measured** (`research/2026-10-02-turn-cost-benchmark.md`, $2.83):
+      - the reply cap missed the narrow depth mark and is off;
+      - the widened limit deepens widened answers but does not speed them up;
+      - prompt size explains little of call time (r = 0.14).
+    - **The slow turn's NTER log** (owner-approved read): the provider was slow, not the prompt.
+      One call ran at 21 tokens a second; the next took 18.6 s to write 29 tokens.
+    - **Next:**
+      - the owner decides on the widened limit;
+      - a measured trial of OpenRouter provider preferences (by throughput or latency), which is
+        where F41's speed lies.
+    - **Routing trial run (2026-10-02, $2.43, 25 questions, no errors):** `thru` and `lat` are
+      much faster than `v45`. First word p50 falls from 21.3 s to 8.7 s and 7.4 s; p90 from
+      40.9 s to 15.0 s and 10.9 s. Cost falls 15% and 27%. Both miss the depth pass mark on
+      briefs: 3.1 and 2.8 searches against 4.5, and 7.8 and 7.3 pages against 8.3. Citations are
+      100% valid. By the amendment's rule nothing ships. Results are in
+      `research/2026-10-02-turn-cost-benchmark.md`.
+    - **Owner discussion open (2026-10-02):** routing, and whether widened searches return to 40
+      passages.
+    - **Second pass of 40 against 15 (2026-10-02, $0.56):** the first pass's advantage for 15 did
+      not repeat. Pooled over 25 question-runs the two are level on depth: documents 1.32
+      against 1.44, pages 4.84 against 4.68, the expected document 25/25 against 24/25. 15 is
+      1.6 s slower at p50, and costs the same.
+    - **Done:** widened searches are back to 40 (owner, 2026-10-02; `2f0c71d`), deployed as
+      `research-chat` v46.
+    - **Still open:** the provider-routing decision. By the rule nothing ships; the owner has not
+      decided.
+    - **Re-measured 2026-10-15 on v59 code (about $2.50, `589d577`)**, with the same result, then
+      **option 3** (latency routing plus the prompt's coverage check, about $0.83, `93c42b0`): the
+      check brings the depth back (brief documents 2.33, expected document 15/15, pages 7.6 against
+      8.6) but takes the speed back too (brief total 37 s, as default routing). Nothing ships. The
+      owner chooses option 1 (latency routing: briefs in about 20 s, a third cheaper, slightly less
+      depth) or option 2 (default routing).
+  *Done 2026-10-15 (`0dde63f`, `research-chat` v60): latency routing on every call, owner's choice of
+  option 1 (briefs about 20 s instead of 37 s, a third cheaper, about one page fewer cited).*
 
 - [x] **F35.** NTER's unscoped search loses results to its HNSW index.
   Measured 2026-10-01 in `research/2026-10-01-feature-filter-measurements.md`:
@@ -1814,46 +1856,6 @@ Follow-ups and findings:
   from those desks can never attach its document. Only the two bill features have keys. This
   needs stable keys from the loader for every row, and a generalised client key in place of
   `billDocumentKey`. It is admin-upload Amendment A, part A4, and needs its own spec.
-- [ ] **F41.** A widened chat turn is slow: on 2026-10-01 a bill question waited 65 s, of which
-  Gemini Flash took 46 s on a 25,850-token prompt. Search took 0.6 s. Measure the prompt size
-  of widened turns and cap it.
-  - **In progress (2026-10-02).** Spec `specs/2026-10-02-chat-turn-cost.md` (approved: "measure,
-    then cap"); plan `plans/2026-10-02-chat-turn-cost.md`. It also covers F46's agent-loop cost.
-    - **Built:** a widened search asks for 15 passages, and a search reply stops at 24,000
-      characters (`0de8178`, `13c050e`).
-    - **The benchmark** has a widened kind and per-call prompt tokens (`a76d093`).
-    - **Measured** (`research/2026-10-02-turn-cost-benchmark.md`, $2.83):
-      - the reply cap missed the narrow depth mark and is off;
-      - the widened limit deepens widened answers but does not speed them up;
-      - prompt size explains little of call time (r = 0.14).
-    - **The slow turn's NTER log** (owner-approved read): the provider was slow, not the prompt.
-      One call ran at 21 tokens a second; the next took 18.6 s to write 29 tokens.
-    - **Next:**
-      - the owner decides on the widened limit;
-      - a measured trial of OpenRouter provider preferences (by throughput or latency), which is
-        where F41's speed lies.
-    - **Routing trial run (2026-10-02, $2.43, 25 questions, no errors):** `thru` and `lat` are
-      much faster than `v45`. First word p50 falls from 21.3 s to 8.7 s and 7.4 s; p90 from
-      40.9 s to 15.0 s and 10.9 s. Cost falls 15% and 27%. Both miss the depth pass mark on
-      briefs: 3.1 and 2.8 searches against 4.5, and 7.8 and 7.3 pages against 8.3. Citations are
-      100% valid. By the amendment's rule nothing ships. Results are in
-      `research/2026-10-02-turn-cost-benchmark.md`.
-    - **Owner discussion open (2026-10-02):** routing, and whether widened searches return to 40
-      passages.
-    - **Second pass of 40 against 15 (2026-10-02, $0.56):** the first pass's advantage for 15 did
-      not repeat. Pooled over 25 question-runs the two are level on depth: documents 1.32
-      against 1.44, pages 4.84 against 4.68, the expected document 25/25 against 24/25. 15 is
-      1.6 s slower at p50, and costs the same.
-    - **Done:** widened searches are back to 40 (owner, 2026-10-02; `2f0c71d`), deployed as
-      `research-chat` v46.
-    - **Still open:** the provider-routing decision. By the rule nothing ships; the owner has not
-      decided.
-    - **Re-measured 2026-10-15 on v59 code (about $2.50, `589d577`)**, with the same result, then
-      **option 3** (latency routing plus the prompt's coverage check, about $0.83, `93c42b0`): the
-      check brings the depth back (brief documents 2.33, expected document 15/15, pages 7.6 against
-      8.6) but takes the speed back too (brief total 37 s, as default routing). Nothing ships. The
-      owner chooses option 1 (latency routing: briefs in about 20 s, a third cheaper, slightly less
-      depth) or option 2 (default routing).
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
 - [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`

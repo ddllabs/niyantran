@@ -2029,3 +2029,8 @@ recommendations … We can fix everything that is under your control."
   see nothing yet. Push 7 production check: `POST /api/feeds/refresh` 503 `no-store` (dormant), GET
   405; Cabinet, Cricket Wire, Economic Overview and Geopolitics answer live. Rollback: delete the
   module's `feed_items` and `feed_state` rows as the database owner.
+- **2026-10-15: `research-chat` v60** deployed with `supabase functions deploy research-chat` from
+  `main` at `0dde63f` (F41 option 1, owner: "Go ahead with all your recommendations"): every model
+  call asks OpenRouter for the lowest-latency provider. Before the deploy the production source (v59,
+  downloaded with the CLI) matched `main` file for file (36 files), so v60 adds only this change.
+  `verify_jwt` stays false; unsigned POST 401, CORS preflight 204. Rollback: redeploy from `55b38c9`.
