@@ -22,7 +22,7 @@ export function projectEntertainmentSummary(raw, retrievedAt = new Date().toISOS
  if(!ENTERTAINMENT_FEATURES.includes(feature)) throw new Error('Unknown Entertainment module');
  const slice=entertainmentSlice(feature),adapter=raw.source?.adapter || 'unknown';
  const rows=(prepareDeskFeed(raw)?.rows || []).filter(row=>row && row.status!=='source_status');
- const unsupported=adapter!=='api' || raw.source?.kind==='backup-pack' || raw.kind==='backup-pack' || Boolean(raw.gdelt || raw.source?.gdelt);
+ const unsupported=adapter!=='api' || raw.source?.kind==='backup-pack' || raw.kind==='backup-pack';
  const identityField={tv:'show',box:'film','music-in':'track','music-us':'track',ott:'service',celebrity:'person'}[slice];
  const invalidShape=Boolean(identityField && rows.some(row=>!present(row[identityField])));
  const failed=invalidShape || raw.ok===false || unsupported || (!rows.length && raw.rows?.some(row=>row?.status==='source_status'));

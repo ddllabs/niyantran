@@ -198,7 +198,6 @@ function envelope({ feature, rows, adapter, note, fallback, kind, meta, timeline
       adapter: adapter || 'embedded',
       links: [...new Set((rows || []).map((r) => r.source_url).filter(Boolean))],
       note: note || 'Shipped register on this host.',
-      gdelt: false,
       kind: kind || '',
     },
     // Primary embedded registers are the product dataset — not a degraded live fallback.

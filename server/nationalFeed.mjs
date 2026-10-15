@@ -493,7 +493,6 @@ export async function serveNational(ctx) {
         links: [newsUrl],
         coverage: { from: '', through: '7d', exhaustive: false },
         fallback: false,
-        gdelt: false,
         kind: 'wire',
         note: `Google News coverage of "${person}" from the last 7 days. Media mentions, not a statement archive; no contradiction verdict.`,
         meta: {
@@ -517,7 +516,6 @@ export async function serveNational(ctx) {
       links: [newsUrl],
       coverage: { through: '7d' },
       fallback: false,
-      gdelt: false,
       kind: 'wire',
       note: `No coverage of "${person}" came back from the news search. No contradiction verdict is invented.`,
       meta: { section: 'MEDIA MENTIONS', status: 'OFFLINE', heading: heading(feat), person },
@@ -555,7 +553,6 @@ export async function serveNational(ctx) {
         links: [PIB_PRESS, topNews, ecoNews],
         coverage: { from: '', through: '3d', exhaustive: false },
         fallback: false,
-        gdelt: false,
         kind: 'panel',
         note: `Morning Brief: top stories ${topRows.length}, PIB ${pibRows.length}, economy ${ecoRows.length}. Not a personalised digest.`,
         meta: {
@@ -580,7 +577,6 @@ export async function serveNational(ctx) {
       links: [PIB_PRESS, topNews, ecoNews],
       coverage: { through: '3d' },
       fallback: false,
-      gdelt: false,
       kind: 'panel',
       note: 'Morning Brief sources returned no rows (PIB and news search unreachable). No digest was invented.',
       meta: { section: 'MORNING BRIEF', status: 'OFFLINE', heading: heading(feat) },

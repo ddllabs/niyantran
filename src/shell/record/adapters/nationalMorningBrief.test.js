@@ -21,7 +21,7 @@ import nationalMorningBrief from './nationalMorningBrief.js';
  *    Wire' | 'Economy'), headline (= title), topic (= section) and region (default 'India').
  *  - What the shell receives as `feed.rows` (lines 149-174): the three sections merged and deduped
  *    again, then `applyRecordChecklistToFeed` (adds id, entityName, eventDate, sourcePublishedAt,
- *    sourceName). These rows carry NO `section`. The feed envelope has source.gdelt,
+ *    sourceName). These rows carry NO `section`. The feed envelope has
  *    coverage { through: '3d' } and meta { pib: 'OFFLINE' | '<count>', ... }.
  */
 const BRIEF_FEATURE = 'National Morning Brief (Auto-digest)';
@@ -40,7 +40,7 @@ const envelope = (top, pib, eco, over = {}) => {
   const rows = dedupeNewsRows([...top, ...pib, ...eco]);
   return applyRecordChecklistToFeed({
     ok: true, tier: 'national', feature: BRIEF_FEATURE, rows,
-    source: { adapter: 'news-search', gdelt: true, note: `Morning Brief live — Top ${top.length} · PIB ${pib.length} · Economy ${eco.length}.` },
+    source: { adapter: 'news-search', note: `Morning Brief live — Top ${top.length} · PIB ${pib.length} · Economy ${eco.length}.` },
     coverage: { through: '3d' }, fallback: false,
     meta: { heading: 'MORNING BRIEF', items: rows.length, pib: pib.length ? String(pib.length) : 'OFFLINE', ministries: pib.length ? 'PIB window' : 'PIB offline', status: rows.length ? 'LIVE' : 'OFFLINE' },
     ...over,

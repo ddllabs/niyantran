@@ -828,7 +828,7 @@ function statementsViz(feed, rows) {
     kpis: [
       { label: 'ITEMS', value: String(rows.length), sub: 'in this window' },
       { label: 'PERSONAS TRACKED', value: '8', sub: 'public officials  -  no portraits' },
-      { label: 'WINDOW', value: '7 days', sub: 'GDELT TimelineVol when the wire resolves' },
+      { label: 'WINDOW', value: '7 days', sub: 'coverage volume when the wire resolves' },
       { label: 'KIND', value: 'COVERAGE', sub: 'media volume, not statements' },
     ],
     charts: vol.length
@@ -836,7 +836,7 @@ function statementsViz(feed, rows) {
           {
             type: 'spark',
             title: 'Coverage volume  -  7 days',
-            hint: `${feed?.meta?.person || 'Selected official'} · GDELT TimelineVol · news reporting search`,
+            hint: `${feed?.meta?.person || 'Selected official'} · coverage volume · news reporting search`,
             series: vol,
             peak,
             from: vol[0]?.year,
@@ -854,7 +854,7 @@ function morningViz(feed, rows) {
     kpis: [
       { label: 'ITEMS', value: String(rows.length), sub: 'in this window' },
       { label: 'PIB', value: feed?.meta?.pib || 'OFFLINE', sub: 'government wire' },
-      { label: 'WINDOW', value: '7 days', sub: 'GDELT TimelineVol when the wire resolves' },
+      { label: 'WINDOW', value: '7 days', sub: 'coverage volume when the wire resolves' },
       { label: 'KIND', value: 'DIGEST', sub: 'panel, not a table' },
     ],
     charts: [],

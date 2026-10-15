@@ -11,7 +11,7 @@ export function projectLawSummary(raw, retrievedAt = new Date().toISOString()) {
   const rows = prepareDeskFeed(raw)?.rows?.filter(row => row.status !== 'source_status') || [];
   const failed = raw.ok === false || (!rows.length && raw.rows?.some(row => row.status === 'source_status'));
   const adapter = raw.source?.adapter;
-  const reporting = adapter === 'news-search' || Boolean(raw.gdelt || raw.source?.gdelt) || rows.some(row => present(row.reporting_search));
+  const reporting = adapter === 'news-search' || rows.some(row => present(row.reporting_search));
   const stored = adapter === 'embedded' && !reporting;
   const sourceMode = failed ? 'unknown' : stored ? 'stored' : ['news-search', 'api', 'live'].includes(adapter) ? 'feed-backed' : 'unknown';
   const shared = stored && LAW_FEATURES.slice(0, 2).includes(feature);

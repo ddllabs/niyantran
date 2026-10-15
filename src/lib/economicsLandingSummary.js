@@ -36,7 +36,7 @@ export function projectEconomicsSummary(raw, retrievedAt = new Date().toISOStrin
   // Existing feeds already project political markets; this rejects raw non-political entries too.
   if (slice === 'manifold') rows = rows.filter(row => /^(yes|true|1)$/i.test(String(row.is_political || '')));
   const unavailable = slice === 'elections';
-  const wrongSource = slice !== 'ai' && (adapter === 'news-search' || raw.gdelt || raw.source?.gdelt);
+  const wrongSource = slice !== 'ai' && adapter === 'news-search';
   const unsupportedSource = raw.source?.kind === 'backup-pack' || raw.kind === 'backup-pack' || !['api', 'live', 'embedded', ...(slice === 'ai' ? ['news-search'] : [])].includes(adapter);
   const failed = raw.ok === false || wrongSource || unsupportedSource || (!rows.length && raw.rows?.some(row => row?.status === 'source_status'));
   const usable = !unavailable && !failed;

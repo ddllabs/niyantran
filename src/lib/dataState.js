@@ -131,7 +131,7 @@ export function resolveDataState(feed, { loading = false, error = '' } = {}) {
     };
   }
 
-  if (/geo-pack|law-pack|finance-pack|carbon-pack|backup-pack|dossier/i.test(kind) && !feed?.source?.gdelt) {
+  if (/geo-pack|law-pack|finance-pack|carbon-pack|backup-pack|dossier/i.test(kind)) {
     // Packs are ingested snapshots unless the envelope explicitly says live.
     if (/live/i.test(blob) && !/archive|fallback/i.test(blob)) {
       return {

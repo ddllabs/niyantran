@@ -23,7 +23,7 @@ export function projectSportsSummary(raw,retrievedAt=new Date().toISOString()) {
   const slice=sportsSlice(feature), adapter=raw.source?.adapter || 'unknown';
   const rows=(prepareDeskFeed(raw)?.rows || []).filter(row=>row && row.status!=='source_status');
   const unavailable=slice==='governance';
-  const unsupportedSource=adapter!=='api' || raw.source?.kind==='backup-pack' || raw.kind==='backup-pack' || Boolean(raw.gdelt || raw.source?.gdelt);
+  const unsupportedSource=adapter!=='api' || raw.source?.kind==='backup-pack' || raw.kind==='backup-pack';
   const headlinesAsFixtures=['fixtures','isl'].includes(slice) && rows.some(row=>!present(row.home) && !present(row.away) && !present(row.league));
   const headlinesAsDirectory=(slice==='business' && rows.some(row=>!present(row.league))) || (slice==='athletes' && rows.some(row=>!present(row.person)));
   // F164: `limitations` carries the note in plain words; the original stays in `sourceNote`.

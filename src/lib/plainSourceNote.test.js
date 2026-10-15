@@ -122,7 +122,7 @@ describe('plainSourceLine', () => {
   const cases = [
     // Geopolitics News Wire on BBC World when GDELT is paced out (server/featureFeed.mjs).
     [{ rows: rows(24, { outlet: 'BBC World' }), source: { adapter: 'news-search', links: [BBC, GDELT] }, served: 'live' }, 'Live · 24 stories from BBC World'],
-    [{ rows: rows(40, {}), source: { adapter: 'news-search', links: [GDELT], gdelt: true }, served: 'live' }, 'Live · 40 stories from GDELT news search'],
+    [{ rows: rows(40, {}), source: { adapter: 'news-search', links: [GDELT] }, served: 'live' }, 'Live · 40 stories from GDELT news search'],
     [{ rows: rows(25), source: { adapter: 'api', links: ['https://rss.applemarketingtools.com/api/v2/in/music/most-played/25/songs.json'] } }, 'Live · 25 records from Apple Music'],
     [{ rows: rows(38), fallback: true, served: 'archive', source: { adapter: 'embedded', kind: 'backup-pack', links: ['/backup/x.xlsx'] } }, 'Latest stored records'],
     [{ rows: rows(88), source: { adapter: 'embedded', links: [], kind: 'table' } }, 'Stored records from the published source'],

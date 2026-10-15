@@ -1349,7 +1349,7 @@ function computeFeedOverview(feed) {
     { label: 'LARGEST GROUP', value: top ? pct(top.value, n) : '—', sub: top ? String(top.label).slice(0, 42) : 'no category field' },
     {
       label: 'SOURCE',
-      value: feed?.tier === 'local' ? 'REGISTER' : feed?.fallback ? 'REGISTER' : feed?.source?.gdelt ? 'NEWS SEARCH' : 'LIVE',
+      value: feed?.tier === 'local' ? 'REGISTER' : feed?.fallback ? 'REGISTER' : 'LIVE',
       // F165: readable source names, never the internal adapter id.
       sub: feed?.tier === 'local' ? 'stored for this desk' : sourceNames(feed?.source?.links).slice(0, 2).join(', '),
     },

@@ -39,8 +39,8 @@ const gdeltStory = { title: 'Talks resume', domain: 'reuters.com', seendate: '20
 const rssStory = { title: 'Summit ends', outlet: 'BBC World', summary: 'Leaders met.', date: 'Mon, 12 Oct 2026 10:00:00 GMT', source_url: 'https://www.bbc.co.uk/news/x' };
 
 const CASES = [
-  ['news wire, news search', newsWire(gdeltStory, { rows: [gdeltStory], feed: { source: { gdelt: true }, coverage: { through: '3d' } } })],
-  ['news wire, BBC World feed', newsWire(rssStory, { rows: [rssStory], feed: { source: { gdelt: false } } })],
+  ['news wire, news search', newsWire(gdeltStory, { rows: [gdeltStory], feed: { coverage: { through: '3d' } } })],
+  ['news wire, BBC World feed', newsWire(rssStory, { rows: [rssStory], feed: {} })],
   ['morning brief, news search', nationalMorningBrief({ ...gdeltStory, section: 'Top of the Day' }, { rows: [gdeltStory] })],
   ['morning brief, PIB', nationalMorningBrief({ title: 'Cabinet approves', source: 'PIB', section: 'India Government', date: '2026-10-12', source_url: 'https://pib.gov.in/x' }, { rows: [] })],
   ['morning brief, Google News', nationalMorningBrief({ title: 'Rupee steady', source: 'Google News', section: 'Economy', date: '2026-10-12', source_url: 'https://news.google.com/x' }, { rows: [] })],

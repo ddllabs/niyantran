@@ -26,7 +26,7 @@ it('leaves no hand-typed bill, endpoint or uptime figures on the homepage and pr
 it('counts source endpoints from the source registry', () => {
   const registry = JSON.parse(readFileSync(new URL('../data/source-registry.json', import.meta.url), 'utf8'));
   expect(SITE_FIGURES.endpoints).toBe(registryEndpointCount(registry));
-  expect(SITE_FIGURES.endpoints).toBeGreaterThan(200);
+  expect(SITE_FIGURES.endpoints).toBeGreaterThan(100);
 });
 
 it('counts each endpoint URL once, across newline- or pipe-separated source lists', () => {

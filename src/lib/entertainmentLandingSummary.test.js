@@ -5,7 +5,7 @@ describe('Entertainment measured coverage', () => {
   it('preserves unknown failures versus a valid empty source', () => {
     expect(project(raw(F[0], [{ status: 'source_status', title: 'Offline' }]))).toMatchObject({count:null,availability:'error',columns:[],countryDistribution:[]});
     expect(project(raw(F[0]))).toMatchObject({count:0,availability:'empty'});
-    for(const source of [{adapter:'embedded',kind:'backup-pack'},{adapter:'news-search'},{adapter:'api',gdelt:true},{adapter:'unknown'}]) expect(project(raw(F[0],[{title:'Row'}],{source})).count).toBeNull();
+    for(const source of [{adapter:'embedded',kind:'backup-pack'},{adapter:'news-search'},{adapter:'unknown'}]) expect(project(raw(F[0],[{title:'Row'}],{source})).count).toBeNull();
   });
   it('rejects API headlines masquerading as structured records', () => {
     for(const feature of [F[0],F[1],F[4],F[5],F[6],F[7]]) expect(project(raw(feature,[{title:'Headline',date:'2026-10-08'}]))).toMatchObject({count:null,availability:'error',columns:[]});

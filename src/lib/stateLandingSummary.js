@@ -18,7 +18,7 @@ export function projectStateSummary(module, raw) {
   const kind = source.kind || raw?.kind || '';
   const adapter = source.adapter || 'unknown';
   const rows = (Array.isArray(raw?.rows) ? raw.rows : []).filter(row => row && typeof row === 'object' && !Array.isArray(row) && row.status !== 'source_status');
-  const unavailable = (adapter === 'embedded' && !rows.length && kind !== 'geo-pack') || (!rows.length && raw?.rows?.some(row => row?.status === 'source_status')) || !module.configured || adapter === 'planned' || kind === 'backup-pack' || !['embedded', 'api', 'news-search'].includes(adapter) || Boolean(source.gdelt || raw?.gdelt);
+  const unavailable = (adapter === 'embedded' && !rows.length && kind !== 'geo-pack') || (!rows.length && raw?.rows?.some(row => row?.status === 'source_status')) || !module.configured || adapter === 'planned' || kind === 'backup-pack' || !['embedded', 'api', 'news-search'].includes(adapter);
   const failed = raw?.ok !== true || !Array.isArray(raw?.rows);
   const measured = !unavailable && !failed;
   const geo = kind === 'geo-pack';
@@ -63,7 +63,7 @@ const hasRealRows = raw => Array.isArray(raw?.rows) && raw.rows.length > 0 && ra
 // Goa geography pack. The server always answers the pack modules with rows, so this was the only
 // archive answer the landing could fall back to. stateLandingParity.test.js checks it per module.
 export const NO_SHIPPED_REGISTER = 'No shipped register for this module on this host.';
-const noShippedRegister = module => ({ ok: true, tier: module.tier, feature: module.feature, rows: [], source: { adapter: 'embedded', links: [], note: NO_SHIPPED_REGISTER, gdelt: false, kind: '' }, fallback: false, meta: null });
+const noShippedRegister = module => ({ ok: true, tier: module.tier, feature: module.feature, rows: [], source: { adapter: 'embedded', links: [], note: NO_SHIPPED_REGISTER, kind: '' }, fallback: false, meta: null });
 
 /**
  * F157: the answer of /api/state-landing for one module: the summary the landing used to work out

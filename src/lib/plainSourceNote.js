@@ -224,7 +224,7 @@ export function plainSourceLine(feed, now = Date.now()) {
     return from ? `Stored records from ${from}` : 'Stored records from the published source';
   }
   if (!n) return from ? `Source: ${from}` : '';
-  const news = src.adapter === 'news-search' || Boolean(src.gdelt) || NEWS_LINK.test(links[0] || '');
+  const news = src.adapter === 'news-search' || NEWS_LINK.test(links[0] || '');
   const unit = news ? (n === 1 ? 'story' : 'stories') : n === 1 ? 'record' : 'records';
   // F169 C4: items kept by the scheduled refresh say when they were fetched, not "Live".
   const ago = isStoreAnswer(feed) ? asOfLabel(feed, now) : '';

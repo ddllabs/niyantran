@@ -24,7 +24,7 @@ export function projectCarbonSummary(raw, retrievedAt = new Date().toISOString()
   const adapter = raw.source?.adapter || 'unknown';
   const kind = raw.source?.kind || raw.kind || '';
   const rows = (prepareDeskFeed(raw)?.rows || []).filter(row => row && row.status !== 'source_status');
-  const unsupportedSource = !['embedded', 'api'].includes(adapter) || kind === 'backup-pack' || Boolean(raw.gdelt || raw.source?.gdelt);
+  const unsupportedSource = !['embedded', 'api'].includes(adapter) || kind === 'backup-pack';
   const emissionsAsPrice = ['pricing', 'monitor'].includes(slice) && rows.some(row => /EN\.GHG\.CO2/i.test(String(row.indicator_id || row.indicator || '')) || (!present(row.weighted_price_usd) && !present(row.ets_price_usd) && present(row.value)));
   const failed = raw.ok === false || unsupportedSource || emissionsAsPrice || (!rows.length && raw.rows?.some(row => row?.status === 'source_status'));
   const columns = failed ? [] : feedColumns(feature, rows).filter(c => rows.some(row => present(row[c.key]) || (c.fallback && present(row[c.fallback])))).slice(0, 16).map(({ key, label }) => ({ key, label }));

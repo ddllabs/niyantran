@@ -12,8 +12,10 @@ export const SITE_FIGURES = {
   fronts: MEASURED_FIGURES.fronts,
   modules: DESK_CATALOGUE.length,
   // F140 (owner 2026-10-13): unique source endpoint URLs in src/data/source-registry.json (the seed
-  // registry), counted 2026-10-14. siteFigures.test.js recounts the registry and fails if they drift.
-  endpoints: 246,
+  // registry). Recounted 2026-10-15 after F180 took the 131 GDELT search addresses out (GDELT is not
+  // asked, so they were never sources): 246 before, 115 after. siteFigures.test.js recounts the
+  // registry and fails if they drift.
+  endpoints: 115,
 };
 
 /** Unique source endpoint URLs across a registry's `sourceUrls` lists (newline- or pipe-separated). */

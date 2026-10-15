@@ -65,13 +65,13 @@ const STATUS_ROW = {
 
 const GDELT_FEED = {
   ok: true, tier: 'global', feature: 'Geopolitics News Wire', rows: GDELT_ROWS,
-  source: { adapter: 'news-search', links: ['https://api.gdeltproject.org/api/v2/doc/doc'], note: 'GDELT DOC 2.0 reporting search (geopolitics / diplomacy / UN) — not an official government dataset.', gdelt: true, kind: '' },
+  source: { adapter: 'news-search', links: ['https://api.gdeltproject.org/api/v2/doc/doc'], note: 'GDELT DOC 2.0 reporting search (geopolitics / diplomacy / UN) — not an official government dataset.', kind: '' },
   coverage: { from: '', through: '3d', exhaustive: false }, fallback: false, timeline: [],
   meta: { section: 'TOP WORLD STORIES — GDELT 2.0', status: 'GDELT 2.0 · 3-DAY WINDOW', note: '6 articles · reporting search, not an official feed' },
 };
 const RSS_FEED = {
   ok: true, tier: 'global', feature: 'Geopolitics News Wire', rows: RSS_ROWS,
-  source: { adapter: 'news-search', links: ['https://feeds.bbci.co.uk/news/world/rss.xml'], note: 'Live BBC World RSS (GDELT DOC 2.0 unavailable: rate limited).', gdelt: false, kind: '' },
+  source: { adapter: 'news-search', links: ['https://feeds.bbci.co.uk/news/world/rss.xml'], note: 'Live BBC World RSS (GDELT DOC 2.0 unavailable: rate limited).', kind: '' },
   coverage: { from: '', through: 'present', exhaustive: false }, fallback: false, timeline: [],
   meta: { section: 'TOP WORLD STORIES — BBC WORLD RSS', status: 'LIVE · BBC WORLD', note: '4 stories · GDELT paced ≥5s; primary DOC 2.0 search retries on the next refresh' },
 };
@@ -342,7 +342,7 @@ describe('01 at a glance: Feed state board', () => {
     for (const through of ['', 'present', 'three days', undefined, '0d']) {
       expect(boardRow(gm(g1, gctx(undefined, { ...GDELT_FEED, coverage: { through } })), 'Feed window').value, String(through)).toBe('Not on record');
     }
-    expect(boardRow(gm(g1, { rows: GDELT_ROWS, feed: { source: { gdelt: true } } }), 'Feed window').value).toBe('Not on record');
+    expect(boardRow(gm(g1, { rows: GDELT_ROWS, feed: {} }), 'Feed window').value).toBe('Not on record');
   });
 
   it('counts the stories on the wire without the source-status row', () => {
@@ -527,15 +527,15 @@ describe('footer and provenance', () => {
     expect(gm(g1).footer.provenance.source).not.toMatch(/BBC/);
   });
 
-  it('follows the feed flag when it is given, and the row shape when it is not', () => {
-    expect(newsWire({ ...r1 }, { feed: { source: { gdelt: false } } }).footer.provenance.source).toBe('BBC World feed');
-    expect(newsWire({ ...g1 }, { feed: { source: { gdelt: true } } }).footer.provenance.source).toMatch(/^News search/);
-    // A row with no identifying fields takes its feed from the envelope's flag.
+  // F179: the envelope's `gdelt` flag is gone (nothing searches GDELT); the row's own fields say which feed made it.
+  it('tells the feed from the row shape alone, whatever the envelope says', () => {
+    expect(newsWire({ ...r1 }, { feed: {} }).footer.provenance.source).toBe('BBC World feed');
+    expect(newsWire({ ...g1 }, { feed: {} }).footer.provenance.source).toMatch(/^News search/);
+    expect(newsWire({ ...g1 }, { feed: { source: { gdelt: false } } }).footer.provenance.source).toMatch(/^News search/);
+    // A row with no identifying fields is not guessed at.
     const bareRow = { title: 'Headline only', date: 'Mon, 12 Oct 2026 14:30:00 GMT' };
-    expect(newsWire(bareRow, { feed: { source: { gdelt: true } } }).footer.provenance.source).toMatch(/^News search/);
-    expect(newsWire(bareRow, { feed: { source: { gdelt: true } } }).badge.text).toBe('Reporting search');
-    expect(newsWire(bareRow, { feed: { source: { gdelt: false } } }).footer.provenance.source).toBe('BBC World feed');
-    expect(newsWire(bareRow, { feed: { source: { gdelt: false } } }).glance.tiles.map((t) => t.value)).toContain('BBC World feed');
+    expect(newsWire(bareRow, { feed: {} }).footer.provenance.source).toBe('Geopolitics News Wire feed');
+    expect(newsWire(bareRow, { feed: {} }).badge).toBeUndefined();
     const unknown = newsWire({ title: 'Headline only' });
     expect(unknown.footer.provenance.source).toBe('Geopolitics News Wire feed');
     expect(unknown.footer.provenance.source).not.toMatch(/GDELT|BBC/);

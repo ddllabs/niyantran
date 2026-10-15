@@ -47,7 +47,7 @@ export function projectNationalSummary(raw, retrievedAt = new Date().toISOString
   const adapter = raw.source?.adapter;
   const unavailable = raw.ok === false || (!rows.length && (adapter === 'planned' || raw.rows?.some(r => r.status === 'source_status')));
   const addedFeature = NATIONAL_FEATURES.indexOf(feature) >= 12;
-  const reporting = addedFeature && (adapter === 'news-search' || Boolean(raw.gdelt || raw.source?.gdelt) || rows.some(r => populated([r], 'reporting_search')));
+  const reporting = addedFeature && (adapter === 'news-search' || rows.some(r => populated([r], 'reporting_search')));
   const sourceMode = feature === NATIONAL_FEATURES[13] && adapter === 'internal' ? 'simulated'
     : [NATIONAL_FEATURES[9], NATIONAL_FEATURES[10], NATIONAL_FEATURES[14]].includes(feature) ? 'curated'
     : adapter === 'embedded' ? 'stored' : ['live', 'api', ...(addedFeature ? ['news-search'] : [])].includes(adapter) && !raw.fallback ? 'feed-backed' : 'unknown';
