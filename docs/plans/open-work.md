@@ -454,7 +454,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   click outside or Escape (owner's choice), and picking the selected row again reopens its record.
   On `task/ui-polish`. Remaining: review, merge, push, owner check.
   *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
-- [ ] **F140. Homepage header, hero, globe and "Curated for" strip to the client's design.** Owner
+- [x] **F140. Homepage header, hero, globe and "Curated for" strip to the client's design.** Owner
   request 2026-10-13 (client review of `NTER-Homepage-Final.html` and `globe-animation/`). The
   design's look, our data and links: white header kept sticky at 72 px with "Data coverage", Sign in
   beside "Get started ↗" and "BY NTER.PRO"; the design's hero (no mouse-follow); the orbiting globe
@@ -470,7 +470,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   reconnect and a partly hidden rear label stays clickable through Earth. The homepage's sideways
   scroll at 375 px is fixed on `task/mobile-overflow` (the trivia band, see the Done entry below);
   its 47 px overhang on desktop is left as it is.
-- [ ] **F141. One globe across the marketing site.** Owner request 2026-10-14: the client's globe
+  *Done 2026-10-15 (`bba5434`): owner checked on production; the three small defects fixed: the "Data coverage" scroll waits for the home page instead of an 80 ms timer, the globe's focus listeners are added once and removed on disconnect, and a disc over Earth stops clicks on the hidden part of rear labels (checked in a browser: front labels and the visible edge of a rear label still click). Rear labels stay keyboard-focusable on purpose (a focused label comes to the front).*
+- [x] **F141. One globe across the marketing site.** Owner request 2026-10-14: the client's globe
   (F140) replaces the old `AuthEarth` on sign-in, sign-up and pricing (globe only; page styling
   stays), behind one shared wrapper; then the old globe is retired.
   [Spec](../specs/2026-10-14-one-globe.md). Built on `task/one-globe`: `DataGlobe.jsx` on all four
@@ -481,6 +482,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   a pause button on every globe (WCAG 2.2.2, as the old globe had), the mount wiring tested, the old
   globe's docs marked historical. Left for later: the `three` package has no importer now (it was the
   old globe's renderer); removing it is a dependency change. Remaining: merge, push.
+  *Done 2026-10-15 (`9bb01f9`): owner checked on production; the unused `three` dependency removed.*
 - [x] **F142. Live, database-backed figures on the marketing site.** Owner request 2026-10-14: today
   9,817 bills and 3,431 documents are typed constants, and the carousel counts come from snapshot
   files, so new records never show. One `site_figures()` database function (service role) behind a
@@ -983,7 +985,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     fixture `supabase/tests/admin_model_plan.sql` (with vacuity check), Deno and Vitest tests. To
     go live: apply the migration, then deploy `admin-models`.
 
-- [ ] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
+- [x] **F99. Reconcile public pricing copy and inventory retired commercial UI.** Pricing page done on `task/pricing-inr` (2026-10-12): owner INR plans, no GST, no unsupported claims; see the legal-policies spec. Remaining: retired commercial UI inventory below, and billing alignment (F109). Free signed-in desk access is implemented, but src/lib/pricingStore.js still advertises five core desks in public pricing. UpgradeModal.jsx has no production importer; copyPolicy.js has test-only references; onboarding.css retains unused niy-plan-wait styling. These are outside the approved terminal/signup scope. Decide marketing scope and exact removal inventory before changing them; billing history and AI limits are not removal targets.
+  *Done 2026-10-15 (`f664612`, owner: "fix the loose ends"): `src/shell/copyPolicy.js` and its test and the unused `.niy-plan-wait` style removed; the pricing copy and retired screens were already done.*
 
 
 
