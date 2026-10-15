@@ -914,7 +914,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   - Remaining planned: District Governance & Grievance and District Crime & Safety (no source in the
     repo), Municipal & Panchayat Tender Aggregator (owner's source awaited); State Tender Aggregator
     likewise.
-- [ ] **F201. RBI Handbook registers keep only the newest whole years per table.** One store page is
+- [x] **F201. RBI Handbook registers keep only the newest whole years per table.** One store page is
   500 figures, so 85 of 152 tables drop older years (e.g. table 176 keeps 480 of 12,565 figures, and
   its newest year alone is over 500, so 4 indicators including "Outstanding Liabilities" are left out;
   table 95 keeps 16 of 21 indicators). Full history needs several store variants per table (by year
@@ -925,7 +925,24 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   pages), split only tables 176 and 151 into whole-year blocks, no migration; T1–T11 with checkpoints.
   Owner 2026-10-15: approach approved; full history shown by default; a Year control on the Cross-State
   Comparison; and the AI must be able to query the figures ("Isn't that the entire point: AI should
-  query over it") — added as T9b: load the full handbook into desk_rows for search_desk_rows. In build.
+  query over it") — added as T9b: load the full handbook into desk_rows for search_desk_rows.
+  *Done 2026-10-16 (`c18110f`, review fixes `dec9411`): every figure stored (101,277; Tables 176 and 151
+  in whole-year blocks), served whole from the store (Table 176 p95 264 ms), a Years control on
+  block tables and a Year control on the Cross-State Comparison; database +80 MB (1,733 MB). Production
+  steps and probes: coordination.md, 2026-10-16. An independent review found two defects before go-live,
+  both fixed with tests (the Year control offered years the server ignored; `years` values could
+  multiply live RBI fetches and kept answers).*
+  - [ ] **T9b production: the handbook in desk_rows for the AI.** Built and checked locally (102,569
+    rows, 3 sample questions answered exactly); about +199 MB. Also needs the eight handbook modules in
+    the AI's module catalogue (`supabase/functions/_shared/deskCatalog.json`, research-chat redeploy),
+    or the AI can find the figures only by a search across all desks. Waiting for the owner.
+  - [ ] **Before the 2026-27 edition is loaded: stable block names.** `yearBlocks` groups newest-first, so
+    one new year renames most older blocks; a shrunk block is refused and keeps serving last edition's
+    years, and obsolete blocks keep `serve` on until the printed SQL is run. Group oldest-first or have
+    the loader switch new blocks on and obsolete ones off in one step (review finding 3).
+  - [ ] Review, optional: the Comparison's store path omits an indicator with no figure for the year asked
+    (the page path shows its latest) and can miss a previous year across a block edge; `wholeVariant`
+    always reads 4 pages; "2019-21" spans and financial years are dated by their first year in desk_rows.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses

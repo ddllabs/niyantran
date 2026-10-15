@@ -2091,3 +2091,28 @@ recommendations … We can fix everything that is under your control."
   '*/5 * * * *', …)` (job 5) and `cron.schedule('feed-purge', '17 3 * * *', …)` (job 6). Scheduled
   modules keep `serve` off for a day; then compare and serve class by class. Rollback:
   `select cron.unschedule('feed-refresh');`. The Party Organisation Map page scroll fixed (`67e16b4`).
+- **2026-10-15: F202 W3 and the record brief format live.** `3cfe20c` pushed; desk-brief redeployed
+  for the module list (the deployed copy differed from main only in `deskModules.json`). Migration 59
+  `20261015240000_record_brief_format` applied with `db push --linked` (dry run first: the only pending
+  one), then desk-brief deployed, then `eaab332` pushed (the order the migration's default argument
+  needs). Production check: Goa Constituency Register → Panaji shows one analysis box in the new shape
+  and "Source date: dataset vintage …". Rollback: the migration's Down block, then redeploy desk-brief
+  from `81c98ee`.
+- **2026-10-15: F202 news relevance and data files live** (`dec0e08`, `af03724`). desk_rows reloaded
+  with `SUPABASE_URL=https://vfgcppstyzjarlzyqdac.supabase.co npx vite-node --config vitest.config.js
+  scripts/load-desk-rows.mjs -- --tier … --feature …` (dry run first; `.env.local` holds the URL as
+  `VITE_SUPABASE_URL` only, so the public URL is given inline) for Bill Passage, Policy Intelligence
+  Graph, Heads of State and Carbon Registry Wire; `analyze public.desk_rows` (34,183 rows). Production:
+  State Governance Brief 52 rows, all dated, no national PIB rows.
+- **2026-10-16: F201 full RBI history live** (`c18110f`, review fixes `dec9411`). Register rebuilt
+  offline (101,277 figures; the capped file kept as `tmp/rbi-handbook/handbook-2024-25.capped-2026-10-15.json`);
+  deploy first (Table 176 still 480 stored rows, no Years control); canary State Fiscal Deep-Dive, then
+  the other seven, each `load-feed-register.mjs --module … --apply --target prod --confirm-prod --force`
+  (no refusals; the Table 176 blocks of up to 1,824 items accepted); the 7 new block variants read back
+  (6 × 176, 151@2019-20) and switched on. Probes: all eight modules `served: store`; Table 176 has 7
+  Years blocks and each loads (1,765–1,824 rows); Table 95 21 indicators; the Comparison ranks 2015 for
+  Table 176 from the stored register (previous year 2014); ten reads of Table 176 p95 264 ms (target
+  1.0 s, so task X is not needed); 158 handbook variants. Database 1,653 MB → 1,733 MB, feed_items
+  130 → 211 MB. Checked in the owner's tab: Table 176 → Years "2005 to 2007" shows 1,767 rows.
+  Rollback: `update feed_state set serve = false where variant like '%@%'` and reload with the capped file.
+  Not done: the handbook in desk_rows for the AI (T9b's production load) waits for the owner.

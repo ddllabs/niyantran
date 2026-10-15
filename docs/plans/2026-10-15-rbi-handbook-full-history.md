@@ -1,6 +1,8 @@
 # Plan: RBI Handbook registers keep every year (F201)
 
-> **Status: Living.** Written 2026-10-15. Spec:
+> **Status: Historical (dated).** Written 2026-10-15; carried out 2026-10-15/16 (T1–T10; T9b built,
+> its production load waits for the owner). Results: `docs/agents/coordination.md` Operations, 2026-10-16.
+> Written 2026-10-15. Spec:
 > [2026-10-15-rbi-handbook-full-history](../specs/2026-10-15-rbi-handbook-full-history.md) (option
 > (c+): whole-year blocks of at most 2,000 figures in the feed store, with no migration). Work does not
 > start until the owner approves the spec's "Decisions for the owner". The item is tracked as F201 in
