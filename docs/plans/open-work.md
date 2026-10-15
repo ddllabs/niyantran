@@ -844,7 +844,13 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   data-migration task with an exact inventory. Also from the owner's review: the AI record brief takes
   the format of the code-written blue box (brief, why it matters, watch for, tags) and that box is
   removed (one analysis box per record); "Source date" and "Last verified" fall back to the dataset's
-  as-of and our fetch time. In progress: badge, news relevance, columns/labels, data files, brief format.
+  as-of and our fetch time.
+  - Done 2026-10-15: cause 1 (`b9830fa` badge, `c05db22` source line) and cause 8 (`3cfe20c`: columns
+    match the answers, only open prediction markets and play money labelled, Goa modules named Goa, no
+    "Vernacular" claim, State Tender Aggregator planned, table cells decode HTML entities; desk-brief
+    redeployed for the module list). Checks: lint, build, router import, 5,779 Vitest (an earlier run
+    under load from parallel agents had 10 failures that pass alone and in a quiet rerun).
+  - In progress: news relevance (causes 2–5), data files (cause 7), brief format and provenance dates.
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
   2026-10-15: "The source is in that only … We just have to make them up and working"; the tender
   aggregators wait for the owner's source. [Research](../research/2026-10-15-planned-module-sources.md):
