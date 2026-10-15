@@ -55,6 +55,20 @@ const FEATURE_DISPLAY_ALIASES = {
   'District Economic & Livelihood Indicators': 'State Economic & Livelihood Indicators',
   'District Agriculture & Rural Indicators': 'State Agriculture & Rural Indicators',
   'District Infrastructure & Connectivity': 'State Infrastructure & Connectivity',
+  // F202: modules holding only the Goa geography pack say Goa (src/desks/landing/statePresentation.js).
+  'Constituency Register': 'Goa Constituency Register',
+  'Roll Demography': 'Goa Roll Demography',
+  'Community Bloc Matrix': 'Goa Community Bloc Matrix',
+  'Election Results 2017–2024': 'Goa Election Results 2017–2024',
+  'Split-Ticket & Competitiveness': 'Goa Split-Ticket & Competitiveness',
+  'SIR Roll Churn': 'Goa SIR Roll Churn',
+  'Registration Gap': 'Goa Registration Gap',
+  'Booth-level Results Database': 'Goa Booth-Level Results Database',
+  'Booth Political History': 'Goa Booth Political History',
+  'Local Governance Brief': 'Goa Local Governance Brief',
+  // F202: English news; nothing is vernacular or translated.
+  'Assembly Proceedings Digest (Vernacular, Translated)': 'Assembly Proceedings Digest',
+  'District Media Monitor (Vernacular District Editions)': 'District Media Monitor',
 };
 
 export function isIndustryFeature(name) {

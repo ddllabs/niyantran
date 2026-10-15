@@ -3,6 +3,7 @@ import { STATE_PRESENTATION } from './statePresentation.js';
 import { DESK_CATALOGUE } from './deskCatalogue.js';
 import { modulesForTier, groundingCatalogModules } from '../catalog.js';
 import { parseDeskHash, deskHash } from '../../lib/deskRoute.js';
+import { featureMenuLabel } from '../../lib/national.js';
 
 const modules = STATE_PRESENTATION.groups.flatMap(group => group.modules);
 describe('State reference mapping and preserved destinations', () => {
@@ -21,5 +22,24 @@ describe('State reference mapping and preserved destinations', () => {
   });
   it.each(modules)('resolves $feature without returning Home or National', module => {
     expect(parseDeskHash(deskHash('state', module.feature))).toEqual({ tab: 'state', feature: module.feature });
+  });
+});
+
+// F202 (module-quality audit 2026-10-15): ten modules hold only the Goa geography pack, and two
+// promised vernacular or translated coverage while they show English news. The names say so; the
+// keys (feature) stay, so routes, presets and stored rows are unchanged.
+const GOA_ONLY = ['Constituency Register', 'Roll Demography', 'Community Bloc Matrix', 'Election Results 2017–2024', 'Split-Ticket & Competitiveness', 'SIR Roll Churn', 'Registration Gap', 'Booth-level Results Database', 'Booth Political History', 'Local Governance Brief'];
+const ENGLISH_NEWS = ['Assembly Proceedings Digest (Vernacular, Translated)', 'District Media Monitor (Vernacular District Editions)'];
+describe('State module names say what the module holds (F202)', () => {
+  it.each(GOA_ONLY)('%s is named as Goa-only on the landing and in menus', feature => {
+    const module = modules.find(item => item.feature === feature);
+    expect(module.title).toMatch(/\bGoa\b/);
+    expect(featureMenuLabel({ htmlFeature: feature })).toBe(module.title);
+    expect(DESK_CATALOGUE.find(entry => entry.feature === feature).aliases).toContain(feature);
+  });
+  it.each(ENGLISH_NEWS)('%s no longer promises vernacular or translated coverage', feature => {
+    const module = modules.find(item => item.feature === feature);
+    expect(module.title).not.toMatch(/vernacular|translat/i);
+    expect(featureMenuLabel({ htmlFeature: feature })).toBe(module.title);
   });
 });

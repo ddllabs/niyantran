@@ -166,3 +166,50 @@ describe('the Manifold election loader (F196)', () => {
     expect(out.source.note).toMatch(/not polls/i);
   }, 30_000);
 });
+
+/**
+ * F202 (module-quality audit 2026-10-15): 33 of 50 Election Forecast rows were markets already
+ * resolved (2022-2026), and the Political Odds board showed markets that had closed and two
+ * "never resolves" markets closing on 9999-12-31. Both boards now list open markets only, and a
+ * close date of 9999-12-31 (Manifold's "no close date") is shown as none.
+ */
+describe('only open markets on the prediction boards (F202)', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+
+  const PAST = Date.parse('2024-06-04T00:00:00Z');
+  const FUTURE = Date.parse('2029-05-31T00:00:00Z');
+  const NEVER = Date.parse('9999-12-31T23:59:59Z');
+  const searchAnswer = (markets) => vi.fn(async (url) => (/search-markets/.test(String(url))
+    ? { ok: true, status: 200, json: async () => markets }
+    : { ok: false, status: 404, json: async () => ({}) }));
+
+  it('Election Forecast drops resolved and closed markets', async () => {
+    vi.stubGlobal('fetch', searchAnswer([
+      market({ id: 'open', question: 'Will Narendra Modi be Prime Minister of India after 2029 election?', closeTime: FUTURE }),
+      market({ id: 'resolved', question: 'PM Modi (BJP) wins Bihar election?', isResolved: true, closeTime: Date.parse('2025-11-23T00:00:00Z') }),
+      market({ id: 'closed', question: 'How many seats will the ruling BJP-led National Democratic Alliance win in the 2024 Indian General Election?', closeTime: PAST }),
+      market({ id: 'resolved-future', question: 'Who will win the 2025 Delhi Elections?', isResolved: true, closeTime: FUTURE }),
+    ]));
+    const { loadManifoldIndiaElections } = await import('../../server/financeApi.mjs');
+    const out = await loadManifoldIndiaElections();
+    expect(out.rows.map((r) => r.source_url.split('/').pop())).toEqual(['open']);
+    expect(out.rows.every((r) => r.resolved === 'No')).toBe(true);
+  });
+
+  it('Political Odds drops resolved and closed markets and shows no 9999-12-31 close date', async () => {
+    const political = (over) => ({ ...market(over), groupSlugs: ['politics'], isPolitics: true });
+    vi.stubGlobal('fetch', searchAnswer([
+      political({ id: 'open', question: 'Who will win the 2026 United States Senate election in Iowa?', closeTime: FUTURE, volume24Hours: 50 }),
+      political({ id: 'closed', question: 'Will Jeremy Corbyn lead a registered political party by the end of 2025?', closeTime: PAST, volume24Hours: 40 }),
+      political({ id: 'resolved', question: 'Nothing Ever Happens: Febuary', isResolved: true, closeTime: FUTURE, volume24Hours: 30 }),
+      political({ id: 'stock', question: 'Political opinions stock market', closeTime: NEVER, volume24Hours: 0 }),
+    ]));
+    const { loadManifoldPolitical } = await import('../../server/financeApi.mjs');
+    const out = await loadManifoldPolitical();
+    expect(out.rows.map((r) => r.question)).toEqual(['Who will win the 2026 United States Senate election in Iowa?', 'Political opinions stock market']);
+    const stock = out.rows.find((r) => r.question === 'Political opinions stock market');
+    expect(stock.date).toBe('');
+    expect(stock.close_time).toBe('');
+    expect(out.rows.some((r) => /^9999/.test(`${r.date}${r.close_time}`))).toBe(false);
+  });
+});

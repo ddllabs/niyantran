@@ -59,7 +59,7 @@ describe('planned modules', () => {
 
   // F196: modules built from sources the repository already named (the party map from the MLA register).
   it('no longer lists the modules F196 built', () => {
-    expect(PLANNED_MODULES.size).toBe(3);
+    expect(PLANNED_MODULES.size).toBe(4);
     for (const [tier, feature] of [
       ['sports', 'Sports Governance & Policy'],
       ['state', "Governor Friction & President's Rule Tracker"],
@@ -80,7 +80,16 @@ describe('planned modules', () => {
     // No source yet (owner, 2026-10-15): these stay planned.
     expect([...PLANNED_MODULES].sort()).toEqual([
       'local:Municipal & Panchayat Tender Aggregator', 'state:District Crime & Safety Indicators',
-      'state:District Governance & Grievance Indicators',
+      'state:District Governance & Grievance Indicators', 'state:State Tender Aggregator (State e-Procurement)',
     ]);
+  });
+
+  // F202 (module-quality audit 2026-10-15): the page answered "Module planned" (its scrape adapter
+  // has no extraction) while the catalogue marked it configured and the landing counted it. The
+  // owner will supply a source later; until then it is planned everywhere.
+  it('State Tender Aggregator is planned, and the catalogue agrees', () => {
+    expect(isPlannedModule('state', 'State Tender Aggregator (State e-Procurement)')).toBe(true);
+    const entry = DESK_CATALOGUE.find((m) => m.id === 'state:State Tender Aggregator (State e-Procurement)');
+    expect(entry.configured).toBe(false);
   });
 });

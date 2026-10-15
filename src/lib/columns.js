@@ -222,12 +222,14 @@ const PRESETS = [
     ],
   },
   {
+    // F202: the module sends the curated flagship-programme list (src/data/nationalCurated.js
+    // FLAGSHIP_PROGRAMMES), not World Bank projects; these are the fields its rows carry.
     test: /centre-sanctioned projects/i,
     cols: [
-      { key: 'project_name', label: 'PROJECT', fallback: 'title', dot: true },
-      { key: 'status', label: 'STATUS', pill: true },
-      { key: 'totalamt', label: 'AMOUNT', fallback: 'totalamt' },
-      { key: 'boardapprovaldate', label: 'APPROVED', fallback: 'date' },
+      { key: 'programme', label: 'PROGRAMME', fallback: 'title', dot: true, keep: true },
+      { key: 'domain', label: 'DOMAIN' },
+      { key: 'verifiable_status', label: 'VERIFIABLE STATUS' },
+      { key: 'activity', label: 'ACTIVITY', pill: true },
     ],
   },
   {
@@ -236,6 +238,44 @@ const PRESETS = [
       { key: 'date', label: 'YEAR', fallback: 'year', num: true },
       { key: 'value', label: 'INDUSTRY % OF GDP', num: true },
       { key: 'country', label: 'ECONOMY', fallback: 'title' },
+    ],
+  },
+  {
+    // F202: Wikidata MLA profiles (section "MLA profiles") and Google News coverage (section
+    // "Statement / coverage wire") in one table; the SPARQL variable names (personLabel, …) stay hidden.
+    test: /^mla report card/i,
+    cols: [
+      { key: 'title', label: 'MLA / HEADLINE', fallback: 'mla_name', dot: true, keep: true },
+      { key: 'section', label: 'SECTION' },
+      { key: 'stateLabel', label: 'STATE', fallback: 'state' },
+      { key: 'positionLabel', label: 'POSITION', fallback: 'position' },
+      { key: 'date', label: 'DATE', date: true },
+      { key: 'publisher', label: 'PUBLISHER' },
+      { key: 'summary', label: 'SUMMARY', default: false },
+    ],
+  },
+  {
+    // F202: Wikidata districts. Area is Wikidata's number as recorded: its unit is not the same for
+    // every district (Kasganj 1.993, Kutch 45674 on 2026-10-15), so the label does not claim km².
+    test: /^district performance tracker/i,
+    cols: [
+      { key: 'districtLabel', label: 'DISTRICT', fallback: 'title', dot: true, keep: true },
+      { key: 'population', label: 'POPULATION', num: true },
+      { key: 'area', label: 'AREA (AS RECORDED)', num: true },
+    ],
+  },
+  {
+    // F202: the Energy & Critical Minerals dossier; map coordinates and internal ids stay hidden.
+    test: /^energy$/i,
+    cols: [
+      { key: 'name', label: 'MINERAL', fallback: 'title', dot: true, keep: true },
+      { key: 'region', label: 'GROUP' },
+      { key: 'use', label: 'USE' },
+      { key: 'topProducers', label: 'TOP PRODUCERS' },
+      { key: 'chinaShare', label: 'CHINA SHARE' },
+      { key: 'status', label: 'SUPPLY STATUS', pill: true },
+      { key: 'latest', label: 'LATEST CONTEXT' },
+      { key: 'intensity', label: 'RELATIVE SUPPLY RISK (ILLUSTRATIVE)', num: true, default: false },
     ],
   },
   {
@@ -672,8 +712,9 @@ const PRESETS = [
     cols: [
       { key: 'question', label: 'MARKET', fallback: 'title', dot: true, keep: true },
       { key: 'probability', label: 'YES %', num: true },
-      { key: 'volume_24h', label: 'VOL 24H', num: true },
-      { key: 'total_volume', label: 'VOLUME', num: true },
+      // F202: Manifold volumes are play money (mana), not currency.
+      { key: 'volume_24h', label: 'VOL 24H (MANA)', num: true },
+      { key: 'total_volume', label: 'VOLUME (MANA)', num: true },
       { key: 'date', label: 'CLOSES' },
     ],
   },
@@ -687,8 +728,9 @@ const PRESETS = [
       { key: 'top_outcome_pct', label: 'LEADING %', num: true },
       { key: 'total_volume', label: 'VOLUME (MANA)', num: true },
       { key: 'close_time', label: 'CLOSES' },
-      { key: 'resolved', label: 'RESOLVED', pill: true },
       { key: 'market_type', label: 'TYPE', pill: true },
+      // F202: the live board lists open markets only (server/financeApi.mjs), so this is all "No".
+      { key: 'resolved', label: 'RESOLVED', pill: true, default: false },
     ],
   },
   {
@@ -929,11 +971,34 @@ export function feedColumns(feature, rows) {
   }));
 }
 
+const NAMED_ENTITY = { amp: '&', quot: '"', apos: "'", nbsp: ' ' };
+const ENTITY = /&(?:(amp|quot|apos|nbsp)|#(\d{1,7})|#x([0-9a-f]{1,6}));/gi;
+
+/**
+ * F202: the HTML entities feeds leave in titles ("Vajiram &amp; Ravi", "Variety&#8217;s") as text.
+ * Decoded until nothing changes, so the result is the same whether or not the server already
+ * decoded it (or encoded it twice). `&lt;` and `&gt;` (named or numeric) are left alone, so nothing
+ * turns back into markup.
+ */
+export function unescapeEntities(value) {
+  let s = String(value);
+  for (let prev = ''; s !== prev && s.includes('&');) {
+    prev = s;
+    s = s.replace(ENTITY, (whole, name, dec, hex) => {
+      if (name) return NAMED_ENTITY[name.toLowerCase()];
+      const code = dec ? Number(dec) : parseInt(hex, 16);
+      if (!(code > 0 && code <= 0x10ffff) || code === 60 || code === 62) return whole;
+      return String.fromCodePoint(code);
+    });
+  }
+  return s;
+}
+
 export function cellOf(row, col) {
   const v = row[col.key];
-  if (v != null && String(v).trim() !== '') return String(v);
+  if (v != null && String(v).trim() !== '') return unescapeEntities(v);
   if (col.fallback && row[col.fallback] != null && String(row[col.fallback]).trim() !== '') {
-    return String(row[col.fallback]);
+    return unescapeEntities(row[col.fallback]);
   }
   return '';
 }

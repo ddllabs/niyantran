@@ -126,8 +126,12 @@ describe('F176: no loader asks GDELT', () => {
     stubWorld(true);
     const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
     // A scrape row: no live extraction is scheduled, whatever the registry once held as a fallback.
+    // F202: the State Tender Aggregator (the scrape row with no stored archive) is now a planned
+    // module, so it answers the planned note; still never the news-search one, never GDELT.
     const out = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Tender Aggregator (State e-Procurement)' }));
-    expect(out.source.note).toBe('Live extraction is not scheduled for this adapter. No records were invented.');
+    expect(out.source.note).toBe('Module planned. No data source is connected for this module yet.');
+    expect(out.source.note).not.toMatch(/news search/i);
+    expect(JSON.stringify(out)).not.toMatch(/gdelt/i);
   });
 
   it('the home conflict note names no GDELT', async () => {

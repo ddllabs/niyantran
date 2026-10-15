@@ -406,10 +406,6 @@
     },
     {
       "tier": "state",
-      "feature": "State Tender Aggregator (State e-Procurement)"
-    },
-    {
-      "tier": "state",
       "feature": "Centre-State Fund Flow Tracker"
     },
     {

@@ -257,6 +257,22 @@ export async function loadWorldExchanges() {
   return fresh;
 }
 
+/**
+ * F202 (module-quality audit 2026-10-15): the prediction boards list open markets only. A market
+ * Manifold has resolved, or whose close time has passed, is a result, not odds (33 of 50 Election
+ * Forecast rows were). A market with no close time is open.
+ */
+function isOpenMarket(m, now = Date.now()) {
+  if (!m || m.isResolved) return false;
+  const close = Number(m.closeTime);
+  return !Number.isFinite(close) || close > now;
+}
+
+// Manifold writes "never closes" as 9999-12-31; the boards show no close date for it.
+const NO_CLOSE_DATE = /^9999-12-31/;
+const closeDate = (value) => (NO_CLOSE_DATE.test(String(value ?? '')) ? '' : value);
+const withoutNeverCloses = (row) => ({ ...row, date: closeDate(row.date), close_time: closeDate(row.close_time) });
+
 const MANIFOLD_SEARCH = [
   'https://api.manifold.markets/v0/search-markets?term=election&limit=100',
   'https://api.manifold.markets/v0/search-markets?term=politics&limit=100',
@@ -275,10 +291,10 @@ export async function loadManifoldPolitical() {
     for (const m of arr) {
       if (!m?.id || seen.has(m.id)) continue;
       seen.add(m.id);
-      merged.push(m);
+      if (isOpenMarket(m)) merged.push(m);
     }
   }
-  const rows = mapManifoldLive(merged, { allPolitical: true });
+  const rows = mapManifoldLive(merged, { allPolitical: true }).map(withoutNeverCloses);
   const fresh = { ok: true, source: 'manifold', rows };
   // F169 C3 review: a refresh never writes the cache (its answer may be partial).
   if (cacheWritable()) {
@@ -309,17 +325,18 @@ export async function loadManifoldIndiaElections() {
   if (indiaElectionCache && cacheFresh(indiaElectionAt, MANIFOLD_TTL)) return indiaElectionCache;
   const answers = await Promise.allSettled(MANIFOLD_INDIA_SEARCH.map((url) => getJson(url)));
   if (answers.every((a) => a.status === 'rejected')) throw answers[0].reason;
-  const markets = answers.flatMap((a) => (a.status === 'fulfilled' && Array.isArray(a.value) ? a.value : []));
+  // F202: open markets only (resolved and closed ones are results, not forecasts).
+  const markets = answers.flatMap((a) => (a.status === 'fulfilled' && Array.isArray(a.value) ? a.value : [])).filter((m) => isOpenMarket(m));
   // Only open multiple-choice and numeric markets about an Indian election are asked for answers.
   const needAnswers = [...new Map(markets
-    .filter((m) => m?.id && !m.isResolved && !['BINARY', 'POLL'].includes(m.outcomeType) && isIndiaElectionMarket(m.question))
+    .filter((m) => m?.id && !['BINARY', 'POLL'].includes(m.outcomeType) && isIndiaElectionMarket(m.question))
     .map((m) => [m.id, m])).values()]
     .slice(0, MANIFOLD_DETAIL_MAX);
   const details = new Map();
   await Promise.allSettled(needAnswers.map(async (m) => {
     details.set(m.id, await getJson(`https://api.manifold.markets/v0/market/${encodeURIComponent(m.id)}`, {}, MANIFOLD_DETAIL_MS));
   }));
-  const fresh = { ok: true, source: 'manifold', rows: mapManifoldIndiaElections(markets, details) };
+  const fresh = { ok: true, source: 'manifold', rows: mapManifoldIndiaElections(markets, details).map(withoutNeverCloses) };
   if (cacheWritable()) {
     indiaElectionCache = fresh;
     indiaElectionAt = Date.now();
