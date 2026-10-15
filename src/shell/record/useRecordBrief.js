@@ -5,6 +5,12 @@ import { entryFingerprintFnv, getRecordBrief } from '../../lib/deskBrief.js';
 export const RECORD_BRIEF_POLL_MS = 2_000;
 /** How long a panel waits for that before it says the brief is unavailable. */
 export const RECORD_BRIEF_WAIT_MS = 60_000;
+/**
+ * F205 (owner 2026-10-16): a stored brief comes back well inside this; an answer still out after it is
+ * being written by the model. One request does both, so the panel can only tell by the time it takes
+ * (or by 'pending', when another request is writing it).
+ */
+export const RECORD_BRIEF_SLOW_MS = 1_200;
 
 const aborted = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
 
@@ -28,12 +34,14 @@ function sleep(ms, signal) {
  * record's panel asks for it; the first viewer's request writes it at the platform's cost and
  * every later viewer reads it. While another request is writing it, this asks again every two
  * seconds for about a minute. Returns {state} where state is 'none' (nothing to brief),
- * 'loading', 'pending', 'unavailable', 'error', or 'ready' with the brief as getRecordBrief gives
+ * 'loading' (the first 1.2 s, a stored read), 'writing' (still waiting after that), 'pending',
+ * 'unavailable', 'error', or 'ready' with the brief as getRecordBrief gives
  * it (format 2: brief, why, watch, tags; format 1: headline, points), model and writtenAt. A new
  * record or an unmount aborts the request and stops the polling.
  */
 export function useRecordBrief({ feed, selected, loading }) {
   const [result, setResult] = useState({ key: '', brief: null });
+  const [slowKey, setSlowKey] = useState('');
   const feature = feed?.feature || '';
   const tier = feed?.tier || '';
   const enabled = Boolean(!loading && feature && selected && typeof selected === 'object' && selected.status !== 'source_status');
@@ -46,6 +54,7 @@ export function useRecordBrief({ feed, selected, loading }) {
     const show = (brief) => {
       if (!ac.signal.aborted) setResult({ key, brief });
     };
+    const slow = setTimeout(() => { if (!ac.signal.aborted) setSlowKey(key); }, RECORD_BRIEF_SLOW_MS);
     (async () => {
       for (;;) {
         const brief = await getRecordBrief({ tier, feature, row: selected, signal: ac.signal });
@@ -60,13 +69,13 @@ export function useRecordBrief({ feed, selected, loading }) {
     })().catch((err) => {
       if (err?.name !== 'AbortError') show({ state: 'error' });
     });
-    return () => ac.abort();
+    return () => { clearTimeout(slow); ac.abort(); };
     // The key carries the record's fingerprint; an equivalent re-created row does not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   if (!key) return { state: 'none' };
   // Effects run after render: fence the visible result now, before the new lookup starts.
-  if (result.key !== key || !result.brief) return { state: 'loading' };
+  if (result.key !== key || !result.brief) return { state: slowKey === key ? 'writing' : 'loading' };
   return result.brief;
 }

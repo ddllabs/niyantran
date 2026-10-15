@@ -12,8 +12,6 @@ import './recordPanel.css';
 const safeHref = (href) => (/^https:\/\//i.test(String(href || '')) ? href : null);
 
 const BRIEF_STATUS = {
-  loading: 'Writing AI brief…',
-  pending: 'Writing AI brief…',
   unavailable: 'AI brief not available yet',
   error: 'AI brief unavailable right now',
 };
@@ -59,14 +57,32 @@ function BriefBody({ brief }) {
  * of its own analysis box) and NationalRecord's GenericRecord, the record views of modules without
  * a record-panel adapter.
  */
+/**
+ * F205 (owner 2026-10-16): reading the stored brief is a plain skeleton; a brief being written (the
+ * server says 'pending', or the answer is slower than a stored read) shows the Niyantran mark with a
+ * shimmer, so the reader can tell a model call from a database read.
+ */
+function BriefWaiting({ writing }) {
+  if (!writing) {
+    return <div className="rp-brief-skel" role="status"><span className="rp-sr">Loading the AI brief…</span><i /><i /></div>;
+  }
+  return (
+    <>
+      <div className="rp-brief-writing" role="status"><span className="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20" /></span><span>Writing the AI brief…</span></div>
+      <div className="rp-brief-skel is-writing" aria-hidden="true"><i /><i /><i /></div>
+    </>
+  );
+}
+
 export function BriefCard({ brief }) {
   const ready = brief.state === 'ready'
     && (Array.isArray(brief.points) ? Boolean(brief.headline && brief.points.length) : Boolean(brief.brief));
   const date = ready ? writtenDate(brief.writtenAt) : '';
+  const waiting = brief.state === 'loading' || brief.state === 'writing' || brief.state === 'pending';
   return (
     <div className="rd-ai rp-brief" aria-live="polite">
       <div className="rd-sec-label">✦ Niyantran analysis{ready ? <small>{date ? ` · AI brief · written ${date}` : ' · AI brief'}</small> : null}</div>
-      {ready ? <BriefBody brief={brief} /> : (
+      {ready ? <BriefBody brief={brief} /> : waiting ? <BriefWaiting writing={brief.state !== 'loading'} /> : (
         <div className="rd-ai-brief rp-brief-empty">{BRIEF_STATUS[brief.state] || BRIEF_STATUS.error}</div>
       )}
     </div>

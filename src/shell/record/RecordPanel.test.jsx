@@ -204,12 +204,24 @@ describe('RecordPanel AI brief', () => {
     expect(html({ ...READY, writtenAt: '2026-10-15T20:00:00Z' })).toContain('AI brief · written 16 Oct 2026');
   });
 
-  it('says when it is writing, when it is not available, and when it failed', () => {
-    expect(html({ state: 'loading' })).toContain('Writing AI brief…');
-    expect(html({ state: 'pending' })).toContain('Writing AI brief…');
+  // F205 (owner 2026-10-16): reading a stored brief and writing a new one look different. A quick read
+  // is a plain skeleton; a brief being written (the server says so, or the answer is slow) shows the
+  // Niyantran mark with a shimmer.
+  it('shows a plain skeleton while it reads, and the mark with a shimmer while a brief is written', () => {
+    const reading = html({ state: 'loading' });
+    expect(reading).toContain('<div class="rp-brief-skel" role="status"><span class="rp-sr">Loading the AI brief…</span><i></i><i></i></div>');
+    expect(reading).not.toContain('logo');
+    for (const state of ['writing', 'pending']) {
+      const writing = html({ state });
+      expect(writing).toContain('<div class="rp-brief-writing" role="status"><span class="rp-brief-mark"><img src="/brand/logo-128.webp" alt="" width="20" height="20"/></span><span>Writing the AI brief…</span></div>');
+      expect(writing).toContain('<div class="rp-brief-skel is-writing" aria-hidden="true"><i></i><i></i><i></i></div>');
+    }
+  });
+
+  it('says when it is not available, and when it failed', () => {
     expect(html({ state: 'unavailable' })).toContain('AI brief not available yet');
     expect(html({ state: 'error' })).toContain('AI brief unavailable right now');
-    for (const state of ['loading', 'pending', 'unavailable', 'error']) {
+    for (const state of ['loading', 'writing', 'pending', 'unavailable', 'error']) {
       expect(html({ state })).not.toContain('AI brief · written');
       expect(html({ state })).toMatch(/<div class="rd-ai[ "]/);
     }

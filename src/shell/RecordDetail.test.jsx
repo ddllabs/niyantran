@@ -17,11 +17,11 @@ describe('RecordDetail', () => {
   });
 
   // F123 (owner 2026-10-15): every record view has the stored AI brief, in the record panels' card.
-  it('shows the record brief card, writing on first render', () => {
+  it('shows the record brief card, loading on first render', () => {
     const row = { id: 'r2', title: 'State rolls out a scheme', source_url: 'https://example.gov.in/x' };
     const html = renderToStaticMarkup(createElement(RecordDetail, { row, feed: { feature: 'Local Governance Brief', tier: 'state' }, onClear: () => {} }));
     expect(html).toContain('✦ Niyantran analysis');
-    expect(html).toContain('Writing AI brief…');
+    expect(html).toContain('Loading the AI brief…');
   });
 
   // Owner 2026-10-15: one analysis box per record. Where the AI brief card is shown, the code-written
@@ -46,7 +46,7 @@ describe('RecordDetail', () => {
     it('shows only the AI brief card in a record view, and lists the row\'s analysis fields in All fields', () => {
       const html = render({ row: GOA_ROW, feed: GOA_FEED });
       expect(html.match(/niyantran analysis/gi)).toHaveLength(1);
-      expect(html).toContain('Writing AI brief…');
+      expect(html).toContain('Loading the AI brief…');
       expect(html).not.toContain('rd-section rd-ai');
       expect(html).toContain(field('Brief', GOA_ROW.brief));
       expect(html).toContain(field('Why It Matters', GOA_ROW.why_it_matters));
@@ -125,6 +125,7 @@ describe('RecordDetail', () => {
       row, feed: { feature: 'Local Governance Brief', tier: 'state' }, onClear: () => {}, generateBrief: false,
     }));
     expect(html).toContain('A cited row');
-    expect(html).not.toContain('Writing AI brief…');
+    expect(html).not.toContain('Loading the AI brief…');
+    expect(html).not.toContain('Writing the AI brief…');
   });
 });

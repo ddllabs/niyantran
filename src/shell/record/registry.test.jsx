@@ -45,7 +45,7 @@ describe('record panel registry', () => {
   it('gives every record panel the AI brief box, starting while the brief is fetched or written', () => {
     const html = renderToStaticMarkup(<RailContent view="record" feed={{ feature: 'Open Fronts', tier: 'global', rows: warTracker }} selected={warTracker[0]} />);
     expect(html).toContain('✦ Niyantran analysis');
-    expect(html).toContain('Writing AI brief…');
+    expect(html).toContain('Loading the AI brief…');
   });
 
   it('keeps the existing National record view for National modules the reference does not cover', () => {

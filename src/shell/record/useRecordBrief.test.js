@@ -19,7 +19,7 @@ vi.mock('react', async (original) => ({
 }));
 vi.mock('../../lib/deskBrief.js', () => ({ entryFingerprintFnv: (row) => JSON.stringify(row), getRecordBrief: vi.fn() }));
 import { getRecordBrief } from '../../lib/deskBrief.js';
-import { RECORD_BRIEF_POLL_MS, RECORD_BRIEF_WAIT_MS, useRecordBrief } from './useRecordBrief.js';
+import { RECORD_BRIEF_POLL_MS, RECORD_BRIEF_SLOW_MS, RECORD_BRIEF_WAIT_MS, useRecordBrief } from './useRecordBrief.js';
 
 const feed = { feature: 'Open Fronts', tier: 'geopolitics' };
 const READY = { state: 'ready', headline: 'H', points: ['a'], model: 'm/x', writtenAt: '2026-10-15T06:00:00Z' };
@@ -42,6 +42,28 @@ it('starts in loading, then shows the stored brief from one request', async () =
   expect(Render({ id: 'a' })).toEqual(READY);
   expect(getRecordBrief).toHaveBeenCalledTimes(1);
   expect(getRecordBrief.mock.calls[0][0]).toMatchObject({ tier: 'geopolitics', feature: 'Open Fronts', row: { id: 'a' } });
+});
+
+// F205: a stored brief comes back quickly; an answer still out after 1.2 s is being written.
+it('says it is writing once the answer takes longer than a stored read, and never for a quick one', async () => {
+  expect(RECORD_BRIEF_SLOW_MS).toBe(1200);
+  let answer;
+  getRecordBrief.mockReturnValueOnce(new Promise((r) => { answer = r; }));
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  effects();
+  await vi.advanceTimersByTimeAsync(1199);
+  expect(Render({ id: 'a' })).toEqual({ state: 'loading' });
+  await vi.advanceTimersByTimeAsync(1);
+  expect(Render({ id: 'a' })).toEqual({ state: 'writing' });
+  answer(READY); await settle();
+  expect(Render({ id: 'a' })).toEqual(READY);
+  // A quick answer: never "writing".
+  getRecordBrief.mockResolvedValueOnce(READY);
+  expect(Render({ id: 'b' })).toEqual({ state: 'loading' });
+  effects(); await settle();
+  expect(Render({ id: 'b' })).toEqual(READY);
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(Render({ id: 'b' })).toEqual(READY);
 });
 
 it('polls every two seconds while pending, then shows the brief', async () => {
