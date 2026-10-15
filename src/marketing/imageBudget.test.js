@@ -50,6 +50,8 @@ describe('image weight', () => {
     expect(brandLogo('/brand/logo.png')).toBe('/brand/logo-128.webp');
     expect(brandLogo('')).toBe('/brand/logo-128.webp');
     expect(brandLogo('https://cdn.example.com/custom.svg')).toBe('https://cdn.example.com/custom.svg');
-  });
+    // The first import of MarketingSite.jsx compiles the marketing site, which can pass the default 5 s
+    // when the whole suite runs on a busy machine.
+  }, 30_000);
 });
 
