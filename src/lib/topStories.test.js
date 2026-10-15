@@ -87,6 +87,8 @@ describe('Home Top Stories (F181)', () => {
     const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
     const feed = await serveFeatureFeed(new URLSearchParams({ tier: 'home', feature: 'stories' }));
     expect(feed.rows).toHaveLength(1);
+    expect(feed.rows[0].status).not.toBe('source_status');
+    expect(feed.rows[0].title).toMatch(/One story/);
     expect(seen.some((u) => /gdelt/i.test(u))).toBe(false);
   });
 });
