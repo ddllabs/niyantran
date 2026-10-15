@@ -801,6 +801,21 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   removed; lint, build, 5,429 Vitest tests; independent review approved. Not checked in a browser
   (the shell needs a signed-in local stack). Possible follow-up, not opened: in Hindi mode,
   English-only content (dataset names, feeds) is now read with a Hindi voice unless marked `lang="en"`.
+- [ ] **F197. AI counts from desk rows: an unknown filter field returns a silent zero (D3, 2026-10-15).**
+  "How many Lok Sabha bills in 2026" answered 0 (truth 23, 11 assented): `search_desk_rows` filters are
+  exact JSON containment, so an invented field (`year`) matches nothing and the model reports zero as
+  fact. Fix: reject unknown filter fields with the module's real field list, and support a year or date
+  range on the module's date field. [D3 record](../research/2026-10-15-d3-paid-live-round.md).
+- [ ] **F198. Changing model or reasoning mid-conversation breaks the thread (D3).** The last answer
+  vanishes from view (it is saved) and the next send fails "Your research session changed" until Reload.
+- [ ] **F199. High reasoning on a document question can outrun the server's time limit (D3).** Gemini
+  Flash · High was cut off at 108.7 s after reading 40 passages; the answer is lost (not charged). Bound
+  the passages or the reasoning budget so a turn finishes, or save what was written.
+- [ ] **F200. Small chat issues found in D3.** Escape closes the whole panel instead of the open menu; a
+  greeting gets a full structured brief opening "Search widened."; one click on a listed source reloaded
+  the desk and re-showed the desk tour (not reproduced); a model listed under its raw id
+  "gpt-luna-latest"; the owner's admin account cannot pick GPT – Astra (plan gate; decide whether
+  admins bypass it).
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
   2026-10-15: "The source is in that only … We just have to make them up and working"; the tender
   aggregators wait for the owner's source. [Research](../research/2026-10-15-planned-module-sources.md):
@@ -2278,7 +2293,7 @@ Earlier items, updated:
   - clean up the old upstream setup.
 
   The owner doesn't have the domain settings yet.
-- [ ] **D3. Paid live round.** Five paid-model scenarios plus a
+- [x] **D3. Paid live round.** *Done 2026-10-15 on production (owner signed in, supervisor ran it): greeting, document answer with a highlighted passage, Stop and reload, Gemini Lite medium and cross-account denial passed; defects opened as F197 to F200. [Record](../research/2026-10-15-d3-paid-live-round.md).* Five paid-model scenarios plus a
   cross-account denial check, including:
   - the first live `search_documents` turn with a highlighted span;
   - the admin persona chat on Gemini Lite, Gemini Flash and GPT Astra;
