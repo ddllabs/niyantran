@@ -1211,15 +1211,17 @@
     "htmlFeature": "Party Organisation Map",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-party-organisation-map"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AParty%2520Organisation%2520Map",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
+    "adapters": "register",
+    "backendRoute": "/api/feature-feed?tier=state&feature=Party%20Organisation%20Map",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "Counted from the stored MLA register (F196): seats per party per assembly, the largest party and whether it holds a majority. Status row when the register cannot be read in full. No outside source, no invented counts.",
     "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "developerNote": "Derived from MLA Directory’s stored register (server/partyStrength.mjs, src/lib/partyStrength.js) · map: src/desks/IndiaPartyMap.jsx with DataMeet shapes",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",

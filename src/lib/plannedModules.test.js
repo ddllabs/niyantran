@@ -47,7 +47,7 @@ describe('planned modules', () => {
     const fetch = vi.fn(async () => { throw new Error('no request expected'); });
     vi.stubGlobal('fetch', fetch);
     const { fetchFeature } = await import('./featureFeed.js');
-    const out = await fetchFeature({ tier: 'state', feature: 'Party Organisation Map' });
+    const out = await fetchFeature({ tier: 'state', feature: 'District Crime & Safety Indicators' });
     expect(out.source.adapter).toBe('planned');
     expect(fetch.mock.calls.filter(([u]) => /\/api\/feature-feed/.test(String(u)))).toEqual([]);
   }, 30_000);
@@ -57,15 +57,16 @@ describe('planned modules', () => {
     expect(isPlannedModule('state', 'Cabinet Decisions')).toBe(false);
   });
 
-  // F196: five modules were built from sources the repository already named.
-  it('no longer lists the five modules F196 built', () => {
-    expect(PLANNED_MODULES.size).toBe(4);
+  // F196: modules built from sources the repository already named (the party map from the MLA register).
+  it('no longer lists the modules F196 built', () => {
+    expect(PLANNED_MODULES.size).toBe(3);
     for (const [tier, feature] of [
       ['sports', 'Sports Governance & Policy'],
       ['state', "Governor Friction & President's Rule Tracker"],
       ['state', 'Legislative Productivity Comparison'],
       ['state', 'MLA Defection & Anti-defection Case Tracker'],
       ['economics', 'Election Forecast Aggregator'],
+      ['state', 'Party Organisation Map'],
     ]) expect(isPlannedModule(tier, feature), feature).toBe(false);
   });
 
@@ -79,7 +80,7 @@ describe('planned modules', () => {
     // No source yet (owner, 2026-10-15): these stay planned.
     expect([...PLANNED_MODULES].sort()).toEqual([
       'local:Municipal & Panchayat Tender Aggregator', 'state:District Crime & Safety Indicators',
-      'state:District Governance & Grievance Indicators', 'state:Party Organisation Map',
+      'state:District Governance & Grievance Indicators',
     ]);
   });
 });

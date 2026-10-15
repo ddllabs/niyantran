@@ -44,7 +44,7 @@ describe('State summary loading (F157: /api/state-landing)', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(summaries.map(summary => [summary.pending === true, summary.count])).toEqual([[true, null], [false, 1731]]);
   });
-  it('requests the 37 configured modules three at a time and summarises all 41', async () => {
+  it('requests the 38 configured modules three at a time and summarises all 41', async () => {
     let running = 0, peak = 0;
     const fetcher = vi.fn(async url => {
       peak = Math.max(peak, ++running);
@@ -55,7 +55,7 @@ describe('State summary loading (F157: /api/state-landing)', () => {
     });
     const summaries = await run(fetcher, STATE_MODULES);
     expect(peak).toBe(3);
-    expect(fetcher).toHaveBeenCalledTimes(37); // F173: two more State modules are planned; F196 built three, then ten
+    expect(fetcher).toHaveBeenCalledTimes(38); // F173: two more State modules are planned; F196 built four, then ten
     expect(summaries).toHaveLength(41);
   });
   it('stops queued work and publications on abort', async () => {

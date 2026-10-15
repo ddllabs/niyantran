@@ -46,6 +46,9 @@ import ProjectsDesk from './ProjectsDesk.jsx';
 import MorningBriefDesk from './MorningBriefDesk.jsx';
 import StatementsDesk from './StatementsDesk.jsx';
 import MlaStatePicker from './MlaStatePicker.jsx';
+import IndiaPartyMap from './IndiaPartyMap.jsx';
+import { isPartyMapFeature } from '../lib/partyStrength.js';
+import { pendingMlaState } from './mlaStateHandoff.js';
 import { isMlaDirectory } from '../lib/mlaStates.js';
 import ModulePicker from './ModulePicker.jsx';
 import { modulePicker } from '../lib/modulePicker.js';
@@ -100,6 +103,13 @@ function isParliamentaryQuestions(name) {
 // No State or Table picked (DeskView's modulePick).
 const NO_PICK = Object.freeze({ for: '', value: '' });
 
+// F196: MLA Directory opened from the Party Organisation Map starts on the state chosen there
+// (mlaStateHandoff.js); every other module, and MLA Directory opened any other way, starts unpicked.
+function handoffPick(tier, featureName) {
+  const state = isMlaDirectory(tier, featureName) ? pendingMlaState() : '';
+  return state ? { for: `${tier || ''}:${featureName || ''}`, value: state } : NO_PICK;
+}
+
 export default function DeskView({
   tier,
   featureName,
@@ -129,7 +139,8 @@ export default function DeskView({
   // F190: MLA Directory's State picker ('' is All states); F196: the handbook modules' and the Comparison
   // Engine's Table picker ('' is the module's first table). Only those modules read it (pickValue below).
   // The pick is kept with the module it was made on, so the next module's first request never carries it.
-  const [modulePick, setModulePick] = useState(NO_PICK);
+  // F196: the Party Organisation Map opens MLA Directory on the state chosen there (mlaStateHandoff.js).
+  const [modulePick, setModulePick] = useState(() => handoffPick(tier, featureName));
   // F159 review: a failed load says "check your connection" only when the reader is offline.
   const [errOffline, setErrOffline] = useState(false);
   const loadedFor = useRef('');
@@ -148,7 +159,7 @@ export default function DeskView({
   useEffect(() => {
     setQ('');
     setHasAnswerFilter('');
-    setModulePick(NO_PICK);
+    setModulePick(handoffPick(tier, featureName));
     onSelect(null);
     if (!colsKey) {
       setVisibleKeys(null);
@@ -652,6 +663,19 @@ export default function DeskView({
         <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
           {loading && <FeedLoader label="Loading commodity board…" />}
           {!loading && <CommoditiesDesk feed={feed} selected={selected} onSelect={onSelect} vizFilter={vizFilter} onClearViz={onClearViz} />}
+        </div>
+      </div>
+    );
+  }
+
+  // F196: party seat strength per assembly on an India map, beside its table.
+  if (isPartyMapFeature(tier, featureName) && !statusRow && !liveHold) {
+    return (
+      <div className="desk desk-wide desk-res">
+        {err && <p className="banner warn">{err}</p>}
+        <div className={`alliances-wrap${loading ? ' is-loading' : ''}`}>
+          {loading && <FeedLoader label="Counting party seats…" />}
+          {!loading && <IndiaPartyMap feed={feed} />}
         </div>
       </div>
     );

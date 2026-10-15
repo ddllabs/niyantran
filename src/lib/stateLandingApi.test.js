@@ -18,7 +18,7 @@ describe('State summary API (F157)', () => {
   it('enforces GET and module validation in both the local and the Vercel router', async () => {
     for (const local of [false, true]) {
       expect((await call(local, 'POST', 'feature=Constituency%20Register')).statusCode).toBe(405);
-      for (const query of ['feature=unknown', 'feature=Party%20Organisation%20Map', '']) {
+      for (const query of ['feature=unknown', 'feature=District%20Crime%20%26%20Safety%20Indicators', '']) {
         const res = await call(local, 'GET', query);
         expect(res.statusCode).toBe(400);
         expect(res.body).toEqual({ ok: false, error: 'State summary unavailable' });
@@ -37,7 +37,7 @@ describe('State summary API (F157)', () => {
   });
 
   it('answers only modules the feed knows, in the tier the catalogue gives them', () => {
-    expect(STATE_FEATURES).toHaveLength(37); // F173: two more State modules are planned; F196 built three, then ten
+    expect(STATE_FEATURES).toHaveLength(38); // F173: two more State modules are planned; F196 built four, then ten
     for (const feature of STATE_FEATURES) {
       const module = STATE_MODULES.find(item => item.feature === feature);
       expect(featureMap.filter(row => row.htmlFeature === feature).map(row => row.htmlTier)).toContain(module.tier);
@@ -53,7 +53,7 @@ describe('State summary API (F157)', () => {
 
   it('rejects unknown and planned modules before requesting a feed', async () => {
     const load = vi.fn();
-    for (const feature of ['../../secret', 'Party Organisation Map', 'Bill Passage Probability Index']) {
+    for (const feature of ['../../secret', 'District Crime & Safety Indicators', 'Bill Passage Probability Index']) {
       await expect(serveStateLanding(new URLSearchParams({ feature }), load)).rejects.toThrow('Unknown State module');
     }
     expect(load).not.toHaveBeenCalled();

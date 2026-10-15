@@ -14,7 +14,7 @@ const groups = [
     module("SIR Roll Churn"),
     module("Registration Gap"),
     module("Booth-level Results Database", {"tier": "local"}),
-    module("Party Organisation Map", {"configured": false}),
+    module("Party Organisation Map"),
     module("MLA Defection & Anti-defection Case Tracker"),
     module("Booth Political History", {"tier": "local", "existingOnly": true}),
   ] },

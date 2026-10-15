@@ -80,6 +80,8 @@ import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
 import { isStoreServed, mlaStateVariant } from './feedSchedule.mjs';
 import { STORE_PAGE_ROWS, serveFromStore } from './feedServe.mjs';
+import { servePartyStrength } from './partyStrength.mjs';
+import { isPartyMapFeature } from '../src/lib/partyStrength.js';
 import * as entertainmentLive from './entertainmentApi.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -1616,6 +1618,13 @@ export async function serveFeatureFeed(searchParams) {
   if (handbook) return serveHandbookTable(tier, feat, handbook, searchParams);
   if (tier === 'state' && /^cross-state comparison engine$/i.test(feat.htmlFeature)) return serveStateComparison(tier, feat, searchParams);
   if (tier === 'state' && /^sdl auction & borrowing tracker$/i.test(feat.htmlFeature)) return serveSdlAuctions(tier, feat);
+
+  // F196: Party Organisation Map counts party seats per assembly from the MLA register (server/partyStrength.mjs).
+  if (isPartyMapFeature(tier, feat.htmlFeature)) {
+    const { reason, ...answer } = await servePartyStrength({ archiveOnly: archiveOnly() });
+    const rows = answer.rows.length ? answer.rows : statusRow({ adapter: 'register', url: '', reason, featureName: feat.htmlFeature });
+    return envelope({ tier, feature: feat, ...answer, rows });
+  }
 
   const entry = entries[0] || null;
   const adapter = (entry?.adapter || feat.adapters || '').split(/[|,]/)[0].trim().toLowerCase();

@@ -1,0 +1,70 @@
+/* F196 Party Organisation Map (src/desks/IndiaPartyMap.jsx). Party colours are the same in both
+   themes; borders, text and empty states take the theme's tokens. */
+.pm { display: grid; gap: 14px; padding: 16px; min-width: 0; color: var(--text); }
+.pm-head h1 { margin: 0 0 4px; font-size: 1.25rem; color: var(--fg); }
+.pm-head p { margin: 0; font-size: 0.875rem; }
+.pm .muted { color: var(--muted); }
+.pm .num { text-align: right; font-variant-numeric: tabular-nums; }
+.pm-empty { margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+
+.pm-swatch { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; }
+.pm-swatch.pm-nodata { background: var(--line); }
+.pm-swatch.pm-tie, .pm-state.is-tie { background: var(--sand); fill: var(--sand); }
+.pm-others { background: var(--muted); }
+
+.pm-national { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.pm-national-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin: 0; font-size: 0.875rem; color: var(--fg); }
+.pm-national-head .muted { font-size: 0.8125rem; }
+.pm-national-bar { display: flex; height: 14px; overflow: hidden; border-radius: 3px; background: var(--line); }
+.pm-national-bar > span { display: block; height: 100%; min-width: 1px; }
+.pm-national-bar > span + span { box-shadow: inset 1px 0 0 var(--panel); }
+.pm-national-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+.pm-national-legend li { display: inline-flex; align-items: center; gap: 6px; }
+
+.pm-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pm-figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.pm-map { position: relative; }
+.pm-svg { display: block; width: 100%; height: auto; max-height: 76vh; }
+.pm-state { stroke: var(--panel); stroke-width: 1; stroke-linejoin: round; vector-effect: non-scaling-stroke; transition: opacity 120ms ease; }
+.pm-state.is-empty { fill: var(--line); }
+.pm-link { cursor: pointer; outline: none; }
+.pm-link:hover .pm-state { opacity: 0.85; }
+.pm-outline { fill: none; stroke: var(--fg); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.pm-link:focus-visible .pm-state { stroke: var(--fg); stroke-width: 2; }
+
+.pm-tip { position: absolute; z-index: 2; top: 0; right: 0; width: min(280px, 100%); padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: 0 4px 16px rgba(19, 19, 19, 0.14); font-size: 0.8125rem; }
+/* Beside the pointer or the focused state (IndiaPartyMap.jsx placeTip), opening away from the nearer edges. */
+.pm-map[data-tip] .pm-tip { right: auto; left: var(--tip-x); top: var(--tip-y); --tip-dx: 14px; --tip-dy: 14px; transform: translate(var(--tip-dx), var(--tip-dy)); }
+.pm-map[data-tip^="left"] .pm-tip { --tip-dx: calc(-100% - 14px); }
+.pm-map[data-tip$="up"] .pm-tip { --tip-dy: calc(-100% - 14px); }
+.pm-tip p { margin: 0; }
+.pm-tip-title { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; color: var(--fg); }
+.pm-tip-verdict { margin-top: 2px !important; font-weight: 600; }
+.pm-tip-bar { display: flex; height: 10px; margin: 8px 0; overflow: hidden; border-radius: 2px; background: var(--line); }
+.pm-tip-bar > span { display: block; height: 100%; }
+.pm-tip-list { display: grid; gap: 3px; margin: 0 0 8px; padding: 0; list-style: none; }
+.pm-tip-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.pm-tip-list li.muted { display: block; }
+.pm-tip-open, .pm-credit a, .pm-table-link { color: var(--accent); }
+
+.pm-legend ul { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+.pm-legend li { display: inline-flex; align-items: center; gap: 6px; }
+
+.pm-table-wrap { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.pm-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.pm-table caption { padding: 10px 12px 6px; text-align: left; font-weight: 600; color: var(--fg); }
+.pm-table th, .pm-table td { padding: 6px 10px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+.pm-table thead th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.pm-table th.num, .pm-table td.num { text-align: right; }
+.pm-table tbody th { font-weight: 500; white-space: nowrap; }
+.pm-row.is-active { background: var(--accent-soft); }
+
+.pm-credit { margin: 0; font-size: 0.75rem; }
+
+@media (max-width: 1100px) {
+  .pm-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .pm { padding: 12px 16px; }
+  .pm-tip, .pm-map[data-tip] .pm-tip { position: static; width: auto; margin-top: 8px; transform: none; box-shadow: none; }
+}

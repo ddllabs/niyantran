@@ -29,6 +29,7 @@ vi.mock('../lib/featureFeed.js', () => ({ fetchFeaturePage: api.page, fetchFeatu
 vi.mock('../lib/apiMode.js', () => ({ featureFeedApiEnabled: () => true, liveApiEnabled: () => true }));
 import DeskView from './DeskView.jsx';
 import MlaStatePicker from './MlaStatePicker.jsx';
+import { clearPendingMlaState, rememberMlaState } from './mlaStateHandoff.js';
 
 function nodes(tree) { if (!tree || typeof tree !== 'object') return []; if (Array.isArray(tree)) return tree.flatMap(nodes); return [tree, ...nodes(tree.props?.children)]; }
 const pickers = (tree) => nodes(tree).filter((n) => n.type === MlaStatePicker);
@@ -241,5 +242,25 @@ describe('the picker on a touch screen (F190 review)', () => {
     expect(block).not.toBeNull();
     expect(block[1]).toMatch(/min-height:\s*44px/);
     expect(block[1]).toMatch(/font-size:\s*16px/);
+  });
+});
+
+describe('opening MLA Directory from the Party Organisation Map (F196)', () => {
+  it('starts on the state chosen on the map, and on "All states" when nothing was chosen', async () => {
+    try {
+      rememberMlaState('Kerala');
+      const asked = pendingRequests();
+      await settle();
+      expect(asked.map((a) => a.opts.params)).toEqual([{ state: 'Kerala' }]);
+      expect(pickers(tree)[0].props.value).toBe('Kerala');
+
+      clearPendingMlaState();
+      Object.assign(rt, { slots: [], effects: [], refs: [], pending: [], dirty: false });
+      const again = pendingRequests();
+      await settle();
+      expect(again.map((a) => a.opts.params)).toEqual([undefined]);
+    } finally {
+      clearPendingMlaState();
+    }
   });
 });

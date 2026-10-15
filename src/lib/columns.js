@@ -737,6 +737,19 @@ const PRESETS = [
     ],
   },
   {
+    // F196: party seat strength per assembly (src/lib/partyStrength.js partyStrengthRows).
+    test: /^party organisation map$/i,
+    cols: [
+      { key: 'state', label: 'STATE', fallback: 'title', dot: true, keep: true },
+      { key: 'seats', label: 'SEATS', num: true },
+      { key: 'largest_party', label: 'LARGEST PARTY' },
+      { key: 'largest_seats', label: 'ITS SEATS', num: true },
+      { key: 'largest_share', label: 'SHARE %', num: true },
+      { key: 'majority', label: 'MAJORITY' },
+      { key: 'breakdown', label: 'SEATS BY PARTY' },
+    ],
+  },
+  {
     test: /^carbon border/i,
     cols: [
       { key: 'milestone', label: 'Milestone', fallback: 'title', dot: true, keep: true },

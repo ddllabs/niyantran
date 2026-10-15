@@ -33,7 +33,9 @@ export function projectStateSummary(module, raw) {
   const handbook = handbookTables > 0;
   const comparison = module.feature === 'Cross-State Comparison Engine';
   const sdl = module.feature === 'SDL Auction & Borrowing Tracker';
-  const unit = modelled ? 'modelled constituency entries' : geo ? /Booth/.test(module.feature) ? 'booth records' : module.feature === 'Local Governance Brief' ? 'district/taluka summaries' : 'constituency records' : news ? 'articles' : kind === 'budget-xlsx' ? 'budget lines' : directory ? 'directory entries' : report ? 'profiles and articles' : handbook ? 'state figures (one table)' : comparison ? 'state rankings (one table)' : sdl ? 'auction lines' : 'source entries';
+  // F196: the Party Organisation Map counts state assemblies.
+  const assemblies = module.feature === 'Party Organisation Map';
+  const unit = modelled ? 'modelled constituency entries' : geo ? /Booth/.test(module.feature) ? 'booth records' : module.feature === 'Local Governance Brief' ? 'district/taluka summaries' : 'constituency records' : news ? 'articles' : kind === 'budget-xlsx' ? 'budget lines' : directory ? 'directory entries' : assemblies ? 'state assemblies' : report ? 'profiles and articles' : handbook ? 'state figures (one table)' : comparison ? 'state rankings (one table)' : sdl ? 'auction lines' : 'source entries';
   const links = [...(source.links || []), ...rows.map(row => row.source_url)].map(safeUrl).filter(Boolean);
   const sources = [...new Map(links.map(url => [new URL(url).hostname, url])).values()].slice(0, 4).map(url => ({ name: new URL(url).hostname.replace(/^www\./, ''), url }));
   const columns = measured ? feedColumns(module.feature, rows).filter(column => rows.some(row => populated(row[column.key]) || (column.fallback && populated(row[column.fallback])))).slice(0, 16).map(({ key, label }) => ({ key, label })) : [];
@@ -56,6 +58,8 @@ export function projectStateSummary(module, raw) {
     (handbook || comparison) && `${HANDBOOK_NOTE} The count is one table's figures; the module offers ${handbook ? handbookTables : 'every handbook'} table${handbookTables === 1 ? '' : 's'} through its Table control. No district figures.`,
     comparison && 'Rank 1 is the largest figure, not the best one.',
     sdl && 'RBI press releases on State Government Securities auctions, one row per security. RBI\u2019s feed lists its latest ten releases; the history starts when the module went live.',
+    // F196: the party map counts the MLA register.
+    assemblies && 'Seats are the MLAs the register lists in each assembly; vacant seats are left out, so a majority is more than half of the members listed.',
     kind === 'budget-xlsx' && 'Union Budget expenditure lines, not individual state allocations or disbursement transactions.',
     unavailable && 'Measured coverage for this module is not established by the returned source. No stand-in rows are counted.',
   ].filter(Boolean).join(' ');
