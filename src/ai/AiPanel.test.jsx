@@ -162,8 +162,9 @@ describe('the web-source strip on the turn in flight', () => {
   const html = flight({ isPending: true, isStreaming: true, streamingText: 'Answer', webSources: finalPages, webLive: livePages,
    activity: [{ type: 'tool', name: 'web_search', phase: 'end', step: 1, resultCount: 2, searches: 2 }] });
   expect(html).toContain('class="ai-web-strip"');
-  expect(html).toContain('From the web · unofficial');
-  expect(html).toContain('2 searches · 1 source');
+  expect(html).toContain('<span class="ai-web-strip-label">Web sources</span>');
+  expect(html).toContain('>1 page<');
+  expect(html).toContain('1 page from 2 searches');
   expect(html).not.toContain('domain=reuters.com');
  });
 
@@ -514,58 +515,38 @@ it('the web prediction counts a selected row whenever the send would pin it, wit
  expect(webPredictionRecords([],{name:'Raja A',party:'DMK'}).selectedRecord).toEqual({kind:'row'});
 });
 
-// F111 task 4a (spec §8): the balance sits with the chat box; a refused turn becomes the blocked state.
-describe('AI credits in the composer',()=>{
- const wallet=(patch={})=>({userId:'u1',balance:1520.4567,held:0,available:1520.4567,debt:0,plan:'plus',inrPerCredit:0.1,allowance:2000,cycleEndsAt:null,lots:[],recent:[],...patch});
+// F111 §8, F193: the chat box carries no credit line; a refused turn's message is at the header pill
+// (chatCreditNotice.js, BalancePill.test.jsx), and the chat hides only its own copy of the refusal.
+describe('AI credits and the chat box',()=>{
+ const wallet=(patch={})=>({userId:'u1',balance:1520.4567,held:0,available:1520.4567,debt:0,plan:'plus',allowance:2000,cycleEndsAt:null,lots:[],recent:[],...patch});
  const ready=()=>({...fake.research,ready:true,loading:false,locked:false,ownerId:'u1'});
- it('shows the balance under the chat box for the verified account',()=>{
+ it('shows no balance, ring or credits link under the chat box',()=>{
   fake.credits=wallet();fake.research=ready();
   const html=renderToStaticMarkup(<AiPanel lang="en"/>);
-  expect(html).toContain('1,520 credits');
-  expect(html.indexOf('ai-credit"')).toBeGreaterThan(html.indexOf('class="ai-v2-composer"'));
+  expect(html).not.toContain('ai-credit"');expect(html).not.toContain('cp-ring');expect(html).not.toContain('1,520 credits');
  });
- it('shows nothing signed out, or for credits that belong to nobody verified',()=>{
-  fake.credits=wallet();fake.research={...ready(),ownerId:''};
-  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('ai-credit');
-  fake.research={...ready(),ownerId:'someone-else'};
-  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('ai-credit');
- });
- it('a 402 refusal becomes the blocked state, with the message once',()=>{
+ it('a 402 refusal shows no message, Upgrade or Buy credits in the chat: the pill says it',()=>{
   fake.credits=wallet({balance:0,available:0});
   const refusal='You have no AI credits left to start an answer.';
   fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:refusal};
   const html=renderToStaticMarkup(<AiPanel lang="en"/>);
-  expect(html).toContain('>Upgrade</button>');expect(html).toContain('>Buy credits</button>');
-  expect(html.match(/You have no AI credits left to start an answer\./g)).toHaveLength(1);
+  expect(html).not.toContain('You have no AI credits left');expect(html).not.toContain('Upgrade');expect(html).not.toContain('Buy credits');
  });
- it('a refusal for held credits says so and offers no way to buy',()=>{
-  fake.credits=null;
-  const refusal='Your credits are in use by an answer that is still running. Try again when it finishes.';
-  fake.research={...ready(),creditBlock:'credits_exhausted',creditHeld:true,creditError:refusal,error:refusal};
-  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
-  expect(html.match(/in use by an answer that is still running/g)).toHaveLength(1);
-  expect(html).not.toContain('Upgrade');expect(html).not.toContain('Buy credits');
- });
- it('hides only the credits refusal, never another error while a credit block is shown (review R, M4)',()=>{
+ it('hides only the credits refusal, never another error while a credit block stands (review R, M4)',()=>{
   fake.credits=wallet({balance:0,available:0});
   const refusal='You have no AI credits left to start an answer.';
   fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:'The saved result could not be loaded. Try Reload.'};
-  const html=renderToStaticMarkup(<AiPanel lang="en"/>);
-  expect(html).toContain('<p class="ai-foot warn" role="alert">The saved result could not be loaded. Try Reload.</p>');
-  expect(html).toContain('>Upgrade</button>');
-  // The stream's own copy of the refusal stays hidden; a different stream error shows.
+  expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toContain('<p class="ai-foot warn" role="alert">The saved result could not be loaded. Try Reload.</p>');
   fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:'',stream:{status:'error',error:refusal}};
   expect(renderToStaticMarkup(<AiPanel lang="en"/>)).not.toContain('class="ai-foot warn"');
   fake.research={...ready(),creditBlock:'credits_exhausted',creditError:refusal,error:'',stream:{status:'error',error:'The connection failed.'}};
   expect(renderToStaticMarkup(<AiPanel lang="en"/>)).toContain('role="alert">The connection failed.</p>');
  });
- it('a 503 refusal is a retry message that replays the turn, with one retry button',()=>{
-  const recover=vi.fn();
+ it('a 503 refusal leaves the retry to the pill: no Recover and no copy of the message in the chat',()=>{
   fake.credits=wallet();
-  fake.research={...ready(),creditBlock:'credits_unavailable',creditError:'AI credits could not be checked.',error:'AI credits could not be checked.',recoverable:true,actions:{recover}};
+  fake.research={...ready(),creditBlock:'credits_unavailable',creditError:'AI credits could not be checked.',error:'AI credits could not be checked.',recoverable:true,actions:{recover:vi.fn()}};
   const html=renderToStaticMarkup(<AiPanel lang="en"/>);
-  expect(html).toContain('>Try again</button>');expect(html).not.toContain('Upgrade');
-  expect(html).not.toContain('Recover answer');expect(html).not.toContain('AI credits could not be checked.<');
+  expect(html).not.toContain('Recover answer');expect(html).not.toContain('AI credits could not be checked.<');expect(html).not.toContain('>Try again</button>');
  });
 });
 describe('credits on each answer in the thread',()=>{

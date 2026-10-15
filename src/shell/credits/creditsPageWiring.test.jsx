@@ -2,9 +2,7 @@
 // chat's Credits link (niy-open-usage) and Upgrade (niy-open-billing), a plan chosen on the pricing
 // page - and that it is a page of the themed terminal, not a dialog.
 import { readFileSync } from 'node:fs';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-import CreditBalance from '../../ai/CreditBalance.jsx';
 import { OPEN_USAGE_EVENT, openCreditsUsage } from '../../lib/creditsStore.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -67,22 +65,6 @@ it('announces niy-open-usage', () => {
     expect(OPEN_USAGE_EVENT).toBe('niy-open-usage');
     expect(seen).toHaveBeenCalledOnce();
   } finally { vi.unstubAllGlobals(); }
-});
-
-it('puts the ring and a Credits link on the chat balance that opens the page', () => {
-  const credits = { userId: 'u1', balance: 1520, held: 0, available: 1520, debt: 0, plan: 'plus', allowance: 2000, usedThisCycle: 480, lots: [{ kind: 'monthly', remaining: 1520 }], recent: [] };
-  const html = renderToStaticMarkup(<CreditBalance credits={credits} />);
-  expect(html).toContain('<button type="button" class="ai-credit-usage">Credits</button>');
-  expect(html).toMatch(/<svg class="cp-ring cp-ring-ok" width="16" height="16"/);
-  const onOpenUsage = vi.fn();
-  const find = (node) => {
-    if (!node || typeof node !== 'object') return null;
-    if (node.type === 'button' && node.props.className === 'ai-credit-usage') return node;
-    for (const child of [node.props?.children].flat()) { const hit = find(child); if (hit) return hit; }
-    return null;
-  };
-  find(CreditBalance({ credits, onOpenUsage })).props.onClick();
-  expect(onOpenUsage).toHaveBeenCalledOnce();
 });
 
 it('keeps the page and its parts free of dollars', () => {

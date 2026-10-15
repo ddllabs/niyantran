@@ -20,6 +20,14 @@ describe('WebSourcesList (F130 T4b): the "Web sources searched" panel', () => {
     expect(html.indexOf('Cited in the answer')).toBeLessThan(html.indexOf('PIB note'));
   });
 
+  // F193: the search count moved here from the strip, with how many pages the answer cited.
+  it('counts the searches, the pages and the cited pages under the note', () => {
+    expect(renderToStaticMarkup(<WebSourcesList pages={PAGES} searches={2} />)).toContain('<p class="ai-web-count">2 searches · 2 pages · 1 cited in the answer</p>');
+    expect(renderToStaticMarkup(<WebSourcesList pages={PAGES} />)).toContain('<p class="ai-web-count">2 pages · 1 cited in the answer</p>');
+    expect(renderToStaticMarkup(<WebSourcesList pages={[{ ...PAGES[1] }]} searches={1} />)).toContain('<p class="ai-web-count">1 search · 1 page</p>');
+    expect(renderToStaticMarkup(<WebSourcesList pages={[]} searches={1} />)).not.toContain('ai-web-count');
+  });
+
   // F131 §3: each entry shows its site's icon, through our own server, instead of the plain globe.
   it('shows each entry\'s site icon from our icon endpoint, with the letter beneath it as the fallback', () => {
     const html = renderToStaticMarkup(<WebSourcesList pages={PAGES} />);

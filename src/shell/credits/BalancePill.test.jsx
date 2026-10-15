@@ -92,3 +92,73 @@ describe('the pill and ring', () => {
     expect(daysLeftText({ cycleEndsAt: null, plan: 'plus' }, now)).toBe('');
   });
 });
+
+// F193: every credit message lives at the pill; the chat's refusal opens the popover by itself.
+describe('the messages at the pill', () => {
+  const wallet = (patch = {}) => ({ userId: 'u1', balance: 0, held: 0, available: 0, debt: 0, plan: 'plus', allowance: 2000, cycleEndsAt: null, lots: [], ...patch });
+
+  it('leads with the refusal and does not repeat it as the empty message', async () => {
+    const { GlanceMessages } = await import('./BalancePill.jsx');
+    const html = renderToStaticMarkup(<GlanceMessages credits={wallet()} notice={{ block: 'credits_exhausted' }} />);
+    expect(html.match(/You have no AI credits left to start an answer\./g)).toHaveLength(1);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('>Upgrade</button>');
+    expect(html).toContain('>Buy credits</button>');
+  });
+
+  it('offers no way to buy when the credits are in use by a running answer', async () => {
+    const { GlanceMessages } = await import('./BalancePill.jsx');
+    const html = renderToStaticMarkup(<GlanceMessages credits={wallet({ balance: 30, held: 30 })} notice={{ block: 'credits_exhausted', held: true }} />);
+    expect(html).toContain('in use by an answer that is still running');
+    expect(html).not.toContain('Buy credits');
+    expect(html).not.toContain('Upgrade');
+  });
+
+  it('offers Try again, which replays the turn, when the balance could not be checked', async () => {
+    const { GlanceMessages } = await import('./BalancePill.jsx');
+    const retry = vi.fn();
+    const onDone = vi.fn();
+    const tree = GlanceMessages({ credits: null, failed: true, notice: { block: 'credits_unavailable', retry }, onDone });
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain('so your answer did not start');
+    expect(html).not.toContain('AI credits could not be checked right now');
+    const find = (node) => {
+      if (!node || typeof node !== 'object') return null;
+      if (node.type === 'button' && node.props.children === 'Try again') return node;
+      for (const child of [node.props?.children].flat()) { const hit = find(child); if (hit) return hit; }
+      return null;
+    };
+    find(tree).props.onClick();
+    expect(retry).toHaveBeenCalledOnce();
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+
+  it('shows the low warning without a refusal, and nothing when all is well', async () => {
+    const { GlanceMessages } = await import('./BalancePill.jsx');
+    expect(renderToStaticMarkup(<GlanceMessages credits={wallet({ balance: 120, available: 120 })} notice={null} />)).toContain('Running low: 120 credits left this cycle.');
+    expect(renderToStaticMarkup(<GlanceMessages credits={wallet({ balance: 1500, available: 1500 })} notice={null} />)).toBe('');
+  });
+
+  it('leaves held credits to the popover\'s own line', async () => {
+    const { GlanceMessages } = await import('./BalancePill.jsx');
+    expect(renderToStaticMarkup(<GlanceMessages credits={wallet({ balance: 1500, available: 1400, held: 100 })} notice={null} />)).toBe('');
+  });
+
+  it('opens by itself for a new refusal, not for the same one again or for none', async () => {
+    const { opensFor } = await import('./BalancePill.jsx');
+    const out = { block: 'credits_exhausted', held: false };
+    expect(opensFor(null, out)).toBe(true);
+    expect(opensFor(out, { ...out })).toBe(false);
+    expect(opensFor(out, { block: 'credits_unavailable', held: false })).toBe(true);
+    expect(opensFor(out, null)).toBe(false);
+  });
+
+  it('marks the pill while a refusal or a warning stands', async () => {
+    const { needsAttention } = await import('./BalancePill.jsx');
+    expect(needsAttention(wallet({ balance: 1500, available: 1500 }), false, null)).toBe(false);
+    expect(needsAttention(wallet({ balance: 1500, available: 1500 }), false, { block: 'credits_unavailable' })).toBe(true);
+    expect(needsAttention(wallet({ balance: 120, available: 120 }), false, null)).toBe(true);
+    expect(needsAttention(wallet(), false, null)).toBe(true);
+    expect(needsAttention(null, true, null)).toBe(true);
+  });
+});

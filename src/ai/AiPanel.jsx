@@ -11,7 +11,7 @@ import './research.css';
 import './chat-presentation.css';
 import AttachmentTray from './AttachmentTray.jsx';
 import ChatSubmit from './ChatSubmit.jsx';
-import CreditBalance, { useCredits } from './CreditBalance.jsx';
+import { publishCreditNotice } from './chatCreditNotice.js';
 import AiMarkdown from './AiMarkdown.jsx';
 import ActivityTicker from './ActivityTicker.jsx';
 import WebSourceStrip, { liveStrip } from './WebSourceStrip.jsx';
@@ -393,9 +393,17 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const draft = research.draft;
   const setDraft = research.actions.setDraft;
   const busy = research.locked;
-  // F111 §8: a turn refused for credits says so in the credits notice by the composer, once.
+  // F111 §8, F193: a turn refused for credits says so once, at the header's balance pill, which holds
+  // every credit message; the chat box carries no credit line.
   const creditBlock = research.creditBlock || '';
-  const credits = useCredits(research.ownerId);
+  const creditHeld = Boolean(research.creditHeld);
+  const canRecover = Boolean(research.recoverable && creditBlock === 'credits_unavailable');
+  const recoverRef = useRef(null);
+  recoverRef.current = research.actions?.recover;
+  useEffect(() => {
+    publishCreditNotice(creditBlock ? { block: creditBlock, held: creditHeld, retry: canRecover ? () => recoverRef.current?.() : null } : null);
+  }, [creditBlock, creditHeld, canRecover]);
+  useEffect(() => () => publishCreditNotice(null), []);
   const plan = useEffectivePlan(research.ownerId);
   // Only the refusal itself is hidden (the notice replaces it); any other error still shows (review R, M4).
   const creditError = creditBlock ? research.creditError || '' : '';
@@ -737,7 +745,7 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
   const shownError = err || (creditError && stream?.error === creditError ? '' : stream?.error);
   const needsReload = connectionLost || running || stopping || Boolean(shownError || state.persistenceError)
     || messages.some((m) => m.status === 'running');
-  // The credits notice carries its own "Try again" for an unchecked balance; Recover would be a second one.
+  // The pill's credit notice carries its own "Try again" for an unchecked balance; Recover would be a second one.
   const recoverable = research.recoverable && creditBlock !== 'credits_unavailable';
   const showControls = needsReload || research.loading || research.attaching || recoverable || Boolean(research.cancelError || stream?.cancelError);
 
@@ -1209,8 +1217,6 @@ export default function AiPanel({ feed, selected, tab, featureName, lang, seed, 
           </div>
         </form>
         </div>
-        <CreditBalance credits={credits} block={creditBlock} held={Boolean(research.creditHeld)}
-          onRetry={research.recoverable && creditBlock === 'credits_unavailable' ? () => research.actions.recover() : undefined} />
       </div>
       </div>
     </div>

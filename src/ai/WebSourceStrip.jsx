@@ -50,13 +50,15 @@ function webSearchRunning(activity) {
 }
 
 /**
- * "From the web · unofficial" (web-search streaming spec, F131 §3): one strip at the top of an
- * answer, between the thinking notes and the text, the same on the live turn and the saved one.
- * Up to four site icons, then "+N" for the other domains. While the turn searches it pulses and
- * counts the pages found so far. The whole strip is one button that opens the list of pages. Web
- * pages are not citations, so it carries no number, and it sits apart from the document sources.
+ * "Web sources" (web-search streaming spec, F131 §3; F193 wording and layout, owner 2026-10-15): one
+ * strip at the top of an answer, between the thinking notes and the text, the same on the live turn
+ * and the saved one. Up to four site icons side by side in their own pill, then "+N" for the other
+ * domains, then the page count. While the turn searches it pulses and counts the pages found so far.
+ * The whole strip is one button that opens the list of pages, which carries the search count and the
+ * note that web pages are not Niyantran records. Web pages are not citations, so it carries no number,
+ * and it sits apart from the document sources.
  *
- * @param {{ sources: Array<{ url: string, title: string, domain: string, cited?: boolean }>, searches?: number | null, searching?: boolean, messageId?: string, onOpen?: (source: { kind: 'web', pages: unknown[], messageId?: string }) => void }} props
+ * @param {{ sources: Array<{ url: string, title: string, domain: string, cited?: boolean }>, searches?: number | null, searching?: boolean, messageId?: string, onOpen?: (source: { kind: 'web', pages: unknown[], searches: number | null, messageId?: string }) => void }} props
  */
 export default function WebSourceStrip({ sources, searches = null, searching = false, messageId, onOpen }) {
   const pages = cleanWebPages(sources);
@@ -64,22 +66,22 @@ export default function WebSourceStrip({ sources, searches = null, searching = f
   const domains = domainsOf(pages);
   const shown = domains.slice(0, MAX_ICONS);
   const more = domains.length - shown.length;
-  const sourceCount = plural(pages.length, 'source', 'sources');
-  const soFar = `${plural(pages.length, 'page', 'pages')} so far`;
+  const pageCount = plural(pages.length, 'page', 'pages');
+  const ran = searches > 0 ? searches : null;
   const named = `(${shown.join(', ')}${more ? ', …' : ''})`;
   const label = searching
-    ? `Searching the web, unofficial: ${soFar} ${named}. Open the list`
-    : `From the web, unofficial: ${sourceCount} ${named}. Open the list`;
-  const count = searching ? soFar : [searches > 0 && plural(searches, 'search', 'searches'), sourceCount].filter(Boolean).join(' · ');
+    ? `Searching the web: ${pageCount} so far ${named}. Open the list`
+    : `Web sources, not Niyantran records: ${pageCount}${ran ? ` from ${plural(ran, 'search', 'searches')}` : ''} ${named}. Open the list`;
+  const count = searching ? `${pageCount} so far` : pageCount;
   return (
-    <button type="button" className={`ai-web-strip${searching ? ' searching' : ''}`} aria-label={label} onClick={() => onOpen?.({ kind: 'web', pages: sources, messageId })}>
+    <button type="button" className={`ai-web-strip${searching ? ' searching' : ''}`} aria-label={label} onClick={() => onOpen?.({ kind: 'web', pages: sources, searches: ran, messageId })}>
       {searching ? <GlobeIcon className="ai-web-strip-globe" size={16} /> : null}
       <span className="ai-web-strip-icons" aria-hidden="true">
         {shown.map(domain => <SiteIcon key={domain} domain={domain} />)}
         {more > 0 ? <span className="ai-web-strip-more">+{more}</span> : null}
       </span>
       <span className="ai-web-strip-text">
-        <span className="ai-web-strip-label">{searching ? 'Searching the web…' : 'From the web · unofficial'}</span>
+        <span className="ai-web-strip-label">{searching ? 'Searching the web…' : 'Web sources'}</span>
         <span className="ai-web-strip-count">{count}</span>
       </span>
       <ChevronRight className="ai-web-strip-caret" size={16} aria-hidden="true" />

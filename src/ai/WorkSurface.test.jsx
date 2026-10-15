@@ -189,6 +189,13 @@ describe('web sources viewer', () => {
     expect(r.invalid).toBe(false);
     expect(r.source).toBeNull();
     expect(r.pages).toEqual(PAGES);
+    expect(r.searches).toBeNull();
+  });
+
+  it('keeps the turn\'s search count for the list, and only a positive whole number (F193)', () => {
+    expect(resolveViewer({ kind: 'web', source: { ...WEB, searches: 3 } }, []).searches).toBe(3);
+    for (const searches of [0, -1, 1.5, '3', null]) expect(resolveViewer({ kind: 'web', source: { ...WEB, searches } }, []).searches).toBeNull();
+    expect(renderToStaticMarkup(<WorkSurface viewer={{ kind: 'web', source: { ...WEB, searches: 2 } }} />)).toContain('2 searches · ');
   });
 
   it('drops malformed pages: a non-http(s) URL, a missing URL, a non-object', () => {

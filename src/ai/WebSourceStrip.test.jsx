@@ -10,16 +10,18 @@ const icons = (html) => (html.match(/<img [^>]*src="\/api\/site-icon\?domain=([^
 
 // F131 §3: one strip at the top of the answer, with the sites' icons. It replaced F130's WebSourceRow,
 // whose still-relevant assertions moved here.
-describe('WebSourceStrip: the "From the web" strip at the top of an answer', () => {
-  it('is one button with the label and the page count, singular for one source', () => {
+describe('WebSourceStrip: the "Web sources" strip at the top of an answer', () => {
+  // F193 (owner 2026-10-15): "Web sources" and the page count; the unofficial note is in the list.
+  it('is one button with the label and the page count, singular for one page', () => {
     const html = renderToStaticMarkup(<WebSourceStrip sources={FIVE} messageId="a1" onOpen={() => {}} />);
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).toContain('type="button"');
-    expect(html).toContain('From the web · unofficial');
-    expect(html).toContain('5 sources');
+    expect(html).toContain('<span class="ai-web-strip-label">Web sources</span>');
+    expect(html).toContain('<span class="ai-web-strip-count">5 pages</span>');
+    expect(html).not.toContain('unofficial');
     const one = renderToStaticMarkup(<WebSourceStrip sources={[page('pib.gov.in')]} onOpen={() => {}} />);
-    expect(one).toContain('1 source<');
-    expect(one).not.toContain('1 sources');
+    expect(one).toContain('>1 page<');
+    expect(one).not.toContain('1 pages');
   });
 
   it('shows one icon per distinct domain, case-insensitively, cited pages first', () => {
@@ -58,20 +60,17 @@ describe('WebSourceStrip: the "From the web" strip at the top of an answer', () 
     expect(html.match(/class="ai-site-icon-letter">([A-Z])</g)).toEqual(['class="ai-site-icon-letter">R<', 'class="ai-site-icon-letter">P<', 'class="ai-site-icon-letter">T<', 'class="ai-site-icon-letter">L<']);
   });
 
-  it('has an accessible name that says unofficial, the count, the first domains and the action', () => {
+  it('has an accessible name that says the pages are not Niyantran records, the count, the first domains and the action', () => {
     const html = renderToStaticMarkup(<WebSourceStrip sources={SIX_DOMAINS} onOpen={() => {}} />);
-    expect(html).toContain('aria-label="From the web, unofficial: 6 sources (a.example, b.example, c.example, d.example, …). Open the list"');
-    const two = renderToStaticMarkup(<WebSourceStrip sources={[page('rbi.org.in'), page('pib.gov.in')]} onOpen={() => {}} />);
-    expect(two).toContain('aria-label="From the web, unofficial: 2 sources (rbi.org.in, pib.gov.in). Open the list"');
+    expect(html).toContain('aria-label="Web sources, not Niyantran records: 6 pages (a.example, b.example, c.example, d.example, …). Open the list"');
+    const two = renderToStaticMarkup(<WebSourceStrip sources={[page('rbi.org.in'), page('pib.gov.in')]} searches={1} onOpen={() => {}} />);
+    expect(two).toContain('aria-label="Web sources, not Niyantran records: 2 pages from 1 search (rbi.org.in, pib.gov.in). Open the list"');
   });
 
-  it('says how many searches ran when the turn knows it', () => {
+  it('leaves the search count to the list it opens', () => {
     const html = renderToStaticMarkup(<WebSourceStrip sources={FIVE} searches={3} onOpen={() => {}} />);
-    expect(html).toContain('3 searches · 5 sources');
-    expect(renderToStaticMarkup(<WebSourceStrip sources={[page('a.example')]} searches={1} onOpen={() => {}} />)).toContain('1 search · 1 source');
-    for (const searches of [null, undefined, 0]) {
-      expect(renderToStaticMarkup(<WebSourceStrip sources={FIVE} searches={searches} onOpen={() => {}} />)).not.toContain('search');
-    }
+    expect(html).toContain('<span class="ai-web-strip-count">5 pages</span>');
+    expect(html).toContain('aria-label="Web sources, not Niyantran records: 5 pages from 3 searches');
   });
 
   it('while searching: a pulsing globe, "Searching the web…" and the pages so far', () => {
@@ -80,20 +79,20 @@ describe('WebSourceStrip: the "From the web" strip at the top of an answer', () 
     expect(html).toContain('ai-web-strip-globe');
     expect(html).toContain('Searching the web…');
     expect(html).toContain('5 pages so far');
-    expect(html).not.toContain('From the web · unofficial');
+    expect(html).not.toContain('>Web sources<');
     expect(html).not.toContain('2 searches');
-    expect(html).toContain('aria-label="Searching the web, unofficial: 5 pages so far (rbi.org.in, pib.gov.in, thehindu.com, livemint.com). Open the list"');
+    expect(html).toContain('aria-label="Searching the web: 5 pages so far (rbi.org.in, pib.gov.in, thehindu.com, livemint.com). Open the list"');
     expect(icons(html)).toHaveLength(4);
     const done = renderToStaticMarkup(<WebSourceStrip sources={FIVE} onOpen={() => {}} />);
     expect(done).not.toContain('ai-web-strip-globe');
     expect(done).not.toContain('searching');
   });
 
-  it('opens the list with the pages and the message id', () => {
+  it('opens the list with the pages, the search count and the message id', () => {
     const onOpen = vi.fn();
-    WebSourceStrip({ sources: FIVE, messageId: 'a1', onOpen }).props.onClick();
+    WebSourceStrip({ sources: FIVE, searches: 2, messageId: 'a1', onOpen }).props.onClick();
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(onOpen).toHaveBeenCalledWith({ kind: 'web', pages: FIVE, messageId: 'a1' });
+    expect(onOpen).toHaveBeenCalledWith({ kind: 'web', pages: FIVE, searches: 2, messageId: 'a1' });
   });
 
   it('renders nothing without sources, and ignores entries that are not pages', () => {

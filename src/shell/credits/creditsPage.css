@@ -6,7 +6,7 @@
    the popover grows from the pill, nothing animates on updates, and reduced motion keeps none of it.
    Every class starts with cp-. */
 
-:where(.cp-page, .cp-pop, .cp-calls, .ai-credit) {
+:where(.cp-page, .cp-pop, .cp-calls) {
   --cp-ease: cubic-bezier(0.23, 1, 0.32, 1);
   --cp-used: var(--accent);
   --cp-held: #b45309;
@@ -20,7 +20,7 @@
   --cp-warn-text: #8a1420;
   --cp-warn-bg: color-mix(in srgb, #c81322 8%, var(--panel));
 }
-.theme-dark :where(.cp-page, .cp-pop, .cp-calls, .ai-credit) {
+.theme-dark :where(.cp-page, .cp-pop, .cp-calls) {
   --cp-held: #f0a54a; --cp-over: #ff7a85; --cp-warn-text: #ffb3ba;
 }
 
@@ -193,6 +193,17 @@
 .cp-pill-wrap.open .cp-pill { border-color: var(--accent); background: var(--accent-soft); }
 .cp-pill-low { border-color: color-mix(in srgb, #b45309 45%, var(--line)); }
 .cp-pill-empty, .cp-pill-unchecked { border-color: color-mix(in srgb, #c81322 45%, var(--line)); }
+/* F193: a dot on the ring while a refusal or a warning stands; its words are in the popover. */
+.cp-pill { position: relative; }
+.cp-pill-dot { position: absolute; top: 4px; left: 21px; width: 7px; height: 7px; border-radius: 50%; background: #c81322; box-shadow: 0 0 0 2px var(--panel); }
+.cp-pill-low .cp-pill-dot { background: #b45309; }
+.theme-dark .cp-pill-dot { background: #ff7a85; }
+.theme-dark .cp-pill-low .cp-pill-dot { background: #f0a54a; }
+/* The messages lead the popover; in 320 px the actions wrap under the words. */
+.cp-pop-status { margin: 0 0 14px; }
+.cp-pop-status .cp-status-msg { flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; font-size: 12.5px; }
+.cp-pop-status .cp-status-msg > span { flex: 1 1 100%; }
+.cp-pop-status .cp-status-msg .cp-link { margin-left: 0; }
 .cp-ring { flex: none; display: block; overflow: visible; }
 .cp-ring-track, .cp-ring-fill { fill: none; stroke-width: 5; }
 .cp-ring-large .cp-ring-track, .cp-ring-large .cp-ring-fill { stroke-width: 3.5; }

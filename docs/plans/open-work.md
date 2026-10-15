@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F193 is next) and goes in the
+- A new finding gets the next free `F` number (F196 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -530,6 +530,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F193. Chat credit notices at the header pill; "Web sources" strip.** Owner request
+  2026-10-15 (UI only). The credit line under the chat box goes; the chat's refusal (no credits,
+  credits in use, could not be checked with Try again) and every warning show at the header's balance
+  pill, whose popover opens by itself for a refusal without taking focus. The web strip becomes site
+  icons side by side in their own pill, "Web sources" and the page count, with no outer border; the
+  search count and "N cited in the answer" move into the list it opens. The model's citation
+  instructions are unchanged (owner). Spec: `docs/specs/2026-10-15-chat-credits-and-web-strip.md`.
+  Built on `task/chat-credits-strip`; remaining: review, the owner's look, merge and push on their word.
 - [x] **F184. Credits page, balance pill and visual credits UI.** Done 2026-10-15 (`65c940e`; owner:
   "push + merge"). Owner request 2026-10-15
   (UI only). Credits get their own page from the profile menu, with a left side menu holding a

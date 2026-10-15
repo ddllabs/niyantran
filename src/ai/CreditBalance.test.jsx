@@ -1,158 +1,8 @@
-// F111 task 4a (docs/specs/2026-10-14-ai-credits.md §8): the balance by the chat box, its warning,
-// and the blocked state. Credits only, never rupees (F184).
-import { renderToStaticMarkup } from 'react-dom/server';
+// F111, F184: the chat asks the shell to open Plan and invoices. F193: the chat box has no credit
+// line; the balance and its messages are at the header pill (BalancePill.test.jsx).
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import CreditBalance, { OPEN_BILLING_EVENT, openPlanBilling, watchCredits } from './CreditBalance.jsx';
-
-const credits = (patch = {}) => ({
-  userId: 'u1', balance: 1520.4567, held: 0, available: 1520.4567, debt: 0, plan: 'plus',
-  allowance: 2000, cycleEndsAt: '2026-11-14T00:00:00Z', lots: [], recent: [], ...patch,
-});
-const html = (props) => renderToStaticMarkup(<CreditBalance {...props} />);
-
-/** Every element in a hook-free component's output, so a test can press its buttons. */
-function elements(node, out = []) {
-  if (Array.isArray(node)) node.forEach((n) => elements(n, out));
-  else if (node && typeof node === 'object' && node.props) {
-    out.push(node);
-    elements(node.props.children, out);
-  }
-  return out;
-}
-const buttonLabelled = (tree, label) => elements(tree).find((e) => e.type === 'button' && [].concat(e.props.children).join('') === label);
-
-describe('the balance by the chat box', () => {
-  it('shows the balance in credits only, never rupees (F184)', () => {
-    const out = html({ credits: credits() });
-    expect(out).toContain('1,520 credits');
-    expect(out).not.toContain('₹');
-    expect(out).not.toContain('role="alert"');
-  });
-
-  it('says "1 credit" for exactly one', () => {
-    expect(html({ credits: credits({ balance: 1 }) })).toContain('1 credit<');
-    // Anything that shows as "1" is singular too (review R, nits).
-    expect(html({ credits: credits({ balance: 1.004 }) })).toContain('1 credit<');
-  });
-
-  it('shows a negative balance as taken from the next credits', () => {
-    const out = html({ credits: credits({ balance: -50, available: -50, debt: 50 }) });
-    expect(out).toContain('−50 credits');
-    expect(out).toContain('taken from your next credits');
-    expect(out).not.toContain('₹');
-  });
-
-  it('warns, in words and politely, when credits run low', () => {
-    const out = html({ credits: credits({ balance: 150 }) });
-    expect(out).toContain('Running low: 150 credits left this cycle');
-    expect(out).toContain('role="status">Running low');
-    expect(html({ credits: credits({ balance: 150, plan: 'free' }) })).toContain('Running low: 150 credits left<');
-    expect(html({ credits: credits({ balance: 1500 }) })).not.toContain('Running low');
-    // F162: top-ups only, no allowance: warned too, without "this cycle".
-    expect(html({ credits: credits({ balance: 150, allowance: null }) })).toContain('Running low: 150 credits left<');
-  });
-
-  // F162: credits set aside for an answer still running are shown beside the balance.
-  it('shows credits held for a running answer, and nothing when none are held', () => {
-    expect(html({ credits: credits({ held: 300, available: 1220.4567 }) })).toContain('300 credits held for a running answer');
-    expect(html({ credits: credits() })).not.toContain('held for a running answer');
-  });
-
-  it('renders nothing when signed out or before the balance is read', () => {
-    expect(html({ credits: null })).toBe('');
-    expect(html({})).toBe('');
-  });
-});
-
-describe('the blocked state (402 credits_exhausted)', () => {
-  const props = { credits: credits({ balance: 0, available: 0 }), block: 'credits_exhausted' };
-
-  it('says so in an alert, shows the balance and offers Upgrade and Buy credits', () => {
-    const out = html(props);
-    expect(out).toContain('role="alert"');
-    expect(out).toContain('You have no AI credits left to start an answer.');
-    // F161: until top-ups are on sale (O6), it says where to ask for credits.
-    expect(out).toContain('Upgrade your plan, or write to niyantranai@gmail.com for more credits.');
-    expect(out).toContain('0 credits');
-    expect(out).toContain('>Upgrade</button>');
-    expect(out).toContain('>Buy credits</button>');
-  });
-
-  it('shows the actions even before the balance is known', () => {
-    const out = html({ credits: null, block: 'credits_exhausted' });
-    expect(out).toContain('>Upgrade</button>');
-    expect(out).not.toContain('ai-credit-line');
-  });
-
-  it('opens Plan & billing from either action', () => {
-    const open = vi.fn();
-    const tree = CreditBalance({ ...props, onOpenBilling: open });
-    buttonLabelled(tree, 'Upgrade').props.onClick();
-    buttonLabelled(tree, 'Buy credits').props.onClick();
-    expect(open).toHaveBeenCalledTimes(2);
-  });
-
-  it('says the credits are in use by a running answer, and offers no way to buy, when the refusal says held (review R, M2)', () => {
-    const out = html({ credits: credits({ balance: 500, held: 500, available: 0 }), block: 'credits_exhausted', held: true });
-    expect(out).toContain('role="alert"');
-    expect(out).toContain('Your credits are in use by an answer that is still running. Try again when it finishes.');
-    expect(out).toContain('500 credits');
-    expect(out).not.toContain('You have no AI credits left');
-    expect(out).not.toContain('Upgrade');
-    expect(out).not.toContain('Buy credits');
-  });
-
-  it('says the same when the balance is positive but all of it is held, even if the refusal did not say so', () => {
-    const out = html({ credits: credits({ balance: 500, held: 500, available: 0 }), block: 'credits_exhausted' });
-    expect(out).toContain('in use by an answer that is still running');
-    expect(out).not.toContain('Upgrade');
-    expect(out).not.toContain('Buy credits');
-  });
-
-  it('trusts held even before the balance is known', () => {
-    const out = html({ credits: null, block: 'credits_exhausted', held: true });
-    expect(out).toContain('in use by an answer that is still running');
-    expect(out).not.toContain('Upgrade');
-  });
-
-  it('keeps today\'s blocked state when nothing is held: a zero balance, held not set', () => {
-    for (const props of [{ held: false }, {}]) {
-      const out = html({ credits: credits({ balance: 0, available: 0 }), block: 'credits_exhausted', ...props });
-      expect(out).toContain('You have no AI credits left to start an answer.');
-      expect(out).toContain('>Upgrade</button>');
-      expect(out).toContain('>Buy credits</button>');
-      expect(out).not.toContain('in use by an answer');
-    }
-  });
-
-  it('keeps the Upgrade and Buy credits actions when the balance is negative', () => {
-    const out = html({ credits: credits({ balance: -50, available: -50, debt: 50 }), block: 'credits_exhausted' });
-    expect(out).toContain('>Upgrade</button>');
-    expect(out).not.toContain('in use by an answer');
-  });
-
-  it('is gone once credits are available again, so the next question is not discouraged', () => {
-    expect(html({ credits: credits({ balance: 400, available: 400 }), block: 'credits_exhausted' })).not.toContain('Upgrade');
-  });
-});
-
-describe('the unchecked state (503 credits_unavailable)', () => {
-  it('is a plain retry message, not the blocked state', () => {
-    const retry = vi.fn();
-    const out = html({ credits: credits(), block: 'credits_unavailable', onRetry: retry });
-    expect(out).toContain('role="alert"');
-    expect(out).toContain('AI credits could not be checked right now.');
-    expect(out).toContain('>Try again</button>');
-    expect(out).not.toContain('Upgrade');
-    expect(out).not.toContain('Buy credits');
-    buttonLabelled(CreditBalance({ credits: credits(), block: 'credits_unavailable', onRetry: retry }), 'Try again').props.onClick();
-    expect(retry).toHaveBeenCalledOnce();
-  });
-
-  it('offers no retry button when there is nothing to replay', () => {
-    expect(html({ credits: credits(), block: 'credits_unavailable' })).not.toContain('>Try again</button>');
-  });
-});
+import { OPEN_BILLING_EVENT, openPlanBilling } from './CreditBalance.jsx';
 
 describe('opening Plan & billing', () => {
   it('announces it on window for the shell, which owns the panel', () => {
@@ -168,23 +18,19 @@ describe('opening Plan & billing', () => {
   });
 });
 
-describe('watchCredits', () => {
-  it('reads the balance once when a signed-in panel opens, and follows the store until stopped', () => {
-    let listener;
-    const unsubscribe = vi.fn();
-    const refresh = vi.fn(async () => null);
-    const seen = [];
-    const stop = watchCredits({ refresh, subscribe: (fn) => { listener = fn; return unsubscribe; }, onChange: (c) => seen.push(c) });
-    expect(refresh).toHaveBeenCalledOnce();
-    listener(credits());
-    expect(seen).toHaveLength(1);
-    stop();
-    expect(unsubscribe).toHaveBeenCalledOnce();
+describe('no credit line by the chat box (F193)', () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+  it('keeps no balance component here, and no styles for one', () => {
+    expect(read('./CreditBalance.jsx')).not.toMatch(/export default|BalanceRing|useCredits/);
+    expect(read('./chat-presentation.css')).not.toMatch(/\.ai-credit(?:-line|-usage|-warn|-msg|-actions|-hint)?\b(?!-used)/);
   });
 
-  it('survives a refresh that rejects', async () => {
-    const refresh = vi.fn(async () => { throw new Error('offline'); });
-    expect(() => watchCredits({ refresh, subscribe: () => () => {}, onChange() {} })).not.toThrow();
-    await Promise.resolve();
+  it('has the chat panel hand its refusal to the pill, retrying through the latest recover', () => {
+    const panel = read('./AiPanel.jsx');
+    expect(panel).not.toContain('CreditBalance');
+    expect(panel).toContain("import { publishCreditNotice } from './chatCreditNotice.js';");
+    expect(panel).toContain("publishCreditNotice(creditBlock ? { block: creditBlock, held: creditHeld, retry: canRecover ? () => recoverRef.current?.() : null } : null);");
+    expect(panel).toContain('useEffect(() => () => publishCreditNotice(null), []);');
   });
 });

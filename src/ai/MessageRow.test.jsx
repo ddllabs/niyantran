@@ -43,30 +43,30 @@ describe('web sources at the top of the answer', () => {
 
   it('shows the strip after the ticker and above the answer text, and the document sources under the answer', () => {
     const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, content: 'ANSWER_TEXT [1].', sources: [doc], webSources: WEB_SOURCES }} />);
-    expect(html).toContain('From the web · unofficial');
-    expect(html).toContain('2 sources');
+    expect(html).toContain('<span class="ai-web-strip-label">Web sources</span>');
+    expect(html).toContain('2 pages');
     expect(html.match(/class="ai-web-strip"/g)).toHaveLength(1);
     expect(html.indexOf('ai-ticker')).toBeGreaterThan(-1);
     expect(html.indexOf('ai-ticker')).toBeLessThan(html.indexOf('ai-web-strip'));
     expect(html.indexOf('ai-web-strip')).toBeLessThan(html.indexOf('ANSWER_TEXT'));
     expect(html.indexOf('ANSWER_TEXT')).toBeLessThan(html.indexOf('ai-sources-block'));
-    expect(html.slice(html.indexOf('ANSWER_TEXT'))).not.toContain('From the web');
+    expect(html.slice(html.indexOf('ANSWER_TEXT'))).not.toContain('ai-web-strip');
     expect(html).not.toContain('ai-web-row');
   });
 
   it('says how many searches the saved turn ran, from its web_search steps', () => {
     const activity = [{ type: 'tool', name: 'web_search', step: 1, resultCount: 2, searches: 3, status: 'ok' }];
     const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, activity, webSources: WEB_SOURCES }} />);
-    expect(html).toContain('3 searches · 2 sources');
+    expect(html).toContain('2 pages from 3 searches');
     expect(html).not.toContain('ai-web-strip searching');
   });
 
   it('shows no strip without web sources: absent, empty, or on an old message', () => {
     for (const webSources of [undefined, [], null]) {
       const html = renderToStaticMarkup(<MessageRow {...base} m={{ ...m, webSources }} />);
-      expect(html).not.toContain('From the web');
+      expect(html).not.toContain('ai-web-strip');
     }
-    expect(renderToStaticMarkup(<MessageRow {...base} m={{ id: 'u1', role: 'user', content: 'Q', webSources: WEB_SOURCES }} />)).not.toContain('From the web');
+    expect(renderToStaticMarkup(<MessageRow {...base} m={{ id: 'u1', role: 'user', content: 'Q', webSources: WEB_SOURCES }} />)).not.toContain('ai-web-strip');
   });
 
   it('keeps web sources out of the document source list and the citation count', () => {
@@ -89,7 +89,7 @@ describe('web sources at the top of the answer', () => {
     expect(strip.props).toMatchObject({ sources: WEB_SOURCES, messageId: 'a1' });
     // The strip's own click payload is tested in WebSourceStrip.test.jsx; here it must be wired to onOpenSource.
     WebSourceStrip({ ...strip.props }).props.onClick();
-    expect(opened).toEqual([{ kind: 'web', pages: WEB_SOURCES, messageId: 'a1' }]);
+    expect(opened).toEqual([{ kind: 'web', pages: WEB_SOURCES, searches: null, messageId: 'a1' }]);
   });
 });
 

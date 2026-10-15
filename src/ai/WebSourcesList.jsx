@@ -121,15 +121,23 @@ const Entry = ({ entry }) => {
 };
 
 /**
- * @param {{ pages: Array<{ url: string, title: string, domain: string, cited: boolean }> }} props
+ * @param {{ pages: Array<{ url: string, title: string, domain: string, cited: boolean }>, searches?: number | null }} props
  */
-export default function WebSourcesList({ pages }) {
+export default function WebSourcesList({ pages, searches = null }) {
   const list = entriesOf(pages);
   const headingId = useId();
+  // F193: the search count lives here, not on the strip, with how many pages the answer linked.
+  const cited = list.filter((entry) => entry.cited).length;
+  const count = [
+    searches > 0 && `${searches} ${searches === 1 ? 'search' : 'searches'}`,
+    `${list.length} ${list.length === 1 ? 'page' : 'pages'}`,
+    cited > 0 && `${cited} cited in the answer`,
+  ].filter(Boolean).join(' · ');
   return (
     <section className="ai-web-panel" aria-labelledby={headingId}>
       <h3 id={headingId} className="ai-web-heading">Web sources searched</h3>
       <p className="ai-web-note">These are pages from the web, not Niyantran records. They may be inaccurate or out of date. The desk records and documents remain the authority.</p>
+      {list.length ? <p className="ai-web-count">{count}</p> : null}
       {list.length ? (
         <ul className="ai-web-list" aria-labelledby={headingId}>
           {list.map((entry, index) => <li key={`${entry.href || entry.title}:${index}`}><Entry entry={entry} /></li>)}

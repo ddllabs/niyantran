@@ -1,11 +1,14 @@
 /**
  * The header's balance pill and its glance popover (F184 spec §2). The popover grows from the pill,
  * closes on Escape, a click outside or focus leaving it, and hands focus back to the pill on Escape.
+ * Every credit message lives here (F193, owner 2026-10-15): the chat's refusal, low, empty, overdrawn,
+ * unchecked and renewal. A new refusal opens the popover by itself, leaving focus in the chat box.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { formatCredits, refreshCredits, serverCredits, subscribeCredits } from '../../lib/creditsStore.js';
 import { loadUsageActivity, loadUsageSeries, rowChat } from '../../lib/creditUsage.js';
-import { paceModel, periodBar } from '../../lib/creditsVisual.js';
+import { paceModel, periodBar, statusMessages } from '../../lib/creditsVisual.js';
+import { creditNotice, refusalMessage, subscribeCreditNotice } from '../../ai/chatCreditNotice.js';
 import { BalanceRing, balanceState } from './BalanceRing.jsx';
 import { PeriodBar, paceSentence } from './CreditsVisuals.jsx';
 import { goAccount } from './accountRoute.js';
@@ -38,6 +41,49 @@ export function daysLeftText(credits, now = Date.now()) {
   return credits.plan === 'free' ? `${days} ${word} until they expire` : `${days} ${word} to renewal`;
 }
 
+/** A refusal the popover has not shown yet: a new one, or a different kind. */
+export function opensFor(prev, next) {
+  if (!next?.block) return false;
+  return !prev || prev.block !== next.block || prev.held !== next.held;
+}
+
+/** The messages at the pill: the refusal first, then the standing ones without repeating it. Held
+ * credits keep the popover's own line. */
+function glanceMessages(credits, failed, notice) {
+  const refusal = refusalMessage(notice, credits);
+  const skip = ['held'];
+  if (refusal?.key === 'refused') skip.push('empty');
+  if (refusal?.key === 'refused-unchecked') skip.push('unchecked');
+  // statusMessages answers an unread balance before it applies `skip`, so filter here too.
+  return [...(refusal ? [refusal] : []), ...statusMessages({ credits, failed, skip }).filter((m) => !skip.includes(m.key))];
+}
+
+/** True while a refusal or a warning stands, for the pill's dot. */
+export function needsAttention(credits, failed, notice) {
+  return glanceMessages(credits, failed, notice).some((m) => m.tone === 'warn' || m.tone === 'danger');
+}
+
+export function GlanceMessages({ credits, failed = false, notice, onDone = () => {} }) {
+  const messages = glanceMessages(credits, failed, notice);
+  if (!messages.length) return null;
+  const then = (act) => () => { onDone(); act(); };
+  const billing = then(() => goAccount('billing'));
+  return (
+    <div className="cp-status cp-pop-status">
+      {messages.map((m) => (
+        <p key={m.key} className={`cp-status-msg cp-tone-${m.tone}`} role={m.tone === 'danger' || m.key.startsWith('refused') ? 'alert' : 'status'}>
+          <span>{m.text}</span>
+          {m.buy ? <><button type="button" className="cp-link" onClick={billing}>Upgrade</button><button type="button" className="cp-link" onClick={billing}>Buy credits</button></> : null}
+          {m.retry ? <button type="button" className="cp-link" onClick={then(() => notice.retry())}>Try again</button> : null}
+          {m.key === 'low' ? <button type="button" className="cp-link" onClick={billing}>See plans</button> : null}
+          {m.key === 'empty' || m.key === 'overdrawn' ? <button type="button" className="cp-link" onClick={billing}>Upgrade</button> : null}
+          {m.key === 'unchecked' ? <button type="button" className="cp-link" onClick={() => refreshCredits()}>Retry</button> : null}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function useCredits(userId) {
   const [credits, setCredits] = useState(() => serverCredits(userId));
   const [tried, setTried] = useState(false);
@@ -52,7 +98,7 @@ function useCredits(userId) {
   return { credits, failed: tried && !credits };
 }
 
-function Glance({ credits, failed, id, onOpenPage }) {
+function Glance({ credits, failed, notice, id, onOpenPage, onClose }) {
   const [extra, setExtra] = useState({ pace: null, latest: null });
   const cycleStart = credits?.cycleStartsAt || null;
   const ready = Boolean(credits);
@@ -73,7 +119,8 @@ function Glance({ credits, failed, id, onOpenPage }) {
   if (!credits) {
     return (
       <div id={id} className="cp-pop" role="dialog" aria-label="Credits at a glance">
-        <p className="cu-note">{failed ? 'Your credits could not be checked just now.' : 'Loading your credits…'}</p>
+        <GlanceMessages credits={credits} failed={failed} notice={notice} onDone={onClose} />
+        {failed ? null : <p className="cu-note">Loading your credits…</p>}
         <button type="button" className="cp-pop-open" onClick={onOpenPage}>Open credits page</button>
       </div>
     );
@@ -82,6 +129,7 @@ function Glance({ credits, failed, id, onOpenPage }) {
   const days = daysLeftText(credits);
   return (
     <div id={id} className="cp-pop" role="dialog" aria-label="Credits at a glance">
+      <GlanceMessages credits={credits} failed={failed} notice={notice} onDone={onClose} />
       <div className="cp-pop-head">
         <BalanceRing credits={credits} size={52} />
         <div>
@@ -112,26 +160,40 @@ export default function BalancePill({ user }) {
   const button = useRef(null);
   const id = useId();
   const state = balanceState(credits, failed);
+  const [notice, setNotice] = useState(creditNotice);
+  const shown = useRef(creditNotice());
+  // Opened for a refusal, not by the reader: focus stays in the chat box.
+  const quiet = useRef(false);
+
+  useEffect(() => subscribeCreditNotice((next) => {
+    const fresh = opensFor(shown.current, next);
+    shown.current = next;
+    setNotice(next);
+    if (fresh) { quiet.current = true; setOpen(true); }
+  }), []);
 
   useEffect(() => {
     if (!open) return undefined;
     const stop = watchPopover({ doc: document, root: wrap.current, onClose: () => setOpen(false), focusPill: () => button.current?.focus({ preventScroll: true }) });
-    wrap.current?.querySelector('.cp-pop-open')?.focus({ preventScroll: true });
+    if (!quiet.current) wrap.current?.querySelector('.cp-pop-open')?.focus({ preventScroll: true });
+    quiet.current = false;
     return stop;
   }, [open]);
 
   if (!user?.id) return null;
   const left = credits ? Math.max(Math.round(credits.balance - (credits.held || 0)), 0) : null;
   const words = state === 'unchecked' ? 'Credits unavailable' : state === 'loading' ? 'Credits' : `${formatCredits(left)} credits`;
-  const label = state === 'unchecked' ? 'Credits could not be checked.' : state === 'loading' ? 'Credits.' : `${words} left.`;
+  const alert = needsAttention(credits, failed, notice);
+  const label = `${state === 'unchecked' ? 'Credits could not be checked.' : state === 'loading' ? 'Credits.' : `${words} left.`}${alert ? ' Needs attention.' : ''}`;
   return (
     <div className={`cp-pill-wrap${open ? ' open' : ''}`} ref={wrap}>
       <button type="button" ref={button} className={`cp-pill cp-pill-${state}`} aria-haspopup="dialog" aria-expanded={open}
         aria-controls={open ? id : undefined} aria-label={`${label} Open the summary.`} onClick={() => setOpen((v) => !v)}>
         <BalanceRing credits={credits} failed={failed} />
         <span className="cp-pill-text">{words}</span>
+        {alert ? <span className="cp-pill-dot" aria-hidden="true" /> : null}
       </button>
-      {open ? <Glance credits={credits} failed={failed} id={id} onOpenPage={() => { setOpen(false); goAccount('credits'); }} /> : null}
+      {open ? <Glance credits={credits} failed={failed} notice={notice} id={id} onClose={() => setOpen(false)} onOpenPage={() => { setOpen(false); goAccount('credits'); }} /> : null}
     </div>
   );
 }

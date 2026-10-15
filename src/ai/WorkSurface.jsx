@@ -33,14 +33,17 @@ const isPage = value => Number.isSafeInteger(value) && value >= 1;
  */
 export function resolveViewer(viewer, sources) {
   const raw = viewer?.source || null;
-  if (raw?.kind === 'web') return { source: null, invalid: false, sources: [], reader: 'web', pages: cleanWebPages(raw.pages) };
+  if (raw?.kind === 'web') {
+    const searches = Number.isInteger(raw.searches) && raw.searches > 0 ? raw.searches : null;
+    return { source: null, invalid: false, sources: [], reader: 'web', pages: cleanWebPages(raw.pages), searches };
+  }
   const invalid = Boolean(raw && !isReadableCitation(raw));
   const source = raw && !invalid ? sanitizeCitation(raw) : null;
   const list = (Array.isArray(sources) ? sources : []).filter(isReadableCitation).map(sanitizeCitation);
   let reader = null;
   if (source?.kind === 'row') reader = 'row';
   else if (source?.kind === 'text') reader = source.source_kind === 'pdf_page' && isPage(source.page_number) ? 'page' : 'text';
-  return { source, invalid, sources: list, reader, pages: [] };
+  return { source, invalid, sources: list, reader, pages: [], searches: null };
 }
 
 /**
@@ -101,7 +104,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
   const onDocumentState = useCallback((state) => setReported({ key: citationKey, state }), [citationKey]);
   const documentState = currentDocumentState(reported, citationKey);
   if (!viewer) return null;
-  const { source, invalid, sources: validSources, reader, pages } = resolved;
+  const { source, invalid, sources: validSources, reader, pages, searches } = resolved;
   const closeLabel = reader === 'web' ? 'Close web sources' : 'Close citation';
 
   // "← Back" and the ✕ close the citation only; the chat stays open (revision 5, point 2). The ✕
@@ -129,7 +132,7 @@ export default function WorkSurface({ viewer, sources = [], onOpen, onClose, cli
         ) : null}
         {reader === 'text' ? <SourceReader key={citationKey} citation={source} client={client} onDocumentState={onDocumentState} /> : null}
         {reader === 'row' ? <RowSource citation={source} onClose={onClose} /> : null}
-        {reader === 'web' ? <WebSourcesList pages={pages} /> : null}
+        {reader === 'web' ? <WebSourcesList pages={pages} searches={searches} /> : null}
         {invalid ? <p role="status">This source is unavailable. Return to the answer to choose another.</p> : null}
         {!source && !invalid && reader !== 'web' ? (validSources.length ? (
           <ul className="ai-work-sources" aria-label="Sources">
