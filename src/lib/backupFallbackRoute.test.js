@@ -73,15 +73,16 @@ describe('backup packs behind the deployed router (F156)', () => {
 });
 
 describe('the bounded backup read (F156)', () => {
-  it('reads the largest pack (5.9 MB, Key Financial Indicators) in under a second', () => {
+  it('reads the largest pack (5.9 MB, Key Financial Indicators) without reading it whole (well under a second alone)', () => {
     const started = performance.now();
     const pack = loadBackupForFeature('Key Financial Indicators (GDP, CPI, PMI, Emp-to-Pop)', 'economics', { cap: 500 });
     const took = performance.now() - started;
     expect(pack.rows).toHaveLength(500);
-    // F174: well under a second alone; the full suite on a busy machine has taken longer, so the
-    // bound guards against an unbounded read (tens of seconds), not against a slow machine.
-    expect(took).toBeLessThan(2500);
-  });
+    // F174: well under a second alone; the full suite on a busy machine has taken over 2.5 s
+    // (2026-10-15), so the bound guards against an unbounded read (tens of seconds), not against a
+    // slow machine.
+    expect(took).toBeLessThan(10_000);
+  }, 30_000);
 });
 
 describe('the router without the packs (as deployed today)', () => {
