@@ -2059,7 +2059,7 @@ recommendations … We can fix everything that is under your control."
 - **2026-10-15: local signed-in checks (A4) and the viewer measurement (B3)** on a scratch local stack
   and a throwaway worktree, nothing on NTER; all four checks as specified; F47 and F59 closed; F192
   found. Torn down afterwards. Evidence: `docs/research/2026-10-15-local-signed-in-checks.md`.
-- **2026-10-15: F192** (`9a66bf3`) on `task/f192-hindi-lang`, after the other session finished its
+- **2026-10-15: F192** (`9a66bf3`, `63398e1`) on `task/f192-hindi-lang`, after the other session finished its
   UI fixes (main `eee71aa`): the page's `lang` follows the EN/HI toggle and the toggle has a name.
   `TerminalShell.jsx` only for the shell; no credits or desk-rail file touched. Checks: lint, build,
-  5,428 Vitest tests. Rollback: revert and push.
+  5,429 Vitest tests, independent review approved. Rollback: revert and push.

@@ -770,14 +770,16 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30); 2026-10-15: B11 (F67), B12 (F36),
     B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, closed 2026-10-15 on a local check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
     (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
-- [x] **F192. Hindi interface: the page language and the toggle's name.** Done 2026-10-15 (`9a66bf3`).
+- [x] **F192. Hindi interface: the page language and the toggle's name.** Done 2026-10-15 (`9a66bf3`, `63398e1`).
   The document's `lang` stayed `en` while the interface was in Hindi, and the EN/HI toggle had no
   accessible name (local check 2026-10-15, `docs/research/2026-10-15-local-signed-in-checks.md`).
   Now the shell sets `lang` to `hi` or `en` with the toggle and puts back the page's own value when it
   unmounts (`src/shell/interfaceLang.js`); the toggle is named "EN, switch the interface to Hindi"
   (in Hindi mode "HI, इंटरफ़ेस अंग्रेज़ी में बदलें"), so its name starts with its visible text.
-  Checks: both new tests failed before the change; lint, build, 5,428 Vitest tests. Not checked in a
-  browser (the shell needs a signed-in local stack).
+  Checks: the new tests failed before the change, and the wiring test fails with the shell's effect
+  removed; lint, build, 5,429 Vitest tests; independent review approved. Not checked in a browser
+  (the shell needs a signed-in local stack). Possible follow-up, not opened: in Hindi mode,
+  English-only content (dataset names, feeds) is now read with a Hindi voice unless marked `lang="en"`.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
