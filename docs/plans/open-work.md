@@ -800,6 +800,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   removed; lint, build, 5,429 Vitest tests; independent review approved. Not checked in a browser
   (the shell needs a signed-in local stack). Possible follow-up, not opened: in Hindi mode,
   English-only content (dataset names, feeds) is now read with a Hindi voice unless marked `lang="en"`.
+- [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
+  2026-10-15: "The source is in that only … We just have to make them up and working"; the tender
+  aggregators wait for the owner's source. [Research](../research/2026-10-15-planned-module-sources.md):
+  of the 17 in scope, 4 news modules and Election Forecast can be built now; SDL auctions from the RBI
+  press feed; State Economic, State Fiscal, NITI indices and Cross-State from the RBI state handbook
+  (same RBI site as the registry's source); the 5 district themes only as state-level figures; District
+  Governance and District Crime have no source and stay planned. Owner decisions: the RBI handbook,
+  the district relabel, Party Organisation Map as party strength.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
