@@ -3,7 +3,7 @@
 // (docs/specs/2026-10-16-module-scroll.md).
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { menuSwitchDelay, SWITCH_DELAY_MS } from './DeskNav.jsx';
+import { leavesToOwnTab, menuSwitchDelay, SWITCH_DELAY_MS } from './DeskNav.jsx';
 
 const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8');
 const nav = readFileSync(new URL('./DeskNav.jsx', import.meta.url), 'utf8');
@@ -36,6 +36,22 @@ describe('the category menus', () => {
     expect(menuSwitchDelay('Electoral Data & Analytics', 'Electoral Data & Analytics')).toBe(0);
     expect(menuSwitchDelay('Electoral Data & Analytics', 'Representative & Media Intelligence')).toBe(SWITCH_DELAY_MS);
     expect(SWITCH_DELAY_MS).toBe(160);
+  });
+
+  // Owner 2026-10-16: "for a second the dropdown shows up, then it vanishes … only activating on this
+  // selected text". The menu's hover bridge covers the tab's bottom 8 px; moving from it back onto the
+  // tab counted as leaving the menu and closed it under a resting pointer.
+  it('stay open when the pointer moves from the menu back onto its own tab', () => {
+    const tab = { contains: (n) => n === 'label' || n === 'button' };
+    const anchor = { closest: () => tab };
+    expect(leavesToOwnTab(anchor, 'label')).toBe(true);
+    expect(leavesToOwnTab(anchor, 'page')).toBe(false);
+    expect(leavesToOwnTab(null, 'label')).toBe(false);
+    expect(nav).toMatch(/onMouseLeave=\{\(e\) => \{ if \(!leavesToOwnTab\(anchor, e\.relatedTarget\)\) onLeave\(\); \}\}/);
+  });
+
+  it('cancel a pending close while the pointer moves over the open tab', () => {
+    expect(nav).toMatch(/onMouseMove=\{\(\) => \{ if \(open === b\.label\) clearTimeout\(closeTimer\.current\); \}\}/);
   });
 
   it('cancel a pending switch when the pointer leaves that tab, and follow the tab when the row scrolls', () => {

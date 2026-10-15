@@ -79,3 +79,12 @@ Browser check on the signed-in local preview:
   menu keeps it; resting on the next tab for 250 ms switches.
 - `check:bundle` fails on `main` before this change too (222,128 bytes against a 221,993 limit, from
   other work); this change adds nothing to the main bundle.
+
+## Owner follow-up (2026-10-16): the menu still vanished
+
+"For a second the dropdown shows up, then it vanishes … only activating on this selected text." The
+menu's hover bridge (`.drop-menu.portal::before`, 10 px above a menu placed 2 px under its tab)
+covers the tab's bottom 8 px. A pointer resting low on the tab is on the menu; moving back up onto
+the tab fired the menu's leave and closed it 180 ms later, under a pointer still on the tab. Now a
+leave into the menu's own tab is ignored (`leavesToOwnTab`), and moving over the open tab cancels a
+pending close. Checked with simulated pointer moves: tab, bridge, tab again, 500 ms later still open.

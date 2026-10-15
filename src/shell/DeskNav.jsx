@@ -14,6 +14,15 @@ export function menuSwitchDelay(openLabel, label) {
   return openLabel && openLabel !== label ? SWITCH_DELAY_MS : 0;
 }
 
+/**
+ * F203 (owner 2026-10-16): the menu's hover bridge (.drop-menu.portal::before) covers the tab's bottom
+ * 8 px, so a pointer resting low on the tab is on the menu; moving back onto the tab is not leaving.
+ */
+export function leavesToOwnTab(anchor, to) {
+  const tab = anchor?.closest?.('.drop');
+  return Boolean(tab && to && tab.contains(to));
+}
+
 function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   useLayoutEffect(() => {
@@ -41,7 +50,7 @@ function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
       role="menu"
       style={{ top: pos.top, left: pos.left }}
       onMouseEnter={onKeep}
-      onMouseLeave={onLeave}
+      onMouseLeave={(e) => { if (!leavesToOwnTab(anchor, e.relatedTarget)) onLeave(); }}
     >
       {items.map((it) => (
         <li key={it.id}>
@@ -139,6 +148,7 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
             key={b.label}
             className="drop"
             onMouseEnter={() => enterMenu(b.label)}
+            onMouseMove={() => { if (open === b.label) clearTimeout(closeTimer.current); }}
             onMouseLeave={() => { clearTimeout(switchTimer.current); hideMenuSoon(); }}
           >
             <button
