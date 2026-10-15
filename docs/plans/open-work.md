@@ -821,6 +821,25 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   "gpt-luna-latest"; the owner's admin account cannot pick GPT – Astra (plan gate; decide whether
   admins bypass it).
   *Done 2026-10-15 (`ea78041`, `71f4897`): Escape closes an open panel menu first (checked on production); the desk tour waits for the account before deciding (it re-showed on any reload); an empty or id-only model label shows a readable name ("GPT Luna Latest", checked on production); greetings get a one-to-three-sentence reply with no search. The one-off reload on a source click is most likely a deploy landing mid-session (the viewer chunk reloads the page once). Admins bypass model plans (owner 2026-10-15, `a0c1216`): GPT – Astra selectable on the owner's admin account on production; research-chat checks `is_platform_admin()` as the caller.*
+- [ ] **F202. Module data quality (owner 2026-10-15: "Is this feed even true? What about the other
+  modules and fields?").** [Audit](../research/2026-10-15-module-quality-audit.md) of all 117 modules
+  on production: 31 OK, 60 minor, 23 major, 3 broken. Causes and fixes:
+  1. LIVE badge is the default and fires on the word "live" in any note: 28 stored modules show LIVE
+     (`src/lib/dataState.js`). Fix: LIVE only for positively live answers.
+  2. State Governance Brief prepends 40 undated national PIB releases; PIB dates are fetched only by
+     the national modules; Policy Pipeline shows unfiltered PIB. Fix: PIB out of State Governance, PIB
+     dates wherever PIB stays, Policy Pipeline filtered.
+  3. Name-built searches stored in the data files break Municipal Watch and Panchayat Watch ("Watch").
+  4. National or unguarded searches: State Cabinet, Governor Assent, CAG, HC judges, ICJ, District
+     Media, State Governance. Fix: title guards as F196's curated modules have.
+  5. No age limit or headline de-duplication on news (rows from 2017–2020 under LIVE).
+  6. Store not serving yet (timer on since 2026-10-15; serve after the comparison day); modules with
+     no stored copy can come back empty.
+  7. Stored data files: bill dates a day early (time zone), 19 leaders stored as titles, expired
+     tenders marked Open, Isometric rows undated, constitution names as slugs (data-migration task).
+  8. Column setups that do not match the data (Centre-Sanctioned Projects, MLA Report Card, District
+     Performance, Energy); resolved prediction markets and 9999 dates; raw HTML entities; Goa-only
+     modules unlabelled; "Vernacular" modules that are English news; State Tender shown as configured.
 - [ ] **F196. Planned modules: make them work from the sources the repo already names.** Owner
   2026-10-15: "The source is in that only … We just have to make them up and working"; the tender
   aggregators wait for the owner's source. [Research](../research/2026-10-15-planned-module-sources.md):
