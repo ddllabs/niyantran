@@ -2116,3 +2116,8 @@ recommendations … We can fix everything that is under your control."
   130 → 211 MB. Checked in the owner's tab: Table 176 → Years "2005 to 2007" shows 1,767 rows.
   Rollback: `update feed_state set serve = false where variant like '%@%'` and reload with the capped file.
   Not done: the handbook in desk_rows for the AI (T9b's production load) waits for the owner.
+- **2026-10-16: the RBI handbook in the AI's search (F201 T9b).** `load-desk-rows.mjs --handbook
+  tmp/rbi-handbook/handbook-2024-25.json` (dry run first: 8 modules, 102,569 rows, 0 collisions, 0
+  pruned), then `analyze public.desk_rows` (136,752 rows). research-chat deployed from `f96a7d7` after
+  its deployed copy matched `e613555`. Rollback: redeploy research-chat from `e613555`; delete rows with
+  `delete from desk_rows where tier='state' and feature in (<the eight handbook modules>)`.

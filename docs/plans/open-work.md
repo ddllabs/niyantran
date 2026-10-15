@@ -932,10 +932,15 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   steps and probes: coordination.md, 2026-10-16. An independent review found two defects before go-live,
   both fixed with tests (the Year control offered years the server ignored; `years` values could
   multiply live RBI fetches and kept answers).*
-  - [ ] **T9b production: the handbook in desk_rows for the AI.** Built and checked locally (102,569
-    rows, 3 sample questions answered exactly); about +199 MB. Also needs the eight handbook modules in
-    the AI's module catalogue (`supabase/functions/_shared/deskCatalog.json`, research-chat redeploy),
-    or the AI can find the figures only by a search across all desks. Waiting for the owner.
+  - [x] **T9b production: the handbook in desk_rows for the AI.** Owner 2026-10-16: no vectors for
+    tabular figures; structured search. *Done 2026-10-16: 102,569 rows loaded (desk_rows 34,183 →
+    136,752; database 1,733 → 1,882 MB); catalogue `f96a7d7` lists the eight modules with every table
+    title, fields and year forms (State-desk prompt +~3,500 tokens), and the tool description and prompt
+    allow a year filter on handbook rows; research-chat redeployed (deployed copy matched main first).
+    Production question in the owner's tab (Gemini Flash, 48 s, 63.2 credits): Maharashtra's GSDP
+    2019-20 at current and constant prices (Tables 21, 22) and the highest 2023 outstanding liabilities
+    (Tamil Nadu ₹7,58,931.5 crore, Table 176, from "state debt") — every figure equal to desk_rows.
+    Seen: the answer's Gaps section asserted the 2023 figures are provisional, which the rows do not say.*
   - [ ] **Before the 2026-27 edition is loaded: stable block names.** `yearBlocks` groups newest-first, so
     one new year renames most older blocks; a shrunk block is refused and keeps serving last edition's
     years, and obsolete blocks keep `serve` on until the printed SQL is run. Group oldest-first or have
