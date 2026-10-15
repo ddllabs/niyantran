@@ -638,9 +638,26 @@ describe('Google News search rows (F188)', () => {
   });
 
   it('titles the summary card as Google News, since the row names no outlet', () => {
-    const card = ggm(googleWithSummary).about.cards[0];
+    const row = googleRow(5, { summary: 'Ministers from both sides met in Doha for a second round of talks.' });
+    const card = ggm(row).about.cards[0];
     expect(card.heading).toBe('Summary as listed by Google News');
-    expect(card.body).toBe('Talks resume 1 Reuters');
+    expect(card.body).toBe('Ministers from both sides met in Doha for a second round of talks.');
+  });
+
+  it('shows no summary card when the Google summary only repeats the headline and publisher', () => {
+    expect(ggm(googleWithSummary).about.cards).toEqual([]);
+  });
+
+  it('a row with a BBC outlet stays BBC even when it also carries a publisher', () => {
+    const both = { ...rssRow({ title: 'Ceasefire holds', n: 9, summary: 'The truce held overnight.' }), publisher: 'BBC News' };
+    const model = newsWire(both, { rows: [both] });
+    expect(tile(model, 'Feed').value).toBe('BBC World feed');
+  });
+
+  it('says the article link opens through Google News', () => {
+    const [link] = ggm(googleWithSummary).links;
+    expect(link.label).toBe('Read the article (via Google News)');
+    expect(link.href).toBe(googleWithSummary.source_url);
   });
 
   it('states the window from coverage.through, reads the date in India time, and counts same-publisher stories', () => {

@@ -40,14 +40,15 @@ const isGoogleNewsHost = (host) => /(^|\.)news\.google\.com$/i.test(host);
 
 /**
  * Which feed made the row: its own fields. A stored GDELT article carries domain, seendate or the
- * reporting-search label. A Google News search row (F188) carries a news.google.com link and/or a
- * `publisher`; it is checked before the BBC test because it usually has a summary too. BBC rows carry
- * `outlet`.
+ * reporting-search label. A BBC row always carries `outlet` (rssTagged), so `outlet` decides first. A
+ * Google News search row (F188) carries a news.google.com link and/or a `publisher`, and usually a
+ * summary too, so it is told apart before the summary-only RSS fallback.
  */
 function feedKind(row) {
   if (text(row.domain) || text(row.seendate) || text(row.reporting_search)) return GDELT;
+  if (text(row.outlet)) return RSS;
   if (text(row.publisher) || isGoogleNewsHost(linkHost(urlOf(row)))) return GOOGLE;
-  if (text(row.outlet) || text(row.summary)) return RSS;
+  if (text(row.summary)) return RSS;
   return null;
 }
 
@@ -106,9 +107,11 @@ export default function newsWire(row, ctx = {}) {
   const published = publishedLabel(row);
   const language = kind === GDELT ? plainText(row.language) : '';
   const country = kind === GDELT ? plainText(row.sourcecountry) : '';
-  const summary = plainText(row.summary);
+  // A Google News summary is often just the headline and the publisher again: no card for that.
+  const rawSummary = plainText(row.summary);
+  const summary = kind === GOOGLE && rawSummary.toLowerCase().startsWith(String(title || '').toLowerCase().replace(/\s+-\s+[^-]+$/, '').slice(0, 40)) ? '' : rawSummary;
   // A Google News link is Google's redirect to the story, not the publisher's website: no Website row.
-  const linkedHost = linkHost(row.source_url);
+  const linkedHost = linkHost(urlOf(row));
   const host = kind === GOOGLE && isGoogleNewsHost(linkedHost) ? '' : linkedHost;
 
   // Source-status rows are notices, not stories. The selection may be a copy of its feed row.
@@ -128,7 +131,7 @@ export default function newsWire(row, ctx = {}) {
     title,
     meta: ['News wire', publisher].filter(Boolean),
     badge: kind === GDELT ? { text: 'Reporting search', tone: 'grey' } : kind === GOOGLE ? { text: 'News search', tone: 'grey' } : kind === RSS ? { text: 'News feed', tone: 'grey' } : undefined,
-    links: linkedHost ? sourceLinks(row, 'Read the article') : [],
+    links: linkedHost ? sourceLinks(row, kind === GOOGLE && isGoogleNewsHost(linkedHost) ? 'Read the article (via Google News)' : 'Read the article') : [],
     glance: {
       tiles: [
         { label: 'Published', value: published || NOT_ON_RECORD, sub: kind === GDELT ? 'India date; first seen by the news search' : kind === RSS || kind === GOOGLE ? 'India date; feed publication date' : 'India date' },
