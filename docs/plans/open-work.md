@@ -848,7 +848,17 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     three required fixes (partial years, append-only "nothing new" counted as failure, unbounded live
     cache keys), all fixed before loading. Loaded with `load-feed-register.mjs --target prod`, `serve`
     on; production probe: all answer from the store in 0.2–0.7 s.
-  - Next: the party-strength map (in progress; DataMeet boundaries approved by the owner).
+  - Party Organisation Map live 2026-10-15 (`911d253`, `65ffac8`): party seat strength per state
+    assembly from the MLA register (31 assemblies, 4,103 MLAs, as of 19 Aug 2026), an India map from
+    DataMeet's states layer (owner-approved download; CC-BY 2.5 India; verified against the official
+    Survey of India extent — Ladakh to about 37°04.7′N with Aksai Chin, Gilgit, Skardu, Siachen and
+    Shaksgam; Muzaffarabad and Mirpur in J&K; Tawang in Arunachal; the check runs as a test), shipped
+    as a 55 KB file, coloured by the largest party, with a table, a national roll-up and an MLA-list
+    hand-off. "Majority" means more than half of the MLAs the register lists. Production: 31 rows in
+    1.6 s; the map renders as specified.
+  - Remaining planned: District Governance & Grievance and District Crime & Safety (no source in the
+    repo), Municipal & Panchayat Tender Aggregator (owner's source awaited); State Tender Aggregator
+    likewise.
 - [ ] **F201. RBI Handbook registers keep only the newest whole years per table.** One store page is
   500 figures, so 85 of 152 tables drop older years (e.g. table 176 keeps 480 of 12,565 figures, and
   its newest year alone is over 500, so 4 indicators including "Outstanding Liabilities" are left out;
