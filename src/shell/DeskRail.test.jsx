@@ -33,10 +33,10 @@ describe('the desk rail', () => {
     expect(out).toContain('<nav class="desk-rail open" id="desk-rail" aria-label="Desks">');
     expect(out).toContain('aria-expanded="true"');
     expect(out).toContain('aria-label="Collapse the desk list"');
-    expect(out).toContain('<div class="desk-rail-scrim" aria-hidden="true"></div>');
+    expect(out).toContain('class="desk-rail-scrim" aria-hidden="true"');
   });
 
-  it('hands the picked desk to the rail, which closes and goes to it', () => {
+  it('hands the picked desk to the rail', () => {
     const onPick = vi.fn();
     const find = (node, test) => {
       if (!node || typeof node !== 'object') return null;
@@ -53,6 +53,26 @@ describe('the desk rail', () => {
     const out = renderToStaticMarkup(<DeskRail tab="law" lang="hi" tabs={TABS} onDesk={() => {}} onOpenChange={() => {}} />);
     expect(out).toContain('विधि');
     expect(out).toContain('aria-label="डेस्क"');
+  });
+});
+
+describe('the rail\'s closing rules', () => {
+  const code = readFileSync(new URL('./DeskRail.jsx', import.meta.url), 'utf8');
+  const shell = readFileSync(new URL('./TerminalShell.jsx', import.meta.url), 'utf8');
+
+  it('closes on any change of page, however it came (back, a category, search, the credits page)', () => {
+    expect(shell).toContain("const railRoute = `${tab}|${featureName || ''}|${account || ''}`;");
+    expect(shell).toMatch(/if \(railSeen !== railRoute\) \{\s*setRailSeen\(railRoute\);\s*setRailOpen\(false\);\s*\}/);
+  });
+
+  it('leaves Escape to a dialog opened over it, and closes when focus leaves it', () => {
+    expect(code).toMatch(/if \(e\.key !== 'Escape' \|\| e\.defaultPrevented \|\| doc\.querySelector\('dialog\[open\], \[aria-modal="true"\]'\)\) return;/);
+    expect(code).toMatch(/const onFocusOut = \(e\) => \{ const to = e\.relatedTarget; if \(to && !nav\.current\?\.contains\(to\) && !to\.closest\?\.\('\.desktabs-desks'\)\) close\(false\); \};/);
+  });
+
+  it('closes from a tap on the scrim itself, so the tap does not reach the page under it', () => {
+    expect(code).toContain('<div className="desk-rail-scrim" aria-hidden="true" onClick={() => onOpenChange(false)} />');
+    expect(code).toMatch(/if \(nav\.current\?\.contains\(e\.target\) \|\| e\.target\?\.closest\?\.\('\.desktabs-desks, \.desk-rail-scrim'\)\) return;/);
   });
 });
 
@@ -74,6 +94,13 @@ describe('the rail\'s layout', () => {
     expect(phone).toMatch(/\.desk-rail-scrim \{[^}]*position: fixed; inset: 0;/);
     expect(css).toMatch(/\.desktabs \.desktabs-desks \{ display: none; \}/);
     expect(phone).toMatch(/\.desktabs \.desktabs-desks \{ display: inline-flex;/);
+  });
+
+  // F195 review: the header's bottom padding must outrank .with-v6-directory>.topbar, and the open
+  // rail must sit above the category row (z-index 80) and below the header (200).
+  it('pads the header under its controls and lifts the open rail over the category row', () => {
+    expect(css).toMatch(/\.terminal\.with-desk-rail > \.topbar \{[^}]*padding-bottom: 12px;/);
+    expect(css).toMatch(/\.desk-rail\.open \{[^}]*z-index: 90;/);
   });
 
   it('only animates opacity and transform, and not at all with reduced motion', () => {

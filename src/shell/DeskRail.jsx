@@ -1,8 +1,9 @@
 /**
  * The desk rail on module pages (F195, docs/specs/2026-10-15-desk-left-rail.md). Collapsed it is a
  * column of desk icons; its toggle widens it over the page with the names. At 900 px and below it is
- * a drawer, opened from the Desks button in the category row (DeskNav). It closes on Escape, a click
- * outside, the toggle, or picking a desk; Escape and a pick hand focus back to whatever opened it.
+ * a drawer, opened from the Desks button in the category row (DeskNav). It closes on Escape (which
+ * hands focus back to whatever opened it), a press outside or on the scrim, focus leaving it, the
+ * toggle, or picking a desk. The shell also closes it on any change of page.
  */
 import { useEffect, useRef } from 'react';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -48,16 +49,26 @@ export default function DeskRail({ tab, lang, tabs, lockedIds, onDesk, open = fa
       onOpenChange(false);
       if (refocus) opener.current?.focus?.({ preventScroll: true });
     };
-    const onKey = (e) => { if (e.key === 'Escape') close(true); };
-    const onDown = (e) => {
-      const trigger = e.target?.closest?.('.desktabs-desks');
-      if (!nav.current?.contains(e.target) && !trigger) close(false);
+    // A dialog opened over the rail (search, an upgrade) owns its Escape and its focus.
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || doc.querySelector('dialog[open], [aria-modal="true"]')) return;
+      close(true);
     };
+    // The scrim closes from its own click, so a tap on it does not reach the page under it.
+    const onDown = (e) => {
+      if (nav.current?.contains(e.target) || e.target?.closest?.('.desktabs-desks, .desk-rail-scrim')) return;
+      close(false);
+    };
+    // Focus moving to the Desks button is that button's own toggle, not a leave.
+    const onFocusOut = (e) => { const to = e.relatedTarget; if (to && !nav.current?.contains(to) && !to.closest?.('.desktabs-desks')) close(false); };
+    const root = nav.current;
     doc.addEventListener('keydown', onKey);
     doc.addEventListener('mousedown', onDown);
+    root.addEventListener('focusout', onFocusOut);
     return () => {
       doc.removeEventListener('keydown', onKey);
       doc.removeEventListener('mousedown', onDown);
+      root.removeEventListener('focusout', onFocusOut);
     };
   }, [open, onOpenChange]);
 
@@ -70,7 +81,7 @@ export default function DeskRail({ tab, lang, tabs, lockedIds, onDesk, open = fa
         </button>
         <RailList tab={tab} lang={lang} tabs={tabs} lockedIds={lockedIds} onPick={(id) => { onOpenChange(false); onDesk(id); }} />
       </nav>
-      {open ? <div className="desk-rail-scrim" aria-hidden="true" /> : null}
+      {open ? <div className="desk-rail-scrim" aria-hidden="true" onClick={() => onOpenChange(false)} /> : null}
     </>
   );
 }

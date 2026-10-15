@@ -84,7 +84,7 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
     <nav aria-label={hi ? 'डेस्क के मॉड्यूल' : 'Desk modules'} className={`desktabs${tab === 'home' ? ' home-nav' : ''}`}>
       {/* F195: at 900 px and below the desk rail is a drawer, and this opens it (CSS shows it there). */}
       {onOpenDesks ? (
-        <button type="button" className="desktabs-desks" aria-haspopup="true" aria-expanded={desksOpen} aria-controls="desk-rail" onClick={() => onOpenDesks()}>
+        <button type="button" className="desktabs-desks" aria-expanded={desksOpen} aria-controls="desk-rail" onClick={() => onOpenDesks()}>
           <Icon name="menu" size={14} />
           {hi ? 'डेस्क' : 'Desks'}
         </button>

@@ -61,10 +61,29 @@ No change to the desks a reader has, to the category menus, to the side panel, o
 button), `SidePanel.jsx` (`.desk-rail.open` is an Escape owner), regenerated `terminalStyles.js`.
 
 Browser check (signed-in local preview, port 5182):
-- 1440 px, a National module: header 53 px (was about 107 px with the tab row), rail 56 px, the
+- 1440 px, a National module: header 65 px after the review fix (was about 107 px with the tab row), rail 56 px, the
   category row from x = 56; open, the rail is 208 px with a shadow and the work area stays 1,384 px;
   focus goes to the current desk; Escape and a press outside close it; the Desks button is hidden.
 - 390 px: no rail column, no header tabs, the Desks button shows; it opens a 280 px drawer, full
   height, over a scrim, focus on the current desk; Escape closes it and focus returns to the button;
   no sideways scroll.
 - The National landing page keeps the header tabs and has no rail.
+
+## Review (2026-10-15)
+
+Independent `agent-skills:code-reviewer` on `b431fc7`: ready with nits. Fixed:
+- The rail closes on any change of page (the shell compares `tab|featureName|account`), so back,
+  forward, a category, search or the credits page no longer carry an open rail or drawer along.
+- The header's bottom padding now applies (`.terminal.with-desk-rail > .topbar` outranks
+  `.with-v6-directory>.topbar`); the redundant border is gone.
+- The open rail sits above the category row (z-index 90, under the header's 200).
+- It closes when focus leaves it (not when focus goes to the Desks button, whose click toggles it).
+- Escape is left to a dialog opened over it.
+- The scrim closes from its own click, so a tap on it does not reach the page under it.
+- The Desks button is a disclosure (`aria-expanded`, `aria-controls`), no `aria-haspopup`.
+Left as found: no focus trap in the phone drawer (it closes when focus leaves it instead).
+
+Rechecked in the browser: header padding 12 px (65 px header); the point above the category row's
+middle inside the open rail hits the rail; the rail is closed after leaving and returning to a module;
+on a phone the Desks button opens and closes the drawer, a press on the scrim does not close it but its
+click does.

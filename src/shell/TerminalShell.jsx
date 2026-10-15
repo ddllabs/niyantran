@@ -141,6 +141,14 @@ export default function TerminalShell({ onLogout }) {
   const v6Landing = guideMode && ['national', 'global', 'law', 'economics', 'carbon', 'sports', 'entertainment', 'state'].includes(tab);
   // Home is the default view: like a desk landing, it has no module row.
   const moduleNavigation = !v6Landing && tab !== 'home';
+  // F195 review: any change of page closes the rail, however it came (back, a category, search, the
+  // credits page); an open overlay is not carried to the next page.
+  const railRoute = `${tab}|${featureName || ''}|${account || ''}`;
+  const [railSeen, setRailSeen] = useState(railRoute);
+  if (railSeen !== railRoute) {
+    setRailSeen(railRoute);
+    setRailOpen(false);
+  }
   const deskBuckets = useMemo(
     () => (tab === 'home' ? [] : bucketsFor(modulesForTier(active.tier), active.tier)),
     [tab, active.tier],
