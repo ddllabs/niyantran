@@ -1,0 +1,472 @@
+{
+  "modules": [
+    {
+      "tier": "national",
+      "feature": "Bill Passage Probability Index"
+    },
+    {
+      "tier": "national",
+      "feature": "Policy Intelligence Graph"
+    },
+    {
+      "tier": "national",
+      "feature": "Parliamentary Question Database"
+    },
+    {
+      "tier": "national",
+      "feature": "Policy Pipeline Tracker (Draft-to-Gazette)"
+    },
+    {
+      "tier": "national",
+      "feature": "Regulatory Body Watch (RBI/SEBI/TRAI/CCI)"
+    },
+    {
+      "tier": "national",
+      "feature": "Candidate Affidavit Database (Structured + API)"
+    },
+    {
+      "tier": "national",
+      "feature": "Delimitation Impact Simulator"
+    },
+    {
+      "tier": "national",
+      "feature": "LS Manifestos & Promises Tracker"
+    },
+    {
+      "tier": "national",
+      "feature": "MP Profiles & Performance (MPLAD, attendance, debates)"
+    },
+    {
+      "tier": "national",
+      "feature": "National Morning Brief (Auto-digest)"
+    },
+    {
+      "tier": "national",
+      "feature": "Statement & Quote Tracker with Contradiction Detection"
+    },
+    {
+      "tier": "national",
+      "feature": "Cabinet Decisions"
+    },
+    {
+      "tier": "national",
+      "feature": "Central Tender Aggregator + Constituency Filter"
+    },
+    {
+      "tier": "national",
+      "feature": "Bureaucratic Transfers — AGMUT Cadre"
+    },
+    {
+      "tier": "national",
+      "feature": "Centre-sanctioned Projects & Completion Rate"
+    },
+    {
+      "tier": "national",
+      "feature": "Budget Utilisation & Schemes"
+    },
+    {
+      "tier": "national",
+      "feature": "Industry Updates (Ministry Data)"
+    },
+    {
+      "tier": "global",
+      "feature": "Open Fronts"
+    },
+    {
+      "tier": "global",
+      "feature": "Global Intelligence"
+    },
+    {
+      "tier": "global",
+      "feature": "Geopolitics News Wire"
+    },
+    {
+      "tier": "global",
+      "feature": "Alliances"
+    },
+    {
+      "tier": "global",
+      "feature": "Sanctions"
+    },
+    {
+      "tier": "global",
+      "feature": "Heads of State"
+    },
+    {
+      "tier": "global",
+      "feature": "Infra"
+    },
+    {
+      "tier": "global",
+      "feature": "Nuclear Watch"
+    },
+    {
+      "tier": "global",
+      "feature": "Satellite Infrastructure"
+    },
+    {
+      "tier": "global",
+      "feature": "Maritime Choke-Points"
+    },
+    {
+      "tier": "global",
+      "feature": "Global Aid"
+    },
+    {
+      "tier": "global",
+      "feature": "Energy"
+    },
+    {
+      "tier": "global",
+      "feature": "World Constitutions"
+    },
+    {
+      "tier": "global",
+      "feature": "Growth Indicators"
+    },
+    {
+      "tier": "global",
+      "feature": "Global Commodities"
+    },
+    {
+      "tier": "global",
+      "feature": "Global Trade"
+    },
+    {
+      "tier": "law",
+      "feature": "Supreme Court Order & Judgment Feed"
+    },
+    {
+      "tier": "law",
+      "feature": "Order Archive by Topic (Cross-Court)"
+    },
+    {
+      "tier": "law",
+      "feature": "UP High Court (Allahabad) Order Feed"
+    },
+    {
+      "tier": "law",
+      "feature": "District Court Case Tracker"
+    },
+    {
+      "tier": "law",
+      "feature": "NGT Environmental Litigation Tracker"
+    },
+    {
+      "tier": "law",
+      "feature": "CAT & Consumer Disputes (NCDRC) Watch"
+    },
+    {
+      "tier": "law",
+      "feature": "HC Judge Profiles & Bench Analytics"
+    },
+    {
+      "tier": "law",
+      "feature": "ICC Proceedings"
+    },
+    {
+      "tier": "law",
+      "feature": "ICJ Proceedings"
+    },
+    {
+      "tier": "law",
+      "feature": "WTO Dispute Settlement"
+    },
+    {
+      "tier": "law",
+      "feature": "NCLT / NCLAT (Insolvency)"
+    },
+    {
+      "tier": "law",
+      "feature": "Sector Tribunals (ITAT / TDSAT / SAT / DRT)"
+    },
+    {
+      "tier": "economics",
+      "feature": "NSE/BSE Delayed Market Feed"
+    },
+    {
+      "tier": "economics",
+      "feature": "Live Global Stock Exchanges"
+    },
+    {
+      "tier": "economics",
+      "feature": "Economic Overview of All Countries"
+    },
+    {
+      "tier": "economics",
+      "feature": "Key Financial Indicators (GDP, CPI, PMI, Emp-to-Pop)"
+    },
+    {
+      "tier": "economics",
+      "feature": "Economic Simulator"
+    },
+    {
+      "tier": "economics",
+      "feature": "Sector Policy — Power/Energy/Green/Critical Minerals"
+    },
+    {
+      "tier": "economics",
+      "feature": "Trade Agreements & Economic Sanctions"
+    },
+    {
+      "tier": "economics",
+      "feature": "Top Financial & Business Players"
+    },
+    {
+      "tier": "economics",
+      "feature": "AI & the Tech Industry"
+    },
+    {
+      "tier": "economics",
+      "feature": "Prediction Market Political Odds"
+    },
+    {
+      "tier": "economics",
+      "feature": "Election Forecast Aggregator"
+    },
+    {
+      "tier": "carbon",
+      "feature": "Global Carbon Pricing Tracker"
+    },
+    {
+      "tier": "carbon",
+      "feature": "Carbon Price Monitor"
+    },
+    {
+      "tier": "carbon",
+      "feature": "ETS & Tax Adoption Timeline"
+    },
+    {
+      "tier": "carbon",
+      "feature": "Carbon Border (CBAM) Watch"
+    },
+    {
+      "tier": "carbon",
+      "feature": "India CCTS & Green Credits"
+    },
+    {
+      "tier": "carbon",
+      "feature": "Carbon Registry Wire"
+    },
+    {
+      "tier": "carbon",
+      "feature": "Climate Newswire"
+    },
+    {
+      "tier": "sports",
+      "feature": "Cricket Wire"
+    },
+    {
+      "tier": "sports",
+      "feature": "Fixtures & Results — World Leagues"
+    },
+    {
+      "tier": "sports",
+      "feature": "Football Wire"
+    },
+    {
+      "tier": "sports",
+      "feature": "ISL Tracker"
+    },
+    {
+      "tier": "sports",
+      "feature": "Indian Sports Wire"
+    },
+    {
+      "tier": "sports",
+      "feature": "Sports Governance & Policy"
+    },
+    {
+      "tier": "sports",
+      "feature": "Sports Business & Media Rights"
+    },
+    {
+      "tier": "sports",
+      "feature": "Athlete Index"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "TV & Streaming Tonight"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Box Office Tracker"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Entertainment News Wire"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Bollywood & Film Wire"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Music Charts — India Top 25"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Music Charts — Global Top 25"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "OTT & Studio Intelligence"
+    },
+    {
+      "tier": "entertainment",
+      "feature": "Celebrity Influence Index"
+    },
+    {
+      "tier": "state",
+      "feature": "Constituency Register"
+    },
+    {
+      "tier": "state",
+      "feature": "Roll Demography"
+    },
+    {
+      "tier": "state",
+      "feature": "Community Bloc Matrix"
+    },
+    {
+      "tier": "state",
+      "feature": "Election Results 2017–2024"
+    },
+    {
+      "tier": "state",
+      "feature": "Split-Ticket & Competitiveness"
+    },
+    {
+      "tier": "state",
+      "feature": "SIR Roll Churn"
+    },
+    {
+      "tier": "state",
+      "feature": "Registration Gap"
+    },
+    {
+      "tier": "state",
+      "feature": "Booth-level Results Database"
+    },
+    {
+      "tier": "state",
+      "feature": "Party Organisation Map"
+    },
+    {
+      "tier": "state",
+      "feature": "MLA Defection & Anti-defection Case Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "Booth Political History"
+    },
+    {
+      "tier": "state",
+      "feature": "State Governance Brief"
+    },
+    {
+      "tier": "state",
+      "feature": "Governor Assent Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "Assembly Proceedings Digest (Vernacular, Translated)"
+    },
+    {
+      "tier": "state",
+      "feature": "MLA Report Card + Statement Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "Legislative Productivity Comparison"
+    },
+    {
+      "tier": "state",
+      "feature": "Governor Friction & President's Rule Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "MLA Directory"
+    },
+    {
+      "tier": "state",
+      "feature": "Municipal Watch"
+    },
+    {
+      "tier": "state",
+      "feature": "Panchayat Watch"
+    },
+    {
+      "tier": "state",
+      "feature": "Local Governance Brief"
+    },
+    {
+      "tier": "state",
+      "feature": "Bureaucrat Transfer & Posting Tracker (State Cadre)"
+    },
+    {
+      "tier": "state",
+      "feature": "State Tender Aggregator (State e-Procurement)"
+    },
+    {
+      "tier": "state",
+      "feature": "Centre-State Fund Flow Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "Cabinet Decisions"
+    },
+    {
+      "tier": "state",
+      "feature": "State Economic Data (GSDP, sectors)"
+    },
+    {
+      "tier": "state",
+      "feature": "State Fiscal Deep-Dive"
+    },
+    {
+      "tier": "state",
+      "feature": "SDL Auction & Borrowing Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "CAG Audit Tracker"
+    },
+    {
+      "tier": "state",
+      "feature": "Cross-State Comparison Engine"
+    },
+    {
+      "tier": "state",
+      "feature": "NITI Aayog State Indices"
+    },
+    {
+      "tier": "state",
+      "feature": "District Performance Tracker (Composite)"
+    },
+    {
+      "tier": "state",
+      "feature": "District Health & Nutrition Indicators"
+    },
+    {
+      "tier": "state",
+      "feature": "District Education Indicators"
+    },
+    {
+      "tier": "state",
+      "feature": "District Economic & Livelihood Indicators"
+    },
+    {
+      "tier": "state",
+      "feature": "District Agriculture & Rural Indicators"
+    },
+    {
+      "tier": "state",
+      "feature": "District Infrastructure & Connectivity"
+    },
+    {
+      "tier": "state",
+      "feature": "District Media Monitor (Vernacular District Editions)"
+    }
+  ]
+}

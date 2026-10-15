@@ -1,5 +1,6 @@
 // desk-brief scope 'record' (F123): the stored, platform-paid record brief.
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
+import DESK_MODULES from '../_shared/deskModules.json' with { type: 'json' };
 import { deskRowKey } from '../_shared/deskRows.ts';
 import { entryFingerprint } from '../_shared/entryFingerprint.ts';
 import { type DeskBriefDeps, handleDeskBrief, type ModelCallRow } from './handler.ts';
@@ -11,6 +12,7 @@ import {
   catalogueFeature,
   type FinishArgs,
   identify,
+  normaliseTier,
   RECORD_LIMITS,
   type RecordBriefStore,
 } from './record.ts';
@@ -559,9 +561,36 @@ Deno.test('field names are cut to 64 characters and the field list to 6,000', ()
 });
 
 // Owner 2026-10-15: the Morning Brief's records get briefs too; its composite page has no rows in
-// the generated catalogue, so it is allowed by name on the National desk only.
+// desk_rows, and it is a module of the National desk only.
 Deno.test('the National Morning Brief is a known module; unknown names still are not', () => {
   assertEquals(catalogueFeature('national', 'National Morning Brief (Auto-digest)'), 'National Morning Brief (Auto-digest)');
   assertEquals(catalogueFeature('state', 'National Morning Brief (Auto-digest)'), null);
   assertEquals(catalogueFeature('national', 'Made Up Module'), null);
+});
+
+// Production 2026-10-15: every module without stored desk_rows answered "AI brief not available
+// yet", because the check read the grounding catalogue (modules with rows) instead of the desk's
+// module list. The check exists only to refuse names that are not desk modules.
+Deno.test('a desk module with no stored rows is a known module', () => {
+  assertEquals(catalogueFeature('state', 'State Governance Brief'), 'State Governance Brief');
+  assertEquals(catalogueFeature(normaliseTier('climate')!, 'Climate Newswire'), 'Climate Newswire');
+  assertEquals(catalogueFeature('entertainment', 'entertainment  news wire'), 'Entertainment News Wire');
+});
+
+Deno.test('a made-up module, a module on another desk and a planned module are refused', () => {
+  assertEquals(catalogueFeature('state', 'State Governance Briefing'), null);
+  assertEquals(catalogueFeature('law', 'State Governance Brief'), null);
+  assertEquals(catalogueFeature('state', 'District Crime & Safety Indicators'), null);
+  assertEquals(catalogueFeature(normaliseTier('local')!, 'Municipal & Panchayat Tender Aggregator'), null);
+});
+
+Deno.test('the desk module list names each module once, under the desk id normaliseTier gives', () => {
+  const seen = new Set<string>();
+  assert(DESK_MODULES.modules.length > 100, `${DESK_MODULES.modules.length} modules`);
+  for (const m of DESK_MODULES.modules) {
+    assertEquals(normaliseTier(m.tier), m.tier, `${m.tier}|${m.feature}`);
+    const k = `${m.tier}|${m.feature}`;
+    assert(!seen.has(k), `${k} twice`);
+    seen.add(k);
+  }
 });

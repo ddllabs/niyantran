@@ -3,8 +3,8 @@
 // by every later viewer. Framework-free like handler.ts: the store, the provider and the clock
 // are injected, so the whole flow runs under `deno test`.
 //
-// The server, not the browser, decides which record a brief belongs to: the module must be in
-// the desk catalogue, the row key is deskRowKey(row) and the content hash the v7 entry
+// The server, not the browser, decides which record a brief belongs to: the module must be one
+// the desks show (deskModules.json), the row key is deskRowKey(row) and the content hash the v7 entry
 // fingerprint. Where the briefed content comes from decides how the brief is shared:
 //
 //   * source 'desk_rows': desk_rows holds the record, and that stored copy, never the browser's
@@ -23,7 +23,8 @@
 // stored briefs are still served after that, new ones wait for the next UTC day.
 
 import { HttpError } from '../_shared/http.ts';
-import { resolveFeature } from '../_shared/deskCatalog.ts';
+import { normaliseName } from '../_shared/deskCatalog.ts';
+import deskModules from '../_shared/deskModules.json' with { type: 'json' };
 import { deskRowKey } from '../_shared/deskRows.ts';
 import { entryFingerprint } from '../_shared/entryFingerprint.ts';
 
@@ -86,24 +87,23 @@ export function normaliseTier(tier: unknown): string | null {
 }
 
 /**
- * The module's name as the desk catalogue (deskCatalog.json) spells it, matched case-, dash-
- * and space-insensitively within the tier; null when the tier has no such module.
+ * Every module the desks show, planned modules excluded, by desk tab id (deskModules.json,
+ * generated from the app's DESK_CATALOGUE by scripts/build-desk-modules.mjs; a Vitest test fails
+ * when it is stale). Not deskCatalog.json: that lists only modules with stored desk_rows, and
+ * live and composite modules (State Governance Brief, the news wires, the Morning Brief) have none.
  */
-export function catalogueFeature(tier: string, feature: string): string | null {
-  return resolveFeature(tier, feature)?.feature ?? compositeFeature(tier, feature);
-}
+const DESK_MODULES: readonly { tier: string; feature: string }[] = (deskModules as { modules: { tier: string; feature: string }[] }).modules;
 
 /**
- * Composite pages whose records have a panel but no rows of their own in the generated catalogue
- * (owner 2026-10-15: the Morning Brief's records get briefs too). Matched exactly, per tier.
+ * The module's name as the desk spells it, matched exactly and then case-, dash- and space-
+ * insensitively within the tier; null when the tier has no such module. This only refuses names
+ * that are not desk modules; whether desk_rows holds the record is decided later.
  */
-const COMPOSITE_MODULES: Record<string, readonly string[]> = {
-  national: ['National Morning Brief (Auto-digest)'],
-};
-
-function compositeFeature(tier: string, feature: string): string | null {
-  const want = String(feature ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-  return (COMPOSITE_MODULES[tier] ?? []).find((f) => f.toLowerCase() === want) ?? null;
+export function catalogueFeature(tier: string, feature: string): string | null {
+  const inTier = DESK_MODULES.filter((m) => m.tier === tier);
+  const want = String(feature ?? '').trim();
+  if (!want) return null;
+  return (inTier.find((m) => m.feature === want) ?? inTier.find((m) => normaliseName(m.feature) === normaliseName(want)))?.feature ?? null;
 }
 
 // ---- store ----------------------------------------------------------------------------------
