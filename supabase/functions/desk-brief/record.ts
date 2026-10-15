@@ -49,6 +49,9 @@ const MAX_HEADLINE = 300;
 const MAX_POINT = 600;
 const MAX_CELL = 220;
 const MAX_FIELDS = 40;
+/** A field name is cut to this, and the field list to MAX_FIELDS_TEXT (security re-review 2026-10-15). */
+const MAX_KEY = 64;
+const MAX_FIELDS_TEXT = 6000;
 
 /** Desk tab ids, as desk_rows and the catalogue use them, from either naming the browser sends. */
 const TIER_ALIAS: Record<string, string> = {
@@ -211,10 +214,21 @@ export function recordFields(row: Record<string, unknown>): [string, string][] {
     if (Array.isArray(v) ? !v.every(scalar) : !scalar(v)) continue;
     const text = cell(Array.isArray(v) ? v.filter((x) => x !== null && x !== '').join(', ') : v);
     if (!text) continue;
-    out.push([k, text]);
+    out.push([k.replace(/\s+/g, ' ').trim().slice(0, MAX_KEY), text]);
     if (out.length >= MAX_FIELDS) break;
   }
   return out;
+}
+
+/** The field lines the model reads, at most MAX_FIELDS_TEXT characters in all. */
+function fieldLines(row: Record<string, unknown>): string {
+  let text = '';
+  for (const [k, v] of recordFields(row)) {
+    const line = `${k}: ${v}`;
+    if (text.length + line.length + 1 > MAX_FIELDS_TEXT) break;
+    text += (text ? '\n' : '') + line;
+  }
+  return text;
 }
 
 const TITLE_KEYS = [
@@ -246,7 +260,7 @@ function titleOf(row: Record<string, unknown>): string {
 
 export function buildRecordPrompt(req: RecordRequest): { title: string; prompt: string } {
   const title = titleOf(req.row);
-  const fields = recordFields(req.row).map(([k, v]) => `${k}: ${v}`).join('\n');
+  const fields = fieldLines(req.row);
   return {
     title,
     prompt: `Desk: ${TIER_LABEL[req.tier] ?? req.tier} / ${req.feature}
@@ -323,6 +337,15 @@ export async function identify(req: RecordRequest, store: RecordBriefStore): Pro
     rowKey,
     row,
     source: held ? 'desk_rows' : 'client',
-    hash: await entryFingerprint(row, req.feature, req.tier),
+    // A browser-supplied row is hashed by exactly what the model reads (title and field lines), so a
+    // row that hides fields from the prompt cannot share the honest row's hash (security re-review
+    // 2026-10-15). desk_rows' own copy keeps the entry fingerprint.
+    hash: held ? await entryFingerprint(row, req.feature, req.tier) : await briefedHash(req, rowKey, row),
   };
+}
+
+async function briefedHash(req: RecordRequest, rowKey: string, row: Record<string, unknown>): Promise<string> {
+  const text = JSON.stringify([req.tier, req.feature, rowKey, titleOf(row), fieldLines(row)]);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  return [...digest].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
 }

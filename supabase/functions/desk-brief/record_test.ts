@@ -7,7 +7,9 @@ import {
   type ClaimArgs,
   type ClaimResult,
   DEFAULT_RECORD_BRIEF_MODEL,
+  buildRecordPrompt,
   type FinishArgs,
+  identify,
   RECORD_LIMITS,
   type RecordBriefStore,
 } from './record.ts';
@@ -193,7 +195,9 @@ Deno.test('the server derives the row key and hash; a forged key or hash in the 
   );
   assertEquals(s.claims[0].tier, 'global');
   assertEquals(s.claims[0].rowKey, deskRowKey(ROW));
-  assertEquals(s.claims[0].hash, await entryFingerprint(ROW, 'Open Fronts', 'global'));
+  // Not in desk_rows here, so the hash is of what the model reads (identify), never the body's.
+  assert(s.claims[0].hash !== 'f'.repeat(24));
+  assertEquals(s.claims[0].hash, (await identify({ tier: 'global', feature: 'Open Fronts', row: ROW }, nullStore)).hash);
 });
 
 Deno.test('a forged row cannot overwrite a stored row: the desk_rows copy is what is hashed and briefed', async () => {
@@ -525,4 +529,30 @@ Deno.test('the claim names its source: desk_rows when it holds the record, else 
   const t = setup({ claim: () => ({ state: 'pending' }), stored: ROW });
   await call(t);
   assertEquals(t.claims[0].source, 'desk_rows');
+});
+
+// Security re-review 2026-10-15: a browser-supplied row is hashed by what the model reads, so a row that
+// hides fields (a nested list the prompt skips) cannot share the honest row's hash and brief.
+const nullStore = { storedRow: () => Promise.resolve(null) } as unknown as RecordBriefStore;
+
+Deno.test('a client row that hides fields gets a different hash from the honest row', async () => {
+  const honest = { record_id: 'LIVE-1', title: 'A Bill', status: 'Passed by both Houses', ministry: 'Law' };
+  const forged = { record_id: 'LIVE-1', title: 'A Bill', status: [['Passed by both Houses']], ministry: [['Law']] };
+  const a = await identify({ tier: 'national', feature: 'Bill Passage Probability Index', row: honest }, nullStore);
+  const b = await identify({ tier: 'national', feature: 'Bill Passage Probability Index', row: forged }, nullStore);
+  assertEquals(a.source, 'client');
+  assertEquals(a.rowKey, b.rowKey);
+  assert(a.hash !== b.hash, 'the forged row must not share the honest hash');
+  const again = await identify({ tier: 'national', feature: 'Bill Passage Probability Index', row: { ...honest } }, nullStore);
+  assertEquals(again.hash, a.hash, 'the same row hashes the same');
+});
+
+Deno.test('field names are cut to 64 characters and the field list to 6,000', () => {
+  const long = 'x'.repeat(5000);
+  const row: Record<string, unknown> = { title: 'T', [long]: 'v' };
+  for (let i = 0; i < 39; i++) row[`f${i}_${'y'.repeat(300)}`] = 'z'.repeat(220);
+  const { prompt } = buildRecordPrompt({ tier: 'national', feature: 'Bill Passage Probability Index', row });
+  assert(!prompt.includes('x'.repeat(65)), 'a field name is at most 64 characters');
+  const fields = prompt.split('the only evidence you may use):\n')[1];
+  assert(fields.length <= 6000, `fields are at most 6,000 characters, got ${fields.length}`);
 });
