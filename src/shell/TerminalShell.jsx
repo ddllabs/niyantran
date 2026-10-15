@@ -76,6 +76,8 @@ export default function TerminalShell({ onLogout }) {
   const hi = lang === 'hi';
   const restricted = !canAccessDesk(user, tab);
 
+  // F192: saves and restores the lang that siteHead set; App's siteHead effect runs first because
+  // the shell is lazy-loaded.
   useEffect(() => applyInterfaceLang(document.documentElement, lang), [lang]);
 
 
@@ -389,7 +391,7 @@ export default function TerminalShell({ onLogout }) {
           <button
             type="button"
             className="icon-btn"
-            title={hi ? 'इंटरफ़ेस अंग्रेज़ी में बदलें' : 'Switch the interface to Hindi'}
+            title={hi ? 'HI, इंटरफ़ेस अंग्रेज़ी में बदलें' : 'EN, switch the interface to Hindi'}
             aria-label={hi ? 'HI, इंटरफ़ेस अंग्रेज़ी में बदलें' : 'EN, switch the interface to Hindi'}
             onClick={() => setLang(hi ? 'en' : 'hi')}
           >

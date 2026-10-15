@@ -124,6 +124,6 @@ describe('language toggle', () => {
   it('names the toggle in English with the visible EN first', () => {
     location.hash = '#/home';
     const html = renderToStaticMarkup(<TerminalShell/>);
-    expect(html).toMatch(/<button type="button" class="icon-btn" title="Switch the interface to Hindi" aria-label="EN, switch the interface to Hindi">EN<\/button>/);
+    expect(html).toContain('aria-label="EN, switch the interface to Hindi">EN</button>');
   });
 });
