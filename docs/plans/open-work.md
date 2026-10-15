@@ -726,8 +726,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     stored (NSE has no live source), 7,000 items, a second run rewrote nothing. C7 go-live: steps 1–2
     (migrations 52 and 53 applied to NTER, dormant code) done with Push 7; step 3 (secret) done by the
     owner 2026-10-15 (Vault `feed_refresh_secret` and Vercel `FEED_REFRESH_SECRET`, production; an
-    unsigned `POST /api/feeds/refresh` now answers 401, not 503); step 4 (timer, after the Vercel
-    upgrade) is the owner's; then the Cabinet register load, a day with `serve` off, and `serve` on
+    unsigned `POST /api/feeds/refresh` now answers 401, not 503); step 4 (timer) switched on
+    2026-10-15 before the Vercel upgrade (owner); then the Cabinet register load, a day with `serve` off, and `serve` on
     class by class.
   - **MLA Directory's register (owner: option 1, 2026-10-15), live and served.** 31 per-state
     store variants (class `register`, kind `reference`: a reload replaces a state's list), off the

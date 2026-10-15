@@ -2084,3 +2084,10 @@ recommendations … We can fix everything that is under your control."
   `SUPABASE_URL=… node --env-file=.env.local scripts/load-feed-register.mjs --module … --apply
   --target prod --confirm-prod`; code deployed; then `feed_state.serve = true` for the nine modules
   (152 variants). Database 1.5 GB before the load. F123 follow-ups (`deee6d1`) and desk-brief redeployed.
+- **2026-10-15: feed timer on (F169 C7 step 4, owner: "before the Vercel upgrade, just switch on the
+  timer").** A manual `net.http_post` first answered 200 (the Vault and Vercel secrets match): 46
+  modules claimed, 44 ok, 1 failed (Cabinet Decisions: no new decision in PIB's latest 20, counted as a
+  failure), 1 timeout (Music Charts, 20 s), 3,818 items in 33 s. Then `cron.schedule('feed-refresh',
+  '*/5 * * * *', …)` (job 5) and `cron.schedule('feed-purge', '17 3 * * *', …)` (job 6). Scheduled
+  modules keep `serve` off for a day; then compare and serve class by class. Rollback:
+  `select cron.unschedule('feed-refresh');`. The Party Organisation Map page scroll fixed (`67e16b4`).
