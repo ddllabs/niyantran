@@ -49,6 +49,17 @@ describe('getRecordBrief', () => {
     expect(await ask()).toEqual({ state: 'error' });
   });
 
+  // Production 2026-10-15: the account check briefly answers nothing while supabase-js re-announces
+  // the account (tab focus, token refresh); a stored brief then showed "not available yet".
+  it('retries the account check before giving up, so a re-announce does not hide the brief', async () => {
+    const { verifiedLocalIdentity } = await import('./userStore.js');
+    verifiedLocalIdentity.mockResolvedValueOnce(null);
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true, state: 'ready', headline: 'H', points: ['a'], model: 'm', writtenAt: null }));
+    const out = await getRecordBrief({ tier: 'geopolitics', feature: 'Open Fronts', row: ROW });
+    expect(out.state).toBe('ready');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('a signed-out reader gets unavailable without a request', async () => {
     identity.value = null;
     expect(await getRecordBrief({ tier: 'national', feature: 'Bills', row: ROW })).toEqual({ state: 'unavailable' });

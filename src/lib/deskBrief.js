@@ -214,9 +214,22 @@ function recordPayloadRow(row) {
  * or {state} of 'pending' (another request is writing it), 'unavailable' (signed out, switched
  * off or limited), 'error' (failed or refused) or 'none' (nothing to brief). Rejects only on abort.
  */
+/**
+ * The verified account, asked up to three times: the check answers nothing for a moment while
+ * supabase-js re-announces the account (tab focus, token refresh), which is not a sign-out.
+ */
+async function accountForBrief(signal) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const identity = await verifiedLocalIdentity().catch(() => null);
+    if (identity?.token || signal?.aborted) return identity;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  return null;
+}
+
 export async function getRecordBrief({ tier, feature, row, signal } = {}) {
   if (!row || typeof row !== 'object' || row.status === 'source_status' || !feature) return { state: 'none' };
-  const identity = await verifiedLocalIdentity().catch(() => null);
+  const identity = await accountForBrief(signal);
   if (!identity?.token) return { state: 'unavailable' };
   let res;
   try {
