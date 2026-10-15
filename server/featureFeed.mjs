@@ -136,6 +136,9 @@ const GEO_NEWS_WIRE_NEWS =
   encodeURIComponent('(geopolitics OR diplomacy OR "foreign policy" OR "United Nations") when:3d') +
   '&hl=en-IN&gl=IN&ceid=IN:en';
 
+/** Home Top Stories (F181): the Google News India edition's own top-stories feed, not a search. */
+const GOOGLE_NEWS_INDIA_TOP = 'https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en';
+
 /** Indian state legislators via Wikidata (not US House Q13218630). */
 function indiaMlaWikidataUrl() {
   return (
@@ -786,7 +789,7 @@ function parseRssOrXml(text) {
 
 function rowsFromPayload(raw, contentType, url) {
   const ct = (contentType || '').toLowerCase();
-  const text = typeof raw === 'string' ? raw : '';
+  const text = typeof raw === 'string' ? raw.replace(/^\uFEFF/, '') : '';
   if (
     ct.includes('xml') ||
     ct.includes('rss') ||
@@ -795,19 +798,18 @@ function rowsFromPayload(raw, contentType, url) {
   ) {
     return parseRssOrXml(text);
   }
-  if (ct.includes('csv') || (url && /\.csv(\?|$)/i.test(url) && !text.trimStart().startsWith('{'))) {
-    try {
-      JSON.parse(text);
-    } catch {
-      return parseCsv(text);
-    }
+  // F185: a body that opens like JSON is JSON. When it does not parse (cut off part-way, or an error
+  // body) it gives no rows; read as CSV it gave one junk row per line ({"{": "value : Bhojpur district"}).
+  const jsonLike = /^[[{]/.test(text.trimStart());
+  if (!jsonLike && (ct.includes('csv') || (url && /\.csv(\?|$)/i.test(url)))) {
+    return parseCsv(text);
   }
   let json;
   try {
-    json = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    json = typeof raw === 'string' ? JSON.parse(text) : raw;
   } catch {
     if (text.includes('<item')) return parseRssOrXml(text);
-    if (text.includes(',')) return parseCsv(text);
+    if (!jsonLike && text.includes(',')) return parseCsv(text);
     return [];
   }
   if (Array.isArray(json) && json[0] && typeof json[0] === 'object' && 'page' in json[0] && Array.isArray(json[1])) {
@@ -1257,17 +1259,31 @@ async function serveHome(featureName) {
     });
   }
   if (n === 'top stories' || n === 'stories') {
-    // F176: Top Stories had one source, GDELT, which F169 T4 stopped asking; nothing replaces it yet,
-    // so it answers its unavailable state at once. No stories were invented.
+    // F181 (owner-approved): the Google News India top-stories feed, read like the news wires read
+    // Google News RSS. It replaces GDELT, which F169 T4 stopped asking. No story is invented.
+    const live = await tryUrls([GOOGLE_NEWS_INDIA_TOP]);
+    if (live.rows.length) {
+      return envelope({
+        tier: 'home',
+        feature: { htmlFeature: 'Top Stories' },
+        rows: capRows(live.rows, false),
+        adapter: 'news-search',
+        links: [GOOGLE_NEWS_INDIA_TOP],
+        coverage: { from: '', through: 'present', exhaustive: false },
+        fallback: false,
+        note: 'Live Google News RSS: the India edition top stories.',
+        meta: { section: 'TOP STORIES — GOOGLE NEWS INDIA', status: 'LIVE · NEWS RSS', heading: 'Top Stories', items: live.rows.length },
+      });
+    }
     return envelope({
       tier: 'home',
       feature: { htmlFeature: 'Top Stories' },
-      rows: statusRow({ adapter: 'news-search', url: '', reason: 'Top Stories has no live source', featureName: 'Top Stories' }),
+      rows: statusRow({ adapter: 'news-search', url: GOOGLE_NEWS_INDIA_TOP, reason: live.error || 'empty top stories feed', featureName: 'Top Stories' }),
       adapter: 'news-search',
-      links: [],
-      coverage: { from: '', through: '7d', exhaustive: false },
+      links: [GOOGLE_NEWS_INDIA_TOP],
+      coverage: { from: '', through: 'present', exhaustive: false },
       fallback: true,
-      note: 'Top Stories has no live news source at the moment. No stories were invented.',
+      note: 'Google News did not return the top stories. No stories were invented.',
     });
   }
   return null;

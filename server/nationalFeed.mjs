@@ -11,7 +11,7 @@ import {
   UNION_PROMISES,
 } from '../src/data/nationalCurated.js';
 import { allocateSeats } from '../src/lib/nationalKpi.js';
-import { isCabinetDecision } from '../src/lib/parliament.js';
+import { isCabinetDecision, pickReleasePairs } from '../src/lib/parliament.js';
 
 const WB_MANF = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.MANF.ZS?format=json&date=2000:2030&per_page=100';
 const WB_IND = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.TOTL.ZS?format=json&date=2000:2030&per_page=100';
@@ -629,8 +629,9 @@ export async function serveNational(ctx) {
         title: r.title || r.topic || '',
         ministry: r.ministry || '',
       }));
-    const archiveRows = shaped(archive || []).filter(isCabinetDecision);
-    const liveRows = shaped(liveEn).filter(isCabinetDecision);
+    // F187: PIB releases some decisions twice on one day (the ministry's and the Cabinet's); one row each.
+    const archiveRows = pickReleasePairs(shaped(archive || []).filter(isCabinetDecision));
+    const liveRows = pickReleasePairs(shaped(liveEn).filter(isCabinetDecision));
     const rows = liveRows.length ? liveRows : archiveRows;
     if (!rows.length) return null;
     const checked = liveEn.length;

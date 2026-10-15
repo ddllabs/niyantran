@@ -30,6 +30,53 @@ export function isCabinetDecision(row) {
   return /^https?:\/\/(?:www\.)?pib\.gov\.in\//i.test(link) && /^(?:union )?cabinet (?:approves|apprises|apprised)\b/i.test(title);
 }
 
+/** The PRID of a PIB release row: its own `prid`, else the one in its link; '' when it has none. */
+function releasePrid(row) {
+  const own = String(row?.prid ?? '').trim();
+  if (/^\d+$/.test(own)) return own;
+  return /PRID=(\d+)/i.exec(String(row?.source_url || row?.link || row?.url || ''))?.[1] || '';
+}
+
+/**
+ * The key releases of one decision share (F187): the title (case and spacing ignored) and the day.
+ * '' for a row with no title or no day, which is never grouped.
+ */
+export function cabinetReleaseGroup(row) {
+  const title = String(row?.title ?? row?.topic ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const day = String(row?.date ?? '').trim().slice(0, 10);
+  return title && day ? `${title}|${day}` : '';
+}
+
+/** Of two releases of one decision, whether `a` is the one to keep: the Cabinet's or a committee's, else the lower PRID. */
+export function cabinetPrefers(a, b) {
+  const bodyA = isCabinetBody(a?.ministry);
+  const bodyB = isCabinetBody(b?.ministry);
+  if (bodyA !== bodyB) return bodyA;
+  return Number(releasePrid(a) || Infinity) < Number(releasePrid(b) || Infinity);
+}
+
+/**
+ * One row per Cabinet decision (F187). PIB often publishes a decision twice on one day, as the
+ * ministry's "Cabinet approves…" release and as the Cabinet's or a Cabinet committee's own (different
+ * PRIDs, one title). Of each such pair the release issued by the Cabinet or a committee is kept
+ * (cabinetPrefers), else the lower PRID. The kept rows keep their order and their place in it; rows
+ * with no title or day are kept as they are. The input is not changed.
+ */
+export function pickReleasePairs(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const best = new Map();
+  for (const row of list) {
+    const group = cabinetReleaseGroup(row);
+    if (!group) continue;
+    const held = best.get(group);
+    if (!held || cabinetPrefers(row, held)) best.set(group, row);
+  }
+  return list.filter((row) => {
+    const group = cabinetReleaseGroup(row);
+    return !group || best.get(group) === row;
+  });
+}
+
 /** Lok Sabha or Rajya Sabha from a member's own sansad.in profile link; '' for anything else. */
 export function mpHouseOf(url) {
   const m = /^https:\/\/sansad\.in\/(ls|rs)\//i.exec(String(url ?? '').trim());
