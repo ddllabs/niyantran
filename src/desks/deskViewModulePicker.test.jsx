@@ -213,6 +213,12 @@ describe('the Comparison Engine\'s Year control (F201)', () => {
     expect(control('comparison-year')).toBeUndefined();
   });
 
+  it('offers only years the server ranks by: a span or a long form is left out (F201 review)', async () => {
+    const { comparisonYearPicker } = await import('../lib/modulePicker.js');
+    const picker = comparisonYearPicker('state', 'Cross-State Comparison Engine', { meta: { years: ['2024-25', '2019-23', '2015-19', '2020-2021', '2018', '1989-90'] } });
+    expect(picker.options.map((o) => o.value)).toEqual(['', '2024-25', '2018']);
+  });
+
   it('no years in the answer, no Year control; a handbook module never shows one', async () => {
     const { comparisonYearPicker } = await import('../lib/modulePicker.js');
     expect(comparisonYearPicker('state', 'Cross-State Comparison Engine', { meta: {} })).toBeNull();

@@ -68,7 +68,7 @@ import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
 import { WIRE_GUARDS, curatedNewsFor, curatedNewsRows, decodeEntities, freshNewsRows, newsDays } from '../src/lib/curatedNews.js';
 import { COMPARISON_DEFAULT_TABLE, HANDBOOK, HANDBOOK_BLOCK_MAX, HANDBOOK_NOTE, HANDBOOK_TABLES, HANDBOOK_TABLE_NUMBERS, handbookModuleFor, handbookOwner, handbookTableLabel, handbookTableVariant, isHandbookYear, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
 import { handbookHeld, handbookView, parseHandbookTable, yearBlocks } from '../src/lib/rbiHandbook.js';
-import { compareStates, comparisonYears, rankedWithin, wholeYearsOf } from '../src/lib/stateComparison.js';
+import { compareStates, comparisonYears, isComparisonYear, rankedWithin, wholeYearsOf } from '../src/lib/stateComparison.js';
 import { RBI_PRESS_RSS, parseRbiPressRss, rbiReleaseUrl, sdlReleaseKind, sdlRows } from '../src/lib/rbiSdl.js';
 import { enrichPibEnglish, serveNational, statementLeader } from './nationalFeed.mjs';
 import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
@@ -253,6 +253,7 @@ export function resetFeedCache() {
   embeddedCache.clear();
   liveInFlight.clear();
   lateLive.clear();
+  handbookPages.clear();
 }
 
 function norm(s) {
@@ -1388,12 +1389,28 @@ async function serveCuratedNews(tier, feat, spec) {
 // ---------------------------------------------------------------------------------------------
 // F196: RBI Handbook of Statistics on Indian States, Cross-State Comparison Engine, SDL auctions.
 
+/**
+ * F201 review: a table's parsed page, kept per table for HANDBOOK_PAGE_MS, so a request for another block
+ * (`years`) or year picks from the page already read instead of asking rbi.org.in again. At most one entry
+ * per handbook table; a failed read is not kept.
+ */
+const HANDBOOK_PAGE_MS = 30 * 60_000;
+const handbookPages = new Map();
+
 /** One handbook table, read live from its HTML page (src/lib/rbiHandbook.js). Throws when it has no figures. */
-async function handbookTableLive(no) {
+function handbookTableLive(no) {
+  const kept = handbookPages.get(no);
+  if (kept && Date.now() - kept.at < HANDBOOK_PAGE_MS) return kept.parsed;
   const t = HANDBOOK_TABLES.get(no);
-  const { text } = await fetchText(t.url);
-  const parsed = parseHandbookTable(text, { tableNo: no, url: t.url });
-  if (parsed.error || !parsed.records.length) throw new Error(parsed.error || 'the table page had no state figures');
+  const parsed = fetchText(t.url).then(({ text }) => {
+    const got = parseHandbookTable(text, { tableNo: no, url: t.url });
+    if (got.error || !got.records.length) throw new Error(got.error || 'the table page had no state figures');
+    return got;
+  });
+  handbookPages.set(no, { at: Date.now(), parsed });
+  parsed.catch(() => {
+    if (handbookPages.get(no)?.parsed === parsed) handbookPages.delete(no);
+  });
   return parsed;
 }
 
@@ -1444,12 +1461,8 @@ function comparisonTable(value) {
  * writes one, "YYYY" or "YYYY-YY" with YY the next year, from 1990 to next year. Anything else is ''.
  */
 function comparisonYear(value, now = new Date()) {
-  const m = /^(\d{4})(?:-(\d{2}))?$/.exec(String(value ?? '').trim());
-  if (!m) return '';
-  const y = Number(m[1]);
-  if (y < 1990 || y > now.getFullYear() + 1) return '';
-  if (m[2] !== undefined && Number(m[2]) !== (y + 1) % 100) return '';
-  return m[0];
+  const text = String(value ?? '').trim();
+  return isComparisonYear(text, now) ? text : '';
 }
 
 /**
@@ -3854,7 +3867,23 @@ export const LIVE_TIME_LIMIT_MS = 4000;
 // The archive pass reads files only; this bounds it in case a branch still waits on something.
 const ARCHIVE_TIME_LIMIT_MS = 3000;
 // A live answer that arrived after its request gave up is served to later requests this long.
-const LATE_LIVE_MS = 10 * 60_000;
+export const LATE_LIVE_MS = 10 * 60_000;
+/** F201 review: the most answers kept for late callers on one instance. */
+export const LATE_LIVE_MAX = 500;
+
+/**
+ * Keeps a late live answer for its key: entries older than LATE_LIVE_MS are dropped first, then the
+ * oldest beyond LATE_LIVE_MAX (a Map iterates in insertion order; a key kept again moves to the end).
+ */
+export function keepLateLive(kept, key, body, now = Date.now()) {
+  for (const [k, v] of kept) if (now - v.at >= LATE_LIVE_MS) kept.delete(k);
+  kept.delete(key);
+  kept.set(key, { at: now, body });
+  for (const k of kept.keys()) {
+    if (kept.size <= LATE_LIVE_MAX) break;
+    kept.delete(k);
+  }
+}
 // Per instance; keyed by the inputs serveFeatureFeed reads (tier, feature, the Statement Tracker's leader, MLA Directory's state,
 // and a handbook module's or the Comparison Engine's resolved table and year: handbookLiveKeyParts).
 const liveInFlight = new Map();
@@ -3918,7 +3947,7 @@ function startLive(key, searchParams, live) {
   attempt
     .then(
       (body) => {
-        if (bodyHasRealRows(body)) lateLive.set(key, { at: Date.now(), body });
+        if (bodyHasRealRows(body)) keepLateLive(lateLive, key, body);
       },
       () => {},
     )

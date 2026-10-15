@@ -105,3 +105,16 @@ export function compareStates(records, { year = '' } = {}) {
   }
   return rows;
 }
+
+/**
+ * F201 review: a year the Cross-State Comparison Engine ranks by, as the handbook writes one: "YYYY" or
+ * "YYYY-YY" with YY the next year, from 1990 to next year. The server reads `year` with it and the Year
+ * control offers only such years, so the control never shows a year the answer was not ranked for.
+ */
+export function isComparisonYear(value, now = new Date()) {
+  const m = /^(\d{4})(?:-(\d{2}))?$/.exec(String(value ?? '').trim());
+  if (!m) return false;
+  const y = Number(m[1]);
+  if (y < 1990 || y > now.getFullYear() + 1) return false;
+  return m[2] === undefined || Number(m[2]) === (y + 1) % 100;
+}

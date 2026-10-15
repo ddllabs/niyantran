@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { FEED_REGISTERS, FEED_SCHEDULE, OFF_TIMER, isStoreServed, registerRunsForDb } from '../../server/feedSchedule.mjs';
 import { STORE_PAGE_ROWS, serveFromStore, storeVariant } from '../../server/feedServe.mjs';
-import { resetFeedCache, scheduledModuleId, serveFeatureFeed, serveFeatureFeedStoredFirst, serveFeatureFeedWithinLimit } from '../../server/featureFeed.mjs';
+import { LATE_LIVE_MAX, LATE_LIVE_MS, keepLateLive, resetFeedCache, scheduledModuleId, serveFeatureFeed, serveFeatureFeedStoredFirst, serveFeatureFeedWithinLimit } from '../../server/featureFeed.mjs';
 import {
   REGISTERS, buildRegisterItems, groupByVariant, handbookItemKey, main, mapHandbookRecord, readRegisterJson, registerMeta,
 } from '../../scripts/load-feed-register.mjs';
@@ -714,5 +714,52 @@ describe('F201: the Comparison ranks any year', () => {
     const body = await compare({}, store);
     expect(store).toHaveBeenCalledTimes(1);
     expect(new Set(body.rows.map((r) => r.year))).toEqual(new Set(['2025']));
+  });
+});
+
+// F201 review (2026-10-15): a `years` value is not a reason to fetch a table's page again, and the
+// answers kept for late callers are bounded.
+describe('F201 review: one page fetch per table, bounded kept answers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('any number of `years` values for one table read its RBI page once', async () => {
+    resetFeedCache();
+    const fetch = vi.fn(async (u) => ({ ok: true, status: 200, url: String(u), headers: new Headers({ 'content-type': 'text/html' }), arrayBuffer: async () => new TextEncoder().encode(fixture('handbook-t164-gfd.html')).buffer }));
+    vi.stubGlobal('fetch', fetch);
+    for (const years of ['', '2005', '2008', '2019-20', '2019-2020', '1993-97']) {
+      await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', table: '164', years }));
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+    resetFeedCache();
+    await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', table: '164' }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('a page that failed is asked again on the next request', async () => {
+    resetFeedCache();
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (u) => {
+      calls += 1;
+      if (calls === 1) throw new Error('network down');
+      return { ok: true, status: 200, url: String(u), headers: new Headers(), arrayBuffer: async () => new TextEncoder().encode(fixture('handbook-t164-gfd.html')).buffer };
+    }));
+    const ask = () => serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', table: '164' }));
+    await ask().catch(() => {});
+    const body = await ask();
+    expect(body.rows.length).toBe(T164.records.length);
+  });
+
+  it('kept late answers expire and never exceed their cap, oldest dropped first', () => {
+    const kept = new Map();
+    keepLateLive(kept, 'old', { rows: [1] }, 0);
+    keepLateLive(kept, 'a', { rows: [1] }, LATE_LIVE_MS + 1);
+    expect([...kept.keys()]).toEqual(['a']);
+    for (let i = 0; i < LATE_LIVE_MAX + 5; i += 1) keepLateLive(kept, `k${i}`, { rows: [1] }, LATE_LIVE_MS + 2);
+    expect(kept.size).toBe(LATE_LIVE_MAX);
+    expect(kept.has('a')).toBe(false);
+    expect(kept.has(`k${LATE_LIVE_MAX + 4}`)).toBe(true);
   });
 });

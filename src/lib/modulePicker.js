@@ -16,6 +16,7 @@ import {
   handbookTableLabel,
   isHandbookYear,
 } from './rbiHandbookTables.js';
+import { isComparisonYear } from './stateComparison.js';
 
 export const COMPARISON_FEATURE = 'Cross-State Comparison Engine';
 
@@ -78,7 +79,7 @@ export function yearsPicker(tier, feature, feed) {
  */
 export function comparisonYearPicker(tier, feature, feed) {
   if (!(tier === 'state' && String(feature ?? '').trim().toLowerCase() === COMPARISON_FEATURE.toLowerCase())) return null;
-  const years = [...new Set((Array.isArray(feed?.meta?.years) ? feed.meta.years : []).map(text).filter(isHandbookYear))];
+  const years = [...new Set((Array.isArray(feed?.meta?.years) ? feed.meta.years : []).map(text).filter((y) => isComparisonYear(y)))];
   if (!years.length) return null;
   return {
     id: 'comparison-year',
