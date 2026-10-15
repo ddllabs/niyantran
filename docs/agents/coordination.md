@@ -2051,3 +2051,8 @@ recommendations … We can fix everything that is under your control."
   rows; Geopolitics and Cricket live; NSE its dated archive; `/api/feeds/refresh` still 503. One
   cold-start MLA request answered the 1-row archive (Wikidata over 4 s) and was cached at the edge
   for a minute; repeat requests answered 500 live, then the store.
+- **Push 9** (2026-10-15): F188 (`b5c86cb`, `41551bc`), F189 (`c045bfb`, `c83cbf2`), F190
+  (`b049d69`, `b369dae`) and two timing guards that failed at random under a busy full suite
+  (`e35dde3`), merged on `task/integrate2`. Each reviewed independently, findings fixed. Checks:
+  lint, 5,409 Vitest tests, build, `check:bundle`, router import. No database, migration or Edge
+  Function change. Rollback: revert and push.

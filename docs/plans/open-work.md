@@ -749,16 +749,6 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, needs a signed-in
     phone check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
     (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
-- [ ] **F188. Google News rows on Geopolitics are labelled "BBC World feed".** `newsWire.js` classifies a
-  wire row by its fields; a Google fallback row with a summary reads as BBC and its publisher "Not on
-  record" (F180 review, 2026-10-15; predates F180). Add a Google kind keyed on `publisher`.
-- [ ] **F189. The Google News reroute matches a generated URL.** `server/featureFeed.mjs` reroutes a
-  module with no registry row when its `source` equals its own topic URL; renaming a feature or
-  changing `TOPIC_STOP` would silently drop 16 modules (a test counts them). Use an explicit route
-  marker (F180 review).
-- [ ] **F190. MLA Directory has no state picker.** The store serves a state's whole list with
-  `state`, but no page sends it, so readers see 16 per state; the note points to "a state's own
-  list". Add a small picker through `fetchFeature`'s `params` (MLA register review).
 - [ ] **F191. Homepage "Source endpoints": 246 or 115?** Owner decision. F180 took the 131 GDELT search
   addresses out of the source registry, which now counts 115; the homepage keeps the owner's 246
   (`src/lib/siteFigures.js`) until the owner decides.
@@ -954,6 +944,17 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 ## 1. Done
+
+- [x] **F188. Google News rows on Geopolitics were labelled "BBC World feed".** *Done 2026-10-15
+  (`b5c86cb`, `41551bc`): a Google News kind with the real publisher; a row with a BBC outlet stays BBC;
+  a summary that only repeats the headline gets no card; the link says it opens through Google News.*
+- [x] **F189. The Google News reroute matched a generated URL.** *Done 2026-10-15 (`c045bfb`,
+  `c83cbf2`): an explicit `news-topic` marker in the feature map (16 entries) and the source register
+  (118 rows, fallback is the marker or empty); answers compared over 169 modules in three stubbed
+  worlds: identical.*
+- [x] **F190. MLA Directory had no state picker.** *Done 2026-10-15 (`b049d69`, `b369dae`): a State
+  select (All states, or one of 31); a state's request never shows another state's MLAs on the store
+  or live path; race-tested; the count is announced.*
 
 - [x] **F179. Status rows claimed a GDELT search.** *Done 2026-10-15 (`f2d2d87`): no answer carries a
   `gdelt` flag, server or client; every client branch that read it was dead (false, or true only on
