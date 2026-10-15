@@ -511,6 +511,22 @@ export async function serveHomeLatest(opts = {}) {
   };
 }
 
+/** What `conflictFromWarTracker` puts in `meta.window`; it is also how a stored copy of it is told apart. */
+const REGISTER_WINDOW = 'embedded Open Fronts snapshot';
+
+/**
+ * F182: the conflict snapshot is what an agent saved. The Open Fronts register is read from the
+ * embedded file on every request, so it is never stored as a snapshot (a stored copy would be
+ * labelled "Agent snapshot" and would hide later edits to the register). Copies already on disk,
+ * written before this, and the committed public/data/conflict.json seed are such copies; they are
+ * recognised by their window and ignored, so the register path labels itself.
+ */
+function readConflictSnapshot() {
+  const snap = readDiskSnapshot('conflict');
+  if (!snap?.rows?.length || snap.meta?.window === REGISTER_WINDOW) return null;
+  return snap;
+}
+
 function conflictFromWarTracker() {
   const rows = loadWar()
     .filter((r) => r.conflict_name)
@@ -528,14 +544,14 @@ function conflictFromWarTracker() {
     rows,
     gdelt: false,
     archive: true,
-    meta: { unique: rows.length, deduped: 0, window: 'embedded Open Fronts snapshot' },
+    meta: { unique: rows.length, deduped: 0, window: REGISTER_WINDOW },
     note: 'Original HTML Open Fronts table (geopolitics_war_tracker). This is a stored register, not a live wire. No records were invented.',
   };
 }
 
 function conflictSnapshotDisk() {
-  const snap = readDiskSnapshot('conflict');
-  if (snap?.rows?.length) {
+  const snap = readConflictSnapshot();
+  if (snap) {
     return {
       ok: true,
       rows: snap.rows,
@@ -556,29 +572,15 @@ export async function serveConflict() {
   return conflictSnapshotDisk() || conflictFromWarTracker();
 }
 
-async function fetchLiveConflict() {
-  return conflictFromWarTracker();
-}
-
 export async function serveHomePulse(opts = {}) {
-  const maxAgeH = opts.maxAgeH ?? DEFAULT_HOME_MAX_AGE_H;
-  const fresh = Boolean(opts.fresh);
-  if (!fresh) {
-    const snap = readDiskSnapshot('conflict');
-    if (snap?.rows?.length) {
-      if (snap.__ageH > maxAgeH) scheduleHomeRefresh('conflict', fetchLiveConflict);
-      return { ...snapshotPayload(snap), rows: snap.rows.slice(0, 8) };
-    }
-    const war = conflictFromWarTracker();
-    if (war.rows?.length) {
-      writeDiskSnapshot('conflict', war);
-      scheduleHomeRefresh('conflict', fetchLiveConflict);
-      return { ...war, rows: war.rows.slice(0, 8), cached: true, ageH: 0 };
-    }
+  // An agent snapshot when there is one (it carries its own age and archive flag); otherwise the
+  // stored Open Fronts register, read from the embedded file and not saved anywhere (F182).
+  if (!opts.fresh) {
+    const snap = readConflictSnapshot();
+    if (snap) return { ...snapshotPayload(snap), rows: snap.rows.slice(0, 8) };
   }
-  const live = await fetchLiveConflict();
-  writeDiskSnapshot('conflict', live);
-  return { ...live, rows: (live.rows || []).slice(0, 8) };
+  const war = conflictFromWarTracker();
+  return { ...war, rows: war.rows.slice(0, 8) };
 }
 
 let fullRefreshInflight = null;
@@ -586,19 +588,19 @@ let fullRefreshInflight = null;
 export async function refreshHomeSnapshots() {
   if (fullRefreshInflight) return fullRefreshInflight;
   fullRefreshInflight = (async () => {
-    const [markets, news, conflict] = await Promise.all([
+    const [markets, news] = await Promise.all([
       fetchLiveMarkets().catch(() => null),
       fetchLiveLatest().catch(() => null),
-      fetchLiveConflict().catch(() => null),
     ]);
     if (markets?.rows?.length) writeDiskSnapshot('markets', markets);
     if (news?.rows?.length) writeDiskSnapshot('news', news);
-    if (conflict?.rows?.length) writeDiskSnapshot('conflict', conflict);
+    // F182: the conflict register is not saved as a snapshot; it is read from the embedded file.
+    const conflict = conflictFromWarTracker();
     return {
       ok: true,
       markets: markets?.rows?.length || 0,
       news: news?.rows?.length || 0,
-      conflict: conflict?.rows?.length || 0,
+      conflict: conflict.rows.length,
     };
   })().finally(() => {
     fullRefreshInflight = null;
@@ -613,8 +615,8 @@ function snapshotNewsFile() {
 }
 
 function snapshotConflictFile() {
-  const snap = readDiskSnapshot('conflict');
-  if (snap?.rows?.length) return snap;
+  const snap = readConflictSnapshot();
+  if (snap) return snap;
   const war = conflictFromWarTracker();
   return { updated: new Date().toISOString(), rows: war.rows };
 }
