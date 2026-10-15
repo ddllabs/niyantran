@@ -43,6 +43,10 @@ export function projectStateSummary(module, raw) {
     news && 'Returned news coverage, not a complete official register or measured analytical result. State coverage varies.',
     report && 'Profiles and assembly news only; attendance, questions and performance scores are not established.',
     module.feature === 'District Performance Tracker (Composite)' && 'District directory fields only; no composite performance score is supplied.',
+    // F196: three State modules built from a curated news search say what the news cannot supply.
+    module.feature === 'Legislative Productivity Comparison' && 'News coverage of assembly sessions only; sittings, hours and bills passed are not counted or compared between states.',
+    module.feature === 'MLA Defection & Anti-defection Case Tracker' && 'News coverage only; no register of defections or of pending disqualification petitions is supplied.',
+    module.feature === "Governor Friction & President's Rule Tracker" && "News coverage only; not a register of President's Rule proclamations or of bills awaiting assent.",
     kind === 'budget-xlsx' && 'Union Budget expenditure lines, not individual state allocations or disbursement transactions.',
     unavailable && 'Measured coverage for this module is not established by the returned source. No stand-in rows are counted.',
   ].filter(Boolean).join(' ');

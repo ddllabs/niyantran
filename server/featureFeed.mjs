@@ -65,6 +65,7 @@ import {
   rssWireRows as entRssRows,
 } from '../src/lib/entertainmentPack.js';
 import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
+import { curatedNewsFor, curatedNewsRows } from '../src/lib/curatedNews.js';
 import { serveNational, statementLeader } from './nationalFeed.mjs';
 import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
 import * as assetsLive from './assetsApi.mjs';
@@ -101,6 +102,7 @@ const loadIndiaEnergy = liveOnly(financeLive.loadIndiaEnergy);
 const loadIndiaGdpGrowth = liveOnly(financeLive.loadIndiaGdpGrowth);
 const loadKeyIndicators = liveOnly(financeLive.loadKeyIndicators);
 const loadManifoldPolitical = liveOnly(financeLive.loadManifoldPolitical);
+const loadManifoldIndiaElections = liveOnly(financeLive.loadManifoldIndiaElections);
 const loadWorldExchanges = liveOnly(financeLive.loadWorldExchanges);
 const loadAthletes = liveOnly(sportsLive.loadAthletes);
 const loadIsl = liveOnly(sportsLive.loadIsl);
@@ -367,6 +369,17 @@ const FEATURE_TOPIC_Q = {
     'India ("Constitution Bench" OR "constitutional bench") (Supreme Court) (hearing OR judgment)',
   'hc constitutional & pil tracker':
     'India ("High Court") (PIL OR "public interest litigation" OR constitutional) (order OR judgment)',
+  // F196: planned modules built from a curated search, checked against live Google News results on
+  // 2026-10-15 (at least 80% of the top 20 on topic). Each answer is kept by its title guard in
+  // src/lib/curatedNews.js.
+  'sports governance & policy':
+    'India ("sports ministry" OR "national sports federation" OR "National Sports Code" OR NADA OR "anti-doping" OR "Indian Olympic Association" OR IOA OR "sports governance" OR "Sports Governance Act")',
+  "governor friction & president's rule tracker":
+    'India governor ("state government" OR "President\'s Rule" OR "Article 356" OR "withheld assent" OR "governor\'s address" OR walkout OR "Raj Bhavan" OR "Lok Bhavan" OR "chief minister") (row OR clash OR friction OR standoff OR confrontation OR tussle OR "President\'s Rule" OR "Article 356")',
+  'legislative productivity comparison':
+    'India ("assembly session" OR "Vidhan Sabha session" OR "monsoon session" OR "winter session" OR "budget session") (assembly OR "Vidhan Sabha") (sittings OR adjourned OR "sine die" OR "bills passed" OR "passed the bill" OR walkout OR "cut short" OR curtailed)',
+  'mla defection & anti-defection case tracker':
+    'India (MLA OR MLAs OR legislator) (defection OR "anti-defection" OR "Tenth Schedule" OR "disqualification petition" OR disqualified OR "switch party" OR "joins BJP" OR "joins Congress" OR "switched sides" OR defect)',
 };
 
 /** Whether a feature has a curated topic query (FEATURE_TOPIC_Q), rather than the name-derived fallback. */
@@ -1283,6 +1296,44 @@ async function serveHome(featureName) {
   return null;
 }
 
+/**
+ * F196: a curated news module. Its Google News search (FEATURE_TOPIC_Q), kept to the headlines its
+ * title guard accepts, newest first (src/lib/curatedNews.js). A status row when nothing is left.
+ */
+async function serveCuratedNews(tier, feat, spec) {
+  const url = newsRssUrlForFeature(feat.htmlFeature);
+  const got = await tryUrls([url]);
+  const rows = curatedNewsRows(got.rows, spec);
+  if (rows.length) {
+    return envelope({
+      tier,
+      feature: feat,
+      rows,
+      adapter: spec.adapter,
+      links: [url],
+      coverage: { from: '', through: '', exhaustive: false },
+      fallback: false,
+      note: spec.note,
+      meta: { heading: feat.htmlFeature, section: spec.section, status: 'LIVE · NEWS RSS' },
+    });
+  }
+  return envelope({
+    tier,
+    feature: feat,
+    rows: statusRow({
+      adapter: spec.adapter,
+      url,
+      reason: got.rows.length ? 'the news search returned no on-topic headlines' : got.error,
+      featureName: feat.htmlFeature,
+    }),
+    adapter: spec.adapter,
+    links: [url],
+    coverage: { from: '', through: '', exhaustive: false },
+    fallback: false,
+    note: `${spec.note} The news search returned nothing on topic. No records were invented.`,
+  });
+}
+
 export async function serveFeatureFeed(searchParams) {
   loadCache();
   const tierIn = searchParams.get('tier') || '';
@@ -1329,6 +1380,10 @@ export async function serveFeatureFeed(searchParams) {
       note: PLANNED_NOTE,
     });
   }
+
+  // F196: a module built from a curated news search answers that search's on-topic headlines.
+  const curated = curatedNewsFor(tier, feat.htmlFeature);
+  if (curated) return serveCuratedNews(tier, feat, curated);
 
   const entry = entries[0] || null;
   const adapter = (entry?.adapter || feat.adapters || '').split(/[|,]/)[0].trim().toLowerCase();
@@ -1537,7 +1592,7 @@ export async function serveFeatureFeed(searchParams) {
   // Economics: extracted tables + free live APIs. Never GDELT as a quote/macro/docket stand-in.
   if (tier === 'finance') {
     const slice = econSlice(feat.htmlFeature);
-    const liveAttempt = ['nse', 'world', 'countries', 'indicators', 'sector', 'leaders', 'ai', 'manifold', 'simulator'].includes(slice);
+    const liveAttempt = ['nse', 'world', 'countries', 'indicators', 'sector', 'leaders', 'ai', 'manifold', 'elections', 'simulator'].includes(slice);
     const econStatus = (reason) =>
       envelope({
         tier,
@@ -1830,8 +1885,28 @@ export async function serveFeatureFeed(searchParams) {
       return econStatus('Manifold live polling failed and no political snapshot was present');
     }
 
+    // F196: Manifold markets on Indian elections. No stored snapshot: when Manifold fails, the
+    // status row answers and the page reads the module's stored rows (it is on FEED_SCHEDULE).
     if (slice === 'elections') {
-      return econStatus('no Indian election-forecast table; prediction markets on Indian elections are not legal');
+      try {
+        const live = await loadManifoldIndiaElections();
+        if (live.rows?.length) {
+          return envelope({
+            tier,
+            feature: feat,
+            rows: live.rows,
+            adapter: 'api',
+            links: [...financeLive.MANIFOLD_INDIA_SEARCH],
+            coverage: { from: '', through: '', exhaustive: false },
+            fallback: false,
+            note: econNote('elections'),
+            meta: { heading: feat.htmlFeature, section: 'INDIAN ELECTION MARKETS' },
+          });
+        }
+        return econStatus('Manifold returned no markets on Indian elections');
+      } catch (e) {
+        return econStatus(e?.message || 'Manifold search failed');
+      }
     }
 
     return econStatus('no extracted economics table for this desk');
@@ -1936,16 +2011,16 @@ export async function serveFeatureFeed(searchParams) {
         tier,
         feature: feat,
         rows: statusRow({
-          adapter: slice === 'governance' ? 'internal' : 'api',
+          adapter: 'api',
           url: primary || links[0] || '',
           reason,
           featureName: feat.htmlFeature,
         }),
-        adapter: slice === 'governance' ? 'internal' : 'api',
+        adapter: 'api',
         links,
         coverage,
         fallback: false,
-        note: sportsNote(slice || 'governance'),
+        note: sportsNote(slice),
       });
 
     if (slice === 'cricket') {
@@ -2088,10 +2163,6 @@ export async function serveFeatureFeed(searchParams) {
         /* status */
       }
       return sportsStatus('Wikidata SPARQL for Indian athletes did not return rows');
-    }
-
-    if (slice === 'governance') {
-      return sportsStatus('no extracted MYAS / National Sports Code table');
     }
 
     return sportsStatus('no sports table for this desk');

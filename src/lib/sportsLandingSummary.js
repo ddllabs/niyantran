@@ -6,14 +6,14 @@ export const SPORTS_FEATURES = ['Cricket Wire', 'Fixtures & Results — World Le
 const present = value => value != null && !['', '—', 'Not reported', 'unknown'].includes(String(value).trim());
 const safeUrl = value => { try { const url = new URL(value); return /^https?:$/.test(url.protocol) ? url.href : null; } catch { return null; } };
 const validDate = value => /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(String(value || '')) && Number.isFinite(Date.parse(value)) ? value : null;
-const UNITS = {cricket:'articles',football:'articles',india:'articles',fixtures:'events',isl:'events',business:'observations',athletes:'identities',governance:'entries'};
+const UNITS = {cricket:'articles',football:'articles',india:'articles',fixtures:'events',isl:'events',business:'observations',athletes:'identities',governance:'articles'};
 const LIMITATIONS = {
   cricket:'ESPNcricinfo stories, not a live score stream or complete match register.',
   football:'BBC Sport football reporting, not a complete fixture or live score stream.',
   india:'Google News stories covering selected Indian sports; reporting completeness is not established.',
   fixtures:'TheSportsDB next and last events for Premier League, NBA, IPL and La Liga. These configured leagues are not complete global sports coverage.',
   isl:'ISL fixtures from ESPN, or from TheSportsDB when ESPN has none. Event dates are not source-update dates.',
-  governance:'No MYAS or National Sports Code table is available yet. No governance records are invented.',
+  governance:'Google News stories on the sports ministry, federations, the Olympic association and anti-doping; not an official MYAS or National Sports Code register.',
   business:'Wikidata Indian league and owner observations. Broadcast rights valuations and sponsorships are not supplied.',
   athletes:'Wikidata Indian athlete identities. Rankings, medals and endorsements are not supplied.',
 };
@@ -22,14 +22,13 @@ export function projectSportsSummary(raw,retrievedAt=new Date().toISOString()) {
   if(!SPORTS_FEATURES.includes(feature)) throw new Error('Unknown Sports module');
   const slice=sportsSlice(feature), adapter=raw.source?.adapter || 'unknown';
   const rows=(prepareDeskFeed(raw)?.rows || []).filter(row=>row && row.status!=='source_status');
-  const unavailable=slice==='governance';
   const unsupportedSource=adapter!=='api' || raw.source?.kind==='backup-pack' || raw.kind==='backup-pack';
   const headlinesAsFixtures=['fixtures','isl'].includes(slice) && rows.some(row=>!present(row.home) && !present(row.away) && !present(row.league));
   const headlinesAsDirectory=(slice==='business' && rows.some(row=>!present(row.league))) || (slice==='athletes' && rows.some(row=>!present(row.person)));
   // F164: `limitations` carries the note in plain words; the original stays in `sourceNote`.
   const sourceNote=String(raw.source?.note || '').slice(0,600);
   const failed=raw.ok===false || unsupportedSource || headlinesAsFixtures || headlinesAsDirectory || (!rows.length && raw.rows?.some(row=>row?.status==='source_status'));
-  const usable=!unavailable && !failed;
+  const usable=!failed;
   const columns=usable ? feedColumns(feature,rows).filter(c=>rows.some(row=>present(row[c.key]) || (c.fallback && present(row[c.fallback])))).slice(0,16).map(({key,label})=>({key,label})) : [];
   const links=[...(raw.source?.links || []),...rows.map(row=>row.source_url)].map(safeUrl).filter(Boolean);
   const sources=[...new Map(links.map(url=>[new URL(url).hostname,url])).values()].slice(0,4).map(url=>({name:new URL(url).hostname.replace(/^www\./,''),url}));
@@ -44,5 +43,5 @@ export function projectSportsSummary(raw,retrievedAt=new Date().toISOString()) {
   const leagueDistribution=[...leagues].sort(([a],[b])=>a.localeCompare(b)).slice(0,12).map(([label,count])=>({label,count}));
   const shown=new Set(leagueDistribution.map(item=>item.label));
   leagueUnreported += [...leagues].filter(([label])=>!shown.has(label)).reduce((sum,[,count])=>sum+count,0);
-  return {ok:unavailable || usable,version:1,feature,resourceKey:feature,count:usable ? rows.length : null,countBasis:'prepared-feed',availability:unavailable ? 'unavailable' : failed ? 'error' : rows.length ? 'ready' : 'empty',sourceMode:adapter==='api' && !unavailable ? 'feed-backed' : 'unknown',sourceAdapter:adapter,fallback:Boolean(raw.fallback),unit:UNITS[slice],asOf,observationPeriod,period:observationPeriod ? observationPeriod.from===observationPeriod.through ? observationPeriod.from : `${observationPeriod.from}–${observationPeriod.through}` : null,retrievedAt,columns,sources,leagueDistribution,leagueUnreported,sourceNote,limitations:`${LIMITATIONS[slice]}${plainNote(sourceNote) ? ` ${plainNote(sourceNote)}` : ''}${!unavailable && (unsupportedSource || headlinesAsFixtures || headlinesAsDirectory) ? ' The returned source does not establish this Sports module’s measured coverage.' : ''}`};
+  return {ok:usable,version:1,feature,resourceKey:feature,count:usable ? rows.length : null,countBasis:'prepared-feed',availability:failed ? 'error' : rows.length ? 'ready' : 'empty',sourceMode:adapter==='api' ? 'feed-backed' : 'unknown',sourceAdapter:adapter,fallback:Boolean(raw.fallback),unit:UNITS[slice],asOf,observationPeriod,period:observationPeriod ? observationPeriod.from===observationPeriod.through ? observationPeriod.from : `${observationPeriod.from}–${observationPeriod.through}` : null,retrievedAt,columns,sources,leagueDistribution,leagueUnreported,sourceNote,limitations:`${LIMITATIONS[slice]}${plainNote(sourceNote) ? ` ${plainNote(sourceNote)}` : ''}${unsupportedSource || headlinesAsFixtures || headlinesAsDirectory ? ' The returned source does not establish this Sports module’s measured coverage.' : ''}`};
 }

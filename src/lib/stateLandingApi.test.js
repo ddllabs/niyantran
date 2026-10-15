@@ -37,7 +37,7 @@ describe('State summary API (F157)', () => {
   });
 
   it('answers only modules the feed knows, in the tier the catalogue gives them', () => {
-    expect(STATE_FEATURES).toHaveLength(24); // F173: two more State modules are planned
+    expect(STATE_FEATURES).toHaveLength(27); // F173: two more State modules are planned; F196 built three
     for (const feature of STATE_FEATURES) {
       const module = STATE_MODULES.find(item => item.feature === feature);
       expect(featureMap.filter(row => row.htmlFeature === feature).map(row => row.htmlTier)).toContain(module.tier);

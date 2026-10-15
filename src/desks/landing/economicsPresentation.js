@@ -18,13 +18,13 @@ const groups = [
     module('Top Financial & Business Players', 'Indian enterprise chief executives'),
     module('AI & the Tech Industry', 'PIB technology reporting'),
   ] },
-  { id: 'predictions', name: 'Prediction Markets', short: 'Prediction Markets', description: 'Manifold political markets, live or stored according to source availability. A separate election-forecast table is not supplied.', modules: [
-    module('Prediction Market Political Odds'), { ...module('Election Forecast Aggregator'), configured: false },
+  { id: 'predictions', name: 'Prediction Markets', short: 'Prediction Markets', description: 'Manifold political markets, and Manifold markets on Indian elections, live or stored according to source availability. Market odds are not polls.', modules: [
+    module('Prediction Market Political Odds'), module('Election Forecast Aggregator'),
   ] },
 ];
 
 export const ECONOMICS_PRESENTATION = {
   id: 'economics', name: 'Economics', title: lines(visual.title), description: visual.desc,
   image: visual.image, imageLabel: visual.label, heading: visual.heading,
-  groups: groups.map((group, index) => ({ ...group, image: visual.images[index], title: lines(visual.titles[index]), cardDescription: index === 1 ? 'Country indicators and historical GDP observations.' : index === 3 ? 'Political market questions; election forecasts unavailable.' : visual.summaries[index] })),
+  groups: groups.map((group, index) => ({ ...group, image: visual.images[index], title: lines(visual.titles[index]), cardDescription: index === 1 ? 'Country indicators and historical GDP observations.' : index === 3 ? 'Political and Indian-election market questions.' : visual.summaries[index] })),
 };

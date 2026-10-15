@@ -1,7 +1,7 @@
 /**
  * F169 phase 4 (C1): which modules the 5-minute timer refreshes, how often, and how long their
  * items are kept (F170 rules 1–2). A module is scheduled when its loader calls an outside source
- * (measured 2026-10-15: 58 of 120 desk modules); stored registers and planned modules are not. A test
+ * (measured 2026-10-15: 58 of 120 desk modules; 63 after F196); stored registers and planned modules are not. A test
  * (src/lib/feedSchedule.test.js) checks this table against what the loaders actually call: every
  * module whose loader calls a source is on it, except the register modules (FEED_REGISTERS) and the
  * modules deliberately off the timer (OFF_TIMER), each listed with its reason.
@@ -30,6 +30,7 @@ export const FEED_CLASSES = Object.freeze({
 export const FEED_SCHEDULE = Object.freeze({
   'finance:Live Global Stock Exchanges': 'markets',
   'finance:Prediction Market Political Odds': 'markets',
+  'finance:Election Forecast Aggregator': 'markets',
 
   'entertainment:Music Charts — India Top 25': 'charts',
   'entertainment:Music Charts — Global Top 25': 'charts',
@@ -72,6 +73,11 @@ export const FEED_SCHEDULE = Object.freeze({
   'state:CAG Audit Tracker': 'news',
   'state:District Performance Tracker (Composite)': 'news',
   'state:District Media Monitor (Vernacular District Editions)': 'news',
+  // F196: built from curated news searches (src/lib/curatedNews.js).
+  'sports:Sports Governance & Policy': 'news',
+  "state:Governor Friction & President's Rule Tracker": 'news',
+  'state:Legislative Productivity Comparison': 'news',
+  'state:MLA Defection & Anti-defection Case Tracker': 'news',
 
   'national:Statement & Quote Tracker with Contradiction Detection': 'leaders',
 

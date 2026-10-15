@@ -67,7 +67,7 @@ export function econNote(slice, extra = '') {
     manifold:
       'Manifold markets flagged political, ranked by recent volume. Snapshot if live polling is down. Not an Indian-election board.',
     elections:
-      'No Indian election-forecast table exists in this pack. Prediction markets on Indian elections are not legal. US-centric sites were not used as a stand-in.',
+      'Manifold play-money (mana) markets on Indian elections, found by search and kept only when the question names an Indian election or elected office. Market probabilities are not polls and not NTER forecasts; many markets are thin.',
   };
   const base = notes[slice] || 'Economics pack.';
   return extra ? `${base} ${extra}` : base;
@@ -177,6 +177,87 @@ export function mapManifoldLive(json, { allPolitical = false } = {}) {
       source_url: m.url,
     })),
   );
+}
+
+// F196: Election Forecast Aggregator. A Manifold search finds questions about other countries'
+// elections and Indian questions that are not about an election; a market is kept only when its
+// question names India (or an Indian party, leader, house or state) and an election or an elected
+// office. "Congress" alone is not Indian (the US Congress); "Indiana" is not India.
+const INDIA_TOKEN = new RegExp(
+  [
+    "\\bIndia(?:n|'s)?\\b", '\\bBJP\\b', '\\bNDA\\b', 'I\\.N\\.D\\.I\\.A', '\\bAAP\\b', '\\bDMK\\b', '\\bAIADMK\\b',
+    '\\bTVK\\b', '\\bTMC\\b', 'Trinamool', '\\bBRS\\b', '\\bBJD\\b', '\\bYSRCP\\b', '\\bTDP\\b', 'Shiv Sena', '\\bNCP\\b',
+    '\\bRJD\\b', 'JD\\(U\\)', '\\bUDF\\b', '\\bLDF\\b', '\\bBSP\\b', 'Samajwadi', '\\bModi\\b', 'Rahul Gandhi', 'Kejriwal',
+    '\\bKCR\\b', 'Lok Sabha', 'Vidhan Sabha', 'Uttar Pradesh', 'Bihar', '\\bBengal\\b', 'Tamil ?Nadu', 'Kerala',
+    'Karnataka', 'Maharas?htra', 'Gujarat', 'Punjab', '\\bAssam\\b', 'Telangana', 'Andhra', 'Odisha', '\\bDelhi\\b',
+    '\\bGoa\\b', 'Rajasthan', 'Madhya Pradesh', 'Haryana', 'Jharkhand', 'Uttarakhand', 'Himachal', 'Manipur',
+    'Puducherry', 'Jammu', 'Kashmir', 'Chhattisgarh', 'Tripura', 'Meghalaya', 'Mizoram', 'Nagaland', 'Sikkim', 'Arunachal',
+  ].join('|'),
+  'i',
+);
+const ELECTION_TOKEN =
+  /\b(?:elections?|elected|electoral|by-?elections?|re-?election|polls?|seats?|majority|ruling party|in office|prime minister|chief minister|CM|PM candidate|Lok Sabha|Vidhan Sabha|legislative assembly)\b/i;
+const NOT_ELECTION = /\bnobel\b|person of the year|\bwar\b|military|recession|american indian|native american/i;
+
+/** Whether a Manifold question is about an Indian election (or who holds an elected Indian office). */
+export function isIndiaElectionMarket(question) {
+  const q = String(question || '');
+  return INDIA_TOKEN.test(q) && ELECTION_TOKEN.test(q) && !NOT_ELECTION.test(q);
+}
+
+const MARKET_TYPE = {
+  BINARY: 'Yes / no',
+  MULTIPLE_CHOICE: 'Multiple choice',
+  MULTI_NUMERIC: 'Number range',
+  PSEUDO_NUMERIC: 'Number',
+  DATE: 'Date',
+};
+
+/**
+ * The most likely answer of a multiple-choice market (its details' `answers`), or null. A tie for the
+ * lead is no leader: an untraded number-range market holds every range at the same probability.
+ */
+function topAnswer(detail) {
+  const answers = (Array.isArray(detail?.answers) ? detail.answers : []).filter((a) => Number.isFinite(a?.probability));
+  const sorted = [...answers].sort((a, b) => b.probability - a.probability);
+  if (!sorted.length || (sorted.length > 1 && sorted[0].probability === sorted[1].probability)) return null;
+  return sorted[0];
+}
+
+/**
+ * F196: Manifold search results as Election Forecast Aggregator rows: Indian election questions only,
+ * play-money (mana) markets only, no polls. `details` maps a market id to its /v0/market answer (the
+ * search does not carry a multiple-choice market's answers). Open markets first by volume, then
+ * resolved ones by close date, newest first.
+ */
+export function mapManifoldIndiaElections(markets, details = new Map()) {
+  const seen = new Set();
+  const rows = [];
+  for (const m of Array.isArray(markets) ? markets : []) {
+    const question = String(m?.question || '').trim();
+    if (!question || seen.has(m.id || question)) continue;
+    if (m.outcomeType === 'POLL' || (m.token && m.token !== 'MANA') || !isIndiaElectionMarket(question)) continue;
+    seen.add(m.id || question);
+    const top = topAnswer(details.get(m.id));
+    const volume = num(m.volume);
+    rows.push({
+      title: question,
+      question,
+      market_type: MARKET_TYPE[m.outcomeType] || String(m.outcomeType || ''),
+      probability: m.outcomeType === 'BINARY' ? pct(m.probability) : '',
+      top_outcome: top ? String(top.text || '').trim() : '',
+      top_outcome_pct: top ? pct(top.probability) : '',
+      total_volume: volume === '' ? '' : Math.round(volume),
+      volume_24h: num(m.volume24Hours) === '' ? '' : Math.round(num(m.volume24Hours)),
+      date: isoDay(m.closeTime),
+      close_time: isoDay(m.closeTime),
+      resolved: m.isResolved ? 'Yes' : 'No',
+      source_url: m.url || '',
+    });
+  }
+  const open = rows.filter((r) => r.resolved === 'No').sort((a, b) => Number(b.total_volume || 0) - Number(a.total_volume || 0));
+  const resolved = rows.filter((r) => r.resolved === 'Yes').sort((a, b) => String(b.close_time).localeCompare(String(a.close_time)));
+  return [...open, ...resolved];
 }
 
 export function mapWikidataCeos(json) {

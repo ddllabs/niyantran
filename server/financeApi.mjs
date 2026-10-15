@@ -2,7 +2,7 @@
  * Economics live proxies — World Bank, Yahoo index quotes, Manifold, Wikidata.
  * No GDELT. No market cap. PMI is licensed and is not fetched.
  */
-import { mapManifoldLive, mapWikidataCeos, WORLD_BOARD, yahooQuoteRow } from '../src/lib/econPack.js';
+import { isIndiaElectionMarket, mapManifoldIndiaElections, mapManifoldLive, mapWikidataCeos, WORLD_BOARD, yahooQuoteRow } from '../src/lib/econPack.js';
 import { cacheFresh, cacheWritable } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Economics)';
@@ -284,6 +284,45 @@ export async function loadManifoldPolitical() {
   if (cacheWritable()) {
     manCache = fresh;
     manAt = Date.now();
+  }
+  return fresh;
+}
+
+/**
+ * F196: Election Forecast Aggregator. Manifold searches that find Indian election markets (measured
+ * 2026-10-15: "India election" 47 markets in 0.76 s, "BJP" 34 in 0.66 s, "Lok Sabha" 12 in 0.53 s),
+ * asked together; mapManifoldIndiaElections keeps the Indian election questions.
+ */
+export const MANIFOLD_INDIA_SEARCH = Object.freeze([
+  'https://api.manifold.markets/v0/search-markets?term=India%20election&limit=100',
+  'https://api.manifold.markets/v0/search-markets?term=BJP&limit=100',
+  'https://api.manifold.markets/v0/search-markets?term=Lok%20Sabha&limit=100',
+]);
+// The search carries no answers for a multiple-choice market, so each open one is asked for its own
+// (1.4 s measured), together and briefly: a market whose answers do not arrive shows no top outcome.
+const MANIFOLD_DETAIL_MS = 1_500;
+const MANIFOLD_DETAIL_MAX = 12;
+let indiaElectionCache = null;
+let indiaElectionAt = 0;
+
+export async function loadManifoldIndiaElections() {
+  if (indiaElectionCache && cacheFresh(indiaElectionAt, MANIFOLD_TTL)) return indiaElectionCache;
+  const answers = await Promise.allSettled(MANIFOLD_INDIA_SEARCH.map((url) => getJson(url)));
+  if (answers.every((a) => a.status === 'rejected')) throw answers[0].reason;
+  const markets = answers.flatMap((a) => (a.status === 'fulfilled' && Array.isArray(a.value) ? a.value : []));
+  // Only open multiple-choice and numeric markets about an Indian election are asked for answers.
+  const needAnswers = [...new Map(markets
+    .filter((m) => m?.id && !m.isResolved && !['BINARY', 'POLL'].includes(m.outcomeType) && isIndiaElectionMarket(m.question))
+    .map((m) => [m.id, m])).values()]
+    .slice(0, MANIFOLD_DETAIL_MAX);
+  const details = new Map();
+  await Promise.allSettled(needAnswers.map(async (m) => {
+    details.set(m.id, await getJson(`https://api.manifold.markets/v0/market/${encodeURIComponent(m.id)}`, {}, MANIFOLD_DETAIL_MS));
+  }));
+  const fresh = { ok: true, source: 'manifold', rows: mapManifoldIndiaElections(markets, details) };
+  if (cacheWritable()) {
+    indiaElectionCache = fresh;
+    indiaElectionAt = Date.now();
   }
   return fresh;
 }

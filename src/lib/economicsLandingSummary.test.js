@@ -11,11 +11,13 @@ describe('Economics source projection', () => {
     expect(projectEconomicsSummary(raw(F[9], snapshot('finance_manifold_markets'), 'embedded')).count).toBe(31);
     expect(projectEconomicsSummary(raw(F[6], dgftRows(snapshot('national_dgft_notifications')), 'embedded')).count).toBe(229);
   });
-  it('rejects provider status counts, preserves valid empty and deliberate unavailable', () => {
+  it('rejects provider status counts and preserves valid empty', () => {
     const status = [{ status: 'source_status', title: 'Offline', date: '2026-10-08' }];
     expect(projectEconomicsSummary(raw(F[1], status))).toMatchObject({ availability: 'error', count: null, columns: [], observationPeriod: null });
     expect(projectEconomicsSummary(raw(F[1]))).toMatchObject({ availability: 'empty', count: 0 });
-    expect(projectEconomicsSummary(raw(F[10], status))).toMatchObject({ ok: true, availability: 'unavailable', count: null, columns: [] });
+    // F196: Election Forecast Aggregator has a source now; a status row is a failed source, not "unavailable".
+    expect(projectEconomicsSummary(raw(F[10], status))).toMatchObject({ ok: false, availability: 'error', count: null, columns: [] });
+    expect(projectEconomicsSummary(raw(F[10], [{ question: 'Who will win the 2025 Delhi Elections?', probability: '50.0', close_time: '2025-02-08' }]))).toMatchObject({ ok: true, availability: 'ready', count: 1, unit: 'markets', observationPeriod: null });
     expect(projectEconomicsSummary(raw(F[0], [], 'embedded', { ok: false })).count).toBeNull();
   });
   it('does not present news as market or macro data', () => {
@@ -36,7 +38,7 @@ describe('Economics source projection', () => {
       [{ country: 'India', year: '2024', gdp_usd_bn: 3900 }, 'countries'], [{ country: 'India', year: '2024', gdp_growth: 7, inflation: 4, emp_to_pop: '—', pmi: 54 }, 'countries'],
       [{ country: 'India', year: '2023', indicator: 'Access to electricity', value: 99 }, 'observations'], [{ year: '2024', gdp_growth_pct: 7, forecast: 10 }, 'observations'],
       [{ subject: 'Notification', date: '2025-01-01' }, 'notifications'], [{ person: 'CEO', company: 'Company' }, 'identities'],
-      [{ title: 'PIB release', date: '2026-01-01' }, 'reports'], [{ question: 'Election?', probability: 50, is_political: 'Yes' }, 'markets'], [[], 'forecasts'],
+      [{ title: 'PIB release', date: '2026-01-01' }, 'reports'], [{ question: 'Election?', probability: 50, is_political: 'Yes' }, 'markets'], [[], 'markets'],
     ];
     F.forEach((feature, i) => {
       const [row, unit] = fixtures[i];

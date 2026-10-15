@@ -102,9 +102,9 @@
     "adapters": "news-search",
     "backendRoute": "/api/feature-feed?tier=sports&feature=Sports%20Governance%20%26%20Policy",
     "mapping": "WORKBOOK-MAPPED",
-    "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Sports%22%20OR%20%22Governance%22%20OR%20%22Policy%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
-    "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
+    "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
+    "source": "https://news.google.com/rss/search?q=India%20(%22sports%20ministry%22%20OR%20%22national%20sports%20federation%22%20OR%20%22National%20Sports%20Code%22%20OR%20NADA%20OR%20%22anti-doping%22%20OR%20%22Indian%20Olympic%20Association%22%20OR%20IOA%20OR%20%22sports%20governance%22%20OR%20%22Sports%20Governance%20Act%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
     "role": "primary_of_record"
   },
   {
@@ -1245,15 +1245,17 @@
     "htmlFeature": "MLA Defection & Anti-defection Case Tracker",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-mla-defection-and-anti-defection"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AMLA%2520Defection%2520%2526%2520Anti-defection%2520Case%2520Tracker",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "news-search",
+    "backendRoute": "/api/feature-feed?tier=state&feature=MLA%20Defection%20%26%20Anti-defection%20Case%20Tracker",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
+    "source": "https://news.google.com/rss/search?q=India%20(MLA%20OR%20MLAs%20OR%20legislator)%20(defection%20OR%20%22anti-defection%22%20OR%20%22Tenth%20Schedule%22%20OR%20%22disqualification%20petition%22%20OR%20disqualified%20OR%20%22switch%20party%22%20OR%20%22joins%20BJP%22%20OR%20%22joins%20Congress%22%20OR%20%22switched%20sides%22%20OR%20defect)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1381,15 +1383,17 @@
     "htmlFeature": "Legislative Productivity Comparison",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-legislative-productivity-comparison"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3ALegislative%2520Productivity%2520Comparison",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "news-search",
+    "backendRoute": "/api/feature-feed?tier=state&feature=Legislative%20Productivity%20Comparison",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
+    "source": "https://news.google.com/rss/search?q=India%20(%22assembly%20session%22%20OR%20%22Vidhan%20Sabha%20session%22%20OR%20%22monsoon%20session%22%20OR%20%22winter%20session%22%20OR%20%22budget%20session%22)%20(assembly%20OR%20%22Vidhan%20Sabha%22)%20(sittings%20OR%20adjourned%20OR%20%22sine%20die%22%20OR%20%22bills%20passed%22%20OR%20%22passed%20the%20bill%22%20OR%20walkout%20OR%20%22cut%20short%22%20OR%20curtailed)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -1397,15 +1401,17 @@
     "htmlFeature": "Governor Friction & President's Rule Tracker",
     "dataset": "",
     "embeddedRows": "0.0",
-    "registryKeys": [],
+    "registryKeys": [
+      "state-governor-friction-and-presidents-rule"
+    ],
     "workbookFunctions": "",
-    "adapters": "",
-    "backendRoute": "/api/feature-feed?key=html-only%3A%3Astate%3A%3AGovernor%2520Friction%2520%2526%2520President's%2520Rule%2520Tracker",
-    "mapping": "HTML-ONLY",
-    "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "",
-    "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
-    "role": "discovery"
+    "adapters": "news-search",
+    "backendRoute": "/api/feature-feed?tier=state&feature=Governor%20Friction%20%26%20President's%20Rule%20Tracker",
+    "mapping": "SOURCE-MAPPED",
+    "feedGuarantee": "Curated Google News topic search kept to on-topic headlines (F196); news coverage, not an official register. Status row when the search returns nothing on topic. No homepage links.",
+    "source": "https://news.google.com/rss/search?q=India%20governor%20(%22state%20government%22%20OR%20%22President's%20Rule%22%20OR%20%22Article%20356%22%20OR%20%22withheld%20assent%22%20OR%20%22governor's%20address%22%20OR%20walkout%20OR%20%22Raj%20Bhavan%22%20OR%20%22Lok%20Bhavan%22%20OR%20%22chief%20minister%22)%20(row%20OR%20clash%20OR%20friction%20OR%20standoff%20OR%20confrontation%20OR%20tussle%20OR%20%22President's%20Rule%22%20OR%20%22Article%20356%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "developerNote": "Google News RSS curated topic search (FEATURE_TOPIC_Q) · title guard in src/lib/curatedNews.js · never product-name search",
+    "role": "primary_of_record"
   },
   {
     "htmlTier": "state",
@@ -2717,12 +2723,12 @@
       "economics-election-forecasts"
     ],
     "workbookFunctions": "ELECTION FORECASTS",
-    "adapters": "news-search",
+    "adapters": "api",
     "backendRoute": "/api/feature-feed?tier=finance&feature=Election%20Forecast%20Aggregator",
     "mapping": "WORKBOOK-MAPPED",
     "feedGuarantee": "Direct government/open-data feed; then last-known-good archive or labelled direct-endpoint status. No homepage links.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Election%22%20OR%20%22Forecast%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
-    "developerNote": "Google News RSS topic search · GDELT real-topic fallback · never product-name search",
+    "source": "https://api.manifold.markets/v0/search-markets?term=India%20election&limit=100",
+    "developerNote": "Manifold Markets API search · GET · JSON · auth: none · Indian election questions only (src/lib/econPack.js isIndiaElectionMarket)",
     "role": "primary_of_record"
   },
   {

@@ -22,9 +22,9 @@ const LIMITATIONS = {
   leaders: 'Wikidata Indian enterprise chief-executive identities. No ranking, financials or market capitalization.',
   ai: 'Press Information Bureau releases; topic-specific completeness is not established and not every release is necessarily about AI. No investment database.',
   manifold: 'Political Manifold markets ranked by recent volume, from polling or a stored snapshot. Market probabilities are not NTER forecasts. Close dates are not quote-update dates.',
-  elections: 'No election-forecast table is available yet. No forecasts or consensus values are supplied.',
+  elections: 'Manifold play-money markets on Indian elections, found by search. Market probabilities are not polls or NTER forecasts; many markets are thin. Close dates are not quote-update dates.',
 };
-const UNITS = { nse: 'quotes', world: 'quotes', countries: 'countries', indicators: 'countries', simulator: 'observations', sector: 'observations', trade: 'notifications', leaders: 'identities', ai: 'reports', manifold: 'markets', elections: 'forecasts' };
+const UNITS = { nse: 'quotes', world: 'quotes', countries: 'countries', indicators: 'countries', simulator: 'observations', sector: 'observations', trade: 'notifications', leaders: 'identities', ai: 'reports', manifold: 'markets', elections: 'markets' };
 
 /** Compact source projection; prepared rows remain private to the feed endpoint. */
 export function projectEconomicsSummary(raw, retrievedAt = new Date().toISOString()) {
@@ -35,15 +35,14 @@ export function projectEconomicsSummary(raw, retrievedAt = new Date().toISOStrin
   let rows = (prepareDeskFeed(raw)?.rows || []).filter(row => row && row.status !== 'source_status');
   // Existing feeds already project political markets; this rejects raw non-political entries too.
   if (slice === 'manifold') rows = rows.filter(row => /^(yes|true|1)$/i.test(String(row.is_political || '')));
-  const unavailable = slice === 'elections';
   const wrongSource = slice !== 'ai' && adapter === 'news-search';
   const unsupportedSource = raw.source?.kind === 'backup-pack' || raw.kind === 'backup-pack' || !['api', 'live', 'embedded', ...(slice === 'ai' ? ['news-search'] : [])].includes(adapter);
   const failed = raw.ok === false || wrongSource || unsupportedSource || (!rows.length && raw.rows?.some(row => row?.status === 'source_status'));
-  const usable = !unavailable && !failed;
+  const usable = !failed;
   const columns = usable ? feedColumns(feature, rows).filter(c => rows.some(row => present(row[c.key]) || (c.fallback && present(row[c.fallback])))).slice(0, 16).map(({ key, label }) => ({ key, label })) : [];
   const links = [...(raw.source?.links || []), ...rows.map(row => row.source_url)].map(safeUrl).filter(Boolean);
   const sources = [...new Map(links.map(url => [new URL(url).hostname, url])).values()].slice(0, 4).map(url => ({ name: new URL(url).hostname.replace(/^www\./, ''), url }));
-  const periods = usable && slice !== 'manifold' ? rows.flatMap(row => [row.year, row.as_of, row.asOf, row.date]).filter(value => /^\d{4}$/.test(String(value)) || validDate(value)).map(String).sort() : [];
+  const periods = usable && !['manifold', 'elections'].includes(slice) ? rows.flatMap(row => [row.year, row.as_of, row.asOf, row.date]).filter(value => /^\d{4}$/.test(String(value)) || validDate(value)).map(String).sort() : [];
   const observationPeriod = periods.length ? { from: periods[0], through: periods.at(-1) } : null;
   const asOf = validDate(raw.meta?.as_of) || validDate(raw.meta?.asOf) || validDate(raw.meta?.lastupdated) || null;
   const exchanges = new Map();
@@ -57,9 +56,9 @@ export function projectEconomicsSummary(raw, retrievedAt = new Date().toISOStrin
   const displayedExchanges = new Set(exchangeDistribution.map(item => item.label));
   exchangeUnreported += [...exchanges].filter(([label]) => !displayedExchanges.has(label)).reduce((sum, [, count]) => sum + count, 0);
   return {
-    ok: unavailable || usable, version: 1, feature, resourceKey: feature, count: usable ? rows.length : null,
-    countBasis: 'prepared-feed', availability: unavailable ? 'unavailable' : failed ? 'error' : rows.length ? 'ready' : 'empty',
-    sourceMode: unavailable ? 'unknown' : adapter === 'embedded' ? 'stored' : ['api', 'live', 'news-search'].includes(adapter) ? 'feed-backed' : 'unknown',
+    ok: usable, version: 1, feature, resourceKey: feature, count: usable ? rows.length : null,
+    countBasis: 'prepared-feed', availability: failed ? 'error' : rows.length ? 'ready' : 'empty',
+    sourceMode: adapter === 'embedded' ? 'stored' : ['api', 'live', 'news-search'].includes(adapter) ? 'feed-backed' : 'unknown',
     sourceAdapter: adapter, fallback: Boolean(raw.fallback), unit: UNITS[slice], asOf, observationPeriod, retrievedAt,
     period: observationPeriod ? observationPeriod.from === observationPeriod.through ? observationPeriod.from : `${observationPeriod.from}–${observationPeriod.through}` : null,
     columns, sources, exchangeDistribution, exchangeUnreported,

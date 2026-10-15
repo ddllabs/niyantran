@@ -68,7 +68,8 @@ describe('desk discovery catalogue identity', () => {
   });
   it('retains only explicitly configured column presets without presenting fake populated fields', () => {
     expect(DESK_CATALOGUE.find(entry => entry.feature === 'Global Intelligence').fields).toContain('VENDOR / ORIGIN');
-    expect(DESK_CATALOGUE.find(entry => entry.feature === 'Election Forecast Aggregator').fields).toEqual([]);
+    expect(DESK_CATALOGUE.find(entry => entry.feature === 'Election Forecast Aggregator').fields).toEqual(['MARKET']);
+    expect(DESK_CATALOGUE.find(entry => entry.feature === 'Legislative Productivity Comparison').fields).toEqual([]);
   });
   it('never accepts a same-name feature from a different tier into a navigation bucket', () => {
     expect(bucketsFor([{ htmlTier: 'state', htmlFeature: 'Cabinet Decisions' }], 'national')).toEqual([]);

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-13T13:49:06.328Z",
+  "generated_at": "2026-10-15T12:50:57.699Z",
   "entries": [
     {
       "tier": "global",
@@ -551,7 +551,7 @@
       "bucket": "India Sports Desk",
       "pack": null,
       "rows": 0,
-      "note": "Rewritten: never query GDELT for the product name; News RSS first."
+      "note": "F196: curated Google News search (sports ministry, national sports federations, National Sports Code and Sports Governance Act, NADA and anti-doping, Indian Olympic Association); on-topic headlines only."
     },
     {
       "tier": "sports",

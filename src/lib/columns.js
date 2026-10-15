@@ -678,6 +678,20 @@ const PRESETS = [
     ],
   },
   {
+    // F196: Manifold markets on Indian elections (src/lib/econPack.js mapManifoldIndiaElections).
+    test: /^election forecast aggregator$/i,
+    cols: [
+      { key: 'question', label: 'MARKET', fallback: 'title', dot: true, keep: true },
+      { key: 'probability', label: 'YES %', num: true },
+      { key: 'top_outcome', label: 'LEADING ANSWER' },
+      { key: 'top_outcome_pct', label: 'LEADING %', num: true },
+      { key: 'total_volume', label: 'VOLUME (MANA)', num: true },
+      { key: 'close_time', label: 'CLOSES' },
+      { key: 'resolved', label: 'RESOLVED', pill: true },
+      { key: 'market_type', label: 'TYPE', pill: true },
+    ],
+  },
+  {
     test: /^carbon border/i,
     cols: [
       { key: 'milestone', label: 'Milestone', fallback: 'title', dot: true, keep: true },

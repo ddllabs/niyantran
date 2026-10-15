@@ -47,13 +47,25 @@ describe('planned modules', () => {
     const fetch = vi.fn(async () => { throw new Error('no request expected'); });
     vi.stubGlobal('fetch', fetch);
     const { fetchFeature } = await import('./featureFeed.js');
-    const out = await fetchFeature({ tier: 'sports', feature: 'Sports Governance & Policy' });
+    const out = await fetchFeature({ tier: 'state', feature: 'NITI Aayog State Indices' });
     expect(out.source.adapter).toBe('planned');
     expect(fetch.mock.calls.filter(([u]) => /\/api\/feature-feed/.test(String(u)))).toEqual([]);
   }, 30_000);
 
   it('maps the request tier names', () => {
-    expect(isPlannedModule('economics', 'Election Forecast Aggregator')).toBe(true);
+    expect(isPlannedModule('local', 'Municipal & Panchayat Tender Aggregator')).toBe(true);
     expect(isPlannedModule('state', 'Cabinet Decisions')).toBe(false);
+  });
+
+  // F196: five modules were built from sources the repository already named.
+  it('no longer lists the five modules F196 built', () => {
+    expect(PLANNED_MODULES.size).toBe(14);
+    for (const [tier, feature] of [
+      ['sports', 'Sports Governance & Policy'],
+      ['state', "Governor Friction & President's Rule Tracker"],
+      ['state', 'Legislative Productivity Comparison'],
+      ['state', 'MLA Defection & Anti-defection Case Tracker'],
+      ['economics', 'Election Forecast Aggregator'],
+    ]) expect(isPlannedModule(tier, feature), feature).toBe(false);
   });
 });

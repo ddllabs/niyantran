@@ -133,7 +133,8 @@ describe('a registry row falls back to the topic wire by the same marker (F189)'
 
   it('every fallback is the marker: no row stores an address that could go stale', () => {
     expect(fallbackRows.filter((r) => r.openLiveFallback !== MARKER).map((r) => r.key)).toEqual([]);
-    expect(fallbackRows.filter((r) => r.openLiveFallback === MARKER)).toHaveLength(118);
+    // F196: three State news rows added with the marker; Election Forecast Aggregator (Manifold) dropped it.
+    expect(fallbackRows.filter((r) => r.openLiveFallback === MARKER)).toHaveLength(120);
     expect(fallbackRows.map((r) => r.key)).toContain(MLA_REPORT_CARD);
   });
 

@@ -26,7 +26,7 @@ describe('Sports v6 presentation', () => {
     expect(SPORTS_PRESENTATION.groups.map(group => group.image)).toEqual(visual.images);
     expect(SPORTS_PRESENTATION.groups.map(group => group.title.join('<br>'))).toEqual(visual.titles);
     expect(SPORTS_PRESENTATION.groups[0].cardDescription).toBe(visual.summaries[0]);
-    expect(SPORTS_PRESENTATION.groups[2].cardDescription).toContain('policy coverage unavailable');
+    expect(SPORTS_PRESENTATION.groups[2].cardDescription).toBe('Indian sports reporting and sports-governance news.');
     expect(SPORTS_PRESENTATION.groups[3].cardDescription).toBe('Indian league/owner observations and athlete identities.');
   });
 });

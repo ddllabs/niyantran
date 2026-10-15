@@ -29,7 +29,7 @@ export function sportsNote(slice, extra = '') {
     india:
       'Google News RSS for India hockey, badminton, kabaddi, athletics and chess (7 days). Not a GDELT search.',
     governance:
-      'No extracted MYAS/NSF table. GDELT was not used as a stand-in, and no records were invented.',
+      'Google News search for the sports ministry, sports federations, the Indian Olympic Association and anti-doping (NADA). Reporting, not an official MYAS or National Sports Code register.',
     business:
       'Wikidata Indian leagues and owners. Broadcast rights valuations and sponsorships are not in this pull.',
     athletes:

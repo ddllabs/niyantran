@@ -3,16 +3,17 @@ import { SPORTS_FEATURES as F, projectSportsSummary } from './sportsLandingSumma
 import { sportsDbRows, espnScoreboardRows, rssWireRows, wikidataLeagueRows, wikidataAthleteRows } from './sportsPack.js';
 const raw = (feature, rows = [], extra = {}) => ({ ok: true, tier: 'sports', feature, rows, source: { adapter: 'api' }, ...extra });
 describe('Sports source summaries', () => {
-  it('distinguishes unavailable governance, provider status, valid empty and errors', () => {
+  it('distinguishes provider status, valid empty and errors', () => {
     const status = [{ status: 'source_status', title: 'Offline', date: '2026-10-08' }];
-    expect(projectSportsSummary(raw(F[5], status))).toMatchObject({ ok: true, count: null, availability: 'unavailable', columns: [] });
+    // F196: Sports Governance & Policy is a news wire now, failing like the others.
+    expect(projectSportsSummary(raw(F[5], status))).toMatchObject({ ok: false, count: null, availability: 'error', columns: [] });
     expect(projectSportsSummary(raw(F[0], status))).toMatchObject({ ok: false, count: null, availability: 'error', observationPeriod: null });
     expect(projectSportsSummary(raw(F[1]))).toMatchObject({ count: 0, availability: 'empty' });
     expect(projectSportsSummary(raw(F[1], [], { ok: false })).count).toBeNull();
   });
   it('projects source fixtures for all implemented modules without invented rankings or rights', () => {
     const wires = rssWireRows([{ title: 'Sport report', date: '2026-10-07', link: 'https://example.org/report' }], 'Outlet');
-    for(const feature of [F[0],F[2],F[4]]) expect(projectSportsSummary(raw(feature,wires))).toMatchObject({ count: 1, unit: 'articles' });
+    for(const feature of [F[0],F[2],F[4],F[5]]) expect(projectSportsSummary(raw(feature,wires))).toMatchObject({ count: 1, unit: 'articles' });
     const events = sportsDbRows({ events: [{ strEvent: 'Home vs Away', strLeague: 'Premier League', strHomeTeam: 'Home', strAwayTeam: 'Away', dateEvent: '2027-01-01', idEvent: '1' }] });
     expect(projectSportsSummary(raw(F[1],events))).toMatchObject({ count: 1, unit: 'events', leagueDistribution: [{label:'Premier League',count:1}], period:'2027-01-01',asOf:null });
     expect(projectSportsSummary(raw(F[3],espnScoreboardRows({ events:[{name:'ISL fixture',date:'2026-11-01'}] },'ISL'))).unit).toBe('events');
@@ -37,7 +38,7 @@ describe('Sports source summaries', () => {
     expect(summary).toMatchObject({asOf:'2026-10-08',observationPeriod:{from:'2027-01-01',through:'2027-01-01'},sourceNote:'ESPN empty; TheSportsDB ISL.',sources:[{name:'thesportsdb.com',url:'https://www.thesportsdb.com/'}]});
     expect(summary).not.toHaveProperty('rows');expect(summary.resourceKey).toBe(F[3]);
     expect(summary.limitations).toContain('ESPN empty; TheSportsDB ISL.');
-    expect(projectSportsSummary(raw(F[5],[],{source:{adapter:'internal'}})).limitations).not.toContain('returned source');
+    expect(projectSportsSummary(raw(F[5],[{title:'Sports Ministry reviews federations',date:'2026-10-15'}])).limitations).toMatch(/not an official MYAS/);
     expect(()=>projectSportsSummary(raw('unknown'))).toThrow('Unknown');
   });
 });
