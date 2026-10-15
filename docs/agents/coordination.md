@@ -2079,3 +2079,8 @@ recommendations … We can fix everything that is under your control."
   …200000 so it sorts after migration 56) applied with `db push`; desk-brief deployed (v9 matched main
   before F123); security advisor: only the expected server-only `record_brief_quota`; then
   `app_flags.record_briefs = true`. Rollback: set the flag false (stored briefs keep being served).
+- **2026-10-15: F196 batch 2 live.** Migration 58 `20261015230000_feed_nothing_new` applied; RBI data
+  rebuilt offline from saved pages (`--offline`, no requests); nine registers loaded with
+  `SUPABASE_URL=… node --env-file=.env.local scripts/load-feed-register.mjs --module … --apply
+  --target prod --confirm-prod`; code deployed; then `feed_state.serve = true` for the nine modules
+  (152 variants). Database 1.5 GB before the load. F123 follow-ups (`deee6d1`) and desk-brief redeployed.

@@ -839,8 +839,21 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     Checks: 37 new tests red first, lint, build, router import, 5,509 Vitest, 1,079 Deno; each module
     answered live on a local server. Left: no Sports history (the F63 pack is not served on the live
     site); resolved Election markets do not show the winner.
-  - Next: the RBI handbook register (State Economic, State Fiscal, NITI indices, Cross-State, the five
-    state-level themes), SDL auctions from the RBI press feed, and the party-strength map.
+  - Batch 2 done and live 2026-10-15 (`6e32b72`, `5f54439`; migration 58
+    `20261015230000_feed_nothing_new`): eight RBI Handbook registers (2024-25 edition, published
+    11 Dec 2025; 152 tables, 64,445 figures, newest whole years per table, one store variant per table
+    with a Table picker), the Cross-State Comparison Engine (ranks the latest complete year), and the
+    SDL Auction & Borrowing Tracker (RBI press feed, kept per security; 45 backfilled lines). The five
+    "District …" modules show state-level figures under "State …" labels. Independent review found
+    three required fixes (partial years, append-only "nothing new" counted as failure, unbounded live
+    cache keys), all fixed before loading. Loaded with `load-feed-register.mjs --target prod`, `serve`
+    on; production probe: all answer from the store in 0.2–0.7 s.
+  - Next: the party-strength map (in progress; DataMeet boundaries approved by the owner).
+- [ ] **F201. RBI Handbook registers keep only the newest whole years per table.** One store page is
+  500 figures, so 85 of 152 tables drop older years (e.g. table 176 keeps 480 of 12,565 figures, and
+  its newest year alone is over 500, so 4 indicators including "Outstanding Liabilities" are left out;
+  table 95 keeps 16 of 21 indicators). Full history needs several store variants per table (by year
+  range) and a year picker. Older years remain on RBI's table pages.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
