@@ -38,6 +38,11 @@ describe('Home in plain words (F165)', () => {
     expect(html).toContain(`title="${INGEST_NOTE}"`);
   });
 
+  it('Feed health shows "register" for the stored Open Fronts register, which has no age (F182)', () => {
+    const html = home({ markets: { rows: [quote] }, latest: { rows: [] }, pulse: { rows: [{ title: 'Front A', link: '' }], archive: true, meta: { window: 'embedded Open Fronts snapshot' } } });
+    expect(html).toMatch(/Conflict pulse<\/span><b>\s*register\s*<\/b>/);
+  });
+
   it('no headlines and no note: says so plainly', () => {
     const text = shown(home({ markets: { rows: [quote] }, latest: { rows: [] }, pulse: { rows: [] } }));
     expect(text).toContain('nter.news headlines aren’t available right now. No headlines were invented.');

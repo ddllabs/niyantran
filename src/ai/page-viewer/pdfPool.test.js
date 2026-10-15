@@ -96,6 +96,27 @@ describe('createPdfPool', () => {
     expect(log.textLayers).toHaveLength(1);
   });
 
+  it('in the browser, opens a part with the packed cmaps and standard fonts Vite serves (F183)', async () => {
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('Worker', class {});
+    try {
+      const { pool, log } = setup();
+      request(pool, 7);
+      await flush();
+      expect(log.tasks[0].options).toMatchObject({ cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('outside a browser, passes no asset URLs (F183)', async () => {
+    const { pool, log } = setup();
+    request(pool, 7);
+    await flush();
+    expect(log.tasks[0].options).not.toHaveProperty('cMapUrl');
+    expect(log.tasks[0].options).not.toHaveProperty('standardFontDataUrl');
+  });
+
   it(`runs at most ${MAX_RENDERS} renders at once, starting the next as one finishes`, async () => {
     const { pool, log } = setup();
     for (const page of [1, 2, 3]) request(pool, page);

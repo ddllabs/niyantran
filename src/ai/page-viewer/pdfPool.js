@@ -13,6 +13,7 @@
  *   (`pdfFailureNotice`). A part that failed is closed, so the next request opens it afresh.
  */
 import { PDF_LOADER_FAILED, canvasSize, createPartTransport } from './pdfController.js';
+import { pdfAssetOptions } from '../../lib/pdfAssets.js';
 import { PDF_FETCH_FAILED, createRangeReader } from './rangeTransport.js';
 
 export const MAX_OPEN_PARTS = 3;
@@ -84,7 +85,7 @@ export function createPdfPool({ documentId, documentFile, parts, loadPdfjs, fetc
       failNow(error);
     };
     const range = createPartTransport({ pdfjs, length: info.byteSize, read: reader.read, isClosed: () => part.closed, onFailure });
-    part.task = pdfjs.getDocument({ range, length: info.byteSize, disableAutoFetch: true, disableStream: true, isEvalSupported: false, enableXfa: false });
+    part.task = pdfjs.getDocument({ range, length: info.byteSize, disableAutoFetch: true, disableStream: true, isEvalSupported: false, enableXfa: false, ...pdfAssetOptions() });
     Promise.resolve(part.task.promise).catch(() => {});
     return part;
   }

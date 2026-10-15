@@ -19,6 +19,7 @@
  */
 import deskCatalog from '../../supabase/functions/_shared/deskCatalog.json';
 import { loadPdfjs } from './pdfjs.js';
+import { pdfAssetOptions } from './pdfAssets.js';
 import { accessToken as sessionAccessToken, functionsUrl, supabase } from './supabaseClient.js';
 
 // ─── Limits (the plan's fixed interface) ─────────────────────────────────────
@@ -239,6 +240,8 @@ export async function inspectPdf(bytes) {
     isEvalSupported: false,
     useSystemFonts: false,
     verbosity: 0,
+    // Harmless, but not a text fix: this reads only the page count and encryption, never page text.
+    ...pdfAssetOptions(),
   });
   try {
     let doc;

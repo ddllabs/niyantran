@@ -1,4 +1,5 @@
 import { prepareHomeMarketQuotes } from './homeMarkets.js';
+import { REGISTER_NOTE, REGISTER_WINDOW, isAgentSnapshot } from './conflictRegister.js';
 
 const TICKERS = [
   ['NIFTY 50', '^NSEI'],
@@ -123,11 +124,13 @@ export async function homeLatestFromStatic(signal) {
 
 export async function homePulseFromStatic(signal) {
   const snap = await getStaticJson('/data/conflict.json', signal);
-  if (Array.isArray(snap?.rows) && snap.rows.length) {
+  // F182: the seed is a stored copy of the register (and may carry an old GDELT note); only a real
+  // agent snapshot is read from it. Otherwise the register is read from its own file below.
+  if (isAgentSnapshot(snap)) {
     return {
       ok: true,
       rows: snap.rows.slice(0, 8),
-      gdelt: Boolean(snap.gdelt),
+      gdelt: false,
       archive: true,
       note: snap.note || 'Saved conflict-pulse snapshot.',
       ageH: snap.updated ? (Date.now() - new Date(snap.updated).getTime()) / 3600000 : null,
@@ -152,6 +155,7 @@ export async function homePulseFromStatic(signal) {
     rows,
     gdelt: false,
     archive: true,
-    note: 'Open Fronts snapshot (geopolitics_war_tracker). Live GDELT was unreachable.',
+    meta: { unique: rows.length, deduped: 0, window: REGISTER_WINDOW },
+    note: REGISTER_NOTE,
   };
 }

@@ -2,7 +2,8 @@ import { liveApiEnabled } from './apiMode.js';
 import { loadRefreshCfg } from './refreshStore.js';
 
 /** Bumped when Latest switched to nter.news-only (drops stale wire cache). */
-const KEY = 'niyantranHomeDesk.v2';
+// v3 (F182): a pulse saved before then could carry the register under an agent label and a GDELT note.
+const KEY = 'niyantranHomeDesk.v3';
 
 let kickAt = 0;
 let kickInflight = null;

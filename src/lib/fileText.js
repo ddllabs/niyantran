@@ -6,6 +6,7 @@
  * Images are not read.
  */
 import { loadPdfjs } from './pdfjs.js';
+import { pdfAssetOptions } from './pdfAssets.js';
 
 /** F62 (F171 B4, owner decision 2026-10-14): refused before a byte is read. */
 export const FILE_LIMIT_BYTES = 25_000_000;
@@ -21,17 +22,8 @@ const SHEET_ROWS = 5000;
 
 const nonSpace = (s) => String(s || '').replace(/\s/g, '').length;
 
-/**
- * F178: a PDF whose fonts are CID-keyed (much Indian-government text) needs pdf.js's character maps,
- * and one that names a standard font without embedding it needs the standard font files, or its text
- * comes out wrong or empty. They are served from /pdfjs/ (vite.config.js copies them from pdfjs-dist,
- * so they match the installed version). Only in a browser: in Node pdf.js reads its own files.
- */
-export function pdfAssetOptions() {
-  if (typeof window === 'undefined' || typeof Worker === 'undefined') return {};
-  const base = import.meta.env?.BASE_URL || '/';
-  return { cMapUrl: `${base}pdfjs/cmaps/`, cMapPacked: true, standardFontDataUrl: `${base}pdfjs/standard_fonts/` };
-}
+// Re-exported so existing imports keep working; the function lives in its own import-free module.
+export { pdfAssetOptions };
 
 async function pdfPages(bytes, load) {
   const pdfjs = await load();

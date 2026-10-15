@@ -8,6 +8,7 @@ import {
   loadHomeCache,
   saveHomeCache,
 } from '../lib/homeCache.js';
+import { REGISTER_WINDOW } from '../lib/conflictRegister.js';
 import { homeLatestFromStatic, homeMarketsFromStatic, homePulseFromStatic } from '../lib/homeStatic.js';
 import { homeLiveApiEnabled, liveApiEnabled } from '../lib/apiMode.js';
 import { loadRefreshCfg } from '../lib/refreshStore.js';
@@ -576,7 +577,13 @@ export default function HomeDesk({ onOpen, onFeed, onSelect, onLoading, reload }
               </div>
               <div>
                 <span>Conflict pulse</span>
-                <b>{meta.pulse?.ageH != null ? `${Number(meta.pulse.ageH).toFixed(1)}h` : loading ? '…' : '—'}</b>
+                <b>
+                  {meta.pulse?.ageH != null
+                    ? `${Number(meta.pulse.ageH).toFixed(1)}h`
+                    : meta.pulse?.meta?.window === REGISTER_WINDOW && meta.pulse?.rows?.length
+                      ? 'register'
+                      : loading ? '…' : '—'}
+                </b>
               </div>
             </div>
           </section>
