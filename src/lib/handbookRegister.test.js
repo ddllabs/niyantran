@@ -210,6 +210,7 @@ describe('serving: the stored table, else the table\'s page', () => {
 describe('Cross-State Comparison Engine', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -237,6 +238,10 @@ describe('Cross-State Comparison Engine', () => {
   });
 
   it('reads the table from its page when the store is not configured, and offers every handbook table', async () => {
+    // Not configured on purpose: another file in the shared test process can leave these set.
+    vi.stubEnv('SUPABASE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('SUPABASE_SECRET_KEY', '');
     resetFeedCache();
     const fetch = vi.fn(async (u) => ({ ok: true, status: 200, url: String(u), headers: new Headers(), arrayBuffer: async () => new TextEncoder().encode(fixture('handbook-t21-gsdp.html')).buffer }));
     vi.stubGlobal('fetch', fetch);
