@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F192 is next) and goes in the
+- A new finding gets the next free `F` number (F193 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -746,9 +746,11 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   - Done 2026-10-14: B1 source links (F89), B2 chat uploads (F172), B3 dropped connection (F66), B4
     file size (F62), B5 legal pages (F108), B6 SheetJS (P12), B7 closed into its accepted risk (F44),
     B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30); 2026-10-15: B11 (F67), B12 (F36),
-    B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, needs a signed-in
-    phone check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
+    B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, closed 2026-10-15 on a local check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
     (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
+- [ ] **F192. Hindi interface: the page language and the toggle's name.** The document's `lang` stays
+  `en` while the interface is in Hindi, and the EN/HI toggle has no accessible name (local check
+  2026-10-15, `docs/research/2026-10-15-local-signed-in-checks.md`).
 - [ ] **F191. Homepage "Source endpoints": 246 or 115?** Owner decision. F180 took the 131 GDELT search
   addresses out of the source registry, which now counts 115; the homepage keeps the owner's 246
   (`src/lib/siteFigures.js`) until the owner decides.
@@ -944,6 +946,62 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 ## 1. Done
+
+- [x] **F59. First-traversal and remaining heavy-viewer stutter attribution.** F58 observed isolated 105/55/111ms long tasks and a 650.7ms frame gap whose cause was not established. If the real issue remains reproducible, collect a CPU/render trace, profile full view with thumbnails and signed-storage network timing under fixed conditions before optimizing. Warm loopback scrolling was steady; this is not production performance acceptance. [F58 evidence](../research/2026-10-03-heavy-pdf-profile.md). Safari acceptance remains F50.
+
+## 4. Payments
+
+- [x] **F6.** Plan gating on the server, before real payments (closed 2026-10-14, superseded; see below). Desk data is
+  public (static files, and `desk_rows` is readable by any signed-in user).
+  Locks, row caps and export limits run only in the browser. The spec must
+  settle which data is premium, how premium desks are served (an API behind
+  `my_entitlement`, or RLS), server-side exports and API row caps.
+  - **Parked by the owner (2026-10-02)** until payments are integrated: "when the payment plan
+    is actually integrated, we might have to make changes again."
+  - **Closed 2026-10-14 as superseded (owner).** There are no paid desk tiers: plans differ in
+    AI credits and in which models they may use (F150). Credits are enforced on the server.
+  - **Decisions recorded for then:**
+    - core desks stay persona-based and user-editable;
+    - the AI assistant respects the same desk locks when it reads desk rows;
+    - the desk packs stay public for now.
+  - **The access map** (every path to desk data, the client-only rules, and the smallest real
+    enforcement) is kept locally in `docs/security/2026-10-02-plan-gating-map.md`, which is not
+    published.
+  - **Noted there:** the trial row cap (25) is below the free cap (40), and prices are defined in
+    both the client and the server.
+  *Closed 2026-10-15 (F171 B22): three 12-second scroll profiles of a 250-page, 64 MB PDF on the real
+  viewer, first traversal included: 60 fps at p99, no long task, at most 4 canvases; the only
+  one-second gaps fell while the page was hidden (`research/2026-10-15-local-signed-in-checks.md`).
+  Reopen with the document if a reader reports it.*
+
+- [x] **F47.** Found during the F46 fixes and left out of their scope.
+  - **In progress (2026-10-02):** spec `specs/2026-10-02-chat-panel-fixes.md` (approved: the dimming
+    is restored), plan `plans/2026-10-02-chat-panel-fixes.md`.
+    - **Done:**
+      - T1, the live timing word (`ea0e07c`, a `research-chat` change);
+      - T2, the region rules and dimming (`4e030e8`);
+      - T3, the phone dock (`fabae3a`): the thread goes from 18 px to 318 px at 375 × 812;
+      - T4, measured: zero shift at the end of a turn.
+
+      The local run is in `research/2026-10-02-chat-panel-fixes-local-run.md`.
+    - **`research-chat` v45 deployed** on 2026-10-02, with T1's frame and the widened limit.
+    - **Shipped:** T1–T3 at `da32cb3`; T5 at `c2c3069` (operations record, 2026-10-02).
+    - **Noted in the run, then fixed by T5** (`01d1714`, `research/2026-10-02-phone-header-local-run.md`):
+      - at 375 px the header fits, with no Log out duplicated in the bar below 900 px;
+      - the history list stays on screen (x 57–359);
+      - the account menu, clipped below 900 px by the scrolling bar, now opens and works.
+    - **Open, an owner design choice:** at 320 px the avatar is still cut, because the actions
+      need 212 px and get 172. Closing it costs the wordmark, a button or touch-target size.
+  - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
+    71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
+  - **Dead dimming:** the history-open dimming selectors (`index.css`,
+    `.ai-shell.ai-shell-v2.history-open > .ai-v2-body` etc.) match nothing in the research
+    shell, because its rows sit inside `.ai-panel-background`.
+  - **Live timing word:** it reads "waited" until the saved row replaces it, even when the saved
+    row then says "thought". The live stream carries no reasoning count.
+  *Closed 2026-10-15 (F171 B17): measured on a local signed-in copy at 320 px, every header action
+  fits (avatar x 276–308 of 320, no sideways scroll); the open phone items were fixed by the chat and
+  header work since (`research/2026-10-15-local-signed-in-checks.md`).*
 
 - [x] **F188. Google News rows on Geopolitics were labelled "BBC World feed".** *Done 2026-10-15
   (`b5c86cb`, `41551bc`): a Google News kind with the real publisher; a row with a BBC outlet stays BBC;
@@ -1977,31 +2035,6 @@ Follow-ups and findings:
       expected document once.
   - **Deployed** on 2026-10-02 as `research-chat` v44 (`agents/coordination.md`).
   - **Next:** the owner checks, signed in on production, a four-part brief and a follow-up.
-- [ ] **F47.** Found during the F46 fixes and left out of their scope.
-  - **In progress (2026-10-02):** spec `specs/2026-10-02-chat-panel-fixes.md` (approved: the dimming
-    is restored), plan `plans/2026-10-02-chat-panel-fixes.md`.
-    - **Done:**
-      - T1, the live timing word (`ea0e07c`, a `research-chat` change);
-      - T2, the region rules and dimming (`4e030e8`);
-      - T3, the phone dock (`fabae3a`): the thread goes from 18 px to 318 px at 375 × 812;
-      - T4, measured: zero shift at the end of a turn.
-
-      The local run is in `research/2026-10-02-chat-panel-fixes-local-run.md`.
-    - **`research-chat` v45 deployed** on 2026-10-02, with T1's frame and the widened limit.
-    - **Shipped:** T1–T3 at `da32cb3`; T5 at `c2c3069` (operations record, 2026-10-02).
-    - **Noted in the run, then fixed by T5** (`01d1714`, `research/2026-10-02-phone-header-local-run.md`):
-      - at 375 px the header fits, with no Log out duplicated in the bar below 900 px;
-      - the history list stays on screen (x 57–359);
-      - the account menu, clipped below 900 px by the scrolling bar, now opens and works.
-    - **Open, an owner design choice:** at 320 px the avatar is still cut, because the actions
-      need 212 px and get 172. Closing it costs the wordmark, a button or touch-target size.
-  - **Phone width:** the AI dock gets 268 px under the desk at 375 × 812. The composer is clipped
-    71 px below it and the thread is 18 px tall. The same happens with the pre-fix CSS.
-  - **Dead dimming:** the history-open dimming selectors (`index.css`,
-    `.ai-shell.ai-shell-v2.history-open > .ai-v2-body` etc.) match nothing in the research
-    shell, because its rows sit inside `.ai-panel-background`.
-  - **Live timing word:** it reads "waited" until the saved row replaces it, even when the saved
-    row then says "thought". The live stream carries no reasoning count.
 - [ ] **F48.** The citation viewer's header is about 190 px of text buttons in the side pane. It
   becomes a compact, icon-based chrome: two rows in the side pane, and a header plus a floating
   page pill in the full view.
@@ -2118,28 +2151,7 @@ Earlier items, updated:
   key). Accept, or keep one document per key.
 
 
-- [ ] **F59. First-traversal and remaining heavy-viewer stutter attribution.** F58 observed isolated 105/55/111ms long tasks and a 650.7ms frame gap whose cause was not established. If the real issue remains reproducible, collect a CPU/render trace, profile full view with thumbnails and signed-storage network timing under fixed conditions before optimizing. Warm loopback scrolling was steady; this is not production performance acceptance. [F58 evidence](../research/2026-10-03-heavy-pdf-profile.md). Safari acceptance remains F50.
 
-## 4. Payments
-
-- [x] **F6.** Plan gating on the server, before real payments (closed 2026-10-14, superseded; see below). Desk data is
-  public (static files, and `desk_rows` is readable by any signed-in user).
-  Locks, row caps and export limits run only in the browser. The spec must
-  settle which data is premium, how premium desks are served (an API behind
-  `my_entitlement`, or RLS), server-side exports and API row caps.
-  - **Parked by the owner (2026-10-02)** until payments are integrated: "when the payment plan
-    is actually integrated, we might have to make changes again."
-  - **Closed 2026-10-14 as superseded (owner).** There are no paid desk tiers: plans differ in
-    AI credits and in which models they may use (F150). Credits are enforced on the server.
-  - **Decisions recorded for then:**
-    - core desks stay persona-based and user-editable;
-    - the AI assistant respects the same desk locks when it reads desk rows;
-    - the desk packs stay public for now.
-  - **The access map** (every path to desk data, the client-only rules, and the smallest real
-    enforcement) is kept locally in `docs/security/2026-10-02-plan-gating-map.md`, which is not
-    published.
-  - **Noted there:** the trial row cap (25) is below the free cap (40), and prices are defined in
-    both the client and the server.
 - [ ] **O6.** After F6: the Razorpay keys on Vercel, then one real payment
   end to end.
   - Added by F111 (2026-10-14; recommendations in the

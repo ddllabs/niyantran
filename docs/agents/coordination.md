@@ -2056,3 +2056,6 @@ recommendations … We can fix everything that is under your control."
   (`e35dde3`), merged on `task/integrate2`. Each reviewed independently, findings fixed. Checks:
   lint, 5,409 Vitest tests, build, `check:bundle`, router import. No database, migration or Edge
   Function change. Rollback: revert and push.
+- **2026-10-15: local signed-in checks (A4) and the viewer measurement (B3)** on a scratch local stack
+  and a throwaway worktree, nothing on NTER; all four checks as specified; F47 and F59 closed; F192
+  found. Torn down afterwards. Evidence: `docs/research/2026-10-15-local-signed-in-checks.md`.
