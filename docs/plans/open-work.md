@@ -186,19 +186,21 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     `research-chat` v50. Only 2 Hindi errata files remain unversioned.
   - The 24-document old-key backfill is done:
     [record](../research/2026-10-13-document-role-backfill.md).
-- [ ] **F119. Sector picture cards select instead of opening.** Owner
+- [x] **F119. Sector picture cards select instead of opening.** Owner
   2026-10-13: a card selects its sector, with a visible switch and a scroll
   into view on phones; the module cards open the terminal. Built on
   `task/sector-card-select`, merged `8441097`, pushed 2026-10-13.
   [Spec](../specs/2026-10-13-sector-cards-select.md). Remaining: owner check
   on production.
-- [ ] **F120. One header on every page.** Owner 2026-10-13: All sections
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F120. One header on every page.** Owner 2026-10-13: All sections
   and refresh on every page (landing refresh reloads its summaries); the
   search box shows a short label below 1,110px instead of truncating. Built on
   `task/consistent-header` and merged locally.
   [Spec](../specs/2026-10-13-consistent-header.md). Pushed in `cec56ee` and
   live on production. Remaining: owner check.
-- [ ] **F121. Global record panels.** Owner request 2026-10-13: every Global
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F121. Global record panels.** Owner request 2026-10-13: every Global
   record opens one consistent panel modelled on the owner's reference (header,
   01 at a glance, 02 about, 03 what it touches, a footer with Ask AI and
   provenance). Owner decisions: staged rollout; re-skin the Alliances,
@@ -222,7 +224,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     after F121: the cached AI brief (F123) and the follow-ups in F122.
     Maritime Choke-Points and Energy stay as they are: the reference has no
     panel for them (owner, 2026-10-13).
-- [ ] **F124. National record panels.** Owner request 2026-10-13: the same
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F124. National record panels.** Owner request 2026-10-13: the same
   record-panel makeover as Global (F121) for the eight National modules the
   client reference covers. The reference is a mockup: its layout and kind of
   information count, its figures do not.
@@ -246,6 +249,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     - the stored bill `probability_score` and `summary` are empty;
     - Pipeline sources are `news.google.com` links;
     - status labels in `src/lib/apiStatus.js` call embedded packs "live".
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them." The six backend gaps listed above stay recorded here for the corpus work.*
 - [x] **F125. Cabinet Decisions: only Cabinet decisions.** Owner 2026-10-13.
   [Spec](../specs/2026-10-13-cabinet-filter-mp-house.md).
   - **Marker:** PIB names each release's issuing body on its release page; the
@@ -271,7 +275,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   - **Labels and panel:** the labels now say both houses, and the panel shows
     "Listed as" where the name differs.
   - Merged and pushed at `abfb912` on 2026-10-13.
-- [ ] **F128. Law record panels.** Owner request 2026-10-13 ("go ahead with
+- [x] **F128. Law record panels.** Owner request 2026-10-13 ("go ahead with
   Law now, same process").
   - All twelve Law modules get the record panel in the Law reference's form:
     four tile questions with the clock last, a "what a lawyer needs" board,
@@ -289,7 +293,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     labels on other desks, such as "GDP, CPI, PMI", "CBAM", "OTT").
     `featureMenuLabel` keeps a word written with inner capitals unless the
     whole label is in capitals; `src/lib/national.test.js`.
-- [ ] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F129. ICJ and WTO registers from the stored packs.** Found in the F128
   research (2026-10-13).
   - Owner 2026-10-13: ICJ stays as it is ("keep what we have"); WTO approved
     for collection.
@@ -312,6 +317,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     approval.
   - The Sector Tribunals pack holds a PAN in at least one title; check it for
     personal data before any use.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them." WTO register checked; the ICJ register was dropped by the owner ("keep what we have").*
 - [x] **F122. Global desk data honesty follow-ups.** Found by the F121 batch 2
   agents (2026-10-13); outside F121's scope.
   - Planned: [record follow-ups plan](2026-10-13-record-followups-plan.md) (2026-10-13).
@@ -377,7 +383,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     No template text is shown as AI.
   - Remaining, with F111: whether selecting a record should generate a brief,
     what it costs in credits, and how it is labelled.
-- [ ] **F130. Web search in AI Research.** Owner request 2026-10-13: web
+- [x] **F130. Web search in AI Research.** Owner request 2026-10-13: web
   context for records without indexed documents, site-wide, through
   OpenRouter's server web-search tool (Exa), as in TenderBase. Owner
   decisions: automatic per record or module without an indexed document; the
@@ -408,7 +414,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   - The globe's prediction now counts exactly the records the next send
     carries (`webPredictionRecords`), so it agrees with the server in the two
     cases spec amendment 2 listed. No follow-ups remain.
-- [ ] **F131. Web search: one stream, live sources and site icons.** Owner
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F131. Web search: one stream, live sources and site icons.** Owner
   report 2026-10-13: on a web turn the answer streams, vanishes and streams
   again, and the sources appear only at the end. Cause: a research call that
   searched is never the answer, so its live draft is always taken back and
@@ -430,19 +437,23 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
       and real icons ([spec](../specs/2026-10-13-web-search-streaming.md),
       "Build and local run").
     - Spend: $0.57 of $1.00 in total.
-- [ ] **F133. Desk tabs: the separator back and less space.** Owner request 2026-10-13. The line
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F133. Desk tabs: the separator back and less space.** Owner request 2026-10-13. The line
   between the search row and the desk tabs was lost in `38fae22`, and F112 made the tab row 58 px.
   The tabs are now their own row at every width under a full-width line, in a 42 px row; the
   current desk's highlight fills the row from line to line (owner's choices). Header at 1440 px: 107 px (was 119). On `task/ui-polish`;
   [spec](../specs/2026-10-13-ui-polish.md). Remaining: review, merge, push, owner check.
-- [ ] **F134. Header search results drag into AI research.** Owner request 2026-10-13. Catalogue and
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F134. Header search results drag into AI research.** Owner request 2026-10-13. Catalogue and
   Records results now carry the shared drag payload (a record carries its row); a drag opens AI
   research and the search window steps aside. On `task/ui-polish`. Remaining: a real mouse drag in
   the browser (the drop could not be simulated), review, merge, push.
-- [ ] **F135. The side panel closes on a click outside or Escape on every page.** Owner request
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F135. The side panel closes on a click outside or Escape on every page.** Owner request
   2026-10-13. Only AI had an outside-click close; Desk and Record now collapse to the slim bar on a
   click outside or Escape (owner's choice), and picking the selected row again reopens its record.
   On `task/ui-polish`. Remaining: review, merge, push, owner check.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 - [ ] **F140. Homepage header, hero, globe and "Curated for" strip to the client's design.** Owner
   request 2026-10-13 (client review of `NTER-Homepage-Final.html` and `globe-animation/`). The
   design's look, our data and links: white header kept sticky at 72 px with "Data coverage", Sign in
@@ -470,7 +481,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   a pause button on every globe (WCAG 2.2.2, as the old globe had), the mount wiring tested, the old
   globe's docs marked historical. Left for later: the `three` package has no importer now (it was the
   old globe's renderer); removing it is a dependency change. Remaining: merge, push.
-- [ ] **F142. Live, database-backed figures on the marketing site.** Owner request 2026-10-14: today
+- [x] **F142. Live, database-backed figures on the marketing site.** Owner request 2026-10-14: today
   9,817 bills and 3,431 documents are typed constants, and the carousel counts come from snapshot
   files, so new records never show. One `site_figures()` database function (service role) behind a
   cached public `/api/site-figures`, with the measured constants as the fallback; the hero, KPIs,
@@ -484,7 +495,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   counts equal direct counts (bills 9,817, documents 3,376, ministries 56, fronts 88); see coordination
   Operations. Remaining: merge, push. Still hand-typed on the homepage (F30): the preview cards'
   other figures (houses, series start, status bars and the other desks' samples).
-- [ ] **F143. Desk landing counters restart on load.** Owner bug report 2026-10-14: the counters ran
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F143. Desk landing counters restart on load.** Owner bug report 2026-10-14: the counters ran
   at high speed from 0 two or three times on load, sometimes kept doing it, sometimes loaded fine.
   Cause (code read): every summary arriving (up to 16 per landing, 45 s timeouts) restarted every
   counter from 0, through a key built from the raw summaries; a retry could leave "NaN". Fixed on
@@ -492,7 +504,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   numbers do not move, the key follows the numbers on screen, a cleared value is left to React.
   Unit-tested (each guard fails without its code). Remaining: a browser check with the pane visible
   (a hidden pane pauses motion), merge, push.
-- [ ] **F144. Homepage desk preview: only real figures.** Owner 2026-10-14: fix the figures our data
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F144. Homepage desk preview: only real figures.** Owner 2026-10-14: fix the figures our data
   backs under their current labels; list the rest for the client. Fixed on `task/preview-figures`:
   bill houses, series start and the four stage bars (real counts, checked against NTER), MP states
   covered (36), macro series (7) and publishers (2), fronts (88) and theatres (17), and the false
@@ -500,7 +513,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   client: 15 items in [the client document](../research/2026-10-14-homepage-preview-for-client.md)
   (retitling Media, Ops and Economy to real datasets; the bars, rows and tiles with no data).
   Remaining: merge, push, then the client's answers.
-- [ ] **F145. Globe handover and page speed.** Owner request 2026-10-14, from the client: a globe on
+  *Closed 2026-10-15: the owner says the client has given everything needed; the preview shows only figures the data supports (Part A of `research/2026-10-14-homepage-preview-for-client.md`).*
+- [x] **F145. Globe handover and page speed.** Owner request 2026-10-14, from the client: a globe on
   a black background flashes before the real globe on every page change, and pages feel slow. Causes
   (measured on a production build): the globe's stand-in image is a photo of Earth on black space
   (inherited from the client's package), and each page rebuilds the globe from scratch; the homepage
@@ -525,6 +539,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     - a subfolder 404 (`/assets/uploads/…`) gets `max-age=0`;
     - brand images keep the day.
   - Remaining: owner and client check.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 - [x] **F146. Withdrawn, not a defect (2026-10-14).** Reported during the F145 live check as broken
   news images under our `/assets/uploads/`. That was a measurement error by the supervisor: the
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
@@ -760,7 +775,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   F175, local signed-in checks), measurements (F41, F35, F59), then F169 phase 4 records-first storage.
   Progress 2026-10-15: F175, F176 and F178 done; F35 and F41 measured; C1 (schedule) and C2 (tables)
   built on branches, C2 in review fixes.
-- [ ] **F171. The bug programme.** Owner 2026-10-14: "Regarding the bugs, I'll follow your order.
+- [x] **F171. The bug programme.** Owner 2026-10-14: "Regarding the bugs, I'll follow your order.
   Ideally, we need to fix all of it." [Spec](../specs/2026-10-14-bug-programme.md) and
   [plan](2026-10-14-bug-programme.md): B1 to B22 in order (source links, chat uploads, chat
   connection recovery, file size, legal pages, SheetJS, Live TV, planned modules, desk count,
@@ -772,6 +787,7 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     B8 Live TV (F7), B9 planned modules (F173), B10 desk count (F30); 2026-10-15: B11 (F67), B12 (F36),
     B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, closed 2026-10-15 on a local check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
     (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
+  *Closed 2026-10-15: owner "the bug programme is complete". B17, B19, B20 and B22 are done (see above and `coordination.md`); B21 (F37) stays parked with F170.*
 - [x] **F192. Hindi interface: the page language and the toggle's name.** Done 2026-10-15 (`9a66bf3`, `63398e1`).
   The document's `lang` stayed `en` while the interface was in Hindi, and the EN/HI toggle had no
   accessible name (local check 2026-10-15, `docs/research/2026-10-15-local-signed-in-checks.md`).
@@ -973,7 +989,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 
-- [ ] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
+- [x] **F76. Owner browser acceptance of dictation.** F74 production activation completed; verify real signed-in microphone → editable transcript in both Ask AI and command search, permission refusal and grouped production record search. Synthetic English/Hindi OpenRouter probes and deployed auth/CORS passed; authenticated browser full path is not yet exercised. [Release evidence](2026-10-04-dictation-activation.md).
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 
 
 
@@ -1793,7 +1810,7 @@ Each needs one answer, then an agent can finish it.
     - three sets of multiple permissive policies.
   - Leaked-password protection and the Auth connection strategy are
     dashboard settings (D1).
-- [ ] **F30. The other hand-written marketing figures** *(2026-10-14: "9,819", "211+" and "99.9%" are gone (F142); "12 Desks" fixed to 8 and tied to the desk list (F171 B10, `df556a4`). The homepage preview cards' sample figures are on the client's list, F144.)* (found while doing
+- [x] **F30. The other hand-written marketing figures** *(2026-10-14: "9,819", "211+" and "99.9%" are gone (F142); "12 Desks" fixed to 8 and tied to the desk list (F171 B10, `df556a4`). The homepage preview cards' sample figures are on the client's list, F144.)* (found while doing
   P16). They weren't part of P16's approval:
   - `src/marketing/HomePage.jsx` shows "9,819" bills in four places (lines
     36, 290, 584 and 736); the carousel now says 9,817 unique bills;
@@ -1801,6 +1818,7 @@ Each needs one answer, then an agent can finish it.
     `PricingPage.jsx:135`);
   - "UPTIME 99.9%" (`HomePage.jsx:294`, `PricingPage.jsx:143`), which nothing
     measures.
+  *Closed 2026-10-15: superseded by F142 (live figures), F171 B10 and F144; `src/lib/siteFigures.test.js` fails if the old hand-written figures return.*
 
   Decide per figure: compute it (the bills count can reuse P16's), keep it
   as a constant, or drop it.
@@ -1843,7 +1861,7 @@ Part 1 is planned in `plans/2026-09-30-rag-v2-retrieval-and-contract.md`
 
 Part 2: deployed ingestion and the remaining pilot/acquisition work:
 
-- [ ] **R4. `ingestion-v2`** (spec `specs/2026-10-01-rag-v2-ingestion-v2.md`,
+- [x] **R4. `ingestion-v2`** (spec `specs/2026-10-01-rag-v2-ingestion-v2.md`,
   approved; plan `plans/2026-10-01-rag-v2-ingestion-v2.md`):
   - a private `corpus` bucket, content-addressed by file hash;
   - a job-table queue (skip-locked claims, lease, fencing), with a pg_cron
@@ -1851,6 +1869,7 @@ Part 2: deployed ingestion and the remaining pilot/acquisition work:
   - the `ingest-worker` Edge Function running Mistral OCR in page ranges and
     indexing slice by slice;
   - first extractions only.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 
   The owner sets `MISTRAL_API_KEY` and runs the secret steps.
 
@@ -1935,7 +1954,7 @@ Part 2: deployed ingestion and the remaining pilot/acquisition work:
   - **Larger-batch capacity plan (owner request,2026-10-09):** [plan](2026-10-09-corpus-capacity-and-larger-batches.md). Live healthy16/90 connections, zero lock waits/deadlocks,99.038% cumulative cache hits; physical tier/CPU/RAM remains unverified (dashboard sign-in/Chrome timeout; historical2GB only). Proposed50-document queue, single writer,2,000-chunk stages after a tested explicit worker profile and1,000–1,500-chunk pilot; retain30/stage and800/document guards, context quality, reconciliation, health/cost gates and ANALYZE. Current executable1,000-stage cap unchanged; no new eligible inputs or ingestion. Complete identity/layout evidence first. No compute upgrade or parallel writer authorized by this plan.
     - **Supabase-plugin follow-up:** official metrics API now verified using two read-only samples:106s idle interval,2 visible cores, roughly2GB RAM /1GB available,1.13% non-idle CPU, disks below0.1% busy. CPU/RAM telemetry is available; billed tier remains unknown. Owner desires500-document stages; plan amended to one writer, per-document checkpoints/full verification and internal maintenance/health windows. Requires explicit tested incremental worker profile and measured load pilot; existing30/1,000 guards unchanged and identity holds remain. No ingestion or production settings changed. Evidence in `corpus-job-plan/capacity-review/metrics-{first,second,summary}.json`.
     - **Owner go:500-stage worker and recovered-source pilot complete.** [Report](../research/2026-10-09-corpus-500-worker-pilot.md), [spec](../specs/2026-10-09-corpus-500-stage.md). Explicit500/20,000/10million-char profile, one writer, live metrics guards and20-document/2,000-chunk maintenance pauses; default bounds unchanged.76 focused tests,2,465 app tests, lint/build,500-entry resume/lost-response fixture and mutation proof. Regressed marginal layout retained139/139 prior passes; fresh identity checks recovered two public Sansad sources,12 complete version4 chunks,USD0.00002810, no paid retries. Full audit/four scoped citations/ANALYZE passed; current2,505 documents /2,502 indexed /67,854 chunks /1,396 covered keys.323 small/medium holds remain; next79 body cases, unreadable headers/title/version/gazette/key cohorts. No500-source live release or sustained throughput proof; owner natural-language samples pending. No deployment/service/merge/push/cleanup.
-- [ ] **R8. `admin-upload`.** A platform-admin upload tab, with splitting
+- [x] **R8. `admin-upload`.** A platform-admin upload tab, with splitting
   in the browser. Spec `specs/2026-10-01-rag-v2-admin-upload.md` (draft,
   approved 2026-10-01). Moved ahead of R5–R7 by the owner
   (2026-10-01): it is the milestone.
@@ -1957,6 +1976,7 @@ Part 2: deployed ingestion and the remaining pilot/acquisition work:
      page 11 or later;
   2. delete one document (it must show in `corpus_admin_actions`);
   3. from R6, "Open stored copy" opening the PDF in a new tab.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 
   Then mark R8 done and make its plans Historical.
 
@@ -1979,13 +1999,14 @@ Follow-ups and findings:
   `billDocumentKey`. It is admin-upload Amendment A, part A4, and needs its own spec.
 - [ ] **F42.** Show page numbers in the current text citation reader before the PDF viewer
   (R6) lands. Page-aware chunks already return `page_number`, blocks and the section.
-- [ ] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`
+- [x] **F46.** The AI Research chat experience: review `research/2026-10-02-chat-experience-review.md`
   (owner request, 2026-10-02). The owner discusses it before a spec. Confirmed defects:
   - the composer is not pinned to the bottom;
   - the thread opens at the top;
   - finished turns lose their search steps;
   - "thought" is never shown;
   - one model has two names.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 
   Also covered there: loading in stages, the thinking indicators, the agent loop's speed and cost
   (53 s and $0.105 for one answer), no visible streaming, and re-render cost.
@@ -2068,7 +2089,7 @@ Follow-ups and findings:
       expected document once.
   - **Deployed** on 2026-10-02 as `research-chat` v44 (`agents/coordination.md`).
   - **Next:** the owner checks, signed in on production, a four-part brief and a follow-up.
-- [ ] **F48.** The citation viewer's header is about 190 px of text buttons in the side pane. It
+- [x] **F48.** The citation viewer's header is about 190 px of text buttons in the side pane. It
   becomes a compact, icon-based chrome: two rows in the side pane, and a header plus a floating
   page pill in the full view.
   - **Spec:** `specs/2026-10-02-viewer-toolbar.md` (owner-approved).
@@ -2101,7 +2122,8 @@ Follow-ups and findings:
     - a real split document;
     - search, exact marks and thumbnails on the live bills;
     - the continuous Text view in Safari (F50).
-- [ ] **F49.** The citation viewer cropped pages to their body text by default ("Fit text"). The
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F49.** The citation viewer cropped pages to their body text by default ("Fit text"). The
   anti-doping bill's page 1 lost its "As introduced in Lok Sabha" header and its top two thirds,
   and read as a different document from the stored PDF.
   - **Spec:** `specs/2026-10-02-viewer-whole-page.md` (owner-approved).
@@ -2111,7 +2133,8 @@ Follow-ups and findings:
     - the zoom is saved only when the reader chooses it, under a new key.
   - **Shipped:** `4f714f8` reached production in `60b49f4` (Vercel READY, operations
     record 2026-10-02). Owner acceptance is not inferred from deployment.
-- [ ] **F50.** Follow-ups from the viewer-continuous review (2026-10-02). None blocks the push.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F50.** Follow-ups from the viewer-continuous review (2026-10-02). None blocks the push.
   - **Built and verified locally** (spec `specs/2026-10-02-viewer-f50.md`, plan
     `plans/2026-10-02-viewer-f50.md`, `4a0871d`..T5). Every item below is fixed except the
     stored-column note, which was settled at migration 42's apply.
@@ -2138,13 +2161,15 @@ Follow-ups and findings:
     `document_pages` under an exclusive lock and doubles its stored text. That is fine at today's
     34 live pages, but note it for the apply.
   - **The search result is not reset** when the document's extraction changes while search is open.
-- [ ] **F51.** The sources list under an answer had no styles, so it drew as default grey buttons
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
+- [x] **F51.** The sources list under an answer had no styles, so it drew as default grey buttons
   plus the storage file name (owner: "it looks like windows 98"). The owner chose the compact
   list: spec `specs/2026-10-02-source-list.md`, plan `plans/2026-10-02-source-list.md`.
   - **Built and verified locally (2026-10-02):** `2d95bf6` (content) and `2b1bdde` (styles). The
     local run is in `research/2026-10-02-source-list-local-run.md`.
   - **Shipped:** production at `5b49049` (Vercel READY, operations record 2026-10-02).
     Owner acceptance is not inferred from deployment.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 - [ ] **F37 note (2026-10-01):** in the R6 local run, the 25-page *Budget at a Glance* `index`
   step hit the local Edge CPU soft limit once and succeeded on retry. The F37 risk shows earlier
   than 1,000 pages on a busy machine.
@@ -2169,19 +2194,22 @@ Earlier items, updated:
   admin upload (R8) or an API source.
 - [ ] **L2.** Law tier: 874 Supreme Court and NCLT PDFs. First confirm they
   have a text layer.
-- [ ] **P5.** Page-level citations. Now R3 and R6, for new documents. The
+- [x] **P5.** Page-level citations. Now R3 and R6, for new documents. The
   2,338 existing documents keep unpaged citations (owner decision,
   2026-09-30).
+  *Closed 2026-10-15: done by R3 and R6 for new documents; the 2,338 existing documents keep unpaged citations (owner decision, 2026-09-30).*
 - [ ] **P6.** Reranking and hybrid keyword search, after the corpus grows.
-- [ ] **P7.** Affidavits (10,492 documents, 809 M characters; 5,093 current,
+- [x] **P7.** Affidavits (10,492 documents, 809 M characters; 5,093 current,
   100,151 pages). **Out of scope by owner decision (2026-09-30):** no links,
   personal data.
+  *Closed 2026-10-15: out of scope (owner, 2026-09-30: no affidavits).*
 - [ ] **P8.** Re-crawl the 716 documents that have no `file_url`.
 - [ ] **P9.** Document keys for parliamentary questions and regulators;
   desk-row "cut two" (curated views, the 41 modules with no rows) and a
   refresh pipeline.
-- [ ] **P14.** Bill-key collisions (two documents on one `bill:<year>:<number>`
+- [x] **P14.** Bill-key collisions (two documents on one `bill:<year>:<number>`
   key). Accept, or keep one document per key.
+  *Closed 2026-10-15: superseded by the versions model (F116 to F118, F115 clean-up); the remaining collisions (2025:109, 2025:111, 2026:107) are tracked under R7.*
 
 
 
@@ -2207,7 +2235,7 @@ Earlier items, updated:
 
 ## 5. Launch
 
-- [ ] **D1. Supabase dashboard: what remains.** The Auth redirect URLs are
+- [x] **D1. Supabase dashboard: what remains.** The Auth redirect URLs are
   done (see Done), and leaked-password protection is on (F152, owner,
   2026-10-14). Left:
   - confirm the Storage global upload limit is at least 50 MB. The
@@ -2215,15 +2243,17 @@ Earlier items, updated:
     50 MB, but no tool here can read the global setting. The O8 intro-video
     upload proves it either way;
   - optionally, Auth connections as a percentage.
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 
   The tools can't change Auth or Storage settings safely: the CLI's
   `config push` would overwrite the whole remote config.
-- [ ] **O8 and A2. Signed-in smoke test on production** with a test
+- [x] **O8 and A2. Signed-in smoke test on production** with a test
   account:
   - save preferences;
   - upload the intro video;
   - switch to Academic and ask one question (the answer opens with
     RESEARCH QUESTION / EVIDENCE / CHRONOLOGY).
+  *owner checked on production, 2026-10-15: "The checks that you wanted me to perform are all done. Everything is working. Close them."*
 
   Agents may not create accounts or sign in on production, so this is the
   owner's. Afterwards an agent can check the rows with read-only SQL.
