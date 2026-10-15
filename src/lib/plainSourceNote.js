@@ -126,6 +126,7 @@ const KNOWN_SOURCES = [
   [/(^|\.)pib\.gov\.in$/, 'Press Information Bureau'],
   [/(^|\.)worldbank\.org$/, 'World Bank'],
   [/(^|\.)wikidata\.org$/, 'Wikidata'],
+  [/(^|\.)wikipedia\.org$/, 'Wikipedia'],
   [/(^|\.)sansad\.in$/, 'Sansad'],
   [/(^|\.)espncricinfo\.com$/, 'ESPNcricinfo'],
   [/(^|\.)espn\.(com|in)$/, 'ESPN'],
@@ -305,6 +306,14 @@ export function isStoreAnswer(feed) {
   return feed?.served === 'store' && Number.isFinite(Date.parse(String(feed.fetchedAt || '')));
 }
 
+/**
+ * C6 option 1: a register held in the feed store (MLA Directory): loaded once, never refreshed, valid
+ * until loaded again. It is dated by its records ("register · as of …"), not by when it was loaded.
+ */
+export function isRegisterAnswer(feed) {
+  return isStoreAnswer(feed) && feed.register === true;
+}
+
 /** Records read from storage rather than fetched live for this request. */
 export function isStoredAnswer(feed) {
   if (isStoreAnswer(feed)) return false;
@@ -325,10 +334,12 @@ function updatedAgo(fetchedAt, now) {
 /**
  * "as of 15 Jul 2026" from the newest record date (dates more than a day ahead, such as scheduled
  * releases, are not "as of" dates), else the answer's own as-of date, else "date not recorded".
- * An answer from the feed store says instead how long ago its items were fetched: "updated 5 min ago".
+ * An answer from the feed store says instead how long ago its items were fetched: "updated 5 min ago";
+ * a register from the store says "register · as of 19 Aug 2026" (isRegisterAnswer).
  */
 export function asOfLabel(feed, now = Date.now()) {
-  if (isStoreAnswer(feed)) return updatedAgo(feed.fetchedAt, now);
+  const register = isRegisterAnswer(feed);
+  if (isStoreAnswer(feed) && !register) return updatedAgo(feed.fetchedAt, now);
   const limit = now + 86_400_000;
   let best = 0;
   for (const row of feed?.rows || []) {
@@ -344,5 +355,6 @@ export function asOfLabel(feed, now = Date.now()) {
       if (t && t <= limit) { best = t; break; }
     }
   }
-  return best ? `as of ${formatDate(new Date(best))}` : 'date not recorded';
+  const dated = best ? `as of ${formatDate(new Date(best))}` : 'date not recorded';
+  return register ? `register · ${dated}` : dated;
 }

@@ -68,6 +68,14 @@ describe('the module header for an answer from the store (F169 C4)', () => {
     expect(live[0].props.children).toBe('LIVE');
   });
 
+  it('a register held in the store is dated by its records, not "updated N min ago" (C6 option 1)', () => {
+    const all = page({ ...fromStore(400 * 24 * 60 * MIN), register: true,
+      rows: [{ title: 'A', as_of: '2026-07-14' }, { title: 'B', as_of: '2026-08-19' }],
+      source: { adapter: 'register', links: ['https://www.wikidata.org/'], note: 'Stored register.' } });
+    expect(headerOf(all)).toBe('2 rows · register · as of 19 Aug 2026');
+    expect(headerOf(all)).not.toMatch(/updated|stored copy/);
+  });
+
   it('a real stored answer still says "stored copy"', () => {
     const all = page({ ok: true, tier: 'finance', feature: 'Test feed', served: 'archive', fallback: true,
       rows: [{ title: 'A', date: '2026-07-10' }], coverage: { from: '', through: '', exhaustive: false },

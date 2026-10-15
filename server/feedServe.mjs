@@ -9,6 +9,12 @@
  * The store is served only while it is fresh: items fetched longer ago than three of the module's
  * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes).
  *
+ * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory) is loaded once and never
+ * refreshed, so it is served whatever its age, marked `register: true` so the page dates it by its
+ * records ("register · as of …") rather than by its load time. A request's `state` picks its variant;
+ * with no state (or one the register does not hold) the page gets a first page across every variant,
+ * the same share of each (registerAcross).
+ *
  * A store answer is the normal path, not a fallback. It is marked `served: 'store'` with the time the
  * items were fetched (`fetchedAt`, ISO), keeps `fallback: false`, and never passes through the archive
  * or backup passes, so the page does not take it for a stored or old copy (src/lib/plainSourceNote.js).
@@ -16,7 +22,7 @@
  * This file imports no loaders: the route (featureFeed.mjs, serveFeatureFeedStoredFirst) decides which
  * module a request names and what to do when this answers null.
  */
-import { FEED_SCHEDULE, FEED_VARIANTS } from './feedSchedule.mjs';
+import { FEED_REGISTERS, FEED_VARIANTS, isStoreServed } from './feedSchedule.mjs';
 import { safeText, supabaseRpc } from './supabaseRpc.mjs';
 
 /** The store gets this long. Past it the live path answers; the live path has its own 4 s limit after that. */
@@ -42,9 +48,13 @@ export function storeMaxAgeMinutes(intervalMinutes) {
 
 /**
  * The stored variant a request means. The Statement Tracker's `person` is the variant (a listed
- * leader, else the first, as the live loader reads it); every other module has the empty variant.
+ * leader, else the first, as the live loader reads it). A register's variant is its parameter's
+ * value, normalised (MLA Directory's `state`), or '' when the request names none it holds. Every
+ * other module has the empty variant.
  */
 export function storeVariant(id, searchParams) {
+  const register = FEED_REGISTERS[id];
+  if (register) return register.variantOf(searchParams.get(register.param));
   const v = FEED_VARIANTS[id];
   if (!v) return '';
   const want = String(searchParams.get(v.param) || '').trim().toLowerCase();
@@ -61,9 +71,10 @@ function isoOrNull(value) {
 
 /**
  * A feed_page result as the live envelope (server/featureFeed.mjs envelope()), or null for the live
- * path. `id` and `now` (ms) are for the log line and the freshness rule.
+ * path. `id` and `now` (ms) are for the log line and the freshness rule; a register (`register`) is
+ * exempt from the freshness rule.
  */
-function storedAnswer(id, page, now) {
+function storedAnswer(id, page, now, register = false) {
   if (!isRow(page) || page.serve !== true) return null;
   const rows = (Array.isArray(page.items) ? page.items : []).map((i) => i?.row).filter(isRow);
   if (!rows.length) return null;
@@ -73,7 +84,7 @@ function storedAnswer(id, page, now) {
   if (!fetchedAt) return null;
   const ageMinutes = (now - Date.parse(fetchedAt)) / 60_000;
   const limit = storeMaxAgeMinutes(page.interval_minutes);
-  if (ageMinutes > limit) {
+  if (!register && ageMinutes > limit) {
     console.warn(`[feed-store] ${id}: the items are ${Math.floor(ageMinutes)} min old, over the limit of ${limit} min; the live path answers`);
     return null;
   }
@@ -100,16 +111,55 @@ function storedAnswer(id, page, now) {
     timeline: Array.isArray(meta.timeline) ? meta.timeline : [],
     meta: isRow(meta.view) ? meta.view : null,
     served: 'store',
+    ...(register ? { register: true } : {}),
     fetchedAt,
     // The module's item count in the store; `rows` holds the first page of them.
     storeTotal: Number.isFinite(Number(page.total)) ? Number(page.total) : rows.length,
   };
 }
 
+/**
+ * A register with no variant asked for: the first page across every variant, the same share of each
+ * (floor(limit / variants): 16 of each of MLA Directory's 31 states in 500 rows), in the variants'
+ * order. Every variant must have something to serve; one missing leaves the whole page to the live path,
+ * so the page never shows some states as if they were all.
+ */
+async function registerAcross(id, ask, limit, now) {
+  const register = FEED_REGISTERS[id];
+  const [tier, feature] = id.split(/:(.*)/s);
+  const each = Math.max(1, Math.floor(limit / register.values.length));
+  const pages = await Promise.all(
+    register.values.map((variant) => ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: each, p_offset: 0 })),
+  );
+  const at = now();
+  const answers = pages.map((page) => storedAnswer(id, page, at, true));
+  const missing = register.values.filter((_v, i) => !answers[i]);
+  if (missing.length) {
+    console.warn(`[feed-store] ${id}: ${missing.length} of ${register.values.length} variants have nothing to serve (${safeText(missing.slice(0, 3).join(', '), 100)}); the live path answers`);
+    return null;
+  }
+  const total = answers.reduce((sum, a) => sum + a.storeTotal, 0);
+  const dates = (key) => answers.map((a) => a.coverage[key]).filter(Boolean).sort();
+  const [first] = answers;
+  return {
+    ...first,
+    rows: answers.flatMap((a) => a.rows),
+    source: {
+      ...first.source,
+      links: [...new Set(answers.flatMap((a) => a.source.links))].slice(0, 25),
+      note: `${each} ${register.noun} from each of the ${register.values.length} ${register.unit} in the stored register of ${total.toLocaleString('en-IN')}. A ${register.param}'s own list holds all of its ${register.noun}.`,
+    },
+    coverage: { from: dates('from')[0] || '', through: dates('through').pop() || '', exhaustive: false },
+    meta: null,
+    fetchedAt: answers.map((a) => a.fetchedAt).sort().pop(),
+    storeTotal: total,
+  };
+}
+
 const storeConfigured = (env) => Boolean((env.SUPABASE_URL || env.VITE_SUPABASE_URL) && env.SUPABASE_SECRET_KEY);
 
 /**
- * The stored answer for module `id` (a FEED_SCHEDULE key), or null when the live path should answer.
+ * The stored answer for module `id` (a FEED_SCHEDULE or FEED_REGISTERS key), or null when the live path should answer.
  * `rpc(name, args)` is the database call (default: supabaseRpc with the server-side secret key).
  */
 export async function serveFromStore(
@@ -117,19 +167,24 @@ export async function serveFromStore(
   searchParams,
   { rpc, timeoutMs = STORE_TIME_LIMIT_MS, env = process.env, limit = STORE_PAGE_ROWS, offset = 0, now = Date.now } = {},
 ) {
-  if (!Object.hasOwn(FEED_SCHEDULE, id)) return null;
+  if (!isStoreServed(id)) return null;
   if (!rpc && !storeConfigured(env)) return null;
   const [tier, feature] = id.split(/:(.*)/s);
   const ask = rpc || supabaseRpc({ timeoutMs });
+  const register = Object.hasOwn(FEED_REGISTERS, id);
+  const variant = storeVariant(id, searchParams);
   let timer;
   try {
-    const page = await Promise.race([
-      ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: storeVariant(id, searchParams), p_limit: limit, p_offset: offset }),
+    const work = register && !variant
+      ? registerAcross(id, ask, limit, now)
+      : ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: limit, p_offset: offset })
+        .then((page) => storedAnswer(id, page, now(), register));
+    return await Promise.race([
+      work,
       new Promise((_resolve, reject) => {
         timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs} ms`)), timeoutMs);
       }),
     ]);
-    return storedAnswer(id, page, now());
   } catch (err) {
     // The message has no key (supabaseRpc masks it) and no query string (safeText).
     console.warn(`[feed-store] ${id}: ${safeText(err?.message || err, 200)}; the live path answers`);

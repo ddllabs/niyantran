@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DESK_CATALOGUE } from '../desks/landing/deskCatalogue.js';
-import { FEED_CLASSES, FEED_SCHEDULE, FEED_VARIANTS, feedRunsForDb, itemKeyFor, itemKeysFor, scheduledRuns } from '../../server/feedSchedule.mjs';
+import {
+  FEED_CLASSES, FEED_REGISTERS, FEED_SCHEDULE, FEED_VARIANTS, OFF_TIMER, REGISTER_CLASS, feedRunsForDb, isStoreServed, itemKeyFor, itemKeysFor,
+  mlaStateVariant, registerRunsForDb, scheduledRuns,
+} from '../../server/feedSchedule.mjs';
 import { PLANNED_MODULES } from './plannedModules.js';
 
 /**
@@ -21,7 +24,12 @@ describe('the refresh schedule (F169 C1)', () => {
       await serveFeatureFeed(new URLSearchParams({ tier: m.tier, feature: m.feature })).catch(() => null);
       if (called) calling.push(m.id);
     }
-    expect(Object.keys(FEED_SCHEDULE).sort()).toEqual(calling.sort());
+    // Register modules (loaded once, never refreshed) and modules deliberately off the timer are the
+    // only ones a calling loader may leave off the schedule; every other calling module must be on it.
+    const expected = calling.filter((id) => !Object.hasOwn(FEED_REGISTERS, id) && !Object.hasOwn(OFF_TIMER, id));
+    expect(Object.keys(FEED_SCHEDULE).sort()).toEqual(expected.sort());
+    // An exclusion is deliberate, not stale: each module kept off the timer still calls a source.
+    for (const id of Object.keys(OFF_TIMER)) expect(calling, id).toContain(id);
   }, 120_000);
 
   it('every class has an interval of at least 15 minutes and a keeping rule', () => {
@@ -55,10 +63,87 @@ describe('the refresh schedule (F169 C1)', () => {
       expect(typeof r.variant).toBe('string');
     }
     expect(new Set(runs.map((r) => `${r.tier}\u0000${r.feature}\u0000${r.variant}`)).size).toBe(runs.length);
-    expect(runs.find((r) => r.feature === 'NSE/BSE Delayed Market Feed')).toMatchObject({
+    expect(runs.find((r) => r.feature === 'Live Global Stock Exchanges')).toMatchObject({
       tier: 'finance', variant: '', class: 'markets', kind: 'measurement', interval_minutes: 15, params: {},
     });
     expect(runs.find((r) => r.feature === 'Music Charts — India Top 25')).toMatchObject({ class: 'charts', kind: 'latest', interval_minutes: 60 });
+  });
+});
+
+describe('modules served from the store but off the timer (C6 option 1, F186)', () => {
+  const MLA = 'state:MLA Directory';
+  const NSE = 'finance:NSE/BSE Delayed Market Feed';
+  const has = (runs, id) => runs.some((r) => `${r.tier}:${r.feature}` === id);
+
+  it('MLA Directory is a register module, not a scheduled one', () => {
+    expect(Object.hasOwn(FEED_REGISTERS, MLA)).toBe(true);
+    expect(Object.hasOwn(FEED_SCHEDULE, MLA)).toBe(false);
+    expect(isStoreServed(MLA)).toBe(true);
+  });
+
+  it('NSE/BSE is off the timer, with a reason, and is not served from the store', () => {
+    expect(Object.hasOwn(FEED_SCHEDULE, NSE)).toBe(false);
+    expect(OFF_TIMER[NSE]).toMatch(/F186/);
+    expect(isStoreServed(NSE)).toBe(false);
+  });
+
+  it('no refresh ever claims a register variant or an off-timer module', () => {
+    const runs = feedRunsForDb();
+    expect(has(runs, MLA)).toBe(false);
+    expect(has(runs, NSE)).toBe(false);
+    for (const state of FEED_REGISTERS[MLA].values) expect(runs.some((r) => r.variant === state)).toBe(false);
+  });
+
+  it('stays off even if the module is put back on the schedule by mistake', () => {
+    const schedule = { ...FEED_SCHEDULE, [MLA]: 'reference', [NSE]: 'markets' };
+    expect(has(scheduledRuns(schedule), MLA)).toBe(false);
+    expect(has(feedRunsForDb(schedule), NSE)).toBe(false);
+    expect(feedRunsForDb(schedule)).toEqual(feedRunsForDb());
+  });
+
+  it('the schedule, the registers and the off-timer list never overlap', () => {
+    for (const id of [...Object.keys(FEED_REGISTERS), ...Object.keys(OFF_TIMER)]) expect(Object.hasOwn(FEED_SCHEDULE, id), id).toBe(false);
+    for (const id of Object.keys(FEED_REGISTERS)) expect(Object.hasOwn(OFF_TIMER, id), id).toBe(false);
+  });
+
+  it('a register variant run is official, long-interval and acceptable to feed_claim_due', () => {
+    const runs = registerRunsForDb(MLA);
+    expect(runs).toHaveLength(31);
+    expect(REGISTER_CLASS).toEqual({ name: 'register', every: 43200, kind: 'official' });
+    for (const r of runs) {
+      expect(r).toEqual({ tier: 'state', feature: 'MLA Directory', variant: r.variant, class: 'register', kind: 'official', interval_minutes: 43200 });
+      expect(r.class).toMatch(/^[a-z][a-z_]{0,39}$/);
+      expect(r.variant.length).toBeGreaterThan(0);
+      expect(r.variant.length).toBeLessThanOrEqual(200);
+    }
+    expect(new Set(runs.map((r) => r.variant)).size).toBe(31);
+    expect(registerRunsForDb('national:Cabinet Decisions')).toEqual([]);
+  });
+});
+
+describe('MLA Directory variants: one stable name per state', () => {
+  it('the 31 states and union territories of the register, by their own names', () => {
+    expect(FEED_REGISTERS['state:MLA Directory'].values).toEqual([
+      'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat', 'Haryana',
+      'Himachal Pradesh', 'Jammu & Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+      'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
+      'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+    ]);
+    expect(FEED_REGISTERS['state:MLA Directory'].param).toBe('state');
+  });
+
+  it('normalises spelling, case, spacing, "&" or "and", old names and the register\'s state codes', () => {
+    const cases = {
+      'Jammu and Kashmir': 'Jammu & Kashmir', ' jammu  &  KASHMIR ': 'Jammu & Kashmir', JK: 'Jammu & Kashmir',
+      'tamil nadu': 'Tamil Nadu', TN: 'Tamil Nadu', 'NCT of Delhi': 'Delhi', Orissa: 'Odisha', OD: 'Odisha',
+      Pondicherry: 'Puducherry', Uttaranchal: 'Uttarakhand', UK: 'Uttarakhand', TG: 'Telangana', TS: 'Telangana', up: 'Uttar Pradesh',
+    };
+    for (const [given, want] of Object.entries(cases)) expect(mlaStateVariant(given), given).toBe(want);
+    for (const state of FEED_REGISTERS['state:MLA Directory'].values) expect(mlaStateVariant(state)).toBe(state);
+  });
+
+  it('names no variant for a place without a register, or for nothing', () => {
+    for (const v of ['', null, undefined, 'Ladakh', 'Lakshadweep', 'Kerala; Goa', 'X']) expect(mlaStateVariant(v), String(v)).toBe('');
   });
 });
 
