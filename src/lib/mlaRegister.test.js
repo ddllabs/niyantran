@@ -318,7 +318,7 @@ describe('the route: MLA Directory asks the store first, NSE/BSE never does', ()
     const store = vi.fn(async () => stored);
     const p = params({ state: 'Kerala' });
     expect(await serveFeatureFeedStoredFirst(p, { store, live })).toBe(stored);
-    expect(store).toHaveBeenCalledWith(MLA, p);
+    expect(store).toHaveBeenCalledWith(MLA, p, { allowStale: true });
     expect(live).not.toHaveBeenCalled();
     const body = await serveFeatureFeedStoredFirst(p, { store: vi.fn(async () => null), live });
     expect(live).toHaveBeenCalledTimes(1);

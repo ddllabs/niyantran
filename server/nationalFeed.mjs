@@ -352,7 +352,8 @@ export async function serveNational(ctx) {
         coverage: { from: '', through: 'present', exhaustive: false },
         fallback: false,
         note: `None of the ${listed.length} latest PIB press releases is one of the ${scope} this module tracks (judged by their titles). Nothing is shown in their place; no records were invented.`,
-        meta: { section: 'POLICY PIPELINE — DRAFT TO GAZETTE', status: 'LIVE · PIB RSS · EN', heading: heading(feat) },
+        // Task B: PIB was read and listed nothing of this module's: the refresh keeps the stored items (server/feedStore.mjs).
+        meta: { section: 'POLICY PIPELINE — DRAFT TO GAZETTE', status: 'LIVE · PIB RSS · EN', heading: heading(feat), nothing_new: true },
       });
     }
     const rows = (archive || []).map((r, i) => ({ ...r, id: r.id != null ? r.id : String(i) }));
@@ -696,6 +697,9 @@ export async function serveNational(ctx) {
         section: 'CABINET DECISIONS',
         status: liveRows.length ? 'LIVE · PIB RSS · EN' : 'STORED · LAST-KNOWN-GOOD',
         heading: heading(feat),
+        // Task B: PIB answered with releases and none is a Cabinet decision: nothing new, which the refresh
+        // records as a success that keeps the stored decisions; the rows above are for the page only.
+        ...(!liveRows.length && checked ? { nothing_new: true } : {}),
       },
     });
   }

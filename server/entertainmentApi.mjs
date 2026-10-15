@@ -22,6 +22,14 @@ import { cacheFresh, cacheWritable } from './loaderCache.mjs';
 
 const UA = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; Entertainment)';
 const FETCH_MS = 20_000;
+/**
+ * Task B (2026-10-16): one chart request's limit. A chart request sometimes did not answer from the function
+ * for 20 s, which used the refresh's whole 20 s module limit before iTunes was asked (9 of the 17 Music
+ * Charts runs on 2026-10-15 timed out: India 7 of 10, Global 2 of 7; the answered runs took 0.9–4.7 s).
+ * Apple and then iTunes at this limit fit inside the module limit. The limit counts from the call, so
+ * inside a refresh it includes time queued behind the other chart's request to the same host.
+ */
+export const CHART_FETCH_MS = 8_000;
 const SPARQL_MS = 45_000;
 const TTL = 15 * 60 * 1000;
 const WD_TTL = 24 * 60 * 60 * 1000;
@@ -82,13 +90,13 @@ export async function loadTvTonight() {
 
 async function loadChart(primary, fallback) {
   try {
-    const json = await getJson(primary);
+    const json = await getJson(primary, {}, CHART_FETCH_MS);
     const rows = appleChartRows(json);
     if (rows.length) return { ok: true, source: 'apple', rows };
   } catch {
     /* iTunes */
   }
-  const json = await getJson(fallback);
+  const json = await getJson(fallback, {}, CHART_FETCH_MS);
   return { ok: true, source: 'itunes', rows: appleChartRows(json) };
 }
 

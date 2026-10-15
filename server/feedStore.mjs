@@ -571,7 +571,10 @@ export async function refreshDue({
       // SDL auctions, whose feed holds only its latest releases). That is a success with no items:
       // public.feed_record keeps the stored history for a kept kind and logs the run unchanged. Only
       // when a request in this run reached the source; the stored note is left as it is (no meta).
-      if (status === 'empty' && outcome.value?.meta?.nothing_new === true && mod.requests > 0) {
+      // Task B (2026-10-16): the same for a loader that, finding nothing new, shows the page its stored list
+      // or a status row in place (Cabinet Decisions, the Policy Pipeline Tracker: PIB's latest releases
+      // hold none of theirs). Those stand-in rows are never kept. An answer with ok false never counts.
+      if (status !== 'ok' && outcome.value?.meta?.nothing_new === true && outcome.value?.ok !== false && mod.requests > 0) {
         status = 'ok';
         reason = '';
         nothingNew = true;

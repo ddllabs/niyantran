@@ -7,7 +7,7 @@ import {
   resetFeedCache,
   serveFeatureFeedStoredFirst,
 } from '../../server/featureFeed.mjs';
-import { STORE_MIN_FRESH_MINUTES, STORE_PAGE_ROWS, STORE_TIME_LIMIT_MS, serveFromStore, storeMaxAgeMinutes, storeVariant } from '../../server/feedServe.mjs';
+import { STORE_MIN_FRESH_MINUTES, STORE_PAGE_ROWS, STORE_TIME_LIMIT_MS, liveAnswerIsUsable, serveFromStore, storeMaxAgeMinutes, storeVariant } from '../../server/feedServe.mjs';
 import { metaFor } from '../../server/feedStore.mjs';
 import { FEED_SCHEDULE } from '../../server/feedSchedule.mjs';
 import { STATEMENT_LEADERS } from '../data/nationalCurated.js';
@@ -345,7 +345,7 @@ describe('serveFeatureFeedStoredFirst: the route', () => {
     const liveFn = live();
     const store = vi.fn(async () => ({ ok: true, rows: [{ title: 'Stored story' }], served: 'store', fallback: false }));
     const body = await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store, live: liveFn });
-    expect(store).toHaveBeenCalledWith(NEWS, NEWS_PARAMS);
+    expect(store).toHaveBeenCalledWith(NEWS, NEWS_PARAMS, { allowStale: true });
     expect(body.rows).toEqual([{ title: 'Stored story' }]);
     expect(body.served).toBe('store');
     expect(body.fallback).toBe(false);
@@ -395,6 +395,92 @@ describe('serveFeatureFeedStoredFirst: the route', () => {
     expect(body.source.kind).not.toBe('backup-pack');
     expect(body.fallback).toBe(false);
     expect(body.rows).toEqual([{ title: 'Stored story' }]);
+  });
+});
+
+// Task B (2026-10-16): a good stored copy is never hidden by an empty or failed live answer. Past its
+// freshness limit the store answer is kept aside (allowStale) and the live path is tried; the stored copy
+// answers unless the live path brought real live rows.
+describe('serveFromStore: allowStale keeps an old stored copy for the route to weigh', () => {
+  const MIN = 60_000;
+  const at = (minutes) => ({ now: () => FETCHED + minutes * MIN });
+  beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('past the limit: null without allowStale (as before), the answer marked stale with it', async () => {
+    expect(await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...at(300) })).toBeNull();
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...at(300), allowStale: true });
+    expect(body).toMatchObject({ served: 'store', stale: true, fallback: false, fetchedAt: '2026-10-15T10:00:00.000Z' });
+    expect(body.rows.map((r) => r.title)).toEqual(['Newer story', 'Older story']);
+  });
+
+  it('inside the limit the answer is not marked stale', async () => {
+    const body = await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page()), ...SOON, allowStale: true });
+    expect(body.served).toBe('store');
+    expect(body).not.toHaveProperty('stale');
+  });
+
+  it('allowStale never serves what is not served: serve off, no items, no fetched time', async () => {
+    for (const over of [{ serve: false }, { items: [], total: 0 }, { fetched_at: null, meta: { note: 'x', links: [] } }]) {
+      expect(await serveFromStore(NEWS, NEWS_PARAMS, { rpc: rpcReturning(page(over)), ...at(300), allowStale: true })).toBeNull();
+    }
+  });
+});
+
+describe('liveAnswerIsUsable: a live answer that may replace a stored copy', () => {
+  const liveBody = (over = {}) => ({ ok: true, rows: [{ title: 'Live story' }], source: { adapter: 'api' }, fallback: false, served: 'live', ...over });
+  it('real live rows, served live, not a fallback', () => {
+    expect(liveAnswerIsUsable(liveBody())).toBe(true);
+  });
+  it('not: no rows, only a status row, a fallback, the archive, the backup pack, ok false, nothing', () => {
+    expect(liveAnswerIsUsable(liveBody({ rows: [] }))).toBe(false);
+    expect(liveAnswerIsUsable(liveBody({ rows: [{ title: 'Source offline or empty', status: 'source_status' }] }))).toBe(false);
+    expect(liveAnswerIsUsable(liveBody({ fallback: true }))).toBe(false);
+    expect(liveAnswerIsUsable(liveBody({ served: 'archive' }))).toBe(false);
+    expect(liveAnswerIsUsable(liveBody({ source: { adapter: 'embedded', kind: 'backup-pack' } }))).toBe(false);
+    expect(liveAnswerIsUsable(liveBody({ ok: false }))).toBe(false);
+    expect(liveAnswerIsUsable(null)).toBe(false);
+  });
+});
+
+describe('serveFeatureFeedStoredFirst: an old stored copy and the live path', () => {
+  // The real store reader over a fake feed_page, five hours after the items were fetched (a news
+  // module's limit is two hours): the copy is good but old.
+  const staleStore = () => vi.fn((id, params, opts) => serveFromStore(id, params, { ...opts, rpc: rpcReturning(page()), now: () => FETCHED + 300 * 60_000 }));
+  beforeEach(() => {
+    resetFeedCache();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('asks the store for its copy even when old, and tries the live path', async () => {
+    const store = staleStore();
+    const liveFn = vi.fn(async () => ({ ok: true, rows: [], source: { adapter: 'api' }, fallback: false }));
+    await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store, live: liveFn });
+    expect(store).toHaveBeenCalledWith(NEWS, NEWS_PARAMS, { allowStale: true });
+    expect(liveFn).toHaveBeenCalledTimes(1);
+  });
+
+  const hiding = {
+    'an empty live answer': async () => ({ ok: true, rows: [], source: { adapter: 'api' }, fallback: false }),
+    'a status row only': async () => ({ ok: true, rows: [{ title: 'Source offline or empty', status: 'source_status', fail_reason: 'x' }], source: { adapter: 'api' }, fallback: false }),
+    'stored rows standing in for a failed source': async () => ({ ok: true, rows: [{ title: 'Archive row' }], source: { adapter: 'embedded' }, fallback: true }),
+    'a live attempt that throws': async () => { throw new Error('upstream down'); },
+  };
+  for (const [name, liveFn] of Object.entries(hiding)) {
+    it(`keeps serving the stored copy over ${name}`, async () => {
+      const body = await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store: staleStore(), live: vi.fn(liveFn) });
+      expect(body.served).toBe('store');
+      expect(body.rows.map((r) => r.title)).toEqual(['Newer story', 'Older story']);
+      expect(body.fetchedAt).toBe('2026-10-15T10:00:00.000Z');
+    });
+  }
+
+  it('real live rows still replace an old stored copy', async () => {
+    const liveFn = vi.fn(async () => ({ ok: true, rows: [{ title: 'Live story' }], source: { adapter: 'api' }, fallback: false }));
+    const body = await serveFeatureFeedStoredFirst(NEWS_PARAMS, { store: staleStore(), live: liveFn });
+    expect(body.served).toBe('live');
+    expect(body.rows).toEqual([{ title: 'Live story' }]);
   });
 });
 

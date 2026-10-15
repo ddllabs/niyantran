@@ -265,6 +265,35 @@ describe('refreshDue', () => {
     expect(summary.modules.find((m) => m.feature === 'quiet')).toMatchObject({ sent: 'ok', items: 0 });
   });
 
+  // Task B (2026-10-16): Cabinet Decisions and the Policy Pipeline read PIB's latest releases and find none
+  // that is theirs; for the page they show their stored list (or a status row) in place. The first timer run
+  // (2026-10-15) counted that as a failure every hour. The flag says the source was read: the stand-in rows
+  // are not kept, and the run is a success that keeps the stored items.
+  it('takes "nothing new" over rows that stand in for the page (a fallback or a status row), and keeps none of them', async () => {
+    const db = fakeDb(['cabinet', 'pipeline', 'broken']);
+    const answers = {
+      cabinet: live([row(1), row(2)], { fallback: true, source: { adapter: 'embedded', links: [], note: 'No Cabinet decision in the latest PIB window (20 releases checked).' }, meta: { nothing_new: true } }),
+      pipeline: live([statusRow('none of the 20 latest PIB press releases is about policy in the making')], { source: { adapter: 'api', links: [] }, meta: { nothing_new: true } }),
+      // No flag: PIB could not be read, stored rows stood in. Still a failure.
+      broken: live([row(1)], { fallback: true, source: { adapter: 'embedded', links: [] } }),
+    };
+    const load = viaSource((params) => answers[params.get('feature')]);
+    await refreshDue({ rpc: db.rpc, load });
+    const by = byFeature(db.records);
+    expect(by.cabinet).toMatchObject({ status: 'ok', nothing_new: true, items: [], error: null });
+    expect(by.cabinet).not.toHaveProperty('meta');
+    expect(by.pipeline).toMatchObject({ status: 'ok', nothing_new: true, items: [] });
+    expect(by.broken).toMatchObject({ status: 'failed' });
+    expect(by.broken).not.toHaveProperty('nothing_new');
+  });
+
+  it('never takes "nothing new" from an answer that says it could not serve the module', async () => {
+    const db = fakeDb(['bad']);
+    await refreshDue({ rpc: db.rpc, load: viaSource(() => live([], { ok: false, meta: { nothing_new: true } })) });
+    expect(db.records[0].status).toBe('failed');
+    expect(db.records[0]).not.toHaveProperty('nothing_new');
+  });
+
   it('does not take "nothing new" from an answer no request reached a source for', async () => {
     const db = fakeDb(['cached']);
     await refreshDue({ rpc: db.rpc, load: async () => live([], { meta: { nothing_new: true } }) });

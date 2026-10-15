@@ -76,15 +76,33 @@ describe('/api/feature-feed reads a scheduled module from the store (F169 C4)', 
     expect(local.headers['cache-control']).toBe('no-store');
   });
 
-  it('answers the live way when the store is older than its limit', async () => {
+  it('answers the live way when the store is older than its limit and the live sources answer', async () => {
+    const pub = new Date(Date.now() - 3600_000).toUTCString();
+    const rss = `<?xml version="1.0"?><rss><channel><item><title>OpenAI releases a new AI model for software developers - Reuters</title><link>https://news.example/ai-model</link><pubDate>${pub}</pubDate><source url="https://www.reuters.com">Reuters</source></item></channel></rss>`;
     globalThis.fetch = vi.fn(async (url) => {
       if (String(url).endsWith('/rest/v1/rpc/feed_page')) return new Response(JSON.stringify(page({ fetched_at: new Date(Date.now() - 3 * 3600_000).toISOString() })), { status: 200 });
+      if (/news\.google\.com/.test(String(url))) return new Response(rss, { status: 200, headers: { 'content-type': 'application/rss+xml' } });
       throw new Error('offline');
     });
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const res = await routerGet(ROUTE);
     expect(res.statusCode).toBe(200);
-    expect(res.body.served).not.toBe('store');
+    expect(res.body.served).toBe('live');
+    expect(res.body.rows.map((r) => r.title)).toContain('OpenAI releases a new AI model for software developers - Reuters');
+  });
+
+  // Task B (2026-10-16): an empty or failed live answer never hides a good stored copy.
+  it('keeps answering the old stored copy, with its fetched time, when every live source is offline', async () => {
+    const OLD = new Date(Date.now() - 3 * 3600_000).toISOString();
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).endsWith('/rest/v1/rpc/feed_page')) return new Response(JSON.stringify(page({ fetched_at: OLD })), { status: 200 });
+      throw new Error('offline');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await routerGet(ROUTE);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ served: 'store', fetchedAt: OLD, fallback: false });
+    expect(res.body.rows.map((r) => r.title)).toEqual(['Stored story']);
   });
 
   it('answers the live way, with no store marker, when serve is off', async () => {

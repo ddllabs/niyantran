@@ -7,7 +7,10 @@
  * passes its time limit, the module has no state, `serve` is off, it has no items, or its items are too old.
  *
  * The store is served only while it is fresh: items fetched longer ago than three of the module's
- * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes).
+ * intervals, or two hours, whichever is more, are left to the live path (storeMaxAgeMinutes). With
+ * `allowStale` such items are answered marked `stale: true` instead, so that the route can keep them
+ * when the live path brings nothing better (liveAnswerIsUsable): an empty or failed live answer never
+ * hides a good stored copy (Task B, 2026-10-16).
  *
  * A register module (server/feedSchedule.mjs FEED_REGISTERS: MLA Directory, the RBI handbook modules) is loaded by a script
  * (a reload replaces a variant's list, served in load order) and never refreshed by the timer, so it
@@ -82,7 +85,7 @@ function isoOrNull(value) {
  * path. `id` and `now` (ms) are for the log line and the freshness rule; a register (`register`) is
  * exempt from the freshness rule.
  */
-function storedAnswer(id, page, now, register = false) {
+function storedAnswer(id, page, now, register = false, allowStale = false) {
   if (!isRow(page) || page.serve !== true) return null;
   const stored = (Array.isArray(page.items) ? page.items : []).map((i) => i?.row).filter(isRow);
   // F187: refreshes can store both releases of one Cabinet decision (the ministry's and the Cabinet's,
@@ -95,7 +98,8 @@ function storedAnswer(id, page, now, register = false) {
   if (!fetchedAt) return null;
   const ageMinutes = (now - Date.parse(fetchedAt)) / 60_000;
   const limit = storeMaxAgeMinutes(page.interval_minutes);
-  if (!register && ageMinutes > limit) {
+  const stale = !register && ageMinutes > limit;
+  if (stale && !allowStale) {
     console.warn(`[feed-store] ${id}: the items are ${Math.floor(ageMinutes)} min old, over the limit of ${limit} min; the live path answers`);
     return null;
   }
@@ -122,6 +126,8 @@ function storedAnswer(id, page, now, register = false) {
     meta: isRow(meta.view) ? meta.view : null,
     served: 'store',
     ...(register ? { register: true } : {}),
+    // Past the freshness limit, kept only for the route to weigh against the live answer (allowStale).
+    ...(stale ? { stale: true } : {}),
     fetchedAt,
     // The module's item count in the store; `rows` holds the first page of them.
     storeTotal: Number.isFinite(Number(page.total)) ? Number(page.total) : rows.length,
@@ -199,6 +205,19 @@ async function wholeVariant(id, ask, tier, feature, variant, now) {
   return storedAnswer(id, { ...first, items }, now(), true);
 }
 
+/**
+ * Whether a live answer may take the place of a stored copy (Task B, 2026-10-16): real rows from a
+ * live attempt that finished, not a fallback, the archive, the backup pack or only a status row. An
+ * answer that is none of these never hides a stored copy that is merely past its freshness limit.
+ */
+export function liveAnswerIsUsable(body) {
+  if (!isRow(body) || body.ok === false) return false;
+  if (body.served !== 'live' || body.fallback) return false;
+  if (body.source?.kind === 'backup-pack') return false;
+  const rows = Array.isArray(body.rows) ? body.rows : [];
+  return rows.some((r) => isRow(r) && r.status !== 'source_status');
+}
+
 const storeConfigured = (env) => Boolean((env.SUPABASE_URL || env.VITE_SUPABASE_URL) && env.SUPABASE_SECRET_KEY);
 
 /**
@@ -208,7 +227,7 @@ const storeConfigured = (env) => Boolean((env.SUPABASE_URL || env.VITE_SUPABASE_
 export async function serveFromStore(
   id,
   searchParams,
-  { rpc, timeoutMs = STORE_TIME_LIMIT_MS, env = process.env, limit = STORE_PAGE_ROWS, offset = 0, now = Date.now } = {},
+  { rpc, timeoutMs = STORE_TIME_LIMIT_MS, env = process.env, limit = STORE_PAGE_ROWS, offset = 0, now = Date.now, allowStale = false } = {},
 ) {
   if (!isStoreServed(id)) return null;
   if (!rpc && !storeConfigured(env)) return null;
@@ -223,7 +242,7 @@ export async function serveFromStore(
       : register && FEED_REGISTERS[id].wholeVariant
         ? wholeVariant(id, ask, tier, feature, variant, now)
         : ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: limit, p_offset: offset })
-          .then((page) => storedAnswer(id, page, now(), register));
+          .then((page) => storedAnswer(id, page, now(), register, allowStale));
     return await Promise.race([
       work,
       new Promise((_resolve, reject) => {

@@ -79,7 +79,7 @@ import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
 import { isStoreServed, mlaStateVariant } from './feedSchedule.mjs';
-import { serveFromStore } from './feedServe.mjs';
+import { liveAnswerIsUsable, serveFromStore } from './feedServe.mjs';
 import { servePartyStrength } from './partyStrength.mjs';
 import { isPartyMapFeature } from '../src/lib/partyStrength.js';
 import * as entertainmentLive from './entertainmentApi.mjs';
@@ -4103,15 +4103,25 @@ export function scheduledModuleId(searchParams) {
  */
 export async function serveFeatureFeedStoredFirst(searchParams, { store = serveFromStore, ...options } = {}) {
   const id = scheduledModuleId(searchParams);
+  // Task B (2026-10-16): a stored copy past its freshness limit is kept aside; it answers when the live
+  // path brings no real live rows, so an empty or failed source never hides it.
+  let old = null;
   if (id) {
     try {
-      const stored = await store(id, searchParams);
-      if (stored) return stored;
+      const stored = await store(id, searchParams, { allowStale: true });
+      if (stored && !stored.stale) return stored;
+      old = stored || null;
     } catch {
       // The live path answers.
     }
   }
-  return serveFeatureFeedWithBackup(searchParams, options);
+  if (!old) return serveFeatureFeedWithBackup(searchParams, options);
+  try {
+    const live = await serveFeatureFeedWithBackup(searchParams, options);
+    return liveAnswerIsUsable(live) ? live : old;
+  } catch {
+    return old;
+  }
 }
 
 export async function handleFeatureFeedRequest(req, res, next) {
