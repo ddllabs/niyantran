@@ -2121,3 +2121,17 @@ recommendations … We can fix everything that is under your control."
   pruned), then `analyze public.desk_rows` (136,752 rows). research-chat deployed from `f96a7d7` after
   its deployed copy matched `e613555`. Rollback: redeploy research-chat from `e613555`; delete rows with
   `delete from desk_rows where tier='state' and feature in (<the eight handbook modules>)`.
+- **2026-10-16: serving from the store, class by class (F169/F160).** Code `1345bfd` + review fixes
+  `4244984` deployed (stored copies never read LIVE; stale copies capped at 7 days or 20 intervals and
+  logged; nothing-new only when PIB release pages were read). Switched on and probed (all `served:
+  store`, 0.1–1 s): reference (15), events (4), charts (2), Live Global Stock Exchanges, Regulatory
+  Body Watch, Carbon Registry Wire, leaders (8). **Rolled back the same hour:** news (31) — State
+  Governance Brief from the store showed 182 rows incl. 23 undated national PIB rows and raw `&amp;`
+  (items stored before the F202 news fixes; kind `news` keeps items across runs and the store path did
+  not apply the module's current filters) — and Prediction Market Political Odds / Election Forecast
+  (kind `measurement` kept 72 / 33 items not in the latest run). After rollback both answer live (55
+  rows, 0 PIB; 204 open markets). Fix in progress: store answers get the module's live filters, and
+  measurement serves the latest run only. Still off: Cabinet Decisions, Policy Pipeline (wait for
+  `unchanged` runs), MLA Report Card (store page 7 of 497). Rollback for what is on:
+  `update feed_state set serve = false where class in ('reference','events','charts','leaders','markets')
+  or (class = 'official' and feature in ('Regulatory Body Watch (RBI/SEBI/TRAI/CCI)','Carbon Registry Wire'));`
