@@ -12,14 +12,20 @@ import { PLANNED_MODULES } from './plannedModules.js';
  * what the loaders actually call, so a new source cannot be left off the schedule unnoticed.
  */
 describe('the refresh schedule (F169 C1)', () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules(); });
 
   it('lists exactly the modules whose loader calls an outside source', async () => {
     let called = false;
     vi.stubGlobal('fetch', vi.fn(async (u) => { called = true; return { ok: false, status: 404, url: String(u), headers: new Headers(), text: async () => '', json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) }; }));
-    const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
+    // Deterministic whatever ran before in the shared test process: no store configured, and no
+    // loader answers from a cache another file filled (either would hide or add an outside call).
+    vi.stubEnv('SUPABASE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('SUPABASE_SECRET_KEY', '');
+    const { serveFeatureFeed, resetFeedCache } = await import('../../server/featureFeed.mjs');
     const calling = [];
     for (const m of DESK_CATALOGUE) {
+      resetFeedCache();
       called = false;
       await serveFeatureFeed(new URLSearchParams({ tier: m.tier, feature: m.feature })).catch(() => null);
       if (called) calling.push(m.id);
