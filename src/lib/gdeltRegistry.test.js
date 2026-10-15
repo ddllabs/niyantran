@@ -41,13 +41,16 @@ describe('no GDELT address in the source data (F180)', () => {
   });
 });
 
-describe('the news route the registry names is the one the loader asks (F180)', () => {
-  it("a row's openLiveFallback is its Google News topic search", () => {
+describe('the news route the registry and the feature map name is the one the loader asks (F180, F189)', () => {
+  it("a row's openLiveFallback is the news-topic marker; only the MLA report card names its own search", () => {
     const wrong = registry
-      .filter((row) => row.openLiveFallback && /news\.google\.com\/rss\/search/.test(row.openLiveFallback))
-      .filter((row) => row.openLiveFallback !== newsRssUrlForFeature(row.htmlFeature) && row.key !== MLA_REPORT_CARD)
+      .filter((row) => row.openLiveFallback && row.openLiveFallback !== 'news-topic' && row.key !== MLA_REPORT_CARD)
       .map((row) => row.key);
     expect(wrong).toEqual([]);
+    // The one explicit address is a Google News search of its own, not the generated topic search.
+    const own = registry.find((row) => row.key === MLA_REPORT_CARD);
+    expect(own.openLiveFallback).toMatch(/^https:\/\/news\.google\.com\/rss\/search/);
+    expect(own.openLiveFallback).not.toBe(newsRssUrlForFeature(own.htmlFeature));
   });
 
   it('only rows whose adapter reads the news search keep a fallback; a table, scrape or licensed row names none', () => {
@@ -56,9 +59,14 @@ describe('the news route the registry names is the one the loader asks (F180)', 
     expect(stray).toEqual([]);
   });
 
-  it('a module with no registry row and a news topic source is answered by that wire', () => {
-    const wires = featureMap.filter((f) => !(f.registryKeys || []).length && f.source && f.source === newsRssUrlForFeature(f.htmlFeature)).map((f) => f.htmlFeature);
+  it('a module with no registry row and the news-topic marker is answered by that wire', () => {
+    const wires = featureMap.filter((f) => !(f.registryKeys || []).length && f.route === 'news-topic').map((f) => f.htmlFeature);
     expect(wires).toHaveLength(16);
     expect(wires).toContain('Ward/Panchayat Results Database');
+  });
+
+  it('the marker is the only thing that routes: no marked entry keeps a source, and no other entry carries a route', () => {
+    const marked = featureMap.filter((f) => f.route);
+    expect(marked.every((f) => f.route === 'news-topic' && !f.source)).toBe(true);
   });
 });

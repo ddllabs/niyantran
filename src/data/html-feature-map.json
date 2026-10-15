@@ -1709,7 +1709,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3APanchayat%2520Seat%2520Reservation%2520Rotation%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Panchayat%22%20OR%20%22Seat%22%20OR%20%22Reservation%22%20OR%20%22Rotation%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1743,7 +1744,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AUrban%2520Master%2520Plan%2520%2526%2520Land%2520Use%2520Change%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Urban%22%20OR%20%22Master%22%20OR%20%22Plan%22%20OR%20%22Land%22%20OR%20%22Use%22%20OR%20%22Change%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1777,7 +1779,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AWard%252FPanchayat%2520Results%2520Database",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Ward%22%20OR%20%22Panchayat%22%20OR%20%22Results%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1793,7 +1796,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3ABuilding%2520Permission%2520%2526%2520Plan%2520Sanction%2520Monitor",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Building%22%20OR%20%22Permission%22%20OR%20%22Plan%22%20OR%20%22Sanction%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1917,7 +1921,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AMGNREGA%2520Anomaly%2520%2526%2520Delay%2520Analytics",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22MGNREGA%22%20OR%20%22Anomaly%22%20OR%20%22Delay%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1933,7 +1938,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3ALocal%2520Body%2520Finance%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Body%22%20OR%20%22Finance%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1949,7 +1955,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AMunicipal%2520Own-Revenue%2520%2526%2520Solvency%2520Health",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Municipal%22%20OR%20%22Own-Revenue%22%20OR%20%22Solvency%22%20OR%20%22Health%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1965,7 +1972,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AService-Delivery%2520Scorecards",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Service-Delivery%22%20OR%20%22Scorecards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1981,7 +1989,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AFlagship-City%2520Deep%2520Dashboard",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Flagship-City%22%20OR%20%22Dashboard%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -1997,7 +2006,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AULB%252FGP%2520Performance%2520Tracker%2520(Composite)",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22ULB%22%20OR%20%22Performance%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2013,7 +2023,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AGP%2520Finance%2520%2526%2520GPDP%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Finance%22%20OR%20%22GPDP%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2047,7 +2058,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AProperty%2520Tax%2520%2526%2520Own-Revenue%2520Efficiency",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Property%22%20OR%20%22Tax%22%20OR%20%22Own-Revenue%22%20OR%20%22Efficiency%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2063,7 +2075,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AService%2520Delivery%2520Scorecards%2520(Urban)",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Service%22%20OR%20%22Delivery%22%20OR%20%22Scorecards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2079,7 +2092,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AGP%2520Service%2520%2526%2520Asset%2520Tracker",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Service%22%20OR%20%22Asset%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2095,7 +2109,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3ALocal%2520Body%2520Election%2520%2526%2520Incumbency",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Body%22%20OR%20%22Election%22%20OR%20%22Incumbency%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },
@@ -2111,7 +2126,8 @@
     "backendRoute": "/api/feature-feed?key=html-only%3A%3Alocal%3A%3AElected%2520Rep%2520Profiles%2520%2526%2520Report%2520Cards",
     "mapping": "HTML-ONLY",
     "feedGuarantee": "Feature-specific GDELT JSON feed; no homepage link, fabricated record or historical-completeness claim.",
-    "source": "https://news.google.com/rss/search?q=India%20(%22Elected%22%20OR%20%22Rep%22%20OR%20%22Profiles%22%20OR%20%22Report%22%20OR%20%22Cards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source": "",
+    "route": "news-topic",
     "developerNote": "GDELT DOC 2.0 API · GET · JSON · auth: none",
     "role": "discovery"
   },

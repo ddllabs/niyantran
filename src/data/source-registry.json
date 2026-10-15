@@ -25,7 +25,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=sourcecountry%3AIN%20OR%20global%20(war%20OR%20conflict%20OR%20ceasefire%20OR%20frontline)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -56,7 +56,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Conflicts%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -87,7 +87,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Global%22%20OR%20%22Intelligence%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -149,7 +149,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Alliances%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -180,7 +180,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Sanctions%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -211,7 +211,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Global%22%20OR%20%22Aid%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -242,7 +242,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Infra%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -273,7 +273,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(nuclear%20OR%20IAEA%20OR%20enrichment%20OR%20%22ballistic%20missile%22)%20sourcelang%3Aenglish%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -304,7 +304,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Satellite%22%20OR%20%22Infrastructure%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -335,7 +335,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(Hormuz%20OR%20Malacca%20OR%20Bab-el-Mandeb%20OR%20%22South%20China%20Sea%22%20OR%20chokepoint%20OR%20%22shipping%20lane%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -366,7 +366,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22World%22%20OR%20%22Constitutions%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -397,7 +397,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Growth%22%20OR%20%22Indicators%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -428,7 +428,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Geopolitics%22%20OR%20%22News%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -459,7 +459,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Heads%22%20OR%20%22State%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -490,7 +490,7 @@
     "format": "XLSX",
     "auth": "none",
     "refreshMinutes": 10080,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Global%22%20OR%20%22Commodities%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -521,7 +521,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Global%22%20OR%20%22Trade%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -552,7 +552,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(lithium%20OR%20cobalt%20OR%20nickel%20OR%20%22rare%20earth%22%20OR%20graphite)%20(mine%20OR%20mining%20OR%20supply)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -583,7 +583,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Energy%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -707,7 +707,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Parliamentary%22%20OR%20%22Question%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -769,7 +769,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Candidate%22%20OR%20%22Affidavit%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -800,7 +800,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Delimitation%22%20OR%20%22Impact%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -831,7 +831,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Manifestos%22%20OR%20%22Promises%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -862,7 +862,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Statement%22%20OR%20%22Quote%22%20OR%20%22Contradiction%22%20OR%20%22Detection%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -955,7 +955,7 @@
     "format": "HTML",
     "auth": "none",
     "refreshMinutes": 60,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Central%22%20OR%20%22Tender%22%20OR%20%22Constituency%22%20OR%20%22Filter%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -986,7 +986,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Bureaucratic%22%20OR%20%22Transfers%22%20OR%20%22AGMUT%22%20OR%20%22Cadre%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1048,7 +1048,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Centre-sanctioned%22%20OR%20%22Projects%22%20OR%20%22Completion%22%20OR%20%22Rate%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1079,7 +1079,7 @@
     "format": "XLSX",
     "auth": "none",
     "refreshMinutes": 10080,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Budget%22%20OR%20%22Utilisation%22%20OR%20%22Schemes%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "2.0",
     "role": "corroborating"
@@ -1110,7 +1110,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Industry%22%20OR%20%22Updates%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1141,7 +1141,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Constituency%22%20OR%20%22Register%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1172,7 +1172,7 @@
     "format": "CSV",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Election%22%20OR%20%22Results%22%20OR%20%222017%22%20OR%20%222024%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1203,7 +1203,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Split-Ticket%22%20OR%20%22Competitiveness%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1234,7 +1234,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22MLA%22%20OR%20%22Directory%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1296,7 +1296,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Roll%22%20OR%20%22Demography%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1327,7 +1327,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Community%22%20OR%20%22Bloc%22%20OR%20%22Matrix%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1358,7 +1358,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22SIR%22%20OR%20%22Roll%22%20OR%20%22Churn%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -1389,7 +1389,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Registration%22%20OR%20%22Gap%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1420,7 +1420,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(district%20OR%20collectorate%20OR%20%22district%20magistrate%22)%20(protest%20OR%20land%20OR%20water%20OR%20road%20OR%20school%20OR%20hospital)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1451,7 +1451,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22District%22%20OR%20%22Performance%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1482,7 +1482,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22state%20government%22%20OR%20%22chief%20minister%22%20OR%20%22Vidhan%20Sabha%22%20OR%20cabinet%20OR%20secretariat)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "2.0",
     "role": "primary_of_record"
@@ -1513,7 +1513,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Vidhan%20Sabha%22%20OR%20%22assembly%20proceedings%22%20OR%20%22legislative%20assembly%22%20OR%20%22assembly%20session%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1544,7 +1544,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(governor)%20(assent%20OR%20%22returned%20the%20bill%22%20OR%20%22withheld%20assent%22%20OR%20ordinance)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1575,7 +1575,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(cabinet)%20(decision%20OR%20approves%20OR%20approved%20OR%20%22cabinet%20meeting%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1606,7 +1606,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(IAS%20OR%20IPS%20OR%20bureaucrat%20OR%20%22chief%20secretary%22)%20(transfer%20OR%20transferred%20OR%20posting%20OR%20posted)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1668,7 +1668,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(CAG%20OR%20%22Comptroller%20and%20Auditor%20General%22)%20(audit%20OR%20report)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -1761,7 +1761,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Governance%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -1792,7 +1792,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Booth-level%22%20OR%20%22Results%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1823,7 +1823,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Booth%22%20OR%20%22Register%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1854,7 +1854,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Booth%22%20OR%20%22Demography%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1885,7 +1885,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Booth%22%20OR%20%22Bloc%22%20OR%20%22Composition%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1916,7 +1916,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Booth-level%22%20OR%20%22Roll%22%20OR%20%22Churn%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1947,7 +1947,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Booth%22%20OR%20%22Political%22%20OR%20%22History%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -1978,7 +1978,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Swing%22%20OR%20%22Booths%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -2009,7 +2009,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Anchor%22%20OR%20%22Booths%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -2040,7 +2040,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Hyperlocal%22%20OR%20%22News%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -2071,7 +2071,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Municipal%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2102,7 +2102,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Panchayat%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2164,7 +2164,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Municipal%22%20OR%20%22Finance%22%20OR%20%22Solvency%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2195,7 +2195,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22MGNREGA%22%20OR%20%22Works%22%20OR%20%22Muster%22%20OR%20%22Roll%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2226,7 +2226,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Gram%22%20OR%20%22Panchayat%22%20OR%20%22Development%22%20OR%20%22Plan%22%20OR%20%22Fund%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "corroborating"
@@ -2257,7 +2257,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Councillor%22%20OR%20%22Pradhan%22%20OR%20%22Profiles%22%20OR%20%22Report%22%20OR%20%22Cards%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2288,7 +2288,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Officer%22%20OR%20%22Directory%22%20OR%20%22Transfer%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2319,7 +2319,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Supreme%22%20OR%20%22Court%22%20OR%20%22Order%22%20OR%20%22Judgment%22%20OR%20%22Feed%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -2350,7 +2350,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Order%22%20OR%20%22Archive%22%20OR%20%22Topic%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -2381,7 +2381,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22district%20court%22%20OR%20%22sessions%20court%22%20OR%20%22judicial%20magistrate%22%20OR%20%22district%20judge%22)%20(order%20OR%20judgment%20OR%20case%20OR%20bail)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2412,7 +2412,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22Allahabad%20High%20Court%22%20OR%20%22High%20Court%20of%20Judicature%20at%20Allahabad%22)%20(order%20OR%20judgment%20OR%20bench%20OR%20hearing%20OR%20petition)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2443,7 +2443,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22National%20Green%20Tribunal%22%20OR%20NGT)%20(order%20OR%20petition%20OR%20notice%20OR%20directs%20OR%20compensation)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2474,7 +2474,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22Central%20Administrative%20Tribunal%22%20OR%20NCDRC%20OR%20%22consumer%20commission%22%20OR%20%22consumer%20forum%22)%20(order%20OR%20judgment%20OR%20directs%20OR%20compensation)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2505,7 +2505,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Constitution%20Bench%22%20OR%20%22constitutional%20bench%22)%20(Supreme%20Court)%20(hearing%20OR%20judgment)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2536,7 +2536,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22High%20Court%22)%20(PIL%20OR%20%22public%20interest%20litigation%22%20OR%20constitutional)%20(order%20OR%20judgment)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2567,7 +2567,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22State%22%20OR%20%22Government%22%20OR%20%22Litigation%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2598,7 +2598,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Judge%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2629,7 +2629,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Case%22%20OR%20%22Pendency%22%20OR%20%22Disposal%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2660,7 +2660,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Precedent%22%20OR%20%22Citation%22%20OR%20%22Network%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2691,7 +2691,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Pendency%22%20OR%20%22Disposal%22%20OR%20%22Analytics%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2722,7 +2722,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22High%20Court%22%20OR%20%22Supreme%20Court%22)%20(collegium%20OR%20justice%20OR%20judge)%20(appointed%20OR%20elevated%20OR%20transferred%20OR%20retires%20OR%20%22sworn%20in%22%20OR%20recommends)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2753,7 +2753,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22District%22%20OR%20%22Court%22%20OR%20%22Pendency%22%20OR%20%22Disposal%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2784,7 +2784,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Professional%22%20OR%20%22Case-Law%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2815,7 +2815,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22International%20Criminal%20Court%22%20OR%20%22ICC%20prosecutor%22%20OR%20%22ICC%20judges%22%20OR%20%22ICC%20arrest%20warrant%22%20OR%20%22Rome%20Statute%22)%20-cricket%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2846,7 +2846,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22International%20Court%20of%20Justice%22%20OR%20%22ICJ%20ruling%22%20OR%20%22ICJ%20case%22%20OR%20%22ICJ%20hearing%22%20OR%20%22ICJ%20judges%22)%20-cricket%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2877,7 +2877,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22World%20Trade%20Organization%22%20OR%20WTO)%20(%22dispute%20settlement%22%20OR%20%22dispute%20panel%22%20OR%20%22panel%20report%22%20OR%20%22Appellate%20Body%22%20OR%20%22files%20complaint%22%20OR%20%22requests%20consultations%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "corroborating"
@@ -2908,7 +2908,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Regional%22%20OR%20%22Int'l%22%20OR%20%22Courts%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2939,7 +2939,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Supreme%22%20OR%20%22Courts%22%20OR%20%22precedent%22%20OR%20%22United%22%20OR%20%22States%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -2970,7 +2970,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Supreme%22%20OR%20%22Courts%22%20OR%20%22precedent%22%20OR%20%22other%22%20OR%20%22common-law%22%20OR%20%22jurisdictions%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3001,7 +3001,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22NCLT%22%20OR%20%22NCLAT%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3032,7 +3032,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=(%22Income%20Tax%20Appellate%20Tribunal%22%20OR%20ITAT%20OR%20TDSAT%20OR%20%22Securities%20Appellate%20Tribunal%22%20OR%20%22Debts%20Recovery%20Tribunal%22)%20(order%20OR%20appeal%20OR%20ruling%20OR%20directs)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3063,7 +3063,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Cause-List%22%20OR%20%22Hearing%22%20OR%20%22Scheduler%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3094,7 +3094,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Case%22%20OR%20%22Status%22%20OR%20%22Cause%22%20OR%20%22Lists%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3125,7 +3125,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22District%22%20OR%20%22Court%22%20OR%20%22Cause%22%20OR%20%22Lists%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3156,7 +3156,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Local%22%20OR%20%22Judge%22%20OR%20%22Court%22%20OR%20%22Directory%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3187,7 +3187,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Undertrial%22%20OR%20%22Prison%22%20OR%20%22Data%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3218,7 +3218,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Legal%22%20OR%20%22Aid%22%20OR%20%22Lok%22%20OR%20%22Adalat%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3311,7 +3311,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Economic%22%20OR%20%22Overview%22%20OR%20%22All%22%20OR%20%22Countries%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3342,7 +3342,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Key%22%20OR%20%22Financial%22%20OR%20%22Indicators%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3373,7 +3373,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Trade%22%20OR%20%22Agreements%22%20OR%20%22Economic%22%20OR%20%22Sanctions%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3528,7 +3528,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Prediction%22%20OR%20%22Market%22%20OR%20%22Political%22%20OR%20%22Odds%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3559,7 +3559,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Election%22%20OR%20%22Forecast%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -3590,7 +3590,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Carbon%22%20OR%20%22Border%22%20OR%20%22Watch%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -3621,7 +3621,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Global%22%20OR%20%22Carbon%22%20OR%20%22Pricing%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3652,7 +3652,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Carbon%22%20OR%20%22Price%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3683,7 +3683,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22ETS%22%20OR%20%22Tax%22%20OR%20%22Adoption%22%20OR%20%22Timeline%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -3714,7 +3714,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22India%22%20OR%20%22CCTS%22%20OR%20%22Green%22%20OR%20%22Credits%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -3745,7 +3745,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Carbon%22%20OR%20%22Registry%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -3776,7 +3776,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Climate%22%20OR%20%22Newswire%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "0.0",
     "role": "primary_of_record"
@@ -3807,7 +3807,7 @@
     "format": "RSS",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Cricket%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3838,7 +3838,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Fixtures%22%20OR%20%22Results%22%20OR%20%22World%22%20OR%20%22Leagues%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3869,7 +3869,7 @@
     "format": "RSS",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Football%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3900,7 +3900,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22ISL%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -3962,7 +3962,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Sports%22%20OR%20%22Governance%22%20OR%20%22Policy%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -4024,7 +4024,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Athlete%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -4055,7 +4055,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Streaming%22%20OR%20%22Tonight%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -4086,7 +4086,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Box%22%20OR%20%22Office%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -4117,7 +4117,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Entertainment%22%20OR%20%22News%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -4148,7 +4148,7 @@
     "format": "XML",
     "auth": "none",
     "refreshMinutes": 15,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Bollywood%22%20OR%20%22Film%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -4179,7 +4179,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Music%22%20OR%20%22Charts%22%20OR%20%22India%22%20OR%20%22Top%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -4210,7 +4210,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Music%22%20OR%20%22Charts%22%20OR%20%22Global%22%20OR%20%22Top%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "primary_of_record"
@@ -4241,7 +4241,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22OTT%22%20OR%20%22Studio%22%20OR%20%22Intelligence%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"
@@ -4272,7 +4272,7 @@
     "format": "JSON",
     "auth": "none",
     "refreshMinutes": 360,
-    "openLiveFallback": "https://news.google.com/rss/search?q=India%20(%22Celebrity%22%20OR%20%22Influence%22)%20when%3A7d&hl=en-IN&gl=IN&ceid=IN:en",
+    "openLiveFallback": "news-topic",
     "directFeedCheck": "PASS",
     "endpointCount": "1.0",
     "role": "corroborating"

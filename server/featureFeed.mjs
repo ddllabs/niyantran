@@ -394,6 +394,12 @@ function topicQueryForFeature(featureName) {
   return `India (${orBits})`;
 }
 
+/**
+ * The route marker for the Google News topic search, as the feature map's `route` and the source
+ * registry's `openLiveFallback` spell it (F189).
+ */
+export const NEWS_TOPIC_ROUTE = 'news-topic';
+
 export function newsRssUrlForFeature(featureName) {
   const q = `${topicQueryForFeature(featureName)} when:7d`;
   return (
@@ -1335,9 +1341,14 @@ export async function serveFeatureFeed(searchParams) {
     exhaustive: Boolean(entry?.exhaustive) && isBills,
   };
   const primary = entry?.primaryFeedUrl || (isHttpsUrl(feat.source) ? feat.source : '');
-  // The registry's open-live fallback: the row's Google News topic search (newsRssUrlForFeature), a
-  // marker that the row falls back to the news wire. Empty for a row that routes by status or archive.
-  const openLiveFallback = entry?.openLiveFallback || '';
+  // The registry's open-live fallback. NEWS_TOPIC_ROUTE means the row falls back to the module's Google
+  // News topic search, built here from its current name (newsRssUrlForFeature), so the address cannot go
+  // stale; any other value is an explicit address, used as it stands. Empty for a row that routes by
+  // status or archive.
+  const openLiveFallback =
+    entry?.openLiveFallback === NEWS_TOPIC_ROUTE
+      ? newsRssUrlForFeature(feat.htmlFeature)
+      : entry?.openLiveFallback || '';
 
   // Transit: never pull full OpenSky /states/all (often times out). Use bbox air proxy.
   if (/^transit$/i.test(feat.htmlFeature || '')) {
@@ -3157,13 +3168,14 @@ export async function serveFeatureFeed(searchParams) {
     if (nat) return nat;
   }
 
-  // A module with no registry row, whose declared source (the feature map's `source`) is its own Google
-  // News topic search, is answered by that wire, with PIB where it fits. A module with a registry row
-  // reads its own sources. (Before F180 the feature map held a GDELT search here, read only to choose
-  // this route; GDELT is not asked.)
+  // A module with no registry row whose feature-map entry says `"route": "news-topic"` is answered by its
+  // Google News topic search, with PIB where it fits. The marker decides, not the entry's `source` (F189):
+  // a rename or a change to TOPIC_STOP moves the search address and leaves the route. A module with a
+  // registry row reads its own sources. (Before F180 the feature map held a GDELT search here, read only
+  // to choose this route; GDELT is not asked.)
   {
     const skipGeoDataset = dataset && /^geo_/i.test(dataset);
-    const rewrite = !skipGeoDataset && !entry && Boolean(primary) && primary === newsRssUrlForFeature(feat.htmlFeature);
+    const rewrite = !skipGeoDataset && !entry && feat.route === NEWS_TOPIC_ROUTE;
 
     if (rewrite) {
       const newsUrl = newsRssUrlForFeature(feat.htmlFeature);
@@ -3318,7 +3330,7 @@ export async function serveFeatureFeed(searchParams) {
   const skipBinary = format === 'XLSX' || format === 'XLS';
   const liveUrls = [];
   if (primary && !skipBinary) liveUrls.push(primary);
-  // A registry row's `openLiveFallback` is its Google News topic search (newsRssUrlForFeature): the
+  // A registry row's `openLiveFallback` names its Google News topic search (newsRssUrlForFeature): the
   // answer when the live table and the archive give nothing. News-search rows always fall back to it.
   const newsFallback =
     Boolean(openLiveFallback) &&
