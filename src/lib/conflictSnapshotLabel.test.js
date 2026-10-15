@@ -38,7 +38,9 @@ describe('F182: the conflict register is not labelled an agent snapshot', () => 
     const out = await refreshHomeSnapshots();
     expect(out.conflict).toBeGreaterThan(0);
     expect(fs.existsSync(cacheFile())).toBe(false);
-  });
+    // The first import of homeApi.mjs in this file loads the home archives; a busy full suite can pass
+    // the default 5 s.
+  }, 30_000);
 
   it('serveHomePulse and serveConflict answer the register under its own label, and save nothing', async () => {
     const { serveHomePulse, serveConflict } = await load();
