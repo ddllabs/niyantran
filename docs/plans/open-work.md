@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F188 is next) and goes in the
+- A new finding gets the next free `F` number (F192 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -686,11 +686,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     (migrations 52 and 53 applied to NTER, dormant code) done with Push 7; step 3 (secret) and step 4 (timer, after the Vercel
     upgrade) are the owner's; then the Cabinet register load, a day with `serve` off, and `serve` on
     class by class.
-  - **Owner decision (C6): MLA Directory's 4,104-MLA register.** Its class replaces the list each
-    run, so a loaded register would be pruned. Options: (1, recommended) the register as 31 per-state
-    store variants, kept, off the refresh schedule; (2) take MLA Directory off the schedule and load
-    nothing (today's behaviour); (3) a kept kind, still refreshed (members who leave never drop off).
-    Keep `serve` off for MLA Directory until decided.
+  - **MLA Directory's register (owner: option 1, 2026-10-15), live and served.** 31 per-state
+    store variants (class `register`, kind `reference`: a reload replaces a state's list), off the
+    timer; migration 54 `20261015170000_feed_register_page` (`feed_page_across`, `feed_make_due`, no
+    stale flag for registers). Loaded to NTER 2026-10-15: 4,104 MLAs in 31 states; `serve` on. Without
+    a state the page shows 16 per state (496); with `state` a state's whole list. Left out of the
+    rows: email, the age (birth date kept), and the affidavit figures (assets, liabilities, criminal
+    cases), whose only cited source is Wikipedia. Cabinet's 79-decision register is loaded with
+    `serve` off until the timer runs (live decisions on top).
     Whether Vercel left `backup/` out of the package can't be read with the available tools; the
     code refuses pack reads on Vercel either way.
   - [x] T0 probe, built 2026-10-14 on `task/f169-phase1`, committed `d70d753`:
@@ -746,30 +749,19 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     B13 closed (F39), B14 (F52), B15 (F61), B16 (F80), B18 (F31). Left: B17 (F47, needs a signed-in
     phone check), B19 (F35, a measurement on a local replica), B20 (F41, a paid provider trial), B21
     (F37, parked with F170), B22 (F59, a signed-in viewer measurement).
-- [ ] **F179. Status rows still claim a GDELT search.** The generic status envelope in
-  `server/featureFeed.mjs` (`gdelt: primaryIsGdelt`) tells the client GDELT was searched when a
-  module's registry address is a GDELT one, though nothing is fetched (F176 review, 2026-10-15). The
-  client reads `source.gdelt` in `normalise.js`, `lawWire.js`, `newsWire.js` and the landing
-  summaries. Remove the flag end to end.
-- [ ] **F180. GDELT addresses in the source registry.** `src/data/source-registry.json` still carries
-  GDELT URLs as `primaryFeedUrl` or `openLiveFallback`; the generic loader uses them only to choose a
-  route. Replace them with the real route and drop `isGdelt` (a data change; F176 review).
-- [ ] **F181. Home Top Stories has no live source.** It was GDELT only and has answered its status row
-  since F169 T4. Owner decision: a source (for example Google News India) or remove it.
-- [ ] **F182. The stored conflict register is labelled an agent snapshot.** `refreshHomeSnapshots`
-  (`server/homeApi.mjs`) saves the Open Fronts register as the conflict snapshot, which is then
-  labelled "Agent snapshot" (F176 review).
-- [ ] **F183. Other PDF readers lack the character maps.** The page viewer and `corpusUpload.js` call
-  pdf.js without `pdfAssetOptions()` (F178), so CID-font PDFs can read wrong there too. Legacy Hindi
-  fonts (Kruti Dev) are not text pdf.js can map; they need OCR (F170, parked).
-- [ ] **F185. District Performance Tracker stores malformed rows.** Its loader reads a JSON source as
-  lines of text, giving rows like `{"{": "value : Bhojpur district"}` (C3 local run, 2026-10-15).
-- [ ] **F186. NSE/BSE Delayed Market Feed is scheduled with no live source.** It answers the stored
-  snapshot, which the store refuses, so it fails every 15 minutes (with backoff) until it gets a live
-  source (a licence, owner's step) or comes off the schedule.
-- [ ] **F187. Cabinet Decisions lists a decision twice when PIB releases it twice.** The ministry's
-  "Cabinet approves…" release and the Cabinet's own pass `isCabinetDecision` (62 such pairs in the
-  register, which the C6 load keeps once). Keep one per title and day in the live loader too.
+- [ ] **F188. Google News rows on Geopolitics are labelled "BBC World feed".** `newsWire.js` classifies a
+  wire row by its fields; a Google fallback row with a summary reads as BBC and its publisher "Not on
+  record" (F180 review, 2026-10-15; predates F180). Add a Google kind keyed on `publisher`.
+- [ ] **F189. The Google News reroute matches a generated URL.** `server/featureFeed.mjs` reroutes a
+  module with no registry row when its `source` equals its own topic URL; renaming a feature or
+  changing `TOPIC_STOP` would silently drop 16 modules (a test counts them). Use an explicit route
+  marker (F180 review).
+- [ ] **F190. MLA Directory has no state picker.** The store serves a state's whole list with
+  `state`, but no page sends it, so readers see 16 per state; the note points to "a state's own
+  list". Add a small picker through `fetchFeature`'s `params` (MLA register review).
+- [ ] **F191. Homepage "Source endpoints": 246 or 115?** Owner decision. F180 took the 131 GDELT search
+  addresses out of the source registry, which now counts 115; the homepage keeps the owner's 246
+  (`src/lib/siteFigures.js`) until the owner decides.
 - [ ] **F160. Serve module data from the database, filled by scheduled jobs (ingest, then serve).**
   [Spec](../specs/2026-10-14-scheduled-module-data.md) written 2026-10-14. Owner's answers the same
   day: the timer every 5 minutes, not every minute; the other recommendations adopted. Now phase 4
@@ -962,6 +954,28 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
 
 
 ## 1. Done
+
+- [x] **F179. Status rows claimed a GDELT search.** *Done 2026-10-15 (`f2d2d87`): no answer carries a
+  `gdelt` flag, server or client; every client branch that read it was dead (false, or true only on
+  failure status rows). Compared over 169 features in three stubbed fetch worlds: identical apart
+  from one status row naming news.google.com.*
+- [x] **F180. GDELT addresses in the source registry.** *Done 2026-10-15 (`f2d2d87`): 131 registry rows
+  and 44 feature-map sources name the routes the loaders take; `isGdelt` removed. The homepage figure
+  is F191.*
+- [x] **F181. Home Top Stories had no live source.** *Done 2026-10-15 (`d676a14`, `583fe8e`): Google
+  News India top stories (owner: "Go ahead with all your recommendations"); production: 38 stories.*
+- [x] **F182. The conflict register was labelled an agent snapshot.** *Done 2026-10-15 (`c8aefb1`,
+  `8dcec27`, `65d386c`): the register is never saved as a snapshot, the browser fallback skips the
+  seed, an agent snapshot needs its own marker, and the health line says "register".*
+- [x] **F183. Other PDF readers lacked the character maps.** *Done 2026-10-15 (`c8aefb1`): the page
+  viewer passes them; the admin upload reads only page count and encryption, so it gains nothing.
+  Legacy Hindi fonts still need OCR (F170).*
+- [x] **F185. District Performance Tracker stored malformed rows.** *Done 2026-10-15 (`d676a14`): a body
+  that starts as JSON is never read as CSV; production 500 clean rows.*
+- [x] **F186. NSE/BSE was scheduled with no live source.** *Done 2026-10-15 (`fb52292`): off the timer
+  (`OFF_TIMER`), with the drift test still strict for every other module.*
+- [x] **F187. Cabinet Decisions listed a decision twice.** *Done 2026-10-15 (`d676a14`, `3e4487a`): one
+  release per decision (`pickReleasePairs`) in the live loader, the store's page and the register load.*
 
 - [x] **F41.** A widened chat turn is slow: on 2026-10-01 a bill question waited 65 s, of which
   Gemini Flash took 46 s on a 25,850-token prompt. Search took 0.6 s. Measure the prompt size

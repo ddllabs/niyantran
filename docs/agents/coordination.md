@@ -2034,3 +2034,20 @@ recommendations … We can fix everything that is under your control."
   call asks OpenRouter for the lowest-latency provider. Before the deploy the production source (v59,
   downloaded with the CLI) matched `main` file for file (36 files), so v60 adds only this change.
   `verify_jwt` stays false; unsigned POST 401, CORS preflight 204. Rollback: redeploy from `55b38c9`.
+- **Push 8** (2026-10-15): F179–F183, F185–F187, MLA Directory's register (F169), merged on
+  `task/integrate` (`8d5729e`). Each part reviewed independently; findings fixed before the push.
+  Checks on the merged code: lint, 5,355 Vitest and 1,079 Deno tests, every SQL fixture with
+  vacuity and Down checks, build, `check:bundle` (entry −1,683 B gzip against the baseline), router
+  import. Rollback: revert and push.
+- **2026-10-15: migration 54 `20261015170000_feed_register_page` applied to NTER** before Push 8's
+  code (dry run listed only it): `feed_page_across` and `feed_make_due` executable by `service_role`
+  only, `feed_admin_status()` with the register guard. Rollback: its Down block.
+- **2026-10-15: MLA Directory's register loaded to NTER and served** (owner: option 1).
+  `scripts/load-feed-register.mjs --module "state:MLA Directory" --apply --target prod
+  --confirm-prod` after a dry run: 31 states, 4,104 MLAs, all new. Then `update public.feed_state set
+  serve = true` for its 31 variants. Production: no state 496 rows (16 per state, `served: store`,
+  register note), `state=Kerala` 140, `state=up` 398; no email, age or affidavit fields. Rollback:
+  `serve = false` for those rows. Push 8 probe: Top Stories 38 stories; District Performance 500 clean
+  rows; Geopolitics and Cricket live; NSE its dated archive; `/api/feeds/refresh` still 503. One
+  cold-start MLA request answered the 1-row archive (Wikidata over 4 s) and was cached at the edge
+  for a minute; repeat requests answered 500 live, then the store.
