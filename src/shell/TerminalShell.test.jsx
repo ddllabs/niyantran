@@ -59,7 +59,8 @@ describe('v6 header hierarchy', () => {
     expect(html).toContain('<nav class="desk-rail" id="desk-rail" aria-label="Desks">');
     expect(html.match(/aria-label="Desks"/g)).toHaveLength(1);
     expect(html.indexOf('class="desk-rail"')).toBeLessThan(html.indexOf('class="desktabs'));
-    expect(html).toMatch(/<button type="button" class="desktabs-desks" aria-expanded="false" aria-controls="desk-rail">/);
+    expect(html).toMatch(/<nav aria-label="Desk modules" class="desktabs"><button type="button" class="desk-rail-toggle" aria-expanded="false" aria-controls="desk-rail" aria-label="Show desks"/);
+    expect(html).not.toContain('desktabs-desks');
   });
   it('keeps directory, search and account controls together beside desk navigation', () => {
     location.hash = '#/national';

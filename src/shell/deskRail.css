@@ -1,61 +1,77 @@
-/* F195 (owner 2026-10-15): on module pages the desks are a 56 px rail on the left and the category
-   row is the only bar under the header. Open, the rail widens to 208 px over the page (no reflow).
-   At 900 px and below it is a drawer from the Desks button. Opacity and transform only. */
+/* F195 (owner 2026-10-15): on module pages the desks are a 56 px rail on the left, under a category
+   row that runs the full width and starts with the rail's toggle, above the rail's column. Open, the
+   rail slides out to 208 px over the page (its clip animates, so nothing reflows). At 900 px and below
+   it is a drawer. Clip, opacity and transform only. */
 .terminal.with-module-navigation.with-desk-rail {
   --rail-ease: cubic-bezier(0.23, 1, 0.32, 1);
   grid-template-columns: 56px minmax(0, 1fr);
   grid-template-rows: auto 36px minmax(0, 1fr);
-  grid-template-areas: "top top" "rail modules" "rail work";
+  grid-template-areas: "top top" "modules modules" "rail work";
 }
 .terminal.with-desk-rail > .topbar { grid-area: top; padding-bottom: 12px; }
-.with-desk-rail > .desktabs { grid-area: modules; min-width: 0; }
+.with-desk-rail > .desktabs { grid-area: modules; min-width: 0; padding-left: 0; }
 .with-desk-rail > .workspace { grid-area: work; min-width: 0; }
 
+/* The toggle: the row's first cell, the rail's width, kept in place when the row scrolls sideways. */
+.with-desk-rail > .desktabs > .desk-rail-toggle { position: sticky; left: 0; z-index: 1; display: grid; place-items: center; flex: none; width: 56px; height: 36px; padding: 0; margin-right: 6px; border: 0; border-right: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.desk-rail-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.desk-rail-glyph line { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; transform-box: fill-box; transform-origin: center; transition: transform 200ms var(--rail-ease, ease-out); }
+.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-top { transform: translateY(3px) rotate(45deg); }
+.desk-rail-toggle[aria-expanded="true"] .desk-rail-glyph-bottom { transform: translateY(-3px) rotate(-45deg); }
+.desk-rail-glyph { transition: transform 160ms var(--rail-ease, ease-out); }
+.desk-rail-toggle:active .desk-rail-glyph { transform: scale(0.92); }
+@media (hover: hover) and (pointer: fine) {
+  .with-desk-rail > .desktabs > .desk-rail-toggle:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+}
+
+/* The rail is always 208 px wide; collapsed, its clip shows the first 56 px. Open, the clip also
+   leaves room for its shadow. The line on the right of the collapsed column is drawn at 55 px. */
 .desk-rail {
   grid-area: rail; position: relative; z-index: 60; align-self: stretch;
-  display: flex; flex-direction: column; gap: 6px; width: 56px; min-height: 0; box-sizing: border-box;
+  display: flex; flex-direction: column; width: 208px; min-height: 0; box-sizing: border-box;
   padding: 8px; overflow-x: hidden; overflow-y: auto;
   background: var(--panel); border-right: 1px solid var(--line);
+  clip-path: inset(0 152px 0 0);
+  transition: clip-path 220ms var(--rail-ease, ease-out);
 }
-/* Open, above the category row (z-index 80) and below the header (200). */
-.desk-rail.open { z-index: 90; width: 208px; box-shadow: 16px 0 40px rgba(15, 23, 42, 0.14); }
+.desk-rail::after { content: ""; position: absolute; top: 0; bottom: 0; left: 55px; width: 1px; background: var(--line); transition: opacity 220ms var(--rail-ease, ease-out); }
+/* Open, above the page and the category row (z-index 80), below the header (200). */
+.desk-rail.open { z-index: 90; clip-path: inset(0 -48px 0 0); box-shadow: 16px 0 40px rgba(15, 23, 42, 0.14); }
+.desk-rail.open::after { opacity: 0; }
 .desk-rail ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .desk-rail button {
-  display: flex; align-items: center; gap: 12px; width: 100%; height: 40px; padding: 0 11px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0; box-sizing: border-box;
   border: 0; border-radius: 10px; background: transparent; color: var(--muted);
   font: 500 13px/1 var(--font-ui); text-align: left; white-space: nowrap; cursor: pointer;
-  transition: transform 160ms var(--rail-ease, ease-out);
 }
-.desk-rail button svg { flex: none; }
-.desk-rail button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.desk-rail button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.desk-rail button:active { transform: scale(0.97); }
+/* The highlight is the icon's tile, so it is a whole 40 px square in the collapsed column. */
+.desk-rail-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 10px; transition: transform 160ms var(--rail-ease, ease-out); }
+.desk-rail button[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.desk-rail button[aria-current="page"] .desk-rail-icon { background: var(--accent-soft); }
+.desk-rail button:focus-visible { outline: none; }
+.desk-rail button:focus-visible .desk-rail-icon { outline: 2px solid var(--accent); outline-offset: -2px; }
+.desk-rail button:active .desk-rail-icon { transform: scale(0.94); }
 @media (hover: hover) and (pointer: fine) {
-  .desk-rail button:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--accent) 6%, transparent); color: var(--fg); }
+  .desk-rail button:not([aria-current="page"]):hover { color: var(--fg); }
+  .desk-rail button:not([aria-current="page"]):hover .desk-rail-icon { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 }
-.desk-rail small { margin-left: auto; color: var(--muted); font: 500 10px/1 var(--font-ui); }
-/* Collapsed, a desk keeps its name for screen readers; the title shows it on hover. */
-.desk-rail:not(.open) .desk-rail-name,
-.desk-rail:not(.open) small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.desk-rail.open .desk-rail-name,
-.desk-rail.open small { animation: desk-rail-name-in 160ms var(--rail-ease, ease-out) both; }
-@keyframes desk-rail-name-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+.desk-rail small { margin-left: auto; margin-right: 8px; color: var(--muted); font: 500 10px/1 var(--font-ui); }
 .desk-rail-scrim { display: none; }
-.desktabs .desktabs-desks { display: none; }
 
 @media (max-width: 900px) {
   .terminal.with-module-navigation.with-desk-rail { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "modules" "work"; }
+  .with-desk-rail > .desktabs > .desk-rail-toggle { width: 48px; }
   .desk-rail { display: none; }
   .desk-rail.open {
     display: flex; position: fixed; top: 0; bottom: 0; left: 0; z-index: 300; width: min(280px, 86vw); padding: 12px;
-    animation: desk-rail-drawer-in 220ms var(--rail-ease, ease-out) both;
+    clip-path: none; animation: desk-rail-drawer-in 220ms var(--rail-ease, ease-out) both;
   }
+  .desk-rail.open::after { display: none; }
   .desk-rail-scrim { display: block; position: fixed; inset: 0; z-index: 299; background: rgba(15, 23, 42, 0.36); }
-  .desktabs .desktabs-desks { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 }
 @keyframes desk-rail-drawer-in { from { transform: translateX(-100%); } to { transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .desk-rail button { transition: none; }
-  .desk-rail.open, .desk-rail.open .desk-rail-name, .desk-rail.open small { animation: none; }
+  .desk-rail, .desk-rail::after, .desk-rail-glyph, .desk-rail-glyph line, .desk-rail-icon { transition: none; }
+  .desk-rail.open { animation: none; }
 }

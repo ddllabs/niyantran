@@ -3,14 +3,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import DeskRail, { RailList } from './DeskRail.jsx';
+import DeskRail, { DeskRailToggle, RailList } from './DeskRail.jsx';
 import { TABS } from '../desks/catalog.js';
 
 const SOME = TABS.filter((desk) => ['home', 'national', 'global', 'law'].includes(desk.id));
 const html = (props) => renderToStaticMarkup(<DeskRail tab="national" lang="en" tabs={SOME} onDesk={() => {}} onOpenChange={() => {}} {...props} />);
 
 describe('the desk rail', () => {
-  it('lists the reader\'s desks after its toggle, marks the current one and the locked ones', () => {
+  it('lists the reader\'s desks, marks the current one and the locked ones', () => {
     const out = html({ lockedIds: new Set(['global']) });
     expect(out).toContain('<nav class="desk-rail" id="desk-rail" aria-label="Desks">');
     expect((out.match(/<li>/g) || []).length).toBe(4);
@@ -21,19 +21,32 @@ describe('the desk rail', () => {
     expect(out).not.toContain('State');
   });
 
-  it('is collapsed by default: the toggle expands it, and names stay for screen readers', () => {
+  // F195 follow-up (owner 2026-10-15): the toggle moved out of the rail into the start of the
+  // category row, above the rail's column, with a two-line icon that morphs into a cross when open.
+  it('has no toggle of its own, and keeps every desk\'s name for screen readers', () => {
     const out = html();
-    expect(out).toMatch(/<button type="button" class="desk-rail-toggle" aria-expanded="false" aria-controls="desk-rail-list" aria-label="Expand the desk list" title="Expand the desk list">/);
+    expect(out).not.toContain('desk-rail-toggle');
     expect(out).toContain('<span class="desk-rail-name">Law</span>');
     expect(out).not.toContain('desk-rail-scrim');
   });
 
-  it('expanded, says so, and lays a scrim behind it for the phone drawer', () => {
+  it('open, says so, and lays a scrim behind it for the phone drawer', () => {
     const out = html({ open: true });
     expect(out).toContain('<nav class="desk-rail open" id="desk-rail" aria-label="Desks">');
-    expect(out).toContain('aria-expanded="true"');
-    expect(out).toContain('aria-label="Collapse the desk list"');
     expect(out).toContain('class="desk-rail-scrim" aria-hidden="true"');
+  });
+
+  it('is opened from a toggle that says what it does and controls the rail', () => {
+    const closed = renderToStaticMarkup(<DeskRailToggle open={false} onToggle={() => {}} />);
+    expect(closed).toMatch(/^<button type="button" class="desk-rail-toggle" aria-expanded="false" aria-controls="desk-rail" aria-label="Show desks" title="Show desks"><svg class="desk-rail-glyph"/);
+    expect((closed.match(/<line /g) || []).length).toBe(2);
+    const open = renderToStaticMarkup(<DeskRailToggle open onToggle={() => {}} />);
+    expect(open).toContain('aria-expanded="true"');
+    expect(open).toContain('aria-label="Hide desks"');
+    expect(renderToStaticMarkup(<DeskRailToggle open={false} lang="hi" onToggle={() => {}} />)).toContain('aria-label="डेस्क दिखाएँ"');
+    const onToggle = vi.fn();
+    DeskRailToggle({ open: false, onToggle }).props.onClick();
+    expect(onToggle).toHaveBeenCalledOnce();
   });
 
   it('hands the picked desk to the rail', () => {
@@ -67,33 +80,40 @@ describe('the rail\'s closing rules', () => {
 
   it('leaves Escape to a dialog opened over it, and closes when focus leaves it', () => {
     expect(code).toMatch(/if \(e\.key !== 'Escape' \|\| e\.defaultPrevented \|\| doc\.querySelector\('dialog\[open\], \[aria-modal="true"\]'\)\) return;/);
-    expect(code).toMatch(/const onFocusOut = \(e\) => \{ const to = e\.relatedTarget; if \(to && !nav\.current\?\.contains\(to\) && !to\.closest\?\.\('\.desktabs-desks'\)\) close\(false\); \};/);
+    expect(code).toMatch(/const onFocusOut = \(e\) => \{ const to = e\.relatedTarget; if \(to && !nav\.current\?\.contains\(to\) && !to\.closest\?\.\('\.desk-rail-toggle'\)\) close\(false\); \};/);
   });
 
   it('closes from a tap on the scrim itself, so the tap does not reach the page under it', () => {
     expect(code).toContain('<div className="desk-rail-scrim" aria-hidden="true" onClick={() => onOpenChange(false)} />');
-    expect(code).toMatch(/if \(nav\.current\?\.contains\(e\.target\) \|\| e\.target\?\.closest\?\.\('\.desktabs-desks, \.desk-rail-scrim'\)\) return;/);
+    expect(code).toMatch(/if \(nav\.current\?\.contains\(e\.target\) \|\| e\.target\?\.closest\?\.\('\.desk-rail-toggle, \.desk-rail-scrim'\)\) return;/);
   });
 });
 
 describe('the rail\'s layout', () => {
   const css = readFileSync(new URL('./deskRail.css', import.meta.url), 'utf8');
 
-  it('takes a 56 px column beside the category row and the work area on module pages', () => {
-    expect(css).toMatch(/\.terminal\.with-module-navigation\.with-desk-rail \{[^}]*grid-template-columns: 56px minmax\(0, 1fr\);[^}]*grid-template-areas: "top top" "rail modules" "rail work";/);
+  it('takes a 56 px column under the category row, which runs the full width with the toggle first', () => {
+    expect(css).toMatch(/\.terminal\.with-module-navigation\.with-desk-rail \{[^}]*grid-template-columns: 56px minmax\(0, 1fr\);[^}]*grid-template-areas: "top top" "modules modules" "rail work";/);
+    expect(css).toMatch(/\.with-desk-rail > \.desktabs > \.desk-rail-toggle \{[^}]*position: sticky; left: 0;[^}]*width: 56px;/);
   });
 
-  it('widens to 208 px over the page when open', () => {
-    expect(css).toMatch(/\.desk-rail\.open \{[^}]*width: 208px;/);
+  it('slides open to 208 px over the page by its clip, not by its width', () => {
+    expect(css).toMatch(/\.desk-rail \{[^}]*width: 208px;[^}]*clip-path: inset\(0 152px 0 0\);[^}]*transition: clip-path 220ms/);
+    expect(css).toMatch(/\.desk-rail\.open \{[^}]*clip-path: inset\(0 -48px 0 0\);/);
   });
 
-  it('becomes a drawer with a scrim at 900 px and below, opened from the Desks button', () => {
+  it('morphs the toggle\'s two lines into a cross when open', () => {
+    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-top \{ transform: translateY\(3px\) rotate\(45deg\); \}/);
+    expect(css).toMatch(/\.desk-rail-toggle\[aria-expanded="true"\] \.desk-rail-glyph-bottom \{ transform: translateY\(-3px\) rotate\(-45deg\); \}/);
+  });
+
+  it('becomes a drawer with a scrim at 900 px and below, opened from the same toggle', () => {
     const phone = css.slice(css.indexOf('@media (max-width: 900px)'));
     expect(phone).toMatch(/\.desk-rail \{ display: none; \}/);
+    expect(phone).toMatch(/\.desk-rail\.open \{[^}]*clip-path: none;/);
     expect(phone).toMatch(/\.desk-rail\.open \{[^}]*position: fixed;[^}]*width: min\(280px, 86vw\);/);
     expect(phone).toMatch(/\.desk-rail-scrim \{[^}]*position: fixed; inset: 0;/);
-    expect(css).toMatch(/\.desktabs \.desktabs-desks \{ display: none; \}/);
-    expect(phone).toMatch(/\.desktabs \.desktabs-desks \{ display: inline-flex;/);
+
   });
 
   // F195 review: the header's bottom padding must outrank .with-v6-directory>.topbar, and the open
@@ -105,6 +125,7 @@ describe('the rail\'s layout', () => {
 
   it('only animates opacity and transform, and not at all with reduced motion', () => {
     expect(css).not.toMatch(/transition:[^;]*width/);
+    expect(css).not.toMatch(/desktabs-desks/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*animation: none;/);
   });
 });

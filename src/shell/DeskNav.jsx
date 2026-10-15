@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { TABS, bucketContaining, bucketsFor, modulesForTier } from '../desks/catalog.js';
 import { featureMenuLabel } from '../lib/national.js';
 import { Icon, TAB_ICON } from './Icons.jsx';
+import { DeskRailToggle } from './DeskRail.jsx';
 
 function Menu({ items, active, onPick, anchor, onKeep, onLeave }) {
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -82,13 +83,8 @@ export default function DeskNav({ tab, featureName, lang, onDesk, onFeature, tab
 
   return (
     <nav aria-label={hi ? 'डेस्क के मॉड्यूल' : 'Desk modules'} className={`desktabs${tab === 'home' ? ' home-nav' : ''}`}>
-      {/* F195: at 900 px and below the desk rail is a drawer, and this opens it (CSS shows it there). */}
-      {onOpenDesks ? (
-        <button type="button" className="desktabs-desks" aria-expanded={desksOpen} aria-controls="desk-rail" onClick={() => onOpenDesks()}>
-          <Icon name="menu" size={14} />
-          {hi ? 'डेस्क' : 'Desks'}
-        </button>
-      ) : null}
+      {/* F195: the desk rail's toggle starts the row, above the rail's column (a drawer on phones). */}
+      {onOpenDesks ? <DeskRailToggle open={desksOpen} onToggle={onOpenDesks} lang={lang} /> : null}
       {tab !== 'home' && (
         <button
           type="button"

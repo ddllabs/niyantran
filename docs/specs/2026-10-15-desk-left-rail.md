@@ -87,3 +87,22 @@ Rechecked in the browser: header padding 12 px (65 px header); the point above t
 middle inside the open rail hits the rail; the rail is closed after leaving and returning to a module;
 on a phone the Desks button opens and closes the drawer, a press on the scrim does not close it but its
 click does.
+
+## Owner follow-up (2026-10-15): the toggle and the slide
+
+"We could use a better icon than this … sleek and modern … keep it in the same rail, maybe as the
+horizontal one, which, upon clicking, animates and opens this on the left side."
+
+- The toggle left the rail. It is the first cell of the category row, 56 px wide above the rail's
+  column (48 px on phones), sticky when the row scrolls sideways, and the same button opens the phone
+  drawer (the separate "Desks" button is gone). The category row now runs the full width; the rail
+  starts under it (grid areas "top top" "modules modules" "rail work").
+- The icon is two lines that turn into a cross when the rail is open (200 ms, transform only);
+  "Show desks" / "Hide desks".
+- The rail slides: it is always 208 px wide and its `clip-path` goes from `inset(0 152px 0 0)` to
+  `inset(0 -48px 0 0)` (220 ms, strong ease-out), so nothing reflows and the clipped part takes no
+  clicks. The current desk's highlight is its 40 px icon tile, whole in the collapsed column.
+- Browser check (1440 and 390 px): toggle at x 0, 56 × 36 px in the row; rail from y 101; a click at
+  x 100 reaches the page while collapsed and the rail while open; work area 1,384 px either way; on a
+  phone the toggle opens and closes the drawer, no sideways scroll. The pane was hidden, so the
+  transitions were confirmed from the computed styles, not watched.
