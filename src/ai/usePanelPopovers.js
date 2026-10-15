@@ -25,6 +25,30 @@ export function wireHistoryPopover({ dialog, trigger, doc, close }) {
   };
 }
 
+/**
+ * F200: Escape closes the open popover first, wherever focus is. Each popover stops the Escape
+ * pressed inside it; one pressed elsewhere (focus left on the page, as a click on a button leaves
+ * it in Safari, or in the composer) reached the panel's own Escape (F135) and closed the whole
+ * panel with the menu still open. This listener runs before the panel's (document, capture) and
+ * takes that Escape for the popover; the next Escape is the panel's again. `layers` are the open
+ * popovers, topmost first: `{ root, close }`.
+ */
+export function wirePopoverEscape({ doc, layers }) {
+  const keydown = (event) => {
+    if (event.key !== 'Escape') return;
+    const layer = layers.find((l) => l?.root);
+    // Focus inside the popover: its own listener handles the key (and restores its trigger).
+    if (!layer || layer.root.contains(doc.activeElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    layer.close();
+    // Focus on nothing goes back to the trigger; focus in the composer stays where the reader left it.
+    if (!doc.activeElement || doc.activeElement === doc.body) layer.root.querySelector('button')?.focus();
+  };
+  doc.addEventListener('keydown', keydown, true);
+  return () => doc.removeEventListener('keydown', keydown, true);
+}
+
 export default function usePanelPopovers({ focusOpen, focusRef, focus, setFocusOpen,
   historyOpen, historyRef, pendingDelete, setHistoryOpen, modelOpen, modelRef, setModelOpen }) {
   const previousDelete = useRef('');
@@ -72,4 +96,12 @@ export default function usePanelPopovers({ focusOpen, focusRef, focus, setFocusO
     root?.addEventListener('keydown', keydown);
     return () => root?.removeEventListener('keydown', keydown);
   }, [modelOpen, modelRef, setModelOpen]);
+  useEffect(() => {
+    if (!historyOpen && !focusOpen && !modelOpen) return undefined;
+    return wirePopoverEscape({ doc: document, layers: [
+      historyOpen && { root: historyRef.current, close: () => setHistoryOpen(false) },
+      focusOpen && { root: focusRef.current, close: () => setFocusOpen(false) },
+      modelOpen && { root: modelRef.current, close: () => setModelOpen(false) },
+    ] });
+  }, [historyOpen, historyRef, setHistoryOpen, focusOpen, focusRef, setFocusOpen, modelOpen, modelRef, setModelOpen]);
 }

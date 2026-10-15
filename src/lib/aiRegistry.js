@@ -1,5 +1,6 @@
 import { supabase as defaultClient } from './supabaseClient.js';
 import { normalizePlanId } from './publicPlans.js';
+import { modelLabel, modelName } from './creditUsage.js';
 
 /**
  * The model allowlist as the browser sees it (foundation spec §C): enabled
@@ -8,6 +9,18 @@ import { normalizePlanId } from './publicPlans.js';
  */
 
 const EVENT = 'niy-ai-registry';
+
+/**
+ * F200: the picker shows each model's `label` as stored. A label that is only the model's id (on D3,
+ * "gpt-luna-latest" for ~openai/gpt-luna-latest) reads as the model's name instead, as Plan & billing
+ * names models (F184, modelLabel). The stored label is not changed; fixing it is a data change.
+ */
+export function readableModelLabel(model) {
+  const label = String(model?.label ?? '').trim();
+  const id = String(model?.model_id ?? '');
+  const raw = !label || [id, id.replace(/^~+/, ''), modelName(id)].includes(label);
+  return raw && id ? modelLabel(id) : label;
+}
 
 const bySortOrder = (a, b) => (a.sort_order ?? 100) - (b.sort_order ?? 100) || String(a.model_id || a.role_id).localeCompare(String(b.model_id || b.role_id));
 
@@ -22,7 +35,7 @@ export async function loadRegistry(client = defaultClient) {
   const pricingById = {};
   for (const p of pricing.data || []) pricingById[p.model_id] = p;
   return {
-    models: [...(models.data || [])].sort(bySortOrder),
+    models: (models.data || []).map((m) => ({ ...m, label: readableModelLabel(m) })).sort(bySortOrder),
     roles: [...(roles.data || [])].sort(bySortOrder),
     pricingById,
   };

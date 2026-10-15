@@ -39,6 +39,18 @@ describe('loadRegistry', () => {
     expect(seen).toContain('model_pricing.is_available=true');
   });
 
+  it('F200: a label that is only the model id is shown as the model name; a real label is kept', async () => {
+    const reg = await loadRegistry(fakeClient({
+      ai_models: [
+        { model_id: '~openai/gpt-luna-latest', label: 'gpt-luna-latest', sort_order: 1 },
+        { model_id: 'google/gemini-3.5-flash', label: 'google/gemini-3.5-flash', sort_order: 2 },
+        { model_id: 'deepseek/deepseek-v4', label: '', sort_order: 3 },
+        { model_id: 'google/gemini-3.5-flash-lite', label: 'Gemini - Lite', sort_order: 4 },
+      ],
+    }));
+    expect(reg.models.map((m) => m.label)).toEqual(['GPT Luna Latest', 'Gemini 3.5 Flash', 'DeepSeek V4', 'Gemini - Lite']);
+  });
+
   it('surfaces a database error instead of an empty registry', async () => {
     const client = {
       from: () => {

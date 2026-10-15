@@ -160,6 +160,9 @@ function watchIdentity() {
         entry.reverify = true;
         continue;
       }
+      // F198: a send not yet verified, for the account its caller named, is kept across that
+      // account's re-announcement too; its preflight verifies the account and requires that one.
+      if (id && !entry.identity && entry.account === id) continue;
       // The first successful B4 verification may announce its identity before
       // the unbound preflight has received it. Actual Auth/logout events cancel it.
       if (entry.identity || event || !id) remove(entry);
@@ -462,7 +465,11 @@ async function readCreditsTail(frames, reading, waitMs, onCredits) {
   }
 }
 
-/** Exactly one active/unknown execution per conversation; replay is explicit. */
+/**
+ * Exactly one active/unknown execution per conversation; replay is explicit. `opts.account` is the
+ * verified account the caller composed the turn for (F198): the send is made for that account only,
+ * and survives its re-announcement (a tab refocus, a token refresh) before the send is verified.
+ */
 export async function sendTurn(body, opts = {}) {
   watchIdentity();
   const key = body?.conversation_id || 'new';
@@ -478,7 +485,8 @@ export async function sendTurn(body, opts = {}) {
     if (typeof request.turn_key !== 'string' || !request.turn_key.trim() || request.turn_key.length > 64) throw Error();
   } catch { return { error: 'A valid original turn key is required.', errorCode: 'invalid_request', isPending: false }; }
   const entry = { request, state: { ...blankState(), isStreaming: true, isPending: true, status: 'connecting',
-    conversationId: request.conversation_id || '' }, identity: null, generation, attempt: 0, retryCount: 0, acknowledged: false };
+    conversationId: request.conversation_id || '' }, identity: null, account: typeof opts.account === 'string' ? opts.account : '',
+    generation, attempt: 0, retryCount: 0, acknowledged: false };
   operations.set(key, entry);
   return await run(entry, opts);
 }
@@ -536,9 +544,17 @@ async function run(entry, opts) {
     if (entry.identity && (entry.reverify || entry.reverifying) && !await raceAbort(reverify(entry), controller.signal)) {
       throw new Error('Your research session changed.');
     }
-    const identity = await raceAbort(verifiedLocalIdentity(), controller.signal);
+    let identity = null;
+    for (let tries = 0; tries < 3 && !identity; tries++) {
+      const heard = generation;
+      identity = await raceAbort(verifiedLocalIdentity(), controller.signal);
+      // F198: an Auth event during the check supersedes the identity it issued. When the send
+      // is still wanted (a named account's re-announcement keeps it), verify again, bounded.
+      if (identity || heard === generation || ![...operations.values()].includes(entry)) break;
+    }
     const version = generation;
-    if (!identity || (entry.identity && (identity.id !== entry.identity.id || identity.epoch !== entry.identity.epoch || identity.token !== entry.identity.token))
+    if (!identity || (entry.account && identity.id !== entry.account)
+        || (entry.identity && (identity.id !== entry.identity.id || identity.epoch !== entry.identity.epoch || identity.token !== entry.identity.token))
         || !await raceAbort(localIdentityIsCurrent(identity), controller.signal) || version !== generation
         || ![...operations.values()].includes(entry) || controller.signal.aborted) throw new Error('Your research session changed.');
     entry.identity = identity;

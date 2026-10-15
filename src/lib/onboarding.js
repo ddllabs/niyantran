@@ -69,6 +69,30 @@ export function isDeskTourDone(deskId) {
   return Object.hasOwn(desks, id) && Boolean(desks[id]);
 }
 
+/**
+ * F200: whether a tour should show: true or false once the signed-in account is bound, null before.
+ * After a page load the shell mounts before the account is verified and bound (userPrefsSync), and
+ * the done flags are the account's, so a read then found none and showed a tour already done.
+ */
+export function tourWanted(kind, deskId) {
+  if (!accountKey()) return null;
+  if (kind === 'home') return !isHomeTourDone();
+  if (kind === 'desk' && deskId) return !isDeskTourDone(deskId);
+  return null;
+}
+
+/** Calls `onWanted(boolean)` now and whenever the account is bound, once the answer is known. */
+export function watchTourWanted(kind, deskId, onWanted, target = typeof window !== 'undefined' ? window : null) {
+  const check = () => {
+    const wanted = tourWanted(kind, deskId);
+    if (wanted !== null) onWanted(wanted);
+  };
+  check();
+  if (!target) return () => {};
+  target.addEventListener('niy-tours', check);
+  return () => target.removeEventListener('niy-tours', check);
+}
+
 export function markDeskTourDone(deskId) {
   const id = String(deskId || '').trim();
   if (!id) return;

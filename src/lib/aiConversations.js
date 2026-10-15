@@ -27,6 +27,8 @@ let owner = null;
 let generation = 0;
 let watching = false;
 let reverifying = null;
+// Auth events heard, of any kind: a check that one overlapped may be made again (F198).
+let announcements = 0;
 let listSequence = 0;
 let draftSequence = 0;
 let persistenceRevision = 0;
@@ -47,6 +49,7 @@ function clearIdentity() {
 // sign-out or another account clears it at once. Nothing protected runs on the
 // superseded identity meanwhile: current() still requires a current one.
 function identityEvent(id) {
+  announcements++;
   if (!id || owner?.id !== id) {
     clearIdentity();
     return;
@@ -92,7 +95,15 @@ async function current(snapshot) {
 // the account is verified again, as it always was.
 async function verifiedScope(snapshot = null, given = null) {
   watchIdentity();
-  const identity = given && await localIdentityIsCurrent(given) ? given : await verifiedLocalIdentity();
+  let identity = null;
+  for (let tries = 0; tries < 3 && !identity; tries++) {
+    const heard = announcements;
+    identity = given && await localIdentityIsCurrent(given) ? given : await verifiedLocalIdentity();
+    // F198: an Auth event during the check supersedes the identity it issued, and a read refused
+    // for that reason would leave a saved answer off the thread. Check again, bounded; a sign-out
+    // or another account still ends the read below.
+    if (identity || heard === announcements || (snapshot && !bound(snapshot))) break;
+  }
   if (!identity || (snapshot && !bound(snapshot))) return null;
   const verifiedGeneration = generation;
   if (!await localIdentityIsCurrent(identity) || generation !== verifiedGeneration) return null;

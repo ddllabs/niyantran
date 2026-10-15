@@ -333,6 +333,9 @@ export function createResearchThread(overrides = {}) {
         emit({ draft: '', store: deps.loadAiState() });
       }
       const options = {
+        // F198: the account this turn was composed for; the transport keeps the send across that
+        // account's re-announcement (a tab refocus) and refuses any other.
+        account: t.owner.id,
         onConversation: async conversation => {
           if (!await current(t)) return;
           emit({ store: deps.adoptConversation(conversation, context) });

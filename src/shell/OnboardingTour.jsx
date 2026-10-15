@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import {
   DESK_TOUR_STEPS,
   HOME_TOUR_STEPS,
-  isDeskTourDone,
-  isHomeTourDone,
   markDeskTourDone,
   markHomeTourDone,
+  watchTourWanted,
 } from '../lib/onboarding.js';
 import { trackProductEvent } from '../lib/productAnalytics.js';
 
@@ -20,15 +19,11 @@ export default function OnboardingTour({ kind, deskId }) {
   const cardRef = useRef(null);
 
   useEffect(() => {
-    if (kind === 'home') {
-      setOpen(!isHomeTourDone());
-      setI(0);
-      return;
-    }
-    if (kind === 'desk' && deskId) {
-      setOpen(!isDeskTourDone(deskId));
-      setI(0);
-    }
+    setOpen(false);
+    setI(0);
+    // F200: decided once the account is bound; until then its done flags cannot be read (after a
+    // page load), and a tour already done showed again.
+    return watchTourWanted(kind, deskId, setOpen);
   }, [kind, deskId]);
 
   function finish(reason = 'done') {
