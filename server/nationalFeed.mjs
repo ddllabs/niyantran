@@ -12,6 +12,7 @@ import {
 } from '../src/data/nationalCurated.js';
 import { allocateSeats } from '../src/lib/nationalKpi.js';
 import { isCabinetDecision, pickReleasePairs } from '../src/lib/parliament.js';
+import { freshNewsRows, headlineKey, isPipelineRelease } from '../src/lib/curatedNews.js';
 
 const WB_MANF = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.MANF.ZS?format=json&date=2000:2030&per_page=100';
 const WB_IND = 'https://api.worldbank.org/v2/country/IND/indicator/NV.IND.TOTL.ZS?format=json&date=2000:2030&per_page=100';
@@ -65,7 +66,25 @@ function pridOf(row) {
   return (String(blob).match(/PRID=(\d+)/i) || [])[1] || '';
 }
 
+// F202: a release page is read once per PRID and kept for 12 hours (at most 600 pages), so a module
+// that dates PIB rows from their pages does not re-read them on every refresh or every request.
+const PIB_PAGE_TTL_MS = 12 * 3_600_000;
+const PIB_PAGE_MAX = 600;
+const pibPageCache = new Map();
+
 async function fetchEnglishPibTitle(prid) {
+  const key = String(prid);
+  const hit = pibPageCache.get(key);
+  if (hit && Date.now() - hit.at < PIB_PAGE_TTL_MS) return hit.value;
+  const value = await readEnglishPibTitle(prid);
+  if (value) {
+    if (pibPageCache.size >= PIB_PAGE_MAX) pibPageCache.delete(pibPageCache.keys().next().value);
+    pibPageCache.set(key, { at: Date.now(), value });
+  }
+  return value;
+}
+
+async function readEnglishPibTitle(prid) {
   const headers = {
     'User-Agent': PIB_UA,
     'Accept-Language': 'en-US,en;q=0.9',
@@ -169,10 +188,13 @@ async function mapPool(items, limit, fn) {
 /** RSS is often Hindi; resolve English titles from PressReleasePage with en cookie. */
 /**
  * PIB rows with English titles. With { ministry: true } (F125) every row's release page is read for
- * its issuing body, including rows whose RSS title is already English.
+ * its issuing body, including rows whose RSS title is already English. PIB's English RSS has no
+ * dates, so each release's date comes from its page. F202: exported so every module that shows PIB
+ * rows dates them; `limit` caps the releases (and so the pages) read, 40 by default.
  */
-async function enrichPibEnglish(rows, opts = {}) {
-  const list = (Array.isArray(rows) ? rows : []).slice(0, 40);
+export async function enrichPibEnglish(rows, opts = {}) {
+  const limit = Number(opts.limit) > 0 ? Number(opts.limit) : 40;
+  const list = (Array.isArray(rows) ? rows : []).slice(0, limit);
   const enriched = await mapPool(list, 8, async (row, idx) => {
     // A release's id is its PRID when it has one, so the same release has the same row on every
     // refresh (the feed store hashes rows); the list position only when there is no PRID.
@@ -291,9 +313,14 @@ export async function serveNational(ctx) {
 
   if (/policy pipeline/i.test(name)) {
     const live = await tryUrls([PIB_PRESS, PIB_FEATURES]);
-    const liveRows = await enrichPibEnglish(live.rows || []);
+    const listed = live.rows || [];
+    // F202 (audit C2): only releases about policy in the making. An English title is judged before
+    // its page is read (so only kept releases cost a page); a Hindi one after its English title is found.
+    const candidates = listed.filter((r) => isHindiText(r.title) || isPipelineRelease(r.title));
+    const liveRows = (await enrichPibEnglish(candidates)).filter((r) => isPipelineRelease(r.title));
+    const scope =
+      'drafts, consultations, notifications, rules, regulations, amendments, gazette notifications, bills, policies, ordinances, guidelines or approved schemes';
     if (liveRows.length) {
-      const enCount = liveRows.filter((r) => !isHindiText(r.title)).length;
       return envelope({
         tier,
         feature: feat,
@@ -302,15 +329,30 @@ export async function serveNational(ctx) {
         links: [PIB_PRESS, PIB_FEATURES, 'https://www.pib.gov.in/ViewRss.aspx?reg=3&lang=1'],
         coverage: { from: '', through: 'present', exhaustive: false },
         fallback: false,
-        note:
-          enCount === liveRows.length
-            ? 'Live PIB RSS with English titles resolved from PressReleasePage (EN cookie). Draft-to-gazette stages are not in the RSS.'
-            : `Live PIB RSS — ${enCount}/${liveRows.length} English titles resolved; remainder still Hindi from the feed locale.`,
+        note: `${liveRows.length} of ${listed.length} latest PIB press releases are ${scope}, judged by their titles; the others are left out. Each is dated from its release page. Draft-to-gazette stages are not in the RSS.`,
         meta: {
           section: 'POLICY PIPELINE — DRAFT TO GAZETTE',
           status: 'LIVE · PIB RSS · EN',
           heading: heading(feat),
         },
+      });
+    }
+    if (listed.length) {
+      return envelope({
+        tier,
+        feature: feat,
+        rows: statusRow({
+          adapter: 'api',
+          url: PIB_PRESS,
+          reason: `none of the ${listed.length} latest PIB press releases is about policy in the making`,
+          featureName: name,
+        }),
+        adapter: 'api',
+        links: [PIB_PRESS, 'https://www.pib.gov.in/ViewRss.aspx?reg=3&lang=1'],
+        coverage: { from: '', through: 'present', exhaustive: false },
+        fallback: false,
+        note: `None of the ${listed.length} latest PIB press releases is one of the ${scope} this module tracks (judged by their titles). Nothing is shown in their place; no records were invented.`,
+        meta: { section: 'POLICY PIPELINE — DRAFT TO GAZETTE', status: 'LIVE · PIB RSS · EN', heading: heading(feat) },
       });
     }
     const rows = (archive || []).map((r, i) => ({ ...r, id: r.id != null ? r.id : String(i) }));
@@ -484,11 +526,13 @@ export async function serveNational(ctx) {
     const person = statementLeader(ctx.person);
     const newsUrl = statementsNewsRss(person);
     const rss = await tryUrls([newsUrl]);
-    if (rss.rows?.length) {
+    // F202 (audit C6): the last 7 days only, one row per story.
+    const fresh = freshNewsRows(rss.rows, { days: 7 });
+    if (fresh.length) {
       return envelope({
         tier,
         feature: feat,
-        rows: rss.rows.map((r) => ({ ...r, person })),
+        rows: fresh.map((r) => ({ ...r, person })),
         adapter: 'news-search',
         links: [newsUrl],
         coverage: { from: '', through: '7d', exhaustive: false },
@@ -509,7 +553,7 @@ export async function serveNational(ctx) {
       rows: statusRow({
         adapter: 'news-search',
         url: newsUrl,
-        reason: rss.error || 'empty coverage wire',
+        reason: rss.error || (rss.rows?.length ? 'no coverage in the last 7 days' : 'empty coverage wire'),
         featureName: name,
       }),
       adapter: 'news-search',
@@ -536,8 +580,12 @@ export async function serveNational(ctx) {
 
     const [pibLive, topLive, ecoLive] = await Promise.all([tryUrls([PIB_PRESS]), tryUrls([topNews]), tryUrls([ecoNews])]);
     const pibRows = await enrichPibEnglish(pibLive.rows || []);
-    const topRows = topLive.rows || [];
-    const ecoRows = ecoLive.rows || [];
+    // F202 (audit C6): the brief's 3 days only, one row per story; a story in both searches is shown once.
+    const topRows = freshNewsRows(topLive.rows, { days: 3 });
+    const topKeys = new Set(topRows.map((r) => headlineKey(r.title, r.publisher)));
+    const topLinks = new Set(topRows.map((r) => r.source_url));
+    const ecoRows = freshNewsRows(ecoLive.rows, { days: 3 })
+      .filter((r) => !topLinks.has(r.source_url) && !topKeys.has(headlineKey(r.title, r.publisher)));
 
     const tagged = [
       ...topRows.map((r) => ({ ...r, section: 'Top of the Day', source: r.publisher || r.source || 'News' })),

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CURATED_NEWS, curatedNewsFor, curatedNewsRows } from './curatedNews.js';
 
 /**
@@ -7,6 +7,8 @@ import { CURATED_NEWS, curatedNewsFor, curatedNewsRows } from './curatedNews.js'
  * Google News results for each module's search on 2026-10-15; the off-topic ones are what the
  * search also returned (or what a looser search returned).
  */
+const NOW = Date.parse('2026-10-15T12:00:00Z');
+
 const SAMPLES = {
   'sports:Sports Governance & Policy': {
     on: [
@@ -44,28 +46,30 @@ const SAMPLES = {
 };
 
 describe('curated news modules (F196)', () => {
-  it('are exactly the four batch-1 news modules, found by any tier name a request uses', () => {
-    expect(Object.keys(CURATED_NEWS).sort()).toEqual(Object.keys(SAMPLES).sort());
+  it('include the four batch-1 news modules, found by any tier name a request uses', () => {
+    // F202 added the audit's older news modules (src/lib/newsGuards.test.js covers them).
+    expect(Object.keys(CURATED_NEWS)).toEqual(expect.arrayContaining(Object.keys(SAMPLES)));
     expect(curatedNewsFor('sports', 'Sports Governance & Policy')).toBe(CURATED_NEWS['sports:Sports Governance & Policy']);
     expect(curatedNewsFor('state', ' Legislative Productivity Comparison ')).toBeTruthy();
-    expect(curatedNewsFor('state', 'Governor Assent Tracker')).toBeNull();
     expect(curatedNewsFor('sports', 'Cricket Wire')).toBeNull();
   });
 
   it.each(Object.entries(SAMPLES))('%s keeps on-topic headlines and drops off-topic ones', (id, { on, off }) => {
     const spec = CURATED_NEWS[id];
     const rows = [...on, ...off].map((title, i) => ({ title, source_url: `https://example.com/${i}`, date: 'Wed, 15 Oct 2026 10:00:00 GMT' }));
-    expect(curatedNewsRows(rows, spec).map((r) => r.title).sort()).toEqual([...on].sort());
+    expect(curatedNewsRows(rows, spec, { now: NOW }).map((r) => r.title).sort()).toEqual([...on].sort());
   });
 
-  it('keeps each link once, dates rows as YYYY-MM-DD and lists the newest first', () => {
+  it('keeps each link once, dates rows as YYYY-MM-DD, lists the newest first and drops stories past 30 days', () => {
     const spec = CURATED_NEWS['state:MLA Defection & Anti-defection Case Tracker'];
     const rows = curatedNewsRows([
-      { title: 'Court disqualifies Mukul Roy as Trinamool MLA', source_url: 'https://a.example/1', date: 'Fri, 14 Nov 2025 08:00:00 GMT' },
-      { title: 'Telangana HC disqualifies MLA under anti-defection law', source_url: 'https://a.example/2', date: 'Thu, 18 Sep 2026 08:00:00 GMT' },
-      { title: 'Telangana HC disqualifies MLA under anti-defection law (updated)', source_url: 'https://a.example/2', date: 'Thu, 18 Sep 2026 09:00:00 GMT' },
-    ], spec);
-    expect(rows.map((r) => [r.date, r.source_url])).toEqual([['2026-09-18', 'https://a.example/2'], ['2025-11-14', 'https://a.example/1']]);
+      { title: 'Court disqualifies Mukul Roy as Trinamool MLA', source_url: 'https://a.example/1', date: 'Wed, 30 Sep 2026 08:00:00 GMT' },
+      { title: 'Telangana HC disqualifies MLA under anti-defection law', source_url: 'https://a.example/2', date: 'Thu, 08 Oct 2026 08:00:00 GMT' },
+      { title: 'Telangana HC disqualifies MLA under anti-defection law (updated)', source_url: 'https://a.example/2', date: 'Thu, 08 Oct 2026 09:00:00 GMT' },
+      // F202 (audit C6): the search also returned 2019 stories; a module keeps 30 days.
+      { title: 'Karnataka Speaker disqualifies 17 rebel MLAs under anti-defection law', source_url: 'https://a.example/3', date: 'Thu, 25 Jul 2019 08:00:00 GMT' },
+    ], spec, { now: NOW });
+    expect(rows.map((r) => [r.date, r.source_url])).toEqual([['2026-10-08', 'https://a.example/2'], ['2026-09-30', 'https://a.example/1']]);
   });
 
   it('every module says it is news coverage, and Legislative Productivity says it measures nothing', () => {
@@ -75,13 +79,17 @@ describe('curated news modules (F196)', () => {
 });
 
 describe('curated news in the source data and the loader (F196)', () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+  // Only Date is faked: the fixtures are dated 15 Oct 2026 and a module keeps 30 days.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.resetModules(); });
   const registry = JSON.parse(readFileSync(new URL('../data/source-registry.json', import.meta.url), 'utf8'));
   const featureMap = JSON.parse(readFileSync(new URL('../data/html-feature-map.json', import.meta.url), 'utf8'));
 
   it('the registry and the feature map name the search the loader asks, with a 30-minute refresh', async () => {
     const { newsRssUrlForFeature } = await import('../../server/featureFeed.mjs');
-    for (const id of Object.keys(CURATED_NEWS)) {
+    // The four F196 modules. The F202 modules still have older searches stored in the registry and
+    // the feature map (changing those files needs a data-migration task); the loader asks their own.
+    for (const id of Object.keys(SAMPLES)) {
       const [tier, feature] = id.split(/:(.*)/s);
       const url = newsRssUrlForFeature(feature);
       // A curated search, not the words of the module's name.
@@ -110,7 +118,7 @@ describe('curated news in the source data and the loader (F196)', () => {
     const out = await serveFeatureFeed(new URLSearchParams({ tier, feature }));
     expect(asked).toEqual([newsRssUrlForFeature(feature)]);
     expect(out.source.adapter).toBe(CURATED_NEWS[id].adapter);
-    expect(out.source.note).toBe(CURATED_NEWS[id].note);
+    expect(out.source.note).toBe(`${SAMPLES[id].on.length} on-topic stories in the last 30 days. ${CURATED_NEWS[id].note}`);
     expect(out.rows.map((r) => r.title).sort()).toEqual([...SAMPLES[id].on].sort());
   }, 30_000);
 });

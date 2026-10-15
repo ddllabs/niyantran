@@ -65,12 +65,12 @@ import {
   rssWireRows as entRssRows,
 } from '../src/lib/entertainmentPack.js';
 import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
-import { curatedNewsFor, curatedNewsRows } from '../src/lib/curatedNews.js';
+import { WIRE_GUARDS, curatedNewsFor, curatedNewsRows, decodeEntities, freshNewsRows, newsDays } from '../src/lib/curatedNews.js';
 import { COMPARISON_DEFAULT_TABLE, HANDBOOK, HANDBOOK_NOTE, HANDBOOK_TABLES, HANDBOOK_TABLE_NUMBERS, handbookModuleFor, handbookOwner, handbookTableLabel, handbookTableVariant } from '../src/lib/rbiHandbookTables.js';
 import { newestYearsWithin, parseHandbookTable } from '../src/lib/rbiHandbook.js';
 import { compareStates, comparisonYears, rankedWithin, wholeYearsOf } from '../src/lib/stateComparison.js';
 import { RBI_PRESS_RSS, parseRbiPressRss, rbiReleaseUrl, sdlReleaseKind, sdlRows } from '../src/lib/rbiSdl.js';
-import { serveNational, statementLeader } from './nationalFeed.mjs';
+import { enrichPibEnglish, serveNational, statementLeader } from './nationalFeed.mjs';
 import { loadCentreStateFundFlow as loadCentreStateFundFlowLive, STAT1_URL } from './budgetStat1.mjs';
 import * as assetsLive from './assetsApi.mjs';
 import * as resourcesLive from './resourcesApi.mjs';
@@ -168,28 +168,6 @@ function mlaCoverageNewsRssUrl() {
   return (
     'https://news.google.com/rss/search?q=' +
     encodeURIComponent('India (MLA OR "legislative assembly" OR "Vidhan Sabha") when:7d') +
-    '&hl=en-IN&gl=IN&ceid=IN:en'
-  );
-}
-
-/** District media coverage — never search product name "District Media Monitor…". */
-function districtMediaNewsRssUrl() {
-  return (
-    'https://news.google.com/rss/search?q=' +
-    encodeURIComponent(
-      'India (district OR collectorate OR "district magistrate" OR "zilla parishad") (protest OR land OR water OR road OR school OR hospital) when:7d',
-    ) +
-    '&hl=en-IN&gl=IN&ceid=IN:en'
-  );
-}
-
-/** State governance coverage — never search product name "State Governance Brief". */
-function stateGovernanceNewsRssUrl() {
-  return (
-    'https://news.google.com/rss/search?q=' +
-    encodeURIComponent(
-      'India ("state government" OR "chief minister" OR "Vidhan Sabha" OR cabinet OR secretariat) when:7d',
-    ) +
     '&hl=en-IN&gl=IN&ceid=IN:en'
   );
 }
@@ -325,26 +303,57 @@ const TOPIC_STOP = new Set([
   'personalized',
   'deep',
   'dive',
+  // F202 (audit C3): product words a name-built search must never ask for ("Municipal Watch"
+  // searched "Watch" and answered with streaming guides and Bloomberg videos).
+  'watch',
+  'impact',
+  'engine',
+  'report',
+  'card',
+  'dashboard',
+  'analytics',
+  'explorer',
+  'feed',
+  'live',
+  'radar',
+  'pulse',
+  'hub',
+  'comparison',
+  'overview',
+  'profiles',
+  'tool',
+  'register',
+  'snapshot',
 ]);
 
 /** Curated topic queries — never the product name in quotes. */
 const FEATURE_TOPIC_Q = {
+  // F202: each checked against live Google News results on 2026-10-15 and kept by its title guard
+  // (src/lib/curatedNews.js); the guard, not the search, decides what a module shows.
   'assembly proceedings digest':
-    'India ("Vidhan Sabha" OR "assembly proceedings" OR "legislative assembly" OR "assembly session")',
+    'India ("Vidhan Sabha" OR "assembly session" OR "assembly proceedings" OR "legislative assembly" OR "assembly passes" OR "House adjourned")',
   'governor assent tracker':
-    'India (governor) (assent OR "returned the bill" OR "withheld assent" OR ordinance)',
+    'India governor (assent OR "withheld assent" OR "returned the bill" OR "pending bills" OR "reserved for President" OR "sent back") (bill OR bills OR ordinance)',
+  // The Union Cabinet (the National desk's module); the State desk's module has its own search below.
   'cabinet decisions':
     'India (cabinet) (decision OR approves OR approved OR "cabinet meeting")',
+  'state:cabinet decisions':
+    '("state cabinet" OR "cabinet meeting" OR "cabinet approves" OR "cabinet nod" OR "cabinet clears") (CM OR "chief minister" OR state) -"Union Cabinet"',
+  'municipal watch':
+    'India ("municipal corporation" OR "municipal council" OR "civic body" OR "civic polls" OR "urban local body" OR corporator OR "nagar nigam" OR "municipal commissioner")',
+  'panchayat watch':
+    'India ("gram panchayat" OR sarpanch OR "panchayati raj" OR "zilla parishad" OR "panchayat polls" OR "panchayat election" OR "gram sabha")',
   'bureaucrat transfer & posting tracker':
     'India (IAS OR IPS OR bureaucrat OR "chief secretary") (transfer OR transferred OR posting OR posted)',
-  'cag audit tracker': 'India (CAG OR "Comptroller and Auditor General") (audit OR report)',
+  'cag audit tracker':
+    'India ("CAG report" OR "CAG audit" OR "Comptroller and Auditor General" OR "CAG flags" OR "CAG finds")',
   'state fiscal deep-dive': 'India ("state budget" OR "fiscal deficit" OR "state finances" OR FRBM)',
   'centre-state fund flow tracker':
     'India ("finance commission" OR "centrally sponsored" OR "centre-state" OR "tax devolution")',
   'state governance brief':
-    'India ("state government" OR "chief minister" OR "Vidhan Sabha" OR cabinet OR secretariat)',
+    'India ("state government" OR "chief minister" OR "Vidhan Sabha" OR "state cabinet" OR "state minister") -"Union Cabinet" -"central government employees"',
   'district media monitor':
-    'India (district OR collectorate OR "district magistrate") (protest OR land OR water OR road OR school OR hospital)',
+    'India (district OR collectorate OR "district magistrate" OR "district collector" OR "zilla parishad") (protest OR land OR water OR road OR school OR hospital) -"Indian River" -county',
   'open fronts': 'sourcecountry:IN OR global (war OR conflict OR ceasefire OR frontline)',
   'nuclear watch': '(nuclear OR IAEA OR enrichment OR "ballistic missile") sourcelang:english',
   'maritime choke-points':
@@ -362,11 +371,11 @@ const FEATURE_TOPIC_Q = {
   'cat & consumer disputes (ncdrc) watch':
     '("Central Administrative Tribunal" OR NCDRC OR "consumer commission" OR "consumer forum") (order OR judgment OR directs OR compensation)',
   'hc judge profiles & bench analytics':
-    '("High Court" OR "Supreme Court") (collegium OR justice OR judge) (appointed OR elevated OR transferred OR retires OR "sworn in" OR recommends)',
+    'India ("High Court" OR collegium) ("additional judges" OR "chief justice" OR judge OR judges OR justice) (appointed OR elevated OR transferred OR retires OR "sworn in" OR oath OR recommends OR collegium)',
   'icc proceedings':
     '("International Criminal Court" OR "ICC prosecutor" OR "ICC judges" OR "ICC arrest warrant" OR "Rome Statute") -cricket',
   'icj proceedings':
-    '("International Court of Justice" OR "ICJ ruling" OR "ICJ case" OR "ICJ hearing" OR "ICJ judges") -cricket',
+    '("International Court of Justice" OR "ICJ ruling" OR "ICJ case" OR "ICJ hearing" OR "ICJ judges" OR "ICJ advisory opinion") -cricket -Nobel',
   'wto dispute settlement':
     '("World Trade Organization" OR WTO) ("dispute settlement" OR "dispute panel" OR "panel report" OR "Appellate Body" OR "files complaint" OR "requests consultations")',
   'sector tribunals (itat / tdsat / sat / drt)':
@@ -388,17 +397,29 @@ const FEATURE_TOPIC_Q = {
     'India (MLA OR MLAs OR legislator) (defection OR "anti-defection" OR "Tenth Schedule" OR "disqualification petition" OR disqualified OR "switch party" OR "joins BJP" OR "joins Congress" OR "switched sides" OR defect)',
 };
 
-/** Whether a feature has a curated topic query (FEATURE_TOPIC_Q), rather than the name-derived fallback. */
-function hasCuratedTopic(featureName) {
-  const n = norm(featureName);
-  return Boolean(n) && Object.keys(FEATURE_TOPIC_Q).some((k) => n.includes(k) || k.includes(n));
+/**
+ * The FEATURE_TOPIC_Q key a module's name answers to, or ''. F202 (audit C4): the name must equal the
+ * key (a tier-qualified key first), or equal it once a parenthesised note such as "(State Cadre)" is
+ * dropped. Before, matching was by substring both ways, so one module's search could serve another
+ * ("Sector Policy — …/Critical Minerals" was answered by "critical minerals").
+ */
+function topicKeyFor(featureName, tier = '') {
+  const full = norm(featureName);
+  if (!full) return '';
+  const bare = full.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = resolveTier(tier);
+  const candidates = t ? [`${t}:${full}`, `${t}:${bare}`, full, bare] : [full, bare];
+  return candidates.find((k) => Object.prototype.hasOwnProperty.call(FEATURE_TOPIC_Q, k)) || '';
 }
 
-function topicQueryForFeature(featureName) {
-  const n = norm(featureName);
-  for (const [k, q] of Object.entries(FEATURE_TOPIC_Q)) {
-    if (n.includes(k) || k.includes(n)) return q;
-  }
+/** Whether a feature has a curated topic query (FEATURE_TOPIC_Q), rather than the name-derived fallback. */
+function hasCuratedTopic(featureName, tier = '') {
+  return Boolean(topicKeyFor(featureName, tier));
+}
+
+function topicQueryForFeature(featureName, tier = '') {
+  const key = topicKeyFor(featureName, tier);
+  if (key) return FEATURE_TOPIC_Q[key];
   const cleaned = String(featureName || '')
     .replace(/\([^)]*\)/g, ' ')
     .replace(/[–—&+/|,]/g, ' ')
@@ -419,8 +440,13 @@ function topicQueryForFeature(featureName) {
  */
 export const NEWS_TOPIC_ROUTE = 'news-topic';
 
-export function newsRssUrlForFeature(featureName) {
-  const q = `${topicQueryForFeature(featureName)} when:7d`;
+/**
+ * The module's Google News search. With its tier, a tier-qualified search (State Cabinet Decisions)
+ * and a curated module's own window (`when`, e.g. 30d for Governor Assent) apply; 7 days otherwise.
+ */
+export function newsRssUrlForFeature(featureName, tier = '') {
+  const when = (tier && curatedNewsFor(resolveTier(tier), featureName)?.when) || '7d';
+  const q = `${topicQueryForFeature(featureName, tier)} when:${when}`;
   return (
     'https://news.google.com/rss/search?q=' +
     encodeURIComponent(q) +
@@ -428,8 +454,9 @@ export function newsRssUrlForFeature(featureName) {
   );
 }
 
+// F202: the State Governance Brief no longer takes PIB (PIB is the Union government's wire).
 function wantsPibWire(featureName) {
-  return /cabinet decisions|state governance brief|policy pipeline|morning brief/i.test(
+  return /cabinet decisions|policy pipeline|morning brief/i.test(
     String(featureName || ''),
   );
 }
@@ -765,14 +792,12 @@ function parseRssOrXml(text) {
       || /href="([^"]+)"/i.exec(block)?.[1]
       || '';
     // F128: Google News names each item's publisher in <source>; kept as plain text when present.
-    const publisher = tag('source')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&(amp|quot|apos|#39);/g, (_, e) => ({ amp: '&', quot: '"', apos: "'", '#39': "'" })[e])
-      .trim();
+    const publisher = decodeEntities(tag('source').replace(/<[^>]+>/g, ''));
     items.push(
       flattenRow({
         date: tag('pubDate') || tag('updated') || tag('date'),
-        title: tag('title'),
+        // F202: titles arrive entity-escaped, some twice (Carbon Brief's &#8217;, Google's &amp;amp;).
+        title: decodeEntities(tag('title')),
         source_url: href,
         summary: plainSummary(tag('description')).slice(0, 400),
         ...(publisher ? { publisher } : {}),
@@ -1303,13 +1328,20 @@ async function serveHome(featureName) {
 }
 
 /**
- * F196: a curated news module. Its Google News search (FEATURE_TOPIC_Q), kept to the headlines its
- * title guard accepts, newest first (src/lib/curatedNews.js). A status row when nothing is left.
+ * F196: a curated news module. Its Google News search (FEATURE_TOPIC_Q, built at request time so
+ * no stored registry or feature-map search is asked), kept to the headlines its title guard
+ * accepts, no older than its window, one row per story, newest first (src/lib/curatedNews.js).
+ * F202: the note says how many stories are left and over how many days; with none left a status row
+ * says so (nothing is padded). Only a module with a stored pack (`archive`) shows it, and only when
+ * the search itself failed.
  */
 async function serveCuratedNews(tier, feat, spec) {
-  const url = newsRssUrlForFeature(feat.htmlFeature);
+  const url = newsRssUrlForFeature(feat.htmlFeature, tier);
   const got = await tryUrls([url]);
   const rows = curatedNewsRows(got.rows, spec);
+  const days = newsDays(spec);
+  const window = `${days}d`;
+  const meta = { heading: feat.htmlFeature, section: spec.section, status: 'LIVE · NEWS RSS', items: rows.length };
   if (rows.length) {
     return envelope({
       tier,
@@ -1317,10 +1349,23 @@ async function serveCuratedNews(tier, feat, spec) {
       rows,
       adapter: spec.adapter,
       links: [url],
-      coverage: { from: '', through: '', exhaustive: false },
+      coverage: { from: '', through: window, exhaustive: false },
       fallback: false,
-      note: spec.note,
-      meta: { heading: feat.htmlFeature, section: spec.section, status: 'LIVE · NEWS RSS' },
+      note: `${rows.length} on-topic ${rows.length === 1 ? 'story' : 'stories'} in the last ${days} days. ${spec.note}`,
+      meta,
+    });
+  }
+  const archived = !got.rows.length && spec.archive ? loadEmbedded(spec.archive) : null;
+  if (archived?.length) {
+    return envelope({
+      tier,
+      feature: feat,
+      rows: capRows(archived, false),
+      adapter: 'embedded',
+      links: [url],
+      coverage: { from: '', through: '', exhaustive: false },
+      fallback: true,
+      note: `The news search failed (${shortFail(got.error) || 'empty'}). Showing the stored pack. ${spec.note}`,
     });
   }
   return envelope({
@@ -1329,14 +1374,14 @@ async function serveCuratedNews(tier, feat, spec) {
     rows: statusRow({
       adapter: spec.adapter,
       url,
-      reason: got.rows.length ? 'the news search returned no on-topic headlines' : got.error,
+      reason: got.rows.length ? `no on-topic headlines in the last ${days} days` : got.error,
       featureName: feat.htmlFeature,
     }),
     adapter: spec.adapter,
     links: [url],
-    coverage: { from: '', through: '', exhaustive: false },
+    coverage: { from: '', through: window, exhaustive: false },
     fallback: false,
-    note: `${spec.note} The news search returned nothing on topic. No records were invented.`,
+    note: `No on-topic stories in the last ${days} days${got.rows.length ? ` (${got.rows.length} search results were off topic or older)` : ''}. ${spec.note} No records were invented.`,
   });
 }
 
@@ -1641,7 +1686,7 @@ export async function serveFeatureFeed(searchParams) {
   // to the module's Google News topic search, built here from its current name (newsRssUrlForFeature),
   // so the address cannot go stale. Empty for a row that routes by status or archive. Any other value is
   // ignored (gdeltRegistry.test.js keeps the shipped register to the two).
-  const openLiveFallback = entry?.openLiveFallback === NEWS_TOPIC_ROUTE ? newsRssUrlForFeature(feat.htmlFeature) : '';
+  const openLiveFallback = entry?.openLiveFallback === NEWS_TOPIC_ROUTE ? newsRssUrlForFeature(feat.htmlFeature, tier) : '';
 
   // Transit: never pull full OpenSky /states/all (often times out). Use bbox air proxy.
   if (/^transit$/i.test(feat.htmlFeature || '')) {
@@ -1784,13 +1829,15 @@ export async function serveFeatureFeed(searchParams) {
     // Desks without an extracted docket: Google News RSS coverage (honest wire, not a cause-list).
     // A curated forum query (F84) wins over the registry's product-name search.
     {
-      const newsUrl = hasCuratedTopic(feat.htmlFeature) || !/news\.google\.com/i.test(primary || '')
-        ? newsRssUrlForFeature(feat.htmlFeature)
+      const newsUrl = hasCuratedTopic(feat.htmlFeature, tier) || !/news\.google\.com/i.test(primary || '')
+        ? newsRssUrlForFeature(feat.htmlFeature, tier)
         : primary;
       const wire = await tryUrls([newsUrl].filter(Boolean));
       const wireNote = 'Google News RSS — court / litigation coverage. Not an official docket or cause list.';
-      if (wire.rows?.length) {
-        const rows = wire.rows.slice(0, 100).map((r) => ({
+      // F202 (audit C6): the last 7 days only, one row per story.
+      const fresh = freshNewsRows(wire.rows, { days: 7 });
+      if (fresh.length) {
+        const rows = fresh.map((r) => ({
           ...r,
           section: 'COVERAGE — GOOGLE NEWS RSS',
           reporting_search: 'Google News RSS — coverage mentions, not an official court dataset',
@@ -1803,7 +1850,7 @@ export async function serveFeatureFeed(searchParams) {
           links: [newsUrl],
           coverage: { from: '', through: '7d', exhaustive: false },
           fallback: false,
-          note: `${rows.length} coverage rows (${wireNote}).`,
+          note: `${rows.length} coverage rows in the last 7 days (${wireNote}).`,
           meta: {
             heading: feat.htmlFeature,
             wire: rows.length,
@@ -1819,7 +1866,7 @@ export async function serveFeatureFeed(searchParams) {
       rows: statusRow({
         adapter: adapter || 'unmapped',
         url: primary || links[0] || '',
-        reason: 'no extracted court table and coverage wire empty',
+        reason: 'no extracted court table and no coverage in the last 7 days',
         featureName: feat.htmlFeature,
       }),
       adapter: adapter || 'unmapped',
@@ -2061,8 +2108,9 @@ export async function serveFeatureFeed(searchParams) {
       // The PIB feed is every ministry's releases, so it is filtered to technology titles.
       const news = aiTechNewsRssUrl();
       const [pibGot, newsGot] = await Promise.all([tryUrls([PIB_PRESS_RSS]), tryUrls([news])]);
-      const pibRows = (pibGot.rows || [])
-        .filter((r) => isTechTitle(r.title) && !/[\u0900-\u097F]/.test(String(r.title || '')))
+      // F202 (audit C2): the technology releases are dated from their pages (at most 10, cached).
+      const pibTech = (pibGot.rows || []).filter((r) => isTechTitle(r.title) && !/[\u0900-\u097F]/.test(String(r.title || '')));
+      const pibRows = (await enrichPibEnglish(pibTech, { limit: 10 }))
         .map((r) => ({ ...r, publisher: r.publisher || 'Press Information Bureau' }));
       const seen = new Set();
       const rows = [...pibRows, ...(newsGot.rows || [])]
@@ -2175,7 +2223,16 @@ export async function serveFeatureFeed(searchParams) {
 
     if (slice === 'news') {
       const parts = await Promise.all(NEWS_FEEDS.map((f) => rssTagged(f.url, { outlet: f.outlet, source: f.outlet })));
-      const live = newsRows(parts.flat());
+      // F202 (audit): Mongabay India's feed also carries wildlife and botany features, so its items
+      // keep only climate and energy headlines; every outlet keeps 30 days, one row per story.
+      const climate = WIRE_GUARDS.climate;
+      const all = parts.flat();
+      const mongabay = all.filter((r) => /mongabay/i.test(r.outlet || ''));
+      const kept = [
+        ...curatedNewsRows(mongabay, climate),
+        ...freshNewsRows(all.filter((r) => !/mongabay/i.test(r.outlet || '')), { days: climate.days }),
+      ];
+      const live = newsRows(kept);
       if (live.length) {
         return envelope({
           tier,
@@ -2878,31 +2935,39 @@ export async function serveFeatureFeed(searchParams) {
   if (/^geopolitics news wire$/i.test(feat.htmlFeature || '') || dataset === 'geo_news_wire.csv') {
     const bbc = 'https://feeds.bbci.co.uk/news/world/rss.xml';
     // Both together, BBC preferred: a slow BBC must not use up the 4 s limit (review, F169 T4).
-    const [rss, got] = await Promise.all([rssTagged(bbc, { outlet: 'BBC World' }), tryUrls([GEO_NEWS_WIRE_NEWS])]);
+    const [rssAll, got] = await Promise.all([rssTagged(bbc, { outlet: 'BBC World' }), tryUrls([GEO_NEWS_WIRE_NEWS])]);
+    // F202 (audit): BBC World carries every world story (crime, weather, celebrity); a geopolitics
+    // guard keeps conflict, diplomacy, elections and governments. The search's rows, guarded the
+    // same way, follow BBC's. Seven days, one row per story.
+    const geo = WIRE_GUARDS.geopolitics;
+    const rss = curatedNewsRows(rssAll, geo);
+    const searched = curatedNewsRows(got.rows, geo);
     if (rss.length) {
+      const seen = new Set(rss.map((r) => r.source_url));
+      const rows = [...rss, ...searched.filter((r) => !seen.has(r.source_url))].slice(0, 100);
       return envelope({
         tier,
         feature: feat,
-        rows: capRows(rss, false),
+        rows,
         adapter: 'news-search',
         links: [bbc, GEO_NEWS_WIRE_NEWS],
-        coverage: { from: '', through: 'present', exhaustive: false },
+        coverage: { from: '', through: `${geo.days}d`, exhaustive: false },
         fallback: false,
-        note: 'BBC World news feed. Reporting, not an official government dataset.',
-        meta: { section: 'TOP WORLD STORIES — BBC WORLD', status: 'LIVE · BBC WORLD', note: `${rss.length} stories` },
+        note: `${rows.length} world-affairs stories in the last ${geo.days} days: ${rss.length} from BBC World${rows.length > rss.length ? `, ${rows.length - rss.length} from a Google News geopolitics search` : ''}. BBC items that are not about conflict, diplomacy, elections or governments are left out. Reporting, not an official government dataset.`,
+        meta: { section: 'TOP WORLD STORIES — BBC WORLD', status: 'LIVE · BBC WORLD', note: `${rows.length} stories` },
       });
     }
-    if (got.rows.length) {
+    if (searched.length) {
       return envelope({
         tier,
         feature: feat,
-        rows: capRows(got.rows, false),
+        rows: searched,
         adapter: 'news-search',
         links: [GEO_NEWS_WIRE_NEWS, bbc],
-        coverage: { from: '', through: '3d', exhaustive: false },
+        coverage: { from: '', through: `${geo.days}d`, exhaustive: false },
         fallback: false,
-        note: 'Google News search for geopolitics and diplomacy (BBC World did not answer). Reporting, not an official government dataset.',
-        meta: { section: 'TOP WORLD STORIES — NEWS SEARCH', status: 'LIVE · NEWS SEARCH', note: `${got.rows.length} stories` },
+        note: `${searched.length} world-affairs stories in the last ${geo.days} days from a Google News search for geopolitics and diplomacy (BBC World ${rssAll.length ? 'had none on topic' : 'did not answer'}). Reporting, not an official government dataset.`,
+        meta: { section: 'TOP WORLD STORIES — NEWS SEARCH', status: 'LIVE · NEWS SEARCH', note: `${searched.length} stories` },
       });
     }
     return envelope({
@@ -3185,116 +3250,8 @@ export async function serveFeatureFeed(searchParams) {
     }
   }
 
-  // District Media Monitor: Google News RSS district / local-admin coverage, never the product name.
-  if (/district media monitor/i.test(feat.htmlFeature || '') || dataset === 'up_district_media.csv') {
-    const newsUrl = districtMediaNewsRssUrl();
-    const archivePack = loadEmbedded('up_district_media.csv');
-
-    const live = await tryUrls([newsUrl]);
-
-    if (live.rows?.length) {
-      return envelope({
-        tier,
-        feature: feat,
-        rows: capRows(live.rows, false),
-        adapter: 'news-search',
-        links: [newsUrl],
-        coverage: { from: '', through: '7d', exhaustive: false },
-        fallback: false,
-        note: 'Live Google News RSS — India district / local-admin coverage themes.',
-        meta: {
-          section: 'DISTRICT MEDIA — GOOGLE NEWS RSS',
-          status: 'LIVE · NEWS RSS',
-          heading: feat.htmlFeature,
-          items: live.rows.length,
-        },
-      });
-    }
-
-    if (archivePack?.length) {
-      return envelope({
-        tier,
-        feature: feat,
-        rows: capRows(archivePack, false),
-        adapter: 'embedded',
-        links: [newsUrl],
-        coverage,
-        fallback: true,
-        note: `Live district media wire failed (${live.error || 'empty'}). Showing last-known-good up_district_media pack.`,
-      });
-    }
-
-    return envelope({
-      tier,
-      feature: feat,
-      rows: statusRow({
-        adapter: 'news-search',
-        url: newsUrl,
-        reason: live.error || 'empty district media wire',
-        featureName: feat.htmlFeature,
-      }),
-      adapter: 'news-search',
-      links: [newsUrl],
-      coverage: { through: '7d' },
-      fallback: false,
-      note: 'District media wire returned no rows. No stories were invented.',
-    });
-  }
-
-  // State Governance Brief: PIB and Google News RSS state-government coverage, never the product name.
-  if (/^state governance brief$/i.test(feat.htmlFeature || '')) {
-    const newsUrl = stateGovernanceNewsRssUrl();
-    const pibUrl = PIB_PRESS_RSS;
-
-    const pib = await tryUrls([pibUrl]);
-    const wire = await tryUrls([newsUrl]);
-    const wireNote = 'Google News RSS — state government / CM / Vidhan Sabha coverage';
-
-    const pibRows = (pib.rows || []).slice(0, 40).map((r) => ({
-      ...r,
-      section: 'Government wire (PIB)',
-      source: r.source || 'PIB',
-    }));
-    const wireRows = (wire.rows || []).slice(0, 100).map((r) => ({
-      ...r,
-      section: 'State coverage',
-      reporting_search: 'Google News RSS — coverage mentions, not an official briefing',
-    }));
-    const rows = [...pibRows, ...wireRows];
-    if (rows.length) {
-      return envelope({
-        tier,
-        feature: feat,
-        rows,
-        adapter: 'news-search',
-        links: [pibUrl, newsUrl],
-        coverage: { from: '', through: '7d', exhaustive: false },
-        fallback: false,
-        note: `${pibRows.length} PIB · ${wireRows.length} state coverage (${wireNote}). Not a personalised governance digest.`,
-        meta: {
-          heading: 'State Governance Brief',
-          pib: pibRows.length,
-          wire: wireRows.length,
-          status: 'LIVE · PIB / NEWS RSS',
-        },
-      });
-    }
-    return envelope({
-      tier,
-      feature: feat,
-      rows: statusRow({
-        adapter: 'news-search',
-        url: newsUrl,
-        reason: pib.error || wire.error || 'empty state governance wire',
-        featureName: feat.htmlFeature,
-      }),
-      adapter: 'news-search',
-      links: [pibUrl, newsUrl],
-      coverage: { through: '7d' },
-      fallback: false,
-      note: 'State Governance Brief wires returned no rows. No stories were invented.',
-    });
-  }
+  // District Media Monitor and State Governance Brief are news modules with title guards (F202,
+  // src/lib/curatedNews.js), answered by serveCuratedNews before this point.
 
   // Centre–State Fund Flow: live Union Budget Statement 1 XLSX (not GDELT / news).
   if (/centre[-–]?state fund flow/i.test(feat.htmlFeature || '')) {
@@ -3504,19 +3461,21 @@ export async function serveFeatureFeed(searchParams) {
     const rewrite = !skipGeoDataset && !entry && feat.route === NEWS_TOPIC_ROUTE;
 
     if (rewrite) {
-      const newsUrl = newsRssUrlForFeature(feat.htmlFeature);
+      const newsUrl = newsRssUrlForFeature(feat.htmlFeature, tier);
       const pibUrl = wantsPibWire(feat.htmlFeature) ? PIB_PRESS_RSS : '';
 
-      const pib = pibUrl ? await tryUrls([pibUrl]) : { rows: [] };
-      const wire = await tryUrls([newsUrl]);
+      const [pib, wire] = await Promise.all([pibUrl ? tryUrls([pibUrl]) : { rows: [] }, tryUrls([newsUrl])]);
       const wireNote = 'Google News RSS topic search';
 
-      const pibRows = (pib.rows || []).slice(0, 30).map((r) => ({
+      // F202 (audit C2): PIB's English RSS has no dates; each release is dated from its page
+      // (at most 15 pages, cached), as the National desk's PIB modules are.
+      const pibRows = (await enrichPibEnglish(pib.rows || [], { limit: 15 })).map((r) => ({
         ...r,
         section: 'Government wire (PIB)',
         source: r.source || 'PIB',
       }));
-      const wireRows = (wire.rows || []).slice(0, 100).map((r) => ({
+      // F202 (audit C6): the last 7 days only, one row per story.
+      const wireRows = freshNewsRows(wire.rows, { days: 7 }).map((r) => ({
         ...r,
         section: 'Coverage wire',
         reporting_search: 'Google News RSS — coverage mentions, not an official dataset',
@@ -3655,7 +3614,11 @@ export async function serveFeatureFeed(searchParams) {
   const format = (entry?.format || '').toUpperCase();
   const skipBinary = format === 'XLSX' || format === 'XLS';
   const liveUrls = [];
-  if (primary && !skipBinary) liveUrls.push(primary);
+  // F202 (audit C3): a news-search row whose stored address is a Google News search is asked the search
+  // built now from the module's name (FEATURE_TOPIC_Q, then TOPIC_STOP), so a name-built search frozen
+  // into the registry ("Municipal" OR "Watch", "Delimitation" OR "Impact") is never asked.
+  const storedSearch = adapter === 'news-search' && /news\.google\.com\/rss\/search/i.test(primary || '');
+  if (primary && !skipBinary) liveUrls.push(storedSearch ? newsRssUrlForFeature(feat.htmlFeature, tier) : primary);
   // A registry row's `openLiveFallback` names its Google News topic search (newsRssUrlForFeature): the
   // answer when the live table and the archive give nothing. News-search rows always fall back to it.
   const newsFallback =
@@ -3663,7 +3626,23 @@ export async function serveFeatureFeed(searchParams) {
     (adapter === 'news-search' || adapter === 'api' || adapter === 'source-library' || adapter === 'embedded');
 
   const live = liveUrls.length ? await tryUrls(liveUrls) : { rows: [] };
-  if (live.rows.length) {
+  if (storedSearch) {
+    // F202 (audit C6): the last 7 days only, one row per story.
+    const fresh = freshNewsRows(live.rows, { days: 7 });
+    if (fresh.length) {
+      return envelope({
+        tier,
+        feature: feat,
+        rows: fresh,
+        adapter,
+        links: [liveUrls[0]],
+        coverage: { from: '', through: '7d', exhaustive: false },
+        fallback: false,
+        note: `${fresh.length} stories in the last 7 days from a Google News search. Reporting, not an official dataset.`,
+        meta: { heading: feat.htmlFeature, status: 'LIVE · NEWS RSS' },
+      });
+    }
+  } else if (live.rows.length) {
     return envelope({
       tier,
       feature: feat,
@@ -3692,13 +3671,15 @@ export async function serveFeatureFeed(searchParams) {
   }
 
   if (newsFallback) {
-    const newsUrl = newsRssUrlForFeature(feat.htmlFeature);
-    const news = await tryUrls([newsUrl]);
-    if (news.rows.length) {
+    const newsUrl = newsRssUrlForFeature(feat.htmlFeature, tier);
+    // The same search was just asked as the row's live address: its answer is not asked for twice.
+    const news = storedSearch && liveUrls[0] === newsUrl ? live : await tryUrls([newsUrl]);
+    const fresh = freshNewsRows(news.rows, { days: 7 });
+    if (fresh.length) {
       return envelope({
         tier,
         feature: feat,
-        rows: capRows(news.rows, false),
+        rows: fresh,
         adapter: 'news-search',
         links: [newsUrl],
         coverage: { from: '', through: '7d', exhaustive: false },

@@ -113,9 +113,13 @@ describe('F176: no loader asks GDELT', () => {
   it('a registry row on the news fallback says the news search returned nothing, and names Google News, never GDELT', async () => {
     stubWorld(true);
     const { serveFeatureFeed } = await import('../../server/featureFeed.mjs');
-    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'Governor Assent Tracker' }));
+    const out = await serveFeatureFeed(new URLSearchParams({ tier: 'local', feature: 'Municipal Finance & Solvency' }));
     expect(out.rows[0]).toMatchObject({ status: 'source_status', host: 'news.google.com' });
     expect(out.source.note).toBe('The news search returned nothing. No records were invented.');
+    // F202: Governor Assent is a guarded news module now; with the search down it says it has no stories.
+    const assent = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'Governor Assent Tracker' }));
+    expect(assent.rows[0]).toMatchObject({ status: 'source_status', host: 'news.google.com' });
+    expect(assent.source.note).toMatch(/^No on-topic stories in the last 30 days\. .*No records were invented\.$/);
     // GPDP had a GDELT address as its primary: its status row used to name api.gdeltproject.org as the host.
     const gpdp = await serveFeatureFeed(new URLSearchParams({ tier: 'local', feature: 'Gram Panchayat Development Plan (GPDP) Fund Tracker' }));
     expect(gpdp.rows[0]).toMatchObject({ status: 'source_status', host: 'news.google.com' });

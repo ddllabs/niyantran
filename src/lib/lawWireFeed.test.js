@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * unchanged. Google News is stubbed with the shape it serves. It tests server/featureFeed.mjs and
  * lives here because Vitest collects tests from src/ only.
  */
-const item = (title, source) => `<item><title>${title}</title><link>https://news.google.com/rss/articles/abc</link><pubDate>Mon, 12 Oct 2026 09:00:00 GMT</pubDate><description>Summary text</description>${source}</item>`;
+// Each story has its own link (F202: an answer keeps each link once, as Google News's real links are).
+const item = (title, source) => `<item><title>${title}</title><link>https://news.google.com/rss/articles/${encodeURIComponent(title)}</link><pubDate>Mon, 12 Oct 2026 09:00:00 GMT</pubDate><description>Summary text</description>${source}</item>`;
 const rss = (items) => `<?xml version="1.0"?><rss><channel>${items.join('')}</channel></rss>`;
 
 function stubFeed(body) {
@@ -39,7 +40,7 @@ describe('Law wire feed publisher (F128)', () => {
     stubFeed(body);
     const feed = await wireFeed('ICC Proceedings');
     expect(feed.rows[0].summary).toBe('Court hears plea LiveLaw');
-    const escaped = rss([item('A', '')]).replace('<description>Summary text</description>', '<description>Fees &amp;lt;b&amp;gt; rise &amp;amp; fall</description>');
+    const escaped = rss([item('Tribunal fees revised', '')]).replace('<description>Summary text</description>', '<description>Fees &amp;lt;b&amp;gt; rise &amp;amp; fall</description>');
     vi.resetModules();
     stubFeed(escaped);
     expect((await wireFeed('ICC Proceedings')).rows[0].summary).toBe('Fees &lt;b&gt; rise & fall');
