@@ -8,6 +8,7 @@
  */
 import { createHash } from 'node:crypto';
 import { STATEMENT_LEADERS } from '../src/data/nationalCurated.js';
+import { MLA_STATE_NAMES, MLA_STATES } from '../src/lib/mlaStates.js';
 import { billDocumentKey } from '../src/lib/deskRows.js';
 
 /**
@@ -106,21 +107,11 @@ export const OFF_TIMER = Object.freeze({
 });
 
 /**
- * MLA Directory's variants: the 31 states and union territories of the register
- * (backup/STATE/F30_MLA_Directory.xlsx), by the register's own names, each with the register's state code
- * and other spellings a request may use.
+ * MLA Directory's variants: the 31 states and union territories of the register, by the register's own
+ * names, each with the register's state code and other spellings a request may use. The list is
+ * src/lib/mlaStates.js (the State picker on MLA Directory offers the same names).
  */
-const MLA_STATE_NAMES = [
-  ['Andhra Pradesh', 'AP'], ['Arunachal Pradesh', 'AR'], ['Assam', 'AS'], ['Bihar', 'BR'],
-  ['Chhattisgarh', 'CG', 'CT', 'Chattisgarh'], ['Delhi', 'DL', 'NCT of Delhi', 'National Capital Territory of Delhi'],
-  ['Goa', 'GA'], ['Gujarat', 'GJ'], ['Haryana', 'HR'], ['Himachal Pradesh', 'HP'], ['Jammu & Kashmir', 'JK'],
-  ['Jharkhand', 'JH'], ['Karnataka', 'KA'], ['Kerala', 'KL'], ['Madhya Pradesh', 'MP'], ['Maharashtra', 'MH'],
-  ['Manipur', 'MN'], ['Meghalaya', 'ML'], ['Mizoram', 'MZ'], ['Nagaland', 'NL'], ['Odisha', 'OD', 'OR', 'Orissa'],
-  ['Puducherry', 'PY', 'Pondicherry'], ['Punjab', 'PB'], ['Rajasthan', 'RJ'], ['Sikkim', 'SK'], ['Tamil Nadu', 'TN'],
-  ['Telangana', 'TG', 'TS'], ['Tripura', 'TR'], ['Uttar Pradesh', 'UP'], ['Uttarakhand', 'UK', 'UT', 'Uttaranchal'],
-  ['West Bengal', 'WB'],
-];
-export const MLA_STATES = Object.freeze(MLA_STATE_NAMES.map(([name]) => name));
+export { MLA_STATES };
 
 // Case, spacing, punctuation and "&" against "and" do not matter.
 const foldName = (value) => String(value ?? '').normalize('NFKC').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
