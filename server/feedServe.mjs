@@ -14,7 +14,9 @@
  * is served whatever its age, marked `register: true` so the page dates it by its
  * records ("register · as of …") rather than by its load time. A request's `state` picks its variant;
  * with no state (or one the register does not hold) the page gets a first page across every variant,
- * the same share of each, in one read (registerAcross, public.feed_page_across).
+ * the same share of each, in one read (registerAcross, public.feed_page_across). F201: a handbook
+ * register's variant (a table, or a whole-year block of a large table, `table` and `years`) is read
+ * whole, up to 2,000 items in four pages asked for at once (wholeVariant).
  *
  * A store answer is the normal path, not a fallback. It is marked `served: 'store'` with the time the
  * items were fetched (`fetchedAt`, ISO), keeps `fallback: false`, and never passes through the archive
@@ -57,6 +59,8 @@ export function storeMaxAgeMinutes(intervalMinutes) {
  */
 export function storeVariant(id, searchParams) {
   const register = FEED_REGISTERS[id];
+  // F201: a handbook register reads `table` and `years` (a block of a large table).
+  if (register?.variantFrom) return register.variantFrom(searchParams);
   // F196: a register with a default variant (the handbook modules' first table) never pages across variants.
   if (register) return register.variantOf(searchParams.get(register.param)) || register.defaultVariant || '';
   const v = FEED_VARIANTS[id];
@@ -168,6 +172,33 @@ async function registerAcross(id, ask, limit, now) {
   };
 }
 
+/** F201: a whole variant is read in this many pages of STORE_PAGE_ROWS (2,000 items, feed_record's cap). */
+export const WHOLE_VARIANT_PAGES = 4;
+
+/**
+ * F201: a register variant read whole (a handbook table, or one whole-year block of a large one): the
+ * pages at offsets 0, 500, 1000 and 1500, asked for at once, joined in offset order. null (the live
+ * path) unless every page agrees on fetched_at and total and the pages together hold `total` items: a
+ * reload between the reads, or a variant larger than the reads, is never served part-way.
+ */
+async function wholeVariant(id, ask, tier, feature, variant, now) {
+  const offsets = Array.from({ length: WHOLE_VARIANT_PAGES }, (_v, i) => i * STORE_PAGE_ROWS);
+  const pages = await Promise.all(offsets.map((offset) => ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: STORE_PAGE_ROWS, p_offset: offset })));
+  const [first] = pages;
+  // No state, or not served: the live path, quietly, as for one page.
+  if (!isRow(first) || first.serve !== true) return null;
+  if (pages.some((p) => !isRow(p) || p.fetched_at !== first.fetched_at || p.total !== first.total)) {
+    console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: the reads of one variant disagree (a reload between them?); the live path answers`);
+    return null;
+  }
+  const items = pages.flatMap((p) => (Array.isArray(p.items) ? p.items : []));
+  if (items.length !== Number(first.total)) {
+    console.warn(`[feed-store] ${id} / ${safeText(variant, 40)}: ${items.length} items read of ${first.total}; the live path answers`);
+    return null;
+  }
+  return storedAnswer(id, { ...first, items }, now(), true);
+}
+
 const storeConfigured = (env) => Boolean((env.SUPABASE_URL || env.VITE_SUPABASE_URL) && env.SUPABASE_SECRET_KEY);
 
 /**
@@ -189,8 +220,10 @@ export async function serveFromStore(
   try {
     const work = register && !variant
       ? registerAcross(id, ask, limit, now)
-      : ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: limit, p_offset: offset })
-        .then((page) => storedAnswer(id, page, now(), register));
+      : register && FEED_REGISTERS[id].wholeVariant
+        ? wholeVariant(id, ask, tier, feature, variant, now)
+        : ask('feed_page', { p_tier: tier, p_feature: feature, p_variant: variant, p_limit: limit, p_offset: offset })
+          .then((page) => storedAnswer(id, page, now(), register));
     return await Promise.race([
       work,
       new Promise((_resolve, reject) => {

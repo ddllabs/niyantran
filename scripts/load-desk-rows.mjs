@@ -16,6 +16,14 @@
  * 2026-09-21 hold record_text lines in jsonb key order, and the pipeline now
  * writes them in source order (same content, checked on Cabinet Decisions). Re-runnable; --dry-run reads and compares but writes nothing.
  *
+ * F201 T9b: --handbook <file> loads the eight RBI Handbook modules instead,
+ * every figure of the register scripts/fetch-rbi-handbook.mjs writes
+ * (tmp/rbi-handbook/handbook-<edition>.json), one row per figure, with its
+ * fields and a date the date-range filter reads (src/lib/handbookDeskRows.js).
+ * --feature limits it to one of them. A run without --handbook never touches
+ * those modules (they are not pack modules), and a --handbook run touches
+ * nothing else. After a load, run `analyze public.desk_rows;` (AGENTS.md).
+ *
  * Environment: SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_…; never in a
  * browser, never committed). A .env.local beside package.json is read when
  * present.
@@ -26,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { deskRowsFor, installDiskFetch, loadableModules } from '../src/lib/deskRowsFeed.js';
 import { planDeskRowSync } from '../src/lib/deskRowSync.js';
+import { handbookDeskRows } from '../src/lib/handbookDeskRows.js';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 
@@ -40,13 +49,14 @@ function loadDotEnv(file) {
 }
 
 function parseArgs(argv) {
-  const out = { dryRun: false, tier: null, feature: null, batch: 500 };
+  const out = { dryRun: false, tier: null, feature: null, batch: 500, handbook: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') out.dryRun = true;
     else if (a === '--tier') out.tier = argv[++i];
     else if (a === '--feature') out.feature = argv[++i];
     else if (a === '--batch') out.batch = Math.max(1, Number(argv[++i]) || 500);
+    else if (a === '--handbook') out.handbook = argv[++i];
   }
   return out;
 }
@@ -120,11 +130,21 @@ async function main(argv) {
   const loadedAt = new Date().toISOString();
   const totals = { modules: 0, withRows: 0, rows: 0, collisions: 0, unchanged: 0, upserted: 0, pruned: 0, snapshot: {} };
   try {
-    const modules = loadableModules().filter(({ mod, tab }) => (!opts.tier || tab === opts.tier) && (!opts.feature || mod.htmlFeature === opts.feature));
-    console.log(`${opts.dryRun ? 'DRY RUN' : 'LIVE'} ${loadedAt}: ${modules.length} module(s)`);
+    // F201 T9b: the handbook modules from their register file, each shaped as deskRowsFor answers.
+    const handbook = opts.handbook
+      ? handbookDeskRows(JSON.parse(readFileSync(resolve(ROOT, opts.handbook), 'utf8')), { only: opts.feature ? [opts.feature] : null })
+        .filter((m) => !opts.tier || m.tier === opts.tier)
+      : null;
+    if (handbook && !handbook.length) throw new Error(`no handbook module${opts.feature ? ` named "${opts.feature}"` : ''}`);
+    const modules = handbook
+      ? handbook.map((m) => ({ handbook: m }))
+      : loadableModules().filter(({ mod, tab }) => (!opts.tier || tab === opts.tier) && (!opts.feature || mod.htmlFeature === opts.feature));
+    console.log(`${opts.dryRun ? 'DRY RUN' : 'LIVE'} ${loadedAt}: ${modules.length} module(s)${handbook ? ` from ${opts.handbook}` : ''}`);
     console.log('tab           feature                                                     shown   rows  coll  snapshot  unchanged  upserted  pruned');
-    for (const { mod } of modules) {
-      const r = await deskRowsFor(mod, { publicDir: resolve(ROOT, 'public'), fallbackSnapshot: loadedAt });
+    for (const { mod, handbook: hb } of modules) {
+      const r = hb
+        ? { tab: hb.tier, feature: hb.feature, shown: hb.rows.length + (hb.dropped.bad_record || 0), rows: hb.rows, collisions: hb.collisions, snapshot: { at: hb.snapshotAt, source: 'register' } }
+        : await deskRowsFor(mod, { publicDir: resolve(ROOT, 'public'), fallbackSnapshot: loadedAt });
       const plan = planDeskRowSync(await storedRows(client, r.tab, r.feature), r.rows, { ignoreSnapshot: r.snapshot.source === 'run' });
       let upserted = 0;
       let pruned = 0;

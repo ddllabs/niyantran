@@ -12,11 +12,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { FEED_REGISTERS, FEED_SCHEDULE, OFF_TIMER, isStoreServed, registerRunsForDb } from '../../server/feedSchedule.mjs';
 import { STORE_PAGE_ROWS, serveFromStore, storeVariant } from '../../server/feedServe.mjs';
-import { resetFeedCache, scheduledModuleId, serveFeatureFeed, serveFeatureFeedWithinLimit } from '../../server/featureFeed.mjs';
+import { resetFeedCache, scheduledModuleId, serveFeatureFeed, serveFeatureFeedStoredFirst, serveFeatureFeedWithinLimit } from '../../server/featureFeed.mjs';
 import {
   REGISTERS, buildRegisterItems, groupByVariant, handbookItemKey, main, mapHandbookRecord, readRegisterJson, registerMeta,
 } from '../../scripts/load-feed-register.mjs';
-import { MAX_PER_TABLE, buildRegister, compareListing, main as fetchMain, moduleCounts, refusal } from '../../scripts/fetch-rbi-handbook.mjs';
+import { buildRegister, compareListing, main as fetchMain, moduleCounts, refusal } from '../../scripts/fetch-rbi-handbook.mjs';
 import { parseHandbookTable } from './rbiHandbook.js';
 import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_STATES, HANDBOOK_TABLES, handbookModuleFor } from './rbiHandbookTables.js';
 import { compareStates, comparisonYears, rankedWithin, wholeYearsOf } from './stateComparison.js';
@@ -152,11 +152,12 @@ describe('the loader: the fetched JSON as store items', () => {
 describe('serving: the stored table, else the table\'s page', () => {
   const LOADED = '2026-01-10T00:00:00.000Z';
   const NOW = { now: () => Date.parse('2026-10-15T10:00:00.000Z') };
-  const page = (variant) => ({
+  // F201: feed_page pages a variant by offset (the store reads a handbook variant whole, four pages at once).
+  const page = (variant, offset = 0, limit = STORE_PAGE_ROWS) => ({
     tier: 'state', feature: 'State Economic Data (GSDP, sectors)', variant, class: 'register', kind: 'reference', serve: true,
     fetched_at: LOADED, interval_minutes: 43200, total: T21.records.length,
     meta: { note: 'Table 21', links: [HANDBOOK.listingUrl], coverage: { from: '2025-12-11', through: '2025-12-11', exhaustive: false }, adapter: 'register', kind: 'register', fetched_at: LOADED },
-    items: T21.records.map((row) => ({ item_key: handbookItemKey(row), row })),
+    items: T21.records.slice(offset, offset + limit).map((row) => ({ item_key: handbookItemKey(row), row })),
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -164,7 +165,7 @@ describe('serving: the stored table, else the table\'s page', () => {
   });
 
   it('serves the table\'s variant whatever its age, labelled as a register dated by the publication', async () => {
-    const rpc = vi.fn(async (_n, args) => page(args.p_variant));
+    const rpc = vi.fn(async (_n, args) => page(args.p_variant, args.p_offset, args.p_limit));
     const body = await serveFromStore(ECON, new URLSearchParams({ tier: 'state', feature: 'State Economic Data (GSDP, sectors)' }), { rpc, ...NOW });
     expect(rpc).toHaveBeenCalledWith('feed_page', { p_tier: 'state', p_feature: 'State Economic Data (GSDP, sectors)', p_variant: '21', p_limit: STORE_PAGE_ROWS, p_offset: 0 });
     expect(body).toMatchObject({ served: 'store', register: true, fallback: false });
@@ -326,11 +327,29 @@ describe('scripts/fetch-rbi-handbook.mjs', () => {
 // its newest whole years and every year shown has every state; the Comparison never ranks a cut year.
 // A synthetic Table 164 page: the 36 states and union territories over 15 years is 540 figures, so a cut
 // at 500 lands inside the 14th year (500 = 13 x 36 + 32).
-const BIG_YEARS = Array.from({ length: 15 }, (_, i) => `${2010 + i}-${String((11 + i) % 100).padStart(2, '0')}`);
-function bigTablePage() {
-  const head = `<tr class="head"><td align="center">State/Union Territory</td>${BIG_YEARS.map((y) => `<td align="center">${y}</td>`).join('')}</tr>`;
-  const body = HANDBOOK_STATES.map((s, i) => `<tr><td>${s}</td>${BIG_YEARS.map((_y, j) => `<td align="right">${(i + 1) * 100 + j}</td>`).join('')}</tr>`).join('');
-  return `<table class="tablebg"><tr><td align="right" class="tableheader"><b> Date : Dec 11, 2025</b></td></tr><tr><td align="center" class="tableheader"><b>Table 164: State-wise Gross Fiscal Deficit</b></td></tr><tr><td><table class="tablebg"><tr><td colspan="16" align="right">(&#8377; Crore)</td></tr>${head}${body}</table></td></tr></table>`;
+const fiscalYear = (y) => `${y}-${String((y + 1) % 100).padStart(2, '0')}`;
+const BIG_YEARS = Array.from({ length: 15 }, (_, i) => fiscalYear(2010 + i));
+// F201: 60 years (1965-66 to 2024-25) of 36 states is 2,160 figures, more than one store variant holds.
+const HUGE_YEARS = Array.from({ length: 60 }, (_, i) => fiscalYear(1965 + i));
+function bigTablePage(years = BIG_YEARS) {
+  const head = `<tr class="head"><td align="center">State/Union Territory</td>${years.map((y) => `<td align="center">${y}</td>`).join('')}</tr>`;
+  const body = HANDBOOK_STATES.map((s, i) => `<tr><td>${s}</td>${years.map((_y, j) => `<td align="right">${(i + 1) * 100 + j}</td>`).join('')}</tr>`).join('');
+  return `<table class="tablebg"><tr><td align="right" class="tableheader"><b> Date : Dec 11, 2025</b></td></tr><tr><td align="center" class="tableheader"><b>Table 164: State-wise Gross Fiscal Deficit</b></td></tr><tr><td><table class="tablebg"><tr><td colspan="${years.length + 1}" align="right">(&#8377; Crore)</td></tr>${head}${body}</table></td></tr></table>`;
+}
+// F201: one year of 56 categories for 36 states is 2,016 figures in a single year.
+function hugeYearPage() {
+  const cats = Array.from({ length: 56 }, (_, i) => `Category ${i + 1}`);
+  const head = `<tr class="head"><td align="center" rowspan="2">State/Union Territory</td>${cats.map((c) => `<td align="center">${c}</td>`).join('')}</tr><tr class="head">${cats.map(() => '<td align="center">2024-25</td>').join('')}</tr>`;
+  const body = HANDBOOK_STATES.map((s, i) => `<tr><td>${s}</td>${cats.map((_c, j) => `<td align="right">${(i + 1) * 100 + j}</td>`).join('')}</tr>`).join('');
+  return `<table class="tablebg"><tr><td align="right" class="tableheader"><b> Date : Dec 11, 2025</b></td></tr><tr><td align="center" class="tableheader"><b>Table 164: State-wise Gross Fiscal Deficit</b></td></tr><tr><td><table class="tablebg"><tr><td colspan="57" align="right">(&#8377; Crore)</td></tr>${head}${body}</table></td></tr></table>`;
+}
+async function fetchOffline(html) {
+  const dir = mkdtempSync(join(tmpdir(), 'rbi-hb-f201-'));
+  writeFileSync(join(dir, `${HANDBOOK_TABLES.get(164).id}.html`), html);
+  const out = join(dir, 'handbook.json');
+  const lines = [];
+  const code = await fetchMain(['--html-dir', dir, '--out', out, '--tables', '164', '--offline'], { fetchImpl: vi.fn(), log: (l) => lines.push(l) });
+  return { code, lines, out };
 }
 const perYear = (rows) => rows.reduce((m, r) => m.set(r.year, (m.get(r.year) || 0) + 1), new Map());
 const servePage = (html) => vi.fn(async (u) => ({ ok: true, status: 200, url: String(u), headers: new Headers(), arrayBuffer: async () => new TextEncoder().encode(html).buffer }));
@@ -347,37 +366,80 @@ describe('F196 review R1: a table larger than one store page', () => {
     expect(perYear(BIG.records.slice(0, STORE_PAGE_ROWS)).get('2011-12')).toBe(32);
   });
 
-  it('the fetcher keeps at most one store page of figures per table', () => {
-    expect(MAX_PER_TABLE).toBe(STORE_PAGE_ROWS);
-  });
-
-  it('the fetcher records what it left out, and the stored note says how many figures it holds of how many', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'rbi-hb-cut-'));
-    const t = HANDBOOK_TABLES.get(164);
-    writeFileSync(join(dir, `${t.id}.html`), bigTablePage());
-    const out = join(dir, 'handbook.json');
-    await fetchMain(['--html-dir', dir, '--out', out, '--tables', '164', '--offline'], { fetchImpl: vi.fn(), log: () => {} });
+  // F201 (replaces the F196 review R1 cap): the fetcher writes every figure; the blocks a table is
+  // stored in are whole years, so no year is ever partly kept.
+  it('the fetcher writes every figure of a table, with no cut, and lists the table\'s blocks', async () => {
+    const { code, out, lines } = await fetchOffline(bigTablePage());
+    expect(code).toBe(0);
     const file = readRegisterJson(out);
-    expect(file.rows).toHaveLength(468);
-    expect(file.meta.tables.get(164).cut).toEqual({ left: 72, years: 13, from: '2012-13', through: '2024-25' });
-    const { items } = buildRegisterItems(file.rows, REGISTERS[FISCAL], 'reference');
-    const [group] = groupByVariant(items, REGISTERS[FISCAL]);
-    const meta = registerMeta(REGISTERS[FISCAL], group.report, 'tmp/rbi-handbook/handbook-2024-25.json', '2026-10-15T12:00:00.000Z', file.meta);
-    expect(meta.note).toMatch(/: the newest 468 of its 540 figures: 13 whole years, 2012-13 to 2024-25; older years are on the table's page\./);
-    const partial = { ...file.meta, tables: new Map([[164, { ...file.meta.tables.get(164), cut: { left: 155, years: 1, from: '2024', through: '2024', partial: { year: '2024', indicators: 16, of: 21 } } }]]) };
-    expect(registerMeta(REGISTERS[FISCAL], group.report, 'x.json', '2026-10-15T12:00:00.000Z', partial).note)
-      .toMatch(/: 468 figures, 16 of the 21 indicators of 2024 \(each with all of its states\); the rest are on the table's page\./);
+    expect(file.rows).toHaveLength(540);
+    const summary = file.meta.tables.get(164);
+    expect(summary.cut).toBeUndefined();
+    expect(summary.dropped.older_years).toBeUndefined();
+    expect(summary.blocks).toEqual([{ value: '', variant: '164', from: '2010-11', through: '2024-25', count: 540 }]);
+    expect(lines.join('\n')).toMatch(/Table 164:\s+540 records, 1 block \(2010-11 to 2024-25\)/);
   });
 
-  it('the live path shows the newest whole years within one page, every state in each, and says how many it shows', async () => {
+  it('a table over 2,000 figures is listed as whole-year blocks, every figure kept', async () => {
+    const { code, out, lines } = await fetchOffline(bigTablePage(HUGE_YEARS));
+    expect(code).toBe(0);
+    const file = readRegisterJson(out);
+    expect(file.rows).toHaveLength(2160);
+    expect(file.meta.tables.get(164).blocks).toEqual([
+      { value: '', variant: '164', from: '1970-71', through: '2024-25', count: 1980 },
+      { value: '1965-66', variant: '164@1965-66', from: '1965-66', through: '1969-70', count: 180 },
+    ]);
+    expect(lines.join('\n')).toMatch(/2160 records, 2 blocks \(1970-71 to 2024-25: 1980; 1965-66 to 1969-70: 180\)/);
+  });
+
+  it('one year over 2,000 figures is reported and the run exits 1; nothing is cut', async () => {
+    const { code, out, lines } = await fetchOffline(hugeYearPage());
+    expect(code).toBe(1);
+    const file = readRegisterJson(out);
+    expect(file.rows).toHaveLength(2016);
+    expect(file.meta.tables.get(164).blocks).toBeUndefined();
+    expect(lines.join('\n')).toMatch(/MISMATCH Table 164: 2024-25: 2016 figures in one year, over the 2000 one block holds/);
+  });
+
+  // F201: the live path shows the table's whole history when it fits one block (2,000 figures).
+  it('the live path shows every figure of a table in one block, and says so', async () => {
     resetFeedCache();
     vi.stubGlobal('fetch', servePage(bigTablePage()));
     const body = await serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', table: '164' }));
-    expect(body.rows).toHaveLength(468);
+    expect(body.rows).toHaveLength(540);
     expect([...perYear(body.rows).values()].every((n) => n === 36)).toBe(true);
-    expect(perYear(body.rows).size).toBe(13);
-    expect(body.coverage).toEqual({ from: '2012-13', through: '2024-25', exhaustive: false });
-    expect(body.source.note).toMatch(/Showing the newest 468 of its 540 figures: 13 whole years, 2012-13 to 2024-25\./);
+    expect(body.coverage).toEqual({ from: '2010-11', through: '2024-25', exhaustive: false });
+    expect(body.source.note).toMatch(/Table 164: State-wise Gross Fiscal Deficit \(₹ Crore\): all 540 figures, 2010-11 to 2024-25\./);
+    expect(body.meta).toMatchObject({ table: 164, block: { from: '2010-11', through: '2024-25' }, years: [...BIG_YEARS].reverse() });
+    expect(body.meta.blocks).toHaveLength(1);
+  });
+
+  it('F201: the live path of a table over 2,000 figures serves the block asked for (`years`), else the newest', async () => {
+    resetFeedCache();
+    vi.stubGlobal('fetch', servePage(bigTablePage(HUGE_YEARS)));
+    const ask = (extra) => serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', table: '164', ...extra }));
+    const newest = await ask({});
+    expect(newest.rows).toHaveLength(1980);
+    expect(newest.meta.block).toEqual({ from: '1970-71', through: '2024-25' });
+    expect(newest.meta.blocks.map((b) => b.value)).toEqual(['', '1965-66']);
+    expect(newest.meta.years).toEqual([...HUGE_YEARS].reverse());
+    expect(newest.source.note).toMatch(/years 1970-71 to 2024-25, 1,980 of the table's 2,160 figures; older years are under the Years control\./);
+    const older = await ask({ years: '1965-66' });
+    expect(older.rows).toHaveLength(180);
+    expect(new Set(older.rows.map((r) => r.year)).size).toBe(5);
+    expect(older.meta.block).toEqual({ from: '1965-66', through: '1969-70' });
+    expect(older.coverage).toEqual({ from: '1965-66', through: '1969-70', exhaustive: false });
+    // A years value that is not a block's is the newest block.
+    expect((await ask({ years: 'junk' })).rows).toHaveLength(1980);
+    expect((await ask({ years: '1990-91' })).meta.block.from).toBe('1970-71');
+  });
+
+  it('F201: the store\'s blocks reach the page\'s answer', async () => {
+    const view = { heading: 'Table 176', table: 176, block: { from: '2023', through: '2025' }, blocks: [{ value: '', variant: '176' }, { value: '2005', variant: '176@2005' }], years: ['2025'] };
+    const rpc = vi.fn(async (_n, a) => ({ tier: 'state', feature: 'State Fiscal Deep-Dive', variant: a.p_variant, serve: true, fetched_at: '2026-01-10T00:00:00.000Z', interval_minutes: 43200, total: 1, meta: { view }, items: a.p_offset ? [] : [{ item_key: 'k', row: { state: 'Goa', year: '2025', value: 1 } }] }));
+    const body = await serveFeatureFeedStoredFirst(new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', table: '176', years: '2005' }), { store: (id, sp) => serveFromStore(id, sp, { rpc }) });
+    expect(rpc.mock.calls[0][1].p_variant).toBe('176@2005');
+    expect(body.meta.blocks).toEqual(view.blocks);
   });
 
   it('the Comparison drops the year a short stored page may have cut, and lists only whole years', () => {
@@ -430,6 +492,12 @@ describe('F196 review R3: the live-attempt key', () => {
     expect(await attempts('State Fiscal Deep-Dive', [{}, { year: '2024-25' }])).toBe(1);
   });
 
+  it('F201: a block (`years`) is its own attempt only when it is a real year; anything else shares the newest block\'s', async () => {
+    const next = new Date().getFullYear() + 1;
+    expect(await attempts('State Fiscal Deep-Dive', [{ table: '176' }, { table: '176', years: 'junk' }, { table: '176', years: '2005; x' }, { table: '176', years: '1899' }, { table: '176', years: '2005-20' }, { table: '176', years: `${next + 1}` }, { table: '176', years: '' }])).toBe(1);
+    expect(await attempts('State Fiscal Deep-Dive', [{ table: '176' }, { table: '176', years: '2005' }, { table: '176', years: '2008' }, { table: '176', years: '2019-20' }])).toBe(4);
+  });
+
   it('the Comparison: an unknown table is Table 21; only a real year (YYYY or YYYY-YY, 1990 to next year) is its own', async () => {
     const next = new Date().getFullYear() + 1;
     expect(await attempts('Cross-State Comparison Engine', [{}, { table: '999' }, { table: '21' }, { year: '2099' }, { year: 'junk' }, { year: '2024-26' }, { year: '1989-90' }, { year: `${next + 1}` }])).toBe(1);
@@ -438,5 +506,213 @@ describe('F196 review R3: the live-attempt key', () => {
 
   it('any other state module ignores table and year', async () => {
     expect(await attempts('SDL Auction & Borrowing Tracker', [{}, { table: '12' }, { year: '2024' }])).toBe(1);
+  });
+});
+
+// F201: every figure stored, a table over 2,000 figures as whole-year blocks (one store variant each).
+// Synthetic records shaped like Table 176 (2024-25 edition): 21 years, 2005 to 2025, of 19 indicators x
+// 32 states = 608 figures each, 12,768 in all.
+const T176_YEARS = Array.from({ length: 21 }, (_, i) => String(2025 - i));
+const T176_STATES = HANDBOOK_STATES.slice(0, 32);
+const T176_URL = HANDBOOK_TABLES.get(176).url;
+const t176Records = () => T176_YEARS.flatMap((year) => Array.from({ length: 19 }, (_, k) => k).flatMap((k) => T176_STATES.map((state, s) => ({
+  state, indicator: k === 0 ? 'Outstanding Liabilities' : `Indicator ${k}`, year, value: 1000 * k + s + Number(year), unit: 'Per cent', table_no: 176,
+  table_title: HANDBOOK_TABLES.get(176).title, source_url: T176_URL, as_of: '2025-12-11', edition: '2024-25', title: `${state} · ${k} · ${year}`,
+}))));
+const T176_RECORDS = t176Records();
+const BLOCKED_FILE = { records: [...T164.records, ...T176_RECORDS], tables: [...REGISTER_FILE.tables, { no: 176, title: HANDBOOK_TABLES.get(176).title, unit: 'Per cent', source: 'Finances of State Governments', records: T176_RECORDS.length }] };
+const blockedMeta = { tables: new Map(BLOCKED_FILE.tables.map((t) => [t.no, t])) };
+
+describe('F201: the registers and the loader by block', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('each handbook register reads a whole variant, takes a block of a table it holds, and names its runs', () => {
+    const fiscal = FEED_REGISTERS[FISCAL];
+    expect(fiscal.wholeVariant).toBe(true);
+    expect(fiscal.variantOf('176@2005')).toBe('176@2005');
+    expect(fiscal.variantOf('176')).toBe('176');
+    expect(fiscal.variantOf('21@2005')).toBe('');
+    expect(fiscal.variantOf('176@junk')).toBe('');
+    const q = (o) => new URLSearchParams(o);
+    expect(fiscal.variantFrom(q({ table: '176', years: '2005' }))).toBe('176@2005');
+    expect(fiscal.variantFrom(q({ table: '176', years: 'junk' }))).toBe('176');
+    expect(fiscal.variantFrom(q({ table: '21', years: '2005' }))).toBe('164');
+    expect(fiscal.variantFrom(q({}))).toBe('164');
+    expect(registerRunsForDb(FISCAL, ['176', '176@2005']).map((r) => [r.variant, r.kind, r.class])).toEqual([['176', 'reference', 'register'], ['176@2005', 'reference', 'register']]);
+    expect(registerRunsForDb(FISCAL)).toHaveLength(15);
+    // MLA Directory is not a handbook register: no whole-variant reads.
+    expect(FEED_REGISTERS['state:MLA Directory'].wholeVariant).toBeUndefined();
+  });
+
+  it('a table over 2,000 figures loads as whole-year blocks, the newest named by the table, each at most 2,000', () => {
+    const { items } = buildRegisterItems(BLOCKED_FILE.records, REGISTERS[FISCAL], 'reference');
+    const groups = groupByVariant(items, REGISTERS[FISCAL]);
+    expect(groups.map((g) => [g.variant, g.items.length])).toEqual([
+      ['164', T164.records.length],
+      ['176', 1824], ['176@2020', 1824], ['176@2017', 1824], ['176@2014', 1824], ['176@2011', 1824], ['176@2008', 1824], ['176@2005', 1824],
+    ]);
+    const newest = groups[1];
+    expect(new Set(newest.items.map((i) => i.row.year))).toEqual(new Set(['2025', '2024', '2023']));
+    expect(new Set(newest.items.map((i) => i.row.indicator)).size).toBe(19);
+    // The stored view: the table, its own block, the table's blocks and all of its years.
+    const view = newest.report.view;
+    expect(view).toMatchObject({ heading: 'Table 176: State-wise Composition of Outstanding Liabilities', table: 176, block: { from: '2023', through: '2025' }, as_of: '2025-12-11', status: 'RBI HANDBOOK · STATE LEVEL' });
+    expect(view.blocks.map((b) => b.variant)).toEqual(['176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005']);
+    expect(view.years).toEqual(T176_YEARS);
+    expect(groups[7].report.view.block).toEqual({ from: '2005', through: '2007' });
+    const meta = registerMeta(REGISTERS[FISCAL], newest.report, 'tmp/rbi-handbook/handbook-2024-25.json', '2026-10-15T12:00:00.000Z', blockedMeta);
+    expect(meta.view).toEqual(view);
+    expect(JSON.stringify(meta.view).length).toBeLessThan(4096);
+    expect(meta.note).toMatch(/Table 176: State-wise Composition of Outstanding Liabilities \(Per cent\): years 2023 to 2025, 1,824 of the table's 12,768 figures; older years are under the Years control\./);
+    const oldest = registerMeta(REGISTERS[FISCAL], groups[7].report, 'x.json', '2026-10-15T12:00:00.000Z', blockedMeta);
+    expect(oldest.note).toMatch(/years 2005 to 2007, 1,824 of the table's 12,768 figures; other years are under the Years control\./);
+    // A table in one block: all of its figures.
+    const one = registerMeta(REGISTERS[FISCAL], groups[0].report, 'x.json', '2026-10-15T12:00:00.000Z', blockedMeta);
+    expect(one.view.blocks).toHaveLength(1);
+    expect(one.note).toMatch(new RegExp(`Table 164: State-wise Gross Fiscal Deficit \\(₹ Crore\\): all ${T164.records.length} figures, ${one.view.years.at(-1)} to ${one.view.years[0]}\\.`));
+  });
+
+  it('a dry run counts the blocks as variants and never makes a database client', async () => {
+    const out = [];
+    vi.spyOn(console, 'log').mockImplementation((...a) => out.push(a.join(' ')));
+    const deps = { env: {}, readJson: vi.fn(() => ({ rows: BLOCKED_FILE.records, meta: blockedMeta })), makeLocalRpc: vi.fn(), makeProdRpc: vi.fn(), forceDue: vi.fn() };
+    await expect(main(['--module', FISCAL], deps)).resolves.toBe(0);
+    expect(deps.makeProdRpc).not.toHaveBeenCalled();
+    expect(out.join('\n')).toMatch(new RegExp(`8 store variants, ${T164.records.length + 12768} items`));
+    expect(out.join('\n')).toMatch(/176@2005\s+1824/);
+  });
+
+  describe('a load', () => {
+    const ENV = { SUPABASE_URL: 'https://example-project.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_TESTKEY' };
+    const TOKEN = '44444444-4444-4444-8444-444444444444';
+    function setup({ stored = {}, makeDue = () => true } = {}) {
+      const calls = [];
+      const rpc = vi.fn(async (name, args) => {
+        calls.push([name, args]);
+        if (name === 'feed_claim_due') return [{ ...args.p_runs[0], lease_token: TOKEN }];
+        if (name === 'feed_record') return { status: 'ok', items: args.p.items.length, new_items: args.p.items.length };
+        if (name === 'feed_page') return stored[args.p_variant] ? { total: 1, serve: true, meta: { view: { blocks: stored[args.p_variant].map((variant) => ({ variant })) } }, items: [] } : null;
+        if (name === 'feed_make_due') return makeDue(args.p_variant);
+        return null;
+      });
+      const deps = { env: ENV, readJson: vi.fn(() => ({ rows: BLOCKED_FILE.records, meta: blockedMeta })), makeLocalRpc: vi.fn(() => rpc), makeProdRpc: vi.fn(() => rpc), forceDue: vi.fn(async () => {}) };
+      return { deps, calls };
+    }
+    let out;
+    beforeEach(() => {
+      out = [];
+      vi.spyOn(console, 'log').mockImplementation((...a) => out.push(a.join(' ')));
+    });
+
+    it('records each block on its own run; blocks the store holds that this load does not produce are reported with the SQL to stop serving them, and nothing is written for them', async () => {
+      const { deps, calls } = setup({ stored: { 176: ['176', '176@2020', '176@2002', "176@1999'; drop table x; --"] } });
+      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(0);
+      const recorded = calls.filter(([n]) => n === 'feed_record').map(([, a]) => [a.p.variant, a.p.items.length]);
+      expect(recorded).toHaveLength(8);
+      expect(recorded.every(([, n]) => n <= 2000)).toBe(true);
+      expect(calls.some(([n, a]) => /176@2002/.test(JSON.stringify(a)) && n !== 'feed_page')).toBe(false);
+      // The obsolete report comes before the first claim.
+      const firstClaim = calls.findIndex(([n]) => n === 'feed_claim_due');
+      expect(calls.slice(0, firstClaim).filter(([n]) => n === 'feed_page').map(([, a]) => [a.p_variant, a.p_limit])).toEqual([['164', 1], ['176', 1]]);
+      const text = out.join('\n');
+      expect(text).toMatch(/no longer produced: 176@2002/);
+      expect(text).toContain("update public.feed_state set serve = false where tier = 'state' and feature = 'State Fiscal Deep-Dive' and variant in ('176@2002');");
+      expect(text).not.toContain('drop table');
+    });
+
+    it('nothing obsolete: says so', async () => {
+      const { deps } = setup({ stored: { 176: ['176', '176@2020'] } });
+      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod'], deps)).resolves.toBe(0);
+      expect(out.join('\n')).toMatch(/Obsolete blocks: none/);
+    });
+
+    it('--force on prod: a block the store has never seen cannot be made due, and is still claimed and recorded', async () => {
+      const { deps, calls } = setup({ makeDue: (v) => !v.includes('@') });
+      await expect(main(['--module', FISCAL, '--apply', '--target', 'prod', '--confirm-prod', '--force'], deps)).resolves.toBe(0);
+      expect(out.join('\n')).toMatch(/176@2005\s+not made due/);
+      expect(calls.filter(([n]) => n === 'feed_record').map(([, a]) => a.p.variant)).toContain('176@2005');
+      const claims = calls.filter(([n]) => n === 'feed_claim_due').map(([, a]) => a.p_runs[0].variant);
+      expect(claims).toEqual(['164', '176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005']);
+    });
+  });
+});
+
+// F201: the Comparison ranks any year of a table, reading the block that holds it (and the block before
+// when the year before is there). The fake store holds what the loader would record for State Fiscal
+// Deep-Dive (Table 164 whole, Table 176 in 7 blocks), served by feed_page windows as the database does.
+describe('F201: the Comparison ranks any year', () => {
+  const LOADED = '2026-01-10T00:00:00.000Z';
+  function fakeStore(file = BLOCKED_FILE, fileMetaOf = blockedMeta) {
+    const { items } = buildRegisterItems(file.records, REGISTERS[FISCAL], 'reference');
+    const byVariant = new Map(groupByVariant(items, REGISTERS[FISCAL]).map((g) => [g.variant, { g, meta: registerMeta(REGISTERS[FISCAL], g.report, 'x.json', LOADED, fileMetaOf) }]));
+    const rpc = vi.fn(async (_n, a) => {
+      const hit = byVariant.get(a.p_variant);
+      if (!hit) return null;
+      return {
+        tier: 'state', feature: 'State Fiscal Deep-Dive', variant: a.p_variant, class: 'register', kind: 'reference', serve: true, fetched_at: LOADED, interval_minutes: 43200,
+        total: hit.g.items.length, meta: hit.meta, items: hit.g.items.slice(a.p_offset, a.p_offset + a.p_limit).map((i) => ({ item_key: i.item_key, row: i.row })),
+      };
+    });
+    return { rpc, store: (id, sp) => serveFromStore(id, sp, { rpc, now: () => Date.parse('2026-10-15T00:00:00.000Z') }) };
+  }
+  const compare = (params, store) => serveFeatureFeed(new URLSearchParams({ tier: 'state', feature: 'Cross-State Comparison Engine', table: '176', ...params }), { store });
+  const variantsRead = (rpc) => [...new Set(rpc.mock.calls.map(([, a]) => a.p_variant))];
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('2023 (its block\'s oldest year): all 19 indicators ranked, the year before (2022) read from the older block', async () => {
+    const { rpc, store } = fakeStore();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('no live read'); }));
+    const body = await compare({ year: '2023' }, store);
+    expect(variantsRead(rpc)).toEqual(['176', '176@2020']);
+    expect(body.source.adapter).toBe('register');
+    expect(body.rows).toHaveLength(19 * 32);
+    expect(new Set(body.rows.map((r) => r.indicator)).size).toBe(19);
+    expect(body.rows.some((r) => r.indicator === 'Outstanding Liabilities')).toBe(true);
+    expect(body.rows.every((r) => r.year === '2023' && r.previous_year === '2022')).toBe(true);
+    expect(body.meta.years).toEqual(T176_YEARS);
+    expect(body.source.note).toMatch(/2023 where an indicator has it/);
+    expect(body.source.note).toMatch(/the Year control/);
+  });
+
+  it('2015 is ranked from block 176@2014 alone; no year ranks each indicator\'s latest from the newest block', async () => {
+    let { rpc, store } = fakeStore();
+    const body = await compare({ year: '2015' }, store);
+    expect(variantsRead(rpc)).toEqual(['176', '176@2014']);
+    expect(body.rows.every((r) => r.year === '2015' && r.previous_year === '2014')).toBe(true);
+    ({ rpc, store } = fakeStore());
+    const latest = await compare({}, store);
+    expect(variantsRead(rpc)).toEqual(['176']);
+    expect(latest.rows).toHaveLength(19 * 32);
+    expect(latest.rows.every((r) => r.year === '2025' && r.previous_year === '2024')).toBe(true);
+    expect(latest.source.note).toMatch(/each indicator’s latest year is ranked/);
+  });
+
+  it('a table in one block reads one variant for any year', async () => {
+    const { rpc, store } = fakeStore();
+    const body = await compare({ table: '164', year: '2006-07' }, store);
+    expect(variantsRead(rpc)).toEqual(['164']);
+    expect(body.rows.find((r) => r.state === 'Arunachal Pradesh')).toMatchObject({ year: '2006-07', value: -106 });
+  });
+
+  it('today\'s capped data (one variant of 480 figures, no other blocks) still ranks what it holds', async () => {
+    // F196's cap kept 15 of Table 176's indicators of its newest year.
+    const capped = { records: T176_RECORDS.filter((r) => r.year === '2025').slice(0, 480), tables: BLOCKED_FILE.tables };
+    const { rpc, store } = fakeStore(capped);
+    const body = await compare({}, store);
+    expect(variantsRead(rpc)).toEqual(['176']);
+    expect(body.source.adapter).toBe('register');
+    expect(body.rows).toHaveLength(480);
+    expect(body.meta.years).toEqual(['2025']);
+  });
+
+  it('a short stored page (loaded before F196 cut tables to whole years) still loses its cut year (wholeYearsOf)', async () => {
+    const rows = T176_RECORDS.filter((r) => r.year >= '2024').slice(0, 1000);
+    const store = vi.fn(async () => ({ ok: true, rows, storeTotal: 1216, meta: null, served: 'store', register: true }));
+    const body = await compare({}, store);
+    expect(store).toHaveBeenCalledTimes(1);
+    expect(new Set(body.rows.map((r) => r.year))).toEqual(new Set(['2025']));
   });
 });

@@ -92,7 +92,7 @@ describe('the Table control (F196)', () => {
     expect(pickers(tree)[0].props.value).toBe('');
   });
 
-  it('the Comparison Engine offers every handbook table; a renamed theme offers its own', async () => {
+  it('the Comparison Engine offers every handbook table; a renamed theme offers its own (F196)', async () => {
     pendingRequests();
     props = { ...props, featureName: 'Cross-State Comparison Engine' };
     await settle();
@@ -100,5 +100,128 @@ describe('the Table control (F196)', () => {
     props = { ...props, featureName: 'District Education Indicators' };
     await settle();
     expect(pickers(tree)[0].props.picker.options.map((o) => o.value)).toEqual(['1', '12', '151']);
+  });
+});
+
+// F201: a table over 2,000 figures is stored as whole-year blocks; the Years control picks one.
+const T176_BLOCKS = [['', '2023', '2025'], ['2020', '2020', '2022'], ['2017', '2017', '2019'], ['2014', '2014', '2016'], ['2011', '2011', '2013'], ['2008', '2008', '2010'], ['2005', '2005', '2007']]
+  .map(([value, from, through]) => ({ value, variant: value ? `176@${value}` : '176', from, through, count: 1800 }));
+const handbookAnswer = (table, { blocks, years } = {}) => ({
+  ok: true, tier: 'state', feature: 'State Fiscal Deep-Dive', served: 'store', register: true, fallback: false, fetchedAt: '2026-10-15T00:00:00Z',
+  rows: [{ title: `Goa · X · 2025`, state: 'Goa', indicator: 'X', year: '2025', value: 1, table_no: table }],
+  source: { adapter: 'register', links: [], note: `Table ${table}` }, coverage: { from: '', through: '', exhaustive: false },
+  meta: { heading: `Table ${table}`, table, ...(blocks ? { blocks } : {}), ...(years ? { years } : {}), status: 'RBI HANDBOOK · STATE LEVEL' },
+});
+const control = (id) => pickers(tree).find((p) => p.props.picker.id === id);
+
+describe('the Years control (F201)', () => {
+  it('appears only when the answer lists more than one block: not for one block, not for today\'s capped data', async () => {
+    const asked = pendingRequests();
+    await settle();
+    asked[0].resolve(handbookAnswer(164, { blocks: [T176_BLOCKS[0]] }));
+    await settle();
+    expect(control('handbook-years')).toBeUndefined();
+    pickers(tree)[0].props.onChange('176');
+    await settle();
+    asked.at(-1).resolve(handbookAnswer(176));
+    await settle();
+    expect(control('handbook-years')).toBeUndefined();
+    expect(pickers(tree)).toHaveLength(1);
+  });
+
+  it('lists a split table\'s 7 blocks; a pick asks for that block of the table; the control stays while it loads', async () => {
+    const asked = pendingRequests();
+    await settle();
+    pickers(tree)[0].props.onChange('176');
+    await settle();
+    asked.at(-1).resolve(handbookAnswer(176, { blocks: T176_BLOCKS }));
+    await settle();
+    const years = control('handbook-years');
+    expect(years.props.picker).toMatchObject({ param: 'years', label: 'Years', defaultValue: '' });
+    expect(years.props.picker.options).toHaveLength(7);
+    expect(years.props.picker.options[0]).toEqual({ value: '', label: '2023 to 2025' });
+    expect(years.props.picker.options.at(-1)).toEqual({ value: '2005', label: '2005 to 2007' });
+    years.props.onChange('2005');
+    await settle();
+    expect(asked.at(-1).opts.params).toEqual({ table: '176', years: '2005' });
+    // The other block's list is not left on screen while this one loads (F190), but the control is.
+    expect(onFeed.mock.calls.at(-1)[0]).toBeNull();
+    expect(control('handbook-years').props.value).toBe('2005');
+  });
+
+  it('a one-year block reads as its year', async () => {
+    const { yearsPicker } = await import('../lib/modulePicker.js');
+    const blocks = [{ value: '', variant: '151', from: '2020-21', through: '2024-25', count: 1850 }, { value: '2019-20', variant: '151@2019-20', from: '2019-20', through: '2019-20', count: 360 }];
+    expect(yearsPicker('state', 'District Education Indicators', { meta: { blocks } }).options.map((o) => o.label)).toEqual(['2020-21 to 2024-25', '2019-20']);
+    expect(yearsPicker('state', 'Cabinet Decisions', { meta: { blocks } })).toBeNull();
+    expect(yearsPicker('state', 'District Education Indicators', null)).toBeNull();
+  });
+
+  it('changing the table drops the Years pick', async () => {
+    const asked = pendingRequests();
+    await settle();
+    pickers(tree)[0].props.onChange('176');
+    await settle();
+    asked.at(-1).resolve(handbookAnswer(176, { blocks: T176_BLOCKS }));
+    await settle();
+    control('handbook-years').props.onChange('2005');
+    await settle();
+    control('handbook-table').props.onChange('177');
+    await settle();
+    expect(asked.at(-1).opts.params).toEqual({ table: '177' });
+    expect(control('handbook-years')).toBeUndefined();
+    // Back to 176: the newest block, not the old pick.
+    control('handbook-table').props.onChange('176');
+    await settle();
+    expect(asked.at(-1).opts.params).toEqual({ table: '176' });
+  });
+});
+
+describe('the Comparison Engine\'s Year control (F201)', () => {
+  const YEARS = ['2024-25', '2023-24', '2015-16', '2011-12'];
+  const comparisonAnswer = (table) => ({ ...handbookAnswer(table, { years: YEARS, blocks: T176_BLOCKS }), feature: 'Cross-State Comparison Engine' });
+  beforeEach(() => {
+    props = { ...props, featureName: 'Cross-State Comparison Engine' };
+  });
+
+  it('lists the table\'s years with "Latest" first; a pick asks for that year of the table', async () => {
+    const asked = pendingRequests();
+    await settle();
+    asked[0].resolve(comparisonAnswer(21));
+    await settle();
+    const year = control('comparison-year');
+    expect(year.props.picker).toMatchObject({ param: 'year', label: 'Year', defaultValue: '' });
+    expect(year.props.picker.options).toEqual([{ value: '', label: 'Latest' }, ...YEARS.map((y) => ({ value: y, label: y }))]);
+    // The Comparison has no Years control, whatever its answer lists.
+    expect(control('handbook-years')).toBeUndefined();
+    year.props.onChange('2015-16');
+    await settle();
+    expect(asked.at(-1).opts.params).toEqual({ table: '21', year: '2015-16' });
+    expect(control('comparison-year').props.value).toBe('2015-16');
+  });
+
+  it('a table change drops the year', async () => {
+    const asked = pendingRequests();
+    await settle();
+    asked[0].resolve(comparisonAnswer(21));
+    await settle();
+    control('comparison-year').props.onChange('2015-16');
+    await settle();
+    control('comparison-table').props.onChange('164');
+    await settle();
+    expect(asked.at(-1).opts.params).toEqual({ table: '164' });
+    expect(control('comparison-year')).toBeUndefined();
+  });
+
+  it('no years in the answer, no Year control; a handbook module never shows one', async () => {
+    const { comparisonYearPicker } = await import('../lib/modulePicker.js');
+    expect(comparisonYearPicker('state', 'Cross-State Comparison Engine', { meta: {} })).toBeNull();
+    expect(comparisonYearPicker('state', 'State Fiscal Deep-Dive', { meta: { years: YEARS } })).toBeNull();
+    const asked = pendingRequests();
+    props = { ...props, featureName: 'State Fiscal Deep-Dive' };
+    await settle();
+    asked.at(-1).resolve(handbookAnswer(164, { years: YEARS }));
+    await settle();
+    expect(control('comparison-year')).toBeUndefined();
   });
 });

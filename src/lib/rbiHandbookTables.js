@@ -245,14 +245,43 @@ export function handbookTableLabel(no) {
 }
 
 /**
- * A request's table as a store variant of the module `spec`: the table number as text ("21") when
- * the module has that table, else ''. Accepts "21", "T21", "Table 21".
+ * F201: the most figures one store variant holds: feed_record's cap on one record
+ * (scripts/load-feed-register.mjs MAX_ITEMS). A table larger than this is stored as whole-year blocks
+ * (src/lib/rbiHandbook.js yearBlocks), each its own variant.
  */
-export function handbookTableVariant(spec, value) {
+export const HANDBOOK_BLOCK_MAX = 2000;
+
+// A year as the handbook writes one: "2005", "2019-20", "2019-21", "1993-97".
+const YEAR_TOKEN = /^(19|20)\d{2}(-\d{2,4})?$/;
+
+/** True when `value` is a handbook year token ("2005", "2019-20", "1993-97"). */
+export const isHandbookYear = (value) => YEAR_TOKEN.test(String(value ?? ''));
+
+/** A block's store variant: the table alone ("176", its newest block) or with its oldest year ("176@2005"). */
+export function handbookVariant(no, from = '') {
+  return from ? `${no}@${from}` : String(no);
+}
+
+/** A store variant as { no, from } ('' for the newest block), or null when it is not one. */
+export function parseHandbookVariant(value) {
+  const m = /^(\d{1,3})(?:@(.*))?$/.exec(String(value ?? ''));
+  if (!m) return null;
+  if (m[2] !== undefined && !isHandbookYear(m[2])) return null;
+  return { no: Number(m[1]), from: m[2] || '' };
+}
+
+/**
+ * A request's table (and F201: its `years`, a block's oldest year) as a store variant of the module
+ * `spec`: '' when the module does not hold the table, else handbookVariant(table, years). Accepts "21",
+ * "T21", "Table 21". A `years` that is not a year token is ignored: the table's newest block.
+ */
+export function handbookTableVariant(spec, value, years = '') {
   const m = /^\s*(?:t(?:able)?\s*)?(\d{1,3})\s*$/i.exec(String(value ?? ''));
   if (!spec || !m) return '';
   const no = Number(m[1]);
-  return spec.tables.includes(no) ? String(no) : '';
+  if (!spec.tables.includes(no)) return '';
+  const from = String(years ?? '').trim();
+  return handbookVariant(no, isHandbookYear(from) ? from : '');
 }
 
 /** Every handbook table any module uses, in number order. */

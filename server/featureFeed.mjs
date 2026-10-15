@@ -66,8 +66,8 @@ import {
 } from '../src/lib/entertainmentPack.js';
 import { PLANNED_NOTE, isPlannedModule } from '../src/lib/plannedModules.js';
 import { WIRE_GUARDS, curatedNewsFor, curatedNewsRows, decodeEntities, freshNewsRows, newsDays } from '../src/lib/curatedNews.js';
-import { COMPARISON_DEFAULT_TABLE, HANDBOOK, HANDBOOK_NOTE, HANDBOOK_TABLES, HANDBOOK_TABLE_NUMBERS, handbookModuleFor, handbookOwner, handbookTableLabel, handbookTableVariant } from '../src/lib/rbiHandbookTables.js';
-import { newestYearsWithin, parseHandbookTable } from '../src/lib/rbiHandbook.js';
+import { COMPARISON_DEFAULT_TABLE, HANDBOOK, HANDBOOK_BLOCK_MAX, HANDBOOK_NOTE, HANDBOOK_TABLES, HANDBOOK_TABLE_NUMBERS, handbookModuleFor, handbookOwner, handbookTableLabel, handbookTableVariant, isHandbookYear, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
+import { handbookHeld, handbookView, parseHandbookTable, yearBlocks } from '../src/lib/rbiHandbook.js';
 import { compareStates, comparisonYears, rankedWithin, wholeYearsOf } from '../src/lib/stateComparison.js';
 import { RBI_PRESS_RSS, parseRbiPressRss, rbiReleaseUrl, sdlReleaseKind, sdlRows } from '../src/lib/rbiSdl.js';
 import { enrichPibEnglish, serveNational, statementLeader } from './nationalFeed.mjs';
@@ -79,7 +79,7 @@ import * as sportsLive from './sportsApi.mjs';
 import { loadBackupForFeature } from './backupFeed.mjs';
 import { serveFeaturePage, wantsPage } from './featurePage.mjs';
 import { isStoreServed, mlaStateVariant } from './feedSchedule.mjs';
-import { STORE_PAGE_ROWS, serveFromStore } from './feedServe.mjs';
+import { serveFromStore } from './feedServe.mjs';
 import { servePartyStrength } from './partyStrength.mjs';
 import { isPartyMapFeature } from '../src/lib/partyStrength.js';
 import * as entertainmentLive from './entertainmentApi.mjs';
@@ -1403,20 +1403,31 @@ const yearSpan = (records) => {
 };
 
 /**
- * The live table's note. `capped` is newestYearsWithin's answer: the figures shown are its records, so
- * the note gives that count, not the table's.
+ * F201: the live table's note: the table, its unit, what the answer holds (its block's years of the
+ * table's figures, or all of them: handbookHeld) and the table's source, as the stored note says it.
  */
-function handbookTableNote(parsed, capped) {
+function handbookTableNote(parsed, view, shown) {
   const t = parsed.table;
-  const shown = capped.records.length;
-  const total = parsed.records.length;
-  let more = '';
-  if (capped.partial) {
-    more = ` Showing ${shown} of its ${total} figures: ${capped.partial.indicators} of the ${capped.partial.of} indicators of ${capped.partial.year}, each with all of its states.`;
-  } else if (total > shown) {
-    more = ` Showing the newest ${shown} of its ${total} figures: ${capped.years.length} whole years, ${capped.years.at(-1)} to ${capped.years[0]}.`;
+  return `${HANDBOOK_NOTE} ${handbookTableLabel(t.no)}${t.unit ? ` (${t.unit})` : ''}: ${handbookHeld(view, shown)}.${t.source ? ` Source: ${t.source.slice(0, 300)}` : ''}`;
+}
+
+/**
+ * F201: a request's `years` (a block's oldest year) when it can name one: a handbook year token whose
+ * first year is from 1950 to next year and whose second, if any, is 1 to 10 years later ("2005",
+ * "2019-20", "1993-97", "2019-2020"); else ''. Bounded, so the live-attempt maps hold a bounded number of
+ * entries per table (F196 review R3), and the live path picks a block only by such a value.
+ */
+function handbookBlockYears(value, now = new Date()) {
+  const text = String(value ?? '').trim();
+  const m = /^(\d{4})(?:-(\d{2}|\d{4}))?$/.exec(text);
+  if (!m || !isHandbookYear(text)) return '';
+  const y = Number(m[1]);
+  if (y < 1950 || y > now.getFullYear() + 1) return '';
+  if (m[2] !== undefined) {
+    const end = m[2].length === 2 ? y - (y % 100) + Number(m[2]) + (Number(m[2]) <= y % 100 ? 100 : 0) : Number(m[2]);
+    if (end <= y || end > y + 10) return '';
   }
-  return `${HANDBOOK_NOTE} ${handbookTableLabel(t.no)}${t.unit ? ` (${t.unit})` : ''}.${t.source ? ` Source: ${t.source.slice(0, 300)}` : ''}${more}`;
+  return text;
 }
 
 /**
@@ -1444,18 +1455,20 @@ function comparisonYear(value, now = new Date()) {
 /**
  * A handbook module (the stored register's live path, used before the register is loaded or when the
  * store cannot answer): the table the request names (`table`), else the module's first, read from its
- * page. Never another source.
+ * page. Never another source. F201: the table's whole-year blocks as the store holds them (yearBlocks);
+ * the block whose oldest year is `years`, else the newest. A table of 2,000 figures or fewer is one block.
  */
 async function serveHandbookTable(tier, feat, spec, searchParams) {
-  const no = Number(handbookTableVariant(spec, searchParams.get('table')) || spec.tables[0]);
+  const no = parseHandbookVariant(handbookTableVariant(spec, searchParams.get('table')))?.no || spec.tables[0];
   const t = HANDBOOK_TABLES.get(no);
   const links = [t.url, HANDBOOK.listingUrl];
   try {
     const parsed = await handbookTableLive(no);
-    // F196 review R1: one page as the stored register holds it (scripts/fetch-rbi-handbook.mjs
-    // MAX_PER_TABLE): the newest whole years, never a year cut short.
-    const capped = newestYearsWithin(parsed.records, STORE_PAGE_ROWS);
-    const rows = capped.records;
+    const blocks = yearBlocks(parsed.records);
+    const years = handbookBlockYears(searchParams.get('years'));
+    const at = Math.max(0, years ? blocks.findIndex((b) => b.from === years) : 0);
+    const rows = blocks[at].records;
+    const view = handbookView(no, blocks, at, parsed.table.published || HANDBOOK.published);
     return envelope({
       tier,
       feature: feat,
@@ -1464,8 +1477,8 @@ async function serveHandbookTable(tier, feat, spec, searchParams) {
       links,
       coverage: { ...yearSpan(rows), exhaustive: false },
       fallback: false,
-      note: handbookTableNote(parsed, capped),
-      meta: { heading: handbookTableLabel(no), table: no, tables: spec.tables.length, as_of: parsed.table.published || HANDBOOK.published, status: 'RBI HANDBOOK · STATE LEVEL' },
+      note: handbookTableNote(parsed, view, rows.length),
+      meta: view,
     });
   } catch (e) {
     return envelope({
@@ -1482,25 +1495,57 @@ async function serveHandbookTable(tier, feat, spec, searchParams) {
 }
 
 /**
+ * F201: the Comparison's records from the stored register of the module that holds table `no`: the
+ * table's newest block, or (a table stored as more than one whole-year block) the block that holds the
+ * `year` asked for, and also the block before it when the year before is there (the year is its block's
+ * oldest, or with no year asked, an indicator's latest is). { records, years: every year of the table }
+ * or null when any read has nothing: the table's page answers then.
+ */
+async function comparisonFromStore(no, year, store) {
+  const read = async (years = '') => {
+    const answer = await store(handbookOwner(no), new URLSearchParams({ table: String(no), ...(years ? { years } : {}) }));
+    // F196 review R1: a stored page short of its table (one loaded before tables were cut to whole
+    // years) may end inside a year; that year is left out, so every year ranked is whole.
+    const rows = answer?.rows?.length ? wholeYearsOf(answer.rows, answer.storeTotal) : [];
+    return rows.length ? { rows, meta: answer.meta } : null;
+  };
+  const newest = await read();
+  if (!newest) return null;
+  const blocks = Array.isArray(newest.meta?.blocks) ? newest.meta.blocks : [];
+  const years = Array.isArray(newest.meta?.years) && newest.meta.years.length ? newest.meta.years.map(String) : comparisonYears(newest.rows);
+  if (blocks.length < 2) return { records: newest.rows, years };
+  const holds = year ? blocks.findIndex((b) => year >= String(b.from) && year <= String(b.through)) : -1;
+  const at = Math.max(0, holds);
+  const held = at === 0 ? newest : await read(String(blocks[at].value));
+  if (!held) return null;
+  const latest = [...new Set(compareStates(held.rows, { year }).map((r) => r.year))];
+  const needsOlder = at + 1 < blocks.length && latest.includes(String(blocks[at].from));
+  if (!needsOlder) return { records: held.rows, years };
+  const older = await read(String(blocks[at + 1].value));
+  if (!older) return null;
+  return { records: [...held.rows, ...older.rows], years };
+}
+
+/**
  * Cross-State Comparison Engine: one handbook table (`table`, any table a handbook module holds; default
  * Table 21), every state ranked for one year (`year`, default each indicator's latest), read from the
- * stored register of the module that holds the table, else from the table's page.
+ * stored register of the module that holds the table (F201: the block that holds the year), else from
+ * the table's page. `store` is the store reader (server/feedServe.mjs serveFromStore; a fake in tests).
  */
-async function serveStateComparison(tier, feat, searchParams) {
+async function serveStateComparison(tier, feat, searchParams, { store = serveFromStore } = {}) {
   const no = comparisonTable(searchParams.get('table'));
   const year = comparisonYear(searchParams.get('year'));
   const t = HANDBOOK_TABLES.get(no);
   const links = [t.url, HANDBOOK.listingUrl];
   let records = null;
+  let tableYears = null;
   let fromStore = false;
   try {
-    const stored = await serveFromStore(handbookOwner(no), new URLSearchParams({ table: String(no) }));
-    if (stored?.rows?.length) {
-      // F196 review R1: a stored page short of its table (one loaded before tables were cut to one
-      // page) may end inside a year; that year is left out, so every year ranked is whole.
-      records = wholeYearsOf(stored.rows, stored.storeTotal);
-      fromStore = records.length > 0;
-      if (!fromStore) records = null;
+    const stored = await comparisonFromStore(no, year, store);
+    if (stored) {
+      records = stored.records;
+      tableYears = stored.years;
+      fromStore = true;
     }
   } catch {
     // The table's page answers instead.
@@ -1523,10 +1568,12 @@ async function serveStateComparison(tier, feat, searchParams) {
       });
     }
   }
-  // F196 review R1: whole indicators within one page, so no indicator's ranking is cut short.
-  const shown = rankedWithin(compareStates(records, { year }), STORE_PAGE_ROWS);
+  // F196 review R1: whole indicators only, so no indicator's ranking is cut short. F201: up to one block
+  // (2,000 rows), so every indicator of a year is shown (Table 176: all 19).
+  const shown = rankedWithin(compareStates(records, { year }), HANDBOOK_BLOCK_MAX);
   const rows = shown.rows;
-  const years = comparisonYears(records);
+  // F201: every year of the table (the stored view lists them; the page's records hold them all).
+  const years = tableYears || comparisonYears(records);
   const ranked = year && years.includes(year) ? `${year} where an indicator has it, else each indicator’s latest year` : 'each indicator’s latest year';
   const partly = shown.indicators < shown.of ? ` Showing ${shown.indicators} of its ${shown.of} indicators, each with all of its states.` : '';
   return envelope({
@@ -1537,7 +1584,7 @@ async function serveStateComparison(tier, feat, searchParams) {
     links,
     coverage: { from: years.at(-1) || '', through: years[0] || '', exhaustive: false },
     fallback: false,
-    note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)}${rows[0]?.unit ? ` (${rows[0].unit})` : ''}: every state ranked, highest value first (rank 1 is the largest figure, not the best), with the year before; ${ranked} is ranked. All India is shown unranked.${partly} ${fromStore ? 'From the stored register.' : 'Read from the table’s page.'} Pick another table with the Table control.`,
+    note: `${HANDBOOK_NOTE} ${handbookTableLabel(no)}${rows[0]?.unit ? ` (${rows[0].unit})` : ''}: every state ranked, highest value first (rank 1 is the largest figure, not the best), with the year before; ${ranked} is ranked. All India is shown unranked.${partly} ${fromStore ? 'From the stored register.' : 'Read from the table’s page.'} Pick another table with the Table control and another year with the Year control.`,
     meta: { heading: `Compare states: ${handbookTableLabel(no)}`, table: no, years, as_of: rows[0]?.as_of || HANDBOOK.published, status: 'RBI HANDBOOK · STATE LEVEL' },
   });
 }
@@ -1605,7 +1652,8 @@ async function serveSdlAuctions(tier, feat) {
   });
 }
 
-export async function serveFeatureFeed(searchParams) {
+// `store`: the Cross-State Comparison Engine's store reader (F201; a fake in tests).
+export async function serveFeatureFeed(searchParams, { store } = {}) {
   loadCache();
   const tierIn = searchParams.get('tier') || '';
   const featureIn = searchParams.get('feature') || '';
@@ -1661,7 +1709,7 @@ export async function serveFeatureFeed(searchParams) {
   // press releases.
   const handbook = handbookModuleFor(tier, feat.htmlFeature);
   if (handbook) return serveHandbookTable(tier, feat, handbook, searchParams);
-  if (tier === 'state' && /^cross-state comparison engine$/i.test(feat.htmlFeature)) return serveStateComparison(tier, feat, searchParams);
+  if (tier === 'state' && /^cross-state comparison engine$/i.test(feat.htmlFeature)) return serveStateComparison(tier, feat, searchParams, store ? { store } : {});
   if (tier === 'state' && /^sdl auction & borrowing tracker$/i.test(feat.htmlFeature)) return serveSdlAuctions(tier, feat);
 
   // F196: Party Organisation Map counts party seats per assembly from the MLA register (server/partyStrength.mjs).
@@ -3820,19 +3868,20 @@ const lateLive = new Map();
  * (comparisonYear) or none. Any other module: neither.
  */
 function handbookLiveKeyParts(searchParams) {
-  const none = { table: '', year: '' };
-  if (!searchParams.has('table') && !searchParams.has('year')) return none;
+  const none = { table: '', year: '', years: '' };
+  if (!searchParams.has('table') && !searchParams.has('year') && !searchParams.has('years')) return none;
   const { feat, tier } = matchFeature(searchParams.get('tier') || '', searchParams.get('feature') || '');
   if (!feat || tier !== 'state') return none;
   const spec = handbookModuleFor(tier, feat.htmlFeature);
   // The default table is keyed as no table, so a request that names it shares the plain request's attempt.
+  // F201: a block (`years`) only as the live path reads it (handbookBlockYears), so keys stay bounded.
   if (spec) {
     const table = handbookTableVariant(spec, searchParams.get('table'));
-    return { table: table && table !== String(spec.tables[0]) ? table : '', year: '' };
+    return { table: table && table !== String(spec.tables[0]) ? table : '', year: '', years: handbookBlockYears(searchParams.get('years')) };
   }
   if (/^cross-state comparison engine$/i.test(feat.htmlFeature)) {
     const table = comparisonTable(searchParams.get('table'));
-    return { table: table === COMPARISON_DEFAULT_TABLE ? '' : String(table), year: comparisonYear(searchParams.get('year')) };
+    return { table: table === COMPARISON_DEFAULT_TABLE ? '' : String(table), year: comparisonYear(searchParams.get('year')), years: '' };
   }
   return none;
 }
@@ -3844,8 +3893,8 @@ function liveKey(searchParams) {
   // start extra live attempts.
   const stateTier = searchParams.get('tier') === 'state';
   const state = stateTier ? mlaStateVariant(searchParams.get('state')) : '';
-  const { table, year } = stateTier ? handbookLiveKeyParts(searchParams) : { table: '', year: '' };
-  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}${state ? `\u0000${state}` : ''}${table ? `\u0000t${table}` : ''}${year ? `\u0000y${year}` : ''}`;
+  const { table, year, years } = stateTier ? handbookLiveKeyParts(searchParams) : { table: '', year: '', years: '' };
+  return `${searchParams.get('tier') || ''}\u0000${searchParams.get('feature') || ''}${person ? `\u0000${statementLeader(person)}` : ''}${state ? `\u0000${state}` : ''}${table ? `\u0000t${table}` : ''}${year ? `\u0000y${year}` : ''}${years ? `\u0000b${years}` : ''}`;
 }
 
 function settleWithin(promise, ms) {

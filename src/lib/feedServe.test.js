@@ -397,3 +397,85 @@ describe('serveFeatureFeedStoredFirst: the route', () => {
     expect(body.rows).toEqual([{ title: 'Stored story' }]);
   });
 });
+
+// F201: a handbook register's variant (a table, or one whole-year block of a large table) is read whole:
+// up to four feed_page calls of 500, made at once, which must agree with each other.
+describe('serveFromStore: a whole handbook variant (F201)', () => {
+  const FISCAL = 'state:State Fiscal Deep-Dive';
+  const LOADED = '2026-01-10T00:00:00.000Z';
+  const NOW = { now: () => Date.parse('2026-10-15T10:00:00.000Z') };
+  const rowsOf = (n) => Array.from({ length: n }, (_, i) => ({ state: `S${i % 32}`, indicator: `I${Math.floor(i / 32)}`, year: '2025', value: i, i }));
+  const VIEW = { heading: 'Table 176', table: 176, block: { from: '2023', through: '2025' }, blocks: [{ value: '', variant: '176', from: '2023', through: '2025', count: 1824 }, { value: '2020', variant: '176@2020', from: '2020', through: '2022', count: 1822 }], years: ['2025', '2024', '2023', '2022', '2021', '2020'] };
+  /** feed_page over `rows`, one window per call, as the database pages a variant. */
+  function store(rows, { view = VIEW, over = () => ({}) } = {}) {
+    return vi.fn(async (_name, a) => ({
+      tier: 'state', feature: 'State Fiscal Deep-Dive', variant: a.p_variant, class: 'register', kind: 'reference', serve: true,
+      fetched_at: LOADED, interval_minutes: 43200, total: rows.length,
+      meta: { note: 'Table 176', links: [], coverage: { from: '2025-12-11', through: '2025-12-11', exhaustive: false }, adapter: 'register', kind: 'register', fetched_at: LOADED, ...(view ? { view } : {}) },
+      items: rows.slice(a.p_offset, a.p_offset + a.p_limit).map((row) => ({ item_key: `k${row.i}`, row })),
+      ...over(a),
+    }));
+  }
+  const ask = (params, rpc) => serveFromStore(FISCAL, new URLSearchParams({ tier: 'state', feature: 'State Fiscal Deep-Dive', ...params }), { rpc, ...NOW });
+  const warn = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+  afterEach(() => vi.restoreAllMocks());
+
+  it('a 1,824-item block is served whole, in order, from four reads made at once', async () => {
+    const rows = rowsOf(1824);
+    const rpc = store(rows);
+    const body = await ask({ table: '176' }, rpc);
+    expect(rpc.mock.calls.map(([n, a]) => [n, a.p_variant, a.p_limit, a.p_offset])).toEqual([0, 500, 1000, 1500].map((o) => ['feed_page', '176', STORE_PAGE_ROWS, o]));
+    expect(body.rows).toEqual(rows);
+    expect(body).toMatchObject({ served: 'store', register: true, storeTotal: 1824 });
+    expect(body.meta.blocks).toHaveLength(2);
+  });
+
+  it('`years` names an older block', async () => {
+    const rpc = store(rowsOf(10));
+    await ask({ table: '176', years: '2020' }, rpc);
+    expect(new Set(rpc.mock.calls.map(([, a]) => a.p_variant))).toEqual(new Set(['176@2020']));
+    expect(storeVariant(FISCAL, new URLSearchParams({ table: '176', years: '2020' }))).toBe('176@2020');
+    expect(storeVariant(FISCAL, new URLSearchParams({ table: '176', years: 'x' }))).toBe('176');
+    expect(storeVariant(FISCAL, new URLSearchParams({ years: '2020' }))).toBe('164');
+  });
+
+  it('today\'s capped data (480 items, a view with no blocks) is served as today', async () => {
+    const rows = rowsOf(480);
+    const body = await ask({ table: '176' }, store(rows, { view: { heading: 'Table 176', table: 176, tables: 15, as_of: '2025-12-11', status: 'RBI HANDBOOK · STATE LEVEL' } }));
+    expect(body.rows).toEqual(rows);
+    expect(body.storeTotal).toBe(480);
+    expect(body.meta.blocks).toBeUndefined();
+  });
+
+  it('reads that disagree on the load time or the total, or that do not add up to the total, give the live path', async () => {
+    warn();
+    const rows = rowsOf(1824);
+    expect(await ask({ table: '176' }, store(rows, { over: (a) => (a.p_offset === 1000 ? { fetched_at: '2026-10-15T00:00:00.000Z' } : {}) }))).toBeNull();
+    expect(await ask({ table: '176' }, store(rows, { over: (a) => (a.p_offset === 500 ? { total: 1825 } : {}) }))).toBeNull();
+    expect(await ask({ table: '176' }, store(rows, { over: (a) => (a.p_offset === 1500 ? { items: [] } : {}) }))).toBeNull();
+  });
+
+  it('one read failing or passing the time limit gives the live path', async () => {
+    warn();
+    const rows = rowsOf(1824);
+    const base = store(rows);
+    const failing = vi.fn(async (n, a) => (a.p_offset === 1000 ? Promise.reject(new Error('boom')) : base(n, a)));
+    expect(await ask({ table: '176' }, failing)).toBeNull();
+    const slow = vi.fn((n, a) => (a.p_offset === 1500 ? new Promise(() => {}) : base(n, a)));
+    expect(await serveFromStore(FISCAL, new URLSearchParams({ table: '176' }), { rpc: slow, timeoutMs: 30, ...NOW })).toBeNull();
+  });
+
+  it('`serve` off, or no state for the variant, gives the live path', async () => {
+    expect(await ask({ table: '176' }, store(rowsOf(10), { over: () => ({ serve: false }) }))).toBeNull();
+    expect(await ask({ table: '176' }, vi.fn(async () => null))).toBeNull();
+  });
+
+  it('a module without whole variants still makes exactly one feed_page call; MLA Directory\'s page across states is unchanged', async () => {
+    const rpc = rpcReturning(page());
+    await serveFromStore(NEWS, NEWS_PARAMS, { rpc, ...SOON });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    const across = vi.fn(async () => ({ all_served: false }));
+    expect(await serveFromStore('state:MLA Directory', new URLSearchParams({ tier: 'state', feature: 'MLA Directory' }), { rpc: across, ...SOON })).toBeNull();
+    expect(across.mock.calls.map(([n]) => n)).toEqual(['feed_page_across']);
+  });
+});

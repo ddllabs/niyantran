@@ -51,7 +51,7 @@ import { isPartyMapFeature } from '../lib/partyStrength.js';
 import { pendingMlaState } from './mlaStateHandoff.js';
 import { isMlaDirectory } from '../lib/mlaStates.js';
 import ModulePicker from './ModulePicker.jsx';
-import { modulePicker } from '../lib/modulePicker.js';
+import { comparisonYearPicker, modulePicker, yearsPicker } from '../lib/modulePicker.js';
 import IndustryDesk from './IndustryDesk.jsx';
 import { tenderCloseBand, applyVizFilter } from '../lib/nationalKpi.js';
 import FeedLoader from '../shell/FeedLoader.jsx';
@@ -154,12 +154,29 @@ export default function DeskView({
   const pickParam = mlaDesk ? 'state' : picker?.param || '';
   const pickFor = `${tier || ''}:${featureName || ''}`;
   const pickValue = pickParam && modulePick.for === pickFor ? modulePick.value : '';
-  const setPick = (value) => setModulePick({ for: pickFor, value: String(value ?? '') });
+  // F201: the second control (a handbook table's Years, or the Comparison Engine's Year), built from the
+  // last answer to this module and table (kept while a new one loads) and scoped to them: picking
+  // another table resets it.
+  const subFor = `${pickFor}|${pickValue}`;
+  const [subPick, setSubPick] = useState(NO_PICK);
+  const [subMeta, setSubMeta] = useState({ for: '', meta: null });
+  const subPicker = picker && subMeta.for === subFor
+    ? yearsPicker(tier, featureName, { meta: subMeta.meta }) || comparisonYearPicker(tier, featureName, { meta: subMeta.meta })
+    : null;
+  const subParam = subPicker?.param || '';
+  const subValue = subPicker && subPick.for === subFor && subPicker.options.some((o) => o.value === subPick.value) ? subPick.value : '';
+  const tableDefault = picker?.defaultValue || '';
+  const setPick = (value) => {
+    setModulePick({ for: pickFor, value: String(value ?? '') });
+    setSubPick(NO_PICK);
+  };
+  const setSub = (value) => setSubPick({ for: subFor, value: String(value ?? '') });
 
   useEffect(() => {
     setQ('');
     setHasAnswerFilter('');
     setModulePick(handoffPick(tier, featureName));
+    setSubPick(NO_PICK);
     onSelect(null);
     if (!colsKey) {
       setVisibleKeys(null);
@@ -220,11 +237,16 @@ export default function DeskView({
       return undefined;
     }
     if (pagedMode) return undefined;
-    const params = pickValue ? { [pickParam]: pickValue } : undefined;
-    // F190: the other state's (or table's) list must not stay on screen or in the shell (an AI attachment,
-    // the side panel) while this one loads.
-    if (lastPick.current !== pickValue) {
-      lastPick.current = pickValue;
+    // F201: a second pick (a block's Years, the Comparison's Year) is sent with its table, the default
+    // table when none is picked.
+    const params = subValue
+      ? { [pickParam]: pickValue || tableDefault, [subParam]: subValue }
+      : pickValue ? { [pickParam]: pickValue } : undefined;
+    // F190: the other state's (or table's, or block's) list must not stay on screen or in the shell (an
+    // AI attachment, the side panel) while this one loads.
+    const pickKey = `${pickValue}|${subValue}`;
+    if (lastPick.current !== pickKey) {
+      lastPick.current = pickKey;
       setFeed(null);
       onFeed(null);
       onSelect(null);
@@ -238,6 +260,8 @@ export default function DeskView({
       const prepared = prepareDeskFeed(body);
       setFeed(prepared);
       onFeed(prepared);
+      // F201: the answer's block list (and years) for the second control of this module and table.
+      if (body?.meta && typeof body.meta === 'object') setSubMeta({ for: subFor, meta: body.meta });
     };
     // F159: an answer from stored records while live data loads is asked for again; leaving the
     // module aborts `ac`, which stops it.
@@ -279,7 +303,7 @@ export default function DeskView({
         onLoading?.(false);
       });
     return () => ac.abort();
-  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode, pickParam, pickValue]);
+  }, [tier, featureName, onFeed, onSelect, onLoading, reload, reloadTick, pagedMode, pickParam, pickValue, subFor, subParam, subValue, tableDefault]);
 
   useEffect(() => {
     mounted.current = true;
@@ -295,7 +319,7 @@ export default function DeskView({
   }, [q, pagedMode]);
 
   // One page per view: a new search, sort, filter, MLA state or table starts again at its first page.
-  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter, ...(pickValue ? [pickValue] : [])]);
+  const viewKey = JSON.stringify([featureName, pagedMode ? pagedQ : deferredQ, sort, vizFilter, hasAnswerFilter, ...(pickValue ? [pickValue] : []), ...(subValue ? [subValue] : [])]);
   const page = pageAt.view === viewKey ? pageAt.n : 0;
   const setPage = (next) =>
     setPageAt((at) => ({ view: viewKey, n: typeof next === 'function' ? next(at.view === viewKey ? at.n : 0) : next }));
@@ -779,6 +803,7 @@ export default function DeskView({
           <span className="muted" aria-live={mlaDesk || picker ? 'polite' : undefined}>{coverageLabel}</span>
         </div>
         {mlaDesk ? <MlaStatePicker value={pickValue} onChange={setPick} /> : picker ? <ModulePicker picker={picker} value={pickValue} onChange={setPick} /> : null}
+        {subPicker ? <ModulePicker picker={subPicker} value={subValue} onChange={setSub} /> : null}
         {!shellState && liveRefreshNote(feed) ? (
           <p className="desk-note" role="status">
             {liveRefreshNote(feed)}

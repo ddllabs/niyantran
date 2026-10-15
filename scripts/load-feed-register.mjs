@@ -23,7 +23,15 @@
  *
  * F196: the eight RBI handbook modules (src/lib/rbiHandbookTables.js HANDBOOK_MODULES, e.g. --module
  * "state:State Fiscal Deep-Dive") are register modules like MLA Directory, one store variant per table,
- * read from the JSON scripts/fetch-rbi-handbook.mjs writes (tmp/rbi-handbook/handbook-<edition>.json);
+ * read from the JSON scripts/fetch-rbi-handbook.mjs writes (tmp/rbi-handbook/handbook-<edition>.json).
+ * F201: every figure is loaded; a table over 2,000 figures (MAX_ITEMS, one record) is loaded as whole-year
+ * blocks, one variant each ("176", "176@2020", … "176@2005"; handbookParts), each with a stored view
+ * (meta.view) listing the table's blocks and years. Before applying, the load reads each table's stored
+ * view and prints the block variants it no longer produces with the SQL that switches their `serve` off
+ * (it changes nothing itself). A new block variant starts with `serve` off (feed_state's default):
+ * switch it on after the load. Yearly reload: fetch the new edition, dry-run each module, load each with
+ * --force, act on the obsolete-block report, switch on any new "@" variants; a variant halved by a new
+ * split is refused as shrunk twice by feed_record and accepted on the third load.
  * SDL Auction & Borrowing Tracker is a scheduled module of kind official like Cabinet Decisions, its
  * backfill read from the JSON scripts/fetch-rbi-sdl-releases.mjs writes (tmp/rbi-sdl/sdl-releases.json).
  *
@@ -97,7 +105,8 @@ import { readBackupRows } from '../server/backupFeed.mjs';
 import { FEED_REGISTERS, feedRunsForDb, itemKeyFor, mlaStateVariant, registerRunsForDb } from '../server/feedSchedule.mjs';
 import { itemsFromRows, metaFor, supabaseRpc } from '../server/feedStore.mjs';
 import { cabinetPrefers, cabinetReleaseGroup, isCabinetDecision } from '../src/lib/parliament.js';
-import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_NOTE, handbookTableLabel } from '../src/lib/rbiHandbookTables.js';
+import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_NOTE, handbookTableLabel, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
+import { handbookHeld, handbookView, yearBlocks } from '../src/lib/rbiHandbook.js';
 import { RBI_PRESS_RSS } from '../src/lib/rbiSdl.js';
 
 export const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
@@ -115,7 +124,8 @@ export const KEPT_KINDS = Object.freeze(['official']);
 export const REGISTER_KINDS = Object.freeze(['reference']);
 // A lease long enough for one load; it ends by itself if the script dies.
 const LEASE_SECONDS = 120;
-const MAX_ITEMS = 2000;
+/** The most items feed_record takes in one record (F201: also HANDBOOK_BLOCK_MAX, one handbook block). */
+export const MAX_ITEMS = 2000;
 
 // ---------------------------------------------------------------------------------------------
 // Mapping: register row -> live row.
@@ -367,19 +377,55 @@ export function mapHandbookRecord(raw, spec) {
 /** A handbook figure's key: its table, state, indicator and year (the same in every edition that has it). */
 export const handbookItemKey = (row) => `hb:t${row.table_no}:${row.state}|${row.indicator}|${row.year}`;
 
-/** A handbook table's stored note: the edition, the table, its unit and source, and how it is kept. */
+/**
+ * A handbook table's stored note: the edition, the table, its unit and source, what the variant holds
+ * (F201: its block's years of the table's figures, or all of them), and how it is kept.
+ */
 export function handbookNote(report, file, meta) {
-  const t = meta?.tables?.get(Number(report.variant));
+  const no = report.view?.table ?? parseHandbookVariant(report.variant)?.no ?? Number(report.variant);
+  const t = meta?.tables?.get(Number(no));
   const unit = t?.unit ? ` (${t.unit})` : '';
   const source = t?.source ? ` Source: ${String(t.source).slice(0, 300)}` : '';
-  // F196 review R1: a table larger than one store page was cut by the fetcher (its `cut`); say what is held.
+  // F196 review R1: a file written before F201 may hold a table the fetcher cut (its `cut`); say so.
   const cut = t?.cut && Number(t.cut.left) > 0 ? t.cut : null;
-  const held = !cut
-    ? `${report.kept} figures`
-    : cut.partial
+  const held = cut
+    ? cut.partial
       ? `${report.kept} figures, ${cut.partial.indicators} of the ${cut.partial.of} indicators of ${cut.partial.year} (each with all of its states); the rest are on the table's page`
-      : `the newest ${report.kept} of its ${report.kept + Number(cut.left)} figures: ${Number(cut.years) > 0 ? `${cut.years} ` : ''}whole years, ${cut.from} to ${cut.through}; older years are on the table's page`;
-  return `${HANDBOOK_NOTE} ${handbookTableLabel(report.variant)}${unit}: ${held}.${source} Stored register loaded from ${file}; not refreshed by the timer, a reload replaces this table.`;
+      : `the newest ${report.kept} of its ${report.kept + Number(cut.left)} figures: ${Number(cut.years) > 0 ? `${cut.years} ` : ''}whole years, ${cut.from} to ${cut.through}; older years are on the table's page`
+    : report.view
+      ? handbookHeld(report.view, report.kept)
+      : `${report.kept} figures`;
+  return `${HANDBOOK_NOTE} ${handbookTableLabel(no)}${unit}: ${held}.${source} Stored register loaded from ${file}; not refreshed by the timer, a reload replaces this table.`;
+}
+
+/**
+ * F201: a handbook module's items by store variant: each table's whole-year blocks (yearBlocks, at most
+ * MAX_ITEMS each), the newest named by the table ("176"), each older one "<table>@<its oldest year>".
+ * Tables in the items' order, each newest block first; items keep their order. Each part carries the
+ * stored view (handbookView) the page needs to offer the table's other blocks. A year over the limit
+ * throws (yearBlocks): nothing is cut.
+ */
+export function handbookParts(items) {
+  const byTable = new Map();
+  for (const item of items) {
+    const no = Number(item.row.table_no);
+    if (!byTable.has(no)) byTable.set(no, []);
+    byTable.get(no).push(item);
+  }
+  const parts = [];
+  for (const [no, list] of byTable) {
+    const blocks = yearBlocks(list.map((i) => i.row), MAX_ITEMS);
+    const blockOfYear = new Map();
+    blocks.forEach((b, i) => b.years.forEach((y) => blockOfYear.set(y, i)));
+    const buckets = blocks.map(() => []);
+    for (const item of list) buckets[blockOfYear.get(item.row.year)].push(item);
+    const asOf = list.find((i) => i.row.as_of)?.row.as_of || HANDBOOK.published;
+    blocks.forEach((_b, i) => {
+      const view = handbookView(no, blocks, i, asOf);
+      parts.push({ variant: view.blocks[i].variant, items: buckets[i], view });
+    });
+  }
+  return parts;
 }
 
 const handbookRegisters = Object.fromEntries(
@@ -394,6 +440,10 @@ const handbookRegisters = Object.fromEntries(
       order: () => 0,
       dateOf: (row) => row.as_of || '',
       variantOf: (row) => String(row.table_no),
+      // F201: each table as its whole-year blocks, one store variant each (handbookParts).
+      split: handbookParts,
+      // F201: before a load, report the stored blocks this load no longer produces.
+      reportsObsolete: true,
       linkOf: (row) => row.source_url,
       links: [HANDBOOK.listingUrl],
       noun: 'figures',
@@ -552,21 +602,55 @@ function itemsOneByOne(rows, kind, itemKey) {
 
 /**
  * A register module's items by store variant, in the register's variant order, each with its own
- * report (variant, kept, oldest and newest date) for its stored note.
+ * report (variant, kept, oldest and newest date; F201: the stored view, when the register's `split`
+ * gives one) for its stored note.
  */
 export function groupByVariant(items, register) {
-  const groups = new Map();
-  for (const item of items) {
-    const variant = register.variantOf(item.row);
-    if (!groups.has(variant)) groups.set(variant, []);
-    groups.get(variant).push(item);
+  let parts;
+  if (register.split) parts = register.split(items);
+  else {
+    const groups = new Map();
+    for (const item of items) {
+      const variant = register.variantOf(item.row);
+      if (!groups.has(variant)) groups.set(variant, []);
+      groups.get(variant).push(item);
+    }
+    parts = [...groups].map(([variant, list]) => ({ variant, items: list }));
   }
-  return [...groups].map(([variant, list]) => {
+  return parts.map(({ variant, items: list, view }) => {
     const dates = list.map((i) => (register.dateOf ? register.dateOf(i.row) : i.row.date)).filter(Boolean).sort();
     // The variant's own citations (MLA Directory: its assembly's page), named in its stored links.
     const links = [...new Set(list.map((i) => i.row.register_source_url || register.linkOf?.(i.row)).filter(Boolean))].slice(0, 10);
-    return { variant, items: list, report: { variant, kept: list.length, oldest: dates[0] || '', newest: dates[dates.length - 1] || '', links } };
+    return { variant, items: list, report: { variant, kept: list.length, oldest: dates[0] || '', newest: dates[dates.length - 1] || '', links, ...(view ? { view } : {}) } };
   });
+}
+
+const sqlText = (value) => `'${String(value).replace(/'/g, "''")}'`;
+
+/**
+ * F201: the blocks the store holds for this module's tables that this load does not produce (a later
+ * edition can shift a split table's blocks). Reads each table's newest block (feed_page, one item) and
+ * its stored view's block list; only valid block names of the same table are listed. Returns
+ * [{ table, variants }] and writes nothing.
+ */
+export async function obsoleteBlocks(rpc, moduleId, groups) {
+  const [tier, feature] = moduleId.split(/:(.*)/s);
+  const produced = new Set(groups.map((g) => g.variant));
+  const tables = [...new Set(groups.map((g) => parseHandbookVariant(g.variant)?.no).filter((n) => n != null))];
+  const found = [];
+  for (const no of tables) {
+    const page = await rpc('feed_page', { p_tier: tier, p_feature: feature, p_variant: String(no), p_limit: 1, p_offset: 0 });
+    const stored = Array.isArray(page?.meta?.view?.blocks) ? page.meta.view.blocks.map((b) => String(b?.variant ?? '')) : [];
+    const variants = stored.filter((v) => parseHandbookVariant(v)?.no === no && !produced.has(v));
+    if (variants.length) found.push({ table: no, variants: [...new Set(variants)] });
+  }
+  return found;
+}
+
+/** The SQL the supervisor runs to stop serving obsolete blocks (printed, never run by this script). */
+export function obsoleteSql(moduleId, variants) {
+  const [tier, feature] = moduleId.split(/:(.*)/s);
+  return `update public.feed_state set serve = false where tier = ${sqlText(tier)} and feature = ${sqlText(feature)} and variant in (${variants.map(sqlText).join(', ')});`;
 }
 
 /** feed_state.meta for the register: shown until the first live refresh replaces it. */
@@ -580,6 +664,8 @@ export function registerMeta(register, report, file, fetchedAt, fileMeta = null)
         note: register.note ? register.note(report, file, fileMeta) : `Stored register of ${report.kept} ${register.noun || 'records'}, ${report.oldest} to ${report.newest}, loaded from ${file}. Each refresh adds the newest releases on top.`,
       },
       coverage: { from: report.oldest, through: report.newest, exhaustive: false },
+      // F201: the stored view of a handbook block (meta.view), so the page can offer the table's other blocks.
+      ...(report.view ? { meta: report.view } : {}),
     },
     fetchedAt,
   );
@@ -610,8 +696,8 @@ export function runFor(moduleId, { runs = feedRunsForDb() } = {}) {
  * feed_claim_due takes them. Throws when the module is not a register module or a run is not of a
  * register kind (REGISTER_KINDS).
  */
-export function registerRunsFor(moduleId) {
-  const runs = registerRunsForDb(moduleId);
+export function registerRunsFor(moduleId, variants) {
+  const runs = registerRunsForDb(moduleId, variants);
   if (!runs.length) throw new Error(`${moduleId} is not a register module (server/feedSchedule.mjs FEED_REGISTERS)`);
   for (const run of runs) if (!REGISTER_KINDS.includes(run.kind)) throw new Error(`${moduleId} / ${run.variant} is kept as "${run.kind}"; a register is loaded as reference`);
   return runs;
@@ -962,17 +1048,20 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
  * still recorded), 1 when the store did not accept one.
  */
 async function loadVariants({ o, url, env, register, read, makeLocalRpc, makeProdRpc, forceDue }) {
-  const runs = registerRunsFor(o.module);
+  const [{ kind }] = registerRunsFor(o.module);
   const file = o.file || register.file;
   const shownFile = displayFile(file);
   const { rows: rawRows, meta: fileMeta } = read(file, 10_000);
-  const { items, report } = buildRegisterItems(rawRows, register, runs[0].kind);
+  const { items, report } = buildRegisterItems(rawRows, register, kind);
   if (!items.length) throw new Error('no item to load');
   const groups = groupByVariant(items, register);
+  // F201: the runs are the variants found (a handbook table's blocks), each one the register accepts.
+  const variantOf = FEED_REGISTERS[o.module].variantOf;
   for (const g of groups) {
-    if (!runs.some((r) => r.variant === g.variant)) throw new Error(`${o.module} has no store variant "${g.variant}"`);
+    if (variantOf(g.variant) !== g.variant) throw new Error(`${o.module} has no store variant "${g.variant}"`);
     if (g.items.length > MAX_ITEMS) throw new Error(`${g.variant}: ${g.items.length} items; one record holds at most ${MAX_ITEMS}`);
   }
+  const runs = registerRunsFor(o.module, groups.map((g) => g.variant));
   const fetchedAt = new Date().toISOString();
 
   console.log(`${o.apply ? 'APPLY' : 'DRY RUN'}: ${o.module} (register: ${runs[0].kind}, one store variant per ${FEED_REGISTERS[o.module]?.param || 'value'}, never refreshed by the timer) from ${shownFile}`);
@@ -995,6 +1084,18 @@ async function loadVariants({ o, url, env, register, read, makeLocalRpc, makePro
   } else {
     console.log(`Target: ${hostOf(url)}`);
     rpc = makeProdRpc({ url, key: env.SUPABASE_SECRET_KEY, timeoutMs: 60_000 });
+  }
+  if (register.reportsObsolete) {
+    // F201: nothing is deleted or switched off here; the supervisor runs the printed SQL.
+    const obsolete = await obsoleteBlocks(rpc, o.module, groups);
+    if (!obsolete.length) console.log('Obsolete blocks: none (every stored block of these tables is produced by this load)');
+    else {
+      const all = obsolete.flatMap((x) => x.variants);
+      console.log(`Obsolete blocks: ${all.length} stored block variants are no longer produced: ${all.join(', ')}`);
+      for (const x of obsolete) line(`table ${x.table}`, x.variants.join(', '));
+      console.log('  They are left as they are. To stop serving them, run:');
+      console.log(`  ${obsoleteSql(o.module, all)}`);
+    }
   }
   const outcomes = [];
   for (const g of groups) {

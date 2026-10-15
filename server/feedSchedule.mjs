@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { STATEMENT_LEADERS } from '../src/data/nationalCurated.js';
 import { MLA_STATE_NAMES, MLA_STATES } from '../src/lib/mlaStates.js';
 import { billDocumentKey } from '../src/lib/deskRows.js';
-import { HANDBOOK_MODULES, handbookTableVariant } from '../src/lib/rbiHandbookTables.js';
+import { HANDBOOK_MODULES, handbookTableVariant, handbookVariant, parseHandbookVariant } from '../src/lib/rbiHandbookTables.js';
 
 /**
  * every: minutes between refreshes. kind: how items are kept.
@@ -159,22 +159,36 @@ export const FEED_REGISTERS = Object.freeze({
     unit: 'states and union territories',
   }),
   // F196: the RBI Handbook of Statistics on Indian States (src/lib/rbiHandbookTables.js), loaded yearly
-  // from scripts/fetch-rbi-handbook.mjs's register: one store variant per table (at most one store page,
-  // 500 figures, its newest whole years: MAX_PER_TABLE), named by the table's number. A request names its table with `table`; one that names none
-  // (or a table the module does not hold) gets the module's first table (defaultVariant), never a
-  // page across all of them.
+  // from scripts/fetch-rbi-handbook.mjs's register, one store variant per table, named by the table's
+  // number. F201: every figure is stored; a table over HANDBOOK_BLOCK_MAX (2,000) figures is stored as
+  // whole-year blocks, the newest named by the table ("176"), each older one "<table>@<its oldest year>"
+  // ("176@2005"). `values` lists the tables (their newest blocks); the loader names the block variants it
+  // finds (registerRunsForDb(id, variants)). A request names its table with `table` and a block with
+  // `years` (variantFrom); one that names no table (or a table the module does not hold) gets the
+  // module's first table (defaultVariant), never a page across all of them. wholeVariant: the store
+  // answers the whole variant (up to 2,000 items), not one page of it (server/feedServe.mjs).
   ...Object.fromEntries(
-    Object.entries(HANDBOOK_MODULES).map(([id, spec]) => [
-      id,
-      Object.freeze({
-        param: 'table',
-        values: Object.freeze(spec.tables.map(String)),
-        variantOf: (value) => handbookTableVariant(spec, value),
-        defaultVariant: String(spec.tables[0]),
-        noun: 'figures',
-        unit: 'tables',
-      }),
-    ]),
+    Object.entries(HANDBOOK_MODULES).map(([id, spec]) => {
+      const defaultVariant = String(spec.tables[0]);
+      return [
+        id,
+        Object.freeze({
+          param: 'table',
+          values: Object.freeze(spec.tables.map(String)),
+          // A table ("21", "T21") or a block of a table the module holds ("176@2005"); else ''.
+          variantOf: (value) => {
+            const block = parseHandbookVariant(String(value ?? '').trim());
+            if (block?.from) return spec.tables.includes(block.no) ? handbookVariant(block.no, block.from) : '';
+            return handbookTableVariant(spec, value);
+          },
+          variantFrom: (searchParams) => handbookTableVariant(spec, searchParams.get('table'), searchParams.get('years')) || defaultVariant,
+          defaultVariant,
+          wholeVariant: true,
+          noun: 'figures',
+          unit: 'tables',
+        }),
+      ];
+    }),
   ),
 });
 
@@ -183,12 +197,15 @@ export function isStoreServed(id) {
   return Object.hasOwn(FEED_SCHEDULE, id) || Object.hasOwn(FEED_REGISTERS, id);
 }
 
-/** A register's variants as feed_claim_due takes them (for the loader only; never in feedRunsForDb). */
-export function registerRunsForDb(id) {
+/**
+ * A register's variants as feed_claim_due takes them (for the loader only; never in feedRunsForDb):
+ * `variants`, by default the register's values (F201: the loader passes the block variants it found).
+ */
+export function registerRunsForDb(id, variants) {
   const register = FEED_REGISTERS[id];
   if (!register) return [];
   const [tier, feature] = id.split(/:(.*)/s);
-  return register.values.map((variant) => ({
+  return (variants || register.values).map((variant) => ({
     tier,
     feature,
     variant,

@@ -26,7 +26,7 @@
  * Records come newest year first, then in the table's column and row order.
  */
 import { cellText, extractTables, gridOf } from './htmlTable.js';
-import { HANDBOOK, HANDBOOK_TABLES, handbookState } from './rbiHandbookTables.js';
+import { HANDBOOK, HANDBOOK_BLOCK_MAX, HANDBOOK_TABLES, handbookState, handbookTableLabel, handbookVariant } from './rbiHandbookTables.js';
 
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
@@ -345,52 +345,80 @@ export function parseHandbookTable(html, meta = {}) {
 }
 
 /**
- * At most `max` records of one table (a stored variant is served as one store page, 500 items:
- * scripts/fetch-rbi-handbook.mjs MAX_PER_TABLE): its newest years, whole years only, in the order given
- * (newest first), so every year shown has all of its states. Returns { records, left: the number left
- * out, years: the years kept }.
- *
- * When the newest year alone is larger than `max` (2024-25 edition: Table 95, 651 figures in its one
- * year; Table 176, 608 a year), that year's whole indicators are kept in the table's order while they
- * fit, so each indicator shown still has all of its states, and `partial` says so: { year,
- * indicators: kept, of: the year's indicators }.
+ * F201: a table's records in blocks of whole years, newest first, each of at most `max` records (one
+ * store variant). Returns [{ from: its oldest year, through: its newest, years: newest first, count,
+ * records: in their input order }]. A table of `max` records or fewer is one block. A year is never
+ * split: one year alone over `max` throws a RangeError (nothing is cut).
  */
-export function newestYearsWithin(records, max) {
-  const order = [];
-  const byYear = new Map();
-  for (const r of records) {
-    if (!byYear.has(r.year)) {
-      byYear.set(r.year, []);
-      order.push(r.year);
+export function yearBlocks(records, max = HANDBOOK_BLOCK_MAX) {
+  const list = records || [];
+  const counts = new Map();
+  for (const r of list) counts.set(r.year, (counts.get(r.year) || 0) + 1);
+  const blocks = [];
+  let current = null;
+  for (const year of [...counts.keys()].sort((a, b) => String(b).localeCompare(String(a)))) {
+    const n = counts.get(year);
+    if (n > max) throw new RangeError(`${year}: ${n} figures in one year, over the ${max} one block holds`);
+    if (!current || current.count + n > max) {
+      current = { years: [], count: 0 };
+      blocks.push(current);
     }
-    byYear.get(r.year).push(r);
+    current.years.push(year);
+    current.count += n;
   }
-  const kept = [];
-  const years = [];
-  for (const y of order.sort((a, b) => b.localeCompare(a))) {
-    if (kept.length + byYear.get(y).length > max) break;
-    kept.push(...byYear.get(y));
-    years.push(y);
-  }
-  if (!kept.length && order.length) {
-    const year = order[0];
-    const byIndicator = new Map();
-    for (const r of byYear.get(year)) {
-      if (!byIndicator.has(r.indicator)) byIndicator.set(r.indicator, []);
-      byIndicator.get(r.indicator).push(r);
-    }
-    let indicators = 0;
-    for (const list of byIndicator.values()) {
-      if (kept.length + list.length > max) break;
-      kept.push(...list);
-      indicators += 1;
-    }
-    if (kept.length) {
-      years.push(year);
-      return { records: kept, left: records.length - kept.length, years, partial: { year, indicators, of: byIndicator.size } };
-    }
-  }
-  return { records: kept, left: records.length - kept.length, years };
+  return blocks.map(({ years, count }) => {
+    const held = new Set(years);
+    return { from: years.at(-1), through: years[0], years, count, records: list.filter((r) => held.has(r.year)) };
+  });
+}
+
+/**
+ * F201: yearBlocks' blocks as the stored view lists them (meta.blocks): [{ value, variant, from,
+ * through, count }]. The newest block is the table's own variant ("176", value '': no `years` asked);
+ * each older one is "<table>@<its oldest year>" ("176@2005", value its oldest year).
+ */
+export function blockList(no, blocks) {
+  return (blocks || []).map((b, i) => {
+    const value = i ? b.from : '';
+    return { value, variant: handbookVariant(no, value), from: b.from, through: b.through, count: b.count };
+  });
+}
+
+/** The status line of every handbook module's answer. */
+export const HANDBOOK_STATUS = 'RBI HANDBOOK · STATE LEVEL';
+
+/**
+ * F201: the `meta` of a handbook module's answer for block `index` of table `no` (the loader stores it as
+ * meta.view; the live path answers it): { heading, table, block: { from, through }, blocks: blockList,
+ * years: every year of the table, newest first, as_of, status }.
+ */
+export function handbookView(no, blocks, index, asOf = HANDBOOK.published) {
+  const b = blocks[index];
+  return {
+    heading: handbookTableLabel(no),
+    table: Number(no),
+    block: { from: b.from, through: b.through },
+    blocks: blockList(no, blocks),
+    years: blocks.flatMap((x) => x.years),
+    as_of: asOf || HANDBOOK.published,
+    status: HANDBOOK_STATUS,
+  };
+}
+
+/**
+ * F201: what a handbook answer holds, for its note: "all 455 figures, 2011-12 to 2024-25" for a table in
+ * one block, else "years 2023 to 2025, 1,824 of the table's 12,565 figures; older years are under the
+ * Years control" (other years for an older block).
+ */
+export function handbookHeld(view, shown) {
+  const blocks = view?.blocks || [];
+  const n = (x) => Number(x).toLocaleString('en-IN');
+  const { from, through } = view.block;
+  const span = from === through ? from : `${from} to ${through}`;
+  if (blocks.length <= 1) return `all ${n(shown)} figures, ${span}`;
+  const total = blocks.reduce((sum, b) => sum + Number(b.count || 0), 0);
+  const newest = blocks[0].from === from;
+  return `${from === through ? 'year' : 'years'} ${span}, ${n(shown)} of the table's ${n(total)} figures; ${newest ? 'older' : 'other'} years are under the Years control`;
 }
 
 /**

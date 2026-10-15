@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { newestYearsWithin, parseHandbookListing, parseHandbookTable, parseHandbookValue } from './rbiHandbook.js';
-import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_STATES, HANDBOOK_TABLES, handbookState, handbookTableVariant } from './rbiHandbookTables.js';
+import { blockList, parseHandbookListing, parseHandbookTable, parseHandbookValue, yearBlocks } from './rbiHandbook.js';
+import {
+  HANDBOOK, HANDBOOK_BLOCK_MAX, HANDBOOK_MODULES, HANDBOOK_STATES, HANDBOOK_TABLES, handbookState, handbookTableVariant, handbookVariant, parseHandbookVariant,
+} from './rbiHandbookTables.js';
 import { cellText, extractTables, gridOf } from './htmlTable.js';
 
 /**
@@ -222,22 +224,6 @@ describe('handbook table pages', () => {
     expect(out.dropped.missing).toBe(2);
   });
 
-  it('keeps the newest whole years of a table that one store variant cannot hold', () => {
-    const recs = ['2025', '2025', '2024', '2024', '2023'].map((year, i) => ({ year, i }));
-    expect(newestYearsWithin(recs, 4)).toEqual({ records: recs.slice(0, 4), left: 1, years: ['2025', '2024'] });
-    expect(newestYearsWithin(recs, 3).years).toEqual(['2025']);
-  });
-
-  it('a newest year larger than one variant keeps that year\'s whole indicators, never part of one (review R1: tables 95 and 176)', () => {
-    const recs = [
-      ...['A', 'A', 'B', 'B', 'C', 'C'].map((indicator, i) => ({ year: '2025', indicator, state: i % 2 ? 'Goa' : 'Bihar' })),
-      { year: '2024', indicator: 'A', state: 'Goa' },
-    ];
-    const out = newestYearsWithin(recs, 5);
-    expect(out.records).toEqual(recs.slice(0, 4));
-    expect(out).toMatchObject({ left: 3, years: ['2025'], partial: { year: '2025', indicators: 2, of: 3 } });
-  });
-
   it('says so when a page has no state table (a block page, a changed layout)', () => {
     const out = parseHandbookTable('<html><body><p>Please try again later.</p></body></html>', { tableNo: 21 });
     expect(out.records).toEqual([]);
@@ -260,3 +246,75 @@ describe('the handbook listing', () => {
     ]);
   });
 });
+
+// F201: a table's figures in whole-year blocks of at most HANDBOOK_BLOCK_MAX (one store variant, the most
+// feed_record takes in one record). Synthetic records shaped like Table 176 (2024-25 edition): 21 years,
+// 2005 to 2025, of 608 figures each (19 indicators x 32 states).
+const T176_YEARS = Array.from({ length: 21 }, (_, i) => String(2025 - i));
+const t176Like = (perYear = 608) => T176_YEARS.flatMap((year) => Array.from({ length: perYear }, (_, i) => ({ year, indicator: `I${i % 19}`, state: `S${Math.floor(i / 19)}`, i })));
+
+describe('F201: whole-year blocks', () => {
+  it('Table 176\'s shape is 7 blocks of 3 whole years, newest first, the newest 2023 to 2025 with 1,824 figures', () => {
+    const recs = t176Like();
+    const blocks = yearBlocks(recs);
+    expect(HANDBOOK_BLOCK_MAX).toBe(2000);
+    expect(blocks).toHaveLength(7);
+    expect(blocks.map((b) => [b.from, b.through, b.count])).toEqual([
+      ['2023', '2025', 1824], ['2020', '2022', 1824], ['2017', '2019', 1824], ['2014', '2016', 1824],
+      ['2011', '2013', 1824], ['2008', '2010', 1824], ['2005', '2007', 1824],
+    ]);
+    expect(blocks[0].years).toEqual(['2025', '2024', '2023']);
+    // Every record once, in its input order, in the block of its year.
+    expect(blocks.flatMap((b) => b.records)).toHaveLength(recs.length);
+    for (const b of blocks) {
+      expect(b.records.every((r) => b.years.includes(r.year))).toBe(true);
+      expect(b.records.map((r) => recs.indexOf(r))).toEqual([...b.records.map((r) => recs.indexOf(r))].sort((x, y) => x - y));
+    }
+  });
+
+  it('a table of the limit or fewer is one block; no block passes the limit or splits a year', () => {
+    const small = t176Like().slice(0, 2000);
+    expect(yearBlocks(small).map((b) => b.count)).toEqual([2000]);
+    expect(yearBlocks([])).toEqual([]);
+    const uneven = ['2025', '2025', '2025', '2024', '2024', '2023', '2023', '2023', '2023', '2022'].map((year) => ({ year }));
+    const blocks = yearBlocks(uneven, 5);
+    expect(blocks.map((b) => [b.years, b.count])).toEqual([[['2025', '2024'], 5], [['2023', '2022'], 5]]);
+    for (const b of yearBlocks(uneven, 4)) {
+      expect(b.count).toBeLessThanOrEqual(4);
+      expect(b.records.length).toBe(uneven.filter((r) => b.years.includes(r.year)).length);
+    }
+  });
+
+  it('one year over the limit is refused, never cut', () => {
+    expect(() => yearBlocks(t176Like(), 600)).toThrow(RangeError);
+    expect(() => yearBlocks(t176Like(), 600)).toThrow(/2025: 608 figures in one year/);
+  });
+
+  it('the blocks as the stored view lists them: the newest is the table\'s own variant, each older one "<table>@<its oldest year>"', () => {
+    const list = blockList(176, yearBlocks(t176Like()));
+    expect(list[0]).toEqual({ value: '', variant: '176', from: '2023', through: '2025', count: 1824 });
+    expect(list.at(-1)).toEqual({ value: '2005', variant: '176@2005', from: '2005', through: '2007', count: 1824 });
+    expect(list.map((b) => b.variant)).toEqual(['176', '176@2020', '176@2017', '176@2014', '176@2011', '176@2008', '176@2005']);
+  });
+
+  it('variant names: the table alone, or the table and a handbook year; anything else is not a variant', () => {
+    expect(handbookVariant(176)).toBe('176');
+    expect(handbookVariant(176, '2005')).toBe('176@2005');
+    expect(parseHandbookVariant('176')).toEqual({ no: 176, from: '' });
+    expect(parseHandbookVariant('151@2019-20')).toEqual({ no: 151, from: '2019-20' });
+    expect(parseHandbookVariant('10@1993-97')).toEqual({ no: 10, from: '1993-97' });
+    for (const bad of ['', '176@', '176@junk', '176@1899', 'T176', '176@2005@2006', null, '1760@2005']) expect(parseHandbookVariant(bad), String(bad)).toBeNull();
+  });
+
+  it('a request\'s table and years as a variant: only a table the module holds, and a years value only when it is a year', () => {
+    const fiscal = HANDBOOK_MODULES['state:State Fiscal Deep-Dive'];
+    expect(handbookTableVariant(fiscal, '176')).toBe('176');
+    expect(handbookTableVariant(fiscal, '176', '2005')).toBe('176@2005');
+    expect(handbookTableVariant(fiscal, 'Table 176', '2005')).toBe('176@2005');
+    expect(handbookTableVariant(fiscal, '176', 'junk')).toBe('176');
+    expect(handbookTableVariant(fiscal, '176', '2005; drop')).toBe('176');
+    expect(handbookTableVariant(fiscal, '21', '2005')).toBe('');
+    expect(handbookTableVariant(fiscal, '', '2005')).toBe('');
+  });
+});
+

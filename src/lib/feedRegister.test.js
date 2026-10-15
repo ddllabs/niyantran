@@ -469,3 +469,13 @@ describe('main: the gate before anything is written', () => {
     expect(checkOptions({}, {})).toEqual({ url: '' });
   });
 });
+
+// F201: one handbook store variant (a whole-year block) holds at most what feed_record takes in one record.
+describe('the most items one record holds', () => {
+  it('is the handbook block limit', async () => {
+    const { MAX_ITEMS } = await import('../../scripts/load-feed-register.mjs');
+    const { HANDBOOK_BLOCK_MAX } = await import('./rbiHandbookTables.js');
+    expect(MAX_ITEMS).toBe(2000);
+    expect(HANDBOOK_BLOCK_MAX).toBe(MAX_ITEMS);
+  });
+});

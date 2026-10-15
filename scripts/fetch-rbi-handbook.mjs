@@ -19,9 +19,12 @@
  * requested. A page that is not the expected table page (an error, a challenge or block page) stops the
  * run: nothing is retried and nothing tries to get past it.
  *
- * Size: a table keeps at most MAX_PER_TABLE figures (one store page), its newest whole years; a table
- * whose newest year alone is larger keeps that year's whole indicators (2024-25 edition: Tables 95 and
- * 176). The register's table summary records what was left out (`cut`), and the stored note says it.
+ * Size (F201): every figure of every table is written; nothing is cut for size. A table is stored as
+ * whole-year blocks of at most HANDBOOK_BLOCK_MAX (2,000) figures, one store variant each
+ * (src/lib/rbiHandbook.js yearBlocks): the 2024-25 edition splits only Table 176 (7 blocks) and Table 151
+ * (2). Each table's summary lists its blocks (`blocks`, as blockList gives them) and the run prints them.
+ * One year alone over the limit cannot be stored without cutting it, so it is reported as a mismatch and
+ * the run exits 1 (the table's figures are still written whole; the loader refuses that table).
  *
  * Left out by design: Tables 1, 12 and 151 (2024-25 edition) each carry one block whose heading names no
  * year (the run reports its figures as "without a year"). A figure with no year cannot be keyed, ranked
@@ -36,9 +39,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { newestYearsWithin, parseHandbookListing, parseHandbookTable } from '../src/lib/rbiHandbook.js';
+import { blockList, parseHandbookListing, parseHandbookTable, yearBlocks } from '../src/lib/rbiHandbook.js';
 import { HANDBOOK, HANDBOOK_MODULES, HANDBOOK_TABLE_NUMBERS, HANDBOOK_TABLES } from '../src/lib/rbiHandbookTables.js';
-import { STORE_PAGE_ROWS } from '../server/feedServe.mjs';
 
 export const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 /** The repository's crawler user agent (server/featureFeed.mjs USER_AGENT_BOT). */
@@ -46,13 +48,6 @@ export const USER_AGENT = 'Mozilla/5.0 (compatible; NiyantranTerminal/1.0; +http
 export const DEFAULT_OUT = `tmp/rbi-handbook/handbook-${HANDBOOK.edition}.json`;
 export const DEFAULT_HTML_DIR = 'tmp/rbi-handbook/html';
 const FETCH_TIMEOUT_MS = 30_000;
-/**
- * One store variant (one table) holds at most this many figures: one store page (server/feedServe.mjs
- * STORE_PAGE_ROWS, the most public.feed_page returns), so the page and the Cross-State Comparison Engine
- * always read a table whole. A larger table keeps its newest whole years (src/lib/rbiHandbook.js
- * newestYearsWithin).
- */
-export const MAX_PER_TABLE = STORE_PAGE_ROWS;
 
 const squash = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const sameTitle = (a, b) => squash(a).toLowerCase().replace(/[^a-z0-9]+/g, '') === squash(b).toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -115,7 +110,7 @@ export function buildRegister(parsed, { fetchedAt = new Date().toISOString() } =
     records: out.records.length,
     dropped: out.dropped,
     unmapped: out.unmapped,
-    ...(out.cut ? { cut: out.cut } : {}),
+    ...(out.blocks ? { blocks: out.blocks } : {}),
     ...(out.error ? { error: out.error } : {}),
   }));
   return {
@@ -129,7 +124,7 @@ export function buildRegister(parsed, { fetchedAt = new Date().toISOString() } =
   };
 }
 
-/** Per module: tables, records, and the largest table (one store variant, at most MAX_PER_TABLE figures). */
+/** Per module: tables, records, and the largest table (stored as blocks of at most HANDBOOK_BLOCK_MAX figures). */
 export function moduleCounts(register, modules = HANDBOOK_MODULES) {
   const byTable = new Map();
   for (const r of register.records) byTable.set(r.table_no, (byTable.get(r.table_no) || 0) + 1);
@@ -193,18 +188,23 @@ export async function main(argv = process.argv.slice(2), { fetchImpl = globalThi
   for (const no of wanted) {
     const meta = HANDBOOK_TABLES.get(no);
     const out = parseHandbookTable(await get(meta.url, 'table', `${meta.id}.html`), { tableNo: no, url: meta.url });
-    // A table larger than one store variant keeps its newest whole years (or, when its newest year alone
-    // is larger, that year's whole indicators); the register's table summary says what was left out.
-    const capped = newestYearsWithin(out.records, MAX_PER_TABLE);
-    out.records = capped.records;
-    out.dropped.older_years = capped.left;
-    if (capped.left) out.cut = { left: capped.left, years: capped.years.length, from: capped.years.at(-1) || '', through: capped.years[0] || '', ...(capped.partial ? { partial: capped.partial } : {}) };
+    // F201: every figure is kept; the table's whole-year blocks (one store variant each) are listed. A
+    // year too large for one block is reported, never cut.
+    let blocksSaid = '';
+    try {
+      out.blocks = blockList(no, yearBlocks(out.records));
+      blocksSaid = `, ${out.blocks.length} block${out.blocks.length === 1 ? '' : 's'} (${out.blocks.map((b) => `${b.from} to ${b.through}${out.blocks.length > 1 ? `: ${b.count}` : ''}`).join('; ')})`;
+    } catch (err) {
+      if (!(err instanceof RangeError)) throw err;
+      problems.push(`Table ${no}: ${err.message}`);
+      blocksSaid = ', NOT STORABLE (one year is over the block limit)';
+    }
     if (!sameTitle(out.table.title, meta.title)) problems.push(`Table ${no}: the page is titled "${out.table.title}", "${meta.title}" here`);
     if (out.table.published && out.table.published !== HANDBOOK.published) problems.push(`Table ${no}: the page is dated ${out.table.published}, the edition ${HANDBOOK.published}`);
     if (out.error) problems.push(`Table ${no}: ${out.error}`);
     parsed.push({ meta, out });
     const d = out.dropped;
-    log(`Table ${String(no).padStart(3)}: ${String(out.records.length).padStart(5)} records${d.no_year ? `, ${d.no_year} without a year` : ''}${d.missing ? `, ${d.missing} not available` : ''}${d.invalid ? `, ${d.invalid} not numbers` : ''}${d.unmapped_state ? `, ${d.unmapped_state} in rows not a state (${out.unmapped.join('; ').slice(0, 120)})` : ''}${d.duplicate ? `, ${d.duplicate} duplicates` : ''}${d.older_years ? `, ${d.older_years} left out over the ${MAX_PER_TABLE} a table holds (${capped.partial ? `${capped.partial.indicators} of the ${capped.partial.of} indicators of ${capped.partial.year}` : `kept ${capped.years.at(-1)} onwards`})` : ''}`);
+    log(`Table ${String(no).padStart(3)}: ${String(out.records.length).padStart(5)} records${d.no_year ? `, ${d.no_year} without a year` : ''}${d.missing ? `, ${d.missing} not available` : ''}${d.invalid ? `, ${d.invalid} not numbers` : ''}${d.unmapped_state ? `, ${d.unmapped_state} in rows not a state (${out.unmapped.join('; ').slice(0, 120)})` : ''}${d.duplicate ? `, ${d.duplicate} duplicates` : ''}${blocksSaid}`);
   }
   const register = buildRegister(parsed);
   const outPath = resolve(ROOT, o.out);
