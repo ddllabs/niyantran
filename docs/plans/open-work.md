@@ -864,6 +864,10 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   its newest year alone is over 500, so 4 indicators including "Outstanding Liabilities" are left out;
   table 95 keeps 16 of 21 indicators). Full history needs several store variants per table (by year
   range) and a year picker. Older years remain on RBI's table pages.
+  Planned 2026-10-15 ([spec](../specs/2026-10-15-rbi-handbook-full-history.md),
+  [plan](2026-10-15-rbi-handbook-full-history.md)): full history is 101,277 figures (+36,832 store
+  items, est. 40–60 MB); recommended: keep one variant per table read whole (up to four 500-item
+  pages), split only tables 176 and 151 into whole-year blocks, no migration; T1–T11 with checkpoints.
 - [ ] **F191. Homepage "Source endpoints" stays 246 (owner, 2026-10-15).** "Keep it at 246 sources for
   now because we are going to be fixing the rest of the sources and eventually bringing it up to that
   number, or whatever the true number is." The source registry counts 115 working-route addresses
