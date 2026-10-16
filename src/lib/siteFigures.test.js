@@ -10,6 +10,12 @@ it('uses measured counts: bills and documents from the live query, modules from 
   expect(figure(SITE_FIGURES.bills)).toBe('9,817');
 });
 
+// F212: the hero's "Intelligence desks" is the desk count pricing and the proof card already use (F30).
+it('counts intelligence desks from the catalogue, one per desk tab', () => {
+  expect(SITE_FIGURES.desks).toBe(new Set(DESK_CATALOGUE.map((m) => m.tab)).size);
+  expect(SITE_FIGURES.desks).toBe(8);
+});
+
 it('leaves no hand-typed bill, endpoint or uptime figures on the homepage and pricing page', () => {
   for (const file of ['HomePage.jsx', 'PricingPage.jsx']) {
     const source = readFileSync(new URL(`../marketing/${file}`, import.meta.url), 'utf8');

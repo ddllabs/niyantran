@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F212 is next) and goes in the
+- A new finding gets the next free `F` number (F213 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,6 +548,14 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F212. Homepage hero: persona column and coverage box from the client reference.** Owner
+  2026-10-16, built on `task/F212-hero-persona-column`, not yet committed. The "Curated for" strip
+  became the hero's third column: six cards with the reference's names and subtitles; hovering or
+  focusing a card previews a popover with the reference's text, a click keeps it open, and "Explore this
+  perspective" opens that persona in the personas section. The three figures under the copy became a
+  seven-figure coverage box, every figure from our own sources (desks: 8, as on pricing), with no date
+  line. Header, copy, globe and lower sections unchanged; the reference's Replay button and
+  auto-preview left out. Spec: `docs/specs/2026-10-16-hero-persona-column.md`.
 - [x] **F211. The client's record animation plays while a brief is written.** Done 2026-10-16 (`14e323f`;
   owner: "push"). Live check: a bill with no stored brief showed the skeleton, then the animation, then
   its brief at 4.7 s. Owner 2026-10-16. The

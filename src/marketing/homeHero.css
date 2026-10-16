@@ -1,8 +1,12 @@
 /*
- * F140 (client design `NTER-Homepage-Final.html`, owner 2026-10-13): the homepage hero and the
- * "Curated for" strip, ported from the design with its palette, type scale and breakpoints. The
- * palette tokens (--nd-*) are set on .mkt in marketing.css. Ported in cascade order: where the design
- * overrides itself, the winning value is the one kept here.
+ * F140 (client design `NTER-Homepage-Final.html`, owner 2026-10-13): the homepage hero, ported from the
+ * design with its palette, type scale and breakpoints. The palette tokens (--nd-*) are set on .mkt in
+ * marketing.css. Ported in cascade order: where the design overrides itself, the winning value is the
+ * one kept here.
+ * F212 (reference `NTER-Final-Developer-Kit` top section v5, owner 2026-10-16): the "Curated for" strip
+ * became the hero's persona column, and the figures under the copy the coverage box under the hero.
+ * Layouts: three columns from 1101 px; 701-1100 px the copy across the top, then the globe beside a
+ * 200 px persona column; one column below 701 px.
  */
 .nd-container {
   width: 100%;
@@ -14,15 +18,17 @@
 
 /* —— Hero —— */
 /* The design's body type (15px/1.65 Inter), so every line inherits the same metrics. */
-.nd-hero-shell,
-.nd-curated {
+.nd-hero-shell {
   font: 15px/1.65 Inter, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 .nd-hero-shell {
   position: relative;
   isolation: isolate;
+  /* F212: clip, not hidden: a focused persona card could scroll a hidden-overflow shell sideways.
+     hidden stays first for browsers without clip (Safari before 16). */
   overflow: hidden;
+  overflow: clip;
   background: #fff;
   color: var(--nd-ink);
 }
@@ -35,8 +41,7 @@
   position: relative;
 }
 /* The design's reset (h1, h2, p have no margin), at zero specificity so each element's own spacing wins. */
-:where(.nd-hero) :where(h1, p),
-:where(.nd-curated) :where(h2) {
+:where(.nd-hero) :where(h1, h2, h3, p, ul) {
   margin: 0;
 }
 .nd-hero-copy {
@@ -125,8 +130,7 @@
 }
 .nd-btn-secondary:hover { background: #f3f3fa; }
 .nd-btn:focus-visible,
-.nd-coverage-link:focus-visible,
-.nd-audience > a:focus-visible {
+.nd-coverage-link:focus-visible {
   outline: 3px solid var(--nd-blue);
   outline-offset: 5px;
 }
@@ -146,32 +150,6 @@
   cursor: pointer;
 }
 .nd-coverage-link span { color: var(--nd-blue); }
-.nd-metrics {
-  display: flex;
-  gap: 28px;
-  max-width: 442px;
-  margin-top: 16px;
-  padding-top: 13px;
-  border-top: 1px solid var(--nd-line);
-}
-.nd-metrics > div { flex: 1; }
-.nd-metrics strong {
-  display: block;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -1px;
-  line-height: 1.3;
-  color: var(--nd-blue);
-}
-.nd-metrics > div:nth-child(2) strong { color: var(--nd-purple); }
-.nd-metrics > div:nth-child(3) strong { color: var(--nd-red); }
-.nd-metrics div > span {
-  display: block;
-  margin-top: 3px;
-  font-size: 10px;
-  color: #8a8190;
-}
-
 /* The globe, with separate radial colour clouds dissolving into white around it.
    F177 (owner 2026-10-14): 5% larger than its column and cap; justify-self keeps it centred on the
    column even where it is wider than the column (auto margins would push it right). */
@@ -200,154 +178,450 @@
 .nd-globe-column .nter-globe-scene { max-width: none; }
 .nd-globe-column nter-data-globe { margin-block: -28px; }
 
-/* —— "Curated for" strip —— */
-.nd-curated {
+/* —— Persona column (F212) —— */
+.nd-persona-column {
   position: relative;
-  border-top: 1px solid var(--nd-line);
-  border-bottom: 1px solid var(--nd-line);
-  background: linear-gradient(110deg, #293fa50a, #572c910d 48%, #c2353d09 75%, #e5d3bb40);
+  z-index: 6;
+  min-width: 0;
+  padding: 22px 0 22px 14px;
+  border-left: 1px solid #eee8f0;
+}
+.nd-persona-heading { padding: 0 0 20px 8px; }
+.nd-persona-overline {
+  color: #82708f;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  line-height: 24px;
+}
+.nd-persona-heading h2 {
+  margin: 10px 0 9px;
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -1px;
   color: var(--nd-ink);
 }
-.nd-curated::before {
+.nd-persona-heading h2 span { color: var(--nd-red); }
+.nd-persona-heading p:last-child {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #928699;
+}
+.nd-persona-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.nd-persona-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 9px;
+  border: 1px solid #e9e3ee;
+  border-radius: 11px;
+  background: #ffffffdf;
+  box-shadow: 0 3px 10px #36204404;
+  font: inherit;
+  text-align: left;
+  color: var(--nd-ink);
+  cursor: pointer;
+  transform-origin: 80% 50%;
+  animation: nd-persona-arrive 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(180ms + var(--reveal-order) * 110ms);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, translate 0.2s;
+}
+.nd-persona-choice[aria-expanded='true'] {
+  border-color: #c5b2da;
+  background: #fbf8fe;
+  box-shadow: 0 7px 20px #572c9110;
+  translate: -4px 0;
+}
+/* Hover only where there is one: a touch screen keeps :hover on the last card tapped. */
+@media (hover: hover) {
+  .nd-persona-choice:hover {
+    border-color: #c5b2da;
+    background: #fbf8fe;
+    box-shadow: 0 7px 20px #572c9110;
+    translate: -4px 0;
+  }
+}
+.nd-persona-choice:active { scale: 0.98; }
+.nd-persona-choice:focus-visible {
+  outline: 3px solid var(--nd-purple);
+  outline-offset: 3px;
+}
+.nd-persona-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 29px;
+  height: 33px;
+  border-radius: 7px;
+}
+.nd-persona-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nd-persona-icon.blue { background: #e9edfb; color: var(--nd-blue); }
+.nd-persona-icon.red { background: #fae9eb; color: var(--nd-red); }
+.nd-persona-icon.purple { background: #eee6f5; color: var(--nd-purple); }
+.nd-persona-icon.sand { background: #f0e5d7; color: #8d7151; }
+.nd-persona-choice-copy {
+  flex: 1;
+  min-width: 0;
+}
+.nd-persona-choice strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.nd-persona-choice small {
+  display: block;
+  margin-top: 3px;
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: #96899f;
+}
+.nd-persona-hint {
+  margin-top: 14px;
+  font-size: 8px;
+  text-align: center;
+  color: #a291ae;
+}
+
+/* The popover opens to the left of the cards, pointing at them. */
+.nd-persona-popover {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 18px);
+  z-index: 10;
+  width: 265px;
+  padding: 25px 22px 22px;
+  border: 1px solid #e4d9eb;
+  border-radius: 17px;
+  background: #fffefc;
+  box-shadow: 0 22px 70px #39245422, 0 3px 12px #3924540a;
+  transform: translateY(-50%);
+  transform-origin: right center;
+  animation: nd-persona-pop 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.nd-persona-popover[hidden] { display: none; }
+.nd-persona-popover:focus { outline: none; }
+.nd-persona-popover::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  width: 11px;
+  height: 11px;
+  border-top: 1px solid #e4d9eb;
+  border-right: 1px solid #e4d9eb;
+  background: #fffefc;
+  transform: rotate(45deg);
+}
+.nd-persona-popover-close {
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: #a18aaf;
+  cursor: pointer;
+}
+.nd-persona-popover-kicker {
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 1.3px;
+  color: var(--nd-purple);
+}
+.nd-persona-popover h3 {
+  margin: 13px 0 10px;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+  color: var(--nd-ink);
+}
+.nd-persona-popover p {
+  font-size: 12px;
+  line-height: 1.75;
+  color: #82738d;
+}
+.nd-persona-popover ul {
+  display: grid;
+  gap: 8px;
+  padding: 14px 0 15px;
+  list-style: none;
+}
+.nd-persona-popover li {
+  display: flex;
+  align-items: start;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #675272;
+}
+.nd-persona-popover li::before {
+  content: '✓';
+  color: var(--nd-purple);
+}
+.nd-persona-popover > a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 7px;
+  background: #f0eaf7;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nd-purple);
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.nd-persona-popover > a:hover { background: #e7ddf3; }
+.nd-persona-popover > a:focus-visible,
+.nd-persona-popover-close:focus-visible {
+  outline: 3px solid var(--nd-purple);
+  outline-offset: 2px;
+}
+@keyframes nd-persona-arrive {
+  from { opacity: 0; transform: translateX(22px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes nd-persona-pop {
+  from { opacity: 0; transform: translate(12px, -50%) scale(0.94); }
+  to { opacity: 1; transform: translate(0, -50%); }
+}
+@keyframes nd-persona-mobile-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* —— Coverage box (F212) —— */
+.nd-coverage-box {
+  position: relative;
+  grid-column: 1 / -1;
+  align-self: end;
+  overflow: hidden;
+  padding: 14px 20px 18px;
+  border: 1px solid #e1d9e8;
+  border-radius: 15px;
+  background: linear-gradient(115deg, #f7f8fd, #fcf9fb 55%, #faf6ef);
+}
+.nd-coverage-box::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--nd-blue) 0 29%, var(--nd-purple) 29% 53%, var(--nd-sand) 53% 76%, var(--nd-red) 76% 100%);
+  background: linear-gradient(90deg, var(--nd-blue), var(--nd-purple) 45%, var(--nd-red) 75%, var(--nd-sand));
 }
-.nd-curated-bar {
-  display: flex;
-  align-items: center;
-  gap: 34px;
-  padding-block: 17px;
+.nd-coverage-heading {
+  margin-bottom: 12px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: #746580;
 }
-.nd-curated h2 {
-  flex-shrink: 0;
-  padding-right: 25px;
-  border-right: 1px solid #e0d6e5;
+.nd-coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.nd-coverage-grid > div {
+  padding: 0 18px;
+  border-left: 1px solid #e3dce9;
+}
+.nd-coverage-grid > div:first-child {
+  padding-left: 0;
+  border: 0;
+}
+.nd-coverage-grid strong {
+  display: block;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  color: var(--nd-blue);
+}
+.nd-coverage-grid > div:nth-child(3n + 2) strong { color: var(--nd-purple); }
+.nd-coverage-grid > div:nth-child(3n) strong { color: var(--nd-red); }
+.nd-coverage-grid span {
+  display: block;
+  margin-top: 5px;
   font-size: 10px;
-  line-height: 1.8;
-  letter-spacing: 1.7px;
-  font-weight: 600;
-  color: #8e7d99;
+  color: #7c7185;
 }
-.nd-audience {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 15px;
-  width: 100%;
-}
-.nd-audience > a {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-  line-height: 1.45;
-  font-weight: 600;
-  color: var(--nd-ink);
-  text-decoration: none;
-  transition: color 0.2s, transform 0.2s;
-}
-.nd-audience > a:hover {
-  color: var(--nd-purple);
-  transform: translateY(-3px);
-}
-.nd-audience-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 31px;
-  height: 34px;
-  border-radius: 7px;
-  font-size: 22px;
-}
-.nd-audience-icon.blue { background: #e9edfb; color: var(--nd-blue); }
-.nd-audience-icon.red { background: #fae9eb; color: var(--nd-red); }
-.nd-audience-icon.purple { background: #eee6f5; color: var(--nd-purple); }
-.nd-audience-icon.sand { background: #f0e5d7; color: #8d7151; }
 
-/* —— Breakpoints, as the design —— */
-@media (min-width: 1550px) {
-  .nd-description { font-size: 15px; }
+/* —— Layouts —— */
+/* From 1101 px: copy, globe and the persona column over the coverage box, filling the first screen
+   below the 73 px header. The globe is sized from the screen height so the box stays above the fold:
+   245 px is the header, the hero's padding and gap, and the box. */
+@media (min-width: 1101px) {
+  /* Our header's 1440 px width and 48 px gutter (the reference's 1600 px matches its own header). */
+  .nd-hero.nd-container {
+    grid-template-columns: minmax(330px, 1fr) minmax(0, 1.35fr) 210px;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 16px;
+    min-height: max(650px, calc(100svh - 73px));
+    padding-block: 18px 20px;
+  }
+  .nd-hero-copy {
+    align-self: start;
+    width: 100%;
+    max-width: none;
+    padding-top: 10px;
+  }
+  .nd-hero h1 { font-size: clamp(42px, 3.7vw, 58px); line-height: 1.04; letter-spacing: -2.4px; }
+  .nd-promise { font-size: 15px; }
+  .nd-description { font-size: 13px; max-width: 430px; }
+  .nd-btn { font-size: 12px; padding-inline: 17px; }
+  /* F177's 5% on the reference's size where the screen is tall enough; the height cap keeps the box in view. */
+  .nd-globe-column {
+    width: min(105%, calc(100svh - 245px));
+    max-width: calc(760px * 1.05);
+    transform: translateY(-12px);
+  }
+  .nd-globe-column::before { inset: 0 -19%; }
+  .nd-globe-column nter-data-globe { margin-block: 0; }
+  /* The reference shrinks the column to 93%; zoom (unlike scale) also shrinks the space it takes. */
+  .nd-persona-column {
+    align-self: start;
+    padding-top: 9px;
+    zoom: 0.93;
+  }
+  .nd-persona-heading { padding-bottom: 10px; }
+  .nd-persona-heading h2 { margin-block: 7px; font-size: 22px; }
+  .nd-persona-choices { gap: 7px; }
+  .nd-persona-choice { min-height: 57px; padding-block: 7px; }
+  .nd-persona-hint { margin-top: 8px; }
 }
-@media (min-width: 851px) and (max-height: 720px) {
-  .nd-hero h1 { font-size: 44px; }
-  .nd-promise { font-size: 15px; margin-top: 12px; }
-  .nd-description { font-size: 14px; line-height: 1.6; }
-  .nd-metrics strong { font-size: 24px; }
-  .nd-curated-bar { padding-block: 13px; }
-}
-@media (min-width: 851px) and (max-height: 680px) {
+@media (min-width: 1101px) and (max-height: 750px) {
   .nd-hero h1 { font-size: 42px; }
-  .nd-promise { font-size: 14px; }
-  .nd-description { font-size: 13.5px; line-height: 1.55; }
-  .nd-actions { margin-top: 11px; }
-  .nd-metrics { margin-top: 10px; padding-top: 9px; }
+  .nd-promise { font-size: 14px; margin-top: 12px; }
+  .nd-description { line-height: 1.6; }
+  .nd-actions { margin-top: 14px; }
+  .nd-persona-column { padding-block: 4px 10px; }
+  .nd-persona-heading h2 { font-size: 21px; }
+  .nd-persona-choice { min-height: 52px; padding-block: 6px; }
+  .nd-persona-hint { margin-top: 6px; }
 }
-@media (max-width: 1100px) {
+@media (min-width: 1600px) {
+  .nd-hero.nd-container { grid-template-columns: minmax(380px, 1fr) minmax(0, 1.25fr) 235px; }
+}
+
+/* 701-1100 px: the copy across the top in two inner columns, then the globe beside the persona column. */
+@media (min-width: 701px) and (max-width: 1100px) {
   .nd-container { padding-inline: 32px; }
-  .nd-metrics { gap: 18px; }
-  .nd-curated-bar { gap: 22px; }
-  .nd-curated h2 { padding-right: 19px; }
-  .nd-audience { gap: 9px; }
-  .nd-audience > a { gap: 7px; font-size: 10px; }
+  .nd-hero {
+    grid-template-columns: minmax(0, 1fr) 200px;
+    gap: 14px;
+    padding-block: 20px 30px;
+  }
+  .nd-hero-copy {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 0 30px;
+    width: 100%;
+    max-width: none;
+  }
+  .nd-eyebrow,
+  .nd-hero h1 { grid-column: 1; }
+  .nd-hero h1 { grid-row: 2 / 6; margin-top: 10px; font-size: clamp(40px, 5vw, 48px); }
+  .nd-promise { grid-column: 2; grid-row: 2; margin-top: 8px; font-size: 15px; }
+  .nd-description { grid-column: 2; grid-row: 3; font-size: 13px; }
+  .nd-actions { grid-column: 2; grid-row: 4; }
+  .nd-coverage-link { grid-column: 2; grid-row: 5; }
+  .nd-globe-column { grid-column: 1; width: 105%; max-width: calc(650px * 1.05); }
+  .nd-globe-column nter-data-globe { margin-block: 0; }
+  .nd-persona-column { grid-column: 2; align-self: center; }
+  .nd-persona-heading h2 { font-size: 23px; }
+  .nd-persona-popover { width: 250px; right: calc(100% + 10px); }
+  .nd-coverage-box { margin-top: 10px; }
+  .nd-coverage-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 0; }
+  .nd-coverage-grid > div:nth-child(5) { padding-left: 0; border-left: 0; }
 }
-@media (min-width: 851px) and (max-width: 1100px) {
-  .nd-hero-copy { width: calc(100% + 48px); }
-  .nd-hero h1 { font-size: clamp(40px, 5.9svh, 46px); }
-  .nd-description { font-size: 14px; }
-}
-@media (min-width: 651px) and (max-width: 850px) {
-  .nd-hero { grid-template-columns: 1fr 1.08fr; }
-  .nd-hero-copy { width: auto; }
-  .nd-hero h1 { font-size: clamp(34px, 5.3svh, 43px); letter-spacing: -2px; }
-  .nd-eyebrow { font-size: 8px; letter-spacing: 1px; }
-  .nd-promise { font-size: 13px; }
-  .nd-description { font-size: 12px; }
-  .nd-btn { font-size: 12px; }
-  .nd-coverage-link { font-size: 11px; }
-  .nd-metrics { gap: 12px; }
-  .nd-metrics strong { font-size: 23px; }
-  .nd-metrics div > span { font-size: 8px; }
-  .nd-curated-bar { align-items: start; padding-block: 14px; }
-  .nd-curated h2 { padding-top: 10px; }
-  .nd-audience { grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .nd-audience > a { font-size: 11px; }
-}
-@media (max-width: 650px) {
-  .nd-container { padding-inline: 22px; }
-  .nd-hero { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px; }
+
+/* Below 701 px: one column, the persona cards two across with the popover below them. */
+@media (max-width: 700px) {
+  .nd-container { padding-inline: 20px; }
+  .nd-hero { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 26px 30px; }
   .nd-hero-copy { width: auto; max-width: none; }
-  .nd-eyebrow { font-size: 8px; letter-spacing: 1.3px; }
-  .nd-hero h1 { font-size: clamp(38px, 11vw, 50px); letter-spacing: -2.6px; }
+  .nd-eyebrow { font-size: 9px; letter-spacing: 1.3px; }
+  .nd-hero h1 { font-size: clamp(38px, 10vw, 50px); letter-spacing: -2.6px; }
   .nd-promise { margin-top: 18px; font-size: 16px; }
   .nd-description { font-size: 15px; max-width: 490px; }
   .nd-btn { min-height: 43px; padding: 12px 20px; gap: 20px; font-size: 12px; }
   .nd-coverage-link { margin-top: 16px; font-size: 11px; }
-  .nd-metrics { margin-top: 18px; padding-top: 14px; max-width: 100%; min-width: 0; }
-  .nd-metrics strong { font-size: 25px; }
-  .nd-metrics div > span { font-size: 9px; }
-  .nd-globe-column { max-width: none; }
+  .nd-globe-column { width: 105%; max-width: calc(520px * 1.05); }
   .nd-globe-column::before { inset: 0 -12%; }
   .nd-globe-column nter-data-globe { margin-block: 0; }
-  .nd-curated-bar { display: block; padding-block: 18px; }
-  .nd-curated h2 { margin-bottom: 21px; padding: 0; border: 0; font-size: 9px; letter-spacing: 1.6px; line-height: 1; }
-  .nd-curated h2 br { display: none; }
-  .nd-audience { grid-template-columns: repeat(3, 1fr); gap: 20px 10px; }
-  .nd-audience > a { gap: 7px; font-size: 9px; }
-  .nd-audience-icon { width: 28px; height: 33px; font-size: 20px; }
+  .nd-persona-column {
+    justify-self: center;
+    width: 100%;
+    max-width: 520px;
+    padding: 22px 0 0;
+    border-left: 0;
+    border-top: 1px solid #eee8f0;
+  }
+  .nd-persona-heading { padding: 0 0 16px; }
+  .nd-persona-heading h2 br { display: none; }
+  .nd-persona-heading p:last-child { font-size: 11px; }
+  .nd-persona-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nd-persona-choice { min-height: 68px; gap: 8px; padding: 10px; }
+  .nd-persona-choice strong { font-size: 11px; }
+  .nd-persona-choice small { font-size: 9px; }
+  .nd-persona-icon { width: 27px; }
+  .nd-persona-hint { font-size: 9px; }
+  .nd-persona-popover {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    margin-top: 15px;
+    box-sizing: border-box;
+    transform: none;
+    animation-name: nd-persona-mobile-pop;
+  }
+  .nd-persona-popover::after { display: none; }
+  .nd-persona-popover h3 { font-size: 24px; }
+  .nd-persona-popover p { font-size: 13px; }
+  .nd-persona-popover li,
+  .nd-persona-popover > a { font-size: 12px; }
+  .nd-coverage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 0; }
+  .nd-coverage-grid > div:nth-child(odd) { padding-left: 0; border: 0; }
+  .nd-coverage-grid strong { font-size: 27px; }
 }
 @media (max-width: 370px) {
-  .nd-audience { grid-template-columns: repeat(2, 1fr); gap: 17px; }
-  .nd-audience > a { font-size: 11px; }
-  .nd-metrics strong { font-size: 23px; }
-  .nd-metrics div > span { font-size: 8px; }
+  .nd-persona-choice { gap: 6px; padding: 9px 7px; }
+  .nd-persona-choice strong { font-size: 10px; }
+  .nd-persona-choice small { font-size: 8px; }
+  .nd-persona-icon { width: 23px; }
+  .nd-btn { padding-inline: 13px; font-size: 11px; gap: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .nd-btn,
-  .nd-audience > a { transition: none; }
-  .nd-btn:hover,
-  .nd-audience > a:hover { transform: none; }
+  .nd-persona-choice,
+  .nd-persona-popover,
+  .nd-persona-popover > a { animation: none; transition: none; }
+  .nd-btn:hover { transform: none; }
+  .nd-persona-choice:hover,
+  .nd-persona-choice[aria-expanded='true'] { translate: none; }
+  .nd-persona-choice:active { scale: none; }
 }

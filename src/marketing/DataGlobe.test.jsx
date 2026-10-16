@@ -90,7 +90,11 @@ describe('globe position and sizes', () => {
     expect(column).toContain('max-width: calc(min(756px, 100svh - 144px) * 1.05);');
     expect(column).toContain('justify-self: center;');
     expect(column).not.toContain('margin-inline: auto');
-    expect(home).toMatch(/@media \(max-width: 650px\) \{[^@]*\n {2}\.nd-globe-column \{ max-width: none; \}/);
+    // F212 (reference v5 layouts): the 5% stays on each layout's globe size; from 1101 px a height cap keeps
+    // the coverage box in view.
+    expect(home).toMatch(/@media \(min-width: 1101px\) \{[^@]*\n {2}\.nd-globe-column \{[^}]*width: min\(105%, calc\(100svh - 245px\)\);/);
+    expect(home).toMatch(/@media \(min-width: 701px\) and \(max-width: 1100px\) \{[^@]*\.nd-globe-column \{ grid-column: 1; width: 105%; max-width: calc\(650px \* 1\.05\); \}/);
+    expect(home).toMatch(/@media \(max-width: 700px\) \{[^@]*\.nd-globe-column \{ width: 105%; max-width: calc\(520px \* 1\.05\); \}/);
   });
 
   it('makes the sign-in globe 10% and the sign-up globe 5% smaller in every layout, and leaves Pricing unscaled', () => {

@@ -79,6 +79,49 @@ export const PERSONAS = [
   },
 ];
 
+/**
+ * F212 (owner 2026-10-16): the homepage hero's persona column and popover, in the words of the client's
+ * reference (NTER-Final-Developer-Kit top section v5), keyed by our persona ids in PERSONAS order.
+ */
+export const PERSONA_PERSPECTIVES = {
+  policy: {
+    name: 'Policy Analysts',
+    tagline: 'Policy into perspective',
+    description: 'Put legislation and implementation in the same frame.',
+    points: ['Bill passage & committee stages', 'Cabinet and PIB decisions'],
+  },
+  journalist: {
+    name: 'Journalists',
+    tagline: 'Follow the public record',
+    description: 'Follow a claim back to the public record, with its source in view.',
+    points: ['Statement and wire registers', 'Connected records across desks'],
+  },
+  student: {
+    name: 'UPSC Aspirants',
+    tagline: 'Connect your current affairs',
+    description: 'Connect polity and current affairs through the underlying records.',
+    points: ['National and Law desk coverage', 'Questions and parliamentary bills'],
+  },
+  analyst: {
+    name: 'Corporate Affairs',
+    tagline: 'See the regulatory picture',
+    description: 'Bring regulatory and legislative context into your next briefing.',
+    points: ['Regulatory body watch', 'Economic and sector signals'],
+  },
+  lawyer: {
+    name: 'Legal Researchers',
+    tagline: 'Find the source behind a case',
+    description: 'See judgments, statutes and parliamentary records side by side.',
+    points: ['Supreme Court and High Court orders', 'Source-linked legal registers'],
+  },
+  academic: {
+    name: 'Academics',
+    tagline: 'Research across time',
+    description: 'Trace institutions and public decisions across time.',
+    points: ['Longitudinal public records', 'Archive depth and labelled sources'],
+  },
+};
+
 export const PERSONA_FOLLOWUPS = [
   {
     id: 'focus',

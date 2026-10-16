@@ -5,24 +5,12 @@ import BillAiDropDemo from './BillAiDropDemo.jsx';
 import SegmentCarousel from './SegmentCarousel.jsx';
 import NterLatestRail from './NterLatestRail.jsx';
 import DataGlobe from './DataGlobe.jsx';
+import HeroPersonas from './HeroPersonas.jsx';
 import './homeHero.css';
 import { figure } from '../lib/siteFigures.js';
 import { stageBar } from '../lib/previewFigures.js';
 import PREVIEW from '../data/preview-figures.json';
 import { useSiteFigures } from './useSiteFigures.js';
-
-/**
- * F140: the design's "Curated for" strip: our six personas (src/lib/personas.js), in its order,
- * labels and icon tiles. Each opens that persona in the personas section.
- */
-const CURATED = [
-  { id: 'policy', lines: ['Policy', 'Analysts'], glyph: '⌑', tone: 'blue' },
-  { id: 'journalist', lines: ['Journalists'], glyph: '▤', tone: 'red' },
-  { id: 'student', lines: ['UPSC', 'Aspirants'], glyph: '▥', tone: 'sand' },
-  { id: 'analyst', lines: ['Corporate', 'Affairs'], glyph: '▥', tone: 'blue' },
-  { id: 'lawyer', lines: ['Legal', 'Researchers'], glyph: '§', tone: 'purple' },
-  { id: 'academic', lines: ['Academics'], glyph: '◎', tone: 'sand' },
-];
 
 function Ico({ d, size = 18, stroke = 'currentColor' }) {
   return (
@@ -254,6 +242,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
     const i = PERSONAS.findIndex((p) => p.id === id);
     if (i >= 0) setActivePersona(i);
     document.getElementById('personas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // F212: the hero popover's link closes as it is followed; focus moves on with the reader.
+    document.getElementById('mkt-personas-title')?.focus({ preventScroll: true });
   }
 
   function openWalkthrough() {
@@ -264,7 +254,8 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
 
   return (
     <>
-      {/* F140 (client design, owner 2026-10-13): the design's hero on white, our figures and links. */}
+      {/* F140 (client design, owner 2026-10-13): the design's hero on white, our figures and links.
+          F212 (reference v5, owner 2026-10-16): the persona column and the coverage box. */}
       <section className="nd-hero-shell">
         <div className="nd-hero nd-container" aria-labelledby="nd-hero-title">
           <div className="nd-hero-copy">
@@ -289,28 +280,23 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
             <button type="button" className="nd-coverage-link" onClick={onCoverage}>
               View data coverage <span aria-hidden="true">↓</span>
             </button>
-            <div className="nd-metrics" aria-label="Research coverage snapshot">
-              <div><strong>{figure(figures.bills)}</strong><span>Bills on record</span></div>
-              <div><strong>{figures.modules}</strong><span>Research modules</span></div>
-              <div><strong>{figures.endpoints}</strong><span>Source endpoints</span></div>
-            </div>
           </div>
           <div className="nd-globe-column">
             <DataGlobe onLogin={onLogin} />
           </div>
-        </div>
-      </section>
-
-      <section className="nd-curated" aria-labelledby="nd-curated-title">
-        <div className="nd-curated-bar nd-container">
-          <h2 id="nd-curated-title">CURATED<br /> FOR</h2>
-          <div className="nd-audience">
-            {CURATED.map((c) => (
-              <a key={c.id} href="#personas" onClick={(e) => { e.preventDefault(); openPersona(c.id); }}>
-                <span className={`nd-audience-icon ${c.tone}`} aria-hidden="true">{c.glyph}</span>
-                <span>{c.lines[0]}{c.lines[1] && <><br />{c.lines[1]}</>}</span>
-              </a>
-            ))}
+          <HeroPersonas onExplore={openPersona} />
+          {/* F212: the reference's coverage box, every figure from our own sources and no date line. */}
+          <div className="nd-coverage-box" role="group" aria-labelledby="nd-coverage-title">
+            <p className="nd-coverage-heading" id="nd-coverage-title">THE RECORD, AT A GLANCE</p>
+            <div className="nd-coverage-grid">
+              <div><strong>{figure(figures.bills)}</strong><span>Bills on record</span></div>
+              <div><strong>{figures.modules}</strong><span>Research modules</span></div>
+              <div><strong>{figures.endpoints}</strong><span>Source endpoints</span></div>
+              <div><strong>{figures.desks}</strong><span>Intelligence desks</span></div>
+              <div><strong>{figure(figures.ministries)}</strong><span>Ministries</span></div>
+              <div><strong>{PREVIEW.bills.houses}</strong><span>Houses covered</span></div>
+              <div><strong>{PREVIEW.bills.seriesStart}</strong><span>Coverage since</span></div>
+            </div>
           </div>
         </div>
       </section>
@@ -602,7 +588,7 @@ export default function HomePage({ onLogin, onCoverage, onPricing }) {
           <div className="mkt-personas-head">
             <div className="mkt-personas-lead">
               <p className="mkt-personas-kicker">Built for the way you work</p>
-              <h2 id="mkt-personas-title">
+              <h2 id="mkt-personas-title" tabIndex={-1}>
                 Six ways into the <em>same record.</em>
               </h2>
               <p className="mkt-personas-lede">
