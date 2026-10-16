@@ -548,12 +548,15 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F214. Homepage globe 5% larger; the brief animation every time.** Owner 2026-10-16, UI only.
+- [x] **F214. Homepage globe 5% larger; the brief animation every time.** Done 2026-10-17 (`27d4bbf`,
+  `30ebebb`, `157d689`; owner: "push merge clean"). CI passed on the first attempt (both jobs); Vercel
+  production READY on `157d689`. Live: the hero globe scene at scale 1.05 (683 -> 717 px at the pane's
+  width); the served terminal chunk carries the new brief card (reading fallback, no plain skeleton).
+  A signed-in record check on production is still to do. Owner 2026-10-16, UI only.
   The hero globe scene, labels included, scaled 5% from 701 px up (phones keep their size: the globe
   already spans the screen and 5% more pushed its labels past the edge). The brief card plays the
   client's animation for 2.5 s with every record it opens, stored, new or seen this session, and
-  restarts it on a record switch; fetching is unchanged. On `task/F214-globe-and-brief-animation`.
-  Spec: `docs/specs/2026-10-16-globe-and-brief-animation.md`.
+  restarts it on a record switch; fetching is unchanged. Spec: `docs/specs/2026-10-16-globe-and-brief-animation.md`.
 - [x] **F213. The persona column's smallest text, a step larger.** Done 2026-10-16 (`8bb0ca9`; owner:
   "Push everything, deploy everything"). CI passed on the first attempt (run 38829697824, both jobs);
   Vercel production READY on `8bb0ca9`. Live check on the deployment: the persona column with subtitles
