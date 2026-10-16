@@ -97,6 +97,16 @@ describe('globe position and sizes', () => {
     expect(home).toMatch(/@media \(max-width: 700px\) \{[^@]*\.nd-globe-column \{ width: 105%; max-width: calc\(520px \* 1\.05\); \}/);
   });
 
+  // F214 (owner 2026-10-16): the homepage globe and its labels 5% larger again. A scale (not a wider box)
+  // grows the orbit labels' fixed-size text with the Earth and leaves the hero's layout, and so the
+  // coverage box below it, where it was. Phones keep their size: the globe already spans the screen, and
+  // 5% more put its labels 6 px past a 375 px screen's edge.
+  it('scales the homepage globe scene, labels included, 5% from 701 px up', () => {
+    expect(block(home, '\n.nd-globe-column .nter-globe-scene {')).toContain('scale: 1.05;');
+    expect(home).toMatch(/@media \(max-width: 700px\) \{[^@]*\.nd-globe-column \.nter-globe-scene \{ scale: none; \}/);
+    expect(home.match(/\.nter-globe-scene[^{]*\{[^}]*\bscale:/g)).toHaveLength(2);
+  });
+
   it('makes the sign-in globe 10% and the sign-up globe 5% smaller in every layout, and leaves Pricing unscaled', () => {
     expect(css).toContain('.mkt-login-earth-visual{--globe-scale:.9}\n.mkt-signup-illustration{--globe-scale:.95}');
     expect(css).toContain('.mkt-globe-slot>.nter-globe-scene{flex:none;width:calc(93.75% * var(--globe-scale, 1));');

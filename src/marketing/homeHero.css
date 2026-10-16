@@ -175,7 +175,9 @@
     radial-gradient(ellipse at 33% 31%, #c2353d52 0%, #c2353d1f 23%, transparent 57%);
   mask-image: radial-gradient(ellipse closest-side, #000 24%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.44) 63%, rgba(0, 0, 0, 0.1) 81%, transparent 100%);
 }
-.nd-globe-column .nter-globe-scene { max-width: none; }
+/* F214 (owner 2026-10-16): the globe and its labels 5% larger again. A scale grows the labels' fixed-size
+   text with the Earth and takes no extra room, so the coverage box stays where it was. */
+.nd-globe-column .nter-globe-scene { max-width: none; scale: 1.05; }
 .nd-globe-column nter-data-globe { margin-block: -28px; }
 
 /* —— Persona column (F212) —— */
@@ -571,6 +573,8 @@
   .nd-btn { min-height: 43px; padding: 12px 20px; gap: 20px; font-size: 12px; }
   .nd-coverage-link { margin-top: 16px; font-size: 11px; }
   .nd-globe-column { width: 105%; max-width: calc(520px * 1.05); }
+  /* F214: the phone globe already spans the screen; 5% more would push its labels off the edge. */
+  .nd-globe-column .nter-globe-scene { scale: none; }
   .nd-globe-column::before { inset: 0 -12%; }
   .nd-globe-column nter-data-globe { margin-block: 0; }
   .nd-persona-column {
