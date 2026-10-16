@@ -14,7 +14,7 @@
 - An agent takes an unblocked item, follows `AGENTS.md`, and works on a
   `task/<id>-<slug>` branch. When it lands, the item moves to **Done** with
   its commit hash.
-- A new finding gets the next free `F` number (F213 is next) and goes in the
+- A new finding gets the next free `F` number (F214 is next) and goes in the
   right section.
 
 ## Current state — 2026-10-13 (night, milestone check)
@@ -548,6 +548,11 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
+- [ ] **F213. The persona column's smallest text, a step larger.** Owner 2026-10-16 ("make it a bit
+  larger"), on `task/F213-persona-text-size`. Card subtitles and the hint 8.5/8 px → 10 px (10.5 px on
+  phones), the popover kicker 7 → 9 px, the column's overline and line and the coverage box heading one
+  step up. Colours unchanged. Checked: subtitles stay on one line from 1101 px, the box still fits at
+  1280 × 720, no sideways scroll at 375 px.
 - [x] **F212. Homepage hero: persona column and coverage box from the client reference.** Done 2026-10-16
   (`813f061`, owner: "Push, merge, and tidy up"). Live: production serves the `05cc82d` build, whose entry
   bundle holds the persona column, the reference's wording and the coverage box. The "Curated for" strip
@@ -574,6 +579,8 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
     and TOKEN_REFRESHED cases (server called 3 times, not 2); attempt 2 failed "changing the model and
     reasoning after an answer…" with `SyntaxError: "undefined" is not valid JSON`. The file passed 5 of 5
     locally on the same commit.
+  - Also failed locally (SIGNED_IN and TOKEN_REFRESHED cases) in a full `npm test` on 2026-10-16 during
+    F213, then passed 3 of 3 run alone: it is load-sensitive, not CI-only.
 - [x] **F209. The record brief shows "writing" only while it is written.** Done 2026-10-16 (`078100c`;
   desk-brief deployed first, then Vercel; CI green). Owner 2026-10-16 ("go"),
   before the client's new writing animation. Measured: stored reads took 1.1-2.5 s and showed the

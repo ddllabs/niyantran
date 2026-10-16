@@ -115,3 +115,23 @@ describe('persona popover focus (F212)', () => {
     expect(home).toMatch(/getElementById\('mkt-personas-title'\)\?\.focus\(\{ preventScroll: true \}\)/);
   });
 });
+
+// F213 (owner 2026-10-16, "make it a bit larger"): the reference's smallest persona text (7-8.5 px) was
+// hard to read. No persona-column or coverage-box text rule is now below 9 px at any width.
+describe('persona and coverage text size (F213)', () => {
+  const css = readFileSync(new URL('./homeHero.css', import.meta.url), 'utf8');
+  const sizes = (selector) => [...css.matchAll(new RegExp(`${selector.replace(/[.*]/g, '\\$&')}[^{]*\\{[^}]*?font-size: ([\\d.]+)px`, 'g'))].map((m) => Number(m[1]));
+
+  it('keeps every persona and coverage label at 9 px or more', () => {
+    for (const selector of ['.nd-persona-choice small', '.nd-persona-hint', '.nd-persona-popover-kicker', '.nd-persona-overline', '.nd-coverage-heading']) {
+      const found = sizes(selector);
+      expect(found.length, selector).toBeGreaterThan(0);
+      for (const px of found) expect(px, selector).toBeGreaterThanOrEqual(9);
+    }
+  });
+
+  it('sets the card subtitles and the hint at 10 px from tablet width up', () => {
+    expect(css).toMatch(/\.nd-persona-choice small \{[^}]*font-size: 10px;/);
+    expect(css).toMatch(/\.nd-persona-hint \{[^}]*font-size: 10px;/);
+  });
+});

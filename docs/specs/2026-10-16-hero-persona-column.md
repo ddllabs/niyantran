@@ -64,5 +64,7 @@ after the pointer leaves, the leave timer is cancelled by focus and click, focus
 (3:1 on white), card hover applies only on devices that hover, the shell keeps `overflow: hidden`
 before `clip` for Safari before 16, and a pinned popover on a phone scrolls into view.
 
-Raised for the owner, not changed: the reference's smallest text (8 px hint, 8.5 px subtitles in light
-grey) is below the 4.5:1 contrast for body text.
+Raised for the owner: the reference's smallest text (8 px hint, 8.5 px subtitles in light grey) is below
+the 4.5:1 contrast for body text. F213 (owner 2026-10-16, "make it a bit larger"): subtitles and hint
+10 px (10.5 px on phones), the popover kicker 9 px, nothing in the column or box below 9 px; colours
+unchanged.
