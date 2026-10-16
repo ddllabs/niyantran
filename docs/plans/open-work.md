@@ -548,14 +548,17 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   filter matched `/assets/` on any host. The images are absolute `https://nter.news/assets/uploads/…`
   URLs in the snapshot, the API and the page (`server/nterNews.mjs` makes ingested paths absolute),
   and they load from nter.news (200). Nothing under `public/data` needs changing.
-- [ ] **F212. Homepage hero: persona column and coverage box from the client reference.** Owner
-  2026-10-16, committed on `task/F212-hero-persona-column` (`813f061`), not yet merged or live. The "Curated for" strip
+- [x] **F212. Homepage hero: persona column and coverage box from the client reference.** Done 2026-10-16
+  (`813f061`, owner: "Push, merge, and tidy up"). Live: production serves the `05cc82d` build, whose entry
+  bundle holds the persona column, the reference's wording and the coverage box. The "Curated for" strip
   became the hero's third column: six cards with the reference's names and subtitles; hovering or
   focusing a card previews a popover with the reference's text, a click keeps it open, and "Explore this
-  perspective" opens that persona in the personas section. The three figures under the copy became a
-  seven-figure coverage box, every figure from our own sources (desks: 8, as on pricing), with no date
-  line. Header, copy, globe and lower sections unchanged; the reference's Replay button and
-  auto-preview left out. Spec: `docs/specs/2026-10-16-hero-persona-column.md`.
+  perspective" opens that persona in the personas section (keyboard reachable after the review fixes).
+  The three figures under the copy became a seven-figure coverage box, every figure from our own sources
+  (desks: 8, as on pricing), with no date line. Header, copy, globe and lower sections unchanged; the
+  reference's Replay button and auto-preview left out. Raised, not changed: the reference's 8 px hint and
+  8.5 px light-grey subtitles are below 4.5:1 contrast (owner's call). Spec:
+  `docs/specs/2026-10-16-hero-persona-column.md`.
 - [x] **F211. The client's record animation plays while a brief is written.** Done 2026-10-16 (`14e323f`;
   owner: "push"). Live check: a bill with no stored brief showed the skeleton, then the animation, then
   its brief at 4.7 s. Owner 2026-10-16. The
@@ -567,6 +570,10 @@ Recorded 2026-10-14. Agents do not sign in to production, so these close on the 
   for the same account while a send is checked does not fail the send" saw the server called 3 times,
   not 2, on CI run 38818354932 (commit 56f42d2); it passed 6 of 6 locally and on the next CI run.
   A timing assumption under a busy runner; make the test wait on the send, not on time.
+  - Again on CI run 38828313006 (commit 05cc82d, no `src/ai` changes): attempt 1 failed the SIGNED_IN
+    and TOKEN_REFRESHED cases (server called 3 times, not 2); attempt 2 failed "changing the model and
+    reasoning after an answer…" with `SyntaxError: "undefined" is not valid JSON`. The file passed 5 of 5
+    locally on the same commit.
 - [x] **F209. The record brief shows "writing" only while it is written.** Done 2026-10-16 (`078100c`;
   desk-brief deployed first, then Vercel; CI green). Owner 2026-10-16 ("go"),
   before the client's new writing animation. Measured: stored reads took 1.1-2.5 s and showed the
